@@ -70,7 +70,7 @@ SELECT $1::text AS phase, $2::text AS current_round_id,
 	}
 	round := "round-1"
 	for _, phase := range phases {
-		before := phase.PrecedesRounds()
+		before := (phase == auditdomain.AuditPhasePreparing || phase == auditdomain.AuditPhaseInventory)
 		if !accepts(phase, nil, true) {
 			t.Errorf("audits_phase_shape rejects the Go phase %q", phase)
 		}
@@ -127,7 +127,7 @@ INSERT INTO audit_phase_probe VALUES ($1, 'owner', 'project', 'profile', '1', 's
 		return ""
 	}
 	for index, phase := range phases {
-		before := phase.PrecedesRounds()
+		before := (phase == auditdomain.AuditPhasePreparing || phase == auditdomain.AuditPhaseInventory)
 		id := "phase-probe-" + strconv.Itoa(index)
 		// A changed baseline is rejected once preparation began.
 		if message := update(id, phase, `baseline_snapshot = '{"schema":"changed"}'`); (message == "Audit preparation baseline is immutable") != before {

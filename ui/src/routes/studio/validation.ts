@@ -236,9 +236,11 @@ export function validateDraft(draft: Draft): Problem[] {
             "A server operation cannot select a planner, instructions, Workers or a shared session.",
           );
         if (
-          !["sitemap-openapi-join@1", "sitemap-apply-openapi@1"].includes(
-            textValue(record(stage.operation).ref),
-          )
+          ![
+            "sitemap-openapi-join@1",
+            "sitemap-apply-openapi@1",
+            "openapi-prepare-work@1",
+          ].includes(textValue(record(stage.operation).ref))
         )
           error(
             [...p, "operation", "ref"],

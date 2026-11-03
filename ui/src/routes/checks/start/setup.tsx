@@ -7,11 +7,7 @@ import { checkStateLabel } from "../../../app/vocabulary";
 import { Button, ButtonLink, Field, useShortcuts } from "../../../ui";
 import { AdvancedOptions } from "./advanced";
 import { ScopeCard } from "./scope";
-import {
-  compatibilityReasonText,
-  presentCheckType,
-  checkTypeIcon,
-} from "./check-types";
+import { presentCheckType, checkTypeIcon, scopeSummary } from "./check-types";
 import { TextAreaField, TextField } from "./fields";
 import { isLostResponse, type StartFailure } from "./launch";
 import { MaterialsCard } from "./materials";
@@ -121,7 +117,7 @@ function TypeSection({ model }: { model: StartCheck }) {
     <section className="start-type" aria-labelledby={headingId}>
       <div className="start-selection-head">
         <span className="start-selection-icon">
-          <Icon name={checkTypeIcon(profile)} size={20} />
+          <Icon name={checkTypeIcon()} size={20} />
         </span>
         <div className="start-selection-copy">
           <h2 id={headingId}>{selection.presentation.label}</h2>
@@ -138,8 +134,8 @@ function TypeSection({ model }: { model: StartCheck }) {
           retryPending={detail.isFetching}
         />
       ) : null}
-      {Object.values(profile.workflows ?? {}).some(
-        (binding) => binding.kind === "prepare",
+      {Object.values(profile.program?.workflows ?? {}).some(
+        (binding) => binding.outputs.work !== undefined,
       ) ? (
         <section
           className="start-preparation-plan"
@@ -165,19 +161,6 @@ function TypeSection({ model }: { model: StartCheck }) {
           </p>
         </section>
       ) : null}
-      {/* From the version itself: it does not depend on the materials. */}
-      {selection.profile.serverCompatible ? null : (
-        <div className="notice notice-error" role="note">
-          <strong>This check type can&apos;t run on this server.</strong>
-          <p>
-            {selection.profile.compatibilityReasons.length === 0
-              ? "The server gives no reason."
-              : `The server does not support ${selection.profile.compatibilityReasons
-                  .map(compatibilityReasonText)
-                  .join(", ")}.`}
-          </p>
-        </div>
-      )}
     </section>
   );
 }
@@ -519,14 +502,10 @@ export function SetupFooter({ model }: { model: StartCheck }) {
   const hint = pending ? undefined : model.startBlocker;
   const projectName = model.project?.name ?? "this project";
   const profile = model.exact ?? selection.profile;
-  const inline =
-    model.checklist?.mode === "write" ? model.checklist : undefined;
-  const selected =
-    model.slots.filter(
-      (slot) => slot.selected !== undefined && slot.name !== inline?.inputName,
-    ).length + (inline?.applied === undefined ? 0 : 1);
+  const selected = model.slots.filter(
+    (slot) => slot.selected !== undefined,
+  ).length;
   const ready = model.startBlocker === undefined;
-  const blocked = !profile.serverCompatible;
   return (
     <aside className="start-summary-card" aria-label="Your check">
       <h3>Your check</h3>
@@ -546,7 +525,7 @@ export function SetupFooter({ model }: { model: StartCheck }) {
         </div>
         <div>
           <dt>Scope</dt>
-          <dd>{model.materialScope.summary}</dd>
+          <dd>{scopeSummary(profile).size}</dd>
         </div>
         <div>
           <dt>Time limit</dt>
@@ -559,26 +538,11 @@ export function SetupFooter({ model }: { model: StartCheck }) {
           </dd>
         </div>
       </dl>
-      <div
-        className="start-readiness"
-        data-tone={blocked ? "blocked" : ready ? "ready" : "missing"}
-      >
-        <span>
-          {blocked
-            ? "Unavailable"
-            : ready
-              ? "Ready to start"
-              : inline?.empty
-                ? "Checklist draft"
-                : inline?.dirty
-                  ? "Unapplied changes"
-                  : "Review the setup"}
-        </span>
+      <div className="start-readiness" data-tone={ready ? "ready" : "missing"}>
+        <span>{ready ? "Ready to start" : "Review the setup"}</span>
         <p id={`${id}-hint`}>
-          {inline?.empty
-            ? "Write and apply your checklist to continue."
-            : (hint ??
-              "Required inputs are selected. The Server validates the exact materials at start.")}
+          {hint ??
+            "Required inputs are selected. The Server validates the exact materials at start."}
         </p>
       </div>
       <div className="start-actions">

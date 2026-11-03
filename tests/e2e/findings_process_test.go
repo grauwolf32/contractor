@@ -25,6 +25,8 @@ import (
 )
 
 type findingsHarness struct {
+	runtimeExtraArguments            []string
+	restartServer                    func()
 	ctx                              context.Context
 	server, runtimeProcess           *childProcess
 	gateway                          *domainGateway
@@ -116,15 +118,12 @@ func startConfiguredFindingsHarness(t *testing.T, stages []domainGatewayStage, c
 	if info, statErr := os.Stat(python); statErr != nil || info.IsDir() {
 		t.Fatalf("Python Runtime environment is missing at %s; run 'cd runtime && uv sync --locked'", python)
 	}
+	prepared := &findingsHarness{ctx: ctx, server: server, gateway: gateway, client: client, baseURL: publicBaseURL, databaseURL: isolateURL, configRoot: configRoot}
 	for _, prepare := range beforeRuntime {
-		prepare(&findingsHarness{ctx: ctx, server: server, gateway: gateway, client: client,
-			baseURL: publicBaseURL, databaseURL: isolateURL, configRoot: configRoot})
+		prepare(prepared)
 	}
 	workRoot := filepath.Join(temporaryRoot, "runtime-work")
-	runtimeProcess := startProcess(
-		t, "Python Runtime Agent", filepath.Join(repositoryRoot, "runtime"),
-		map[string]string{"PYTHONUNBUFFERED": "1"},
-		python, "-m", "contractor_runtime",
+	runtimeArguments := []string{"-m", "contractor_runtime",
 		"--control-plane-url", privateBaseURL,
 		"--advertised-control-url", runtimeBaseURL,
 		"--advertised-a2a-url", runtimeBaseURL,
@@ -137,7 +136,9 @@ func startConfiguredFindingsHarness(t *testing.T, stages []domainGatewayStage, c
 		"--workspace-work-root", filepath.Join(temporaryRoot, "workspace"),
 		"--request-timeout-seconds", "12",
 		"--shutdown-grace-seconds", "5",
-	)
+	}
+	runtimeArguments = append(runtimeArguments, prepared.runtimeExtraArguments...)
+	runtimeProcess := startProcess(t, "Python Runtime Agent", filepath.Join(repositoryRoot, "runtime"), map[string]string{"PYTHONUNBUFFERED": "1"}, python, runtimeArguments...)
 	controlClient := newMTLSClient(t, caPaths.Certificate, controlPlanePaths)
 	waitForHTTP(t, ctx, runtimeProcess, controlClient, runtimeBaseURL+"/healthz", http.StatusOK)
 	waitForProcessLog(t, ctx, runtimeProcess, "runtime agent registered")
@@ -149,7 +150,13 @@ func startConfiguredFindingsHarness(t *testing.T, stages []domainGatewayStage, c
 
 	gateway.releaseBlockedRequest()
 	return &findingsHarness{ctx: ctx, server: server, runtimeProcess: runtimeProcess,
-		gateway: gateway, client: client, baseURL: publicBaseURL, databaseURL: isolateURL, configRoot: configRoot}
+		gateway: gateway, client: client, baseURL: publicBaseURL, databaseURL: isolateURL, configRoot: configRoot,
+		restartServer: func() {
+			server.stop(t)
+			server = startServer()
+			waitForHTTP(t, ctx, server, client, publicBaseURL+"/readyz", http.StatusOK)
+		},
+	}
 }
 
 const findingsSource = `from fastapi import FastAPI
@@ -183,31 +190,22 @@ func TestFindingsProducerAndReaderAcrossProcesses(t *testing.T) {
 		"sources", "findings-source", "application/zip", auditProgramZip(t, map[string][]byte{"app.py": []byte(findingsSource)}))
 	openAPI := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID,
 		"openapi", "findings-openapi", "application/yaml", []byte(findingsOpenAPI))
-	audit := runAuditProgram(t, h.ctx, h.server, h.runtimeProcess, h.gateway, h.client,
-		h.baseURL, project.ProjectID, "openapi-operation-trace@1",
-		map[string]artifactRef{"source": source, "openapi": openAPI}, 1, 1, 0, "")
-	var items struct {
-		Items []auditProgramItem `json:"items"`
-	}
-	auditProgramGET(t, h.client, h.baseURL+"/v1/audits/"+audit.AuditID+"/items?limit=100", &items)
-	if len(items.Items) != 1 || len(items.Items[0].Attempts) != 1 {
-		t.Fatalf("Audit items = %+v", items)
-	}
-	runID := items.Items[0].Attempts[0].RunID
+	auditID, tasks := runCommonFindingAudit(t, h, project.ProjectID, map[string]artifactRef{"source": source, "openapi": openAPI}, 1)
+	runID := commonFindingTaskRun(t, h, auditID, tasks[1])
 	receipts := findingsReceipts(t, h, runID)
 	if len(receipts) != 1 {
 		t.Fatalf("producer receipts = %+v", receipts)
 	}
 	receipt := receipts[0]
-	if receipt.Origin.Audit == nil || receipt.Origin.Audit.AuditID != audit.AuditID ||
+	if receipt.Origin.Audit == nil || receipt.Origin.Audit.AuditID != auditID ||
 		receipt.Document.Hypothesis != "" || receipt.Document.Subject != nil || len(receipt.Evidence) != 1 {
 		t.Fatalf("generic direct finding origin/content = %+v", receipt)
 	}
 	assertFindingsResultReceipt(t, h, runID, receipt)
 	var before map[string]any
-	auditProgramGET(t, h.client, h.baseURL+"/v1/audits/"+audit.AuditID+"/findings?limit=100", &before)
+	auditProgramGET(t, h.client, h.baseURL+"/v1/audits/"+auditID+"/findings?limit=100", &before)
 	collection := publishFindingsCollection(t, h, "analysis-snapshot", []findingintake.CollectionSelection{{
-		Kind: "audit", ID: audit.AuditID, ReceiptIDs: []string{receipt.ReceiptID}, Findings: []findingintake.CollectionFindingSelection{},
+		Kind: "audit", ID: auditID, ReceiptIDs: []string{receipt.ReceiptID}, Findings: []findingintake.CollectionFindingSelection{},
 	}}, false)
 	raw, mime := download(t, h.client, h.baseURL+"/v1/artifacts/"+collection.Artifact.Ref.Namespace+"/"+
 		collection.Artifact.Ref.Name+"?revision="+url.QueryEscape(*collection.Artifact.Ref.Revision))
@@ -227,7 +225,7 @@ func TestFindingsProducerAndReaderAcrossProcesses(t *testing.T) {
 		t.Fatal("reader created proposals")
 	}
 	var after map[string]any
-	auditProgramGET(t, h.client, h.baseURL+"/v1/audits/"+audit.AuditID+"/findings?limit=100", &after)
+	auditProgramGET(t, h.client, h.baseURL+"/v1/audits/"+auditID+"/findings?limit=100", &after)
 	// asOf identifies each read snapshot; all other fields describe review state.
 	for _, snapshot := range []map[string]any{before, after} {
 		asOf, ok := snapshot["asOf"].(string)
@@ -286,10 +284,7 @@ func findingsProducerStage(name string) domainGatewayStage {
 					return nil, fmt.Errorf("identical finding retry changed receipt")
 				}
 			}
-			return map[string]any{"assessment": "supported", "summary": "Operation mapped to lookup; query concatenation proposal recorded.",
-				"completed": []string{"operation-resolution"}, "gaps": []string{},
-				"evidence":      []map[string]string{{"kind": "source", "summary": findingsEvidence}},
-				"proposal_keys": []string{fmt.Sprint(responses[0]["client_key"])}}, nil
+			return map[string]any{"rationale": "Operation mapped to lookup; query concatenation proposal recorded.", "tested_conditions": []string{"operation-resolution"}, "limitations": []string{"Source inferred; no live exploit executed"}, "evidence": []string{"evidence-000", "evidence-001"}}, nil
 		}),
 		finalGatewayStep("All assigned results recorded", nil),
 	}}
@@ -426,19 +421,36 @@ func findingsReceipts(t *testing.T, h *findingsHarness, runID string) []findingi
 
 func assertFindingsResultReceipt(t *testing.T, h *findingsHarness, runID string, receipt findingintake.Receipt) {
 	t.Helper()
-	payload, _ := download(t, h.client, h.baseURL+"/v1/runs/"+runID+"/outputs/result")
-	result, err := auditdomain.DecodeCheckResultPackage(payload)
-	if err != nil || len(result.Results.Results) != 1 {
-		t.Fatalf("canonical result: %+v %v", result, err)
+	if receipt.Origin.Audit == nil {
+		t.Fatal("missing Audit origin")
 	}
-	selections := result.Results.Results[0].Proposals
-	if len(selections) != 1 || selections[0].ClientKey != receipt.ClientKey ||
-		selections[0].InvocationID != receipt.Origin.InvocationID {
-		t.Fatalf("canonical result lost receipt correlation: %+v versus %+v", selections, receipt)
+	var page struct {
+		Items []basicTask `json:"items"`
 	}
-	if !reflect.DeepEqual(result.Results.Results[0].Coverage.Completed, []string{"operation-resolution"}) {
-		t.Fatal("finding emission changed operation-resolution coverage")
+	auditProgramGET(t, h.client, h.baseURL+"/v1/audits/"+receipt.Origin.Audit.AuditID+"/tasks?limit=128", &page)
+	var payload []byte
+	for _, task := range page.Items {
+		if task.Document.TaskID == receipt.Origin.Audit.TaskID {
+			payload = basicTaskArtifact(t, h, receipt.Origin.Audit.AuditID, task, "result")
+		}
 	}
+	var result struct {
+		Schema string `json:"schema"`
+		Items  []struct {
+			FindingReceipts  []string `json:"finding_receipts"`
+			TestedConditions []string `json:"tested_conditions"`
+			Origin           struct {
+				TaskID string `json:"task_id"`
+			} `json:"origin"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(payload, &result); err != nil || result.Schema != "contractor.audit.result.v1" || len(result.Items) != 1 {
+		t.Fatalf("canonical common result: %+v %v", result, err)
+	}
+	if !reflect.DeepEqual(result.Items[0].FindingReceipts, []string{receipt.ReceiptID}) || receipt.Origin.Audit == nil || result.Items[0].Origin.TaskID != receipt.Origin.Audit.TaskID || !reflect.DeepEqual(result.Items[0].TestedConditions, []string{"operation-resolution"}) {
+		t.Fatalf("result lost finding/Task correlation: %+v versus %+v", result, receipt)
+	}
+
 }
 
 func publishFindingsCollection(t *testing.T, h *findingsHarness, key string, sources []findingintake.CollectionSelection, replay bool) findingintake.PublishedCollection {
@@ -559,4 +571,35 @@ func ordinaryFindingsProducerStage(name string) domainGatewayStage {
 		finalGatewayStep("Ordinary finding recorded", map[string]domainArtifactBinding{"result": {namespace: "audit-check", name: "result"}}),
 	)
 	return stage
+}
+
+func runCommonFindingAudit(t *testing.T, h *findingsHarness, projectID string, inputs map[string]artifactRef, operations int) (string, []basicTask) {
+	t.Helper()
+	draft, _ := basicAuditRequest(t, h, http.MethodPost, "/v1/projects/"+projectID+"/audits", map[string]any{"profile": map[string]string{"name": "openapi-operation-trace", "version": "1"}, "inputs": inputs, "scope": map[string]string{"objective": "Trace exact operations and retain their independent finding sources"}}, "finding-draft", 0, http.StatusCreated)
+	id := draft["auditId"].(string)
+	basicAuditRequest(t, h, http.MethodPost, "/v1/audits/"+id+"/start", nil, "finding-start", uint64(draft["revision"].(float64)), http.StatusOK)
+	tasks := waitBasicTask(t, h, id, operations+1, "settled")
+	for _, task := range tasks {
+		if task.GapCode != nil || task.Result == nil {
+			t.Fatalf("finding task did not collect: %+v", task)
+		}
+	}
+	for basicAuditGet(t, h, id)["state"] != "completed" {
+		basicPoll(t, h)
+	}
+	return id, tasks
+}
+func commonFindingTaskRun(t *testing.T, h *findingsHarness, auditID string, task basicTask) string {
+	t.Helper()
+	var result struct {
+		Items []struct {
+			Origin struct {
+				RunID string `json:"run_id"`
+			} `json:"origin"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(basicTaskArtifact(t, h, auditID, task, "result"), &result); err != nil || len(result.Items) != 1 || result.Items[0].Origin.RunID == "" {
+		t.Fatalf("missing ordinary Run provenance: %+v %v", result, err)
+	}
+	return result.Items[0].Origin.RunID
 }

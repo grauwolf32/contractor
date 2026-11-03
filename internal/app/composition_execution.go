@@ -16,6 +16,7 @@ import (
 	plannermemory "github.com/grauwolf32/contractor/internal/memory"
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/operations"
+	"github.com/grauwolf32/contractor/internal/operations/openapiwork"
 	"github.com/grauwolf32/contractor/internal/operations/sitemapjoin"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannera2a "github.com/grauwolf32/contractor/internal/planner/a2a"
@@ -106,7 +107,7 @@ func configureExecutors(
 	if err != nil {
 		return executorServices{}, err
 	}
-	operationRegistry, err := operations.NewRegistry(sitemapjoin.NewJoin(projectsitemap.NewService(pool, storage)), sitemapjoin.NewApply(projectsitemap.NewService(pool, storage)))
+	operationRegistry, err := operations.NewRegistry(sitemapjoin.NewJoin(projectsitemap.NewService(pool, storage)), sitemapjoin.NewApply(projectsitemap.NewService(pool, storage)), openapiwork.New(pool, storage))
 	if err != nil {
 		return executorServices{}, err
 	}

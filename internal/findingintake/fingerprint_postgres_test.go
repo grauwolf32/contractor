@@ -147,11 +147,11 @@ func TestPostgresFindingFingerprintIntakeReplayAndRetention(t *testing.T) {
 		t.Fatalf("replay after source deletion=%+v %v %v", replay, ok, err)
 	}
 	for _, id := range []string{"fingerprint-audit-a", "fingerprint-audit-b"} {
-		retained, err := service.GetAuditReceipt(ctx, owner, id, first.ReceiptID)
+		retained, err := readOneAuditReceipt(t, service, ctx, owner, id, first.ReceiptID)
 		if err != nil || retained.Fingerprint.Value != first.Fingerprint.Value || retained.Retention != RetentionProjectHeld {
 			t.Fatalf("retained projection=%+v %v", retained, err)
 		}
-		if _, err := service.GetAuditReceipt(ctx, "foreign-owner", id, first.ReceiptID); !errors.Is(err, ErrNotFound) {
+		if _, err := readOneAuditReceipt(t, service, ctx, "foreign-owner", id, first.ReceiptID); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("owner isolation=%v", err)
 		}
 		audits := auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).WithPurgeDependencies(DeleteAuditHoldsBatch)

@@ -171,7 +171,7 @@ def test_shared_real_runtime_reports_counts_phases_and_no_fictitious_calls(tmp_p
                     raise ArtifactTransportError("private-transport-marker")
                 return ArtifactValue(
                     ref.model_copy(update={"revision": "conflicting-r1"}),
-                    "application/zip",
+                    "application/json",
                     b"different bytes",
                     datetime.now(UTC),
                     datetime.now(UTC),
@@ -223,7 +223,7 @@ def test_shared_real_runtime_reports_counts_phases_and_no_fictitious_calls(tmp_p
             )
             assert len(client.writes) == (2 if mode == "transport" else 1)
         text = report.model_dump_json(by_alias=True, exclude_none=True)
-        assert items[0].summary not in text and items[0].evidence[0].summary not in text
+        assert items[0].rationale not in text and items[0].evidence[0] not in text
         assert "itemKey" not in text and "acceptedCoverage" not in text
         assert "private-transport-marker" not in text
         # Report and live-state copies cannot mutate retained terminal facts.

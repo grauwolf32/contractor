@@ -236,14 +236,3 @@ func validateOpenAPISourceText(value, field string, required bool) error {
 	}
 	return nil
 }
-
-func copyStringMap(source map[string]string) map[string]string {
-	if len(source) == 0 {
-		return nil
-	}
-	result := make(map[string]string, len(source))
-	for key, value := range source {
-		result[key] = value
-	}
-	return result
-}

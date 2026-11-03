@@ -21,6 +21,7 @@ var auditColumnList = []string{
 	"retained_evidence_bytes",
 	"next_event_sequence - 1", "stop_reason_code", "stop_reason_message",
 	"created_at", "updated_at", "started_at", "finished_at", "deletion_requested_at", "paused_at", "phase",
+	"task_count", "task_iteration", "iteration_task_count", "initial_work_offset",
 }
 
 // executionColumnList is the ScanExecution order.
@@ -85,7 +86,11 @@ func qualifiedColumns(prefix string, columns []string) string {
 }
 
 func prefixedAuditColumns(prefix string) string {
-	return qualifiedColumns(prefix, auditColumnList)
+	// The sparse reconcile index bounds this existence probe independently of
+	// settled history. Keep it in the same snapshot for reads and mutations.
+	return qualifiedColumns(prefix, auditColumnList) + `, EXISTS (
+ SELECT 1 FROM audit_executions AS pending_collection
+ WHERE pending_collection.audit_id=` + prefix + `.audit_id AND pending_collection.state='collecting')`
 }
 
 // ExecutionColumns selects the execution columns of the table or alias
@@ -120,19 +125,6 @@ func collectionReceiptProjection(alias string) string {
 		projected[index] = alias + "." + column.source + " AS " + column.name
 	}
 	return strings.Join(projected, ", ")
-}
-
-// receiptSummaryColumns selects a collected AuditExecution's receipt in
-// scanReceiptSummary order, without its source output and retained
-// references.
-func receiptSummaryColumns(alias string) string {
-	sources := make([]string, 0, len(receiptColumnList))
-	for _, column := range receiptColumnList {
-		if !column.detail {
-			sources = append(sources, column.source)
-		}
-	}
-	return qualifiedColumns(alias, sources)
 }
 
 // withColumns lets the scan function of one entity's column list also read

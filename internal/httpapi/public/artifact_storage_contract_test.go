@@ -2,9 +2,10 @@ package public
 
 import (
 	"encoding/json"
+	"testing"
+
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
-	"testing"
 )
 
 func TestSharedArtifactStorageTimestamps(t *testing.T) {

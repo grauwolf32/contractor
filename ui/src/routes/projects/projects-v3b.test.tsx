@@ -1,14 +1,14 @@
+import { act, screen, waitFor, within } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 import {
   ARTIFACT_STORAGE_TIMESTAMPS,
   findingSummary,
 } from "../../test/builders";
 import { deferred } from "../../test/deferred";
 import { ownerListResponse } from "../../test/owner-lists";
-import { act, screen, waitFor, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
 
 import type { ArtifactMetadata } from "../../api/artifacts";
-import type { Audit, ProjectFinding, AuditProfile } from "../../api/audits";
+import type { Audit, AuditProfile, ProjectFinding } from "../../api/audits";
 import type { Project } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
 import type { RunSummary } from "../../api/runs";
@@ -17,8 +17,8 @@ import { createApplicationQueryClient } from "../../app/query-client";
 import { renderApplication } from "../../test/application";
 import { stageContract } from "../../test/builders-execution";
 import { fakeServer } from "../../test/fake-server";
-import { bytes, failure, json, page } from "../../test/responses";
 import { testAPI, testSession } from "../../test/render";
+import { bytes, failure, json, page } from "../../test/responses";
 import { auditFixture, projectFixture } from "../../test/shell-harness";
 import { makeFinding } from "../decisions/test-support";
 
@@ -84,33 +84,20 @@ function run(
 }
 
 const profileBase: Omit<AuditProfile, "ref" | "inputs"> = {
-  mode: "operation-tracing",
-  standards: [],
-  inventory: {
-    implementation: "openapi-operations@1",
-    source: { source: "audit-input", name: "openapi" },
-    itemWorkflowRole: "check",
+  limits: {
+    max_tasks: 10,
+    max_iterations: 1,
+    max_tasks_per_iteration: 10,
+    batch_size: 1,
+    max_submitted_runs: 30,
+    max_attempts: 3,
+    deadline_seconds: 600,
+    max_evidence_bytes: 1048576,
+    max_hypotheses: 128,
+    max_hypothesis_revisions: 10,
+    max_hypothesis_bytes: 32768,
   },
-  execution: {
-    roundMode: "fixed-barrier",
-    maxRounds: 1,
-    batchSize: 1,
-    maxItemsPerRound: 10,
-    maxItemsTotal: 10,
-    maxSubmittedRuns: 30,
-    maxItemRunAttempts: 3,
-    deadlineSeconds: 600,
-    maxEvidenceBytes: 1048576,
-    incompleteRound: "assess-with-gaps",
-  },
-  interaction: {
-    activeChecks: "prohibited",
-    notApplicable: "human-required",
-    reportAcceptance: "automatic",
-  },
-  serverCompatible: true,
-  requiresInputValidation: true,
-  compatibilityReasons: [],
+  policy: { active_operations: "prohibited" },
 };
 
 const workflow: WorkflowSummary = {
@@ -860,8 +847,8 @@ describe("Project overview", () => {
         ...profileBase,
         ref: { name: "openapi-operation-trace", version: "1", digest: DIGEST },
         inputs: {
-          openapi: { required: true, mediaTypes: ["application/yaml"] },
-          source: { required: true, mediaTypes: ["application/zip"] },
+          openapi: { required: true, media_types: ["application/yaml"] },
+          source: { required: true, media_types: ["application/zip"] },
         },
       },
       {
@@ -871,13 +858,15 @@ describe("Project overview", () => {
           version: "1",
           digest: DIGEST,
         },
-        inputs: { source: { required: true, mediaTypes: ["application/zip"] } },
-        interaction: { ...profileBase.interaction, activeChecks: "automatic" },
+        inputs: {
+          source: { required: true, media_types: ["application/zip"] },
+        },
+        policy: { active_operations: "allowed" },
       },
       {
         ...profileBase,
         ref: { name: "docs-review", version: "1", digest: DIGEST },
-        inputs: { docs: { required: true, mediaTypes: ["text/markdown"] } },
+        inputs: { docs: { required: true, media_types: ["text/markdown"] } },
       },
     ],
   };

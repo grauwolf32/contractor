@@ -6,7 +6,6 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
@@ -31,7 +30,7 @@ type capabilityIndex struct {
 }
 
 // capabilitiesReader retains only the latest immutable catalog's three light
-// binding indexes. Profile compatibility continues to use AuditService's rule.
+// binding indexes. The catalog strictly validates the common Program and its Workflow closure.
 // Building happens outside the lock; a page copies only its requested rows.
 type capabilitiesReader struct {
 	mu     sync.Mutex
@@ -89,13 +88,7 @@ func buildCapabilityIndexes(snapshot *config.Snapshot) (map[string]*capabilityIn
 		bindings = append(bindings, capabilityBinding{Kind: "workflow", Selector: workflow.Ref.Name + "@" + workflow.Ref.Version, Available: true})
 	}
 	for _, profile := range snapshot.AuditProfiles() {
-		compatible := auditservice.ProfileCompatibility(profile).ServerCompatible
-		var reason *string
-		if !compatible {
-			message := "This AuditProfile requires unsupported Server capabilities."
-			reason = &message
-		}
-		bindings = append(bindings, capabilityBinding{Kind: "audit", Selector: profile.Ref.Name + "@" + profile.Ref.Version, Available: compatible, Reason: reason})
+		bindings = append(bindings, capabilityBinding{Kind: "audit", Selector: profile.Ref.Name + "@" + profile.Ref.Version, Available: true})
 	}
 	sort.Slice(bindings, func(i, j int) bool {
 		return bindings[i].Kind+":"+bindings[i].Selector < bindings[j].Kind+":"+bindings[j].Selector

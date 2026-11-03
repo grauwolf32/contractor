@@ -23,11 +23,11 @@ func TestAuditCompletionPostgresOrdinaryOmissionAndSpoofedAuthority(t *testing.T
 	}
 	loaded, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).GetRun(ctx, run.RunID)
 	if err != nil || loaded.AuditCompletion != nil {
-		t.Fatal("legacy omission changed on recovery", err)
+		t.Fatal("ordinary omission changed on recovery", err)
 	}
-	task, manifest := "task-r1", "manifest-r1"
+	task := "context-r1"
 	completion := AuditCompletionSnapshot{Stage: "check", Agent: "checker", Contract: contracts.WorkerCompletionContract{
-		Kind: contracts.AuditCheckResultsV1, Task: contracts.ArtifactRef{Namespace: "inputs", Name: "task", Revision: &task}, ExecutionManifest: contracts.ArtifactRef{Namespace: "inputs", Name: "manifest", Revision: &manifest}, ResultArtifact: contracts.ArtifactRef{Namespace: "check", Name: "result"}}}
+		Kind: contracts.AuditCheckResultsV1, Context: contracts.ArtifactRef{Namespace: "inputs", Name: "context", Revision: &task}, ResultArtifact: contracts.ArtifactRef{Namespace: "check", Name: "result"}}}
 	if err := runs.SetAuditCompletion(ctx, run.RunID, completion); !errors.Is(err, ErrConflict) {
 		t.Fatal("ordinary Run gained authority", err)
 	}

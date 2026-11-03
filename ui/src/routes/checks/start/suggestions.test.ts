@@ -1,104 +1,44 @@
 import { describe, expect, it } from "vitest";
-
 import { suggestCheckTypes } from "./suggestions";
-
 const everything = () => true;
-const only =
-  (...names: string[]) =>
-  (name: string) =>
-    names.includes(name);
-
-describe("check type suggestions", () => {
-  it("suggests nothing for a blank objective", () => {
-    expect(suggestCheckTypes("   ", everything)).toEqual({});
-  });
-
-  it("maps words in the objective to a ready check type", () => {
-    const result = suggestCheckTypes(
-      "Check the shop and mechanic APIs for authorization flaws",
-      everything,
-    );
-    expect(result.suggestion?.checkType).toBe("openapi-operation-trace");
-    expect(result.suggestion?.ruleId).toBe("api-access");
-    // "flaws" also matches the broad rule, which becomes the alternative.
-    expect(result.alternative?.checkType).toBe("owasp-top10-2025-source-risk");
-  });
-
-  it("never suggests a check type the project's materials cannot start", () => {
-    const result = suggestCheckTypes(
-      "Find IDOR in the API",
-      only("owasp-top10-2025-source-risk"),
-    );
-    expect(result.suggestion).toBeUndefined();
+describe("published common check type suggestions", () => {
+  it("suggests nothing for blank or unsupported objectives", () => {
+    expect(suggestCheckTypes(" ", everything)).toEqual({});
     expect(
-      suggestCheckTypes(
-        "Find IDOR in the API",
-        only("openapi-operation-observe"),
-      ).suggestion?.checkType,
-    ).toBe("openapi-operation-observe");
+      suggestCheckTypes("verify ASVS LEVEL 1", everything).suggestion,
+    ).toBeUndefined();
   });
-
-  it("matches whole words only, in any case", () => {
+  it("matches whole API words and readiness", () => {
     expect(
       suggestCheckTypes("Rapid review of capital letters", everything)
         .suggestion,
     ).toBeUndefined();
     expect(
-      suggestCheckTypes("verify ASVS LEVEL 1", everything).suggestion
-        ?.checkType,
-    ).toBe("owasp-asvs-5-0-l1-source-review");
-  });
-
-  it("orders specific rules before broad ones", () => {
-    expect(
-      suggestCheckTypes("SQL injection on the staging website", everything)
-        .suggestion?.checkType,
-    ).toBe("openapi-sqlmap-scan");
-    expect(
       suggestCheckTypes(
-        "SQL injection on the staging website",
-        (name) => name !== "openapi-sqlmap-scan",
+        "Trace API endpoints",
+        (name) => name === "openapi-operation-observe",
       ).suggestion?.checkType,
-    ).toBe("owasp-wstg-4-2-active-http");
+    ).toBe("openapi-operation-observe");
+    expect(
+      suggestCheckTypes("Trace API endpoints", () => false).suggestion,
+    ).toBeUndefined();
   });
-
-  it("gives the rule's fixed reason and says only that formats match", () => {
-    expect(suggestCheckTypes("security risks", everything).suggestion).toEqual({
-      checkType: "owasp-top10-2025-source-risk",
-      ruleId: "security-risks",
-      reason:
-        "Your objective mentions security risks, vulnerabilities or OWASP, and this check type reviews the source code for the OWASP Top 10 (2025) risks. Your project has a material whose format matches each input it needs.",
-    });
-    // One objective per rule: every reason names the words it matched and
-    // claims no more than a format match.
-    const objectives = [
-      "sqlmap",
-      "nuclei",
-      "checklist",
-      "asvs",
-      "staging",
-      "wstg",
-      "endpoints",
-      "owasp",
-    ];
-    const rules = new Set<string>();
-    for (const objective of objectives) {
-      const suggestion = suggestCheckTypes(objective, everything).suggestion;
-      rules.add(suggestion?.ruleId ?? "");
-      expect(suggestion?.reason).toMatch(
+  it("orders specific scanner work and offers another ready common program", () => {
+    const result = suggestCheckTypes(
+      "SQL injection in API endpoints",
+      everything,
+    );
+    expect(result.suggestion?.checkType).toBe("openapi-sqlmap-scan");
+    expect(result.alternative?.checkType).toBe("openapi-operation-trace");
+  });
+  it.each(["sqlmap", "nuclei", "endpoints"])(
+    "explains only the matching rule and material formats: %s",
+    (objective) => {
+      expect(
+        suggestCheckTypes(objective, everything).suggestion?.reason,
+      ).toMatch(
         /^Your objective mentions .+ Your project has a material whose format matches each input it needs\.$/u,
       );
-      expect(suggestion?.reason).not.toMatch(/\b(?:proven|certif|guarantee)/i);
-    }
-    expect(rules.size).toBe(objectives.length);
-  });
-
-  it("offers an alternative from a different check type only", () => {
-    const result = suggestCheckTypes(
-      "API endpoints",
-      only("openapi-operation-trace"),
-    );
-    expect(result.suggestion?.checkType).toBe("openapi-operation-trace");
-    expect(result.alternative).toBeUndefined();
-  });
+    },
+  );
 });

@@ -50,6 +50,10 @@ DELETE FROM audit_review_requests AS target USING batch WHERE target.ctid = batc
   SELECT ctid FROM audit_execution_items WHERE audit_id = $1 LIMIT $2
 )
 DELETE FROM audit_execution_items AS target USING batch WHERE target.ctid = batch.ctid`,
+	`WITH batch AS (
+  SELECT ctid FROM audit_tasks WHERE audit_id = $1 ORDER BY ordinal LIMIT $2
+)
+DELETE FROM audit_tasks AS target USING batch WHERE target.ctid = batch.ctid`,
 	purgeAuditItemsSQL,
 	`WITH batch AS (
   SELECT ctid FROM audit_executions WHERE audit_id = $1 LIMIT $2

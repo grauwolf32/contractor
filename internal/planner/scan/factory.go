@@ -34,7 +34,7 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 	if err := resolved.ValidateScanPlanStage(invocation.Stage); err != nil {
 		return nil, err
 	}
-	if invocation.Stage.AuditScan != nil {
+	if invocation.Stage.ScanPreparation != nil {
 		if _, ok := f.sessions.(planner.AuditScanHistoryReader); !ok {
 			return nil, fmt.Errorf("Audit scan requires durable attempt history")
 		}

@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strings"
 	"testing"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	contractscan "github.com/grauwolf32/contractor/internal/contracts/scan"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/scanplan"
@@ -51,7 +51,7 @@ func newAuditFactoryHarness(t *testing.T, scanner string) (*factoryHarness, *aud
 	if err != nil {
 		t.Fatal(err)
 	}
-	h.invocation.Stage = workflow.Stages[workflow.AuditTask.Stage]
+	h.invocation.Stage = workflow.Stages[workflow.EntryStage]
 	h.invocation.Context.Artifacts = map[string]*contracts.ArtifactRef{}
 	h.invocation.Workers = map[string]contracts.WorkerHandle{}
 	for name, binding := range h.invocation.Stage.Agents {
@@ -84,40 +84,18 @@ func newAuditFactoryHarness(t *testing.T, scanner string) (*factoryHarness, *aud
 	} else {
 		source, settings = read("openapi.json"), read(scanner+"-settings.json")
 	}
-	sourceRef, settingsRef := factoryExactRef("project", "api-document"), factoryExactRef("project", "scan-options")
-	builder := auditdomain.BuildOpenAPIScanInventory
-	if scanner == "web" {
-		builder = auditdomain.BuildWebScanInventory
-	}
-	inventory, err := builder(source, auditdomain.JSONMediaType, settings,
-		auditdomain.ExactInput{Name: "scan_options", Ref: settingsRef, Digest: "sha256:" + stableHash(string(settings))},
-		auditdomain.InventoryOptions{Round: 1, WorkflowRole: "check", SourceInputName: "api_document", SourceRef: sourceRef, ApprovalRequirement: auditdomain.ApprovalActiveCheck})
-	if err != nil {
-		t.Fatal(err)
-	}
-	manifest := inventory.ExecutionManifest
-	taskRef := factoryExactRef("project", "assigned-task")
-	manifest.Items[0].TaskRef = &taskRef
-	// Real dispatch rewrites input names to Workflow aliases. A surrounding
-	// Stage may consume another immutable input that the scan never receives.
-	manifest.Items[0].Inputs = []auditdomain.ExactInput{
-		{Name: "notes", Ref: factoryExactRef("project", "notes"), Digest: "sha256:" + stableHash("operator notes")},
-		{Name: sourceSlot, Ref: sourceRef, Digest: inventory.Tasks[0].Document.SourceContentDigest},
-		{Name: "settings", Ref: settingsRef, Digest: inventory.Tasks[0].Document.Scan.Settings.Digest},
-	}
-	sort.Slice(manifest.Items[0].Inputs, func(i, j int) bool { return manifest.Items[0].Inputs[i].Name < manifest.Items[0].Inputs[j].Name })
-	manifestBytes, err := auditdomain.EncodeExecutionManifest(manifest)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for slot, payload := range map[string]artifacts.Payload{
-		sourceSlot:           {MediaType: auditdomain.JSONMediaType, Data: source},
-		"settings":           {MediaType: auditdomain.JSONMediaType, Data: settings},
-		"task":               {MediaType: auditdomain.PackageMediaType, Data: inventory.Tasks[0].Package},
-		"execution_manifest": {MediaType: auditdomain.JSONMediaType, Data: manifestBytes},
-	} {
-		ref := h.artifacts.put(contracts.ArtifactRef{Namespace: "inputs", Name: slot}, payload)
+	material := func(slot string, data []byte) auditcontract.Material {
+		ref := h.artifacts.put(contracts.ArtifactRef{Namespace: "inputs", Name: slot}, artifacts.Payload{MediaType: auditdomain.JSONMediaType, Data: data})
 		h.invocation.Context.Artifacts[slot] = &ref
+		return auditcontract.Material{ScopeKind: "run", ScopeID: h.invocation.RunID, Ref: ref, Digest: auditdomain.DigestBytes(data), MediaType: auditdomain.JSONMediaType, SizeBytes: int64(len(data))}
+	}
+	sourceMaterial, settingsMaterial := material(sourceSlot, source), material("settings", settings)
+	if scanner != "web" {
+		prepared, err := auditdomain.BuildPreparedOpenAPIWork(t.Context(), auditdomain.PreparedOpenAPIInput{Source: sourceMaterial, Data: source, Settings: &settingsMaterial, SettingsData: settings, Options: auditcontract.OpenAPIWorkArguments{Workflow: "scan", Selection: "scan-requests", MaxItems: 16}})
+		if err != nil || len(prepared.Items) != 1 {
+			t.Fatalf("ordinary preparation: %+v %v", prepared, err)
+		}
+		material("operation", prepared.Items[0].Data)
 	}
 	if scanner == "web" {
 		h.invocation.Context.Artifacts["rulepack"] = nil
@@ -131,14 +109,30 @@ func newAuditFactoryHarness(t *testing.T, scanner string) (*factoryHarness, *aud
 	return h, history
 }
 
-func auditFactoryResult(t *testing.T, h *factoryHarness, result stageresult.StageContentResult) auditdomain.CheckResultPackage {
+type scanFixtureReport struct {
+	Schema             string   `json:"schema"`
+	ExecutionCompleted bool     `json:"execution_completed"`
+	Limitations        []string `json:"limitations"`
+	Artifacts          []struct {
+		Kind   string `json:"kind"`
+		Digest string `json:"digest"`
+		Data   []byte `json:"data_base64"`
+	} `json:"artifacts"`
+}
+
+func auditFactoryResult(t *testing.T, h *factoryHarness, result stageresult.StageContentResult) scanFixtureReport {
 	t.Helper()
 	payload := h.artifacts.payload(result.Artifacts["report"])
-	pkg, err := auditdomain.DecodeCheckResultPackage(payload.Data)
-	if err != nil || payload.MediaType != auditdomain.PackageMediaType {
-		t.Fatalf("result package: %v", err)
+	var report scanFixtureReport
+	if err := json.Unmarshal(payload.Data, &report); err != nil || payload.MediaType != "application/json" || report.Schema != "contractor.scan.operation-report.v1" {
+		t.Fatalf("ordinary report: %+v %v", payload, err)
 	}
-	return pkg
+	for _, artifact := range report.Artifacts {
+		if auditdomain.DigestBytes(artifact.Data) != artifact.Digest {
+			t.Fatal("embedded evidence bytes differ")
+		}
+	}
+	return report
 }
 
 func TestAuditExecutorRetainsAssignedRequestAndURL(t *testing.T) {
@@ -147,12 +141,12 @@ func TestAuditExecutorRetainsAssignedRequestAndURL(t *testing.T) {
 			h, _ := newAuditFactoryHarness(t, scanner)
 			result := h.run(t)
 			pkg := auditFactoryResult(t, h, result)
-			check := pkg.Results.Results[0]
-			if result.Outcome != stageresult.StageSucceeded || len(h.invoker.calls) != 1 || check.Assessment != "inconclusive" || len(check.Coverage.Completed) != 1 {
+			check := pkg
+			if result.Outcome != stageresult.StageSucceeded || len(h.invoker.calls) != 1 || !check.ExecutionCompleted {
 				t.Fatalf("scan outcome: %+v, coverage: %+v, calls: %d", result, check, len(h.invoker.calls))
 			}
 			foundReport := false
-			for _, evidence := range pkg.Evidence.Evidence {
+			for _, evidence := range pkg.Artifacts {
 				foundReport = foundReport || evidence.Kind == "scanner-report"
 			}
 			if !foundReport {
@@ -171,7 +165,7 @@ func TestAuditExecutorRetainsAssignedRequestAndURL(t *testing.T) {
 					t.Fatal("authentication lost")
 				}
 			} else {
-				if call.Parameters["target"] != "http://127.0.0.1:8080/api/pets/7?search=Milo" || !slices.Contains(check.Coverage.Gaps, "url_template_scan_only") {
+				if call.Parameters["target"] != "http://127.0.0.1:8080/api/pets/7?search=Milo" || !slices.Contains(check.Limitations, "url_template_scan_only") {
 					t.Fatalf("fixed URL or limits lost: %+v %+v", call, check)
 				}
 				plan, err := scanplan.DecodePlan(h.artifacts.payload(*h.sessions.state.Plan).Data)
@@ -215,7 +209,7 @@ func TestAuditExecutorRetryUsesOutcomeInsteadOfStageIdentity(t *testing.T) {
 				t.Fatalf("scanner calls = %d, want %d", len(h.invoker.calls), wantCalls)
 			}
 			if outcome == "unknown" || outcome == "lost-journal-write" {
-				if len(pkg.Results.Results[0].Coverage.Completed) != 0 || !slices.Contains(pkg.Results.Results[0].Coverage.Gaps, "scan_outcome_unknown") {
+				if pkg.ExecutionCompleted || !slices.Contains(pkg.Limitations, "scan_outcome_unknown") {
 					t.Fatal("unknown action treated as a completed check")
 				}
 			}
@@ -224,7 +218,7 @@ func TestAuditExecutorRetryUsesOutcomeInsteadOfStageIdentity(t *testing.T) {
 }
 
 func TestAuditExecutorRejectsChangedPinnedBytesAndUnavailableHistory(t *testing.T) {
-	for _, fault := range []string{"openapi", "settings", "execution_manifest", "history"} {
+	for _, fault := range []string{"openapi", "settings", "operation", "history"} {
 		t.Run(fault, func(t *testing.T) {
 			h, history := newAuditFactoryHarness(t, "sqlmap")
 			if fault == "history" {
@@ -232,8 +226,8 @@ func TestAuditExecutorRejectsChangedPinnedBytesAndUnavailableHistory(t *testing.
 			} else {
 				key := factoryRefKey(*h.invocation.Context.Artifacts[fault])
 				payload := h.artifacts.values[key]
-				if fault == "execution_manifest" {
-					payload.Data = []byte(strings.ReplaceAll(string(payload.Data), `"name":"settings"`, `"name":"substituted"`))
+				if fault == "operation" {
+					payload.Data = []byte(strings.ReplaceAll(string(payload.Data), `"schema":"contractor.audit.openapi-work-item.v1"`, `"schema":"invalid"`))
 				} else {
 					payload.Data = append(payload.Data, ' ')
 				}

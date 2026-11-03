@@ -3,12 +3,13 @@ package cli
 import (
 	"context"
 	"encoding/json"
-	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
-	"github.com/grauwolf32/contractor/internal/publicclient"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
+	"github.com/grauwolf32/contractor/internal/publicclient"
 )
 
 func TestSharedArtifactStorageTimestampsCLI(t *testing.T) {

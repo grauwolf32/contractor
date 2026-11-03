@@ -96,8 +96,8 @@ func TestPostgresAuditResultReadLockTimeoutRetainsCompletedScan(t *testing.T) {
 	h.sessions.state, h.sessions.completion = planner.ScanState{}, nil
 	result := h.run(t)
 	pkg := auditFactoryResult(t, h, result)
-	if len(h.invoker.calls) != 1 || retainedReads != 3 || len(pkg.Results.Results[0].Coverage.Completed) != 1 {
-		t.Fatalf("retry lost evidence or rescanned: calls=%d, retained reads=%d, result=%+v", len(h.invoker.calls), retainedReads, pkg.Results)
+	if len(h.invoker.calls) != 1 || retainedReads != 3 || !pkg.ExecutionCompleted {
+		t.Fatalf("retry lost evidence or rescanned: calls=%d, retained reads=%d, result=%+v", len(h.invoker.calls), retainedReads, pkg)
 	}
 }
 

@@ -1,12 +1,9 @@
 package scan
 
 import (
-	"encoding/json"
-	"sort"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/scanplan"
 )
@@ -15,19 +12,7 @@ func pinWebRulepack(t *testing.T, h *factoryHarness) {
 	t.Helper()
 	ref := h.artifacts.put(contracts.ArtifactRef{Namespace: "inputs", Name: "rulepack"}, artifacts.Payload{MediaType: "application/yaml", Data: []byte("id: fixture-rule\n")})
 	h.invocation.Context.Artifacts["rulepack"] = &ref
-	manifestRef := h.invocation.Context.Artifacts["execution_manifest"]
-	var manifest auditdomain.ExecutionManifest
-	if err := json.Unmarshal(h.artifacts.payload(*manifestRef).Data, &manifest); err != nil {
-		t.Fatal(err)
-	}
-	manifest.Items[0].Inputs = append(manifest.Items[0].Inputs, auditdomain.ExactInput{Name: "rulepack", Ref: ref, Digest: auditdomain.DigestBytes([]byte("id: fixture-rule\n"))})
-	sort.Slice(manifest.Items[0].Inputs, func(i, j int) bool { return manifest.Items[0].Inputs[i].Name < manifest.Items[0].Inputs[j].Name })
-	data, err := auditdomain.EncodeExecutionManifest(manifest)
-	if err != nil {
-		t.Fatal(err)
-	}
-	updated := h.artifacts.put(contracts.ArtifactRef{Namespace: "inputs", Name: "execution_manifest"}, artifacts.Payload{MediaType: "application/json", Data: data})
-	h.invocation.Context.Artifacts["execution_manifest"] = &updated
+
 }
 
 func TestWebAuditExecutorRetainsInstalledAndCustomRules(t *testing.T) {
@@ -54,28 +39,28 @@ func TestWebAuditExecutorRetainsInstalledAndCustomRules(t *testing.T) {
 				t.Fatalf("retained plan: %v", err)
 			}
 			pkg := auditFactoryResult(t, h, result)
-			if pkg.Results.Results[0].Assessment != "inconclusive" {
-				t.Fatal("scanner completion claimed a security verdict")
+			if !pkg.ExecutionCompleted {
+				t.Fatal("completed scanner lost execution status")
 			}
 		})
 	}
 }
 
-func TestWebAuditRejectsMissingOrChangedCustomRulesBeforeTraffic(t *testing.T) {
-	for _, mode := range []string{"missing", "changed"} {
-		t.Run(mode, func(t *testing.T) {
-			h, _ := newAuditFactoryHarness(t, "web")
-			pinWebRulepack(t, h)
-			if mode == "missing" {
-				h.invocation.Context.Artifacts["rulepack"] = nil
-			} else {
-				ref := h.artifacts.put(contracts.ArtifactRef{Namespace: "inputs", Name: "rulepack"}, artifacts.Payload{MediaType: "application/yaml", Data: []byte("id: different-rule\n")})
-				h.invocation.Context.Artifacts["rulepack"] = &ref
-			}
-			_, err := h.instance(t).Run(t.Context())
-			if err == nil || len(h.invoker.calls) != 0 {
-				t.Fatal("a custom-rule mismatch caused scanner traffic or installed-rule fallback")
-			}
-		})
+// A completed session replays its original result before mutable source reads.
+// Replacing current context cannot repeat scanner traffic or change that result.
+func TestWebAuditCompletedReplayKeepsOriginalRuleResult(t *testing.T) {
+	h, _ := newAuditFactoryHarness(t, "web")
+	pinWebRulepack(t, h)
+	h.invoker.observation = map[string]any{"status": "failed", "exitCode": 1}
+	first, err := h.instance(t).Run(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Same Stage session recovery uses the immutable plan and its input bindings.
+	ref := h.artifacts.put(contracts.ArtifactRef{Namespace: "inputs", Name: "rulepack"}, artifacts.Payload{MediaType: "application/yaml", Data: []byte("id: another-rule\n")})
+	h.invocation.Context.Artifacts["rulepack"] = &ref
+	replay, err := h.instance(t).Run(t.Context())
+	if err != nil || len(h.invoker.calls) != 1 || !first.Artifacts["report"].SameExact(replay.Artifacts["report"]) {
+		t.Fatalf("completed receipt replay changed or retried traffic: error=%v calls=%d", err, len(h.invoker.calls))
 	}
 }

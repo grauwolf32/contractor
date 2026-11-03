@@ -6,19 +6,23 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
-
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -116,12 +120,12 @@ func TestPostgresFindingSubmissionKeepsProvenanceLookupFailure(t *testing.T) {
 	}
 }
 
-// auditSubmissionGrant creates runID as an Audit-managed check Run bound to a
-// one-item Audit execution, with a running StageExecution whose builder
+// auditSubmissionGrant creates runID as an ordinary Audit-managed Run bound to a
+// single accepted common Task, with a running StageExecution whose builder
 // selects the finding tool, and returns the builder's allocation grant and the
 // Audit origin intake must record for it.
 func auditSubmissionGrant(
-	t *testing.T, ctx context.Context, pool *pgxpool.Pool, ownerID, projectID, runID string,
+	t *testing.T, ctx context.Context, pool *pgxpool.Pool, ownerID, projectID, runID string, memberCounts ...int,
 ) (controlplane.AllocationGrant, *AuditOrigin) {
 	t.Helper()
 	snapshot, _, err := configload.LoadUnionReadOnly("../config/testdata/valid", filepath.Join(t.TempDir(), "managed"))
@@ -140,6 +144,13 @@ func auditSubmissionGrant(
 	})
 	stage.Agents["builder"] = binding
 	workflow.Stages[workflow.EntryStage] = stage
+	count := 1
+	if len(memberCounts) > 0 {
+		count = memberCounts[0]
+	}
+	if count > 1 {
+		workflow.Inputs["context"] = resolved.ArtifactSlot{Required: true, MediaTypes: []string{"application/json"}}
+	}
 	workflowJSON, err := json.Marshal(workflow)
 	if err != nil {
 		t.Fatal(err)
@@ -150,70 +161,87 @@ func auditSubmissionGrant(
 	}
 
 	digest := func(value string) string { return auditdomain.DigestBytes([]byte(runID + "-" + value)) }
-	exact := func(name string) auditstore.ExactArtifact {
-		revision := name + "-r1"
-		return auditstore.ExactArtifact{
-			Ref:    contracts.ArtifactRef{Namespace: "audit-test", Name: name, Revision: &revision},
-			Digest: digest(name),
-		}
+	data, err := os.ReadFile("../config/testdata/audit-common-catalog/audit-profiles/common_tasks.yaml")
+	if err != nil {
+		t.Fatal(err)
 	}
+	var fixture struct{ Spec json.RawMessage }
+	if err := json.Unmarshal(data, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	program, err := auditcontract.DecodeProgram(fixture.Spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count > 1 {
+		binding := program.Workflows["inspect"]
+		binding.Inputs["context"] = auditcontract.InputMapping{Source: "task-context"}
+		program.Workflows["inspect"] = binding
+	}
+	programBytes, _ := json.Marshal(program)
+	profile, err := auditprofile.PinProgram(resolved.Selector{ID: "submission", Version: "1"}, programBytes, func(ref string) (resolved.ResolvedWorkflow, error) { return workflow, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	pin, _ := json.Marshal(profile)
+	limits := profile.Program.Limits
 	audits := auditstoretest.NewStore(pool, artifactpgtest.NewStorage())
 	audit, _, err := audits.CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: runID + "-audit", OwnerID: ownerID, ProjectID: projectID,
-		Profile: auditstore.ProfileIdentity{Name: "profile", Version: "1", Digest: digest("profile")},
-		ProfileSnapshot: json.RawMessage(
-			`{"interaction":{},"workflows":{"check":{"kind":"check"}}}`,
-		),
-		InputSelection: json.RawMessage(`{}`),
-		Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 1, MaxItemsTotal: 1,
-			MaxSubmittedRuns: 1, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20},
+		Profile: auditstore.ProfileIdentity{Name: profile.Ref.Name, Version: profile.Ref.Version, Digest: profile.Ref.Digest}, ProfileSnapshot: pin, InputSelection: json.RawMessage(`{}`),
+		Limits:         auditstore.Limits{MaxRounds: limits.MaxIterations, BatchSize: limits.BatchSize, MaxItemsPerRound: limits.MaxTasksPerIteration, MaxItemsTotal: limits.MaxTasks, MaxSubmittedRuns: limits.MaxSubmittedRuns, MaxItemRunAttempts: limits.MaxAttempts, MaxEvidenceBytes: limits.MaxEvidenceBytes},
 		IdempotencyKey: runID + "-audit", RequestDigest: digest("audit"),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	manifest, task := exact("manifest"), exact("task")
-	roundID, itemID := runID+"-round", runID+"-item"
-	if _, _, err := audits.MaterializeRound(ctx, auditstore.MaterializeRoundParams{
-		OwnerID: ownerID, AuditID: audit.AuditID, ExpectedRevision: audit.Revision,
-		RoundID: roundID, RoundOrdinal: 1, Manifest: manifest,
-		BaselineSnapshot: json.RawMessage(`{"baseline":"test"}`), DeadlineAt: time.Now().Add(time.Hour),
-		Items: []auditstore.MaterializedItem{{
-			ItemID: itemID, ItemKey: "check", Ordinal: 0, Kind: "test", SubjectKey: "subject",
-			Task: task, WorkflowRole: "check", InitialState: auditstore.ItemReady,
-			Origin: auditstore.ItemOrigin{
-				Schema: auditstore.ItemOriginSchema, SourceRef: &task.Ref,
-				SourceContentDigest: digest("source"), SourceMediaType: "application/json",
-				CanonicalInventoryDigest: digest("inventory"), EntryKey: "check",
-			},
-			Coverage: auditstore.Coverage{
-				Status: auditstore.CoverageNotTested, Requested: []string{}, Completed: []string{}, Gaps: []string{},
-			},
-		}},
-		IdempotencyKey: runID + "-start", RequestDigest: digest("start"),
-	}); err != nil {
+	artifactService := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
+	projectArtifacts, _ := artifactService.Project(projectID)
+	source, err := projectArtifacts.Write(ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "source"}, artifacts.Payload{MediaType: "text/plain", Data: []byte("selected source")}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sourceScope, _ := artifacts.ProjectScope(projectID)
+	targetScope, _ := artifacts.AuditScope(audit.AuditID)
+	retained, err := artifactService.Fork(ctx, artifacts.Fork{Kind: artifacts.LineageAuditInput, Source: sourceScope, SourceRef: source.Ref, Target: targetScope, TargetRef: contracts.ArtifactRef{Namespace: "inputs", Name: "selected"}, Frozen: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	metadata, err := artifactpgtest.NewStorage().Repository(pool).Metadata(ctx, targetScope, retained.TargetRef)
+	if err != nil {
+		t.Fatal(err)
+	}
+	baseline, _ := json.Marshal(map[string]any{"schema": "contractor.audit.baseline.v1", "inputs": map[string]auditstore.ExactArtifact{"source": {Ref: source.Ref, Digest: metadata.Digest, MediaType: metadata.MediaType, SizeBytes: metadata.Size}}, "skills": []any{}})
+	audit, _, err = audits.Activate(ctx, auditstore.ActivateParams{OwnerID: ownerID, AuditID: audit.AuditID, ExpectedRevision: audit.Revision, BaselineSnapshot: baseline, DeadlineAt: time.Now().Add(time.Hour), IdempotencyKey: runID + "-start", RequestDigest: digest("start")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	material := auditcontract.Material{ScopeKind: "audit", ScopeID: audit.AuditID, Ref: metadata.Ref, Digest: metadata.Digest, MediaType: metadata.MediaType, SizeBytes: metadata.Size}
+	taskID := runID + "-task"
+	taskIDs := []string{}
+	tasks := []auditstore.AcceptedTask{}
+	for index := range count {
+		id := taskID
+		if index > 0 {
+			id = fmt.Sprintf("%s-%d", taskID, index)
+		}
+		task := auditcontract.Task{Schema: auditcontract.TaskSchema, AuditID: audit.AuditID, TaskID: id, Workflow: "inspect", Inputs: map[string]auditcontract.Material{"source": material}, Parameters: map[string]string{}, Objective: "Inspect selected source"}
+		if index > 0 {
+			task.Hypothesis = &auditcontract.HypothesisRef{ID: "system-selected-hypothesis", Revision: 7}
+		}
+		taskIDs = append(taskIDs, id)
+		tasks = append(tasks, auditstore.AcceptedTask{Document: task, Source: auditstore.TaskSource{Kind: "manual", Key: id}})
+	}
+	_, _, err = audits.AcceptTasks(ctx, auditstore.AcceptTasksParams{OwnerID: ownerID, AuditID: audit.AuditID, ExpectedRevision: audit.Revision, IdempotencyKey: "accept", RequestDigest: digest("accept"), Tasks: tasks})
+	if err != nil {
 		t.Fatal(err)
 	}
 	claims, err := audits.Claim(ctx, auditstore.ClaimParams{HolderID: runID + "-controller", Lease: time.Minute, Limit: 1})
 	if err != nil || len(claims) != 1 {
-		t.Fatalf("claim Audit = (%+v, %v)", claims, err)
+		t.Fatalf("claim: %+v %v", claims, err)
 	}
 	claim := claims[0]
-	if _, err := audits.TransitionRound(ctx, auditstore.RoundTransitionParams{
-		Claim: claim, RoundID: roundID, ExpectedRevision: 1,
-		ExpectedState: auditstore.RoundAccepted, TargetState: auditstore.RoundExecuting,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	execution, _, err := audits.CreateExecutionIntent(ctx, auditstore.CreateExecutionIntentParams{
-		Claim: claim, ExecutionID: runID + "-execution", RoundID: &roundID,
-		Role: auditstore.ExecutionCheck, WorkflowRole: "check", LaneClass: resolved.LaneClassModel, Manifest: manifest,
-		SubmissionKey: runID + "-submission", RequestDigest: digest("execution"),
-		Members: []auditstore.ExecutionMemberIntent{{
-			ExecutionItemID: runID + "-member", ItemID: itemID, BatchOrdinal: 0, ItemAttempt: 1,
-			Task: task, Inputs: []auditstore.ExactArtifact{},
-		}},
-	})
+	execution, _, err := audits.SelectTasks(ctx, auditstore.SelectTasksParams{Claim: claim, TaskIDs: taskIDs})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -281,6 +309,70 @@ func auditSubmissionGrant(
 			RuntimeInstanceID: "audit-instance", RunID: runID, StageExecutionID: stageID,
 			LogicalAgentName: "builder", Namespace: binding.Namespace,
 		}, &AuditOrigin{
-			AuditID: audit.AuditID, ExecutionID: execution.ExecutionID, Role: string(auditstore.ExecutionCheck),
+			AuditID: audit.AuditID, ExecutionID: execution.ExecutionID, TaskID: taskID,
 		}
+}
+
+func TestPostgresFindingBatchTaskOriginAndBoundedResultReferences(t *testing.T) {
+	ctx := t.Context()
+	pool := isolatedFindingPool(t, ctx)
+	const owner, project, run = "batch-owner", "batch-project", "batch-run"
+	if _, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{ProjectID: project, OwnerID: owner, Kind: projectstore.KindProject, Name: "Batch origins", IdempotencyKey: "project", RequestDigest: auditdomain.DigestBytes([]byte("project"))}); err != nil {
+		t.Fatal(err)
+	}
+	grant, firstOrigin := auditSubmissionGrant(t, ctx, pool, owner, project, run, 2)
+	service, err := New(pool, artifactpgtest.NewStorage())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"", "item-63"} {
+		input := testSubmission("denied-invocation", "denied", []contracts.ArtifactRef{})
+		if key != "" {
+			input.ItemKey = &key
+		}
+		if _, _, err := service.Submit(ctx, grant, input); !errors.Is(err, ErrAccessDenied) {
+			t.Fatalf("unattributable batch key %q: %v", key, err)
+		}
+	}
+	requests := []ImportRequest{}
+	var selected Receipt
+	for index := range auditcontract.MaxFindingReferences + 2 {
+		key := auditcontract.ExecutionItemKey(0)
+		if index == auditcontract.MaxFindingReferences+1 {
+			key = auditcontract.ExecutionItemKey(1)
+		}
+		input := testSubmission(fmt.Sprintf("invocation-%03d", index), fmt.Sprintf("candidate-%03d", index), []contracts.ArtifactRef{})
+		input.ItemKey = &key
+		receipt, replayed, err := service.Submit(ctx, grant, input)
+		if err != nil || replayed || receipt.Origin.Audit == nil {
+			t.Fatalf("submit %d: %+v %v %v", index, receipt, replayed, err)
+		}
+		if key == "item-00" {
+			if receipt.Origin.Audit.TaskID != firstOrigin.TaskID || receipt.Origin.Audit.Hypothesis != nil {
+				t.Fatalf("first Task origin: %+v", receipt.Origin.Audit)
+			}
+		} else {
+			selected = receipt
+			if receipt.Origin.Audit.TaskID != run+"-task-1" || receipt.Origin.Audit.Hypothesis == nil || receipt.Origin.Audit.Hypothesis.ID != "system-selected-hypothesis" || receipt.Origin.Audit.Hypothesis.Revision != 7 {
+				t.Fatalf("selected Task hypothesis origin: %+v", receipt.Origin.Audit)
+			}
+		}
+		requests = append(requests, ImportRequest{OwnerID: owner, AuditID: firstOrigin.AuditID, RunID: run, Proposal: receipt.Proposal.Ref})
+	}
+	if err := service.RetainAuditCollectionBatch(ctx, requests); err != nil {
+		t.Fatal(err)
+	}
+	references, err := service.AuditExecutionReceiptReferences(ctx, owner, firstOrigin.AuditID, firstOrigin.ExecutionID, run)
+	if err != nil || len(references) != 2 {
+		t.Fatalf("source association: %+v %v", references, err)
+	}
+	first := references[firstOrigin.TaskID]
+	second := references[run+"-task-1"]
+	if len(first.IDs) != auditcontract.MaxFindingReferences || !first.Truncated || len(second.IDs) != 1 || second.IDs[0] != selected.ReceiptID || second.Truncated {
+		t.Fatalf("bounded per-Task references: %+v", references)
+	}
+	source, err := service.GetProjectReceipt(ctx, owner, project, selected.ReceiptID)
+	if err != nil || source.Origin.Audit == nil || source.Origin.Audit.TaskID != selected.Origin.Audit.TaskID || source.Origin.Audit.Hypothesis == nil || *source.Origin.Audit.Hypothesis != *selected.Origin.Audit.Hypothesis {
+		t.Fatalf("retained source origin: %+v %v", source.Origin, err)
+	}
 }

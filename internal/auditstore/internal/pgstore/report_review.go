@@ -5,60 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
-
-// ProposeReport freezes exact report links and opens the existing review
-// ledger instead of publishing them. It is replay-safe across Controller
-// crashes and leaves the Audit without a runnable claim while a person reads
-// the immutable candidate.
-func (s *ClaimStore) ProposeReport(
-	ctx context.Context, params auditstore.ProposeReportParams,
-) (auditstore.Audit, bool, error) {
-	if err := validateCommitReport(auditstore.CommitReportParams(params)); err != nil {
-		return auditstore.Audit{}, false, err
-	}
-	machine, err := json.Marshal(params.Machine)
-	if err != nil {
-		return auditstore.Audit{}, false, err
-	}
-	summary, err := json.Marshal(params.Summary)
-	if err != nil {
-		return auditstore.Audit{}, false, err
-	}
-	reviewID := "review-report-" + strings.TrimPrefix(params.RequestDigest, "sha256:")
-	audit, err := scanAudit(persistencepostgres.SavepointQueryRow(ctx, s.db, proposeReportSQL+prefixedAuditColumns("changed")+` FROM changed`,
-		params.Claim.AuditID, params.Claim.HolderID, params.Claim.Epoch,
-		params.ExpectedAuditRevision, params.RoundID, params.ExpectedRoundRevision,
-		reviewID, params.RequestDigest, machine, summary, params.ExpectedProjectRevision,
-	))
-	if err == nil {
-		return audit, true, nil
-	}
-	if !errors.Is(err, pgx.ErrNoRows) && persistencepostgres.Classify(err) != persistencepostgres.ClassDuplicate {
-		return auditstore.Audit{}, false, fmt.Errorf("propose Audit report: %w", err)
-	}
-	candidate, replayErr := s.getReportCandidate(ctx, params.Claim.AuditID)
-	if replayErr == nil {
-		if candidate.SubjectRevision != params.ExpectedAuditRevision || candidate.SubjectDigest != params.RequestDigest {
-			return auditstore.Audit{}, false, auditstore.ErrConflict
-		}
-		existing, getErr := s.getAuditTrusted(ctx, params.Claim.AuditID)
-		return existing, false, getErr
-	} else if !errors.Is(replayErr, auditstore.ErrNotFound) {
-		return auditstore.Audit{}, false, replayErr
-	}
-	if live, liveErr := s.claimLive(ctx, params.Claim); liveErr != nil {
-		return auditstore.Audit{}, false, liveErr
-	} else if !live {
-		return auditstore.Audit{}, false, auditstore.ErrClaimLost
-	}
-	return auditstore.Audit{}, false, auditstore.ErrPrecondition
-}
 
 func (s *store) getReportCandidate(
 	ctx context.Context, auditID string,
@@ -91,38 +41,6 @@ SELECT request_id, report_round_id, subject_revision, subject_digest,
 	}
 	result.SubjectRevision = uint64(revision)
 	return result, nil
-}
-
-// ExpireReportReview deterministically closes an Audit whose immutable report
-// candidate was not accepted within its bounded review window. The Controller
-// calls it only under a live claim; the SQL rechecks database time so process
-// clock skew cannot expire human authority early.
-func (s *ClaimStore) ExpireReportReview(
-	ctx context.Context, claim auditstore.ControllerClaim, expectedAuditRevision uint64,
-) (bool, error) {
-	if err := validateClaimIdentity(claim); err != nil || expectedAuditRevision == 0 {
-		if err != nil {
-			return false, err
-		}
-		return false, auditstore.ErrInvalid
-	}
-	var changed bool
-	err := s.db.QueryRow(ctx, expireReportReviewSQL, claim.AuditID, claim.HolderID,
-		claim.Epoch, int64(expectedAuditRevision)).Scan(&changed)
-	if err != nil {
-		return false, fmt.Errorf("expire Audit report review: %w", err)
-	}
-	if changed {
-		return true, nil
-	}
-	live, err := s.claimLive(ctx, claim)
-	if err != nil {
-		return false, err
-	}
-	if !live {
-		return false, auditstore.ErrClaimLost
-	}
-	return false, nil
 }
 
 // AcceptReportCandidate publishes the exact links of the frozen report

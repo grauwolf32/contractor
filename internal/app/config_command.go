@@ -29,7 +29,7 @@ func runConfigCLI(args []string, logger *slog.Logger) error {
 	flags := flag.NewFlagSet("contractor-server config validate", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	flags.StringVar(&auditDocument, "audit-document", "", "strict Audit JSON document to validate offline against the loaded catalog")
-	flags.StringVar(&auditContext, "audit-context", "", "exact trusted context for offline conclusion/result validation")
+	flags.StringVar(&auditContext, "audit-context", "", "exact trusted context for offline result, proposal and prepared-work validation")
 	flags.StringVar(&root, "root", root, "configuration root")
 	flags.StringVar(&managedRoot, "managed-root", managedRoot, "managed configuration root (default: sibling managed-configs)")
 	if err := parseCommandFlags(flags, args[1:]); err != nil {
@@ -42,11 +42,8 @@ func runConfigCLI(args []string, logger *slog.Logger) error {
 	if managedRoot == "" {
 		managedRoot = defaultManagedConfigRoot(root)
 	}
-	snapshot, bundles, err := configload.LoadUnionReadOnly(root, managedRoot)
+	snapshot, _, err := configload.LoadUnionReadOnly(root, managedRoot)
 	if err != nil {
-		return fmt.Errorf("validate configuration: %w", err)
-	}
-	if err := validateBundledCatalogStandards(bundles.Standards, snapshot); err != nil {
 		return fmt.Errorf("validate configuration: %w", err)
 	}
 	if auditContext != "" && auditDocument == "" {
@@ -72,7 +69,15 @@ func runConfigCLI(args []string, logger *slog.Logger) error {
 		if err := strictjson.Decode(canonical, &document); err != nil {
 			return err
 		}
-		if document["schema"] == "contractor.audit.program.v1" {
+		if document["schema"] == auditcontract.PreparedWorkSchema {
+			if err := contractorconfig.ValidatePreparedWork(snapshot, canonical, context); err != nil {
+				return err
+			}
+		} else if document["schema"] == auditcontract.TaskSchema {
+			if _, err := auditcontract.DecodeTask(canonical); err != nil {
+				return err
+			}
+		} else if document["schema"] == "contractor.audit.program.v1" {
 			if err := contractorconfig.ValidateAuditProgram(snapshot, canonical); err != nil {
 				return err
 			}

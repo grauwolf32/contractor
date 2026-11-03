@@ -51,23 +51,16 @@ func TestPostgresSameReceiptImportsIntoIndependentAudits(t *testing.T) {
 		t.Fatal(err)
 	}
 	for auditID, hold := range holds {
-		receipt, err := f.intake.GetAuditReceipt(f.ctx, f.request.OwnerID, auditID, f.receiptID)
+		receipt, err := readOneAuditReceipt(t, f.intake, f.ctx, f.request.OwnerID, auditID, f.receiptID)
 		if err != nil || !receipt.Origin.RunDeleted || receipt.Retention != RetentionProjectHeld {
 			t.Fatalf("retained receipt in %s after source deletion: %+v, %v", auditID, receipt, err)
-		}
-		batch, err := f.intake.GetAuditReceipts(f.ctx, f.request.OwnerID, auditID, []string{f.receiptID})
-		if err != nil || len(batch) != 1 {
-			t.Fatalf("retained receipt page in %s after source deletion: %+v, %v", auditID, batch, err)
 		}
 		inbox, err := f.intake.ListAuditInbox(f.ctx, f.request.OwnerID, auditID, ListQuery{Limit: 10})
 		if err != nil || len(inbox) != 1 || inbox[0].ReceiptID != f.receiptID {
 			t.Fatalf("Audit inbox of %s after source deletion: %+v, %v", auditID, inbox, err)
 		}
-		if !reflect.DeepEqual(receipt, batch[0]) {
-			t.Fatalf("single and batch reads through %s differ: %+v != %+v", auditID, receipt, batch[0])
-		}
 		// Each Audit sees, and reads the proposal through, only its own copy.
-		for _, read := range []Receipt{receipt, batch[0], inbox[0]} {
+		for _, read := range []Receipt{receipt, inbox[0]} {
 			if len(read.AuditHolds) != 1 || read.AuditHolds[0].AuditID != auditID ||
 				!read.AuditHolds[0].Proposal.Ref.SameExact(hold.Proposal.Ref) {
 				t.Fatalf("receipt holds read through %s = %+v", auditID, read.AuditHolds)
@@ -92,7 +85,7 @@ func TestPostgresSameReceiptImportsIntoIndependentAudits(t *testing.T) {
 	if err := audits.PurgeClaimed(f.ctx, claims[0], auditdomain.ArtifactNamespace(first.AuditID)); err != nil {
 		t.Fatal(err)
 	}
-	receipt, err := f.intake.GetAuditReceipt(f.ctx, f.request.OwnerID, secondAudit, f.receiptID)
+	receipt, err := readOneAuditReceipt(t, f.intake, f.ctx, f.request.OwnerID, secondAudit, f.receiptID)
 	if err != nil || receipt.Retention != RetentionProjectHeld || len(receipt.AuditHolds) != 1 || receipt.AuditHolds[0].AuditID != secondAudit {
 		t.Fatalf("surviving Audit lost its receipt after other purge: %+v %v", receipt, err)
 	}
@@ -145,12 +138,10 @@ INSERT INTO finding_proposal_audit_holds (receipt_id, audit_id, project_id, prop
 VALUES ($1, $2, 'delete-project', $3::jsonb, '[]'::jsonb)`, f.receiptID, otherAudit, proposal); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.intake.GetAuditReceipt(f.ctx, f.request.OwnerID, otherAudit, f.receiptID); !errors.Is(err, ErrNotFound) {
+	if _, err := readOneAuditReceipt(t, f.intake, f.ctx, f.request.OwnerID, otherAudit, f.receiptID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("receipt read through a foreign-Project hold = %v", err)
 	}
-	if _, err := f.intake.GetAuditReceipts(f.ctx, f.request.OwnerID, otherAudit, []string{f.receiptID}); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("receipt page read through a foreign-Project hold = %v", err)
-	}
+
 }
 
 // After source Run deletion, publishing a receipt selected through an Audit
@@ -318,7 +309,7 @@ func TestPostgresAuditInboxOmitsUnretainedChildReceiptAfterRunDeletion(t *testin
 		t.Fatal(err)
 	}
 	for name, list := range map[string]func(context.Context, string, string, ListQuery) ([]Receipt, error){
-		"owner": f.intake.ListAuditInbox, "held": f.intake.ListAuditHeldInbox,
+		"owner": f.intake.ListAuditInbox,
 	} {
 		for _, limit := range []int{1, 10} {
 			listed := make([]Receipt, 0)
@@ -428,7 +419,7 @@ func recordAuditChildReceipt(
 	}
 	proposal := ExactArtifact{Ref: written.Ref, Digest: auditdomain.DigestBytes(canonical.proposalBytes), MediaType: written.MediaType, SizeBytes: written.Size}
 	origin := source.Origin
-	origin.Audit = &AuditOrigin{AuditID: f.request.AuditID, ExecutionID: "delete-execution", Role: "discovery"}
+	origin.Audit = &AuditOrigin{AuditID: f.request.AuditID, ExecutionID: "delete-execution", TaskID: "fixture-task"}
 	project := "delete-project"
 	grant := controlplane.AllocationGrant{RunID: f.request.RunID, AllocationID: "allocation", StageExecutionID: "stage",
 		RuntimeAgentID: "runtime", RuntimeInstanceID: "instance", LogicalAgentName: "worker"}
@@ -469,14 +460,14 @@ UPDATE audits
 			if err != nil {
 				t.Fatalf("collection retention into %s Audit error = %v", state, err)
 			}
-			receipt, err := f.intake.GetAuditReceipt(f.ctx, f.request.OwnerID, f.request.AuditID, f.receiptID)
+			receipt, err := readOneAuditReceipt(t, f.intake, f.ctx, f.request.OwnerID, f.request.AuditID, f.receiptID)
 			if err != nil || receipt.Retention != RetentionProjectHeld || len(receipt.AuditHolds) != 1 {
 				t.Fatalf("retained receipt = (%+v, %v)", receipt, err)
 			}
 			if err := f.intake.RetainAuditCollectionBatch(f.ctx, []ImportRequest{f.request}); err != nil {
 				t.Fatalf("collection retention replay: %v", err)
 			}
-			replayed, err := f.intake.GetAuditReceipt(f.ctx, f.request.OwnerID, f.request.AuditID, f.receiptID)
+			replayed, err := readOneAuditReceipt(t, f.intake, f.ctx, f.request.OwnerID, f.request.AuditID, f.receiptID)
 			if err != nil || !reflect.DeepEqual(replayed.AuditHolds, receipt.AuditHolds) {
 				t.Fatalf("replayed retention changed holds: %+v, %v", replayed.AuditHolds, err)
 			}

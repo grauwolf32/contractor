@@ -1,9 +1,10 @@
 package control
 
 import (
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"reflect"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 func TestSharedConfigValidatesVersionBoundsAndDigest(t *testing.T) {

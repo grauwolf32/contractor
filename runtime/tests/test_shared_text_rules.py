@@ -37,7 +37,6 @@ from contractor_runtime.contracts.base import (
 )
 from contractor_runtime.observations import exact_observation_path
 from contractor_runtime.toolsets.audit_results import contracts as audit_contracts
-from contractor_runtime.toolsets.audit_results import v2 as audit_v2
 from contractor_runtime.toolsets.security_findings import submission as finding_submission
 
 FIXTURES = Path(__file__).resolve().parents[2] / "api" / "testdata" / "v1alpha1"
@@ -158,7 +157,9 @@ def _skill_manifest(description: str, body: str) -> bytes:
 
 SIBLING_TEXT_CHECKS: dict[str, Callable[[str], object]] = {
     "audit summary": audit_contracts._text,
-    "audit-results@2 text": lambda value: audit_v2._text(value, "summary", "item"),
+    "audit-results@2 text": lambda value: audit_contracts.NormalizedAuditItem(
+        item_key="item", rationale=value
+    ),
     "finding proposal text": lambda value: finding_submission._text("title", value, required=True),
     "skill description": lambda value: _parse_manifest(_skill_manifest(value, "Body\n"), "demo"),
     "skill body": lambda value: _parse_manifest(_skill_manifest("Demo", value), "demo"),

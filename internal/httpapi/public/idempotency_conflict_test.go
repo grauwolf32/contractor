@@ -95,6 +95,7 @@ func keyedOperationRequests(t *testing.T) (handlerFixture, *reusedKeyAudits, map
 	agent := strings.Repeat("b", 64)
 	runBody := `{"workflow":"artifact-copy@1","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`
 	requests := map[string]keyedRequest{
+		"createAuditTasks":     {http.MethodPost, "/v1/audits/audit-one/tasks", `{"work":[{"key":"first","workflow":"inspect","objective":"Inspect selected materials","inputs":{}}]}`, map[string]string{"If-Match": `"1"`}},
 		"mutateProjectSitemap": {http.MethodPost, "/v1/projects/project-one/sitemap/mutations", `{"operation":"declare","expectedRevision":"absent","url":"https://example.test/users","method":"GET"}`, nil},
 		"createProject":        {http.MethodPost, "/v1/projects", `{"kind":"project","name":"Keyed"}`, nil},
 		"createRun":            {http.MethodPost, "/v1/runs", runBody, nil},
@@ -313,6 +314,10 @@ func (a *reusedKeyAudits) reach(method string) error {
 
 func (a *reusedKeyAudits) CreateDraft(context.Context, auditservice.CreateDraftParams) (auditstore.Audit, bool, error) {
 	return auditstore.Audit{}, false, a.reach("CreateDraft")
+}
+
+func (a *reusedKeyAudits) CreateTasks(context.Context, auditservice.TaskCreationParams) (auditservice.TaskCreationResult, error) {
+	return auditservice.TaskCreationResult{}, a.reach("CreateTasks")
 }
 
 func (a *reusedKeyAudits) Start(context.Context, auditservice.StartParams) (auditservice.StartedAudit, error) {

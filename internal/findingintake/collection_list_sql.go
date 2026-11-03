@@ -1,26 +1,17 @@
 package findingintake
 
-import artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
-
-// SQL statements for collection_list.go.
-
-// listAuditCollectionSQL reports, per receipt in $1, its state in owner $3's
-// Audit $2: whether an Audit hold exists, whether that hold was created at or
-// after Run $4 finished, whether a direct-verification assessment exists, and
-// whether a finding.proposal_rejected event names it. Returns no rows unless
-// the Audit and Run both belong to $3. Used by Service.ListAuditCollection.
-var listAuditCollectionSQL = `
-SELECT input.receipt_id,
-       hold.receipt_id IS NOT NULL,
-       COALESCE(hold.created_at >= run.finished_at, false),
-       EXISTS (SELECT 1 FROM artifact_bindings AS history
-                WHERE history.scope_kind='project' AND history.scope_id=audit.project_id
-                  AND history.namespace='` + artifactpolicy.FindingHistoryNamespace + `' AND history.name=input.history_name AND history.frozen),
-       EXISTS (SELECT 1 FROM audit_events AS event
-                WHERE event.audit_id = $2 AND event.kind = 'finding.proposal_rejected'
-                  AND event.entity_id = input.receipt_id)
-  FROM unnest($1::text[],$5::text[]) AS input(receipt_id,history_name)
-  JOIN audits AS audit ON audit.audit_id = $2 AND audit.owner_id = $3
-  JOIN workflow_runs AS run ON run.run_id = $4 AND run.owner_id = $3
-  LEFT JOIN finding_proposal_audit_holds AS hold
-    ON hold.receipt_id = input.receipt_id AND hold.audit_id = $2`
+// listPendingAuditReceiptsSQL walks one source Run's existing receipt index.
+// Existing holds and rejection events exclude completed work before LIMIT.
+// Used by Service.ListAuditCollection for bounded common Task collection.
+var listPendingAuditReceiptsSQL = `
+SELECT ` + receiptProjection + `
+FROM finding_proposal_receipts AS receipt
+JOIN workflow_runs AS run ON run.run_id=receipt.run_id AND run.owner_id=$1
+JOIN audits AS audit ON audit.audit_id=$2 AND audit.owner_id=$1 AND audit.project_id=run.project_id
+WHERE receipt.owner_id=$1 AND receipt.run_id=$3 AND receipt.audit_id=$2
+ AND ($4::timestamptz IS NULL OR (receipt.created_at,receipt.receipt_id)>($4,$5))
+ AND NOT EXISTS (SELECT 1 FROM finding_proposal_audit_holds AS held
+   WHERE held.audit_id=$2 AND held.receipt_id=receipt.receipt_id)
+ AND NOT EXISTS (SELECT 1 FROM audit_events AS rejected
+   WHERE rejected.audit_id=$2 AND rejected.kind='finding.proposal_rejected' AND rejected.entity_id=receipt.receipt_id)
+ORDER BY receipt.created_at,receipt.receipt_id LIMIT $6`

@@ -774,10 +774,9 @@ func TestSchedulerMissingAuditPinnedContextInterruptsWithoutAllocation(t *testin
 	harness := newSchedulerHarness(t)
 	harness.store.run.AuditCompletion = &runstore.AuditCompletionSnapshot{
 		Stage: "copy", Agent: "builder", Contract: contracts.WorkerCompletionContract{
-			Kind:              contracts.AuditCheckResultsV1,
-			Task:              exactRef("inputs", "source", "input-r0"),
-			ExecutionManifest: exactRef("inputs", "manifest", "manifest-r1"),
-			ResultArtifact:    contracts.ArtifactRef{Namespace: "builder", Name: "copied"},
+			Kind:           contracts.AuditCheckResultsV1,
+			Context:        exactRef("inputs", "source", "input-r0"),
+			ResultArtifact: contracts.ArtifactRef{Namespace: "builder", Name: "copied"},
 		},
 	}
 

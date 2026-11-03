@@ -1,48 +1,65 @@
 apiVersion: contractor/v1alpha1
 kind: AuditProfile
-
 metadata:
   name: openapi-operation-trace
-  version: "1"
-
+  version: '1'
 spec:
-  mode: operation-tracing
-  standards: []
+  schema: contractor.audit.program.v1
   inputs:
     source:
       required: true
-      mediaTypes: [application/zip]
+      media_types:
+      - application/zip
     openapi:
       required: true
-      mediaTypes: [application/json, application/yaml, application/zip]
-  inventory:
-    implementation: openapi-operations@1
-    source: {source: audit-input, name: openapi}
-    itemWorkflowRole: trace
+      media_types:
+      - application/json
+      - application/yaml
+      - application/zip
   workflows:
-    trace:
-      kind: check
-      ref: audit-openapi-operation-trace@1
-      workerCompletion: {kind: audit-check-results@1, stage: check, agent: checker}
+    prepare:
+      ref: openapi-prepare-work@1
       inputs:
-        task: {source: item-package}
-        execution_manifest: {source: execution-manifest}
-        source: {source: audit-input, name: source}
+        openapi:
+          source: audit-input
+          name: openapi
+      parameters:
+        checking_workflow: trace
+        selection: operations
+        max_items: '256'
+      outputs:
+        work: work
+    trace:
+      ref: audit-openapi-operation-trace@1
+      inputs:
+        source:
+          source: audit-input
+          name: source
+        operation:
+          source: task-input
+        openapi:
+          source: task-input
+        context:
+          source: task-context
       parameters: {}
       outputs:
         result: result
-  execution:
-    roundMode: fixed-barrier
-    maxRounds: 1
-    batchSize: 1
-    maxItemsPerRound: 256
-    maxItemsTotal: 256
-    maxSubmittedRuns: 768
-    maxItemRunAttempts: 3
-    deadlineSeconds: 86400
-    maxEvidenceBytes: 67108864
-    incompleteRound: assess-with-gaps
-  interaction:
-    activeChecks: prohibited
-    notApplicable: profile-rule
-    reportAcceptance: automatic
+  hypotheses: {}
+  initial_work:
+  - key: prepare-operations
+    workflow: prepare
+    objective: Prepare bounded independent operation work from the exact selected contract and settings
+  limits:
+    max_tasks: 257
+    max_iterations: 1
+    max_tasks_per_iteration: 257
+    batch_size: 1
+    max_submitted_runs: 768
+    max_attempts: 3
+    deadline_seconds: 86400
+    max_evidence_bytes: 67108864
+    max_hypotheses: 1
+    max_hypothesis_revisions: 1
+    max_hypothesis_bytes: 32768
+  policy:
+    active_operations: prohibited

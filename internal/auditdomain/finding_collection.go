@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 )
 
@@ -60,9 +61,10 @@ type FindingCollectionEntry struct {
 }
 
 type FindingCollectionAuditOrigin struct {
-	AuditID     string `json:"audit_id"`
-	ExecutionID string `json:"execution_id"`
-	Role        string `json:"role"`
+	AuditID     string                       `json:"audit_id"`
+	ExecutionID string                       `json:"execution_id"`
+	TaskID      string                       `json:"task_id"`
+	Hypothesis  *auditcontract.HypothesisRef `json:"hypothesis,omitempty"`
 }
 
 type FindingCollectionEvidence struct {
@@ -183,9 +185,13 @@ func validateFindingCollection(value FindingCollection) error {
 			return invalid(CodeInvalid, "collection.retention")
 		}
 		if origin := entry.AuditOrigin; origin != nil {
-			if validateIdentifier(origin.AuditID, "audit_id") != nil || validateIdentifier(origin.ExecutionID, "execution_id") != nil || validateIdentifier(origin.Role, "role") != nil {
+			if !contracts.ValidResourceID(origin.AuditID) || !contracts.ValidResourceID(origin.ExecutionID) || !contracts.ValidResourceID(origin.TaskID) {
 				return invalid(CodeInvalid, "collection.audit_origin")
 			}
+			if origin.Hypothesis != nil && (!contracts.ValidResourceID(origin.Hypothesis.ID) || origin.Hypothesis.Revision == 0 || origin.Hypothesis.Revision > contracts.MaxExactInteger) {
+				return invalid(CodeInvalid, "hypothesis")
+			}
+
 		}
 		if len(entry.SelectedSources) == 0 || len(entry.SelectedSources) > MaximumCollectionSources {
 			return invalid(CodeLimitExceeded, "collection.selected_sources")

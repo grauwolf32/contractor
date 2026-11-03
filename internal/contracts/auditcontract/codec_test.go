@@ -21,7 +21,7 @@ type fixtureCase struct {
 }
 
 func TestSharedAuditCommonDocuments(t *testing.T) {
-	for _, file := range []string{"programs.json", "results.json", "controls.json", "proposals.json", "tasks.json"} {
+	for _, file := range []string{"programs.json", "results.json", "controls.json", "proposals.json", "tasks.json", "prepared-work.json"} {
 		var fixtures struct {
 			Cases []fixtureCase `json:"cases"`
 		}
@@ -66,6 +66,9 @@ func TestSharedAuditCommonByteAndMutationBounds(t *testing.T) {
 	}
 	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "audit-common", "boundaries.json"), &fixture); err != nil {
 		t.Fatal(err)
+	}
+	if fixture.MutationRecords != auditcontract.MaxMutationRecords || fixture.MutationBytes != auditcontract.MaxMutationBytes {
+		t.Fatal("shared mutation limits drifted")
 	}
 	encode := func(v any) []byte {
 		b, e := json.Marshal(v)

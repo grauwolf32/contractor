@@ -2,6 +2,7 @@ package auditservice
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"testing"
@@ -36,19 +37,7 @@ func TestCoverageReadsRetainedTasksAndSharedResult(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	source := writeChecklist(t, ctx, store, "custom", "automatic")
-	read, err := store.Read(ctx, source.Ref)
-	if err != nil {
-		t.Fatal(err)
-	}
-	inventory, err := auditdomain.BuildChecklistInventory(read.Payload.Data, read.Payload.MediaType, auditdomain.InventoryOptions{
-		Round: 1, WorkflowRole: "check", SourceInputName: "source", SourceRef: source.Ref,
-		ApprovalRequirement: auditdomain.ApprovalNone,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	task := inventory.Tasks[0]
+	task := retainedCoverageTask(t, "Verify custom.")
 	write := func(name string, data []byte) auditstore.ExactArtifact {
 		t.Helper()
 		result, err := store.Write(ctx, contracts.ArtifactRef{Namespace: "retained", Name: name}, artifacts.Payload{MediaType: auditdomain.PackageMediaType, Data: data}, nil)
@@ -58,10 +47,10 @@ func TestCoverageReadsRetainedTasksAndSharedResult(t *testing.T) {
 		return auditstore.ExactArtifact{Ref: result.Ref, Digest: auditdomain.DigestBytes(data)}
 	}
 	taskRef := write("task", task.Package)
-	results, err := auditdomain.EncodeCheckResultSet(auditdomain.CheckResultSet{
+	results, err := json.Marshal(auditdomain.CheckResultSet{
 		Schema: auditdomain.CheckResultsSchema, ExecutionManifestDigest: serviceTestDigest("manifest"),
 		Results: []auditdomain.CheckResult{{
-			ItemKey: task.Item.ItemKey, SubjectKey: task.Item.SubjectKey, Assessment: "inconclusive",
+			ItemKey: task.Document.ItemKey, SubjectKey: task.Document.SubjectKey, Assessment: "inconclusive",
 			Summary: "An arbitrary model conclusion from an existing retained package.", EvidenceIDs: []string{},
 			Coverage: auditdomain.ResultCoverage{Requested: []string{}, Completed: []string{}, Gaps: []string{}}, Proposals: []auditdomain.ProposalSelection{},
 		}},
@@ -75,8 +64,8 @@ func TestCoverageReadsRetainedTasksAndSharedResult(t *testing.T) {
 	}
 	resultRef := write("result", payload)
 	rows := []auditstore.CoverageRow{
-		{ItemKey: task.Item.ItemKey, SubjectKey: task.Item.SubjectKey, Task: taskRef, Result: &resultRef},
-		{ItemKey: task.Item.ItemKey, SubjectKey: task.Item.SubjectKey, Task: taskRef, Result: &resultRef},
+		{ItemKey: task.Document.ItemKey, SubjectKey: task.Document.SubjectKey, Task: taskRef, Result: &resultRef},
+		{ItemKey: task.Document.ItemKey, SubjectKey: task.Document.SubjectKey, Task: taskRef, Result: &resultRef},
 	}
 	service := &Service{storage: artifactpgtest.NewStorage(), pool: pool}
 	described, err := service.describeCoverage(ctx, project.ProjectID, rows)

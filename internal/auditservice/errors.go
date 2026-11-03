@@ -22,17 +22,6 @@ const (
 	ReasonEngagementCapabilityUnsupported    CompatibilityReason = "engagement_capability_unsupported"
 	ReasonEngagementSourceClosureUnsupported CompatibilityReason = "engagement_source_closure_unsupported"
 	ReasonEngagementActiveChecksUnsupported  CompatibilityReason = "engagement_active_checks_unsupported"
-	ReasonPreparationUnsupported             CompatibilityReason = "preparation_unsupported"
-	ReasonDiscoveryUnsupported               CompatibilityReason = "discovery_unsupported"
-	ReasonAssessmentUnsupported              CompatibilityReason = "assessment_unsupported"
-	ReasonMultipleRoundsUnsupported          CompatibilityReason = "multiple_rounds_unsupported"
-	ReasonBatchingUnsupported                CompatibilityReason = "batching_unsupported"
-	ReasonAutomaticActiveChecksUnsupported   CompatibilityReason = "automatic_active_checks_unsupported"
-	ReasonProjectActiveChecksProhibited      CompatibilityReason = "project_active_checks_prohibited"
-	ReasonActiveCheckApprovalUnsupported     CompatibilityReason = "active_check_approval_unsupported"
-	ReasonManualApplicabilityUnsupported     CompatibilityReason = "manual_applicability_unsupported"
-	ReasonReportAcceptanceUnsupported        CompatibilityReason = "report_acceptance_unsupported"
-	ReasonManualItemUnsupported              CompatibilityReason = "manual_item_unsupported"
 )
 
 type UnsupportedError struct {

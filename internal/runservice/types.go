@@ -39,8 +39,6 @@ type PublicRunWriter interface {
 }
 
 type AuditRunWriter interface {
-	LockAuditInputMaterialization(context.Context, string) (*runstore.AuditInputMaterialization, error)
-	SetAuditInputMaterialization(context.Context, string, uint32, runstore.AuditInputMaterialization) error
 	SetAuditCompletion(context.Context, string, runstore.AuditCompletionSnapshot) error
 	CreateAuditRun(context.Context, runstore.CreateAuditRunParams) (runstore.WorkflowRun, error)
 	GetRun(context.Context, string) (runstore.WorkflowRun, error)
@@ -49,7 +47,6 @@ type AuditRunWriter interface {
 }
 
 type AuditExecutionWriter interface {
-	GetAcceptedRoundResults(context.Context, string, string) (auditstore.ExactArtifact, error)
 	GetRunCreationIntent(context.Context, auditstore.ControllerClaim, string) (auditstore.RunCreationIntent, error)
 	BindRun(context.Context, auditstore.BindRunParams) (auditstore.Execution, error)
 }
@@ -129,33 +126,25 @@ type PublicCreateParams struct {
 	OperationsPrincipal bool
 }
 
-// AuditCreateParams contains only already-pinned server-side values. It has no
-// publication-mode field and accepts credential identities only through the
-// immutable Workflow/Runtime/Project snapshots; raw secret bytes cannot enter
-// this boundary.
+// AuditCreateParams selects the immutable accepted Task attempt. RunService
+// derives all configuration and material authority from the locked owner pin.
 type AuditCreateParams struct {
-	AuditInputs             map[string]bool
+	TaskIDs       []string
+	Claim         auditstore.ControllerClaim
+	ExecutionID   string
+	RequestDigest string
+	NewRunID      func() (string, error)
+}
+type auditRunCreate struct {
+	AuditCreateParams
 	RequiredPlacementLabels []string
-	Claim                   auditstore.ControllerClaim
-	ExecutionID             string
 	Workflow                resolved.ResolvedWorkflow
 	RuntimeConfig           runtimeconfig.RunSnapshot
 	Skills                  []agentskills.RunSkillSnapshot
 	ProjectHTTPTarget       *runtimesettings.HTTPOriginTargetRef
 	Parameters              map[string]string
 	Inputs                  map[string]auditstore.ExactArtifact
-	ExecutionManifest       auditstore.ExactArtifact
-	RequestDigest           string
-	NewRunID                func() (string, error)
-	RoundResults            map[string]auditstore.ExactArtifact
-	InputMaterializationID  string
-	MaterializeInputs       AuditInputMaterializer
 }
-
-// AuditInputMaterializer is trusted Audit-owned work over an accepted exact
-// closure. It performs one bounded slice in the existing creation transaction;
-// generic Run creation never interprets its checkpoint or payload references.
-type AuditInputMaterializer func(context.Context, *artifacts.Service, auditstore.RunCreationIntent, runstore.WorkflowRun, runstore.AuditInputMaterialization) (runstore.AuditInputMaterialization, error)
 
 type CreateResult struct {
 	Run      runstore.WorkflowRun

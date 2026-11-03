@@ -69,7 +69,7 @@ func TestAuditResultReadFailureRetriesWithoutRescanning(t *testing.T) {
 			h.factory.artifacts = h.artifacts
 			result := h.run(t)
 			pkg := auditFactoryResult(t, h, result)
-			if result.Outcome != stageresult.StageSucceeded || len(h.invoker.calls) != 1 || len(pkg.Results.Results[0].Coverage.Completed) != 1 {
+			if result.Outcome != stageresult.StageSucceeded || len(h.invoker.calls) != 1 || !pkg.ExecutionCompleted {
 				t.Fatalf("retry rescanned or lost coverage: result=%+v calls=%d", result, len(h.invoker.calls))
 			}
 		})
@@ -112,7 +112,7 @@ func TestAuditResultInvalidRetainedContentStaysPermanent(t *testing.T) {
 				t.Fatal(err)
 			}
 			if fault == "assignment" {
-				instance.audit.manifest.Items[0].ItemKey = "different"
+				instance.audit.task.Scanner = "invalid"
 			}
 			h.factory.artifacts = &scanFaultArtifacts{ArtifactStore: h.artifacts,
 				read: func(ctx context.Context, ref contracts.ArtifactRef, limit int) (artifacts.Payload, error) {
@@ -137,8 +137,8 @@ func TestAuditResultInvalidRetainedContentStaysPermanent(t *testing.T) {
 func TestScanStorageCodeRetryScopeAndCause(t *testing.T) {
 	preDispatch := []string{"scan_plan_write_failed", "scan_input_write_failed", "scan_plan_record_failed"}
 	auditOnly := []string{
-		"audit_scan_source_unavailable", "audit_scan_settings_unavailable", "audit_scan_task_unavailable",
-		"audit_scan_manifest_unavailable", "audit_scan_preparation_write_failed", "scan_history_unavailable",
+		"audit_scan_source_unavailable", "audit_scan_settings_unavailable",
+		"audit_scan_operation_unavailable", "audit_scan_preparation_write_failed", "scan_history_unavailable",
 		"audit_scan_result_unavailable", "audit_scan_result_write_failed", "scan_completion_write_failed",
 		"scan_session_unavailable", "scan_source_unavailable", "scan_job_claim_unavailable", "scan_job_result_unavailable",
 		"scan_saved_plan_unavailable", "scan_saved_input_unavailable",
@@ -179,8 +179,7 @@ func TestAuditStorageFailuresKeepCauseOnRunPath(t *testing.T) {
 	for _, phase := range []struct {
 		name, code string
 	}{
-		{"task", "audit_scan_task_unavailable"},
-		{"execution_manifest", "audit_scan_manifest_unavailable"},
+		{"operation", "audit_scan_operation_unavailable"},
 		{"openapi", "audit_scan_source_unavailable"},
 		{"settings", "audit_scan_settings_unavailable"},
 		{"prepared", "audit_scan_preparation_write_failed"},
@@ -309,7 +308,7 @@ func TestAuditResultBuildHonorsCallerCancellationAndDeadline(t *testing.T) {
 			}}
 		_, err = instance.finishAudit(ctx, planner.ScanSessionIdentity{}, attempts)
 		failure := planner.FailureFrom(err)
-		if !errors.Is(err, wantCause) || failure.Code != "audit_scan_result_unavailable" || !failure.Retryable || reads != 1 || h.sessions.completeCalls != 1 {
+		if !errors.Is(err, wantCause) || failure.Code != "audit_scan_result_unavailable" || !failure.Retryable || reads != 0 || h.sessions.completeCalls != 1 {
 			t.Fatalf("cancelled result build = %+v, reads=%d, completions=%d", failure, reads, h.sessions.completeCalls)
 		}
 	}

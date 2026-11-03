@@ -37,6 +37,7 @@ func publicRequestBodyBounds() map[string]requestBodyBound {
 		return requestBodyBound{bytes: byteCount, status: http.StatusRequestEntityTooLarge, code: "request_too_large"}
 	}
 	bounds := map[string]requestBodyBound{
+		"createAuditTasks":         tooLarge(maxJSONRequestSize),
 		"publishAuditMaterial":     tooLarge(maxJSONRequestSize),
 		"mutateProjectSitemap":     tooLarge(projectsitemap.MaxBatchBytes),
 		"login":                    tooLarge(maximumLoginBodyBytes),

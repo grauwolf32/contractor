@@ -305,7 +305,7 @@ func (l *loader) resolveStage(
 		Planner:                  plannerRef,
 		PlannerContextManagement: contextManagement,
 		ScanPlan:                 source.ScanPlan,
-		AuditScan:                source.AuditScan,
+		ScanPreparation:          source.ScanPreparation,
 		Session:                  session,
 		Agents:                   agents,
 		Context:                  context,

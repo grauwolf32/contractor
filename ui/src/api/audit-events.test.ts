@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest";
 import { fakeAPI } from "../routes/projects/audits/check-test-support";
 import { invalidJSON } from "../test/fake-server";
 import { json } from "../test/responses";
-import { listAuditEvents, type AuditEventPage } from "./audits";
+import { listAuditEvents } from "./audits";
+import type { components } from "./generated/public";
+
+type AuditEventPage = components["schemas"]["AuditEventPage"];
 
 const valid: AuditEventPage = {
   items: [

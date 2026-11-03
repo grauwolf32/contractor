@@ -20,9 +20,9 @@ import type {
 import type { Project } from "../../../api/projects";
 import {
   candidatesFor,
-  inSentence,
-  inputLabel,
   formatList,
+  inputLabel,
+  inSentence,
   materialKey,
   orderedInputs,
   presentCheckType,
@@ -45,9 +45,6 @@ import {
   type ProjectMaterials,
 } from "./data";
 import { useLaunch, type Launch } from "./launch";
-import { useWebScanDraft, type WebScanDraft } from "./web-scan-state";
-import { useChecklistDraft, type ChecklistDraft } from "./checklist-state";
-import { useMaterialScope, type MaterialScope } from "./material-scope";
 import {
   createRequest,
   MAX_RUNTIME_LABELS,
@@ -60,6 +57,7 @@ import {
   timeLimitSeconds,
   type TimeLimitState,
 } from "./time-limit";
+import { useWebScanDraft, type WebScanDraft } from "./web-scan-state";
 
 export type ReadinessGroup = "ready" | "missing" | "unavailable" | "unknown";
 
@@ -126,10 +124,7 @@ function groupOf(readiness: Readiness | undefined): ReadinessGroup {
 
 /** The variant a row opens by default: the widest one the Server can run. */
 function defaultVariant(row: CheckTypeRow): CheckTypeFamily {
-  return (
-    row.variants.find((family) => family.preferred.serverCompatible) ??
-    row.primary
-  );
+  return row.primary;
 }
 
 function usesOf(profile: AuditProfile, needsLiveTarget: boolean): string[] {
@@ -147,8 +142,6 @@ const NO_CHOICES: Readonly<Record<string, string>> = {};
 
 export interface StartCheck {
   readonly webScan: WebScanDraft | undefined;
-  readonly checklist: ChecklistDraft | undefined;
-  readonly materialScope: MaterialScope;
   readonly labels: readonly LabelEntry[];
   readonly setLabels: (value: LabelEntry[]) => void;
   readonly labelError: string | undefined;
@@ -377,9 +370,6 @@ export function useStartCheck(
     usesWebScan ? exact : undefined,
   );
   const webScan = usesWebScan ? scanInputs : undefined;
-  const checklistDraft = useChecklistDraft(projectId, exact ?? selectedProfile);
-  const checklist =
-    checklistDraft.inputName === undefined ? undefined : checklistDraft;
   const contractProfile = exact ?? selectedProfile;
   const scopeFields = useMemo(
     () =>
@@ -404,7 +394,7 @@ export function useStartCheck(
           orderedInputs(contractProfile).map(([name, input]) => [
             name,
             input.required,
-            input.mediaTypes,
+            input.media_types,
           ]),
         );
   const explicitChoices =
@@ -442,7 +432,7 @@ export function useStartCheck(
       name,
       input,
       label: inputLabel(name),
-      formats: formatList(input.mediaTypes),
+      formats: formatList(input.media_types),
       candidates,
       selection: selectionKey,
       selected: candidates.find(
@@ -452,12 +442,6 @@ export function useStartCheck(
       explicit,
     };
   });
-  const materialScope = useMaterialScope(
-    projectId,
-    exact ?? selectedProfile,
-    slots,
-    checklist,
-  );
 
   const effectiveTarget =
     target ?? (usesTarget ? (project?.httpTarget?.url ?? "") : "");
@@ -470,16 +454,11 @@ export function useStartCheck(
   // What keeps the check from being created, most basic first.
   let draftBlocker: string | undefined;
   const missingSlot = slots.find(
-    (slot) =>
-      slot.input.required &&
-      slot.selected === undefined &&
-      !(checklist?.mode === "write" && slot.name === checklist.inputName),
+    (slot) => slot.input.required && slot.selected === undefined,
   );
   if (selection === undefined) draftBlocker = "Choose a check type.";
   else if (project?.lifecycle === "deleting")
     draftBlocker = "This project is being deleted.";
-  else if (!selection.profile.serverCompatible)
-    draftBlocker = "This check type can't run on this server.";
   else if (exact === undefined)
     draftBlocker =
       detail.error === null
@@ -499,8 +478,6 @@ export function useStartCheck(
       missingSlot.candidates.length === 0
         ? `Add ${inSentence(missingSlot.label)} (${missingSlot.formats}) to the project first.`
         : `Choose the ${inSentence(missingSlot.label)} material.`;
-  else if (checklist?.mode === "write" && checklist.blocker !== undefined)
-    draftBlocker = checklist.blocker;
   else if (scopeFields.has("objective") && objective.trim() === "")
     draftBlocker = "Write your objective; this check type uses it.";
   else if (webScan === undefined && usesTarget && effectiveTarget.trim() === "")
@@ -535,20 +512,13 @@ export function useStartCheck(
   if (
     draftBlocker === undefined &&
     exact !== undefined &&
-    (webScan === undefined || webScan.inputs !== undefined) &&
-    (checklist?.mode !== "write" || checklist.retained !== undefined)
+    (webScan === undefined || webScan.inputs !== undefined)
   ) {
     const inputs: Record<string, ExactArtifactRef> = {};
     for (const slot of slots) {
       if (slot.selected !== undefined)
         inputs[slot.name] = slot.selected.artifact;
     }
-    if (
-      checklist?.mode === "write" &&
-      checklist.retained !== undefined &&
-      checklist.inputName !== undefined
-    )
-      inputs[checklist.inputName] = checklist.retained;
     request = requestFor(webScan?.inputs ?? inputs);
   }
   // What the page's earlier attempts mean for this one.
@@ -601,38 +571,12 @@ export function useStartCheck(
           requestFor(await webScan.prepare(ensureCurrent)),
         deadlineSeconds: seconds,
       });
-    } else if (
-      checklist?.mode === "write" &&
-      checklist.inputName !== undefined
-    ) {
-      const name = checklist.inputName;
-      const selectedInputs: Record<string, ExactArtifactRef> = {};
-      const frozenChoices = { ...explicitChoices };
-      for (const slot of slots) {
-        if (slot.selected !== undefined) {
-          selectedInputs[slot.name] = slot.selected.artifact;
-          frozenChoices[slot.name] = materialKey(slot.selected);
-        }
-      }
-      // Submission approves these exact selections, including automatic ones.
-      // Retaining a new JSON material cannot silently change another input.
-      setChoices({ contract, values: frozenChoices });
-      launch.launch(intent, {
-        prepare: async (ensureCurrent) =>
-          requestFor({
-            ...selectedInputs,
-            [name]: await checklist.prepare(ensureCurrent),
-          }),
-        deadlineSeconds: seconds,
-      });
     } else if (request !== undefined)
       launch.launch(intent, { request, deadlineSeconds: seconds });
   }
 
   return {
     webScan,
-    checklist,
-    materialScope,
     projectId,
     project,
     href: (changes) => hrefWith(params, changes),

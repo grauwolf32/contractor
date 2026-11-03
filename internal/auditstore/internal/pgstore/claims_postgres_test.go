@@ -28,11 +28,7 @@ func TestPostgresClaimsPausedAuditOnlyWithInFlightExecutions(t *testing.T) {
 	if _, _, err := f.store.Collect(f.ctx, auditstore.CollectParams{
 		Claim: *claim, ReceiptID: "receipt-paused", ExecutionID: f.execution.ExecutionID,
 		Disposition: auditstore.CollectionContractInvalid, ErrorCode: &code, RequestDigest: testDigest("b"),
-		Items: []auditstore.CollectionItem{{
-			ExecutionItemID: f.memberID, Disposition: auditstore.CollectionContractInvalid,
-			FinalDisposition: auditstore.FinalInvalidResult,
-			Coverage:         auditstore.Coverage{Status: auditstore.CoverageBlocked, Requested: []string{}, Completed: []string{}, Gaps: []string{code}},
-		}},
+		Tasks: []auditstore.TaskCollection{{ExecutionItemID: f.memberID, TaskID: f.itemID, GapCode: &code}},
 	}); err != nil {
 		t.Fatal(err)
 	}

@@ -2,10 +2,12 @@ package resolved
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 )
 
 // ServerOperationConfig selects Server code invoked directly by Scheduler.
@@ -29,10 +31,10 @@ func ValidateStageExecutor(stage ResolvedStage) error {
 	if strings.TrimSpace(stage.Objective) == "" {
 		return fmt.Errorf("Server operation objective must be resolved")
 	}
-	if stage.Planner != (PlannerRef{}) || (operation.Ref != contracts.SitemapOpenAPIJoinOperation && operation.Ref != contracts.SitemapApplyOpenAPIOperation) || operation.Arguments == nil {
+	if stage.Planner != (PlannerRef{}) || operation.Arguments == nil {
 		return fmt.Errorf("Stage must select exactly one registered operation or Planner")
 	}
-	if len(stage.Agents) != 0 || stage.Context.Workspace != nil || stage.Session != contracts.WorkerSessionIsolated || stage.ScanPlan != nil || stage.AuditScan != nil || stage.Instructions != (contracts.ResolvedInstructions{}) {
+	if len(stage.Agents) != 0 || stage.Context.Workspace != nil || stage.Session != contracts.WorkerSessionIsolated || stage.ScanPlan != nil || stage.ScanPreparation != nil || stage.Instructions != (contracts.ResolvedInstructions{}) {
 		return fmt.Errorf("Server operation forbids Workers, shared sessions, workspace and scan policies")
 	}
 	if err := contracts.ValidateArgumentBindings(operation.Arguments, false); err != nil {
@@ -40,6 +42,17 @@ func ValidateStageExecutor(stage ResolvedStage) error {
 	}
 	if stage.On.Summarized != nil {
 		return fmt.Errorf("Server operations cannot summarize")
+	}
+	for _, slot := range stage.Result.Artifacts {
+		if slot.From == nil || !contracts.ValidName(slot.From.Namespace) || !contracts.ValidName(slot.From.Name) || artifactpolicy.IsPurposeReservedNamespace(slot.From.Namespace) || artifactpolicy.IsReservedMemoryBinding(slot.From.Namespace, slot.From.Name) {
+			return fmt.Errorf("Server operation output requires an ordinary explicit artifact binding")
+		}
+	}
+	if operation.Ref == contracts.OpenAPIPrepareWorkOperation {
+		return validateOpenAPIWorkStage(stage)
+	}
+	if operation.Ref != contracts.SitemapOpenAPIJoinOperation && operation.Ref != contracts.SitemapApplyOpenAPIOperation {
+		return fmt.Errorf("unknown Server operation")
 	}
 	for name, binding := range operation.Arguments {
 		if name != "origin" && name != "contract" && name != "deployment" {
@@ -69,10 +82,40 @@ func ValidateStageExecutor(stage ResolvedStage) error {
 			return fmt.Errorf("unknown sitemap operation output %q", name)
 		}
 	}
-	for _, slot := range stage.Result.Artifacts {
-		if slot.From == nil || !contracts.ValidName(slot.From.Namespace) || !contracts.ValidName(slot.From.Name) || artifactpolicy.IsPurposeReservedNamespace(slot.From.Namespace) || artifactpolicy.IsReservedMemoryBinding(slot.From.Namespace, slot.From.Name) {
-			return fmt.Errorf("Server operation output requires an ordinary explicit artifact binding")
+	return nil
+}
+
+func validateOpenAPIWorkStage(stage ResolvedStage) error {
+	values := map[string]any{"workflow": "check", "selection": "operations", "max_items": strconv.Itoa(auditcontract.MaxPreparedWork)}
+	if len(stage.Operation.Arguments) != len(values) {
+		return fmt.Errorf("OpenAPI preparation requires workflow, selection and max_items arguments")
+	}
+	for name, binding := range stage.Operation.Arguments {
+		if _, exists := values[name]; !exists || binding.Parse != "" {
+			return fmt.Errorf("invalid OpenAPI preparation argument")
 		}
+		if binding.Source == "literal" {
+			values[name] = binding.Value
+		}
+	}
+	options, err := auditcontract.OpenAPIWorkOptions(values)
+	if err != nil {
+		return fmt.Errorf("invalid OpenAPI preparation choices")
+	}
+	if len(stage.Context.Artifacts) < 1 || len(stage.Context.Artifacts) > 2 || !stage.Context.Artifacts["openapi"].Required {
+		return fmt.Errorf("OpenAPI preparation requires an exact openapi context input")
+	}
+	for name := range stage.Context.Artifacts {
+		if name != "openapi" && name != "settings" {
+			return fmt.Errorf("unknown OpenAPI preparation context input")
+		}
+	}
+	if options.Selection == "scan-requests" && !stage.Context.Artifacts["settings"].Required {
+		return fmt.Errorf("scan preparation requires a settings context input")
+	}
+	output, exists := stage.Result.Artifacts["work"]
+	if !exists || len(stage.Result.Artifacts) != 1 || !output.Required || len(output.MediaTypes) != 1 || output.MediaTypes[0] != "application/json" {
+		return fmt.Errorf("OpenAPI preparation requires one JSON work output")
 	}
 	return nil
 }

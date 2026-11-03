@@ -125,6 +125,9 @@ func (s *Service) Fork(ctx context.Context, fork Fork) (ForkResult, error) {
 	if !forkRouteAllowed(fork) {
 		return ForkResult{}, ErrInvalidScope
 	}
+	if fork.Source.kind == ScopeProject && fork.Target.kind == ScopeAudit && (!fork.Frozen || fork.SourceRef.ValidateExact() != nil) {
+		return ForkResult{}, ErrInvalidScope
+	}
 	if fork.Source.kind == ScopeProject && fork.Source == fork.Target && !fork.Frozen {
 		return ForkResult{}, ErrInvalidScope
 	}
@@ -147,8 +150,8 @@ func (s *Service) Fork(ctx context.Context, fork Fork) (ForkResult, error) {
 }
 
 // forkScopesAllowed admits the forks of ART-R72 and ART-R90: a UserScope or
-// ProjectScope or AuditScope source into a RunScope, a RunScope source into a
-// ProjectScope or AuditScope, an AuditScope source into its ProjectScope, and
+// ProjectScope or AuditScope source into a RunScope, a ProjectScope or RunScope
+// source into an AuditScope, an AuditScope source into its ProjectScope, and
 // one RunScope binding into another of the same Run.
 func forkScopesAllowed(source, target Scope) bool {
 	switch {
@@ -157,7 +160,7 @@ func forkScopesAllowed(source, target Scope) bool {
 	case target.kind == ScopeProject:
 		return source.kind == ScopeRun || source.kind == ScopeAudit || source == target
 	case target.kind == ScopeAudit:
-		return source.kind == ScopeRun
+		return source.kind == ScopeRun || source.kind == ScopeProject
 	}
 	return false
 }
@@ -200,7 +203,8 @@ func forkRouteAllowed(fork Fork) bool {
 	case LineageAuditOutput:
 		return fork.Source.kind == ScopeRun && fork.Target.kind == ScopeAudit
 	case LineageAuditInput:
-		return fork.Source.kind == ScopeAudit && fork.Target.kind == ScopeRun
+		return fork.Source.kind == ScopeAudit && fork.Target.kind == ScopeRun ||
+			fork.Source.kind == ScopeProject && fork.Target.kind == ScopeAudit
 	case LineageAuditPublish:
 		return fork.Source.kind == ScopeAudit && fork.Target.kind == ScopeProject
 	default:

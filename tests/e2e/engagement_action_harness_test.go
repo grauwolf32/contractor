@@ -211,7 +211,7 @@ func engagementRequestStage(requests []map[string]any) domainGatewayStage {
 	for _, request := range requests {
 		steps = append(steps, toolGatewayStep("http_request", fixedArguments(request)))
 	}
-	steps = append(steps, toolGatewayStep("submit_check_result", findingResultArguments(map[string]any{"assessment": "satisfied", "summary": "The explicit HTTP fixture completed; this model result makes no target vulnerability claim.", "completed": []string{}, "gaps": []string{}, "evidence": []any{}})), finalGatewayStep("Fixture result recorded", nil))
+	steps = append(steps, toolGatewayStep("submit_check_result", fixedArguments(map[string]any{"rationale": "The explicit HTTP fixture completed; this model result makes no target vulnerability claim.", "tested_conditions": []string{"explicit HTTP conformance requests"}, "limitations": []string{"No vulnerability verdict"}, "evidence": []string{}})), finalGatewayStep("Fixture result recorded", nil))
 	return domainGatewayStage{name: "engagement/explicit-http", tools: []string{"read_audit_task", "submit_check_result", "http_request", "http_credentials", "http_credential_read"}, steps: steps}
 }
 

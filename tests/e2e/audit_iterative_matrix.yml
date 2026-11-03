@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "scope": "Generic two-Round settled snapshots, exact retained dependencies, typed receipt routing and deterministic bypass; scripted protocol conformance, no model-quality claim.",
+  "scope": "Explicit common Task continuation, exact handoff, bounded preparation and lifecycle. Automatic generation is separate work; this gate no longer executes the retired Round pipeline.",
   "prerequisites": [
     "dedicated disposable PostgreSQL with CREATEDB",
     "own locked Runtime",
@@ -12,691 +12,6 @@
     "At most two heavy Go/PostgreSQL lanes; no live/demo data, live configs, paid model or arbitrary target is used."
   ],
   "cases": [
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore",
-      "case": "TestPostgresRoundResultsCaptureRestartsBeforeSealAndPinsReviewGeneration",
-      "covers": [
-        "A2"
-      ],
-      "purpose": "Interleave a review revision with partial capture, then freeze one complete generation and reject later mutation.",
-      "limits": [
-        "33 selected items",
-        "2 pages",
-        "one accepted metadata debit"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore",
-      "case": "TestPostgresRoundResultsRejectUnsettledAndOversizeSources",
-      "covers": [
-        "A4"
-      ],
-      "purpose": "Reject unsettled and oversized source pages before accepting a root.",
-      "limits": [
-        "600KiB coverage source",
-        "no silent truncation",
-        "no accepted incomplete root"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore",
-      "case": "TestPostgresRoundResultsCaptureAtRoundAndAuditCeilings",
-      "covers": [
-        "A4"
-      ],
-      "purpose": "Capture only the complete selected Round within a maximum containing Audit and inspect physical custom/generic plans.",
-      "limits": [
-        "4096 selected items",
-        "100000 containing items",
-        "more than128 and at most256 pages",
-        "source item reads <=64 plus planning allowance"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore",
-      "case": "TestPostgresRoundResultsPendingCapturePurgesWithAudit",
-      "covers": []
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore",
-      "case": "TestPostgresIterativeSnapshotPublicationReplaysAfterClaimTakeover",
-      "covers": [
-        "A2"
-      ],
-      "purpose": "Lose a committed page acknowledgement, replace the claim and replay exact publication without accepting a partial root.",
-      "limits": [
-        "2 pages",
-        "33 items",
-        "old epoch fenced",
-        "one page/root debit"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore",
-      "case": "TestPostgresIterativeAdmissionBoundsCandidatesAtContainingCeiling",
-      "covers": [
-        "A4"
-      ],
-      "purpose": "Raw candidate/rejection traversal remains bounded before filters in a large held-source population.",
-      "limits": [
-        "100000 receipt/hold headers",
-        "128 rejected prefix",
-        "2000 unrelated retained links",
-        "custom/generic index read bounds",
-        "zero proposal payload reads"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore",
-      "case": "TestPostgresProposedMembershipHasNoReadOrReviewAuthority",
-      "covers": []
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore",
-      "case": "TestPostgresAcceptedItemCountReadsRoundCountersAtAuditCeiling",
-      "covers": []
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore",
-      "case": "TestPostgresAdmissionStagesMoreThan128AndAcceptsConstantParentSeal",
-      "covers": []
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore",
-      "case": "TestPostgresAdmissionRaw128HeadersAndAllPortsUseSingleConnection",
-      "covers": [
-        "A4"
-      ],
-      "purpose": "Read only the bounded ordinal prefix and use all read/savepoint ports through one connection.",
-      "limits": [
-        "512 source check headers",
-        "128 raw records",
-        "MaxConns=1"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore",
-      "case": "TestPostgresAdmissionAnchorsDBCutoffAndDoesNotResetDeadline",
-      "covers": []
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore",
-      "case": "TestPostgresAdmissionExactSourceSavepointAndDecisionReplay",
-      "covers": []
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore",
-      "case": "TestPostgresAdmissionCancellationRemovesPrivateRowsInBoundedPasses",
-      "covers": [
-        "A3"
-      ],
-      "purpose": "Remove private membership without publication, charging primary, staging-counter and review/dependency work.",
-      "limits": [
-        "17 private items",
-        "8-unit closure passes",
-        "accepted membership unchanged"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore",
-      "case": "TestPostgresAdmissionPreparedAndAcceptedMembershipPurgeWithAudit",
-      "covers": [
-        "A3"
-      ],
-      "purpose": "Purge both private prepared and accepted typed membership after ordinary drain, including frozen artifacts and the last held receipt index.",
-      "limits": [
-        "9 typed items per branch",
-        "bounded purge passes",
-        "no orphan namespace/rows"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditservice",
-      "case": "TestPostgresRoundResultsMaterializerResumesDependencyChunks",
-      "covers": [
-        "A1"
-      ],
-      "purpose": "Resume exact dependency chunks through the real Run checkpoint; compare every rewritten payload and original attribution.",
-      "limits": [
-        "65 required artifacts",
-        "32/32/1 fork transactions",
-        "one child and debit"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditservice",
-      "case": "TestPostgresAcceptedRetainedDependencyManifestMaximumReplayAndPurge",
-      "covers": [
-        "A4"
-      ],
-      "purpose": "Admit and purge maximum complete manifests across unrelated bindings/links, with exact mutation work instrumentation.",
-      "limits": [
-        "32 descriptors/item",
-        "16+1 selected checks",
-        "2000 unrelated bindings and links",
-        "512 weighted cleanup work",
-        "distinct revisions charged once"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditservice",
-      "case": "TestPostgresNextRoundPreparesNineNearLimitProposals",
-      "covers": []
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditservice",
-      "case": "TestPostgresNextRoundRebuildsWorklistAfterFailedAcceptanceAndInboxGrowth",
-      "covers": [
-        "A5"
-      ],
-      "purpose": "Default next-Round retry rebuilds current accepted membership after failed acceptance/inbox growth.",
-      "limits": [
-        "no typed method map",
-        "consume-once source ordinals"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditservice",
-      "case": "TestAuditPausePreservesRemainingTimeAndResumeCanDisableDeadline",
-      "covers": [
-        "A3"
-      ],
-      "purpose": "Injected pause/resume clock preserves remaining time and idempotent deadline overrides.",
-      "limits": [
-        "finite pinned Audit deadline",
-        "no elapsed wall-clock threshold"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditservice",
-      "case": "TestAuditDeadlinePauseResumesAndRenewsExpiredReviews",
-      "covers": [
-        "A3"
-      ],
-      "purpose": "Deadline exhaustion pauses and resume renews expired approvals through existing policy.",
-      "limits": [
-        "default/extended/unlimited resume cases",
-        "no premature terminal completion"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditservice",
-      "case": "TestWebScanAuditPinsOneProjectWithoutModelOrOpenAPI",
-      "covers": [
-        "A5"
-      ],
-      "purpose": "Installed and custom deterministic web-scan inventory retain exact Project inputs without an LLM or OpenAPI.",
-      "limits": [
-        "one deterministic item",
-        "no LLM credential IDs",
-        "idempotent start"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditservice",
-      "case": "TestCoverageReadsRetainedTasksAndSharedResult",
-      "covers": [
-        "A5"
-      ],
-      "purpose": "Read the original retained task/result coverage for current deterministic profiles.",
-      "limits": [
-        "exact task/result descriptors",
-        "unchanged coverage denominator"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
-      "case": "TestPostgresRetainedDependenciesUseAcceptedPrepareAndItemAfterProducerDeletion",
-      "covers": [
-        "A1",
-        "A3"
-      ],
-      "purpose": "Use actual accepted preparation and item result sources after both producer Runs are deleted; cancel and delete the consumer. Cancel and collect the later consumer, then hard-delete it while Audit-retained content remains exact.",
-      "limits": [
-        "4 exact input mappings",
-        "one consumer child",
-        "lineage hold release equals incoming edges",
-        "zero remaining Run scope/progress/revisions/lineage",
-        "exact incoming hold decrement"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
-      "case": "TestPostgresTypedRoutingUsesActualAdmissionAfterPauseRestartAndProducerDeletion",
-      "covers": [
-        "A2"
-      ],
-      "purpose": "Recover a lost accepted-Round response after pause, producer deletion and restart; verify differently named routes and one rejection.",
-      "limits": [
-        "3 registered routes",
-        "one rejected unknown method",
-        "one source/ordinal association"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
-      "case": "TestPostgresTypedAdmissionContinuesBeyondOnePrimarySliceBeforeAtomicAcceptance",
-      "covers": [
-        "A4"
-      ],
-      "purpose": "Actual typed producer continues selection and hidden staging past one primary window before fixed-size atomic acceptance.",
-      "limits": [
-        "130 selected checks",
-        "one item per changing controller slice",
-        "no child while proposed"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
-      "case": "TestPostgresTypedAdmissionDefersAtNonTimeRoundBudgetWithoutTargetRetry",
-      "covers": []
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
-      "case": "TestPostgresControllersConvergeWithoutDuplicateExecutionAttempts",
-      "covers": [
-        "A2"
-      ],
-      "purpose": "Competing real controllers converge on existing intent identities without duplicate execution attempts.",
-      "limits": [
-        "one accepted execution per attempt",
-        "transactional dispatch capacity"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
-      "case": "TestPostgresControllerDrainBatchesCancellationObservationAndDeletion",
-      "covers": [
-        "A3"
-      ],
-      "purpose": "Actual cancellation, terminal observation, collection and deletion progress in bounded batches amid surrounding work.",
-      "limits": [
-        "32 drain mutations",
-        "2000 surrounding records"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
-      "case": "TestPostgresControllerDrainBatchesUnboundIntentFailures",
-      "covers": []
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
-      "case": "TestPostgresControllerDrainBatchStopsAtALostClaim",
-      "covers": []
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
-      "case": "TestPostgresControllerDispatchesOrdinaryRunsThroughDerivedWindow",
-      "covers": [
-        "A5"
-      ],
-      "purpose": "Default check dispatch continues ordinary child Runs through the original derived capacity window.",
-      "limits": [
-        "original item membership",
-        "no optional snapshot/routing requirement"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
-      "case": "TestPostgresControllerBatchBuildsOnePinnedRunForTwoItems",
-      "covers": [
-        "A5"
-      ],
-      "purpose": "Default compatible items still share one pinned child and execution manifest.",
-      "limits": [
-        "2 items",
-        "one ordinary Run",
-        "exact task/input closure"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
-      "case": "TestPostgresControllerCollectsAndPublishesExactAuditReport",
-      "covers": [
-        "A5"
-      ],
-      "purpose": "Original check collection and report assembly keep exact coverage/evidence through terminal completion.",
-      "limits": [
-        "unchanged ordinary report/coverage",
-        "no generator/ranker"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/runservice",
-      "case": "TestAuditInputPostgresResumesOneChildAndClassifiesFailures",
-      "covers": [
-        "A2"
-      ],
-      "purpose": "First-slice rollback, same-child replay, transient/permanent failure and finite original input deadline retain one reservation.",
-      "limits": [
-        "one child/debit",
-        "zero scheduler eligibility before complete input",
-        "10-minute original deadline"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/runservice",
-      "case": "TestAuditInputPostgresCanonicalByteBoundaryAndImmutability",
-      "covers": [
-        "A4"
-      ],
-      "purpose": "Round-trip exact canonical progress byte ceiling and reject oversize, identity rewrite and stale CAS.",
-      "limits": [
-        "262144 serialized bytes",
-        "immutable identity/deadline",
-        "stale revision conflict"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/runservice",
-      "case": "TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill",
-      "covers": []
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/runservice",
-      "case": "TestPostgresToolParameterProjectionValidatesBeforeCreationAndPreservesStrings",
-      "covers": [
-        "A5"
-      ],
-      "purpose": "Create actual ordinary tool Runs with strict unchanged parameter behavior and no model catalog requirement.",
-      "limits": [
-        "model-free tool lane",
-        "invalid values fail before creation"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditimport",
-      "case": "TestPostgresMaximumCollectionDescribesEvidenceAndRetainsInBoundedTransactions",
-      "covers": [
-        "A4"
-      ],
-      "purpose": "Measure every metadata description, fork and retention transaction at maximum collection size.",
-      "limits": [
-        "64 items",
-        "1024 links",
-        "958 distinct evidence plus1 result",
-        "32 refs/DescribeExact statement",
-        "512 work/retention transaction"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditimport",
-      "case": "TestPostgresMaximumCollectionResumesAfterInterruptedRetention",
-      "covers": [
-        "A2"
-      ],
-      "purpose": "Interrupt after the first committed retention slice, replay the same revisions, and publish one complete collection.",
-      "limits": [
-        "512 first-slice forks",
-        "959 distinct retained revisions",
-        "1024 links"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditimport",
-      "case": "TestPostgresMaximumCollectionStopsAtTransientFailureAndClaimLoss",
-      "covers": [
-        "A2"
-      ],
-      "purpose": "Inject transient metadata failure and claim loss between committed retention transactions; only the next holder completes the same outcome.",
-      "limits": [
-        "32-ref descriptions",
-        "512 retention work",
-        "one accepted receipt"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditimport",
-      "case": "TestImporterPostgresClosedDispatchPreservesSubmissionDrain",
-      "covers": [
-        "A3"
-      ],
-      "purpose": "Closed-dispatch unbound failures keep existing cancellation/settlement semantics.",
-      "limits": [
-        "check and declared assessment siblings",
-        "no invalid-result relabel"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/auditimport",
-      "case": "TestImporterPostgresPermanentInputReceiptReplaysAfterCancellation",
-      "covers": [
-        "A3"
-      ],
-      "purpose": "A committed permanent input receipt replays unchanged after cancellation without redoing target work.",
-      "limits": [
-        "one receipt",
-        "one child/reservation",
-        "closed dispatch fence"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/artifacts/postgres",
-      "case": "TestDescribeExactReadsBoundedMetadataBatchesWithoutPayloads",
-      "covers": [
-        "A4"
-      ],
-      "purpose": "Describe more than three exact metadata batches with repeated refs and no payload reads.",
-      "limits": [
-        "32 refs/statement",
-        "104 requested positions",
-        "zero payload reads"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/artifacts/postgres",
-      "case": "TestPostgresExactReadVerifiesTheDescriptor",
-      "covers": [
-        "A2"
-      ],
-      "purpose": "Reject descriptor digest/media/size mismatch at the production exact-read boundary.",
-      "limits": [
-        "exact metadata authority",
-        "no foreign or mismatched bytes"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/artifacts/postgres",
-      "case": "TestReadExactBatchPreservesScopeRevisionAndBlobIntegrity",
-      "covers": []
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/artifacts/postgres",
-      "case": "TestPostgresHistoryPreservesHoldsAndReseeksAReleasedHold",
-      "covers": [
-        "A2"
-      ],
-      "purpose": "Prove counted lineage holds protect old revisions until release and a later exact fork of an evicted source is unavailable.",
-      "limits": [
-        "3-revision fixture policy",
-        "protected history rejection",
-        "no current substitution"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/artifacts/postgres",
-      "case": "TestPostgresHistoryReadRacingRetention",
-      "covers": [
-        "A2"
-      ],
-      "purpose": "Race exact filesystem reads and batched reads against historical eviction without a latest fallback.",
-      "limits": [
-        "2-revision fixture policy",
-        "exact unavailable outcome"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/artifacts/postgres",
-      "case": "TestPostgresHistoryMaintenanceIsBoundedPerTransaction",
-      "covers": [
-        "A4"
-      ],
-      "purpose": "Measure history maintenance transaction work without widening the bound.",
-      "limits": [
-        "64 revision mutations/transaction"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/artifacts/postgres",
-      "case": "TestPostgresHistoryBoundSpansTheCallersTransaction",
-      "covers": [
-        "A4"
-      ],
-      "purpose": "The history work allowance spans the caller transaction rather than restarting per nested write.",
-      "limits": [
-        "one caller transaction",
-        "shared64-row work ceiling"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/artifacts/postgres",
-      "case": "TestPostgresHistoryPassReclaimsAtMost64MiB",
-      "covers": [
-        "A4"
-      ],
-      "purpose": "Bound one history reclamation pass by actual bytes.",
-      "limits": [
-        "64MiB reclaimed/pass"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/findingintake",
-      "case": "TestPostgresFindingImportSerializesWithRunDeletion",
-      "covers": [
-        "A2"
-      ],
-      "purpose": "Race actual finding import with Run deletion in both commit orderings and cancellation/rollback.",
-      "limits": [
-        "one retained exact copy or explicit unavailable",
-        "no late hold"
-      ]
-    },
-    {
-      "boundary": "postgres",
-      "package": "github.com/grauwolf32/contractor/internal/findingintake",
-      "case": "TestPostgresFindingRunDeletionSerializesWithAuditPurge",
-      "covers": [
-        "A3"
-      ],
-      "purpose": "Race native source deletion with owning Audit purge in both lock orderings.",
-      "limits": [
-        "joined operations",
-        "zero surviving source Run/Audit/holds"
-      ]
-    },
-    {
-      "boundary": "process",
-      "package": "github.com/grauwolf32/contractor/tests/e2e",
-      "case": "TestAuditIterativeCompositionAcrossProductionProcesses/iterative_two_rounds",
-      "covers": [
-        "A1"
-      ],
-      "purpose": "Join both settled snapshots, exact receipt routing and retained input reads in one four-Run/two-Round production journey.",
-      "limits": [
-        "2 Rounds",
-        "4 ordinary Runs",
-        "exact original/retained/consumer digests and bytes"
-      ]
-    },
-    {
-      "boundary": "process",
-      "package": "github.com/grauwolf32/contractor/tests/e2e",
-      "case": "TestAuditIterativeCompositionAcrossProductionProcesses/direct_model_free_bypass",
-      "covers": [
-        "A5"
-      ],
-      "purpose": "Execute a real standalone model-free Run without iterative mappings, model/ranking calls or Audit state.",
-      "limits": [
-        "zero Audit/research entities",
-        "original terminal result"
-      ]
-    },
-    {
-      "boundary": "process",
-      "package": "github.com/grauwolf32/contractor/tests/e2e",
-      "case": "TestAuditIterativeCompositionAcrossProductionProcesses/default_audit_bypass",
-      "covers": [
-        "A5"
-      ],
-      "purpose": "Execute an ordinary default-route Audit while explicitly asserting absent iterative snapshot/admission machinery.",
-      "limits": [
-        "no typed mappings",
-        "no hypothesis/cycle state",
-        "original membership/coverage"
-      ]
-    },
-    {
-      "boundary": "process",
-      "package": "github.com/grauwolf32/contractor/tests/e2e",
-      "case": "TestAuditRoundResultsAcrossProductionProcesses",
-      "covers": [
-        "A1"
-      ],
-      "purpose": "Read every page using ordinary Run-local access behind one declared input and the initialization fence.",
-      "limits": [
-        "129 actual Run-local pages",
-        "1 declared Workflow mapping",
-        "zero allocations before closure"
-      ]
-    },
-    {
-      "boundary": "process",
-      "package": "github.com/grauwolf32/contractor/tests/e2e",
-      "case": "TestAuditTypedCheckRoutingAcrossProductionProcesses",
-      "covers": []
-    },
     {
       "boundary": "harness",
       "package": "test_audit_iterative_gate",
@@ -808,6 +123,107 @@
         "no skipped/empty mandatory selection",
         "bounded redacted evidence"
       ]
+    },
+    {
+      "boundary": "postgres",
+      "package": "github.com/grauwolf32/contractor/internal/auditservice",
+      "case": "TestCommonAuditDraftStartAndOriginalReplay",
+      "covers": [
+        "A1",
+        "A2"
+      ],
+      "purpose": "A common pinned program starts atomically and replays its original receipt."
+    },
+    {
+      "boundary": "postgres",
+      "package": "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore",
+      "case": "TestSharedPostgresCommonTaskInputsStayExactAcrossProjectEdits",
+      "covers": [
+        "A1",
+        "A4"
+      ],
+      "purpose": "Task inputs keep exact ownership and revisions across edits to Project materials."
+    },
+    {
+      "boundary": "postgres",
+      "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+      "case": "TestPostgresCommonControllerPauseHandoffResume",
+      "covers": [
+        "A1",
+        "A3"
+      ],
+      "purpose": "Pause drains admitted work, accepts an explicit exact handoff and resumes ordinary Run dispatch."
+    },
+    {
+      "boundary": "postgres",
+      "package": "github.com/grauwolf32/contractor/internal/auditcontroller",
+      "case": "TestPostgresCommonControllerReconcilesLostCreationAcknowledgement",
+      "covers": [
+        "A2",
+        "A3"
+      ],
+      "purpose": "Lost creation acknowledgement reconciles the existing ordinary Run."
+    },
+    {
+      "boundary": "postgres",
+      "package": "github.com/grauwolf32/contractor/internal/auditimport",
+      "case": "TestCommonImporterReadOutageCreatesNoTechnicalReceipt",
+      "covers": [
+        "A1",
+        "A2"
+      ],
+      "purpose": "Transient reads create no receipt; permanent input failure is classified."
+    },
+    {
+      "boundary": "postgres",
+      "package": "github.com/grauwolf32/contractor/internal/findingintake",
+      "case": "TestPostgresFindingBatchTaskOriginAndBoundedResultReferences",
+      "covers": [
+        "A1",
+        "A4"
+      ],
+      "purpose": "Batch members derive trusted Task/hypothesis origin and bounded Finding references."
+    },
+    {
+      "boundary": "postgres",
+      "package": "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore",
+      "case": "TestSharedPostgresCommonTaskPagesAndPurgeAtCeiling",
+      "covers": [
+        "A4",
+        "A6"
+      ],
+      "purpose": "Sparse 100,000-Task pages and purge remain bounded."
+    },
+    {
+      "boundary": "process",
+      "package": "github.com/grauwolf32/contractor/tests/e2e",
+      "case": "TestAuditBasicExactHandoffAcrossProductionProcesses",
+      "covers": [
+        "A1",
+        "A2",
+        "A3"
+      ],
+      "purpose": "Two ordinary Workflows hand off an exact retained material through the public API."
+    },
+    {
+      "boundary": "process",
+      "package": "github.com/grauwolf32/contractor/tests/e2e",
+      "case": "TestAuditCommonPrepared256PauseRestartAndCancelAcrossProcesses",
+      "covers": [
+        "A2",
+        "A3",
+        "A6"
+      ],
+      "purpose": "256 prepared entries reconcile bounded slices through restart and cancellation."
+    },
+    {
+      "boundary": "process",
+      "package": "github.com/grauwolf32/contractor/tests/e2e",
+      "case": "TestAuditCommonObservationProfilesAcrossProductionProcesses",
+      "covers": [
+        "A5"
+      ],
+      "purpose": "Run both current passive observation/tracing programs through ordinary preparation and operation Tasks."
     }
   ]
 }

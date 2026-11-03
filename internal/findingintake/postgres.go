@@ -17,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -35,7 +36,7 @@ receipt.run_id, receipt.stage_execution_id, receipt.allocation_id,
 receipt.logical_agent_name, receipt.invocation_id,
 receipt.workflow_name, receipt.workflow_version, receipt.workflow_schema_version,
 receipt.workflow_configuration_ref, receipt.workflow_closure_digest,
-receipt.audit_id, receipt.audit_execution_id, receipt.audit_role,
+receipt.audit_id, receipt.audit_execution_id, receipt.audit_task_id,receipt.audit_hypothesis,
 receipt.proposal_ref, receipt.proposal_digest, receipt.proposal_media_type,
 receipt.proposal_size_bytes, receipt.evidence,
 receipt.retention_state, receipt.source_run_deleted_at, receipt.created_at, receipt.fingerprint_projection, receipt.anchor_projection,
@@ -67,7 +68,8 @@ func scanReceiptRow(row pgx.Row) (Receipt, error) {
 	var result Receipt
 	var configurationRef, proposalRef, evidenceJSON, fingerprintJSON, anchorJSON []byte
 	var projectProposalJSON, projectEvidenceJSON []byte
-	var auditID, auditExecutionID, auditRole *string
+	var auditID, auditExecutionID, auditTaskID *string
+	var hypothesis []byte
 	var sourceDeletedAt *time.Time
 	err := row.Scan(
 		&result.ReceiptID, &result.ProposalID, &result.RequestDigest,
@@ -77,7 +79,7 @@ func scanReceiptRow(row pgx.Row) (Receipt, error) {
 		&result.Origin.Workflow.Name, &result.Origin.Workflow.Version,
 		&result.Origin.Workflow.SchemaVersion, &configurationRef,
 		&result.Origin.Workflow.ClosureDigest,
-		&auditID, &auditExecutionID, &auditRole,
+		&auditID, &auditExecutionID, &auditTaskID, &hypothesis,
 		&proposalRef, &result.Proposal.Digest, &result.Proposal.MediaType,
 		&result.Proposal.SizeBytes, &evidenceJSON,
 		&result.Retention, &sourceDeletedAt, &result.CreatedAt, &fingerprintJSON, &anchorJSON,
@@ -117,12 +119,20 @@ func scanReceiptRow(row pgx.Row) (Receipt, error) {
 	}
 	result.Origin.RunDeleted = sourceDeletedAt != nil
 	if auditID != nil {
-		if auditExecutionID == nil || auditRole == nil {
+		if auditExecutionID == nil || auditTaskID == nil {
 			return Receipt{}, errors.New("validate stored finding Audit origin")
 		}
 		result.Origin.Audit = &AuditOrigin{
-			AuditID: *auditID, ExecutionID: *auditExecutionID, Role: *auditRole,
+			AuditID: *auditID, ExecutionID: *auditExecutionID, TaskID: *auditTaskID,
 		}
+		if len(hypothesis) != 0 {
+			var ref auditcontract.HypothesisRef
+			if strictjson.Decode(hypothesis, &ref) != nil || !contracts.ValidResourceID(ref.ID) || ref.Revision == 0 || ref.Revision > contracts.MaxExactInteger {
+				return Receipt{}, ErrInvalid
+			}
+			result.Origin.Audit.Hypothesis = &ref
+		}
+
 	}
 	return result, nil
 }
@@ -211,18 +221,6 @@ func (s *Service) ListAuditInbox(
 	return s.listAuditInbox(ctx, ownerID, auditID, query, listAuditInboxSQL)
 }
 
-// ListAuditHeldInbox lists only receipts with an exact hold in the Audit. A
-// native child receipt that collection did not retain, such as a rejected
-// invalid proposal, stays in the owner inbox while its source Run exists but
-// is never schedulable work.
-func (s *Service) ListAuditHeldInbox(
-	ctx context.Context,
-	ownerID, auditID string,
-	query ListQuery,
-) ([]Receipt, error) {
-	return s.listAuditInbox(ctx, ownerID, auditID, query, listAuditHeldInboxSQL)
-}
-
 // listAuditInbox filters in the statement, so a page is never short because a
 // row was dropped after LIMIT, and hydrates through the same Audit-scoped
 // hold path as GetAuditReceipts.
@@ -249,20 +247,6 @@ func (s *Service) listAuditInbox(
 		keys[index] = AuditReceiptKey{AuditID: auditID, ReceiptID: receipt.ReceiptID}
 	}
 	return s.hydrateAuditReceipts(ctx, ownerID, keys, receipts)
-}
-
-// GetAuditReceipt reads one receipt admitted to the owner's Audit through
-// GetAuditReceipts, so it exposes only that Audit's own hold and, after source
-// Run deletion, reads the proposal from that hold's retained copy.
-func (s *Service) GetAuditReceipt(
-	ctx context.Context,
-	ownerID, auditID, receiptID string,
-) (Receipt, error) {
-	receipts, err := s.GetAuditReceipts(ctx, ownerID, auditID, []string{receiptID})
-	if err != nil {
-		return Receipt{}, err
-	}
-	return receipts[0], nil
 }
 
 func validListQuery(query ListQuery) bool {
@@ -352,6 +336,9 @@ func (s *Service) importTransaction(ctx context.Context, fn func(pgx.Tx) error) 
 // rejected as RejectAuditCollection does, in the transaction that commits the
 // proposals before it, so it cannot block the rest of the page.
 func (s *Service) RetainAuditCollectionBatch(ctx context.Context, requests []ImportRequest) error {
+	// One bounded page shares immutable Run/output verification, including
+	// retries of its transactions; the next page starts with a fresh cache.
+	ctx = context.WithValue(ctx, directVerificationCacheKey{}, &directVerificationCache{})
 	if len(requests) == 0 || len(requests) > MaxAuditReceiptBatchSize {
 		return ErrInvalid
 	}

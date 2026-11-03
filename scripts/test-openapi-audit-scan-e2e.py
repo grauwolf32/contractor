@@ -9,17 +9,9 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-TEST = "TestOpenAPIAuditScanAcrossProductionProcesses"
+TEST = "TestAuditCommonScanProfilesAcrossProductionProcesses"
 PACKAGE = "github.com/grauwolf32/contractor/tests/e2e"
-CASES = (
-    "sqlmap_exact_request_and_retained_package",
-    "nuclei_url_coverage_and_pinned_template",
-    "missing_concrete_input_never_dispatches",
-    "lost_journal_ack_does_not_repeat_scan",
-    "publication_and_collection_faults_survive_restart",
-    "known_failure_has_bounded_cross_run_retries",
-    "cancelled_scan_is_not_resubmitted",
-)
+CASES = ("sqlmap", "nuclei", "web")
 
 
 def verify(path: Path) -> None:

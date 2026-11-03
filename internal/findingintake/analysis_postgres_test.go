@@ -56,7 +56,8 @@ func TestPostgresCollectionValidatesOptionalAnalysisBeforePublication(t *testing
 				t.Fatalf("valid publication: %+v %v", result, err)
 			}
 		} else {
-			if auditdomain.ErrorCode(err) != auditdomain.CodeInvalid {
+			var validation *auditdomain.ValidationError
+			if !errors.As(err, &validation) || validation.Code != auditdomain.CodeInvalid {
 				t.Fatalf("invalid exact source: %v", err)
 			}
 			user, err := artifacts.NewService(artifactpgtest.NewStorage().Repository(f.pool)).User(f.request.OwnerID)

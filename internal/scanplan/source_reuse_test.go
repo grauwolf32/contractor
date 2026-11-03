@@ -7,7 +7,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/scanplan"
 )
@@ -22,16 +21,14 @@ func TestLargeInventoryParsesAndDigestsSourceOnce(t *testing.T) {
 			format, scanner, _ := strings.Cut(key, "/")
 			source, settings := largeSource(t, format), largeSettings(t, scanner)
 			work := scanplan.CountSourceWork(t)
-			inventory, err := buildScanInventory(t, source, sourceFormats[format], inventorySourceRef("source-1"), settings)
+			inventory, err := prepareScanBatch(t, source, sourceFormats[format], inventorySourceRef("source-1"), settings)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(inventory.Tasks) != largeOperations || work.Parses() != 1 || work.Digests() != 1 {
-				t.Fatalf("%d tasks took %d source parses and %d source digests, want 1 and 1", len(inventory.Tasks), work.Parses(), work.Digests())
+			if len(inventory) != largeOperations || work.Parses() != 1 || work.Digests() != 1 {
+				t.Fatalf("%d tasks took %d source parses and %d source digests, want 1 and 1", len(inventory), work.Parses(), work.Digests())
 			}
-			if inventory.SourceContentDigest != digest(source) || inventory.Tasks[0].Document.SourceContentDigest != digest(source) {
-				t.Fatal("inventory lost the exact source digest")
-			}
+
 		})
 	}
 }
@@ -41,7 +38,7 @@ func TestLargeInventoryParsesAndDigestsSourceOnce(t *testing.T) {
 func TestSingleOperationPreparationParsesItsOwnSource(t *testing.T) {
 	source := encodeSource(t, reuseDocument(), "json")
 	ref := inventorySourceRef("source-1")
-	inventory, err := buildScanInventory(t, source, "application/json", ref, reuseSQLMapSettings)
+	inventory, err := prepareScanBatch(t, source, "application/json", ref, reuseSQLMapSettings)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,10 +48,10 @@ func TestSingleOperationPreparationParsesItsOwnSource(t *testing.T) {
 	}
 	work := scanplan.CountSourceWork(t)
 	for call := 1; call <= 2; call++ {
-		if _, err := auditdomain.PrepareOpenAPIScanTask(inventory.Tasks[0].Document, source, []byte(reuseSQLMapSettings)); err != nil {
+		if _, err := settings.PrepareOperation(source, "application/json", ref, inventory[0].Operation); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := settings.PrepareOperation(source, "application/json", ref, inventory.Tasks[1].Document.Scan.Operation); err != nil {
+		if _, err := settings.PrepareOperation(source, "application/json", ref, inventory[1].Operation); err != nil {
 			t.Fatal(err)
 		}
 		if work.Parses() != int64(2*call) || work.Digests() != int64(2*call) {
@@ -234,7 +231,7 @@ func BenchmarkLargeScanInventory(b *testing.B) {
 			source, settings := largeSource(b, format), largeSettings(b, "sqlmap")
 			b.ReportAllocs()
 			for b.Loop() {
-				if _, err := buildScanInventory(b, source, sourceFormats[format], inventorySourceRef("source-1"), settings); err != nil {
+				if _, err := prepareScanBatch(b, source, sourceFormats[format], inventorySourceRef("source-1"), settings); err != nil {
 					b.Fatal(err)
 				}
 			}

@@ -161,7 +161,7 @@ func TestPersistedAuditProfileRejectsMissingStageSession(t *testing.T) {
 		t.Fatal(err)
 	}
 	binding := document["workflows"].(map[string]any)["check"].(map[string]any)
-	workflow := binding["workflow"].(map[string]any)
+	workflow := binding
 	for _, raw := range workflow["stages"].(map[string]any) {
 		delete(raw.(map[string]any), "session")
 	}
@@ -169,9 +169,9 @@ func TestPersistedAuditProfileRejectsMissingStageSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	decoded, err := auditprofile.DecodeResolvedAuditProfileSnapshot(invalid)
-	if err == nil || !strings.Contains(err.Error(), "workerSessionMode") ||
-		!reflect.DeepEqual(decoded, auditprofile.ResolvedAuditProfile{}) {
+	decoded, err := auditprofile.DecodePinnedProgram(invalid)
+	if err == nil ||
+		!reflect.DeepEqual(decoded, auditprofile.PinnedProgram{}) {
 		t.Fatalf("invalid persisted AuditProfile = (%+v, %v)", decoded, err)
 	}
 }

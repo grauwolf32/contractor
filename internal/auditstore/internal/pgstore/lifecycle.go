@@ -12,44 +12,6 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// SettleUndispatched closes items for which the durable dispatch fence won
-// before another execution intent could be created. Created executions always
-// take the ordinary terminal-observation and collection-receipt path instead.
-func (s *ClaimStore) SettleUndispatched(
-	ctx context.Context, claim auditstore.ControllerClaim, limit int,
-) (int, error) {
-	if err := validateClaimIdentity(claim); err != nil {
-		return 0, err
-	}
-	if limit < 1 || limit > auditstore.MaxReconcileRows {
-		return 0, invalidf("Audit settlement batch is invalid")
-	}
-	var cleaned int
-	if err := s.db.QueryRow(ctx, cleanupProposedItemsSQL, claim.AuditID, claim.HolderID, claim.Epoch, limit).Scan(&cleaned); err != nil {
-		return 0, writeError("clean private proposed Audit items", err)
-	}
-	if cleaned > 0 {
-		return cleaned, nil
-	}
-	var authorized bool
-	var changed int
-	err := s.db.QueryRow(ctx, settleUndispatchedSQL,
-		claim.AuditID, claim.HolderID, claim.Epoch, limit,
-	).Scan(&authorized, &changed)
-	if err != nil {
-		return 0, writeError("settle undispatched Audit items", err)
-	}
-	if authorized {
-		return changed, nil
-	}
-	if live, liveErr := s.claimLive(ctx, claim); liveErr != nil {
-		return 0, liveErr
-	} else if !live {
-		return 0, auditstore.ErrClaimLost
-	}
-	return 0, auditstore.ErrPrecondition
-}
-
 // ReleaseDispatchHold releases only the Audit-level future-dispatch hold.
 // Per-Run credential references and retained evidence have independent
 // lifetimes and are intentionally untouched.

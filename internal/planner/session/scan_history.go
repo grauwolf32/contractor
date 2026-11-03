@@ -13,7 +13,7 @@ import (
 
 type ScanHistoryStore interface {
 	GetRun(context.Context, string) (runstore.WorkflowRun, error)
-	ListStageExecutions(context.Context, string) ([]runstore.StageExecution, error)
+	ListStageLineage(context.Context, string, string) ([]runstore.StageLineage, error)
 	ReadPlannerSessions(context.Context, []string, func(runstore.PlannerSession) error) error
 }
 
@@ -32,30 +32,39 @@ func ReadAuditScanHistory(ctx context.Context, store ScanHistoryStore, runID str
 	if err != nil {
 		return nil, err
 	}
-	if run.RunID != runID || run.PublicationMode != runstore.PublicationAuditManaged || run.AuditExecutionID == nil {
-		return nil, fmt.Errorf("Audit scan requires an Audit-managed Run")
+	if run.RunID != runID {
+		return nil, fmt.Errorf("scan history Run identity differs")
 	}
 	workflow, err := resolved.DecodeResolvedWorkflowSnapshot(run.WorkflowSnapshot)
 	if err != nil {
 		return nil, err
 	}
-	if workflow.AuditTask == nil || (workflow.AuditTask.Contract != resolved.AuditTaskOpenAPIScanV1 && workflow.AuditTask.Contract != resolved.AuditTaskWebScanV1) {
-		return nil, fmt.Errorf("Run does not declare a scan task executor")
+	executor := ""
+	for name, stage := range workflow.Stages {
+		if stage.ScanPreparation != nil {
+			if executor != "" {
+				return nil, fmt.Errorf("multiple prepared scan Stages")
+			}
+			executor = name
+		}
 	}
-	stages, err := store.ListStageExecutions(ctx, runID)
+	if executor == "" {
+		return nil, fmt.Errorf("Run has no prepared scan Stage")
+	}
+	stages, err := store.ListStageLineage(ctx, runID, executor)
 	if err != nil {
 		return nil, err
 	}
-	executors := make([]runstore.StageExecution, 0, len(stages))
+	executors := make([]runstore.StageLineage, 0, len(stages))
 	sessionIDs := make([]string, 0, len(stages))
-	expected := make(map[string]runstore.StageExecution)
+	expected := make(map[string]runstore.StageLineage)
 	for _, stage := range stages {
 		if stage.RunID != runID {
 			return nil, fmt.Errorf("scan history Run identity differs")
 		}
 		// Ordinary preparation/finalization stages do not contribute scanner
 		// outcomes. Recovery follows the executor declared in the frozen Run.
-		if stage.StageName != workflow.AuditTask.Stage {
+		if stage.StageName != executor {
 			continue
 		}
 		executors = append(executors, stage)
@@ -92,13 +101,6 @@ func ReadAuditScanHistory(ctx context.Context, store ScanHistoryStore, runID str
 	}
 	result := []planner.ScanAttempt{}
 	for _, stage := range executors {
-		spec, err := resolved.DecodeResolvedStageSnapshot(stage.StageSpecSnapshot)
-		if err != nil {
-			return nil, err
-		}
-		if spec.AuditScan == nil {
-			return nil, fmt.Errorf("scan task executor Stage has no scan configuration")
-		}
 		attempt := planner.ScanAttempt{
 			StageExecutionID: stage.StageExecutionID, StageName: stage.StageName,
 			State: planner.ScanState{Jobs: []planner.ScanJobRecord{}}, Terminal: stage.State.Terminal(),

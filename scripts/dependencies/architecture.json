@@ -13,13 +13,13 @@
     },
     {
       "id": "profile",
-      "label": "AuditProfile",
+      "label": "AuditProfile / Program",
       "kind": "Configuration",
       "lane": 0,
-      "description": "Версионированная программа: режим, стандарты, входы, inventory, роли Workflows, лимиты и правила взаимодействия.",
+      "description": "Версионированная общая программа: материалы, разрешённые Workflow closures, initial_work, лимиты и политика активных действий.",
       "sources": [
-        "docs/spec/audits/audits.md",
-        "internal/config/auditprofile/audit_profile.go"
+        "docs/spec/audits/common-contract.md",
+        "internal/config/auditprofile/pinned_program.go"
       ]
     },
     {
@@ -28,33 +28,40 @@
       "kind": "Configuration",
       "lane": 0,
       "description": "Точные версии требований или рисков, evidence contracts и отображения проверок на Workflow-роли.",
-      "sources": ["docs/spec/audits/audits.md"]
+      "sources": [
+        "docs/spec/audits/audits.md"
+      ]
     },
     {
       "id": "audit",
       "label": "Audit",
       "kind": "Audit",
       "lane": 1,
-      "description": "Долгоживущая оценка Project по неизменяемой baseline. Координирует обычные Runs и собирает покрытие и результаты.",
-      "sources": ["docs/spec/audits/audits.md"]
+      "description": "Координирует принятые Tasks через обычные Runs в Project. Пауза закрывает отправку Runs, сохраняя приём работы и сбор результата.",
+      "sources": [
+        "docs/spec/audits/execution.md"
+      ]
     },
     {
       "id": "baseline",
       "label": "Pinned baseline",
       "kind": "Audit",
       "lane": 1,
-      "description": "При старте фиксируются точные входы, scope, профиль, Workflow closures, RuntimeConfig, Skills, стандарты и лимиты. Изменение каталога не меняет начатый Audit.",
-      "sources": ["docs/spec/audits/audits.md"]
+      "description": "При старте фиксируются точные материалы, scope, программа, Workflow closures, Skills, RuntimeConfig и лимиты. Продолжение использует сохранённые данные.",
+      "sources": [
+        "docs/spec/audits/execution.md",
+        "internal/auditservice/common_start.go"
+      ]
     },
     {
-      "id": "inventory",
-      "label": "Inventory → Round → Item",
+      "id": "tasks",
+      "label": "Durable Tasks",
       "kind": "Audit",
       "lane": 1,
-      "description": "Детерминированный inventory создаёт ограниченное множество предметов проверки. Неизменяемый Round содержит AuditItems с точными задачами, происхождением и попытками.",
+      "description": "Общий приём проверяет задания, точные материалы и лимиты; назначает идентичности и сохраняет receipt. OpenAPI preparation выдаёт ограниченный список работы через обычный output.",
       "sources": [
-        "docs/spec/audits/audits.md",
-        "internal/config/auditprofile/audit_inventory.go"
+        "docs/spec/audits/common-contract.md",
+        "internal/auditservice/task_intake.go"
       ]
     },
     {
@@ -62,8 +69,10 @@
       "label": "Audit Controller",
       "kind": "Execution",
       "lane": 1,
-      "description": "Владеет подготовкой, раундами, items, child Run intents, сбором результатов, покрытием и бюджетами Audit.",
-      "sources": ["docs/spec/audits/execution.md"]
+      "description": "Выбирает готовые Tasks ограниченными порциями, резервирует попытки, вызывает RunService и собирает обычные результаты.",
+      "sources": [
+        "docs/spec/audits/execution.md"
+      ]
     },
     {
       "id": "workflow",
@@ -81,8 +90,11 @@
       "label": "AuditExecution",
       "kind": "Audit",
       "lane": 2,
-      "description": "Одна подача Workflow-роли. Содержит точный execution manifest; соответствует не более чем одному Run. Один check Run может обслуживать ограниченный batch items.",
-      "sources": ["docs/spec/audits/audits.md", "docs/spec/audits/execution.md"]
+      "description": "Одна зарезервированная отправка выбранных Tasks соответствует не более чем одному обычному Run. Совместимые задания могут исполняться batch.",
+      "sources": [
+        "docs/spec/audits/execution.md",
+        "internal/auditstore/internal/pgstore/task_execution.go"
+      ]
     },
     {
       "id": "run",
@@ -145,7 +157,9 @@
       "kind": "Execution",
       "lane": 3,
       "description": "Регистрация Runtime Agents, capabilities, placement, allocation и release. Учитывает закреплённые Runtime labels и требуемые возможности.",
-      "sources": ["docs/spec/execution/control-plane.md"]
+      "sources": [
+        "docs/spec/execution/control-plane.md"
+      ]
     },
     {
       "id": "worker",
@@ -164,7 +178,9 @@
       "kind": "Runtime",
       "lane": 4,
       "description": "Один allocation slot и один Worker на процесс. Создаёт workspace и инструменты, обслуживает A2A и присоединяет завершение работы к release.",
-      "sources": ["docs/spec/execution/runtime-agent.md"]
+      "sources": [
+        "docs/spec/execution/runtime-agent.md"
+      ]
     },
     {
       "id": "tools",
@@ -195,7 +211,9 @@
       "kind": "Configuration",
       "lane": 4,
       "description": "Закреплённая инфраструктурная конфигурация, target policy, adapter settings и ссылки на credentials. Секреты разрешаются отдельно при allocation.",
-      "sources": ["docs/spec/configuration/runtime-config.md"]
+      "sources": [
+        "docs/spec/configuration/runtime-config.md"
+      ]
     },
     {
       "id": "artifacts",
@@ -210,30 +228,56 @@
     },
     {
       "id": "findings",
-      "label": "Finding proposals",
+      "label": "Project Findings + sources",
       "kind": "Result",
       "lane": 5,
-      "description": "Предложения о возможных проблемах с происхождением и evidence. Приём и triage принадлежат Audit; технический успех Run не равен подтверждённой находке.",
+      "description": "Одна идентичность и текущее состояние Finding принадлежат Project. Независимые источники сохраняют точное происхождение Audit, Task и Run. Находка необязательна.",
       "sources": [
-        "docs/spec/findings/findings.md",
-        "docs/spec/audits/review-and-reports.md"
+        "docs/spec/findings/findings.md"
       ]
     },
     {
       "id": "review",
-      "label": "Human review",
+      "label": "Human finding review",
       "kind": "Result",
       "lane": 5,
-      "description": "Аутентифицированные решения по точной ревизии или digest предмета review. Профиль определяет, когда нужны approval и подтверждение.",
-      "sources": ["docs/spec/audits/review-and-reports.md"]
+      "description": "Владелец Project оценивает подтверждение и важность Finding. Технический успех Run не подтверждает уязвимость.",
+      "sources": [
+        "docs/spec/findings/findings.md"
+      ]
     },
     {
       "id": "report",
-      "label": "Coverage + report",
+      "label": "Ordinary results + reports",
       "kind": "Result",
       "lane": 5,
-      "description": "Покрытие, выводы и пробелы по принятому evidence. Политика профиля определяет автоматическое или owner-accepted принятие отчёта.",
-      "sources": ["docs/spec/audits/review-and-reports.md"]
+      "description": "Обычные JSON-результаты и отчёты Workflows сохраняются как точные материалы. Выбранный output можно передать новому Task через API или явно опубликовать в Project.",
+      "sources": [
+        "docs/spec/audits/common-contract.md",
+        "docs/spec/artifacts/artifact-store.md"
+      ]
+    },
+    {
+      "id": "runservice",
+      "label": "RunService",
+      "kind": "Execution",
+      "lane": 2,
+      "description": "Создаёт обычный Run по принятым Tasks и точным closures. Связывает исполнение Audit с одним Run и сохраняет его inputs.",
+      "sources": [
+        "internal/runservice/audit_tasks.go",
+        "docs/spec/audits/execution.md"
+      ]
+    },
+    {
+      "id": "operation",
+      "label": "Server operation",
+      "kind": "Execution",
+      "lane": 3,
+      "description": "Объявленный operation-stage выполняется на Server. Доменный OpenAPI builder создаёт ограниченный список работы как обычный output без модели и Runtime Worker.",
+      "sources": [
+        "internal/operations/openapiwork/operation.go",
+        "docs/spec/execution/server-operations.md"
+      ]
     }
   ],
   "edges": [
@@ -256,27 +300,27 @@
       "source": "docs/spec/audits/audits.md"
     },
     {
-      "from": "profile",
-      "to": "standard",
-      "label": "выбирает · 0..N",
+      "from": "standard",
+      "to": "artifacts",
+      "label": "точный каталог требований",
       "source": "docs/spec/audits/audits.md"
     },
     {
       "from": "profile",
       "to": "workflow",
-      "label": "prepare / check / discovery / assessment",
+      "label": "разрешённые обычные Workflows",
       "source": "docs/spec/audits/audits.md"
     },
     {
       "from": "profile",
-      "to": "inventory",
-      "label": "задаёт генератор",
+      "to": "tasks",
+      "label": "initial_work",
       "source": "docs/spec/audits/audits.md"
     },
     {
       "from": "audit",
-      "to": "inventory",
-      "label": "раунды и предметы проверки",
+      "to": "tasks",
+      "label": "принятые задания",
       "source": "docs/spec/audits/audits.md"
     },
     {
@@ -299,8 +343,8 @@
     },
     {
       "from": "execution",
-      "to": "inventory",
-      "label": "попытки items / role inputs",
+      "to": "tasks",
+      "label": "выбранные задания и попытки",
       "source": "docs/spec/audits/audits.md"
     },
     {
@@ -420,13 +464,13 @@
     {
       "from": "controller",
       "to": "findings",
-      "label": "приём и triage",
+      "label": "сохраняет вклад источника",
       "source": "docs/spec/audits/execution.md"
     },
     {
-      "from": "audit",
+      "from": "project",
       "to": "review",
-      "label": "запрашивает решения",
+      "label": "владелец оценивает Finding",
       "source": "docs/spec/audits/review-and-reports.md"
     },
     {
@@ -438,7 +482,7 @@
     {
       "from": "audit",
       "to": "report",
-      "label": "публикует",
+      "label": "удерживает точный результат",
       "source": "docs/spec/audits/review-and-reports.md"
     },
     {
@@ -446,6 +490,30 @@
       "to": "artifacts",
       "label": "опирается на evidence",
       "source": "docs/spec/audits/review-and-reports.md"
+    },
+    {
+      "from": "controller",
+      "to": "runservice",
+      "label": "запускает принятую работу",
+      "source": "docs/spec/audits/execution.md"
+    },
+    {
+      "from": "runservice",
+      "to": "run",
+      "label": "создаёт обычный Run",
+      "source": "internal/runservice/audit_tasks.go"
+    },
+    {
+      "from": "stage",
+      "to": "operation",
+      "label": "operation-stage",
+      "source": "docs/spec/execution/server-operations.md"
+    },
+    {
+      "from": "operation",
+      "to": "artifacts",
+      "label": "обычные входы и выходы",
+      "source": "internal/operations/openapiwork/operation.go"
     }
   ]
 }

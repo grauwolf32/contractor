@@ -10,6 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/jackc/pgx/v5"
 )
@@ -90,14 +91,15 @@ func (s *Service) ListProjectSources(ctx context.Context, ownerID, projectID, fi
 	for rows.Next() {
 		var value ProjectSourcePreview
 		var proposal, configuration []byte
-		var auditID, executionID, role *string
+		var auditID, executionID, taskID *string
+		var hypothesis []byte
 		var deleted *time.Time
 		if err := rows.Scan(&value.ReceiptID, &value.ProposalID, &value.ProjectID, &value.FindingID,
 			&proposal, &value.EvidenceCount, &value.PublicationRequested, &value.CreatedAt,
 			&value.Origin.RunID, &value.Origin.StageExecutionID, &value.Origin.AllocationID,
 			&value.Origin.InvocationID, &value.Origin.LogicalAgentName, &value.Origin.Workflow.Name,
 			&value.Origin.Workflow.Version, &value.Origin.Workflow.SchemaVersion, &configuration, &value.Origin.Workflow.ClosureDigest,
-			&auditID, &executionID, &role, &deleted); err != nil {
+			&auditID, &executionID, &taskID, &hypothesis, &deleted); err != nil {
 			return ProjectSourcePage{}, err
 		}
 		if strictjson.Decode(proposal, &value.Proposal) != nil || value.Proposal.Validate() != nil ||
@@ -106,10 +108,18 @@ func (s *Service) ListProjectSources(ctx context.Context, ownerID, projectID, fi
 		}
 		value.Origin.RunDeleted = deleted != nil
 		if auditID != nil {
-			if executionID == nil || role == nil {
+			if executionID == nil || taskID == nil {
 				return ProjectSourcePage{}, ErrInvalid
 			}
-			value.Origin.Audit = &AuditOrigin{AuditID: *auditID, ExecutionID: *executionID, Role: *role}
+			value.Origin.Audit = &AuditOrigin{AuditID: *auditID, ExecutionID: *executionID, TaskID: *taskID}
+			if len(hypothesis) != 0 {
+				var ref auditcontract.HypothesisRef
+				if strictjson.Decode(hypothesis, &ref) != nil || !contracts.ValidResourceID(ref.ID) || ref.Revision == 0 || ref.Revision > contracts.MaxExactInteger {
+					return ProjectSourcePage{}, ErrInvalid
+				}
+				value.Origin.Audit.Hypothesis = &ref
+			}
+
 		}
 		result = append(result, value)
 	}

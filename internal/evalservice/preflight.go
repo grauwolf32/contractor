@@ -20,7 +20,7 @@ import (
 
 type Catalog interface {
 	ResolveRunWorkflow(context.Context, string, resolved.CredentialLookup) (resolved.ResolvedWorkflow, error)
-	ResolveAuditProfile(context.Context, string) (auditprofile.ResolvedAuditProfile, error)
+	ResolveAuditProfile(context.Context, string) (auditprofile.PinnedProgram, error)
 }
 
 type CredentialBarrier interface {
@@ -37,11 +37,11 @@ type Resolver struct {
 }
 
 type BindingSnapshot struct {
-	Workflow  *resolved.ResolvedWorkflow         `json:"workflow,omitempty"`
-	Audit     *auditprofile.ResolvedAuditProfile `json:"audit,omitempty"`
-	Runtime   runtimeconfig.RunSnapshot          `json:"runtime"`
-	Skills    []agentskills.RunSkillSnapshot     `json:"skills"`
-	Standards []auditstandards.ExactPackage      `json:"standards"`
+	Workflow  *resolved.ResolvedWorkflow     `json:"workflow,omitempty"`
+	Audit     *auditprofile.PinnedProgram    `json:"audit,omitempty"`
+	Runtime   runtimeconfig.RunSnapshot      `json:"runtime"`
+	Skills    []agentskills.RunSkillSnapshot `json:"skills"`
+	Standards []auditstandards.ExactPackage  `json:"standards"`
 }
 
 // Resolve freezes exact configuration and input metadata in one read transaction.

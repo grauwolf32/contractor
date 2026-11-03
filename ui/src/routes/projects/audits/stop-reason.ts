@@ -112,7 +112,6 @@ export function describeStopReason(
   };
 }
 
-/** Status tone of a stop reason banner. */
 export function stopReasonTone(stop: StopReasonPresentation): StatusTone {
   if (stop.tone === "error") return "blocked";
   return stop.deadline ? "warning" : "info";

@@ -1,15 +1,16 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
+import type { components } from "../api/generated/public";
 
 import type {
   Audit,
-  FindingSeverity,
-  FindingState,
   AuditItem,
   AuditProfile,
   AuditReviewRequest,
   AuditState,
+  FindingSeverity,
+  FindingState,
 } from "../api/audits";
 import { STATUS_TONES } from "../test/status-tones";
 import {
@@ -17,15 +18,12 @@ import {
   CHECK_STATE_LABELS,
   checkItemKind,
   checkStateLabel,
-  COVERAGE_STATUS_LABELS,
-  coverageStatusLabel,
   FINDING_STATE_LABELS,
   findingStateLabel,
   itemCount,
   itemNoun,
   readableValue,
   reportStatusLabel,
-  REVIEW_STATE_LABELS,
   reviewActionLabel,
   reviewKindLabel,
   reviewStateLabel,
@@ -38,8 +36,6 @@ import {
   TERMS,
   VERDICT_LABELS,
   verdictLabel,
-  wordOf,
-  type AuditCoverageStatus,
   type ItemKind,
   type VocabularyLabel,
 } from "./vocabulary";
@@ -76,18 +72,22 @@ function expectLabel(entry: VocabularyLabel): void {
 describe("vocabulary", () => {
   it.each<[string, Readonly<Record<string, VocabularyLabel>>, string[]]>([
     ["AuditState", CHECK_STATE_LABELS, enumOf("AuditState")],
-    [
-      "AuditCoverageStatus",
-      COVERAGE_STATUS_LABELS,
-      enumOf("AuditCoverageStatus"),
-    ],
     ["FindingState", FINDING_STATE_LABELS, enumOf("FindingState")],
     [
       "FindingVerdict",
       VERDICT_LABELS,
       [...enumOf("FindingVerdict"), "unreviewed"],
     ],
-    ["AuditReviewState", REVIEW_STATE_LABELS, enumOf("AuditReviewState")],
+    [
+      "AuditReviewState",
+      Object.fromEntries(
+        enumOf("AuditReviewState").map((state) => [
+          state,
+          reviewStateLabel(state as components["schemas"]["AuditReviewState"]),
+        ]),
+      ),
+      enumOf("AuditReviewState"),
+    ],
     ["WorkflowRunState", RUN_STATE_LABELS, enumOf("WorkflowRunState")],
   ])("labels every %s value with a tone", (_schema, table, values) => {
     expect(Object.keys(table).sort()).toEqual([...values].sort());
@@ -138,9 +138,6 @@ describe("vocabulary", () => {
     expect(checkStateLabel("waiting_review")).toBe(
       CHECK_STATE_LABELS.waiting_review,
     );
-    expect(coverageStatusLabel("traced-partial")).toBe(
-      COVERAGE_STATUS_LABELS["traced-partial"],
-    );
     expect(findingStateLabel("needs-evidence")).toBe(
       FINDING_STATE_LABELS["needs-evidence"],
     );
@@ -165,24 +162,6 @@ describe("vocabulary", () => {
     };
     for (const [state, [label, tone]] of Object.entries(states))
       expect(checkStateLabel(state as AuditState)).toEqual({ label, tone });
-
-    const coverage: Record<AuditCoverageStatus, [string, string]> = {
-      "not-tested": ["Not checked yet", "idle"],
-      inconclusive: ["Inconclusive", "warning"],
-      satisfied: ["Met", "done"],
-      violated: ["Issue found", "blocked"],
-      "not-applicable": ["Not applicable", "neutral"],
-      blocked: ["Blocked", "blocked"],
-      excluded: ["Excluded", "neutral"],
-      "traced-complete": ["Fully traced", "done"],
-      "traced-partial": ["Partially traced", "partial"],
-      unmapped: ["Unmapped", "neutral"],
-    };
-    for (const [status, [label, tone]] of Object.entries(coverage))
-      expect(coverageStatusLabel(status as AuditCoverageStatus)).toEqual({
-        label,
-        tone,
-      });
 
     const findings: Record<FindingState, [string, string]> = {
       proposed: ["Needs review", "review"],
@@ -282,33 +261,14 @@ describe("readable values", () => {
     expect(readableValue("release_pending")).toBe("Release pending");
     expect(readableValue("not-eligible")).toBe("Not eligible");
     expect(readableValue("__")).toBe("Unknown");
-    const table: Record<"ready" | "later", string> = {
-      ready: "Ready to start",
-      later: "Later",
-    };
-    expect(wordOf(table, "ready")).toBe("Ready to start");
-    expect(wordOf(table, "release_pending" as "ready")).toBe("Release pending");
   });
 });
 
 describe("checkItemKind", () => {
   const digest = `sha256:${"1".repeat(64)}`;
 
-  function profile(
-    implementation: AuditProfile["inventory"]["implementation"],
-    schemes: string[] = [],
-  ): Pick<AuditProfile, "inventory" | "standards"> {
-    return {
-      inventory:
-        implementation === "standard-mappings@1"
-          ? { implementation, itemWorkflowRole: "check" }
-          : {
-              implementation,
-              source: { source: "audit-input", name: "source" },
-              itemWorkflowRole: "check",
-            },
-      standards: schemes.map((scheme) => ({ scheme, version: "1" })),
-    };
+  function profile(name: string): Pick<AuditProfile, "ref"> {
+    return { ref: { name, version: "1", digest } };
   }
 
   function item(
@@ -435,19 +395,14 @@ describe("checkItemKind", () => {
     expect(checkItemKind(item("standard-mapping"))).toBe("requirement");
   });
 
-  it.each<[AuditProfile["inventory"]["implementation"], string[], ItemKind]>([
-    ["openapi-operations@1", [], "endpoint"],
-    ["openapi-scans@1", [], "endpoint"],
-    ["standard-mappings@1", ["owasp-wstg"], "scenario"],
-    ["standard-mappings@1", ["owasp-asvs"], "requirement"],
-    ["standard-mappings@1", ["owasp-web-top10"], "requirement"],
-    ["standard-mappings@1", ["owasp-wstg", "owasp-asvs"], "requirement"],
-    ["standard-mappings@1", [], "requirement"],
-    ["checklist@1", [], "item"],
-    ["finding-candidates@1", [], "item"],
-  ])("names %s check types with %j standards: %s", (impl, schemes, kind) => {
-    expect(checkItemKind(profile(impl, schemes))).toBe(kind);
-  });
+  it.each<[string, ItemKind]>([
+    ["openapi-operation-trace", "endpoint"],
+    ["openapi-sqlmap-scan", "endpoint"],
+    ["web-scan", "item"],
+    ["custom", "item"],
+  ])("names published %s as %s", (name, kind) =>
+    expect(checkItemKind(profile(name))).toBe(kind),
+  );
 
   it("names a started check by its pinned standards", () => {
     expect(

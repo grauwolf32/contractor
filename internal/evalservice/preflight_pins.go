@@ -32,9 +32,8 @@ func bindingPinValues(s BindingSnapshot, workflows map[string]resolved.ResolvedW
 		"standards":      s.Standards,
 	}
 	if s.Audit != nil {
-		out["inventory"] = s.Audit.Inventory
-		out["audit-execution"] = s.Audit.Execution
-		out["audit-interaction"] = s.Audit.Interaction
+		out["audit-execution"] = s.Audit.Program
+		out["audit-interaction"] = s.Audit.Program.Policy
 	}
 	return out
 }

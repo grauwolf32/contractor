@@ -22,11 +22,11 @@ CATALOG = {
     "llm-gateways": "LLMGatewayConfig",
 }
 BUILTINS = {
+    "ServerOperation": "internal/contracts/server_operation.go",
     "Planner": "internal/config/resolved/descriptors.go",
     "WorkerRuntime": "internal/config/resolved/descriptors.go",
     "Toolset": "internal/config/resolved/descriptors.go",
     "SandboxProfile": "internal/config/resolved/descriptors.go",
-    "Inventory": "internal/config/auditprofile/audit_profile.go",
     "CompletionContract": "docs/spec/audits/worker-completion.md",
     "Credential": "configs/README.md",
 }
@@ -286,6 +286,17 @@ def workflow_edges(graph, label, spec, source):
         stage_id = f"Stage:{label}/{name}"
         field = f"spec.stages.{name}"
         for consumer, view in [(origin, "catalog"), (stage_id, "stages")]:
+            if "operation" in stage:
+                graph.reference(
+                    consumer,
+                    "ServerOperation",
+                    stage["operation"]["ref"],
+                    source,
+                    f"{field}.operation.ref",
+                    "operation",
+                    view=view,
+                )
+                continue
             graph.reference(
                 consumer,
                 "Planner",
@@ -312,62 +323,14 @@ def workflow_edges(graph, label, spec, source):
 
 
 def profile_edges(graph, label, spec, source):
+    if spec["schema"] != "contractor.audit.program.v1":
+        raise ValueError(f"unsupported Audit Program in {source}")
     origin = f"AuditProfile:{label}"
-    for standard in spec.get("standards", []):
+    for alias, binding in spec["workflows"].items():
         graph.reference(
-            origin,
-            "Standard",
-            f"{standard['scheme']}@{standard['version']}",
-            source,
-            "spec.standards",
-            "standard",
-            view="catalog",
+            origin, "Workflow", binding["ref"], source,
+            f"spec.workflows.{alias}.ref", alias, view="catalog",
         )
-    graph.reference(
-        origin,
-        "Inventory",
-        spec["inventory"]["implementation"],
-        source,
-        "spec.inventory.implementation",
-        "inventory",
-        view="catalog",
-    )
-    for role, binding in spec["workflows"].items():
-        field = f"spec.workflows.{role}"
-        workflow = graph.reference(
-            origin,
-            "Workflow",
-            binding["ref"],
-            source,
-            f"{field}.ref",
-            f"{binding['kind']} · {role}",
-            view="catalog",
-        )
-        if completion := binding.get("workerCompletion"):
-            graph.reference(
-                origin,
-                "CompletionContract",
-                completion["kind"],
-                source,
-                f"{field}.workerCompletion",
-                f"completion · {role}",
-                view="catalog",
-            )
-        for name, mapping in binding.get("inputs", {}).items():
-            if mapping["source"] not in {"prepare-output", "retained-output"}:
-                continue
-            producer = spec["workflows"][mapping["role"]]
-            output = producer["outputs"][mapping["name"]]
-            graph.edge(
-                workflow,
-                f"Workflow:{producer['ref']}",
-                f"{output} → {name}",
-                source,
-                f"{field}.inputs.{name}",
-                relation="data",
-                view="catalog",
-                context=origin,
-            )
 
 
 def build():

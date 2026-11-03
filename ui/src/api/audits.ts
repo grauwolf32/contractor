@@ -1,10 +1,10 @@
-import { RESOURCE_ID } from "./contract";
-import { CHANGING_AUDIT_STATES, isStateIn } from "./states";
 import { requireAuditComposition } from "./audit-composition";
 import type { PublicAPI } from "./client";
+import { RESOURCE_ID } from "./contract";
 import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
 import type { components } from "./generated/public";
 import { requireProjectID } from "./projects";
+import { CHANGING_AUDIT_STATES, isStateIn } from "./states";
 import { CONFIG_NAME_PATTERN, CONFIG_VERSION_PATTERN } from "./workflows";
 
 export const AUDIT_PAGE_SIZE = 50;
@@ -15,13 +15,10 @@ export type AuditProfile = components["schemas"]["AuditProfile"];
 type AuditProfilePage = components["schemas"]["AuditProfilePage"];
 export type Audit = components["schemas"]["Audit"];
 type AuditPage = components["schemas"]["AuditPage"];
-export type AuditEvent = components["schemas"]["AuditEvent"];
-export type AuditEventPage = components["schemas"]["AuditEventPage"];
+type AuditEventPage = components["schemas"]["AuditEventPage"];
 export type AuditState = components["schemas"]["AuditState"];
 export type AuditItem = components["schemas"]["AuditItem"];
 export type AuditItemPage = components["schemas"]["AuditItemPage"];
-export type AuditCoverageRow = components["schemas"]["AuditCoverageRow"];
-type AuditCoveragePage = components["schemas"]["AuditCoveragePage"];
 export type AuditReport = components["schemas"]["AuditReport"];
 type AuditStartResponse = components["schemas"]["AuditStartResponse"];
 export type CreateAuditRequest = components["schemas"]["CreateAuditRequest"];
@@ -35,12 +32,10 @@ export type ProjectFindingEditResult =
   components["schemas"]["EditProjectFindingResult"];
 export type EditProjectFindingRequest =
   components["schemas"]["EditProjectFindingRequest"];
-export type AuditFindingPage = components["schemas"]["AuditFindingPage"];
 export type FindingState = components["schemas"]["FindingState"];
 export type FindingSeverity = components["schemas"]["FindingSeverity"];
 export type FindingVerdict = components["schemas"]["FindingVerdict"];
 export type AuditReviewRequest = components["schemas"]["AuditReviewRequest"];
-export type AuditReviewPage = components["schemas"]["AuditReviewPage"];
 type OwnerFindingPage = components["schemas"]["OwnerFindingPage"];
 type OwnerReviewPage = components["schemas"]["OwnerReviewPage"];
 export type AuditReviewAction = components["schemas"]["AuditReviewAction"];
@@ -54,10 +49,6 @@ export interface FindingPageRequest extends PageRequest {
   state?: FindingState;
   verdict?: "true_positive" | "false_positive" | "unreviewed";
   severity?: FindingSeverity;
-}
-interface ReviewPageRequest extends PageRequest {
-  auditRevision?: number;
-  state?: AuditReviewRequest["state"];
 }
 
 interface PageRequest {
@@ -370,13 +361,8 @@ export async function mutateAudit(
       started.audit,
       result.response.status,
     );
-    // Cross-field: the started Audit is the requested one, and its first
-    // Round is the one it now points to.
-    if (
-      audit.auditId !== options.auditId ||
-      (started.round !== undefined &&
-        started.round.roundId !== audit.currentRoundId)
-    ) {
+    // A start replay still identifies the requested Audit.
+    if (audit.auditId !== options.auditId) {
       throw invalidAuditResponse(result.response.status);
     }
     requireRevisionETag(result.response, audit.revision);
@@ -425,57 +411,6 @@ function finishAuditMutation(
   }
   requireRevisionETag(result.response, audit.revision);
   return audit;
-}
-
-export async function listAuditItems(
-  api: PublicAPI,
-  auditId: string,
-  request: PageRequest = {},
-): Promise<AuditItemPage> {
-  requireAuditID(auditId);
-  const result = await api.request((client) =>
-    client.GET("/v1/audits/{auditId}/items", {
-      params: {
-        path: { auditId },
-        query: {
-          limit: AUDIT_PAGE_SIZE,
-          ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
-        },
-      },
-    }),
-  );
-  return requireData(result);
-}
-
-/**
- * One coverage page, read at one Audit revision. With `auditRevision` the
- * Server reads the page at exactly that revision or answers 409.
- */
-export async function listAuditCoverage(
-  api: PublicAPI,
-  auditId: string,
-  request: PageRequest & { round?: string; auditRevision?: number } = {},
-): Promise<AuditCoveragePage> {
-  requireAuditID(auditId);
-  if (request.round !== undefined) requireAuditID(request.round);
-  if (request.auditRevision !== undefined)
-    requireAuditRevision(request.auditRevision);
-  const result = await api.request((client) =>
-    client.GET("/v1/audits/{auditId}/coverage", {
-      params: {
-        path: { auditId },
-        query: {
-          limit: AUDIT_PAGE_SIZE,
-          ...(request.round === undefined ? {} : { round: request.round }),
-          ...(request.auditRevision === undefined
-            ? {}
-            : { auditRevision: request.auditRevision }),
-          ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
-        },
-      },
-    }),
-  );
-  return requireData(result);
 }
 
 interface ReportReadQueue {
@@ -532,61 +467,6 @@ export async function getAuditReport(
   return report;
 }
 
-export async function listAuditFindings(
-  api: PublicAPI,
-  auditId: string,
-  request: FindingPageRequest = {},
-): Promise<AuditFindingPage> {
-  requireAuditID(auditId);
-  const result = await api.request((client) =>
-    client.GET("/v1/audits/{auditId}/findings", {
-      params: {
-        path: { auditId },
-        query: { limit: AUDIT_PAGE_SIZE, ...request },
-      },
-    }),
-  );
-  return requireData(result);
-}
-
-export async function getAuditFinding(
-  api: PublicAPI,
-  auditId: string,
-  findingId: string,
-): Promise<ProjectFinding> {
-  requireAuditID(auditId);
-  requireAuditID(findingId);
-  const result = await api.request((client) =>
-    client.GET("/v1/audits/{auditId}/findings/{findingId}", {
-      params: { path: { auditId, findingId } },
-    }),
-  );
-  const finding = requireData(result);
-  // Cross-field: the Server answered for the requested possible issue.
-  if (finding.findingId !== findingId) {
-    throw invalidAuditResponse(result.response.status);
-  }
-  requireRevisionETag(result.response, finding.revision);
-  return finding;
-}
-
-export async function listAuditReviews(
-  api: PublicAPI,
-  auditId: string,
-  request: ReviewPageRequest = {},
-): Promise<AuditReviewPage> {
-  requireAuditID(auditId);
-  const result = await api.request((client) =>
-    client.GET("/v1/audits/{auditId}/reviews", {
-      params: {
-        path: { auditId },
-        query: { limit: AUDIT_PAGE_SIZE, ...request },
-      },
-    }),
-  );
-  return requireData(result);
-}
-
 export async function decideAuditAction(
   api: PublicAPI,
   options: {
@@ -627,8 +507,8 @@ export function auditMutationAudit(value: Audit | AuditStartResponse): Audit {
 
 /**
  * These states need interval polling on their own. A paused Audit can still
- * change while submitted Runs drain; callers should use auditPollInterval
- * when they have the outstanding Run count.
+ * change while submitted Runs drain and terminal outputs are collected;
+ * callers should use auditPollInterval with the authoritative Audit projection.
  */
 function auditNeedsPolling(state: AuditState): boolean {
   return isStateIn(CHANGING_AUDIT_STATES, state);
@@ -636,11 +516,17 @@ function auditNeedsPolling(state: AuditState): boolean {
 
 /** Polling interval for a set of Audits: off when none of them can change. */
 export function auditPollInterval(
-  audits: Iterable<Pick<Audit, "state" | "outstandingRunCount">>,
+  audits: Iterable<
+    Pick<Audit, "state" | "outstandingRunCount" | "collectionPending">
+  >,
   interval = 5_000,
 ): number | false {
   for (const audit of audits) {
-    if (auditNeedsPolling(audit.state) || audit.outstandingRunCount > 0)
+    if (
+      auditNeedsPolling(audit.state) ||
+      audit.outstandingRunCount > 0 ||
+      audit.collectionPending
+    )
       return interval;
   }
   return false;

@@ -10,7 +10,6 @@ package hookstore
 
 import (
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
-	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -47,15 +46,6 @@ type AuditCreations = pgstore.AuditCreations
 // an explicit live claim, without exposing controller commands.
 type ClaimedArtifacts = pgstore.ClaimedArtifacts
 
-// ClaimedAdmission is the narrow, transaction-bound preparation port. Only the
-// Controller's final AcceptNextRound command can publish staged membership.
-type ClaimedAdmission = pgstore.ClaimedAdmission
-type AdmissionSession = pgstore.AdmissionSession
-
-func NewClaimedAdmission(db persistencepostgres.DBTX, storage *artifactpostgres.Storage) *ClaimedAdmission {
-	return pgstore.NewClaimedAdmission(db, storage)
-}
-
 func NewClaimedArtifacts(db persistencepostgres.DBTX, storage *artifactpostgres.Storage) *ClaimedArtifacts {
 	return pgstore.NewClaimedArtifacts(db, storage)
 }
@@ -86,8 +76,4 @@ func NewCredentialHolds(db persistencepostgres.DBTX, storage *artifactpostgres.S
 
 func NewAuditCreations(db persistencepostgres.DBTX, storage *artifactpostgres.Storage) *AuditCreations {
 	return pgstore.NewAuditCreations(db, storage)
-}
-
-func PreparedPageStageBytes(page auditdomain.PreparedRoundPage) (int, error) {
-	return pgstore.PreparedPageStageBytes(page)
 }

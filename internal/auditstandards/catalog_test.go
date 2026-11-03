@@ -157,34 +157,6 @@ func TestCatalogCreateOnlySeedResolvePinAndDisclosure(t *testing.T) {
 	if err != nil || len(listed) != 1 || listed[0].Package.Digest != resolved.Package.Digest {
 		t.Fatalf("list = (%+v, %v)", listed, err)
 	}
-	pinned, err := catalog.Pin(context.Background(), "owner", "project", "audit-fixed", []Reference{ref})
-	if err != nil || len(pinned) != 1 || pinned[0].Retained.Artifact.Revision == nil ||
-		pinned[0].Retained.Digest != pinned[0].Catalog.Digest {
-		t.Fatalf("pin = (%+v, %v)", pinned, err)
-	}
-	project, _ := service.Project("project")
-	retained, err := project.Read(context.Background(), pinned[0].Retained.Artifact)
-	if err != nil || !bytes.Equal(retained.Payload.Data, resolved.Package.Payload()) {
-		t.Fatalf("retained package = (%+v, %v)", retained, err)
-	}
-	projectScope, _ := artifacts.ProjectScope("project")
-	if !repository.frozen[artifactKey(projectScope, pinned[0].Retained.Artifact)] {
-		t.Fatal("retained package binding is not frozen")
-	}
-	writes := repository.writes
-	replayed, err := catalog.Pin(context.Background(), "owner", "project", "audit-fixed", []Reference{ref})
-	if err != nil || len(replayed) != 1 || !reflect.DeepEqual(replayed[0].Retained, pinned[0].Retained) ||
-		repository.writes != writes {
-		t.Fatalf("pin replay = (%+v, %v), writes %d -> %d", replayed, err, writes, repository.writes)
-	}
-	if _, err := service.CreateFrozen(context.Background(), projectScope,
-		artifacts.ArtifactRef{Namespace: "audit-collision", Name: pinned[0].Retained.Artifact.Name},
-		artifacts.Payload{MediaType: MediaType, Data: []byte("other package")}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := catalog.Pin(context.Background(), "owner", "project", "audit-collision", []Reference{ref}); !errors.Is(err, ErrDrift) {
-		t.Fatalf("retained package collision = %v, want drift", err)
-	}
 
 	full := Projection(resolved, true)
 	if len(full.Entries) != 1 || len(full.EvidenceContracts) != 1 || len(full.Mappings) != 1 {

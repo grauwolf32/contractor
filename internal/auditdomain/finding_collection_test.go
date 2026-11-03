@@ -101,7 +101,7 @@ func TestSharedFindingCollectionConformanceAndConsumerTargets(t *testing.T) {
 	if err != nil || changedPackage.Digest == pkg.Digest {
 		t.Fatalf("different snapshot reused package digest: %v", err)
 	}
-	if _, err := DecodeCheckResultPackage(payload); ErrorCode(err) != CodePackageInvalid {
+	if _, err := DecodeCheckResultPackage(payload); testDomainErrorCode(err) != CodePackageInvalid {
 		t.Fatalf("collection was accepted as check results: %v", err)
 	}
 }
@@ -233,7 +233,7 @@ func TestSharedFindingCollectionRejectsInvalidMetadata(t *testing.T) {
 			value, _, _, _ := collectionFixture(t)
 			tc.mutate(&value)
 			_, err := EncodeFindingCollection(value)
-			if ErrorCode(err) != tc.code {
+			if testDomainErrorCode(err) != tc.code {
 				t.Fatalf("error = %v, want %s", err, tc.code)
 			}
 		})
@@ -256,12 +256,12 @@ func TestSharedFindingCollectionRejectsAmbiguousJSON(t *testing.T) {
 		"invalid UTF8":     append([]byte{0xff}, valid...),
 	} {
 		t.Run(name, func(t *testing.T) {
-			if _, err := DecodeFindingCollection(input); ErrorCode(err) != CodeInvalid {
+			if _, err := DecodeFindingCollection(input); testDomainErrorCode(err) != CodeInvalid {
 				t.Fatalf("error = %v", err)
 			}
 		})
 	}
-	if _, err := DecodeFindingCollection(bytes.Repeat([]byte(" "), MaximumCollectionJSONBytes+1)); ErrorCode(err) != CodeLimitExceeded {
+	if _, err := DecodeFindingCollection(bytes.Repeat([]byte(" "), MaximumCollectionJSONBytes+1)); testDomainErrorCode(err) != CodeLimitExceeded {
 		t.Fatalf("metadata byte limit = %v", err)
 	}
 }
@@ -343,6 +343,46 @@ func TestSharedFindingCollectionDecoderChecksArchiveAgainstMetadata(t *testing.T
 			}
 			if _, _, err := DecodeFindingCollectionPackage(payload); err == nil {
 				t.Fatal("valid ZIP with inconsistent collection was accepted")
+			}
+		})
+	}
+}
+
+func TestSharedFindingCollectionTaskOriginBounds(t *testing.T) {
+	var fixture struct {
+		Cases []struct {
+			Name   string `json:"name"`
+			Origin string `json:"origin"`
+			Valid  bool   `json:"valid"`
+		} `json:"audit_origin_cases"`
+	}
+	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "findings", "finding-collection-v2.fixture.json"), &fixture); err != nil {
+		t.Fatal(err)
+	}
+	if len(fixture.Cases) < 10 {
+		t.Fatal("missing shared origin boundary cases")
+	}
+	for _, test := range fixture.Cases {
+		t.Run(test.Name, func(t *testing.T) {
+			value, _, _, _ := collectionFixture(t)
+			valid, err := EncodeFindingCollection(value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			original, _ := json.Marshal(value.Entries[1].AuditOrigin)
+			// Use the same canonical key ordering as the emitted collection, retaining
+			// the case's authored numeric spelling for strict read rejection.
+			var origin map[string]any
+			if err := json.Unmarshal(original, &origin); err != nil {
+				t.Fatal(err)
+			}
+			canonical, _ := json.Marshal(origin)
+			input := bytes.Replace(valid, canonical, []byte(test.Origin), 1)
+			if bytes.Equal(input, valid) && test.Origin != string(canonical) {
+				t.Fatal("origin replacement did not exercise decoder")
+			}
+			if _, err := DecodeFindingCollection(input); (err == nil) != test.Valid {
+				t.Fatalf("valid=%v want %v: %v", err == nil, test.Valid, err)
 			}
 		})
 	}

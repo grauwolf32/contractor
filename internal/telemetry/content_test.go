@@ -3,13 +3,14 @@ package telemetry
 import (
 	"context"
 	"encoding/json"
-	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"google.golang.org/protobuf/proto"

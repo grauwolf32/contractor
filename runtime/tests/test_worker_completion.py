@@ -38,10 +38,7 @@ class CollectedCompletion(PreparedWorkerCompletion):
         # Keep the current wire contract while replacing its host implementation.
         self.contract = WorkerCompletionContract(
             kind="audit-check-results@1",
-            task=ArtifactRef(namespace="inputs", name="task", revision="pinned-r1"),
-            executionManifest=ArtifactRef(
-                namespace="inputs", name="manifest", revision="pinned-r1"
-            ),
+            context=ArtifactRef(namespace="inputs", name="context", revision="pinned-r1"),
             resultArtifact=ArtifactRef(namespace="builder", name="report"),
         )
         self.diagnostics = None

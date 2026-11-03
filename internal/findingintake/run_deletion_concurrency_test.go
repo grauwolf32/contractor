@@ -63,7 +63,7 @@ func TestPostgresFindingImportSerializesWithRunDeletion(t *testing.T) {
 		gate.release()
 		awaitDeletionOperation(t, f.ctx, imported)
 		awaitDeletionOperation(t, f.ctx, deleted)
-		receipt, err := f.intake.GetAuditReceipt(f.ctx, f.request.OwnerID, f.request.AuditID, f.receiptID)
+		receipt, err := readOneAuditReceipt(t, f.intake, f.ctx, f.request.OwnerID, f.request.AuditID, f.receiptID)
 		if err != nil || !receipt.Origin.RunDeleted || receipt.Retention != RetentionProjectHeld ||
 			len(receipt.AuditHolds) != 1 || receipt.Document.ClientKey != "candidate" || !receipt.Proposal.Ref.SameExact(f.request.Proposal) {
 			t.Fatalf("retained import after deletion = %+v, %v", receipt, err)
@@ -131,7 +131,7 @@ func TestPostgresFindingImportSerializesWithRunDeletion(t *testing.T) {
 			} else {
 				awaitDeletionOperation(t, f.ctx, imported)
 			}
-			receipt, err := intake.GetAuditReceipt(f.ctx, f.request.OwnerID, f.request.AuditID, f.receiptID)
+			receipt, err := readOneAuditReceipt(t, intake, f.ctx, f.request.OwnerID, f.request.AuditID, f.receiptID)
 			if err != nil || receipt.Origin.RunDeleted || receipt.Retention != RetentionProjectHeld || len(receipt.AuditHolds) != 1 {
 				t.Fatalf("import after rollback = %+v, %v", receipt, err)
 			}
@@ -225,11 +225,7 @@ func newDeletionImportFixture(t *testing.T) deletionImportFixture {
 	return newFindingImportFixture(t, false)
 }
 
-func newDirectCollectionFixture(t *testing.T) deletionImportFixture {
-	return newFindingImportFixture(t, true)
-}
-
-func newFindingImportFixture(t *testing.T, direct bool) deletionImportFixture {
+func newFindingImportFixture(t *testing.T, direct bool, auditChild ...bool) deletionImportFixture {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	t.Cleanup(cancel)
@@ -302,6 +298,9 @@ func newFindingImportFixture(t *testing.T, direct bool) deletionImportFixture {
 	proposal := ExactArtifact{Ref: written.Ref, Digest: auditdomain.DigestBytes(canonical.proposalBytes), MediaType: written.MediaType, SizeBytes: written.Size}
 	origin := Origin{RunID: runID, Workflow: WorkflowOrigin{Name: workflow.Ref.Name, Version: workflow.Ref.Version,
 		SchemaVersion: contracts.APIVersion, ClosureDigest: auditdomain.DigestBytes(storedRun.WorkflowSnapshot)}}
+	if len(auditChild) > 0 && auditChild[0] {
+		origin.Audit = &AuditOrigin{AuditID: auditID, ExecutionID: "delete-execution", TaskID: "fixture-task"}
+	}
 	origin.Workflow.ConfigurationRef.Name, origin.Workflow.ConfigurationRef.Version = workflow.Ref.Name, workflow.Ref.Version
 	grant := controlplane.AllocationGrant{RunID: runID, AllocationID: "allocation", StageExecutionID: "stage",
 		RuntimeAgentID: "runtime", RuntimeInstanceID: "instance", LogicalAgentName: "worker"}

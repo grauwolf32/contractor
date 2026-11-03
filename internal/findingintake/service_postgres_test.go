@@ -407,7 +407,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	collectionCtx := WithCollectionDirectVerificationCache(ctx)
+	collectionCtx := ctx
 	if err := actor.RetainAuditCollectionBatch(collectionCtx, []ImportRequest{
 		{OwnerID: ownerID, AuditID: auditID, RunID: runID, Proposal: firstReceipt.Proposal.Ref},
 		{OwnerID: ownerID, AuditID: auditID, RunID: runID, Proposal: claimOnlyReceipt.Proposal.Ref},
@@ -418,7 +418,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 	for receiptID, want := range map[string]*contracts.ArtifactRef{
 		firstReceipt.ReceiptID: &hold.Proposal.Ref, claimOnlyReceipt.ReceiptID: nil,
 	} {
-		retained, err := service.GetAuditReceipt(ctx, ownerID, auditID, receiptID)
+		retained, err := readOneAuditReceipt(t, service, ctx, ownerID, auditID, receiptID)
 		if err != nil || len(retained.AuditHolds) != 1 ||
 			(want != nil && !retained.AuditHolds[0].Proposal.Ref.SameExact(*want)) {
 			t.Fatalf("collected receipt %s = (%+v, %v)", receiptID, retained.AuditHolds, err)

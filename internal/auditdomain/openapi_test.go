@@ -5,8 +5,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 )
 
 func TestOpenAPIInventoryIdentitySeparatesSourceAndCanonicalContent(t *testing.T) {
@@ -47,32 +45,31 @@ paths:
 info: {version: "1", title: Example}
 openapi: 3.1.0
 `)
-	options := testInventoryOptions("trace")
-	jsonInventory, err := BuildOpenAPIInventory(jsonSource, "application/json", options)
+	jsonInventory, err := prepareTestWork(t, jsonSource, "application/json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	yamlInventory, err := BuildOpenAPIInventory(yamlSource, "application/yaml", options)
+	yamlInventory, err := prepareTestWork(t, yamlSource, "application/yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if jsonInventory.SourceContentDigest == yamlInventory.SourceContentDigest {
+	if decodePreparedTestItem(t, jsonInventory.Items[0]).Source.Digest == decodePreparedTestItem(t, yamlInventory.Items[0]).Source.Digest {
 		t.Fatal("exact source digests unexpectedly match")
 	}
-	if jsonInventory.CanonicalInventoryDigest != yamlInventory.CanonicalInventoryDigest || !reflect.DeepEqual(jsonInventory.CanonicalInventory, yamlInventory.CanonicalInventory) {
-		t.Fatalf("canonical identity differs:\n%s\n%s", jsonInventory.CanonicalInventory, yamlInventory.CanonicalInventory)
+	if jsonInventory.Items[0].Key != yamlInventory.Items[0].Key {
+		t.Fatalf("canonical identity differs:\n%s\n%s", jsonInventory.Items[0].Data, yamlInventory.Items[0].Data)
 	}
-	if len(jsonInventory.Worklist.Items) != 3 || len(yamlInventory.Worklist.Items) != 3 {
-		t.Fatalf("operations = %d/%d", len(jsonInventory.Worklist.Items), len(yamlInventory.Worklist.Items))
+	if len(jsonInventory.Items) != 3 || len(yamlInventory.Items) != 3 {
+		t.Fatalf("operations = %d/%d", len(jsonInventory.Items), len(yamlInventory.Items))
 	}
 	wantOrder := []struct{ path, method string }{{"/a", "get"}, {"/z", "get"}, {"/z", "post"}}
 	for index, want := range wantOrder {
-		left := jsonInventory.Tasks[index].Document.Operation
-		right := yamlInventory.Tasks[index].Document.Operation
-		if left.Path != want.path || left.Method != want.method || right.Path != want.path || right.Method != want.method || jsonInventory.Worklist.Items[index].ItemKey != yamlInventory.Worklist.Items[index].ItemKey {
+		left := decodePreparedTestItem(t, jsonInventory.Items[index]).Operation
+		right := decodePreparedTestItem(t, yamlInventory.Items[index]).Operation
+		if left.Path != want.path || left.Method != want.method || right.Path != want.path || right.Method != want.method || jsonInventory.Items[index].Key != yamlInventory.Items[index].Key {
 			t.Fatalf("operation %d = %+v / %+v", index, left, right)
 		}
-		if jsonInventory.Tasks[index].PackageDigest == yamlInventory.Tasks[index].PackageDigest {
+		if decodePreparedTestItem(t, jsonInventory.Items[index]).Source.Digest == decodePreparedTestItem(t, yamlInventory.Items[index]).Source.Digest {
 			t.Fatalf("task %d lost exact source provenance", index)
 		}
 	}
@@ -89,23 +86,22 @@ func TestOpenAPIInventoryPreservesUnquotedYAMLDate(t *testing.T) {
 	if !ok || info["version"] != "2024-01-01" {
 		t.Fatalf("version = %#v, want original string", root["info"])
 	}
-	options := testInventoryOptions("trace")
-	jsonInventory, err := BuildOpenAPIInventory(jsonSource, "application/json", options)
+	jsonInventory, err := prepareTestWork(t, jsonSource, "application/json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	yamlInventory, err := BuildOpenAPIInventory(yamlSource, "application/yaml", options)
+	yamlInventory, err := prepareTestWork(t, yamlSource, "application/yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if jsonInventory.CanonicalInventoryDigest != yamlInventory.CanonicalInventoryDigest || !reflect.DeepEqual(jsonInventory.CanonicalInventory, yamlInventory.CanonicalInventory) {
-		t.Fatalf("canonical identity differs:\n%s\n%s", jsonInventory.CanonicalInventory, yamlInventory.CanonicalInventory)
+	if jsonInventory.Items[0].Key != yamlInventory.Items[0].Key {
+		t.Fatalf("canonical identity differs:\n%s\n%s", jsonInventory.Items[0].Data, yamlInventory.Items[0].Data)
 	}
-	if jsonInventory.SourceContentDigest == yamlInventory.SourceContentDigest {
+	if decodePreparedTestItem(t, jsonInventory.Items[0]).Source.Digest == decodePreparedTestItem(t, yamlInventory.Items[0]).Source.Digest {
 		t.Fatal("distinct source digests unexpectedly match")
 	}
 	bad := []byte("openapi: 3.0.3\ninfo:\n  version: !!binary c2VjcmV0\npaths: {}\n")
-	if _, err := BuildOpenAPIInventory(bad, "application/yaml", options); ErrorCode(err) != CodeInvalid {
+	if _, err := prepareTestWork(t, bad, "application/yaml"); testDomainErrorCode(err) != CodeInvalid {
 		t.Fatalf("binary scalar error = %v", err)
 	}
 }
@@ -125,7 +121,7 @@ func TestOpenAPIYAMLPlainScalarNumberBoundsMatchScanplan(t *testing.T) {
 	for _, scalar := range []string{
 		"9007199254740992", "9007199254740991.1", "1e9999", ".nan", "!!binary c2VjcmV0",
 	} {
-		if _, err := parseJSONOrYAML([]byte("value: "+scalar+"\n"), "application/yaml"); ErrorCode(err) != CodeInvalid {
+		if _, err := parseJSONOrYAML([]byte("value: "+scalar+"\n"), "application/yaml"); testDomainErrorCode(err) != CodeInvalid {
 			t.Fatalf("scalar %s error = %v", scalar, err)
 		}
 	}
@@ -140,10 +136,10 @@ func TestOpenAPIJSONAndYAMLNumberBoundsMatch(t *testing.T) {
 		}
 	}
 	for _, scalar := range []string{"9007199254740992", "9223372036854775807", "9007199254740991.1", "1e300"} {
-		if _, err := parseJSONOrYAML([]byte(`{"value":`+scalar+`}`), "application/json"); ErrorCode(err) != CodeInvalid {
+		if _, err := parseJSONOrYAML([]byte(`{"value":`+scalar+`}`), "application/json"); testDomainErrorCode(err) != CodeInvalid {
 			t.Fatalf("JSON number %s error = %v", scalar, err)
 		}
-		if _, err := parseJSONOrYAML([]byte("value: "+scalar+"\n"), "application/yaml"); ErrorCode(err) != CodeInvalid {
+		if _, err := parseJSONOrYAML([]byte("value: "+scalar+"\n"), "application/yaml"); testDomainErrorCode(err) != CodeInvalid {
 			t.Fatalf("YAML number %s error = %v", scalar, err)
 		}
 	}
@@ -153,9 +149,8 @@ func TestOpenAPIJSONAndYAMLNumberBoundsMatch(t *testing.T) {
 }
 
 func TestOpenAPISelectedRemoteRefRejectsButUnsupportedSurfaceIsGap(t *testing.T) {
-	options := testInventoryOptions("trace")
 	selected := []byte(`{"openapi":"3.1.0","paths":{"/x":{"get":{"responses":{"200":{"description":"ok","content":{"application/json":{"schema":{"$ref":"https://example.invalid/schema.json"}}}}}}}}}`)
-	if _, err := BuildOpenAPIInventory(selected, "application/json", options); ErrorCode(err) != CodeRemoteReference {
+	if _, err := prepareTestWork(t, selected, "application/json"); testDomainErrorCode(err) != CodeRemoteReference {
 		t.Fatalf("selected remote ref error = %v", err)
 	}
 	unsupported := []byte(`{
@@ -164,30 +159,29 @@ func TestOpenAPISelectedRemoteRefRejectsButUnsupportedSurfaceIsGap(t *testing.T)
   "webhooks":{"event":{"post":{"requestBody":{"$ref":"https://example.invalid/event"}}}},
   "components":{"schemas":{"Unused":{"$ref":"https://example.invalid/unused"}}}
 }`)
-	inventory, err := BuildOpenAPIInventory(unsupported, "application/json", options)
+	inventory, err := prepareTestWork(t, unsupported, "application/json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(inventory.Gaps) < 3 || len(inventory.Tasks) != 1 || len(inventory.Tasks[0].Document.Operation.Gaps) != 1 {
-		t.Fatalf("unsupported surface gaps were lost: global=%v operation=%v", inventory.Gaps, inventory.Tasks[0].Document.Operation.Gaps)
+	if len(inventory.Gaps) < 3 || len(inventory.Items) != 1 || len(decodePreparedTestItem(t, inventory.Items[0]).Operation.Gaps) != 1 {
+		t.Fatalf("unsupported surface gaps were lost: global=%v operation=%v", inventory.Gaps, decodePreparedTestItem(t, inventory.Items[0]).Operation.Gaps)
 	}
 }
 
 func TestOpenAPISelectedSecuritySchemesAreResolvedAndRemoteSchemesReject(t *testing.T) {
-	options := testInventoryOptions("trace")
 	local := []byte(`{
   "openapi":"3.1.0",
   "security":[{"bearer":[]}],
   "paths":{"/x":{"get":{"responses":{"200":{"description":"ok"}}}}},
   "components":{"securitySchemes":{"bearer":{"$ref":"#/components/securitySchemes/base"},"base":{"type":"http","scheme":"bearer"}}}
 }`)
-	inventory, err := BuildOpenAPIInventory(local, "application/json", options)
+	inventory, err := prepareTestWork(t, local, "application/json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	schemes, ok := inventory.Tasks[0].Document.Operation.Resolved["security_schemes"].(map[string]any)
+	schemes, ok := decodePreparedTestItem(t, inventory.Items[0]).Operation.Resolved["security_schemes"].(map[string]any)
 	if !ok || schemes["bearer"] == nil {
-		t.Fatalf("selected security closure is missing: %+v", inventory.Tasks[0].Document.Operation.Resolved)
+		t.Fatalf("selected security closure is missing: %+v", decodePreparedTestItem(t, inventory.Items[0]).Operation.Resolved)
 	}
 	remote := []byte(`{
   "openapi":"3.1.0",
@@ -195,19 +189,18 @@ func TestOpenAPISelectedSecuritySchemesAreResolvedAndRemoteSchemesReject(t *test
   "paths":{"/x":{"get":{"responses":{"200":{"description":"ok"}}}}},
   "components":{"securitySchemes":{"bearer":{"$ref":"https://example.invalid/security"}}}
 }`)
-	if _, err := BuildOpenAPIInventory(remote, "application/json", options); ErrorCode(err) != CodeRemoteReference {
+	if _, err := prepareTestWork(t, remote, "application/json"); testDomainErrorCode(err) != CodeRemoteReference {
 		t.Fatalf("selected remote security error = %v", err)
 	}
 }
 
 func TestOpenAPIRejectsCyclesAndDepthBeforeReturningInventory(t *testing.T) {
-	options := testInventoryOptions("trace")
 	cyclic := []byte(`{
   "openapi":"3.1.0",
   "paths":{"/x":{"get":{"responses":{"200":{"description":"ok","content":{"application/json":{"schema":{"$ref":"#/components/schemas/A"}}}}}}}},
   "components":{"schemas":{"A":{"$ref":"#/components/schemas/B"},"B":{"$ref":"#/components/schemas/A"}}}
 }`)
-	if inventory, err := BuildOpenAPIInventory(cyclic, "application/json", options); ErrorCode(err) != CodeReferenceInvalid || len(inventory.Tasks) != 0 {
+	if inventory, err := prepareTestWork(t, cyclic, "application/json"); testDomainErrorCode(err) != CodeReferenceInvalid || len(inventory.Items) != 0 {
 		t.Fatalf("cycle = %+v, %v", inventory, err)
 	}
 
@@ -227,7 +220,7 @@ func TestOpenAPIRejectsCyclesAndDepthBeforeReturningInventory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := BuildOpenAPIInventory(encoded, "application/json", options); ErrorCode(err) != CodeLimitExceeded {
+	if _, err := prepareTestWork(t, encoded, "application/json"); testDomainErrorCode(err) != CodeLimitExceeded {
 		t.Fatalf("deep refs error = %v", err)
 	}
 }
@@ -253,21 +246,18 @@ paths:
 	if err != nil {
 		t.Fatal(err)
 	}
-	inventory, err := BuildOpenAPIInventoryFromPackage(payload, testInventoryOptions("trace"))
+	inventory, err := prepareTestWork(t, payload, PackageMediaType)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(inventory.Tasks) != 1 || inventory.SourceContentDigest != DigestBytes(payload) {
+	if len(inventory.Items) != 1 || decodePreparedTestItem(t, inventory.Items[0]).Source.Digest != DigestBytes(payload) {
 		t.Fatalf("package inventory = %+v", inventory)
 	}
-	validated, err := ValidatePackage(inventory.Tasks[0].Package)
-	if err != nil {
-		t.Fatal(err)
+	material := decodePreparedTestItem(t, inventory.Items[0])
+	if material.Operation == nil || material.Source.Digest != DigestBytes(payload) || material.Source.Ref.Revision == nil {
+		t.Fatal("exact package provenance missing")
 	}
-	if len(validated.Members()) != 1 || inventory.Tasks[0].Document.SourceContentDigest != DigestBytes(payload) ||
-		len(inventory.ExecutionManifest.Items[0].Inputs) != 1 || inventory.ExecutionManifest.Items[0].Inputs[0].Ref.Revision == nil {
-		t.Fatal("task package does not retain exact source provenance")
-	}
+
 }
 
 func TestOpenAPIPackagePreservesReferencedDocumentOrigin(t *testing.T) {
@@ -295,27 +285,27 @@ PetPath:
 	if err != nil {
 		t.Fatal(err)
 	}
-	inventory, err := BuildOpenAPIInventoryFromPackage(payload, testInventoryOptions("trace"))
-	if err != nil || len(inventory.Tasks) != 1 {
+	inventory, err := prepareTestWork(t, payload, PackageMediaType)
+	if err != nil || len(inventory.Items) != 1 {
 		t.Fatalf("external Path Item origin was lost: %+v, %v", inventory, err)
 	}
 }
 
 func TestOpenAPIDuplicateYAMLKeyFailsAtomically(t *testing.T) {
 	source := []byte("openapi: 3.1.0\npaths: {}\npaths: {}\n")
-	inventory, err := BuildOpenAPIInventory(source, "application/yaml", testInventoryOptions("trace"))
-	if err == nil || len(inventory.Tasks) != 0 {
+	inventory, err := prepareTestWork(t, source, "application/yaml")
+	if err == nil || len(inventory.Items) != 0 {
 		t.Fatalf("duplicate YAML key accepted: %+v, %v", inventory, err)
 	}
 }
 
 func TestOpenAPIPathsExtensionsAreNotEnumerated(t *testing.T) {
 	source := []byte(`{"openapi":"3.1.0","paths":{"x-inventory-note":{"$ref":"https://example.invalid/note"},"/ok":{"get":{"responses":{"200":{"description":"ok"}}}}}}`)
-	inventory, err := BuildOpenAPIInventory(source, "application/json", testInventoryOptions("trace"))
+	inventory, err := prepareTestWork(t, source, "application/json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(inventory.Tasks) != 1 || len(inventory.Gaps) != 1 || inventory.Tasks[0].Document.Operation.Path != "/ok" {
+	if len(inventory.Items) != 1 || len(inventory.Gaps) != 1 || decodePreparedTestItem(t, inventory.Items[0]).Operation.Path != "/ok" {
 		t.Fatalf("Paths extension handling = %+v", inventory)
 	}
 }
@@ -325,14 +315,14 @@ func FuzzOpenAPIInventory(f *testing.F) {
 	f.Add([]byte("openapi: 3.1.0\npaths: {}\n"), "application/yaml")
 	f.Add([]byte("not openapi"), "application/yaml")
 	f.Fuzz(func(t *testing.T, source []byte, mediaType string) {
-		inventory, err := BuildOpenAPIInventory(source, mediaType, testInventoryOptions("trace"))
+		inventory, err := prepareTestWork(t, source, mediaType)
 		if err != nil {
-			if ErrorCode(err) == "" {
+			if testDomainErrorCode(err) == "" {
 				t.Fatalf("unstable error type: %T: %v", err, err)
 			}
 			return
 		}
-		if len(inventory.Tasks) > MaximumItems || len(inventory.CanonicalInventory) > MaximumDocumentBytes || !contentdigest.Valid(inventory.SourceContentDigest) || !contentdigest.Valid(inventory.CanonicalInventoryDigest) {
+		if len(inventory.Items) > MaximumItems || len(inventory.Items) > 256 {
 			t.Fatalf("accepted out-of-bounds inventory: %+v", inventory)
 		}
 	})

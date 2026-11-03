@@ -19,7 +19,7 @@ func TestSharedAuditCommonOfflineCommand(t *testing.T) {
 		t.Fatal(err)
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	for _, file := range []string{"programs.json", "results.json", "controls.json", "proposals.json", "tasks.json"} {
+	for _, file := range []string{"programs.json", "results.json", "controls.json", "proposals.json", "tasks.json", "prepared-work.json"} {
 		type fixtureCase struct {
 			Name     string `json:"name"`
 			Document string `json:"document"`

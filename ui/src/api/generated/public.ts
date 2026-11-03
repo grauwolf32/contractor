@@ -1135,6 +1135,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/audits/{auditId}/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        /** List accepted work and selection or collection progress */
+        get: operations["listAuditTasks"];
+        put?: never;
+        /**
+         * Accept bounded work with exact selected materials
+         * @description Active and paused Audits accept at most 128 records / 1 MiB metadata and 128 distinct exact inputs per mutation. Acceptance retains inputs in Audit scope and submits no Run. The active coordinator dispatches through RunService. Replay returns the original task identities and revision before resolving mutable sources. Empty input mappings use pinned Audit inputs.
+         */
+        post: operations["createAuditTasks"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/audits/{auditId}/tasks/{taskId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+                taskId: components["schemas"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /** Read accepted work and its retained result or explicit gap */
+        get: operations["getAuditTask"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/audits/{auditId}/items": {
         parameters: {
             query?: never;
@@ -1223,7 +1266,7 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** Read the exact proposed or accepted Audit report or its generation state */
+        /** Read Audit report availability and any retained report */
         get: operations["getAuditReport"];
         put?: never;
         post?: never;
@@ -4029,25 +4072,95 @@ export interface components {
         };
         /** @enum {string} */
         AuditCompatibilityReason: "preparation_unsupported" | "discovery_unsupported" | "assessment_unsupported" | "multiple_rounds_unsupported" | "batching_unsupported" | "automatic_active_checks_unsupported" | "project_active_checks_prohibited" | "active_check_approval_unsupported" | "manual_applicability_unsupported" | "report_acceptance_unsupported" | "manual_item_unsupported" | "engagement_capability_unsupported" | "engagement_source_closure_unsupported" | "engagement_active_checks_unsupported";
+        AuditProgram: {
+            continuation?: {
+                workflow: components["schemas"]["AuditCommonKey"];
+            };
+            hypotheses: {
+                [key: string]: components["schemas"]["AuditProgramHypothesisSeed"];
+            };
+            initial_work: components["schemas"]["AuditProgramInitialWork"][];
+            inputs: {
+                [key: string]: components["schemas"]["AuditProgramInput"];
+            };
+            limits: components["schemas"]["AuditProgramLimits"];
+            policy: components["schemas"]["AuditProgramPolicy"];
+            /** @constant */
+            schema: "contractor.audit.program.v1";
+            workflows: {
+                [key: string]: components["schemas"]["AuditProgramWorkflow"];
+            };
+        };
+        AuditProgramAttemptLimit: number;
+        /** @description The complete seed's RFC 8785 canonical UTF-8 encoding must fit 32768 bytes. This early content bound does not replace the complete hypothesis document bound after trusted identity, revision and origin are assigned. */
+        AuditProgramHypothesisSeed: {
+            grounds: components["schemas"]["AuditCommonText"];
+            scope: {
+                [key: string]: components["schemas"]["AuditCommonText"];
+            };
+            statement: components["schemas"]["AuditCommonText"];
+        };
+        AuditProgramInitialWork: {
+            hypothesis?: components["schemas"]["AuditCommonKey"];
+            inputs?: {
+                [key: string]: components["schemas"]["AuditCommonKey"];
+            };
+            key: components["schemas"]["AuditCommonKey"];
+            objective: components["schemas"]["AuditCommonText"];
+            workflow: components["schemas"]["AuditCommonKey"];
+        };
+        AuditProgramInput: {
+            media_types: (components["schemas"]["MediaType"] | "*/*")[];
+            required: boolean;
+        };
+        AuditProgramInputMapping: {
+            name: components["schemas"]["AuditCommonKey"];
+            /** @constant */
+            source: "audit-input";
+        } | {
+            /** @enum {string} */
+            source: "task-context" | "prior-results" | "task-input";
+        };
+        AuditProgramLimits: {
+            batch_size: number;
+            deadline_seconds: number;
+            max_attempts: components["schemas"]["AuditProgramAttemptLimit"];
+            max_evidence_bytes: number;
+            max_hypotheses: number;
+            max_hypothesis_bytes: number;
+            max_hypothesis_revisions: number;
+            max_iterations: number;
+            max_submitted_runs: number;
+            max_tasks: number;
+            max_tasks_per_iteration: number;
+        };
+        AuditProgramPolicy: {
+            /** @enum {string} */
+            active_operations: "allowed" | "prohibited";
+        };
+        AuditProgramSelector: string;
+        AuditProgramWorkflow: {
+            inputs: {
+                [key: string]: components["schemas"]["AuditProgramInputMapping"];
+            };
+            max_attempts?: components["schemas"]["AuditProgramAttemptLimit"];
+            outputs: {
+                [key: string]: components["schemas"]["AuditCommonKey"];
+            };
+            parameters: {
+                [key: string]: string;
+            };
+            ref: components["schemas"]["AuditProgramSelector"];
+        };
         AuditProfile: {
             ref: components["schemas"]["AuditProfileRef"];
-            mode: components["schemas"]["AuditProfileMode"];
-            standards: components["schemas"]["AuditStandardRef"][];
             inputs: {
-                [key: string]: components["schemas"]["AuditProfileInput"];
+                [key: string]: components["schemas"]["AuditProgramInput"];
             };
-            inventory: components["schemas"]["AuditInventory"];
-            workflows?: {
-                [key: string]: components["schemas"]["AuditProfileWorkflow"];
-            };
-            methods?: {
-                [key: string]: components["schemas"]["AuditCheckMethodMapping"];
-            };
-            execution: components["schemas"]["AuditExecutionPolicy"];
-            interaction: components["schemas"]["AuditInteractionPolicy"];
-            serverCompatible: boolean;
-            requiresInputValidation: boolean;
-            compatibilityReasons: components["schemas"]["AuditCompatibilityReason"][];
+            limits: components["schemas"]["AuditProgramLimits"];
+            policy: components["schemas"]["AuditProgramPolicy"];
+            /** @description The exact authored common program; present on profile detail. */
+            program?: components["schemas"]["AuditProgram"];
         };
         AuditProfilePage: {
             items: components["schemas"]["AuditProfile"][];
@@ -4203,11 +4316,7 @@ export interface components {
             runtimeLabels: components["schemas"]["RuntimeInfrastructureId"][];
             baseline?: components["schemas"]["AuditBaseline"];
             state: components["schemas"]["AuditState"];
-            phase: components["schemas"]["AuditPhase"];
-            preparation?: components["schemas"]["AuditPreparation"];
-            generatedInventory?: components["schemas"]["AuditGeneratedInventory"];
             revision: number;
-            currentRoundId?: components["schemas"]["ResourceId"];
             dispatchState: components["schemas"]["AuditDispatchState"];
             holdState: components["schemas"]["AuditHoldState"];
             /**
@@ -4224,6 +4333,8 @@ export interface components {
             reservedRunCount: number;
             submittedRunCount: number;
             outstandingRunCount: number;
+            /** @description A terminal child execution still has uncommitted output collection, including remaining prepared-work intake. Paused clients keep polling until this is false and outstandingRunCount is zero. */
+            collectionPending: boolean;
             retainedEvidenceBytes: number;
             eventSequence: number;
             stopReason?: components["schemas"]["AuditStopReason"];
@@ -4237,16 +4348,9 @@ export interface components {
             finishedAt?: string;
             /** Format: date-time */
             deletionRequestedAt?: string;
-        } & ({
-            /** @constant */
-            phase?: "not-started";
-        } | {
-            /** @enum {string} */
-            phase?: "preparing" | "inventory";
-        } | {
-            /** @constant */
-            phase?: "rounds";
-        });
+            taskCount: number;
+            iteration: number;
+        };
         AuditEventSummary: {
             state?: string;
             from?: string;
@@ -4269,6 +4373,10 @@ export interface components {
             reviews?: number;
             members?: number;
             count?: number;
+            createdCount?: number;
+            workCount?: number;
+            taskCount?: number;
+            workflow?: components["schemas"]["AuditCommonKey"];
         };
         AuditEvent: {
             auditId: components["schemas"]["ResourceId"];
@@ -4303,6 +4411,87 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+        };
+        AuditCommonKey: string;
+        AuditCommonText: string;
+        AuditCommonDigest: string;
+        AuditCommonResourceId: string;
+        AuditCommonExactRef: {
+            namespace: string;
+            name: string;
+            revision: string;
+        };
+        AuditTaskMaterial: {
+            /** @enum {string} */
+            scope_kind: "audit" | "project" | "run";
+            scope_id: components["schemas"]["AuditCommonResourceId"];
+            ref: components["schemas"]["AuditCommonExactRef"];
+            digest: components["schemas"]["AuditCommonDigest"];
+            media_type: string;
+            size_bytes: number;
+        };
+        AuditTaskHypothesisRef: {
+            id: components["schemas"]["AuditCommonResourceId"];
+            revision: number;
+        };
+        AuditTaskDocument: {
+            /** @constant */
+            schema: "contractor.audit.task.v1";
+            audit_id: components["schemas"]["AuditCommonResourceId"];
+            task_id: components["schemas"]["AuditCommonResourceId"];
+            workflow: components["schemas"]["AuditCommonKey"];
+            inputs: {
+                [key: string]: components["schemas"]["AuditTaskMaterial"];
+            };
+            parameters: {
+                [key: string]: string;
+            };
+            hypothesis?: components["schemas"]["AuditTaskHypothesisRef"];
+            objective: components["schemas"]["AuditCommonText"];
+        };
+        AuditTaskSelection: {
+            key: components["schemas"]["AuditCommonKey"];
+            workflow: components["schemas"]["AuditCommonKey"];
+            objective: components["schemas"]["AuditCommonText"];
+            inputs: {
+                [key: string]: components["schemas"]["AuditTaskMaterial"];
+            };
+        };
+        /** @enum {string} */
+        AuditTaskState: "ready" | "selected" | "settled";
+        AuditTaskCreationRequest: {
+            work: components["schemas"]["AuditTaskSelection"][];
+        };
+        AuditTaskAcceptance: {
+            task_ids: components["schemas"]["ResourceId"][];
+            created_count: number;
+            audit_revision: number;
+        };
+        AuditTaskSource: {
+            /** @enum {string} */
+            kind: "initial" | "manual" | "prepared";
+            key: components["schemas"]["AuditCommonKey"];
+            execution_id?: components["schemas"]["ResourceId"];
+            output?: components["schemas"]["AuditTaskMaterial"];
+        };
+        AuditTask: {
+            document: components["schemas"]["AuditTaskDocument"];
+            source: components["schemas"]["AuditTaskSource"];
+            ordinal: number;
+            iteration: number;
+            state: components["schemas"]["AuditTaskState"];
+            attempts: number;
+            last_execution_id?: components["schemas"]["ResourceId"];
+            result?: components["schemas"]["AuditTaskMaterial"];
+            gap_code?: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        AuditTaskPage: {
+            items: components["schemas"]["AuditTask"][];
+            page: components["schemas"]["PageInfo"];
         };
         /** @enum {string} */
         AuditItemState: "pending" | "awaiting_review" | "ready" | "submitted" | "collecting" | "settled";
@@ -4491,20 +4680,7 @@ export interface components {
         };
         AuditStartResponse: {
             audit: components["schemas"]["Audit"];
-            round?: components["schemas"]["AuditRound"];
-            items: components["schemas"]["AuditItem"][];
-        } & ({
-            audit?: {
-                /** @constant */
-                phase?: "rounds";
-            };
-        } | {
-            audit?: {
-                /** @enum {string} */
-                phase?: "preparing" | "inventory";
-            };
-            items?: unknown;
-        });
+        };
         FindingExactArtifact: {
             ref: components["schemas"]["ExactArtifactRef"];
             digest: components["schemas"]["Digest"];
@@ -4753,7 +4929,11 @@ export interface components {
         FindingAuditOrigin: {
             auditId: components["schemas"]["ResourceId"];
             executionId: components["schemas"]["ResourceId"];
-            role: components["schemas"]["AuditExecutionRole"];
+            taskId: components["schemas"]["ResourceId"];
+            hypothesis?: {
+                id: components["schemas"]["ResourceId"];
+                revision: number;
+            };
         };
         FindingOrigin: {
             runId: components["schemas"]["ResourceId"];
@@ -6047,7 +6227,7 @@ export interface components {
         });
         ServerOperationConfig: {
             /** @enum {string} */
-            ref: "sitemap-openapi-join@1" | "sitemap-apply-openapi@1";
+            ref: "sitemap-openapi-join@1" | "sitemap-apply-openapi@1" | "openapi-prepare-work@1";
             arguments: {
                 [key: string]: components["schemas"]["ArgumentBinding"] & unknown;
             };
@@ -10609,6 +10789,112 @@ export interface operations {
             503: components["responses"]["StorageTransactionConflict"];
         };
     };
+    listAuditTasks: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+                state?: components["schemas"]["AuditTaskState"];
+            };
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Bounded accepted work */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditTaskPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
+    createAuditTasks: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "If-Match": components["parameters"]["RequiredIfMatch"];
+            };
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuditTaskCreationRequest"];
+            };
+        };
+        responses: {
+            /** @description Original acceptance receipt */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    ETag: components["headers"]["ETag"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditTaskAcceptance"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            412: components["responses"]["PreconditionFailed"];
+            413: components["responses"]["PayloadTooLarge"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
+    getAuditTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+                taskId: components["schemas"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Bounded accepted work */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditTask"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
     listAuditItems: {
         parameters: {
             query?: {
@@ -10771,7 +11057,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Report state with exact artifacts and content when proposed or ready; proposed reports include their review request */
+            /** @description Report availability with exact artifacts and content when proposed or ready; a completed Audit without an aggregate report returns unavailable and retains its ordinary Task results separately */
             200: {
                 headers: {
                     "X-Request-ID": components["headers"]["RequestId"];

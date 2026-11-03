@@ -4,69 +4,20 @@ package e2e
 
 import (
 	"path/filepath"
-	"slices"
-	"strings"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/configload"
-	"github.com/grauwolf32/contractor/internal/configload/configloadtest"
-	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 func TestAuditProgramsE2EConfigurationLoads(t *testing.T) {
 	root := stageE2EConfiguration(t, filepath.Join(repoRoot(t), "configs"), filepath.Join(t.TempDir(), "configs"), "http://127.0.0.1:1/v1")
-	installOrdinaryFindingFixture(t, root, "audit_asvs_source_verifier", "audit_asvs_source_verification", "fixture-ordinary-asvs")
-	installTypedCheckFixture(t, root)
-	installEngagementFixture(t, root)
 	snapshot, _, err := configload.LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	profile, err := snapshot.AuditProfile("typed-check-fixture@1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	methods, err := auditprofile.CompileCheckMethods(profile)
-	if err != nil {
-		t.Fatalf("typed fixture routes: %v", err)
-	}
-	for method, role := range map[string]string{"verify": "second", "replay": "first"} {
-		key, _ := contracts.LookupCheckPlanMethod(contracts.FindingCheckPlanSchema, method)
-		route, found := methods.Select(key)
-		if !found || route.Mapping.WorkflowRole != role {
-			t.Fatalf("fixture route %s = %+v", method, route)
+	for _, selector := range commonAuditProfileSelectors {
+		if _, err := snapshot.AuditProfile(selector); err != nil {
+			t.Fatal(err)
 		}
-	}
-	templates := map[string]string{
-		"checklist":    "audit_source_checker@1",
-		"openapi":      "audit_openapi_operation_observer@1",
-		"top10":        "audit_risk_source_checker@1",
-		"asvs":         "audit_asvs_source_verifier@1",
-		"ordinary-run": "fixture-ordinary-asvs@1",
-		"findings":     "audit_openapi_operation_tracer@1",
-		"engagement":   "engagement_fixture_worker@1",
-	}
-	for _, stage := range append(auditProgramGatewayStages(), findingsProducerStage("trace"), engagementFixtureStage()) {
-		t.Run(stage.name, func(t *testing.T) {
-			prefix, _, _ := strings.Cut(stage.name, "/")
-			template, err := configloadtest.AgentTemplate(snapshot, templates[prefix])
-			if err != nil {
-				t.Fatal(err)
-			}
-			var tools []string
-			for _, selection := range template.Toolsets {
-				tools = append(tools, selection.Tools...)
-			}
-			if len(template.Skills) > 0 {
-				tools = append(tools, "list_skills", "load_skill", "load_skill_resource")
-			}
-			slices.Sort(tools)
-			want := slices.Clone(stage.tools)
-			slices.Sort(want)
-			if !slices.Equal(tools, want) {
-				t.Fatalf("scripted Gateway tools = %v; catalog tools = %v", want, tools)
-			}
-		})
 	}
 }

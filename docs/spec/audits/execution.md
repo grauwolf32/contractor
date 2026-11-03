@@ -4,16 +4,16 @@ Requirement prefix: `AUX` · [Specification index](../README.md)
 
 ## Purpose and scope
 
-This document owns how the Audit Controller executes an Audit: submission of
-ordinary child WorkflowRuns and the dispatch look-ahead that paces it, item
-selection and batch formation, submission identity and idempotency, the
-`audit-managed` publication mode of child Runs, terminal observation and
-collection of child Runs, the execution manifest and the `check-results`
-result package, import of their result sets, the evidence budget,
-finding-proposal intake and Audit-side proposal retention during collection,
-the Controller's progression of a Round through discovery, checks, assessment
-and the next Round, recovery after crashes and races, and Audit budgets and
-bounds.
+This document owns Audit coordination through ordinary child WorkflowRuns,
+existing controller claims, submission identities, terminal observation,
+collection and budgets. Executable profiles use the common
+[Program/Task contract](common-contract.md#ACT-R14).
+
+The former Round/inventory/role progression below is a retired representation:
+it does not register an alternative profile reader or executor. Its independent
+stored projections and receipt/retention facts confer no new dispatch authority.
+Common coordination follows AUX-R108 through AUX-R110; ordinary Scheduler,
+Artifact and Finding guarantees continue to belong to their named owners.
 
 It leaves to other documents:
 
@@ -1103,23 +1103,17 @@ Shared rules are in
 8. No network or model call runs under a database row lock (AUX-R75).
 9. A reconcile snapshot reflects one commit: a change committed while it is
    read appears in none of it (AUX-R95); test
-   `TestPostgresReconcileSnapshotReadsOneCommitOnAPoolAndInACallerTransaction`
+   `TestSharedPostgresReconcileSnapshotReadsOneCommitOnAPoolAndInACallerTransaction`
    in [`internal/auditstore/internal/pgstore/reconcile_snapshot_postgres_test.go`](../../../internal/auditstore/internal/pgstore/reconcile_snapshot_postgres_test.go).
-10. A failed read during collection never commits a receipt or consumes an
-   item attempt, and pinned data that cannot be validated, except the scan
-   history exceptions, never leaves an execution collecting (AUX-R96); tests
-   `TestPostgresStandardReadFailureAfterRetentionKeepsExecutionCollecting` and
-   `TestPostgresInvalidPinnedStandardSettlesCollectionContractInvalid` in
-   [`internal/auditimport/collection_failure_integration_test.go`](../../../internal/auditimport/collection_failure_integration_test.go)
-   and `TestPostgresScanRecoveryCollectionKeepsFailureClasses` in
-   [`internal/auditcontroller/scan_collection_postgres_test.go`](../../../internal/auditcontroller/scan_collection_postgres_test.go),
-   whose undecodable scan history case keeps the execution collecting.
-11. A claimed reconcile step commits at most LIM-AUX-14 drain mutations, its
-    statements do not grow with the Audit, and a lost claim or stale
-    precondition ends its batch without repeating a mutation (AUX-R97);
-    tests `TestPostgresControllerDrainBatchesCancellationObservationAndDeletion`
-    and `TestPostgresControllerDrainBatchStopsAtALostClaim` in
-    [`internal/auditcontroller/drain_batch_postgres_test.go`](../../../internal/auditcontroller/drain_batch_postgres_test.go).
+10. A failed ordinary-output read during collection creates no receipt; permanent
+    input or submission rejection settles once (AUX-R109). The owning regression
+    cases are in [`internal/auditimport/tasks_test.go`](../../../internal/auditimport/tasks_test.go).
+11. A claimed drain step commits at most LIM-AUX-14 mutations. Lost claims,
+    stale preconditions and exhausted step budgets end the batch (AUX-R97);
+    regression cases are in
+    [`internal/auditcontroller/drain_batch_test.go`](../../../internal/auditcontroller/drain_batch_test.go)
+    and the real PostgreSQL pause/deadline/cancellation cases in
+    [`internal/auditcontroller/tasks_postgres_test.go`](../../../internal/auditcontroller/tasks_postgres_test.go).
 12. A claim pass reads, in its custom and generic plans, the Audits in the
     reconcilable states and one claim per candidate plus one per leased
     claim, whatever the number of retained drafts and terminal Audits, and
@@ -1136,17 +1130,12 @@ Shared rules are in
     tests `TestPostgresAuditDeletionProbesReadOnlyTheLiveRuns` and
     `TestPostgresAuditDeletionProbeTraversesRunsInOriginalOrder` in
     [`internal/auditstore/internal/pgstore/deletion_probe_postgres_test.go`](../../../internal/auditstore/internal/pgstore/deletion_probe_postgres_test.go).
-14. A reconcile write that the Audit Store refuses as invalid is attempted
-    once: the Audit closes with the work's stop reason and releases its
-    claim, while a serialization failure or a lost connection is retried
-    (AUX-R99); a closing Audit's undispatched items settle whatever their
-    coverage gaps (AUX-R100); tests
-    `TestPostgresControllerClosesAuditWhoseInitialRoundIsRefused`,
-    `TestPostgresControllerClosesAuditWhoseRoleIntentIsRefused`,
-    `TestPostgresControllerClosesAuditWhoseCheckIntentIsRefused`,
-    `TestPostgresControllerRetriesTransientIntentFailures` and
-    `TestPostgresControllerSettlesAnItemWhoseCoverageGapsAreFull` in
-    [`internal/auditcontroller/refused_write_postgres_test.go`](../../../internal/auditcontroller/refused_write_postgres_test.go).
+14. Definite submission rejection consumes no retry loop; transient reads do
+    not manufacture collection receipts (AUX-R109). The common importer cases
+    in [`internal/auditimport/tasks_test.go`](../../../internal/auditimport/tasks_test.go)
+    and real controller cases in
+    [`internal/auditcontroller/tasks_postgres_test.go`](../../../internal/auditcontroller/tasks_postgres_test.go)
+    exercise the current task path.
 
 ## Non-goals
 
@@ -1190,3 +1179,38 @@ Collection names each producer Run/output once and reconciles the same fork
 on replay. Accepted preparation and role-output lookup supply exact Audit
 inputs to ordinary Run initialization. Existing sequencing remains the caller;
 material handoff introduces no coordinator, execution mode or dependency walker.
+
+## Common Task coordination
+
+**AUX-R108.** One reconcile pass applies current control intent, observes a
+bounded window of admitted ordinary Runs, collects terminal outputs, and selects
+bounded compatible accepted Tasks. RunService derives the exact closure,
+configuration and frozen inputs from the locked Program/baseline. A reservation
+keeps its original execution, submission key and membership across ambiguous
+creation and restart; no target operation is repeated to repair an acknowledgement.
+Scheduler lane windows, controller claim epoch, Project deletion and Audit
+control/deadline fences remain authoritative.
+
+**AUX-R109.** Pause closes new dispatch and drains admitted Runs. Their ordinary
+outputs and declared prepared-work lists may be collected/accepted while paused.
+Owner API acceptance may add work from already available exact materials before
+Resume. Pause cannot complete an empty Audit automatically. Cancellation and
+deletion preserve and collect admitted outcomes while settling undispatched
+Tasks with explicit gaps; they accept no further prepared work. No extra waiting
+state, automatic generator or continuation mechanism is inferred from a material.
+
+Audit projections expose `collectionPending`, derived from an indexed existence
+lookup of collecting executions in the same read snapshot. Terminal observation
+can reduce `outstandingRunCount` to zero before this flag clears. Paused readers
+continue polling through collection and any remaining prepared-work intake;
+neither zero active Runs nor ready undispatched Tasks alone determine whether
+collection has settled. The projection introduces no stored counter or state.
+
+**AUX-R110.** Attempt ceilings are the minimum of the effective Audit ceiling
+and the binding's optional tighter limit. The effective Audit may tighten the
+Program's task, iteration, batch, Run, attempt and evidence ceilings and never
+widen them. A permanent submission/input/contract rejection settles once;
+retryable failures retain their original receipt and permit only bounded new
+attempts after terminal observation. Logical outputs remain ordinary immutable
+Artifacts, with trusted common results normalized only for a declared `result`.
+A material without Findings remains a useful completed outcome.

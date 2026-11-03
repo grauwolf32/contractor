@@ -2,10 +2,11 @@ package public
 
 import (
 	"fmt"
-	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 	"mime"
 	"net/http"
+
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 )
 
 // writeArtifactBytes serves stored artifact bytes under their recorded media

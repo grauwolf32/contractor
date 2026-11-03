@@ -7,8 +7,6 @@ import {
   getAudit,
   getAuditProfile,
   getAuditReport,
-  listAuditCoverage,
-  listAuditItems,
   listAuditProfiles,
   listProjectAudits,
   mutateAudit,
@@ -35,34 +33,21 @@ const profile: AuditProfile = {
     version: "1",
     digest: `sha256:${"2".repeat(64)}`,
   },
-  mode: "custom-checklist",
-  standards: [],
-  inputs: { sources: { required: true, mediaTypes: ["application/zip"] } },
-  inventory: {
-    implementation: "checklist@1",
-    source: { source: "audit-input", name: "sources" },
-    itemWorkflowRole: "check",
+  inputs: { sources: { required: true, media_types: ["application/zip"] } },
+  limits: {
+    max_tasks: 8,
+    max_iterations: 1,
+    max_tasks_per_iteration: 8,
+    batch_size: 1,
+    max_submitted_runs: 8,
+    max_attempts: 2,
+    deadline_seconds: 600,
+    max_evidence_bytes: 1048576,
+    max_hypotheses: 128,
+    max_hypothesis_revisions: 10,
+    max_hypothesis_bytes: 32768,
   },
-  execution: {
-    roundMode: "fixed-barrier",
-    maxRounds: 1,
-    batchSize: 1,
-    maxItemsPerRound: 8,
-    maxItemsTotal: 8,
-    maxSubmittedRuns: 8,
-    maxItemRunAttempts: 2,
-    deadlineSeconds: 600,
-    maxEvidenceBytes: 1_048_576,
-    incompleteRound: "assess-with-gaps",
-  },
-  interaction: {
-    activeChecks: "prohibited",
-    notApplicable: "profile-rule",
-    reportAcceptance: "automatic",
-  },
-  serverCompatible: true,
-  requiresInputValidation: true,
-  compatibilityReasons: [],
+  policy: { active_operations: "prohibited" },
 };
 
 const audit: Audit = {
@@ -73,7 +58,8 @@ const audit: Audit = {
   scope: {},
   runtimeLabels: [],
   state: "draft",
-  phase: "not-started",
+  taskCount: 0,
+  iteration: 0,
   revision: 1,
   dispatchState: "closed",
   holdState: "pending",
@@ -89,6 +75,7 @@ const audit: Audit = {
   reservedRunCount: 0,
   submittedRunCount: 0,
   outstandingRunCount: 0,
+  collectionPending: false,
   retainedEvidenceBytes: 0,
   eventSequence: 1,
   createdAt: "2026-09-06T10:00:00Z",
@@ -257,8 +244,8 @@ describe("Audit API", () => {
     const active = {
       ...audit,
       state: "active" as const,
-      phase: "rounds" as const,
-      currentRoundId: "round_example",
+      taskCount: 0,
+      iteration: 0,
       revision: 2,
     };
     const api = new PublicAPI(
@@ -270,17 +257,6 @@ describe("Audit API", () => {
           return response(
             {
               audit: active,
-              round: {
-                roundId: "round_example",
-                ordinal: 1,
-                manifest: exactInput,
-                state: "accepted",
-                expectedItemCount: 0,
-                revision: 1,
-                createdAt: active.createdAt,
-                updatedAt: active.updatedAt,
-              },
-              items: [],
             },
             { headers: { ETag: '"2"' } },
           );
@@ -353,17 +329,9 @@ describe("Audit API", () => {
     await expect(
       listProjectAudits(api, { projectId: audit.projectId }),
     ).resolves.toMatchObject({ items: [audit] });
-    await expect(listAuditItems(api, audit.auditId)).resolves.toMatchObject({
-      items: [],
-    });
-    await expect(listAuditCoverage(api, audit.auditId)).resolves.toMatchObject({
-      items: [],
-    });
     expect(requests.map((request) => new URL(request.url).pathname)).toEqual([
       "/v1/audits/audit_example",
       "/v1/projects/project_example/audits",
-      "/v1/audits/audit_example/items",
-      "/v1/audits/audit_example/coverage",
     ]);
   });
 

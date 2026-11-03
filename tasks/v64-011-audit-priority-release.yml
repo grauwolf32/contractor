@@ -34,7 +34,9 @@ context:
     allow future Project ownership. Remove almost all formal approvals and keep complexity controlled.
     Generation can use selected materials, findings and ordinary results including refutations and gaps.
     The user accepted the common execution skeleton and requested concrete tasks; implementation is a
-    subsequent step, not part of this task-formation request.'
+    subsequent step, not part of this task-formation request. User decision on 2026-11-02 adds
+    the V64-026 Server-operation preparation prerequisite through V64-002, preserving separate
+    OpenAPI operation tasks and compatible batching; web-scan remains one task per target.'
   implementation_gate: Task formation only, requested on 2026-10-31 after acceptance of the common execution
     skeleton. Keep pending until implementation is requested and dependencies are complete. Do not start
     code, migrations, live Runs or deployment in this planning turn. Resolve the explicitly labelled remaining
@@ -58,6 +60,12 @@ context:
     keyed/natural receipts. No new collector, admission engine, lease store or compatibility reader.
   introduced_by_note: This task replaces the former research-only exit; V64-000 and completed V62 remain
     historical implementation, not mandatory future architecture.
+  preparation_boundary: >-
+    User decision 2026-11-02 adds V64-026 transitively through V64-002. The composed observation/scan
+    proof must use ordinary Server-operation preparation, exact bounded work-list intake and separate
+    operation tasks, with compatible batching still allowed. Web-scan remains one target task. Pure
+    producer/validator evidence alone does not prove V64-002 durable acceptance or the full base exit;
+    no generator or second inventory/admission controller is a prerequisite of this deterministic path.
   review_followup: >-
     Agent scheduling decision on 2026-11-02: include the reviewed P1 cutover defect V64-023 as a base
     gate prerequisite. The user requested its task description; the selected retirement procedure is

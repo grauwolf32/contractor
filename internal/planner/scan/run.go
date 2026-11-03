@@ -40,7 +40,7 @@ func (p *execution) Run(ctx context.Context) (stageresult.StageContentResult, er
 	if !start.Invoke {
 		return empty, p.scanError("scan_session_unavailable", nil)
 	}
-	if p.invocation.Stage.AuditScan != nil {
+	if p.invocation.Stage.ScanPreparation != nil {
 		if err := p.loadAuditInputs(ctx); err != nil {
 			return empty, err
 		}
@@ -58,7 +58,7 @@ func (p *execution) Run(ctx context.Context) (stageresult.StageContentResult, er
 			}
 			recover = recover || planner.ScanAttemptNeedsRecovery(attempt)
 		}
-		if recover || !p.audit.task.Scan.Runnable {
+		if recover || !p.audit.task.Runnable {
 			return p.finishAudit(ctx, start.Identity, history)
 		}
 	}
@@ -131,7 +131,7 @@ func (p *execution) prepare(ctx context.Context, start planner.ScanSessionStart)
 		}
 		source, payload = &prepared, preparedPayload
 		policy.Tools = append([]contractscan.ScanToolPolicy{}, policy.Tools...)
-		policy.Tools[0].TestParameters = append([]string{}, p.audit.task.Scan.TestParameters...)
+		policy.Tools[0].TestParameters = append([]string{}, p.audit.task.TestParameters...)
 	}
 	bindings := map[string]scanplan.ToolBinding{}
 	for name, binding := range p.invocation.Stage.Agents {

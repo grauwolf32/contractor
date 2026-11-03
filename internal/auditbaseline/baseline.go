@@ -15,26 +15,11 @@ import (
 )
 
 const Schema = "contractor.audit.baseline.v1"
-const maximumScopeFields = 3
 
 type Scope struct {
 	Objective          string `json:"objective,omitempty"`
 	Target             string `json:"target,omitempty"`
 	AuthorizationScope string `json:"authorizationScope,omitempty"`
-}
-
-func (s Scope) Values() map[string]string {
-	result := make(map[string]string, maximumScopeFields)
-	if s.Objective != "" {
-		result["objective"] = s.Objective
-	}
-	if s.Target != "" {
-		result["target"] = s.Target
-	}
-	if s.AuthorizationScope != "" {
-		result["authorizationScope"] = s.AuthorizationScope
-	}
-	return result
 }
 
 type BaselineInventory struct {
@@ -44,16 +29,6 @@ type BaselineInventory struct {
 	Gaps                     []string                             `json:"gaps"`
 	Worklist                 auditstore.ExactArtifact             `json:"worklist"`
 	ExecutionManifest        auditdomain.ExecutionManifest        `json:"executionManifest"`
-}
-
-const DerivedInventorySchema = "contractor.audit.derived-inventory.v1"
-
-// DerivedInventory is retained separately from the original immutable baseline.
-// Preparation outputs retain both their accepted receipt and exact source Run.
-type DerivedInventory struct {
-	Schema    string                              `json:"schema"`
-	Inventory BaselineInventory                   `json:"inventory"`
-	Sources   map[string]auditstore.ExactArtifact `json:"sources"`
 }
 
 type BaselineSnapshot struct {

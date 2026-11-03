@@ -28,7 +28,7 @@ func TestPostgresCollectionIsolatesProposalReadFailures(t *testing.T) {
 		{"transient", "", transient},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
-			f := newDeletionImportFixture(t)
+			f := newFindingImportFixture(t, false, true)
 			bad := insertAuditChildReceiptWithEvidence(t, f, "bad", []ExactArtifact{})
 			for _, key := range []string{"valid-a", "valid-b"} {
 				insertAuditChildReceiptWithEvidence(t, f, key, []ExactArtifact{})

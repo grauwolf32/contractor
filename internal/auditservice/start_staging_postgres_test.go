@@ -29,53 +29,26 @@ import (
 // TestAuditStartRetryReusesStagedPackages covers AUD-R225: task packages and
 // the worklist are staged frozen before the start transaction, so a start
 // whose transaction fails leaves them staged and its retry writes none again.
-func TestAuditStartRetryReusesStagedPackages(t *testing.T) {
-	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
-	if databaseURL == "" {
-		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-	defer cancel()
-	pool := isolatedAuditServicePool(t, ctx, databaseURL)
+func TestAuditStartRetriesAtomicActivationWithoutStagedPackages(t *testing.T) {
+	ctx := t.Context()
+	pool := isolatedAuditServicePool(t, ctx, os.Getenv("CONTRACTOR_TEST_DATABASE_URL"))
 	guard := &failingCredentialGuard{failures: 1}
 	service := newStartStagingService(t, pool, guard)
 	project, draft := createStartStagingDraft(t, ctx, pool, service, "retry", 3)
-
-	params := StartParams{
-		OwnerID: project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision,
-		IdempotencyKey: "start-staging-retry", RequestDigest: serviceTestDigest("start-staging-retry"),
-	}
+	params := StartParams{OwnerID: project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision, IdempotencyKey: "retry-start", RequestDigest: serviceTestDigest("retry-start")}
 	if _, err := service.Start(ctx, params); postgres.SQLState(err) != postgres.SQLStateSerializationFailure {
-		t.Fatalf("start with a failed transaction = %v", err)
+		t.Fatalf("failed activation=%v", err)
 	}
-	staged := auditBindingRevisions(t, ctx, pool, project.ProjectID)
-	if len(staged) != 4 {
-		t.Fatalf("staged Audit revisions after the failed start = %v, want 3 task packages and the worklist", staged)
+	current, err := service.Get(ctx, project.OwnerID, draft.AuditID)
+	if err != nil || current.State != auditstore.AuditDraft || current.Revision != draft.Revision || current.BaselineSnapshot != nil {
+		t.Fatalf("partially activated draft=%+v error=%v", current, err)
 	}
-	if current, err := service.Get(ctx, project.OwnerID, draft.AuditID); err != nil ||
-		current.State != auditstore.AuditDraft || current.Revision != draft.Revision {
-		t.Fatalf("draft after the failed start = (%+v, %v)", current, err)
+	if staged := auditBindingRevisions(t, ctx, pool, project.ProjectID); len(staged) != 0 {
+		t.Fatalf("invented staged packages: %v", staged)
 	}
-
 	started, err := service.Start(ctx, params)
-	if err != nil || started.Replayed || started.Audit.State != auditstore.AuditActive || len(started.Items) != 3 {
-		t.Fatalf("start retry = (%+v, %v)", started, err)
-	}
-	if after := auditBindingRevisions(t, ctx, pool, project.ProjectID); strings.Join(after, ",") != strings.Join(staged, ",") {
-		t.Fatalf("start retry wrote Audit revisions %v, staged %v", after, staged)
-	}
-	stagedSet := map[string]bool{}
-	for _, revision := range staged {
-		stagedSet[revision] = true
-	}
-	for _, item := range started.Items {
-		if item.Task.Ref.Revision == nil || !stagedSet[item.Task.Ref.Name+"@"+*item.Task.Ref.Revision] {
-			t.Fatalf("started item %s names unstaged task %+v", item.ItemID, item.Task.Ref)
-		}
-	}
-	if started.Round.Manifest.Ref.Revision == nil ||
-		!stagedSet[started.Round.Manifest.Ref.Name+"@"+*started.Round.Manifest.Ref.Revision] {
-		t.Fatalf("started Round names unstaged worklist %+v", started.Round.Manifest.Ref)
+	if err != nil || started.Replayed || started.Audit.State != auditstore.AuditActive || started.Audit.CurrentRoundID != nil {
+		t.Fatalf("retried activation=%+v error=%v", started, err)
 	}
 }
 
@@ -110,7 +83,7 @@ func TestAuditStartStagingWaitsForPurge(t *testing.T) {
 		})
 		done <- err
 	}()
-	waitForStartStagingLock(t, ctx, pool)
+	waitForStartStagingLock(t, ctx, pool, int(purge.Conn().PgConn().PID()))
 	if _, err := purge.Exec(ctx, `DELETE FROM audits WHERE audit_id = $1`, draft.AuditID); err != nil {
 		t.Fatal(err)
 	}
@@ -234,7 +207,7 @@ SELECT name || '@' || revision
 
 // waitForStartStagingLock waits until a start's staging transaction waits on
 // the draft row lock.
-func waitForStartStagingLock(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
+func waitForStartStagingLock(t *testing.T, ctx context.Context, pool *pgxpool.Pool, blockerPID int) {
 	t.Helper()
 	deadline := time.NewTimer(5 * time.Second)
 	defer deadline.Stop()
@@ -244,7 +217,7 @@ func waitForStartStagingLock(t *testing.T, ctx context.Context, pool *pgxpool.Po
 SELECT count(*)
   FROM pg_stat_activity
  WHERE datname = current_database() AND wait_event_type = 'Lock'
-   AND query LIKE '%FOR KEY SHARE%'`).Scan(&waiting); err != nil {
+   AND $1 = ANY(pg_blocking_pids(pid))`, blockerPID).Scan(&waiting); err != nil {
 			t.Fatal(err)
 		}
 		if waiting == 1 {
@@ -287,22 +260,22 @@ func (g *failingCredentialGuard) WithRunCreation(ctx context.Context, fn func() 
 // fixture policy, retaining the same model while freezing its default binding.
 type deploymentBoundCatalog struct{ ProfileCatalog }
 
-func (c deploymentBoundCatalog) ResolveAuditProfile(ctx context.Context, selector string) (auditprofile.ResolvedAuditProfile, error) {
+func (c deploymentBoundCatalog) ResolveAuditProfile(ctx context.Context, selector string) (auditprofile.PinnedProgram, error) {
 	profile, err := c.ProfileCatalog.ResolveAuditProfile(ctx, selector)
 	if err != nil {
 		return profile, err
 	}
 	for role, binding := range profile.Workflows {
-		for name, stage := range binding.Workflow.Stages {
+		for name, stage := range binding.Stages {
 			for _, consumer := range stage.ExecutionConfig.Agents {
 				stage.ModelDefaults = map[string]contracts.ResolvedModelPolicy{"worker": consumer.ModelPolicy.Clone()}
 				break
 			}
-			binding.Workflow.Stages[name] = stage
+			binding.Stages[name] = stage
 		}
 		profile.Workflows[role] = binding
 	}
-	profile.Ref.Digest, err = auditprofile.Digest(profile)
+	profile.Ref.Digest, err = profile.Digest()
 	return profile, err
 }
 
@@ -324,7 +297,7 @@ func TestAuditDraftCatalogSelectionPrecedesDeploymentBinding(t *testing.T) {
 	}
 	service.profiles = deploymentBoundCatalog{ProfileCatalog: service.profiles}
 	project, draft := createStartStagingDraftWithSelection(t, ctx, pool, service, "bound-selection", 1, selected)
-	restored, err := auditprofile.DecodeResolvedAuditProfileSnapshot(draft.ProfileSnapshot)
+	restored, err := auditprofile.DecodePinnedProgram(draft.ProfileSnapshot)
 	if err != nil || restored.Ref.Name != catalog.Ref.Name || restored.Ref.Version != catalog.Ref.Version || restored.Ref.Digest == catalog.Ref.Digest {
 		t.Fatalf("stored bound selection=%+v: %v", restored.Ref, err)
 	}

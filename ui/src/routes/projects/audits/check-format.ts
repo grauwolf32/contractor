@@ -1,31 +1,6 @@
 import type { Audit } from "../../../api/audits";
-import { formatClock, formatShortDateTime } from "../../../app/format";
 import { ENDED_AUDIT_STATES } from "../../../api/states";
-
-function parse(value: string | undefined): Date | undefined {
-  if (value === undefined) return undefined;
-  const date = new Date(value);
-  return Number.isNaN(date.valueOf()) ? undefined : date;
-}
-
-/**
- * "Oct 4, 23:53 to 23:56", or "Oct 4, 23:53 to Oct 5, 00:10" across days.
- */
-export function formatSpan(start: string, end: string | undefined): string {
-  const from = parse(start);
-  const to = parse(end);
-  if (from === undefined) return start;
-  if (end === undefined || to === undefined) return formatShortDateTime(start);
-  const sameDay = from.toDateString() === to.toDateString();
-  return `${formatShortDateTime(start)} to ${sameDay ? formatClock(to) : formatShortDateTime(end)}`;
-}
-
-/** "Started Oct 4, 23:51", or when the check was created as a draft. */
-export function startedText(audit: Audit): string {
-  return audit.startedAt === undefined
-    ? `Created ${formatShortDateTime(audit.createdAt)}`
-    : `Started ${formatShortDateTime(audit.startedAt)}`;
-}
+import { formatShortDateTime } from "../../../app/format";
 
 const TERMINAL: readonly Audit["state"][] = ENDED_AUDIT_STATES;
 

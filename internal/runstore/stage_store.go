@@ -201,6 +201,7 @@ func (s *PostgresStore) ListStageLineage(ctx context.Context, runID, stageName s
 			&lineage.StageExecutionID, &lineage.RunID, &lineage.StageName, &lineage.Attempt, &state,
 			&lineage.ExecutionConfigVariant, &lineage.EscalationOrdinal,
 			&lineage.PreviousExecutionID, &lineage.ResumeSourceExecutionID,
+			&lineage.PlannerSessionID, &lineage.PlannerInvocationID,
 		); err != nil {
 			return nil, fmt.Errorf("scan Stage %q lineage of WorkflowRun %q: %w", stageName, runID, err)
 		}

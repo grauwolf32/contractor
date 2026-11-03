@@ -16,7 +16,7 @@ func (p *execution) scanError(code string, cause error) *planner.Error {
 		// No job can be claimed before all inputs and InitializeScan succeed.
 		retryable = retryableScanCause(cause)
 	case "audit_scan_source_unavailable", "audit_scan_settings_unavailable",
-		"audit_scan_task_unavailable", "audit_scan_manifest_unavailable",
+		"audit_scan_operation_unavailable",
 		"audit_scan_preparation_write_failed", "audit_scan_result_unavailable",
 		"audit_scan_result_write_failed", "scan_history_unavailable",
 		"scan_saved_plan_unavailable", "scan_saved_input_unavailable",
@@ -24,7 +24,7 @@ func (p *execution) scanError(code string, cause error) *planner.Error {
 		"scan_job_result_unavailable", "scan_completion_write_failed":
 		// Audit history reuses a completed/unknown attempt across Stage identities.
 		// Ordinary sessions cannot make that guarantee, even during recovery reads.
-		retryable = p.invocation.Stage.AuditScan != nil && retryableScanCause(cause)
+		retryable = p.invocation.Stage.ScanPreparation != nil && retryableScanCause(cause)
 	}
 	return planner.NewError(code, "Scan planning or execution could not be completed", retryable, cause)
 }
@@ -66,7 +66,7 @@ func retryableScanCause(cause error) bool {
 // resultError retains shared result-verification codes but narrows their retry
 // scope for ordinary scans: a fresh Stage would dispatch its jobs again.
 func (p *execution) resultError(err error) error {
-	if err == nil || p.invocation.Stage.AuditScan != nil {
+	if err == nil || p.invocation.Stage.ScanPreparation != nil {
 		return err
 	}
 	failure := planner.FailureFrom(err)

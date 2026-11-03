@@ -42,29 +42,13 @@ type openAPIOperation struct {
 	gaps        []string
 }
 
-// BuildOpenAPIInventory constructs an inventory from one exact JSON or YAML
-// artifact. Relative document refs cannot resolve in this form and are rejected.
-func BuildOpenAPIInventory(source []byte, mediaType string, options InventoryOptions) (Inventory, error) {
-	root, err := parseOpenAPIDocument(source, mediaType)
-	if err != nil {
-		return Inventory{}, err
-	}
-	return buildOpenAPIInventory(openAPISource{
-		raw: source, mediaType: mediaType, entryPoint: "source/openapi",
-		documents: map[string]map[string]any{"source/openapi": root},
-	}, options)
-}
-
-// BuildOpenAPIInventoryFromPackage constructs an inventory from an exact,
-// validated openapi-source Audit package. Relative refs may resolve only to
-// declared JSON/YAML members in that package.
-func BuildOpenAPIInventoryFromPackage(payload []byte, options InventoryOptions) (Inventory, error) {
+func openAPISourceFromPackage(payload []byte) (openAPISource, error) {
 	validated, err := ValidatePackage(payload)
 	if err != nil {
-		return Inventory{}, err
+		return openAPISource{}, err
 	}
 	if validated.Manifest.Kind != PackageKindOpenAPISource {
-		return Inventory{}, invalid(CodeInventoryInvalid, "package.kind")
+		return openAPISource{}, invalid(CodeInventoryInvalid, "package.kind")
 	}
 	documents := make(map[string]map[string]any)
 	for _, member := range validated.Members() {
@@ -73,41 +57,41 @@ func BuildOpenAPIInventoryFromPackage(payload []byte, options InventoryOptions) 
 		case "application/json", "application/yaml", "application/x-yaml", "text/yaml":
 			document, parseErr := parseOpenAPIDocument(member.Data(), metadata.MediaType)
 			if parseErr != nil {
-				return Inventory{}, invalid(CodeInventoryInvalid, "package.document")
+				return openAPISource{}, invalid(CodeInventoryInvalid, "package.document")
 			}
 			documents[metadata.Path] = document
 		}
 	}
 	if _, exists := documents[validated.Manifest.EntryPoint]; !exists {
-		return Inventory{}, invalid(CodeInventoryInvalid, "package.entrypoint")
+		return openAPISource{}, invalid(CodeInventoryInvalid, "package.entrypoint")
 	}
-	return buildOpenAPIInventory(openAPISource{
+	return openAPISource{
 		raw: payload, mediaType: PackageMediaType,
 		entryPoint: validated.Manifest.EntryPoint, documents: documents,
-	}, options)
+	}, nil
 }
 
-func buildOpenAPIInventory(source openAPISource, options InventoryOptions) (Inventory, error) {
+func openAPISubjects(source openAPISource, maxItems int) (inventoryBasis, []inventorySubject, error) {
 	root := source.documents[source.entryPoint]
 	for _, document := range source.documents {
 		if hasUnsupportedReferenceKeyword(document) {
-			return Inventory{}, invalid(CodeReferenceInvalid, "document.reference_semantics")
+			return inventoryBasis{}, nil, invalid(CodeReferenceInvalid, "document.reference_semantics")
 		}
 	}
 	version, err := stringValue(root["openapi"], "openapi")
 	if err != nil || !openAPIVersionPattern.MatchString(version) {
-		return Inventory{}, invalid(CodeInventoryInvalid, "openapi")
+		return inventoryBasis{}, nil, invalid(CodeInventoryInvalid, "openapi")
 	}
 	paths, err := mapValue(root["paths"], "paths")
 	if err != nil {
-		return Inventory{}, err
+		return inventoryBasis{}, nil, err
 	}
 	resolver := &openAPIResolver{documents: source.documents}
 	globalGaps := make([]string, 0)
 	if webhooks, exists := root["webhooks"]; exists {
 		webhookMap, ok := webhooks.(map[string]any)
 		if !ok {
-			return Inventory{}, invalid(CodeInventoryInvalid, "webhooks")
+			return inventoryBasis{}, nil, invalid(CodeInventoryInvalid, "webhooks")
 		}
 		for _, name := range slices.Sorted(maps.Keys(webhookMap)) {
 			globalGaps = append(globalGaps, formatGap("unsupported-webhook", name))
@@ -120,15 +104,15 @@ func buildOpenAPIInventory(source openAPISource, options InventoryOptions) (Inve
 			continue
 		}
 		if !strings.HasPrefix(pathTemplate, "/") || strings.ContainsRune(pathTemplate, 0) {
-			return Inventory{}, invalid(CodeInventoryInvalid, "paths")
+			return inventoryBasis{}, nil, invalid(CodeInventoryInvalid, "paths")
 		}
 		pathItem, ok := paths[pathTemplate].(map[string]any)
 		if !ok {
-			return Inventory{}, invalid(CodeInventoryInvalid, "paths")
+			return inventoryBasis{}, nil, invalid(CodeInventoryInvalid, "paths")
 		}
 		pathItem, pathItemDocument, err := resolver.resolveReferenceObject(pathItem, source.entryPoint, nil, 1)
 		if err != nil {
-			return Inventory{}, err
+			return inventoryBasis{}, nil, err
 		}
 		for _, method := range openAPIMethodOrder {
 			rawOperation, exists := pathItem[method]
@@ -137,15 +121,15 @@ func buildOpenAPIInventory(source openAPISource, options InventoryOptions) (Inve
 			}
 			operation, ok := rawOperation.(map[string]any)
 			if !ok {
-				return Inventory{}, invalid(CodeInventoryInvalid, "paths.operation")
+				return inventoryBasis{}, nil, invalid(CodeInventoryInvalid, "paths.operation")
 			}
 			built, buildErr := resolver.buildOperation(root, pathItem, operation, source.entryPoint, pathItemDocument, pathTemplate, method)
 			if buildErr != nil {
-				return Inventory{}, buildErr
+				return inventoryBasis{}, nil, buildErr
 			}
 			operations = append(operations, built)
-			if len(operations) > MaximumItems {
-				return Inventory{}, invalid(CodeLimitExceeded, "operations")
+			if len(operations) > maxItems {
+				return inventoryBasis{}, nil, invalid(CodeLimitExceeded, "operations")
 			}
 		}
 	}
@@ -156,7 +140,7 @@ func buildOpenAPIInventory(source openAPISource, options InventoryOptions) (Inve
 		globalGaps = append(globalGaps, operation.gaps...)
 	}
 	if len(globalGaps) > MaximumCoverageValues {
-		return Inventory{}, invalid(CodeLimitExceeded, "gaps")
+		return inventoryBasis{}, nil, invalid(CodeLimitExceeded, "gaps")
 	}
 	globalGaps = sortedUnique(globalGaps)
 
@@ -172,14 +156,14 @@ func buildOpenAPIInventory(source openAPISource, options InventoryOptions) (Inve
 	}
 	canonical, err := canonicalInventoryJSON(basis)
 	if err != nil {
-		return Inventory{}, invalid(CodeInventoryInvalid, "inventory")
+		return inventoryBasis{}, nil, invalid(CodeInventoryInvalid, "inventory")
 	}
 	canonicalDigest := DigestBytes(canonical)
 	subjects := make([]inventorySubject, 0, len(operations))
 	for _, operation := range operations {
 		operationKey, err := openAPIOperationKey(canonicalDigest, operation.path, operation.method)
 		if err != nil {
-			return Inventory{}, err
+			return inventoryBasis{}, nil, err
 		}
 		task := &OperationTask{
 			Path: operation.path, Method: operation.method, OperationID: operation.operationID,
@@ -190,7 +174,7 @@ func buildOpenAPIInventory(source openAPISource, options InventoryOptions) (Inve
 			operation: task, requested: []string{"operation-resolution"}, gaps: slices.Clone(operation.gaps),
 		})
 	}
-	return finishInventory(source.raw, source.mediaType, basis, subjects, options)
+	return basis, subjects, nil
 }
 
 type openAPIResolver struct {

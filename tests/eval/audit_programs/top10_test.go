@@ -4,15 +4,9 @@ import (
 	"bytes"
 	"path/filepath"
 	"reflect"
-	"sort"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/auditdomain"
-	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
-	"github.com/grauwolf32/contractor/internal/config/auditprofile"
-	"github.com/grauwolf32/contractor/internal/configload"
-	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 const top10Revision = "66ebc4798d2ca72973967a20264bdeb70dcf0a13"
@@ -59,97 +53,6 @@ func TestTop10PackageHasExactLicensedCategoryDenominator(t *testing.T) {
 	}
 }
 
-func TestTop10InventoryRetainsMappingsReviewAndEvidenceContracts(t *testing.T) {
-	t.Parallel()
-
-	_, pkg := loadTop10Package(t)
-	revision := "retained-standard-r1"
-	options := auditdomain.InventoryOptions{
-		Round: 1, WorkflowRole: "check", SourceInputName: "standard",
-		SourceRef: contracts.ArtifactRef{
-			Namespace: "audit-example", Name: "standard-top10", Revision: &revision,
-		},
-		ApprovalRequirement: auditdomain.ApprovalNone,
-	}
-	first, err := auditdomain.BuildStandardMappingInventory(*pkg, options)
-	if err != nil {
-		t.Fatal(err)
-	}
-	second, err := auditdomain.BuildStandardMappingInventory(*pkg, options)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if auditdomain.ValidateInventory(first) != nil || len(first.Tasks) != 10 ||
-		!bytes.Equal(first.CanonicalInventory, second.CanonicalInventory) ||
-		first.CanonicalInventoryDigest != second.CanonicalInventoryDigest {
-		t.Fatalf("Top 10 inventory is not exact and deterministic: %+v", first)
-	}
-	manual := []string{}
-	for index, generated := range first.Tasks {
-		task := generated.Document
-		if task.Standard == nil || task.Checklist == nil ||
-			task.ItemKey != top10Categories[index] || task.Standard.MappingKey != task.ItemKey ||
-			!reflect.DeepEqual(task.Standard.EntryIDs, []string{task.ItemKey}) ||
-			task.Standard.EvidenceContract.ID != "bounded-source-risk" ||
-			!reflect.DeepEqual(task.Checklist.RequiredEvidence, []string{"observation"}) {
-			t.Fatalf("Top 10 task lost its exact contract: %+v", task)
-		}
-		if generated.Item.ApprovalRequirement == auditdomain.ApprovalHumanReview {
-			manual = append(manual, task.ItemKey)
-		}
-	}
-	if !reflect.DeepEqual(manual, []string{"A03:2025", "A06:2025"}) {
-		t.Fatalf("Top 10 manual applicability gates = %v", manual)
-	}
-}
-
-func TestTop10ProfileUsesOrdinaryCompatibleRunBoundary(t *testing.T) {
-	t.Parallel()
-
-	snapshot, _, err := configload.LoadUnionReadOnly(configRoot(), filepath.Join(t.TempDir(), "managed"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	profile, err := snapshot.AuditProfile("owasp-top10-2025-source-risk@1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	compatibility := auditservice.ProfileCompatibility(profile)
-	if !compatibility.ServerCompatible || profile.Mode != auditprofile.AuditModeRiskAssessment ||
-		profile.Inventory.Implementation != "standard-mappings@1" ||
-		profile.Inventory.Source != nil || profile.Execution.BatchSize != 1 {
-		t.Fatalf("Top 10 profile is not runnable: profile=%+v compatibility=%+v", profile, compatibility)
-	}
-	binding := profile.Workflows["check"]
-	if binding.Workflow.Ref.Name != "audit-top10-source-risk" ||
-		binding.Inputs["task"].Source != auditprofile.AuditInputFromItemPackage ||
-		binding.Inputs["execution_manifest"].Source != auditprofile.AuditInputFromExecutionManifest ||
-		binding.Inputs["source"].Source != auditprofile.AuditInputFromAudit {
-		t.Fatalf("Top 10 Workflow boundary = %+v", binding)
-	}
-	tools := []string{}
-	for _, stage := range binding.Workflow.Stages {
-		for _, agent := range stage.Agents {
-			for _, selection := range agent.Template.Toolsets {
-				for _, tool := range selection.Tools {
-					tools = append(tools, selection.Ref.ToolsetID+"@"+selection.Ref.Version+"/"+tool)
-				}
-			}
-		}
-	}
-	sort.Strings(tools)
-	for _, required := range []string{
-		"audit-results@2/read_audit_task",
-		"audit-results@2/submit_check_result",
-		"security-findings-code@1/finding",
-		"source-analysis@1/open_source_archive",
-	} {
-		if !contains(tools, required) {
-			t.Fatalf("Top 10 Worker lacks %s: %v", required, tools)
-		}
-	}
-}
-
 func loadTop10Package(t *testing.T) ([]byte, *auditstandards.Package) {
 	t.Helper()
 	payload, pkg, err := auditstandards.PackageDirectory(top10PackageDirectory())
@@ -164,8 +67,3 @@ func top10PackageDirectory() string {
 }
 
 func configRoot() string { return filepath.Join("..", "..", "..", "configs") }
-
-func contains(values []string, candidate string) bool {
-	index := sort.SearchStrings(values, candidate)
-	return index < len(values) && values[index] == candidate
-}

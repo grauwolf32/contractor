@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditcontroller"
 	"github.com/grauwolf32/contractor/internal/auditimport"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore/claimstore"
-	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/querystore"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -58,20 +59,9 @@ func configureAudits(
 	if err != nil {
 		return auditServices{}, err
 	}
-	auditArtifactAccess, err := auditcontroller.NewProjectArtifactAccess(catalogs.artifacts, hookstore.NewClaimedArtifacts(pool, storage))
-	if err != nil {
-		return auditServices{}, fmt.Errorf("configure Audit Controller artifacts: %w", err)
-	}
 	// The Controller side holds the claim-bound commands and the reads of the
 	// Audit store; the owner-facing service holds neither seam's handle.
 	auditClaims, auditReads := claimstore.New(pool, storage).WithPurgeDependencies(findingintake.DeleteAuditHoldsBatch), querystore.New(pool, storage)
-	auditSubmissionBuilder, err := auditcontroller.NewPinnedSubmissionBuilder(
-		auditArtifactAccess, auditReads,
-	)
-	if err != nil {
-		return auditServices{}, fmt.Errorf("configure Audit Controller submissions: %w", err)
-	}
-	auditSubmissionBuilder = auditSubmissionBuilder.WithRoundResultsStore(auditClaims)
 	auditImportArtifacts, err := auditimport.NewArtifactAccess(catalogs.artifacts, hookstore.NewClaimedArtifacts(pool, storage))
 	if err != nil {
 		return auditServices{}, fmt.Errorf("configure Audit import artifacts: %w", err)
@@ -83,15 +73,16 @@ func configureAudits(
 	if err != nil {
 		return auditServices{}, fmt.Errorf("configure Audit importer: %w", err)
 	}
+	auditImporter = auditImporter.WithTaskIntake(auditService)
 	auditController, err := auditcontroller.New(
 		auditClaims, auditReads, runstore.NewPostgresStore(pool, storage), rundeletion.New(pool, storage),
-		runCreationService, auditSubmissionBuilder, workflows.scheduler,
+		runCreationService, workflows.scheduler,
 		auditcontroller.Options{
 			PollInterval:     cfg.Operations.AuditController.PollInterval,
 			ClaimLease:       cfg.Operations.AuditController.ClaimLease,
 			OperationTimeout: cfg.Operations.AuditController.OperationTimeout,
 			ClaimBatch:       cfg.Operations.AuditController.ClaimBatch,
-			Logger:           logger, Collector: auditImporter, RoundBuilder: auditService, InitialRoundBuilder: auditService,
+			Logger:           logger, Collector: auditImporter, TaskIntake: auditService,
 		},
 	)
 	if err != nil {

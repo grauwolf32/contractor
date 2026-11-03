@@ -37,8 +37,8 @@ const (
 
 // coverageStatusTable classifies every coverage status. issue marks the
 // completed status that records an issue found. The shared fixture
-// api/testdata/public/audit-coverage-buckets.json holds the UI result groups
-// to the same classification.
+// api/testdata/public/audit-coverage-buckets.json holds the retained Server
+// coverage readers to the same classification.
 var coverageStatusTable = [...]struct {
 	status string
 	bucket CoverageBucket

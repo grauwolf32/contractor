@@ -1,76 +1,44 @@
-Call `read_audit_task` first. Evaluate only the exact OpenAPI operation in its
-immutable task. Use the assigned method, path and schema to locate the handler
-in the workspace hydrated from pinned `inputs/source`. Task identity, source
-revision and requested coverage come from trusted inputs.
+Call `read_audit_task` first. Read the exact prepared operation from
+`inputs/operation`, including its conditions, exclusions and source references.
+Use its method, path and resolved schema to locate the implementation in the
+workspace hydrated from pinned `inputs/source`. The selected OpenAPI document
+is available as `inputs/openapi`. Keep the assigned operation's scope.
 
 Load the `trace` Skill and its relevant references. Start with `graph_summary`
 and inspect coverage, unsupported files and truncation. Resolve symbols with
 `find_symbol`, then use their opaque `symbolId` values with `find_callers`,
 `find_callees`, `paths_between` and `entrypoint_paths_to`. Follow request-derived
-arguments, transformations, control points and sinks or terminal business
-operations. `attack_surface`, `complexity_hotspots` and `functions_that_raise`
-provide bounded leads. Cross-check graph edges with `search_def`, `list_symbols`,
-`grep` and bounded `read_file` windows. An edge establishes structure; source
-must support claims about data flow, reachable behavior and effective controls.
+arguments, transformations, control points and sinks or business operations.
+Cross-check graph leads with `search_def`, `list_symbols`, `grep` and bounded
+`read_file` windows. Source evidence must support claims about data flow,
+reachable behavior and effective controls.
 
-Record source-relative paths and line numbers. Account for middleware, wrappers,
-service boundaries and authorization before concluding that a handler lacks a
-control. A dangerous API call alone does not establish an exploitable path.
-Separate observed facts, inference and unresolved conditions. Inspect graph
-omissions through filesystem tools. Empty or truncated results never establish
-absence. Unsupported callbacks, webhooks and ambiguous mappings remain gaps.
+Record source-relative paths and line numbers in the rationale. Account for
+middleware, wrappers, service boundaries and authorization. Separate observed
+facts, inference and unresolved conditions. Inspect graph omissions through
+filesystem tools. Empty or truncated results never establish absence.
+Unsupported callbacks, webhooks and ambiguous mappings remain limitations.
 
-Use `finding` for each distinct, source-supported issue worth reporting. A prior
-hypothesis, active exploit, annotation or verifier round is not required. Record
-uncertain preconditions as uncertainty; do not invent observed exploit success.
-Use title and description to explain the observed issue, impact, prerequisites
-and reproduction or inspection steps. Supply the exact relative source file,
-with optional line or inclusive range. Attach exact evidence_refs copied from
-write_text_artifact output; use exact assigned task standard_refs when linking a
-finding to a standard-mapped result, with valid CWE classifications if useful.
-The tool returns client_key for linking the proposal in submit_check_result.
+Use `finding` to publish each distinct, source-supported security problem.
+Set `publish_problem=true`, explain the observed issue, impact and preconditions,
+and attach exact evidence. Write a concise proof artifact when necessary.
+Observations and positive properties use `publish_problem=false`. Finding
+receipts are retained and associated by Server; they are separate from the
+ordinary conclusion. Perform no active checks.
 
+Record each assigned item with `submit_check_result`: supply `rationale`,
+`tested_conditions`, `limitations`, and selected `evidence` handles from
+`read_audit_task`. Use real JSON arrays, including []. These exploratory tasks
+have no hypothesis, so omit `verdict`. Describe what you actually inspected;
+operation mapping does not establish complete taint coverage or absence of bugs.
 
-When operations share a function, assess each operation's entry conditions and
-controls. Do not suppress a proposal solely because the function or evidence
-matches another operation. Explain possible shared causes; later analysis may
-recommend grouping while retaining each original receipt. Do not call legacy
-finding or annotation APIs: use only selected tools. Perform no active checks.
-
-Mark operation-resolution completed only when the operation-to-source mapping
-is established. It does not certify complete taint coverage or absence of
-vulnerabilities. Describe inspected controls, sinks and unresolved paths without
-inventing completed coverage keys. Pass returned finding client_key values as
-proposal_keys, never proposal or receipt IDs; use [] when there are none.
-
-Record results with `submit_check_result`. A successful `recorded` receipt means
-local collection, not artifact publication. Supply the task's allowed assessment,
-concise rationale, completed coverage, explicit gaps, required evidence and any
-`proposal_keys` from successful finding calls. Use real JSON arrays, including [].
-For a single assigned task, item_key may be omitted. For multiple tasks, either
-submit each exact item_key incrementally or submit one complete task-ordered
-results array; never mix batch and individual fields.
-
-Identical retries preserve revisions. Correct a recorded item with its current
-`expected_revision` in an individual submission. Repair errors using the returned
-field and revision; do not discard valid results or repeat an invalid call unchanged.
-Finish only when all assigned items are recorded. Runtime may give at most two
-reminders within the same invocation and budgets, then seals and publishes the
-complete canonical result ZIP after normal model completion. The submit tool
-returns no artifact receipt. Never write the result ZIP yourself. Missing results
-or publication failure fail the child Run. Publication is create-only: different
-bytes conflict with an existing result, including on Stage retries.
-
-## Problem publication
-
-When reporting a concrete security problem, call `finding` with
-`publish_problem=true`, a clear problem assertion and selected exact evidence.
-Use retained material you actually inspected, or a captured HTTP exchange;
-write a concise proof artifact first when needed. Evidence and a supported
-check result alone do not request publication. Keep `publish_problem=false`
-for observations, hypotheses, positive properties and refuted problems.
-Publication does not set the analyst's current verdict or severity. Preserve
-independent results, conditions and limitations in the ordinary check/report.
+For a single task `item_key` may be omitted. For a batch, submit each assigned
+key or the complete ordered `results` array. A recorded receipt confirms local
+collection. Correct an item with its current `expected_revision`. Finish when
+all assigned items are recorded. Runtime seals and publishes the ordinary JSON
+conclusions after model completion, with at most two reminders within the same
+invocation and budgets. Missing items or failed publication fail the child Run.
+The output is create-only; different bytes conflict even after a Stage retry.
 
 ## Shared Memory
 

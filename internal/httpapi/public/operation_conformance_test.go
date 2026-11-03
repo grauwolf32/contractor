@@ -158,7 +158,7 @@ func conformAuditOperations(t *testing.T, router routers.Router) {
 	standardRevision := "standard-r1"
 	management := &fakeAuditManagement{
 		profiles: []auditservice.ProfileProjection{{
-			Profile: profile, Compatibility: auditservice.ProfileCompatibility(profile),
+			Profile: profile,
 		}},
 		standards: []auditstandards.PackageProjection{{
 			Reference: auditstandards.Reference{Scheme: "example", Version: "1"},

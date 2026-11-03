@@ -73,13 +73,6 @@ type preparedDirectVerification struct {
 	budgetExhaustedIn pgx.Tx
 }
 
-// WithCollectionDirectVerificationCache shares one immutable terminal Run
-// output across the receipts of a single Audit collection attempt. Ordinary
-// owner imports still resolve each transaction independently.
-func WithCollectionDirectVerificationCache(ctx context.Context) context.Context {
-	return context.WithValue(ctx, directVerificationCacheKey{}, &directVerificationCache{})
-}
-
 func resolveDirectVerification(
 	ctx context.Context, tx pgx.Tx, service *artifacts.Service, input directVerificationInput,
 	storage *artifactpostgres.Storage,

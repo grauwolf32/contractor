@@ -241,38 +241,8 @@ func TestConfigValidateRejectsMissingManagedRootUnderOperatorSymlink(t *testing.
 	}
 }
 
-func TestConfigValidateChecksBundledStandardSelections(t *testing.T) {
-	for _, test := range []struct {
-		name, from, to, want string
-	}{
-		{"unknown entry", "- v5.0.0-1.2.4", "- v5.0.0-1.2.0", "standard selection"},
-		{"database-only standard", `version: "5.0.0"`, `version: "9.9.9"`, "is not bundled"},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			operator := copyConfigValidationTree(t)
-			profilePath := filepath.Join(operator, "audit-profiles", "owasp_asvs_5_0_l1_source_pilot.yaml")
-			original, err := os.ReadFile(profilePath)
-			if err != nil {
-				t.Fatal(err)
-			}
-			modified := strings.Replace(string(original), test.from, test.to, 1)
-			if modified == string(original) {
-				t.Fatal("standard test did not change the profile")
-			}
-			if err := os.WriteFile(profilePath, []byte(modified), 0o600); err != nil {
-				t.Fatal(err)
-			}
-			err = validateConfigForTest(operator, filepath.Join(filepath.Dir(operator), "managed-configs"))
-			if err == nil || !strings.Contains(err.Error(), test.want) {
-				t.Fatalf("config validate error = %v, want %q", err, test.want)
-			}
-		})
-	}
-}
-
 // copyConfigValidationTree builds a mutable operator root from the shared
-// Server test catalog plus this package's bundled ASVS pilot standard and the
-// AuditProfile that selects it.
+// Server test catalog and this package's bundled ASVS pilot standard.
 func copyConfigValidationTree(t *testing.T) string {
 	t.Helper()
 	root := filepath.Join(t.TempDir(), "configs")

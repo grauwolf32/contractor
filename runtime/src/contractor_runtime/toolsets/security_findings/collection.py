@@ -15,7 +15,7 @@ from typing import Any
 import jcs
 
 from contractor_runtime.contracts import MEDIA_TYPE_PATTERN, ArtifactRef
-from contractor_runtime.contracts.base import MAX_EXACT_INTEGER, is_blank
+from contractor_runtime.contracts.base import MAX_EXACT_INTEGER, RESOURCE_ID_PATTERN, is_blank
 from contractor_runtime.digests import sha256_digest
 from contractor_runtime.strict_json import unique_json_object
 from contractor_runtime.toolsets.common.finding_locations import normalize_locations
@@ -308,8 +308,25 @@ def _validate_metadata(value: dict[str, Any]) -> None:
         require(selected_keys == sorted(set(selected_keys)))
         if "audit_origin" in entry:
             origin = entry["audit_origin"]
-            object_fields(origin, "audit_id execution_id role")
-            require(all(identifier(part) for part in origin.values()))
+            object_fields(origin, "audit_id execution_id task_id", "hypothesis")
+            require(
+                all(
+                    isinstance(origin[key], str)
+                    and RESOURCE_ID_PATTERN.fullmatch(origin[key]) is not None
+                    for key in ("audit_id", "execution_id", "task_id")
+                )
+            )
+            if "hypothesis" in origin:
+                hypothesis = origin["hypothesis"]
+                object_fields(hypothesis, "id revision")
+                require(
+                    isinstance(hypothesis["id"], str)
+                    and RESOURCE_ID_PATTERN.fullmatch(hypothesis["id"]) is not None
+                )
+                require(
+                    type(hypothesis["revision"]) is int
+                    and 1 <= hypothesis["revision"] <= MAX_EXACT_INTEGER
+                )
         if "audit_holds" in entry:
             holds = array(entry["audit_holds"], 64, 1)
             require(all(identifier(hold) for hold in holds) and holds == sorted(set(holds)))

@@ -31,15 +31,15 @@ var insertReceiptSQL = `
 INSERT INTO finding_proposal_receipts (
     receipt_id, proposal_id, allocation_id, runtime_agent_id, runtime_instance_id,
     stage_execution_id, logical_agent_name, invocation_id, submission_id, client_key, request_digest,
-    run_id, owner_id, project_id, audit_execution_id, audit_id, audit_role,
+    run_id, owner_id, project_id, audit_execution_id, audit_id, audit_task_id,
     workflow_name, workflow_version, workflow_schema_version,
     workflow_configuration_ref, workflow_closure_digest,
     proposal_ref, proposal_digest, proposal_media_type, proposal_size_bytes, evidence,
     report_projection, fingerprint_projection, anchor_projection, checks_projection,
-    publication_requested, publication_error, project_proposal, project_evidence, retention_state
+    publication_requested, publication_error, project_proposal, project_evidence, retention_state,audit_hypothesis
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
     $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22,
     $23, $24, $25, $26, $27, $28, $29, $30, $31::text::json,
-    $32, $33, $34::jsonb, $35::jsonb, CASE WHEN $34::jsonb IS NULL THEN 'source-held' ELSE 'project-held' END
+    $32, $33, $34::jsonb, $35::jsonb, CASE WHEN $34::jsonb IS NULL THEN 'source-held' ELSE 'project-held' END,$36
 )`

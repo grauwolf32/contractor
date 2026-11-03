@@ -64,7 +64,8 @@ V64-001 остаётся завершённой историей; исправл
 | 1 | [V64-001](../../tasks/done/v64-001-audit-priority-contracts.yml) | Общие строгие program/task/result contracts, owning boundaries, fixtures, лимиты и карта удаления/cutover |
 | 2 | [V64-004](../../tasks/done/v64-004-audit-priority-context.yml) | Audit workspace, exact handoff и публикация в Project через существующий ArtifactStore с реальным caller |
 | 2 | [V64-014](../../tasks/v64-014-audit-hypothesis-assessments.yml) | Одна Finding model в Project: существующая дедупликация, источники/evidence, единые чтение и изменение; удаление Audit finding lifecycle |
-| 3 | [V64-002](../../tasks/v64-002-audit-priority-store.yml) | Один coordinator, обычные Runs, pause/recovery, первый exploratory сценарий и переписывание YAML шести observation/tracing/scan программ |
+| 2 | [V64-026](../../tasks/done/v64-026-openapi-prepared-work-operation.yml) | Обычный Server-operation Workflow подготовки OpenAPI и ограниченный exact work-list контракт для общего приёма отдельных заданий |
+| 3 | [V64-002](../../tasks/done/v64-002-audit-priority-store.yml) | Один coordinator, обычные Runs, pause/recovery, первый exploratory сценарий и переписывание YAML шести observation/tracing/scan программ |
 | 4 | [V64-012](../../tasks/v64-012-audit-hypothesis-registry.yml) | Fixed/manual hypotheses, automatic exact association и checklist coverage; переписывание YAML восьми checklist/standard программ вместе с их проверяющими consumers |
 | 4 | [V411-010](../../tasks/v411-010-pentest-program-availability.yml) | Удаление оставшихся item/report approvals и Audit control policy; использование готовых Project Finding-команд |
 | 4 | [V411-011](../../tasks/v411-011-project-findings-reader.yml) | Реальный обычный consumer выбранных Project findings и exact snapshots/evidence |
@@ -99,6 +100,36 @@ Audit scope и передачу материалов, вторая перено�
 executor или специальный режим совместимости не сохраняются. V64-010 проверяет
 общий каталог и завершает очистку; V64-013 по-прежнему владеет необязательной
 генерацией. Эта корректировка плана не запускает реализацию и не меняет зависимости.
+
+Последующее решение пользователя от 2026-11-02 при разборе production callers:
+отдельные задания по операциям OpenAPI сохраняются. Узкая prerequisite-задача
+[V64-026](../../tasks/done/v64-026-openapi-prepared-work-operation.yml) добавлена перед
+V64-002; её зависимости — завершённые V64-001 и V410-005. Предметный builder
+сохраняет разбор, выбор операций, условия и пробелы. Модуль в `internal/operations`
+вызывает его как Stage обычного Workflow на Server, без модели и Runtime Worker,
+и публикует обычный ограниченный список работы с exact выбранными материалами.
+Список не назначает системные IDs и не даёт права запускать Runs. V64-002
+проверяет и принимает его порциями тем же путём, что явные задания API, назначает
+идентичности и согласует повторную доставку через существующие receipts.
+Coordinator запускает отдельные проверяющие задания через RunService; совместимые
+задания могут исполняться batch. Web-scan сохраняет одно задание на target.
+
+Это детерминированная подготовка явно заказанной работы, а не генератор или
+автоматический research continuation из V64-013. Нового inventory engine, DSL,
+collector, очереди или таблицы receipts нет. Сам output → задания контракт и
+реальный producer/validation caller входят в V64-026; durable intake и запуск
+checks остаются V64-002, без обратной зависимости. Оформление prerequisite не
+объявляет этот путь реализованным. Назначение реализации V64-002 сохраняется;
+пользователь отдельно разрешил опираться на merged реализацию V64-014 до её
+формального закрытия. Новое ожидание связано с V64-026.
+
+Первый общий exploratory handoff остаётся явным: после admission первого Run
+пользователь ставит Audit на Pause, collection сохраняет output во время паузы,
+API принимает второе задание с exact input, затем Resume разрешает запуск.
+Пустая очередь paused Audit не переводится автоматически в completed. При
+переключении единственного reader/executor восемь старых checklist/assertion YAML
+временно убираются из shipped-каталога по решению пользователя от 2026-11-02;
+V64-012 возвращает эти сценарии в новом формате вместе с их поведением.
 
 В V64-014 explicit problem publication требует exact evidence, а proposal без
 evidence остаётся обычным результатом. Оценки источников и прежние duplicate
@@ -146,6 +177,8 @@ approval случаи эту группу не заменяют. Составн�
 flowchart TD
     C[V64-001 contracts] --> A[V64-004 artifacts]
     C --> F[V64-014 findings]
+    C --> P[V64-026 OpenAPI Server operation и work-list]
+    P --> E[V64-002 coordinator и первый E2E]
     A --> E[V64-002 coordinator и первый E2E]
     F --> E
     E --> H[V64-012 hypotheses и checklist]

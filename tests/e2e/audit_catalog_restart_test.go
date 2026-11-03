@@ -8,14 +8,9 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
-
-	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -68,33 +63,32 @@ func TestAuditProgramCatalogReplacementRestartsServer(t *testing.T) {
 	client := &http.Client{Timeout: 8 * time.Second}
 	server := startProcess(t, "Go Server before catalog replacement", repositoryRoot, environment, serverBinary, "serve")
 	waitForHTTP(t, ctx, server, client, baseURL+"/readyz", http.StatusOK)
-	project := createProjectResource(t, client, baseURL)
+	createProjectResource(t, client, baseURL)
+	var profiles struct {
+		Items []struct {
+			Ref struct {
+				Name string `json:"name"`
+			} `json:"ref"`
+		} `json:"items"`
+	}
+	auditProgramGET(t, client, baseURL+"/v1/audit-profiles?limit=100", &profiles)
+	found := false
+	for _, profile := range profiles.Items {
+		found = found || profile.Ref.Name == "openapi-operation-trace"
+	}
+	if !found {
+		t.Fatal("catalog replacement fixture did not start with the profile it removes")
+	}
+
 	pool, err := pgxpool.New(ctx, isolateURL)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
-	catalog, err := auditstandards.NewCatalog(artifacts.NewService(artifactpgtest.NewStorage().Repository(pool)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	pins, err := catalog.Pin(ctx, ownerID, project.ProjectID, "audit-catalog-review", []auditstandards.Reference{
-		{Scheme: "owasp-asvs", Version: "5.0.0"},
-		{Scheme: "owasp-web-top10", Version: "2025"},
-	})
-	if err != nil || len(pins) != 2 {
-		t.Fatalf("pin original standards: %v (%d pins)", err, len(pins))
-	}
 	replaceAuditProgramCatalog(t, ctx, isolateURL, ownerID, configRoot)
 	server.stop(t)
 	restarted := startProcess(t, "Go Server after catalog replacement", repositoryRoot, environment, serverBinary, "serve")
 	waitForHTTP(t, ctx, restarted, client, baseURL+"/readyz", http.StatusOK)
 	assertAuditProgramCatalogUnavailable(t, client, baseURL)
-	for _, pin := range pins {
-		retained, err := catalog.ResolvePinned(ctx, project.ProjectID, pin)
-		if err != nil || !reflect.DeepEqual(retained.Source, pin.Retained) || retained.Package.Digest != pin.Retained.Digest {
-			t.Fatalf("retained %s@%s changed after catalog replacement: %v", pin.Reference.Scheme, pin.Reference.Version, err)
-		}
-	}
-	t.Log("Server restarted without either profile version or current standard; both exact Project pins remain readable")
+	t.Log("Server restarted without the removed current catalog sources")
 }

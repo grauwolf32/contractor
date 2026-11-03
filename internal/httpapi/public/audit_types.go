@@ -4,13 +4,12 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -30,34 +29,11 @@ type auditProfileSelectorRequest struct {
 }
 
 type auditProfileResponse struct {
-	Methods                 map[string]auditProfileCheckMethodResponse `json:"methods,omitempty"`
-	Ref                     auditprofile.AuditProfileRef               `json:"ref"`
-	Mode                    auditprofile.AuditProfileMode              `json:"mode"`
-	Standards               []auditprofile.AuditStandardRef            `json:"standards"`
-	Inputs                  map[string]auditprofile.AuditProfileInput  `json:"inputs"`
-	Inventory               auditprofile.AuditInventory                `json:"inventory"`
-	Workflows               map[string]auditProfileWorkflowResponse    `json:"workflows,omitempty"`
-	Execution               auditprofile.AuditExecutionPolicy          `json:"execution"`
-	Interaction             auditprofile.AuditInteractionPolicy        `json:"interaction"`
-	ServerCompatible        bool                                       `json:"serverCompatible"`
-	RequiresInputValidation bool                                       `json:"requiresInputValidation"`
-	CompatibilityReasons    []auditservice.CompatibilityReason         `json:"compatibilityReasons"`
-}
-
-type auditProfileCheckMethodResponse struct {
-	PlanSchema           string                                 `json:"planSchema"`
-	Method               string                                 `json:"method"`
-	WorkflowRole         string                                 `json:"workflowRole"`
-	RequiredCapabilities []contracts.CheckCapabilityRequirement `json:"requiredCapabilities"`
-}
-
-type auditProfileWorkflowResponse struct {
-	MaxRunAttempts int                                                   `json:"maxRunAttempts,omitempty"`
-	Kind           auditprofile.AuditWorkflowRoleKind                    `json:"kind"`
-	Workflow       resolved.WorkflowRef                                  `json:"workflow"`
-	Inputs         map[string]auditprofile.AuditWorkflowInputMapping     `json:"inputs"`
-	Parameters     map[string]auditprofile.AuditWorkflowParameterMapping `json:"parameters"`
-	Outputs        map[string]string                                     `json:"outputs"`
+	Ref     auditprofile.AuditProfileRef          `json:"ref"`
+	Inputs  map[string]auditcontract.ProgramInput `json:"inputs"`
+	Limits  auditcontract.ProgramLimits           `json:"limits"`
+	Policy  auditcontract.OperationPolicy         `json:"policy"`
+	Program *auditcontract.Program                `json:"program,omitempty"`
 }
 
 type auditProfilePageResponse struct {
@@ -111,53 +87,41 @@ type auditStopReasonResponse struct {
 }
 
 type auditResponse struct {
-	Labels                  runlabels.RunMetadataLabels                `json:"labels"`
-	RequiredPlacementLabels []string                                   `json:"requiredPlacementLabels"`
-	GeneratedInventory      *auditservice.GeneratedInventoryProjection `json:"generatedInventory,omitempty"`
-	Phase                   auditdomain.AuditPhase                     `json:"phase"`
-	Preparation             *auditPreparationResponse                  `json:"preparation,omitempty"`
-	AuditID                 string                                     `json:"auditId"`
-	ProjectID               string                                     `json:"projectId"`
-	Profile                 auditProfileIdentityResponse               `json:"profile"`
-	Inputs                  map[string]auditstore.ExactArtifact        `json:"inputs"`
-	Scope                   auditservice.Scope                         `json:"scope"`
-	RuntimeLabels           []string                                   `json:"runtimeLabels"`
-	Baseline                *auditBaselineResponse                     `json:"baseline,omitempty"`
-	State                   auditstore.AuditState                      `json:"state"`
-	Revision                uint64                                     `json:"revision"`
-	CurrentRoundID          *string                                    `json:"currentRoundId,omitempty"`
-	DispatchState           auditstore.DispatchState                   `json:"dispatchState"`
-	HoldState               auditstore.HoldState                       `json:"holdState"`
-	DeadlineAt              *time.Time                                 `json:"deadlineAt,omitempty"`
-	PausedAt                *time.Time                                 `json:"pausedAt,omitempty"`
-	Limits                  auditstore.Limits                          `json:"limits"`
-	ReservedRunCount        int                                        `json:"reservedRunCount"`
-	SubmittedRunCount       int                                        `json:"submittedRunCount"`
-	OutstandingRunCount     int                                        `json:"outstandingRunCount"`
-	RetainedEvidenceBytes   int64                                      `json:"retainedEvidenceBytes"`
-	EventSequence           uint64                                     `json:"eventSequence"`
-	StopReason              *auditStopReasonResponse                   `json:"stopReason,omitempty"`
-	CreatedAt               time.Time                                  `json:"createdAt"`
-	UpdatedAt               time.Time                                  `json:"updatedAt"`
-	StartedAt               *time.Time                                 `json:"startedAt,omitempty"`
-	FinishedAt              *time.Time                                 `json:"finishedAt,omitempty"`
-	DeletionRequestedAt     *time.Time                                 `json:"deletionRequestedAt,omitempty"`
+	TaskCount               int                                 `json:"taskCount"`
+	Iteration               int                                 `json:"iteration"`
+	Labels                  runlabels.RunMetadataLabels         `json:"labels"`
+	RequiredPlacementLabels []string                            `json:"requiredPlacementLabels"`
+	AuditID                 string                              `json:"auditId"`
+	ProjectID               string                              `json:"projectId"`
+	Profile                 auditProfileIdentityResponse        `json:"profile"`
+	Inputs                  map[string]auditstore.ExactArtifact `json:"inputs"`
+	Scope                   auditservice.Scope                  `json:"scope"`
+	RuntimeLabels           []string                            `json:"runtimeLabels"`
+	Baseline                *auditBaselineResponse              `json:"baseline,omitempty"`
+	State                   auditstore.AuditState               `json:"state"`
+	Revision                uint64                              `json:"revision"`
+	DispatchState           auditstore.DispatchState            `json:"dispatchState"`
+	HoldState               auditstore.HoldState                `json:"holdState"`
+	DeadlineAt              *time.Time                          `json:"deadlineAt,omitempty"`
+	PausedAt                *time.Time                          `json:"pausedAt,omitempty"`
+	Limits                  auditstore.Limits                   `json:"limits"`
+	ReservedRunCount        int                                 `json:"reservedRunCount"`
+	SubmittedRunCount       int                                 `json:"submittedRunCount"`
+	OutstandingRunCount     int                                 `json:"outstandingRunCount"`
+	CollectionPending       bool                                `json:"collectionPending"`
+	RetainedEvidenceBytes   int64                               `json:"retainedEvidenceBytes"`
+	EventSequence           uint64                              `json:"eventSequence"`
+	StopReason              *auditStopReasonResponse            `json:"stopReason,omitempty"`
+	CreatedAt               time.Time                           `json:"createdAt"`
+	UpdatedAt               time.Time                           `json:"updatedAt"`
+	StartedAt               *time.Time                          `json:"startedAt,omitempty"`
+	FinishedAt              *time.Time                          `json:"finishedAt,omitempty"`
+	DeletionRequestedAt     *time.Time                          `json:"deletionRequestedAt,omitempty"`
 }
 
 type auditPageResponse struct {
 	Items []auditResponse  `json:"items"`
 	Page  pageInfoResponse `json:"page"`
-}
-
-type auditRoundResponse struct {
-	RoundID           string                   `json:"roundId"`
-	Ordinal           int                      `json:"ordinal"`
-	Manifest          auditstore.ExactArtifact `json:"manifest"`
-	State             auditstore.RoundState    `json:"state"`
-	ExpectedItemCount int                      `json:"expectedItemCount"`
-	Revision          uint64                   `json:"revision"`
-	CreatedAt         time.Time                `json:"createdAt"`
-	UpdatedAt         time.Time                `json:"updatedAt"`
 }
 
 type auditItemResponse struct {
@@ -216,7 +180,5 @@ type auditReportResponse struct {
 }
 
 type auditStartResponse struct {
-	Audit auditResponse       `json:"audit"`
-	Round *auditRoundResponse `json:"round,omitempty"`
-	Items []auditItemResponse `json:"items"`
+	Audit auditResponse `json:"audit"`
 }

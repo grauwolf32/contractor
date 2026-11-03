@@ -74,25 +74,29 @@ func testEngagementStartToPrivateAllocationPins(t *testing.T, accessMode string,
 	if err != nil {
 		t.Fatal(err)
 	}
-	profile, err := auditprofile.DecodeResolvedAuditProfileSnapshot(started.Audit.ProfileSnapshot)
+	profile, err := auditprofile.DecodePinnedProgram(started.Audit.ProfileSnapshot)
 	if err != nil {
 		t.Fatal(err)
 	}
 	store := auditstoretest.NewStore(f.pool, artifactpgtest.NewStorage())
 	claim := claimAuditForPurge(t, f.ctx, store, draft.AuditID)
-	roundID := *started.Audit.CurrentRoundID
-	if _, err = store.TransitionRound(f.ctx, auditstore.RoundTransitionParams{Claim: claim, RoundID: roundID, ExpectedRevision: 1, ExpectedState: auditstore.RoundAccepted, TargetState: auditstore.RoundExecuting}); err != nil {
-		t.Fatal(err)
-	}
-	items, err := store.ListItemsPage(f.ctx, auditstore.ListItemsParams{OwnerID: f.project.OwnerID, AuditID: draft.AuditID, Limit: 2})
-	if err != nil || len(items) != 1 {
-		t.Fatalf("items=%+v %v", items, err)
-	}
-	execution, _, err := store.CreateExecutionIntent(f.ctx, auditstore.CreateExecutionIntentParams{Claim: claim, ExecutionID: "engagement-execution", RoundID: &roundID, Role: auditstore.ExecutionCheck, WorkflowRole: "check", LaneClass: resolved.LaneClassModel, Manifest: items[0].Task, SubmissionKey: "engagement-submission", RequestDigest: serviceTestDigest("engagement-submission"), Members: []auditstore.ExecutionMemberIntent{{ExecutionItemID: "engagement-member", ItemID: items[0].ItemID, ItemAttempt: 1, Task: items[0].Task, Inputs: []auditstore.ExactArtifact{}}}})
+	snapshot, err := store.GetReconcileSnapshot(f.ctx, claim)
 	if err != nil {
 		t.Fatal(err)
 	}
-	workflow := profile.Workflows["check"].Workflow
+	accepted, err := f.service.AcceptInitialTasks(f.ctx, claim, snapshot)
+	if err != nil || !accepted.Changed {
+		t.Fatalf("initial work: %+v %v", accepted, err)
+	}
+	tasks, err := f.service.Tasks(f.ctx, auditstore.ListTasksParams{OwnerID: f.project.OwnerID, AuditID: draft.AuditID, Limit: 2})
+	if err != nil || len(tasks.Tasks) != 1 {
+		t.Fatalf("tasks: %+v %v", tasks, err)
+	}
+	execution, _, err := store.SelectTasks(f.ctx, auditstore.SelectTasksParams{Claim: claim, TaskIDs: []string{tasks.Tasks[0].Document.TaskID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := profile.Workflows["check"]
 	workflowBytes, err := json.Marshal(workflow)
 	if err != nil {
 		t.Fatal(err)

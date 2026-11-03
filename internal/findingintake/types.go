@@ -19,6 +19,7 @@ import (
 	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
@@ -50,6 +51,7 @@ var (
 var identityPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
 
 type Submission struct {
+	ItemKey        *string                           `json:"itemKey,omitempty"`
 	PublishProblem bool                              `json:"publishProblem,omitempty"`
 	DerivedAnchors json.RawMessage                   `json:"derived_anchors,omitempty"`
 	APIVersion     string                            `json:"apiVersion"`
@@ -70,11 +72,12 @@ func (input *Submission) UnmarshalJSON(data []byte) error {
 	var fields struct {
 		HTTPEvidence   json.RawMessage `json:"httpEvidence"`
 		PublishProblem json.RawMessage `json:"publishProblem"`
+		ItemKey        json.RawMessage `json:"itemKey"`
 	}
 	if err := json.Unmarshal(data, &fields); err != nil {
 		return err
 	}
-	if string(fields.HTTPEvidence) == "null" || string(fields.PublishProblem) == "null" {
+	if string(fields.HTTPEvidence) == "null" || string(fields.PublishProblem) == "null" || string(fields.ItemKey) == "null" {
 		return ErrInvalid
 	}
 	return nil
@@ -96,9 +99,10 @@ type WorkflowOrigin struct {
 }
 
 type AuditOrigin struct {
-	AuditID     string `json:"auditId"`
-	ExecutionID string `json:"executionId"`
-	Role        string `json:"role"`
+	AuditID     string                       `json:"auditId"`
+	ExecutionID string                       `json:"executionId"`
+	TaskID      string                       `json:"taskId"`
+	Hypothesis  *auditcontract.HypothesisRef `json:"hypothesis,omitempty"`
 }
 
 type Origin struct {
@@ -180,18 +184,6 @@ type ImportRequest struct {
 	Proposal contracts.ArtifactRef
 }
 
-type ProposalKey struct {
-	InvocationID string `json:"invocationId"`
-	ClientKey    string `json:"clientKey"`
-}
-
-type ResolvedProposal struct {
-	ReceiptID string
-	Proposal  ExactArtifact
-	Origin    Origin
-	Document  auditdomain.FindingProposal
-}
-
 type canonicalSubmission struct {
 	anchorProjection []byte
 	checksProjection []byte
@@ -204,6 +196,12 @@ type canonicalSubmission struct {
 }
 
 func canonicalize(input Submission) (canonicalSubmission, error) {
+	if input.ItemKey != nil {
+		if _, valid := auditcontract.ExecutionItemOrdinal(*input.ItemKey); !valid {
+			return canonicalSubmission{}, ErrInvalid
+		}
+	}
+
 	if len(input.DerivedAnchors) != 0 {
 		derived, err := auditdomain.DecodeFindingAnchorDerivation(input.DerivedAnchors)
 		if err != nil {

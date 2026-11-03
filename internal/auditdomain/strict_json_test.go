@@ -30,7 +30,7 @@ func TestStrictJSONNumberSemantics(t *testing.T) {
 		}
 	}
 	for _, literal := range []string{"9007199254740992", "9007199254740993", "9007199254740991.1", "1e300", "1e309"} {
-		if _, err := parseJSONOrYAML([]byte(`{"n":`+literal+`}`), "application/json"); ErrorCode(err) != CodeInvalid {
+		if _, err := parseJSONOrYAML([]byte(`{"n":`+literal+`}`), "application/json"); testDomainErrorCode(err) != CodeInvalid {
 			t.Errorf("source number %s error = %v, want %s", literal, err, CodeInvalid)
 		}
 	}

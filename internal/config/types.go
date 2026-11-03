@@ -187,15 +187,15 @@ type stageSource struct {
 	Planner      string                          `yaml:"planner"`
 	// PlannerContextManagement is decoded by resolvePlannerContextManagement,
 	// which needs the node to reject an explicit null.
-	PlannerContextManagement yaml.Node                     `yaml:"plannerContextManagement,omitempty"`
-	ScanPlan                 *scan.ScanPlanPolicy          `yaml:"scanPlan,omitempty"`
-	AuditScan                *resolved.AuditScanConfig     `yaml:"auditScan,omitempty"`
-	Session                  yaml.Node                     `yaml:"session,omitempty"`
-	Agents                   map[string]agentBindingSource `yaml:"agents"`
-	Context                  *stageContextSource           `yaml:"context,omitempty"`
-	Result                   *stageResultSource            `yaml:"result,omitempty"`
-	WorkflowOutputs          map[string]string             `yaml:"workflowOutputs,omitempty"`
-	On                       *stageTransitionsSource       `yaml:"on"`
+	PlannerContextManagement yaml.Node                       `yaml:"plannerContextManagement,omitempty"`
+	ScanPlan                 *scan.ScanPlanPolicy            `yaml:"scanPlan,omitempty"`
+	ScanPreparation          *resolved.ScanPreparationConfig `yaml:"scanPreparation,omitempty"`
+	Session                  yaml.Node                       `yaml:"session,omitempty"`
+	Agents                   map[string]agentBindingSource   `yaml:"agents"`
+	Context                  *stageContextSource             `yaml:"context,omitempty"`
+	Result                   *stageResultSource              `yaml:"result,omitempty"`
+	WorkflowOutputs          map[string]string               `yaml:"workflowOutputs,omitempty"`
+	On                       *stageTransitionsSource         `yaml:"on"`
 }
 
 type agentBindingSource struct {

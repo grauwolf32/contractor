@@ -47,6 +47,7 @@ func newFindingScaleFixture(t *testing.T) findingScaleFixture {
 	t.Cleanup(cancel)
 	f.ctx = ctx
 	findingID := collectPurgeFinding(t, f, "receipt-finding-scale")
+	seedReviewRows(t, f.ctx, f.pool, f.audit.AuditID, f.itemID)
 	type copySet struct {
 		audit, prefix        string
 		findings, executions int
@@ -109,7 +110,7 @@ func newFindingScaleFixture(t *testing.T) findingScaleFixture {
 
 		cloneRows(t, f.ctx, setup, "audit_executions", "execution_id", f.execution.ExecutionID, copy.executions, map[string]string{
 			"execution_id": `'` + copy.prefix + `-execution-' || n`, "audit_id": audit,
-			"round_id": `NULL`, "role": `'discovery'`, "role_attempt": `n`,
+			"round_id": `NULL`, "role": `'task'`, "role_attempt": `NULL`,
 			"submission_key":        `'` + copy.prefix + `-' || n`,
 			"run_id":                `'` + copy.prefix + `-run-' || n`,
 			"run_provenance":        `jsonb_set(src.run_provenance, '{runId}', to_jsonb('` + copy.prefix + `-run-' || n))`,

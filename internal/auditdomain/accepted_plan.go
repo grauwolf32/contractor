@@ -83,22 +83,6 @@ type AcceptedPlan struct {
 	DependenciesDigest *string                   `json:"dependencies_digest" strictjson:"required,nullable"`
 }
 
-func EncodeAcceptedPlan(value AcceptedPlan, deps *RetainedDependencyManifest) ([]byte, error) {
-	if err := ValidateAcceptedPlan(value, deps); err != nil {
-		return nil, err
-	}
-	return canonicalJSON(value)
-}
-func DecodeAcceptedPlan(data []byte, deps *RetainedDependencyManifest) (AcceptedPlan, error) {
-	var value AcceptedPlan
-	if len(data) > MaximumAcceptedPlanBytes {
-		return value, invalid(CodeLimitExceeded, "accepted_plan")
-	}
-	if _, err := decodeStrictJSON(data, &value); err != nil {
-		return value, err
-	}
-	return value, ValidateAcceptedPlan(value, deps)
-}
 func ValidateAcceptedPlan(value AcceptedPlan, deps *RetainedDependencyManifest) error {
 	if value.Schema != AcceptedPlanSchema {
 		return invalid(CodeSchemaUnsupported, "accepted_plan.schema")

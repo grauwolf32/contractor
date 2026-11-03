@@ -153,8 +153,8 @@ func (retainedExecutionCatalog) ResolveRunWorkflow(context.Context, string, reso
 	return resolved.ResolvedWorkflow{}, errors.New("mutable defaults must not be consulted after preparation")
 }
 
-func (retainedExecutionCatalog) ResolveAuditProfile(context.Context, string) (auditprofile.ResolvedAuditProfile, error) {
-	return auditprofile.ResolvedAuditProfile{}, errors.New("mutable defaults must not be consulted after preparation")
+func (retainedExecutionCatalog) ResolveAuditProfile(context.Context, string) (auditprofile.PinnedProgram, error) {
+	return auditprofile.PinnedProgram{}, errors.New("mutable defaults must not be consulted after preparation")
 }
 
 func newHarness(t *testing.T) *serviceHarness {
@@ -238,7 +238,7 @@ func (h *serviceHarness) dataset(t *testing.T, kind string) (evaldomain.Draft, e
 		c := &data.Cases[i]
 		slot, media, payload := "task", "application/zip", []byte("fixture ZIP is not executed")
 		if kind == "audit" {
-			slot, media, payload = "checklist", "application/json", []byte(`{"schema":"contractor.audit.checklist.v1","items":[{"key":"item","version":"1","statement":"Check fixture.","applicability":"always","allowed_methods":["static"],"required_evidence":[],"review_policy":"automatic"}]}`)
+			slot, media, payload = "checklist", "application/json", []byte(`{"fixture":"Exact selected Eval material"}`)
 		}
 		write, err := source.Write(t.Context(), contracts.ArtifactRef{Namespace: "fixtures", Name: c.ID}, artifacts.Payload{MediaType: media, Data: payload}, nil)
 		if err != nil {
@@ -1274,8 +1274,8 @@ func serviceTestCatalog(t *testing.T) *config.Snapshot {
 	t.Helper()
 	root := t.TempDir()
 	files := map[string]string{
-		"instructions/planner.md": "Execute the selected checklist item.",
-		"instructions/worker.md":  "Read the task package and write a result package.",
+		"instructions/planner.md": "Inspect the selected exact material.",
+		"instructions/worker.md":  "Read the selected material and write an ordinary result.",
 		"llm-gateways/test.yaml": `apiVersion: contractor/v1alpha1
 kind: LLMGatewayConfig
 metadata: {name: test-gateway, version: "1"}
@@ -1312,7 +1312,7 @@ metadata: {name: audit-check, version: "1"}
 spec:
   parameters: {}
   inputs:
-    task: {required: true, mediaTypes: [application/zip]}
+    task: {required: true, mediaTypes: [application/zip, application/json]}
   outputs:
     result: {required: true, mediaTypes: [application/zip]}
   executionConfig:
@@ -1323,7 +1323,7 @@ spec:
   entryStage: check
   stages:
     check:
-      objective: Evaluate one checklist item
+      objective: Inspect one exact material
       instructions: {ref: instructions/planner.md}
       planner: passthrough@1
       agents:
@@ -1344,37 +1344,35 @@ spec:
 kind: AuditProfile
 metadata: {name: test-checklist, version: "1"}
 spec:
-  mode: custom-checklist
-  standards: []
+  schema: contractor.audit.program.v1
   inputs:
-    checklist: {required: true, mediaTypes: [application/json]}
-  inventory:
-    implementation: checklist@1
-    source: {source: audit-input, name: checklist}
-    itemWorkflowRole: check
+    checklist: {required: true, media_types: [application/json]}
   workflows:
     check:
-      kind: check
       ref: audit-check@1
       inputs:
-        task: {source: item-package}
+        task: {source: audit-input, name: checklist}
       parameters: {}
-      outputs: {result: result}
-  execution:
-    roundMode: fixed-barrier
-    maxRounds: 1
-    batchSize: 1
-    maxItemsPerRound: 10
-    maxItemsTotal: 10
-    maxSubmittedRuns: 20
-    maxItemRunAttempts: 2
-    deadlineSeconds: 3600
-    maxEvidenceBytes: 1048576
-    incompleteRound: assess-with-gaps
-  interaction:
-    activeChecks: prohibited
-    notApplicable: profile-rule
-    reportAcceptance: automatic
+      outputs: {material: result}
+  hypotheses: {}
+  initial_work:
+    - key: inspect-selected-material
+      workflow: check
+      objective: Inspect the exact selected Eval material
+  limits:
+    max_tasks: 10
+    max_iterations: 1
+    max_tasks_per_iteration: 10
+    batch_size: 1
+    max_submitted_runs: 20
+    max_attempts: 2
+    deadline_seconds: 3600
+    max_evidence_bytes: 1048576
+    max_hypotheses: 1
+    max_hypothesis_revisions: 1
+    max_hypothesis_bytes: 32768
+  policy:
+    active_operations: prohibited
 `,
 	}
 	for _, variant := range []string{"a", "b"} {
@@ -1391,7 +1389,7 @@ spec:
 		files[name] = string(data)
 	}
 	for _, name := range []string{"audit-profiles/web_scan.yaml", "workflows/audit_web_nuclei_scan.yaml", "agent-templates/audit_web_nuclei_scan.yaml"} {
-		data, err := os.ReadFile(filepath.Join("..", "auditservice", "testdata", "catalog", name))
+		data, err := os.ReadFile(filepath.Join("..", "config", "testdata", "audit-scan-catalog", name))
 		if err != nil {
 			t.Fatal(err)
 		}

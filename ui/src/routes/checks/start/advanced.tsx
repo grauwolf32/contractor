@@ -12,14 +12,12 @@ import {
   IdChip,
 } from "../../../ui";
 import { ScopeChoices } from "./scope";
-import { MODE_LABELS } from "./check-types";
 import { TextAreaField, TextField } from "./fields";
 import { SCOPE_TEXT_LIMITS } from "./request";
 import type { StartCheck } from "./use-start-check";
 
 /**
- * Advanced options, collapsed: the exact version and what it pins (mode,
- * item limit, attempts, standards and their selection), the target and
+ * Advanced options, collapsed: the exact version and its task and attempt limits, the target and
  * authorization scope when the check type does not ask for them itself, and
  * runtime labels. The digest and input check sit behind Technical details.
  */
@@ -31,7 +29,6 @@ export function AdvancedOptions({ model }: { model: StartCheck }) {
   const { family } = selection;
   const selectable = family.versions.length > 1;
   const kind = checkItemKind(profile);
-  const standardSelection = profile.inventory.standardSelection;
   const usesTarget =
     model.webScan !== undefined || model.scopeFields.has("target");
   const usesAuthorizationScope = model.scopeFields.has("authorizationScope");
@@ -52,16 +49,6 @@ export function AdvancedOptions({ model }: { model: StartCheck }) {
           display={`${profile.ref.name}@${profile.ref.version}`}
           label="check type version"
         />
-        {model.checklist?.mode === "write" ? (
-          <section className="start-checklist-defaults">
-            <h4>Checklist defaults</h4>
-            <p className="ui-caption">
-              Static review · always applicable · no required evidence types.
-              Item review policy: automatic. Each entry retains its own key and
-              version.
-            </p>
-          </section>
-        ) : null}
         <Facts
           items={[
             {
@@ -69,39 +56,15 @@ export function AdvancedOptions({ model }: { model: StartCheck }) {
               value: selectable ? undefined : profile.ref.version,
             },
             {
-              term: "Mode",
-              value: MODE_LABELS[profile.mode] ?? profile.mode,
-            },
-            {
               term: "Item limit",
-              value: itemCount(kind, profile.execution.maxItemsTotal),
+              value: itemCount(kind, profile.limits.max_tasks),
             },
             {
               term: "Attempts per item",
-              value: profile.execution.maxItemRunAttempts,
+              value: profile.limits.max_attempts,
             },
           ]}
         />
-        {profile.standards.length === 0 ? null : (
-          <p className="start-tight" data-testid="start-standards">
-            Standards pinned at start:{" "}
-            {profile.standards
-              .map((standard) => `${standard.scheme}@${standard.version}`)
-              .join(", ")}
-          </p>
-        )}
-        {standardSelection === undefined ? null : (
-          <div
-            className="start-selection"
-            data-testid="start-standard-selection"
-          >
-            <strong>{standardSelection.scope}</strong>
-            <p className="start-tight">
-              Levels {standardSelection.levels.join(", ")} ·{" "}
-              {itemCount(kind, standardSelection.entryIds.length)}
-            </p>
-          </div>
-        )}
         <div className="start-fields">
           <LabelsEditor
             entries={model.labels}
@@ -126,9 +89,6 @@ export function AdvancedOptions({ model }: { model: StartCheck }) {
                     >
                       {version.ref.version}
                       {index === 0 ? " (newest)" : ""}
-                      {version.serverCompatible
-                        ? ""
-                        : " · not supported by this server"}
                     </option>
                   ))}
                 </select>
@@ -188,7 +148,7 @@ export function AdvancedOptions({ model }: { model: StartCheck }) {
               },
               {
                 term: "Inputs validated at start",
-                value: profile.requiresInputValidation ? "Yes" : "No",
+                value: "Yes",
               },
             ]}
           />

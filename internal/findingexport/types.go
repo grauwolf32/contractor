@@ -4,6 +4,7 @@ package findingexport
 
 import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/findinganalysis"
 )
 
@@ -55,17 +56,18 @@ type Receipt struct {
 }
 
 type Origin struct {
-	RunID                 string `json:"run_id" strictjson:"required"`
-	InvocationID          string `json:"invocation_id" strictjson:"required"`
-	StageExecutionID      string `json:"stage_execution_id" strictjson:"required"`
-	AllocationID          string `json:"allocation_id" strictjson:"required"`
-	LogicalAgentName      string `json:"logical_agent_name" strictjson:"required"`
-	WorkflowName          string `json:"workflow_name" strictjson:"required"`
-	WorkflowVersion       string `json:"workflow_version" strictjson:"required"`
-	WorkflowClosureDigest string `json:"workflow_closure_digest" strictjson:"required"`
-	AuditID               string `json:"audit_id,omitempty"`
-	ExecutionID           string `json:"execution_id,omitempty"`
-	Role                  string `json:"role,omitempty"`
+	RunID                 string                       `json:"run_id" strictjson:"required"`
+	InvocationID          string                       `json:"invocation_id" strictjson:"required"`
+	StageExecutionID      string                       `json:"stage_execution_id" strictjson:"required"`
+	AllocationID          string                       `json:"allocation_id" strictjson:"required"`
+	LogicalAgentName      string                       `json:"logical_agent_name" strictjson:"required"`
+	WorkflowName          string                       `json:"workflow_name" strictjson:"required"`
+	WorkflowVersion       string                       `json:"workflow_version" strictjson:"required"`
+	WorkflowClosureDigest string                       `json:"workflow_closure_digest" strictjson:"required"`
+	AuditID               string                       `json:"audit_id,omitempty"`
+	ExecutionID           string                       `json:"execution_id,omitempty"`
+	TaskID                string                       `json:"taskId,omitempty"`
+	Hypothesis            *auditcontract.HypothesisRef `json:"hypothesis,omitempty"`
 }
 
 type Evidence struct {

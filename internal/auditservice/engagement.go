@@ -28,13 +28,13 @@ type engagementSelection struct {
 	unclassifiedInputs bool
 }
 
-func readEngagement(ctx context.Context, service *artifacts.Service, projectID string, profile auditprofile.ResolvedAuditProfile, selection DraftSelection) (*engagementSelection, error) {
+func readEngagement(ctx context.Context, service *artifacts.Service, projectID string, profile auditprofile.PinnedProgram, selection DraftSelection) (*engagementSelection, error) {
 	var selected *engagementSelection
 	for name, exact := range selection.Inputs {
 		if exact.MediaType != engagementcontract.MediaType {
 			continue
 		}
-		slot, ok := profile.Inputs[name]
+		slot, ok := profile.Program.Inputs[name]
 		if !ok || !slices.Contains(slot.MediaTypes, engagementcontract.MediaType) || len(slot.MediaTypes) != 1 || selected != nil {
 			return nil, fmt.Errorf("%w: engagement needs exactly one explicit typed input slot", ErrInvalid)
 		}
@@ -136,7 +136,7 @@ func validateEngagementCredentials(ctx context.Context, tx pgx.Tx, user credenti
 	return nil
 }
 
-func engagementCompatibility(profile auditprofile.ResolvedAuditProfile, activeChecks contracts.ActiveChecksPolicy, selected *engagementSelection) []CompatibilityReason {
+func engagementCompatibility(profile auditprofile.PinnedProgram, activeChecks contracts.ActiveChecksPolicy, selected *engagementSelection) []CompatibilityReason {
 	reasons := []CompatibilityReason{}
 	if selected == nil {
 		return reasons
@@ -151,7 +151,7 @@ func engagementCompatibility(profile auditprofile.ResolvedAuditProfile, activeCh
 	}
 	network := false
 	for _, binding := range profile.Workflows {
-		for _, stage := range binding.Workflow.Stages {
+		for _, stage := range binding.Stages {
 			for _, agent := range stage.Agents {
 				if slices.Contains(selected.document.Policy.RequiredCapabilities, string(runtimesettings.RuntimeAdapterHTTPTarget)) {
 					network = network || resolved.TemplateRequiresUncontrolledNetwork(agent.Template)
@@ -164,7 +164,7 @@ func engagementCompatibility(profile auditprofile.ResolvedAuditProfile, activeCh
 	if missing || network {
 		reasons = append(reasons, ReasonEngagementCapabilityUnsupported)
 	}
-	if activeChecks != contracts.ActiveChecksAutomatic || profile.Interaction.ActiveChecks != contracts.ActiveChecksAutomatic {
+	if activeChecks != contracts.ActiveChecksAutomatic || profile.Program.Policy.ActiveOperations != "allowed" {
 		reasons = append(reasons, ReasonEngagementActiveChecksUnsupported)
 	}
 	if selected.document.AccessMode == "blackbox" && !blackboxClosure(profile, selected) {
@@ -173,7 +173,7 @@ func engagementCompatibility(profile auditprofile.ResolvedAuditProfile, activeCh
 	return reasons
 }
 
-func blackboxClosure(profile auditprofile.ResolvedAuditProfile, selected *engagementSelection) bool {
+func blackboxClosure(profile auditprofile.PinnedProgram, selected *engagementSelection) bool {
 	if selected.unclassifiedInputs {
 		return false
 	}
@@ -183,7 +183,7 @@ func blackboxClosure(profile auditprofile.ResolvedAuditProfile, selected *engage
 		}
 	}
 	for _, binding := range profile.Workflows {
-		for _, stage := range binding.Workflow.Stages {
+		for _, stage := range binding.Stages {
 			if stage.Context.Workspace != nil && (len(stage.Context.Workspace.Sources) > 0 || stage.Context.Workspace.State != nil) {
 				return false
 			}

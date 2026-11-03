@@ -274,7 +274,7 @@ func (p *CollectionPublisher) captureCollection(ctx context.Context, tx pgx.Tx, 
 		}
 		if receipt.Origin.Audit != nil {
 			origin := receipt.Origin.Audit
-			entry.AuditOrigin = &auditdomain.FindingCollectionAuditOrigin{AuditID: origin.AuditID, ExecutionID: origin.ExecutionID, Role: origin.Role}
+			entry.AuditOrigin = &auditdomain.FindingCollectionAuditOrigin{AuditID: origin.AuditID, ExecutionID: origin.ExecutionID, TaskID: origin.TaskID, Hypothesis: origin.Hypothesis}
 		}
 		// Retained copies remain usable after the source Run is deleted. Check
 		// ownership of each hold rather than interpreting scoped JSON as a grant.

@@ -90,12 +90,12 @@ func TestDeploymentModelSelectionAuditDraftStartsWithCapturedProfile(t *testing.
 		IdempotencyKey: "start-model-one", RequestDigest: contentdigest.Bytes([]byte("start-model-one")),
 	}
 	started, err := service.Start(ctx, params)
-	if err != nil || started.Audit.State != auditstore.AuditActive || len(started.Items) != 1 {
+	if err != nil || started.Audit.State != auditstore.AuditActive || len(started.Items) != 0 {
 		t.Fatalf("start retained draft: state=%s items=%d err=%v", started.Audit.State, len(started.Items), err)
 	}
-	profile, err := auditprofile.DecodeResolvedAuditProfileSnapshot(started.Audit.ProfileSnapshot)
+	profile, err := auditprofile.DecodePinnedProgram(started.Audit.ProfileSnapshot)
 	if err != nil || profile.Ref.Digest != stored.Profile.Digest ||
-		profile.Workflows["check"].Workflow.Stages["copy"].ModelDefaults["worker"].ContextWindowTokens != 131072 {
+		profile.Workflows["check"].Stages["copy"].ModelDefaults["worker"].ContextWindowTokens != 131072 {
 		t.Fatalf("start lost captured model or digest: %v", err)
 	}
 	if !reflect.DeepEqual(started.Audit.ProfileSnapshot, stored.ProfileSnapshot) {

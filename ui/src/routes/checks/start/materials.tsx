@@ -9,8 +9,6 @@ import { Button } from "../../../ui";
 import { formatName, inSentence, joinWords, materialKey } from "./check-types";
 import { projectPaths } from "./paths";
 import type { InputSlot, StartCheck } from "./use-start-check";
-import { ChecklistEditor } from "./checklist-editor";
-import { isEngagementSlot } from "./material-scope";
 
 /** Labels of inputs that share one material, per shared material. */
 function sharedMaterials(slots: readonly InputSlot[]): string[][] {
@@ -40,7 +38,7 @@ function MaterialRef({ material }: { material: ArtifactMetadata }) {
   );
 }
 
-export function MaterialSlot({
+function MaterialSlot({
   slot,
   complete,
   addHref,
@@ -171,7 +169,7 @@ function LiveTargetMaterial({
 /** Inputs attached from the project's current materials. */
 export function MaterialsCard({ model }: { model: StartCheck }) {
   const headingId = useId();
-  const { materials, slots, exact } = model;
+  const { materials, slots } = model;
   const paths = projectPaths(model.projectId);
   const usesTarget = model.scopeFields.has("target");
   const shared = sharedMaterials(slots);
@@ -179,11 +177,7 @@ export function MaterialsCard({ model }: { model: StartCheck }) {
     <section className="start-card" aria-labelledby={headingId}>
       <div className="start-card-head">
         <h3 id={headingId}>Materials</h3>
-        <span className="ui-caption">
-          {model.checklist?.mode === "write"
-            ? "Project inputs and your checklist"
-            : "Attached from the project"}
-        </span>
+        <span className="ui-caption">Attached from the project</span>
       </div>
       {materials.loading ? (
         <p className="ui-caption" role="status">
@@ -216,44 +210,15 @@ export function MaterialsCard({ model }: { model: StartCheck }) {
       )}
       {slots.length === 0 && !usesTarget ? null : (
         <ul role="list" className="start-material-list">
-          {slots
-            .filter((slot) => !isEngagementSlot(slot))
-            .sort(
-              (a, b) =>
-                Number(a.name === model.checklist?.inputName) -
-                Number(b.name === model.checklist?.inputName),
-            )
-            .map((slot) =>
-              model.checklist?.mode === "write" &&
-              slot.name === model.checklist.inputName ? (
-                <li key={slot.name} className="start-material-editor">
-                  <ChecklistEditor
-                    draft={model.checklist}
-                    busy={model.launch.pending !== undefined}
-                  />
-                </li>
-              ) : (
-                <MaterialSlot
-                  key={slot.name}
-                  slot={slot}
-                  complete={materials.complete}
-                  addHref={paths.addMaterial}
-                  onChoose={model.chooseMaterial}
-                >
-                  {model.checklist?.inputName === slot.name ? (
-                    <Button
-                      size="sm"
-                      className="start-write-checklist"
-                      icon={<Icon name="plus" size={14} />}
-                      disabled={model.launch.pending !== undefined}
-                      onClick={() => model.checklist?.setMode("write")}
-                    >
-                      Write checklist
-                    </Button>
-                  ) : null}
-                </MaterialSlot>
-              ),
-            )}
+          {slots.map((slot) => (
+            <MaterialSlot
+              key={slot.name}
+              slot={slot}
+              complete={materials.complete}
+              addHref={paths.addMaterial}
+              onChoose={model.chooseMaterial}
+            />
+          ))}
           {usesTarget ? (
             <LiveTargetMaterial
               url={model.project?.httpTarget?.url}
@@ -289,10 +254,8 @@ export function MaterialsCard({ model }: { model: StartCheck }) {
       ) : null}
       <p className="ui-caption">
         Picked by file format: a format match does not check what is inside, so
-        make sure each one is right.
-        {exact?.requiresInputValidation === true
-          ? " The server checks them when the check starts."
-          : ""}{" "}
+        make sure each one is right. The server validates exact metadata and
+        input formats at start.{" "}
         <Link to={paths.addMaterial}>Add materials</Link>
       </p>
     </section>

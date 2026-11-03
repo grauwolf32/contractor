@@ -3,9 +3,10 @@ package scheduler
 import (
 	"context"
 	"errors"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"testing"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 
 	"github.com/grauwolf32/contractor/internal/runstore"
 )

@@ -31,6 +31,12 @@
     },
     {
       "$ref": "#/$defs/proposal_context"
+    },
+    {
+      "$ref": "#/$defs/prepared_work"
+    },
+    {
+      "$ref": "#/$defs/prepared_context"
     }
   ],
   "$defs": {
@@ -41,7 +47,7 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 65536,
-      "pattern": "[^\t\n\u000b\f\r \u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000]",
+      "pattern": "[^\t\n\u000b\f\r                  　]",
       "x-maxUtf8Bytes": 65536
     },
     "digest": {
@@ -188,7 +194,8 @@
             "source": {
               "enum": [
                 "task-context",
-                "prior-results"
+                "prior-results",
+                "task-input"
               ]
             }
           },
@@ -237,6 +244,9 @@
             "$ref": "#/$defs/key"
           },
           "maxProperties": 128
+        },
+        "max_attempts": {
+          "$ref": "#/$defs/attempt_limit"
         }
       },
       "required": [
@@ -309,9 +319,7 @@
           "maximum": 1000000
         },
         "max_attempts": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 10
+          "$ref": "#/$defs/attempt_limit"
         },
         "deadline_seconds": {
           "type": "integer",
@@ -746,7 +754,7 @@
             "minLength": 1,
             "maxLength": 512,
             "x-maxUtf8Bytes": 512,
-            "pattern": "[^\t\n\u000b\f\r \u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000]"
+            "pattern": "[^\t\n\u000b\f\r                  　]"
           },
           "maxItems": 512,
           "uniqueItems": true
@@ -800,7 +808,7 @@
             "minLength": 1,
             "maxLength": 512,
             "x-maxUtf8Bytes": 512,
-            "pattern": "[^\t\n\u000b\f\r \u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000]"
+            "pattern": "[^\t\n\u000b\f\r                  　]"
           },
           "maxItems": 512,
           "uniqueItems": true
@@ -1166,6 +1174,102 @@
           "maxProperties": 32
         }
       }
+    },
+    "prepared_selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "workflow",
+        "objective",
+        "inputs"
+      ],
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "workflow": {
+          "$ref": "#/$defs/key"
+        },
+        "objective": {
+          "$ref": "#/$defs/text"
+        },
+        "inputs": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/key"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/artifact"
+          },
+          "minProperties": 1,
+          "maxProperties": 32
+        }
+      }
+    },
+    "prepared_work": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "work",
+        "gaps"
+      ],
+      "properties": {
+        "schema": {
+          "const": "contractor.audit.prepared-work.v1"
+        },
+        "work": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/prepared_selection"
+          },
+          "maxItems": 256
+        },
+        "gaps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/text"
+          },
+          "maxItems": 4096,
+          "uniqueItems": true
+        }
+      },
+      "x-maxEncodedBytes": 1048576
+    },
+    "prepared_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "program",
+        "producer_run_id",
+        "materials"
+      ],
+      "properties": {
+        "schema": {
+          "const": "contractor.audit.prepared-work-context.v1"
+        },
+        "program": {
+          "$ref": "#/$defs/program"
+        },
+        "producer_run_id": {
+          "$ref": "#/$defs/resource_id"
+        },
+        "materials": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/artifact"
+          },
+          "maxItems": 258,
+          "uniqueItems": true
+        }
+      }
+    },
+    "attempt_limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10
     }
   },
   "x-maxEncodedBytes": 8388608

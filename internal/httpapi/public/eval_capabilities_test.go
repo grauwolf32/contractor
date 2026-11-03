@@ -10,7 +10,6 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/configtest"
@@ -77,13 +76,7 @@ func TestCapabilitiesPageReusesSnapshotAndPreservesViews(t *testing.T) {
 		}
 		if kind != "workflow" {
 			for _, profile := range snapshot.AuditProfiles() {
-				compatible := auditservice.ProfileCompatibility(profile).ServerCompatible
-				var reason *string
-				if !compatible {
-					message := "This AuditProfile requires unsupported Server capabilities."
-					reason = &message
-				}
-				expected = append(expected, capabilityBinding{Kind: "audit", Selector: profile.Ref.Name + "@" + profile.Ref.Version, Available: compatible, Reason: reason})
+				expected = append(expected, capabilityBinding{Kind: "audit", Selector: profile.Ref.Name + "@" + profile.Ref.Version, Available: true})
 			}
 		}
 		// Independently reproduce the former HTTP response projection, including

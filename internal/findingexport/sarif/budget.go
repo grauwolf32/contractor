@@ -1,9 +1,10 @@
 package sarif
 
 import (
+	"sort"
+
 	"github.com/grauwolf32/contractor/internal/findingexport"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
-	"sort"
 )
 
 type object = map[string]any

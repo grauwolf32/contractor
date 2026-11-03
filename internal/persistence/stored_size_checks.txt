@@ -163,3 +163,9 @@ project_findings_title_check                                LIM-FND-54
 project_findings_subject_kind_check                         LIM-FND-53
 project_findings_subject_key_check                          LIM-FND-53
 project_findings_owner_id_check                             LIM-FND-54
+
+audit_executions_prepared_work_source_check                 invariant: system-selected exact work-list source descriptor, containing only bounded IDs, ref, digest, media and size fields
+audit_tasks_document_check                                 LIM-ACT-2
+audit_tasks_source_check                                   invariant: system-assigned intake provenance tuple of bounded IDs, exact source descriptor and entry key
+audit_tasks_result_check                                   invariant: exact result descriptor containing only bounded scope, ref, digest, media and size fields
+audit_tasks_gap_code_check                                 LIM-PER-15

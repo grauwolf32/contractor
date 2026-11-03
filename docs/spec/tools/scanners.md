@@ -1623,16 +1623,15 @@ dispatched. Changing a generic storage failure to retryable is insufficient.
 | `audit_scan_input_invalid` | no | The Audit source or settings media type differs from the assigned contract. |
 | `audit_scan_input_missing` | no | A required assigned Audit input is absent. |
 | `audit_scan_manifest_invalid` | no | The execution manifest is malformed or has an invalid assignment count. |
-| `audit_scan_manifest_unavailable` | cause-based for Audit; no for ordinary scans | The exact execution manifest could not be read. |
 | `audit_scan_preparation_invalid` | no | The assigned operation or prepared request cannot be validated or encoded. |
 | `audit_scan_preparation_write_failed` | cause-based for Audit; no for ordinary scans | The create-only prepared Audit input could not be published. |
 | `audit_scan_result_invalid` | no | Audit result assembly rejected retained content, bounds or assignment with auditscan.ErrInvalid. |
 | `audit_scan_result_unavailable` | cause-based for Audit; no for ordinary scans | Retained evidence could not be read or result assembly was cancelled or exhausted its budget. |
 | `audit_scan_result_write_failed` | cause-based for Audit; no for ordinary scans | The create-only Audit result package could not be published. |
 | `audit_scan_settings_unavailable` | cause-based for Audit; no for ordinary scans | The exact Audit settings could not be read. |
+| `audit_scan_operation_unavailable` | cause-based for Audit; no for ordinary scans | The exact selected OpenAPI operation material could not be read. |
 | `audit_scan_source_unavailable` | cause-based for Audit; no for ordinary scans | The exact assigned source or selected rulepack could not be read. |
 | `audit_scan_task_invalid` | no | The assigned task package, member, document or scanner identity is invalid. |
-| `audit_scan_task_unavailable` | cause-based for Audit; no for ordinary scans | The exact assigned task package could not be read. |
 | `scan_completion_write_failed` | cause-based for Audit; no for ordinary scans | The completed scan result could not be recorded within the separate completion budget. |
 | `scan_failed` | yes, known Audit outcome only | An Audit scan has a known failed or unavailable current-attempt outcome; the retained package preserves coverage and evidence. |
 | `scan_history_invalid` | no | The current scan attempt is missing from the bounded Audit journal history. |

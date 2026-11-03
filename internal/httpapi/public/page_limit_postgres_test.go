@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -17,8 +18,12 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/configload"
+	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/findingintake"
@@ -98,10 +103,27 @@ func TestPostgresPublicPagedListsAcceptTheLargestPage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	program := auditcontract.Program{Schema: "contractor.audit.program.v1", Inputs: map[string]auditcontract.ProgramInput{"source": {Required: true, MediaTypes: []string{"text/plain"}}}, Workflows: map[string]auditcontract.ProgramWorkflow{"inspect": {Ref: "artifact-copy@1", Inputs: map[string]auditcontract.InputMapping{"source": {Source: "audit-input", Name: "source"}}, Parameters: map[string]string{}, Outputs: map[string]string{"material": "result"}}}, Hypotheses: map[string]auditcontract.HypothesisSeed{}, InitialWork: []auditcontract.InitialWork{{Key: "first", Workflow: "inspect", Objective: "Inspect selected input"}}, Limits: auditcontract.ProgramLimits{MaxTasks: 100, MaxIterations: 1, MaxTasksPerIteration: 100, BatchSize: 1, MaxSubmittedRuns: 100, MaxAttempts: 1, MaxEvidenceBytes: 1 << 20, MaxHypotheses: 1, MaxHypothesisRevisions: 1, MaxHypothesisBytes: 32768}, Policy: auditcontract.OperationPolicy{ActiveOperations: "prohibited"}}
+	programData, err := json.Marshal(program)
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog, _, err := configload.LoadUnionReadOnly(configtest.CopyWithPolicies(t, "../../config/testdata/valid"), filepath.Join(t.TempDir(), "managed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pinned, err := auditprofile.PinProgram(resolved.Selector{ID: "page-profile", Version: "1"}, programData, catalog.Workflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profileData, err := json.Marshal(pinned)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, _, err := auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: auditID, OwnerID: owner, ProjectID: projectID,
-		Profile:         auditstore.ProfileIdentity{Name: "page-profile", Version: "1", Digest: auditHandlerDigest("page-profile")},
-		ProfileSnapshot: json.RawMessage(`{"interaction":{}}`),
+		Profile:         auditstore.ProfileIdentity{Name: pinned.Ref.Name, Version: pinned.Ref.Version, Digest: pinned.Ref.Digest},
+		ProfileSnapshot: profileData,
 		InputSelection:  selection,
 		Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 100, MaxItemsTotal: 100,
 			MaxSubmittedRuns: 100, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20},
@@ -160,6 +182,7 @@ func TestPostgresPublicPagedListsAcceptTheLargestPage(t *testing.T) {
 		},
 	)
 	checkLargestPublicPage(t, fixture.handler, map[string]string{
+		"listAuditTasks":                    "/v1/audits/" + auditID + "/tasks",
 		"listWorkflows":                     "/v1/workflows",
 		"listProjects":                      "/v1/projects",
 		"listProjectArtifacts":              "/v1/projects/" + projectID + "/artifacts",

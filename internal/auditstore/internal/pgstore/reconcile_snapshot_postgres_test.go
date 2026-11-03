@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 
@@ -69,8 +70,18 @@ func (c *commitAfterFirstStatement) TraceQueryEnd(ctx context.Context, _ *pgx.Co
 // from before the change (AUX-R95); in a caller's REPEATABLE READ transaction
 // it runs inside that transaction and sees the same (PER-R18). Statements
 // that each took their own snapshot would report the new value.
-func TestPostgresReconcileSnapshotReadsOneCommitOnAPoolAndInACallerTransaction(t *testing.T) {
-	f := newCollectingAuditFixture(t, "snapshotcommit", 1<<20)
+func TestSharedPostgresReconcileSnapshotReadsOneCommitOnAPoolAndInACallerTransaction(t *testing.T) {
+	common := newCommonTaskFixture(t, 2)
+	claims, err := NewClaimStore(common.pool, artifactpgtest.NewStorage()).Claim(t.Context(), auditstore.ClaimParams{HolderID: "snapshot-reader", Lease: time.Minute, Limit: 1})
+	if err != nil || len(claims) != 1 {
+		t.Fatalf("claim: %+v %v", claims, err)
+	}
+	f := struct {
+		pool  *pgxpool.Pool
+		ctx   context.Context
+		audit auditstore.Audit
+		claim auditstore.ControllerClaim
+	}{common.pool, t.Context(), common.audit, claims[0]}
 	settings := settingsstore.NewPostgresStore(f.pool)
 	trace := &commitAfterFirstStatement{}
 	configuration := f.pool.Config()

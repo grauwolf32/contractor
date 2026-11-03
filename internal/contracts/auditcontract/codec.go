@@ -11,13 +11,14 @@ import (
 	"sync"
 	"unicode/utf8"
 
+	"strings"
+
 	auditschema "github.com/grauwolf32/contractor/api/audit/v1"
 	wireschema "github.com/grauwolf32/contractor/api/v1alpha1"
 	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
-	"strings"
 )
 
 // MaximumDocumentBytes retains the existing Audit JSON-document ceiling.
@@ -60,10 +61,25 @@ func Decode(data, context []byte) ([]byte, error) {
 		return nil, err
 	}
 	kind := value["schema"]
-	if len(context) > 0 && kind != "contractor.audit.result.v1" && kind != "contractor.audit.conclusions.v1" && kind != "contractor.audit.proposals.v1" {
+	if len(context) > 0 && kind != "contractor.audit.result.v1" && kind != "contractor.audit.conclusions.v1" && kind != "contractor.audit.proposals.v1" && kind != PreparedWorkSchema {
 		return nil, errInvalid
 	}
 	switch kind {
+	case PreparedContextSchema:
+		if !validPreparedContext(value) {
+			return nil, errInvalid
+		}
+	case PreparedWorkSchema:
+		var trusted map[string]any
+		if len(context) > 0 {
+			trusted, err = decode(context)
+			if err != nil || trusted["schema"] != PreparedContextSchema || !validPreparedContext(trusted) {
+				return nil, errInvalid
+			}
+		}
+		if !validPreparedWork(value, trusted) {
+			return nil, errInvalid
+		}
 	case "contractor.audit.program.v1":
 		if !validProgram(value) {
 			return nil, errInvalid
@@ -100,10 +116,12 @@ func Decode(data, context []byte) ([]byte, error) {
 
 func documentLimit(kind string) int {
 	switch kind {
+	case PreparedWorkSchema:
+		return MaxPreparedWorkBytes
 	case "contractor.audit.hypothesis.v1":
 		return 32768
 	case "contractor.audit.mutation.v1":
-		return 1 << 20
+		return MaxMutationBytes
 	case "contractor.audit.program.v1":
 		return 4 << 20
 	default:
@@ -263,6 +281,9 @@ func validProgram(v map[string]any) bool {
 	}
 	for _, raw := range workflows {
 		binding := raw.(map[string]any)
+		if ceiling, exists := binding["max_attempts"]; exists && ceiling.(float64) > limits["max_attempts"].(float64) {
+			return false
+		}
 		for _, item := range binding["inputs"].(map[string]any) {
 			source := item.(map[string]any)
 			if source["source"] == "audit-input" {
@@ -319,7 +340,7 @@ func validInputSelections(task, binding, inputs, materials map[string]any) bool 
 	}
 	for slot, raw := range selected {
 		mapping, ok := binding["inputs"].(map[string]any)[slot].(map[string]any)
-		if !ok || mapping["source"] != "audit-input" {
+		if !ok || mapping["source"] != "audit-input" && mapping["source"] != "task-input" {
 			return false
 		}
 		name := raw.(string)
@@ -327,6 +348,9 @@ func validInputSelections(task, binding, inputs, materials map[string]any) bool 
 			selected, ok := inputs[name].(map[string]any)
 			if !ok {
 				return false
+			}
+			if mapping["source"] == "task-input" {
+				continue // The loaded Workflow owns this slot's media contract.
 			}
 			target := inputs[mapping["name"].(string)].(map[string]any)
 			allowed := []string{}
@@ -343,6 +367,9 @@ func validInputSelections(task, binding, inputs, materials map[string]any) bool 
 		material, ok := materials[name].(map[string]any)
 		if !ok {
 			return false
+		}
+		if mapping["source"] == "task-input" {
+			continue
 		}
 		declaration := inputs[mapping["name"].(string)].(map[string]any)
 		allowed := []string{}

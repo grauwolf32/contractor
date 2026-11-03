@@ -16,7 +16,7 @@ from contractor_runtime.artifacts import (
 from contractor_runtime.contracts import ArtifactRef, ArtifactWriteResult
 from contractor_runtime.digests import sha256_digest
 from contractor_runtime.toolsets.audit_results.contracts import (
-    MAX_PACKAGE_BYTES,
+    MAX_DOCUMENT_BYTES,
     AuditInvocationOwner,
     AuditPublicationReceipt,
     AuditTrustedInputs,
@@ -24,7 +24,7 @@ from contractor_runtime.toolsets.audit_results.contracts import (
 )
 from contractor_runtime.toolsets.audit_results.encoding import (
     AuditResultError,
-    CanonicalAuditPackageEncoder,
+    CanonicalAuditResultEncoder,
 )
 
 
@@ -52,7 +52,7 @@ class DeterministicAuditResultPublisher:
         result_artifact: ArtifactRef,
         client: PublicationArtifactClient,
         check_active: Callable[[], None],
-        encoder: CanonicalAuditPackageEncoder,
+        encoder: CanonicalAuditResultEncoder,
     ) -> None:
         """Pin the Server-validated binding and allocation-scoped transport.
 
@@ -70,7 +70,7 @@ class DeterministicAuditResultPublisher:
             or target.revision is not None
             or target.namespace == "inputs"
             or not callable(check_active)
-            or not isinstance(encoder, CanonicalAuditPackageEncoder)
+            or not isinstance(encoder, CanonicalAuditResultEncoder)
         ):
             raise AuditResultError("audit_result_invalid")
         self._owner = owner
@@ -125,14 +125,14 @@ class DeterministicAuditResultPublisher:
                             written = await self._client.write_artifact(
                                 self._target.model_copy(deep=True),
                                 data=encoded.data,
-                                media_type="application/zip",
+                                media_type="application/json",
                                 expected_revision=None,
                             )
                         self._check(deadline)
                         if (
                             not isinstance(written, ArtifactWriteResult)
                             or not self._matches(written.artifact)
-                            or written.media_type != "application/zip"
+                            or written.media_type != "application/json"
                             or written.size != len(encoded.data)
                         ):
                             raise ArtifactTransportError("invalid Audit publication receipt")
@@ -149,16 +149,16 @@ class DeterministicAuditResultPublisher:
                         async with asyncio.timeout(request_timeout):
                             value = await self._client.read_artifact(
                                 self._target.model_copy(deep=True),
-                                max_bytes=MAX_PACKAGE_BYTES,
+                                max_bytes=MAX_DOCUMENT_BYTES,
                             )
                         self._check(deadline)
                         if not isinstance(value, ArtifactValue) or not self._matches(
                             value.artifact
                         ):
                             raise ArtifactTransportError("invalid Audit reconciliation receipt")
-                        if len(value.data) > MAX_PACKAGE_BYTES:
+                        if len(value.data) > MAX_DOCUMENT_BYTES:
                             raise ArtifactResponseLimitError("Audit read-back exceeds bound")
-                        if value.data != encoded.data or value.media_type != "application/zip":
+                        if value.data != encoded.data or value.media_type != "application/json":
                             raise AuditResultError("audit_result_publication_conflict")
                         return await self._receipt(value.artifact, encoded.data, deadline)
                     except ArtifactResponseLimitError:

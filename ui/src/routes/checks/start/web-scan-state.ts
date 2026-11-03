@@ -63,8 +63,6 @@ export function useWebScanDraft(
   });
   let blocker: string | undefined;
   if (profile === undefined) blocker = "Loading the check type…";
-  else if (!profile.serverCompatible)
-    blocker = "This check type can't run on this server.";
   else if (project?.lifecycle !== "active")
     blocker = "Choose an active project.";
   else if (project.activeChecks === "prohibited")

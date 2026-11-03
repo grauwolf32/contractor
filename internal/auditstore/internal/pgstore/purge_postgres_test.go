@@ -24,9 +24,8 @@ const auditChildRunForeignKey = "workflow_runs_audit_submission_fkey"
 func TestPostgresPurgeRemovesCollectedFindingAssessments(t *testing.T) {
 	f := newCollectingAuditFixture(t, "purge-assessment", 1<<20)
 	findingID := collectPurgeFinding(t, f, "receipt-purge-assessment")
-	seedPublishedSnapshotForPurge(t, f)
 	claim := drainDeletedAuditForPurge(t, f)
-	if err := f.store.PurgeClaimed(f.ctx, claim, auditdomain.ArtifactNamespace(f.audit.AuditID)); err != nil {
+	if err := purgeFixtureUntilAbsent(t, f, claim); err != nil {
 		t.Fatalf("purge Audit with collected finding %s: %v", findingID, err)
 	}
 	for _, table := range auditOwnedTables(t, f) {
@@ -47,9 +46,8 @@ func TestPostgresPurgeCoversEveryAuditOwnedForeignKey(t *testing.T) {
 	duplicateProposal.MediaType, duplicateProposal.SizeBytes = "application/json", 128
 	duplicateID := insertAuditChildFinding(t, f, "receipt-purge-duplicate", duplicateProposal)
 	seedDecidedPurgeReviews(t, f, confirmedID, duplicateID)
-	seedPublishedSnapshotForPurge(t, f)
 
-	if _, err := f.pool.Exec(f.ctx, `INSERT INTO artifact_scopes(scope_kind,scope_id) VALUES('audit',$1)`, f.audit.AuditID); err != nil {
+	if _, err := f.pool.Exec(f.ctx, `INSERT INTO artifact_scopes(scope_kind,scope_id) VALUES('audit',$1) ON CONFLICT DO NOTHING`, f.audit.AuditID); err != nil {
 		t.Fatal(err)
 	}
 	keys := auditOwnedForeignKeys(t, f)
@@ -68,6 +66,12 @@ func TestPostgresPurgeCoversEveryAuditOwnedForeignKey(t *testing.T) {
 	}
 	claim := drainDeletedAuditForPurge(t, f, purgeDrainOptions{keepRun: true})
 	for _, key := range keys {
+		if key.name == "audit_tasks_last_execution_fk" {
+			// The common Task/attempt topology is exercised through its real
+			// owner in TestSharedPostgresCommonTaskCollectionAndPurge. This
+			// retired item fixture must not fabricate a mixed-format Task.
+			continue
+		}
 		if count := countForeignKeyRows(t, f, key); count == 0 {
 			t.Errorf("%s: fixture holds no %s row referencing %s", key.name, key.referencing, key.referenced)
 		}
@@ -77,7 +81,7 @@ func TestPostgresPurgeCoversEveryAuditOwnedForeignKey(t *testing.T) {
 		t.Fatalf("purge with a live child Run = %v, want precondition failure", err)
 	}
 	deleteChildRunForPurge(t, f)
-	if err := f.store.PurgeClaimed(f.ctx, claim, namespace); err != nil {
+	if err := purgeFixtureUntilAbsent(t, f, claim); err != nil {
 		t.Fatalf("purge Audit with decided reviews and collected assessments: %v", err)
 	}
 	for _, table := range auditOwnedTables(t, f) {
@@ -201,25 +205,11 @@ func collectPurgeFinding(t *testing.T, f collectingAuditFixture, receiptID strin
 	proposal := testExact("audit-findings", "candidate-"+receiptID, "proposal-r1")
 	proposal.MediaType, proposal.SizeBytes = "application/json", 128
 	findingID := insertAuditChildFinding(t, f, receiptID, proposal)
-	result := writeCollectionFixtureArtifact(t, f.ctx, f.pool, f.project.ProjectID, f.audit.AuditID, "result")
-	if _, inserted, err := f.store.Collect(f.ctx, auditstore.CollectParams{
-		Claim: f.claim, ReceiptID: "collection-" + receiptID, ExecutionID: f.execution.ExecutionID,
-		Disposition: auditstore.CollectionAccepted, SourceOutput: &result, RequestDigest: testDigest("9"),
-		Retained: []auditstore.ArtifactLink{{Scope: "project", LogicalKey: "result/" + f.memberID, Artifact: result,
-			SourceProvenance: json.RawMessage(`{"runId":"` + *f.execution.RunID + `"}`),
-		}},
-		Items: []auditstore.CollectionItem{{
-			ExecutionItemID: f.memberID, Disposition: auditstore.CollectionAccepted,
-			FinalDisposition: auditstore.FinalAccepted, Result: &result,
-			Coverage: auditstore.Coverage{Status: auditstore.CoverageSatisfied, Requested: []string{}, Completed: []string{}, Gaps: []string{}},
-			FindingAssociations: []auditstore.FindingAssociation{{
-				AssessmentID: "assessment-" + receiptID, ReceiptID: receiptID,
-				Proposal: proposal, SemanticAssessment: "supported",
-			}},
-		}},
-	}); err != nil || !inserted {
-		t.Fatalf("collect finding assessment = (%t, %v)", inserted, err)
+	gap := "fixture-no-output"
+	if _, inserted, err := f.store.Collect(f.ctx, auditstore.CollectParams{Claim: f.claim, ReceiptID: "collection-" + receiptID, ExecutionID: f.execution.ExecutionID, Disposition: auditstore.CollectionMissingOutput, ErrorCode: &gap, RequestDigest: testDigest("9"), Tasks: []auditstore.TaskCollection{{ExecutionItemID: f.memberID, TaskID: f.itemID, GapCode: &gap}}}); err != nil || !inserted {
+		t.Fatalf("collect common Task: %t %v", inserted, err)
 	}
+
 	return findingID
 }
 
@@ -228,6 +218,10 @@ func collectPurgeFinding(t *testing.T, f collectingAuditFixture, receiptID strin
 // Finding assessments survive that Audit and exercise the Project graph.
 func seedDecidedPurgeReviews(t *testing.T, f collectingAuditFixture, confirmedID, duplicateID string) {
 	t.Helper()
+	roundID := seedReviewRows(t, f.ctx, f.pool, f.audit.AuditID, f.itemID)
+	if _, err := f.pool.Exec(f.ctx, `UPDATE audit_items SET state='settled',final_disposition='excluded' WHERE audit_id=$1`, f.audit.AuditID); err != nil {
+		t.Fatal(err)
+	}
 	digest := testDigest("c")
 	link := func(key, name, media string) []byte {
 		artifact := testExact(f.audit.AuditID, name, "report-r1")
@@ -253,7 +247,7 @@ func seedDecidedPurgeReviews(t *testing.T, f collectingAuditFixture, confirmedID
 			_, err := tx.Exec(f.ctx, `INSERT INTO audit_review_requests(request_id,audit_id,subject_kind,subject_id,kind,subject_revision,subject_digest,requested_actions,state,idempotency_key,request_digest,report_round_id,report_machine_link,report_summary_link)
               VALUES($1,$2,$3,$4,$5,1,$6,'["approve","reject"]'::jsonb,'decided',$1,$6,
               CASE WHEN $3='audit-report' THEN $7 END,CASE WHEN $3='audit-report' THEN $8::jsonb END,CASE WHEN $3='audit-report' THEN $9::jsonb END)`,
-				"review-purge-"+subject.id, f.audit.AuditID, subject.kind, subject.subject, kind, digest, *f.audit.CurrentRoundID, machine, summary)
+				"review-purge-"+subject.id, f.audit.AuditID, subject.kind, subject.subject, kind, digest, roundID, machine, summary)
 			if err != nil {
 				return err
 			}
@@ -387,4 +381,22 @@ func TestProjectFindingPurgeBoundsLargeAnalystMetadata(t *testing.T) {
 	if records == 0 || records > 128 || bytes > 1<<20 {
 		t.Fatalf("purge slice changed %d records/%d metadata bytes", records, bytes)
 	}
+}
+
+func purgeFixtureUntilAbsent(t *testing.T, f collectingAuditFixture, claim auditstore.ControllerClaim) error {
+	t.Helper()
+	for range 16 {
+		if err := f.store.PurgeClaimed(f.ctx, claim, auditdomain.ArtifactNamespace(f.audit.AuditID)); err != nil {
+			return err
+		}
+		var exists bool
+		if err := f.pool.QueryRow(f.ctx, `SELECT EXISTS(SELECT 1 FROM audits WHERE audit_id=$1)`, f.audit.AuditID).Scan(&exists); err != nil {
+			return err
+		}
+		if !exists {
+			return nil
+		}
+	}
+	t.Fatal("bounded fixture purge did not converge")
+	return nil
 }

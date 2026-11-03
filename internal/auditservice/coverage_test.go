@@ -3,7 +3,6 @@ package auditservice
 import (
 	"encoding/json"
 	"errors"
-	"os"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
@@ -13,22 +12,9 @@ import (
 )
 
 func TestCoverageDescribesArbitraryRetainedTask(t *testing.T) {
-	revision := "source-v1"
-	inventory, err := auditdomain.BuildChecklistInventory([]byte(`{
-  "schema":"contractor.audit.checklist.v1",
-  "items":[{"key":"custom-check","version":"1","statement":"Check that expired invitations cannot be reused.\n\nInclude the edge cases.","applicability":"always","allowed_methods":["custom-method"],"required_evidence":[],"review_policy":"automatic"}]
-}`), "application/json", auditdomain.InventoryOptions{
-		Round: 1, WorkflowRole: "check", SourceInputName: "checklist",
-		ApprovalRequirement: auditdomain.ApprovalNone,
-		SourceRef:           contracts.ArtifactRef{Namespace: "inputs", Name: "custom", Revision: &revision},
-		Scope:               map[string]string{"objective": "An arbitrary audit task"},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	task := inventory.Tasks[0]
+	task := retainedCoverageTask(t, "Check that expired invitations cannot be reused.\n\nInclude the edge cases.")
 	row := auditstore.CoverageRow{
-		ItemKey: task.Item.ItemKey, SubjectKey: task.Item.SubjectKey,
+		ItemKey: task.Document.ItemKey, SubjectKey: task.Document.SubjectKey,
 		Task:    auditstore.ExactArtifact{Digest: task.PackageDigest},
 		Details: &auditstore.CoverageDetails{},
 	}
@@ -59,11 +45,11 @@ func TestCoverageResultKeepsBatchMembersAndEvidenceSeparate(t *testing.T) {
 			{ID: "e2", Kind: "tool-result", Summary: "Second evidence"},
 		}},
 	}
-	row := auditstore.CoverageRow{ItemKey: "second", SubjectKey: "subject", Coverage: auditstore.Coverage{Status: auditstore.CoverageInconclusive}, Details: &auditstore.CoverageDetails{}}
+	row := auditstore.CoverageRow{ItemKey: "second", SubjectKey: "subject", Coverage: auditstore.Coverage{Status: auditstore.CoverageStatus("inconclusive")}, Details: &auditstore.CoverageDetails{}}
 	if err := describeCoverageResult(pkg, &row); err != nil {
 		t.Fatal(err)
 	}
-	if row.Details.ResultSummary != "Second result" || len(row.Details.Evidence) != 1 || row.Details.Evidence[0].ID != "e2" || row.Coverage.Status != auditstore.CoverageInconclusive {
+	if row.Details.ResultSummary != "Second result" || len(row.Details.Evidence) != 1 || row.Details.Evidence[0].ID != "e2" || row.Coverage.Status != auditstore.CoverageStatus("inconclusive") {
 		t.Fatalf("result or evidence crossed check boundaries: %+v", row)
 	}
 	row.ItemKey = "missing"
@@ -72,34 +58,65 @@ func TestCoverageResultKeepsBatchMembersAndEvidenceSeparate(t *testing.T) {
 	}
 }
 
+// The remaining coverage reader projects fixed retained documents. Scanner
+// preparation itself is tested through the common operation in auditdomain.
 func TestScanCoverageProjectsExactInputsWithoutRequestCredentials(t *testing.T) {
 	for _, scanner := range []string{"sqlmap", "nuclei"} {
 		t.Run(scanner, func(t *testing.T) {
-			source, err := os.ReadFile(openAPIScanInputFixture + "/openapi.json")
+			task := retainedCoverageTask(t, "Verify custom.")
+			task.Document.Kind = "openapi-scan"
+			task.Document.Checklist = nil
+			settingsRevision := "settings-r1"
+			scan := &auditdomain.ScanTask{Scanner: scanner, Operation: "#/paths/~1pets/get", Settings: auditdomain.ExactInput{Name: "settings", Ref: contracts.ArtifactRef{Namespace: "inputs", Name: "settings", Revision: &settingsRevision}, Digest: serviceTestDigest("settings")}, PreparationDigest: serviceTestDigest("preparation"), Runnable: true, TestParameters: []string{}, Gaps: []string{}}
+			if scanner == "sqlmap" {
+				scan.RequestDigest = serviceTestDigest("request")
+				scan.TestParameters = []string{"id"}
+			} else {
+				scan.TargetURL = "https://example.test/pets"
+				scan.Gaps = []string{"url_template_scan_only"}
+			}
+			task.Document.Scan = scan
+			encoded, err := json.Marshal(task.Document)
 			if err != nil {
 				t.Fatal(err)
 			}
-			settings, err := os.ReadFile(openAPIScanInputFixture + "/" + scanner + "-settings.json")
+			payload, _, err := auditdomain.BuildPackage("retained-scan", auditdomain.PackageKindTask, "", []auditdomain.PackageInput{{ID: "task-document", Path: "task.json", MediaType: auditdomain.JSONMediaType, Data: encoded}})
 			if err != nil {
 				t.Fatal(err)
 			}
-			sourceRevision, settingsRevision := "source-r1", "settings-r1"
-			sourceRef := contracts.ArtifactRef{Namespace: "inputs", Name: "openapi", Revision: &sourceRevision}
-			settingsRef := contracts.ArtifactRef{Namespace: "inputs", Name: "settings", Revision: &settingsRevision}
-			inventory, err := auditdomain.BuildOpenAPIScanInventory(source, "application/json", settings, auditdomain.ExactInput{Name: "settings", Ref: settingsRef, Digest: auditdomain.DigestBytes(settings)}, auditdomain.InventoryOptions{Round: 1, WorkflowRole: "scan", SourceInputName: "openapi", SourceRef: sourceRef, ApprovalRequirement: auditdomain.ApprovalNone})
-			if err != nil {
+			row := auditstore.CoverageRow{ItemKey: task.Document.ItemKey, SubjectKey: task.Document.SubjectKey, Details: &auditstore.CoverageDetails{}}
+			if err := describeCoverageTask(payload, &row); err != nil {
 				t.Fatal(err)
 			}
-			for _, task := range inventory.Tasks {
-				row := auditstore.CoverageRow{ItemKey: task.Item.ItemKey, SubjectKey: task.Item.SubjectKey, Details: &auditstore.CoverageDetails{}}
-				if err := describeCoverageTask(task.Package, &row); err != nil {
-					t.Fatal(err)
-				}
-				scan := row.Details.Scan
-				if scan == nil || scan.Scanner != scanner || !scan.Source.Ref.SameExact(sourceRef) || scan.Source.Digest != auditdomain.DigestBytes(source) || !scan.Settings.Ref.SameExact(settingsRef) || scan.PreparationDigest != task.Document.Scan.PreparationDigest || len(row.Details.Methods) != 1 || row.Details.Methods[0] != task.Document.Scan.CoverageRequirement() {
-					t.Fatalf("lost exact %s provenance: %+v", scanner, row.Details)
-				}
+			projected := row.Details.Scan
+			if projected == nil || projected.Scanner != scanner || !projected.Source.Ref.SameExact(task.Document.SourceRef) || projected.Source.Digest != task.Document.SourceContentDigest || !projected.Settings.Ref.SameExact(scan.Settings.Ref) || projected.PreparationDigest != scan.PreparationDigest || len(row.Details.Methods) != 1 || row.Details.Methods[0] != scan.CoverageRequirement() {
+				t.Fatalf("lost exact provenance: %+v", row.Details)
 			}
 		})
 	}
+}
+
+// retainedCoverageTask builds one fixed document for the surviving reader's
+// integrity tests; it performs no checklist interpretation or task admission.
+func retainedCoverageTask(t *testing.T, statement string) struct {
+	Document      auditdomain.ItemTask
+	Package       []byte
+	PackageDigest string
+} {
+	t.Helper()
+	revision := "source-v1"
+	document := auditdomain.ItemTask{Schema: auditdomain.TaskSchema, ItemKey: "custom-check", SubjectKey: "custom-check", Kind: "checklist", WorkflowRole: "check", SourceContentDigest: serviceTestDigest("source"), SourceMediaType: "application/json", SourceRef: contracts.ArtifactRef{Namespace: "inputs", Name: "custom", Revision: &revision}, CanonicalInventoryDigest: serviceTestDigest("inventory"), Scope: map[string]string{"objective": "An arbitrary audit task"}, Checklist: &auditdomain.ChecklistTask{Version: "1", Statement: statement, Applicability: "always", AllowedMethods: []string{"custom-method"}, RequiredEvidence: []string{}, ReviewPolicy: "automatic"}}
+	encoded, err := json.Marshal(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, _, err := auditdomain.BuildPackage("retained-task", auditdomain.PackageKindTask, "", []auditdomain.PackageInput{{ID: "task-document", Path: "task.json", MediaType: auditdomain.JSONMediaType, Data: encoded}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return struct {
+		Document      auditdomain.ItemTask
+		Package       []byte
+		PackageDigest string
+	}{document, payload, auditdomain.DigestBytes(payload)}
 }

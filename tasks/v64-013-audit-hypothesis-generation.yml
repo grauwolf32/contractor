@@ -34,7 +34,15 @@ context:
     allow future Project ownership. Remove almost all formal approvals and keep complexity controlled.
     Generation can use selected materials, findings and ordinary results including refutations and gaps.
     The user accepted the common execution skeleton and requested concrete tasks; implementation is a
-    subsequent step, not part of this task-formation request.'
+    subsequent step, not part of this task-formation request. User decision on 2026-11-02 keeps
+    deterministic OpenAPI preparation with V64-026 and its common task intake with V64-002;
+    neither depends on this optional semantic generator or introduces a second intake engine.'
+  deterministic_preparation_boundary: >-
+    User decision 2026-11-02: OpenAPI operation selection is deterministic domain work executed by
+    an ordinary Server-operation preparation Workflow (V64-026); V64-002 accepts its work-list through
+    the common task operation. That explicit preparation path neither requires this generator nor
+    creates an automatic semantic continuation loop. This task continues to own optional proposed
+    hypotheses/next work and uses the same accepted-task/Run path without a second intake engine.
   implementation_gate: Task formation only, requested on 2026-10-31 after acceptance of the common execution
     skeleton. Keep pending until implementation is requested and dependencies are complete. Do not start
     code, migrations, live Runs or deployment in this planning turn. Resolve the explicitly labelled remaining

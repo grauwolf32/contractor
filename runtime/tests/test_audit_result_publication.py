@@ -1,19 +1,14 @@
-"""Offline publication through the production allocation ArtifactClient."""
+"""Offline ordinary JSON publication through the production ArtifactClient."""
 
 import asyncio
-import io
 import json
-import stat
 import threading
-import zipfile
 from dataclasses import replace
 
-import jcs
 import pytest
+from audit_fixtures import assigned, digest
 from fakes.clock import advance_clock, run_with_advanceable_clock
-from fakes.worker_state import WorkerState
 from test_artifacts import TIMESTAMP_HEADERS, json_response
-from test_audit_results_toolset import digest, fixture_batch_inputs, fixture_inputs
 
 from contractor_runtime.artifacts import (
     ArtifactClient,
@@ -23,191 +18,15 @@ from contractor_runtime.artifacts import (
 )
 from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.toolsets.audit_results.contracts import (
-    MAX_PACKAGE_BYTES,
-    AuditEvidence,
-    AuditInvocationOwner,
+    MAX_DOCUMENT_BYTES,
     AuditSnapshot,
-    AuditTrustedInputs,
-    NormalizedAuditItem,
     RecordedAuditItem,
-    SealedAuditSnapshot,
 )
 from contractor_runtime.toolsets.audit_results.encoding import (
     AuditResultError,
-    CanonicalAuditPackageEncoder,
-)
-from contractor_runtime.toolsets.audit_results.packages import (
-    _build_result_package,
-    _decode_task_input,
+    CanonicalAuditResultEncoder,
 )
 from contractor_runtime.toolsets.audit_results.publication import DeterministicAuditResultPublisher
-
-
-def assigned(*, batch=False, invocation="invocation-1", proposals=()):
-    task, execution = fixture_batch_inputs() if batch else fixture_inputs()
-    keys = tuple(item["item_key"] for item in json.loads(execution)["items"])
-    owner = AuditInvocationOwner("allocation-1", invocation, digest(task), keys)
-    inputs = AuditTrustedInputs(owner, task, execution)
-    values = tuple(
-        RecordedAuditItem(
-            NormalizedAuditItem(
-                key,
-                "satisfied",
-                "Verified control.",
-                ("source-trace",),
-                (),
-                (AuditEvidence("source-trace", "Guard at app.py:12."),),
-                proposals,
-            ),
-            1,
-        )
-        for key in keys
-    )
-    return SealedAuditSnapshot(owner, values), inputs
-
-
-def test_encoder_matches_legacy_bytes_and_excludes_revision_and_acceptance_history():
-    snapshot, inputs = assigned(batch=True, proposals=("candidate",))
-    encoder = CanonicalAuditPackageEncoder()
-    encoded = encoder.encode(snapshot, inputs=inputs)
-    # Captured from the original @1 implementation at f17476a7 in a separate checkout.
-    assert (
-        digest(encoded.data)
-        == "sha256:50b0e966a0f6c01477464a0c16ca4668385ea5697e5df8759f70fa45f208c5ea"
-    )
-    # Simulate completion from opposite arrival orders; snapshot uses trusted order.
-    reversed_arrival = dict(reversed([(item.value.item_key, item) for item in snapshot.items]))
-    rebuilt = replace(
-        snapshot,
-        items=tuple(
-            replace(reversed_arrival[key], revision=91) for key in snapshot.owner.item_keys
-        ),
-    )
-    assert encoded.data == encoder.encode(rebuilt, inputs=inputs).data
-    tasks = [record[0] for record in _decode_task_input(inputs.task_package, "application/zip")]
-    legacy = _build_result_package(
-        tasks=tasks,
-        execution_digest=digest(inputs.execution_manifest),
-        results=[
-            {
-                "assessment": item.value.assessment,
-                "summary": item.value.summary,
-                "completed": list(item.value.completed),
-                "gaps": [],
-                "evidence": [{"kind": "source-trace", "summary": "Guard at app.py:12."}],
-                "proposals": [{"invocation_id": "invocation-1", "client_key": "candidate"}],
-            }
-            for item in snapshot.items
-        ],
-    )
-    assert encoded.data == legacy
-    with zipfile.ZipFile(io.BytesIO(encoded.data)) as archive:
-        assert archive.namelist() == [
-            "manifest.json",
-            "check-results.json",
-            "evidence.json",
-            "evidence/ev-1-1.txt",
-            "evidence/ev-2-1.txt",
-        ]
-        assert encoded.member_bytes == tuple(info.file_size for info in archive.infolist())
-        assert encoded.collected_bytes == sum(encoded.member_bytes[1:])
-        for info in archive.infolist():
-            assert info.date_time == (1980, 1, 1, 0, 0, 0)
-            assert info.compress_type == zipfile.ZIP_STORED
-            assert info.create_system == 3
-            assert info.external_attr >> 16 == stat.S_IFREG | 0o644
-            if info.filename.endswith(".json"):
-                raw = archive.read(info)
-                assert jcs.canonicalize(json.loads(raw)) == raw
-        manifest = json.loads(archive.read("manifest.json"))
-        for member in manifest["members"]:
-            content = archive.read(member["path"])
-            assert member["digest"] == digest(content)
-            assert member["size"] == len(content)
-
-
-def test_proposals_retain_invocation_identity_without_inventing_other_nondeterminism():
-    encoder = CanonicalAuditPackageEncoder()
-    left, left_inputs = assigned(invocation="first")
-    right, right_inputs = assigned(invocation="second")
-    assert (
-        encoder.encode(left, inputs=left_inputs).data
-        == encoder.encode(right, inputs=right_inputs).data
-    )
-    left, left_inputs = assigned(invocation="first", proposals=("candidate",))
-    right, right_inputs = assigned(invocation="second", proposals=("candidate",))
-    assert (
-        encoder.encode(left, inputs=left_inputs).data
-        != encoder.encode(right, inputs=right_inputs).data
-    )
-
-
-def test_encoder_prospective_partial_and_empty_do_not_fabricate_missing_items():
-    snapshot, inputs = assigned(batch=True)
-    encoder = CanonicalAuditPackageEncoder()
-    for items in ((), snapshot.items[1:]):
-        encoded = encoder.encode(AuditSnapshot(snapshot.owner, items), inputs=inputs)
-        with zipfile.ZipFile(io.BytesIO(encoded.data)) as archive:
-            results = json.loads(archive.read("check-results.json"))["results"]
-        assert [item["item_key"] for item in results] == [item.value.item_key for item in items]
-
-
-@pytest.mark.parametrize("case", ["owner", "manifest", "membership", "coverage", "sort"])
-def test_encoder_rejects_mismatched_inputs_and_unencodable_content(case):
-    snapshot, inputs = assigned()
-    if case == "owner":
-        inputs = replace(inputs, owner=replace(inputs.owner, invocation_id="another"))
-    elif case == "manifest":
-        inputs = replace(inputs, execution_manifest=b"{}")
-    elif case == "membership":
-        owner = replace(inputs.owner, item_keys=("another",))
-        inputs = replace(inputs, owner=owner)
-        snapshot = AuditSnapshot(owner, ())
-    else:
-        item = snapshot.items[0].value
-        if case == "coverage":
-            item = replace(item, completed=("foreign-coverage",))
-        elif case == "sort":
-            item = replace(item, gaps=("z", "a"))
-        snapshot = replace(snapshot, items=(RecordedAuditItem(item, 1),))
-    with pytest.raises(AuditResultError, match="audit_result_invalid"):
-        CanonicalAuditPackageEncoder().encode(snapshot, inputs=inputs)
-
-
-def test_existing_importer_proposal_limit_is_distinct_from_coverage_list_limit():
-    snapshot, inputs = assigned(proposals=tuple(f"p{i:03d}" for i in range(128)))
-    assert CanonicalAuditPackageEncoder().encode(snapshot, inputs=inputs).data
-    with pytest.raises(ValueError, match="proposal keys"):
-        replace(snapshot.items[0].value, proposal_keys=tuple(f"p{i:03d}" for i in range(129)))
-    value = replace(snapshot.items[0].value, gaps=tuple(f"g{i:03d}" for i in range(512)))
-    assert len(value.gaps) == 512
-
-
-@pytest.mark.parametrize("limit", ["MAX_COLLECTED_BYTES", "MAX_MEMBER_BYTES", "MAX_PACKAGE_BYTES"])
-def test_encoder_enforces_actual_sizes_including_zip_overhead(monkeypatch, limit):
-    from contractor_runtime.toolsets.audit_results import encoding
-
-    snapshot, inputs = assigned()
-    encoded = CanonicalAuditPackageEncoder().encode(snapshot, inputs=inputs)
-    actual = {
-        "MAX_COLLECTED_BYTES": encoded.collected_bytes,
-        "MAX_MEMBER_BYTES": max(encoded.member_bytes),
-        "MAX_PACKAGE_BYTES": len(encoded.data),
-    }[limit]
-    monkeypatch.setattr(encoding, limit, actual)
-    assert CanonicalAuditPackageEncoder().encode(snapshot, inputs=inputs) == encoded
-    monkeypatch.setattr(encoding, limit, actual - 1)
-    with pytest.raises(AuditResultError, match="audit_result_size_exceeded"):
-        CanonicalAuditPackageEncoder().encode(snapshot, inputs=inputs)
-
-
-def test_actual_evidence_amplification_hits_collected_limit_without_large_individual_members():
-    snapshot, inputs = assigned()
-    evidence = (AuditEvidence("source-trace", "x" * (16 * 1024)),) * 256
-    item = replace(snapshot.items[0].value, evidence=evidence)
-    snapshot = replace(snapshot, items=(RecordedAuditItem(item, 1),))
-    with pytest.raises(AuditResultError, match="audit_result_size_exceeded"):
-        CanonicalAuditPackageEncoder().encode(snapshot, inputs=inputs)
 
 
 class ScriptedArtifactTransport:
@@ -218,7 +37,7 @@ class ScriptedArtifactTransport:
         steps=(),
         *,
         existing=None,
-        media_type="application/zip",
+        media_type="application/json",
         on_io=None,
         hang_advances=None,
     ):
@@ -262,7 +81,7 @@ class ScriptedArtifactTransport:
                 {
                     "apiVersion": "contractor/v1alpha1",
                     "artifact": {"namespace": namespace, "name": name, "revision": "exact-r1"},
-                    "mediaType": "application/zip",
+                    "mediaType": "application/json",
                     "size": len(body),
                 },
                 etag='"exact-r1"',
@@ -304,7 +123,7 @@ def publisher(snapshot, transport, *, target=None, check_active=lambda: None):
         result_artifact=target or ArtifactRef(namespace="check", name="configured-result"),
         client=ArtifactClient(snapshot.owner.allocation_id, transport),
         check_active=check_active,
-        encoder=CanonicalAuditPackageEncoder(),
+        encoder=CanonicalAuditResultEncoder(),
     )
 
 
@@ -335,36 +154,32 @@ def test_publication_success_and_lost_reply_reconciliation(steps, methods):
         for method, path, _, body, limit in transport.requests:
             assert path == "/allocations/allocation-1/artifacts/check/configured-result"
             if method == "GET":
-                assert limit == MAX_PACKAGE_BYTES
+                assert limit == MAX_DOCUMENT_BYTES
             else:
                 assert body == transport.existing
 
     asyncio.run(scenario())
 
 
-@pytest.mark.parametrize("changed", [None, "summary", "proposal-invocation", "media"])
+@pytest.mark.parametrize("changed", [None, "rationale", "media"])
 def test_prior_attempt_requires_independent_complete_set_and_never_overwrites(changed):
     async def scenario():
-        old, old_inputs = assigned(
-            invocation="old", proposals=("candidate",) if changed == "proposal-invocation" else ()
-        )
-        original = CanonicalAuditPackageEncoder().encode(old, inputs=old_inputs).data
-        snapshot, inputs = assigned(
-            invocation="new", proposals=("candidate",) if changed == "proposal-invocation" else ()
-        )
-        if changed == "summary":
+        old, old_inputs = assigned(invocation="old")
+        original = CanonicalAuditResultEncoder().encode(old, inputs=old_inputs).data
+        snapshot, inputs = assigned(invocation="new")
+        if changed == "rationale":
             snapshot = replace(
                 snapshot,
                 items=(
                     replace(
                         snapshot.items[0],
-                        value=replace(snapshot.items[0].value, summary="Another finding."),
+                        value=replace(snapshot.items[0].value, rationale="Another finding."),
                     ),
                 ),
             )
         transport = ScriptedArtifactTransport(
             existing=original,
-            media_type="text/plain" if changed == "media" else "application/zip",
+            media_type="text/plain" if changed == "media" else "application/json",
         )
         impl = publisher(snapshot, transport)
         with pytest.raises(AuditResultError, match="audit_result_invalid"):
@@ -446,7 +261,7 @@ def test_oversized_reconciliation_fails_even_with_noncompliant_transport(reporte
     async def scenario():
         snapshot, inputs = assigned()
         steps = ["normal", ArtifactResponseLimitError("private content")] if reported else []
-        transport = ScriptedArtifactTransport(steps, existing=b"x" * (MAX_PACKAGE_BYTES + 1))
+        transport = ScriptedArtifactTransport(steps, existing=b"x" * (MAX_DOCUMENT_BYTES + 1))
         with pytest.raises(AuditResultError, match="audit_result_size_exceeded"):
             await publisher(snapshot, transport).publish(snapshot, inputs=inputs, deadline=10**12)
         assert len(transport.requests) == 2
@@ -574,7 +389,7 @@ def test_publisher_pins_binding_rejects_foreign_owner_and_preserves_fatal_failur
                 result_artifact=target,
                 client=ArtifactClient("foreign-allocation", transport),
                 check_active=lambda: None,
-                encoder=CanonicalAuditPackageEncoder(),
+                encoder=CanonicalAuditResultEncoder(),
             )
 
         class FatalBudget(RuntimeError):
@@ -613,7 +428,7 @@ def test_pending_cancellation_after_inline_write_is_delivered_before_receipt():
 def test_malformed_exact_receipts_never_produce_unbounded_or_invented_revision(phase, revision):
     async def scenario():
         snapshot, inputs = assigned()
-        payload = CanonicalAuditPackageEncoder().encode(snapshot, inputs=inputs).data
+        payload = CanonicalAuditResultEncoder().encode(snapshot, inputs=inputs).data
         bad_write = json_response(
             201,
             {
@@ -623,7 +438,7 @@ def test_malformed_exact_receipts_never_produce_unbounded_or_invented_revision(p
                     "name": "configured-result",
                     "revision": revision,
                 },
-                "mediaType": "application/zip",
+                "mediaType": "application/json",
                 "size": len(payload),
             },
             etag=json.dumps(revision),
@@ -631,7 +446,7 @@ def test_malformed_exact_receipts_never_produce_unbounded_or_invented_revision(p
         bad_read = ArtifactHTTPResponse(
             200,
             {
-                "content-type": "application/zip",
+                "content-type": "application/json",
                 "etag": json.dumps(revision),
                 **TIMESTAMP_HEADERS,
             },
@@ -658,7 +473,8 @@ def test_oversized_sealed_set_fails_before_any_artifact_io():
     async def scenario():
         snapshot, inputs = assigned()
         value = replace(
-            snapshot.items[0].value, evidence=(AuditEvidence("trace", "x" * 16384),) * 256
+            snapshot.items[0].value,
+            tested_conditions=tuple(str(i) + "x" * 65530 for i in range(129)),
         )
         snapshot = replace(snapshot, items=(RecordedAuditItem(value, 1),))
         transport = ScriptedArtifactTransport()
@@ -677,7 +493,7 @@ class BlockingEncode:
         self.release = threading.Event()
         self.exited = threading.Event()
         self.threads = []
-        real = CanonicalAuditPackageEncoder.encode
+        real = CanonicalAuditResultEncoder.encode
 
         def encode(encoder, snapshot, *, inputs):
             self.threads.append(threading.get_ident())
@@ -688,7 +504,7 @@ class BlockingEncode:
             finally:
                 self.exited.set()
 
-        monkeypatch.setattr(CanonicalAuditPackageEncoder, "encode", encode)
+        monkeypatch.setattr(CanonicalAuditResultEncoder, "encode", encode)
 
     async def wait_entered(self):
         await asyncio.to_thread(self.entered.wait)
@@ -714,126 +530,5 @@ def test_publication_encodes_off_loop_and_cancellation_joins_before_any_write(mo
         with pytest.raises(asyncio.CancelledError):
             await publication
         assert blocking.exited.is_set() and not transport.requests
-
-    asyncio.run(scenario())
-
-
-def test_shared_audit_http_observation_metadata():
-    from pathlib import Path
-    from types import SimpleNamespace
-
-    from contractor_runtime.toolsets.audit_results.collector import InvocationAuditCollector
-    from contractor_runtime.toolsets.audit_results.v2 import SubmitCheckResultTool
-    from contractor_runtime.toolsets.common.http_capture import HTTPObservation, RecentHTTPCaptures
-
-    fixture = json.loads(
-        (
-            Path(__file__).parents[2] / "api/testdata/audit-completion/evidence-observations.json"
-        ).read_text()
-    )
-    _, inputs = assigned()
-
-    async def scenario():
-        for case in fixture["cases"]:
-            value = case["evidence"]
-            try:
-                captures = RecentHTTPCaptures()
-                observation = HTTPObservation(value["observed_at"], value["deployment_marker"])
-                await captures.put(
-                    fixture["capture"], inputs.owner.invocation_id, observation=observation
-                )
-                request_id = value["http_request_id"]
-                selector = int(request_id) if str(int(request_id)) == request_id else request_id
-                evidence = {
-                    "kind": "source-trace",
-                    "summary": value["summary"],
-                    "http_request_id": selector,
-                }
-                if value["http_request_tag"] != fixture["capture"]["request_tag"]:
-                    # Tags are Runtime-owned facts, never accepted model arguments.
-                    evidence["http_request_tag"] = value["http_request_tag"]
-                collector = InvocationAuditCollector(inputs, CanonicalAuditPackageEncoder())
-                tool = SubmitCheckResultTool(collector, WorkerState().metrics, captures)
-                reply = await tool(
-                    SimpleNamespace(invocation_id=inputs.owner.invocation_id),
-                    assessment="satisfied",
-                    summary="Selected capture.",
-                    completed=["source-trace"],
-                    gaps=[],
-                    evidence=[evidence],
-                )
-                accepted = reply["status"] == "recorded"
-                if accepted:
-                    result = CanonicalAuditPackageEncoder().encode(
-                        await collector.seal(), inputs=inputs
-                    )
-                    with zipfile.ZipFile(io.BytesIO(result.data)) as archive:
-                        encoded = json.loads(archive.read("evidence.json"))["evidence"][0]
-                        assert encoded["observed_at"] == value["observed_at"]
-                        assert encoded["http_request_tag"] == fixture["capture"]["request_tag"]
-                        assert json.loads(archive.read("evidence/ev-1.json")) == fixture["capture"]
-            except ValueError:
-                accepted = False
-            assert accepted == case["valid"], case["name"]
-
-    asyncio.run(scenario())
-
-
-def test_selected_http_evidence_maximum_batch_and_early_byte_rejection():
-    from test_audit_results_toolset import fixture_task_set
-
-    async def scenario():
-        from contractor_runtime.toolsets.audit_results.collector import (
-            AuditCollectionError,
-            InvocationAuditCollector,
-        )
-
-        task, manifest = fixture_task_set(64)
-        keys = tuple(item["item_key"] for item in json.loads(manifest)["items"])
-        inputs = AuditTrustedInputs(
-            AuditInvocationOwner("allocation-1", "invocation-1", digest(task), keys), task, manifest
-        )
-        capture = json.dumps(
-            {
-                "source": "http",
-                "request_id": "1",
-                "request_tag": "r-test-h1",
-                "attempts": [
-                    {
-                        "request": {
-                            "method": "GET",
-                            "url": "https://target.example/",
-                            "message": {"kind": "structured", "headers": [], "body_base64": ""},
-                        },
-                        "error": "timeout",
-                    }
-                ],
-            }
-        ).encode()
-        evidence = AuditEvidence(
-            "source-trace", "Selected observation.", capture, "2026-10-27T12:00:00Z"
-        )
-        values = tuple(
-            NormalizedAuditItem(
-                key, "satisfied", "Checked.", ("source-trace",), (), (evidence,) * 4
-            )
-            for key in keys
-        )
-        collector = InvocationAuditCollector(inputs, CanonicalAuditPackageEncoder())
-        receipt = await collector.record_batch(values)
-        assert receipt.complete
-        snapshot = await collector.seal()
-        encoded = CanonicalAuditPackageEncoder().encode(snapshot, inputs=inputs)
-        with zipfile.ZipFile(io.BytesIO(encoded.data)) as archive:
-            rows = json.loads(archive.read("evidence.json"))["evidence"]
-            assert len(rows) == 256 and all(
-                row["observed_at"] == evidence.observed_at for row in rows
-            )
-        # Immutable bytes are shared; reject the sum before parsing/encoding a large package.
-        huge = replace(evidence, http_capture=b"x" * (64 * 1024))
-        fresh = InvocationAuditCollector(inputs, CanonicalAuditPackageEncoder())
-        with pytest.raises(AuditCollectionError, match="collection bytes"):
-            await fresh.record_batch(tuple(replace(item, evidence=(huge,) * 4) for item in values))
-        assert (await fresh.snapshot()).items == ()
 
     asyncio.run(scenario())

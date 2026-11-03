@@ -1,13 +1,9 @@
 import type {
+  FindingPageRequest,
   FindingSeverity,
   FindingState,
-  FindingPageRequest,
 } from "../../../api/audits";
-import {
-  FINDING_STATE_LABELS,
-  SEVERITY_LABELS,
-  VERDICT_LABELS,
-} from "../../../app/vocabulary";
+import { SEVERITY_LABELS, VERDICT_LABELS } from "../../../app/vocabulary";
 
 /** Analyst severities, most severe first, for filters. */
 const FINDING_SEVERITIES: readonly FindingSeverity[] = [
@@ -52,11 +48,6 @@ interface FilterOption {
   value: string;
   label: string;
 }
-
-/** "All states" plus every state, labelled in the shared vocabulary. */
-export const STATE_OPTIONS: readonly FilterOption[] = FINDING_STATES.map(
-  (state) => ({ value: state, label: FINDING_STATE_LABELS[state].label }),
-);
 
 /** Analyst ratings only: an AI suggestion is never a severity filter. */
 export const SEVERITY_OPTIONS: readonly FilterOption[] = [

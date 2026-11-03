@@ -1,14 +1,18 @@
 // Fixtures and a fake Server for the Checks area tests (the Checks list, the
 // check page and the project's Checks tab). Not imported by the application.
 
+// Fixtures and a fake Server for the Checks area tests (the Checks list, the
+// check page and the project's Checks tab). Not imported by the application.
 import type {
   Audit,
-  AuditCoverageRow,
   ProjectFinding,
   AuditItem,
   AuditReviewRequest,
   AuditState,
 } from "../../../api/audits";
+import type { components as AuditWireComponents } from "../../../api/generated/public";
+type AuditCoverageRow = AuditWireComponents["schemas"]["AuditCoverageRow"];
+
 import type { PublicAPI } from "../../../api/client";
 import type { Project } from "../../../api/projects";
 import * as build from "../../../test/builders";

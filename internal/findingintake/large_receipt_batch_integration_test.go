@@ -10,18 +10,22 @@ import (
 )
 
 func TestPostgresHydratesNineMaximumSizeProposalsAcrossBatches(t *testing.T) {
-	f := newDeletionImportFixture(t)
+	f := newFindingImportFixture(t, false, true)
 	ids := make([]string, 9)
 	for n := range ids {
 		receipt := insertAuditChildReceiptWithEvidence(t, f, fmt.Sprintf("large-%d", n), []ExactArtifact{}, auditdomain.MaximumDocumentBytes)
 		ids[n] = receipt.ReceiptID
 	}
-	receipts, err := f.intake.GetAuditReceipts(f.ctx, f.request.OwnerID, f.request.AuditID, ids)
-	if err != nil || len(receipts) != len(ids) {
+	receipts, err := f.intake.ListAuditInbox(f.ctx, f.request.OwnerID, f.request.AuditID, ListQuery{Limit: len(ids) + 1})
+	if err != nil || len(receipts) != len(ids)+1 {
 		t.Fatalf("hydrate nine 8 MiB proposals: count=%d error=%v", len(receipts), err)
 	}
-	for n, receipt := range receipts {
-		if receipt.Document.ClientKey != fmt.Sprintf("large-%d", n) {
+	seen := map[string]bool{}
+	for _, receipt := range receipts {
+		seen[receipt.Document.ClientKey] = true
+	}
+	for n := range ids {
+		if !seen[fmt.Sprintf("large-%d", n)] {
 			t.Errorf("proposal %d lost its exact document identity", n)
 		}
 	}

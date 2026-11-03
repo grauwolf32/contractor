@@ -1,9 +1,10 @@
 package engagementcontract
 
 import (
-	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"slices"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"

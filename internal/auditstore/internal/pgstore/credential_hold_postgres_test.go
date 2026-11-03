@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 )
 
 // TestPostgresCredentialHoldsListHeldAuditsByCredentialKind checks the Audit
@@ -25,28 +25,10 @@ func TestPostgresCredentialHoldsListHeldAuditsByCredentialKind(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	pool := isolatedAuditPool(t, ctx, databaseURL)
-	project, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
-		ProjectID: "project-credential-hold", OwnerID: "owner-credential-hold", Kind: projectstore.KindProject,
-		Name: "Credential hold", IdempotencyKey: "project-credential-hold", RequestDigest: testDigest("1"),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	common := setupCommonTaskFixture(t, pool, "credential-hold", false)
 	store := newTestStore(pool)
-	audit, _, err := store.CreateDraft(ctx, auditstore.CreateDraftParams{
-		AuditID: "audit-credential-hold", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
-		Profile:         auditstore.ProfileIdentity{Name: "profile", Version: "1", Digest: testDigest("2")},
-		ProfileSnapshot: json.RawMessage(`{"name":"profile"}`),
-		InputSelection:  json.RawMessage(`{"inputs":{}}`),
-		Limits: auditstore.Limits{
-			MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 1, MaxItemsTotal: 1,
-			MaxSubmittedRuns: 1, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1024,
-		},
-		IdempotencyKey: "audit-credential-hold", RequestDigest: testDigest("3"),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	audit := common.audit
+	project := struct{ OwnerID, ProjectID string }{audit.OwnerID, audit.ProjectID}
 	for _, kind := range []struct {
 		name string
 		list func(context.Context, string, int) ([]string, error)
@@ -58,12 +40,11 @@ func TestPostgresCredentialHoldsListHeldAuditsByCredentialKind(t *testing.T) {
 			t.Fatalf("%s credential holds of a draft Audit = (%v, %v)", kind.name, held, err)
 		}
 	}
-	started, _, err := store.MaterializeRound(ctx, auditstore.MaterializeRoundParams{
+	started, _, err := store.Activate(ctx, auditstore.ActivateParams{
 		OwnerID: project.OwnerID, AuditID: audit.AuditID, ExpectedRevision: audit.Revision,
-		RoundID: "round-credential-hold", RoundOrdinal: 1, Manifest: testExact("audits", "round-credential-hold", "r1"),
-		BaselineSnapshot: json.RawMessage(`{"inputs":{},"skills":[],` +
+		BaselineSnapshot: json.RawMessage(`{"schema":"contractor.audit.baseline.v1","inputs":` + string(commonTaskBaselineInputs(auditcontract.Material{Ref: common.source, Digest: common.material.Digest, MediaType: common.material.MediaType, SizeBytes: common.material.SizeBytes})) + `,"skills":[],` +
 			`"llmCredentialIds":["llm-held"],"runtimeCredentialIds":["runtime-held"]}`),
-		DeadlineAt: time.Now().Add(time.Hour), Items: []auditstore.MaterializedItem{},
+		DeadlineAt:     time.Now().Add(time.Hour),
 		IdempotencyKey: "start-credential-hold", RequestDigest: testDigest("4"),
 	})
 	if err != nil || started.Hold != auditstore.HoldHeld {

@@ -20,7 +20,7 @@ type Snapshot struct {
 	templates        map[string]contracts.ResolvedAgentTemplate
 	policies         map[string]contracts.ResolvedModelPolicy
 	gateways         map[string]llmgateway.ResolvedLLMGatewayConfig
-	auditProfiles    map[string]auditprofile.ResolvedAuditProfile
+	auditProfiles    map[string]auditprofile.PinnedProgram
 	instructions     map[string]contracts.ResolvedInstructions
 	sources          map[string]ConfigurationSource
 
@@ -35,7 +35,7 @@ func newSnapshot(
 	templates map[string]contracts.ResolvedAgentTemplate,
 	policies map[string]contracts.ResolvedModelPolicy,
 	gateways map[string]llmgateway.ResolvedLLMGatewayConfig,
-	auditProfiles map[string]auditprofile.ResolvedAuditProfile,
+	auditProfiles map[string]auditprofile.PinnedProgram,
 	instructions map[string]contracts.ResolvedInstructions,
 	sources map[string]ConfigurationSource,
 ) *Snapshot {
@@ -44,7 +44,7 @@ func newSnapshot(
 		templates:     make(map[string]contracts.ResolvedAgentTemplate, len(templates)),
 		policies:      make(map[string]contracts.ResolvedModelPolicy, len(policies)),
 		gateways:      make(map[string]llmgateway.ResolvedLLMGatewayConfig, len(gateways)),
-		auditProfiles: make(map[string]auditprofile.ResolvedAuditProfile, len(auditProfiles)),
+		auditProfiles: make(map[string]auditprofile.PinnedProgram, len(auditProfiles)),
 		instructions:  make(map[string]contracts.ResolvedInstructions, len(instructions)),
 		sources:       make(map[string]ConfigurationSource, len(sources)),
 	}
@@ -84,23 +84,23 @@ func (s *Snapshot) Counts() Counts {
 
 // AuditProfile resolves one exact name@version and returns a caller-owned,
 // fully dependency-resolved Server-side profile.
-func (s *Snapshot) AuditProfile(raw string) (auditprofile.ResolvedAuditProfile, error) {
+func (s *Snapshot) AuditProfile(raw string) (auditprofile.PinnedProgram, error) {
 	selector, err := resolved.ParseSelector(raw)
 	if err != nil {
-		return auditprofile.ResolvedAuditProfile{}, err
+		return auditprofile.PinnedProgram{}, err
 	}
 	profile, ok := s.auditProfiles[selector.String()]
 	if !ok {
-		return auditprofile.ResolvedAuditProfile{}, fmt.Errorf("unknown AuditProfile %q", selector)
+		return auditprofile.PinnedProgram{}, fmt.Errorf("unknown AuditProfile %q", selector)
 	}
 	return profile.Clone(), nil
 }
 
 // AuditProfiles returns every profile sorted by exact ref and deeply detached
 // from the immutable Snapshot.
-func (s *Snapshot) AuditProfiles() []auditprofile.ResolvedAuditProfile {
+func (s *Snapshot) AuditProfiles() []auditprofile.PinnedProgram {
 	keys := slices.Sorted(maps.Keys(s.auditProfiles))
-	result := make([]auditprofile.ResolvedAuditProfile, 0, len(keys))
+	result := make([]auditprofile.PinnedProgram, 0, len(keys))
 	for _, key := range keys {
 		result = append(result, s.auditProfiles[key].Clone())
 	}

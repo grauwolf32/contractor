@@ -22,6 +22,9 @@ MODULE = "github.com/grauwolf32/contractor/"
 
 # Union of the process e2e names selected by release-verify before V155.
 EXPECTED_PROCESS_TESTS = {
+    "TestAuditBasicExactHandoffAcrossProductionProcesses",
+    "TestAuditCommonPrepared256PauseRestartAndCancelAcrossProcesses",
+    "TestAuditCommonObservationProfilesAcrossProductionProcesses",
     "TestEngagementHTTPRouteMatrixAcrossProcesses",
     "TestEngagementHTTPBoundsAcrossProcesses",
     "TestEngagementHTTPLifecycleAcrossProcesses",
@@ -34,12 +37,9 @@ EXPECTED_PROCESS_TESTS = {
     "TestProjectSitemapHTTPCollectionAcrossProductionProcesses",
     "TestProjectSitemapReportImportsAcrossProductionProcesses",
     "TestProjectSitemapServerOperationsAcrossProductionProcesses",
+    "TestOpenAPIPreparedWorkServerOperation",
     "TestAuditProgramCatalogReplacementRestartsServer",
-    "TestAuditProgramsAcrossProductionProcesses",
-    "TestAuditIterativeCompositionAcrossProductionProcesses",
     "TestAuditWorkspaceAcrossProductionProcesses",
-    "TestAuditRoundResultsAcrossProductionProcesses",
-    "TestAuditTypedCheckRoutingAcrossProductionProcesses",
     "TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses",
     "TestGatewayRecoveryCancellationAndPermanentErrorAcrossProcesses",
     "TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses",
@@ -75,7 +75,7 @@ EXPECTED_BROWSER_STACK_TESTS = {
 }
 
 EXPECTED_CONFIG_TESTS = {
-    "TestAuditIterativeFixtureConfigurationLoads",
+    "TestAuditCommonFixtureConfigurationLoads",
     "TestCodeAnalysisE2EConfigurationLoads",
     "TestAuditProgramsE2EConfigurationLoads",
     "TestDomainGatewayFindsNamedInputAfterParameterBlock",
@@ -89,6 +89,8 @@ EXPECTED_CONFIG_TESTS = {
 # opt-in target that selects it and why release-verify cannot run it; every
 # other e2e-tagged test must be selected by release-verify.
 OPT_IN_E2E_TESTS = {
+    "TestAuditCommonScanProfilesAcrossProductionProcesses": ("test-audit-common-programs-e2e", "requires real nuclei and sqlmap scanners on PATH"),
+    "TestAuditCommonSourcePreparationAcrossProductionProcesses": ("test-audit-common-programs-e2e", "requires real sqlmap on PATH"),
     "TestNucleiEngagementAcrossProductionProcesses": (
         "test-nuclei-engagement",
         "requires the real Nuclei HTTP engine on PATH",
@@ -112,10 +114,6 @@ OPT_IN_E2E_TESTS = {
     "TestKatanaDiscoveryAcrossProductionProcesses": (
         "test-scan-e2e",
         "requires the real katana scanner on PATH",
-    ),
-    "TestOpenAPIAuditScanAcrossProductionProcesses": (
-        "test-openapi-audit-scan-e2e",
-        "requires the real nuclei and sqlmap scanners on PATH",
     ),
     "TestPodmanSandboxAcrossProductionProcesses": (
         "test-podman-e2e",
@@ -476,6 +474,14 @@ def load_script(relative: str):
 def script_go_tests(relative: str, command: str = "") -> list[GoTest]:
     """The Go selections a gate script runs, read from the script's own constants."""
     module = load_script(relative)
+    if relative == "scripts/test-audit-basic-e2e.py":
+        if "--verify-report" in command:
+            return []
+        selected = module.matrix("programs" if "--case-set programs" in command else "core")
+        roots = sorted({name.split("/", 1)[0] for names in selected.values() for name in names})
+        return [GoTest(relative, frozenset({"e2e", "integration"}),
+                       tuple("./" + package.removeprefix(MODULE) for package in selected),
+                       "^(" + "|".join(re.escape(name) for name in roots) + ")$")]
     if relative == "scripts/test-audit-iterative.py":
         arguments = shlex.split(command)
         if "--boundary" not in arguments:

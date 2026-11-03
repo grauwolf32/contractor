@@ -2,11 +2,12 @@ package auditdomain
 
 import (
 	"encoding/json"
-	auditschema "github.com/grauwolf32/contractor/api/audit/v1"
 	"os"
 	"regexp"
 	"strings"
 	"testing"
+
+	auditschema "github.com/grauwolf32/contractor/api/audit/v1"
 
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"go.yaml.in/yaml/v4"
@@ -89,8 +90,9 @@ func TestSharedAuditCommonBoundsMatchSchemaAndOwners(t *testing.T) {
 	var schema struct {
 		Maximum int `json:"x-maxEncodedBytes"`
 		Defs    map[string]struct {
-			Maximum    int                       `json:"x-maxEncodedBytes"`
-			Properties map[string]map[string]any `json:"properties"`
+			Maximum      int                       `json:"x-maxEncodedBytes"`
+			ValueMaximum float64                   `json:"maximum"`
+			Properties   map[string]map[string]any `json:"properties"`
 		} `json:"$defs"`
 	}
 	if err := json.Unmarshal(auditschema.Document, &schema); err != nil {
@@ -115,7 +117,11 @@ func TestSharedAuditCommonBoundsMatchSchemaAndOwners(t *testing.T) {
 		t.Fatal("hypothesis/mutation byte-bound drift")
 	}
 	for name, want := range fixture.Limits {
-		if schema.Defs["limits"].Properties[name]["maximum"] != float64(want) {
+		got := schema.Defs["limits"].Properties[name]["maximum"]
+		if ref, ok := schema.Defs["limits"].Properties[name]["$ref"].(string); ok {
+			got = schema.Defs[strings.TrimPrefix(ref, "#/$defs/")].ValueMaximum
+		}
+		if got != float64(want) {
 			t.Fatalf("schema maximum %s differs from frozen fixture", name)
 		}
 	}

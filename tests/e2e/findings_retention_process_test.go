@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 )
 
@@ -27,18 +26,13 @@ func TestFindingsCollectionsRetainOrdinaryAndAuditReceipts(t *testing.T) {
 	schema := findingsOpenAPI + strings.ReplaceAll(findingsOpenAPI[getStart:], "get:", "post:")
 	schema = strings.Replace(schema, "    post:\n      operationId: getItem", "    post:\n      operationId: postItem", 1)
 	openAPI := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "openapi", "shared-function", "application/yaml", []byte(schema))
-	audit := runAuditProgram(t, h.ctx, h.server, h.runtimeProcess, h.gateway, h.client, h.baseURL, project.ProjectID,
-		"openapi-operation-trace@1", map[string]artifactRef{"source": source, "openapi": openAPI}, 2, 2, 0, "")
-	var items struct {
-		Items []auditProgramItem `json:"items"`
-	}
-	auditProgramGET(t, h.client, h.baseURL+"/v1/audits/"+audit.AuditID+"/items?limit=100", &items)
+	auditID, tasks := runCommonFindingAudit(t, h, project.ProjectID, map[string]artifactRef{"source": source, "openapi": openAPI}, 2)
 	var auditReceipts []findingintake.Receipt
-	for _, item := range items.Items {
-		auditReceipts = append(auditReceipts, findingsReceipts(t, h, item.Attempts[0].RunID)...)
+	for _, task := range tasks[1:] {
+		auditReceipts = append(auditReceipts, findingsReceipts(t, h, commonFindingTaskRun(t, h, auditID, task))...)
 	}
 	t.Run("shared-function-preserves-operations", func(t *testing.T) {
-		if len(items.Items) != 2 || len(auditReceipts) != 2 || auditReceipts[0].ReceiptID == auditReceipts[1].ReceiptID ||
+		if len(tasks) != 3 || len(auditReceipts) != 2 || auditReceipts[0].ReceiptID == auditReceipts[1].ReceiptID ||
 			!reflect.DeepEqual(auditReceipts[0].Document.Locations, auditReceipts[1].Document.Locations) || auditReceipts[0].Evidence[0].Digest != auditReceipts[1].Evidence[0].Digest {
 			t.Fatalf("shared function lost operation receipts: %+v", auditReceipts)
 		}
@@ -56,7 +50,7 @@ func TestFindingsCollectionsRetainOrdinaryAndAuditReceipts(t *testing.T) {
 	})
 	sources := []findingintake.CollectionSelection{
 		{Kind: "run", ID: ordinaryRun, ReceiptIDs: []string{ordinary[0].ReceiptID}, Findings: []findingintake.CollectionFindingSelection{}},
-		{Kind: "audit", ID: audit.AuditID, ReceiptIDs: []string{auditReceipts[0].ReceiptID, auditReceipts[1].ReceiptID}, Findings: []findingintake.CollectionFindingSelection{}},
+		{Kind: "audit", ID: auditID, ReceiptIDs: []string{auditReceipts[0].ReceiptID, auditReceipts[1].ReceiptID}, Findings: []findingintake.CollectionFindingSelection{}},
 	}
 	publication := publishFindingsCollection(t, h, "retained-selection", sources, false)
 	t.Run("snapshot-survives-source-deletion", func(t *testing.T) {
@@ -109,29 +103,7 @@ func runOrdinaryFindingProducer(t *testing.T, h *findingsHarness, projectID stri
 
 func ordinaryFindingProducerBody(t *testing.T, h *findingsHarness, projectID string, source artifactRef, sourcePayload []byte, openAPI artifactRef, openAPIPayload []byte) []byte {
 	t.Helper()
-	inventory, err := auditdomain.BuildOpenAPIInventory(openAPIPayload, "application/yaml", auditdomain.InventoryOptions{
-		Round: 1, WorkflowRole: "trace", SourceInputName: "openapi", SourceRef: exactContractRef(t, openAPI), ApprovalRequirement: auditdomain.ApprovalNone,
-	})
-	if err != nil || len(inventory.Tasks) == 0 {
-		t.Fatalf("ordinary inventory: %v", err)
-	}
-	task := inventory.Tasks[0]
-	taskRef := uploadProjectScopeArtifact(t, h.client, h.baseURL, projectID, "fixtures", "ordinary-task", auditdomain.PackageMediaType, task.Package)
-	item := inventory.ExecutionManifest.Items[0]
-	item.Ordinal = 0
-	exactTask := exactContractRef(t, taskRef)
-	item.TaskRef = &exactTask
-	item.Inputs = []auditdomain.ExactInput{{Name: "source", Ref: exactContractRef(t, source), Digest: auditProgramDigest(sourcePayload)}}
-	manifest := auditdomain.ExecutionManifest{Schema: auditdomain.ExecutionManifestSchema, Items: []auditdomain.ExecutionItem{item}}
-	if err := auditdomain.ValidateDispatchExecutionManifest(manifest); err != nil {
-		t.Fatal(err)
-	}
-	encoded, err := auditdomain.EncodeExecutionManifest(manifest)
-	if err != nil {
-		t.Fatal(err)
-	}
-	manifestRef := uploadProjectScopeArtifact(t, h.client, h.baseURL, projectID, "fixtures", "ordinary-manifest", "application/json", encoded)
-	body, err := json.Marshal(map[string]any{"workflow": "fixture-ordinary-findings@1", "artifacts": map[string]artifactRef{"task": taskRef, "execution_manifest": manifestRef, "source": source}})
+	body, err := json.Marshal(map[string]any{"workflow": "fixture-ordinary-findings@1", "artifacts": map[string]artifactRef{"source": source}})
 	if err != nil {
 		t.Fatal(err)
 	}

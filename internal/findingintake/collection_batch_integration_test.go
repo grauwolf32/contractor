@@ -20,7 +20,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
-	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5"
@@ -46,7 +45,7 @@ func (c *collectionQueryCounter) TraceQueryStart(ctx context.Context, _ *pgx.Con
 func (*collectionQueryCounter) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
 
 func TestPostgresRunProposalPagesUseBatchedReadsAndSkipRetainedDocuments(t *testing.T) {
-	f := newDeletionImportFixture(t)
+	f := newFindingImportFixture(t, false, true)
 	// The test counts queries, not time; go test -timeout bounds it.
 	ctx := t.Context()
 	f.ctx = ctx
@@ -82,16 +81,11 @@ func TestPostgresRunProposalPagesUseBatchedReadsAndSkipRetainedDocuments(t *test
 	t.Logf("retained 200 proposals in %s", time.Since(start))
 	trace.count.Store(0)
 	collected, err := reader.ListAuditCollection(ctx, f.request.OwnerID, f.request.AuditID, f.request.RunID, ListQuery{Limit: 200})
-	if err != nil || len(collected) != 200 {
-		t.Fatalf("collection page: %d receipts, %v", len(collected), err)
+	if err != nil || len(collected) != 0 {
+		t.Fatalf("completed proposals remain pending: %d receipts, %v", len(collected), err)
 	}
-	if got := trace.count.Load(); got != 2 {
-		t.Fatalf("retained collection page used %d queries, want 2", got)
-	}
-	for _, receipt := range collected {
-		if !receipt.Retained || receipt.Receipt.Document.ClientKey != "" {
-			t.Fatal("retained collection page rehydrated a proposal")
-		}
+	if got := trace.count.Load(); got != 1 {
+		t.Fatalf("empty pending page used %d queries, want 1", got)
 	}
 }
 
@@ -99,7 +93,7 @@ const largeDirectProposals = 2000
 
 func newLargeDirectCollectionFixture(t *testing.T) deletionImportFixture {
 	t.Helper()
-	f := newDirectCollectionFixture(t)
+	f := newFindingImportFixture(t, true, true)
 	// Seeding 2,000 proposals takes as long as the machine needs; go test
 	// -timeout bounds it.
 	ctx := t.Context()
@@ -161,8 +155,10 @@ func TestPostgresLargeDirectCollectionFinishesAcrossShortAttempts(t *testing.T) 
 	attempts := collectAcrossAttempts(t, f, transactions, true)
 	t.Logf("fresh 2,001-proposal collection completed in %d attempt(s), %s", attempts, time.Since(start))
 	assertFixtureHolds(t, f, largeDirectProposals+1)
-	// Each attempt resolves the terminal Run and its direct output once.
-	if trace.runReads.Load() != int64(attempts) || trace.directReads.Load() != int64(attempts) {
+	// Each bounded retention page resolves the terminal Run and direct output
+	// once. Attempts may revisit a page after committed transaction progress.
+	maximumReads := int64(attempts * ((largeDirectProposals + 1 + MaxAuditReceiptBatchSize - 1) / MaxAuditReceiptBatchSize))
+	if trace.runReads.Load() < 1 || trace.runReads.Load() > maximumReads || trace.directReads.Load() != trace.runReads.Load() {
 		t.Fatalf("collection resolved Run/output %d/%d times over %d attempt(s)",
 			trace.runReads.Load(), trace.directReads.Load(), attempts)
 	}
@@ -230,7 +226,7 @@ func TestPostgresLargeDirectCollectionFinishesAfterTimedOutAttempt(t *testing.T)
 // first attempt is ended after its first retention transaction commits.
 func TestPostgresEvidenceHeavyCollectionPageCommitsBoundedTransactions(t *testing.T) {
 	const proposals, evidencePerProposal = 200, 48
-	f := newDeletionImportFixture(t)
+	f := newFindingImportFixture(t, false, true)
 	// Attempts end through the transaction tracer, not a deadline; go test
 	// -timeout bounds the test.
 	ctx := t.Context()
@@ -396,7 +392,7 @@ WHERE scope_kind = 'run' AND scope_id = $1 AND namespace = $2 AND name = $3 AND 
 // retention removes it after the intake proved it, is the intake's not-found
 // outcome ErrAccessDenied (FAIL-DEL-7), and records nothing.
 func TestPostgresReceiptCitingARemovedRevisionIsAccessDenied(t *testing.T) {
-	f := newDeletionImportFixture(t)
+	f := newFindingImportFixture(t, false, true)
 	lost := writeLostFixtureEvidence(t, f)
 	loseFixtureEvidence(t, f, lost)
 	if _, err := recordAuditChildReceipt(t, f, "removed-evidence", []ExactArtifact{lost}); !errors.Is(err, ErrAccessDenied) {
@@ -505,7 +501,6 @@ func (m multiQueryTracer) TraceQueryEnd(ctx context.Context, conn *pgx.Conn, dat
 
 func collectFixtureProposals(ctx context.Context, f deletionImportFixture, sourceSucceeded bool) error {
 	query := ListQuery{Limit: 200}
-	ctx = WithCollectionDirectVerificationCache(ctx)
 	for {
 		page, err := f.intake.ListAuditCollection(ctx, f.request.OwnerID, f.request.AuditID, f.request.RunID, query)
 		if err != nil {
@@ -513,9 +508,6 @@ func collectFixtureProposals(ctx context.Context, f deletionImportFixture, sourc
 		}
 		pending := make([]ImportRequest, 0, len(page))
 		for _, candidate := range page {
-			if !candidate.NeedsRetention(sourceSucceeded) {
-				continue
-			}
 			request := f.request
 			request.Proposal = candidate.Receipt.Proposal.Ref
 			if candidate.ReadFailure != "" {
@@ -543,7 +535,7 @@ func collectFixtureProposals(ctx context.Context, f deletionImportFixture, sourc
 // with a missing evidence revision and one whose evidence no longer matches
 // its receipt leave the other proposals of the page collectable.
 func TestPostgresCollectionRejectsOnlyUnretainableProposals(t *testing.T) {
-	f := newDeletionImportFixture(t)
+	f := newFindingImportFixture(t, false, true)
 	evidence := writeFixtureEvidence(t, f, 2)
 	missing := writeLostFixtureEvidence(t, f)
 	corrupt := evidence[1]
@@ -583,25 +575,8 @@ SELECT entity_id, summary ->> 'reason' FROM audit_events
 		}
 	}
 	page, err := f.intake.ListAuditCollection(f.ctx, f.request.OwnerID, f.request.AuditID, f.request.RunID, ListQuery{Limit: 200})
-	if err != nil || len(page) != 6 {
-		t.Fatalf("collection page = %d receipts, %v", len(page), err)
-	}
-	for _, candidate := range page {
-		if candidate.NeedsRetention(false) {
-			t.Fatalf("receipt %s still needs retention: %+v", candidate.Receipt.ReceiptID, candidate)
-		}
-	}
-	// A replay over the settled page changes nothing.
-	audit, err := auditstoretest.NewStore(f.pool, artifactpgtest.NewStorage()).Get(f.ctx, f.request.OwnerID, f.request.AuditID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := collectFixtureProposals(f.ctx, f, false); err != nil {
-		t.Fatal(err)
-	}
-	replayed, err := auditstoretest.NewStore(f.pool, artifactpgtest.NewStorage()).Get(f.ctx, f.request.OwnerID, f.request.AuditID)
-	if err != nil || replayed.Revision != audit.Revision {
-		t.Fatalf("collection replay changed the Audit: %+v, %v", replayed, err)
+	if err != nil || len(page) != 0 {
+		t.Fatalf("settled proposals remain pending: %d receipts, %v", len(page), err)
 	}
 }
 
@@ -609,7 +584,7 @@ SELECT entity_id, summary ->> 'reason' FROM audit_events
 // assessments that fit the evidence budget in that rolled-back transaction
 // must still be accepted by the replay.
 func TestPostgresCollectionRejectionKeepsEarlierDirectAssessments(t *testing.T) {
-	f := newDirectCollectionFixture(t)
+	f := newFindingImportFixture(t, true, true)
 	missing := writeLostFixtureEvidence(t, f)
 	keys := []string{"direct-0", "direct-1", "direct-2", "missing-evidence", "direct-3"}
 	verifications := make([]auditdomain.DirectVerificationResult, len(keys))

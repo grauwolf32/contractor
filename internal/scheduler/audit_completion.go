@@ -35,7 +35,7 @@ func auditBindingRequirements(run runstore.WorkflowRun, workflow executableWorkf
 			if !outputFound {
 				return nil, fmt.Errorf("Audit completion output ownership changed")
 			}
-			for _, ref := range []contracts.ArtifactRef{completion.Contract.Task, completion.Contract.ExecutionManifest} {
+			for _, ref := range []contracts.ArtifactRef{completion.Contract.Context} {
 				found := false
 				for _, pinned := range context.Artifacts {
 					if pinned.Required && pinned.Artifact != nil && reflect.DeepEqual(*pinned.Artifact, ref) {
@@ -63,7 +63,7 @@ func auditBindingRequirements(run runstore.WorkflowRun, workflow executableWorkf
 
 func auditPinnedContextRef(run runstore.WorkflowRun, ref contracts.ArtifactRef) contracts.ArtifactRef {
 	if run.AuditCompletion != nil {
-		for _, pinned := range []contracts.ArtifactRef{run.AuditCompletion.Contract.Task, run.AuditCompletion.Contract.ExecutionManifest} {
+		for _, pinned := range []contracts.ArtifactRef{run.AuditCompletion.Contract.Context} {
 			if pinned.Namespace == ref.Namespace && pinned.Name == ref.Name {
 				return pinned.Clone()
 			}

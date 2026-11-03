@@ -10,24 +10,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 )
 
-func EncodeWorklist(value WorklistManifest) ([]byte, error) {
-	return encodeDocument(value, validateWorklist)
-}
-
-func EncodeItemTask(value ItemTask) ([]byte, error) {
-	if value.Operation == nil {
-		return encodeDocument(value, validateItemTask)
-	}
-	if err := validateItemTask(value); err != nil {
-		return nil, err
-	}
-	encoded, err := canonicalOpenAPIJSON(value)
-	if err != nil {
-		return nil, invalid(CodeLimitExceeded, "document")
-	}
-	return encoded, nil
-}
-
 func DecodeItemTask(data []byte) (ItemTask, error) {
 	var result ItemTask
 	if _, err := decodeJSONWithBounds(data, &result, openAPIOutputBounds); err != nil {
@@ -37,18 +19,6 @@ func DecodeItemTask(data []byte) (ItemTask, error) {
 		return decodeDocument(data, validateItemTask)
 	}
 	return result, validateItemTask(result)
-}
-
-func EncodeExecutionManifest(value ExecutionManifest) ([]byte, error) {
-	return encodeDocument(value, validateExecutionManifest)
-}
-
-func DecodeExecutionManifest(data []byte) (ExecutionManifest, error) {
-	return decodeDocument(data, validateExecutionManifest)
-}
-
-func EncodeCheckResultSet(value CheckResultSet) ([]byte, error) {
-	return encodeDocument(value, validateCheckResultSet)
 }
 
 func DecodeCheckResultSet(data []byte) (CheckResultSet, error) {
@@ -67,24 +37,8 @@ func DecodeFindingProposal(data []byte) (FindingProposal, error) {
 	return decodeDocument(data, validateFindingProposal)
 }
 
-func EncodeFindingInventory(value FindingInventoryDocument) ([]byte, error) {
-	return encodeDocument(value, validateFindingInventory)
-}
-
-func DecodeFindingInventory(data []byte) (FindingInventoryDocument, error) {
-	return decodeDocument(data, validateFindingInventory)
-}
-
-func EncodeEvidence(value EvidenceEnvelope) ([]byte, error) {
-	return encodeDocument(value, validateEvidence)
-}
-
 func DecodeEvidence(data []byte) (EvidenceEnvelope, error) {
 	return decodeDocument(data, validateEvidence)
-}
-
-func EncodeCoverage(value CoverageEnvelope) ([]byte, error) {
-	return encodeDocument(value, validateCoverage)
 }
 
 func DecodeCoverage(data []byte) (CoverageEnvelope, error) {
@@ -140,72 +94,6 @@ func rejectNullItemAuthority(raw any) error {
 				return invalid(CodeInvalid, "item.authority_null")
 			}
 		}
-	}
-	return nil
-}
-
-func DigestExecutionManifest(value ExecutionManifest) (string, error) {
-	encoded, err := EncodeExecutionManifest(value)
-	if err != nil {
-		return "", err
-	}
-	return DigestBytes(encoded), nil
-}
-
-// ValidateResultSet verifies complete, exact membership. It returns no partial
-// result projection on failure.
-func ValidateResultSet(value CheckResultSet, manifest ExecutionManifest) error {
-	if err := validateCheckResultSet(value); err != nil {
-		return err
-	}
-	if err := validateExecutionManifest(manifest); err != nil {
-		return err
-	}
-	digest, err := DigestExecutionManifest(manifest)
-	if err != nil || value.ExecutionManifestDigest != digest || len(value.Results) != len(manifest.Items) {
-		return invalid(CodeResultSetInvalid, "execution_manifest")
-	}
-	results := make(map[string]CheckResult, len(value.Results))
-	for _, result := range value.Results {
-		if _, duplicate := results[result.ItemKey]; duplicate {
-			return invalid(CodeResultSetInvalid, "results.item_key")
-		}
-		results[result.ItemKey] = result
-	}
-	for _, item := range manifest.Items {
-		result, exists := results[item.ItemKey]
-		if !exists || result.SubjectKey != item.SubjectKey {
-			return invalid(CodeResultSetInvalid, "results.membership")
-		}
-	}
-	return nil
-}
-
-func validateWorklist(value WorklistManifest) error {
-	if value.Schema != WorklistSchema {
-		return invalid(CodeSchemaUnsupported, "schema")
-	}
-	if value.Round <= 0 || len(value.Items) > MaximumItems || value.Items == nil {
-		return invalid(CodeLimitExceeded, "items")
-	}
-	seenKeys := make(map[string]struct{}, len(value.Items))
-	seenPackages := make(map[string]struct{}, len(value.Items))
-	for index, item := range value.Items {
-
-		if item.Ordinal != index || validateIdentifier(item.ItemKey, "items.item_key") != nil ||
-			validateIdentifier(item.Kind, "items.kind") != nil || validateIdentifier(item.SubjectKey, "items.subject_key") != nil ||
-			validateIdentifier(item.WorkflowRole, "items.workflow_role") != nil || validateIdentifier(item.TaskPackageID, "items.task_package_id") != nil ||
-			!validApprovalRequirement(item.ApprovalRequirement) {
-			return invalid(CodeInventoryInvalid, "items")
-		}
-		if _, duplicate := seenKeys[item.ItemKey]; duplicate {
-			return invalid(CodeInventoryInvalid, "items.item_key")
-		}
-		if _, duplicate := seenPackages[item.TaskPackageID]; duplicate {
-			return invalid(CodeInventoryInvalid, "items.task_package_id")
-		}
-		seenKeys[item.ItemKey] = struct{}{}
-		seenPackages[item.TaskPackageID] = struct{}{}
 	}
 	return nil
 }
@@ -354,43 +242,6 @@ func validateFindingTask(value FindingTask) error {
 		return invalid(CodeInvalid, "finding")
 	}
 	return validateSortedStrings(value.Limitations, MaximumCoverageValues, "finding.limitations", false)
-}
-
-func validateFindingInventory(value FindingInventoryDocument) error {
-	if value.Schema != FindingInventorySchema || value.Proposals == nil || len(value.Proposals) > MaximumItems {
-		return invalid(CodeInventoryInvalid, "finding_inventory")
-	}
-	previous := ""
-	totalChecks := 0
-	for _, proposal := range value.Proposals {
-		if validateIdentifier(proposal.ReceiptID, "proposals.receipt_id") != nil ||
-			proposal.ReceiptID <= previous || proposal.Proposal.Ref.ValidateExact() != nil ||
-			!contentdigest.Valid(proposal.Proposal.Digest) || proposal.Proposal.MediaType != JSONMediaType ||
-			proposal.Proposal.SizeBytes < 1 || proposal.Proposal.SizeBytes > MaximumDocumentBytes {
-			return invalid(CodeInventoryInvalid, "finding_inventory.proposals")
-		}
-		encoded, err := EncodeFindingProposal(proposal.Document)
-		if err != nil || DigestBytes(encoded) != proposal.Proposal.Digest ||
-			int64(len(encoded)) != proposal.Proposal.SizeBytes {
-			return invalid(CodeInventoryInvalid, "finding_inventory.proposal")
-		}
-		if proposal.SelectedCheckOrdinals == nil || len(proposal.SelectedCheckOrdinals) == 0 {
-			return invalid(CodeInventoryInvalid, "finding_inventory.selected_checks")
-		}
-		previousOrdinal := -1
-		for _, ordinal := range proposal.SelectedCheckOrdinals {
-			if ordinal <= previousOrdinal || ordinal < 0 || ordinal >= len(proposal.Document.ProposedChecks) {
-				return invalid(CodeInventoryInvalid, "finding_inventory.selected_checks")
-			}
-			previousOrdinal = ordinal
-		}
-		totalChecks += len(proposal.SelectedCheckOrdinals)
-		if totalChecks > MaximumItems {
-			return invalid(CodeLimitExceeded, "finding_inventory.checks")
-		}
-		previous = proposal.ReceiptID
-	}
-	return nil
 }
 
 func validateChecklistTask(value ChecklistTask) error {

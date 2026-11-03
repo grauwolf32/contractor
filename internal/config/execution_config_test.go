@@ -9,8 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"go.yaml.in/yaml/v4"
 	"os"
+
+	"go.yaml.in/yaml/v4"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"

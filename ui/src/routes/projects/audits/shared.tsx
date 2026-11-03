@@ -1,22 +1,9 @@
-import { lazy, Suspense, useEffect } from "react";
+import { useEffect } from "react";
 import { useLocation } from "react-router";
 
 import type { Audit } from "../../../api/audits";
 import { ContextLink } from "../../../app/context-navigation";
 import { exactArtifactLink } from "./artifact-links";
-import "./markdown.css";
-
-const MarkdownPreview = lazy(() => import("../../artifacts/previews/markdown"));
-
-export function AuditMarkdown({ source }: { source: string }) {
-  return (
-    <div className="audit-markdown">
-      <Suspense fallback={<p className="loading-copy">Loading text…</p>}>
-        <MarkdownPreview source={source} />
-      </Suspense>
-    </div>
-  );
-}
 
 export function AuditAnchor({ ready = true }: { ready?: boolean }) {
   const { hash } = useLocation();

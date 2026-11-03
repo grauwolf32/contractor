@@ -40,7 +40,7 @@ for (const width of [390, 1440]) {
             audit: {
               auditId: "audit_second",
               executionId: "execution_second",
-              role: "check",
+              taskId: "task_second",
             },
             workflow: { ...first.origin.workflow, name: "independent-check" },
           },

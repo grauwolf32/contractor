@@ -1,9 +1,5 @@
 package pgstore
 
-// countAcceptedItemsSQL reads at most the Audit's 32 accepted Round counters.
-const countAcceptedItemsSQL = `SELECT COALESCE(sum(expected_item_count),0)
- FROM audit_rounds WHERE audit_id = $1 AND state <> 'proposed'`
-
 // acceptedItemSQL restricts a read to immutable published Round membership.
 // Proposed rows are private construction state, including their reviews.
 // The owning Round is one indexed lookup, independent of other Audit items.

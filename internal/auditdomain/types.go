@@ -5,9 +5,8 @@ import (
 )
 
 const (
-	PackageSchema             = "contractor.audit.package.v1"
-	ChecklistSchema           = "contractor.audit.checklist.v1"
-	WorklistSchema            = "contractor.audit.worklist.v1"
+	PackageSchema = "contractor.audit.package.v1"
+
 	TaskSchema                = "contractor.audit.item-task.v1"
 	ExecutionManifestSchema   = "contractor.audit.execution-manifest.v1"
 	CheckResultsSchema        = "contractor.audit.check-results.v1"
@@ -16,7 +15,6 @@ const (
 	EvidenceSchema            = "contractor.audit.evidence.v1"
 	CoverageSchema            = "contractor.audit.coverage.v1"
 	InventoryBasisSchema      = "contractor.audit.inventory-basis.v1"
-	FindingInventorySchema    = "contractor.audit.finding-inventory.v1"
 )
 
 // DirectVerificationsMediaType opts one exact primary Workflow output into
@@ -100,22 +98,6 @@ const (
 	ApprovalHumanReview ApprovalRequirement = "human-review"
 )
 
-type WorklistManifest struct {
-	Schema string         `json:"schema"`
-	Round  int            `json:"round"`
-	Items  []WorklistItem `json:"items"`
-}
-
-type WorklistItem struct {
-	ItemKey             string              `json:"item_key"`
-	Ordinal             int                 `json:"ordinal"`
-	Kind                string              `json:"kind"`
-	SubjectKey          string              `json:"subject_key"`
-	WorkflowRole        string              `json:"workflow_role"`
-	TaskPackageID       string              `json:"task_package_id"`
-	ApprovalRequirement ApprovalRequirement `json:"approval_requirement"`
-}
-
 type ItemTask struct {
 	AcceptedPlan             *AcceptedPlan               `json:"accepted_plan,omitempty"`
 	Dependencies             *RetainedDependencyManifest `json:"dependencies,omitempty"`
@@ -170,25 +152,6 @@ type FindingTask struct {
 	Objective            string                `json:"objective"`
 	Method               string                `json:"method"`
 	Limitations          []string              `json:"limitations"`
-}
-
-type FindingInventoryArtifact struct {
-	Ref       contracts.ArtifactRef `json:"ref"`
-	Digest    string                `json:"digest"`
-	MediaType string                `json:"media_type"`
-	SizeBytes int64                 `json:"size_bytes"`
-}
-
-type FindingInventoryProposal struct {
-	ReceiptID             string                   `json:"receipt_id"`
-	Proposal              FindingInventoryArtifact `json:"proposal"`
-	Document              FindingProposal          `json:"document"`
-	SelectedCheckOrdinals []int                    `json:"selected_check_ordinals"`
-}
-
-type FindingInventoryDocument struct {
-	Schema    string                     `json:"schema"`
-	Proposals []FindingInventoryProposal `json:"proposals"`
 }
 
 type ChecklistTask struct {
@@ -334,22 +297,6 @@ type Evidence struct {
 	HTTPRequestTag   string                 `json:"http_request_tag,omitempty"`
 }
 
-// RequiresHTTPObservation identifies an explicitly pinned HTTP check. An active
-// test alone does not identify its instrument and may use non-HTTP evidence.
-func (task ItemTask) RequiresHTTPObservation() bool {
-	if task.Finding != nil && task.Finding.Method == "http-probe" {
-		return true
-	}
-	if task.Checklist != nil {
-		for _, kind := range task.Checklist.RequiredEvidence {
-			if kind == "http-observation" {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 type CoverageEnvelope struct {
 	Schema string        `json:"schema"`
 	Rows   []CoverageRow `json:"rows"`
@@ -363,21 +310,6 @@ type CoverageRow struct {
 	Completed  []string `json:"completed"`
 	Gaps       []string `json:"gaps"`
 	Rationale  string   `json:"rationale,omitempty"`
-}
-
-type ChecklistDocument struct {
-	Schema string           `json:"schema"`
-	Items  []ChecklistEntry `json:"items"`
-}
-
-type ChecklistEntry struct {
-	Key              string   `json:"key"`
-	Version          string   `json:"version"`
-	Statement        string   `json:"statement"`
-	Applicability    string   `json:"applicability"`
-	AllowedMethods   []string `json:"allowed_methods"`
-	RequiredEvidence []string `json:"required_evidence"`
-	ReviewPolicy     string   `json:"review_policy"`
 }
 
 type InventoryOptions struct {
@@ -398,24 +330,6 @@ type StandardSelection struct {
 	Scope    string   `json:"scope"`
 	Levels   []string `json:"levels"`
 	EntryIDs []string `json:"entry_ids"`
-}
-
-type GeneratedTask struct {
-	Item          WorklistItem `json:"item"`
-	Document      ItemTask     `json:"document"`
-	Package       []byte       `json:"-"`
-	PackageDigest string       `json:"package_digest"`
-}
-
-type Inventory struct {
-	SourceContentDigest      string            `json:"source_content_digest"`
-	CanonicalInventoryDigest string            `json:"canonical_inventory_digest"`
-	CanonicalInventory       []byte            `json:"-"`
-	Worklist                 WorklistManifest  `json:"worklist"`
-	ExecutionManifest        ExecutionManifest `json:"execution_manifest"`
-	Coverage                 CoverageEnvelope  `json:"coverage"`
-	Tasks                    []GeneratedTask   `json:"tasks"`
-	Gaps                     []string          `json:"gaps"`
 }
 
 type inventoryBasis struct {

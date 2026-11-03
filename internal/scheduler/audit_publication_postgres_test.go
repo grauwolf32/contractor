@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -14,7 +15,10 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/configload"
+	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -37,11 +41,24 @@ func TestAuditManagedRunSkipsGenericProjectOutputPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	root := configtest.CopyWithPolicies(t, "../config/testdata/valid")
+	if err := os.CopyFS(root, os.DirFS("../config/testdata/audit-common-catalog")); err != nil {
+		t.Fatal(err)
+	}
+	catalog, _, err := configload.LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pinned, err := catalog.AuditProfile("empty-tasks@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile, _ := json.Marshal(pinned)
 	store := auditstoretest.NewStore(pool, artifactpgtest.NewStorage())
 	audit, _, err := store.CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: "audit-publication", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
-		Profile:         auditstore.ProfileIdentity{Name: "test", Version: "1", Digest: schedulerAuditDigest("2")},
-		ProfileSnapshot: json.RawMessage(`{"profile":"test","workflows":{"check":{"kind":"check"}}}`),
+		Profile:         auditstore.ProfileIdentity{Name: pinned.Ref.Name, Version: pinned.Ref.Version, Digest: pinned.Ref.Digest},
+		ProfileSnapshot: profile,
 		InputSelection:  json.RawMessage(`{"input":"test"}`),
 		Limits: auditstore.Limits{
 			MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 1, MaxItemsTotal: 1,
@@ -52,29 +69,12 @@ func TestAuditManagedRunSkipsGenericProjectOutputPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	manifest := auditstore.ExactArtifact{
-		Ref:    contracts.ArtifactRef{Namespace: "audit-test", Name: "manifest", Revision: schedulerString("manifest-r1")},
-		Digest: schedulerAuditDigest("4"),
+	audit, _, err = store.Activate(ctx, auditstore.ActivateParams{OwnerID: audit.OwnerID, AuditID: audit.AuditID, ExpectedRevision: audit.Revision, BaselineSnapshot: json.RawMessage(`{"schema":"contractor.audit.baseline.v1","inputs":{},"skills":[]}`), DeadlineAt: time.Now().Add(time.Hour), IdempotencyKey: "start", RequestDigest: schedulerAuditDigest("4")})
+	if err != nil {
+		t.Fatal(err)
 	}
-	task := auditstore.ExactArtifact{
-		Ref:    contracts.ArtifactRef{Namespace: "audit-test", Name: "task", Revision: schedulerString("task-r1")},
-		Digest: schedulerAuditDigest("5"),
-	}
-	roundID := "round-audit-publication"
-	if _, _, err := store.MaterializeRound(ctx, auditstore.MaterializeRoundParams{
-		OwnerID: audit.OwnerID, AuditID: audit.AuditID, ExpectedRevision: audit.Revision,
-		RoundID: roundID, RoundOrdinal: 1, Manifest: manifest,
-		BaselineSnapshot: json.RawMessage(`{"baseline":"test"}`), DeadlineAt: time.Now().Add(time.Hour),
-		Items: []auditstore.MaterializedItem{{
-			ItemID: "item-audit-publication", ItemKey: "check", Ordinal: 0,
-			Kind: "test", SubjectKey: "subject", Task: task, Origin: schedulerAuditOrigin("check", task), WorkflowRole: "check",
-			InitialState: auditstore.ItemReady,
-			Coverage: auditstore.Coverage{
-				Status: auditstore.CoverageNotTested, Requested: []string{}, Completed: []string{}, Gaps: []string{},
-			},
-		}},
-		IdempotencyKey: "start-audit-publication", RequestDigest: schedulerAuditDigest("6"),
-	}); err != nil {
+	accepted, _, err := store.AcceptTasks(ctx, auditstore.AcceptTasksParams{OwnerID: audit.OwnerID, AuditID: audit.AuditID, ExpectedRevision: audit.Revision, IdempotencyKey: "accept", RequestDigest: schedulerAuditDigest("5"), Tasks: []auditstore.AcceptedTask{{Document: auditcontract.Task{Schema: auditcontract.TaskSchema, AuditID: audit.AuditID, TaskID: "publication-task", Workflow: "inspect", Inputs: map[string]auditcontract.Material{}, Parameters: map[string]string{}, Objective: "Check generic publication suppression"}, Source: auditstore.TaskSource{Kind: "manual", Key: "publication-task"}}}})
+	if err != nil {
 		t.Fatal(err)
 	}
 	claims, err := store.Claim(ctx, auditstore.ClaimParams{HolderID: "controller-publication", Lease: time.Minute, Limit: 1})
@@ -82,21 +82,7 @@ func TestAuditManagedRunSkipsGenericProjectOutputPublication(t *testing.T) {
 		t.Fatalf("claim Audit = (%+v, %v)", claims, err)
 	}
 	claim := claims[0]
-	if _, err := store.TransitionRound(ctx, auditstore.RoundTransitionParams{
-		Claim: claim, RoundID: roundID, ExpectedRevision: 1,
-		ExpectedState: auditstore.RoundAccepted, TargetState: auditstore.RoundExecuting,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	execution, _, err := store.CreateExecutionIntent(ctx, auditstore.CreateExecutionIntentParams{
-		Claim: claim, ExecutionID: "execution-audit-publication", RoundID: &roundID,
-		Role: auditstore.ExecutionCheck, WorkflowRole: "check", LaneClass: resolved.LaneClassModel, Manifest: manifest,
-		SubmissionKey: "audit-publication-submission", RequestDigest: schedulerAuditDigest("7"),
-		Members: []auditstore.ExecutionMemberIntent{{
-			ExecutionItemID: "execution-item-audit-publication", ItemID: "item-audit-publication",
-			BatchOrdinal: 0, ItemAttempt: 1, Task: task, Inputs: []auditstore.ExactArtifact{},
-		}},
-	})
+	execution, _, err := store.SelectTasks(ctx, auditstore.SelectTasksParams{Claim: claim, TaskIDs: accepted.TaskIDs})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,14 +164,3 @@ func schedulerAuditDigest(character string) string {
 	}
 	return value
 }
-
-func schedulerAuditOrigin(entryKey string, source auditstore.ExactArtifact) auditstore.ItemOrigin {
-	ref := source.Ref
-	return auditstore.ItemOrigin{
-		Schema: auditstore.ItemOriginSchema, SourceRef: &ref,
-		SourceContentDigest: schedulerAuditDigest("8"), SourceMediaType: "application/json",
-		CanonicalInventoryDigest: schedulerAuditDigest("9"), EntryKey: entryKey,
-	}
-}
-
-func schedulerString(value string) *string { return &value }

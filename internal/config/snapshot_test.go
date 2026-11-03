@@ -114,7 +114,9 @@ func TestSnapshotAccessorResultsShareNoMemoryWithSnapshot(t *testing.T) {
 		pinnedWorkflow, err := snapshot.ResolvePinnedRunWorkflow(t.Context(), runWorkflow, credentials)
 		record("ResolvePinnedRunWorkflow", selector, pinnedWorkflow, err)
 		for _, stage := range workflow.Stages {
-			instructionRefs[stage.Instructions.Ref] = struct{}{}
+			if stage.Instructions.Ref != "" {
+				instructionRefs[stage.Instructions.Ref] = struct{}{}
+			}
 		}
 	}
 	for _, ref := range slices.Sorted(maps.Keys(instructionRefs)) {

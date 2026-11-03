@@ -4285,6 +4285,132 @@ paths:
         '500': {$ref: '#/components/responses/InternalError'}
         '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
+  /v1/audits/{auditId}/tasks:
+    parameters:
+    - $ref: '#/components/parameters/AuditId'
+    post:
+      operationId: createAuditTasks
+      tags:
+      - Audits
+      summary: Accept bounded work with exact selected materials
+      responses:
+        '200':
+          description: Original acceptance receipt
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditTaskAcceptance'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/StorageTransactionConflict'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - $ref: '#/components/parameters/RequiredIfMatch'
+      description: Active and paused Audits accept at most 128 records / 1 MiB metadata and 128 distinct exact inputs
+        per mutation. Acceptance retains inputs in Audit scope and submits no Run. The active coordinator dispatches
+        through RunService. Replay returns the original task identities and revision before resolving mutable sources.
+        Empty input mappings use pinned Audit inputs.
+      x-max-request-body-bytes: 1048576
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuditTaskCreationRequest'
+    get:
+      operationId: listAuditTasks
+      tags:
+      - Audits
+      summary: List accepted work and selection or collection progress
+      responses:
+        '200':
+          description: Bounded accepted work
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditTaskPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/StorageTransactionConflict'
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      - name: state
+        in: query
+        schema:
+          $ref: '#/components/schemas/AuditTaskState'
+  /v1/audits/{auditId}/tasks/{taskId}:
+    parameters:
+    - $ref: '#/components/parameters/AuditId'
+    - name: taskId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/ResourceId'
+    get:
+      operationId: getAuditTask
+      tags:
+      - Audits
+      summary: Read accepted work and its retained result or explicit gap
+      responses:
+        '200':
+          description: Bounded accepted work
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditTask'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/StorageTransactionConflict'
+
   /v1/audits/{auditId}/items:
     parameters:
       - $ref: '#/components/parameters/AuditId'
@@ -4419,10 +4545,10 @@ paths:
     get:
       operationId: getAuditReport
       tags: [Audits]
-      summary: Read the exact proposed or accepted Audit report or its generation state
+      summary: Read Audit report availability and any retained report
       responses:
         '200':
-          description: Report state with exact artifacts and content when proposed or ready; proposed reports include their review request
+          description: Report availability with exact artifacts and content when proposed or ready; a completed Audit without an aggregate report returns unavailable and retains its ordinary Task results separately
           headers:
             X-Request-ID: {$ref: '#/components/headers/RequestId'}
             Cache-Control: {$ref: '#/components/headers/NoStore'}
@@ -13443,41 +13569,282 @@ components:
       - engagement_capability_unsupported
       - engagement_source_closure_unsupported
       - engagement_active_checks_unsupported
+    # BEGIN GENERATED COMMON AUDIT PROGRAM
+    # Generated by scripts/generate_audit_public_schema.py; do not edit.
+    AuditProgram:
+      additionalProperties: false
+      properties:
+        continuation:
+          additionalProperties: false
+          properties:
+            workflow:
+              $ref: '#/components/schemas/AuditCommonKey'
+          required:
+          - workflow
+          type: object
+        hypotheses:
+          additionalProperties:
+            $ref: '#/components/schemas/AuditProgramHypothesisSeed'
+          maxProperties: 10000
+          propertyNames:
+            $ref: '#/components/schemas/AuditCommonKey'
+          type: object
+        initial_work:
+          items:
+            $ref: '#/components/schemas/AuditProgramInitialWork'
+          maxItems: 10000
+          minItems: 1
+          type: array
+        inputs:
+          additionalProperties:
+            $ref: '#/components/schemas/AuditProgramInput'
+          maxProperties: 32
+          propertyNames:
+            $ref: '#/components/schemas/AuditCommonKey'
+          type: object
+        limits:
+          $ref: '#/components/schemas/AuditProgramLimits'
+        policy:
+          $ref: '#/components/schemas/AuditProgramPolicy'
+        schema:
+          const: contractor.audit.program.v1
+          type: string
+        workflows:
+          additionalProperties:
+            $ref: '#/components/schemas/AuditProgramWorkflow'
+          maxProperties: 16
+          minProperties: 1
+          propertyNames:
+            $ref: '#/components/schemas/AuditCommonKey'
+          type: object
+      required:
+      - schema
+      - inputs
+      - workflows
+      - hypotheses
+      - initial_work
+      - limits
+      - policy
+      type: object
+      x-maxEncodedBytes: 4194304
+    AuditProgramAttemptLimit:
+      maximum: 10
+      minimum: 1
+      type: integer
+    AuditProgramHypothesisSeed:
+      additionalProperties: false
+      description: The complete seed's RFC 8785 canonical UTF-8 encoding must fit 32768 bytes. This early
+        content bound does not replace the complete hypothesis document bound after trusted identity, revision
+        and origin are assigned.
+      properties:
+        grounds:
+          $ref: '#/components/schemas/AuditCommonText'
+        scope:
+          additionalProperties:
+            $ref: '#/components/schemas/AuditCommonText'
+          maxProperties: 64
+          propertyNames:
+            $ref: '#/components/schemas/AuditCommonKey'
+          type: object
+        statement:
+          $ref: '#/components/schemas/AuditCommonText'
+      required:
+      - statement
+      - scope
+      - grounds
+      type: object
+      x-maxCanonicalBytes: 32768
+    AuditProgramInitialWork:
+      additionalProperties: false
+      properties:
+        hypothesis:
+          $ref: '#/components/schemas/AuditCommonKey'
+        inputs:
+          additionalProperties:
+            $ref: '#/components/schemas/AuditCommonKey'
+          maxProperties: 32
+          propertyNames:
+            $ref: '#/components/schemas/AuditCommonKey'
+          type: object
+        key:
+          $ref: '#/components/schemas/AuditCommonKey'
+        objective:
+          $ref: '#/components/schemas/AuditCommonText'
+        workflow:
+          $ref: '#/components/schemas/AuditCommonKey'
+      required:
+      - key
+      - workflow
+      - objective
+      type: object
+    AuditProgramInput:
+      additionalProperties: false
+      properties:
+        media_types:
+          items:
+            oneOf:
+            - $ref: '#/components/schemas/MediaType'
+            - const: '*/*'
+              type: string
+          maxItems: 16
+          minItems: 1
+          type: array
+          uniqueItems: true
+        required:
+          type: boolean
+      required:
+      - required
+      - media_types
+      type: object
+    AuditProgramInputMapping:
+      oneOf:
+      - additionalProperties: false
+        properties:
+          name:
+            $ref: '#/components/schemas/AuditCommonKey'
+          source:
+            const: audit-input
+            type: string
+        required:
+        - source
+        - name
+        type: object
+      - additionalProperties: false
+        properties:
+          source:
+            enum:
+            - task-context
+            - prior-results
+            - task-input
+            type: string
+        required:
+        - source
+        type: object
+    AuditProgramLimits:
+      additionalProperties: false
+      properties:
+        batch_size:
+          maximum: 64
+          minimum: 1
+          type: integer
+        deadline_seconds:
+          maximum: 31536000
+          minimum: 0
+          type: integer
+        max_attempts:
+          $ref: '#/components/schemas/AuditProgramAttemptLimit'
+        max_evidence_bytes:
+          maximum: 1073741824
+          minimum: 1
+          type: integer
+        max_hypotheses:
+          maximum: 10000
+          minimum: 1
+          type: integer
+        max_hypothesis_bytes:
+          maximum: 268435456
+          minimum: 1
+          type: integer
+        max_hypothesis_revisions:
+          maximum: 50000
+          minimum: 1
+          type: integer
+        max_iterations:
+          maximum: 32
+          minimum: 1
+          type: integer
+        max_submitted_runs:
+          maximum: 1000000
+          minimum: 1
+          type: integer
+        max_tasks:
+          maximum: 100000
+          minimum: 1
+          type: integer
+        max_tasks_per_iteration:
+          maximum: 10000
+          minimum: 1
+          type: integer
+      required:
+      - max_tasks
+      - max_iterations
+      - max_tasks_per_iteration
+      - batch_size
+      - max_submitted_runs
+      - max_attempts
+      - deadline_seconds
+      - max_evidence_bytes
+      - max_hypotheses
+      - max_hypothesis_revisions
+      - max_hypothesis_bytes
+      type: object
+    AuditProgramPolicy:
+      additionalProperties: false
+      properties:
+        active_operations:
+          enum:
+          - allowed
+          - prohibited
+          type: string
+      required:
+      - active_operations
+      type: object
+    AuditProgramSelector:
+      pattern: ^[a-z][a-z0-9_-]*@[A-Za-z0-9][A-Za-z0-9._+-]*$
+      type: string
+    AuditProgramWorkflow:
+      additionalProperties: false
+      properties:
+        inputs:
+          additionalProperties:
+            $ref: '#/components/schemas/AuditProgramInputMapping'
+          maxProperties: 128
+          propertyNames:
+            $ref: '#/components/schemas/AuditCommonKey'
+          type: object
+        max_attempts:
+          $ref: '#/components/schemas/AuditProgramAttemptLimit'
+        outputs:
+          additionalProperties:
+            $ref: '#/components/schemas/AuditCommonKey'
+          maxProperties: 128
+          propertyNames:
+            $ref: '#/components/schemas/AuditCommonKey'
+          type: object
+        parameters:
+          additionalProperties:
+            maxLength: 4096
+            type: string
+            x-maxUtf8Bytes: 4096
+          maxProperties: 128
+          propertyNames:
+            $ref: '#/components/schemas/AuditCommonKey'
+          type: object
+        ref:
+          $ref: '#/components/schemas/AuditProgramSelector'
+          maxLength: 193
+      required:
+      - ref
+      - inputs
+      - parameters
+      - outputs
+      type: object
+    # END GENERATED COMMON AUDIT PROGRAM
     AuditProfile:
       type: object
       additionalProperties: false
-      required: [ref, mode, standards, inputs, inventory, execution, interaction, serverCompatible, requiresInputValidation, compatibilityReasons]
+      required: [ref, inputs, limits, policy]
       properties:
         ref: {$ref: '#/components/schemas/AuditProfileRef'}
-        mode: {$ref: '#/components/schemas/AuditProfileMode'}
-        standards:
-          type: array
-          maxItems: 16
-          items: {$ref: '#/components/schemas/AuditStandardRef'}
         inputs:
           type: object
-          minProperties: 1
           maxProperties: 32
-          additionalProperties: {$ref: '#/components/schemas/AuditProfileInput'}
-        inventory: {$ref: '#/components/schemas/AuditInventory'}
-        workflows:
-          type: object
-          minProperties: 1
-          maxProperties: 16
-          additionalProperties: {$ref: '#/components/schemas/AuditProfileWorkflow'}
-        methods:
-          type: object
-          maxProperties: 128
-          additionalProperties: {$ref: '#/components/schemas/AuditCheckMethodMapping'}
-        execution: {$ref: '#/components/schemas/AuditExecutionPolicy'}
-        interaction: {$ref: '#/components/schemas/AuditInteractionPolicy'}
-        serverCompatible: {type: boolean}
-        requiresInputValidation: {type: boolean}
-        compatibilityReasons:
-          type: array
-          maxItems: 15
-          uniqueItems: true
-          items: {$ref: '#/components/schemas/AuditCompatibilityReason'}
+          additionalProperties: {$ref: '#/components/schemas/AuditProgramInput'}
+        limits: {$ref: '#/components/schemas/AuditProgramLimits'}
+        policy: {$ref: '#/components/schemas/AuditProgramPolicy'}
+        program:
+          description: The exact authored common program; present on profile detail.
+          $ref: '#/components/schemas/AuditProgram'
     AuditProfilePage:
       type: object
       additionalProperties: false
@@ -13705,7 +14072,7 @@ components:
     Audit:
       type: object
       additionalProperties: false
-      required: [auditId, projectId, profile, inputs, scope, runtimeLabels, state, phase, revision, dispatchState, holdState, limits, reservedRunCount, submittedRunCount, outstandingRunCount, retainedEvidenceBytes, eventSequence, createdAt, updatedAt]
+      required: [auditId, projectId, profile, inputs, scope, runtimeLabels, state, taskCount, iteration, revision, dispatchState, holdState, limits, reservedRunCount, submittedRunCount, outstandingRunCount, collectionPending, retainedEvidenceBytes, eventSequence, createdAt, updatedAt]
       properties:
         labels: {$ref: '#/components/schemas/AuditLabels'}
         requiredPlacementLabels: {$ref: '#/components/schemas/PlacementLabels'}
@@ -13727,11 +14094,7 @@ components:
           items: {$ref: '#/components/schemas/RuntimeInfrastructureId'}
         baseline: {$ref: '#/components/schemas/AuditBaseline'}
         state: {$ref: '#/components/schemas/AuditState'}
-        phase: {$ref: '#/components/schemas/AuditPhase'}
-        preparation: {$ref: '#/components/schemas/AuditPreparation'}
-        generatedInventory: {$ref: '#/components/schemas/AuditGeneratedInventory'}
         revision: {type: integer, minimum: 1}
-        currentRoundId: {$ref: '#/components/schemas/ResourceId'}
         dispatchState: {$ref: '#/components/schemas/AuditDispatchState'}
         holdState: {$ref: '#/components/schemas/AuditHoldState'}
         deadlineAt: {type: string, format: date-time, description: 'Absent when the started Audit has no time limit.'}
@@ -13740,6 +14103,9 @@ components:
         reservedRunCount: {type: integer, minimum: 0}
         submittedRunCount: {type: integer, minimum: 0}
         outstandingRunCount: {type: integer, minimum: 0}
+        collectionPending:
+          type: boolean
+          description: A terminal child execution still has uncommitted output collection, including remaining prepared-work intake. Paused clients keep polling until this is false and outstandingRunCount is zero.
         retainedEvidenceBytes: {type: integer, minimum: 0}
         eventSequence: {type: integer, minimum: 0}
         stopReason: {$ref: '#/components/schemas/AuditStopReason'}
@@ -13748,15 +14114,8 @@ components:
         startedAt: {type: string, format: date-time}
         finishedAt: {type: string, format: date-time}
         deletionRequestedAt: {type: string, format: date-time}
-      oneOf:
-        - properties: {phase: {type: string, const: not-started}}
-          not:
-            anyOf: [{required: [currentRoundId]}, {required: [preparation]}]
-        - properties: {phase: {type: string, enum: [preparing, inventory]}}
-          required: [preparation, baseline]
-          not: {required: [currentRoundId]}
-        - properties: {phase: {type: string, const: rounds}}
-          required: [currentRoundId]
+        taskCount: {type: integer, minimum: 0, maximum: 100000}
+        iteration: {type: integer, minimum: 0, maximum: 32}
     AuditEventSummary:
       type: object
       additionalProperties: false
@@ -13780,6 +14139,10 @@ components:
         reviews: {type: integer, minimum: 0, maximum: 2147483647}
         members: {type: integer, minimum: 0, maximum: 2147483647}
         count: {type: integer, minimum: 0, maximum: 2147483647}
+        createdCount: {type: integer, minimum: 0, maximum: 128}
+        workCount: {type: integer, minimum: 0, maximum: 256}
+        taskCount: {type: integer, minimum: 0, maximum: 64}
+        workflow: {$ref: '#/components/schemas/AuditCommonKey'}
     AuditEvent:
       type: object
       additionalProperties: false
@@ -13822,6 +14185,284 @@ components:
         revision: {type: integer, minimum: 1}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
+    AuditCommonKey:
+      type: string
+      minLength: 1
+      maxLength: 128
+      pattern: ^[A-Za-z0-9][A-Za-z0-9_.-]*$
+      not:
+        pattern: '[^A-Za-z0-9_.-]'
+    AuditCommonText:
+      type: string
+      minLength: 1
+      maxLength: 65536
+      pattern: "[^\t\n\v\f\r \N\_\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\L\P\u202F\u205F\
+        \u3000]"
+      x-max-utf8-bytes: 65536
+    AuditCommonDigest:
+      type: string
+      pattern: ^sha256:[0-9a-f]{64}$
+    AuditCommonResourceId:
+      type: string
+      minLength: 1
+      maxLength: 256
+      pattern: ^[A-Za-z0-9][A-Za-z0-9_.:-]*$
+      not:
+        pattern: '[^A-Za-z0-9_.:-]'
+    AuditCommonExactRef:
+      type: object
+      additionalProperties: false
+      required:
+      - namespace
+      - name
+      - revision
+      properties:
+        namespace:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9][A-Za-z0-9_.-]*$
+          not:
+            pattern: '[^A-Za-z0-9_.-]'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9][A-Za-z0-9_.-]*$
+          not:
+            pattern: '[^A-Za-z0-9_.-]'
+        revision:
+          type: string
+          minLength: 1
+          pattern: \S
+    AuditTaskMaterial:
+      type: object
+      properties:
+        scope_kind:
+          enum:
+          - audit
+          - project
+          - run
+          type: string
+        scope_id:
+          $ref: '#/components/schemas/AuditCommonResourceId'
+        ref:
+          $ref: '#/components/schemas/AuditCommonExactRef'
+        digest:
+          $ref: '#/components/schemas/AuditCommonDigest'
+        media_type:
+          type: string
+          maxLength: 255
+          pattern: ^[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*$
+          not:
+            pattern: '[^a-z0-9!#$&^_.+/-]'
+        size_bytes:
+          type: integer
+          minimum: 0
+          maximum: 67108864
+      required:
+      - scope_kind
+      - scope_id
+      - ref
+      - digest
+      - media_type
+      - size_bytes
+      additionalProperties: false
+    AuditTaskHypothesisRef:
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/AuditCommonResourceId'
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+      required:
+      - id
+      - revision
+      additionalProperties: false
+    AuditTaskDocument:
+      type: object
+      properties:
+        schema:
+          const: contractor.audit.task.v1
+          type: string
+        audit_id:
+          $ref: '#/components/schemas/AuditCommonResourceId'
+        task_id:
+          $ref: '#/components/schemas/AuditCommonResourceId'
+        workflow:
+          $ref: '#/components/schemas/AuditCommonKey'
+        inputs:
+          type: object
+          propertyNames:
+            $ref: '#/components/schemas/AuditCommonKey'
+          additionalProperties:
+            $ref: '#/components/schemas/AuditTaskMaterial'
+          maxProperties: 32
+        parameters:
+          type: object
+          propertyNames:
+            $ref: '#/components/schemas/AuditCommonKey'
+          additionalProperties:
+            type: string
+            maxLength: 4096
+            x-max-utf8-bytes: 4096
+          maxProperties: 128
+        hypothesis:
+          $ref: '#/components/schemas/AuditTaskHypothesisRef'
+        objective:
+          $ref: '#/components/schemas/AuditCommonText'
+      required:
+      - schema
+      - audit_id
+      - task_id
+      - workflow
+      - inputs
+      - parameters
+      - objective
+      additionalProperties: false
+    AuditTaskSelection:
+      type: object
+      additionalProperties: false
+      required:
+      - key
+      - workflow
+      - objective
+      - inputs
+      properties:
+        key:
+          $ref: '#/components/schemas/AuditCommonKey'
+        workflow:
+          $ref: '#/components/schemas/AuditCommonKey'
+        objective:
+          $ref: '#/components/schemas/AuditCommonText'
+        inputs:
+          type: object
+          propertyNames:
+            $ref: '#/components/schemas/AuditCommonKey'
+          additionalProperties:
+            $ref: '#/components/schemas/AuditTaskMaterial'
+          minProperties: 0
+          maxProperties: 32
+    AuditTaskState:
+      type: string
+      enum:
+      - ready
+      - selected
+      - settled
+    AuditTaskCreationRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - work
+      properties:
+        work:
+          type: array
+          minItems: 1
+          maxItems: 128
+          items:
+            $ref: '#/components/schemas/AuditTaskSelection'
+    AuditTaskAcceptance:
+      type: object
+      additionalProperties: false
+      required:
+      - task_ids
+      - created_count
+      - audit_revision
+      properties:
+        task_ids:
+          type: array
+          minItems: 1
+          maxItems: 128
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/ResourceId'
+        created_count:
+          type: integer
+          minimum: 0
+          maximum: 128
+        audit_revision:
+          type: integer
+          minimum: 1
+    AuditTaskSource:
+      type: object
+      additionalProperties: false
+      required:
+      - kind
+      - key
+      properties:
+        kind:
+          type: string
+          enum:
+          - initial
+          - manual
+          - prepared
+        key:
+          $ref: '#/components/schemas/AuditCommonKey'
+        execution_id:
+          $ref: '#/components/schemas/ResourceId'
+        output:
+          $ref: '#/components/schemas/AuditTaskMaterial'
+    AuditTask:
+      type: object
+      additionalProperties: false
+      required:
+      - document
+      - source
+      - ordinal
+      - iteration
+      - state
+      - attempts
+      - created_at
+      - updated_at
+      properties:
+        document:
+          $ref: '#/components/schemas/AuditTaskDocument'
+        source:
+          $ref: '#/components/schemas/AuditTaskSource'
+        ordinal:
+          type: integer
+          minimum: 1
+          maximum: 100000
+        iteration:
+          type: integer
+          minimum: 1
+          maximum: 32
+        state:
+          $ref: '#/components/schemas/AuditTaskState'
+        attempts:
+          type: integer
+          minimum: 0
+          maximum: 10
+        last_execution_id:
+          $ref: '#/components/schemas/ResourceId'
+        result:
+          $ref: '#/components/schemas/AuditTaskMaterial'
+        gap_code:
+          type: string
+          minLength: 1
+          maxLength: 128
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    AuditTaskPage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - page
+      properties:
+        items:
+          type: array
+          maxItems: 200
+          items:
+            $ref: '#/components/schemas/AuditTask'
+        page:
+          $ref: '#/components/schemas/PageInfo'
     AuditItemState: {type: string, enum: [pending, awaiting_review, ready, submitted, collecting, settled]}
     AuditFinalDisposition: {type: string, enum: [accepted-result, missing-output, invalid-result, execution-failed, execution-cancelled, excluded, not-applicable]}
     AuditExecutionRole: {type: string, enum: [prepare, discovery, check, assessment]}
@@ -14139,19 +14780,9 @@ components:
     AuditStartResponse:
       type: object
       additionalProperties: false
-      required: [audit, items]
+      required: [audit]
       properties:
         audit: {$ref: '#/components/schemas/Audit'}
-        round: {$ref: '#/components/schemas/AuditRound'}
-        items: {type: array, maxItems: 10000, items: {$ref: '#/components/schemas/AuditItem'}}
-      oneOf:
-        - required: [round]
-          properties:
-            audit: {properties: {phase: {type: string, const: rounds}}}
-        - not: {required: [round]}
-          properties:
-            audit: {properties: {phase: {type: string, enum: [preparing, inventory]}}}
-            items: {maxItems: 0}
     FindingExactArtifact:
       type: object
       additionalProperties: false
@@ -14515,11 +15146,18 @@ components:
     FindingAuditOrigin:
       type: object
       additionalProperties: false
-      required: [auditId, executionId, role]
+      required: [auditId, executionId, taskId]
       properties:
         auditId: {$ref: '#/components/schemas/ResourceId'}
         executionId: {$ref: '#/components/schemas/ResourceId'}
-        role: {$ref: '#/components/schemas/AuditExecutionRole'}
+        taskId: {$ref: '#/components/schemas/ResourceId'}
+        hypothesis:
+          type: object
+          additionalProperties: false
+          required: [id, revision]
+          properties:
+            id: {$ref: '#/components/schemas/ResourceId'}
+            revision: {type: integer, minimum: 1, maximum: 9007199254740991}
     FindingOrigin:
       type: object
       additionalProperties: false
@@ -16663,7 +17301,7 @@ components:
       additionalProperties: false
       required: [ref, arguments]
       properties:
-        ref: {type: string, enum: [sitemap-openapi-join@1, sitemap-apply-openapi@1]}
+        ref: {type: string, enum: [sitemap-openapi-join@1, sitemap-apply-openapi@1, openapi-prepare-work@1]}
         arguments:
           type: object
           maxProperties: 32

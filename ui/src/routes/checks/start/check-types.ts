@@ -5,7 +5,7 @@ import { isWebScanProfile } from "./web-scan-contract";
  * and readiness against the project's current materials.
  *
  * Everything here is derived from the profile contract the Server publishes
- * (inputs, inventory, standards, interaction, workflows) and from the
+ * (inputs, policy, limits and pinned workflows) and from the
  * project's current materials. Media types decide compatibility: a match
  * means the format matches, never that a material is the right one
  * (docs/spec/ui/journeys.md US-03).
@@ -13,11 +13,11 @@ import { isWebScanProfile } from "./web-scan-contract";
 import type { IconName } from "../../../app/icon";
 import type { ArtifactMetadata } from "../../../api/artifacts";
 import type { AuditProfile } from "../../../api/audits";
-import { checkItemKind, itemCount, itemNoun } from "../../../app/vocabulary";
 import { compareVersions } from "../../../app/format";
+import { checkItemKind, itemCount } from "../../../app/vocabulary";
 
 export type ProfileInput = AuditProfile["inputs"][string];
-type CompatibilityReason = AuditProfile["compatibilityReasons"][number];
+type CompatibilityReason = string;
 
 /** All loaded versions of one check type name. */
 export interface CheckTypeFamily {
@@ -42,8 +42,7 @@ export function groupFamilies(
     const sorted = [...versions].sort((a, b) =>
       compareVersions(b.ref.version, a.ref.version),
     );
-    const preferred =
-      sorted.find((profile) => profile.serverCompatible) ?? sorted[0]!;
+    const preferred = sorted[0]!;
     return { name, versions: sorted, preferred };
   });
 }
@@ -61,71 +60,12 @@ export interface CheckTypeRow {
   readonly variants: readonly CheckTypeFamily[];
 }
 
-/** How many items a check type works on at most. */
-function coverageSize(profile: AuditProfile): number {
-  return (
-    profile.inventory.standardSelection?.entryIds.length ??
-    profile.execution.maxItemsTotal
-  );
-}
-
-function inputContract(profile: AuditProfile): unknown[] {
-  return Object.entries(profile.inputs)
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([name, input]) => [
-      name,
-      input.required,
-      [...input.mediaTypes].sort(),
-    ]);
-}
-
-/** The key that makes two check types scope variants of each other. */
-function variantKey(profile: AuditProfile): string | undefined {
-  // Only standard-based checks: their variants select from one standard.
-  if (profile.standards.length === 0) return undefined;
-  const { interaction } = profile;
-  return JSON.stringify([
-    profile.mode,
-    profile.inventory.implementation,
-    [...new Set(profile.standards.map((standard) => standard.scheme))].sort(),
-    inputContract(profile),
-    [
-      interaction.activeChecks,
-      interaction.notApplicable,
-      interaction.reportAcceptance,
-    ],
-  ]);
-}
-
-function byCoverage(left: CheckTypeFamily, right: CheckTypeFamily): number {
-  return (
-    coverageSize(right.preferred) - coverageSize(left.preferred) ||
-    left.name.localeCompare(right.name)
-  );
-}
-
 /** Rows in display order: known check types first, then by label. */
 export function groupRows(
   families: readonly CheckTypeFamily[],
 ): CheckTypeRow[] {
-  const keyed = new Map<string, CheckTypeFamily[]>();
-  const rows: CheckTypeFamily[][] = [];
-  for (const family of families) {
-    const key = variantKey(family.preferred);
-    const known = key === undefined ? undefined : keyed.get(key);
-    if (known !== undefined) {
-      known.push(family);
-      continue;
-    }
-    const row = [family];
-    if (key !== undefined) keyed.set(key, row);
-    rows.push(row);
-  }
-  return rows
-    .map((variants) => {
-      const sorted = [...variants].sort(byCoverage);
-      return { primary: sorted[0]!, variants: sorted };
-    })
+  return families
+    .map((family) => ({ primary: family, variants: [family] }))
     .sort((left, right) => {
       const a = presentCheckType(left.primary.preferred);
       const b = presentCheckType(right.primary.preferred);
@@ -166,47 +106,6 @@ const KNOWN: Readonly<Record<string, CheckTypePresentation>> = {
     description: "The same trace, as a map only. Proposes no issues.",
     order: 20,
   },
-  "owasp-top10-2025-source-risk": {
-    label: "OWASP Top 10 (2025) review",
-    description:
-      "Ten source code risk scenarios mapped to the OWASP Top 10:2025. A risk overview, not exhaustive.",
-    order: 30,
-  },
-  "owasp-asvs-5-0-l1-source-review": {
-    label: "OWASP ASVS 5.0 Level 1",
-    description:
-      "Verifies the source code and documentation against the ASVS 5.0 Level 1 requirements.",
-    order: 40,
-  },
-  "owasp-asvs-5-0-l1-source-pilot": {
-    label: "OWASP ASVS 5.0 Level 1 pilot",
-    description: "Five selected ASVS 5.0 Level 1 requirements.",
-    order: 41,
-  },
-  "owasp-wstg-4-2-source-review": {
-    label: "OWASP WSTG 4.2 code review",
-    description:
-      "Reviews the source code against the WSTG 4.2 test scenarios. Sends no live traffic.",
-    order: 50,
-  },
-  "owasp-wstg-4-2-fast-source-review": {
-    label: "OWASP WSTG 4.2 fast code review",
-    description:
-      "A first pass over 16 priority WSTG scenarios; the others stay out of scope.",
-    order: 51,
-  },
-  "owasp-wstg-4-2-active-http": {
-    label: "OWASP WSTG 4.2 live testing",
-    description:
-      "Tests a running website or API over HTTP, scenario by scenario, using your project’s active-check setting.",
-    order: 60,
-  },
-  "owasp-wstg-4-2-fast-active-http": {
-    label: "OWASP WSTG 4.2 fast live testing",
-    description:
-      "A first pass over 16 priority WSTG scenarios against the running application.",
-    order: 61,
-  },
   "openapi-nuclei-scan": {
     label: "Nuclei scan",
     description:
@@ -225,19 +124,6 @@ const KNOWN: Readonly<Record<string, CheckTypePresentation>> = {
       "Runs SQLMap on the endpoints your scan settings select, using your project’s active-check setting.",
     order: 80,
   },
-  "source-checklist": {
-    label: "Custom checklist",
-    description: "Works through your own checklist against the source code.",
-    order: 90,
-  },
-};
-
-export const MODE_LABELS: Readonly<Record<AuditProfile["mode"], string>> = {
-  "risk-assessment": "Risk assessment",
-  "requirements-verification": "Requirements verification",
-  "custom-checklist": "Custom checklist",
-  "operation-tracing": "Operation tracing",
-  "finding-verification": "Finding verification",
 };
 
 function humanize(name: string): string {
@@ -245,35 +131,8 @@ function humanize(name: string): string {
   return words === "" ? name : words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-/** "owasp-asvs 5.0.0, owasp-wstg 4.2" */
-function standardsText(profile: AuditProfile): string {
-  return profile.standards
-    .map((standard) => `${standard.scheme} ${standard.version}`)
-    .join(", ");
-}
-
 function contractDescription(profile: AuditProfile): string {
-  const mode = Object.hasOwn(MODE_LABELS, profile.mode)
-    ? MODE_LABELS[profile.mode]
-    : humanize(profile.mode);
-  const kind = checkItemKind(profile);
-  const unit = itemNoun(kind, 1);
-  switch (profile.inventory.implementation) {
-    case "standard-mappings@1":
-      return profile.standards.length === 0
-        ? `${mode}, one ${unit} at a time.`
-        : `${mode} against ${standardsText(profile)}, one ${unit} at a time.`;
-    case "openapi-operations@1":
-      return `${mode}, one endpoint of your API spec at a time.`;
-    case "openapi-scans@1":
-      return `${mode} of the endpoints your scan settings select.`;
-    case "checklist@1":
-      return `${mode}, one checklist item at a time.`;
-    case "finding-candidates@1":
-      return `${mode} of the finding candidates you supply.`;
-    default:
-      return `${mode}.`;
-  }
+  return `Runs accepted work against selected materials, up to ${profile.limits.max_tasks} tasks.`;
 }
 
 export function presentCheckType(profile: AuditProfile): CheckTypePresentation {
@@ -292,7 +151,7 @@ export function presentCheckType(profile: AuditProfile): CheckTypePresentation {
 // ---------- Materials ----------
 
 /** Whether a material's media type is one the input accepts ("format matches"). */
-export function mediaTypeMatches(
+function mediaTypeMatches(
   mediaType: string,
   accepted: readonly string[],
 ): boolean {
@@ -373,7 +232,7 @@ export function candidatesFor(
   materials: readonly ArtifactMetadata[],
 ): ArtifactMetadata[] {
   return materials.filter((material) =>
-    mediaTypeMatches(material.mediaType, input.mediaTypes),
+    mediaTypeMatches(material.mediaType, input.media_types),
   );
 }
 
@@ -392,31 +251,10 @@ export function orderedInputs(
 
 export type ScopeField = "objective" | "target" | "authorizationScope";
 
-const SCOPE_FIELDS: readonly ScopeField[] = [
-  "objective",
-  "target",
-  "authorizationScope",
-];
-
-/**
- * Scope fields the check type's workflows read (parameters mapped from a
- * `scope-field`). Only the profile detail lists workflows; without them the
- * set is empty.
- */
+/** Scope annotations are optional; executable targets come from exact inputs. */
 export function scopeFieldsUsed(profile: AuditProfile): Set<ScopeField> {
-  const used = new Set<ScopeField>();
-  for (const workflow of Object.values(profile.workflows ?? {})) {
-    for (const parameter of Object.values(workflow.parameters)) {
-      const name = parameter.name;
-      if (
-        parameter.source === "scope-field" &&
-        name !== undefined &&
-        (SCOPE_FIELDS as readonly string[]).includes(name)
-      )
-        used.add(name as ScopeField);
-    }
-  }
-  return used;
+  void profile;
+  return new Set();
 }
 
 // ---------- Readiness ----------
@@ -501,7 +339,7 @@ function missingInputs(
         kind: "input",
         name,
         label: inputLabel(name),
-        formats: formatList(input.mediaTypes),
+        formats: formatList(input.media_types),
       });
       continue;
     }
@@ -542,8 +380,6 @@ export function readinessOf(
   profile: AuditProfile,
   context: ReadinessContext,
 ): Readiness {
-  if (!profile.serverCompatible)
-    return { state: "unavailable", reasons: profile.compatibilityReasons };
   if (isWebScanProfile(profile)) return { state: "ready" };
   const missing = missingInputs(
     orderedInputs(profile).filter(([, input]) => input.required),
@@ -581,32 +417,6 @@ export function missingLabel(need: MissingNeed): string {
   }
 }
 
-const REASON_WORDS: Readonly<Record<CompatibilityReason, string>> = {
-  preparation_unsupported: "preparation steps",
-  discovery_unsupported: "discovery steps",
-  assessment_unsupported: "assessment steps",
-  multiple_rounds_unsupported: "more than one round",
-  batching_unsupported: "several items in one run",
-  project_active_checks_prohibited:
-    "active checks are disabled in Project settings",
-  automatic_active_checks_unsupported: "automatic live tests",
-  active_check_approval_unsupported: "approvals for live tests",
-  manual_applicability_unsupported: "manual applicability decisions",
-  report_acceptance_unsupported: "report acceptance",
-  manual_item_unsupported: "manual items",
-  engagement_capability_unsupported: "the required live-testing tools",
-  engagement_source_closure_unsupported: "checking without source-code access",
-  engagement_active_checks_unsupported:
-    "automatic live tests under these settings",
-};
-
-/** A Server compatibility reason in words. */
-export function compatibilityReasonText(reason: CompatibilityReason): string {
-  return Object.hasOwn(REASON_WORDS, reason)
-    ? REASON_WORDS[reason]
-    : reason.replaceAll("_", " ");
-}
-
 // ---------- What a check type covers ----------
 
 interface ScopeSummary {
@@ -618,61 +428,14 @@ interface ScopeSummary {
 
 /** What the check type covers, from its inventory and limits. */
 export function scopeSummary(profile: AuditProfile): ScopeSummary {
-  const kind = checkItemKind(profile);
-  const limit = profile.execution.maxItemsTotal;
-  const selection = profile.inventory.standardSelection;
-  if (selection !== undefined)
-    return {
-      size: itemCount(kind, selection.entryIds.length),
-      // The selection's own scope text; its levels are in Advanced options.
-      detail: selection.scope,
-    };
-  switch (profile.inventory.implementation) {
-    case "standard-mappings@1":
-      return {
-        size: `Up to ${itemCount(kind, limit)}`,
-        detail:
-          profile.standards.length === 0
-            ? "From the check type's standard."
-            : `From ${standardsText(profile)}.`,
-      };
-    case "openapi-operations@1":
-      return {
-        size: "Every endpoint in the API spec",
-        detail: `At most ${itemCount("endpoint", limit)}.`,
-      };
-    case "web-scans@1":
-      return {
-        size: "One website target",
-        detail: "Installed Nuclei rules or your custom rules, fixed at start.",
-      };
-    case "openapi-scans@1":
-      return {
-        size: "The endpoints your scan settings select",
-        detail: `At most ${itemCount("endpoint", limit)}.`,
-      };
-    case "checklist@1":
-      return {
-        size: "Every item of your checklist",
-        detail: `At most ${itemCount("item", limit)}.`,
-      };
-    default:
-      return {
-        size: `Up to ${itemCount(kind, limit)}`,
-        detail: "From the materials you supply.",
-      };
-  }
+  return {
+    size: `Up to ${itemCount(checkItemKind(profile), profile.limits.max_tasks)}`,
+    detail:
+      "Accepted tasks use the selected exact materials. Preparation may add endpoint tasks within this limit.",
+  };
 }
 
-/** A check's inventory determines its shared line icon, without guessing from names. */
-export function checkTypeIcon(profile: AuditProfile): IconName {
-  const icons: Record<AuditProfile["inventory"]["implementation"], IconName> = {
-    "checklist@1": "checklist",
-    "openapi-operations@1": "api",
-    "openapi-scans@1": "api",
-    "web-scans@1": "target",
-    "finding-candidates@1": "issues",
-    "standard-mappings@1": "checks",
-  };
-  return icons[profile.inventory.implementation];
+/** Common programs use one check glyph; their inputs describe the domain. */
+export function checkTypeIcon(): IconName {
+  return "checks";
 }

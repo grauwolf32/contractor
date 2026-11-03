@@ -301,7 +301,7 @@ func applyModelDefaults(workflow *resolved.ResolvedWorkflow, defaults map[string
 
 // ResolveAuditProfile freezes deployment model defaults into a new Audit's
 // Workflow closures; its later child Runs use those pinned closures.
-func (m *Manager) ResolveAuditProfile(ctx context.Context, raw string) (auditprofile.ResolvedAuditProfile, error) {
+func (m *Manager) ResolveAuditProfile(ctx context.Context, raw string) (auditprofile.PinnedProgram, error) {
 	profile, err := m.Snapshot().AuditProfile(raw)
 	if err != nil {
 		return profile, err
@@ -311,23 +311,23 @@ func (m *Manager) ResolveAuditProfile(ctx context.Context, raw string) (auditpro
 		return profile, err
 	}
 	for role, binding := range profile.Workflows {
-		applyModelDefaults(&binding.Workflow, defaults)
-		if err := resolved.ValidateWorkflowExecutionConfigs(binding.Workflow); err != nil {
+		applyModelDefaults(&binding, defaults)
+		if err := resolved.ValidateWorkflowExecutionConfigs(binding); err != nil {
 			return profile, err
 		}
-		if err := resolved.ResolveEscalationVariants(&binding.Workflow); err != nil {
+		if err := resolved.ResolveEscalationVariants(&binding); err != nil {
 			return profile, err
 		}
 		profile.Workflows[role] = binding
 	}
-	profile.Ref.Digest, err = auditprofile.Digest(profile)
+	profile.Ref.Digest, err = profile.Digest()
 	if err != nil {
-		return auditprofile.ResolvedAuditProfile{}, err
+		return auditprofile.PinnedProgram{}, err
 	}
 	return profile, nil
 }
 
 // ResolveAuditProfile on an offline Snapshot has no deployment setting.
-func (s *Snapshot) ResolveAuditProfile(_ context.Context, raw string) (auditprofile.ResolvedAuditProfile, error) {
+func (s *Snapshot) ResolveAuditProfile(_ context.Context, raw string) (auditprofile.PinnedProgram, error) {
 	return s.AuditProfile(raw)
 }

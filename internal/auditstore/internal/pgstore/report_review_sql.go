@@ -43,18 +43,6 @@ const reportReviewClosureCTE = `expired_report_review AS (
        AND review.audit_id = changed.audit_id AND review.state = 'pending'
 )`
 
-// reportProposedEvents record the report-acceptance review a proposal opens.
-var reportProposedEvents = auditEvents(auditEvent(
-	"'review.requested'", "$7::text", "1",
-	"jsonb_build_object('subjectKind', 'audit-report', 'subjectId', audit.audit_id, 'kind', 'report-acceptance')",
-))
-
-// reportReviewExpiredEvents record a report review that expired undecided.
-var reportReviewExpiredEvents = auditEvents(auditEvent(
-	"'review.expired'", "gate.request_id", "NULL",
-	"jsonb_build_object('subjectKind', 'audit-report', 'kind', 'report-acceptance', 'terminalState', 'failed')",
-))
-
 // reportAcceptedEvents record an accepted report candidate like a committed
 // report.
 var reportAcceptedEvents = auditEvents(auditEvent(
@@ -67,107 +55,6 @@ var reportRejectedEvents = auditEvents(auditEvent(
 	"'audit.state_changed'", "audit.audit_id", "audit.revision",
 	"jsonb_build_object('from', 'waiting_review', 'to', 'failed')",
 ))
-
-// proposeReportSQL freezes report links $9/$10 of round $5 on a 30-day
-// report-acceptance review request $7 under the live controller claim ($1-$3). The Audit at
-// revision $4 must be finalizing with round $5 closed at revision $6, no
-// outstanding Runs, all items settled, all executions collected and no report
-// links; it moves to waiting_review and records review.requested. The caller
-// completes the trailing SELECT. Used by ClaimStore.ProposeReport.
-var proposeReportSQL = `
-WITH live_claim AS MATERIALIZED (
-    ` + auditClaims.LiveClaimSQL("$1", "$2", "$3") + `
-), gate AS MATERIALIZED (
-    SELECT audit.*, round.revision AS round_revision
-      FROM audits AS audit
-      JOIN live_claim USING (audit_id)
-      JOIN finding_correlation_fences AS fence USING(project_id)
-      JOIN audit_rounds AS round
-        ON round.audit_id = audit.audit_id AND round.round_id = $5
-     WHERE audit.audit_id = $1 AND audit.revision = $4 AND fence.revision=$11
-       AND audit.state = 'finalizing' AND audit.dispatch_state = 'closed'
-       AND audit.current_round_id = $5 AND audit.outstanding_run_count = 0
-       AND round.revision = $6 AND round.state = 'closed'
-       AND NOT EXISTS (
-           SELECT 1 FROM audit_items AS item
-            WHERE item.audit_id = audit.audit_id AND item.state <> 'settled'
-              AND ` + acceptedItemSQL("item") + `
-       )
-       AND NOT ` + uncollectedExecutionSQL + `
-       AND NOT EXISTS (
-           SELECT 1 FROM audit_artifact_links AS existing
-            WHERE existing.audit_id = audit.audit_id
-              AND existing.logical_key IN ('report/machine', 'report/summary')
-       )
-     FOR UPDATE OF audit, round, fence
-), inserted_request AS (
-    INSERT INTO audit_review_requests (
-        request_id, audit_id, subject_kind, subject_id, kind,
-        subject_revision, subject_digest, requested_actions, state,
-        expires_at, idempotency_key, request_digest,
-        report_round_id, report_machine_link, report_summary_link
-    )
-    SELECT $7, audit_id, 'audit-report', audit_id,
-           'report-acceptance', $4, $8, '["approve","reject"]'::jsonb,
-           'pending', clock_timestamp() + interval '30 days',
-           'auto-report:' || substr($8, 8, 64), $8,
-           $5, $9::jsonb, $10::jsonb
-      FROM gate
-    RETURNING request_id, audit_id
-), changed AS (
-    UPDATE audits AS audit
-       SET state = 'waiting_review',
-           ` + reportProposedEvents.advance() + `,
-           updated_at = GREATEST(clock_timestamp(), audit.updated_at + interval '1 microsecond')
-      FROM inserted_request AS candidate
-     WHERE audit.audit_id = candidate.audit_id
-    RETURNING audit.*, ` + reportProposedEvents.appended() + `
-)
-SELECT `
-
-// expireReportReviewSQL fails a waiting_review Audit at revision $4 whose
-// report-acceptance review is expired or pending past expires_at (database
-// time), under the live controller claim ($1-$3). It expires the request,
-// closes dispatch, releases the hold, sets stop reason
-// report_acceptance_expired, appends review.expired and returns whether the
-// Audit changed. Used by ClaimStore.ExpireReportReview.
-var expireReportReviewSQL = `
-WITH live_claim AS MATERIALIZED (
-    ` + auditClaims.LiveClaimSQL("$1", "$2", "$3") + `
-), gate AS MATERIALIZED (
-    SELECT audit.audit_id, review.request_id,
-           review.state AS review_state
-      FROM audits AS audit
-      JOIN live_claim USING (audit_id)
-      JOIN audit_review_requests AS review
-        ON review.audit_id = audit.audit_id AND review.subject_kind = 'audit-report'
-     WHERE audit.audit_id = $1 AND audit.revision = $4
-       AND audit.state = 'waiting_review'
-       AND (
-           review.state = 'expired'
-           OR (review.state = 'pending' AND review.expires_at <= clock_timestamp())
-       )
-     FOR UPDATE OF audit, review
-), expired_request AS (
-    UPDATE audit_review_requests AS review
-       SET state = 'expired', revision = review.revision + 1,
-           updated_at = GREATEST(clock_timestamp(), review.updated_at + interval '1 microsecond')
-      FROM gate
-     WHERE review.request_id = gate.request_id AND review.state = 'pending'
-    RETURNING review.request_id
-), terminal AS (
-    UPDATE audits AS audit
-       SET state = 'failed', dispatch_state = 'closed', hold_state = 'released',
-           stop_reason_code = 'report_acceptance_expired',
-           stop_reason_message = 'The exact Audit report was not accepted before its review expired.',
-           ` + reportReviewExpiredEvents.advance() + `,
-           updated_at = GREATEST(clock_timestamp(), audit.updated_at + interval '1 microsecond'),
-           finished_at = clock_timestamp()
-      FROM gate
-     WHERE audit.audit_id = gate.audit_id
-    RETURNING audit.audit_id, ` + reportReviewExpiredEvents.appended() + `
-)
-SELECT EXISTS (SELECT 1 FROM terminal)`
 
 // acceptReportCandidateSQL publishes an accepted report candidate: with Audit
 // $1 in waiting_review at revision $2 and its report review matching request

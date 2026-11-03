@@ -10,9 +10,9 @@ import { describe, expect, it } from "vitest";
 import type { AuditProfile } from "../../../api/audits";
 import { queryKeys } from "../../../api/query-keys";
 import { deferred } from "../../../test/deferred";
+import { CSRF_TOKEN } from "../../../test/render";
+import { failure, gatewayFailure, json, page } from "../../../test/responses";
 import {
-  asvsPilot,
-  asvsReview,
   checklist,
   draftAudit,
   materialFixture,
@@ -25,12 +25,8 @@ import {
   startResponse,
   top10,
   trace,
-  unsupported,
   wstgLive,
-  wstgLiveDetail,
 } from "./test-fixtures";
-import { failure, gatewayFailure, json, page } from "../../../test/responses";
-import { CSRF_TOKEN } from "../../../test/render";
 import { renderStart } from "./test-support";
 
 const START = "/checks/new?project=project_shop";
@@ -63,7 +59,7 @@ async function bodyOf(request: Request | undefined): Promise<unknown> {
 describe("Start a check: project", () => {
   it("asks for a project first and carries the other parameters over", async () => {
     const { user, router } = renderStart(
-      "/checks/new?objective=Find+IDOR&type=owasp-top10-2025-source-risk",
+      "/checks/new?objective=Find+IDOR&type=source-review",
       {
         projects: [
           projectFixture(),
@@ -91,7 +87,7 @@ describe("Start a check: project", () => {
     );
     const params = new URLSearchParams(router.state.location.search);
     expect(params.get("objective")).toBe("Find IDOR");
-    expect(params.get("type")).toBe("owasp-top10-2025-source-risk");
+    expect(params.get("type")).toBe("source-review");
     expect(
       await screen.findByRole("heading", {
         level: 1,
@@ -117,20 +113,11 @@ describe("Start a check: project", () => {
 });
 
 describe("Start a check: check types", () => {
-  const catalog: AuditProfile[] = [
-    trace,
-    top10,
-    checklist,
-    wstgLive,
-    unsupported,
-  ];
+  const catalog: AuditProfile[] = [trace, top10, checklist, wstgLive];
 
-  it("groups check types by readiness and links to what is missing", async () => {
-    // A YAML API spec would also match the checklist's format, so the API
-    // spec here is a ZIP bundle (the API spec input takes ZIP too).
+  it("groups published common types by exact input readiness", async () => {
     renderStart(START, {
       profiles: catalog,
-      details: { "owasp-wstg-4-2-active-http@1": wstgLiveDetail },
       materials: [
         sourceZip,
         materialFixture("openapi-bundle", "application/zip"),
@@ -140,132 +127,37 @@ describe("Start a check: check types", () => {
       name: "Ready with your materials",
     });
     expect(
-      within(ready)
-        .getAllByRole("listitem")
-        .map((row) => within(row).getAllByRole("link")[0]?.textContent),
-    ).toEqual(["API endpoint trace", "OWASP Top 10 (2025) review"]);
-    expect(within(ready).getByText("by file format")).toBeVisible();
-    expect(
-      within(ready).getByText("Uses API spec and source code"),
+      within(ready).getByRole("link", { name: "API endpoint trace" }),
     ).toBeVisible();
-
+    expect(
+      within(ready).getByRole("link", { name: "Source review" }),
+    ).toBeVisible();
     const needs = screen.getByRole("region", { name: "Needs more materials" });
-    const live = within(needs)
-      .getByRole("link", { name: "OWASP WSTG 4.2 live testing" })
-      .closest("li")!;
-    expect(live).toHaveTextContent(
-      "Missing: Context brief (text or Markdown), Live target URL",
-    );
     expect(
-      within(live).getByRole("link", { name: "Add materials" }),
-    ).toHaveAttribute("href", "/projects/project_shop/artifacts?add=artifact");
+      within(needs).getByRole("link", { name: "Http observe" }).closest("li"),
+    ).toHaveTextContent("Context brief");
     expect(
-      within(live).getByRole("link", { name: "Set the live target" }),
-    ).toHaveAttribute("href", "/projects/project_shop/settings");
-    const custom = within(needs)
-      .getByRole("link", { name: "Custom checklist" })
-      .closest("li")!;
-    expect(custom).toHaveTextContent("Missing: Checklist (JSON or YAML)");
+      within(needs)
+        .getByRole("link", { name: "Selected materials" })
+        .closest("li"),
+    ).toHaveTextContent("Checklist");
     expect(
-      within(custom).queryByRole("link", { name: "Set the live target" }),
+      screen.queryByRole("region", { name: "Can't run on this server" }),
     ).toBeNull();
-
-    const unavailable = screen.getByRole("region", {
-      name: "Can't run on this server",
-    });
-    expect(
-      within(unavailable).getByRole("link", { name: "Legacy multi round" }),
-    ).toBeVisible();
   });
 
-  it("shows why a check type cannot run when it is chosen", async () => {
-    renderStart(`${START}&type=legacy-multi-round`, {
-      profiles: catalog,
-      materials: [sourceZip],
+  it("suggests a shipped common check type from the objective", async () => {
+    renderStart(START + "&objective=Trace+the+API+endpoints", {
+      profiles: [trace, top10],
+      materials: [sourceZip, openapiYaml],
     });
-    const pane = await screen.findByRole("region", {
-      name: "Set up the check",
-    });
-    expect(
-      await within(pane).findByText(
-        "The server does not support more than one round.",
-      ),
-    ).toBeVisible();
-    expect(startButton()).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: "Save as draft" }),
-    ).toBeDisabled();
-  });
-
-  it("folds scope variants into one row and switches them under Scope", async () => {
-    const { user, router } = renderStart(START, {
-      profiles: [asvsReview, asvsPilot],
-      materials: [sourceZip],
-    });
-    await waitForTypes();
-    expect(
-      within(list()).getAllByRole("link", { name: /OWASP ASVS/ }),
-    ).toHaveLength(1);
-    await user.click(within(setup()).getByText("Advanced options"));
-    const scope = within(setup()).getByRole("group", {
-      name: "Review coverage",
-    });
-    const full = within(scope).getByRole("radio", { name: /70 requirements/ });
-    const pilot = within(scope).getByRole("radio", { name: /5 requirements/ });
-    expect(full).toBeChecked();
-    await user.click(pilot);
-    await waitFor(() =>
-      expect(
-        new URLSearchParams(router.state.location.search).get("type"),
-      ).toBe("owasp-asvs-5-0-l1-source-pilot"),
-    );
-    expect(
-      await within(setup()).findByText("owasp-asvs-5-0-l1-source-pilot@1"),
-    ).toBeVisible();
-    expect(
-      within(scope).getByRole("radio", { name: /5 requirements/ }),
-    ).toBeChecked();
-  });
-
-  it("suggests a check type from the objective with a fixed reason", async () => {
-    const { user, router } = renderStart(
-      `${START}&objective=${encodeURIComponent("Check the shop APIs for authorization flaws")}`,
-      { profiles: [trace, top10], materials: [sourceZip, openapiYaml] },
-    );
     await waitForTypes();
     const row = within(list())
       .getByRole("link", { name: "API endpoint trace" })
       .closest("li")!;
     expect(within(row).getByText("Suggested")).toBeVisible();
-    const pane = setup();
     expect(
-      within(pane).getByRole("heading", {
-        level: 2,
-        name: "API endpoint trace",
-      }),
-    ).toBeVisible();
-    await user.click(within(pane).getByText("Advanced options"));
-    expect(within(pane).getByText("openapi-operation-trace@1")).toBeVisible();
-    expect(
-      screen.getByText(/Contractor suggests API endpoint trace/),
-    ).toBeVisible();
-    await user.click(
-      within(list()).getByRole("link", { name: "OWASP Top 10 (2025) review" }),
-    );
-    await waitFor(() =>
-      expect(
-        new URLSearchParams(router.state.location.search).get("type"),
-      ).toBe("owasp-top10-2025-source-risk"),
-    );
-    expect(
-      await within(setup()).findByRole("heading", {
-        level: 2,
-        name: "OWASP Top 10 (2025) review",
-      }),
-    ).toBeVisible();
-    expect(within(setup()).queryByText(/Why this fits:/)).toBeNull();
-    expect(
-      screen.getByRole("link", { name: "Use API endpoint trace" }),
+      within(setup()).getByRole("heading", { name: "API endpoint trace" }),
     ).toBeVisible();
   });
 
@@ -294,25 +186,25 @@ describe("Start a check: check types", () => {
     await waitFor(() =>
       expect(
         new URLSearchParams(router.state.location.search).get("type"),
-      ).toBe("owasp-top10-2025-source-risk"),
+      ).toBe("selected-materials"),
     );
     await user.keyboard("j");
     await waitFor(() =>
       expect(
         new URLSearchParams(router.state.location.search).get("type"),
-      ).toBe("source-checklist"),
+      ).toBe("source-review"),
     );
     await user.keyboard("k");
     await waitFor(() =>
       expect(
         new URLSearchParams(router.state.location.search).get("type"),
-      ).toBe("owasp-top10-2025-source-risk"),
+      ).toBe("selected-materials"),
     );
   });
 
   it("keeps the check types and Start check when refreshing them fails", async () => {
     let unavailable = false;
-    const { user } = renderStart(`${START}&type=owasp-top10-2025-source-risk`, {
+    const { user } = renderStart(`${START}&type=source-review`, {
       projects: [projectFixture()],
       profiles: [top10],
       profileList: () =>
@@ -332,7 +224,7 @@ describe("Start a check: check types", () => {
       ),
     ).toBeVisible();
     expect(
-      within(list()).getByRole("link", { name: "OWASP Top 10 (2025) review" }),
+      within(list()).getByRole("link", { name: "Source review" }),
     ).toBeVisible();
     expect(startButton()).toBeEnabled();
     expect(screen.getByRole("button", { name: "Save as draft" })).toBeEnabled();
@@ -344,7 +236,7 @@ describe("Start a check: check types", () => {
   });
 
   it("looks for a named check type on pages not read yet", async () => {
-    const { user } = renderStart(`${START}&type=source-checklist`, {
+    const { user } = renderStart(`${START}&type=selected-materials`, {
       profiles: [top10, checklist],
       profileList: (_request, url) =>
         url.searchParams.get("cursor") === null
@@ -362,7 +254,7 @@ describe("Start a check: check types", () => {
     expect(
       await within(setup()).findByRole("heading", {
         level: 2,
-        name: "Custom checklist",
+        name: "Selected materials",
       }),
     ).toBeVisible();
     expect(screen.queryByText(/is among those loaded so far/)).toBeNull();
@@ -370,7 +262,7 @@ describe("Start a check: check types", () => {
 
   it("keeps the check types when loading more of them fails", async () => {
     let unavailable = true;
-    const { user } = renderStart(`${START}&type=owasp-top10-2025-source-risk`, {
+    const { user } = renderStart(`${START}&type=source-review`, {
       profiles: [top10, checklist],
       profileList: (_request, url) =>
         url.searchParams.get("cursor") === null
@@ -388,53 +280,17 @@ describe("Start a check: check types", () => {
       await screen.findByText("More check types could not be loaded."),
     ).toBeVisible();
     expect(
-      within(list()).getByRole("link", { name: "OWASP Top 10 (2025) review" }),
+      within(list()).getByRole("link", { name: "Source review" }),
     ).toBeVisible();
     expect(startButton()).toBeEnabled();
     unavailable = false;
     await user.click(within(list()).getByRole("button", { name: "Try again" }));
     expect(
-      await within(list()).findByRole("link", { name: "Custom checklist" }),
+      await within(list()).findByRole("link", { name: "Selected materials" }),
     ).toBeVisible();
     expect(
       screen.queryByText("More check types could not be loaded."),
     ).toBeNull();
-  });
-
-  it("lets the user choose a scope the server can't run and shows why", async () => {
-    const pilot: AuditProfile = {
-      ...asvsPilot,
-      serverCompatible: false,
-      compatibilityReasons: ["multiple_rounds_unsupported"],
-    };
-    const { user, router } = renderStart(START, {
-      profiles: [asvsReview, pilot],
-      materials: [sourceZip],
-    });
-    await waitForTypes();
-    await user.click(within(setup()).getByText("Advanced options"));
-    const scope = within(setup()).getByRole("group", {
-      name: "Review coverage",
-    });
-    const option = within(scope).getByRole("radio", {
-      name: /5 requirements.*not supported by this server/,
-    });
-    expect(option).toBeEnabled();
-    await user.click(option);
-    await waitFor(() =>
-      expect(
-        new URLSearchParams(router.state.location.search).get("type"),
-      ).toBe("owasp-asvs-5-0-l1-source-pilot"),
-    );
-    expect(
-      await within(setup()).findByText(
-        "The server does not support more than one round.",
-      ),
-    ).toBeVisible();
-    expect(startButton()).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: "Save as draft" }),
-    ).toBeDisabled();
   });
 
   it("links to every check type in the Library", async () => {
@@ -446,7 +302,7 @@ describe("Start a check: check types", () => {
   });
 
   it("keeps the typed objective and the chosen type when changing the project", async () => {
-    const { user } = renderStart(`${START}&type=owasp-top10-2025-source-risk`, {
+    const { user } = renderStart(`${START}&type=source-review`, {
       projects: [projectFixture()],
       profiles: [top10],
       materials: [sourceZip],
@@ -459,7 +315,7 @@ describe("Start a check: check types", () => {
     const change = within(list()).getByRole("link", { name: "Change project" });
     expect(change).toHaveAttribute(
       "href",
-      "/checks/new?type=owasp-top10-2025-source-risk&objective=Review+sessions",
+      "/checks/new?type=source-review&objective=Review+sessions",
     );
     await user.click(change);
     await user.click(await screen.findByRole("link", { name: "Shop service" }));
@@ -469,7 +325,7 @@ describe("Start a check: check types", () => {
     expect(
       await within(setup()).findByRole("heading", {
         level: 2,
-        name: "OWASP Top 10 (2025) review",
+        name: "Source review",
       }),
     ).toBeVisible();
   });
@@ -555,8 +411,8 @@ describe("Start a check: materials", () => {
     const notes = materialFixture("notes", "text/markdown");
     const profile = profileFixture("notes-review", {
       inputs: {
-        source: { required: true, mediaTypes: ["application/zip"] },
-        notes: { required: false, mediaTypes: ["text/markdown"] },
+        source: { required: true, media_types: ["application/zip"] },
+        notes: { required: false, media_types: ["text/markdown"] },
       },
     });
     const { user, sent } = renderStart(START, {
@@ -586,7 +442,7 @@ describe("Start a check: materials", () => {
 
   it("reads a bounded number of pages and never treats a partial inventory as unique", async () => {
     let reads = 0;
-    const { user } = renderStart(`${START}&type=owasp-top10-2025-source-risk`, {
+    const { user } = renderStart(`${START}&type=source-review`, {
       profiles: [top10],
       materials: (_request, url) => {
         reads += 1;
@@ -627,7 +483,7 @@ describe("Start a check: materials", () => {
   it("reads a failed further page of materials again on retry", async () => {
     const reads: string[] = [];
     let unavailable = true;
-    const { user } = renderStart(`${START}&type=owasp-top10-2025-source-risk`, {
+    const { user } = renderStart(`${START}&type=source-review`, {
       profiles: [top10],
       materials: (_request, url) => {
         const cursor = url.searchParams.get("cursor") ?? "0";
@@ -678,14 +534,11 @@ describe("Start a check: materials", () => {
 
   it("keeps attached materials when refreshing them fails", async () => {
     let unavailable = false;
-    const { queryClient } = renderStart(
-      `${START}&type=owasp-top10-2025-source-risk`,
-      {
-        profiles: [top10],
-        materials: () =>
-          unavailable ? gatewayFailure(503) : json(page([sourceZip])),
-      },
-    );
+    const { queryClient } = renderStart(`${START}&type=source-review`, {
+      profiles: [top10],
+      materials: () =>
+        unavailable ? gatewayFailure(503) : json(page([sourceZip])),
+    });
     await waitForTypes();
     const materials = within(setup()).getByRole("region", {
       name: "Materials",
@@ -719,10 +572,10 @@ describe("Start a check: materials", () => {
 describe("Start a check: options and starting", () => {
   it("sends advanced options in the create request, then starts the check", async () => {
     const newer = { ...top10, ref: { ...top10.ref, version: "2" } };
-    const { user, router, sent } = renderStart(
-      `${START}&type=owasp-top10-2025-source-risk`,
-      { profiles: [top10, newer], materials: [sourceZip] },
-    );
+    const { user, router, sent } = renderStart(`${START}&type=source-review`, {
+      profiles: [top10, newer],
+      materials: [sourceZip],
+    });
     await waitForTypes();
     await user.type(
       screen.getByLabelText("Your objective, in your own words"),
@@ -732,12 +585,8 @@ describe("Start a check: options and starting", () => {
     const versionSelect = screen.getByLabelText("Check type version");
     expect(versionSelect).toHaveValue("2");
     await user.selectOptions(versionSelect, "1");
-    expect(
-      await screen.findByText("owasp-top10-2025-source-risk@1"),
-    ).toBeVisible();
-    expect(
-      screen.getByText("Standards pinned at start: owasp-web-top10@2025"),
-    ).toBeVisible();
+    expect(await screen.findByText("source-review@1")).toBeVisible();
+
     await user.type(screen.getByLabelText("Target"), "checkout service");
     await user.type(
       screen.getByLabelText("Authorization scope"),
@@ -764,7 +613,7 @@ describe("Start a check: options and starting", () => {
     expect(create?.headers.get("Idempotency-Key")).toMatch(/^create-audit-ui-/);
     expect(create?.headers.get("X-CSRF-Token")).toBe(CSRF_TOKEN);
     await expect(bodyOf(create)).resolves.toEqual({
-      profile: { name: "owasp-top10-2025-source-risk", version: "1" },
+      profile: { name: "source-review", version: "1" },
       inputs: { source: sourceZip.artifact },
       runtimeLabels: ["debug", "caido"],
       labels: { cloud: "aws", team: "appsec" },
@@ -789,13 +638,10 @@ describe("Start a check: options and starting", () => {
   ] as const)(
     "starts with the time limit %s",
     async (choice, hours, seconds) => {
-      const { user, sent } = renderStart(
-        `${START}&type=owasp-top10-2025-source-risk`,
-        {
-          profiles: [top10],
-          materials: [sourceZip],
-        },
-      );
+      const { user, sent } = renderStart(`${START}&type=source-review`, {
+        profiles: [top10],
+        materials: [sourceZip],
+      });
       await waitForTypes();
       const select = screen.getByLabelText("Time limit");
       expect(select).toHaveValue("86400");
@@ -816,20 +662,17 @@ describe("Start a check: options and starting", () => {
   it("leaves the user where they went when the start answers after they left", async () => {
     const startAnswered = deferred();
     const runsCode = deferred();
-    const { user, router, sent } = renderStart(
-      `${START}&type=owasp-top10-2025-source-risk`,
-      {
-        profiles: [top10],
-        materials: [sourceZip],
-        start: async (_request, url) => {
-          await startAnswered.promise;
-          const auditId = decodeURIComponent(url.pathname.split("/")[3] ?? "");
-          const started = startResponse(draftAudit(top10, { auditId }));
-          return json(started, 200, { ETag: `"${started.audit.revision}"` });
-        },
-        slowPage: { path: "/runs", until: runsCode.promise },
+    const { user, router, sent } = renderStart(`${START}&type=source-review`, {
+      profiles: [top10],
+      materials: [sourceZip],
+      start: async (_request, url) => {
+        await startAnswered.promise;
+        const auditId = decodeURIComponent(url.pathname.split("/")[3] ?? "");
+        const started = startResponse(draftAudit(top10, { auditId }));
+        return json(started, 200, { ETag: `"${started.audit.revision}"` });
       },
-    );
+      slowPage: { path: "/runs", until: runsCode.promise },
+    });
     await waitForTypes();
     await user.click(startButton());
     await waitFor(() => expect(sent("POST", "/start")).toHaveLength(1));
@@ -855,7 +698,7 @@ describe("Start a check: options and starting", () => {
   });
 
   it("refuses a custom time limit outside 0.01 to 8760 hours", async () => {
-    const { user } = renderStart(`${START}&type=owasp-top10-2025-source-risk`, {
+    const { user } = renderStart(`${START}&type=source-review`, {
       profiles: [top10],
       materials: [sourceZip],
     });
@@ -876,10 +719,10 @@ describe("Start a check: options and starting", () => {
   });
 
   it("saves a draft without starting it", async () => {
-    const { user, router, sent } = renderStart(
-      `${START}&type=owasp-top10-2025-source-risk`,
-      { profiles: [top10], materials: [sourceZip] },
-    );
+    const { user, router, sent } = renderStart(`${START}&type=source-review`, {
+      profiles: [top10],
+      materials: [sourceZip],
+    });
     await waitForTypes();
     await user.click(screen.getByRole("button", { name: "Save as draft" }));
     await waitFor(() =>
@@ -892,10 +735,10 @@ describe("Start a check: options and starting", () => {
   });
 
   it("starts from the objective with Ctrl+Enter", async () => {
-    const { user, router, sent } = renderStart(
-      `${START}&type=owasp-top10-2025-source-risk`,
-      { profiles: [top10], materials: [sourceZip] },
-    );
+    const { user, router, sent } = renderStart(`${START}&type=source-review`, {
+      profiles: [top10],
+      materials: [sourceZip],
+    });
     await waitForTypes();
     expect(startButton()).toHaveAttribute(
       "aria-keyshortcuts",
@@ -915,10 +758,10 @@ describe("Start a check: options and starting", () => {
   });
 
   it("starts with Ctrl+Enter from the other fields, not from a link", async () => {
-    const { user, router, sent } = renderStart(
-      `${START}&type=owasp-top10-2025-source-risk`,
-      { profiles: [top10], materials: [sourceZip] },
-    );
+    const { user, router, sent } = renderStart(`${START}&type=source-review`, {
+      profiles: [top10],
+      materials: [sourceZip],
+    });
     await waitForTypes();
     // On a link the key belongs to the link: the page leaves the event
     // alone, so Ctrl/⌘+Enter opens the link in a new tab.
@@ -945,104 +788,20 @@ describe("Start a check: options and starting", () => {
     });
     expect(sent("POST", "/start")).toHaveLength(1);
   });
-
-  it("fills the target from the project's live target and needs the authorization scope", async () => {
-    const context = materialFixture("brief", "text/markdown");
-    const { user, sent } = renderStart(
-      `${START}&type=owasp-wstg-4-2-active-http`,
-      {
-        project: projectFixture({
-          httpTarget: { url: "https://staging.example.com" },
-        }),
-        profiles: [wstgLive],
-        details: { "owasp-wstg-4-2-active-http@1": wstgLiveDetail },
-        materials: [context],
-      },
-    );
-    await waitForTypes();
-    const live = within(setup()).getByRole("region", { name: "Live target" });
-    expect(within(live).getByRole("textbox", { name: "Target" })).toHaveValue(
-      "https://staging.example.com",
-    );
-    expect(startButton()).toBeDisabled();
-    expect(screen.getByText("Describe the authorization scope.")).toBeVisible();
-    await user.type(
-      within(live).getByRole("textbox", { name: "Authorization scope" }),
-      "Staging only",
-    );
-    await user.click(startButton());
-    await waitFor(() => expect(sent("POST", "/audits")).toHaveLength(1));
-    await expect(bodyOf(sent("POST", "/audits")[0])).resolves.toMatchObject({
-      scope: {
-        target: "https://staging.example.com",
-        authorizationScope: "Staging only",
-      },
-    });
-  });
-});
-
-describe("Start a check: live target", () => {
-  it("lets the user enter a target when the project has none", async () => {
-    const context = materialFixture("brief", "text/markdown");
-    const { user, sent } = renderStart(
-      `${START}&type=owasp-wstg-4-2-active-http`,
-      {
-        profiles: [wstgLive],
-        details: { "owasp-wstg-4-2-active-http@1": wstgLiveDetail },
-        materials: [context],
-      },
-    );
-    await screen.findByRole("region", { name: "Needs more materials" });
-    const pane = setup();
-    expect(within(list()).getByText(/Missing:/)).toHaveTextContent("Missing:");
-    expect(
-      within(list())
-        .getAllByRole("link", { name: "Set the live target" })
-        .every(
-          (link) =>
-            link.getAttribute("href") === "/projects/project_shop/settings",
-        ),
-    ).toBe(true);
-    const live = within(pane).getByRole("region", { name: "Live target" });
-    expect(within(live).getByRole("textbox", { name: "Target" })).toHaveValue(
-      "",
-    );
-    expect(screen.getByText("Enter the target to test.")).toBeVisible();
-    await user.type(
-      within(live).getByRole("textbox", { name: "Target" }),
-      "https://test.example.com",
-    );
-    await user.type(
-      within(live).getByRole("textbox", { name: "Authorization scope" }),
-      "Test host only",
-    );
-    await user.click(startButton());
-    await waitFor(() => expect(sent("POST", "/audits")).toHaveLength(1));
-    await expect(bodyOf(sent("POST", "/audits")[0])).resolves.toMatchObject({
-      inputs: { context: context.artifact },
-      scope: {
-        target: "https://test.example.com",
-        authorizationScope: "Test host only",
-      },
-    });
-  });
 });
 
 describe("Start a check: lost and refused answers", () => {
   it("retries a lost create request with the same key, then starts", async () => {
     let creates = 0;
-    const { user, router, sent } = renderStart(
-      `${START}&type=owasp-top10-2025-source-risk`,
-      {
-        profiles: [top10],
-        materials: [sourceZip],
-        create: () => {
-          creates += 1;
-          if (creates === 1) return Promise.reject(new TypeError("offline"));
-          return json(draftAudit(top10), 201, { ETag: '"1"' });
-        },
+    const { user, router, sent } = renderStart(`${START}&type=source-review`, {
+      profiles: [top10],
+      materials: [sourceZip],
+      create: () => {
+        creates += 1;
+        if (creates === 1) return Promise.reject(new TypeError("offline"));
+        return json(draftAudit(top10), 201, { ETag: '"1"' });
       },
-    );
+    });
     await waitForTypes();
     await user.click(startButton());
     expect(
@@ -1066,14 +825,11 @@ describe("Start a check: lost and refused answers", () => {
   });
 
   it("warns that a changed form after a lost answer uses a new key", async () => {
-    const { user, sent } = renderStart(
-      `${START}&type=owasp-top10-2025-source-risk`,
-      {
-        profiles: [top10],
-        materials: [sourceZip],
-        create: () => Promise.reject(new TypeError("offline")),
-      },
-    );
+    const { user, sent } = renderStart(`${START}&type=source-review`, {
+      profiles: [top10],
+      materials: [sourceZip],
+      create: () => Promise.reject(new TypeError("offline")),
+    });
     await waitForTypes();
     await user.click(screen.getByRole("button", { name: "Save as draft" }));
     await screen.findByText("The check may already exist.");
@@ -1097,18 +853,15 @@ describe("Start a check: lost and refused answers", () => {
 
   it("retries a lost start with the same key and never creates twice", async () => {
     let starts = 0;
-    const { user, router, sent } = renderStart(
-      `${START}&type=owasp-top10-2025-source-risk`,
-      {
-        profiles: [top10],
-        materials: [sourceZip],
-        start: () => {
-          starts += 1;
-          if (starts === 1) return Promise.reject(new TypeError("offline"));
-          return json(startResponse(draftAudit(top10)), 200, { ETag: '"2"' });
-        },
+    const { user, router, sent } = renderStart(`${START}&type=source-review`, {
+      profiles: [top10],
+      materials: [sourceZip],
+      start: () => {
+        starts += 1;
+        if (starts === 1) return Promise.reject(new TypeError("offline"));
+        return json(startResponse(draftAudit(top10)), 200, { ETag: '"2"' });
       },
-    );
+    });
     await waitForTypes();
     await user.click(startButton());
     expect(
@@ -1136,23 +889,16 @@ describe("Start a check: lost and refused answers", () => {
 
   it("keeps the draft when the server refuses the start and starts it again", async () => {
     let starts = 0;
-    const { user, router, sent } = renderStart(
-      `${START}&type=owasp-top10-2025-source-risk`,
-      {
-        profiles: [top10],
-        materials: [sourceZip],
-        start: () => {
-          starts += 1;
-          return starts === 1
-            ? failure(
-                422,
-                "audit_package_invalid",
-                "The source archive is empty",
-              )
-            : json(startResponse(draftAudit(top10)), 200, { ETag: '"2"' });
-        },
+    const { user, router, sent } = renderStart(`${START}&type=source-review`, {
+      profiles: [top10],
+      materials: [sourceZip],
+      start: () => {
+        starts += 1;
+        return starts === 1
+          ? failure(422, "audit_package_invalid", "The source archive is empty")
+          : json(startResponse(draftAudit(top10)), 200, { ETag: '"2"' });
       },
-    );
+    });
     await waitForTypes();
     await user.click(startButton());
     expect(
@@ -1183,26 +929,23 @@ describe("Start a check: lost and refused answers", () => {
     // The first start reached the server, but its answer was lost.
     let starts = 0;
     let running = false;
-    const { user, sent } = renderStart(
-      `${START}&type=owasp-top10-2025-source-risk`,
-      {
-        profiles: [top10],
-        materials: [sourceZip],
-        start: () => {
-          starts += 1;
-          if (starts === 1) {
-            running = true;
-            return Promise.reject(new TypeError("offline"));
-          }
-          return failure(412, "precondition_failed", "Audit revision changed");
-        },
-        audit: () => {
-          const draft = draftAudit(top10);
-          const audit = running ? startedAudit(draft) : draft;
-          return json(audit, 200, { ETag: `"${audit.revision}"` });
-        },
+    const { user, sent } = renderStart(`${START}&type=source-review`, {
+      profiles: [top10],
+      materials: [sourceZip],
+      start: () => {
+        starts += 1;
+        if (starts === 1) {
+          running = true;
+          return Promise.reject(new TypeError("offline"));
+        }
+        return failure(412, "precondition_failed", "Audit revision changed");
       },
-    );
+      audit: () => {
+        const draft = draftAudit(top10);
+        const audit = running ? startedAudit(draft) : draft;
+        return json(audit, 200, { ETag: `"${audit.revision}"` });
+      },
+    });
     await waitForTypes();
     await user.click(startButton());
     await screen.findByText("The check may already have started.");
@@ -1241,20 +984,17 @@ describe("Start a check: lost and refused answers", () => {
   it("starts the newer revision after the draft changed on the server", async () => {
     let starts = 0;
     const changed = draftAudit(top10, { revision: 3 });
-    const { user, router, sent } = renderStart(
-      `${START}&type=owasp-top10-2025-source-risk`,
-      {
-        profiles: [top10],
-        materials: [sourceZip],
-        start: () => {
-          starts += 1;
-          return starts === 1
-            ? failure(412, "precondition_failed", "Audit revision changed")
-            : json(startResponse(changed), 200, { ETag: '"4"' });
-        },
-        audit: () => json(changed, 200, { ETag: '"3"' }),
+    const { user, router, sent } = renderStart(`${START}&type=source-review`, {
+      profiles: [top10],
+      materials: [sourceZip],
+      start: () => {
+        starts += 1;
+        return starts === 1
+          ? failure(412, "precondition_failed", "Audit revision changed")
+          : json(startResponse(changed), 200, { ETag: '"4"' });
       },
-    );
+      audit: () => json(changed, 200, { ETag: '"3"' }),
+    });
     await waitForTypes();
     await user.click(startButton());
     expect(
@@ -1280,19 +1020,16 @@ describe("Start a check: lost and refused answers", () => {
 
   it("does not say a check did not start after a gateway failure", async () => {
     let starts = 0;
-    const { user, router, sent } = renderStart(
-      `${START}&type=owasp-top10-2025-source-risk`,
-      {
-        profiles: [top10],
-        materials: [sourceZip],
-        start: () => {
-          starts += 1;
-          return starts === 1
-            ? gatewayFailure(504)
-            : json(startResponse(draftAudit(top10)), 200, { ETag: '"2"' });
-        },
+    const { user, router, sent } = renderStart(`${START}&type=source-review`, {
+      profiles: [top10],
+      materials: [sourceZip],
+      start: () => {
+        starts += 1;
+        return starts === 1
+          ? gatewayFailure(504)
+          : json(startResponse(draftAudit(top10)), 200, { ETag: '"2"' });
       },
-    );
+    });
     await waitForTypes();
     await user.click(startButton());
     expect(
@@ -1322,18 +1059,15 @@ describe("Start a check: lost and refused answers", () => {
 
   it("holds Start check after a lost start answer and a changed form", async () => {
     let starts = 0;
-    const { user, router, sent } = renderStart(
-      `${START}&type=owasp-top10-2025-source-risk`,
-      {
-        profiles: [top10],
-        materials: [sourceZip],
-        start: () => {
-          starts += 1;
-          if (starts === 1) return Promise.reject(new TypeError("offline"));
-          return json(startResponse(draftAudit(top10)), 200, { ETag: '"2"' });
-        },
+    const { user, router, sent } = renderStart(`${START}&type=source-review`, {
+      profiles: [top10],
+      materials: [sourceZip],
+      start: () => {
+        starts += 1;
+        if (starts === 1) return Promise.reject(new TypeError("offline"));
+        return json(startResponse(draftAudit(top10)), 200, { ETag: '"2"' });
       },
-    );
+    });
     await waitForTypes();
     await user.click(startButton());
     await screen.findByText("The check may already have started.");
@@ -1374,14 +1108,11 @@ describe("Start a check: lost and refused answers", () => {
   });
 
   it("shows a refused create with the server's message", async () => {
-    const { user, sent } = renderStart(
-      `${START}&type=owasp-top10-2025-source-risk`,
-      {
-        profiles: [top10],
-        materials: [sourceZip],
-        create: () => failure(409, "conflict", "The project changed"),
-      },
-    );
+    const { user, sent } = renderStart(`${START}&type=source-review`, {
+      profiles: [top10],
+      materials: [sourceZip],
+      create: () => failure(409, "conflict", "The project changed"),
+    });
     await waitForTypes();
     await user.click(startButton());
     expect(await screen.findByText("The check was not created.")).toBeVisible();

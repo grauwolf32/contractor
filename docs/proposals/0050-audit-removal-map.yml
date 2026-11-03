@@ -2,6 +2,10 @@ schema_version: '1.0'
 boundary: V64-001 validates contracts offline. Dependent tasks switch executable callers. No compatibility
   mode and no second execution pipeline.
 relations:
+- name: audit_tasks
+  action: preserve
+  owner: V64-002
+  facts: Accepted immutable common Tasks and bounded ready/selected/settled progress; attempts reuse ordinary Audit execution membership and Run authority.
 - name: audits
   action: preserve
   owner: V64-002
@@ -141,7 +145,9 @@ paths:
   action: replace
   owner: V64-010
   facts: Keep reusable inventory/parser/evidence algorithms; remove exclusive ZIP/task/result wrappers
-    only after migrated callers.
+    only after migrated callers. V64-026 reuses the OpenAPI operation/scan algorithms in an ordinary
+    Server-operation preparation Workflow; V64-002 accepts its bounded exact work list through the
+    common task path. Do not retain a parallel inventory/phase controller to preserve those algorithms.
 - prefix: internal/config/auditprofile/
   action: replace
   owner: V64-002
@@ -376,6 +382,21 @@ profiles:
   facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
     initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
 operations:
+- path: /v1/audits/{auditId}/tasks
+  method: post
+  action: preserve
+  owner: V64-002
+  facts: Common exact-material work acceptance with existing mutation receipts, owner revision and bounded slices.
+- path: /v1/audits/{auditId}/tasks
+  method: get
+  action: preserve
+  owner: V64-002
+  facts: Bounded Task pages with sparse state keysets; no Round or full-history projection.
+- path: /v1/audits/{auditId}/tasks/{taskId}
+  method: get
+  action: preserve
+  owner: V64-002
+  facts: Exact accepted work, attempt association and ordinary retained result, with current owner authorization.
 - path: /v1/projects/{projectId}/audit-material-publications
   method: post
   operation_id: publishAuditMaterial

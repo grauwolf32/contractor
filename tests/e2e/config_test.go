@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"go.yaml.in/yaml/v4"
 )
 
 // stageE2EConfiguration creates an immutable config root before Server starts.
@@ -87,9 +89,22 @@ func installOrdinaryFindingFixture(t *testing.T, root, templateFile, workflowFil
 	workflow := read("workflows", workflowFile)
 	workflow = strings.Replace(workflow, "  name: "+strings.ReplaceAll(workflowFile, "_", "-")+"\n", "  name: "+name+"\n", 1)
 	workflow = strings.Replace(workflow, "template: "+templateFile+"@1", "template: "+name+"@1", 1)
-	// Input packages remain ZIPs; only the fixture's result is a text report.
-	start := strings.Index(workflow, "  outputs:")
-	workflow = workflow[:start] + strings.ReplaceAll(workflow[start:], "mediaTypes: [application/zip]", "mediaTypes: [text/plain]")
+	var document map[string]any
+	if err := yaml.Unmarshal([]byte(workflow), &document); err != nil {
+		t.Fatal(err)
+	}
+	spec := document["spec"].(map[string]any)
+	spec["inputs"] = map[string]any{"source": map[string]any{"required": true, "mediaTypes": []string{"application/zip"}}}
+	spec["outputs"] = map[string]any{"result": map[string]any{"required": true, "primary": true, "mediaTypes": []string{"text/plain"}}}
+	stage := spec["stages"].(map[string]any)["check"].(map[string]any)
+	context := stage["context"].(map[string]any)
+	context["artifacts"] = map[string]any{"source": map[string]any{"namespace": "inputs", "name": "source", "required": true}}
+	stage["result"] = map[string]any{"artifacts": map[string]any{"result": map[string]any{"required": true, "mediaTypes": []string{"text/plain"}, "from": map[string]string{"namespace": "audit-check", "name": "result"}}}}
+	encoded, err := yaml.Marshal(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow = string(encoded)
 	replaceInstructions := func(content string) string {
 		lines := strings.Split(content, "\n")
 		for index, line := range lines {

@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -14,33 +13,10 @@ import (
 )
 
 func auditProfileReadModel(source auditservice.ProfileProjection, detail bool) auditProfileResponse {
-	profile := source.Profile
-	result := auditProfileResponse{
-		Ref: profile.Ref, Mode: profile.Mode,
-		Standards: append([]auditprofile.AuditStandardRef{}, profile.Standards...),
-		Inputs:    profile.Inputs, Inventory: profile.Inventory,
-		Execution: profile.Execution, Interaction: profile.Interaction,
-		ServerCompatible:        source.Compatibility.ServerCompatible,
-		RequiresInputValidation: source.Compatibility.RequiresInputValidation,
-		CompatibilityReasons:    append([]auditservice.CompatibilityReason{}, source.Compatibility.Reasons...),
-	}
+	profile := source.Profile.Clone()
+	result := auditProfileResponse{Ref: profile.Ref, Inputs: profile.Program.Inputs, Limits: profile.Program.Limits, Policy: profile.Program.Policy}
 	if detail {
-		if len(profile.Methods) > 0 {
-			result.Methods = make(map[string]auditProfileCheckMethodResponse, len(profile.Methods))
-			for name, mapping := range profile.Clone().Methods {
-				result.Methods[name] = auditProfileCheckMethodResponse{
-					PlanSchema: mapping.PlanSchema, Method: mapping.Method, WorkflowRole: mapping.WorkflowRole,
-					RequiredCapabilities: mapping.RequiredCapabilities,
-				}
-			}
-		}
-		result.Workflows = make(map[string]auditProfileWorkflowResponse, len(profile.Workflows))
-		for role, binding := range profile.Workflows {
-			result.Workflows[role] = auditProfileWorkflowResponse{
-				Kind: binding.Kind, MaxRunAttempts: binding.MaxRunAttempts, Workflow: binding.Workflow.Ref, Inputs: binding.Inputs,
-				Parameters: binding.Parameters, Outputs: binding.Outputs,
-			}
-		}
+		result.Program = &profile.Program
 	}
 	return result
 }
@@ -53,27 +29,22 @@ func auditReadModel(source auditstore.Audit) (auditResponse, error) {
 	result := auditResponse{
 		Labels:                  selection.Labels.Clone(),
 		RequiredPlacementLabels: append([]string{}, selection.RequiredPlacementLabels...),
-		Phase:                   auditdomain.AuditPhaseNotStarted,
 		AuditID:                 source.AuditID, ProjectID: source.ProjectID,
 		Profile: auditProfileIdentityResponse{
 			Name: source.Profile.Name, Version: source.Profile.Version, Digest: source.Profile.Digest,
 		},
 		Inputs: selection.Inputs, Scope: selection.Scope,
 		RuntimeLabels: append([]string{}, selection.RuntimeLabels...),
-		State:         source.State, Revision: source.Revision, CurrentRoundID: source.CurrentRoundID,
+		State:         source.State, Revision: source.Revision,
+		TaskCount: source.TaskCount, Iteration: source.TaskIteration,
 		DispatchState: source.Dispatch, HoldState: source.Hold, DeadlineAt: source.DeadlineAt, PausedAt: source.PausedAt,
 		Limits: source.Limits, ReservedRunCount: source.ReservedRunCount,
 		SubmittedRunCount: source.SubmittedRunCount, OutstandingRunCount: source.OutstandingRunCount,
+		CollectionPending:     source.CollectionPending,
 		RetainedEvidenceBytes: source.RetainedEvidenceBytes, EventSequence: source.EventSequence,
 		CreatedAt: source.CreatedAt, UpdatedAt: source.UpdatedAt,
 		StartedAt: source.StartedAt, FinishedAt: source.FinishedAt,
 		DeletionRequestedAt: source.DeletionRequestedAt,
-	}
-	if source.CurrentRoundID != nil {
-		result.Phase = auditdomain.AuditPhaseRounds
-	}
-	if source.Phase != "" {
-		result.Phase = source.Phase
 	}
 	if source.StopReason != nil {
 		result.StopReason = &auditStopReasonResponse{
@@ -118,14 +89,6 @@ func auditReadModel(source auditstore.Audit) (auditResponse, error) {
 		}
 	}
 	return result, nil
-}
-
-func auditRoundReadModel(source auditstore.Round) auditRoundResponse {
-	return auditRoundResponse{
-		RoundID: source.RoundID, Ordinal: source.Ordinal, Manifest: source.Manifest,
-		State: source.State, ExpectedItemCount: source.ExpectedItemCount, Revision: source.Revision,
-		CreatedAt: source.CreatedAt, UpdatedAt: source.UpdatedAt,
-	}
 }
 
 func auditItemReadModel(source auditstore.Item) auditItemResponse {

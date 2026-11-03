@@ -25,8 +25,14 @@ func (s *scanHistoryTestStore) GetRun(context.Context, string) (runstore.Workflo
 	return s.run, s.readErr
 }
 
-func (s *scanHistoryTestStore) ListStageExecutions(context.Context, string) ([]runstore.StageExecution, error) {
-	return s.stages, s.readErr
+func (s *scanHistoryTestStore) ListStageLineage(_ context.Context, runID, stageName string) ([]runstore.StageLineage, error) {
+	result := []runstore.StageLineage{}
+	for _, stage := range s.stages {
+		if stage.StageName == stageName {
+			result = append(result, runstore.StageLineage{RunID: stage.RunID, StageExecutionID: stage.StageExecutionID, StageName: stage.StageName, State: stage.State, PlannerSessionID: stage.PlannerSessionID, PlannerInvocationID: stage.PlannerInvocationID})
+		}
+	}
+	return result, s.readErr
 }
 
 func newScanHistoryFixture(t *testing.T) *scanHistoryTestStore {
@@ -39,7 +45,7 @@ func newScanHistoryFixture(t *testing.T) *scanHistoryTestStore {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Any Stage without an auditScan executor is an ordinary Stage here.
+	// Any Stage without scanPreparation is an ordinary Stage here.
 	ordinary, err := snapshot.Workflow("nuclei-target@1")
 	if err != nil {
 		t.Fatal(err)
@@ -53,7 +59,6 @@ func newScanHistoryFixture(t *testing.T) *scanHistoryTestStore {
 	// The composed Workflow declares the parameter its ordinary Stage consumes.
 	workflow.Parameters = ordinary.Parameters
 	workflow.EntryStage = "prepare"
-	workflow.AuditTask.Stage = "check-request"
 	if err := resolved.ValidateWorkflowGraph(workflow); err != nil {
 		t.Fatal(err)
 	}
@@ -105,11 +110,11 @@ func TestScanHistoryFollowsDeclaredExecutorWithinComposedWorkflow(t *testing.T) 
 func TestScanHistoryCannotTurnInvalidAuthorityIntoEmptyHistory(t *testing.T) {
 	for name, change := range map[string]func(*scanHistoryTestStore){
 		"read failure":              func(s *scanHistoryTestStore) { s.readErr = errors.New("database unavailable") },
-		"ordinary Run":              func(s *scanHistoryTestStore) { s.run.AuditExecutionID = nil },
+		"foreign Run":               func(s *scanHistoryTestStore) { s.run.RunID = "foreign" },
 		"invalid Workflow snapshot": func(s *scanHistoryTestStore) { s.run.WorkflowSnapshot = []byte(`{}`) },
-		"invalid scan snapshot":     func(s *scanHistoryTestStore) { s.stages[1].StageSpecSnapshot = []byte(`{}`) },
-		"foreign Stage":             func(s *scanHistoryTestStore) { s.stages[1].RunID = "other-run" },
-		"lost session":              func(s *scanHistoryTestStore) { s.session.SessionID = "other-session" },
+
+		"foreign Stage": func(s *scanHistoryTestStore) { s.stages[1].RunID = "other-run" },
+		"lost session":  func(s *scanHistoryTestStore) { s.session.SessionID = "other-session" },
 	} {
 		t.Run(name, func(t *testing.T) {
 			store := newScanHistoryFixture(t)

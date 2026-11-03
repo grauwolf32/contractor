@@ -17,7 +17,7 @@ func (p *execution) finishAudit(ctx context.Context, identity planner.ScanSessio
 	buildCtx, cancel := context.WithTimeout(ctx, journalIOTimeout)
 	defer cancel()
 	input := auditscan.ResultInput{RunID: p.invocation.RunID, CurrentStage: p.invocation.StageExecutionID,
-		Task: p.audit.task, Manifest: p.audit.manifest, Attempts: history}
+		Scanner: p.audit.task.Scanner, PreparationDigest: p.audit.task.PreparationDigest, Runnable: p.audit.task.Runnable, Gaps: p.audit.task.Gaps, Attempts: history}
 	assembled, err := auditscan.BuildResult(buildCtx, input,
 		func(ctx context.Context, ref contracts.ArtifactRef, limit int) (artifacts.Payload, error) {
 			return p.factory.artifacts.Read(ctx, p.invocation.RunID, ref, limit)
@@ -30,7 +30,7 @@ func (p *execution) finishAudit(ctx context.Context, identity planner.ScanSessio
 	}
 	slot := p.invocation.Stage.Result.Artifacts["report"].From
 	target := contracts.ArtifactRef{Namespace: slot.Namespace, Name: slot.Name + "." + stableHash(p.invocation.StageExecutionID)}
-	ref, err := p.factory.artifacts.Create(buildCtx, p.invocation.RunID, target, artifacts.Payload{MediaType: "application/zip", Data: assembled.Package})
+	ref, err := p.factory.artifacts.Create(buildCtx, p.invocation.RunID, target, artifacts.Payload{MediaType: "application/json", Data: assembled.Data})
 	if err != nil {
 		return stageresult.StageContentResult{}, p.scanError("audit_scan_result_write_failed", err)
 	}

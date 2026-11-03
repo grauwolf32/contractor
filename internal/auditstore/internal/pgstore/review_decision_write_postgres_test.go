@@ -19,9 +19,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// reviewDecisionFixture is an Audit whose first Round leaves two items
-// awaiting review, so each has a pending item-action review request, and a
-// second Audit of the same owner and Project.
+// reviewDecisionFixture contains two pending journal requests and a second
+// Audit of the same owner and Project.
 type reviewDecisionFixture struct {
 	pool                           *pgxpool.Pool
 	ownerID, auditID, otherAuditID string
@@ -63,42 +62,20 @@ func newReviewDecisionFixture(t *testing.T, ctx context.Context, suffix string) 
 	}
 	audit := draft("audit-decision-"+suffix, "audit")
 	other := draft("audit-decision-other-"+suffix, "audit-other")
-	items := []auditstore.MaterializedItem{
-		{
-			ItemID: "item-one", ItemKey: "check-one", Ordinal: 0, Kind: "checklist",
-			SubjectKey: "subject-one", Task: testExact("audits", "task-one", "r1"),
-			Origin: testOrigin("check-one"), WorkflowRole: "check",
-			InitialState: auditstore.ItemAwaitingReview, ApprovalKind: auditstore.ItemApprovalActiveCheck,
-			ApprovalDigest: testDigest("4"), Coverage: emptyCoverage(),
-		},
-		{
-			ItemID: "item-two", ItemKey: "check-two", Ordinal: 1, Kind: "checklist",
-			SubjectKey: "subject-two", Task: testExact("audits", "task-two", "r1"),
-			Origin: testOrigin("check-two"), WorkflowRole: "check",
-			InitialState: auditstore.ItemAwaitingReview, ApprovalKind: auditstore.ItemApprovalActiveCheck,
-			ApprovalDigest: testDigest("5"), Coverage: emptyCoverage(),
-		},
-	}
-	if _, _, err := store.MaterializeRound(ctx, auditstore.MaterializeRoundParams{
-		OwnerID: audit.OwnerID, AuditID: audit.AuditID, ExpectedRevision: audit.Revision,
-		RoundID: "round-decision-" + suffix, RoundOrdinal: 1,
-		Manifest:         testExact("audits", "worklist", "r1"),
-		BaselineSnapshot: json.RawMessage(`{"inputs":[],"skills":[]}`),
-		DeadlineAt:       time.Now().Add(time.Hour), Items: items,
-		IdempotencyKey: "start", RequestDigest: testDigest("6"),
-	}); err != nil {
-		t.Fatal(err)
-	}
+	seedReviewRows(t, ctx, pool, audit.AuditID, "item-one", "item-two")
+	// These fixed request rows exercise the surviving review journal writer;
+	// they do not recreate retired Round admission or execution.
 	fixture := reviewDecisionFixture{
 		pool: pool, ownerID: project.OwnerID, auditID: audit.AuditID, otherAuditID: other.AuditID,
 	}
-	for _, item := range items {
-		var requestID string
-		if err := pool.QueryRow(ctx, `
-SELECT request_id FROM audit_review_requests
- WHERE audit_id = $1 AND subject_kind = 'audit-item-action' AND subject_id = $2
-   AND state = 'pending'`, audit.AuditID, item.ItemID).Scan(&requestID); err != nil {
-			t.Fatalf("pending review of %s: %v", item.ItemID, err)
+	for _, subject := range []string{"item-one", "item-two"} {
+		requestID := "review-" + subject
+		if _, err := pool.Exec(ctx, `INSERT INTO audit_review_requests
+(request_id,audit_id,kind,subject_revision,subject_digest,requested_actions,
+ idempotency_key,request_digest,subject_kind,subject_id)
+VALUES($1,$2,'active-check-approval',1,$3,'["approve","reject"]',$1,$3,'audit-item-action',$4)`,
+			requestID, audit.AuditID, testDigest("4"), subject); err != nil {
+			t.Fatal(err)
 		}
 		fixture.requests = append(fixture.requests, requestID)
 	}

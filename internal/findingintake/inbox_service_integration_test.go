@@ -4,7 +4,6 @@ package findingintake
 
 import (
 	"context"
-	"reflect"
 	"slices"
 	"testing"
 
@@ -86,7 +85,7 @@ func tryInsertInboxReceipt(t *testing.T, f deletionImportFixture, owner, runID, 
 	origin := source.Origin
 	origin.RunID, origin.Audit = runID, nil
 	if auditID != "" {
-		origin.Audit = &AuditOrigin{AuditID: auditID, ExecutionID: auditID + "-execution", Role: "discovery"}
+		origin.Audit = &AuditOrigin{AuditID: auditID, ExecutionID: auditID + "-execution", TaskID: "fixture-task"}
 	}
 	project := "delete-project"
 	grant := controlplane.AllocationGrant{RunID: runID, AllocationID: "allocation", StageExecutionID: "stage",
@@ -203,11 +202,8 @@ SELECT receipt_id, $2, 'inbox-other-project', proposal_ref, '[]'::jsonb
 	}{
 		{"inbox", auditID, f.intake.ListAuditInbox, originalAuditInboxSQL,
 			[]string{f.receiptID, "gone-held-receipt", "native-a-receipt", "native-b-receipt", "overlap-receipt", "sibling-held-receipt"}},
-		{"held inbox", auditID, f.intake.ListAuditHeldInbox, originalAuditHeldInboxSQL,
-			[]string{f.receiptID, "gone-held-receipt", "overlap-receipt", "sibling-held-receipt"}},
 		{"sibling inbox", siblingAudit, f.intake.ListAuditInbox, originalAuditInboxSQL,
 			[]string{"sibling-held-receipt", "sibling-only-receipt"}},
-		{"sibling held inbox", siblingAudit, f.intake.ListAuditHeldInbox, originalAuditHeldInboxSQL, nil},
 	} {
 		// The expected order comes from the database's own ordering of the
 		// expected receipts, independently of either inbox statement.
@@ -237,13 +233,6 @@ SELECT coalesce(array_agg(receipt_id ORDER BY created_at, receipt_id), '{}')
 					// Only the final non-empty page may be short.
 					t.Fatalf("%s at limit %d returned a short page %v before the last", view.name, limit, receiptIDs(page))
 				}
-				read, err := f.intake.GetAuditReceipts(f.ctx, owner, view.auditID, receiptIDs(page))
-				if err != nil {
-					t.Fatalf("%s receipts read through the Audit: %v", view.name, err)
-				}
-				if !reflect.DeepEqual(page, read) {
-					t.Fatalf("%s page at limit %d = %+v, GetAuditReceipts = %+v", view.name, limit, page, read)
-				}
 				for _, receipt := range page {
 					for _, hold := range receipt.AuditHolds {
 						if hold.AuditID != view.auditID {
@@ -262,7 +251,7 @@ SELECT coalesce(array_agg(receipt_id ORDER BY created_at, receipt_id), '{}')
 			}
 		}
 	}
-	gone, err := f.intake.GetAuditReceipt(f.ctx, owner, auditID, "gone-held-receipt")
+	gone, err := readOneAuditReceipt(t, f.intake, f.ctx, owner, auditID, "gone-held-receipt")
 	if err != nil || !gone.Origin.RunDeleted || gone.Retention != RetentionProjectHeld || len(gone.AuditHolds) != 1 {
 		t.Fatalf("held receipt of the deleted Run = %+v, %v", gone, err)
 	}

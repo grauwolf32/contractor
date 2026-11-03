@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+	"github.com/grauwolf32/contractor/internal/helpers/sourcezip"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -23,10 +23,10 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts/blob/backends/filesystem"
 	inline "github.com/grauwolf32/contractor/internal/artifacts/blob/backends/postgres"
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/gitimport"
-	"github.com/grauwolf32/contractor/internal/helpers/sourcezip"
 	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 	"github.com/grauwolf32/contractor/internal/projectstore"

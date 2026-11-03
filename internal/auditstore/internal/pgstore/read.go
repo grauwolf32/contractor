@@ -10,6 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
@@ -31,65 +32,6 @@ SELECT `+prefixedRoundColumns("audit_rounds")+` FROM audit_rounds
 	}
 	if err != nil {
 		return auditstore.Round{}, fmt.Errorf("read Audit round: %w", err)
-	}
-	return result, nil
-}
-
-// ListRounds returns every Round of one Audit in ordinal order.
-func (s *QueryStore) ListRounds(ctx context.Context, auditID string) ([]auditstore.Round, error) {
-	if err := validateID("auditID", auditID); err != nil {
-		return nil, err
-	}
-	rows, err := s.db.Query(ctx, `
-SELECT `+prefixedRoundColumns("audit_rounds")+` FROM audit_rounds
- WHERE audit_id = $1 AND state <> 'proposed' ORDER BY ordinal`, auditID)
-	if err != nil {
-		return nil, fmt.Errorf("list Audit rounds: %w", err)
-	}
-	defer rows.Close()
-	result := make([]auditstore.Round, 0)
-	for rows.Next() {
-		round, scanErr := scanRound(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("scan Audit round: %w", scanErr)
-		}
-		result = append(result, round)
-	}
-	return result, rows.Err()
-}
-
-// ListItemsByIDs reads the exact bounded member set of one execution. Unlike
-// the reconcile snapshot, its result does not depend on item ordinal or state.
-func (s *QueryStore) ListItemsByIDs(ctx context.Context, auditID string, itemIDs []string) ([]auditstore.Item, error) {
-	if err := validateID("auditID", auditID); err != nil {
-		return nil, err
-	}
-	if len(itemIDs) == 0 || len(itemIDs) > auditstore.MaxCollectionItems {
-		return nil, invalidf("Audit item selection is invalid")
-	}
-	seen := make(map[string]struct{}, len(itemIDs))
-	for _, itemID := range itemIDs {
-		if err := validateID("itemID", itemID); err != nil {
-			return nil, err
-		}
-		if _, exists := seen[itemID]; exists {
-			return nil, invalidf("Audit item selection contains duplicates")
-		}
-		seen[itemID] = struct{}{}
-	}
-	rows, err := s.db.Query(ctx, `
-SELECT `+prefixedItemColumns("item")+`
-  FROM audit_items AS item
- WHERE item.audit_id = $1 AND item.item_id = ANY($2::text[])
-   AND `+acceptedItemSQL("item"), auditID, itemIDs)
-	if err != nil {
-		return nil, fmt.Errorf("list selected Audit items: %w", err)
-	}
-	result, err := pgx.AppendRows(make([]auditstore.Item, 0, len(itemIDs)), rows, func(row pgx.CollectableRow) (auditstore.Item, error) {
-		return scanItem(row)
-	})
-	if err != nil {
-		return nil, fmt.Errorf("iterate selected Audit items: %w", err)
 	}
 	return result, nil
 }
@@ -140,45 +82,6 @@ func itemPageQuery(params auditstore.ListItemsParams) (string, []any) {
 		params.OwnerID, params.AuditID, params.RoundID, state, params.SubjectKey,
 		params.AfterRoundOrdinal, params.AfterItemOrdinal, params.AfterItemID, params.Limit,
 	}
-}
-
-// listReconcileItems reads the first limit unsettled items of an Audit in
-// reconcile order (listReconcileItemsSQL).
-func (s *store) listReconcileItems(ctx context.Context, auditID string, limit int) ([]auditstore.Item, error) {
-	if err := validateID("auditID", auditID); err != nil {
-		return nil, err
-	}
-	rows, err := s.db.Query(ctx, listReconcileItemsSQL, auditID, limit)
-	if err != nil {
-		return nil, fmt.Errorf("list Audit items: %w", err)
-	}
-	defer rows.Close()
-	result := make([]auditstore.Item, 0)
-	for rows.Next() {
-		item, scanErr := scanItem(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("scan Audit item: %w", scanErr)
-		}
-		result = append(result, item)
-	}
-	return result, rows.Err()
-}
-
-func (s *ClaimStore) listReadyItems(ctx context.Context, auditID, roundID string) ([]auditstore.Item, error) {
-	rows, err := s.db.Query(ctx, listReadyItemsSQL, auditID, roundID, auditstore.MaxReconcileRows)
-	if err != nil {
-		return nil, fmt.Errorf("list ready Audit items: %w", err)
-	}
-	defer rows.Close()
-	result := make([]auditstore.Item, 0)
-	for rows.Next() {
-		item, scanErr := scanItem(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("scan ready Audit item: %w", scanErr)
-		}
-		result = append(result, item)
-	}
-	return result, rows.Err()
 }
 
 // onlyAwaitingReview reports whether at least one item is unsettled and every
@@ -363,63 +266,6 @@ func (s *QueryStore) ListItemAttempts(
 	return result, nil
 }
 
-// NextItemAttempts returns the next policy attempt of each listed item that is
-// still ready, read for the whole candidate batch in one statement. An item
-// that is no longer ready is absent from the result. The values are advisory
-// until CreateExecutionIntent atomically verifies them again; binding the
-// read to a live claim keeps Controller recovery from inspecting another
-// Controller's in-flight Audit.
-func (s *ClaimStore) NextItemAttempts(
-	ctx context.Context, claim auditstore.ControllerClaim, itemIDs []string,
-) (map[string]int, error) {
-	if err := validateClaimIdentity(claim); err != nil {
-		return nil, err
-	}
-	if len(itemIDs) == 0 || len(itemIDs) > auditstore.MaxCollectionItems {
-		return nil, invalidf("Audit attempt item selection is invalid")
-	}
-	seen := make(map[string]struct{}, len(itemIDs))
-	for _, itemID := range itemIDs {
-		if err := validateID("itemID", itemID); err != nil {
-			return nil, err
-		}
-		if _, exists := seen[itemID]; exists {
-			return nil, invalidf("Audit attempt item selection contains duplicates")
-		}
-		seen[itemID] = struct{}{}
-	}
-	rows, err := s.db.Query(ctx, nextItemAttemptsSQL, claim.AuditID, claim.HolderID, claim.Epoch, itemIDs)
-	if err != nil {
-		return nil, fmt.Errorf("read next Audit item attempts: %w", err)
-	}
-	defer rows.Close()
-	result := make(map[string]int, len(itemIDs))
-	for rows.Next() {
-		var itemID string
-		var attempt int
-		if err := rows.Scan(&itemID, &attempt); err != nil {
-			return nil, fmt.Errorf("scan next Audit item attempt: %w", err)
-		}
-		if attempt < 1 || attempt > 11 {
-			return nil, errors.New("stored Audit item attempt is invalid")
-		}
-		result[itemID] = attempt
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate next Audit item attempts: %w", err)
-	}
-	rows.Close()
-	if len(result) == len(itemIDs) {
-		return result, nil
-	}
-	if live, liveErr := s.claimLive(ctx, claim); liveErr != nil {
-		return nil, liveErr
-	} else if !live {
-		return nil, auditstore.ErrClaimLost
-	}
-	return result, nil
-}
-
 func (s *QueryStore) ListCoverage(
 	ctx context.Context, auditID, roundID string, afterOrdinal int, limit int,
 ) ([]auditstore.CoverageRow, error) {
@@ -516,31 +362,6 @@ SELECT artifact_scope, logical_key, artifact_ref, artifact_digest, media_type, s
 	return result, nil
 }
 
-func (s *QueryStore) CollectionDispositionCounts(
-	ctx context.Context, auditID string,
-) (auditstore.CollectionDispositionCounts, error) {
-	if err := validateID("auditID", auditID); err != nil {
-		return auditstore.CollectionDispositionCounts{}, err
-	}
-	var result auditstore.CollectionDispositionCounts
-	err := s.db.QueryRow(ctx, `
-SELECT count(*) FILTER (WHERE collection_disposition = 'accepted-result'),
-       count(*) FILTER (WHERE collection_disposition = 'missing-output'),
-       count(*) FILTER (WHERE collection_disposition = 'invalid-result'),
-       count(*) FILTER (WHERE collection_disposition = 'execution-failed'),
-       count(*) FILTER (WHERE collection_disposition = 'execution-cancelled'),
-       count(*) FILTER (WHERE collection_disposition = 'collection-contract-invalid')
-  FROM audit_executions WHERE audit_id = $1 AND collection_receipt_id IS NOT NULL`, auditID).Scan(
-		&result.AcceptedResult, &result.MissingOutput, &result.InvalidResult,
-		&result.ExecutionFailed, &result.ExecutionCancelled,
-		&result.ContractInvalid,
-	)
-	if err != nil {
-		return auditstore.CollectionDispositionCounts{}, fmt.Errorf("count Audit collection dispositions: %w", err)
-	}
-	return result, nil
-}
-
 // snapshotTransaction reads every part of a reconcile snapshot, of an event
 // page, of an Audit list page and its preparation or of an Audit's detail,
 // from one commit. On a pool, persistencepostgres.Within replays
@@ -594,111 +415,7 @@ SELECT `+prefixedAuditColumns("audit")+`
 	}
 	result.MaxConcurrentRuns = settings.MaxConcurrentRuns
 	result.MaxConcurrentToolRuns = settings.MaxConcurrentToolRuns
-	if audit.CurrentRoundID != nil {
-		round, roundErr := s.getRound(ctx, audit.AuditID, *audit.CurrentRoundID)
-		if roundErr != nil {
-			return auditstore.ReconcileSnapshot{}, roundErr
-		}
-		result.Round = &round
-	}
-	result.Items, err = s.listReconcileItems(ctx, audit.AuditID, auditstore.MaxReconcileRows+1)
-	if err != nil {
-		return auditstore.ReconcileSnapshot{}, err
-	}
-	if len(result.Items) > auditstore.MaxReconcileRows {
-		result.Items, result.MoreItems = result.Items[:auditstore.MaxReconcileRows], true
-	}
-	if result.Round != nil {
-		result.ReadyItems, err = s.listReadyItems(ctx, audit.AuditID, result.Round.RoundID)
-		if err != nil {
-			return auditstore.ReconcileSnapshot{}, err
-		}
-	}
-	result.OnlyAwaitingReview, err = s.onlyAwaitingReview(ctx, audit.AuditID)
-	if err != nil {
-		return auditstore.ReconcileSnapshot{}, err
-	}
-	result.Executions, result.RunStates, err = s.listWindowExecutions(ctx, audit.AuditID)
-	if err != nil {
-		return auditstore.ReconcileSnapshot{}, err
-	}
-	if len(result.Executions) > auditstore.MaxReconcileRows {
-		result.Executions, result.MoreExecutions = result.Executions[:auditstore.MaxReconcileRows], true
-	}
-	var currentRoundID *string
-	if result.Round != nil {
-		currentRoundID = &result.Round.RoundID
-	}
-	result.RoleExecutions, err = s.listRoleExecutions(ctx, audit.AuditID, currentRoundID)
-	if err != nil {
-		return auditstore.ReconcileSnapshot{}, err
-	}
-	result.RoleReceipts, err = s.listRoleReceipts(ctx, audit.AuditID, currentRoundID)
-	if err != nil {
-		return auditstore.ReconcileSnapshot{}, err
-	}
-	rows, err := s.db.Query(ctx, listCollectionReceiptsSQL, audit.AuditID, auditstore.MaxReconcileRows+1)
-	if err != nil {
-		return auditstore.ReconcileSnapshot{}, fmt.Errorf("list Audit collection receipts: %w", err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		receipt, scanErr := scanReceiptSummary(rows)
-		if scanErr != nil {
-			return auditstore.ReconcileSnapshot{}, fmt.Errorf("scan Audit collection receipt: %w", scanErr)
-		}
-		result.Receipts = append(result.Receipts, receipt)
-	}
-	if err := rows.Err(); err != nil {
-		return auditstore.ReconcileSnapshot{}, err
-	}
-	if len(result.Receipts) > auditstore.MaxReconcileRows {
-		result.Receipts, result.MoreReceipts = result.Receipts[:auditstore.MaxReconcileRows], true
-	}
-	return result, nil
-}
-
-func (s *ClaimStore) listRoleReceipts(
-	ctx context.Context, auditID string, roundID *string,
-) ([]auditstore.CollectionReceiptSummary, error) {
-	rows, err := s.db.Query(ctx, listRoleReceiptsSQL, auditID, roundID, auditstore.MaxAuditRoleExecutionsPerRound+1)
-	if err != nil {
-		return nil, fmt.Errorf("list Audit role collection receipts: %w", err)
-	}
-	result, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (auditstore.CollectionReceiptSummary, error) {
-		return scanReceiptSummary(row)
-	})
-	if err != nil {
-		return nil, err
-	}
-	if len(result) > auditstore.MaxAuditRoleExecutionsPerRound {
-		return nil, errors.New("stored Audit role receipts exceed their per-Round bound")
-	}
-	return result, nil
-}
-
-func (s *store) listRoleExecutions(
-	ctx context.Context, auditID string, roundID *string,
-) ([]auditstore.Execution, error) {
-	rows, err := s.db.Query(ctx, `
-SELECT `+ExecutionColumns("audit_executions")+` FROM audit_executions
- WHERE audit_id = $1 AND (role = 'prepare' OR (
-       role IN ('discovery', 'assessment') AND round_id IS NOT DISTINCT FROM $2))
- ORDER BY role, workflow_role, role_attempt, execution_id
- LIMIT $3`, auditID, roundID, auditstore.MaxAuditRoleExecutionsPerRound+1)
-	if err != nil {
-		return nil, fmt.Errorf("list Audit role executions: %w", err)
-	}
-	result, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (auditstore.Execution, error) {
-		return ScanExecution(row)
-	})
-	if err != nil {
-		return nil, err
-	}
-	if len(result) > auditstore.MaxAuditRoleExecutionsPerRound {
-		return nil, errors.New("stored Audit role executions exceed their per-Round bound")
-	}
-	return result, nil
+	return s.readTaskReconcileSnapshot(ctx, result)
 }
 
 func scanRound(row scanner) (auditstore.Round, error) {
@@ -805,6 +522,7 @@ func scanItem(row scanner) (auditstore.Item, error) {
 func ScanExecution(row scanner) (auditstore.Execution, error) {
 	var result auditstore.Execution
 	var encodedRef []byte
+	var manifestDigest *string
 	var role, state string
 	var roleAttempt *int
 	var outcome *string
@@ -813,18 +531,24 @@ func ScanExecution(row scanner) (auditstore.Execution, error) {
 	var preparation, outputs []byte
 	if err := row.Scan(
 		&result.ExecutionID, &result.AuditID, &result.RoundID, &role, &result.WorkflowRole, &roleAttempt,
-		&encodedRef, &result.Manifest.Digest, &result.SubmissionKey, &result.RequestDigest,
+		&encodedRef, &manifestDigest, &result.SubmissionKey, &result.RequestDigest,
 		&result.RunID, &state, &outcome, &result.TerminalRunGeneration,
 		&terminalSequence, &result.TerminalObservedAt, &encodedProvenance, &result.RunDeletedAt,
 		&result.CreatedAt, &result.UpdatedAt, &preparation, &outputs,
 	); err != nil {
 		return auditstore.Execution{}, err
 	}
-	if err := json.Unmarshal(encodedRef, &result.Manifest.Ref); err != nil || result.Manifest.Ref.ValidateExact() != nil {
-		return auditstore.Execution{}, errors.New("stored Audit execution manifest ref is invalid")
+	if role == string(auditstore.ExecutionTask) {
+		if encodedRef != nil || manifestDigest != nil || result.RoundID != nil || roleAttempt != nil {
+			return auditstore.Execution{}, errors.New("stored common Task execution contains retired manifest authority")
+		}
+	} else {
+		if err := strictjson.Decode(encodedRef, &result.Manifest.Ref); err != nil || result.Manifest.Ref.ValidateExact() != nil || manifestDigest == nil || validateDigest("stored execution manifest digest", *manifestDigest) != nil {
+			return auditstore.Execution{}, errors.New("stored Audit execution manifest ref is invalid")
+		}
+		result.Manifest.Digest = *manifestDigest
 	}
-	if validateDigest("stored execution manifest digest", result.Manifest.Digest) != nil ||
-		validateDigest("stored execution request digest", result.RequestDigest) != nil {
+	if validateDigest("stored execution request digest", result.RequestDigest) != nil {
 		return auditstore.Execution{}, errors.New("stored Audit execution digest is invalid")
 	}
 	result.Role, result.State, result.RoleAttempt = auditstore.ExecutionRole(role), auditstore.ExecutionState(state), roleAttempt
@@ -990,33 +714,6 @@ func scanReceipt(row scanner) (auditstore.CollectionReceipt, error) {
 			validateJSONObject("stored retained provenance", link.SourceProvenance, 1<<20) != nil {
 			return auditstore.CollectionReceipt{}, errors.New("stored Audit retained artifact is invalid")
 		}
-	}
-	return result, nil
-}
-
-func scanReceiptSummary(row scanner) (auditstore.CollectionReceiptSummary, error) {
-	var result auditstore.CollectionReceiptSummary
-	var outcome, disposition string
-	var sequence *int64
-	if err := row.Scan(
-		&result.ReceiptID, &result.AuditID, &result.ExecutionID, &result.RunID,
-		&outcome, &result.TerminalRunGeneration, &sequence, &disposition,
-		&result.ErrorCode, &result.RequestDigest, &result.CreatedAt,
-	); err != nil {
-		return auditstore.CollectionReceiptSummary{}, err
-	}
-	result.TerminalOutcome = auditstore.TerminalOutcome(outcome)
-	result.Disposition = auditstore.CollectionDisposition(disposition)
-	if !result.TerminalOutcome.Valid() || !result.Disposition.Valid() ||
-		validateDigest("stored receipt request digest", result.RequestDigest) != nil {
-		return auditstore.CollectionReceiptSummary{}, errors.New("stored Audit receipt summary is invalid")
-	}
-	if sequence != nil {
-		if *sequence < 0 {
-			return auditstore.CollectionReceiptSummary{}, errors.New("stored Audit receipt summary sequence is invalid")
-		}
-		value := uint64(*sequence)
-		result.TerminalRunSequence = &value
 	}
 	return result, nil
 }

@@ -14,7 +14,6 @@ import {
 import { EmptyState, IdChip } from "../../ui";
 import { auditPresetLabel } from "../projects/audits/labels";
 import {
-  auditModeLabels,
   checkTypeSearchText,
   groupCheckTypes,
   hasFixedItems,
@@ -22,10 +21,7 @@ import {
   useAuditPresets,
   type CheckTypeFamily,
 } from "./audit-preset-data";
-import {
-  CheckTypeAvailability,
-  CompatibilityReasons,
-} from "./check-type-status";
+import { CheckTypeAvailability } from "./check-type-status";
 import { LibrarySearch, LibrarySectionHeader } from "./library-parts";
 import { useCatalogQueryState } from "./query-state";
 
@@ -55,9 +51,7 @@ function CheckTypeCard({
   return (
     <article className="library-card" aria-labelledby={heading}>
       <div className="library-card-top">
-        <span className="library-card-kind">
-          {auditModeLabels[profile.mode]}
-        </span>
+        <span className="library-card-kind">Check type</span>
         <CheckTypeAvailability profile={profile} size="sm" />
       </div>
       <h3 id={heading} className="library-card-title">
@@ -66,9 +60,6 @@ function CheckTypeCard({
         </ContextLink>
       </h3>
       <p className="library-card-text">{presetScope(profile)}</p>
-      {profile.serverCompatible ? null : (
-        <CompatibilityReasons reasons={profile.compatibilityReasons} />
-      )}
       <div className="library-card-meta">
         <label className="library-version">
           <span>Version</span>
@@ -125,9 +116,6 @@ export function AuditPresetListRoute() {
         (item) => item.ref.version === choices[family.name],
       ) ?? family.versions[0]!,
   }));
-  const unavailable = shown.filter(
-    ({ profile }) => !profile.serverCompatible,
-  ).length;
 
   return (
     <section className="library-section" aria-labelledby={heading}>
@@ -168,9 +156,6 @@ export function AuditPresetListRoute() {
           <>
             <p className="library-count" aria-live="polite">
               {plural(shown.length, TERMS.checkType, TERMS.checkTypes)}
-              {unavailable === 0
-                ? null
-                : ` · ${unavailable} unavailable on this server`}
             </p>
             <div className="library-grid">
               {shown.map(({ family, profile }) => (

@@ -26,7 +26,7 @@ import {
 } from "./report-data";
 
 import "./reports.css";
-import { sectionPath } from "../projects/audits/check-links";
+import { checkPath, sectionPath } from "../projects/audits/check-links";
 
 const ReportMarkdown = lazy(() => import("./report-markdown"));
 
@@ -69,7 +69,13 @@ function ReportNotice({
 }
 
 /** What the report's status means, in the words the check page always used. */
-function StatusNotice({ status }: { status: AuditReport["status"] }) {
+function StatusNotice({
+  status,
+  audit,
+}: {
+  status: AuditReport["status"];
+  audit: Audit;
+}) {
   switch (status) {
     case "pending":
       return (
@@ -81,6 +87,18 @@ function StatusNotice({ status }: { status: AuditReport["status"] }) {
         </ReportNotice>
       );
     case "unavailable":
+      if (audit.state === "completed")
+        return (
+          <ReportNotice
+            tone="neutral"
+            title="This check completed without a summary report."
+          >
+            <p>
+              Review the saved task results and their limitations on the check
+              page.
+            </p>
+          </ReportNotice>
+        );
       return (
         <ReportNotice tone="neutral" title="No accepted report is available.">
           <p>Review the coverage of this check for explicit gaps.</p>
@@ -302,7 +320,7 @@ function LoadedReportContent({
           <p>This report cannot be used to decide that review.</p>
         </ReportNotice>
       ) : null}
-      <StatusNotice status={report.status} />
+      <StatusNotice status={report.status} audit={audit} />
       <p className="reports-intro">
         {readable ? (
           <span>
@@ -310,11 +328,17 @@ function LoadedReportContent({
             issues are separate from the technical outcome of the check.
           </span>
         ) : null}
-        <Link
-          to={`${sectionPath(audit.projectId, audit.auditId, "coverage")}?result=uncertain`}
-        >
-          Review coverage gaps →
-        </Link>
+        {report.status === "unavailable" ? (
+          <Link to={checkPath(audit.projectId, audit.auditId)}>
+            View task results →
+          </Link>
+        ) : (
+          <Link
+            to={`${sectionPath(audit.projectId, audit.auditId, "coverage")}?result=uncertain`}
+          >
+            Review coverage gaps →
+          </Link>
+        )}
       </p>
       {readable ? (
         <section className="ui-stack" aria-labelledby={summaryId}>

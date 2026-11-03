@@ -35,17 +35,16 @@ describe("useAuditProjectionRefresh", () => {
   });
 });
 
-it("refreshes dependent projections immediately when preparation accepts its first Round", async () => {
+it("refreshes dependent projections immediately when initial task intake commits", async () => {
   const queryClient = new QueryClient();
   const invalidate = vi.spyOn(queryClient, "invalidateQueries");
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
-  const before = { ...audit(1, "active"), phase: "preparing" as const };
+  const before = { ...audit(1, "active"), taskCount: 0 };
   const after = {
     ...audit(2, "active"),
-    phase: "rounds" as const,
-    currentRoundId: "round_1",
+    taskCount: 1,
   };
   const { rerender } = renderHook(
     ({ current }: { current: Audit }) =>

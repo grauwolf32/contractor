@@ -48,17 +48,3 @@ export async function collectAuditPages<T>(
     ...(batch.nextCursor === undefined ? {} : { nextCursor: batch.nextCursor }),
   };
 }
-
-/** Concatenate consecutive batches; the last batch decides continuation. */
-export function mergeAuditCollections<T>(
-  batches: readonly AuditCollection<T>[],
-): AuditCollection<T> {
-  const last = batches.at(-1);
-  return {
-    items: batches.flatMap((batch) => batch.items),
-    truncated: last?.truncated ?? false,
-    ...(last?.truncated && last.nextCursor !== undefined
-      ? { nextCursor: last.nextCursor }
-      : {}),
-  };
-}

@@ -17,9 +17,3 @@ func ValidateClaimedTransition(params auditstore.ClaimedTransitionParams) error 
 func ValidateCollect(params auditstore.CollectParams) error {
 	return pgstore.ValidateCollect(params)
 }
-
-// ValidateRecordReportPage applies the page contract of the claim store's
-// RecordReportPage that needs no database.
-func ValidateRecordReportPage(params auditstore.RecordReportPageParams) error {
-	return pgstore.ValidateRecordReportPage(params)
-}

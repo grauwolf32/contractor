@@ -30,6 +30,7 @@ const contractsKernel = "internal/contracts"
 // is added for such a symbol; a package that needs only a domain rule
 // imports the rule's owner instead.
 var contractsImporters = map[string][]string{
+	"internal/operations/openapiwork":             {"ArtifactRef", "APIVersion"},
 	"internal/configload/configloadtest":          {"ResolvedAgentTemplate"},
 	"internal/operations":                         {"ArtifactRef", "ValidResourceID"},
 	"internal/operations/sitemapjoin":             {"ArtifactRef", "APIVersion"},
@@ -43,7 +44,7 @@ var contractsImporters = map[string][]string{
 	"internal/artifacts/blob/backends/postgres":   {"MaxArtifactPayloadBytes"},
 	"internal/artifacts/artifactstest":            {"ArtifactRef"},
 	"internal/auditbaseline":                      {"ActiveChecksPolicy"},
-	"internal/auditcontroller":                    {"ArtifactRef"},
+	"internal/auditcontroller":                    {"ErrExactArtifactMismatch"},
 	"internal/auditdomain":                        {"ArtifactRef", "ValidMediaType"},
 	"internal/auditimport":                        {"ArtifactRef"},
 	"internal/auditscan":                          {"ArtifactRef"},
@@ -54,7 +55,7 @@ var contractsImporters = map[string][]string{
 	"internal/auth":                               {"ValidName"},
 	"internal/cli":                                {"ValidateArtifactName"},
 	"internal/config":                             {"ResolvedAgentTemplate", "ResolvedModelPolicy", "ToolsetSelection"},
-	"internal/config/auditprofile":                {"AuditCheckResultsV1", "ValidConfigVersion"},
+	"internal/config/auditprofile":                {"ArtifactRef"},
 	"internal/config/resolved":                    {"ResolvedAgentTemplate", "ResolvedModelPolicy", "ToolsetSelection"},
 	"internal/contracts/auditcontract":            {"ValidConfigID", "ValidConfigVersion"},
 	"internal/contracts/control":                  {"ResolvedAgentTemplate", "WorkerCompletionContract", "WorkerHandle"},

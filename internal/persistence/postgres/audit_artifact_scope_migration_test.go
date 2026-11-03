@@ -29,7 +29,7 @@ func TestPostgresAuditArtifactScopeMigrationPreservesExactMaterial(t *testing.T)
 	if err := pool.QueryRow(ctx, `SELECT to_jsonb(a)::text FROM audits a WHERE audit_id='scope-audit'`).Scan(&before); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
+	if _, err := applyMigrations(ctx, pool, MigrationBudgets{}, available[:2]); err != nil {
 		t.Fatal(err)
 	}
 	var audit string
@@ -50,6 +50,9 @@ WHERE l.audit_id='scope-audit' AND l.logical_key='prepare:execution:material'`).
 	}
 	if err := pool.QueryRow(ctx, `SELECT artifact_scope FROM audit_artifact_links WHERE logical_key='report/machine'`).Scan(&scope); err != nil || scope != "project" {
 		t.Fatalf("unrelated report changed owner: %s %v", scope, err)
+	}
+	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
+		t.Fatal(err)
 	}
 	if err := VerifyMigrations(ctx, pool); err != nil {
 		t.Fatal(err)

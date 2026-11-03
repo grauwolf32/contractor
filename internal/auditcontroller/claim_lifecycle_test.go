@@ -2,8 +2,11 @@ package auditcontroller
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"slices"
 	"strings"
 	"sync"
@@ -11,14 +14,21 @@ import (
 	"testing"
 	"time"
 
+	"path/filepath"
+
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/configload"
+	"github.com/grauwolf32/contractor/internal/configtest"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 )
 
 // stepJoiningStore holds the reconcile step of its claim until the pass was
 // cancelled and the test lets it end, and records whether the claim was
 // released before or after the step ended (PER-R26).
 type stepJoiningStore struct {
-	*fakeControllerStore
+	*claimScript
 	entered chan struct{}
 	proceed chan struct{}
 
@@ -50,18 +60,18 @@ func (s *stepJoiningStore) ReleaseClaim(ctx context.Context, claim auditstore.Co
 	s.releaseErr = ctx.Err()
 	_, s.releaseBounded = ctx.Deadline()
 	s.mu.Unlock()
-	return s.fakeControllerStore.ReleaseClaim(ctx, claim)
+	return s.claimScript.ReleaseClaim(ctx, claim)
 }
 
 // A pass cancelled during a reconcile step joins the step before it releases
 // the claim, and the release runs with a live context bounded by the
 // operation budget, so shutdown gives the Audit back.
 func TestControllerPassJoinsACancelledStepBeforeReleasingTheClaim(t *testing.T) {
-	harness := newControllerHarness(t, 1, 1)
+	harness := newClaimHarness()
 	// Only the cancellation may end the step, never its own budget.
 	harness.controller.options.OperationTimeout = time.Minute
 	store := &stepJoiningStore{
-		fakeControllerStore: harness.store, entered: make(chan struct{}), proceed: make(chan struct{}),
+		claimScript: harness.store, entered: make(chan struct{}), proceed: make(chan struct{}),
 	}
 	harness.controller.store = store
 	ctx, cancel := context.WithCancel(t.Context())
@@ -99,7 +109,7 @@ func TestControllerPassJoinsACancelledStepBeforeReleasingTheClaim(t *testing.T) 
 // until every claimed Audit is in its step, then fails with its own error;
 // each release reports the outcome scripted for its Audit.
 type concurrentClaimStore struct {
-	*fakeControllerStore
+	*claimScript
 	audits     []string
 	releaseErr map[string]error
 
@@ -148,14 +158,14 @@ func (s *concurrentClaimStore) ReleaseClaim(_ context.Context, claim auditstore.
 // its claim lost is not a failure, and the remaining failures are reported
 // per Audit in claim order.
 func TestControllerPassReconcilesItsClaimsConcurrentlyAndReportsEachFailure(t *testing.T) {
-	harness := newControllerHarness(t, 1, 1)
+	harness := newClaimHarness()
 	// A sequential pass would wait out this budget instead of meeting the
 	// other steps; the test fails on the error, it measures no time.
 	harness.controller.options.OperationTimeout = 10 * time.Second
 	errReleaseFailed := errors.New("release failed")
 	store := &concurrentClaimStore{
-		fakeControllerStore: harness.store,
-		audits:              []string{"audit-a", "audit-b", "audit-c", "audit-d"},
+		claimScript: harness.store,
+		audits:      []string{"audit-a", "audit-b", "audit-c", "audit-d"},
 		releaseErr: map[string]error{
 			"audit-b": auditstore.ErrClaimLost,
 			"audit-c": errReleaseFailed,
@@ -190,13 +200,13 @@ func TestControllerPassReconcilesItsClaimsConcurrentlyAndReportsEachFailure(t *t
 
 // passCountingStore reports each claim attempt of the Run loop.
 type passCountingStore struct {
-	*fakeControllerStore
+	*claimScript
 	passes chan struct{}
 }
 
 func (s *passCountingStore) Claim(ctx context.Context, params auditstore.ClaimParams) ([]auditstore.ControllerClaim, error) {
 	s.passes <- struct{}{}
-	return s.fakeControllerStore.Claim(ctx, params)
+	return s.claimScript.Claim(ctx, params)
 }
 
 // waitClock records every wait the Run loop asks for and ends it only when
@@ -217,13 +227,13 @@ func (c *waitClock) After(duration time.Duration) <-chan time.Time {
 // without failing is followed at once by the next pass, and only a pass
 // without work waits for the poll interval.
 func TestControllerRunPassesAgainAfterWorkAndPollsOtherwise(t *testing.T) {
-	harness := newControllerHarness(t, 0, 1)
-	harness.store.mu.Lock()
-	harness.store.audit.State = auditstore.AuditWaitingReview
-	harness.store.audit.Dispatch = auditstore.DispatchClosed
-	harness.store.expiredReportReview = true
-	harness.store.mu.Unlock()
-	store := &passCountingStore{fakeControllerStore: harness.store, passes: make(chan struct{})}
+	harness := newClaimHarness()
+	harness.store.snapshot = commonPausedSnapshot(t)
+	harness.store.snapshot.Audit.State = auditstore.AuditActive
+	deadline := time.Date(2026, 10, 23, 0, 0, 0, 0, time.UTC)
+	harness.store.snapshot.Audit.DeadlineAt = &deadline
+	harness.store.remaining = 1
+	store := &passCountingStore{claimScript: harness.store, passes: make(chan struct{})}
 	clock := &waitClock{waits: make(chan time.Duration, 1), fire: make(chan time.Time)}
 	harness.controller.store = store
 	harness.controller.options.Clock = clock
@@ -231,13 +241,13 @@ func TestControllerRunPassesAgainAfterWorkAndPollsOtherwise(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- harness.controller.Run(ctx) }()
 
-	<-store.passes // The first pass expires the report review: work.
+	<-store.passes // The first pass pauses at the pinned deadline: work.
 	select {
 	case <-store.passes:
 	case wait := <-clock.waits:
 		t.Fatalf("Run waited %s after a pass that changed the Audit", wait)
 	}
-	// The second pass finds the Audit terminal and nothing to claim.
+	// The scripted next claim is empty: the next pass waits.
 	select {
 	case wait := <-clock.waits:
 		if wait != harness.controller.options.PollInterval {
@@ -253,4 +263,73 @@ func TestControllerRunPassesAgainAfterWorkAndPollsOtherwise(t *testing.T) {
 	if err := <-done; err != nil {
 		t.Fatalf("Run after cancellation = %v", err)
 	}
+}
+
+// claimScript scripts the claim seam only. Unused owner calls panic through
+// the nil embedded interface; real Task/transition validation is tested on PG.
+type claimScript struct {
+	Store
+	mu        sync.Mutex
+	held      bool
+	remaining int
+	snapshot  auditstore.ReconcileSnapshot
+}
+
+func (s *claimScript) Claim(_ context.Context, p auditstore.ClaimParams) ([]auditstore.ControllerClaim, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.held || s.remaining == 0 {
+		return nil, nil
+	}
+	if s.remaining > 0 {
+		s.remaining--
+	}
+	s.held = true
+	return []auditstore.ControllerClaim{{AuditID: "audit-script", HolderID: p.HolderID, Epoch: 1}}, nil
+}
+func (s *claimScript) ReleaseClaim(_ context.Context, _ auditstore.ControllerClaim) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.held = false
+	return nil
+}
+func (s *claimScript) GetReconcileSnapshot(context.Context, auditstore.ControllerClaim) (auditstore.ReconcileSnapshot, error) {
+	return s.snapshot, nil
+}
+func (s *claimScript) TransitionClaimed(_ context.Context, p auditstore.ClaimedTransitionParams) (auditstore.Audit, error) {
+	if p.ExpectedState != s.snapshot.Audit.State || p.ExpectedRevision != s.snapshot.Audit.Revision || p.TargetState != auditstore.AuditPaused {
+		return auditstore.Audit{}, auditstore.ErrPrecondition
+	}
+	s.snapshot.Audit.State = p.TargetState
+	s.snapshot.Audit.Revision++
+	return s.snapshot.Audit, nil
+}
+func newClaimHarness() *struct {
+	store      *claimScript
+	controller *Controller
+} {
+	store := &claimScript{remaining: -1}
+	return &struct {
+		store      *claimScript
+		controller *Controller
+	}{store, &Controller{store: store, drainLimit: maxDrainMutationsPerStep, options: Options{HolderID: "unit-controller", OperationTimeout: time.Second, ClaimLease: 5 * time.Second, PollInterval: time.Second, ClaimBatch: 8, Clock: realClock{}, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}}}
+}
+func commonPausedSnapshot(t *testing.T) auditstore.ReconcileSnapshot {
+	t.Helper()
+	root := configtest.CopyWithPolicies(t, "../config/testdata/valid")
+	catalog, _, err := configload.LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	program := auditcontract.Program{Schema: "contractor.audit.program.v1", Inputs: map[string]auditcontract.ProgramInput{"source": {Required: true, MediaTypes: []string{"text/plain"}}}, Workflows: map[string]auditcontract.ProgramWorkflow{"inspect": {Ref: "artifact-copy@1", Inputs: map[string]auditcontract.InputMapping{"source": {Source: "audit-input", Name: "source"}}, Parameters: map[string]string{}, Outputs: map[string]string{"material": "result"}}}, Hypotheses: map[string]auditcontract.HypothesisSeed{}, InitialWork: []auditcontract.InitialWork{{Key: "initial", Workflow: "inspect", Objective: "Inspect selected source"}}, Limits: auditcontract.ProgramLimits{MaxTasks: 1, MaxIterations: 1, MaxTasksPerIteration: 1, BatchSize: 1, MaxSubmittedRuns: 1, MaxAttempts: 1, DeadlineSeconds: 60, MaxEvidenceBytes: 1024, MaxHypotheses: 1, MaxHypothesisRevisions: 1, MaxHypothesisBytes: 1024}, Policy: auditcontract.OperationPolicy{ActiveOperations: "prohibited"}}
+	data, _ := json.Marshal(program)
+	pin, err := auditprofile.PinProgram(resolved.Selector{ID: "claim-script", Version: "1"}, data, catalog.Workflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := json.Marshal(pin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return auditstore.ReconcileSnapshot{Audit: auditstore.Audit{AuditID: "audit-script", State: auditstore.AuditPaused, ProfileSnapshot: snapshot}}
 }

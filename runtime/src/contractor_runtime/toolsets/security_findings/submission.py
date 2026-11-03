@@ -34,6 +34,7 @@ def build_submission(
     standard_refs: list[dict[str, str]] | None,
     proposed_checks: list[dict[str, str]] | None = None,
     publish_problem: bool = False,
+    item_key: str | None = None,
 ) -> dict[str, object]:
     if type(publish_problem) is not bool:
         raise ToolInputError("publish_problem must be a boolean")
@@ -107,6 +108,9 @@ def build_submission(
         "proposal": proposal,
         "evidenceRefs": refs,
     }
+    if item_key is not None:
+        _identifier("item_key", item_key)
+        request["itemKey"] = item_key
     if publish_problem:
         request["publishProblem"] = True
     return request

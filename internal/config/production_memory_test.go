@@ -54,7 +54,7 @@ func TestRetiredWorkflowAndRebasedProfileKeepPinnedSnapshots(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(workflow, decodedWorkflow) {
 		t.Fatalf("pinned Workflow changed after catalog retirement: %v", err)
 	}
-	decodedProfile, err := auditprofile.DecodeResolvedAuditProfileSnapshot(profileJSON)
+	decodedProfile, err := auditprofile.DecodePinnedProgram(profileJSON)
 	if err != nil || !reflect.DeepEqual(profile, decodedProfile) {
 		t.Fatalf("pinned AuditProfile changed after catalog rebase: %v", err)
 	}

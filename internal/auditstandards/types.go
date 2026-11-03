@@ -4,8 +4,6 @@
 package auditstandards
 
 import (
-	"encoding/json"
-
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -129,8 +127,6 @@ type Package struct {
 
 func (p Package) Reference() Reference { return p.Document.Standard.Reference() }
 
-func (p Package) Payload() []byte { return append([]byte(nil), p.payload...) }
-
 // ExactPackage is an exact standard package in the wire shape of the public
 // AuditStandardExactPackage, which names its ref "artifact". Exact returns the
 // shared descriptor every check uses.
@@ -139,13 +135,6 @@ type ExactPackage struct {
 	Digest    string                `json:"digest"`
 	MediaType string                `json:"mediaType"`
 	SizeBytes int64                 `json:"sizeBytes"`
-}
-
-// Exact returns the package as the shared exact-content descriptor.
-func (p ExactPackage) Exact() contracts.ExactArtifact {
-	return contracts.ExactArtifact{
-		Ref: p.Artifact.Clone(), Digest: p.Digest, MediaType: p.MediaType, SizeBytes: p.SizeBytes,
-	}
 }
 
 type ResolvedPackage struct {
@@ -210,20 +199,4 @@ type SeedOutcome struct {
 	Reference Reference  `json:"reference"`
 	Status    SeedStatus `json:"status"`
 	Digest    string     `json:"digest"`
-}
-
-type retainedProvenance struct {
-	Schema  string       `json:"schema"`
-	Catalog ExactPackage `json:"catalog"`
-	Source  Source       `json:"source"`
-	License License      `json:"license"`
-}
-
-func RetainedProvenance(pinned PinnedPackage) (json.RawMessage, error) {
-	return json.Marshal(retainedProvenance{
-		Schema:  "contractor.audit-standard-provenance.v1",
-		Catalog: pinned.Catalog,
-		Source:  pinned.Source,
-		License: pinned.License,
-	})
 }

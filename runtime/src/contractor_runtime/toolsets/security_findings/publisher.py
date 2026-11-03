@@ -71,6 +71,7 @@ class FindingPublisher:
         request_id: int | None = None,
         caido_request_id: str | None = None,
         publish_problem: bool = False,
+        item_key: str | None = None,
     ) -> dict[str, Any]:
         with RecordedToolCall(
             self.metrics, "finding", {}, secrets=self.secrets, bound_error=_bounded_finding_error
@@ -109,6 +110,7 @@ class FindingPublisher:
                 standard_refs=standards,
                 proposed_checks=checks,
                 publish_problem=publish_problem,
+                item_key=item_key,
             )
             proposal = request["proposal"]
             if normalized:
@@ -118,6 +120,7 @@ class FindingPublisher:
             audit_binding = self.resources.proposal_collector
             audit_collector = audit_binding() if audit_binding is not None else None
             if audit_collector is not None:
+                audit_collector.check_finding_item(context.invocation_id, item_key)
                 audit_collector.check_proposal_refs(
                     context.invocation_id, proposal["standard_refs"]
                 )

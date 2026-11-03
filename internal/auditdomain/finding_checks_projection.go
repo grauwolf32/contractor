@@ -70,11 +70,6 @@ type FindingChecksProjection struct {
 	Checks         []FindingCheckProjection `json:"checks" strictjson:"required"`
 }
 
-type FindingCheckContext struct {
-	Subject     *FindingSubject
-	Limitations []string
-}
-
 func BuildFindingChecksProjection(finalBytes []byte, validatedDoc FindingProposal) (FindingChecksProjection, error) {
 	decoded, err := DecodeFindingProposal(finalBytes)
 	if err != nil || !sameCanonicalValue(decoded, validatedDoc) {
@@ -153,13 +148,6 @@ func EncodeFindingChecksProjection(value FindingChecksProjection) ([]byte, error
 	return canonicalJSON(value)
 }
 
-func DecodeFindingChecksProjection(data []byte) (FindingChecksProjection, error) {
-	if len(data) > MaximumFindingChecksProjectionBytes {
-		return FindingChecksProjection{}, invalid(CodeLimitExceeded, "checks_projection")
-	}
-	return decodeDocument(data, ValidateFindingChecksProjection)
-}
-
 func ValidateFindingChecksProjection(value FindingChecksProjection) error {
 	if value.Schema != FindingChecksProjectionSchema || !contentdigest.Valid(value.ProposalDigest) || value.SizeBytes < 1 || value.SizeBytes > MaximumDocumentBytes || value.Checks == nil || len(value.Checks) > MaximumCoverageValues {
 		return invalid(CodeInvalid, "checks_projection")
@@ -211,75 +199,4 @@ func ValidateFindingChecksProjection(value FindingChecksProjection) error {
 
 func validFindingFragment(fragment FindingFragment, size int64) bool {
 	return fragment.Offset >= 0 && fragment.Length > 0 && fragment.Offset <= size && fragment.Length <= size-fragment.Offset && contentdigest.Valid(fragment.Digest)
-}
-
-func readFindingFragment(data []byte, fragment FindingFragment) ([]byte, error) {
-	if !validFindingFragment(fragment, int64(len(data))) {
-		return nil, invalid(CodeReferenceInvalid, "checks_projection.fragment")
-	}
-	raw := data[fragment.Offset : fragment.Offset+fragment.Length]
-	if DigestBytes(raw) != fragment.Digest {
-		return nil, invalid(CodeReferenceInvalid, "checks_projection.fragment")
-	}
-	return raw, nil
-}
-
-// ExtractFindingCheck verifies only the selected fragment. The adapter verifies
-// the complete exact Artifact once per distinct receipt before calling.
-func ExtractFindingCheck(finalBytes []byte, entry FindingCheckProjection) (ProposedCheck, CheckPlan, error) {
-	var check ProposedCheck
-	fragment, err := readFindingFragment(finalBytes, entry.Fragment)
-	if err != nil {
-		return check, CheckPlan{}, err
-	}
-	if err = strictjson.Decode(fragment, &check); err != nil {
-		return check, CheckPlan{}, err
-	}
-	if validateText(check.Objective, "check.objective", true) != nil || validateIdentifier(check.Method, "check.method") != nil || check.Method != entry.SourceMethod {
-		return check, CheckPlan{}, invalid(CodeInvalid, "checks_projection.check")
-	}
-	_, known := contracts.LookupCheckPlanMethod(contracts.FindingCheckPlanSchema, check.Method)
-	if !known {
-		if entry.Status != "unsupported" || entry.PlanSchema != "" || entry.Phase != "" || entry.PlanDigest != "" || entry.PlanBytes != 0 {
-			return check, CheckPlan{}, invalid(CodeInvalid, "checks_projection.status")
-		}
-		return check, CheckPlan{}, nil
-	}
-	plan, err := BuildFindingCheckPlan(FindingProposal{ProposedChecks: []ProposedCheck{check}}, 0)
-	if err != nil {
-		return check, plan, err
-	}
-	encoded, err := EncodeCheckPlan(plan)
-	if err != nil || plan.Schema != entry.PlanSchema || plan.Phase != entry.Phase || DigestBytes(encoded) != entry.PlanDigest || int64(len(encoded)) != entry.PlanBytes ||
-		(entry.Status != "registered" && entry.Status != "plan-too-large") || (entry.Status == "registered") != (entry.PlanBytes <= MaximumAcceptedPlanBytes) {
-		return check, plan, invalid(CodeInvalid, "checks_projection.plan")
-	}
-	return check, plan, nil
-}
-
-// ExtractFindingChecksContext verifies context once per receipt; callers cache
-// it alongside the exact payload rather than parsing limitations per ordinal.
-func ExtractFindingChecksContext(finalBytes []byte, subject, limitations FindingFragment) (FindingCheckContext, error) {
-	var result FindingCheckContext
-	raw, err := readFindingFragment(finalBytes, subject)
-	if err != nil {
-		return result, err
-	}
-	if err = strictjson.Decode(raw, &result.Subject); err != nil {
-		return result, err
-	}
-	if result.Subject != nil && (validateIdentifier(result.Subject.Kind, "subject.kind") != nil || validateIdentifier(result.Subject.Key, "subject.key") != nil) {
-		return result, invalid(CodeInvalid, "checks_projection.subject")
-	}
-	raw, err = readFindingFragment(finalBytes, limitations)
-	if err != nil {
-		return result, err
-	}
-	if err = strictjson.Decode(raw, &result.Limitations); err != nil {
-		return result, err
-	}
-	if ValidateFindingLimitations(result.Limitations) != nil {
-		return result, invalid(CodeInvalid, "checks_projection.limitations")
-	}
-	return result, nil
 }

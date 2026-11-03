@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
-
+	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -49,23 +49,21 @@ WHERE a.state = 'active' LIMIT 1`).Scan(&auditID, &memberID)
 	}
 	claim := auditClaims[0]
 	snapshot, err := audits.GetReconcileSnapshot(t.Context(), claim)
-	if err != nil || snapshot.Round == nil || len(snapshot.Items) != 1 {
-		t.Fatalf("Audit snapshot: %v %v", snapshot, err)
-	}
-	if _, err := audits.TransitionRound(t.Context(), auditstore.RoundTransitionParams{
-		Claim: claim, RoundID: snapshot.Round.RoundID, ExpectedRevision: snapshot.Round.Revision,
-		ExpectedState: auditstore.RoundAccepted, TargetState: auditstore.RoundExecuting,
-	}); err != nil {
+	if err != nil {
 		t.Fatal(err)
 	}
-	item := snapshot.Items[0]
-	execution, _, err := audits.CreateExecutionIntent(t.Context(), auditstore.CreateExecutionIntentParams{
-		Claim: claim, ExecutionID: "projection-race-execution", RoundID: &snapshot.Round.RoundID,
-		Role: auditstore.ExecutionCheck, WorkflowRole: item.WorkflowRole, LaneClass: resolved.LaneClassModel, Manifest: snapshot.Round.Manifest,
-		SubmissionKey: "projection-race-submission", RequestDigest: evaldomain.Digest([]byte("execution")),
-		Members: []auditstore.ExecutionMemberIntent{{ExecutionItemID: "projection-race-item", ItemID: item.ItemID,
-			ItemAttempt: 1, Task: item.Task, Inputs: []auditstore.ExactArtifact{}}},
-	})
+	service, ok := h.audit.AuditExecutor.(*auditservice.Service)
+	if !ok {
+		t.Fatal("fixture lost the real Audit service")
+	}
+	if intake, err := service.AcceptInitialTasks(t.Context(), claim, snapshot); err != nil || !intake.Complete {
+		t.Fatalf("initial Tasks: %+v %v", intake, err)
+	}
+	tasks, err := audits.ListTasks(t.Context(), auditstore.ListTasksParams{OwnerID: snapshot.Audit.OwnerID, AuditID: auditID, Limit: 2})
+	if err != nil || len(tasks.Tasks) != 1 {
+		t.Fatalf("ready Tasks: %+v %v", tasks, err)
+	}
+	execution, _, err := audits.SelectTasks(t.Context(), auditstore.SelectTasksParams{Claim: claim, TaskIDs: []string{tasks.Tasks[0].Document.TaskID}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,15 +83,14 @@ func collectingEvalAudit(t *testing.T) (*serviceHarness, evalstore.Experiment, e
 		t.Fatal(err)
 	}
 	code := "fixture-submission-failed"
-	return h, e, claims[0], memberID, auditstore.CollectParams{
-		Claim: claim, ExecutionID: execution.ExecutionID, ReceiptID: "projection-race-receipt",
-		RequestDigest: evaldomain.Digest([]byte("collection")), Disposition: auditstore.CollectionExecutionFailed,
-		ErrorCode: &code, Retained: []auditstore.ArtifactLink{},
-		Items: []auditstore.CollectionItem{{ExecutionItemID: "projection-race-item",
-			Disposition: auditstore.CollectionExecutionFailed, FinalDisposition: auditstore.FinalExecutionFailed,
-			Coverage: auditstore.Coverage{Status: auditstore.CoverageBlocked,
-				Requested: []string{}, Completed: []string{}, Gaps: []string{"fixture-submission-failed"}}}},
+	members, err := auditstoretest.NewStore(h.pool, artifactpgtest.NewStorage()).ListExecutionTasks(t.Context(), execution.AuditID, execution.ExecutionID)
+	if err != nil || len(members) != 1 {
+		t.Fatalf("execution membership: %+v %v", members, err)
 	}
+	taskID := members[0].Document.TaskID
+	return h, e, claims[0], memberID, auditstore.CollectParams{Claim: claim, ExecutionID: execution.ExecutionID, ReceiptID: "projection-race-receipt", RequestDigest: evaldomain.Digest([]byte("collection")), Disposition: auditstore.CollectionExecutionFailed, ErrorCode: &code, Retained: []auditstore.ArtifactLink{},
+		Tasks: []auditstore.TaskCollection{{ExecutionItemID: auditdomain.DeterministicID("attempt", execution.ExecutionID, taskID), TaskID: taskID, GapCode: &code}}}
+
 }
 
 func TestSharedPostgresAuditCollectionAndEvalProjectionUseOneLockOrder(t *testing.T) {

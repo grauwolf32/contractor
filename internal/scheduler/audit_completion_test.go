@@ -35,14 +35,14 @@ func TestAuditCompletionTargetAndPinnedInputs(t *testing.T) {
 	run.PublicationMode = runstore.PublicationAuditManaged
 	run.AuditExecutionID, run.AuditSubmissionKey = &executionID, &key
 	run.AuditCompletion = &runstore.AuditCompletionSnapshot{Stage: workflow.stageName, Agent: agentName, Contract: contracts.WorkerCompletionContract{
-		Kind: contracts.AuditCheckResultsV1, Task: exactRef("inputs", "task", "task-r1"), ExecutionManifest: exactRef("inputs", "manifest", "manifest-r1"), ResultArtifact: output}}
+		Kind: contracts.AuditCheckResultsV1, Context: exactRef("inputs", "context", "context-r1"), ResultArtifact: output}}
 	pinned := runstore.StageContextSnapshot{Artifacts: map[string]runstore.PinnedContextArtifact{
-		"task": {Required: true, Artifact: &run.AuditCompletion.Contract.Task}, "manifest": {Required: true, Artifact: &run.AuditCompletion.Contract.ExecutionManifest}}}
+		"context": {Required: true, Artifact: &run.AuditCompletion.Contract.Context}}}
 	bindings, err := auditBindingRequirements(run, workflow, pinned)
 	if err != nil || !reflect.DeepEqual(bindings[0].CompletionContract, &run.AuditCompletion.Contract) {
 		t.Fatalf("target: %v %v", bindings, err)
 	}
-	if got := auditPinnedContextRef(run, contracts.ArtifactRef{Namespace: "inputs", Name: "task"}); !reflect.DeepEqual(got, run.AuditCompletion.Contract.Task) {
+	if got := auditPinnedContextRef(run, contracts.ArtifactRef{Namespace: "inputs", Name: "context"}); !reflect.DeepEqual(got, run.AuditCompletion.Contract.Context) {
 		t.Fatal("lost exact input")
 	}
 	ordinal := 1
@@ -54,8 +54,8 @@ func TestAuditCompletionTargetAndPinnedInputs(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(escalatedBindings[0].CompletionContract, bindings[0].CompletionContract) {
 		t.Fatal("escalation lost contract", err)
 	}
-	changed := exactRef("inputs", "task", "task-r2")
-	pinned.Artifacts["task"] = runstore.PinnedContextArtifact{Required: true, Artifact: &changed}
+	changed := exactRef("inputs", "context", "context-r2")
+	pinned.Artifacts["context"] = runstore.PinnedContextArtifact{Required: true, Artifact: &changed}
 	if _, err := auditBindingRequirements(run, workflow, pinned); err == nil {
 		t.Fatal("accepted replaced task alias")
 	}

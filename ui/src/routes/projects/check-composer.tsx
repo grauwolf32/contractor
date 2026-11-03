@@ -4,8 +4,8 @@ import { Link, useNavigate } from "react-router";
 import type { ArtifactMetadata } from "../../api/artifacts";
 import type { AuditProfile } from "../../api/audits";
 import type { Project } from "../../api/projects";
-import { artifactAccepts } from "../../run-drafts/validation";
 import { Icon } from "../../app/icon";
+import { artifactAccepts } from "../../run-drafts/validation";
 import { Button, StatusGlyph } from "../../ui";
 import { useAuditPresets } from "../catalog/audit-preset-data";
 import { auditPresetLabel } from "./audits/labels";
@@ -41,19 +41,18 @@ function formatMatches(
       latest.set(profile.ref.name, profile);
   }
   return [...latest.values()].filter((profile) => {
-    if (!profile.serverCompatible) return false;
     const required = Object.values(profile.inputs).filter(
       (input) => input.required,
     );
     if (required.length === 0) return false;
     if (
-      profile.interaction.activeChecks !== "prohibited" &&
+      profile.policy.active_operations === "allowed" &&
       project.httpTarget === undefined
     )
       return false;
     return required.every((input) =>
       materials.some((material) =>
-        artifactAccepts([...input.mediaTypes], material),
+        artifactAccepts([...input.media_types], material),
       ),
     );
   });

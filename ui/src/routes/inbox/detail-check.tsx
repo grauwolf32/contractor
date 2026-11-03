@@ -195,15 +195,7 @@ export function CheckDetail({
           size="sm"
           items={[
             { term: "Revision", value: audit.revision },
-            {
-              term: "Round",
-              value:
-                audit.currentRoundId === undefined ? (
-                  "None yet"
-                ) : (
-                  <IdChip value={audit.currentRoundId} label="round ID" />
-                ),
-            },
+            { term: "Accepted tasks", value: audit.taskCount },
             { term: "Runs not finished", value: audit.outstandingRunCount },
             {
               term: "Counted at",

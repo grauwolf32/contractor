@@ -32,7 +32,7 @@ type loader struct {
 	gateways                    map[string]llmgateway.ResolvedLLMGatewayConfig
 	templates                   map[string]contracts.ResolvedAgentTemplate
 	workflows                   map[string]resolved.ResolvedWorkflow
-	auditProfiles               map[string]auditprofile.ResolvedAuditProfile
+	auditProfiles               map[string]auditprofile.PinnedProgram
 	sources                     map[string]ConfigurationSource
 }
 
@@ -120,7 +120,7 @@ func loadConfigurationRoots(roots []configurationRoot, options loadOptions) (*Sn
 		gateways:                    make(map[string]llmgateway.ResolvedLLMGatewayConfig),
 		templates:                   make(map[string]contracts.ResolvedAgentTemplate),
 		workflows:                   make(map[string]resolved.ResolvedWorkflow),
-		auditProfiles:               make(map[string]auditprofile.ResolvedAuditProfile),
+		auditProfiles:               make(map[string]auditprofile.PinnedProgram),
 		sources:                     make(map[string]ConfigurationSource),
 	}
 	if err := current.loadInstructionResources(); err != nil {

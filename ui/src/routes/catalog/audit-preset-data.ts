@@ -3,92 +3,20 @@ import { useQuery } from "@tanstack/react-query";
 import { listAuditPresets } from "../../api/audit-presets";
 import type { AuditProfile } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
-import type { components } from "../../api/generated/public";
 import { queryKeys } from "../../api/query-keys";
-import {
-  capitalize,
-  checkItemKind,
-  itemNoun,
-  wordOf,
-} from "../../app/vocabulary";
-import { auditPresetLabel } from "../projects/audits/labels";
 import { compareVersions } from "../../app/format";
+import { auditPresetLabel } from "../projects/audits/labels";
 
 // Check types are AuditProfiles in the API (contract §3: "Check type").
 
-export const auditModeLabels: Record<AuditProfile["mode"], string> = {
-  "risk-assessment": "Risk assessment",
-  "requirements-verification": "Requirements verification",
-  "custom-checklist": "Custom checklist",
-  "operation-tracing": "Endpoint tracing",
-  "finding-verification": "Possible issue verification",
-};
-
-/** What a check of this type works through, in one sentence. */
+/** Description derived from the published input contract. */
 export function presetScope(profile: AuditProfile): string {
-  if (profile.inventory.standardSelection)
-    return profile.inventory.standardSelection.scope;
-  if (
-    profile.ref.name === "owasp-wstg-4-2-fast-source-review" ||
-    profile.ref.name === "owasp-wstg-4-2-fast-active-http"
-  )
-    return `${profile.execution.maxItemsTotal} priority WSTG scenarios. Focused first pass; other scenarios are outside scope.`;
-  switch (profile.inventory.implementation) {
-    case "standard-mappings@1":
-      return `${capitalize(itemNoun(checkItemKind(profile), 2))} defined by the referenced standard.`;
-    case "checklist@1":
-      return "Items from your uploaded checklist.";
-    case "web-scans@1":
-      return "A website URL, with installed or custom Nuclei rules";
-    case "openapi-scans@1":
-      return "Scanner tests for the endpoints you select in your OpenAPI document.";
-    case "openapi-operations@1":
-      return "One endpoint per operation in your OpenAPI document.";
-    case "finding-candidates@1":
-      return "Items from the finding candidates you supply.";
-  }
+  return `Up to ${profile.limits.max_tasks} tasks using ${Object.keys(profile.inputs).join(", ") || "selected materials"}.`;
 }
-
-/**
- * Whether the item list is fixed by a standard (and so can be listed here)
- * or built from the inputs of each check.
- */
 export function hasFixedItems(profile: AuditProfile): boolean {
-  return profile.inventory.implementation === "standard-mappings@1";
-}
-
-type CompatibilityReason = components["schemas"]["AuditCompatibilityReason"];
-
-const COMPATIBILITY_REASONS: Readonly<Record<CompatibilityReason, string>> = {
-  preparation_unsupported:
-    "This server cannot run the preparation step this type needs yet.",
-  discovery_unsupported: "This server cannot run the discovery step.",
-  assessment_unsupported: "This server cannot run the assessment step.",
-  multiple_rounds_unsupported:
-    "This type needs more than one round, which this server does not run.",
-  batching_unsupported: "This server cannot run items in batches.",
-  project_active_checks_prohibited:
-    "active checks are disabled in Project settings",
-  automatic_active_checks_unsupported:
-    "This type runs active tests without asking, which this server does not allow.",
-  active_check_approval_unsupported:
-    "This server cannot ask you to approve active tests.",
-  manual_applicability_unsupported:
-    "This server cannot ask you whether a requirement applies.",
-  report_acceptance_unsupported:
-    "This server cannot ask you to accept the report.",
-  manual_item_unsupported: "This server cannot run manual items.",
-  engagement_capability_unsupported:
-    "This server does not yet support the required live-testing tools.",
-  engagement_source_closure_unsupported:
-    "This check could expose source code while source access is disabled.",
-  engagement_active_checks_unsupported:
-    "This check requires automatic live tests, which the current settings do not allow.",
-};
-
-/** One readable sentence for a reason the server cannot run a check type. */
-export function compatibilityReasonText(reason: string): string {
-  return wordOf(COMPATIBILITY_REASONS, reason as CompatibilityReason);
+  return (
+    (profile.program?.initial_work.length ?? 0) === profile.limits.max_tasks
+  );
 }
 
 /** The Start page with this check type chosen (contract §5). */
@@ -102,12 +30,7 @@ export function checkTypeSearchText(profile: AuditProfile): string {
     profile.ref.name,
     profile.ref.version,
     auditPresetLabel(profile.ref.name),
-    profile.mode,
-    auditModeLabels[profile.mode],
     presetScope(profile),
-    ...profile.standards.map(
-      (standard) => `${standard.scheme}@${standard.version}`,
-    ),
   ]
     .join(" ")
     .toLowerCase();
