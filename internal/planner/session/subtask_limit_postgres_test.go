@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -14,7 +15,105 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/stageresult"
 )
+
+func TestPostgresWorkflowFactBudgetCoversSequentialDispatches(t *testing.T) {
+	ctx := t.Context()
+	pool := isolatedPlannerPool(t, ctx)
+	store := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
+	const limit = 100
+	createPlannerStageWithLimit(t, ctx, store, limit)
+	service, err := New(store, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	started, err := service.Begin(ctx, "stage-planner")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.RecordRequest(ctx, started.Identity, planner.RequestFacts{
+		Bindings: []string{"builder"}, ObjectiveDigest: "sha256:" + strings.Repeat("a", 64),
+		InstructionsDigest: "sha256:" + strings.Repeat("b", 64),
+		ParameterNames:     []string{}, Artifacts: map[string]contracts.ArtifactRef{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	controller, err := planner.NewPlannerPlanController("Inspect input", limit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recordPlan := func(before, after planner.PlannerPlan, kind planner.PlannerEventKind) {
+		t.Helper()
+		if err := service.RecordPlan(ctx, started.Identity, planner.PlannerPlanTransition{
+			Kind: kind, ExpectedRevision: before.Revision, Plan: after.Projection(),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	recordFact := func(fact planner.PlannerFact) {
+		t.Helper()
+		if err := service.RecordFact(ctx, started.Identity, fact); err != nil {
+			t.Fatal(err)
+		}
+	}
+	recordCurrent := func(plan planner.PlannerPlan) {
+		recordFact(planner.PlannerFact{
+			Kind: planner.PlannerEventCurrentChanged, Key: fmt.Sprintf("current:%d", plan.Revision),
+			PlanRevision: plan.Revision, SubtaskID: plan.CurrentSubtaskID,
+		})
+	}
+	for index := range limit {
+		before := controller.Snapshot()
+		after, planErr := controller.AddSubtask("Inspect", "Read source")
+		if planErr != nil {
+			t.Fatal(planErr)
+		}
+		recordPlan(before, after, planner.PlannerEventPlanChanged)
+		recordCurrent(after)
+		before = after
+		claim, planErr := controller.ClaimCurrentSubtask(fmt.Sprint(index), "builder")
+		if planErr != nil {
+			t.Fatal(planErr)
+		}
+		recordFact(planner.PlannerFact{
+			Kind: planner.PlannerEventDispatchSelected, Key: "selected:" + claim.CallID,
+			PlanRevision: before.Revision, SubtaskID: claim.Subtask.ID,
+			CallID: claim.CallID, WorkerName: "builder",
+		})
+		after = controller.Snapshot()
+		recordPlan(before, after, planner.PlannerEventDispatchStarted)
+		before = after
+		after, planErr = controller.CompleteDispatch(claim.CallID, stageresult.StageSucceeded)
+		if planErr != nil {
+			t.Fatal(planErr)
+		}
+		recordPlan(before, after, planner.PlannerEventDispatchCompleted)
+		recordCurrent(after)
+	}
+	finish := planner.PlannerFact{
+		Kind: planner.PlannerEventFinishRequested, Key: "finish:300:succeeded",
+		PlanRevision: 300, Outcome: "succeeded",
+	}
+	recordFact(finish)
+	before, err := store.GetRunEventCursor(ctx, "run-planner")
+	if err != nil {
+		t.Fatal(err)
+	}
+	recordFact(finish)
+	after, err := store.GetRunEventCursor(ctx, "run-planner")
+	if err != nil || !reflect.DeepEqual(before, after) {
+		t.Fatalf("receipt replay appended an event: %v", err)
+	}
+	stored, err := store.GetPlannerSession(ctx, started.Identity.SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := decodeState(stored.State)
+	if err != nil || len(state.FactDigests) != 3*limit+1 {
+		t.Fatalf("retained fact receipts = %d, err = %v", len(state.FactDigests), err)
+	}
+}
 
 func TestPostgresWorkflowSubtaskLimitSurvivesPublicationAndRecovery(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)

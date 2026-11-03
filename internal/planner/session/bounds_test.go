@@ -21,29 +21,42 @@ func TestSessionBoundsRefuseWritesAsInvalid(t *testing.T) {
 		t.Fatalf("oversized Planner JSON = %v, want runstore.ErrInvalid", err)
 	}
 
-	store, service, identity := runningTestService(t)
-	state, err := decodeState(store.session.State)
-	if err != nil {
-		t.Fatal(err)
-	}
-	state.FactDigests = make(map[string]string, maxRecordedPlannerFacts)
-	for index := range maxRecordedPlannerFacts {
-		state.FactDigests[fmt.Sprintf("current:%d", index)] = "sha256:" + strings.Repeat("e", 64)
-	}
-	full, err := encodeState(state)
-	if err != nil {
-		t.Fatal(err)
-	}
-	store.session.State = full
-	before := store.snapshotEvents()
-	err = service.RecordFact(t.Context(), identity, planner.PlannerFact{
-		Kind: planner.PlannerEventFinishRequested, Key: "finish:0:failed", Outcome: "failed",
-	})
-	if !errors.Is(err, runstore.ErrInvalid) || !planner.SessionWriteRejected(err) {
-		t.Fatalf("fact past the limit = %v, want runstore.ErrInvalid", err)
-	}
-	if after := store.snapshotEvents(); len(after) != len(before) || string(store.session.State) != string(full) {
-		t.Fatalf("refused fact changed the session: %d events, want %d", len(after), len(before))
+	for _, limit := range []contracts.PlannerSubtaskLimit{0, 1, 100, contracts.MaxPlannerSubtasks} {
+		t.Run(fmt.Sprint(limit), func(t *testing.T) {
+			store, service, identity := runningTestService(t)
+			state, err := decodeState(store.session.State)
+			if err != nil {
+				t.Fatal(err)
+			}
+			state.MaxSubtasks = limit
+			state.FactDigests = make(map[string]string, state.factLimit())
+			for index := range state.factLimit() {
+				state.FactDigests[fmt.Sprintf("current:%d", index)] = "sha256:" + strings.Repeat("e", 64)
+			}
+			full, err := encodeState(state)
+			if err != nil {
+				t.Fatal(err)
+			}
+			store.session.State = full
+			before := store.snapshotEvents()
+			err = service.RecordFact(t.Context(), identity, planner.PlannerFact{
+				Kind: planner.PlannerEventFinishRequested, Key: "finish:0:failed", Outcome: "failed",
+			})
+			if !errors.Is(err, runstore.ErrInvalid) || !planner.SessionWriteRejected(err) {
+				t.Fatalf("fact past the limit = %v, want runstore.ErrInvalid", err)
+			}
+			if after := store.snapshotEvents(); len(after) != len(before) || string(store.session.State) != string(full) {
+				t.Fatalf("refused fact changed the session: %d events, want %d", len(after), len(before))
+			}
+			state.FactDigests["overflow"] = "sha256:" + strings.Repeat("e", 64)
+			invalid, err := json.Marshal(state)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := decodeState(invalid); err == nil {
+				t.Fatal("durable read accepted too many fact receipts")
+			}
+		})
 	}
 }
 

@@ -28,9 +28,8 @@ const (
 	// maxSessionJSONBytes pre-checks the session state on the submitted
 	// compact JSON and checks it at read; the planner_session_state_size
 	// CHECK bounds the stored jsonb text authoritatively (LIM-PLN-9).
-	maxSessionJSONBytes     = 2 * 1024 * 1024
-	maxRecordedPlannerFacts = 256
-	maxPlannerFactKeyBytes  = 256
+	maxSessionJSONBytes    = 2 * 1024 * 1024
+	maxPlannerFactKeyBytes = 256
 )
 
 type Store interface {
@@ -335,7 +334,7 @@ func (s *Service) RecordFact(
 		if fact.PlanRevision != currentRevision {
 			return fmt.Errorf("Planner fact plan revision differs: %w", runstore.ErrConflict)
 		}
-		if len(state.FactDigests) >= maxRecordedPlannerFacts {
+		if len(state.FactDigests) >= state.factLimit() {
 			return fmt.Errorf("Planner fact limit reached: %w", runstore.ErrInvalid)
 		}
 		next := state
@@ -495,6 +494,13 @@ type persistentState struct {
 	Completion               *planner.Completion            `json:"completion,omitempty"`
 }
 
+// factLimit covers every legal dispatch sequence: one selection and at most
+// two current changes per subtask (when work is added just in time), followed
+// by one accepted finish. Equal-key replays consume no additional entry.
+func (s persistentState) factLimit() int {
+	return 3*s.MaxSubtasks.Effective() + 1
+}
+
 type planProjectionEvent struct {
 	Kind             string                        `json:"kind"`
 	ExpectedRevision uint64                        `json:"expectedRevision"`
@@ -613,7 +619,7 @@ func encodeState(state persistentState) (json.RawMessage, error) {
 	} else if state.LastPlanTransitionDigest != "" {
 		return nil, fmt.Errorf("Planner plan transition digest exists without a plan")
 	}
-	if len(state.FactDigests) > maxRecordedPlannerFacts {
+	if len(state.FactDigests) > state.factLimit() {
 		return nil, fmt.Errorf("Planner fact state exceeds its limit")
 	}
 	for key, digest := range state.FactDigests {

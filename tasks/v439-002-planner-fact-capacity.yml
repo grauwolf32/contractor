@@ -9,7 +9,7 @@ title: Derive Planner fact capacity from the pinned subtask limit
 kind: defect
 introduced_by: V384-001
 priority: P2
-status: pending
+status: in_progress
 goal: A configured plan can execute its selected number of short subtasks without exhausting an unrelated 256-fact
   ceiling.
 context:
