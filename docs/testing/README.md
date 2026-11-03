@@ -136,6 +136,13 @@ uses `make -k` and uploads its log and available evidence as a
 `reports-<stage>` artifact even when it fails. Locally,
 `make -k release-verify` reports every failing stage in one run.
 
+CI stages share a pnpm store cache keyed by runner OS and architecture plus
+the UI package manifest, lockfile, workspace policy and Node version file.
+The pinned pnpm resolves its store path from `ui/`; `node_modules` is not cached.
+Every stage still runs `pnpm install --frozen-lockfile`, including cache hits;
+a cache miss downloads packages normally. A successful install saves a missing
+cache before tests, so later test failures do not discard those packages.
+
 PR selection always includes lint. Server and Runtime changes add unit,
 integration and focused cross-process capability checks; UI changes add UI
 checks and the affected browser stacks.

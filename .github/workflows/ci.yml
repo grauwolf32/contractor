@@ -96,8 +96,31 @@ jobs:
       - name: Enable pinned pnpm
         run: corepack enable
 
+      - name: Locate pnpm store
+        id: pnpm-store
+        working-directory: ui
+        run: |
+          store_path=$(corepack pnpm store path --silent)
+          echo "path=$store_path" >> "$GITHUB_OUTPUT"
+
+      # Every stage installs the same graph, so share the store across stages.
+      - name: Restore pnpm store
+        id: pnpm-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('ui/package.json', 'ui/pnpm-lock.yaml', 'ui/pnpm-workspace.yaml', 'ui/.node-version') }}
+
       - name: Install UI dependencies
         run: cd ui && corepack pnpm install --frozen-lockfile
+
+      # Save before tests so a later failure still leaves a reusable store.
+      - name: Save pnpm store
+        if: steps.pnpm-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: ${{ steps.pnpm-cache.outputs.cache-primary-key }}
 
       - name: Install Chromium and host libraries
         if: startsWith(matrix.stage, 'release-verify-browser-') || matrix.stage == 'test-ui-stack-operations'

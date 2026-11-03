@@ -1,0 +1,71 @@
+schema_version: "1.0"
+id: V442-001
+title: "Cache the pinned pnpm dependency store across CI stages"
+milestone: test-gate-cost-2026-10
+epic: quality
+kind: chore
+priority: P3
+status: in_progress
+depends_on: []
+languages: [yaml]
+goal: "CI reuses downloaded UI packages across runs while every stage still performs a frozen dependency installation."
+context:
+  authority:
+    - "2026-11-03: The user requested configuring the pnpm cache after reviewing CI installation overhead."
+  finding: >-
+    .github/workflows/ci.yml installs the same UI dependency graph in each
+    selected stage without restoring the pnpm store. This is an authorized
+    CI optimization, not a reactivation of the archived Go test-cache tasks.
+  decision: >-
+    Use the existing actions/cache restore/save mechanism around the frozen
+    install. Resolve the store with the pinned Corepack pnpm from ui/ and
+    share an OS/architecture/install-input key across stages. Save immediately
+    after installation so later test failures do not discard downloaded packages.
+    A single post-job cache action is simpler but would save only after a
+    successful job. Cache only the pnpm store, not node_modules. Reconsider
+    the optimization if hosted timings show transfer costs outweigh downloads.
+scope:
+  in:
+    - "Restore and save the pnpm store in the CI stage job."
+    - "Document cache identity, miss behavior and the unconditional frozen install."
+  out:
+    - "Bun migration, Node/pnpm upgrades, stage selection, browser caches and application behavior."
+    - "Performance claims or new benchmark/test infrastructure."
+acceptance_criteria:
+  - id: A1
+    text: >-
+      The workflow discovers the store from ui/ with the pinned pnpm and
+      restores only that directory using OS, architecture and the hashes of
+      the package manifest, lockfile, workspace policy and Node version file;
+      stages use the same key and a missing cache permits the normal install.
+  - id: A2
+    text: >-
+      Every cache outcome still runs the frozen install. A successful install
+      saves a missing exact key before tests; failed or cancelled installation
+      does not save it. Existing checks and stage selection remain unchanged.
+  - id: A3
+    text: "Workflow syntax, existing CI guards, task records and repository lint pass; hosted cache hits and timing remain explicitly unmeasured."
+tests:
+  - command: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 .github/workflows/ci.yml
+    covers: [A1, A2, A3]
+  - command: python3 -m unittest discover -s scripts -p 'test_select_ci_stages.py'
+    covers: [A2, A3]
+  - command: python3 -m unittest discover -s scripts -p 'test_check_release_verify_graph.py'
+    covers: [A2, A3]
+  - command: python3 scripts/check_release_verify_graph.py
+    covers: [A2, A3]
+  - command: make ui-install
+    covers: [A2, A3]
+  - command: make lint
+    covers: [A3]
+verification:
+  date: "2026-11-03"
+  passed:
+    - "make lint passed, including the existing task/spec, UI, Go, deployment and Runtime checks; the database skip is recorded below."
+    - "Pinned actionlint v1.7.7 accepted the CI workflow."
+    - "CI selector tests: 9 passed; release graph guard tests: 56 passed."
+    - "The live release graph guard accepted all existing stages and selections."
+    - "make ui-install completed with pnpm 11.24.0, reusing all 684 packages from the local store without downloads."
+  limits:
+    - "Hosted GitHub Actions cache restore/save and performance have not been exercised locally."
+    - "The scripts suite skips one PostgreSQL check because CONTRACTOR_TEST_DATABASE_URL is unset; no database-backed verification is claimed."
