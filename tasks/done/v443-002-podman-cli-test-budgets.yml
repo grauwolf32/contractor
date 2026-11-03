@@ -6,7 +6,7 @@ epic: quality
 kind: chore
 introduced_by: V31-002
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [python]
 goal: Verify the CLI output ceiling independently of cold child-process startup while retaining real timeout coverage.
@@ -14,6 +14,12 @@ context:
   authority: >-
     Agent-proposed verification repair discovered on 2026-11-04 while completing user-assigned
     V64-012 after integration with main. This is a test-only prerequisite; no product behavior changes.
+  verification: >-
+    2026-11-04: all three owning test modules pass (64 passed, 13 existing platform skips).
+    The delayed flood returns sandbox_timeout with the former 150 ms budget and
+    sandbox_output_limit with the independent five-second test budget. Whole make test-runtime
+    passes 5708 tests with 135 existing optional platform/environment skips; make lint passes.
+    Logs: /tmp/v443-002-podman.log, /tmp/v443-002-runtime.log, /tmp/v443-002-lint.log.
   finding: >-
     runtime/tests/test_podman_engine.py:651-667 gives flood, hang and inherited-pipe the same
     150 ms deadline. On this macOS host a new Python child can take 198 ms to start, so a
@@ -45,4 +51,4 @@ tests:
 - command: make test-runtime
   covers: [A1, A2, A3]
 - command: make lint
-implementation_commit: null
+implementation_commit: e4839b10ed4151214113ff5975d4d20e56674715
