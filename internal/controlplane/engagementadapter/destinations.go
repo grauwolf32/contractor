@@ -1,0 +1,93 @@
+package engagementadapter
+
+import (
+	"context"
+	"errors"
+	"net"
+	"net/netip"
+	"net/url"
+	"slices"
+	"strconv"
+	"strings"
+
+	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/controlplane"
+)
+
+// resolveProtectedDestinations pins infrastructure endpoints separately
+// from target scope. Runtime repeats alias resolution in its own network. No
+// secret-bearing URL or header is included in the returned denyset.
+func resolveProtectedDestinations(ctx context.Context, reservation controlplane.Reservation, settings runtimesettings.RuntimeSettings) ([]engagementcontract.ProtectedDestination, error) {
+	endpoints := []string{settings.ArtifactAPIURL, reservation.ControlURL, reservation.A2AURL}
+	if settings.LLMGatewayURL != "" {
+		endpoints = append(endpoints, settings.LLMGatewayURL)
+	}
+	if settings.Telemetry != nil {
+		endpoints = append(endpoints, settings.Telemetry.Endpoint)
+	}
+	if settings.HTTPProxy != nil {
+		endpoints = append(endpoints, settings.HTTPProxy.ProxyURL)
+	}
+	if settings.Caido != nil {
+		endpoints = append(endpoints, settings.Caido.Endpoint)
+	}
+	if settings.Interactsh != nil {
+		endpoints = append(endpoints, settings.Interactsh.Endpoint)
+	}
+	return resolveEngagementDestinations(ctx, endpoints, net.DefaultResolver.LookupNetIP)
+}
+
+func resolveEngagementDestinations(ctx context.Context, endpoints []string, lookup func(context.Context, string, string) ([]netip.Addr, error)) ([]engagementcontract.ProtectedDestination, error) {
+	result := make([]engagementcontract.ProtectedDestination, 0, len(endpoints))
+	seen := map[string]bool{}
+	for _, endpoint := range endpoints {
+		parsed, err := url.Parse(endpoint)
+		if err != nil || parsed.Hostname() == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+			return nil, errors.New("protected infrastructure endpoint is invalid")
+		}
+		host := strings.TrimSuffix(strings.ToLower(parsed.Hostname()), ".")
+		port := 80
+		if parsed.Scheme == "https" {
+			port = 443
+		}
+		if parsed.Port() != "" {
+			port, err = strconv.Atoi(parsed.Port())
+			if err != nil {
+				return nil, errors.New("protected infrastructure port is invalid")
+			}
+		}
+		key := net.JoinHostPort(host, strconv.Itoa(port))
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		var addresses []netip.Addr
+		if ip, parseErr := netip.ParseAddr(host); parseErr == nil {
+			addresses = []netip.Addr{ip.Unmap()}
+			host = ip.Unmap().String()
+		} else {
+			addresses, err = lookup(ctx, "ip", host)
+			if err != nil {
+				return nil, errors.New("protected infrastructure address could not be resolved")
+			}
+		}
+		if len(addresses) == 0 || len(addresses) > 32 {
+			return nil, errors.New("protected infrastructure address set is outside its bound")
+		}
+		destination := engagementcontract.ProtectedDestination{Hostname: host, Port: port, Addresses: make([]string, 0, len(addresses))}
+		for _, address := range addresses {
+			destination.Addresses = append(destination.Addresses, address.Unmap().String())
+		}
+		slices.Sort(destination.Addresses)
+		destination.Addresses = slices.Compact(destination.Addresses)
+		if err := destination.Validate(); err != nil {
+			return nil, errors.New("protected infrastructure destination is invalid")
+		}
+		result = append(result, destination)
+	}
+	if len(result) == 0 || len(result) > 256 {
+		return nil, errors.New("protected infrastructure destination set is outside its bound")
+	}
+	return result, nil
+}

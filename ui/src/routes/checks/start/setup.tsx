@@ -1,24 +1,16 @@
 import { useId, useRef } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link } from "react-router";
 
 import { ErrorNotice } from "../../../app/error-notice";
 import { Icon } from "../../../app/icon";
 import { checkStateLabel } from "../../../app/vocabulary";
-import {
-  Button,
-  ButtonLink,
-  Field,
-  IdChip,
-  Kbd,
-  modKeyLabel,
-  useShortcuts,
-} from "../../../ui";
+import { Button, ButtonLink, Field, useShortcuts } from "../../../ui";
 import { AdvancedOptions } from "./advanced";
+import { ScopeCard } from "./scope";
 import {
   compatibilityReasonText,
-  missingLabel,
   presentCheckType,
-  scopeSummary,
+  checkTypeIcon,
 } from "./check-types";
 import { TextAreaField, TextField } from "./fields";
 import { isLostResponse, type StartFailure } from "./launch";
@@ -67,7 +59,7 @@ export function SetupHeader({ model }: { model: StartCheck }) {
   );
 }
 
-function ObjectiveField({ model }: { model: StartCheck }) {
+export function ObjectiveField({ model }: { model: StartCheck }) {
   const id = useId();
   const { suggestion } = model.suggestions;
   const chosen = model.selection?.family.name;
@@ -122,45 +114,22 @@ function ObjectiveField({ model }: { model: StartCheck }) {
 
 function TypeSection({ model }: { model: StartCheck }) {
   const headingId = useId();
-  const { selection, suggestions, readiness, exact, detail } = model;
+  const { selection, exact, detail } = model;
   if (selection === undefined) return null;
-  const paths = projectPaths(model.projectId);
   const profile = exact ?? selection.profile;
-  const exactName = `${profile.ref.name}@${profile.ref.version}`;
-  const suggested = suggestions.suggestion?.checkType === selection.family.name;
-  const alternative = suggested ? suggestions.alternative : undefined;
   return (
     <section className="start-type" aria-labelledby={headingId}>
-      <div className="start-type-title">
-        <h2 id={headingId}>{selection.presentation.label}</h2>
-        {suggested ? <span className="start-badge">Suggested</span> : null}
-      </div>
-      <div className="start-type-id">
-        <IdChip
-          value={exactName}
-          display={exactName}
-          label="check type version"
-        />
-      </div>
-      <p className="start-type-description">
-        {selection.presentation.description}
-      </p>
-      {suggested && suggestions.suggestion !== undefined ? (
-        <div className="start-why">
-          <Icon name="bulb" size={17} strokeWidth={2} />
-          <p>
-            <strong>Why this fits:</strong> {suggestions.suggestion.reason}
+      <div className="start-selection-head">
+        <span className="start-selection-icon">
+          <Icon name={checkTypeIcon(profile)} size={20} />
+        </span>
+        <div className="start-selection-copy">
+          <h2 id={headingId}>{selection.presentation.label}</h2>
+          <p className="start-type-description">
+            {selection.presentation.description}
           </p>
         </div>
-      ) : null}
-      {alternative === undefined ? null : (
-        <p className="start-tight">
-          Or try{" "}
-          <Link to={model.href({ type: alternative.checkType })}>
-            {labelOf(model, alternative.checkType)}
-          </Link>
-        </p>
-      )}
+      </div>
       {detail.error !== null && exact === undefined ? (
         <ErrorNotice
           error={detail.error}
@@ -209,86 +178,7 @@ function TypeSection({ model }: { model: StartCheck }) {
           </p>
         </div>
       )}
-      {readiness?.state === "missing" ? (
-        <div className="notice notice-warning" role="note">
-          <strong>
-            Needs more materials:{" "}
-            {readiness.missing.map(missingLabel).join(", ")}
-          </strong>
-          <p>
-            {readiness.missing.some((need) => need.kind === "shared")
-              ? "The project has fewer materials in these formats than the check type has inputs. "
-              : null}
-            {readiness.missing.some((need) => need.kind !== "live-target") ? (
-              <>
-                <Link to={paths.addMaterial}>Add materials</Link> to the
-                project, then come back.{" "}
-              </>
-            ) : null}
-            {readiness.missing.some((need) => need.kind === "live-target") ? (
-              <>
-                <Link to={paths.settings}>Set the live target</Link> in the
-                project settings, or enter a target for this check below.
-              </>
-            ) : null}
-          </p>
-        </div>
-      ) : null}
     </section>
-  );
-}
-
-function ScopeCard({ model }: { model: StartCheck }) {
-  const id = useId();
-  const navigate = useNavigate();
-  const { selection } = model;
-  if (selection === undefined) return null;
-  const { variants } = selection.row.row;
-  if (variants.length <= 1) {
-    const summary = scopeSummary(model.exact ?? selection.profile);
-    return (
-      <section className="start-card" aria-labelledby={`${id}-heading`}>
-        <div className="start-card-head">
-          <h3 id={`${id}-heading`}>Scope</h3>
-        </div>
-        <p className="start-scope-size">{summary.size}</p>
-        <p className="ui-caption">{summary.detail}</p>
-      </section>
-    );
-  }
-  return (
-    <fieldset className="start-card start-scope">
-      <legend className="start-card-legend">Scope</legend>
-      {variants.map((family) => {
-        const summary = scopeSummary(family.preferred);
-        // Still selectable: choosing it shows the server's reasons, and the
-        // footer keeps it from being created or started.
-        const unsupported = !family.preferred.serverCompatible;
-        return (
-          <label key={family.name} className="start-scope-option">
-            <input
-              type="radio"
-              name={`${id}-scope`}
-              checked={family.name === selection.family.name}
-              onChange={() =>
-                void navigate(model.href({ type: family.name }), {
-                  replace: true,
-                })
-              }
-            />
-            <span>
-              <span className="start-scope-size">{summary.size}</span>
-              <span className="ui-caption start-scope-detail">
-                {family.preferred.inventory.standardSelection === undefined
-                  ? `${presentCheckType(family.preferred).label} · ${summary.detail}`
-                  : summary.detail}
-                {unsupported ? " · not supported by this server" : ""}
-              </span>
-            </span>
-          </label>
-        );
-      })}
-    </fieldset>
   );
 }
 
@@ -406,12 +296,9 @@ function TimeLimitField({ model }: { model: StartCheck }) {
 export function SetupBody({ model }: { model: StartCheck }) {
   return (
     <>
-      <ObjectiveField model={model} />
       <TypeSection model={model} />
-      <div className="start-cards">
-        <MaterialsCard model={model} />
-        <ScopeCard model={model} />
-      </div>
+      <MaterialsCard model={model} />
+      <ScopeCard model={model} />
       <LiveTargetFields model={model} />
       <SetupOptions model={model} />
     </>
@@ -428,13 +315,6 @@ export function SetupOptions({ model }: { model: StartCheck }) {
       <AdvancedOptions model={model} />
     </fieldset>
   );
-}
-
-function timeSentence(seconds: number | undefined): string {
-  if (seconds === undefined) return "";
-  return seconds === 0
-    ? "It runs without a time limit."
-    : `It starts no new work after ${formatTimeLimit(seconds)}; work already running can finish.`;
 }
 
 /**
@@ -494,7 +374,7 @@ function LaunchNotices({
     return (
       <ErrorNotice
         error={launch.preparationError}
-        context="Could not save the scan inputs."
+        context="Could not save the check materials."
       />
     );
   const createError = launch.createError;
@@ -614,7 +494,7 @@ export function SetupFooter({ model }: { model: StartCheck }) {
       when: (event) =>
         !(
           event.target instanceof Element &&
-          event.target.closest("a[href]") !== null
+          event.target.closest("a[href], .start-type-picker") !== null
         ),
       handler: () => {
         const button = startButton.current;
@@ -628,7 +508,7 @@ export function SetupFooter({ model }: { model: StartCheck }) {
     launch.pending === undefined
       ? ""
       : launch.step === "prepare"
-        ? "Saving scan inputs…"
+        ? "Saving check materials…"
         : launch.step === "verify"
           ? "Checking whether the check started…"
           : launch.step === "start"
@@ -638,60 +518,100 @@ export function SetupFooter({ model }: { model: StartCheck }) {
               : "Creating the check…";
   const hint = pending ? undefined : model.startBlocker;
   const projectName = model.project?.name ?? "this project";
+  const profile = model.exact ?? selection.profile;
+  const inline =
+    model.checklist?.mode === "write" ? model.checklist : undefined;
+  const selected =
+    model.slots.filter(
+      (slot) => slot.selected !== undefined && slot.name !== inline?.inputName,
+    ).length + (inline?.applied === undefined ? 0 : 1);
+  const ready = model.startBlocker === undefined;
+  const blocked = !profile.serverCompatible;
   return (
-    <div className="start-footer">
-      <LaunchNotices model={model} />
-      <div className="start-footer-row">
-        <p className="start-summary">
-          <strong>
-            {selection.presentation.label} on {projectName}.
-          </strong>{" "}
-          <span className="ui-caption">
-            {timeSentence(model.deadlineSeconds)}
-          </span>
-        </p>
-        <div className="start-actions">
-          <Button
-            disabled={pending || model.saveBlocker !== undefined}
-            pending={launch.pending === "draft"}
-            pendingLabel="Saving…"
-            aria-describedby={`${id}-draft`}
-            onClick={model.saveDraft}
-          >
-            Save as draft
-          </Button>
-          <Button
-            ref={startButton}
-            variant="primary"
-            className="start-primary"
-            icon={<Icon name="play" size={16} />}
-            disabled={pending || model.startBlocker !== undefined}
-            pending={launch.pending === "start"}
-            aria-describedby={hint === undefined ? undefined : `${id}-hint`}
-            aria-keyshortcuts="Control+Enter Meta+Enter"
-            onClick={model.start}
-          >
-            <span>
-              {launch.pending === "start" ? "Starting…" : "Start check"}
-            </span>
-            <span className="ui-kbd-hint" aria-hidden="true">
-              <Kbd>{modKeyLabel()}</Kbd>
-              <Kbd>Enter</Kbd>
-            </span>
-          </Button>
+    <aside className="start-summary-card" aria-label="Your check">
+      <h3>Your check</h3>
+      <p className="start-summary-name">{selection.presentation.label}</p>
+      <dl className="start-summary-facts">
+        <div>
+          <dt>Project</dt>
+          <dd>{projectName}</dd>
         </div>
+        <div>
+          <dt>Materials</dt>
+          <dd>
+            {model.webScan === undefined
+              ? `${selected} of ${model.slots.length} selected`
+              : "Target and scan settings"}
+          </dd>
+        </div>
+        <div>
+          <dt>Scope</dt>
+          <dd>{model.materialScope.summary}</dd>
+        </div>
+        <div>
+          <dt>Time limit</dt>
+          <dd>
+            {model.deadlineSeconds === undefined
+              ? "Review the limit"
+              : model.deadlineSeconds === 0
+                ? "No time limit"
+                : formatTimeLimit(model.deadlineSeconds)}
+          </dd>
+        </div>
+      </dl>
+      <div
+        className="start-readiness"
+        data-tone={blocked ? "blocked" : ready ? "ready" : "missing"}
+      >
+        <span>
+          {blocked
+            ? "Unavailable"
+            : ready
+              ? "Ready to start"
+              : inline?.empty
+                ? "Checklist draft"
+                : inline?.dirty
+                  ? "Unapplied changes"
+                  : "Review the setup"}
+        </span>
+        <p id={`${id}-hint`}>
+          {inline?.empty
+            ? "Write and apply your checklist to continue."
+            : (hint ??
+              "Required inputs are selected. The Server validates the exact materials at start.")}
+        </p>
+      </div>
+      <div className="start-actions">
+        <Button
+          ref={startButton}
+          variant="primary"
+          className="start-primary"
+          disabled={pending || model.startBlocker !== undefined}
+          pending={launch.pending === "start"}
+          aria-describedby={hint === undefined ? undefined : `${id}-hint`}
+          aria-keyshortcuts="Control+Enter Meta+Enter"
+          onClick={model.start}
+        >
+          {launch.pending === "start" ? "Starting…" : "Start check"}
+        </Button>
+        <Button
+          variant="ghost"
+          disabled={pending || model.saveBlocker !== undefined}
+          pending={launch.pending === "draft"}
+          pendingLabel="Saving…"
+          aria-describedby={`${id}-draft`}
+          onClick={model.saveDraft}
+        >
+          Save as draft
+        </Button>
       </div>
       <span id={`${id}-draft`} className="ui-visually-hidden">
         Creates the check without starting it. Start it later from its page.
       </span>
-      {hint === undefined ? null : (
-        <p id={`${id}-hint`} className="ui-caption">
-          {hint}
-        </p>
-      )}
+      <LaunchNotices model={model} />
       <p className="ui-visually-hidden" role="status">
         {status}
       </p>
-    </div>
+    </aside>
   );
 }

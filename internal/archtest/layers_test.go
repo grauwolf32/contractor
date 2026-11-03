@@ -186,6 +186,8 @@ var layers = []layerSpec{
 			"internal/auditimport",
 			"internal/auditscan",
 			"internal/auditservice",
+			// Audit preparation implements a Control Plane port at the product layer.
+			"internal/controlplane/engagementadapter",
 			// The Audit store vocabulary, its PostgreSQL implementation and
 			// the seam packages that export it.
 			"internal/auditstore/...",

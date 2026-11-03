@@ -41,32 +41,32 @@ type PlacementRuntimeCredentialLookup interface {
 }
 
 type PlacementAllocatorOptions struct {
-	Storage                   *artifactpostgres.Storage
-	AuditAdapterRequirements  func(context.Context, string, string) ([]runtimesettings.RuntimeAdapterRef, error)
-	Pool                      *pgxpool.Pool
-	Registry                  *InMemoryRegistry
-	Gateways                  PlacementGatewayLookup
-	LLMCredentials            resolved.CredentialLookup
-	TransactionLLMCredentials runtimeconfig.TransactionLLMCredentialLookupFactory
-	RuntimeCredentials        PlacementRuntimeCredentialLookup
-	CredentialGuard           PlacementCredentialGuard
-	PerformanceMetrics        bool
+	Storage                       *artifactpostgres.Storage
+	AdditionalAdapterRequirements func(context.Context, string, string) ([]runtimesettings.RuntimeAdapterRef, error)
+	Pool                          *pgxpool.Pool
+	Registry                      *InMemoryRegistry
+	Gateways                      PlacementGatewayLookup
+	LLMCredentials                resolved.CredentialLookup
+	TransactionLLMCredentials     runtimeconfig.TransactionLLMCredentialLookupFactory
+	RuntimeCredentials            PlacementRuntimeCredentialLookup
+	CredentialGuard               PlacementCredentialGuard
+	PerformanceMetrics            bool
 }
 
 // PlacementAllocator composes immutable SQL catalogs with the process-local
 // liveness Registry. Every potentially blocking lookup happens outside the
 // Registry mutex; only compact compatibility edges cross that boundary.
 type PlacementAllocator struct {
-	storage                   *artifactpostgres.Storage
-	auditAdapterRequirements  func(context.Context, string, string) ([]runtimesettings.RuntimeAdapterRef, error)
-	pool                      *pgxpool.Pool
-	registry                  *InMemoryRegistry
-	gateways                  PlacementGatewayLookup
-	llmCredentials            resolved.CredentialLookup
-	transactionLLMCredentials runtimeconfig.TransactionLLMCredentialLookupFactory
-	runtimeCredentials        PlacementRuntimeCredentialLookup
-	credentialGuard           PlacementCredentialGuard
-	performanceMetrics        bool
+	storage                       *artifactpostgres.Storage
+	additionalAdapterRequirements func(context.Context, string, string) ([]runtimesettings.RuntimeAdapterRef, error)
+	pool                          *pgxpool.Pool
+	registry                      *InMemoryRegistry
+	gateways                      PlacementGatewayLookup
+	llmCredentials                resolved.CredentialLookup
+	transactionLLMCredentials     runtimeconfig.TransactionLLMCredentialLookupFactory
+	runtimeCredentials            PlacementRuntimeCredentialLookup
+	credentialGuard               PlacementCredentialGuard
+	performanceMetrics            bool
 }
 
 type placementCachedValue[T any] struct {
@@ -134,9 +134,10 @@ func NewPlacementAllocator(options PlacementAllocatorOptions) (*PlacementAllocat
 		options.RuntimeCredentials == nil || options.CredentialGuard == nil {
 		return nil, errors.New("candidate placement dependencies are incomplete")
 	}
-	return &PlacementAllocator{storage: options.Storage,
-		auditAdapterRequirements: options.AuditAdapterRequirements,
-		pool:                     options.Pool, registry: options.Registry, gateways: options.Gateways,
+	return &PlacementAllocator{
+		storage:                       options.Storage,
+		additionalAdapterRequirements: options.AdditionalAdapterRequirements,
+		pool:                          options.Pool, registry: options.Registry, gateways: options.Gateways,
 		llmCredentials: options.LLMCredentials, runtimeCredentials: options.RuntimeCredentials,
 		transactionLLMCredentials: options.TransactionLLMCredentials,
 		credentialGuard:           options.CredentialGuard, performanceMetrics: options.PerformanceMetrics,
@@ -150,14 +151,14 @@ func (a *PlacementAllocator) ReserveAllContext(
 	if err := contracts.ValidatePlacementLabels(request.RequiredPlacementLabels); err != nil {
 		return nil, fmt.Errorf("%w: invalid required placement labels: %v", ErrInvalidRequest, err)
 	}
-	// This read is outside Registry locks and pinning transactions. The Audit
+	// This read is outside Registry locks and pinning transactions. The owning
 	// baseline is immutable, so the same requirement survives placement retries.
-	if a.auditAdapterRequirements != nil {
-		required, err := a.auditAdapterRequirements(ctx, request.RunID, request.StageExecutionID)
+	if a.additionalAdapterRequirements != nil {
+		required, err := a.additionalAdapterRequirements(ctx, request.RunID, request.StageExecutionID)
 		if err != nil {
 			return nil, err
 		}
-		request.auditAdapters = slices.Clone(required)
+		request.additionalAdapters = slices.Clone(required)
 	}
 	attempt := newPlacementAttemptCache()
 	reservations, err := a.reserveAllContext(ctx, request, attempt)
@@ -214,6 +215,13 @@ func (a *PlacementAllocator) candidateEdges(
 	attempt *placementAttemptCache,
 ) ([]CandidateEdge, map[string]runtimeconfig.ResolvedRuntimeConfig, error) {
 	candidates = matchingLocationCandidates(request.RequiredPlacementLabels, candidates)
+	if len(request.Bindings) > len(candidates) {
+		return []CandidateEdge{}, nil, nil
+	}
+	toolCapabilities := make([]toolCapabilityIndex, len(candidates))
+	for index, candidate := range candidates {
+		toolCapabilities[index] = indexToolCapabilities(candidate.Registration.SupportedToolsets)
+	}
 	optimistic := make(map[string]runtimeconfig.ResolvedRuntimeConfig)
 	lookups := placementCredentialLookups{
 		llm: a.llmCredentials, runtime: a.runtimeCredentials,
@@ -225,8 +233,8 @@ func (a *PlacementAllocator) candidateEdges(
 		if err != nil {
 			return nil, nil, fmt.Errorf("%w: AgentTemplate infrastructure requirements are invalid", ErrInvalidRequest)
 		}
-		for _, candidate := range candidates {
-			if !isBindingCompatible(candidate.Registration, binding) {
+		for candidateIndex, candidate := range candidates {
+			if !isBindingCompatibleWithTools(candidate.Registration, binding, toolCapabilities[candidateIndex]) {
 				continue
 			}
 			runtimeConfig, err := a.resolveAttemptCandidate(ctx, request, binding, candidate.Principal, lookups, attempt)
@@ -239,7 +247,7 @@ func (a *PlacementAllocator) candidateEdges(
 				}
 				return nil, nil, err
 			}
-			if !containsRuntimeAdapters(candidate.Registration.SupportedRuntimeAdapters, runtimeConfig.RequiredRuntimeAdapters) || !containsRuntimeAdapters(candidate.Registration.SupportedRuntimeAdapters, request.auditAdapters) {
+			if !containsRuntimeAdapters(candidate.Registration.SupportedRuntimeAdapters, runtimeConfig.RequiredRuntimeAdapters) || !containsRuntimeAdapters(candidate.Registration.SupportedRuntimeAdapters, request.additionalAdapters) {
 				continue
 			}
 			if !containsRuntimeAdapters(runtimeConfig.RequiredRuntimeAdapters, toolAdapters) {
@@ -247,11 +255,14 @@ func (a *PlacementAllocator) candidateEdges(
 			}
 			key := placementResolutionKey(binding.LogicalAgentName, candidate.Registration.InstanceID)
 			optimistic[key] = runtimeConfig
+			requiredAdapters := append(slices.Clone(runtimeConfig.RequiredRuntimeAdapters), request.additionalAdapters...)
+			slices.Sort(requiredAdapters)
+			requiredAdapters = slices.Compact(requiredAdapters)
 			edges = append(edges, CandidateEdge{
 				LogicalAgentName: binding.LogicalAgentName, RuntimeAgentID: candidate.Principal.RuntimeAgentID,
 				RuntimeAgentInstanceID:    candidate.Registration.InstanceID,
 				RuntimeAgentLabelRevision: candidate.Principal.LabelRevision,
-				RequiredRuntimeAdapters:   append(slices.Clone(runtimeConfig.RequiredRuntimeAdapters), request.auditAdapters...),
+				RequiredRuntimeAdapters:   requiredAdapters,
 			})
 		}
 	}
@@ -472,7 +483,7 @@ func (a *PlacementAllocator) pinReservations(
 		if !ok || !sameResolvedRuntimeConfig(observed, runtimeConfig) ||
 			!contracts.PlacementLabelsMatch(request.RequiredPlacementLabels, candidate.Registration.PlacementLabels) ||
 			!isBindingCompatible(candidate.Registration, binding) ||
-			!containsRuntimeAdapters(candidate.Registration.SupportedRuntimeAdapters, runtimeConfig.RequiredRuntimeAdapters) || !containsRuntimeAdapters(candidate.Registration.SupportedRuntimeAdapters, request.auditAdapters) {
+			!containsRuntimeAdapters(candidate.Registration.SupportedRuntimeAdapters, runtimeConfig.RequiredRuntimeAdapters) || !containsRuntimeAdapters(candidate.Registration.SupportedRuntimeAdapters, request.additionalAdapters) {
 			return errPlacementRevisionChanged
 		}
 		result[reservation.Grant.AllocationID] = runtimeConfig

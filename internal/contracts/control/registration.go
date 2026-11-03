@@ -12,6 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/helpers/clone"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
@@ -98,11 +99,10 @@ func (r AgentRegistrationResponse) Validate() error {
 	return nil
 }
 
-// NormalizeAgentRegistration produces the immutable ordering used for
-// registration retries and fingerprints. Decode still requires sorted wire
-// sets so normalization cannot hide a malformed peer.
-func NormalizeAgentRegistration(source AgentRegistration) AgentRegistration {
+// Clone returns a detached registration, including mutable observations and all capability lists.
+func (source AgentRegistration) Clone() AgentRegistration {
 	result := source
+	result.AllocationID = clone.Pointer(source.AllocationID)
 	if source.Capabilities != nil {
 		value := *source.Capabilities
 		value.CompletionContracts = append([]string{}, source.Capabilities.CompletionContracts...)
@@ -122,8 +122,19 @@ func NormalizeAgentRegistration(source AgentRegistration) AgentRegistration {
 	for index, capability := range source.SupportedToolsets {
 		result.SupportedToolsets[index] = capability
 		result.SupportedToolsets[index].Tools = append([]string(nil), capability.Tools...)
+	}
+	return result
+}
+
+// NormalizeAgentRegistration produces the immutable ordering used for
+// registration retries and fingerprints. Decode still requires sorted wire
+// sets so normalization cannot hide a malformed peer.
+func NormalizeAgentRegistration(source AgentRegistration) AgentRegistration {
+	result := source.Clone()
+	for index := range result.SupportedToolsets {
 		sort.Strings(result.SupportedToolsets[index].Tools)
 	}
+
 	sort.Strings(result.PlacementLabels)
 	sort.Strings(result.SupportedRuntimes)
 	sort.Strings(result.SupportedSandboxProfiles)

@@ -97,9 +97,7 @@ export function declaresOpenApi(source: string): boolean {
   }
 }
 
-export function parseOpenApiDocument(
-  source: string,
-): Record<string, unknown> | undefined {
+function parseDocument(source: string): Record<string, unknown> | undefined {
   let parsed: unknown;
   try {
     parsed = parse(source, {
@@ -112,5 +110,57 @@ export function parseOpenApiDocument(
   if (!isOpenApiDocument(parsed)) {
     return undefined;
   }
-  return sanitiseValue(parsed, new WeakSet(), 0) as Record<string, unknown>;
+  return parsed;
+}
+
+export function parseOpenApiDocument(
+  source: string,
+): Record<string, unknown> | undefined {
+  const parsed = parseDocument(source);
+  return parsed === undefined
+    ? undefined
+    : (sanitiseValue(parsed, new WeakSet(), 0) as Record<string, unknown>);
+}
+
+/** Inline path projection before Preview omits external references. No reference is fetched. */
+export function readOpenApiEndpoints(
+  source: string,
+):
+  | { operations: { method: string; path: string }[]; partial: boolean }
+  | undefined {
+  const parsed = parseDocument(source);
+  if (parsed === undefined) return undefined;
+  const paths = parsed.paths;
+  if (paths === null || typeof paths !== "object" || Array.isArray(paths))
+    return undefined;
+  const operations: { method: string; path: string }[] = [];
+  let partial = false;
+  for (const [path, item] of Object.entries(paths)) {
+    if (!path.startsWith("/")) continue;
+    if (item === null || typeof item !== "object" || Array.isArray(item)) {
+      partial = true;
+      continue;
+    }
+    if (Object.hasOwn(item, "$ref")) partial = true;
+    for (const method of [
+      "get",
+      "put",
+      "post",
+      "delete",
+      "options",
+      "head",
+      "patch",
+      "trace",
+    ]) {
+      const operation = (item as Record<string, unknown>)[method];
+      if (
+        operation !== undefined &&
+        operation !== null &&
+        typeof operation === "object" &&
+        !Array.isArray(operation)
+      )
+        operations.push({ method: method.toUpperCase(), path });
+    }
+  }
+  return { operations, partial };
 }

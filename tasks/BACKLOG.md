@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-83 open tasks: 16 in progress, 54 pending, 13 deferred. 1373 finished: 1355 completed, 18 archived.
+83 open tasks: 16 in progress, 54 pending, 13 deferred. 1383 finished: 1365 completed, 18 archived.
 
 ## In progress
 
@@ -26,7 +26,7 @@ the epics are in [epics.yml](epics.yml).
 | [V437-005](v437-005-inject-artifact-storage-dependencies.yml) | projects-artifacts | chore | P2 | Inject Artifact storage dependencies explicitly |
 | [V437-006](v437-006-group-artifact-policy-and-preview.yml) | projects-artifacts | chore | P3 | Group shared Artifact policy and previews under artifacts |
 | [V437-007](v437-007-name-scheduler-fixture-sqlstate.yml) | execution-core | chore | P3 | Name the Scheduler discard fixture SQL condition |
-| [V439-008](v439-008-integrate-current-main.yml) | api-contracts | chore | P2 | Integrate current main before landing the HTTP API review |
+| [V440-008](v440-008-integrate-current-main.yml) | api-contracts | chore | P2 | Integrate current main before landing the HTTP API review |
 
 ## Pending
 
@@ -179,7 +179,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 3 | 47 | 64 | 31 | 94 |
+| Run execution core (`execution-core`) | 3 | 47 | 66 | 34 | 96 |
 | Planners and the Worker model boundary (`planner-worker`) | 9 | 35 | 49 | 30 | 75 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 14 | 5 | 45 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 3 | 14 |
@@ -191,10 +191,10 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 2 | 17 | 10 | 10 | 15 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 21 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 36 | 39 | 16 | 66 |
-| Audits (`audits`) | 17 | 67 | 90 | 38 | 137 |
+| Audits (`audits`) | 17 | 67 | 90 | 38 | 140 |
 | Evaluations (`evals`) | 6 | 21 | 39 | 16 | 49 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 5 |
-| Web UI (`ui`) | 2 | 34 | 69 | 25 | 69 |
+| Web UI (`ui`) | 2 | 38 | 70 | 25 | 70 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 18 | 46 | 9 | 22 |
 | Public API and wire contracts (`api-contracts`) | 2 | 2 | 39 | 29 | 20 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 27 | 47 | 17 |

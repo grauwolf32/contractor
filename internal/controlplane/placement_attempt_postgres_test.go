@@ -565,3 +565,23 @@ func storePlacementLLMCredential(t *testing.T, ctx context.Context, f *placement
 	}
 	return record
 }
+
+func TestPlacementImpossibleCardinalityReadsNoCandidateConfiguration(t *testing.T) {
+	ctx := t.Context()
+	pool := isolatedPlacementPool(t, ctx)
+	fixture := newPlacementFixture(t, ctx, pool, []string{"debug"})
+	fixture.registerCandidate(t, ctx, "only-slot", "1", []runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterOTLPHTTP})
+	trace, llm, runtime := countPlacementReads(t, ctx, fixture)
+	request := fixture.request()
+	second := request.Bindings[0]
+	second.LogicalAgentName, second.Namespace = "second", "second"
+	request.Bindings = append(request.Bindings, second)
+	_, err := fixture.allocator.ReserveAllContext(ctx, request)
+	if !errors.Is(err, ErrInsufficientCapacity) {
+		t.Fatalf("placement = %v", err)
+	}
+	optimistic, transaction := trace.take()
+	if optimistic.versions != 0 || optimistic.bindings != 0 || llm.count != 0 || runtime.count != 0 || transaction != (placementReadCounts{}) {
+		t.Fatalf("impossible cardinality read configuration: optimistic=%+v transaction=%+v LLM=%d Runtime=%d", optimistic, transaction, llm.count, runtime.count)
+	}
+}

@@ -1,5 +1,30 @@
 package controlplane
 
+import (
+	"slices"
+
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
+)
+
+// toolCapabilityIndex is detached from registration and never modified after
+// construction. Registry entries keep it for their immutable process lifetime;
+// optimistic placement builds one per candidate outside the Registry mutex.
+type toolCapabilityIndex map[string]map[string]struct{}
+
+func indexToolCapabilities(toolsets []control.ToolsetCapability) toolCapabilityIndex {
+	result := make(toolCapabilityIndex, len(toolsets))
+	for _, capability := range toolsets {
+		tools := make(map[string]struct{}, len(capability.Tools))
+		for _, tool := range capability.Tools {
+			tools[tool] = struct{}{}
+		}
+		result[capability.Ref] = tools
+	}
+	return result
+}
+
 // completeCapabilityAssignmentWithEdges finds a complete injective
 // binding-to-slot assignment over two already stable-ordered collections. Each
 // augmentation uses an explicit queue and parent edges so request-controlled
@@ -41,7 +66,7 @@ func buildCapabilityCandidates(available []*agentEntry, bindings []BindingRequir
 	candidates := make([][]int, len(bindings))
 	for bindingIndex, binding := range bindings {
 		for agentIndex, entry := range available {
-			if !isBindingCompatible(entry.registration, binding) {
+			if !isBindingCompatibleWithTools(entry.registration, binding, entry.toolCapabilities) {
 				continue
 			}
 			if edges != nil {
@@ -121,4 +146,63 @@ func integersFilled(length int, value int) []int {
 		result[index] = value
 	}
 	return result
+}
+
+func isBindingCompatible(registration control.AgentRegistration, binding BindingRequirement) bool {
+	return isBindingCompatibleWithTools(registration, binding, indexToolCapabilities(registration.SupportedToolsets))
+}
+
+func isBindingCompatibleWithTools(registration control.AgentRegistration, binding BindingRequirement, tools toolCapabilityIndex) bool {
+	return resolved.ValidateWorkerCompletionSelection(binding.CompletionContract, binding.Namespace, binding.AgentTemplate) == nil &&
+		contracts.SupportsWorkerCompletion(registration.Capabilities, binding.CompletionContract) &&
+		tools.supports(registration, binding.AgentTemplate, binding.Workspace)
+}
+
+func (capabilities toolCapabilityIndex) supports(
+	registration control.AgentRegistration,
+	template contracts.ResolvedAgentTemplate,
+	workspace *contracts.AllocationWorkspaceSpec,
+) bool {
+	if !resolved.SandboxWorkspaceCompatible(template, workspace, registration.WorkspaceCapabilities) {
+		return false
+	}
+	runtime := template.Runtime.RuntimeID + "@" + template.Runtime.Version
+	if !slices.Contains(registration.SupportedRuntimes, runtime) {
+		return false
+	}
+	sandbox := template.SandboxProfile.SandboxProfileID + "@" + template.SandboxProfile.Version
+	if !slices.Contains(registration.SupportedSandboxProfiles, sandbox) {
+		return false
+	}
+	for _, selection := range template.Toolsets {
+		ref := selection.Ref.ToolsetID + "@" + selection.Ref.Version
+		tools, ok := capabilities[ref]
+		if !ok {
+			return false
+		}
+		for _, selected := range selection.Tools {
+			if _, ok := tools[selected]; !ok {
+				return false
+			}
+		}
+	}
+	if workspace != nil && !supportsWorkspaceMode(registration.WorkspaceCapabilities, workspace.Mode) {
+		return false
+	}
+	return true
+}
+
+func supportsWorkspaceMode(
+	capabilities *contracts.WorkspaceCapabilities,
+	mode contracts.WorkspaceMode,
+) bool {
+	if capabilities == nil {
+		return false
+	}
+	for _, supported := range capabilities.Modes {
+		if supported == mode {
+			return true
+		}
+	}
+	return false
 }

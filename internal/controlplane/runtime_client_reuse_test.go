@@ -103,7 +103,7 @@ func TestRuntimeControlClientReusesOneVerifiedConnectionUntilRelease(t *testing.
 
 	client, err := NewMTLSRuntimeControlClient(mtls.Files{
 		Certificate: controlPlane.Certificate, PrivateKey: controlPlane.PrivateKey, CA: ca.Certificate,
-	}, 2*time.Second)
+	}, 2*time.Second, &projectionGrantReader{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

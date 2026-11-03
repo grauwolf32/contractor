@@ -1,0 +1,115 @@
+schema_version: "1.0"
+id: V429-020
+title: Explore a clearer New check setup with OpenDesign
+milestone: ui-journey-usability
+epic: ui
+kind: feature
+priority: P2
+status: completed
+depends_on: [V429-019]
+languages: [html, css, javascript]
+goal: Make the next check's purpose, type, materials and readiness easy to understand in a reviewed New check design preview with consistent typography and usable phone composition.
+demonstration: Compare the actual New check reference to an OpenDesign candidate for a ready project and missing materials, change a check type and material choice, inspect advanced settings and preview the desktop/390px layout without creating a real check.
+context:
+  authority: >-
+    User decision 2026-11-02: approved the proposed New check design exploration
+    through OpenDesign, first previewing a ready project and missing materials.
+    Preserve all OpenDesign data and the configured Contractor model/gateway;
+    keep shared fonts/themes and show the result before production transfer.
+  specification: docs/spec/ui/ui.md
+  design: docs/design/ui/README.md
+  decision: >-
+    The existing check-type, matching, readiness and launch owners remain the
+    behavioral authority. This task prepares contract-valid synthetic examples,
+    actual read-only React references and a bounded interactive presentation seed.
+    OpenDesign owns the visual composition pass; original output and subsequent
+    review edits are recorded separately. Seed controls simulate local selections
+    and acknowledge preview actions only; they do not create or start checks.
+scope:
+  in:
+    - Ready, missing-material and unsupported check examples from existing UI contracts.
+    - Actual current UI references and an OpenDesign-reviewed composition over shared fonts/themes.
+    - Local objective/type/material/scope/time-limit and advanced controls with truthful demo readiness.
+    - Desktop/phone verification, immutable generation provenance and visibly open preview.
+    - Isolated existing OpenDesign environment, verified pre/post backups and bounded temporary model relay.
+  out:
+    - Production UI/API/schema or business-data changes, real launches/uploads and model selection changes.
+    - New readiness algorithms, parsers, dependencies, network destinations or changes to earlier designs.
+requirements:
+  - id: R1
+    text: The preview identifies the selected check and attached or missing materials; missing and unsupported states block Start and no local action claims that a real check was created.
+  - id: R2
+    text: Shared fonts and theme tokens remain authoritative; the primary action, secondary settings and mobile list/setup transitions have clear hierarchy at 1440/1100/390/320px.
+  - id: R3
+    text: Preserve all prior OpenDesign files/state; retain the actual model output, prompts, provenance, exact inputs and recoverable before/after backups with relay cleanup.
+failure_outcomes:
+  - operation: Bounded OpenDesign generation
+    permanent: Preserve attempt identities and partial files without claiming a completed design or changing the model.
+    retryable: At most one focused continuation within the same expiring relay budget.
+    ambiguous: Reconcile client request/run identity and saved outputs before another submission.
+    cancelled: Stop the owned relay and preserve every earlier version.
+    timeout: Use the independent gateway deadline while retaining the configured model and all partial evidence.
+  - operation: Local preview controls
+    permanent: Show unsupported or missing input explicitly; no fabricated completeness or successful launch.
+    retryable: Only restore or reselect a synthetic local fixture.
+    ambiguous: No business write or persistent check exists.
+    cancelled: Selection remains local and can be reset without application side effects.
+    timeout: No background execution or polling is introduced in the candidate.
+cardinality:
+  - collection: Demonstration check types and materials
+    expected: Five types, four materials and two main readiness scenarios
+    maximum: Eight types, eight materials and four review scenarios
+    bound: Render one selected setup and a bounded type list; shared source/payload fixtures remain under one MiB.
+  - collection: Model relay requests
+    expected: One focused OpenDesign pass
+    maximum: Twenty-four single-model requests within one expiring trial
+    bound: One active request, bounded request/response bodies, only the existing Contractor gateway address/model.
+lifecycle:
+  - entity: Design project, conversation and versions
+    delete: None; earlier projects, conversations and files remain intact.
+    cascade: No Contractor business entity is introduced.
+    retention: Commit presentation/provenance; keep complete recoverable private backups, stop relay and remove its upstream credential.
+acceptance_criteria:
+  - id: A1
+    given: Actual current New check behavior and contract-valid synthetic projects
+    when: Ready, missing and unsupported scenarios are reviewed
+    then: The chosen type, required material slots, readiness and primary/secondary actions are clear and truthful, with functioning local controls.
+  - id: A2
+    given: Shared theme/fonts and four widths
+    when: The candidate is opened, resized and navigated by keyboard on light/dark/black themes
+    then: There is no document overflow or inaccessible setup/action area, and desktop/390px captures are visibly reviewed.
+  - id: A3
+    given: Existing OpenDesign data and the bounded isolated generation
+    when: Delivering the preview
+    then: Original data is unchanged, actual OpenDesign output/provenance and verified backups are preserved, relay is cleaned up and preview is open.
+tests:
+  - command: node docs/design/ui/experiments/new-check-opendesign-2026-11-02/verify.mjs
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_tasks.py
+    covers: [A3]
+  - command: python3 scripts/check_spec.py
+    covers: [A1, A2]
+  - command: git diff --check
+    covers: [A3]
+
+verification:
+  - >-
+    verify.mjs passed 36 ready/missing/unsupported × light/dark/black ×
+    1440/1100/390/320px cases, reachable launch controls, exact submitted script,
+    authored ASVS scope identity, material repair/selection, type search,
+    time-limit bounds, draft/start acknowledgments, keyboard and live iframe
+    resizing. No browser errors, external requests or mutations.
+  - >-
+    Six actual React baseline references and six candidate dark-theme desktop/
+    phone captures are preserved. Native IAB ready desktop and missing-material
+    390px views were inspected. Preview is open at 127.0.0.1:17567; current UI,
+    input seed and generated original remain available from the external toolbar.
+  - >-
+    OpenDesign run a8dbd3e7-86e6-4114-af63-b09f35a8dab9 succeeded with the unchanged
+    configured Contractor model. Raw CSS, HTML, rationale, input and provenance
+    are preserved. All 140 prior project files and every prior Project,
+    Conversation and Message row remain identical. Pre/post complete backups
+    passed SQLite integrity. Relay stopped, upstream credential removed; 22 of
+    24 allowed model requests used. No production code or business data changed.
+
+implementation_commit: bebad902d73da144aa6867451de5971f92395612

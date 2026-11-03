@@ -18,7 +18,7 @@ dialog ([build contract](../../../../../docs/design/ui/v3b-build-contract.md)
 - `type` selects a check type (an AuditProfile name, any scope variant). It
   is the list selection: rows link to it, J / K replace it. Without it the
   page selects the suggestion for the opening objective, else the first
-  ready check type, and narrow screens show the list. A name that is not
+  ready check type, and narrow screens initially show the chooser. A name that is not
   among the check types read so far gets a notice (while more pages exist,
   it suggests loading more).
 
@@ -28,7 +28,7 @@ dialog ([build contract](../../../../../docs/design/ui/v3b-build-contract.md)
   the Server can run. Advanced options can pick another loaded version.
 - Families that differ only in scope (same standard scheme, mode, inventory,
   inputs and interaction rules; for example ASVS review and its pilot, WSTG
-  and its fast pass) share a row; the Scope card chooses between them.
+  and its fast pass) share a row; Advanced options → Review coverage chooses between them.
 - Readiness: the Server can run it, every required input can have a current
   material of its own whose media type matches (a maximum matching, so one
   JSON is not counted as both an API spec and scan settings), and a check
@@ -104,6 +104,33 @@ reads that page). A material chosen for several inputs gets a warning.
 J / K move through check types. Ctrl+Enter / ⌘+Enter (`useShortcuts`
 "mod+enter", declared on the Start check button) starts the check from any
 field of the setup, or with focus anywhere else but on a link, when nothing
-keeps it from starting and the Start check button is shown (a narrow layout
-showing the list hides it). On a link the binding declines the key (its
+keeps it from starting. The type chooser excludes this shortcut so search does
+not launch a check. On a link the binding declines the key (its
 `when`), so the browser opens the link in a new tab as usual.
+
+## Approved OpenDesign transfer (UI-R227–230)
+
+The objective precedes a three-column workspace. At medium widths summary/actions
+follow setup, and phones use normal document flow with a collapsible type chooser.
+The existing list and launch owners still handle pagination, partial reads,
+compatibility, exact versions, request keys and context changes.
+
+`checklist-state.ts` owns one-empty-item local authoring, stable entry versions,
+UTF-8/document/profile bounds and Apply. Start/Save prepares an ordinary exact
+Project Artifact through `authored-material.ts`, shared with Web scan. Apply is
+local; only the Server response establishes a saved material. The content-derived
+create-only binding reconciles failed answers by metadata and bytes, without a
+new receipt mechanism. Existing `useLaunch` fences prevent an abandoned form
+from creating a check. Shared fixtures are read by UI codec and Go domain tests.
+
+`material-scope.ts` reads at most two selected exact documents ≤128 KiB: the
+inventory source and first declared typed Engagement. Reads use the existing
+preview transport and its streaming byte bound/abort signal. API paths use the
+Material Preview parser before external-reference sanitization, so referenced
+paths cannot become false complete/zero counts. Scope is descriptive; admission,
+complete inventories and authorization remain Server-owned. Larger/invalid
+content retains explicit Preview. Source-only checks have no separate Scope;
+standard variants remain Advanced profile choices. No executable Engagement
+profile is introduced by the UI. The real-route preview fixture and layout gate
+live alongside the preserved designs in
+`docs/design/ui/experiments/new-check-opendesign-2026-11-02`.

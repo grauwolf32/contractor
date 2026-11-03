@@ -517,7 +517,7 @@ describe("Web scan Audit", () => {
     await screen.findByLabelText(/Target URL/);
     await view.user.click(screen.getByRole("button", { name: "Start check" }));
     expect(
-      await screen.findByText(/Could not save the scan inputs/),
+      await screen.findByText(/Could not save the check materials/),
     ).toBeVisible();
     expect(view.sent("POST", "/audits")).toHaveLength(0);
   });

@@ -1,0 +1,54 @@
+schema_version: "1.0"
+id: V440-007
+title: "Integrate committed Artifact storage dependencies with HTTP review changes"
+milestone: httpapi-review-cleanup-2026-11
+epic: api-contracts
+kind: chore
+introduced_by: V437-005
+priority: P2
+status: completed
+depends_on: []
+languages: [go]
+goal: >-
+  The HTTP review branch and the concurrently committed explicit Artifact storage
+  constructors share one transfer runtime and preserve both sets of changes.
+context:
+  task_id_history: "HTTP review IDs moved from V439 to V440 on 2026-11-03 because main had already published the V439 Control Plane tasks."
+  authority:
+    - date: "2026-11-02"
+      decision: >-
+        Necessary integration for the user's authorized P1 fix and HTTP cleanup,
+        discovered after the separate Artifact branch committed its constructor change.
+  prerequisite: >-
+    Integrate committed codex/artifact-dependencies at 6e619b7c1 without staging,
+    modifying or committing its primary-checkout work. This task does not take
+    over the other branch's in-progress V437-005 task or claim its verification.
+  boundary: >-
+    Retain the injected Artifact Storage and shared transfer runtime of V437-005;
+    retain HTTP socket budgets, released response slots, Project Editor, Run repeat
+    owner and immutable capability cache from this review. The existing guard fix
+    5ed081dfe was cherry-picked before this merge; no architecture exception is added.
+scope:
+  in:
+    - Resolve composition and transfer/test-helper overlaps on this branch.
+    - Run the affected full HTTP, Project, RunService, app and architecture suites with TCP PostgreSQL.
+  out:
+    - Taking over V437-005 or unrelated active work.
+    - Schema changes, new persistence mechanisms or production compatibility paths.
+acceptance_criteria:
+  - id: A1
+    text: "Both committed changes are retained and production/test constructors consistently inject the existing shared storage/runtime."
+  - id: A2
+    text: "Finding deadlines, storage budget, replay/fence and release-before-response regressions still pass."
+  - id: A3
+    text: "The declared full integration and public API gates succeed without altering unrelated primary-checkout files."
+tests:
+  - command: "go test -tags=integration -count=1 ./internal/httpapi/... ./internal/projectstore/... ./internal/runservice/... ./internal/app/... ./internal/archtest/..."
+    covers: [A1, A2, A3]
+  - command: make verify-public-api
+    covers: [A1, A2, A3]
+implementation_commit: f2df6120731cb29e6884e1e60428664d9271a13d
+verification:
+  date: "2026-11-03"
+  result: >-
+    Merged only committed 6e619b7c1, preserved both changes and regenerated the dependency graph. Full HTTP, ProjectStore, RunService, app and architecture suites passed against disposable TCP PostgreSQL, including -race; finding socket/storage/replay/release regressions remained green. make verify-public-api, make lint and make docs-dependencies-check passed. No unrelated primary-checkout files were staged or modified; V437-005 remains owned by its original branch.
