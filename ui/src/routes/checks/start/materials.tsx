@@ -38,7 +38,7 @@ function MaterialRef({ material }: { material: ArtifactMetadata }) {
   );
 }
 
-export function MaterialSlot({
+function MaterialSlot({
   slot,
   complete,
   addHref,

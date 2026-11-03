@@ -151,7 +151,7 @@ export function presentCheckType(profile: AuditProfile): CheckTypePresentation {
 // ---------- Materials ----------
 
 /** Whether a material's media type is one the input accepts ("format matches"). */
-export function mediaTypeMatches(
+function mediaTypeMatches(
   mediaType: string,
   accepted: readonly string[],
 ): boolean {
