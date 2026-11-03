@@ -109,6 +109,67 @@ transport и заменить frontend, если его parser/TLS действ�
 отправкой потребует fork движка либо повторной реализации его network server,
 оценку и сам выбор следует пересмотреть до расширения работы.
 
+## Тонкий HTTPTransport поверх engine
+
+Уточнение обсуждения от 2026-11-03: пользователь предлагает сделать нынешний
+HTTPTransport тоньше и передать его функции модулям mitmproxy. Рекомендация
+агента — рассматривать его как allocation-owned facade над одним protocol
+engine. Протокольную реализацию заменяет mitmproxy; правила Contractor вызываются
+из собственного addon и небольшого integration layer. Простое распределение
+старого transport по новым файлам не уменьшает поддерживаемую реализацию.
+
+| Ответственность | Предлагаемый владелец |
+| --- | --- |
+| TCP/TLS, certificates, HTTP parsing/framing, H1/H2, multiplexing, streaming, connection reuse | Protocol engine mitmproxy и выбранные встроенные addons |
+| Canonical URL, engagement scope, защищённые endpoints, проверка всех DNS answers | Существующая policy Contractor, вызываемая из admission/connect интеграции |
+| Назначенная identity, точные origin credentials/cookies, очистка приватного материала | Существующий allocation-owned session owner; addon применяет выбранную identity к flow |
+| Лимиты запросов, concurrency, deadline/lease, решение о redirects/retries | HTTP owner Contractor; engine исполняет разрешённые exchanges |
+| Сбор bounded result, evidence и sitemap metadata | Обычные consumers Contractor, использующие flow events без второй полной истории тел |
+| Start, cancel, закрытие соединений и join | Существующий allocation lifecycle с engine-specific cleanup |
+
+Логический путь для Python tools — `HTTPTransport.request` как тонкий клиент
+общего engine. Scanner explicit ingress и будущий sandbox transparent ingress
+подключаются к тому же engine и policy. Готового универсального клиентского
+`request` API у Master нет; способ подачи программного запроса нужно проверить
+в первом срезе. Если потребуется приватный loopback ingress, это локальный
+вход в единственный исходящий engine, а не второй transport до target.
+
+При таком выборе собственные bridge parser/TLS и исходящий httpcore dispatch
+перестают быть production путём после прохождения conformance. Из
+HTTPTransport уходят создание per-attempt pool, ручная HTTP сериализация
+и полная сборка body там, где result contract допускает streaming. Общие
+policy/session primitives сохраняются; shared network helpers удаляются только
+если у них больше нет других callers.
+
+Конкретные [точки интеграции mitmproxy](https://docs.mitmproxy.org/stable/api/events.html):
+`requestheaders` до чтения body, `server_connect` перед соединением,
+`server_connected` с фактическим peer, TLS events и `responseheaders`/`response`.
+В `server_connect` отказ задаётся через `data.server.error`; исключение addon
+само по себе не обеспечивает запрет. С включённым request streaming hook
+`request` вызывается уже после передачи тела, поэтому исходный admission нельзя
+оставлять только в нём.
+
+Основной открытый стык — непосредственный I/O. В закреплённой версии после
+`server_connected` engine продолжает исполнение команд, а socket writes
+происходят внутри `proxy.server.ConnectionHandler.server_event` при `SendData`.
+Публичного hook на каждую такую запись нет. Проверки lease на connect/TLS/read/write
+и правило retry после возможно отправленных bytes требуют доказанной
+интеграции на этой границе. Проверка в одном HTTP hook не является её заменой.
+Аналогично нужно проверить numeric IP pinning с сохранением Host/SNI, peer
+rejection до target HTTP и повторную admission при reused/H2 connections.
+Пулы и connection-bound credentials не должны смешивать разные authority/identity.
+
+Первый срез должен провести реальный Python tool и один scanner через engine
+до fixture target, затем подтвердить deny, DNS/peer, lease/cancellation,
+credential isolation, body bounds и отсутствие небезопасного replay. Новая
+policy framework, второй HTTP owner и сохранение обоих исходящих transports
+не входят в рекомендуемую конечную архитектуру. Если для I/O enforcement
+понадобится fork или копия network server, действует условие пересмотра выше.
+
+Тонкий facade уменьшит собственный protocol code и повторную буферизацию.
+Начальная память импорта mitmproxy при этом остаётся; оценка её и streaming
+выигрыша приведена ниже. Production migration этим уточнением не выбрана.
+
 ## Переиспользование lifecycle
 
 Proxy engine должен стать ресурсом существующего HTTP/allocation owner.
