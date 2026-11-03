@@ -1,0 +1,111 @@
+schema_version: "1.0"
+id: V429-026
+title: Explore the remaining Operations sections with OpenDesign
+milestone: ui-journey-usability
+epic: ui
+kind: feature
+priority: P2
+status: in_progress
+depends_on: [V429-025]
+languages: [typescript, javascript, html, css]
+goal: Operators can review the other Operations sections in a coherent navigable design with distinct inventory, diagnostics and configuration layouts.
+demonstration: Open the local Operations preview, navigate through all seven remaining sections and completed allocations, inspect representative rows and local form examples, then resize to phone widths in all themes.
+context:
+  authority: User 2026-11-03 approves the Operations overview and asks to go through the tabs. The established workflow uses actual OpenDesign and a preview before production transfer.
+  specification: docs/spec/operations/operations.md
+  design: docs/design/ui/README.md
+  decision: >-
+    Extend the design exploration with Runtime Agents, Allocations/current and
+    completed, Performance, Configuration, LLM configurations, Credentials and
+    Settings. Preserve the approved overview and all native data. Existing route
+    components and schemas own field meanings and supported actions. Local
+    synthetic controls demonstrate selection, filters and form layout without
+    deployment writes. OpenDesign owns presentation in a new isolated project;
+    production transfer and main merge follow separate user instruction. Recovery decision
+    2026-11-03: native run exhausted its 24-request budget after producing CSS;
+    retain its failed receipt and exact CSS, assemble the single style insertion
+    locally and verify it. This narrows packaging work without another model
+    run, new capability or claim that native finalization succeeded.
+scope:
+  in:
+    - Existing route review, synthetic references and navigable multi-section prototype.
+    - Genuine native OpenDesign generation using the configured Contractor model and existing isolation.
+    - Local filters, disclosures, representative configuration forms and explicit preview-only feedback.
+    - Immutable inputs and output, full verified backups, preservation proof and responsive review.
+  out:
+    - Production UI or API changes, business mutations, new operational capabilities, deployment and main merge.
+requirements:
+  - id: R1
+    text: All existing section destinations navigate within the preview and each section keeps its source field meanings, authority and scope.
+  - id: R2
+    text: Runtime identities stay separate from current processes; current allocations separate observation from assignment; history preserves missing resource states; Performance preserves freshness and measurement scope.
+  - id: R3
+    text: Setup sections distinguish Runtime service credentials from managed LLM credentials and personal repository access; local form examples never claim a Server save or change the configured model.
+  - id: R4
+    text: Preserve the reviewed overview and every previous native file and history row, use shared fonts/tokens/icons and retain exact new native output.
+failure_outcomes:
+  - operation: Native generation
+    permanent: Keep inputs and receipt, inspect failure and do not substitute an unverified result.
+    retryable: At most one deliberate continuation within the bounded relay budget and configured model.
+    ambiguous: Persist the client identity before submission and reconcile the native run before resubmitting.
+    cancelled: Stop owned run and relay only; preserve generated data.
+    timeout: Bounded one-hour relay and longer model wait without model substitution.
+  - operation: Local preview actions
+    permanent: Show explicit empty, unavailable or read-failure states and preserve entered local drafts.
+    retryable: Refresh is local and has no deployment request or automatic network retry.
+    ambiguous: No business write is sent.
+    cancelled: Closing the preview discards local form edits only.
+    timeout: No long-running external preview request.
+cardinality:
+  - collection: Synthetic section inventory
+    expected: Up to eight identities and six current or historical allocations, three configuration entries and two credentials.
+    maximum: Twelve visible rows per inventory and sixty fixed Performance points.
+    bound: Fixed synthetic fixture; no live inventory polling or unbounded scan.
+  - collection: Native design generation
+    expected: One new project, a functional seed and brief.
+    maximum: Twenty-four model requests and one-hour relay lifetime.
+    bound: Internal-only network, read-only root and sole state volume; only configured gateway model relay.
+lifecycle:
+  - entity: Operations tabs design experiment
+    delete: No previous design assets or user data are deleted.
+    cascade: No new production entities.
+    retention: Exact seed, native output, rationale, run provenance, screenshots and verified recovery archives.
+acceptance_criteria:
+  - id: A1
+    text: All seven remaining sections and completed history are navigable, representative facts match reviewed current routes, and controls demonstrate local interactions without production requests.
+  - id: A2
+    text: OpenDesign produces retained presentation CSS with the unchanged configured model; exact CSS-only assembly is verified, native run status and any host recovery are explicit, prior native files/history remain identical and the owned relay is stopped with its upstream credential removed.
+  - id: A3
+    text: Every new section fits 1440/1100/390/320px in light/dark/black; empty/error boundaries and filters/disclosures/forms are checked with no page errors or external requests, and preview is opened.
+tests:
+  - command: node docs/design/ui/experiments/operations-tabs-opendesign-2026-11-03/verify.mjs
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_tasks.py
+    covers: [A3]
+  - command: python3 scripts/check_spec.py
+    covers: [A1]
+  - command: git diff --check
+    covers: [A1, A2, A3]
+
+verification:
+  - >-
+    Native OpenDesign run 24594eb2-4e5f-4756-9c15-7ba2409f4732 produced the
+    retained exact CSS and then failed on the fixed 24-request relay budget.
+    No continuation or budget increase was used. Host assembly inserts only
+    that CSS before the frozen seed head close; hashes verify every byte.
+    The failed receipt, exact CSS, inputs and recovery boundary are explicit.
+  - >-
+    Browser verify.mjs passed 96 section/theme/width layouts and 24 empty,
+    reconnecting and read-failure boundaries, filters, all six history resource
+    states, disclosures, dialogs, local scheduling validation/reset, cloning,
+    all section and Current/Completed navigation, keyboard mobile menu and live
+    resize. No overflow, page errors or external requests. Sixteen captures
+    and metrics are retained. The preview is opened on Runtime Agents.
+  - >-
+    Both verified full backups pass SQLite integrity. All 189 existing native
+    project files and all prior history rows remain identical; nine files were
+    added. The sandbox kept its internal-only network, read-only root and sole
+    state volume. Relay stopped and upstream credential removed after 24 calls.
+  - >-
+    python3 scripts/check_tasks.py, python3 scripts/check_spec.py and git diff
+    --check pass. Production UI code is unchanged; no production UI gate run.
