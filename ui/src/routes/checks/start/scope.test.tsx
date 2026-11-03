@@ -116,7 +116,7 @@ describe("selected material scope", () => {
       content: () => {
         calls++;
         return calls === 1
-          ? failure(503, "storage_unavailable")
+          ? failure(503, "storage_transaction_conflict")
           : content(source);
       },
     });
