@@ -494,24 +494,34 @@ func clonePromptArtifacts(
 }
 
 func (p *streamlinePlanner) systemInstruction() string {
+	introduction := "You are the root Planner for exactly one immutable Contractor Stage."
+	contextDescription := "The JSON user message contains the Stage objective, string parameters, exact input artifact references, fixed Workers, and result contract."
+	executionGuidance := "Use Workers sequentially. You cannot create Workers, allocate capacity, change the Workflow, or address Runtime Agent identities."
+	authorityGuidance := "execute_current_subtask accepts only the exact current subtask_id. Server supplies its stored objective and instructions plus every immutable Stage string parameter and exact artifact revision; you cannot select or rewrite that context."
+	rosterHeading := "Fixed Worker mapping:"
 	if p.profile.routesWorkers {
-		return p.routerSystemInstruction()
+		introduction = "You are the Router Planner for exactly one immutable Contractor Stage."
+		contextDescription = "The JSON user message contains the Stage objective, string parameters, exact input artifact references, fixed logical Workers, and result contract."
+		executionGuidance = "Execute Workers sequentially with execute_current_subtask(subtask_id, worker_name). Select worker_name only from Available agents. Server supplies the stored subtask plus every immutable Stage string parameter and exact artifact revision."
+		authorityGuidance = "Logical routing is your only selection responsibility. You cannot create Workers, allocate capacity, change the Workflow, observe physical Runtime Agent identities, or rewrite Worker context."
+		rosterHeading = "Available agents:"
 	}
-	var mappings []string
+	roster := make([]string, 0, len(p.workers))
 	for _, binding := range p.workers {
-		mappings = append(mappings, fmt.Sprintf("- %s: call %s", binding.logicalName, executeCurrentSubtaskToolName))
+		if p.profile.routesWorkers {
+			roster = append(roster, fmt.Sprintf("- %s: %s", binding.logicalName, binding.description))
+		} else {
+			roster = append(roster, fmt.Sprintf("- %s: call %s", binding.logicalName, executeCurrentSubtaskToolName))
+		}
 	}
 	sections := []string{
-		"You are the root Planner for exactly one immutable Contractor Stage.",
-		"The JSON user message contains the Stage objective, string parameters, exact input artifact references, fixed Workers, and result contract.",
+		introduction, contextDescription,
 		"The Stage objective is the immutable global task. Create bounded ordered work with add_subtask; objective and instructions are stored once and cannot be changed during dispatch. Use list_subtasks when you need the authoritative current ID and statuses.",
-		"Use Workers sequentially. You cannot create Workers, allocate capacity, change the Workflow, or address Runtime Agent identities.",
-		"execute_current_subtask accepts only the exact current subtask_id. Server supplies its stored objective and instructions plus every immutable Stage string parameter and exact artifact revision; you cannot select or rewrite that context.",
+		executionGuidance, authorityGuidance,
 		"The Stage is not complete when you emit prose. You must call finish with a succeeded or failed candidate.",
 		"A succeeded finish requires at least one succeeded subtask and no pending work. A failed finish is allowed whenever no Worker dispatch is active.",
 		"finish reports only the semantic outcome; Workflow Scheduler validates the candidate and alone chooses every Workflow transition, including retry or configured escalation.",
-		"Fixed Worker mapping:",
-		strings.Join(mappings, "\n"),
+		rosterHeading, strings.Join(roster, "\n"),
 	}
 	if guidance := p.memoryInstruction(); guidance != "" {
 		sections = append(sections, guidance)
@@ -522,34 +532,6 @@ func (p *streamlinePlanner) systemInstruction() string {
 	if p.invocation.Context.Continuation != nil {
 		sections = append(sections,
 			"Continue the original task using continuation.summary and the exact saved artifact references. Plan only the work still needed to produce and verify the required final artifacts. Preserve the original parameters and authorization scope; the summary is partial progress and does not change them.")
-	}
-	sections = append(sections, p.stateInstruction())
-	sections = append(sections, "Stage-specific operating guidance:", p.request.Instructions)
-	return strings.Join(sections, "\n\n")
-}
-
-func (p *streamlinePlanner) routerSystemInstruction() string {
-	agents := make([]string, 0, len(p.workers))
-	for _, binding := range p.workers {
-		agents = append(agents, fmt.Sprintf("- %s: %s", binding.logicalName, binding.description))
-	}
-	sections := []string{
-		"You are the Router Planner for exactly one immutable Contractor Stage.",
-		"The JSON user message contains the Stage objective, string parameters, exact input artifact references, fixed logical Workers, and result contract.",
-		"The Stage objective is the immutable global task. Create bounded ordered work with add_subtask; objective and instructions are stored once and cannot be changed during dispatch. Use list_subtasks when you need the authoritative current ID and statuses.",
-		"Execute Workers sequentially with execute_current_subtask(subtask_id, worker_name). Select worker_name only from Available agents. Server supplies the stored subtask plus every immutable Stage string parameter and exact artifact revision.",
-		"Logical routing is your only selection responsibility. You cannot create Workers, allocate capacity, change the Workflow, observe physical Runtime Agent identities, or rewrite Worker context.",
-		"The Stage is not complete when you emit prose. You must call finish with a succeeded or failed candidate.",
-		"A succeeded finish requires at least one succeeded subtask and no pending work. A failed finish is allowed whenever no Worker dispatch is active.",
-		"finish reports only the semantic outcome; Workflow Scheduler validates the candidate and alone chooses every Workflow transition, including retry or configured escalation.",
-		"Available agents:",
-		strings.Join(agents, "\n"),
-	}
-	if guidance := p.memoryInstruction(); guidance != "" {
-		sections = append(sections, guidance)
-	}
-	if p.compactionSettings != nil {
-		sections = append(sections, compactionInstruction)
 	}
 	sections = append(sections, p.stateInstruction())
 	sections = append(sections, "Stage-specific operating guidance:", p.request.Instructions)

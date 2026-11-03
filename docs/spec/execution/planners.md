@@ -447,6 +447,11 @@ with about 20 percent headroom, so a second decode or a copy of the snapshot
 fails it. The wall time of such a read, 60 ms at most, depends on the host
 and is measured by a benchmark beside that test, not gated.
 
+Workspace coverage and ordered read/unread path collections are derived once
+for each cached State and released with it on a new completion or Planner
+close. Each page still revalidates the strong ETag and completion correlation;
+pagination does not rescan the complete workspace on an unchanged revision.
+
 **PLN-R48.** Projection tools accept no state key, JSONPath,
 expression, field list or arbitrary aggregation program.
 

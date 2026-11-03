@@ -210,10 +210,10 @@ func (s *Service) FinishScanJob(ctx context.Context, identity planner.ScanSessio
 }
 
 func (s *Service) CompleteScan(ctx context.Context, identity planner.ScanSessionIdentity, completion planner.Completion) error {
-	cloned, err := cloneCompletion(completion)
-	if err != nil {
+	if err := validateCompletion(completion); err != nil {
 		return err
 	}
+	cloned := cloneCompletion(completion)
 	for attempt := 0; attempt < maxADKAppendAttempts; attempt++ {
 		session, state, err := s.loadScan(ctx, identity)
 		if err != nil {

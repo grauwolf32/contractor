@@ -75,6 +75,18 @@ func TestSharedServiceProjectsCorrelatedStateAndRevalidatesCache(t *testing.T) {
 		!reflect.DeepEqual(conditionals, []string{"", stateETag(7), stateETag(7), stateETag(7), stateETag(7)}) {
 		t.Fatalf("State reads = %d, conditionals = %v", calls, conditionals)
 	}
+	// Projections keep private cached collections; returned values belong to
+	// each caller even when the following read receives NotModified.
+	*coverage.UnreadFiles = 99
+	first.Files[0] = "caller-changed"
+	again, err := service.GetWorkspaceCoverage(t.Context(), "builder")
+	if err != nil || again.UnreadFiles == nil || *again.UnreadFiles != 1 {
+		t.Fatalf("caller changed cached coverage: (%+v, %v)", again, err)
+	}
+	readAgain, err := service.ListReadFiles(t.Context(), "builder", "", 1)
+	if err != nil || !reflect.DeepEqual(readAgain.Files, []string{"src/main.py"}) {
+		t.Fatalf("caller changed cached paths: (%+v, %v)", readAgain, err)
+	}
 
 	service.Close()
 	if _, err := service.GetWorkerToolUsage(t.Context(), "builder"); errorCode(err) != CodeUnavailable {

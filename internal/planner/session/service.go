@@ -3,7 +3,6 @@
 package session
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -197,10 +196,7 @@ func (s *Service) Complete(
 	next := state
 	next.Status = statusCompleted
 	next.NextSequence++
-	cloned, err := cloneCompletion(completion)
-	if err != nil {
-		return err
-	}
+	cloned := cloneCompletion(completion)
 	next.Completion = &cloned
 	encodedState, err := encodeState(next)
 	if err != nil {
@@ -669,24 +665,13 @@ func validateCompletion(completion planner.Completion) error {
 	return nil
 }
 
-func cloneCompletion(completion planner.Completion) (planner.Completion, error) {
-	encoded, err := json.Marshal(completion)
-	if err != nil {
-		return planner.Completion{}, fmt.Errorf("encode Planner completion: %w", err)
+func cloneCompletion(completion planner.Completion) planner.Completion {
+	if completion.Result != nil {
+		result := completion.Result.Clone()
+		completion.Result = &result
 	}
-	if len(encoded) > maxSessionJSONBytes {
-		return planner.Completion{}, fmt.Errorf("Planner completion exceeds its bounded contract")
-	}
-	var result planner.Completion
-	decoder := json.NewDecoder(bytes.NewReader(encoded))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&result); err != nil {
-		return planner.Completion{}, fmt.Errorf("decode Planner completion: %w", err)
-	}
-	if err := validateCompletion(result); err != nil {
-		return planner.Completion{}, err
-	}
-	return result, nil
+	completion.Failure = clone.Pointer(completion.Failure)
+	return completion
 }
 
 func encodeBounded(value any) (json.RawMessage, error) {

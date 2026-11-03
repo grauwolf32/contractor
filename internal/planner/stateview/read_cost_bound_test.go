@@ -46,3 +46,19 @@ func TestWorkerStateChangedRevisionReadCostIsBounded(t *testing.T) {
 			allocs, bytes, maximumChangedRevisionAllocs, maximumChangedRevisionBytes)
 	}
 }
+
+// A complete 50-page traversal of an unchanged 10,000-path workspace must
+// not rebuild its full path set on every page (about 30 MB before caching).
+func TestWorkerStateCachedPaginationAllocationsAreBounded(t *testing.T) {
+	read := cachedPagination(t)
+	read()
+	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(1))
+	runtime.GC()
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	read()
+	runtime.ReadMemStats(&after)
+	if allocated := after.TotalAlloc - before.TotalAlloc; allocated > 2<<20 {
+		t.Fatalf("cached traversal allocated %d bytes, want at most 2 MiB", allocated)
+	}
+}

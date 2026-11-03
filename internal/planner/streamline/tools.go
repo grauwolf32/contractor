@@ -247,6 +247,15 @@ func (p *streamlinePlanner) callWorker(
 		return workerFailure(failure)
 	}
 	claimedPlan := p.plan.Snapshot()
+	// Every failure after the claim settles that dispatch before exposing its
+	// tool result. A persistence failure keeps precedence over the Worker error.
+	reject := func(failure planner.Failure) workerCallOutput {
+		if persisted := p.failDispatch(ctx, state, identity, claim.CallID); persisted != nil {
+			failure = *persisted
+		}
+		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, &failure)
+		return workerFailure(failure)
+	}
 	if failure := p.persistDispatchSelected(
 		ctx, state, identity, beforeClaim.Revision, claim, binding.logicalName,
 	); failure != nil {
@@ -261,31 +270,18 @@ func (p *streamlinePlanner) callWorker(
 	}
 	request, failure := p.workerRequest(ctx, claim.Subtask)
 	if failure != nil {
-		if persisted := p.failDispatch(ctx, state, identity, claim.CallID); persisted != nil {
-			failure = persisted
-		}
-		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, failure)
-		return workerFailure(*failure)
+		return reject(*failure)
 	}
 	deadline := p.deadline
 	if !deadline.After(time.Now()) {
 		failure := &planner.Failure{
 			Code: "worker_deadline_exceeded", Message: "Worker invocation deadline expired", Retryable: true,
 		}
-		if persisted := p.failDispatch(ctx, state, identity, claim.CallID); persisted != nil {
-			failure = persisted
-		}
-		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, failure)
-		return workerFailure(*failure)
+		return reject(*failure)
 	}
 	if limit := state.reserveWorkerCall(); limit != nil {
 		ctx.Actions().SkipSummarization = true
-		failure := &limit.Failure
-		if persisted := p.failDispatch(ctx, state, identity, claim.CallID); persisted != nil {
-			failure = persisted
-		}
-		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, failure)
-		return workerFailure(*failure)
+		return reject(limit.Failure)
 	}
 	workerContext, cancel := context.WithDeadline(ctx, deadline)
 	defer cancel()
@@ -302,20 +298,12 @@ func (p *streamlinePlanner) callWorker(
 	if err != nil {
 		failure := planner.FailureFrom(err)
 		workerSpan.End("failed", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
-		if persisted := p.failDispatch(ctx, state, identity, claim.CallID); persisted != nil {
-			failure = *persisted
-		}
-		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, &failure)
-		return workerFailure(failure)
+		return reject(failure)
 	}
 	if validation := planner.ValidateWorkerCompletion(completion, claim.Subtask.ID); validation != nil {
 		failure := validation.Failure
 		workerSpan.End("rejected", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
-		if persisted := p.failDispatch(ctx, state, identity, claim.CallID); persisted != nil {
-			failure = *persisted
-		}
-		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, &failure)
-		return workerFailure(failure)
+		return reject(failure)
 	}
 	// Live State is advisory. Failure to retain its hidden correlation must not
 	// rewrite an otherwise valid WorkerCompletion or dispatch outcome.
@@ -326,21 +314,13 @@ func (p *streamlinePlanner) callWorker(
 			Retryable: completion.Failure.Retryable,
 		}
 		workerSpan.End("failed", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
-		if persisted := p.failDispatch(ctx, state, identity, claim.CallID); persisted != nil {
-			failure = *persisted
-		}
-		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, &failure)
-		return workerFailure(failure)
+		return reject(failure)
 	}
 	result := planner.CloneWorkerResult(*completion.Result)
 	if validation := p.validateWorkerResult(workerContext, result); validation != nil {
 		failure := validation.Failure
 		workerSpan.End("rejected", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
-		if persisted := p.failDispatch(ctx, state, identity, claim.CallID); persisted != nil {
-			failure = *persisted
-		}
-		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, &failure)
-		return workerFailure(failure)
+		return reject(failure)
 	}
 	workerSpan.End("succeeded", telemetry.PlannerSpanAttributes{})
 	beforeCompletion := p.plan.Snapshot()
@@ -362,17 +342,16 @@ func (p *streamlinePlanner) callWorker(
 			return workerFailure(*failure)
 		}
 	}
-	cloned := planner.CloneWorkerResult(result)
 	if p.compaction != nil {
 		// The exact result stays readable after compaction; an index over
 		// its retained-data ceiling stops the Planner before its next call.
-		if failure := p.compaction.recordResult(binding.logicalName, claim.Subtask.ID, cloned); failure != nil {
+		if failure := p.compaction.recordResult(binding.logicalName, claim.Subtask.ID, result); failure != nil {
 			state.setExternalFailure(failure)
 		}
 	}
-	encoded, _ := json.Marshal(cloned)
+	encoded, _ := json.Marshal(result)
 	state.recordTool(executeCurrentSubtaskToolName, safeArguments, true, time.Since(started), len(encoded), nil)
-	return workerCallOutput{OK: true, Result: &cloned}
+	return workerCallOutput{OK: true, Result: &result}
 }
 
 func (p *streamlinePlanner) routeWorker(
