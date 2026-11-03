@@ -1,0 +1,67 @@
+schema_version: '1.0'
+milestone: hub-audit-defects-2026-10
+epic: planner-worker
+depends_on: []
+languages:
+- go
+id: V439-003
+title: Reject ambiguous Planner Gateway JSON before tool dispatch
+kind: defect
+introduced_by: V1-006
+priority: P2
+status: completed
+goal: Malformed Gateway replies and duplicate tool argument keys never become executable Planner tools.
+context:
+  authority: 'User request on 2026-11-03: "Давай сделаем упрощения и оптимизации и затем поправим проблемы".'
+  finding: internal/planner/streamline/gateway.go:377 converts duplicate objective keys into a map and silently
+    selects the last value.
+  siblings: Streamline and Router share one engine. Passthrough, scan, durable reads, Gateway main/compactor
+    and telemetry consumers are checked where applicable; no Runtime or UI behavior change is introduced.
+  specification:
+  - docs/spec/execution/planners.md#PLN-R86
+  boundary: 'Implementation decision: preserve the existing Planner/domain/Server-operation separation and
+    public fact vocabulary. Keep receipt capacity derived from the pinned plan rather than introduce a new
+    event-batching protocol or receipt owner. Atomic event batching remains a separate option if measured database
+    cost warrants it.'
+  verification:
+    date: '2026-11-03'
+    environment: Go 1.26.9 darwin/arm64; dedicated disposable PostgreSQL; scripted models, local HTTP Gateway
+      and OTLP fixtures.
+    evidence: Both real HTTP Gateway decoding paths reject duplicate keys in top-level, nested, escaped and
+      provider-extension fields and trailing JSON. Executable argument tests reject duplicate/escaped/nested
+      keys and charge the received valid usage once with zero Worker effects. Valid provider extensions and
+      compactor owner classifications remain accepted. The new regressions fail with the previous adapter.
+    checks:
+    - make lint
+    - go test -p=2 -count=1 ./internal/planner/... ./internal/scheduler ./internal/archtest ./tests/integration/streamline
+      (with PostgreSQL)
+    - go test -race -p=2 -count=1 ./internal/planner/... (with PostgreSQL)
+scope:
+  in:
+  - Validate main-model and compactor envelopes for duplicate keys and trailing JSON, and independently decode
+    executable main-model tool arguments through strictjson.
+  - Preserve documented provider extension fields, closed failure codes and valid rejected-response usage accounting.
+  - Cover the actual HTTP adapter and ensure rejected replies invoke no Worker or semantic tool.
+  out:
+  - Relocating scanplan, adding Server operations, changing Worker/model selection, changing public schemas
+    or replacing the persistence mechanism.
+acceptance_criteria:
+- id: A1
+  text: Duplicate keys at any JSON level and appended JSON values are rejected before any semantic tool effect.
+- id: A2
+  text: Valid provider extension fields still work and known valid usage remains charged when tool arguments
+    are rejected.
+- id: A3
+  text: Both ordinary Gateway and compactor response suites pass.
+tests:
+- command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/planner/...
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+implementation_commit: 964737ca55c610379bdfaf3cb16e2032b915ea13

@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-82 open tasks: 15 in progress, 54 pending, 13 deferred. 1371 finished: 1353 completed, 18 archived.
+81 open tasks: 14 in progress, 54 pending, 13 deferred. 1372 finished: 1354 completed, 18 archived.
 
 ## In progress
 
@@ -23,7 +23,6 @@ the epics are in [epics.yml](epics.yml).
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V435-001](v435-001-server-owned-agent-labels.yml) | runtime-config | defect | P1 | Remove Runtime startup label assignments and keep agent infrastructure settings Server-owned |
-| [V439-003](v439-003-planner-gateway-strict-json.yml) | planner-worker | defect | P2 | Reject ambiguous Planner Gateway JSON before tool dispatch |
 | [V439-004](v439-004-planner-history-live-cursors.yml) | planner-worker | defect | P2 | Evict only live Planner history cursors |
 | [V439-005](v439-005-planner-telemetry-subtask-ids.yml) | planner-worker | defect | P3 | Use the shared Planner subtask grammar in telemetry |
 
@@ -179,7 +178,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 2 | 47 | 64 | 31 | 94 |
-| Planners and the Worker model boundary (`planner-worker`) | 12 | 35 | 53 | 31 | 78 |
+| Planners and the Worker model boundary (`planner-worker`) | 11 | 35 | 53 | 31 | 78 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 14 | 5 | 45 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 3 | 14 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
