@@ -2,6 +2,8 @@
 
 2026-11-04, macOS arm64, Python 3.13.16, mitmproxy 12.3.1.
 Branch: `codex/sitemap-source-comparison` (not merged into main).
+Implementation: `fb127850b6e73fe38deed027be45e33cd84ab62e`.
+Task: [V410-030](../done/v410-030-mitmproxy-controlled-http.yml).
 
 ## Delivered boundary
 

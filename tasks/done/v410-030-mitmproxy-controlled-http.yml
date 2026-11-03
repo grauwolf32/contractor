@@ -5,7 +5,8 @@ milestone: project-sitemap-2026-10
 epic: http-tools
 kind: feature
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: fb127850b6e73fe38deed027be45e33cd84ab62e
 depends_on: [V410-029]
 languages: [python, markdown]
 goal: >-
