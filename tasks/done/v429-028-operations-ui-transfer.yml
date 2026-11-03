@@ -5,7 +5,8 @@ milestone: ui-journey-usability
 epic: ui
 kind: feature
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 71041cac9766a340665e0281e31708218c9ac4de
 depends_on: [V429-025, V429-026, V429-027]
 languages: [typescript, css, javascript]
 goal: Operators use the approved Operations layouts in the real React application while retaining all existing observation, configuration, credential and settings behavior.
