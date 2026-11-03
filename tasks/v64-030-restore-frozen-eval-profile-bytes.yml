@@ -1,0 +1,43 @@
+schema_version: '1.0'
+id: V64-030
+title: Restore the pinned bytes of archived paired Eval profiles
+milestone: audit-check-prioritization
+epic: evals
+kind: defect
+introduced_by: V64-014
+priority: P2
+status: in_progress
+depends_on: []
+languages: [yaml, markdown]
+goal: The immutable paired instruction-evaluation archive agrees with its original manifest without restoring any active Audit compatibility.
+context:
+  authority: >-
+    User request 2026-11-03 asks to finish verification and close V64-014. This narrow
+    repair addresses its known archive-pin failure; no new regression test is requested.
+  finding: >-
+    Commit 770f9227c34858666f00d9461cd582efe5ce9803 removed findingConfirmation from
+    tests/eval/agent_instructions/evaluation-configs/configs/audit-profiles/eval-v40-a1-baseline.yaml:51
+    and eval-v40-a1-candidate.yaml:51. These are frozen historical data, so
+    TestEvaluationReleasePreservesPairedContracts fails their unchanged manifest digests.
+  siblings: >-
+    Restore both paired archive documents to the exact bytes proven by their existing manifest.
+    catalog-baseline.json and candidate snapshots already preserve historical bytes. The existing
+    archive_test.go compares raw documents and does not load them through a current catalog reader.
+    Active configurations and the removed confirmation types/behavior stay removed.
+scope:
+  in:
+  - Restore the two exact pinned historical files without changing identities or manifest digests.
+  - Verify the existing complete paired-archive test package.
+  out:
+  - New tests, current configuration changes, legacy execution readers or rewriting frozen manifests.
+acceptance_criteria:
+- id: A1
+  text: Both restored files match the original manifest and all paired archive contract tests pass.
+- id: A2
+  text: No active Audit configuration, parser or runtime confirmation behavior is restored.
+tests:
+- command: go test -count=1 ./tests/eval/agent_instructions
+  covers: [A1, A2]
+- command: make lint
+  covers: [A1, A2]
+implementation_commit: null
