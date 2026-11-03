@@ -9,7 +9,7 @@ ALTER TABLE audits
 CREATE TABLE audit_hypotheses (
  hypothesis_id text PRIMARY KEY CHECK(hypothesis_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$'),
  audit_id text NOT NULL REFERENCES audits(audit_id) ON DELETE CASCADE,
- source_key text NOT NULL CHECK(octet_length(source_key) BETWEEN 1 AND 256),
+ source_key text NOT NULL CHECK(octet_length(source_key) BETWEEN 1 AND 128 AND source_key ~ '^[A-Za-z0-9][A-Za-z0-9_.-]*$'),
  fixed boolean NOT NULL,
  ordinal integer NOT NULL CHECK(ordinal BETWEEN 1 AND 10000),
  current_bytes integer NOT NULL CHECK(current_bytes BETWEEN 1 AND 32768),
@@ -46,7 +46,7 @@ CREATE TRIGGER audit_tasks_hypothesis_immutable BEFORE UPDATE OF hypothesis_snap
 
 -- The source assertion is ordinary independently owned Project material.
 ALTER TABLE finding_proposal_receipts ADD COLUMN audit_hypothesis_snapshot jsonb
- CHECK(audit_hypothesis_snapshot IS NULL OR (audit_hypothesis IS NOT NULL AND project_proposal IS NOT NULL AND jsonb_typeof(audit_hypothesis_snapshot)='object' AND octet_length(audit_hypothesis_snapshot::text)<=4096));
+ CONSTRAINT finding_proposal_receipts_hypothesis_snapshot_check CHECK(audit_hypothesis_snapshot IS NULL OR (audit_hypothesis IS NOT NULL AND project_proposal IS NOT NULL AND jsonb_typeof(audit_hypothesis_snapshot)='object' AND octet_length(audit_hypothesis_snapshot::text)<=4096));
 CREATE TRIGGER finding_receipt_hypothesis_immutable BEFORE UPDATE OF audit_hypothesis_snapshot ON finding_proposal_receipts
  FOR EACH ROW EXECUTE FUNCTION contractor_protect_immutable_history();
 

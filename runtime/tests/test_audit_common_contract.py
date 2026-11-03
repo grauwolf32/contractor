@@ -207,6 +207,7 @@ def _validate_case(case):
         _validate_case({"document": json.dumps(value["program"])})
         return
     if value["schema"] in {
+        "contractor.audit.assertions.v1",
         "contractor.audit.control.v1",
         "contractor.audit.task.v1",
         "contractor.audit.hypothesis.v1",
