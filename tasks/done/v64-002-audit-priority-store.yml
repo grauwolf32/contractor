@@ -5,7 +5,7 @@ milestone: audit-check-prioritization
 epic: audits
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V64-001
 - V64-004
@@ -77,8 +77,9 @@ context:
     All Go packages compile with integration/e2e tags. Full owners pass on PostgreSQL, including
     artifacts/postgres and public HTTP. Architecture and export gates pass without new baselines.
     Runtime passes 5737 tests with 135 optional skips. UI passes 2459 tests and one expected failure,
-    plus typecheck and build, with one worker. Clean-revision process gates and final lint remain
-    before task closure; these results do not close V64-014.
+    plus typecheck and build, with one worker. Clean-revision process gates, final owner suites,
+    lint, wire, public API, shipped configuration and architecture gates pass as recorded below.
+    These results do not close V64-014. The branch remains local and unmerged.
   implementation_gate: >-
     Implementation is assigned. V64-001, V64-004 and V64-021 are completed; the user explicitly
     waived waiting for formal V64-014 completion for this task on 2026-11-02. V64-026 completed at
@@ -126,7 +127,8 @@ context:
     ordinary retained outputs with and without a Project Finding, all six programs, prepared
     256-operation intake/restart/cancellation, native Findings retention, deterministic web-scan
     failures/cancellation and catalog replacement. Only model responses are scripted; configured
-    models are preserved. Clean c733653ccb93f063cfed6fa62f7ab008b8584a1b passes basic (7),
+    models are preserved. After rebasing onto main, clean
+    89b6473ac6435140698fbec816da9bdae64df4c0 passes basic (7),
     six-program (8), completion (174 Go/416 Runtime), iterative PostgreSQL/process, composition
     (9 integration/10 process and browser), and HTTP (41 process/2 accounting/92 Runtime) gates.
     PostgreSQL owner suites cover equal-key concurrency, paused intake/collection, claim takeover,
@@ -136,14 +138,21 @@ context:
     validates immutable descriptors and charges scoped revisions once; drift rejects atomically.
     Public OpenAPI and both generated clients expose common Tasks and exact retained results.
     The minimal UI uses paginated Tasks/results and truthful controls; full UI work stays V64-009.
-    The complete Runtime suite passes 5673 tests with 135 optional environment-dependent skips.
+    The complete Runtime suite passes 5737 tests with 135 optional environment-dependent skips.
     Full affected Audit/Run/Artifact/Finding owners pass against disposable PostgreSQL; public API
     and PostgreSQL contract gates, shipped configuration validation, architecture/ERD checks,
-    UI unit/type checks and make lint pass. Program-library hardening passes full race suites.
-    Cross-language verification after retiring unused fixtures passes 368 fixtures, 396 Go and
-    255 Python shared tests. The whole Go gate retains the unchanged V64-014 archive-pin failure
-    described above. The requested rebase and integration verification remain before closure;
-    neither task nor V64-014 is declared complete. No merge or deployment is claimed.
+    UI verification (2459 passing tests, one expected failure, typecheck/build) and make lint pass.
+    Program-library hardening passed full race suites before rebasing; post-rebase completion,
+    iterative and public PostgreSQL gates also run with race detection. Final owner suites and
+    make require-database pass on 5824e3528d692bc3eff77a44d540db7600d0f003, as do
+    go test -count=1 ./internal/config/... ./internal/configload/... and
+    make test-wire-cross-language verify-public-api verify-public-api-postgres test-config verify-architecture.
+    Cross-language verification passes 368 fixtures, 397 Go and 255 Python shared tests.
+    This final V64-027 cleanup removes only unused Start styles/exports and obsolete reader metadata;
+    it leaves the verified process behavior unchanged. Architecture, persistence ownership and
+    U1000/testonlyexports checks pass, and ERD/dependency pictures were regenerated after integration.
+    The whole Go gate retains the unchanged V64-014 archive-pin failure described above;
+    V64-014 remains in progress under the explicit user waiver. No merge or deployment is claimed.
   design:
   - docs/proposals/0050-audit-common-hypothesis-model.md
   - docs/plans/2026-10-31-audit-redesign.md
@@ -162,7 +171,7 @@ context:
     User decision 2026-11-03 authorizes narrow V64-027 in this branch to remove only
     surfaces left without production callers by this cutover and their exclusive tests.
     Schemas and integrated cleanup remain V64-010. The coupled changes land together
-    to keep the build green; neither task is completed while its verification remains.
+    to keep the build green. V64-027 is completed with post-rebase owner and process verification.
   implementation_boundary: Every new state, export, relation or capability needs its real production caller
     in this task. Reuse RunService, Scheduler, ArtifactStore, finding intake, ControllerClaims and existing
     keyed/natural receipts. No new collector, admission engine, lease store or compatibility reader.
@@ -213,8 +222,7 @@ scope:
     program DSL.
   - Checklist/standard hypothesis execution and its eight shipped profiles (V64-012), automatic generation
     and proposal-driven continuation (V64-013), or preserving a legacy profile reader/executor.
-  - Implementation during this planning-only update; changing user model configuration or deploying/migrating
-    the demo.
+  - Changing user model configuration or deploying/migrating the demo.
 requirements:
 - id: R1
   text: Soft pause closes new admission and lets admitted Runs drain. Resume keeps accepted inputs/results;
@@ -344,7 +352,7 @@ tests:
   - A5
 - command: make lint
 test_prerequisites:
-- Commands below are future implementation acceptance, not results of this planning update.
+- The listed acceptance commands are implemented and their passing results are recorded above.
 - Use disposable PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set; configured/unavailable DB or mandatory
   skips fail. A focused selector matching zero tests fails.
 - Use testdata catalogs and pseudo-Skills, not live configs in unit/integration tests. Run whole touched-package
@@ -358,7 +366,7 @@ verification_requirements:
   dependencies and strict reads/writes.
 - Delete the replaced vertical path and its exclusive schemas/states/tests as its callers migrate. Final
   V64-011 proves no parallel legacy pipeline remains.
-implementation_commit: null
+implementation_commit: 89b6473ac6435140698fbec816da9bdae64df4c0
 replanning:
   date: '2026-10-31'
   previous_title: Persist research cycles and exact selection decisions
