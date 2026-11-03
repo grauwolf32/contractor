@@ -6,7 +6,7 @@ epic: evals
 kind: defect
 introduced_by: V64-014
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [yaml, markdown]
 goal: The immutable paired instruction-evaluation archive agrees with its original manifest without restoring any active Audit compatibility.
@@ -24,6 +24,11 @@ context:
     catalog-baseline.json and candidate snapshots already preserve historical bytes. The existing
     archive_test.go compares raw documents and does not load them through a current catalog reader.
     Active configurations and the removed confirmation types/behavior stay removed.
+  verification: >-
+    Both restored files exactly match their existing manifest digests. The entire
+    tests/eval/agent_instructions package passes, including all six paired cases.
+    make lint passes on eac8bf7c85fdf0b87605344a3ab4abcb83dee0ce.
+    Only two archived lines are restored; no active configuration or reader changes.
 scope:
   in:
   - Restore the two exact pinned historical files without changing identities or manifest digests.
@@ -40,4 +45,4 @@ tests:
   covers: [A1, A2]
 - command: make lint
   covers: [A1, A2]
-implementation_commit: null
+implementation_commit: eac8bf7c85fdf0b87605344a3ab4abcb83dee0ce
