@@ -26,6 +26,11 @@ context:
     Derive collectionPending from an indexed existence lookup of collecting executions in the
     Audit read snapshot. Keep the existing active-Run counter unchanged. No stored counter,
     migration, full-history aggregation, new lifecycle state or per-row API round trip is needed.
+  existing_test_adjustment: >-
+    The longer Audit projection exceeds pg_stat_activity's query-text prefix in the existing
+    start/purge lock test. Keep that test's lock guarantee by detecting the exact purge backend
+    through pg_blocking_pids instead of matching the truncated SQL suffix. This updates an
+    existing test helper and adds no regression test.
 scope:
   in:
   - Expose the bounded derived collectionPending fact in Audit reads and both generated clients.

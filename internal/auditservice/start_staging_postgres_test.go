@@ -83,7 +83,7 @@ func TestAuditStartStagingWaitsForPurge(t *testing.T) {
 		})
 		done <- err
 	}()
-	waitForStartStagingLock(t, ctx, pool)
+	waitForStartStagingLock(t, ctx, pool, int(purge.Conn().PgConn().PID()))
 	if _, err := purge.Exec(ctx, `DELETE FROM audits WHERE audit_id = $1`, draft.AuditID); err != nil {
 		t.Fatal(err)
 	}
@@ -207,7 +207,7 @@ SELECT name || '@' || revision
 
 // waitForStartStagingLock waits until a start's staging transaction waits on
 // the draft row lock.
-func waitForStartStagingLock(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
+func waitForStartStagingLock(t *testing.T, ctx context.Context, pool *pgxpool.Pool, blockerPID int) {
 	t.Helper()
 	deadline := time.NewTimer(5 * time.Second)
 	defer deadline.Stop()
@@ -217,7 +217,7 @@ func waitForStartStagingLock(t *testing.T, ctx context.Context, pool *pgxpool.Po
 SELECT count(*)
   FROM pg_stat_activity
  WHERE datname = current_database() AND wait_event_type = 'Lock'
-   AND query LIKE '%FOR KEY SHARE%'`).Scan(&waiting); err != nil {
+   AND $1 = ANY(pg_blocking_pids(pid))`, blockerPID).Scan(&waiting); err != nil {
 			t.Fatal(err)
 		}
 		if waiting == 1 {
