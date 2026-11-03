@@ -5,7 +5,7 @@ milestone: ui-journey-usability
 epic: ui
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V429-028]
 languages: [typescript, javascript, css]
 goal: The user can review an Inbox design that makes decisions, blocked work, ready results and running work visually distinct while preserving the current product language and facts.
@@ -84,3 +84,12 @@ tests:
     covers: [A1, A3]
   - command: git diff --check
     covers: [A1, A2, A3]
+
+implementation_commit: bd7c3ba0b9c94b85aef1eac44affe3fadaba996d
+verification:
+  date: "2026-11-04"
+  preview: Real React Inbox preview and side-by-side comparison opened as retained browser tabs 38 and 39.
+  browser: verify.mjs passes 118 layout/state/theme samples, schema checks, content/font parity, navigation, mobile decision draft and read-only mutation refusals; zero browser errors or live API requests.
+  native: First attempt completed without CSS after response exhaustion; the single deliberate continuation produced the retained CSS. Both native processes exited; eight of twenty-four relay requests were used, the relay stopped and its upstream credential was removed.
+  preservation: Verified complete pre/post recoverable backups, 327 prior file paths, thirteen application tables and twenty OpenCode tables; prior project files and historical content are retained. Only the shared OpenCode project access timestamp and runtime log/store change normally, with the originals retained in the backup.
+  repository: Task/spec checks and git diff --check pass. Production components, APIs and package version are unchanged; this design branch is not merged into main.
