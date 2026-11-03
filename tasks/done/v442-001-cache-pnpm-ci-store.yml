@@ -5,7 +5,8 @@ milestone: test-gate-cost-2026-10
 epic: quality
 kind: chore
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: fdb5352cdf939bf31dd7b1ef865c072c00e83d0b
 depends_on: []
 languages: [yaml]
 goal: "CI reuses downloaded UI packages across runs while every stage still performs a frozen dependency installation."
