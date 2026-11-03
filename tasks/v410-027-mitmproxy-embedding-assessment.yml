@@ -1,0 +1,98 @@
+schema_version: '1.0'
+id: V410-027
+title: Assess minimal in-process mitmproxy embedding for the Runtime HTTP proxy
+milestone: project-sitemap-2026-10
+epic: http-tools
+kind: chore
+priority: P2
+status: in_progress
+depends_on:
+- V422-003
+languages: [python, markdown]
+goal: Give the owner an executable assessment of advanced proxy capabilities and integration cost before
+  choosing whether to replace the existing bridge or outgoing transport with mitmproxy.
+demonstration: A Python 3.13 test-only harness imports an exact mitmproxy package, starts a minimal
+  in-process proxy without UI or flow recording, exchanges traffic with controlled local HTTP/TLS
+  targets and records protocol, policy-hook and lifecycle outcomes plus dependency resolution evidence.
+context:
+  authority: >-
+    User request on 2026-11-03: evaluate importing a Python proxy engine with advanced protocol functions
+    and minimal wrapping. The immediately preceding discussion considered minimal in-process embedding
+    rather than a production replacement. This authorizes an isolated prototype and assessment, not a
+    production switch, new engagement guarantees or execution of the separate V410-026 source-quality
+    experiment. The user's prior instruction does not require a particular/shared allocation or new
+    aggregate HTTP accounting.
+    The user subsequently clarified on 2026-11-03 that the existing Contractor sandbox/allocation
+    lifecycle mechanism should be examined for reuse, rather than proposing an external sandbox
+    manager or a second proxy lifecycle framework.
+  specification:
+  - docs/spec/tools/http-caido.md#HTP-R138
+  - docs/spec/tools/http-caido.md#HTP-R145
+  - docs/spec/tools/http-caido.md#HTP-R146
+  - docs/spec/tools/http-caido.md#HTP-R148
+  - docs/spec/tools/http-caido.md#HTP-R149
+  related_proposal: docs/proposals/0052-sitemap-transport-and-report-comparison.md
+  evidence: tasks/evidence/v410-027-mitmproxy-embedding.json
+  assessment: tasks/evidence/v410-027-mitmproxy-embedding.md
+  boundary: mitmproxy is evaluated as a protocol engine; Contractor retains engagement authority,
+    identities, limits, lease/retry semantics and sitemap publication. Test hooks demonstrate integration
+    points without claiming complete production authority or byte-for-byte equivalence.
+scope:
+  in:
+  - Create an isolated Python 3.13 script environment with exact assessment dependencies; inspect a
+    disposable copy of Runtime dependency resolution without changing runtime/pyproject.toml or uv.lock.
+  - Compare a minimal Master/addon composition with DumpMaster defaults and inventory required modules.
+  - Exercise real local HTTP/1, trusted HTTPS interception, HTTP/2, bounded streaming and WebSocket traffic.
+  - Probe request admission/observation hooks, connection reuse and shutdown with an active stream.
+  - Inspect existing sandbox/allocation ownership and reuse the common owned-task join in the spike;
+    distinguish reusable cleanup/fencing from engine-specific socket/connection shutdown.
+  - Record executable evidence, concrete replaceable/retained code, uncovered contracts, cost estimates
+    and a recommendation with a simpler alternative.
+  out:
+  - Production source changes, production mitmproxy dependency, scanner integration or live external targets.
+  - Full engagement enforcement, global quotas, single-allocation placement, new entities or public APIs.
+  - UI, traffic archives/replay, LLM calls, paid models and V410-026 report-versus-transport measurements.
+acceptance_criteria:
+- id: A1
+  text: Exact package/Python versions and the Runtime dependency-resolution result are recorded; production
+    dependency files remain unchanged, including on resolution failure.
+- id: A2
+  text: Actual local protocol probes identify what works with a minimal addon set and what needs more
+    than a bridge replacement; unsupported probes retain their observed failure without a fabricated pass.
+- id: A3
+  text: A denied local path produces no upstream request, metadata callbacks are demonstrated without
+    raw credential/body logging, and active-stream shutdown is measured with explicit residual-resource results.
+- id: A4
+  text: The assessment distinguishes proven embedding from missing DNS/peer/credential/limit/lease/retry
+    contracts and recommends integration boundaries and concrete follow-ups without enabling a replacement.
+tests:
+- command: uv run --script scripts/experiments/mitmproxy_embedding.py --output tasks/evidence/v410-027-mitmproxy-embedding.json
+  covers: [A1, A2, A3]
+- command: cd runtime && uv run ruff check ../scripts/experiments/mitmproxy_embedding.py
+  covers: [A2, A3]
+- command: cd runtime && uv run ruff format --check ../scripts/experiments/mitmproxy_embedding.py
+  covers: [A2, A3]
+- command: python3 scripts/check_spec.py
+  covers: [A4]
+- command: cd runtime && uv run pytest -q tests/test_threads.py tests/test_engagement_allocation.py tests/test_podman_engine.py
+  covers: [A3, A4]
+- command: cd runtime && uv run python ../scripts/check_tasks.py
+  covers: [A1, A4]
+cardinality:
+- collection: Local protocol/admission/lifecycle probes
+  expected: At most twelve named scenarios, bounded requests/messages and one stalled stream
+  bound: Ephemeral local listeners, finite body/message sizes, explicit per-probe deadlines and a finite
+    overall harness deadline; no crawler or external target traffic.
+failure_outcomes:
+- operation: Resolve dependencies, start proxy and execute local probes
+  permanent: Dependency conflict or unsupported feature is recorded as an assessment outcome; unexpected
+    probe failure or missing required evidence fails the harness. No environment fallback hides a failure.
+  retryable: No automatic replay of a possibly sent request; reruns are explicit independent assessments.
+  ambiguous: Keep observed request counters and exact evidence; do not issue traffic to reconstruct a lost result.
+  cancelled: The harness joins proxy/target/client tasks before removing temporary keys and fixture state.
+  timeout: Finite per-probe and overall timeouts end the assessment and retain incomplete outcomes.
+lifecycle:
+- entity: Isolated experiment environment, ephemeral certificate directory and local sockets
+  delete: The harness closes owned listeners/clients/tasks before temporary fixture cleanup.
+  retention: Only sanitized version/probe/dependency evidence is committed; no private key, credentials,
+    packet body archive or production state is retained.
