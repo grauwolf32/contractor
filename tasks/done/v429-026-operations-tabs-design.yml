@@ -5,7 +5,7 @@ milestone: ui-journey-usability
 epic: ui
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V429-025]
 languages: [typescript, javascript, html, css]
 goal: Operators can review the other Operations sections in a coherent navigable design with distinct inventory, diagnostics and configuration layouts.
@@ -109,3 +109,5 @@ verification:
   - >-
     python3 scripts/check_tasks.py, python3 scripts/check_spec.py and git diff
     --check pass. Production UI code is unchanged; no production UI gate run.
+
+implementation_commit: 168dbfae2ba35289e46cab6316ffd45b2e5ed215
