@@ -1,0 +1,1610 @@
+{
+  "schema": "runtime-proxy-memory-assessment@1",
+  "platform": "Darwin arm64",
+  "source_sha256": "c6d6ed46c1e3412ecc39dba5bf4dac616d24d407a51bc0f55eb0b35284b08ef0",
+  "body_bytes": 8388608,
+  "concurrency": 4,
+  "rounds": 3,
+  "samples": [
+    {
+      "case": "transport",
+      "python": "3.13.16",
+      "mitmproxy": "12.3.1",
+      "google_adk": "2.13.0",
+      "psutil": "7.2.2",
+      "stages": [
+        {
+          "stage": "python",
+          "rss_mib": 31.22,
+          "peak_rss_mib": 31.23,
+          "modules": 215,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "runtime_import",
+          "rss_mib": 57.3,
+          "peak_rss_mib": 57.3,
+          "modules": 542,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        }
+      ],
+      "repetition": 1
+    },
+    {
+      "case": "toolworker",
+      "python": "3.13.16",
+      "mitmproxy": "12.3.1",
+      "google_adk": "2.13.0",
+      "psutil": "7.2.2",
+      "stages": [
+        {
+          "stage": "python",
+          "rss_mib": 31.22,
+          "peak_rss_mib": 31.23,
+          "modules": 215,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "runtime_import",
+          "rss_mib": 72.28,
+          "peak_rss_mib": 72.28,
+          "modules": 773,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        }
+      ],
+      "repetition": 1
+    },
+    {
+      "case": "allocation",
+      "python": "3.13.16",
+      "mitmproxy": "12.3.1",
+      "google_adk": "2.13.0",
+      "psutil": "7.2.2",
+      "stages": [
+        {
+          "stage": "python",
+          "rss_mib": 31.27,
+          "peak_rss_mib": 31.28,
+          "modules": 215,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "runtime_import",
+          "rss_mib": 126.11,
+          "peak_rss_mib": 126.11,
+          "modules": 1469,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        }
+      ],
+      "repetition": 1
+    },
+    {
+      "case": "cli",
+      "python": "3.13.16",
+      "mitmproxy": "12.3.1",
+      "google_adk": "2.13.0",
+      "psutil": "7.2.2",
+      "stages": [
+        {
+          "stage": "python",
+          "rss_mib": 31.27,
+          "peak_rss_mib": 31.28,
+          "modules": 215,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "runtime_import",
+          "rss_mib": 125.77,
+          "peak_rss_mib": 125.77,
+          "modules": 1484,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        }
+      ],
+      "repetition": 1
+    },
+    {
+      "case": "mitm_min",
+      "python": "3.13.16",
+      "mitmproxy": "12.3.1",
+      "google_adk": "2.13.0",
+      "psutil": "7.2.2",
+      "stages": [
+        {
+          "stage": "python",
+          "rss_mib": 31.31,
+          "peak_rss_mib": 31.33,
+          "modules": 215,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "proxy_import",
+          "rss_mib": 81.11,
+          "peak_rss_mib": 81.11,
+          "modules": 866,
+          "adk_loaded": false,
+          "mitmproxy_loaded": true
+        }
+      ],
+      "repetition": 1
+    },
+    {
+      "case": "mitm_dump",
+      "python": "3.13.16",
+      "mitmproxy": "12.3.1",
+      "google_adk": "2.13.0",
+      "psutil": "7.2.2",
+      "stages": [
+        {
+          "stage": "python",
+          "rss_mib": 31.22,
+          "peak_rss_mib": 31.23,
+          "modules": 215,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "proxy_import",
+          "rss_mib": 82.67,
+          "peak_rss_mib": 82.67,
+          "modules": 917,
+          "adk_loaded": false,
+          "mitmproxy_loaded": true
+        }
+      ],
+      "repetition": 1
+    },
+    {
+      "case": "cli_mitm",
+      "python": "3.13.16",
+      "mitmproxy": "12.3.1",
+      "google_adk": "2.13.0",
+      "psutil": "7.2.2",
+      "stages": [
+        {
+          "stage": "python",
+          "rss_mib": 31.17,
+          "peak_rss_mib": 31.19,
+          "modules": 215,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "runtime_import",
+          "rss_mib": 126.23,
+          "peak_rss_mib": 126.23,
+          "modules": 1484,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "proxy_import",
+          "rss_mib": 164.53,
+          "peak_rss_mib": 164.53,
+          "modules": 1979,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        }
+      ],
+      "repetition": 1
+    },
+    {
+      "case": "direct",
+      "python": "3.13.16",
+      "mitmproxy": "12.3.1",
+      "google_adk": "2.13.0",
+      "psutil": "7.2.2",
+      "stages": [
+        {
+          "stage": "python",
+          "rss_mib": 31.28,
+          "peak_rss_mib": 31.28,
+          "modules": 215,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "runtime_import",
+          "rss_mib": 126.36,
+          "peak_rss_mib": 126.36,
+          "modules": 1484,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "fixture_ready",
+          "rss_mib": 126.36,
+          "peak_rss_mib": 126.36,
+          "modules": 1484,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "ready",
+          "rss_mib": 128.33,
+          "peak_rss_mib": 128.33,
+          "modules": 1484,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "round_1_completed",
+          "rss_mib": 129.0,
+          "peak_rss_mib": 129.0,
+          "modules": 1486,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "round_2_completed",
+          "rss_mib": 129.0,
+          "peak_rss_mib": 129.0,
+          "modules": 1486,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "round_3_completed",
+          "rss_mib": 129.0,
+          "peak_rss_mib": 129.0,
+          "modules": 1486,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "cleanup",
+          "rss_mib": 129.0,
+          "peak_rss_mib": 129.0,
+          "modules": 1486,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        }
+      ],
+      "rounds": [
+        {
+          "stage": "round_1_responses_held",
+          "rss_mib": 129.0,
+          "peak_rss_mib": 129.0,
+          "modules": 1486,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false,
+          "retained_response_bytes": 0,
+          "transferred_bytes": 33554432
+        },
+        {
+          "stage": "round_2_responses_held",
+          "rss_mib": 129.0,
+          "peak_rss_mib": 129.0,
+          "modules": 1486,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false,
+          "retained_response_bytes": 0,
+          "transferred_bytes": 33554432
+        },
+        {
+          "stage": "round_3_responses_held",
+          "rss_mib": 129.0,
+          "peak_rss_mib": 129.0,
+          "modules": 1486,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false,
+          "retained_response_bytes": 0,
+          "transferred_bytes": 33554432
+        }
+      ],
+      "target_requests": 12,
+      "fixture_cleanup_confirmed": true,
+      "live_proxy_flows_after_cleanup": 0,
+      "repetition": 1
+    },
+    {
+      "case": "proxy_buffered",
+      "python": "3.13.16",
+      "mitmproxy": "12.3.1",
+      "google_adk": "2.13.0",
+      "psutil": "7.2.2",
+      "stages": [
+        {
+          "stage": "python",
+          "rss_mib": 31.31,
+          "peak_rss_mib": 31.31,
+          "modules": 215,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "runtime_import",
+          "rss_mib": 126.48,
+          "peak_rss_mib": 126.48,
+          "modules": 1484,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "fixture_ready",
+          "rss_mib": 126.48,
+          "peak_rss_mib": 126.48,
+          "modules": 1484,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "proxy_import",
+          "rss_mib": 164.7,
+          "peak_rss_mib": 164.7,
+          "modules": 1979,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        },
+        {
+          "stage": "ready",
+          "rss_mib": 170.31,
+          "peak_rss_mib": 170.31,
+          "modules": 1979,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        },
+        {
+          "stage": "round_1_completed",
+          "rss_mib": 240.33,
+          "peak_rss_mib": 240.33,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        },
+        {
+          "stage": "round_2_completed",
+          "rss_mib": 240.78,
+          "peak_rss_mib": 240.78,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        },
+        {
+          "stage": "round_3_completed",
+          "rss_mib": 240.83,
+          "peak_rss_mib": 240.83,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        },
+        {
+          "stage": "cleanup",
+          "rss_mib": 240.83,
+          "peak_rss_mib": 240.83,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        }
+      ],
+      "rounds": [
+        {
+          "stage": "round_1_responses_held",
+          "rss_mib": 240.31,
+          "peak_rss_mib": 240.31,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true,
+          "retained_response_bytes": 33554432,
+          "transferred_bytes": 33554432
+        },
+        {
+          "stage": "round_2_responses_held",
+          "rss_mib": 240.78,
+          "peak_rss_mib": 240.78,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true,
+          "retained_response_bytes": 33554432,
+          "transferred_bytes": 33554432
+        },
+        {
+          "stage": "round_3_responses_held",
+          "rss_mib": 240.83,
+          "peak_rss_mib": 240.83,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true,
+          "retained_response_bytes": 33554432,
+          "transferred_bytes": 33554432
+        }
+      ],
+      "target_requests": 12,
+      "fixture_cleanup_confirmed": true,
+      "live_proxy_flows_after_cleanup": 0,
+      "repetition": 1
+    },
+    {
+      "case": "proxy_streamed",
+      "python": "3.13.16",
+      "mitmproxy": "12.3.1",
+      "google_adk": "2.13.0",
+      "psutil": "7.2.2",
+      "stages": [
+        {
+          "stage": "python",
+          "rss_mib": 31.39,
+          "peak_rss_mib": 31.39,
+          "modules": 215,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "runtime_import",
+          "rss_mib": 126.33,
+          "peak_rss_mib": 126.33,
+          "modules": 1484,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "fixture_ready",
+          "rss_mib": 126.33,
+          "peak_rss_mib": 126.33,
+          "modules": 1484,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "proxy_import",
+          "rss_mib": 164.55,
+          "peak_rss_mib": 164.55,
+          "modules": 1979,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        },
+        {
+          "stage": "ready",
+          "rss_mib": 170.2,
+          "peak_rss_mib": 170.2,
+          "modules": 1979,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        },
+        {
+          "stage": "round_1_completed",
+          "rss_mib": 171.56,
+          "peak_rss_mib": 171.56,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        },
+        {
+          "stage": "round_2_completed",
+          "rss_mib": 171.56,
+          "peak_rss_mib": 171.56,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        },
+        {
+          "stage": "round_3_completed",
+          "rss_mib": 171.56,
+          "peak_rss_mib": 171.56,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        },
+        {
+          "stage": "cleanup",
+          "rss_mib": 171.58,
+          "peak_rss_mib": 171.58,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        }
+      ],
+      "rounds": [
+        {
+          "stage": "round_1_responses_held",
+          "rss_mib": 171.56,
+          "peak_rss_mib": 171.56,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true,
+          "retained_response_bytes": 0,
+          "transferred_bytes": 33554432
+        },
+        {
+          "stage": "round_2_responses_held",
+          "rss_mib": 171.56,
+          "peak_rss_mib": 171.56,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true,
+          "retained_response_bytes": 0,
+          "transferred_bytes": 33554432
+        },
+        {
+          "stage": "round_3_responses_held",
+          "rss_mib": 171.56,
+          "peak_rss_mib": 171.56,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true,
+          "retained_response_bytes": 0,
+          "transferred_bytes": 33554432
+        }
+      ],
+      "target_requests": 12,
+      "fixture_cleanup_confirmed": true,
+      "live_proxy_flows_after_cleanup": 0,
+      "repetition": 1
+    },
+    {
+      "case": "transport",
+      "python": "3.13.16",
+      "mitmproxy": "12.3.1",
+      "google_adk": "2.13.0",
+      "psutil": "7.2.2",
+      "stages": [
+        {
+          "stage": "python",
+          "rss_mib": 31.14,
+          "peak_rss_mib": 31.16,
+          "modules": 215,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "runtime_import",
+          "rss_mib": 57.28,
+          "peak_rss_mib": 57.28,
+          "modules": 542,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        }
+      ],
+      "repetition": 2
+    },
+    {
+      "case": "toolworker",
+      "python": "3.13.16",
+      "mitmproxy": "12.3.1",
+      "google_adk": "2.13.0",
+      "psutil": "7.2.2",
+      "stages": [
+        {
+          "stage": "python",
+          "rss_mib": 31.25,
+          "peak_rss_mib": 31.27,
+          "modules": 215,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "runtime_import",
+          "rss_mib": 72.17,
+          "peak_rss_mib": 72.17,
+          "modules": 773,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        }
+      ],
+      "repetition": 2
+    },
+    {
+      "case": "allocation",
+      "python": "3.13.16",
+      "mitmproxy": "12.3.1",
+      "google_adk": "2.13.0",
+      "psutil": "7.2.2",
+      "stages": [
+        {
+          "stage": "python",
+          "rss_mib": 31.19,
+          "peak_rss_mib": 31.2,
+          "modules": 215,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "runtime_import",
+          "rss_mib": 126.03,
+          "peak_rss_mib": 126.03,
+          "modules": 1469,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        }
+      ],
+      "repetition": 2
+    },
+    {
+      "case": "cli",
+      "python": "3.13.16",
+      "mitmproxy": "12.3.1",
+      "google_adk": "2.13.0",
+      "psutil": "7.2.2",
+      "stages": [
+        {
+          "stage": "python",
+          "rss_mib": 31.25,
+          "peak_rss_mib": 31.27,
+          "modules": 215,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "runtime_import",
+          "rss_mib": 126.38,
+          "peak_rss_mib": 126.38,
+          "modules": 1484,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        }
+      ],
+      "repetition": 2
+    },
+    {
+      "case": "mitm_min",
+      "python": "3.13.16",
+      "mitmproxy": "12.3.1",
+      "google_adk": "2.13.0",
+      "psutil": "7.2.2",
+      "stages": [
+        {
+          "stage": "python",
+          "rss_mib": 31.22,
+          "peak_rss_mib": 31.23,
+          "modules": 215,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "proxy_import",
+          "rss_mib": 80.94,
+          "peak_rss_mib": 80.94,
+          "modules": 866,
+          "adk_loaded": false,
+          "mitmproxy_loaded": true
+        }
+      ],
+      "repetition": 2
+    },
+    {
+      "case": "mitm_dump",
+      "python": "3.13.16",
+      "mitmproxy": "12.3.1",
+      "google_adk": "2.13.0",
+      "psutil": "7.2.2",
+      "stages": [
+        {
+          "stage": "python",
+          "rss_mib": 31.14,
+          "peak_rss_mib": 31.16,
+          "modules": 215,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "proxy_import",
+          "rss_mib": 82.59,
+          "peak_rss_mib": 82.59,
+          "modules": 917,
+          "adk_loaded": false,
+          "mitmproxy_loaded": true
+        }
+      ],
+      "repetition": 2
+    },
+    {
+      "case": "cli_mitm",
+      "python": "3.13.16",
+      "mitmproxy": "12.3.1",
+      "google_adk": "2.13.0",
+      "psutil": "7.2.2",
+      "stages": [
+        {
+          "stage": "python",
+          "rss_mib": 31.33,
+          "peak_rss_mib": 31.34,
+          "modules": 215,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "runtime_import",
+          "rss_mib": 126.27,
+          "peak_rss_mib": 126.27,
+          "modules": 1484,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "proxy_import",
+          "rss_mib": 164.52,
+          "peak_rss_mib": 164.52,
+          "modules": 1979,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        }
+      ],
+      "repetition": 2
+    },
+    {
+      "case": "direct",
+      "python": "3.13.16",
+      "mitmproxy": "12.3.1",
+      "google_adk": "2.13.0",
+      "psutil": "7.2.2",
+      "stages": [
+        {
+          "stage": "python",
+          "rss_mib": 31.33,
+          "peak_rss_mib": 31.33,
+          "modules": 215,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "runtime_import",
+          "rss_mib": 126.41,
+          "peak_rss_mib": 126.41,
+          "modules": 1484,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "fixture_ready",
+          "rss_mib": 126.41,
+          "peak_rss_mib": 126.41,
+          "modules": 1484,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "ready",
+          "rss_mib": 128.38,
+          "peak_rss_mib": 128.38,
+          "modules": 1484,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "round_1_completed",
+          "rss_mib": 129.05,
+          "peak_rss_mib": 129.05,
+          "modules": 1486,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "round_2_completed",
+          "rss_mib": 129.05,
+          "peak_rss_mib": 129.05,
+          "modules": 1486,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "round_3_completed",
+          "rss_mib": 129.06,
+          "peak_rss_mib": 129.06,
+          "modules": 1486,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "cleanup",
+          "rss_mib": 129.06,
+          "peak_rss_mib": 129.06,
+          "modules": 1486,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        }
+      ],
+      "rounds": [
+        {
+          "stage": "round_1_responses_held",
+          "rss_mib": 129.05,
+          "peak_rss_mib": 129.05,
+          "modules": 1486,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false,
+          "retained_response_bytes": 0,
+          "transferred_bytes": 33554432
+        },
+        {
+          "stage": "round_2_responses_held",
+          "rss_mib": 129.05,
+          "peak_rss_mib": 129.05,
+          "modules": 1486,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false,
+          "retained_response_bytes": 0,
+          "transferred_bytes": 33554432
+        },
+        {
+          "stage": "round_3_responses_held",
+          "rss_mib": 129.06,
+          "peak_rss_mib": 129.06,
+          "modules": 1486,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false,
+          "retained_response_bytes": 0,
+          "transferred_bytes": 33554432
+        }
+      ],
+      "target_requests": 12,
+      "fixture_cleanup_confirmed": true,
+      "live_proxy_flows_after_cleanup": 0,
+      "repetition": 2
+    },
+    {
+      "case": "proxy_buffered",
+      "python": "3.13.16",
+      "mitmproxy": "12.3.1",
+      "google_adk": "2.13.0",
+      "psutil": "7.2.2",
+      "stages": [
+        {
+          "stage": "python",
+          "rss_mib": 31.31,
+          "peak_rss_mib": 31.31,
+          "modules": 215,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "runtime_import",
+          "rss_mib": 126.38,
+          "peak_rss_mib": 126.38,
+          "modules": 1484,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "fixture_ready",
+          "rss_mib": 126.38,
+          "peak_rss_mib": 126.38,
+          "modules": 1484,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "proxy_import",
+          "rss_mib": 164.55,
+          "peak_rss_mib": 164.55,
+          "modules": 1979,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        },
+        {
+          "stage": "ready",
+          "rss_mib": 170.16,
+          "peak_rss_mib": 170.16,
+          "modules": 1979,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        },
+        {
+          "stage": "round_1_completed",
+          "rss_mib": 240.16,
+          "peak_rss_mib": 240.16,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        },
+        {
+          "stage": "round_2_completed",
+          "rss_mib": 240.16,
+          "peak_rss_mib": 240.16,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        },
+        {
+          "stage": "round_3_completed",
+          "rss_mib": 241.38,
+          "peak_rss_mib": 241.38,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        },
+        {
+          "stage": "cleanup",
+          "rss_mib": 241.39,
+          "peak_rss_mib": 241.39,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        }
+      ],
+      "rounds": [
+        {
+          "stage": "round_1_responses_held",
+          "rss_mib": 240.16,
+          "peak_rss_mib": 240.16,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true,
+          "retained_response_bytes": 33554432,
+          "transferred_bytes": 33554432
+        },
+        {
+          "stage": "round_2_responses_held",
+          "rss_mib": 240.16,
+          "peak_rss_mib": 240.16,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true,
+          "retained_response_bytes": 33554432,
+          "transferred_bytes": 33554432
+        },
+        {
+          "stage": "round_3_responses_held",
+          "rss_mib": 241.38,
+          "peak_rss_mib": 241.38,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true,
+          "retained_response_bytes": 33554432,
+          "transferred_bytes": 33554432
+        }
+      ],
+      "target_requests": 12,
+      "fixture_cleanup_confirmed": true,
+      "live_proxy_flows_after_cleanup": 0,
+      "repetition": 2
+    },
+    {
+      "case": "proxy_streamed",
+      "python": "3.13.16",
+      "mitmproxy": "12.3.1",
+      "google_adk": "2.13.0",
+      "psutil": "7.2.2",
+      "stages": [
+        {
+          "stage": "python",
+          "rss_mib": 31.23,
+          "peak_rss_mib": 31.23,
+          "modules": 215,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "runtime_import",
+          "rss_mib": 126.25,
+          "peak_rss_mib": 126.25,
+          "modules": 1484,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "fixture_ready",
+          "rss_mib": 126.25,
+          "peak_rss_mib": 126.25,
+          "modules": 1484,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "proxy_import",
+          "rss_mib": 164.56,
+          "peak_rss_mib": 164.56,
+          "modules": 1979,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        },
+        {
+          "stage": "ready",
+          "rss_mib": 170.27,
+          "peak_rss_mib": 170.27,
+          "modules": 1979,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        },
+        {
+          "stage": "round_1_completed",
+          "rss_mib": 171.86,
+          "peak_rss_mib": 171.86,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        },
+        {
+          "stage": "round_2_completed",
+          "rss_mib": 171.86,
+          "peak_rss_mib": 171.86,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        },
+        {
+          "stage": "round_3_completed",
+          "rss_mib": 171.89,
+          "peak_rss_mib": 171.89,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        },
+        {
+          "stage": "cleanup",
+          "rss_mib": 171.89,
+          "peak_rss_mib": 171.89,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        }
+      ],
+      "rounds": [
+        {
+          "stage": "round_1_responses_held",
+          "rss_mib": 171.86,
+          "peak_rss_mib": 171.86,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true,
+          "retained_response_bytes": 0,
+          "transferred_bytes": 33554432
+        },
+        {
+          "stage": "round_2_responses_held",
+          "rss_mib": 171.86,
+          "peak_rss_mib": 171.86,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true,
+          "retained_response_bytes": 0,
+          "transferred_bytes": 33554432
+        },
+        {
+          "stage": "round_3_responses_held",
+          "rss_mib": 171.88,
+          "peak_rss_mib": 171.88,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true,
+          "retained_response_bytes": 0,
+          "transferred_bytes": 33554432
+        }
+      ],
+      "target_requests": 12,
+      "fixture_cleanup_confirmed": true,
+      "live_proxy_flows_after_cleanup": 0,
+      "repetition": 2
+    },
+    {
+      "case": "transport",
+      "python": "3.13.16",
+      "mitmproxy": "12.3.1",
+      "google_adk": "2.13.0",
+      "psutil": "7.2.2",
+      "stages": [
+        {
+          "stage": "python",
+          "rss_mib": 31.22,
+          "peak_rss_mib": 31.23,
+          "modules": 215,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "runtime_import",
+          "rss_mib": 57.25,
+          "peak_rss_mib": 57.25,
+          "modules": 542,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        }
+      ],
+      "repetition": 3
+    },
+    {
+      "case": "toolworker",
+      "python": "3.13.16",
+      "mitmproxy": "12.3.1",
+      "google_adk": "2.13.0",
+      "psutil": "7.2.2",
+      "stages": [
+        {
+          "stage": "python",
+          "rss_mib": 31.2,
+          "peak_rss_mib": 31.22,
+          "modules": 215,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "runtime_import",
+          "rss_mib": 72.31,
+          "peak_rss_mib": 72.31,
+          "modules": 773,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        }
+      ],
+      "repetition": 3
+    },
+    {
+      "case": "allocation",
+      "python": "3.13.16",
+      "mitmproxy": "12.3.1",
+      "google_adk": "2.13.0",
+      "psutil": "7.2.2",
+      "stages": [
+        {
+          "stage": "python",
+          "rss_mib": 31.31,
+          "peak_rss_mib": 31.33,
+          "modules": 215,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "runtime_import",
+          "rss_mib": 126.75,
+          "peak_rss_mib": 126.75,
+          "modules": 1469,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        }
+      ],
+      "repetition": 3
+    },
+    {
+      "case": "cli",
+      "python": "3.13.16",
+      "mitmproxy": "12.3.1",
+      "google_adk": "2.13.0",
+      "psutil": "7.2.2",
+      "stages": [
+        {
+          "stage": "python",
+          "rss_mib": 31.31,
+          "peak_rss_mib": 31.33,
+          "modules": 215,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "runtime_import",
+          "rss_mib": 126.33,
+          "peak_rss_mib": 126.33,
+          "modules": 1484,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        }
+      ],
+      "repetition": 3
+    },
+    {
+      "case": "mitm_min",
+      "python": "3.13.16",
+      "mitmproxy": "12.3.1",
+      "google_adk": "2.13.0",
+      "psutil": "7.2.2",
+      "stages": [
+        {
+          "stage": "python",
+          "rss_mib": 31.08,
+          "peak_rss_mib": 31.09,
+          "modules": 215,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "proxy_import",
+          "rss_mib": 81.05,
+          "peak_rss_mib": 81.05,
+          "modules": 866,
+          "adk_loaded": false,
+          "mitmproxy_loaded": true
+        }
+      ],
+      "repetition": 3
+    },
+    {
+      "case": "mitm_dump",
+      "python": "3.13.16",
+      "mitmproxy": "12.3.1",
+      "google_adk": "2.13.0",
+      "psutil": "7.2.2",
+      "stages": [
+        {
+          "stage": "python",
+          "rss_mib": 31.14,
+          "peak_rss_mib": 31.16,
+          "modules": 215,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "proxy_import",
+          "rss_mib": 82.52,
+          "peak_rss_mib": 82.52,
+          "modules": 917,
+          "adk_loaded": false,
+          "mitmproxy_loaded": true
+        }
+      ],
+      "repetition": 3
+    },
+    {
+      "case": "cli_mitm",
+      "python": "3.13.16",
+      "mitmproxy": "12.3.1",
+      "google_adk": "2.13.0",
+      "psutil": "7.2.2",
+      "stages": [
+        {
+          "stage": "python",
+          "rss_mib": 31.23,
+          "peak_rss_mib": 31.25,
+          "modules": 215,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "runtime_import",
+          "rss_mib": 126.48,
+          "peak_rss_mib": 126.48,
+          "modules": 1484,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "proxy_import",
+          "rss_mib": 165.12,
+          "peak_rss_mib": 165.12,
+          "modules": 1979,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        }
+      ],
+      "repetition": 3
+    },
+    {
+      "case": "direct",
+      "python": "3.13.16",
+      "mitmproxy": "12.3.1",
+      "google_adk": "2.13.0",
+      "psutil": "7.2.2",
+      "stages": [
+        {
+          "stage": "python",
+          "rss_mib": 31.05,
+          "peak_rss_mib": 31.05,
+          "modules": 215,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "runtime_import",
+          "rss_mib": 126.38,
+          "peak_rss_mib": 126.38,
+          "modules": 1484,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "fixture_ready",
+          "rss_mib": 126.38,
+          "peak_rss_mib": 126.38,
+          "modules": 1484,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "ready",
+          "rss_mib": 128.34,
+          "peak_rss_mib": 128.34,
+          "modules": 1484,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "round_1_completed",
+          "rss_mib": 129.0,
+          "peak_rss_mib": 129.0,
+          "modules": 1486,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "round_2_completed",
+          "rss_mib": 129.0,
+          "peak_rss_mib": 129.0,
+          "modules": 1486,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "round_3_completed",
+          "rss_mib": 129.0,
+          "peak_rss_mib": 129.0,
+          "modules": 1486,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "cleanup",
+          "rss_mib": 129.0,
+          "peak_rss_mib": 129.0,
+          "modules": 1486,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        }
+      ],
+      "rounds": [
+        {
+          "stage": "round_1_responses_held",
+          "rss_mib": 129.0,
+          "peak_rss_mib": 129.0,
+          "modules": 1486,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false,
+          "retained_response_bytes": 0,
+          "transferred_bytes": 33554432
+        },
+        {
+          "stage": "round_2_responses_held",
+          "rss_mib": 129.0,
+          "peak_rss_mib": 129.0,
+          "modules": 1486,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false,
+          "retained_response_bytes": 0,
+          "transferred_bytes": 33554432
+        },
+        {
+          "stage": "round_3_responses_held",
+          "rss_mib": 129.0,
+          "peak_rss_mib": 129.0,
+          "modules": 1486,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false,
+          "retained_response_bytes": 0,
+          "transferred_bytes": 33554432
+        }
+      ],
+      "target_requests": 12,
+      "fixture_cleanup_confirmed": true,
+      "live_proxy_flows_after_cleanup": 0,
+      "repetition": 3
+    },
+    {
+      "case": "proxy_buffered",
+      "python": "3.13.16",
+      "mitmproxy": "12.3.1",
+      "google_adk": "2.13.0",
+      "psutil": "7.2.2",
+      "stages": [
+        {
+          "stage": "python",
+          "rss_mib": 31.31,
+          "peak_rss_mib": 31.31,
+          "modules": 215,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "runtime_import",
+          "rss_mib": 126.34,
+          "peak_rss_mib": 126.34,
+          "modules": 1484,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "fixture_ready",
+          "rss_mib": 126.34,
+          "peak_rss_mib": 126.34,
+          "modules": 1484,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "proxy_import",
+          "rss_mib": 164.55,
+          "peak_rss_mib": 164.55,
+          "modules": 1979,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        },
+        {
+          "stage": "ready",
+          "rss_mib": 170.36,
+          "peak_rss_mib": 170.36,
+          "modules": 1979,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        },
+        {
+          "stage": "round_1_completed",
+          "rss_mib": 240.58,
+          "peak_rss_mib": 240.58,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        },
+        {
+          "stage": "round_2_completed",
+          "rss_mib": 241.19,
+          "peak_rss_mib": 241.19,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        },
+        {
+          "stage": "round_3_completed",
+          "rss_mib": 241.56,
+          "peak_rss_mib": 241.56,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        },
+        {
+          "stage": "cleanup",
+          "rss_mib": 241.56,
+          "peak_rss_mib": 241.56,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        }
+      ],
+      "rounds": [
+        {
+          "stage": "round_1_responses_held",
+          "rss_mib": 240.58,
+          "peak_rss_mib": 240.58,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true,
+          "retained_response_bytes": 33554432,
+          "transferred_bytes": 33554432
+        },
+        {
+          "stage": "round_2_responses_held",
+          "rss_mib": 241.19,
+          "peak_rss_mib": 241.19,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true,
+          "retained_response_bytes": 33554432,
+          "transferred_bytes": 33554432
+        },
+        {
+          "stage": "round_3_responses_held",
+          "rss_mib": 241.56,
+          "peak_rss_mib": 241.56,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true,
+          "retained_response_bytes": 33554432,
+          "transferred_bytes": 33554432
+        }
+      ],
+      "target_requests": 12,
+      "fixture_cleanup_confirmed": true,
+      "live_proxy_flows_after_cleanup": 0,
+      "repetition": 3
+    },
+    {
+      "case": "proxy_streamed",
+      "python": "3.13.16",
+      "mitmproxy": "12.3.1",
+      "google_adk": "2.13.0",
+      "psutil": "7.2.2",
+      "stages": [
+        {
+          "stage": "python",
+          "rss_mib": 31.34,
+          "peak_rss_mib": 31.34,
+          "modules": 215,
+          "adk_loaded": false,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "runtime_import",
+          "rss_mib": 126.34,
+          "peak_rss_mib": 126.34,
+          "modules": 1484,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "fixture_ready",
+          "rss_mib": 126.34,
+          "peak_rss_mib": 126.34,
+          "modules": 1484,
+          "adk_loaded": true,
+          "mitmproxy_loaded": false
+        },
+        {
+          "stage": "proxy_import",
+          "rss_mib": 164.56,
+          "peak_rss_mib": 164.56,
+          "modules": 1979,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        },
+        {
+          "stage": "ready",
+          "rss_mib": 170.27,
+          "peak_rss_mib": 170.27,
+          "modules": 1979,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        },
+        {
+          "stage": "round_1_completed",
+          "rss_mib": 173.22,
+          "peak_rss_mib": 173.22,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        },
+        {
+          "stage": "round_2_completed",
+          "rss_mib": 173.22,
+          "peak_rss_mib": 173.22,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        },
+        {
+          "stage": "round_3_completed",
+          "rss_mib": 173.23,
+          "peak_rss_mib": 173.23,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        },
+        {
+          "stage": "cleanup",
+          "rss_mib": 173.23,
+          "peak_rss_mib": 173.23,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true
+        }
+      ],
+      "rounds": [
+        {
+          "stage": "round_1_responses_held",
+          "rss_mib": 173.22,
+          "peak_rss_mib": 173.22,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true,
+          "retained_response_bytes": 0,
+          "transferred_bytes": 33554432
+        },
+        {
+          "stage": "round_2_responses_held",
+          "rss_mib": 173.22,
+          "peak_rss_mib": 173.22,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true,
+          "retained_response_bytes": 0,
+          "transferred_bytes": 33554432
+        },
+        {
+          "stage": "round_3_responses_held",
+          "rss_mib": 173.23,
+          "peak_rss_mib": 173.23,
+          "modules": 1982,
+          "adk_loaded": true,
+          "mitmproxy_loaded": true,
+          "retained_response_bytes": 0,
+          "transferred_bytes": 33554432
+        }
+      ],
+      "target_requests": 12,
+      "fixture_cleanup_confirmed": true,
+      "live_proxy_flows_after_cleanup": 0,
+      "repetition": 3
+    }
+  ],
+  "production_dependencies_unchanged": true
+}
