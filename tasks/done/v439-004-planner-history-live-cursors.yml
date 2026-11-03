@@ -9,21 +9,34 @@ title: Evict only live Planner history cursors
 kind: defect
 introduced_by: V420-002
 priority: P2
-status: in_progress
+status: completed
 goal: Reading one history chain does not evict another while fewer than eight cursors remain live.
 context:
-  authority: 'User request 2026-11-03: implement the reviewed Planner simplifications and optimizations first,
-    then fix the four reproduced defects. Preserve the existing Planner/domain/Server-operation boundaries.'
+  authority: 'User request on 2026-11-03: "Давай сделаем упрощения и оптимизации и затем поправим проблемы".'
   finding: internal/planner/streamline/history.go:138 removes consumed tokens from the map but leaves them
     in order; history.go:187 evicts by stale queue length.
   siblings: Streamline and Router share one engine. Passthrough, scan, durable reads, Gateway main/compactor
     and telemetry consumers are checked where applicable; no Runtime or UI behavior change is introduced.
   specification:
-  - docs/spec/execution/planners.md
-  - docs/spec/platform/limits.md
-  boundary: Planner owns orchestration; Session owns durable receipts and validation; StateView owns revision-bound
-    projections. Keep existing events and stores rather than adding batching protocols, tables or receipt owners.
-    Reopen atomic event batching only if measured database cost justifies a separate change.
+  - docs/spec/execution/planners.md#PLN-R131
+  - docs/spec/platform/limits.md#LIM-PLN-18
+  boundary: 'Implementation decision: preserve the existing Planner/domain/Server-operation separation and
+    public fact vocabulary. Keep receipt capacity derived from the pinned plan rather than introduce a new
+    event-batching protocol or receipt owner. Atomic event batching remains a separate option if measured database
+    cost warrants it.'
+  verification:
+    date: '2026-11-03'
+    environment: Go 1.26.9 darwin/arm64; dedicated disposable PostgreSQL; scripted models, local HTTP Gateway
+      and OTLP fixtures.
+    evidence: Two interleaved history chains survive more than eight advances; foreign use does not consume
+      a token. Filling the eight live slots and issuing a ninth evicts exactly the oldest live cursor. Existing
+      consumed, foreign, index/checkpoint-invalidated cursor and exact pagination tests pass. The new interleaved
+      regression fails with the previous FIFO.
+    checks:
+    - make lint
+    - go test -p=2 -count=1 ./internal/planner/... ./internal/scheduler ./internal/archtest ./tests/integration/streamline
+      (with PostgreSQL)
+    - go test -race -p=2 -count=1 ./internal/planner/... (with PostgreSQL)
 scope:
   in:
   - Remove consumed tokens from both bounded cursor structures and preserve FIFO eviction of live cursors.
@@ -50,3 +63,4 @@ tests:
   - A1
   - A2
   - A3
+implementation_commit: a569408ae4031155a1f27980396d916c422e9ac0
