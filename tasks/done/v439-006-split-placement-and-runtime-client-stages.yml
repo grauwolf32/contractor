@@ -6,7 +6,8 @@ epic: execution-core
 kind: chore
 introduced_by: V8-007
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: 40fac972465e6bbcfd928af3484780d58d7786bd
 depends_on: [V439-004, V439-005]
 languages: [go]
 goal: "Make placement and Runtime protocol stages easy to locate without changing allocation behavior or package boundaries."

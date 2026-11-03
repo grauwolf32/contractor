@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-83 open tasks: 16 in progress, 54 pending, 13 deferred. 1385 finished: 1367 completed, 18 archived.
+82 open tasks: 15 in progress, 54 pending, 13 deferred. 1386 finished: 1368 completed, 18 archived.
 
 ## In progress
 
@@ -26,7 +26,6 @@ the epics are in [epics.yml](epics.yml).
 | [V437-005](v437-005-inject-artifact-storage-dependencies.yml) | projects-artifacts | chore | P2 | Inject Artifact storage dependencies explicitly |
 | [V437-006](v437-006-group-artifact-policy-and-preview.yml) | projects-artifacts | chore | P3 | Group shared Artifact policy and previews under artifacts |
 | [V437-007](v437-007-name-scheduler-fixture-sqlstate.yml) | execution-core | chore | P3 | Name the Scheduler discard fixture SQL condition |
-| [V439-006](v439-006-split-placement-and-runtime-client-stages.yml) | execution-core | chore | P3 | Separate placement and Runtime client files by execution stage |
 
 ## Pending
 
@@ -179,7 +178,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 4 | 47 | 66 | 35 | 96 |
+| Run execution core (`execution-core`) | 3 | 47 | 66 | 35 | 96 |
 | Planners and the Worker model boundary (`planner-worker`) | 9 | 35 | 49 | 30 | 75 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 14 | 5 | 46 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 3 | 14 |
