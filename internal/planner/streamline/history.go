@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"time"
 	"unicode/utf8"
 
@@ -136,6 +137,7 @@ func (c *contextCompaction) page(sessionID, worker, cursor string) historyOutput
 			return historyCursorInvalid()
 		}
 		delete(history.cursors, cursor)
+		history.order = slices.DeleteFunc(history.order, func(key string) bool { return key == cursor })
 		position = saved
 	}
 	entries := history.byWorker[worker]

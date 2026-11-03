@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-84 open tasks: 15 in progress, 56 pending, 13 deferred. 1369 finished: 1351 completed, 18 archived.
+84 open tasks: 16 in progress, 55 pending, 13 deferred. 1369 finished: 1351 completed, 18 archived.
 
 ## In progress
 
@@ -26,6 +26,7 @@ the epics are in [epics.yml](epics.yml).
 | [V439-001](v439-001-simplify-planner-orchestration.yml) | planner-worker | chore | P3 | Simplify Planner orchestration and cache revision-bound file projections |
 | [V439-002](v439-002-planner-fact-capacity.yml) | planner-worker | defect | P2 | Derive Planner fact capacity from the pinned subtask limit |
 | [V439-003](v439-003-planner-gateway-strict-json.yml) | planner-worker | defect | P2 | Reject ambiguous Planner Gateway JSON before tool dispatch |
+| [V439-004](v439-004-planner-history-live-cursors.yml) | planner-worker | defect | P2 | Evict only live Planner history cursors |
 
 ## Pending
 
@@ -44,7 +45,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-007](v417-007-context-compaction-state-and-ui.yml) | feature | P1 | V417-003 | Report compaction progress and costs without exposing context content |
 | [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | V420-002 | Verify Planner compaction persistence cancellation and scale boundaries |
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | V420-002 | Expose bounded truthful Planner compaction diagnostics |
-| [V439-004](v439-004-planner-history-live-cursors.yml) | defect | P2 | — | Evict only live Planner history cursors |
 | [V439-005](v439-005-planner-telemetry-subtask-ids.yml) | defect | P3 | — | Use the shared Planner subtask grammar in telemetry |
 
 ### HTTP and Caido tools (`http-tools`)

@@ -811,6 +811,50 @@ func TestCompactionHistoryCursorsFailClosed(t *testing.T) {
 	}
 }
 
+func TestCompactionHistoryEvictsOnlyLiveCursors(t *testing.T) {
+	compaction := newContextCompaction(compactionSettings{})
+	for index := range 40 {
+		if failure := compaction.recordResult("builder", fmt.Sprint(index), contracts.WorkerResult{
+			SubtaskID: fmt.Sprint(index), Result: strings.Repeat("r", 8*1024),
+		}); failure != nil {
+			t.Fatal(failure)
+		}
+	}
+	first := compaction.page("session", "builder", "")
+	advancing := compaction.page("session", "builder", "")
+	for range maxHistoryCursors + 1 {
+		if advancing.Next == "" {
+			t.Fatal("fixture ended before enough cursor advances")
+		}
+		advancing = compaction.page("session", "builder", advancing.Next)
+		if !advancing.OK {
+			t.Fatalf("advancing chain rejected: %+v", advancing.Error)
+		}
+	}
+	// Rejected foreign use must not consume a valid outstanding cursor.
+	if page := compaction.page("foreign", "builder", first.Next); page.OK {
+		t.Fatal("foreign cursor accepted")
+	}
+	first = compaction.page("session", "builder", first.Next)
+	if !first.OK || first.Next == "" {
+		t.Fatalf("another chain evicted an unconsumed cursor below capacity: %+v", first.Error)
+	}
+	for range maxHistoryCursors - 2 {
+		if page := compaction.page("session", "builder", ""); !page.OK || page.Next == "" {
+			t.Fatal("could not fill live cursor capacity")
+		}
+	}
+	if page := compaction.page("session", "builder", ""); !page.OK || page.Next == "" {
+		t.Fatal("could not issue the ninth live cursor")
+	}
+	if page := compaction.page("session", "builder", advancing.Next); page.Error == nil || page.Error.Code != "history_cursor_invalid" {
+		t.Fatal("ninth live cursor did not evict the oldest")
+	}
+	if page := compaction.page("session", "builder", first.Next); !page.OK {
+		t.Fatalf("newer live cursor was evicted: %+v", page.Error)
+	}
+}
+
 func TestCompactionRetainedLedgerStopsBeforeCeiling(t *testing.T) {
 	compaction := newContextCompaction(compactionSettings{keepRecent: 1, maxCompactions: 1, threshold: 1})
 	result := contracts.WorkerResult{Result: strings.Repeat("r", contracts.MaxWorkerResultBytes)}

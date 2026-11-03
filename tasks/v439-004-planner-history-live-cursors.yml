@@ -9,7 +9,7 @@ title: Evict only live Planner history cursors
 kind: defect
 introduced_by: V420-002
 priority: P2
-status: pending
+status: in_progress
 goal: Reading one history chain does not evict another while fewer than eight cursors remain live.
 context:
   authority: 'User request 2026-11-03: implement the reviewed Planner simplifications and optimizations first,
