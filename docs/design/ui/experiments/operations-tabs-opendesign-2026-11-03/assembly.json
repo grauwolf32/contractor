@@ -1,0 +1,10 @@
+{
+  "runId": "24594eb2-4e5f-4756-9c15-7ba2409f4732",
+  "nativeRunStatus": "failed",
+  "nativeRunFailure": "Bounded gateway request budget exhausted after CSS output; native HTML assembly and rationale were not produced.",
+  "nativeContribution": "Exact opendesign.css from the native project, unmodified.",
+  "hostContribution": "Insert the exact native CSS as one style element before </head>; no other seed bytes changed.",
+  "inputSha256": "896b5404be51c7b77f2bf7580d937d64ed06d2bee8ecaf617e0c6a4d2646fa37",
+  "cssSha256": "8e941ec4643587cfdda565496f46e41e157054505a0fcb71c27c97660f76ca07",
+  "htmlSha256": "e8fdc514c610e22250a92522723c7dc6d4c853b4c63f8d1fa3fbbcbb920ba153"
+}

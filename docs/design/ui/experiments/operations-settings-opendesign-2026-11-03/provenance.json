@@ -1,0 +1,104 @@
+{
+  "date": "2026-11-03",
+  "task": "V429-027",
+  "projectId": "contractor-operations-settings-20261103",
+  "conversationId": "1f0ee118-4804-447a-8d1e-db84616609cc",
+  "initialRunId": "d5e8163f-843d-4919-bd1d-d392aae1427b",
+  "initialRunOutcome": "succeeded status but no requested CSS produced",
+  "runId": "8986a7ac-9468-481b-b1c5-1df77924190a",
+  "nativeRunStatus": "succeeded",
+  "status": "native_css_complete_host_assembled",
+  "model": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+  "inputs": {
+    "referenceSha256": "9c03fe39513ef401cd3be0f614c5d34c797585531e7265d275fe15e3dfd34841",
+    "hostSeedSha256": "dca6afb31ea37723a8314d7a7e463a5598c95f554f1215aa63c4510868048af2",
+    "priorTabsSha256": "e8fdc514c610e22250a92522723c7dc6d4c853b4c63f8d1fa3fbbcbb920ba153",
+    "priorOverviewSha256": "dc65397517932f7a8818a56d95228931e4e43b62b0f929d82b9cbe4b4fff2ecc",
+    "continuationReferenceSha256": "a45434ce9cf05dc71fef947b28cdd8cd517225d97c39bac672f7c3b5cd6c436e"
+  },
+  "cssSha256": "adaa35c234bc73af461498e613cbd888198545344d6916760a826b777b30ea34",
+  "htmlSha256": "7b29340e9845554a5b68ad034350c3f0c2936e6adb883e54bed2f32981143a74",
+  "contribution": "Exact native scoped CSS retained unchanged. Host supplied DOM/controller/base styles and CSS assembly; a separate layout-fixes.css restores one-column personal cards on phones and full-width scheduling rows after visual QA. Separate compact Overview CSS is host-authored on user request.",
+  "sourceCommit": "82d793cbb39f515772d912c5d5027168fe08f3c3",
+  "cleanup": {
+    "stopped": true,
+    "upstreamCredentialRemoved": true,
+    "requestsUsed": 10
+  },
+  "preservation": {
+    "preBackup": "/Users/ruslan/src/third-party/open-design-backups/20261103T172706Z",
+    "postBackup": "/Users/ruslan/src/third-party/open-design-backups/20261103T174143Z",
+    "sqliteIntegrity": "ok",
+    "previousProjectFiles": 198,
+    "currentProjectFiles": 209,
+    "priorFilesChanged": 0,
+    "priorFilesMissing": 0,
+    "tables": {
+      "projects": {
+        "before": 9,
+        "after": 10,
+        "allPriorRowsIdentical": true
+      },
+      "conversations": {
+        "before": 14,
+        "after": 15,
+        "allPriorRowsIdentical": true
+      },
+      "messages": {
+        "before": 60,
+        "after": 64,
+        "allPriorRowsIdentical": true
+      }
+    }
+  },
+  "backups": {
+    "before": {
+      "backup": "/Users/ruslan/src/third-party/open-design-backups/20261103T172706Z",
+      "sqliteIntegrity": "ok",
+      "databaseCounts": {
+        "projects": 9,
+        "conversations": 14,
+        "messages": 60
+      },
+      "projectFiles": 198,
+      "archives": [
+        {
+          "name": "open-design-state.tar",
+          "bytes": 64150016,
+          "sha256": "7bbcdeac7da3b663b225a3751e1fb548f2772344351a1027ee51284e46b43e2d"
+        },
+        {
+          "name": "open-design-sandbox.tar.gz",
+          "bytes": 286350516,
+          "sha256": "1583f775b6fe02a22bf79ff51d5682019e0d8279b85ee012f5b3783bf3dc622c"
+        }
+      ],
+      "application": "resumed and healthy"
+    },
+    "after": {
+      "backup": "/Users/ruslan/src/third-party/open-design-backups/20261103T174143Z",
+      "sqliteIntegrity": "ok",
+      "databaseCounts": {
+        "projects": 10,
+        "conversations": 15,
+        "messages": 64
+      },
+      "projectFiles": 209,
+      "archives": [
+        {
+          "name": "open-design-state.tar",
+          "bytes": 66469888,
+          "sha256": "6921107935580d8df1454d6869676d7be1b2cc02c46423f64098ebfdc008f3fd"
+        },
+        {
+          "name": "open-design-sandbox.tar.gz",
+          "bytes": 286394453,
+          "sha256": "2548b854f862d18ceb0626a8f18da2c65fe2f4cc224f0b59485a5f51e3fb1ca4"
+        }
+      ],
+      "application": "resumed and healthy"
+    }
+  },
+  "layoutFixesSha256": "dd99affaa0fa759c1ea20a523308d1457e7084b1524ad48c075b259a4e0a1b4b",
+  "nativeAssemblySha256": "b98aa4a6270b2c8da7032cfb160f4846c3105b3f13fb3a3c1804c2ca78693ac6"
+}

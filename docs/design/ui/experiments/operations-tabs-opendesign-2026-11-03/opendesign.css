@@ -1,0 +1,308 @@
+/*
+ * opendesign-tabs.css — visual pass for the remaining Operations tabs.
+ * Presentation layer over the seed and tabs-base styles: no HTML or JS
+ * changes, no facts hidden or replaced, no pseudo-element copy.
+ * Every colour, spacing, radius, size and font value comes from the
+ * tokens already declared in the seed (light/dark/black aware).
+ * Breakpoints follow the established scale: 1100 / 640 / 480.
+ */
+
+/* ---- Tab frame: editorial header with a divider ------------------- */
+
+.tabs-content { gap: var(--space-6); }
+.tab-heading {
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+.tab-heading h2 { letter-spacing: -.01em; }
+.tab-heading > p {
+  max-width: 60ch;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+.tab-heading > button { flex: none; }
+.eyebrow { color: var(--muted-strong); }
+
+/* ---- Toolbars, segmented filters, counts -------------------------- */
+
+.toolbar { gap: var(--space-3); }
+.tabs-content > .count-note {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+}
+.filter-group {
+  gap: 0;
+  padding: var(--space-0-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-subtle);
+}
+.filter-group button {
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius-xs);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--muted-strong);
+}
+.filter-group button:hover { color: var(--text); }
+.filter-group button[aria-pressed=true] {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--sel-line);
+}
+#history-filter { align-items: end; }
+#history-filter .field { flex: 1 1 16rem; }
+#history-filter input { width: 100%; }
+
+/* ---- Allocations subtabs: underline tabs, not pill cards ---------- */
+
+.subtabs {
+  gap: var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+.subtabs a {
+  padding: var(--space-2) var(--space-1);
+  border-radius: 0;
+  font-weight: 500;
+  color: var(--muted);
+}
+.subtabs a:hover { color: var(--text); }
+.subtabs a[aria-current] {
+  background: transparent;
+  color: var(--text);
+  box-shadow: inset 0 -2px 0 var(--sel-bar);
+}
+
+/* ---- Inventory: compact list rows, not interchangeable cards ------ */
+
+.inventory { gap: var(--space-2); }
+.inventory-entry { transition: border-color 150ms ease; }
+.inventory-entry > summary {
+  padding: var(--space-3) var(--space-4);
+  transition: background 150ms ease;
+}
+.inventory-entry > summary:hover { background: var(--row-hover); }
+.inventory-entry[open] { border-color: var(--sel-line); }
+.inventory-entry[open] > summary { box-shadow: inset 2px 0 0 var(--sel-bar); }
+.entry-identity strong { font-weight: 500; }
+.entry-icon {
+  width: 32px;
+  height: 32px;
+  background: var(--surface-subtle);
+  color: var(--muted-strong);
+}
+.inventory-entry[data-agent] .entry-icon {
+  border-radius: var(--radius-full);
+  background: var(--accent-dark);
+  color: var(--accent);
+}
+.inventory-entry[id] .entry-icon {
+  border-radius: var(--radius-xs);
+  background: var(--sunken);
+}
+.entry-states > svg:last-child {
+  color: var(--faint);
+  transition: transform 150ms ease;
+}
+.inventory-entry[open] > summary .entry-states > svg:last-child { transform: rotate(90deg); }
+/* Meta band between the summary row and the opened body */
+.inventory-entry > .entry-meta {
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-2) var(--space-4);
+  background: var(--surface-subtle);
+  border-top: 1px solid var(--line);
+}
+
+/* ---- Status pills: colour carries the availability state ---------- */
+
+.status-chip {
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  letter-spacing: .02em;
+}
+.status-chip svg { width: 12px; height: 12px; }
+.status-chip[data-tone=unknown] {
+  color: var(--muted);
+  background: var(--surface-subtle);
+  border-style: dashed;
+}
+/* Allocations: authoritative phase filled, observed phase outlined */
+.inventory-entry[id] .entry-states .status-chip:nth-of-type(2) {
+  background: transparent;
+  border-color: currentColor;
+}
+
+/* ---- Opened bodies, facts and small actions ----------------------- */
+
+.entry-body { padding: var(--space-4); }
+.entry-link a { font-weight: 500; }
+.button-row { gap: var(--space-2); }
+.button-row button {
+  min-height: var(--control-xs);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+}
+.notice { background: var(--surface-subtle); }
+
+/* ---- Performance: readings first, restrained plots --------------- */
+
+.metric-grid { gap: var(--space-3); }
+.metric { padding: var(--space-4); }
+.metric > header h3 { font-size: var(--text-sm); }
+.metric-value {
+  font: 500 var(--text-xl)/1.4 var(--font-mono);
+  white-space: nowrap;
+  margin-block: var(--space-3);
+}
+.chart {
+  gap: var(--space-0-5);
+  margin-top: var(--space-4);
+  background: var(--sunken);
+}
+.chart span {
+  min-width: var(--space-0-5);
+  border-radius: var(--radius-xs) var(--radius-xs) 0 0;
+}
+.chart-labels { font-family: var(--font-mono); }
+.chart-gap {
+  border-radius: var(--radius-sm);
+  background: var(--sunken);
+}
+.two-column { gap: var(--space-3); }
+.panel { padding: var(--space-4); }
+.data-line strong {
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+.progress-track { height: var(--space-1); }
+
+/* ---- Settings: editorial description/form rows ------------------- */
+
+.settings-directory {
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.settings-directory a {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-full);
+  background: var(--surface-subtle);
+  text-decoration: none;
+}
+.settings-directory a:hover { background: var(--surface-hover); }
+.settings-block { gap: var(--space-6); }
+.settings-copy h3 { font-size: var(--text-md); }
+.settings-copy .scope {
+  display: inline-block;
+  padding: var(--space-0-5) var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.settings-copy p:not(.scope) {
+  max-width: 48ch;
+  line-height: 1.6;
+}
+
+/* ---- Shared controls, empty states and forms --------------------- */
+
+button { transition: background-color 150ms ease, border-color 150ms ease; }
+button:not(.primary):hover {
+  background: var(--surface-hover);
+  border-color: var(--line-strong);
+}
+.primary:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+}
+label.field span {
+  color: var(--muted-strong);
+  font-weight: 500;
+}
+fieldset { margin: 0; padding: 0; border: 0; }
+legend {
+  padding: 0;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--muted-strong);
+}
+.check-label { padding: var(--space-1) 0; }
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.empty-state { padding: var(--space-6) var(--space-4); }
+.empty-state svg {
+  width: 24px;
+  height: 24px;
+  color: var(--faint);
+}
+
+/* ---- Native dialogs: elevated, calm, clearly headed -------------- */
+
+.selection-dialog { box-shadow: var(--shadow-lg); }
+.dialog-head {
+  padding: var(--space-4) var(--space-5);
+  background: var(--surface-subtle);
+}
+.dialog-head h3 { font-size: var(--text-md); }
+.dialog-head button {
+  min-height: var(--control-xs);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+}
+.dialog-feedback {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+  font-size: var(--text-xs);
+  color: var(--muted);
+  min-height: 1.5em;
+}
+
+/* ---- 1100: tighter frame ----------------------------------------- */
+
+@media (max-width: 1100px) {
+  .tabs-content { gap: var(--space-5); }
+  .settings-block { gap: var(--space-5); }
+}
+
+/* ---- 480: phones — single-column facts, reflowed forms ----------- */
+
+@media (max-width: 480px) {
+  .tabs-content { gap: var(--space-4); }
+  .tab-heading { padding-bottom: var(--space-3); }
+  .filter-group { width: 100%; }
+  .filter-group button { flex: 1 1 auto; }
+  .inventory-entry > summary { padding: var(--space-3); }
+  .inventory-entry > .entry-meta { padding: var(--space-2) var(--space-3); }
+  .entry-body { padding: var(--space-3); }
+  .fact-list > div {
+    grid-template-columns: 1fr;
+    gap: var(--space-0-5);
+  }
+  .two-column { grid-template-columns: 1fr; }
+  .metric-value { font-size: var(--text-lg); }
+  .settings-block { gap: var(--space-4); }
+}
+
+/* ---- Reduced motion ---------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  button,
+  .inventory-entry,
+  .inventory-entry > summary,
+  .subtabs a,
+  .entry-states > svg:last-child {
+    transition: none;
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "date": "2026-11-02",
+  "task": "V429-025",
+  "projectId": "contractor-operations-20261102",
+  "conversationId": "0d9a719d-24cd-4a50-9556-0d763914966b",
+  "runId": "89e4398f-15b8-4d47-a72f-e97e39f2269d",
+  "status": "succeeded",
+  "model": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+  "inputSha256": "a48516d972c15ab17b128cbd052241ab4017e5fc5d24988115f9d0fdd483820c",
+  "nativeFiles": [
+    "opendesign.css",
+    "index-operations-v1.html",
+    "rationale.md"
+  ],
+  "contribution": "Actual native OpenDesign CSS and exact assembled HTML, with seed controller and fixtures preserved.",
+  "sourceCommit": "45da0f37c44e8a802778448fab602221d09f4bcf",
+  "cleanup": {
+    "stopped": true,
+    "upstreamCredentialRemoved": true,
+    "requestsUsed": 20
+  },
+  "preservation": {
+    "preBackup": "/Users/ruslan/src/third-party/open-design-backups/20261102T202732Z",
+    "postBackup": "/Users/ruslan/src/third-party/open-design-backups/20261102T204358Z",
+    "sqliteIntegrity": "ok",
+    "previousProjectFiles": 173,
+    "currentProjectFiles": 189,
+    "priorFilesChanged": 0,
+    "priorFilesMissing": 0,
+    "tables": {
+      "projects": {
+        "before": 7,
+        "after": 8,
+        "allPriorRowsIdentical": true
+      },
+      "conversations": {
+        "before": 12,
+        "after": 13,
+        "allPriorRowsIdentical": true
+      },
+      "messages": {
+        "before": 56,
+        "after": 58,
+        "allPriorRowsIdentical": true
+      }
+    }
+  },
+  "backups": {
+    "before": {
+      "backup": "/Users/ruslan/src/third-party/open-design-backups/20261102T202732Z",
+      "sqliteIntegrity": "ok",
+      "databaseCounts": {
+        "projects": 7,
+        "conversations": 12,
+        "messages": 56
+      },
+      "projectFiles": 173,
+      "archives": [
+        {
+          "name": "open-design-state.tar",
+          "bytes": 59933184,
+          "sha256": "5df7406b387d084fcbf3b67d492bae6161ffcc196803ce762fb39915fcf75c88"
+        },
+        {
+          "name": "open-design-sandbox.tar.gz",
+          "bytes": 286072208,
+          "sha256": "042a432cac0f38b080d5e7a1d55e41f07cf93fd12f21785981fec2a3a95e9b97"
+        }
+      ],
+      "application": "resumed and healthy"
+    },
+    "after": {
+      "backup": "/Users/ruslan/src/third-party/open-design-backups/20261102T204358Z",
+      "sqliteIntegrity": "ok",
+      "databaseCounts": {
+        "projects": 8,
+        "conversations": 13,
+        "messages": 58
+      },
+      "projectFiles": 189,
+      "archives": [
+        {
+          "name": "open-design-state.tar",
+          "bytes": 62313472,
+          "sha256": "712535c8d2cec8c273978cb3e7e680ac3e5ddc87b5d87d52103ccdb4aa677bf3"
+        },
+        {
+          "name": "open-design-sandbox.tar.gz",
+          "bytes": 286297179,
+          "sha256": "0e4481e40cf0dbdc48410999699d43039f5ec219782dc5277de6e73688f96982"
+        }
+      ],
+      "application": "resumed and healthy"
+    }
+  }
+}

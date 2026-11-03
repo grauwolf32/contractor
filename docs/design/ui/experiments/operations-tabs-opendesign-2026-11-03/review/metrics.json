@@ -1,0 +1,967 @@
+{
+  "layouts": [
+    {
+      "section": "runtime-agents",
+      "theme": "light",
+      "width": 1440,
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Runtime Agents",
+      "icons": 21
+    },
+    {
+      "section": "runtime-agents",
+      "theme": "light",
+      "width": 1100,
+      "viewport": 1100,
+      "documentWidth": 1100,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Runtime Agents",
+      "icons": 21
+    },
+    {
+      "section": "runtime-agents",
+      "theme": "light",
+      "width": 390,
+      "viewport": 390,
+      "documentWidth": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Runtime Agents",
+      "icons": 21
+    },
+    {
+      "section": "runtime-agents",
+      "theme": "light",
+      "width": 320,
+      "viewport": 320,
+      "documentWidth": 320,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Runtime Agents",
+      "icons": 21
+    },
+    {
+      "section": "runtime-agents",
+      "theme": "dark",
+      "width": 1440,
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Runtime Agents",
+      "icons": 21
+    },
+    {
+      "section": "runtime-agents",
+      "theme": "dark",
+      "width": 1100,
+      "viewport": 1100,
+      "documentWidth": 1100,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Runtime Agents",
+      "icons": 21
+    },
+    {
+      "section": "runtime-agents",
+      "theme": "dark",
+      "width": 390,
+      "viewport": 390,
+      "documentWidth": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Runtime Agents",
+      "icons": 21
+    },
+    {
+      "section": "runtime-agents",
+      "theme": "dark",
+      "width": 320,
+      "viewport": 320,
+      "documentWidth": 320,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Runtime Agents",
+      "icons": 21
+    },
+    {
+      "section": "runtime-agents",
+      "theme": "black",
+      "width": 1440,
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Runtime Agents",
+      "icons": 21
+    },
+    {
+      "section": "runtime-agents",
+      "theme": "black",
+      "width": 1100,
+      "viewport": 1100,
+      "documentWidth": 1100,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Runtime Agents",
+      "icons": 21
+    },
+    {
+      "section": "runtime-agents",
+      "theme": "black",
+      "width": 390,
+      "viewport": 390,
+      "documentWidth": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Runtime Agents",
+      "icons": 21
+    },
+    {
+      "section": "runtime-agents",
+      "theme": "black",
+      "width": 320,
+      "viewport": 320,
+      "documentWidth": 320,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Runtime Agents",
+      "icons": 21
+    },
+    {
+      "section": "allocations",
+      "theme": "light",
+      "width": 1440,
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Current allocations",
+      "icons": 20
+    },
+    {
+      "section": "allocations",
+      "theme": "light",
+      "width": 1100,
+      "viewport": 1100,
+      "documentWidth": 1100,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Current allocations",
+      "icons": 20
+    },
+    {
+      "section": "allocations",
+      "theme": "light",
+      "width": 390,
+      "viewport": 390,
+      "documentWidth": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Current allocations",
+      "icons": 20
+    },
+    {
+      "section": "allocations",
+      "theme": "light",
+      "width": 320,
+      "viewport": 320,
+      "documentWidth": 320,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Current allocations",
+      "icons": 20
+    },
+    {
+      "section": "allocations",
+      "theme": "dark",
+      "width": 1440,
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Current allocations",
+      "icons": 20
+    },
+    {
+      "section": "allocations",
+      "theme": "dark",
+      "width": 1100,
+      "viewport": 1100,
+      "documentWidth": 1100,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Current allocations",
+      "icons": 20
+    },
+    {
+      "section": "allocations",
+      "theme": "dark",
+      "width": 390,
+      "viewport": 390,
+      "documentWidth": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Current allocations",
+      "icons": 20
+    },
+    {
+      "section": "allocations",
+      "theme": "dark",
+      "width": 320,
+      "viewport": 320,
+      "documentWidth": 320,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Current allocations",
+      "icons": 20
+    },
+    {
+      "section": "allocations",
+      "theme": "black",
+      "width": 1440,
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Current allocations",
+      "icons": 20
+    },
+    {
+      "section": "allocations",
+      "theme": "black",
+      "width": 1100,
+      "viewport": 1100,
+      "documentWidth": 1100,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Current allocations",
+      "icons": 20
+    },
+    {
+      "section": "allocations",
+      "theme": "black",
+      "width": 390,
+      "viewport": 390,
+      "documentWidth": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Current allocations",
+      "icons": 20
+    },
+    {
+      "section": "allocations",
+      "theme": "black",
+      "width": 320,
+      "viewport": 320,
+      "documentWidth": 320,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Current allocations",
+      "icons": 20
+    },
+    {
+      "section": "completed",
+      "theme": "light",
+      "width": 1440,
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Completed allocations",
+      "icons": 24
+    },
+    {
+      "section": "completed",
+      "theme": "light",
+      "width": 1100,
+      "viewport": 1100,
+      "documentWidth": 1100,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Completed allocations",
+      "icons": 24
+    },
+    {
+      "section": "completed",
+      "theme": "light",
+      "width": 390,
+      "viewport": 390,
+      "documentWidth": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Completed allocations",
+      "icons": 24
+    },
+    {
+      "section": "completed",
+      "theme": "light",
+      "width": 320,
+      "viewport": 320,
+      "documentWidth": 320,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Completed allocations",
+      "icons": 24
+    },
+    {
+      "section": "completed",
+      "theme": "dark",
+      "width": 1440,
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Completed allocations",
+      "icons": 24
+    },
+    {
+      "section": "completed",
+      "theme": "dark",
+      "width": 1100,
+      "viewport": 1100,
+      "documentWidth": 1100,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Completed allocations",
+      "icons": 24
+    },
+    {
+      "section": "completed",
+      "theme": "dark",
+      "width": 390,
+      "viewport": 390,
+      "documentWidth": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Completed allocations",
+      "icons": 24
+    },
+    {
+      "section": "completed",
+      "theme": "dark",
+      "width": 320,
+      "viewport": 320,
+      "documentWidth": 320,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Completed allocations",
+      "icons": 24
+    },
+    {
+      "section": "completed",
+      "theme": "black",
+      "width": 1440,
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Completed allocations",
+      "icons": 24
+    },
+    {
+      "section": "completed",
+      "theme": "black",
+      "width": 1100,
+      "viewport": 1100,
+      "documentWidth": 1100,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Completed allocations",
+      "icons": 24
+    },
+    {
+      "section": "completed",
+      "theme": "black",
+      "width": 390,
+      "viewport": 390,
+      "documentWidth": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Completed allocations",
+      "icons": 24
+    },
+    {
+      "section": "completed",
+      "theme": "black",
+      "width": 320,
+      "viewport": 320,
+      "documentWidth": 320,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Completed allocations",
+      "icons": 24
+    },
+    {
+      "section": "performance",
+      "theme": "light",
+      "width": 1440,
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Performance",
+      "icons": 5
+    },
+    {
+      "section": "performance",
+      "theme": "light",
+      "width": 1100,
+      "viewport": 1100,
+      "documentWidth": 1100,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Performance",
+      "icons": 5
+    },
+    {
+      "section": "performance",
+      "theme": "light",
+      "width": 390,
+      "viewport": 390,
+      "documentWidth": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Performance",
+      "icons": 5
+    },
+    {
+      "section": "performance",
+      "theme": "light",
+      "width": 320,
+      "viewport": 320,
+      "documentWidth": 320,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Performance",
+      "icons": 5
+    },
+    {
+      "section": "performance",
+      "theme": "dark",
+      "width": 1440,
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Performance",
+      "icons": 5
+    },
+    {
+      "section": "performance",
+      "theme": "dark",
+      "width": 1100,
+      "viewport": 1100,
+      "documentWidth": 1100,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Performance",
+      "icons": 5
+    },
+    {
+      "section": "performance",
+      "theme": "dark",
+      "width": 390,
+      "viewport": 390,
+      "documentWidth": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Performance",
+      "icons": 5
+    },
+    {
+      "section": "performance",
+      "theme": "dark",
+      "width": 320,
+      "viewport": 320,
+      "documentWidth": 320,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Performance",
+      "icons": 5
+    },
+    {
+      "section": "performance",
+      "theme": "black",
+      "width": 1440,
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Performance",
+      "icons": 5
+    },
+    {
+      "section": "performance",
+      "theme": "black",
+      "width": 1100,
+      "viewport": 1100,
+      "documentWidth": 1100,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Performance",
+      "icons": 5
+    },
+    {
+      "section": "performance",
+      "theme": "black",
+      "width": 390,
+      "viewport": 390,
+      "documentWidth": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Performance",
+      "icons": 5
+    },
+    {
+      "section": "performance",
+      "theme": "black",
+      "width": 320,
+      "viewport": 320,
+      "documentWidth": 320,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Performance",
+      "icons": 5
+    },
+    {
+      "section": "configuration",
+      "theme": "light",
+      "width": 1440,
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Runtime configuration",
+      "icons": 9
+    },
+    {
+      "section": "configuration",
+      "theme": "light",
+      "width": 1100,
+      "viewport": 1100,
+      "documentWidth": 1100,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Runtime configuration",
+      "icons": 9
+    },
+    {
+      "section": "configuration",
+      "theme": "light",
+      "width": 390,
+      "viewport": 390,
+      "documentWidth": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Runtime configuration",
+      "icons": 9
+    },
+    {
+      "section": "configuration",
+      "theme": "light",
+      "width": 320,
+      "viewport": 320,
+      "documentWidth": 320,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Runtime configuration",
+      "icons": 9
+    },
+    {
+      "section": "configuration",
+      "theme": "dark",
+      "width": 1440,
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Runtime configuration",
+      "icons": 9
+    },
+    {
+      "section": "configuration",
+      "theme": "dark",
+      "width": 1100,
+      "viewport": 1100,
+      "documentWidth": 1100,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Runtime configuration",
+      "icons": 9
+    },
+    {
+      "section": "configuration",
+      "theme": "dark",
+      "width": 390,
+      "viewport": 390,
+      "documentWidth": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Runtime configuration",
+      "icons": 9
+    },
+    {
+      "section": "configuration",
+      "theme": "dark",
+      "width": 320,
+      "viewport": 320,
+      "documentWidth": 320,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Runtime configuration",
+      "icons": 9
+    },
+    {
+      "section": "configuration",
+      "theme": "black",
+      "width": 1440,
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Runtime configuration",
+      "icons": 9
+    },
+    {
+      "section": "configuration",
+      "theme": "black",
+      "width": 1100,
+      "viewport": 1100,
+      "documentWidth": 1100,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Runtime configuration",
+      "icons": 9
+    },
+    {
+      "section": "configuration",
+      "theme": "black",
+      "width": 390,
+      "viewport": 390,
+      "documentWidth": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Runtime configuration",
+      "icons": 9
+    },
+    {
+      "section": "configuration",
+      "theme": "black",
+      "width": 320,
+      "viewport": 320,
+      "documentWidth": 320,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Runtime configuration",
+      "icons": 9
+    },
+    {
+      "section": "llm",
+      "theme": "light",
+      "width": 1440,
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "LLM configurations",
+      "icons": 6
+    },
+    {
+      "section": "llm",
+      "theme": "light",
+      "width": 1100,
+      "viewport": 1100,
+      "documentWidth": 1100,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "LLM configurations",
+      "icons": 6
+    },
+    {
+      "section": "llm",
+      "theme": "light",
+      "width": 390,
+      "viewport": 390,
+      "documentWidth": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "LLM configurations",
+      "icons": 6
+    },
+    {
+      "section": "llm",
+      "theme": "light",
+      "width": 320,
+      "viewport": 320,
+      "documentWidth": 320,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "LLM configurations",
+      "icons": 6
+    },
+    {
+      "section": "llm",
+      "theme": "dark",
+      "width": 1440,
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "LLM configurations",
+      "icons": 6
+    },
+    {
+      "section": "llm",
+      "theme": "dark",
+      "width": 1100,
+      "viewport": 1100,
+      "documentWidth": 1100,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "LLM configurations",
+      "icons": 6
+    },
+    {
+      "section": "llm",
+      "theme": "dark",
+      "width": 390,
+      "viewport": 390,
+      "documentWidth": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "LLM configurations",
+      "icons": 6
+    },
+    {
+      "section": "llm",
+      "theme": "dark",
+      "width": 320,
+      "viewport": 320,
+      "documentWidth": 320,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "LLM configurations",
+      "icons": 6
+    },
+    {
+      "section": "llm",
+      "theme": "black",
+      "width": 1440,
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "LLM configurations",
+      "icons": 6
+    },
+    {
+      "section": "llm",
+      "theme": "black",
+      "width": 1100,
+      "viewport": 1100,
+      "documentWidth": 1100,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "LLM configurations",
+      "icons": 6
+    },
+    {
+      "section": "llm",
+      "theme": "black",
+      "width": 390,
+      "viewport": 390,
+      "documentWidth": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "LLM configurations",
+      "icons": 6
+    },
+    {
+      "section": "llm",
+      "theme": "black",
+      "width": 320,
+      "viewport": 320,
+      "documentWidth": 320,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "LLM configurations",
+      "icons": 6
+    },
+    {
+      "section": "credentials",
+      "theme": "light",
+      "width": 1440,
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Managed LLM credentials",
+      "icons": 6
+    },
+    {
+      "section": "credentials",
+      "theme": "light",
+      "width": 1100,
+      "viewport": 1100,
+      "documentWidth": 1100,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Managed LLM credentials",
+      "icons": 6
+    },
+    {
+      "section": "credentials",
+      "theme": "light",
+      "width": 390,
+      "viewport": 390,
+      "documentWidth": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Managed LLM credentials",
+      "icons": 6
+    },
+    {
+      "section": "credentials",
+      "theme": "light",
+      "width": 320,
+      "viewport": 320,
+      "documentWidth": 320,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Managed LLM credentials",
+      "icons": 6
+    },
+    {
+      "section": "credentials",
+      "theme": "dark",
+      "width": 1440,
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Managed LLM credentials",
+      "icons": 6
+    },
+    {
+      "section": "credentials",
+      "theme": "dark",
+      "width": 1100,
+      "viewport": 1100,
+      "documentWidth": 1100,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Managed LLM credentials",
+      "icons": 6
+    },
+    {
+      "section": "credentials",
+      "theme": "dark",
+      "width": 390,
+      "viewport": 390,
+      "documentWidth": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Managed LLM credentials",
+      "icons": 6
+    },
+    {
+      "section": "credentials",
+      "theme": "dark",
+      "width": 320,
+      "viewport": 320,
+      "documentWidth": 320,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Managed LLM credentials",
+      "icons": 6
+    },
+    {
+      "section": "credentials",
+      "theme": "black",
+      "width": 1440,
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Managed LLM credentials",
+      "icons": 6
+    },
+    {
+      "section": "credentials",
+      "theme": "black",
+      "width": 1100,
+      "viewport": 1100,
+      "documentWidth": 1100,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Managed LLM credentials",
+      "icons": 6
+    },
+    {
+      "section": "credentials",
+      "theme": "black",
+      "width": 390,
+      "viewport": 390,
+      "documentWidth": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Managed LLM credentials",
+      "icons": 6
+    },
+    {
+      "section": "credentials",
+      "theme": "black",
+      "width": 320,
+      "viewport": 320,
+      "documentWidth": 320,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Managed LLM credentials",
+      "icons": 6
+    },
+    {
+      "section": "settings",
+      "theme": "light",
+      "width": 1440,
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Settings",
+      "icons": 1
+    },
+    {
+      "section": "settings",
+      "theme": "light",
+      "width": 1100,
+      "viewport": 1100,
+      "documentWidth": 1100,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Settings",
+      "icons": 1
+    },
+    {
+      "section": "settings",
+      "theme": "light",
+      "width": 390,
+      "viewport": 390,
+      "documentWidth": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Settings",
+      "icons": 1
+    },
+    {
+      "section": "settings",
+      "theme": "light",
+      "width": 320,
+      "viewport": 320,
+      "documentWidth": 320,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Settings",
+      "icons": 1
+    },
+    {
+      "section": "settings",
+      "theme": "dark",
+      "width": 1440,
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Settings",
+      "icons": 1
+    },
+    {
+      "section": "settings",
+      "theme": "dark",
+      "width": 1100,
+      "viewport": 1100,
+      "documentWidth": 1100,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Settings",
+      "icons": 1
+    },
+    {
+      "section": "settings",
+      "theme": "dark",
+      "width": 390,
+      "viewport": 390,
+      "documentWidth": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Settings",
+      "icons": 1
+    },
+    {
+      "section": "settings",
+      "theme": "dark",
+      "width": 320,
+      "viewport": 320,
+      "documentWidth": 320,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Settings",
+      "icons": 1
+    },
+    {
+      "section": "settings",
+      "theme": "black",
+      "width": 1440,
+      "viewport": 1440,
+      "documentWidth": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Settings",
+      "icons": 1
+    },
+    {
+      "section": "settings",
+      "theme": "black",
+      "width": 1100,
+      "viewport": 1100,
+      "documentWidth": 1100,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Settings",
+      "icons": 1
+    },
+    {
+      "section": "settings",
+      "theme": "black",
+      "width": 390,
+      "viewport": 390,
+      "documentWidth": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Settings",
+      "icons": 1
+    },
+    {
+      "section": "settings",
+      "theme": "black",
+      "width": 320,
+      "viewport": 320,
+      "documentWidth": 320,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif",
+      "heading": "Settings",
+      "icons": 1
+    }
+  ],
+  "boundaries": 24,
+  "errors": [],
+  "external": []
+}
