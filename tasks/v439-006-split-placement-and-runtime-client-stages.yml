@@ -1,0 +1,73 @@
+schema_version: "1.0"
+id: V439-006
+title: "Separate placement and Runtime client files by execution stage"
+milestone: controlplane-review-2026-11
+epic: execution-core
+kind: chore
+introduced_by: V8-007
+priority: P3
+status: in_progress
+depends_on: [V439-004, V439-005]
+languages: [go]
+goal: "Make placement and Runtime protocol stages easy to locate without changing allocation behavior or package boundaries."
+context:
+  authority: "User decision 2026-11-03: implement the optional split of placement.go and runtime_client.go by execution stage."
+  specification:
+    - docs/spec/execution/control-plane.md#CTL-R88
+    - docs/spec/execution/control-plane.md#CTL-R162
+    - docs/spec/execution/control-plane.md#CTL-R164
+    - docs/spec/execution/control-plane.md#CTL-R168
+  finding: >-
+    placement.go has 977 lines combining orchestration, candidate discovery,
+    attempt-scoped resolution, catalog reads and transactional pinning.
+    runtime_client.go has 817 lines combining client construction, preparation
+    and Agent Card checks, lifecycle completion, Worker State and HTTP transport.
+  siblings: >-
+    RuntimeBatchController, encodeLifecycleRequest, engagementadapter and Registry
+    already own their separate responsibilities. Keep their behavior and all
+    existing tests. Placement began in V8-007; Worker State joined the Runtime
+    client in V17-005. This is source organization, not a defect in those contracts.
+  decision: >-
+    Move existing declarations into cohesive files within controlplane and add
+    a short package navigation map. Keep signatures, function bodies, state,
+    initialization dependencies, locking, transaction scope and failure outcomes unchanged.
+    A mechanical declaration comparison supplements the existing real-store and
+    native Runtime tests. Splitting into new packages or introducing wrappers would
+    add boundaries without a caller requirement; reopen that choice only when
+    ownership actually changes.
+scope:
+  in:
+    - "Separate placement orchestration, candidates, resolution/cache, catalogs and pinning."
+    - "Separate Runtime client construction, prepare/Agent Card validation, lifecycle completion, Worker State and transport."
+    - "Document the file responsibilities in the package overview."
+  out:
+    - "Behavior, public interfaces, wire contracts, database schema, algorithms and package dependencies."
+    - "New abstractions, adapter frameworks or tests that merely assert file layout."
+acceptance_criteria:
+  - id: A1
+    text: "The two entry files contain construction/orchestration; cohesive supporting files own the other named stages and the package overview maps them."
+  - id: A2
+    text: "All pre-existing non-import declarations remain equivalent, with no renamed symbols or new public API. Existing tests remain unchanged."
+  - id: A3
+    text: "Full affected-package tests with PostgreSQL, race detection and native integration pass; lint accepts source, architecture and task metadata."
+tests:
+  - command: make lint
+    covers: [A1, A2, A3]
+  - command: "go test -race -tags=integration -count=1 ./internal/controlplane/... ./internal/scheduler ./internal/app ./internal/archtest"
+    covers: [A2, A3]
+verification:
+  structure: >-
+    placement.go is 235 lines; candidates, resolution/cache, catalogs and pinning
+    have separate files. runtime_client.go is 55 lines; prepare/Agent Card checks,
+    lifecycle completion, Worker State and transport have separate files.
+    doc.go maps all stages within the same package.
+  equivalence: >-
+    Temporary Go AST snapshots before and after the move compare all 322 existing
+    non-test declarations, excluding imports, comments and source positions. The
+    snapshots are identical; existing tests and public signatures are unchanged.
+  result: >-
+    make runtime-venv prepared the locked Runtime. The complete integration-tagged
+    suites for controlplane/..., scheduler, app and archtest passed with -race
+    and a dedicated disposable PostgreSQL database, including native Python mTLS
+    lifecycle/fault and engagement metadata scenarios. make lint passed, including
+    architecture/export checks, source/spec/task guards and Runtime import contracts.
