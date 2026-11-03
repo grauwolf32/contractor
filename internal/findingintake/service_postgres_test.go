@@ -42,14 +42,6 @@ import (
 )
 
 func TestPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *testing.T) {
-	testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t)
-}
-
-func TestPostgresFindingReceiptReplayRetentionAndRunDeletion(t *testing.T) {
-	testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t)
-}
-
-func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *testing.T) {
 	artifactRuntime := artifactpgtest.NewRuntime()
 	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
 	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)

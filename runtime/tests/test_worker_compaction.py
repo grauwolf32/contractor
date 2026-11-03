@@ -107,7 +107,7 @@ def compaction(
         instructions=ResolvedInstructions(
             ref="instructions/worker-compaction.md",
             digest="sha256:" + "d" * 64,
-            text="Keep decisions, open questions and exact artifact references.",
+            text='Keep {decisions} and exact references; JSON: {"summary": "text"}.',
         ),
         includeReasoning=include_reasoning,
         contextWindowRatio=ratio,
@@ -248,6 +248,7 @@ def test_isolated_worker_continues_through_two_checkpoints(tmp_path: Path) -> No
             assert len(compactor.requests) == 2
             assert compactor.requests[0]["toolNames"] == []
             assert compactor.requests[0]["hasResponseSchema"] is True
+            assert compaction().instructions.text in compactor.requests[0]["systemInstruction"]
             first_input = compactor.requests[0]["contentText"]
             assert '"tag":"a"' in first_input and '"tag":"b"' in first_input
             assert '"tag":"c"' not in first_input

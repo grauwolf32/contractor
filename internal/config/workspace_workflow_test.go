@@ -165,39 +165,26 @@ func TestWorkspaceToolsetAndResultCrossValidation(t *testing.T) {
 	}
 }
 
-func TestWorkflowPublicationRequiresWorkspaceForCodeAnalysis(t *testing.T) {
+func TestWorkflowPublicationRequiresWorkspaceForCodeTools(t *testing.T) {
 	t.Parallel()
-
-	root := copyCoreFixture(t)
-	path := filepath.Join(root, "agent-templates/artifact_builder.yaml")
-	replaceFile(t, path, `    - ref: run-artifacts@1
+	for _, test := range []struct{ ref, tool string }{
+		{"code-analysis@1", "search_def"},
+		{"taint-annotations@1", "annotate_trace"},
+	} {
+		t.Run(test.ref, func(t *testing.T) {
+			t.Parallel()
+			root := copyCoreFixture(t)
+			path := filepath.Join(root, "agent-templates/artifact_builder.yaml")
+			replaceFile(t, path, `    - ref: run-artifacts@1
       tools:
         - list_artifacts
         - read_artifact
-        - write_artifact`, `    - ref: code-analysis@1
-      tools: [search_def]`)
-	snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
-	if err == nil || snapshot != nil ||
-		!strings.Contains(err.Error(), "workspace-dependent Toolsets require context.workspace") {
-		t.Fatalf("Load() = (%v, %v), want code-analysis workspace error", snapshot, err)
-	}
-}
-
-func TestWorkflowPublicationRequiresWorkspaceForTaintAnnotations(t *testing.T) {
-	t.Parallel()
-
-	root := copyCoreFixture(t)
-	path := filepath.Join(root, "agent-templates/artifact_builder.yaml")
-	replaceFile(t, path, `    - ref: run-artifacts@1
-      tools:
-        - list_artifacts
-        - read_artifact
-        - write_artifact`, `    - ref: taint-annotations@1
-      tools: [annotate_trace]`)
-	snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
-	if err == nil || snapshot != nil ||
-		!strings.Contains(err.Error(), "workspace-dependent Toolsets require context.workspace") {
-		t.Fatalf("Load() = (%v, %v), want taint annotation workspace error", snapshot, err)
+        - write_artifact`, "    - ref: "+test.ref+"\n      tools: ["+test.tool+"]")
+			snapshot, err := LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
+			if err == nil || snapshot != nil || !strings.Contains(err.Error(), "workspace-dependent Toolsets require context.workspace") {
+				t.Fatalf("Load() = (%v, %v), want workspace error", snapshot, err)
+			}
+		})
 	}
 }
 
