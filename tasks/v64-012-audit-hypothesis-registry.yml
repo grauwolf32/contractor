@@ -261,7 +261,7 @@ tests:
   - A3
 - command: >-
     node --input-type=module -e 'import {runBrowserGate} from "./ui/server/browser-gate.mjs";
-    await runBrowserGate("audit-hypotheses", "Audit hypotheses", ["e2e/audit-hypotheses.spec.ts"]);'
+    await runBrowserGate("audit-hypotheses", "Audit hypotheses", ["e2e/audit-hypotheses.spec.ts", "e2e/project-finding-sources.spec.ts"]);'
   covers:
   - A1
   - A2
