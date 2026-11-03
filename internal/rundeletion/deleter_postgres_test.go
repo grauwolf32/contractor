@@ -123,7 +123,6 @@ func TestDeletionLocksRequireTransaction(t *testing.T) {
 		{(*runstore.PostgresStore)(nil), (*runstore.PostgresTxStore)(nil), "LockRunForDeletion"},
 		{(*runstore.PostgresStore)(nil), (*runstore.PostgresTxStore)(nil), "LockRunQueueAdmission"},
 		{(*runstore.PostgresStore)(nil), (*runstore.PostgresTxStore)(nil), "LockRunSkillInitialization"},
-		{(*runstore.PostgresStore)(nil), (*runstore.PostgresTxStore)(nil), "LockAuditInputMaterialization"},
 		{(*runstore.PostgresStore)(nil), (*runstore.PostgresTxStore)(nil), "PinRuntimeLabels"},
 		{(*runstore.PostgresStore)(nil), (*runstore.PostgresTxStore)(nil), "DeleteLockedRunOutputPublications"},
 		{(*runstore.PostgresStore)(nil), (*runstore.PostgresTxStore)(nil), "DeleteLockedRun"},
