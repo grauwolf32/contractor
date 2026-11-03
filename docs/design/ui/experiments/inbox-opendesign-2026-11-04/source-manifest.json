@@ -1,0 +1,32 @@
+{
+  "baseCommit": "4214f46da8e046063c24f7eea8be05bfa90bd66a",
+  "uiVersion": "0.11.7",
+  "files": {
+    "ui/package.json": "695478c12cb1392784962b977dfc8274dc24ff154b84a50233a30e1403369bed",
+    "ui/src/app/theme.css": "3c5a55ebf2e2b7080e2c5dbc89c58f94823c793787d868835444d81cc7933faa",
+    "ui/src/routes/decisions/decisions.css": "5bed2d894783ade0fc2a12149c14c59cd4434acf14be6aebaad6d49867d9bdca",
+    "ui/src/routes/inbox/data.ts": "5b441b842b1d39d4946ab799693e5d3281074e5bcbdab4f860e4ac6006890e34",
+    "ui/src/routes/inbox/detail-check.tsx": "eb672b8cdf2c21625c6e383f357a05fc5b921f644d76cf82ff2921f54f05f3e6",
+    "ui/src/routes/inbox/detail-decisions.tsx": "50e908e735b4bb0819706efbb51efcb2ae9b68f93018a4fc7953e627e7720b89",
+    "ui/src/routes/inbox/detail-parts.tsx": "9e3006aeb08df11a78548857c7c55333163451495f3f8d8d96b530812df2f661",
+    "ui/src/routes/inbox/detail-run.tsx": "896fbf568e1a31a6a605d295d4bf625e29ea1b6e50db557994c0e094ce7602e4",
+    "ui/src/routes/inbox/detail.tsx": "843281800a1c14372c42ad814dd376f598cc5c5e15a9a7a00491a905442b8dd0",
+    "ui/src/routes/inbox/inbox.css": "83d846d50dc2ced84572855f5946ba8286773b88ff1cff5188d72b34f1d6ccbc",
+    "ui/src/routes/inbox/inbox.test.tsx": "539c6cbec8dfad1dc9893ee1bcb67ed597e911f1f6a10f1c40c823a9aa9f7916",
+    "ui/src/routes/inbox/index.tsx": "478308ebd8323dc9b96b52b8bcf20c267e7e09a084f07310b77be5e5c1c4f164",
+    "ui/src/routes/inbox/list.tsx": "c0ff70f468b7fe3ad40cce8fc863247ddb639ade0717b6c67fd396fb98001d70",
+    "ui/src/routes/inbox/model.test.ts": "cef0f594ed3aa0d0fccf542b8a2869d2b96c08f0279776c0a98b32db57c3613a",
+    "ui/src/routes/inbox/model.ts": "c8b73de32c4b9b5c5aefe622bb5726e8b9190d61051e5ab8ef9188af771bb7a3",
+    "ui/src/routes/inbox/present.ts": "cadfe341b2362c17c231da672d55dd8f2ecf034d702735398af62b1f73c71626",
+    "ui/src/test/builders-execution.ts": "b7b509b0373e929331b95dbc6ec20f68d05b3aaa58a3023ab34f6d632e1c7e7c",
+    "ui/src/test/builders.ts": "9c66edbd8fb6995cc65d5271b8a13f6668066fc522ff0e95e4d2187f1a71e6e1",
+    "ui/src/test/owner-lists.ts": "183a17719ecfbca15f0e388c1813613816c90b3553c156a970aa5cfa1f3f486b",
+    "ui/src/ui/ui.css": "ed25d38a3c7eba0b3709516b946dc4390261f30b87bffd5e8bce2916d9ca480e"
+  },
+  "artifactFiles": {
+    "current-fixture.tsx": "45ef33e54035f6ad9f14a95d7d1ecaadf24738bf54c5660cc266ba3340afd5a2",
+    "opendesign.css": "a10fa9e67d1d2c8e10fa59a4919ebb7dcf8d00c14e68789e608e2c5f1d3d73a9",
+    "layout-polish.css": "4d6e1f7a86d21922ad542daa50872196fe6f90b48053a29c9a29a4414f42b8fa",
+    "layout-fixes.css": "8b4ed655ae7fc8fbd573400bf6cc7b5b0953ce12d5cd908a44f7926f7525f41b"
+  }
+}

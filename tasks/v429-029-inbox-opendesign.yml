@@ -1,0 +1,86 @@
+schema_version: "1.0"
+id: V429-029
+title: Explore a clearer Inbox with OpenDesign
+milestone: ui-journey-usability
+epic: ui
+kind: feature
+priority: P2
+status: in_progress
+depends_on: [V429-028]
+languages: [typescript, javascript, css]
+goal: The user can review an Inbox design that makes decisions, blocked work, ready results and running work visually distinct while preserving the current product language and facts.
+demonstration: Capture the real Inbox with schema-valid synthetic API data, submit its focused structural reference to isolated OpenDesign using the configured Contractor model, and open a theme/width/state preview beside the current rendering.
+context:
+  authority: User 2026-11-04 asks to continue the UI redesign series and explicitly selects Inbox; the established OpenDesign isolation, configured-model and data-preservation decisions continue to apply.
+  specification: docs/spec/ui/ui.md#UI-R39
+  design: docs/design/ui/README.md
+  references:
+    - docs/spec/ui/journeys.md
+    - ui/src/routes/inbox/model.ts
+    - ui/src/routes/inbox/detail-parts.tsx
+  proposal: Produce a reviewable design preview before a separately requested production transfer; preserve the existing four sections and selection/detail flow, emphasize actionable evidence and compact mobile navigation, and vary card hierarchy without introducing new workflow states or approval rules.
+  boundary: Existing API clients, source model, permissions, decisions and mutations retain ownership. The native designer receives only synthetic structural references and existing fonts/tokens/icons. Native CSS is preserved byte-for-byte; host assembly and any responsive repairs are separately identified.
+scope:
+  in:
+    - Actual Inbox baseline with synthetic decisions, blocked checks/Runs, ready outputs and active work.
+    - Native OpenDesign contribution through the existing isolated local service and bounded Contractor relay.
+    - Interactive local-only overview and selected-item examples, light/dark/black themes and desktop/mobile layouts.
+    - Before/after backups, preservation manifests, source/output provenance and paired screenshots.
+  out:
+    - Production UI implementation or main merge, new API/domain behavior, live project data, real decisions, credential changes and model substitution.
+requirements:
+  - id: R1
+    text: The Inbox retains the four source-owned sections and shows the selected item's project, reason, evidence/result and existing destination without inventing domain outcomes.
+  - id: R2
+    text: Important decisions and blocked work are distinguishable by words, icons and color; global typography and theme tokens remain consistent with the reviewed UI.
+  - id: R3
+    text: Native output is genuinely produced by OpenDesign, retains run/model/outcome provenance, and preserves every pre-existing native file/history row.
+  - id: R4
+    text: Empty, partial/failed read, selected issue, blocked work and running/ready examples stay truthful; preview interactions remain local and never send production mutations.
+failure_outcomes:
+  - operation: Native design generation through the existing bounded relay
+    permanent: Preserve the native failed outcome and artifacts; stop rather than label host-authored output native.
+    retryable: Use at most one deliberate same-project continuation inside the original fixed request budget.
+    ambiguous: Reconcile by the native project/conversation/run identity before creating another request.
+    cancelled: Stop and join the isolated generation and relay before removing the ephemeral upstream credential.
+    timeout: Increase only the allowed request timeout, keep the configured model and fixed run/request budget, and retain diagnostics.
+  - operation: Synthetic preview navigation and controls
+    permanent: Display synthetic failure and unknown values explicitly.
+    retryable: Local retry restores a defined fixture, without live API access.
+    ambiguous: No production mutation is sent.
+    cancelled: Closing the preview discards local presentation state.
+    timeout: No external request or background business work is created.
+cardinality:
+  - collection: Preview rows and examples
+    expected: Two projects and about twelve explicit Inbox items across four sections.
+    maximum: Twenty-four fixed rows, six selected views and four explicit read states.
+    bound: Fixed schema-valid fixtures, no live inventory scan or extra per-row production reads.
+  - collection: Native generation
+    expected: One new project/conversation and one CSS contribution.
+    maximum: Twenty-four relay requests, one active request and at most one deliberate continuation.
+    bound: Existing isolated container, fixed request/body/response budgets and an expiring single-model relay.
+lifecycle:
+  - entity: Native OpenDesign project and design artifacts
+    delete: Do not delete or overwrite existing projects, conversation history or files.
+    cascade: Only new files in the new trial/project and repository experiment are authored.
+    retention: Keep complete verified before/after recoverable archives, exact inputs/output, provenance and selected review captures.
+  - entity: Preview state
+    delete: Reload clears local-only selection/drafts.
+    cascade: No production entity or credential is created by preview controls.
+    retention: Committed fixtures remain synthetic and contain no secrets or user data.
+acceptance_criteria:
+  - id: A1
+    text: Actual current Inbox baseline and the approved behavior boundary are captured from schema-valid synthetic responses and read source contracts.
+  - id: A2
+    text: Native design contribution and exact outcome are retained, original native data is unchanged, and the bounded relay stops with its upstream credential removed.
+  - id: A3
+    text: Reviewable preview covers all four sections, selected content, failure/empty states, all themes and 1440/1100/390/320px without overflow, and is opened for the user beside current.
+tests:
+  - command: node docs/design/ui/experiments/inbox-opendesign-2026-11-04/verify.mjs
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_tasks.py
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_spec.py
+    covers: [A1, A3]
+  - command: git diff --check
+    covers: [A1, A2, A3]
