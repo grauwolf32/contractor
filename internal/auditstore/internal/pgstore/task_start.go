@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -45,6 +48,27 @@ func (s *OwnerStore) Activate(ctx context.Context, p auditstore.ActivateParams) 
 		}
 		for name := range inputs {
 			if _, found := pinned.Program.Inputs[name]; !found {
+				return auditMutationResult{}, auditstore.ErrInvalid
+			}
+		}
+		if pinned.Program.SeedSource != nil && fields["initial_assertions"] == nil {
+			return auditMutationResult{}, auditstore.ErrInvalid
+		}
+		if _, err := auditdomain.ExecutionProgram(pinned.Program, p.BaselineSnapshot); err != nil {
+			return auditMutationResult{}, auditstore.ErrInvalid
+		}
+		if raw := fields["initial_assertions"]; raw != nil {
+			var plan auditcontract.InitialAssertions
+			if strictjson.Decode(raw, &plan) != nil || plan.Source.ScopeID != p.AuditID {
+				return auditMutationResult{}, auditstore.ErrInvalid
+			}
+			scope, _ := artifacts.AuditScope(p.AuditID)
+			metadata, err := s.storage.TxRepository(tx).Metadata(ctx, scope, plan.Source.Ref)
+			if err != nil {
+				return auditMutationResult{}, err
+			}
+			want := contracts.ExactArtifact{Ref: plan.Source.Ref, Digest: plan.Source.Digest, MediaType: plan.Source.MediaType, SizeBytes: plan.Source.SizeBytes}
+			if !metadata.Frozen || want.Verify(metadata.Exact()) != nil {
 				return auditMutationResult{}, auditstore.ErrInvalid
 			}
 		}

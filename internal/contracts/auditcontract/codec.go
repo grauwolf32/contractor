@@ -26,6 +26,21 @@ import (
 const MaximumDocumentBytes = 8 << 20
 
 var schema = sync.OnceValues(func() (*jsonschema.Schema, error) {
+	c, err := auditSchemaCompiler()
+	if err != nil {
+		return nil, err
+	}
+	return c.Compile("urn:contractor:audit:v1")
+})
+var seedSchema = sync.OnceValues(func() (*jsonschema.Schema, error) {
+	c, err := auditSchemaCompiler()
+	if err != nil {
+		return nil, err
+	}
+	return c.Compile("urn:contractor:audit:v1#/$defs/seed")
+})
+
+func auditSchemaCompiler() (*jsonschema.Compiler, error) {
 	c := jsonschema.NewCompiler()
 	c.UseLoader(localSchemas{})
 	var common any
@@ -42,8 +57,8 @@ var schema = sync.OnceValues(func() (*jsonschema.Schema, error) {
 	if err := c.AddResource("urn:contractor:audit:v1", document); err != nil {
 		return nil, err
 	}
-	return c.Compile("urn:contractor:audit:v1")
-})
+	return c, nil
+}
 
 type localSchemas struct{}
 
@@ -65,6 +80,31 @@ func Decode(data, context []byte) ([]byte, error) {
 		return nil, errInvalid
 	}
 	switch kind {
+	case "contractor.audit.assertions.v1":
+		keys := map[string]bool{}
+		for _, raw := range value["items"].([]any) {
+			item := raw.(map[string]any)
+			key := item["key"].(string)
+			if keys[key] {
+				return nil, errInvalid
+			}
+			keys[key] = true
+			for _, field := range []string{"allowed_methods", "required_evidence"} {
+				prior := ""
+				for _, entry := range item[field].([]any) {
+					text := entry.(string)
+					if text <= prior {
+						return nil, errInvalid
+					}
+					prior = text
+				}
+			}
+			seed := map[string]any{"statement": item["statement"], "scope": item["scope"], "grounds": item["grounds"]}
+			data, err := strictjson.Canonical(seed)
+			if err != nil || len(data) > 32768 {
+				return nil, errInvalid
+			}
+		}
 	case PreparedContextSchema:
 		if !validPreparedContext(value) {
 			return nil, errInvalid
@@ -116,7 +156,7 @@ func Decode(data, context []byte) ([]byte, error) {
 
 func documentLimit(kind string) int {
 	switch kind {
-	case PreparedWorkSchema:
+	case PreparedWorkSchema, "contractor.audit.assertions.v1":
 		return MaxPreparedWorkBytes
 	case "contractor.audit.hypothesis.v1":
 		return 32768
@@ -290,6 +330,18 @@ func validProgram(v map[string]any) bool {
 				if _, ok := inputs[source["name"].(string)]; !ok {
 					return false
 				}
+			}
+		}
+	}
+	if source, exists := v["seed_source"].(map[string]any); exists {
+		binding, found := workflows[source["workflow"].(string)].(map[string]any)
+		if !found || !checkingBinding(binding) {
+			return false
+		}
+		if input, ok := source["input"].(string); ok {
+			slot, found := inputs[input].(map[string]any)
+			if !found || slot["required"] != true {
+				return false
 			}
 		}
 	}

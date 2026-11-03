@@ -17,10 +17,11 @@ The current shipped programs are:
 | `source-openapi-sqlmap-scan@1` | Source ZIP and scan settings | Ordinary source-to-OpenAPI Run, preparation and request checks |
 | `web-scan@1` | Target, settings and optional rulepack | One Task for the selected target |
 
-The eight checklist/standard assertion profiles are temporarily removed.
-[V64-012](../../tasks/v64-012-audit-hypothesis-registry.yml) restores them with
-hypothesis-bound results and their actual execution checks. The standard source
-packages remain available; their presence does not make those profiles runnable.
+Fixed assertions also run through this same path: `source-checklist`,
+`owasp-top10-2025-source-risk`, ASVS 5.0 L1 pilot/full source review, and WSTG 4.2
+full/fast source/active HTTP profiles. Standard package versions and the selected
+original requirements stay pinned; creating additional checks does not change
+that original total. HTTP profiles require an engagement and selected materials.
 
 ## Start with exact materials
 
@@ -44,6 +45,49 @@ work. Common intake validates that list in slices and assigns Task identities.
 A model or a Runtime Worker is not involved in deterministic preparation.
 Each selected operation becomes a separate Task and can retry independently.
 Compatible Tasks can share an ordinary checking Run.
+
+## Check an assertion
+
+For `source-checklist`, use **Write a checklist** beside its material selector.
+Enter one observable claim per line with its conditions, grounds, version and
+required evidence. This saves an ordinary exact Project JSON material. External
+checklists may use equivalent YAML with the same strict fields, for example:
+
+```yaml
+schema: contractor.audit.assertions.v1
+items:
+- key: record-owner
+  version: "1"
+  statement: Only the record owner can read the selected record
+  scope: {actor: authenticated reader, conditions: selected endpoints only}
+  grounds: Explicit source review requirement
+  applicability: selected endpoints
+  allowed_methods: [static]
+  required_evidence: [Exact inspected source and tested conditions]
+```
+
+At most 128 entries / 1 MiB are accepted. Curated-standard profiles derive their
+selected assertions directly from the exact standard package without a model.
+
+Open **Show assertions** inside an active or paused check to create/edit an
+assertion or accept a check for it. **Save and check** commits the new revision
+and Task together. The Server assigns identity, revision and origin, and pins
+that exact revision in the Task. Previous checks keep their original wording.
+Follow **View checks and results** for scoped support/refutation, limitations and
+technical gaps. A successful Run alone proves no security property. Additional
+assertions and split checks preserve the original requirement denominator.
+
+The corresponding API is `POST /v1/audits/{auditId}/hypotheses`,
+`PATCH /v1/audits/{auditId}/hypotheses/{hypothesisId}`, and paged `GET` on the
+collection. Exact reads require `?revision=N`. Writes use `If-Match` and
+`Idempotency-Key`. Task creation selects an owned hypothesis ID; the Server picks
+and freezes its current revision. Public requests and model conclusions never
+supply a persisted hypothesis ID/revision pair as result authority.
+
+An evidenced problem can explicitly publish a Project Finding. An incidental
+finding uses `incidental: true` with its trusted item key and has no hypothesis
+association. Project provenance keeps the exact source assertion readable after
+the originating Audit is purged.
 
 ## Time limits, pause and explicit continuation
 

@@ -36,7 +36,7 @@ receipt.run_id, receipt.stage_execution_id, receipt.allocation_id,
 receipt.logical_agent_name, receipt.invocation_id,
 receipt.workflow_name, receipt.workflow_version, receipt.workflow_schema_version,
 receipt.workflow_configuration_ref, receipt.workflow_closure_digest,
-receipt.audit_id, receipt.audit_execution_id, receipt.audit_task_id,receipt.audit_hypothesis,
+receipt.audit_id, receipt.audit_execution_id, receipt.audit_task_id,receipt.audit_hypothesis,receipt.audit_hypothesis_snapshot,
 receipt.proposal_ref, receipt.proposal_digest, receipt.proposal_media_type,
 receipt.proposal_size_bytes, receipt.evidence,
 receipt.retention_state, receipt.source_run_deleted_at, receipt.created_at, receipt.fingerprint_projection, receipt.anchor_projection,
@@ -69,7 +69,7 @@ func scanReceiptRow(row pgx.Row) (Receipt, error) {
 	var configurationRef, proposalRef, evidenceJSON, fingerprintJSON, anchorJSON []byte
 	var projectProposalJSON, projectEvidenceJSON []byte
 	var auditID, auditExecutionID, auditTaskID *string
-	var hypothesis []byte
+	var hypothesis, hypothesisSnapshot []byte
 	var sourceDeletedAt *time.Time
 	err := row.Scan(
 		&result.ReceiptID, &result.ProposalID, &result.RequestDigest,
@@ -79,7 +79,7 @@ func scanReceiptRow(row pgx.Row) (Receipt, error) {
 		&result.Origin.Workflow.Name, &result.Origin.Workflow.Version,
 		&result.Origin.Workflow.SchemaVersion, &configurationRef,
 		&result.Origin.Workflow.ClosureDigest,
-		&auditID, &auditExecutionID, &auditTaskID, &hypothesis,
+		&auditID, &auditExecutionID, &auditTaskID, &hypothesis, &hypothesisSnapshot,
 		&proposalRef, &result.Proposal.Digest, &result.Proposal.MediaType,
 		&result.Proposal.SizeBytes, &evidenceJSON,
 		&result.Retention, &sourceDeletedAt, &result.CreatedAt, &fingerprintJSON, &anchorJSON,
@@ -131,6 +131,13 @@ func scanReceiptRow(row pgx.Row) (Receipt, error) {
 				return Receipt{}, ErrInvalid
 			}
 			result.Origin.Audit.Hypothesis = &ref
+			if hypothesisSnapshot != nil {
+				var exact ExactArtifact
+				if strictjson.Decode(hypothesisSnapshot, &exact) != nil || exact.Validate() != nil || !exact.HasMetadata() {
+					return Receipt{}, ErrInvalid
+				}
+				result.Origin.Audit.HypothesisSnapshot = &exact
+			}
 		}
 
 	}

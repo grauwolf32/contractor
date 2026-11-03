@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { readAuditArtifact } from "../../../api/audit-artifacts";
 import {
   AUDIT_ID_PATTERN,
@@ -27,6 +27,8 @@ import { QueryView } from "../../../app/query-view";
 import { checkStateLabel } from "../../../app/vocabulary";
 import { Button, Facts, StatusChip, TechnicalDetails } from "../../../ui";
 import "./checks.css";
+import { taskResultPreview } from "./task-result";
+import { AuditHypotheses } from "./hypotheses";
 import { AuditControls } from "./controls";
 import { auditProfileLabel } from "./labels";
 import "./styles.css";
@@ -63,10 +65,13 @@ function TaskResult({ auditId, task }: { auditId: string; task: Task }) {
       return {
         blob: read.blob,
         preview:
-          read.mediaType === "application/json" ||
-          read.mediaType.startsWith("text/")
-            ? await read.blob.slice(0, 32768).text()
-            : `Saved ${read.mediaType} material (${read.blob.size} bytes).`,
+          read.mediaType === "application/json"
+            ? read.blob.size <= 1048576
+              ? taskResultPreview(await read.blob.text(), task.document.task_id)
+              : `Saved JSON material (${read.blob.size} bytes). Download the complete Run result to inspect its exact per-task conclusions.`
+            : read.mediaType.startsWith("text/")
+              ? await read.blob.slice(0, 32768).text()
+              : `Saved ${read.mediaType} material (${read.blob.size} bytes).`,
       };
     },
   });
@@ -100,7 +105,7 @@ function TaskResult({ auditId, task }: { auditId: string; task: Task }) {
                   setTimeout(() => URL.revokeObjectURL(url), 1000);
                 }}
               >
-                Download saved result
+                Download complete Run result
               </Button>
             </>
           )}
@@ -181,10 +186,18 @@ function AuditActivity({ audit }: { audit: Audit }) {
 function CommonAudit({ audit }: { audit: Audit }) {
   const api = usePublicAPI();
   const changing = auditPollInterval([audit]) !== false;
+  const [params, setParams] = useSearchParams();
+  const hypothesis = params.get("hypothesis") ?? undefined;
   const pages = useURLCursorStack({ param: "tasksCursor" });
   const cursor = pages.cursor;
   const tasks = useQuery({
-    queryKey: ["audit-tasks", audit.auditId, audit.revision, cursor],
+    queryKey: [
+      "audit-tasks",
+      audit.auditId,
+      audit.revision,
+      cursor,
+      hypothesis,
+    ],
     queryFn: async ({ signal }) => {
       const page = requireData(
         await api.request((client) =>
@@ -192,7 +205,13 @@ function CommonAudit({ audit }: { audit: Audit }) {
             signal,
             params: {
               path: { auditId: audit.auditId },
-              query: { limit: 50, ...(cursor === undefined ? {} : { cursor }) },
+              query: {
+                limit: 50,
+                ...(cursor === undefined ? {} : { cursor }),
+                ...(hypothesis === undefined
+                  ? {}
+                  : { hypothesis_id: hypothesis }),
+              },
             },
           }),
         ),
@@ -206,7 +225,10 @@ function CommonAudit({ audit }: { audit: Audit }) {
         throw invalidAPIResponse(200, "Invalid Task continuation");
       return page;
     },
-    refetchInterval: changing ? 2000 : false,
+    refetchInterval: pollInterval<components["schemas"]["AuditTaskPage"]>({
+      interval: 2000,
+      settled: () => !changing,
+    }),
   });
   const state = checkStateLabel(audit.state);
   return (
@@ -233,7 +255,21 @@ function CommonAudit({ audit }: { audit: Audit }) {
       <Link to={`/projects/${encodeURIComponent(audit.projectId)}/issues`}>
         Project possible issues
       </Link>
+      <AuditHypotheses audit={audit} />
       <AuditActivity audit={audit} />
+      {hypothesis === undefined ? null : (
+        <Button
+          size="sm"
+          onClick={() => {
+            const next = new URLSearchParams(params);
+            next.delete("hypothesis");
+            next.delete("tasksCursor");
+            setParams(next);
+          }}
+        >
+          Show all checks
+        </Button>
+      )}
       <QueryView query={tasks} loading={<p role="status">Loading tasks…</p>}>
         {(data) => (
           <section className="ui-stack" aria-label="Tasks">
@@ -243,7 +279,14 @@ function CommonAudit({ audit }: { audit: Audit }) {
                 className="checks-task ui-stack"
                 key={task.document.task_id}
               >
-                <h2>{task.document.objective}</h2>
+                <h2>
+                  {task.hypothesis_snapshot?.statement ??
+                    task.document.objective}
+                </h2>
+                {task.hypothesis_snapshot?.scope.conditions ===
+                undefined ? null : (
+                  <p>{task.hypothesis_snapshot.scope.conditions}</p>
+                )}
                 <p>
                   {TASK_STATES[task.state]} · {task.attempts} Run attempts
                 </p>

@@ -39,6 +39,16 @@
       ],
       "type": "object"
     },
+    "assertion_scope": {
+      "additionalProperties": {
+        "$ref": "#/$defs/text"
+      },
+      "maxProperties": 64,
+      "propertyNames": {
+        "$ref": "#/$defs/key"
+      },
+      "type": "object"
+    },
     "common_artifactRef": {
       "additionalProperties": false,
       "properties": {
@@ -321,14 +331,7 @@
           "const": "contractor.audit.hypothesis.v1"
         },
         "scope": {
-          "additionalProperties": {
-            "$ref": "#/$defs/text"
-          },
-          "maxProperties": 64,
-          "propertyNames": {
-            "$ref": "#/$defs/key"
-          },
-          "type": "object"
+          "$ref": "#/$defs/assertion_scope"
         },
         "statement": {
           "$ref": "#/$defs/text"

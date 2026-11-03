@@ -5,8 +5,9 @@ describe("published common check type suggestions", () => {
   it("suggests nothing for blank or unsupported objectives", () => {
     expect(suggestCheckTypes(" ", everything)).toEqual({});
     expect(
-      suggestCheckTypes("verify ASVS LEVEL 1", everything).suggestion,
-    ).toBeUndefined();
+      suggestCheckTypes("verify ASVS LEVEL 1", everything).suggestion
+        ?.checkType,
+    ).toBe("owasp-asvs-5-0-l1-source-review");
   });
   it("matches whole API words and readiness", () => {
     expect(

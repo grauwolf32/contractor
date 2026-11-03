@@ -2,6 +2,14 @@ schema_version: '1.0'
 boundary: V64-001 validates contracts offline. Dependent tasks switch executable callers. No compatibility
   mode and no second execution pipeline.
 relations:
+- name: audit_hypotheses
+  action: preserve
+  owner: V64-012
+  facts: Audit-owned stable opaque identity and current revision pointer; no Project registry.
+- name: audit_hypothesis_revisions
+  action: preserve
+  owner: V64-012
+  facts: Immutable exact assertion revisions; bounded admission, lookup and owner purge.
 - name: audit_tasks
   action: preserve
   owner: V64-002
@@ -382,6 +390,26 @@ profiles:
   facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
     initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
 operations:
+- path: /v1/audits/{auditId}/hypotheses
+  method: post
+  action: preserve
+  owner: V64-012
+  facts: Manual content gets trusted identity and origin through existing Audit keyed mutations.
+- path: /v1/audits/{auditId}/hypotheses
+  method: get
+  action: preserve
+  owner: V64-012
+  facts: Bounded current assertion pages and fixed selected coverage denominator.
+- path: /v1/audits/{auditId}/hypotheses/{hypothesisId}
+  method: get
+  action: preserve
+  owner: V64-012
+  facts: Owner-authorized exact revision read without latest substitution.
+- path: /v1/audits/{auditId}/hypotheses/{hypothesisId}
+  method: patch
+  action: preserve
+  owner: V64-012
+  facts: CAS edit appends content and preserves origin and accepted Task pins.
 - path: /v1/audits/{auditId}/tasks
   method: post
   action: preserve

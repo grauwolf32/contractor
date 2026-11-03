@@ -37,6 +37,7 @@ export async function mockCommonTasks(page: Page, current: () => Audit) {
     if (url.pathname === `/v1/audits/${COMMON_AUDIT}/tasks`) {
       const second = url.searchParams.has("cursor");
       const task = conforming("AuditTask", {
+        attention: false,
         document: {
           schema: "contractor.audit.task.v1",
           audit_id: COMMON_AUDIT,

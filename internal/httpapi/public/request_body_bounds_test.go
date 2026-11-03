@@ -37,6 +37,8 @@ func publicRequestBodyBounds() map[string]requestBodyBound {
 		return requestBodyBound{bytes: byteCount, status: http.StatusRequestEntityTooLarge, code: "request_too_large"}
 	}
 	bounds := map[string]requestBodyBound{
+		"createAuditHypothesis":    tooLarge(32768),
+		"editAuditHypothesis":      tooLarge(32768),
 		"createAuditTasks":         tooLarge(maxJSONRequestSize),
 		"publishAuditMaterial":     tooLarge(maxJSONRequestSize),
 		"mutateProjectSitemap":     tooLarge(projectsitemap.MaxBatchBytes),
@@ -75,7 +77,8 @@ func publicRequestBodyBounds() map[string]requestBodyBound {
 
 // boundProbePathValues are valid path parameter values for the body probes.
 var boundProbePathValues = map[string]string{
-	"auditId": "audit-one", "credentialId": "credential-one", "findingId": "finding-one",
+	"hypothesisId": "hypothesis-one",
+	"auditId":      "audit-one", "credentialId": "credential-one", "findingId": "finding-one",
 	"id": "experiment-one", "kind": "agent-templates", "label": "label-one", "memberId": strings.Repeat("a", 64),
 	"name": "source", "namespace": "sources", "projectId": "project-one", "requestId": "request-one",
 	"runId": "run-one", "runtimeAgentId": strings.Repeat("b", 64),

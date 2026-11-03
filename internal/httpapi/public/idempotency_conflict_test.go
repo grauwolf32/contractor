@@ -95,12 +95,14 @@ func keyedOperationRequests(t *testing.T) (handlerFixture, *reusedKeyAudits, map
 	agent := strings.Repeat("b", 64)
 	runBody := `{"workflow":"artifact-copy@1","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`
 	requests := map[string]keyedRequest{
-		"createAuditTasks":     {http.MethodPost, "/v1/audits/audit-one/tasks", `{"work":[{"key":"first","workflow":"inspect","objective":"Inspect selected materials","inputs":{}}]}`, map[string]string{"If-Match": `"1"`}},
-		"mutateProjectSitemap": {http.MethodPost, "/v1/projects/project-one/sitemap/mutations", `{"operation":"declare","expectedRevision":"absent","url":"https://example.test/users","method":"GET"}`, nil},
-		"createProject":        {http.MethodPost, "/v1/projects", `{"kind":"project","name":"Keyed"}`, nil},
-		"createRun":            {http.MethodPost, "/v1/runs", runBody, nil},
-		"publishAuditMaterial": {http.MethodPost, "/v1/projects/project-one/audit-material-publications", `{"auditId":"audit-one","source":{"namespace":"out","name":"material","revision":"r1"},"target":{"namespace":"materials","name":"selected"}}`, nil},
-		"createProjectRun":     {http.MethodPost, "/v1/projects/project-one/runs", runBody, nil},
+		"createAuditHypothesis": {http.MethodPost, "/v1/audits/audit-one/hypotheses", `{"key":"manual","statement":"A scoped claim","scope":{},"grounds":"An observation"}`, map[string]string{"If-Match": `"1"`}},
+		"editAuditHypothesis":   {http.MethodPatch, "/v1/audits/audit-one/hypotheses/hypothesis-one", `{"key":"manual","statement":"A revised claim","scope":{},"grounds":"An observation"}`, map[string]string{"If-Match": `"1"`}},
+		"createAuditTasks":      {http.MethodPost, "/v1/audits/audit-one/tasks", `{"work":[{"key":"first","workflow":"inspect","objective":"Inspect selected materials","inputs":{}}]}`, map[string]string{"If-Match": `"1"`}},
+		"mutateProjectSitemap":  {http.MethodPost, "/v1/projects/project-one/sitemap/mutations", `{"operation":"declare","expectedRevision":"absent","url":"https://example.test/users","method":"GET"}`, nil},
+		"createProject":         {http.MethodPost, "/v1/projects", `{"kind":"project","name":"Keyed"}`, nil},
+		"createRun":             {http.MethodPost, "/v1/runs", runBody, nil},
+		"publishAuditMaterial":  {http.MethodPost, "/v1/projects/project-one/audit-material-publications", `{"auditId":"audit-one","source":{"namespace":"out","name":"material","revision":"r1"},"target":{"namespace":"materials","name":"selected"}}`, nil},
+		"createProjectRun":      {http.MethodPost, "/v1/projects/project-one/runs", runBody, nil},
 		"createAudit": {http.MethodPost, "/v1/projects/project-one/audits",
 			`{"profile":{"name":"checklist","version":"1"},"inputs":{},"runtimeLabels":[],"scope":{"objective":"Keyed"}}`, nil},
 		"startAudit":         {http.MethodPost, "/v1/audits/audit-one/start", "", map[string]string{"If-Match": `"1"`}},
@@ -352,4 +354,14 @@ func (a *reusedKeyAudits) PublishMaterial(context.Context, string, string, strin
 
 func (a *reusedKeyAudits) EditProjectFinding(context.Context, auditservice.ProjectFindingEditParams) (auditservice.ProjectFindingEditResult, error) {
 	return auditservice.ProjectFindingEditResult{}, a.reach("EditProjectFinding")
+}
+
+func (a *reusedKeyAudits) WriteHypothesis(context.Context, auditservice.HypothesisMutationParams) (auditstore.HypothesisAcceptance, bool, error) {
+	return auditstore.HypothesisAcceptance{}, false, a.reach("WriteHypothesis")
+}
+func (a *reusedKeyAudits) Hypotheses(context.Context, auditstore.ListHypothesesParams) (auditstore.HypothesisPage, error) {
+	return auditstore.HypothesisPage{}, nil
+}
+func (a *reusedKeyAudits) Hypothesis(context.Context, string, string, string, uint64) (auditstore.Hypothesis, error) {
+	return auditstore.Hypothesis{}, nil
 }

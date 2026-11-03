@@ -730,6 +730,75 @@ func (e AuditHoldState) Valid() bool {
 	}
 }
 
+// Defines values for AuditHypothesisDocumentOriginKind.
+const (
+	AuditHypothesisDocumentOriginKindChecklist AuditHypothesisDocumentOriginKind = "checklist"
+	AuditHypothesisDocumentOriginKindManual    AuditHypothesisDocumentOriginKind = "manual"
+	AuditHypothesisDocumentOriginKindRun       AuditHypothesisDocumentOriginKind = "run"
+)
+
+// Valid indicates whether the value is a known member of the AuditHypothesisDocumentOriginKind enum.
+func (e AuditHypothesisDocumentOriginKind) Valid() bool {
+	switch e {
+	case AuditHypothesisDocumentOriginKindChecklist:
+		return true
+	case AuditHypothesisDocumentOriginKindManual:
+		return true
+	case AuditHypothesisDocumentOriginKindRun:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditHypothesisDocumentOrigin0Kind.
+const (
+	AuditHypothesisDocumentOrigin0KindRun AuditHypothesisDocumentOrigin0Kind = "run"
+)
+
+// Valid indicates whether the value is a known member of the AuditHypothesisDocumentOrigin0Kind enum.
+func (e AuditHypothesisDocumentOrigin0Kind) Valid() bool {
+	switch e {
+	case AuditHypothesisDocumentOrigin0KindRun:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditHypothesisDocumentOrigin1Kind.
+const (
+	AuditHypothesisDocumentOrigin1KindChecklist AuditHypothesisDocumentOrigin1Kind = "checklist"
+	AuditHypothesisDocumentOrigin1KindManual    AuditHypothesisDocumentOrigin1Kind = "manual"
+)
+
+// Valid indicates whether the value is a known member of the AuditHypothesisDocumentOrigin1Kind enum.
+func (e AuditHypothesisDocumentOrigin1Kind) Valid() bool {
+	switch e {
+	case AuditHypothesisDocumentOrigin1KindChecklist:
+		return true
+	case AuditHypothesisDocumentOrigin1KindManual:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditHypothesisDocumentSchema.
+const (
+	ContractorAuditHypothesisV1 AuditHypothesisDocumentSchema = "contractor.audit.hypothesis.v1"
+)
+
+// Valid indicates whether the value is a known member of the AuditHypothesisDocumentSchema enum.
+func (e AuditHypothesisDocumentSchema) Valid() bool {
+	switch e {
+	case ContractorAuditHypothesisV1:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AuditItemApprovalKind.
 const (
 	AuditItemApprovalKindActiveCheckApproval      AuditItemApprovalKind = "active-check-approval"
@@ -6783,6 +6852,9 @@ type AuditActor = string
 // AuditArtifactKey The logical key of one committed Audit receipt link, at most 512 UTF-8 bytes (LIM-AUD-39).
 type AuditArtifactKey = string
 
+// AuditAssertionScope defines model for AuditAssertionScope.
+type AuditAssertionScope map[string]AuditCommonText
+
 // AuditBaseline defines model for AuditBaseline.
 type AuditBaseline struct {
 	// ActiveChecks Project approval policy for active-enabled Audit profiles, pinned at Audit start. A profile prohibition always remains prohibited.
@@ -6813,6 +6885,9 @@ type AuditBaselineInventory struct {
 	StandardSelection        *AuditStandardSelection `json:"standardSelection,omitempty"`
 	Worklist                 AuditExactArtifact      `json:"worklist"`
 }
+
+// AuditCheckingWorkflows defines model for AuditCheckingWorkflows.
+type AuditCheckingWorkflows = []AuditCommonKey
 
 // AuditCollectionDisposition defines model for AuditCollectionDisposition.
 type AuditCollectionDisposition string
@@ -6979,6 +7054,80 @@ type AuditFindingPage struct {
 
 // AuditHoldState defines model for AuditHoldState.
 type AuditHoldState string
+
+// AuditHypothesis defines model for AuditHypothesis.
+type AuditHypothesis struct {
+	Document  AuditHypothesisDocument `json:"document"`
+	Fixed     bool                    `json:"fixed"`
+	Ordinal   int                     `json:"ordinal"`
+	SourceKey AuditCommonKey          `json:"source_key"`
+}
+
+// AuditHypothesisAcceptance defines model for AuditHypothesisAcceptance.
+type AuditHypothesisAcceptance struct {
+	AuditRevision int                      `json:"audit_revision"`
+	Hypotheses    []AuditTaskHypothesisRef `json:"hypotheses"`
+}
+
+// AuditHypothesisContent defines model for AuditHypothesisContent.
+type AuditHypothesisContent struct {
+	Grounds   AuditCommonText     `json:"grounds"`
+	Key       AuditCommonKey      `json:"key"`
+	Scope     AuditAssertionScope `json:"scope"`
+	Statement AuditCommonText     `json:"statement"`
+}
+
+// AuditHypothesisDocument defines model for AuditHypothesisDocument.
+type AuditHypothesisDocument struct {
+	Grounds   AuditCommonText                `json:"grounds"`
+	Id        AuditCommonResourceId          `json:"id"`
+	Origin    AuditHypothesisDocument_Origin `json:"origin"`
+	Revision  int                            `json:"revision"`
+	Schema    AuditHypothesisDocumentSchema  `json:"schema"`
+	Scope     AuditAssertionScope            `json:"scope"`
+	Statement AuditCommonText                `json:"statement"`
+}
+
+// AuditHypothesisDocumentOriginKind defines model for AuditHypothesisDocument.Origin.Kind.
+type AuditHypothesisDocumentOriginKind string
+
+// AuditHypothesisDocumentOrigin0 defines model for AuditHypothesisDocument.Origin.0.
+type AuditHypothesisDocumentOrigin0 struct {
+	Kind *AuditHypothesisDocumentOrigin0Kind `json:"kind,omitempty"`
+}
+
+// AuditHypothesisDocumentOrigin0Kind defines model for AuditHypothesisDocument.Origin.0.Kind.
+type AuditHypothesisDocumentOrigin0Kind string
+
+// AuditHypothesisDocumentOrigin1 defines model for AuditHypothesisDocument.Origin.1.
+type AuditHypothesisDocumentOrigin1 struct {
+	Kind *AuditHypothesisDocumentOrigin1Kind `json:"kind,omitempty"`
+}
+
+// AuditHypothesisDocumentOrigin1Kind defines model for AuditHypothesisDocument.Origin.1.Kind.
+type AuditHypothesisDocumentOrigin1Kind string
+
+// AuditHypothesisDocument_Origin defines model for AuditHypothesisDocument.Origin.
+type AuditHypothesisDocument_Origin struct {
+	AuditId AuditCommonResourceId             `json:"audit_id"`
+	Kind    AuditHypothesisDocumentOriginKind `json:"kind"`
+	RunId   *AuditCommonResourceId            `json:"run_id,omitempty"`
+	Source  *AuditTaskMaterial                `json:"source,omitempty"`
+	TaskId  *AuditCommonResourceId            `json:"task_id,omitempty"`
+	union   json.RawMessage
+}
+
+// AuditHypothesisDocumentSchema defines model for AuditHypothesisDocument.Schema.
+type AuditHypothesisDocumentSchema string
+
+// AuditHypothesisPage defines model for AuditHypothesisPage.
+type AuditHypothesisPage struct {
+	CheckingWorkflows AuditCheckingWorkflows `json:"checking_workflows"`
+	FixedDenominator  int                    `json:"fixed_denominator"`
+	Items             []AuditHypothesis      `json:"items"`
+	Page              PageInfo               `json:"page"`
+	PendingFixedCount int                    `json:"pending_fixed_count"`
+}
 
 // AuditItem defines model for AuditItem.
 type AuditItem struct {
@@ -7163,20 +7312,30 @@ type AuditProgram struct {
 	Limits      AuditProgramLimits                    `json:"limits"`
 	Policy      AuditProgramPolicy                    `json:"policy"`
 	Schema      AuditProgramSchema                    `json:"schema"`
+	SeedSource  *AuditProgramSeedSource               `json:"seed_source,omitempty"`
 	Workflows   map[string]AuditProgramWorkflow       `json:"workflows"`
+	union       json.RawMessage
 }
 
 // AuditProgramSchema defines model for AuditProgram.Schema.
 type AuditProgramSchema string
+
+// AuditProgram0 defines model for AuditProgram.0.
+type AuditProgram0 struct {
+	InitialWork interface{} `json:"initial_work,omitempty"`
+}
+
+// AuditProgram1 defines model for AuditProgram.1.
+type AuditProgram1 = interface{}
 
 // AuditProgramAttemptLimit defines model for AuditProgramAttemptLimit.
 type AuditProgramAttemptLimit = int
 
 // AuditProgramHypothesisSeed The complete seed's RFC 8785 canonical UTF-8 encoding must fit 32768 bytes. This early content bound does not replace the complete hypothesis document bound after trusted identity, revision and origin are assigned.
 type AuditProgramHypothesisSeed struct {
-	Grounds   AuditCommonText            `json:"grounds"`
-	Scope     map[string]AuditCommonText `json:"scope"`
-	Statement AuditCommonText            `json:"statement"`
+	Grounds   AuditCommonText     `json:"grounds"`
+	Scope     AuditAssertionScope `json:"scope"`
+	Statement AuditCommonText     `json:"statement"`
 }
 
 // AuditProgramInitialWork defines model for AuditProgramInitialWork.
@@ -7246,6 +7405,24 @@ type AuditProgramPolicy struct {
 
 // AuditProgramPolicyActiveOperations defines model for AuditProgramPolicy.ActiveOperations.
 type AuditProgramPolicyActiveOperations string
+
+// AuditProgramSeedSource defines model for AuditProgramSeedSource.
+type AuditProgramSeedSource struct {
+	EntryIds *[]AuditCommonText `json:"entry_ids,omitempty"`
+	Input    *AuditCommonKey    `json:"input,omitempty"`
+	Standard *struct {
+		Scheme  AuditCommonKey  `json:"scheme"`
+		Version AuditCommonText `json:"version"`
+	} `json:"standard,omitempty"`
+	Workflow AuditCommonKey `json:"workflow"`
+	union    json.RawMessage
+}
+
+// AuditProgramSeedSource0 defines model for AuditProgramSeedSource.0.
+type AuditProgramSeedSource0 = interface{}
+
+// AuditProgramSeedSource1 defines model for AuditProgramSeedSource.1.
+type AuditProgramSeedSource1 = interface{}
 
 // AuditProgramSelector defines model for AuditProgramSelector.
 type AuditProgramSelector = string
@@ -7580,17 +7757,19 @@ type AuditSubjectKey = string
 
 // AuditTask defines model for AuditTask.
 type AuditTask struct {
-	Attempts        int                `json:"attempts"`
-	CreatedAt       time.Time          `json:"created_at"`
-	Document        AuditTaskDocument  `json:"document"`
-	GapCode         *string            `json:"gap_code,omitempty"`
-	Iteration       int                `json:"iteration"`
-	LastExecutionId *ResourceId        `json:"last_execution_id,omitempty"`
-	Ordinal         int                `json:"ordinal"`
-	Result          *AuditTaskMaterial `json:"result,omitempty"`
-	Source          AuditTaskSource    `json:"source"`
-	State           AuditTaskState     `json:"state"`
-	UpdatedAt       time.Time          `json:"updated_at"`
+	Attempts           int                      `json:"attempts"`
+	Attention          bool                     `json:"attention"`
+	CreatedAt          time.Time                `json:"created_at"`
+	Document           AuditTaskDocument        `json:"document"`
+	GapCode            *string                  `json:"gap_code,omitempty"`
+	HypothesisSnapshot *AuditHypothesisDocument `json:"hypothesis_snapshot,omitempty"`
+	Iteration          int                      `json:"iteration"`
+	LastExecutionId    *ResourceId              `json:"last_execution_id,omitempty"`
+	Ordinal            int                      `json:"ordinal"`
+	Result             *AuditTaskMaterial       `json:"result,omitempty"`
+	Source             AuditTaskSource          `json:"source"`
+	State              AuditTaskState           `json:"state"`
+	UpdatedAt          time.Time                `json:"updated_at"`
 }
 
 // AuditTaskAcceptance defines model for AuditTaskAcceptance.
@@ -7602,7 +7781,10 @@ type AuditTaskAcceptance struct {
 
 // AuditTaskCreationRequest defines model for AuditTaskCreationRequest.
 type AuditTaskCreationRequest struct {
-	Work []AuditTaskSelection `json:"work"`
+	Assertions *map[string]AuditHypothesisContent `json:"assertions,omitempty"`
+	Attention  *[]AuditCommonKey                  `json:"attention,omitempty"`
+	Hypotheses *map[string]ResourceId             `json:"hypotheses,omitempty"`
+	Work       []AuditTaskSelection               `json:"work"`
 }
 
 // AuditTaskDocument defines model for AuditTaskDocument.
@@ -9216,7 +9398,8 @@ type FindingAuditOrigin struct {
 		Id       ResourceId `json:"id"`
 		Revision int        `json:"revision"`
 	} `json:"hypothesis,omitempty"`
-	TaskId ResourceId `json:"taskId"`
+	HypothesisSnapshot *FindingExactArtifact `json:"hypothesisSnapshot,omitempty"`
+	TaskId             ResourceId            `json:"taskId"`
 }
 
 // FindingCandidate defines model for FindingCandidate.
@@ -12524,6 +12707,31 @@ type ListFindingDuplicateCandidatesParams struct {
 // ListFindingDuplicateCandidatesParamsScope defines parameters for ListFindingDuplicateCandidates.
 type ListFindingDuplicateCandidatesParamsScope string
 
+// ListAuditHypothesesParams defines parameters for ListAuditHypotheses.
+type ListAuditHypothesesParams struct {
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// CreateAuditHypothesisParams defines parameters for CreateAuditHypothesis.
+type CreateAuditHypothesisParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
+	IdempotencyKey IdempotencyKey  `json:"Idempotency-Key"`
+	IfMatch        RequiredIfMatch `json:"If-Match"`
+}
+
+// GetAuditHypothesisParams defines parameters for GetAuditHypothesis.
+type GetAuditHypothesisParams struct {
+	Revision int `form:"revision" json:"revision"`
+}
+
+// EditAuditHypothesisParams defines parameters for EditAuditHypothesis.
+type EditAuditHypothesisParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
+	IdempotencyKey IdempotencyKey  `json:"Idempotency-Key"`
+	IfMatch        RequiredIfMatch `json:"If-Match"`
+}
+
 // ListAuditItemsParams defines parameters for ListAuditItems.
 type ListAuditItemsParams struct {
 	Limit   *Limit           `form:"limit,omitempty" json:"limit,omitempty"`
@@ -12597,9 +12805,10 @@ type StartAuditParams struct {
 
 // ListAuditTasksParams defines parameters for ListAuditTasks.
 type ListAuditTasksParams struct {
-	Limit  *Limit          `form:"limit,omitempty" json:"limit,omitempty"`
-	Cursor *Cursor         `form:"cursor,omitempty" json:"cursor,omitempty"`
-	State  *AuditTaskState `form:"state,omitempty" json:"state,omitempty"`
+	Limit        *Limit          `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor       *Cursor         `form:"cursor,omitempty" json:"cursor,omitempty"`
+	HypothesisId *ResourceId     `form:"hypothesis_id,omitempty" json:"hypothesis_id,omitempty"`
+	State        *AuditTaskState `form:"state,omitempty" json:"state,omitempty"`
 }
 
 // CreateAuditTasksParams defines parameters for CreateAuditTasks.
@@ -13488,6 +13697,12 @@ type ImportAuditFindingProposalJSONRequestBody = ImportFindingProposalRequest
 // PublishAuditFindingExportJSONRequestBody defines body for PublishAuditFindingExport for application/json ContentType.
 type PublishAuditFindingExportJSONRequestBody = PublishFindingExportRequest
 
+// CreateAuditHypothesisJSONRequestBody defines body for CreateAuditHypothesis for application/json ContentType.
+type CreateAuditHypothesisJSONRequestBody = AuditHypothesisContent
+
+// EditAuditHypothesisJSONRequestBody defines body for EditAuditHypothesis for application/json ContentType.
+type EditAuditHypothesisJSONRequestBody = AuditHypothesisContent
+
 // ResumeAuditJSONRequestBody defines body for ResumeAudit for application/json ContentType.
 type ResumeAuditJSONRequestBody = AuditTimeLimitRequest
 
@@ -13801,6 +14016,356 @@ func (t *ArgumentBinding_3_Value) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+// AsAuditHypothesisDocumentOrigin0 returns the union data inside the AuditHypothesisDocument_Origin as a AuditHypothesisDocumentOrigin0
+func (t AuditHypothesisDocument_Origin) AsAuditHypothesisDocumentOrigin0() (AuditHypothesisDocumentOrigin0, error) {
+	var body AuditHypothesisDocumentOrigin0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAuditHypothesisDocumentOrigin0 overwrites any union data inside the AuditHypothesisDocument_Origin as the provided AuditHypothesisDocumentOrigin0
+func (t *AuditHypothesisDocument_Origin) FromAuditHypothesisDocumentOrigin0(v AuditHypothesisDocumentOrigin0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAuditHypothesisDocumentOrigin0 performs a merge with any union data inside the AuditHypothesisDocument_Origin, using the provided AuditHypothesisDocumentOrigin0
+func (t *AuditHypothesisDocument_Origin) MergeAuditHypothesisDocumentOrigin0(v AuditHypothesisDocumentOrigin0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsAuditHypothesisDocumentOrigin1 returns the union data inside the AuditHypothesisDocument_Origin as a AuditHypothesisDocumentOrigin1
+func (t AuditHypothesisDocument_Origin) AsAuditHypothesisDocumentOrigin1() (AuditHypothesisDocumentOrigin1, error) {
+	var body AuditHypothesisDocumentOrigin1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAuditHypothesisDocumentOrigin1 overwrites any union data inside the AuditHypothesisDocument_Origin as the provided AuditHypothesisDocumentOrigin1
+func (t *AuditHypothesisDocument_Origin) FromAuditHypothesisDocumentOrigin1(v AuditHypothesisDocumentOrigin1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAuditHypothesisDocumentOrigin1 performs a merge with any union data inside the AuditHypothesisDocument_Origin, using the provided AuditHypothesisDocumentOrigin1
+func (t *AuditHypothesisDocument_Origin) MergeAuditHypothesisDocumentOrigin1(v AuditHypothesisDocumentOrigin1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t AuditHypothesisDocument_Origin) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	object := make(map[string]json.RawMessage)
+	if t.union != nil {
+		err = json.Unmarshal(b, &object)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	object["audit_id"], err = json.Marshal(t.AuditId)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'audit_id': %w", err)
+	}
+
+	object["kind"], err = json.Marshal(t.Kind)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'kind': %w", err)
+	}
+
+	if t.RunId != nil {
+		object["run_id"], err = json.Marshal(t.RunId)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'run_id': %w", err)
+		}
+	}
+
+	if t.Source != nil {
+		object["source"], err = json.Marshal(t.Source)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'source': %w", err)
+		}
+	}
+
+	if t.TaskId != nil {
+		object["task_id"], err = json.Marshal(t.TaskId)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'task_id': %w", err)
+		}
+	}
+	b, err = json.Marshal(object)
+	return b, err
+}
+
+func (t *AuditHypothesisDocument_Origin) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	if err != nil {
+		return err
+	}
+	object := make(map[string]json.RawMessage)
+	err = json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["audit_id"]; found {
+		err = json.Unmarshal(raw, &t.AuditId)
+		if err != nil {
+			return fmt.Errorf("error reading 'audit_id': %w", err)
+		}
+	}
+
+	if raw, found := object["kind"]; found {
+		err = json.Unmarshal(raw, &t.Kind)
+		if err != nil {
+			return fmt.Errorf("error reading 'kind': %w", err)
+		}
+	}
+
+	if raw, found := object["run_id"]; found {
+		err = json.Unmarshal(raw, &t.RunId)
+		if err != nil {
+			return fmt.Errorf("error reading 'run_id': %w", err)
+		}
+	}
+
+	if raw, found := object["source"]; found {
+		err = json.Unmarshal(raw, &t.Source)
+		if err != nil {
+			return fmt.Errorf("error reading 'source': %w", err)
+		}
+	}
+
+	if raw, found := object["task_id"]; found {
+		err = json.Unmarshal(raw, &t.TaskId)
+		if err != nil {
+			return fmt.Errorf("error reading 'task_id': %w", err)
+		}
+	}
+
+	return err
+}
+
+// AsAuditProgram0 returns the union data inside the AuditProgram as a AuditProgram0
+func (t AuditProgram) AsAuditProgram0() (AuditProgram0, error) {
+	var body AuditProgram0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAuditProgram0 overwrites any union data inside the AuditProgram as the provided AuditProgram0
+func (t *AuditProgram) FromAuditProgram0(v AuditProgram0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAuditProgram0 performs a merge with any union data inside the AuditProgram, using the provided AuditProgram0
+func (t *AuditProgram) MergeAuditProgram0(v AuditProgram0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsAuditProgram1 returns the union data inside the AuditProgram as a AuditProgram1
+func (t AuditProgram) AsAuditProgram1() (AuditProgram1, error) {
+	var body AuditProgram1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAuditProgram1 overwrites any union data inside the AuditProgram as the provided AuditProgram1
+func (t *AuditProgram) FromAuditProgram1(v AuditProgram1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAuditProgram1 performs a merge with any union data inside the AuditProgram, using the provided AuditProgram1
+func (t *AuditProgram) MergeAuditProgram1(v AuditProgram1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t AuditProgram) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	object := make(map[string]json.RawMessage)
+	if t.union != nil {
+		err = json.Unmarshal(b, &object)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if t.Continuation != nil {
+		object["continuation"], err = json.Marshal(t.Continuation)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'continuation': %w", err)
+		}
+	}
+
+	if t.Hypotheses != nil {
+		object["hypotheses"], err = json.Marshal(t.Hypotheses)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'hypotheses': %w", err)
+		}
+	}
+
+	if t.InitialWork != nil {
+		object["initial_work"], err = json.Marshal(t.InitialWork)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'initial_work': %w", err)
+		}
+	}
+
+	if t.Inputs != nil {
+		object["inputs"], err = json.Marshal(t.Inputs)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'inputs': %w", err)
+		}
+	}
+
+	object["limits"], err = json.Marshal(t.Limits)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'limits': %w", err)
+	}
+
+	object["policy"], err = json.Marshal(t.Policy)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'policy': %w", err)
+	}
+
+	object["schema"], err = json.Marshal(t.Schema)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'schema': %w", err)
+	}
+
+	if t.SeedSource != nil {
+		object["seed_source"], err = json.Marshal(t.SeedSource)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'seed_source': %w", err)
+		}
+	}
+
+	if t.Workflows != nil {
+		object["workflows"], err = json.Marshal(t.Workflows)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'workflows': %w", err)
+		}
+	}
+	b, err = json.Marshal(object)
+	return b, err
+}
+
+func (t *AuditProgram) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	if err != nil {
+		return err
+	}
+	object := make(map[string]json.RawMessage)
+	err = json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["continuation"]; found {
+		err = json.Unmarshal(raw, &t.Continuation)
+		if err != nil {
+			return fmt.Errorf("error reading 'continuation': %w", err)
+		}
+	}
+
+	if raw, found := object["hypotheses"]; found {
+		err = json.Unmarshal(raw, &t.Hypotheses)
+		if err != nil {
+			return fmt.Errorf("error reading 'hypotheses': %w", err)
+		}
+	}
+
+	if raw, found := object["initial_work"]; found {
+		err = json.Unmarshal(raw, &t.InitialWork)
+		if err != nil {
+			return fmt.Errorf("error reading 'initial_work': %w", err)
+		}
+	}
+
+	if raw, found := object["inputs"]; found {
+		err = json.Unmarshal(raw, &t.Inputs)
+		if err != nil {
+			return fmt.Errorf("error reading 'inputs': %w", err)
+		}
+	}
+
+	if raw, found := object["limits"]; found {
+		err = json.Unmarshal(raw, &t.Limits)
+		if err != nil {
+			return fmt.Errorf("error reading 'limits': %w", err)
+		}
+	}
+
+	if raw, found := object["policy"]; found {
+		err = json.Unmarshal(raw, &t.Policy)
+		if err != nil {
+			return fmt.Errorf("error reading 'policy': %w", err)
+		}
+	}
+
+	if raw, found := object["schema"]; found {
+		err = json.Unmarshal(raw, &t.Schema)
+		if err != nil {
+			return fmt.Errorf("error reading 'schema': %w", err)
+		}
+	}
+
+	if raw, found := object["seed_source"]; found {
+		err = json.Unmarshal(raw, &t.SeedSource)
+		if err != nil {
+			return fmt.Errorf("error reading 'seed_source': %w", err)
+		}
+	}
+
+	if raw, found := object["workflows"]; found {
+		err = json.Unmarshal(raw, &t.Workflows)
+		if err != nil {
+			return fmt.Errorf("error reading 'workflows': %w", err)
+		}
+	}
+
+	return err
+}
+
 // AsMediaType returns the union data inside the AuditProgramInput_MediaTypes_Item as a MediaType
 func (t AuditProgramInput_MediaTypes_Item) AsMediaType() (MediaType, error) {
 	var body MediaType
@@ -13922,6 +14487,143 @@ func (t AuditProgramInputMapping) MarshalJSON() ([]byte, error) {
 
 func (t *AuditProgramInputMapping) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsAuditProgramSeedSource0 returns the union data inside the AuditProgramSeedSource as a AuditProgramSeedSource0
+func (t AuditProgramSeedSource) AsAuditProgramSeedSource0() (AuditProgramSeedSource0, error) {
+	var body AuditProgramSeedSource0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAuditProgramSeedSource0 overwrites any union data inside the AuditProgramSeedSource as the provided AuditProgramSeedSource0
+func (t *AuditProgramSeedSource) FromAuditProgramSeedSource0(v AuditProgramSeedSource0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAuditProgramSeedSource0 performs a merge with any union data inside the AuditProgramSeedSource, using the provided AuditProgramSeedSource0
+func (t *AuditProgramSeedSource) MergeAuditProgramSeedSource0(v AuditProgramSeedSource0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsAuditProgramSeedSource1 returns the union data inside the AuditProgramSeedSource as a AuditProgramSeedSource1
+func (t AuditProgramSeedSource) AsAuditProgramSeedSource1() (AuditProgramSeedSource1, error) {
+	var body AuditProgramSeedSource1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAuditProgramSeedSource1 overwrites any union data inside the AuditProgramSeedSource as the provided AuditProgramSeedSource1
+func (t *AuditProgramSeedSource) FromAuditProgramSeedSource1(v AuditProgramSeedSource1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAuditProgramSeedSource1 performs a merge with any union data inside the AuditProgramSeedSource, using the provided AuditProgramSeedSource1
+func (t *AuditProgramSeedSource) MergeAuditProgramSeedSource1(v AuditProgramSeedSource1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t AuditProgramSeedSource) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	object := make(map[string]json.RawMessage)
+	if t.union != nil {
+		err = json.Unmarshal(b, &object)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if t.EntryIds != nil {
+		object["entry_ids"], err = json.Marshal(t.EntryIds)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'entry_ids': %w", err)
+		}
+	}
+
+	if t.Input != nil {
+		object["input"], err = json.Marshal(t.Input)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'input': %w", err)
+		}
+	}
+
+	if t.Standard != nil {
+		object["standard"], err = json.Marshal(t.Standard)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'standard': %w", err)
+		}
+	}
+
+	object["workflow"], err = json.Marshal(t.Workflow)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'workflow': %w", err)
+	}
+
+	b, err = json.Marshal(object)
+	return b, err
+}
+
+func (t *AuditProgramSeedSource) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	if err != nil {
+		return err
+	}
+	object := make(map[string]json.RawMessage)
+	err = json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["entry_ids"]; found {
+		err = json.Unmarshal(raw, &t.EntryIds)
+		if err != nil {
+			return fmt.Errorf("error reading 'entry_ids': %w", err)
+		}
+	}
+
+	if raw, found := object["input"]; found {
+		err = json.Unmarshal(raw, &t.Input)
+		if err != nil {
+			return fmt.Errorf("error reading 'input': %w", err)
+		}
+	}
+
+	if raw, found := object["standard"]; found {
+		err = json.Unmarshal(raw, &t.Standard)
+		if err != nil {
+			return fmt.Errorf("error reading 'standard': %w", err)
+		}
+	}
+
+	if raw, found := object["workflow"]; found {
+		err = json.Unmarshal(raw, &t.Workflow)
+		if err != nil {
+			return fmt.Errorf("error reading 'workflow': %w", err)
+		}
+	}
+
 	return err
 }
 
@@ -17648,6 +18350,52 @@ type ClientInterface interface {
 	// Corresponds with GET /v1/audits/{auditId}/findings/{findingId}/duplicate-candidates (the `ListFindingDuplicateCandidates` operationId).
 	ListFindingDuplicateCandidates(ctx context.Context, auditId AuditId, findingId FindingId, params *ListFindingDuplicateCandidatesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListAuditHypotheses List current exact Audit hypotheses
+	//
+	// Corresponds with GET /v1/audits/{auditId}/hypotheses (the `ListAuditHypotheses` operationId).
+	ListAuditHypotheses(ctx context.Context, auditId AuditId, params *ListAuditHypothesesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateAuditHypothesisWithBody Create an Audit hypothesis with trusted manual origin
+	//
+	// Accept one bounded assertion with a stable opaque identity. The owner assigns identity, revision and origin. The existing Audit keyed receipt reconciles response loss.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /v1/audits/{auditId}/hypotheses (the `CreateAuditHypothesis` operationId).
+	CreateAuditHypothesisWithBody(ctx context.Context, auditId AuditId, params *CreateAuditHypothesisParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateAuditHypothesis Create an Audit hypothesis with trusted manual origin
+	//
+	// Accept one bounded assertion with a stable opaque identity. The owner assigns identity, revision and origin. The existing Audit keyed receipt reconciles response loss.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /v1/audits/{auditId}/hypotheses (the `CreateAuditHypothesis` operationId).
+	CreateAuditHypothesis(ctx context.Context, auditId AuditId, params *CreateAuditHypothesisParams, body CreateAuditHypothesisJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAuditHypothesis Read an exact immutable hypothesis revision
+	//
+	// Corresponds with GET /v1/audits/{auditId}/hypotheses/{hypothesisId} (the `GetAuditHypothesis` operationId).
+	GetAuditHypothesis(ctx context.Context, auditId AuditId, hypothesisId ResourceId, params *GetAuditHypothesisParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// EditAuditHypothesisWithBody Append an immutable hypothesis revision
+	//
+	// The Audit revision precondition rejects stale edits. New content preserves the original identity, provenance and fixed coverage membership. Accepted Tasks keep their exact original revision.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PATCH /v1/audits/{auditId}/hypotheses/{hypothesisId} (the `EditAuditHypothesis` operationId).
+	EditAuditHypothesisWithBody(ctx context.Context, auditId AuditId, hypothesisId ResourceId, params *EditAuditHypothesisParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// EditAuditHypothesis Append an immutable hypothesis revision
+	//
+	// The Audit revision precondition rejects stale edits. New content preserves the original identity, provenance and fixed coverage membership. Accepted Tasks keep their exact original revision.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PATCH /v1/audits/{auditId}/hypotheses/{hypothesisId} (the `EditAuditHypothesis` operationId).
+	EditAuditHypothesis(ctx context.Context, auditId AuditId, hypothesisId ResourceId, params *EditAuditHypothesisParams, body EditAuditHypothesisJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListAuditItems List immutable Audit items and their current settlement state
 	//
 	// Corresponds with GET /v1/audits/{auditId}/items (the `ListAuditItems` operationId).
@@ -19313,6 +20061,112 @@ func (c *Client) GetAuditFinding(ctx context.Context, auditId AuditId, findingId
 // Corresponds with GET /v1/audits/{auditId}/findings/{findingId}/duplicate-candidates (the `ListFindingDuplicateCandidates` operationId).
 func (c *Client) ListFindingDuplicateCandidates(ctx context.Context, auditId AuditId, findingId FindingId, params *ListFindingDuplicateCandidatesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListFindingDuplicateCandidatesRequest(c.Server, auditId, findingId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListAuditHypotheses List current exact Audit hypotheses
+//
+// Corresponds with GET /v1/audits/{auditId}/hypotheses (the `ListAuditHypotheses` operationId).
+func (c *Client) ListAuditHypotheses(ctx context.Context, auditId AuditId, params *ListAuditHypothesesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListAuditHypothesesRequest(c.Server, auditId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreateAuditHypothesisWithBody Create an Audit hypothesis with trusted manual origin
+//
+// Accept one bounded assertion with a stable opaque identity. The owner assigns identity, revision and origin. The existing Audit keyed receipt reconciles response loss.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /v1/audits/{auditId}/hypotheses (the `CreateAuditHypothesis` operationId).
+func (c *Client) CreateAuditHypothesisWithBody(ctx context.Context, auditId AuditId, params *CreateAuditHypothesisParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAuditHypothesisRequestWithBody(c.Server, auditId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreateAuditHypothesis Create an Audit hypothesis with trusted manual origin
+//
+// Accept one bounded assertion with a stable opaque identity. The owner assigns identity, revision and origin. The existing Audit keyed receipt reconciles response loss.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /v1/audits/{auditId}/hypotheses (the `CreateAuditHypothesis` operationId).
+func (c *Client) CreateAuditHypothesis(ctx context.Context, auditId AuditId, params *CreateAuditHypothesisParams, body CreateAuditHypothesisJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateAuditHypothesisRequest(c.Server, auditId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetAuditHypothesis Read an exact immutable hypothesis revision
+//
+// Corresponds with GET /v1/audits/{auditId}/hypotheses/{hypothesisId} (the `GetAuditHypothesis` operationId).
+func (c *Client) GetAuditHypothesis(ctx context.Context, auditId AuditId, hypothesisId ResourceId, params *GetAuditHypothesisParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAuditHypothesisRequest(c.Server, auditId, hypothesisId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// EditAuditHypothesisWithBody Append an immutable hypothesis revision
+//
+// The Audit revision precondition rejects stale edits. New content preserves the original identity, provenance and fixed coverage membership. Accepted Tasks keep their exact original revision.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PATCH /v1/audits/{auditId}/hypotheses/{hypothesisId} (the `EditAuditHypothesis` operationId).
+func (c *Client) EditAuditHypothesisWithBody(ctx context.Context, auditId AuditId, hypothesisId ResourceId, params *EditAuditHypothesisParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEditAuditHypothesisRequestWithBody(c.Server, auditId, hypothesisId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// EditAuditHypothesis Append an immutable hypothesis revision
+//
+// The Audit revision precondition rejects stale edits. New content preserves the original identity, provenance and fixed coverage membership. Accepted Tasks keep their exact original revision.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PATCH /v1/audits/{auditId}/hypotheses/{hypothesisId} (the `EditAuditHypothesis` operationId).
+func (c *Client) EditAuditHypothesis(ctx context.Context, auditId AuditId, hypothesisId ResourceId, params *EditAuditHypothesisParams, body EditAuditHypothesisJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEditAuditHypothesisRequest(c.Server, auditId, hypothesisId, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -24162,6 +25016,288 @@ func NewListFindingDuplicateCandidatesRequest(server string, auditId AuditId, fi
 	return req, nil
 }
 
+// NewListAuditHypothesesRequest constructs an http.Request for the ListAuditHypotheses method
+func NewListAuditHypothesesRequest(server string, auditId AuditId, params *ListAuditHypothesesParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "auditId", auditId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/audits/%s/hypotheses", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateAuditHypothesisRequest calls the generic CreateAuditHypothesis builder with application/json body
+func NewCreateAuditHypothesisRequest(server string, auditId AuditId, params *CreateAuditHypothesisParams, body CreateAuditHypothesisJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateAuditHypothesisRequestWithBody(server, auditId, params, "application/json", bodyReader)
+}
+
+// NewCreateAuditHypothesisRequestWithBody constructs an http.Request for the CreateAuditHypothesis method, with any body, and a specified content type
+func NewCreateAuditHypothesisRequestWithBody(server string, auditId AuditId, params *CreateAuditHypothesisParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "auditId", auditId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/audits/%s/hypotheses", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("Idempotency-Key", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "If-Match", params.IfMatch, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("If-Match", headerParam1)
+
+	}
+
+	return req, nil
+}
+
+// NewGetAuditHypothesisRequest constructs an http.Request for the GetAuditHypothesis method
+func NewGetAuditHypothesisRequest(server string, auditId AuditId, hypothesisId ResourceId, params *GetAuditHypothesisParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "auditId", auditId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "hypothesisId", hypothesisId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/audits/%s/hypotheses/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "revision", params.Revision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewEditAuditHypothesisRequest calls the generic EditAuditHypothesis builder with application/json body
+func NewEditAuditHypothesisRequest(server string, auditId AuditId, hypothesisId ResourceId, params *EditAuditHypothesisParams, body EditAuditHypothesisJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewEditAuditHypothesisRequestWithBody(server, auditId, hypothesisId, params, "application/json", bodyReader)
+}
+
+// NewEditAuditHypothesisRequestWithBody constructs an http.Request for the EditAuditHypothesis method, with any body, and a specified content type
+func NewEditAuditHypothesisRequestWithBody(server string, auditId AuditId, hypothesisId ResourceId, params *EditAuditHypothesisParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "auditId", auditId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "hypothesisId", hypothesisId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/audits/%s/hypotheses/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("Idempotency-Key", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "If-Match", params.IfMatch, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("If-Match", headerParam1)
+
+	}
+
+	return req, nil
+}
+
 // NewListAuditItemsRequest constructs an http.Request for the ListAuditItems method
 func NewListAuditItemsRequest(server string, auditId AuditId, params *ListAuditItemsParams) (*http.Request, error) {
 	var err error
@@ -24851,6 +25987,18 @@ func NewListAuditTasksRequest(server string, auditId AuditId, params *ListAuditT
 		if params.Cursor != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.HypothesisId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "hypothesis_id", *params.HypothesisId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -33674,6 +34822,56 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /v1/audits/{auditId}/findings/{findingId}/duplicate-candidates (the `ListFindingDuplicateCandidates` operationId).
 	ListFindingDuplicateCandidatesWithResponse(ctx context.Context, auditId AuditId, findingId FindingId, params *ListFindingDuplicateCandidatesParams, reqEditors ...RequestEditorFn) (*ListFindingDuplicateCandidatesResponse, error)
 
+	// ListAuditHypothesesWithResponse List current exact Audit hypotheses
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/audits/{auditId}/hypotheses (the `ListAuditHypotheses` operationId).
+	ListAuditHypothesesWithResponse(ctx context.Context, auditId AuditId, params *ListAuditHypothesesParams, reqEditors ...RequestEditorFn) (*ListAuditHypothesesResponse, error)
+
+	// CreateAuditHypothesisWithBodyWithResponse Create an Audit hypothesis with trusted manual origin
+	//
+	// Accept one bounded assertion with a stable opaque identity. The owner assigns identity, revision and origin. The existing Audit keyed receipt reconciles response loss.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /v1/audits/{auditId}/hypotheses (the `CreateAuditHypothesis` operationId).
+	CreateAuditHypothesisWithBodyWithResponse(ctx context.Context, auditId AuditId, params *CreateAuditHypothesisParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAuditHypothesisResponse, error)
+
+	// CreateAuditHypothesisWithResponse Create an Audit hypothesis with trusted manual origin
+	//
+	// Accept one bounded assertion with a stable opaque identity. The owner assigns identity, revision and origin. The existing Audit keyed receipt reconciles response loss.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /v1/audits/{auditId}/hypotheses (the `CreateAuditHypothesis` operationId).
+	CreateAuditHypothesisWithResponse(ctx context.Context, auditId AuditId, params *CreateAuditHypothesisParams, body CreateAuditHypothesisJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAuditHypothesisResponse, error)
+
+	// GetAuditHypothesisWithResponse Read an exact immutable hypothesis revision
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/audits/{auditId}/hypotheses/{hypothesisId} (the `GetAuditHypothesis` operationId).
+	GetAuditHypothesisWithResponse(ctx context.Context, auditId AuditId, hypothesisId ResourceId, params *GetAuditHypothesisParams, reqEditors ...RequestEditorFn) (*GetAuditHypothesisResponse, error)
+
+	// EditAuditHypothesisWithBodyWithResponse Append an immutable hypothesis revision
+	//
+	// The Audit revision precondition rejects stale edits. New content preserves the original identity, provenance and fixed coverage membership. Accepted Tasks keep their exact original revision.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PATCH /v1/audits/{auditId}/hypotheses/{hypothesisId} (the `EditAuditHypothesis` operationId).
+	EditAuditHypothesisWithBodyWithResponse(ctx context.Context, auditId AuditId, hypothesisId ResourceId, params *EditAuditHypothesisParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EditAuditHypothesisResponse, error)
+
+	// EditAuditHypothesisWithResponse Append an immutable hypothesis revision
+	//
+	// The Audit revision precondition rejects stale edits. New content preserves the original identity, provenance and fixed coverage membership. Accepted Tasks keep their exact original revision.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PATCH /v1/audits/{auditId}/hypotheses/{hypothesisId} (the `EditAuditHypothesis` operationId).
+	EditAuditHypothesisWithResponse(ctx context.Context, auditId AuditId, hypothesisId ResourceId, params *EditAuditHypothesisParams, body EditAuditHypothesisJSONRequestBody, reqEditors ...RequestEditorFn) (*EditAuditHypothesisResponse, error)
+
 	// ListAuditItemsWithResponse List immutable Audit items and their current settlement state
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -38905,6 +40103,606 @@ func (r ListFindingDuplicateCandidatesResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r ListFindingDuplicateCandidatesResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// ListAuditHypothesesResponse200Headers the declared response headers of an HTTP 200 response for ListAuditHypotheses
+type ListAuditHypothesesResponse200Headers struct {
+	CacheControl string
+	XRequestID   RequestId
+}
+
+// ListAuditHypothesesResponse400Headers the declared response headers of an HTTP 400 response for ListAuditHypotheses
+type ListAuditHypothesesResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// ListAuditHypothesesResponse401Headers the declared response headers of an HTTP 401 response for ListAuditHypotheses
+type ListAuditHypothesesResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// ListAuditHypothesesResponse404Headers the declared response headers of an HTTP 404 response for ListAuditHypotheses
+type ListAuditHypothesesResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// ListAuditHypothesesResponse500Headers the declared response headers of an HTTP 500 response for ListAuditHypotheses
+type ListAuditHypothesesResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// ListAuditHypothesesResponse503Headers the declared response headers of an HTTP 503 response for ListAuditHypotheses
+type ListAuditHypothesesResponse503Headers struct {
+	XRequestID RequestId
+}
+
+type ListAuditHypothesesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AuditHypothesisPage
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *ListAuditHypothesesResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *ListAuditHypothesesResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *ListAuditHypothesesResponse401Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *ListAuditHypothesesResponse404Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *ListAuditHypothesesResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListAuditHypothesesResponse503Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListAuditHypothesesResponse) GetJSON200() *AuditHypothesisPage {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r ListAuditHypothesesResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListAuditHypothesesResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r ListAuditHypothesesResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r ListAuditHypothesesResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListAuditHypothesesResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r ListAuditHypothesesResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListAuditHypothesesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListAuditHypothesesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListAuditHypothesesResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// CreateAuditHypothesisResponse200Headers the declared response headers of an HTTP 200 response for CreateAuditHypothesis
+type CreateAuditHypothesisResponse200Headers struct {
+	CacheControl        string
+	ETag                string
+	IdempotencyReplayed *string
+	XRequestID          RequestId
+}
+
+// CreateAuditHypothesisResponse400Headers the declared response headers of an HTTP 400 response for CreateAuditHypothesis
+type CreateAuditHypothesisResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// CreateAuditHypothesisResponse401Headers the declared response headers of an HTTP 401 response for CreateAuditHypothesis
+type CreateAuditHypothesisResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// CreateAuditHypothesisResponse403Headers the declared response headers of an HTTP 403 response for CreateAuditHypothesis
+type CreateAuditHypothesisResponse403Headers struct {
+	XRequestID RequestId
+}
+
+// CreateAuditHypothesisResponse404Headers the declared response headers of an HTTP 404 response for CreateAuditHypothesis
+type CreateAuditHypothesisResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// CreateAuditHypothesisResponse409Headers the declared response headers of an HTTP 409 response for CreateAuditHypothesis
+type CreateAuditHypothesisResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// CreateAuditHypothesisResponse412Headers the declared response headers of an HTTP 412 response for CreateAuditHypothesis
+type CreateAuditHypothesisResponse412Headers struct {
+	XRequestID RequestId
+}
+
+// CreateAuditHypothesisResponse413Headers the declared response headers of an HTTP 413 response for CreateAuditHypothesis
+type CreateAuditHypothesisResponse413Headers struct {
+	XRequestID RequestId
+}
+
+// CreateAuditHypothesisResponse500Headers the declared response headers of an HTTP 500 response for CreateAuditHypothesis
+type CreateAuditHypothesisResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// CreateAuditHypothesisResponse503Headers the declared response headers of an HTTP 503 response for CreateAuditHypothesis
+type CreateAuditHypothesisResponse503Headers struct {
+	XRequestID RequestId
+}
+
+type CreateAuditHypothesisResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AuditHypothesisAcceptance
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+	// JSON412 the response for an HTTP 412 `application/json` response
+	JSON412 *PreconditionFailed
+	// JSON413 the response for an HTTP 413 `application/json` response
+	JSON413 *PayloadTooLarge
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *CreateAuditHypothesisResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *CreateAuditHypothesisResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *CreateAuditHypothesisResponse401Headers
+	// Headers403 the parsed response headers for an HTTP 403 response
+	Headers403 *CreateAuditHypothesisResponse403Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *CreateAuditHypothesisResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *CreateAuditHypothesisResponse409Headers
+	// Headers412 the parsed response headers for an HTTP 412 response
+	Headers412 *CreateAuditHypothesisResponse412Headers
+	// Headers413 the parsed response headers for an HTTP 413 response
+	Headers413 *CreateAuditHypothesisResponse413Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *CreateAuditHypothesisResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *CreateAuditHypothesisResponse503Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r CreateAuditHypothesisResponse) GetJSON200() *AuditHypothesisAcceptance {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r CreateAuditHypothesisResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r CreateAuditHypothesisResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r CreateAuditHypothesisResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r CreateAuditHypothesisResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r CreateAuditHypothesisResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetJSON412 returns the response for an HTTP 412 `application/json` response
+func (r CreateAuditHypothesisResponse) GetJSON412() *PreconditionFailed {
+	return r.JSON412
+}
+
+// GetJSON413 returns the response for an HTTP 413 `application/json` response
+func (r CreateAuditHypothesisResponse) GetJSON413() *PayloadTooLarge {
+	return r.JSON413
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r CreateAuditHypothesisResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r CreateAuditHypothesisResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r CreateAuditHypothesisResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateAuditHypothesisResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateAuditHypothesisResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CreateAuditHypothesisResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// GetAuditHypothesisResponse200Headers the declared response headers of an HTTP 200 response for GetAuditHypothesis
+type GetAuditHypothesisResponse200Headers struct {
+	CacheControl string
+	XRequestID   RequestId
+}
+
+// GetAuditHypothesisResponse400Headers the declared response headers of an HTTP 400 response for GetAuditHypothesis
+type GetAuditHypothesisResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// GetAuditHypothesisResponse401Headers the declared response headers of an HTTP 401 response for GetAuditHypothesis
+type GetAuditHypothesisResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// GetAuditHypothesisResponse404Headers the declared response headers of an HTTP 404 response for GetAuditHypothesis
+type GetAuditHypothesisResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// GetAuditHypothesisResponse500Headers the declared response headers of an HTTP 500 response for GetAuditHypothesis
+type GetAuditHypothesisResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// GetAuditHypothesisResponse503Headers the declared response headers of an HTTP 503 response for GetAuditHypothesis
+type GetAuditHypothesisResponse503Headers struct {
+	XRequestID RequestId
+}
+
+type GetAuditHypothesisResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AuditHypothesis
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *GetAuditHypothesisResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *GetAuditHypothesisResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *GetAuditHypothesisResponse401Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *GetAuditHypothesisResponse404Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *GetAuditHypothesisResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetAuditHypothesisResponse503Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetAuditHypothesisResponse) GetJSON200() *AuditHypothesis {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r GetAuditHypothesisResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetAuditHypothesisResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetAuditHypothesisResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r GetAuditHypothesisResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetAuditHypothesisResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r GetAuditHypothesisResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAuditHypothesisResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAuditHypothesisResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetAuditHypothesisResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// EditAuditHypothesisResponse200Headers the declared response headers of an HTTP 200 response for EditAuditHypothesis
+type EditAuditHypothesisResponse200Headers struct {
+	CacheControl        string
+	ETag                string
+	IdempotencyReplayed *string
+	XRequestID          RequestId
+}
+
+// EditAuditHypothesisResponse400Headers the declared response headers of an HTTP 400 response for EditAuditHypothesis
+type EditAuditHypothesisResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// EditAuditHypothesisResponse401Headers the declared response headers of an HTTP 401 response for EditAuditHypothesis
+type EditAuditHypothesisResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// EditAuditHypothesisResponse403Headers the declared response headers of an HTTP 403 response for EditAuditHypothesis
+type EditAuditHypothesisResponse403Headers struct {
+	XRequestID RequestId
+}
+
+// EditAuditHypothesisResponse404Headers the declared response headers of an HTTP 404 response for EditAuditHypothesis
+type EditAuditHypothesisResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// EditAuditHypothesisResponse409Headers the declared response headers of an HTTP 409 response for EditAuditHypothesis
+type EditAuditHypothesisResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// EditAuditHypothesisResponse412Headers the declared response headers of an HTTP 412 response for EditAuditHypothesis
+type EditAuditHypothesisResponse412Headers struct {
+	XRequestID RequestId
+}
+
+// EditAuditHypothesisResponse413Headers the declared response headers of an HTTP 413 response for EditAuditHypothesis
+type EditAuditHypothesisResponse413Headers struct {
+	XRequestID RequestId
+}
+
+// EditAuditHypothesisResponse500Headers the declared response headers of an HTTP 500 response for EditAuditHypothesis
+type EditAuditHypothesisResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// EditAuditHypothesisResponse503Headers the declared response headers of an HTTP 503 response for EditAuditHypothesis
+type EditAuditHypothesisResponse503Headers struct {
+	XRequestID RequestId
+}
+
+type EditAuditHypothesisResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AuditHypothesisAcceptance
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+	// JSON412 the response for an HTTP 412 `application/json` response
+	JSON412 *PreconditionFailed
+	// JSON413 the response for an HTTP 413 `application/json` response
+	JSON413 *PayloadTooLarge
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *EditAuditHypothesisResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *EditAuditHypothesisResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *EditAuditHypothesisResponse401Headers
+	// Headers403 the parsed response headers for an HTTP 403 response
+	Headers403 *EditAuditHypothesisResponse403Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *EditAuditHypothesisResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *EditAuditHypothesisResponse409Headers
+	// Headers412 the parsed response headers for an HTTP 412 response
+	Headers412 *EditAuditHypothesisResponse412Headers
+	// Headers413 the parsed response headers for an HTTP 413 response
+	Headers413 *EditAuditHypothesisResponse413Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *EditAuditHypothesisResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *EditAuditHypothesisResponse503Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r EditAuditHypothesisResponse) GetJSON200() *AuditHypothesisAcceptance {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r EditAuditHypothesisResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r EditAuditHypothesisResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r EditAuditHypothesisResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r EditAuditHypothesisResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r EditAuditHypothesisResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetJSON412 returns the response for an HTTP 412 `application/json` response
+func (r EditAuditHypothesisResponse) GetJSON412() *PreconditionFailed {
+	return r.JSON412
+}
+
+// GetJSON413 returns the response for an HTTP 413 `application/json` response
+func (r EditAuditHypothesisResponse) GetJSON413() *PayloadTooLarge {
+	return r.JSON413
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r EditAuditHypothesisResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r EditAuditHypothesisResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r EditAuditHypothesisResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r EditAuditHypothesisResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r EditAuditHypothesisResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r EditAuditHypothesisResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -58080,6 +59878,92 @@ func (c *ClientWithResponses) ListFindingDuplicateCandidatesWithResponse(ctx con
 	return ParseListFindingDuplicateCandidatesResponse(rsp)
 }
 
+// ListAuditHypothesesWithResponse List current exact Audit hypotheses
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/audits/{auditId}/hypotheses (the `ListAuditHypotheses` operationId).
+func (c *ClientWithResponses) ListAuditHypothesesWithResponse(ctx context.Context, auditId AuditId, params *ListAuditHypothesesParams, reqEditors ...RequestEditorFn) (*ListAuditHypothesesResponse, error) {
+	rsp, err := c.ListAuditHypotheses(ctx, auditId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListAuditHypothesesResponse(rsp)
+}
+
+// CreateAuditHypothesisWithBodyWithResponse Create an Audit hypothesis with trusted manual origin
+//
+// Accept one bounded assertion with a stable opaque identity. The owner assigns identity, revision and origin. The existing Audit keyed receipt reconciles response loss.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /v1/audits/{auditId}/hypotheses (the `CreateAuditHypothesis` operationId).
+func (c *ClientWithResponses) CreateAuditHypothesisWithBodyWithResponse(ctx context.Context, auditId AuditId, params *CreateAuditHypothesisParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateAuditHypothesisResponse, error) {
+	rsp, err := c.CreateAuditHypothesisWithBody(ctx, auditId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateAuditHypothesisResponse(rsp)
+}
+
+// CreateAuditHypothesisWithResponse Create an Audit hypothesis with trusted manual origin
+//
+// Accept one bounded assertion with a stable opaque identity. The owner assigns identity, revision and origin. The existing Audit keyed receipt reconciles response loss.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /v1/audits/{auditId}/hypotheses (the `CreateAuditHypothesis` operationId).
+func (c *ClientWithResponses) CreateAuditHypothesisWithResponse(ctx context.Context, auditId AuditId, params *CreateAuditHypothesisParams, body CreateAuditHypothesisJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateAuditHypothesisResponse, error) {
+	rsp, err := c.CreateAuditHypothesis(ctx, auditId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateAuditHypothesisResponse(rsp)
+}
+
+// GetAuditHypothesisWithResponse Read an exact immutable hypothesis revision
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/audits/{auditId}/hypotheses/{hypothesisId} (the `GetAuditHypothesis` operationId).
+func (c *ClientWithResponses) GetAuditHypothesisWithResponse(ctx context.Context, auditId AuditId, hypothesisId ResourceId, params *GetAuditHypothesisParams, reqEditors ...RequestEditorFn) (*GetAuditHypothesisResponse, error) {
+	rsp, err := c.GetAuditHypothesis(ctx, auditId, hypothesisId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAuditHypothesisResponse(rsp)
+}
+
+// EditAuditHypothesisWithBodyWithResponse Append an immutable hypothesis revision
+//
+// The Audit revision precondition rejects stale edits. New content preserves the original identity, provenance and fixed coverage membership. Accepted Tasks keep their exact original revision.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PATCH /v1/audits/{auditId}/hypotheses/{hypothesisId} (the `EditAuditHypothesis` operationId).
+func (c *ClientWithResponses) EditAuditHypothesisWithBodyWithResponse(ctx context.Context, auditId AuditId, hypothesisId ResourceId, params *EditAuditHypothesisParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EditAuditHypothesisResponse, error) {
+	rsp, err := c.EditAuditHypothesisWithBody(ctx, auditId, hypothesisId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEditAuditHypothesisResponse(rsp)
+}
+
+// EditAuditHypothesisWithResponse Append an immutable hypothesis revision
+//
+// The Audit revision precondition rejects stale edits. New content preserves the original identity, provenance and fixed coverage membership. Accepted Tasks keep their exact original revision.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PATCH /v1/audits/{auditId}/hypotheses/{hypothesisId} (the `EditAuditHypothesis` operationId).
+func (c *ClientWithResponses) EditAuditHypothesisWithResponse(ctx context.Context, auditId AuditId, hypothesisId ResourceId, params *EditAuditHypothesisParams, body EditAuditHypothesisJSONRequestBody, reqEditors ...RequestEditorFn) (*EditAuditHypothesisResponse, error) {
+	rsp, err := c.EditAuditHypothesis(ctx, auditId, hypothesisId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEditAuditHypothesisResponse(rsp)
+}
+
 // ListAuditItemsWithResponse List immutable Audit items and their current settlement state
 //
 // Returns a wrapper object for the known response body format(s).
@@ -65226,6 +67110,750 @@ func ParseListFindingDuplicateCandidatesResponse(rsp *http.Response) (*ListFindi
 		response.Headers500 = &headers
 	case rsp.StatusCode == 503:
 		var headers ListFindingDuplicateCandidatesResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseListAuditHypothesesResponse parses an HTTP response from a ListAuditHypothesesWithResponse call
+func ParseListAuditHypothesesResponse(rsp *http.Response) (*ListAuditHypothesesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListAuditHypothesesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AuditHypothesisPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers ListAuditHypothesesResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers ListAuditHypothesesResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers ListAuditHypothesesResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 404:
+		var headers ListAuditHypothesesResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 500:
+		var headers ListAuditHypothesesResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListAuditHypothesesResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseCreateAuditHypothesisResponse parses an HTTP response from a CreateAuditHypothesisWithResponse call
+func ParseCreateAuditHypothesisResponse(rsp *http.Response) (*CreateAuditHypothesisResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateAuditHypothesisResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AuditHypothesisAcceptance
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest PreconditionFailed
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest PayloadTooLarge
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers CreateAuditHypothesisResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("ETag"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "ETag", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.ETag = value
+		}
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers CreateAuditHypothesisResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers CreateAuditHypothesisResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 403:
+		var headers CreateAuditHypothesisResponse403Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers403 = &headers
+	case rsp.StatusCode == 404:
+		var headers CreateAuditHypothesisResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers CreateAuditHypothesisResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 412:
+		var headers CreateAuditHypothesisResponse412Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers412 = &headers
+	case rsp.StatusCode == 413:
+		var headers CreateAuditHypothesisResponse413Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers413 = &headers
+	case rsp.StatusCode == 500:
+		var headers CreateAuditHypothesisResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers CreateAuditHypothesisResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseGetAuditHypothesisResponse parses an HTTP response from a GetAuditHypothesisWithResponse call
+func ParseGetAuditHypothesisResponse(rsp *http.Response) (*GetAuditHypothesisResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAuditHypothesisResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AuditHypothesis
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers GetAuditHypothesisResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers GetAuditHypothesisResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers GetAuditHypothesisResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 404:
+		var headers GetAuditHypothesisResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 500:
+		var headers GetAuditHypothesisResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetAuditHypothesisResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseEditAuditHypothesisResponse parses an HTTP response from a EditAuditHypothesisWithResponse call
+func ParseEditAuditHypothesisResponse(rsp *http.Response) (*EditAuditHypothesisResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &EditAuditHypothesisResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AuditHypothesisAcceptance
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest PreconditionFailed
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest PayloadTooLarge
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers EditAuditHypothesisResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("ETag"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "ETag", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.ETag = value
+		}
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers EditAuditHypothesisResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers EditAuditHypothesisResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 403:
+		var headers EditAuditHypothesisResponse403Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers403 = &headers
+	case rsp.StatusCode == 404:
+		var headers EditAuditHypothesisResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers EditAuditHypothesisResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 412:
+		var headers EditAuditHypothesisResponse412Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers412 = &headers
+	case rsp.StatusCode == 413:
+		var headers EditAuditHypothesisResponse413Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers413 = &headers
+	case rsp.StatusCode == 500:
+		var headers EditAuditHypothesisResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers EditAuditHypothesisResponse503Headers
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
 			var value RequestId
 			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {

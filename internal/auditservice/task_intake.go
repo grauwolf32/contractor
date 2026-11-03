@@ -3,7 +3,6 @@ package auditservice
 import (
 	"context"
 	"errors"
-	"fmt"
 	"maps"
 	"slices"
 	"strconv"
@@ -26,9 +25,45 @@ func (s *Service) AcceptInitialTasks(ctx context.Context, claim auditstore.Contr
 	if claim.AuditID != audit.AuditID {
 		return auditstore.TaskIntakeResult{}, ErrInvalid
 	}
-	pinned, err := auditprofile.DecodePinnedProgram(audit.ProfileSnapshot)
+	pinned, err := executionProfile(audit)
 	if err != nil {
 		return auditstore.TaskIntakeResult{}, err
+	}
+	keys := auditdomain.InitialHypothesisKeys(pinned.Program)
+	if audit.InitialHypothesisOffset < len(keys) {
+		baseline, err := DecodeBaseline(audit.BaselineSnapshot)
+		if err != nil {
+			return auditstore.TaskIntakeResult{}, err
+		}
+		writes := []auditstore.HypothesisWrite{}
+		used := 0
+		for _, key := range keys[audit.InitialHypothesisOffset:min(len(keys), audit.InitialHypothesisOffset+auditcontract.MaxMutationRecords)] {
+			h := auditdomain.InitialHypothesis(audit.AuditID, key, pinned.Program.Hypotheses[key])
+			if baseline.InitialAssertions != nil {
+				if _, found := baseline.InitialAssertions.Hypotheses[key]; found {
+					h.Origin.Source = &baseline.InitialAssertions.Source
+				}
+			}
+			write := auditstore.HypothesisWrite{Document: h, SourceKey: key, Fixed: true}
+			data, err := strictjson.Canonical(write)
+			if err != nil {
+				return auditstore.TaskIntakeResult{}, err
+			}
+			if used+len(data)+1 > auditcontract.MaxMutationBytes {
+				break
+			}
+			used += len(data) + 1
+			writes = append(writes, write)
+		}
+		if len(writes) == 0 {
+			return auditstore.TaskIntakeResult{}, ErrInvalid
+		}
+		digest, err := contentdigest.CanonicalJSON(writes)
+		if err != nil {
+			return auditstore.TaskIntakeResult{}, err
+		}
+		_, replayed, err := s.owners().WriteHypotheses(ctx, auditstore.WriteHypothesesParams{OwnerID: audit.OwnerID, AuditID: audit.AuditID, Claim: &claim, InitialProgress: &auditstore.InitialWorkProgress{From: audit.InitialHypothesisOffset, To: audit.InitialHypothesisOffset + len(writes)}, IdempotencyKey: auditdomain.DeterministicID("initial-hypotheses", audit.AuditID, strconv.Itoa(audit.InitialHypothesisOffset)), RequestDigest: digest, Writes: writes})
+		return auditstore.TaskIntakeResult{Changed: err == nil && !replayed}, err
 	}
 	if audit.InitialWorkOffset >= len(pinned.Program.InitialWork) {
 		return auditstore.TaskIntakeResult{Complete: true}, nil
@@ -41,10 +76,8 @@ func (s *Service) AcceptInitialTasks(ctx context.Context, claim auditstore.Contr
 		return auditstore.TaskIntakeResult{}, err
 	}
 	work := make([]auditcontract.PreparedSelection, 0, auditcontract.MaxMutationRecords)
-	for _, initial := range pinned.Program.InitialWork[audit.InitialWorkOffset:min(len(pinned.Program.InitialWork), audit.InitialWorkOffset+auditcontract.MaxMutationRecords)] {
-		if initial.Hypothesis != "" {
-			return auditstore.TaskIntakeResult{}, fmt.Errorf("%w: initial hypothesis snapshots require their accepting owner", ErrInvalid)
-		}
+	for _, initial := range pinned.Program.InitialWork[audit.InitialWorkOffset:min(len(pinned.Program.InitialWork), audit.InitialWorkOffset+auditcontract.MaxMutationRecords/2)] {
+
 		inputs := map[string]auditcontract.Material{}
 		for slot, selected := range initial.Inputs {
 			input, exists := baseline.Inputs[selected]
@@ -82,7 +115,7 @@ func (s *Service) AcceptPreparedWork(ctx context.Context, claim auditstore.Contr
 	if claim.AuditID != audit.AuditID || execution.AuditID != audit.AuditID || execution.RunID == nil || source.ScopeKind != "run" || source.ScopeID != *execution.RunID || source.Digest != contentdigest.Bytes(data) || source.SizeBytes != int64(len(data)) || len(data) > auditcontract.MaxPreparedWorkBytes {
 		return auditstore.TaskIntakeResult{}, ErrInvalid
 	}
-	pinned, err := auditprofile.DecodePinnedProgram(audit.ProfileSnapshot)
+	pinned, err := executionProfile(audit)
 	if err != nil {
 		return auditstore.TaskIntakeResult{}, err
 	}
@@ -247,7 +280,7 @@ func boundedTaskWork(audit auditstore.Audit, pinned auditprofile.PinnedProgram, 
 		if err != nil {
 			return nil, err
 		}
-		cost := len(base) + (len(inputs)+1)*(8<<10)
+		cost := len(base) + (len(inputs)+1)*(8<<10) + (32 << 10)
 		if cost > auditcontract.MaxMutationBytes-used {
 			break
 		}

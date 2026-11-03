@@ -8,6 +8,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -53,6 +54,30 @@ func decodeTaskAcceptance(data []byte) (auditstore.TaskAcceptance, error) {
 // AcceptTasks is the one mutation used by explicit work and accepted ordinary
 // producer outputs. Material retention precedes this bounded transaction.
 func (s *OwnerStore) AcceptTasks(ctx context.Context, p auditstore.AcceptTasksParams) (auditstore.TaskAcceptance, bool, error) {
+	if len(p.HypothesisWrites) > 0 {
+		if p.Claim != nil || len(p.HypothesisWrites)+len(p.Tasks) > auditcontract.MaxMutationRecords {
+			return auditstore.TaskAcceptance{}, false, auditstore.ErrInvalid
+		}
+		data, err := strictjson.Canonical(struct {
+			Tasks      []auditstore.AcceptedTask    `json:"tasks"`
+			Hypotheses []auditstore.HypothesisWrite `json:"hypotheses"`
+		}{p.Tasks, p.HypothesisWrites})
+		if err != nil || len(data) > auditcontract.MaxMutationBytes {
+			return auditstore.TaskAcceptance{}, false, auditstore.ErrInvalid
+		}
+		for _, write := range p.HypothesisWrites {
+			referenced := false
+			for _, task := range p.Tasks {
+				referenced = referenced || task.Hypothesis != nil && task.Hypothesis.ID == write.Document.ID && task.Hypothesis.Revision == write.Document.Revision
+			}
+			if !referenced {
+				return auditstore.TaskAcceptance{}, false, auditstore.ErrInvalid
+			}
+			if write.Document.Revision == 1 && (write.Document.Origin.Kind != "manual" || write.Fixed) {
+				return auditstore.TaskAcceptance{}, false, auditstore.ErrInvalid
+			}
+		}
+	}
 	selected, err := validateAcceptedTasks(p)
 	if err != nil {
 		return auditstore.TaskAcceptance{}, false, err
@@ -126,6 +151,24 @@ func acceptTasksInTransaction(ctx context.Context, tx pgx.Tx, p auditstore.Accep
 	}
 	if err := validateTaskIntakeProgress(ctx, tx, audit, pinned, p, selected); err != nil {
 		return auditstore.TaskAcceptance{}, err
+	}
+	if len(p.HypothesisWrites) > 0 {
+		if err := persistHypotheses(ctx, tx, audit, pinned, p.HypothesisWrites, false); err != nil {
+			return auditstore.TaskAcceptance{}, err
+		}
+	}
+	for _, task := range selected {
+		if task.Hypothesis != nil {
+			h, err := scanHypothesis(tx.QueryRow(ctx, exactHypothesisSQL, audit.AuditID, task.Hypothesis.ID, task.Hypothesis.Revision))
+			if err != nil {
+				return auditstore.TaskAcceptance{}, auditstore.ErrInvalid
+			}
+			a, _ := strictjson.Canonical(h.Document)
+			b, _ := strictjson.Canonical(task.Hypothesis)
+			if string(a) != string(b) {
+				return auditstore.TaskAcceptance{}, auditstore.ErrInvalid
+			}
+		}
 	}
 	existing, err := existingTasksBySource(ctx, tx, p.AuditID, selected)
 	if err != nil {
@@ -276,6 +319,14 @@ func validateTaskIntakeProgress(ctx context.Context, tx pgx.Tx, audit auditstore
 		}
 		for index, task := range selected {
 			initial := pinned.Program.InitialWork[progress.From+index]
+			if initial.Hypothesis != "" {
+				h := auditdomain.InitialHypothesis(audit.AuditID, initial.Hypothesis, pinned.Program.Hypotheses[initial.Hypothesis])
+				if task.Document.Hypothesis == nil || task.Document.Hypothesis.ID != h.ID || task.Document.Hypothesis.Revision != 1 {
+					return auditstore.ErrInvalid
+				}
+			} else if task.Document.Hypothesis != nil {
+				return auditstore.ErrInvalid
+			}
 			if task.Source.Key != initial.Key || task.Document.Workflow != initial.Workflow || task.Document.Objective != initial.Objective {
 				return auditstore.ErrInvalid
 			}

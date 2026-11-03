@@ -27,6 +27,40 @@ const FORMAT_MATCH_REASON =
 /** In order: the first rule that applies is the suggestion. */
 const SUGGESTION_RULES: readonly SuggestionRule[] = [
   {
+    id: "asvs",
+    checkTypes: [
+      "owasp-asvs-5-0-l1-source-review",
+      "owasp-asvs-5-0-l1-source-pilot",
+    ],
+    words: /\basvs\b/i,
+    reason:
+      "Your objective mentions ASVS, and this check type reviews the selected requirements against source and documentation.",
+  },
+  {
+    id: "wstg",
+    checkTypes: [
+      "owasp-wstg-4-2-source-review",
+      "owasp-wstg-4-2-fast-source-review",
+    ],
+    words: /\bwstg\b/i,
+    reason:
+      "Your objective mentions WSTG, and this check type reviews the selected scenarios against source and preserves live evidence gaps.",
+  },
+  {
+    id: "top10",
+    checkTypes: ["owasp-top10-2025-source-risk"],
+    words: /\b(?:top[ -]?10|owasp top ten)\b/i,
+    reason:
+      "Your objective mentions Top 10, and this check type checks the selected source risk assertions.",
+  },
+  {
+    id: "checklist",
+    checkTypes: ["source-checklist"],
+    words: /\b(?:checklist|assertions?)\b/i,
+    reason:
+      "Your objective mentions a checklist or assertions, and this check type checks their exact wording against selected source.",
+  },
+  {
     id: "sql-injection",
     checkTypes: ["openapi-sqlmap-scan"],
     words: /\b(?:sqlmap|sql[- ]?injections?|sqli)\b/i,

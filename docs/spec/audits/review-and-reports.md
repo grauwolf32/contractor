@@ -1280,6 +1280,17 @@ itself is specified in [audits](audits.md); shared rules are in
 
 The direct verification envelope example is shown with REV-R120.
 
+**REV-R202.** Hypothesis history consists of exact accepted Tasks and their
+ordinary retained outputs/gaps. Supported, refuted and inconclusive describe
+the stated claim under recorded tested conditions. Insufficient negative probes
+remain inconclusive for an existential bug claim. Verdict polarity neither
+publishes nor assesses a Project Finding. Coverage keeps the original fixed
+source denominator and exposes unavailable/unadmitted requirements as unchecked;
+additional manual work cannot increase that denominator. The UI offers assertion
+creation, revision editing and explicit checking through the same Task command,
+shows stale-revision conflicts, and retries ambiguous commands with their frozen
+original key/body/revision.
+
 ## Non-goals
 
 - A separate global Hypothesis entity or generic graph engine for backtrace

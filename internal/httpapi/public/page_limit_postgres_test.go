@@ -182,6 +182,7 @@ func TestPostgresPublicPagedListsAcceptTheLargestPage(t *testing.T) {
 		},
 	)
 	checkLargestPublicPage(t, fixture.handler, map[string]string{
+		"listAuditHypotheses":               "/v1/audits/" + auditID + "/hypotheses",
 		"listAuditTasks":                    "/v1/audits/" + auditID + "/tasks",
 		"listWorkflows":                     "/v1/workflows",
 		"listProjects":                      "/v1/projects",

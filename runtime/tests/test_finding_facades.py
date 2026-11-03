@@ -108,6 +108,8 @@ def test_all_facades_publish_ordered_check_suggestions_through_adk(factory_type,
             "title": "Observation",
             "description": "Needs an independently admitted follow-up",
             "proposed_checks": checks,
+            "item_key": "item-01",
+            "incidental": True,
             **location_args,
         }
         adk = FunctionTool(tool)
@@ -115,6 +117,8 @@ def test_all_facades_publish_ordered_check_suggestions_through_adk(factory_type,
         await adk.run_async(args=args, tool_context=context())
         assert client.requests[0] == client.requests[1]
         assert client.requests[0]["proposal"]["proposed_checks"] == checks
+        assert client.requests[0]["itemKey"] == "item-01"
+        assert client.requests[0]["incidental"] is True
         assert _proposal(json.dumps(client.requests[0]["proposal"]).encode())
 
     asyncio.run(scenario())

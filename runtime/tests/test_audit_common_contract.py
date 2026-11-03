@@ -77,6 +77,21 @@ def _decode(data: str):
         if "hypothesis" in member
     ):
         raise ValueError("hypothesis snapshot bytes")
+    if value["schema"] == "contractor.audit.assertions.v1":
+        if len(data.encode()) > 1 << 20 or len(jcs.canonicalize(value)) > 1 << 20:
+            raise ValueError("source bytes")
+        keys = [item["key"] for item in value["items"]]
+        if len(keys) != len(set(keys)):
+            raise ValueError("duplicate source keys")
+        for item in value["items"]:
+            for field in ("allowed_methods", "required_evidence"):
+                if item[field] != sorted(set(item[field])):
+                    raise ValueError("source ordering")
+            if (
+                len(jcs.canonicalize({key: item[key] for key in ("statement", "scope", "grounds")}))
+                > 32768
+            ):
+                raise ValueError("source seed bytes")
     if value["schema"] == "contractor.audit.context.v1":
         for field in ("item_key", "task_id"):
             values = [item[field] for item in value["items"]]
@@ -138,6 +153,16 @@ def _validate_case(case):
         return
     if value["schema"] == "contractor.audit.program.v1":
         bindings, limits = value["workflows"], value["limits"]
+        if source := value.get("seed_source"):
+            binding = bindings.get(source["workflow"])
+            if (
+                binding is None
+                or "result" not in binding["outputs"]
+                or not any(item["source"] == "task-context" for item in binding["inputs"].values())
+            ):
+                raise ValueError("seed checking binding")
+            if "input" in source and not value["inputs"].get(source["input"], {}).get("required"):
+                raise ValueError("required seed input")
         keys = [task["key"] for task in value["initial_work"]]
         if len(keys) != len(set(keys)):
             raise ValueError("duplicate work")
@@ -268,6 +293,7 @@ def _validate_case(case):
 def test_shared_audit_common_documents():
     for name in (
         "programs.json",
+        "assertions.json",
         "results.json",
         "controls.json",
         "proposals.json",

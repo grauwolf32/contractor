@@ -150,6 +150,12 @@ func auditSubmissionGrant(
 	}
 	if count > 1 {
 		workflow.Inputs["context"] = resolved.ArtifactSlot{Required: true, MediaTypes: []string{"application/json"}}
+		workflow.Outputs["result"] = resolved.ArtifactSlot{Required: true, MediaTypes: []string{"application/json"}}
+		for key, result := range stage.Result.Artifacts {
+			result.MediaTypes = []string{"application/json"}
+			stage.Result.Artifacts[key] = result
+		}
+		workflow.Stages[workflow.EntryStage] = stage
 	}
 	workflowJSON, err := json.Marshal(workflow)
 	if err != nil {
@@ -176,6 +182,7 @@ func auditSubmissionGrant(
 	if count > 1 {
 		binding := program.Workflows["inspect"]
 		binding.Inputs["context"] = auditcontract.InputMapping{Source: "task-context"}
+		binding.Outputs = map[string]string{"result": "result"}
 		program.Workflows["inspect"] = binding
 	}
 	programBytes, _ := json.Marshal(program)
@@ -217,6 +224,19 @@ func auditSubmissionGrant(
 		t.Fatal(err)
 	}
 	material := auditcontract.Material{ScopeKind: "audit", ScopeID: audit.AuditID, Ref: metadata.Ref, Digest: metadata.Digest, MediaType: metadata.MediaType, SizeBytes: metadata.Size}
+	var assertion *auditcontract.Hypothesis
+	if count > 1 {
+		h := auditcontract.Hypothesis{Schema: auditcontract.HypothesisSchema, ID: "system-selected-hypothesis", Revision: 1, Statement: "A pinned assertion in this fixture", Scope: map[string]string{}, Grounds: "Explicit fixture content", Origin: auditcontract.HypothesisOrigin{Kind: "manual", AuditID: audit.AuditID}}
+		for revision := uint64(1); revision <= 7; revision++ {
+			h.Revision = revision
+			result, _, err := audits.WriteHypotheses(ctx, auditstore.WriteHypothesesParams{OwnerID: ownerID, AuditID: audit.AuditID, ExpectedRevision: audit.Revision, IdempotencyKey: fmt.Sprintf("hypothesis-%d", revision), RequestDigest: digest(fmt.Sprintf("hypothesis-%d", revision)), Writes: []auditstore.HypothesisWrite{{Document: h, SourceKey: "manual"}}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			audit.Revision = result.AuditRevision
+		}
+		assertion = &h
+	}
 	taskID := runID + "-task"
 	taskIDs := []string{}
 	tasks := []auditstore.AcceptedTask{}
@@ -230,7 +250,11 @@ func auditSubmissionGrant(
 			task.Hypothesis = &auditcontract.HypothesisRef{ID: "system-selected-hypothesis", Revision: 7}
 		}
 		taskIDs = append(taskIDs, id)
-		tasks = append(tasks, auditstore.AcceptedTask{Document: task, Source: auditstore.TaskSource{Kind: "manual", Key: id}})
+		var frozen *auditcontract.Hypothesis
+		if index > 0 {
+			frozen = assertion
+		}
+		tasks = append(tasks, auditstore.AcceptedTask{Hypothesis: frozen, Document: task, Source: auditstore.TaskSource{Kind: "manual", Key: id}})
 	}
 	_, _, err = audits.AcceptTasks(ctx, auditstore.AcceptTasksParams{OwnerID: ownerID, AuditID: audit.AuditID, ExpectedRevision: audit.Revision, IdempotencyKey: "accept", RequestDigest: digest("accept"), Tasks: tasks})
 	if err != nil {

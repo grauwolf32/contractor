@@ -1,0 +1,51 @@
+apiVersion: contractor/v1alpha1
+kind: AuditProfile
+metadata:
+  name: owasp-asvs-5-0-l1-source-pilot
+  version: '1'
+spec:
+  schema: contractor.audit.program.v1
+  inputs:
+    source:
+      required: true
+      media_types:
+      - application/zip
+  workflows:
+    check:
+      ref: audit-asvs-source-verification@1
+      inputs:
+        source:
+          source: audit-input
+          name: source
+        context:
+          source: task-context
+      parameters: {}
+      outputs:
+        result: result
+  hypotheses: {}
+  initial_work: []
+  seed_source:
+    workflow: check
+    standard:
+      scheme: owasp-asvs
+      version: 5.0.0
+    entry_ids:
+    - v5.0.0-1.2.4
+    - v5.0.0-1.2.5
+    - v5.0.0-1.3.2
+    - v5.0.0-1.5.1
+    - v5.0.0-2.1.1
+  limits:
+    max_tasks: 5
+    max_iterations: 1
+    max_tasks_per_iteration: 5
+    batch_size: 1
+    max_submitted_runs: 12
+    max_attempts: 2
+    deadline_seconds: 86400
+    max_evidence_bytes: 67108864
+    max_hypotheses: 128
+    max_hypothesis_revisions: 512
+    max_hypothesis_bytes: 16777216
+  policy:
+    active_operations: prohibited

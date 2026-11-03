@@ -178,6 +178,10 @@ export interface StartCheck {
   readonly isReady: (checkType: string) => boolean;
   readonly slots: readonly InputSlot[];
   readonly chooseMaterial: (input: string, value: string) => void;
+  readonly registerAuthoredMaterial: (
+    input: string,
+    material: ArtifactMetadata,
+  ) => void;
   readonly scopeFields: ReadonlySet<ScopeField>;
   readonly target: string;
   readonly setTarget: (value: string) => void;
@@ -213,7 +217,27 @@ export function useStartCheck(
   const projectQuery = useProject(projectId);
   const project = projectQuery.data;
   const catalog = useCheckTypeCatalog();
-  const materials = useProjectMaterials(projectId);
+  const remoteMaterials = useProjectMaterials(projectId);
+  const [authored, setAuthored] = useState<{
+    projectId: string;
+    items: ArtifactMetadata[];
+  }>({ projectId: "", items: [] });
+  const authoredItems = authored.projectId === projectId ? authored.items : [];
+  const materials = {
+    ...remoteMaterials,
+    items:
+      remoteMaterials.items === undefined
+        ? undefined
+        : [
+            ...authoredItems,
+            ...remoteMaterials.items.filter(
+              (item) =>
+                !authoredItems.some(
+                  (known) => materialKey(known) === materialKey(item),
+                ),
+            ),
+          ],
+  };
 
   const [objective, setObjective] = useState(initialObjective);
   const [versions, setVersions] = useState<Readonly<Record<string, string>>>(
@@ -609,6 +633,18 @@ export function useStartCheck(
     suggestions,
     isReady,
     slots,
+    registerAuthoredMaterial(input, material) {
+      setAuthored({
+        projectId,
+        items: [
+          material,
+          ...authoredItems.filter(
+            (known) => materialKey(known) !== materialKey(material),
+          ),
+        ],
+      });
+      chooseMaterial(input, materialKey(material));
+    },
     chooseMaterial,
     scopeFields,
     target: effectiveTarget,
