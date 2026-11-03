@@ -514,6 +514,14 @@ from current analyst ratings rather than rewriting that report.
 
 ### Reports
 
+**REV-R200.** Common Task coordination may complete an Audit with ordinary
+retained Task results and no aggregate report. In that case `getAuditReport`
+returns HTTP 200 with `status: unavailable`, without report artifacts or content.
+Completion does not imply report generation or acceptance. Inbox and Reports
+treat this absence as a normal read; direct report navigation links to the
+check's Task results. A partial retained report pair or an integrity/storage
+failure remains an error.
+
 **REV-R71.** The human-readable report is `report.md` with media type
 `text/markdown`, headings, and coverage, finding and attempt tables.
 

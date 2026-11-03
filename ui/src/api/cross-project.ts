@@ -838,7 +838,8 @@ function reportMerger(statusKey: string) {
 
 /**
  * Reports of checks that are finishing, waiting for a decision or ended.
- * A report that is still pending or unavailable (failed and stopped checks)
+ * A report that is still pending or unavailable (including completed checks
+ * whose results are retained with their tasks)
  * is not listed by default, and a missing report is not an error.
  */
 export function useAllReports(options: AllReportsOptions = {}): AllReports {

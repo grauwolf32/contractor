@@ -1266,7 +1266,7 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** Read the exact proposed or accepted Audit report or its generation state */
+        /** Read Audit report availability and any retained report */
         get: operations["getAuditReport"];
         put?: never;
         post?: never;
@@ -11055,7 +11055,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Report state with exact artifacts and content when proposed or ready; proposed reports include their review request */
+            /** @description Report availability with exact artifacts and content when proposed or ready; a completed Audit without an aggregate report returns unavailable and retains its ordinary Task results separately */
             200: {
                 headers: {
                     "X-Request-ID": components["headers"]["RequestId"];

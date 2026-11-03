@@ -313,8 +313,9 @@ export function useInboxData(): InboxData {
     loadWorkspace,
   );
 
-  // Ready lists reports of checks that finished in the last 7 days only, so
-  // only those are read: failed and stopped checks rarely have one.
+  // Ready lists available reports of checks that finished in the last 7 days.
+  // A completed check can retain its results with tasks and have no report;
+  // its unavailable projection is an ordinary successful read.
   const finished = useMemo(
     () => checks.checks.filter((check) => finishedRecently(check, now)),
     [checks.checks, now],

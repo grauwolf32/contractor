@@ -4545,10 +4545,10 @@ paths:
     get:
       operationId: getAuditReport
       tags: [Audits]
-      summary: Read the exact proposed or accepted Audit report or its generation state
+      summary: Read Audit report availability and any retained report
       responses:
         '200':
-          description: Report state with exact artifacts and content when proposed or ready; proposed reports include their review request
+          description: Report availability with exact artifacts and content when proposed or ready; a completed Audit without an aggregate report returns unavailable and retains its ordinary Task results separately
           headers:
             X-Request-ID: {$ref: '#/components/headers/RequestId'}
             Cache-Control: {$ref: '#/components/headers/NoStore'}

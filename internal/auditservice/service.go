@@ -329,12 +329,16 @@ func (s *Service) GetReport(
 			return ReportProjection{}, candidateErr
 		}
 	}
+	if machineErr != nil && !errors.Is(machineErr, auditstore.ErrNotFound) {
+		return ReportProjection{}, machineErr
+	}
+	if summaryErr != nil && !errors.Is(summaryErr, auditstore.ErrNotFound) {
+		return ReportProjection{}, summaryErr
+	}
 	if errors.Is(machineErr, auditstore.ErrNotFound) && errors.Is(summaryErr, auditstore.ErrNotFound) {
 		switch audit.State {
-		case auditstore.AuditFailed, auditstore.AuditCancelled:
+		case auditstore.AuditCompleted, auditstore.AuditFailed, auditstore.AuditCancelled:
 			return ReportProjection{Status: ReportUnavailable}, nil
-		case auditstore.AuditCompleted:
-			return ReportProjection{}, errors.New("completed Audit has no committed report links")
 		default:
 			return ReportProjection{Status: ReportPending}, nil
 		}
