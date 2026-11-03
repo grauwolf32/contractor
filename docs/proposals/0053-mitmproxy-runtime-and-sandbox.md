@@ -149,7 +149,7 @@ policy/session primitives сохраняются; shared network helpers уда�
 `request` вызывается уже после передачи тела, поэтому исходный admission нельзя
 оставлять только в нём.
 
-Основной открытый стык — непосредственный I/O. В закреплённой версии после
+Основной стык — непосредственный I/O. В закреплённой версии после
 `server_connected` engine продолжает исполнение команд, а socket writes
 происходят внутри `proxy.server.ConnectionHandler.server_event` при `SendData`.
 Публичного hook на каждую такую запись нет. Проверки lease на connect/TLS/read/write
@@ -159,12 +159,21 @@ policy/session primitives сохраняются; shared network helpers уда�
 rejection до target HTTP и повторную admission при reused/H2 connections.
 Пулы и connection-bound credentials не должны смешивать разные authority/identity.
 
-Первый срез должен провести реальный Python tool и один scanner через engine
-до fixture target, затем подтвердить deny, DNS/peer, lease/cancellation,
-credential isolation, body bounds и отсутствие небезопасного replay. Новая
-policy framework, второй HTTP owner и сохранение обоих исходящих transports
-не входят в рекомендуемую конечную архитектуру. Если для I/O enforcement
-понадобится fork или копия network server, действует условие пересмотра выше.
+В [исполняемом прототипе V410-029](../../tasks/evidence/v410-029-mitmproxy-thin-transport.md)
+программные HTTP/HTTPS и настоящий Nuclei уже прошли через один native engine.
+Переиспользованы настоящие HTTPRoutePolicy, IdentitySession и owned-task join.
+Guard в 26 строк оборачивает команды engine перед отправкой: истечение lease
+после TCP или TLS setup не позволило target получить HTTP request. Fork и копия
+network server для этого среза не понадобились. Три прогона дали одинаковый
+результат, включая stop одновременно зависших Python и scanner requests.
+
+Прототип работает с HTTP/1.1 без reuse. Следующий production срез должен
+подтвердить exchange ownership при reuse/H2, полные bounds/outcomes,
+redirect/retry semantics и привязку idle I/O к текущему allocation lifecycle,
+после чего удалить заменённый protocol code. Новая policy framework, второй
+HTTP owner и сохранение обоих исходящих transports не входят в рекомендуемую
+конечную архитектуру. Версионная связь guard с внутренним API engine остаётся;
+если её сопровождение потребует fork, действует условие пересмотра выше.
 
 Тонкий facade уменьшит собственный protocol code и повторную буферизацию.
 Начальная память импорта mitmproxy при этом остаётся; оценка её и streaming

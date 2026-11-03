@@ -1,0 +1,81 @@
+schema_version: '1.0'
+id: V410-029
+title: Prototype a thin controlled HTTP facade over one mitmproxy engine
+milestone: project-sitemap-2026-10
+epic: http-tools
+kind: chore
+priority: P2
+status: in_progress
+depends_on: [V410-027, V410-028]
+languages: [python, markdown]
+goal: Demonstrate whether one native proxy engine can replace protocol work in HTTPTransport while retaining existing Contractor policy and allocation ownership.
+demonstration: A programmatic HTTP facade and actual local Nuclei invoke one embedded engine against private fixture targets; DNS pinning, identity admission and cancellation or lease expiry are enforced without forwarding through the old outgoing HTTPTransport.
+context:
+  authority: >-
+    User request on 2026-11-03 asks to try the thin HTTPTransport design discussed in proposal 0053.
+    This authorizes an executable integration prototype and concrete assessment before a production
+    migration, not a silent replacement of the current transport, a new policy framework or sandbox routing.
+  proposal: docs/proposals/0053-mitmproxy-runtime-and-sandbox.md
+  specification:
+  - docs/spec/tools/http-caido.md#HTP-R137
+  - docs/spec/tools/http-caido.md#HTP-R138
+  - docs/spec/tools/http-caido.md#HTP-R139
+  - docs/spec/tools/http-caido.md#HTP-R145
+  - docs/spec/tools/http-caido.md#HTP-R146
+  - docs/spec/tools/http-caido.md#HTP-R148
+  - docs/spec/tools/http-caido.md#HTP-R149
+scope:
+  in:
+  - Pin mitmproxy 12.3.1 in an opt-in experiment and reuse the actual HTTPRoutePolicy, IdentitySession and owned-task join.
+  - Exercise one native outgoing engine through a thin programmatic facade and a real installed Nuclei using private proxy configuration and test-only templates.
+  - Attempt a small command-boundary guard for per-write authority checks without copying or forking the engine network server.
+  - Use owned non-loopback local fixture addresses so production CIDR and peer rules are exercised without disabling their loopback denial.
+  - Record successful and unsupported policy, TLS, identity, I/O and cleanup cases and what old protocol code could be deleted.
+  out:
+  - Production source or dependency changes, new wire fields, public API, durable entities, global quotas or single-allocation placement.
+  - A full production conformance claim, complete redirects/retries/truncation integration, Podman transparent routing or external target scans.
+acceptance_criteria:
+- id: A1
+  text: The saved executable prototype has exact engine versions and source hashes; production source/dependencies are unchanged and only owned local targets receive requests.
+- id: A2
+  text: Programmatic HTTP/HTTPS requests and a real installed Nuclei use one native engine, with no old outgoing transport fallback; target counters and sanitized outcomes prove the paths used.
+- id: A3
+  text: Actual Contractor scope/DNS and identity primitives are reused; disallowed path/method/DNS sets cause no target request, valid numeric pin preserves Host/SNI and target TLS verification.
+- id: A4
+  text: A deterministic barrier expires authority after admission or TCP/TLS setup and before an application write; actual target counters establish whether the guard prevents sending. Failures remain explicit evidence rather than being hidden by weaker guarantees.
+- id: A5
+  text: Stop joins engine resources and in-flight client/scanner work; the assessment distinguishes the demonstrated subset from remaining production gaps and gives a concrete recommendation.
+tests:
+- command: uv run --project runtime --locked --with mitmproxy==12.3.1 python scripts/experiments/mitmproxy_thin_transport.py --output tasks/evidence/v410-029-mitmproxy-thin-transport.json
+  covers: [A1, A2, A3, A4, A5]
+- command: cd runtime && uv run ruff check ../scripts/experiments/mitmproxy_thin_transport.py
+  covers: [A1, A5]
+- command: cd runtime && uv run ruff format --check ../scripts/experiments/mitmproxy_thin_transport.py
+  covers: [A1, A5]
+- command: cd runtime && uv run pytest -q tests/test_engagement_target.py tests/test_engagement_allocation.py tests/test_http_proxy_bridge.py tests/test_nuclei_engagement.py
+  covers: [A3, A4, A5]
+- command: python3 scripts/check_spec.py
+  covers: [A5]
+- command: cd runtime && uv run python ../scripts/check_tasks.py
+  covers: [A1, A5]
+cardinality:
+- collection: Local integration probes
+  expected: At most twenty bounded named probes per repetition, three sequential repetitions and one installed scanner process at a time.
+  bound: Only ephemeral listeners on owned local interfaces; finite request/body/scanner deadlines and joined cleanup before temporary certificate/config deletion.
+failure_outcomes:
+- operation: Start the embedded engine, issue a fixture exchange or run Nuclei
+  permanent: Missing eligible fixture interface/scanner or unsupported engine behavior is reported explicitly; unexpected incomplete probes fail the experiment.
+  retryable: No automatic reconstruction of a possibly sent request; repetitions are explicit independent probes.
+  ambiguous: Preserve target counters and observed send-boundary state; do not replay to infer an outcome.
+  cancelled: Stop and join clients, scanner, owned engine handlers and fixture listeners before erasing private configuration.
+  timeout: Finite probe and overall deadlines fail the experiment and retain ownership until cleanup completes.
+lifecycle:
+- entity: Embedded engine, local target, scanner and private proxy capability
+  delete: Reject new traffic, join active work, close listener/connections and remove temporary CA and private config after join.
+  retention: Keep only sanitized evidence and source; no credentials, private keys, response bodies or interface addresses in committed results.
+verification:
+  date: '2026-11-03'
+  experiment: Three complete repetitions produced identical results with native Python HTTP/HTTPS and actual Nuclei 3.11.1. TCP/TLS lease barriers and failed peer verification prevented target HTTP writes; stop joined both stalled client and scanner, with zero residual engine connections.
+  existing_contract_tests: Full test_engagement_target.py, test_engagement_allocation.py, test_http_proxy_bridge.py and test_nuclei_engagement.py passed (66 tests).
+  checks: Ruff check/format, specification and task validation, local links, source/evidence hash and diff whitespace passed.
+  full_lint: make lint stops at shared-config-check because go is absent from PATH. The prototype does not change production source/dependencies or establish full allocation/H2/reuse conformance.
