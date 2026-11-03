@@ -9,7 +9,7 @@ title: Use the shared Planner subtask grammar in telemetry
 kind: defect
 introduced_by: V384-001
 priority: P3
-status: pending
+status: in_progress
 goal: Telemetry preserves every legal Planner subtask ID including 100 through 999.
 context:
   authority: 'User request 2026-11-03: implement the reviewed Planner simplifications and optimizations first,

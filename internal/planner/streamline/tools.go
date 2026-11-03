@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/clone"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/stageresult"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"google.golang.org/adk/v2/agent"
@@ -640,13 +641,8 @@ func (p *streamlinePlanner) planPersistenceFailure(
 }
 
 func safeSubtaskID(value string) string {
-	if len(value) == 0 || len(value) > 2 {
+	if !runstore.ValidPlannerSubtaskID(value) {
 		return "invalid"
-	}
-	for _, current := range value {
-		if current < '0' || current > '9' {
-			return "invalid"
-		}
 	}
 	return value
 }
