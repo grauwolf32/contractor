@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import gzip
 import json
 import ssl
 import time
+import zlib
 from email.utils import formatdate
 from pathlib import Path
 
@@ -18,6 +20,7 @@ from referencing import Registry, Resource
 from test_http_toolset import CorruptTLSRecordTarget
 from test_otlp_adapter import adapter_context, telemetry_settings
 
+from contractor_runtime import http_body
 from contractor_runtime.adapters import otlp_retry
 from contractor_runtime.adapters.host import RuntimeAdapterMetricsState
 from contractor_runtime.adapters.otlp_http import OTLPDeliveryError, OTLPHTTPAdapterFactory
@@ -305,6 +308,325 @@ def test_invalid_ack_is_not_retried(response: httpx.Response) -> None:
             await adapter.flush()
         await adapter.close()
         assert len(requests) == 1 and adapter.metrics.dropped_spans.non_retryable == 3
+
+    asyncio.run(scenario())
+
+
+ACK_ENCODINGS = [
+    pytest.param(None, lambda body: body, id="no-encoding"),
+    pytest.param("identity", lambda body: body, id="identity"),
+    pytest.param("gzip", gzip.compress, id="gzip"),
+    pytest.param("deflate", zlib.compress, id="deflate"),
+    pytest.param(
+        "deflate", lambda body: zlib.compress(body, wbits=-zlib.MAX_WBITS), id="raw-deflate"
+    ),
+    pytest.param("deflate, gzip", lambda body: gzip.compress(zlib.compress(body)), id="layered"),
+]
+
+
+class AckStream(httpx.AsyncByteStream):
+    def __init__(self, chunks: list[bytes], *, block: bool = False) -> None:
+        self.chunks = chunks
+        self.block = block
+        self.reads = 0
+        self.closes = 0
+        self.entered = asyncio.Event()
+        self.joined = False
+
+    async def __aiter__(self):
+        for chunk in self.chunks:
+            self.reads += 1
+            yield chunk
+        if self.block:
+            self.entered.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                self.joined = True
+
+    async def aclose(self) -> None:
+        self.closes += 1
+
+
+def acknowledgement(encoding: str, rejected: int = 0, message: str = "provider-secret") -> bytes:
+    if encoding == "json":
+        return json.dumps(
+            {"partialSuccess": {"rejectedSpans": str(rejected), "errorMessage": message}}
+        ).encode()
+    response = ExportTraceServiceResponse()
+    response.partial_success.rejected_spans = rejected
+    response.partial_success.error_message = message
+    return response.SerializeToString()
+
+
+@pytest.mark.parametrize(("coding", "encode"), ACK_ENCODINGS)
+@pytest.mark.parametrize("encoding", ["protobuf", "json"])
+@pytest.mark.parametrize("rejected", [0, 1, 3])
+def test_streamed_acknowledgements_preserve_partial_success(coding, encode, encoding, rejected):
+    async def scenario() -> None:
+        wire = encode(acknowledgement(encoding, rejected))
+        stream = AckStream([wire[i : i + 7] for i in range(0, len(wire), 7)])
+        headers = {"content-type": f"application/{encoding}"}
+        if coding is not None:
+            headers["content-encoding"] = coding
+        calls = []
+
+        def collector(request):
+            calls.append(request)
+            return httpx.Response(200, headers=headers, stream=stream)
+
+        adapter = await OTLPHTTPAdapterFactory(httpx.MockTransport(collector)).create(
+            adapter_context(), settings()
+        )
+        enqueue(adapter)
+        try:
+            if rejected:
+                with pytest.raises(OTLPDeliveryError):
+                    await adapter.flush()
+            else:
+                await adapter.flush()
+        finally:
+            await adapter.close()
+        assert len(calls) == 1 and stream.closes == 1
+        assert adapter.metrics.dropped_spans.collector_rejected == rejected
+        assert sum(adapter.metrics.dropped_spans.model_dump().values()) == rejected
+        assert "provider-secret" not in repr(adapter.metrics)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(("coding", "encode"), ACK_ENCODINGS)
+def test_streamed_acknowledgement_accepts_exact_decoded_limit(coding, encode):
+    async def scenario() -> None:
+        body = b"{}" + b" " * (otlp_retry.MAX_RESPONSE_BYTES - 2)
+        wire = encode(body)
+        stream = AckStream([wire])
+        headers = {"content-type": "application/json"}
+        if coding is not None:
+            headers["content-encoding"] = coding
+        adapter = await OTLPHTTPAdapterFactory(
+            httpx.MockTransport(lambda _: httpx.Response(200, headers=headers, stream=stream))
+        ).create(adapter_context(), settings())
+        enqueue(adapter)
+        try:
+            await adapter.flush()
+        finally:
+            await adapter.close()
+        assert stream.closes == 1 and stream.reads == 1
+        assert adapter.metrics.failed_operations == 0
+        assert sum(adapter.metrics.dropped_spans.model_dump().values()) == 0
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(("coding", "encode"), ACK_ENCODINGS[2:])
+@pytest.mark.parametrize("encoding", ["protobuf", "json"])
+def test_streamed_compression_bomb_stops_decoding_at_limit(monkeypatch, coding, encode, encoding):
+    # Observe the real zlib calls in both HTTPX and the shared reader: the old
+    # aiter_bytes path requests unbounded output and produces the whole 4 MiB.
+    wire = encode(acknowledgement(encoding, message="provider-secret" + "x" * (4 * 1024 * 1024)))
+    assert len(wire) < otlp_retry.MAX_RESPONSE_BYTES
+    decompressobj = zlib.decompressobj
+    produced = []
+
+    class DecoderProbe:
+        def __init__(self, *args, **kwargs):
+            self.decoder = decompressobj(*args, **kwargs)
+
+        def decompress(self, data, max_length=0):
+            output = self.decoder.decompress(data, max_length)
+            produced.append((max_length, len(output)))
+            return output
+
+        def flush(self):
+            return self.decoder.flush()
+
+    monkeypatch.setattr(http_body.zlib, "decompressobj", DecoderProbe)
+
+    async def scenario() -> None:
+        stream = AckStream([wire, b"must not be read"])
+        calls = []
+
+        def collector(request):
+            calls.append(request)
+            return httpx.Response(
+                200,
+                headers={"content-encoding": coding, "content-type": f"application/{encoding}"},
+                stream=stream,
+            )
+
+        adapter = await OTLPHTTPAdapterFactory(httpx.MockTransport(collector)).create(
+            adapter_context(), settings()
+        )
+        enqueue(adapter)
+        try:
+            with pytest.raises(OTLPDeliveryError):
+                await adapter.flush()
+        finally:
+            await adapter.close()
+        assert len(calls) == 1 and stream.closes == 1 and stream.reads == 1
+        assert adapter.metrics.failed_operations == 1
+        assert adapter.metrics.dropped_spans.non_retryable == 3
+        assert sum(adapter.metrics.dropped_spans.model_dump().values()) == 3
+        assert "provider-secret" not in repr(adapter.metrics)
+
+    asyncio.run(scenario())
+    assert produced
+    assert all(0 < bound <= otlp_retry.MAX_RESPONSE_BYTES + 1 for bound, _ in produced)
+    assert max(size for _, size in produced) <= otlp_retry.MAX_RESPONSE_BYTES + 1
+
+
+@pytest.mark.parametrize("coding", ["identity", "gzip"])
+def test_streamed_received_overflow_is_terminal_even_with_tiny_decoded_body(coding):
+    async def scenario() -> None:
+        prefix = gzip.compress(b"{}") if coding == "gzip" else b"{}"
+        padding = b"\0" if coding == "gzip" else b" "
+        stream = AckStream(
+            [prefix + padding * (otlp_retry.MAX_RESPONSE_BYTES - len(prefix)), padding, padding]
+        )
+        calls = []
+
+        def collector(request):
+            calls.append(request)
+            return httpx.Response(
+                200,
+                headers={"content-encoding": coding, "content-type": "application/json"},
+                stream=stream,
+            )
+
+        adapter = await OTLPHTTPAdapterFactory(httpx.MockTransport(collector)).create(
+            adapter_context(), settings()
+        )
+        enqueue(adapter)
+        try:
+            with pytest.raises(OTLPDeliveryError):
+                await adapter.flush()
+        finally:
+            await adapter.close()
+        assert len(calls) == 1 and stream.closes == 1 and stream.reads == 2
+        assert adapter.metrics.dropped_spans.non_retryable == 3
+        assert sum(adapter.metrics.dropped_spans.model_dump().values()) == 3
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("coding", ["gzip", "deflate", "deflate, gzip"])
+def test_streamed_corrupt_compression_is_terminal(coding):
+    async def scenario() -> None:
+        stream = AckStream([b"provider-secret", b"must not be read"])
+        calls = []
+
+        def collector(request):
+            calls.append(request)
+            return httpx.Response(200, headers={"content-encoding": coding}, stream=stream)
+
+        adapter = await OTLPHTTPAdapterFactory(httpx.MockTransport(collector)).create(
+            adapter_context(), settings()
+        )
+        enqueue(adapter)
+        try:
+            with pytest.raises(OTLPDeliveryError):
+                await adapter.flush()
+        finally:
+            await adapter.close()
+        assert len(calls) == 1 and stream.closes == 1 and stream.reads == 1
+        assert adapter.metrics.dropped_spans.non_retryable == 3
+        assert sum(adapter.metrics.dropped_spans.model_dump().values()) == 3
+        assert "provider-secret" not in repr(adapter.metrics)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("status", "retryable"),
+    [(400, False), (500, False), (429, True), (502, True), (503, True), (504, True)],
+)
+def test_streamed_status_classification_precedes_acknowledgement_decoding(status, retryable):
+    async def scenario() -> None:
+        streams = [AckStream([b"provider-secret: invalid gzip"]), AckStream([gzip.compress(b"")])]
+        calls = []
+
+        def collector(request):
+            index = len(calls)
+            calls.append(request)
+            return httpx.Response(
+                status if index == 0 else 200,
+                headers={"content-encoding": "gzip", "retry-after": "0"},
+                stream=streams[index],
+            )
+
+        adapter = await OTLPHTTPAdapterFactory(httpx.MockTransport(collector)).create(
+            adapter_context(), settings()
+        )
+        enqueue(adapter)
+        try:
+            if retryable:
+                await adapter.flush()
+            else:
+                with pytest.raises(OTLPDeliveryError):
+                    await adapter.flush()
+        finally:
+            await adapter.close()
+        assert streams[0].reads == 0 and streams[0].closes == 1
+        assert len(calls) == (2 if retryable else 1)
+        if retryable:
+            assert streams[1].reads == 1 and streams[1].closes == 1
+        assert sum(adapter.metrics.dropped_spans.model_dump().values()) == (0 if retryable else 3)
+        assert "provider-secret" not in repr(adapter.metrics)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("interruption", ["cancel", "shutdown", "batch-deadline", "flush-deadline"])
+def test_streamed_compressed_acknowledgement_interruption_joins_and_closes(interruption):
+    async def scenario() -> None:
+        stream = AckStream([gzip.compress(b"{}")[0:2]], block=True)
+        calls = []
+
+        def collector(request):
+            calls.append(request)
+            return httpx.Response(200, headers={"content-encoding": "gzip"}, stream=stream)
+
+        adapter = await OTLPHTTPAdapterFactory(httpx.MockTransport(collector)).create(
+            adapter_context(), settings()
+        )
+        if interruption == "batch-deadline":
+            adapter._batch_timeout = 0.05
+        if interruption == "flush-deadline":
+            adapter._flush_timeout = 0.05
+        enqueue(adapter)
+        flushing = asyncio.create_task(adapter.flush())
+        try:
+            await asyncio.wait_for(stream.entered.wait(), timeout=1)
+            if interruption == "cancel":
+                flushing.cancel()
+            elif interruption == "shutdown":
+                await adapter.close()
+            expected_error = {
+                "cancel": asyncio.CancelledError,
+                "shutdown": asyncio.CancelledError,
+                "batch-deadline": OTLPDeliveryError,
+                "flush-deadline": TimeoutError,
+            }[interruption]
+            with pytest.raises(expected_error):
+                await asyncio.wait_for(flushing, timeout=1)
+            if interruption == "flush-deadline":
+                # The exporter's flush deadline must fire; the outer test
+                # watchdog would cancel the task instead of completing it.
+                assert not flushing.cancelled()
+                assert isinstance(flushing.exception(), TimeoutError)
+        finally:
+            await adapter.close()
+        assert len(calls) == 1 and stream.reads == 1 and stream.closes == 1 and stream.joined
+        reason = {
+            "cancel": "cancelled",
+            "shutdown": "shutdown",
+            "batch-deadline": "deadline_exceeded",
+            "flush-deadline": "cancelled",
+        }[interruption]
+        assert getattr(adapter.metrics.dropped_spans, reason) == 3
+        assert sum(adapter.metrics.dropped_spans.model_dump().values()) == 3
+        assert adapter._instrumentation.pending_spans == 0
 
     asyncio.run(scenario())
 

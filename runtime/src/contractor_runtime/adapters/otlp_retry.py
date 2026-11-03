@@ -14,6 +14,7 @@ from google.protobuf.message import DecodeError
 from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceResponse
 
 from contractor_runtime.contracts import TelemetryRetrySettings
+from contractor_runtime.http_body import BodyTooLarge, read_limited_body
 
 # Protocol classification, independent of an operator's retry count/backoff.
 RETRYABLE_STATUS_CODES = frozenset({429, 502, 503, 504})
@@ -63,12 +64,8 @@ async def classify_response(response: httpx.Response, *, span_count: int) -> Del
         )
     if not 200 <= response.status_code < 300:
         return DeliveryResponse()
-    body = bytearray()
     try:
-        async for chunk in response.aiter_bytes():
-            if len(body) + len(chunk) > MAX_RESPONSE_BYTES:
-                return DeliveryResponse()
-            body.extend(chunk)
+        body = await read_limited_body(response, MAX_RESPONSE_BYTES)
         if body and "application/json" in response.headers.get("content-type", ""):
             value = json.loads(body)
             if not isinstance(value, dict):
@@ -90,9 +87,9 @@ async def classify_response(response: httpx.Response, *, span_count: int) -> Del
         else:
             if response.status_code != 200:
                 return DeliveryResponse()
-            decoded = ExportTraceServiceResponse.FromString(bytes(body))
+            decoded = ExportTraceServiceResponse.FromString(body)
             rejected = decoded.partial_success.rejected_spans
-    except (DecodeError, ValueError, RecursionError):
+    except (BodyTooLarge, DecodeError, ValueError, RecursionError):
         return DeliveryResponse()
     if not 0 <= rejected <= span_count:
         return DeliveryResponse()

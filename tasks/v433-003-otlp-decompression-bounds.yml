@@ -6,7 +6,7 @@ epic: operations
 kind: defect
 introduced_by: V51-001
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [python, markdown]
 goal: Worker OTLP acknowledgement parsing never expands a compressed response beyond its existing 64-KiB byte budget.
@@ -14,6 +14,7 @@ context:
   authority: >-
     User request 2026-11-02: recheck OTLP decompression before the size check
     and create a fix task using the existing limited-body reader.
+    User request 2026-11-03 assigns implementation of V433-003.
   specification:
     - docs/spec/platform/observability.md#OBS-R74
     - docs/spec/platform/observability.md#OBS-R76
@@ -40,6 +41,15 @@ context:
     Reuse http_body.read_limited_body with MAX_RESPONSE_BYTES; keep the
     exporter responsible for response closure, retry budget and dropped-span
     accounting. This task changes no limits, telemetry payload or wire schema.
+  sibling_review: >-
+    Worker protobuf and JSON acknowledgements share classify_response and now
+    share http_body.read_limited_body with HTTP/Caido. The exporter retains
+    response closure, status/Retry-After classification, deadlines and loss
+    accounting. Planner admission was inspected in
+    internal/telemetry/planner_otlp.go:354: io.ReadAll wraps the streaming
+    response reader in io.LimitReader(maxPlannerResponseBytes+1), with a
+    64-KiB ceiling. Go's incremental reader does not expose the HTTPX
+    whole-chunk decoding defect; its protocol and retry behavior are unchanged.
 scope:
   in:
     - Replace post-decode iteration with the existing reader that caps received and incrementally decoded bytes before accumulation.
@@ -72,3 +82,21 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+verification: >-
+  The new compression/received-byte selection on the original reader produced
+  9 failures and 1 pass: all eight protobuf/JSON gzip, deflate, raw-deflate
+  and layered expansion cases exposed unbounded zlib output, and the padded
+  gzip receipt wrongly accepted more than 64 KiB of wire data. After the fix,
+  the exact required six-file Runtime selection passed all 228 tests with
+  warnings treated as errors. The real exporter tests count zlib output and
+  requested max_length (at most 65,537 bytes per layer), early stream stops,
+  closure, one terminal loss count, valid/partial receipts, exact-boundary
+  success, corrupt compression, status precedence, cancellation, shutdown,
+  batch expiry and the enclosing flush deadline. No live collector or
+  database was needed.
+  make lint passed with cached pinned Go 1.26.9, Node 24.20.0 and pnpm
+  11.24.0, including all four Runtime import contracts. The script suite's
+  optional PostgreSQL generator test was skipped because
+  CONTRACTOR_TEST_DATABASE_URL was unset; no PostgreSQL execution is claimed.
+  Full lint output: /private/tmp/v433-003-lint.log.
+landing: Implemented on codex/v433-003-otlp-bounds; not merged into main.

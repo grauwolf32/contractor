@@ -799,8 +799,14 @@ batch expires without another attempt (FAIL-OBS-5).
 acknowledgements. JSON decoding ignores unknown message fields, including
 additional receipt metadata, as required by OTLP/JSON and consistent with binary
 protobuf. Known fields such as `partialSuccess.rejectedSpans` retain their
-validation; malformed and oversized acknowledgements are rejected. Worker
-delivery treats them as terminal
+validation; malformed and oversized acknowledgements are rejected. The Worker
+applies the acknowledgement byte ceiling (LIM-OBS-22) separately to received
+and decoded bytes, using the shared HTTP-body reader. Compressed responses
+are decoded incrementally, with each decoding layer bounded before output is
+accumulated and at most a one-byte overflow probe. Wire overflow, decoded
+overflow and malformed compression are invalid acknowledgements. The exporter
+closes the response under the existing delivery deadline.
+Worker delivery treats invalid acknowledgements as terminal
 (FAIL-OBS-5); Planner delivery reports its existing export failure.
 
 **OBS-R78.** OTLP partial success is never retried: only the
@@ -1008,6 +1014,8 @@ Limits ([registry](limits.md)):
   written decimal exponent between -7 and 19 (OBS-R42, OBS-R110).
 - LIM-OBS-17 — each integer of an execution report's metrics between 0 and
   2^53-1 (OBS-R111).
+- LIM-OBS-22 — received and incrementally decoded Worker acknowledgement bytes,
+  including each decoding layer's overflow probe (OBS-R77).
 - The Worker export settings and their ranges belong to
   [Runtime configuration](../configuration/runtime-config.md); the
   `AttemptDiagnostics` bounds to [Runs](../execution/runs.md)
