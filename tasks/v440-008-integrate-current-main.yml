@@ -6,13 +6,17 @@ epic: api-contracts
 kind: chore
 introduced_by: V440-007
 priority: P2
-status: in_progress
-depends_on: [V440-006, V440-007]
+status: pending
+depends_on: [V440-006, V440-007, V440-009]
 languages: [go, typescript]
 goal: >-
   The verified HTTP review can land on current main while preserving the newer
   Control Plane engagement adapter, explicit shared Artifact storage and UI work.
 context:
+  prerequisite: >-
+    V440-009 corrects an incoming UI error fixture rejected by the existing
+    public API guard. Resume this integration task after that independent
+    fixture correction is completed; the merge resolutions are already committed.
   task_id_history: "HTTP review IDs moved from V439 to V440 on 2026-11-03 because main had already published the V439 Control Plane tasks."
   authority:
     - date: "2026-11-03"
