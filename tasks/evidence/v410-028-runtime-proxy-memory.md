@@ -1,6 +1,8 @@
 # Память Runtime и встроенного mitmproxy
 
 Дата: 2026-11-03. Ветка: `codex/sitemap-source-comparison`.
+Коммит теста: `544e8bab96ab3e91c02799e7515a5eba0c5f631a`.
+Задача: [V410-028](../done/v410-028-runtime-proxy-memory-assessment.yml).
 
 Наиболее полезная оптимизация под HTTP-нагрузкой — передавать большие тела
 потоком и не хранить их повторно в proxy flows. Минимальная композиция addons
