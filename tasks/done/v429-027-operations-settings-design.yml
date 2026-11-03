@@ -5,7 +5,7 @@ milestone: ui-journey-usability
 epic: ui
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V429-026]
 languages: [javascript, html, css]
 goal: Operators can distinguish execution defaults from personal settings and edit one setting without navigating an undifferentiated long form.
@@ -115,3 +115,5 @@ verification:
   - >-
     python3 scripts/check_tasks.py, python3 scripts/check_spec.py and git diff
     --check pass. No production source changed and no production UI gate ran.
+
+implementation_commit: d090c797e1cb901ecb7ce5da6642a60f920b9dcc
