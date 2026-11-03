@@ -9,21 +9,35 @@ title: Use the shared Planner subtask grammar in telemetry
 kind: defect
 introduced_by: V384-001
 priority: P3
-status: in_progress
+status: completed
 goal: Telemetry preserves every legal Planner subtask ID including 100 through 999.
 context:
-  authority: 'User request 2026-11-03: implement the reviewed Planner simplifications and optimizations first,
-    then fix the four reproduced defects. Preserve the existing Planner/domain/Server-operation boundaries.'
+  authority: 'User request on 2026-11-03: "Давай сделаем упрощения и оптимизации и затем поправим проблемы".'
   finding: internal/planner/streamline/tools.go:663 keeps the historical two-digit rule after Workflow plan
     limits expanded to 1000.
   siblings: Streamline and Router share one engine. Passthrough, scan, durable reads, Gateway main/compactor
     and telemetry consumers are checked where applicable; no Runtime or UI behavior change is introduced.
   specification:
-  - docs/spec/execution/planners.md
-  - docs/spec/platform/limits.md
-  boundary: Planner owns orchestration; Session owns durable receipts and validation; StateView owns revision-bound
-    projections. Keep existing events and stores rather than adding batching protocols, tables or receipt owners.
-    Reopen atomic event batching only if measured database cost justifies a separate change.
+  - docs/spec/execution/planners.md#PLN-R27
+  - docs/spec/execution/planners.md#PLN-R120
+  boundary: 'Implementation decision: preserve the existing Planner/domain/Server-operation separation and
+    public fact vocabulary. Keep receipt capacity derived from the pinned plan rather than introduce a new
+    event-batching protocol or receipt owner. Atomic event batching remains a separate option if measured database
+    cost warrants it.'
+  verification:
+    date: '2026-11-03'
+    environment: Go 1.26.9 darwin/arm64; dedicated disposable PostgreSQL; scripted models, local HTTP Gateway
+      and OTLP fixtures.
+    evidence: The existing shared Planner ID fixture accepts 100 and 999 and rejects leading zeros and out-of-range
+      values. Complete scripted ADK invocations through subtask 100 preserve that ID in both the execution
+      report and real HTTP OTLP Worker spans for Streamline and Router. These regressions fail with the previous
+      sanitizer.
+    checks:
+    - make lint
+    - go test -p=2 -count=1 ./internal/planner/... ./internal/scheduler ./internal/archtest ./tests/integration/streamline
+      (with PostgreSQL)
+    - go test -race -p=2 -count=1 ./internal/planner/... (with PostgreSQL)
+    - go test -count=1 ./internal/runstore ./internal/httpapi/public (with PostgreSQL)
 scope:
   in:
   - Reuse the existing Planner ID validator in tool metric arguments and spans.
@@ -54,3 +68,4 @@ tests:
   - A1
   - A2
   - A3
+implementation_commit: cd3a06322ef6f969ea0fe72f17abc25ed41aef86
