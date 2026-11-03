@@ -9,22 +9,35 @@ title: Derive Planner fact capacity from the pinned subtask limit
 kind: defect
 introduced_by: V384-001
 priority: P2
-status: in_progress
+status: completed
 goal: A configured plan can execute its selected number of short subtasks without exhausting an unrelated 256-fact
   ceiling.
 context:
-  authority: 'User request 2026-11-03: implement the reviewed Planner simplifications and optimizations first,
-    then fix the four reproduced defects. Preserve the existing Planner/domain/Server-operation boundaries.'
+  authority: 'User request on 2026-11-03: "Давай сделаем упрощения и оптимизации и затем поправим проблемы".'
   finding: internal/planner/session/service.go:342 rejects the 86th sequential dispatch of a 100-subtask plan
     after add/current, selection and completion/current facts consume 256 entries.
   siblings: Streamline and Router share one engine. Passthrough, scan, durable reads, Gateway main/compactor
     and telemetry consumers are checked where applicable; no Runtime or UI behavior change is introduced.
   specification:
-  - docs/spec/execution/planners.md
-  - docs/spec/platform/limits.md
-  boundary: Planner owns orchestration; Session owns durable receipts and validation; StateView owns revision-bound
-    projections. Keep existing events and stores rather than adding batching protocols, tables or receipt owners.
-    Reopen atomic event batching only if measured database cost justifies a separate change.
+  - docs/spec/execution/planners.md#PLN-R27
+  - docs/spec/execution/planners.md#PLN-R106
+  - docs/spec/platform/limits.md#LIM-PLN-19
+  boundary: 'Implementation decision: preserve the existing Planner/domain/Server-operation separation and
+    public fact vocabulary. Keep receipt capacity derived from the pinned plan rather than introduce a new
+    event-batching protocol or receipt owner. Atomic event batching remains a separate option if measured database
+    cost warrants it.'
+  verification:
+    date: '2026-11-03'
+    environment: Go 1.26.9 darwin/arm64; dedicated disposable PostgreSQL; scripted models, local HTTP Gateway
+      and OTLP fixtures.
+    evidence: PostgreSQL accepts 100 sequential add/dispatch/complete cycles and all 301 fact receipts, including
+      finish; its equal-key replay adds no Run event. Write/read bounds cover omitted, 1, 100 and 1000 subtask
+      selections. The same regression fails on the former 256-receipt implementation at dispatch 86.
+    checks:
+    - make lint
+    - go test -p=2 -count=1 ./internal/planner/... ./internal/scheduler ./internal/archtest ./tests/integration/streamline
+      (with PostgreSQL)
+    - go test -race -p=2 -count=1 ./internal/planner/... (with PostgreSQL)
 scope:
   in:
   - Derive the bounded receipt capacity from the pinned subtask budget and the existing event sequence; keep
@@ -54,3 +67,4 @@ tests:
   - A1
   - A2
   - A3
+implementation_commit: 1d272e45643be9a9dafeb39ef3c3f1ed9be52d37
