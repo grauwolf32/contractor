@@ -6733,9 +6733,12 @@ type AttemptDiagnostics struct {
 
 // Audit defines model for Audit.
 type Audit struct {
-	AuditId   ResourceId     `json:"auditId"`
-	Baseline  *AuditBaseline `json:"baseline,omitempty"`
-	CreatedAt time.Time      `json:"createdAt"`
+	AuditId  ResourceId     `json:"auditId"`
+	Baseline *AuditBaseline `json:"baseline,omitempty"`
+
+	// CollectionPending A terminal child execution still has uncommitted output collection, including remaining prepared-work intake. Paused clients keep polling until this is false and outstandingRunCount is zero.
+	CollectionPending bool      `json:"collectionPending"`
+	CreatedAt         time.Time `json:"createdAt"`
 
 	// DeadlineAt Absent when the started Audit has no time limit.
 	DeadlineAt          *time.Time                    `json:"deadlineAt,omitempty"`

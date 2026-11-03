@@ -75,6 +75,7 @@ const audit: Audit = {
   reservedRunCount: 0,
   submittedRunCount: 0,
   outstandingRunCount: 0,
+  collectionPending: false,
   retainedEvidenceBytes: 0,
   eventSequence: 1,
   createdAt: "2026-09-06T10:00:00Z",

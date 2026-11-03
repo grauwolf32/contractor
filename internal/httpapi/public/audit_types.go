@@ -108,6 +108,7 @@ type auditResponse struct {
 	ReservedRunCount        int                                 `json:"reservedRunCount"`
 	SubmittedRunCount       int                                 `json:"submittedRunCount"`
 	OutstandingRunCount     int                                 `json:"outstandingRunCount"`
+	CollectionPending       bool                                `json:"collectionPending"`
 	RetainedEvidenceBytes   int64                               `json:"retainedEvidenceBytes"`
 	EventSequence           uint64                              `json:"eventSequence"`
 	StopReason              *auditStopReasonResponse            `json:"stopReason,omitempty"`

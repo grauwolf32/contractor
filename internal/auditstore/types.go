@@ -262,14 +262,17 @@ type Audit struct {
 	// (AUX-R3).
 	OutstandingRunCount     int
 	OutstandingToolRunCount int
-	RetainedEvidenceBytes   int64
-	EventSequence           uint64
-	StopReason              *StopReason
-	CreatedAt               time.Time
-	UpdatedAt               time.Time
-	StartedAt               *time.Time
-	FinishedAt              *time.Time
-	DeletionRequestedAt     *time.Time
+	// CollectionPending is derived in the read snapshot from terminal
+	// executions whose output collection has not committed yet.
+	CollectionPending     bool
+	RetainedEvidenceBytes int64
+	EventSequence         uint64
+	StopReason            *StopReason
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+	StartedAt             *time.Time
+	FinishedAt            *time.Time
+	DeletionRequestedAt   *time.Time
 }
 
 type CreateDraftParams struct {

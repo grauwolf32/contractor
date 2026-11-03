@@ -40,6 +40,7 @@ func auditReadModel(source auditstore.Audit) (auditResponse, error) {
 		DispatchState: source.Dispatch, HoldState: source.Hold, DeadlineAt: source.DeadlineAt, PausedAt: source.PausedAt,
 		Limits: source.Limits, ReservedRunCount: source.ReservedRunCount,
 		SubmittedRunCount: source.SubmittedRunCount, OutstandingRunCount: source.OutstandingRunCount,
+		CollectionPending:     source.CollectionPending,
 		RetainedEvidenceBytes: source.RetainedEvidenceBytes, EventSequence: source.EventSequence,
 		CreatedAt: source.CreatedAt, UpdatedAt: source.UpdatedAt,
 		StartedAt: source.StartedAt, FinishedAt: source.FinishedAt,

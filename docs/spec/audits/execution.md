@@ -1199,6 +1199,13 @@ deletion preserve and collect admitted outcomes while settling undispatched
 Tasks with explicit gaps; they accept no further prepared work. No extra waiting
 state, automatic generator or continuation mechanism is inferred from a material.
 
+Audit projections expose `collectionPending`, derived from an indexed existence
+lookup of collecting executions in the same read snapshot. Terminal observation
+can reduce `outstandingRunCount` to zero before this flag clears. Paused readers
+continue polling through collection and any remaining prepared-work intake;
+neither zero active Runs nor ready undispatched Tasks alone determine whether
+collection has settled. The projection introduces no stored counter or state.
+
 **AUX-R110.** Attempt ceilings are the minimum of the effective Audit ceiling
 and the binding's optional tighter limit. The effective Audit may tighten the
 Program's task, iteration, batch, Run, attempt and evidence ceilings and never

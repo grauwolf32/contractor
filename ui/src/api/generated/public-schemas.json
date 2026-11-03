@@ -6160,6 +6160,7 @@
         "reservedRunCount",
         "submittedRunCount",
         "outstandingRunCount",
+        "collectionPending",
         "retainedEvidenceBytes",
         "eventSequence",
         "createdAt",
@@ -6220,6 +6221,7 @@
         "reservedRunCount": { "type": "integer", "minimum": 0 },
         "submittedRunCount": { "type": "integer", "minimum": 0 },
         "outstandingRunCount": { "type": "integer", "minimum": 0 },
+        "collectionPending": { "type": "boolean" },
         "retainedEvidenceBytes": { "type": "integer", "minimum": 0 },
         "eventSequence": { "type": "integer", "minimum": 0 },
         "stopReason": {

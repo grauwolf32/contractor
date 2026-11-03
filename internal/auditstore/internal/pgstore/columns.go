@@ -86,7 +86,11 @@ func qualifiedColumns(prefix string, columns []string) string {
 }
 
 func prefixedAuditColumns(prefix string) string {
-	return qualifiedColumns(prefix, auditColumnList)
+	// The sparse reconcile index bounds this existence probe independently of
+	// settled history. Keep it in the same snapshot for reads and mutations.
+	return qualifiedColumns(prefix, auditColumnList) + `, EXISTS (
+ SELECT 1 FROM audit_executions AS pending_collection
+ WHERE pending_collection.audit_id=` + prefix + `.audit_id AND pending_collection.state='collecting')`
 }
 
 // ExecutionColumns selects the execution columns of the table or alias

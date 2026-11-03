@@ -4333,6 +4333,8 @@ export interface components {
             reservedRunCount: number;
             submittedRunCount: number;
             outstandingRunCount: number;
+            /** @description A terminal child execution still has uncommitted output collection, including remaining prepared-work intake. Paused clients keep polling until this is false and outstandingRunCount is zero. */
+            collectionPending: boolean;
             retainedEvidenceBytes: number;
             eventSequence: number;
             stopReason?: components["schemas"]["AuditStopReason"];

@@ -127,6 +127,7 @@ export function audit(
         ),
         submittedRunCount: 0,
         outstandingRunCount: 0,
+        collectionPending: false,
         retainedEvidenceBytes: 0,
         eventSequence: 1,
         createdAt: NOW,

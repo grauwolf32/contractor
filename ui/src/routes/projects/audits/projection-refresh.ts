@@ -24,7 +24,8 @@ export function useAuditProjectionRefresh(
       (!phaseChanged &&
         before.revision === audit.revision &&
         before.state === audit.state &&
-        before.outstandingRunCount === audit.outstandingRunCount) ||
+        before.outstandingRunCount === audit.outstandingRunCount &&
+        before.collectionPending === audit.collectionPending) ||
       (!phaseChanged && auditPollInterval([audit]) !== false)
     ) {
       return;

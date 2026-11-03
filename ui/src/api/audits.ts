@@ -507,8 +507,8 @@ export function auditMutationAudit(value: Audit | AuditStartResponse): Audit {
 
 /**
  * These states need interval polling on their own. A paused Audit can still
- * change while submitted Runs drain; callers should use auditPollInterval
- * when they have the outstanding Run count.
+ * change while submitted Runs drain and terminal outputs are collected;
+ * callers should use auditPollInterval with the authoritative Audit projection.
  */
 function auditNeedsPolling(state: AuditState): boolean {
   return isStateIn(CHANGING_AUDIT_STATES, state);
@@ -516,11 +516,17 @@ function auditNeedsPolling(state: AuditState): boolean {
 
 /** Polling interval for a set of Audits: off when none of them can change. */
 export function auditPollInterval(
-  audits: Iterable<Pick<Audit, "state" | "outstandingRunCount">>,
+  audits: Iterable<
+    Pick<Audit, "state" | "outstandingRunCount" | "collectionPending">
+  >,
   interval = 5_000,
 ): number | false {
   for (const audit of audits) {
-    if (auditNeedsPolling(audit.state) || audit.outstandingRunCount > 0)
+    if (
+      auditNeedsPolling(audit.state) ||
+      audit.outstandingRunCount > 0 ||
+      audit.collectionPending
+    )
       return interval;
   }
   return false;

@@ -14072,7 +14072,7 @@ components:
     Audit:
       type: object
       additionalProperties: false
-      required: [auditId, projectId, profile, inputs, scope, runtimeLabels, state, taskCount, iteration, revision, dispatchState, holdState, limits, reservedRunCount, submittedRunCount, outstandingRunCount, retainedEvidenceBytes, eventSequence, createdAt, updatedAt]
+      required: [auditId, projectId, profile, inputs, scope, runtimeLabels, state, taskCount, iteration, revision, dispatchState, holdState, limits, reservedRunCount, submittedRunCount, outstandingRunCount, collectionPending, retainedEvidenceBytes, eventSequence, createdAt, updatedAt]
       properties:
         labels: {$ref: '#/components/schemas/AuditLabels'}
         requiredPlacementLabels: {$ref: '#/components/schemas/PlacementLabels'}
@@ -14103,6 +14103,9 @@ components:
         reservedRunCount: {type: integer, minimum: 0}
         submittedRunCount: {type: integer, minimum: 0}
         outstandingRunCount: {type: integer, minimum: 0}
+        collectionPending:
+          type: boolean
+          description: A terminal child execution still has uncommitted output collection, including remaining prepared-work intake. Paused clients keep polling until this is false and outstandingRunCount is zero.
         retainedEvidenceBytes: {type: integer, minimum: 0}
         eventSequence: {type: integer, minimum: 0}
         stopReason: {$ref: '#/components/schemas/AuditStopReason'}

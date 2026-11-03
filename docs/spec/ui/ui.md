@@ -1007,6 +1007,9 @@ claiming an immutable per-item ledger.
 **UI-R155.** The UI uses bounded polling of authoritative Audit and profile
 reads while an Audit is nonterminal or deleting, keyed by Audit revision or
 ETag, and stops when the route is inactive or the Audit is terminal.
+Paused Audits keep polling while `outstandingRunCount` is positive or
+`collectionPending` is true. After both clear, dependent projections receive
+one final fresh read before polling stops.
 
 **UI-R156.** The UI refetches Audit reads immediately after a mutation and
 after browser reconnect.
