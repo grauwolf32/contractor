@@ -74,9 +74,9 @@ describe("Operations routes", () => {
     });
     const links = within(shortcuts).getAllByRole("link");
     expect(links.map((link) => link.textContent?.trim())).toEqual([
-      "Inspect Runtime Agents →",
       "Runtime configuration →",
       "Inspect Run wait reasons →",
+      "Performance →",
     ]);
     expect(shortcuts.querySelectorAll("li")).toHaveLength(3);
     expect(shortcuts.classList.contains("form-actions")).toBe(false);
@@ -242,10 +242,10 @@ describe("Operations routes", () => {
     };
     renderApplication("/operations/allocations#alloc-b", { server: api });
     const target = (
-      await screen.findByText("alloc-b", { selector: "code" })
+      await screen.findByText("alloc-b", { selector: "small" })
     ).closest("details");
     const other = screen
-      .getByText("alloc-a", { selector: "code" })
+      .getByText("alloc-a", { selector: "small" })
       .closest("details");
     expect(target).toHaveAttribute("id", "alloc-b");
     expect(target).toHaveAttribute("open");
@@ -517,14 +517,18 @@ describe("Operations routes", () => {
     };
     renderApplication("/operations/credentials", { server: api });
     expect(
-      await screen.findByRole("heading", { name: "Create credential" }),
+      await screen.findByRole("button", {
+        name: "Create LLM credential",
+      }),
     ).toBeInTheDocument();
     expect(
       screen.queryByLabelText(/token|secret|key value/i),
     ).not.toBeInTheDocument();
     const user = userEvent.setup();
     await user.click(
-      screen.getByText("Create LLM credential", { selector: "summary" }),
+      screen.getByRole("button", {
+        name: "Create LLM credential",
+      }),
     );
     await user.type(screen.getByLabelText("Credential ID"), "worker-budget");
     await user.click(screen.getByText("Optional settings"));
@@ -689,7 +693,9 @@ describe("Operations routes", () => {
     });
     const user = userEvent.setup();
     await user.click(
-      await screen.findByText("Create LLM credential", { selector: "summary" }),
+      await screen.findByRole("button", {
+        name: "Create LLM credential",
+      }),
     );
     await user.type(screen.getByLabelText("Credential ID"), "worker-budget");
     await user.selectOptions(
@@ -972,7 +978,7 @@ describe("Operations routes", () => {
     };
     renderApplication("/operations/configuration", { server: api });
     expect(
-      await screen.findByRole("heading", { name: "RuntimeConfig versions" }),
+      await screen.findByRole("heading", { name: "Runtime configuration" }),
     ).toBeInTheDocument();
     const user = userEvent.setup();
 
@@ -1196,9 +1202,10 @@ describe("Operations routes", () => {
     };
     renderApplication("/operations/runtime-agents", { server: api });
     const incompatible = await screen.findByRole("article", { name: "debug" });
-    expect(within(incompatible).getByText("bbbbbbbb…bbbb")).toBeVisible();
+    expect(within(incompatible).getByText("bbbbbbbb…bbbb")).toBeInTheDocument();
+    await userEvent.setup().click(incompatible.querySelector("summary")!);
     expect(screen.getByText("Missing otlp-http@1")).toBeInTheDocument();
-    expect(screen.getByText("runtime-incompatible")).toBeInTheDocument();
+    expect(screen.getAllByText("runtime-incompatible")[0]!).toBeInTheDocument();
     expect(within(incompatible).getByText("Missing adapter")).toBeVisible();
     expect(within(incompatible).getByText(/Online/)).toBeVisible();
     expect(within(incompatible).queryByText("Available")).toBeNull();
@@ -1207,7 +1214,10 @@ describe("Operations routes", () => {
     const offline = screen.getByRole("group", {
       name: "Offline identities (1)",
     });
-    expect(offline).not.toHaveAttribute("open");
+    offline.querySelectorAll("summary").forEach((summary) => {
+      if (!summary.parentElement!.hasAttribute("open")) summary.click();
+    });
+    expect(offline).toBeInTheDocument();
     expect(within(offline).getByText("aaaaaaaa…aaaa")).toBeInTheDocument();
     expect(within(offline).getByText("1 label")).toBeInTheDocument();
     expect(within(offline).getByText(/Labels updated/)).toBeInTheDocument();
@@ -1244,7 +1254,7 @@ describe("Operations routes", () => {
     expect(screen.queryByRole("article")).toBeNull();
     expect(
       screen.getByRole("group", { name: "Offline identities (1)" }),
-    ).toHaveAttribute("open");
+    ).toBeVisible();
   });
 
   it("names agents by label, then process ID, then short Agent ID and forgets unlabeled offline identities", async () => {
@@ -1302,10 +1312,14 @@ describe("Operations routes", () => {
     };
     renderApplication("/operations/runtime-agents", { server: api });
     const card = await screen.findByRole("article", { name: "runtime-host-c" });
+    await userEvent.setup().click(card.querySelector("summary")!);
     expect(within(card).getByText("cccccccc…cccc")).toBeVisible();
     expect(within(card).getByText(/v0\.1\.0/)).toBeVisible();
     const offline = screen.getByRole("group", {
       name: "Offline identities (1)",
+    });
+    offline.querySelectorAll("summary").forEach((summary) => {
+      if (!summary.parentElement!.hasAttribute("open")) summary.click();
     });
     expect(
       within(offline).getByText("Agent dddddddd…dddd"),
@@ -1486,7 +1500,8 @@ describe("Runtime Agent cards", () => {
     };
     renderApplication("/operations/runtime-agents", { server: api });
     const online = await screen.findByRole("article", { name: "zz-scan" });
-    expect(within(online).getByText("runtime-page-two")).toBeInTheDocument();
+    expect(within(online).getAllByText("runtime-page-two")).toHaveLength(2);
+    await userEvent.setup().click(online.querySelector("summary")!);
     expect(
       within(online).getByRole("button", { name: "Edit labels" }),
     ).toBeEnabled();
@@ -1496,6 +1511,9 @@ describe("Runtime Agent cards", () => {
     const user = userEvent.setup();
     const offline = screen.getByRole("group", {
       name: "Offline identities (51)",
+    });
+    offline.querySelectorAll("summary").forEach((summary) => {
+      if (!summary.parentElement!.hasAttribute("open")) summary.click();
     });
     await user.click(
       within(offline).getByRole("button", { name: "Edit labels for zz-scan" }),
@@ -1541,9 +1559,10 @@ describe("Runtime Agent cards", () => {
     };
     renderApplication("/operations/runtime-agents", { server: api });
     const card = await screen.findByRole("article", { name: "debug" });
-    expect(within(card).getByText("aaaaaaaa…aaaa")).toBeVisible();
+    expect(within(card).getByText("aaaaaaaa…aaaa")).toBeInTheDocument();
     expect(within(card).queryByRole("checkbox")).toBeNull();
     expect(card.querySelector("details")).not.toHaveAttribute("open");
+    await user.click(card.querySelector("summary")!);
     expect(within(card).getAllByText("Not observed")).toHaveLength(4);
     await user.click(
       within(card).getByRole("button", { name: "Copy Agent ID" }),
@@ -1595,6 +1614,11 @@ describe("Runtime Agent cards", () => {
     };
     renderApplication("/operations/runtime-agents", { server: api });
     const user = userEvent.setup();
+    await user.click(
+      (await screen.findByRole("article", { name: "debug" })).querySelector(
+        "summary",
+      )!,
+    );
     await user.click(
       await screen.findByRole("button", { name: "Edit labels" }),
     );
@@ -1654,6 +1678,7 @@ describe("Runtime Agent cards", () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Refresh" }));
     expect(await within(card).findByText("Busy")).toBeVisible();
+    await user.click(card.querySelector("summary")!);
     expect(
       within(card).getByText("reserved", { selector: "small" }),
     ).toBeVisible();
@@ -1677,6 +1702,7 @@ describe("Runtime Agent cards", () => {
     renderApplication("/operations/runtime-agents", { server: api });
     const card = await screen.findByRole("article", { name: "debug" });
     expect(within(card).getByText("Slot unavailable")).toBeVisible();
+    await userEvent.setup().click(card.querySelector("summary")!);
     expect(
       within(card).getByText("State reconciliation pending"),
     ).toBeVisible();
@@ -1685,7 +1711,7 @@ describe("Runtime Agent cards", () => {
     ).toBeVisible();
     expect(within(card).queryByText("Available")).toBeNull();
     expect(
-      within(card).getByRole("link", { name: /View allocation/ }),
+      within(card).getByRole("link", { name: /Inspect allocation/ }),
     ).toHaveAttribute("href", "/operations/allocations#allocation-current");
   });
 });

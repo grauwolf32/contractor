@@ -1,4 +1,4 @@
-import { Outlet } from "react-router";
+import { Outlet, useLocation } from "react-router";
 
 import { ScopeChip } from "../common";
 
@@ -8,6 +8,13 @@ import { ScopeChip } from "../common";
  * to configuration and credential events for every section.
  */
 export function RuntimeConfigurationLayout() {
+  const location = useLocation();
+  if (location.pathname.replace(/\/$/, "") === "/operations/configuration")
+    return (
+      <div className="ops-stack">
+        <Outlet />
+      </div>
+    );
   return (
     <div className="ops-stack">
       <header className="ops-section-head">

@@ -20,6 +20,7 @@ import {
   IdChip,
   StatusChip,
   StatusGlyph,
+  TechnicalDetails,
 } from "../../ui";
 import { SettingSection, type SettingHeadingLevel } from "./section";
 
@@ -176,56 +177,62 @@ export function GitKeySettings({
         }
       </QueryView>
 
-      <form className="ops-setting-form" onSubmit={submit}>
-        <Field
-          label="SSH private key"
-          hint="Unencrypted OpenSSH or PEM · maximum 32 KiB."
-        >
-          {(control) => (
-            <textarea
-              {...control}
-              className="ops-secret-input"
-              value={privateKey}
-              onChange={(event) => setPrivateKey(event.target.value)}
-              autoComplete="off"
-              spellCheck={false}
-              rows={7}
-              disabled={pending}
-              placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
-            />
+      <TechnicalDetails
+        summary={
+          query.data?.configured ? "Replace Git SSH key" : "Add Git SSH key"
+        }
+      >
+        <form className="ops-setting-form" onSubmit={submit}>
+          <Field
+            label="SSH private key"
+            hint="Unencrypted OpenSSH or PEM · maximum 32 KiB."
+          >
+            {(control) => (
+              <textarea
+                {...control}
+                className="ops-secret-input"
+                value={privateKey}
+                onChange={(event) => setPrivateKey(event.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+                rows={7}
+                disabled={pending}
+                placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
+              />
+            )}
+          </Field>
+          {error === undefined || confirmRemoval ? null : (
+            <ErrorNotice error={error} />
           )}
-        </Field>
-        {error === undefined || confirmRemoval ? null : (
-          <ErrorNotice error={error} />
-        )}
-        {saved ? (
-          <div className="notice notice-success" role="status">
-            {saved}
+          {saved ? (
+            <div className="notice notice-success" role="status">
+              {saved}
+            </div>
+          ) : null}
+          <div className="ops-form-actions">
+            <Button
+              variant="primary"
+              type="submit"
+              disabled={privateKey === ""}
+              pending={pending}
+              pendingLabel="Saving…"
+            >
+              {query.data?.configured ? "Replace Git key" : "Save Git key"}
+            </Button>
+            <Button
+              variant="danger"
+              disabled={pending || !query.data?.configured}
+              aria-haspopup="dialog"
+              onClick={() => {
+                setError(undefined);
+                setConfirmRemoval(true);
+              }}
+            >
+              Remove Git key
+            </Button>
           </div>
-        ) : null}
-        <div className="ops-form-actions">
-          <Button
-            variant="primary"
-            type="submit"
-            disabled={privateKey === ""}
-            pending={pending}
-            pendingLabel="Saving…"
-          >
-            {query.data?.configured ? "Replace Git key" : "Save Git key"}
-          </Button>
-          <Button
-            variant="danger"
-            disabled={pending || !query.data?.configured}
-            aria-haspopup="dialog"
-            onClick={() => {
-              setError(undefined);
-              setConfirmRemoval(true);
-            }}
-          >
-            Remove Git key
-          </Button>
-        </div>
-      </form>
+        </form>
+      </TechnicalDetails>
       {confirmRemoval ? (
         <AlertDialog
           eyebrow="Confirm removal"

@@ -1,10 +1,10 @@
-import "./operations.css";
+import "./styles";
 import { useDocumentTitle } from "../../app/document-title";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router";
 
-import { MobileSectionPicker } from "../../app/mobile-section-picker";
+import { Icon } from "../../app/icon";
 import type { PublicAPI } from "../../api/client";
 import { usePublicAPI } from "../../api/context";
 import {
@@ -28,18 +28,33 @@ import { OperationsLiveRefresh } from "./live-refresh";
 import { SETTINGS_PATH } from "./settings/path";
 
 const navigation = [
-  { to: "/operations", label: "Overview", end: true },
-  { to: "/operations/runtime-agents", label: "Runtime Agents" },
-  { to: "/operations/allocations", label: "Allocations" },
-  { to: "/operations/performance", label: "Performance" },
-  { to: "/operations/configuration", label: "Configuration", setup: true },
+  { to: "/operations", label: "Overview", icon: "operations", end: true },
+  {
+    to: "/operations/runtime-agents",
+    label: "Runtime Agents",
+    icon: "operations",
+  },
+  { to: "/operations/allocations", label: "Allocations", icon: "binding" },
+  { to: "/operations/performance", label: "Performance", icon: "history" },
+  {
+    to: "/operations/configuration",
+    label: "Configuration",
+    icon: "binding",
+    setup: true,
+  },
   {
     to: "/operations/configurations",
     label: "LLM configurations",
+    icon: "docs",
     setup: true,
   },
-  { to: "/operations/credentials", label: "Credentials", setup: true },
-  { to: SETTINGS_PATH, label: "Settings", setup: true },
+  {
+    to: "/operations/credentials",
+    label: "Credentials",
+    icon: "target",
+    setup: true,
+  },
+  { to: SETTINGS_PATH, label: "Settings", icon: "settings", setup: true },
 ] as const;
 
 /** First tab of the Setup group; a divider and label precede it. */
@@ -352,82 +367,122 @@ export function OperationsLayoutRoute() {
         </div>
         {independentRead ? null : (
           <div className="ops-page-actions">
+            <StatusChip
+              tone={
+                query.isError && query.data === undefined
+                  ? "blocked"
+                  : CONNECTION_TONES[connection]
+              }
+              size="sm"
+            >
+              {query.isError && query.data === undefined
+                ? "Read failed"
+                : connection === "live"
+                  ? "Live updates"
+                  : connection.replaceAll("_", " ")}
+            </StatusChip>
             <RefreshButton isFetching={query.isFetching} onRefresh={refresh} />
           </div>
         )}
       </header>
 
-      <div className="ops-page-tabs">
-        <nav
-          className="ops-tabs section-navigation"
-          aria-label="Operations sections"
-        >
-          {navigation.map((item) => (
-            <Fragment key={item.to}>
-              {item.to === SETUP_GROUP_START ? (
-                <span className="ops-tabs-group" aria-hidden="true">
-                  Setup
-                </span>
-              ) : null}
-              <NavLink
-                to={item.to}
-                end={"end" in item ? item.end : false}
-                className={({ isActive }) => (isActive ? "active" : undefined)}
-              >
-                {item.label}
-              </NavLink>
-            </Fragment>
-          ))}
-        </nav>
-        <MobileSectionPicker
-          label="Operations section"
-          value={currentSection?.to ?? "/operations"}
-          options={navigation}
-          state={location.state}
-        />
-      </div>
-
-      <div className="ops-page-body">
-        {independentRead ? (
-          <Outlet />
-        ) : (
-          <QueryView
-            query={query}
-            loading={
-              <p className="ops-loading" role="status">
-                Loading Operations snapshot…
-              </p>
-            }
-            onRetry={refresh}
-          >
-            {(snapshot) => (
-              <>
-                <OperationsLiveSubscription
-                  key={liveKey}
-                  snapshot={snapshot}
-                  onConnection={recordConnection}
-                  onError={recordLiveError}
-                  onResync={recordResync}
-                />
-                <Outlet
-                  context={
-                    {
-                      snapshot: snapshot,
-                      refresh,
-                      refreshing: query.isFetching,
-                    } satisfies OperationsOutletContext
+      <div className="ops-workspace">
+        <aside className="ops-page-tabs" aria-label="Operations navigation">
+          <div className="ops-navigation-title">
+            <strong>{currentSection?.label ?? "Overview"}</strong>
+            <small>Operations sections</small>
+          </div>
+          <nav className="ops-tabs" aria-label="Operations sections">
+            {navigation.map((item) => (
+              <Fragment key={item.to}>
+                {item.to === SETUP_GROUP_START ? (
+                  <span className="ops-tabs-group" aria-hidden="true">
+                    Setup
+                  </span>
+                ) : null}
+                <NavLink
+                  to={item.to}
+                  end={"end" in item ? item.end : false}
+                  className={({ isActive }) =>
+                    isActive ? "active" : undefined
                   }
-                />
-                <SnapshotDiagnostics
-                  snapshot={snapshot}
-                  connection={connection}
-                  resyncReason={resyncReason}
-                  liveError={liveError}
-                />
-              </>
-            )}
-          </QueryView>
-        )}
+                >
+                  <Icon name={item.icon} size={18} />
+                  <span>{item.label}</span>
+                </NavLink>
+              </Fragment>
+            ))}
+          </nav>
+          <details className="ops-mobile-navigation">
+            <summary>
+              <div>
+                <strong>{currentSection?.label ?? "Overview"}</strong>
+                <small>Operations sections</small>
+              </div>
+              <Icon name="list" size={18} />
+            </summary>
+            <nav className="ops-tabs" aria-label="Operations mobile sections">
+              {navigation.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  state={location.state}
+                  end={"end" in item ? item.end : false}
+                  onClick={(event) => {
+                    const menu = event.currentTarget.closest("details");
+                    if (menu) menu.open = false;
+                  }}
+                >
+                  <Icon name={item.icon} size={18} />
+                  <span>{item.label}</span>
+                </NavLink>
+              ))}
+            </nav>
+          </details>
+        </aside>
+
+        <div className="ops-page-body">
+          {independentRead ? (
+            <Outlet />
+          ) : (
+            <QueryView
+              query={query}
+              loading={
+                <p className="ops-loading" role="status">
+                  Loading Operations snapshot…
+                </p>
+              }
+              onRetry={refresh}
+            >
+              {(snapshot) => (
+                <>
+                  <OperationsLiveSubscription
+                    key={liveKey}
+                    snapshot={snapshot}
+                    onConnection={recordConnection}
+                    onError={recordLiveError}
+                    onResync={recordResync}
+                  />
+                  <Outlet
+                    context={
+                      {
+                        snapshot: snapshot,
+                        refresh,
+                        refreshing: query.isFetching,
+                      } satisfies OperationsOutletContext
+                    }
+                  />
+                  <SnapshotDiagnostics
+                    snapshot={snapshot}
+                    connection={connection}
+                    resyncReason={resyncReason}
+                    liveError={liveError}
+                  />
+                </>
+              )}
+            </QueryView>
+          )}
+        </div>
       </div>
     </section>
   );

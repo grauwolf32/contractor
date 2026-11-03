@@ -1,20 +1,18 @@
 // Runs and project pages show resource usage without the Operations layout.
-import "../operations.css";
+import "../styles";
 import "./reading.css";
 import { useId, useState } from "react";
 import { Link } from "react-router";
 
 import type { AllocationResourceSummary } from "../../../api/performance";
 import {
-  compactId,
   formatBytes,
   formatNumber,
   formatSeconds,
   formatTimestamp,
 } from "../../../app/format";
-import { Facts } from "../../../ui";
-import { DisclosureChevron, OperationsState } from "../common";
-import { RecordedTime } from "../../../app/recorded-time";
+import { Button, Facts } from "../../../ui";
+import { EntryHeading, OperationsState } from "../common";
 
 function unavailable(
   value: number | undefined,
@@ -62,58 +60,41 @@ function CompletedAllocationRow({ item }: { item: AllocationResourceSummary }) {
   const detailsId = useId();
 
   return (
-    <>
-      <tr className={expanded ? "ops-row-expanded" : undefined}>
-        <td data-label="Stage / agent">
-          <div className="ops-history-stage">
-            <strong>{item.stage}</strong>
-            <small>{item.logicalAgent}</small>
-            <button
-              className="ops-metrics-toggle"
-              type="button"
-              aria-label={`Metrics for ${item.allocationId}`}
-              aria-expanded={expanded}
-              aria-controls={detailsId}
-              onClick={() => setExpanded((current) => !current)}
-            >
-              <DisclosureChevron size={12} />
-              <span>Metrics and identity</span>
-            </button>
-          </div>
-        </td>
-        <td data-label="Run">
-          <Link
-            className="ui-mono"
-            to={`/runs/${encodeURIComponent(item.runId)}`}
-            title={item.runId}
-            aria-label={item.runId}
-          >
-            {compactId(item.runId)}
-          </Link>
-        </td>
-        <td data-label="Outcome">
+    <article className="ops-resource-row ops-completed-row">
+      <Button
+        className="ops-entry-button"
+        variant="ghost"
+        aria-label={`Metrics for ${item.allocationId}`}
+        aria-expanded={expanded}
+        aria-controls={detailsId}
+        onClick={() => setExpanded((current) => !current)}
+      >
+        <EntryHeading
+          icon="history"
+          title={<strong>{item.logicalAgent}</strong>}
+          subtitle={item.allocationId}
+        >
           <OperationsState state={item.outcome} />
-        </td>
-        <td data-label="Measurements">
-          <span>{item.status.replaceAll("_", " ")}</span>
-        </td>
-        <td data-label="Finished">
-          <RecordedTime value={item.finishedAt} />
-        </td>
-      </tr>
+          <OperationsState
+            state={item.status}
+            tone={
+              item.status === "unavailable" || item.status === "pending"
+                ? "neutral"
+                : undefined
+            }
+          />
+        </EntryHeading>
+      </Button>
       {expanded ? (
-        <tr className="ops-metrics-row">
-          <td colSpan={5} data-label="">
-            <section
-              id={detailsId}
-              aria-label={`Metrics for ${item.allocationId}`}
-            >
-              <AllocationResourceList items={[item]} showRunLink={false} />
-            </section>
-          </td>
-        </tr>
+        <section
+          className="ops-resource-body"
+          id={detailsId}
+          aria-label={`Metrics for ${item.allocationId}`}
+        >
+          <AllocationResourceList items={[item]} showRunLink />
+        </section>
       ) : null}
-    </>
+    </article>
   );
 }
 
@@ -128,23 +109,10 @@ export function AllocationResourceList({
 }) {
   if (compact)
     return (
-      <div className="ops-table-wrap">
-        <table className="ops-table" data-stack="">
-          <thead>
-            <tr>
-              <th>Stage / agent</th>
-              <th>Run</th>
-              <th>Outcome</th>
-              <th>Measurements</th>
-              <th>Finished</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => (
-              <CompletedAllocationRow key={item.allocationId} item={item} />
-            ))}
-          </tbody>
-        </table>
+      <div className="ops-resource-list">
+        {items.map((item) => (
+          <CompletedAllocationRow key={item.allocationId} item={item} />
+        ))}
       </div>
     );
   return (
@@ -161,7 +129,14 @@ export function AllocationResourceList({
               </div>
               <span>
                 <OperationsState state={item.outcome} />
-                <OperationsState state={item.status} />
+                <OperationsState
+                  state={item.status}
+                  tone={
+                    item.status === "unavailable" || item.status === "pending"
+                      ? "neutral"
+                      : undefined
+                  }
+                />
               </span>
             </header>
             <Facts

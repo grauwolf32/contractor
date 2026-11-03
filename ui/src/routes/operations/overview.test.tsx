@@ -48,7 +48,7 @@ describe("Operations overview", () => {
       }),
     ]);
     expect(
-      await screen.findByRole("heading", { name: "Execution readiness" }),
+      await screen.findByRole("heading", { name: "Execution slots" }),
     ).toBeInTheDocument();
     const legend = screen.getByRole("list", { name: "Slots by state" });
     expect(
@@ -68,12 +68,12 @@ describe("Operations overview", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", {
-        name: /^Runtime Agents 6 deployed processes/,
+        name: /^Runtime processes\s*6/,
       }),
     ).toHaveAttribute("href", "/operations/runtime-agents");
     expect(
       screen.getByRole("link", {
-        name: /^Reconciliation 1 visible mismatch /i,
+        name: /^Reconciliation\s*1/i,
       }),
     ).toHaveAttribute("href", "/operations/runtime-agents");
     expect(
@@ -95,5 +95,64 @@ describe("Operations overview", () => {
     expect(
       within(diagnostics as HTMLElement).getByText("operations-generation-1"),
     ).toBeInTheDocument();
+  });
+
+  it("bounds the Overview preview while counting every process", async () => {
+    renderOverview(
+      Array.from({ length: 120 }, (_, index) =>
+        agent(`runtime-${index}`, "reserved", {
+          authoritativeAllocationId: `allocation-${index}`,
+        }),
+      ),
+    );
+    const processes = await screen.findByRole("region", {
+      name: "Runtime processes",
+    });
+    expect(processes.querySelectorAll("details")).toHaveLength(6);
+    expect(
+      screen.getByRole("link", { name: /^Runtime processes\s*120/ }),
+    ).toHaveAttribute("href", "/operations/runtime-agents");
+    expect(
+      screen.getByRole("link", { name: /^Reconciliation\s*120/ }),
+    ).toBeInTheDocument();
+    const inspection = screen.getByRole("region", {
+      name: "Needs inspection",
+    });
+    expect(
+      within(inspection).getAllByRole("link", { name: /^runtime-/ }),
+    ).toHaveLength(4);
+    expect(
+      within(inspection).getByRole("link", { name: "runtime-0" }),
+    ).toHaveAttribute("href", "/operations#process-runtime-0");
+    expect(
+      within(inspection).getByRole("link", {
+        name: "Inspect Runtime Agents →",
+      }),
+    ).toHaveAttribute("href", "/operations/runtime-agents");
+  });
+
+  it("links an inspection target beyond the preview to the full inventory", async () => {
+    renderOverview([
+      ...Array.from({ length: 6 }, (_, index) =>
+        agent(`idle-${index}`, "idle"),
+      ),
+      agent("runtime-outside-preview", "reserved", {
+        authoritativeAllocationId: "allocation-pending",
+      }),
+    ]);
+    const inspection = await screen.findByRole("region", {
+      name: "Needs inspection",
+    });
+    expect(
+      within(inspection).getByRole("link", { name: "runtime-outside-preview" }),
+    ).toHaveAttribute(
+      "href",
+      "/operations/runtime-agents#process-runtime-outside-preview",
+    );
+    expect(
+      screen
+        .getByRole("region", { name: "Runtime processes" })
+        .querySelector("#process-runtime-outside-preview"),
+    ).toBeNull();
   });
 });

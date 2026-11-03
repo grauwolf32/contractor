@@ -1,0 +1,298 @@
+{
+  "metrics": [
+    {
+      "section": "overview",
+      "version": "approved",
+      "state": "collapsed",
+      "width": 1440,
+      "content": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "overview",
+      "version": "working",
+      "state": "collapsed",
+      "width": 1440,
+      "content": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "overview",
+      "version": "approved",
+      "state": "collapsed",
+      "width": 390,
+      "content": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "overview",
+      "version": "working",
+      "state": "collapsed",
+      "width": 390,
+      "content": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "runtime-agents",
+      "version": "approved",
+      "state": "collapsed",
+      "width": 1440,
+      "content": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "runtime-agents",
+      "version": "working",
+      "state": "collapsed",
+      "width": 1440,
+      "content": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "runtime-agents",
+      "version": "approved",
+      "state": "collapsed",
+      "width": 390,
+      "content": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "runtime-agents",
+      "version": "working",
+      "state": "collapsed",
+      "width": 390,
+      "content": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "allocations",
+      "version": "approved",
+      "state": "collapsed",
+      "width": 1440,
+      "content": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "allocations",
+      "version": "working",
+      "state": "collapsed",
+      "width": 1440,
+      "content": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "allocations",
+      "version": "approved",
+      "state": "collapsed",
+      "width": 390,
+      "content": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "allocations",
+      "version": "working",
+      "state": "collapsed",
+      "width": 390,
+      "content": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "completed",
+      "version": "approved",
+      "state": "collapsed",
+      "width": 1440,
+      "content": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "completed",
+      "version": "working",
+      "state": "collapsed",
+      "width": 1440,
+      "content": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "completed",
+      "version": "approved",
+      "state": "collapsed",
+      "width": 390,
+      "content": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "completed",
+      "version": "working",
+      "state": "collapsed",
+      "width": 390,
+      "content": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "performance",
+      "version": "approved",
+      "state": "collapsed",
+      "width": 1440,
+      "content": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "performance",
+      "version": "working",
+      "state": "collapsed",
+      "width": 1440,
+      "content": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "performance",
+      "version": "approved",
+      "state": "collapsed",
+      "width": 390,
+      "content": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "performance",
+      "version": "working",
+      "state": "collapsed",
+      "width": 390,
+      "content": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "configuration",
+      "version": "approved",
+      "state": "collapsed",
+      "width": 1440,
+      "content": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "configuration",
+      "version": "working",
+      "state": "collapsed",
+      "width": 1440,
+      "content": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "configuration",
+      "version": "approved",
+      "state": "collapsed",
+      "width": 390,
+      "content": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "configuration",
+      "version": "working",
+      "state": "collapsed",
+      "width": 390,
+      "content": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "llm",
+      "version": "approved",
+      "state": "collapsed",
+      "width": 1440,
+      "content": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "llm",
+      "version": "working",
+      "state": "collapsed",
+      "width": 1440,
+      "content": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "llm",
+      "version": "approved",
+      "state": "collapsed",
+      "width": 390,
+      "content": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "llm",
+      "version": "working",
+      "state": "collapsed",
+      "width": 390,
+      "content": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "credentials",
+      "version": "approved",
+      "state": "collapsed",
+      "width": 1440,
+      "content": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "credentials",
+      "version": "working",
+      "state": "collapsed",
+      "width": 1440,
+      "content": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "credentials",
+      "version": "approved",
+      "state": "collapsed",
+      "width": 390,
+      "content": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "credentials",
+      "version": "working",
+      "state": "collapsed",
+      "width": 390,
+      "content": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "settings",
+      "version": "approved",
+      "state": "collapsed",
+      "width": 1440,
+      "content": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "settings",
+      "version": "working",
+      "state": "collapsed",
+      "width": 1440,
+      "content": 1440,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "settings",
+      "version": "approved",
+      "state": "collapsed",
+      "width": 390,
+      "content": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    },
+    {
+      "section": "settings",
+      "version": "working",
+      "state": "collapsed",
+      "width": 390,
+      "content": 390,
+      "font": "ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", sans-serif"
+    }
+  ],
+  "errors": [],
+  "notes": [
+    "The shared production header/search remains global.",
+    "The real 15-second history has 60 observed bars; the original static sketch has 16 demo bars.",
+    "Server words and actual API identities remain authoritative."
+  ]
+}

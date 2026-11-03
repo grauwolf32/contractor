@@ -1,10 +1,16 @@
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 
+import { Icon } from "../../../app/icon";
 import { formatNumber } from "../../../app/format";
-import { Facts, TechnicalDetails } from "../../../ui";
+import { Facts, IdChip, TechnicalDetails } from "../../../ui";
 import { useOperationsSnapshot } from "../context";
 import type { RuntimeAgentObservation } from "../../../api/operations";
-import { OperationsState, OptionalTimestamp, SafeReason } from "../common";
+import {
+  DisclosureChevron,
+  OperationsState,
+  OptionalTimestamp,
+  SafeReason,
+} from "../common";
 
 /** What a registered process advertised, and its allocation binding. */
 function ProcessFacts({ agent }: { agent: RuntimeAgentObservation }) {
@@ -93,6 +99,73 @@ function ProcessFacts({ agent }: { agent: RuntimeAgentObservation }) {
   );
 }
 
+/** One snapshot process; the full capability and lease record stays on demand. */
+export function ProcessRow({
+  agent,
+  targeted = false,
+}: {
+  agent: RuntimeAgentObservation;
+  targeted?: boolean;
+}) {
+  return (
+    <details
+      className="ops-process-row"
+      id={`process-${agent.instanceId}`}
+      open={targeted || undefined}
+    >
+      <summary>
+        <span className="ops-process-name">
+          <Icon name="operations" />
+          <strong>{agent.instanceId}</strong>
+        </span>
+        <OperationsState state={agent.slotState} />
+        <span className="ops-process-context">
+          {agent.authoritativeAllocationId === undefined
+            ? "No allocation assigned"
+            : `Assigned ${agent.authoritativeAllocationId}`}
+        </span>
+        <DisclosureChevron />
+      </summary>
+      <div className="ops-process-details">
+        <Facts
+          layout="rows"
+          items={[
+            {
+              term: "Process ID",
+              value: <IdChip value={agent.instanceId} label="process ID" />,
+            },
+            {
+              term: "Observed process",
+              value: <OperationsState state={agent.observedState} />,
+            },
+            {
+              term: "Assigned slot",
+              value: <OperationsState state={agent.slotState} />,
+            },
+            {
+              term: "Last accepted heartbeat",
+              value: <OptionalTimestamp value={agent.lastAcceptedHeartbeat} />,
+            },
+            {
+              term: "Confirmed lease until",
+              value: <OptionalTimestamp value={agent.confirmedLeaseUntil} />,
+            },
+          ]}
+        />
+        <ProcessFacts agent={agent} />
+        {agent.authoritativeAllocationId === undefined ? null : (
+          <Link
+            className="ops-details-link"
+            to={`/operations/allocations#${encodeURIComponent(agent.authoritativeAllocationId)}`}
+          >
+            Inspect assigned allocation →
+          </Link>
+        )}
+      </div>
+    </details>
+  );
+}
+
 /**
  * The registered processes of the current snapshot with their lease facts,
  * kept behind a disclosure: the cards above are the main view.
@@ -100,6 +173,7 @@ function ProcessFacts({ agent }: { agent: RuntimeAgentObservation }) {
 export function ProcessInventory() {
   const { snapshot } = useOperationsSnapshot();
   const count = snapshot.runtimeAgents.length;
+  const { hash } = useLocation();
   return (
     <section
       className="ops-section ops-inventory"
@@ -107,6 +181,7 @@ export function ProcessInventory() {
     >
       <TechnicalDetails
         summary="Process inventory and lease diagnostics"
+        defaultOpen={hash.startsWith("#process-")}
         description={`${count} current · A Runtime Agent is one deployed, long-running single-slot process.`}
       >
         <div className="ops-stack">
@@ -141,9 +216,19 @@ export function ProcessInventory() {
                         agent.authoritativeAllocationId &&
                       agent.reconciliationReason === undefined;
                     return (
-                      <tr key={agent.instanceId}>
+                      <tr
+                        key={agent.instanceId}
+                        id={`process-${agent.instanceId}`}
+                      >
                         <td data-label="Runtime Agent">
-                          <details className="ops-inventory-agent">
+                          <details
+                            className="ops-inventory-agent"
+                            open={
+                              hash ===
+                                `#process-${encodeURIComponent(agent.instanceId)}` ||
+                              undefined
+                            }
+                          >
                             <summary>{agent.instanceId}</summary>
                             <ProcessFacts agent={agent} />
                           </details>

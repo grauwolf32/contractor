@@ -7,28 +7,16 @@ import type {
   RuntimeLabelBinding,
 } from "../../../api/operations";
 import { Icon } from "../../../app/icon";
+import { formatAge, formatBytes, formatNumber } from "../../../app/format";
+import { Button, Facts, IdChip, StatusChip } from "../../../ui";
 import {
-  formatAge,
-  formatBytes,
-  formatNumber,
-  formatTimestamp,
-} from "../../../app/format";
-import {
-  Button,
-  Facts,
-  IdChip,
-  StatusChip,
-  TechnicalDetails,
-} from "../../../ui";
-import { OperationsState, OptionalTimestamp, SafeReason } from "../common";
+  EntryHeading,
+  OperationsState,
+  OptionalTimestamp,
+  SafeReason,
+} from "../common";
 import { agentDisplayName, availabilityCopy } from "./identity";
 import { AgentLabelsDialog } from "./labels-dialog";
-
-const adapterNames: Record<string, string> = {
-  "caido-graphql@1": "Caido",
-  "otlp-http@1": "Telemetry",
-  "http-proxy@1": "HTTP proxy",
-};
 
 function CapabilityRefs({ values }: { values: string[] }) {
   return values.length === 0 ? (
@@ -81,9 +69,11 @@ function SlotValue({
   );
 }
 
-/** The diagnostics of a live process, for the Technical details. */
+/** The complete live process record, visible when its inventory row is open. */
 function liveFacts(live: NonNullable<RuntimeAgentPrincipal["live"]>) {
   return [
+    { term: "Connection", value: "Online" },
+    { term: "Software", value: `v${live.softwareVersion}` },
     { term: "Process ID", value: <code>{live.instanceId}</code> },
     {
       term: "Observed process / server slot",
@@ -138,11 +128,15 @@ function liveFacts(live: NonNullable<RuntimeAgentPrincipal["live"]>) {
     },
     {
       term: "Toolsets",
+      wide: true,
       value:
         live.supportedToolsets.length === 0 ? (
           "None reported"
         ) : (
-          <ul className="ops-toolsets">
+          <ul
+            className="ops-toolsets"
+            aria-label={`Toolsets for ${live.instanceId}`}
+          >
             {live.supportedToolsets.map((toolset) => (
               <li key={toolset.ref}>
                 <code>{toolset.ref}</code>
@@ -187,163 +181,60 @@ export function AgentCard({
       className="ops-agent-card runtime-principal-card"
       aria-labelledby={heading}
     >
-      <div className="ops-agent-main">
-        <header className="ops-agent-head">
-          <div className="ops-agent-identity">
-            <div className="ops-agent-name">
-              <h3 id={heading}>{agentDisplayName(principal)}</h3>
-              <IdChip value={principal.runtimeAgentId} label="Agent ID" />
+      <details className="ops-agent-disclosure">
+        <summary>
+          <EntryHeading
+            icon="operations"
+            title={<h3 id={heading}>{agentDisplayName(principal)}</h3>}
+            subtitle={live?.instanceId ?? "No current process"}
+          >
+            <StatusChip tone={availability.tone}>
+              {availability.label}
+            </StatusChip>
+          </EntryHeading>
+        </summary>
+        <div className="ops-resource-body">
+          {principal.missingRuntimeAdapters.length === 0 ? null : (
+            <div className="ops-agent-warning">
+              <strong>
+                Missing {principal.missingRuntimeAdapters.join(", ")}
+              </strong>
+              <p>
+                Assigned labels require adapters this process did not advertise
+                at startup.
+              </p>
             </div>
-            <p className="ops-agent-connection">
-              <span
-                className="ops-dot"
-                data-offline={live === undefined ? "" : undefined}
-                aria-hidden="true"
-              />
-              {live === undefined ? (
-                "No live process observed"
-              ) : (
-                <>
-                  Online <span aria-hidden="true">·</span> v
-                  {live.softwareVersion}
-                </>
+          )}
+          {principal.availability === "slot_unavailable" || reconciling ? (
+            <div className="ops-agent-warning">
+              <strong>
+                {reconciling
+                  ? "State reconciliation pending"
+                  : "Slot unavailable"}
+              </strong>
+              <p>
+                {live === undefined
+                  ? "No current slot observation."
+                  : `Process: ${live.observedState}. Server slot: ${live.slotState}.`}
+              </p>
+              {live?.reconciliationReason === undefined ? null : (
+                <SafeReason reason={live.reconciliationReason} />
               )}
-            </p>
-          </div>
-          <StatusChip tone={availability.tone}>{availability.label}</StatusChip>
-        </header>
-
-        {live === undefined ? (
-          <p className="ops-agent-no-process">No live process observed</p>
-        ) : (
+            </div>
+          ) : null}
           <Facts
-            className="ops-glance ops-agent-metrics"
-            items={[
-              {
-                term: "Slot",
-                value: <SlotValue slotState={live.slotState} />,
-              },
-              {
-                term: "Last heartbeat",
-                value:
-                  live.lastAcceptedHeartbeat === undefined ? (
-                    "Not observed"
-                  ) : (
-                    <time
-                      dateTime={live.lastAcceptedHeartbeat}
-                      title={formatTimestamp(live.lastAcceptedHeartbeat)}
-                    >
-                      {formatAge(live.lastAcceptedHeartbeat, now)}
-                    </time>
-                  ),
-              },
-              {
-                term: "Workspace",
-                value:
-                  live.workspaceCapabilities === undefined ? (
-                    "Not observed"
-                  ) : (
-                    <span>
-                      {live.workspaceCapabilities.storage === "local"
-                        ? "Local"
-                        : "Memory"}
-                      <small>
-                        {live.workspaceCapabilities.modes.join(" · ")}
-                      </small>
-                    </span>
-                  ),
-              },
-            ]}
-          />
-        )}
-
-        {live?.authoritativeAllocationId === undefined ? null : (
-          <div className="ops-agent-allocation">
-            <Icon name="runs" />
-            {allocation === undefined ? null : (
-              <Link to={`/runs/${encodeURIComponent(allocation.runId)}`}>
-                {allocation.logicalWorker} · Open Run
-              </Link>
-            )}
-            <Link
-              to={`/operations/allocations#${encodeURIComponent(live.authoritativeAllocationId)}`}
-            >
-              View allocation <span aria-hidden="true">↗</span>
-            </Link>
-          </div>
-        )}
-        {principal.availability === "offline" ? (
-          <p className="ui-caption">
-            Offline · saved labels are retained for the next registration.
-          </p>
-        ) : null}
-        {principal.missingRuntimeAdapters.length > 0 ? (
-          <div className="ops-agent-warning">
-            <strong>
-              Missing {principal.missingRuntimeAdapters.join(", ")}
-            </strong>
-            <p>
-              Assigned labels require adapters this process did not advertise at
-              startup.
-            </p>
-          </div>
-        ) : null}
-        {principal.availability === "slot_unavailable" || reconciling ? (
-          <div className="ops-agent-warning">
-            <strong>
-              {reconciling
-                ? "State reconciliation pending"
-                : "Slot unavailable"}
-            </strong>
-            <p>
-              {live === undefined ? (
-                "No current slot observation."
-              ) : (
-                <>
-                  Process: {live.observedState}. Server slot: {live.slotState}.
-                </>
-              )}
-            </p>
-            {live?.reconciliationReason === undefined ? null : (
-              <SafeReason reason={live.reconciliationReason} />
-            )}
-          </div>
-        ) : null}
-
-        <div className="ops-agent-labels">
-          <div className="ops-agent-labels-head">
-            <span>Agent labels</span>
-            <Button
-              size="xs"
-              icon={<Icon name="settings" />}
-              disabled={bindings === undefined}
-              aria-haspopup="dialog"
-              onClick={() => setEditing(true)}
-            >
-              Edit labels
-            </Button>
-          </div>
-          <AgentLabelChips labels={principal.labels} />
-        </div>
-        {live === undefined ||
-        live.supportedRuntimeAdapters.length === 0 ? null : (
-          <div className="ops-chips" aria-label="Supported adapters">
-            {live.supportedRuntimeAdapters.map((adapter) => (
-              <span className="ops-adapter-chip" key={adapter} title={adapter}>
-                {adapterNames[adapter] ?? adapter}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-      <div className="ops-tech">
-        <TechnicalDetails summary="Capabilities and diagnostics">
-          <Facts
+            className="ops-agent-facts"
             layout="rows"
             items={[
               {
                 term: "Agent ID",
-                value: <code>{principal.runtimeAgentId}</code>,
+                value: (
+                  <IdChip value={principal.runtimeAgentId} label="Agent ID" />
+                ),
+              },
+              {
+                term: "Saved labels",
+                value: <AgentLabelChips labels={principal.labels} />,
               },
               { term: "Labels revision", value: principal.revision },
               {
@@ -352,11 +243,60 @@ export function AgentCard({
                   <CapabilityRefs values={principal.requiredRuntimeAdapters} />
                 ),
               },
-              ...(live === undefined ? [] : liveFacts(live)),
+              ...(live === undefined
+                ? []
+                : [
+                    {
+                      term: "Slot occupancy",
+                      value: <SlotValue slotState={live.slotState} />,
+                    },
+                    {
+                      term: "Heartbeat age",
+                      value:
+                        live.lastAcceptedHeartbeat === undefined ? (
+                          "Not observed"
+                        ) : (
+                          <time dateTime={live.lastAcceptedHeartbeat}>
+                            {formatAge(live.lastAcceptedHeartbeat, now)}
+                          </time>
+                        ),
+                    },
+                    {
+                      term: "Workspace",
+                      value:
+                        live.workspaceCapabilities === undefined
+                          ? "Not observed"
+                          : `${live.workspaceCapabilities.storage} · ${live.workspaceCapabilities.modes.join(" · ")}`,
+                    },
+                    ...liveFacts(live),
+                  ]),
             ]}
           />
-        </TechnicalDetails>
-      </div>
+          <div className="ops-agent-actions">
+            <Button
+              size="sm"
+              icon={<Icon name="settings" />}
+              disabled={bindings === undefined}
+              aria-haspopup="dialog"
+              onClick={() => setEditing(true)}
+            >
+              Edit labels
+            </Button>
+            {allocation === undefined ? null : (
+              <Link to={`/runs/${encodeURIComponent(allocation.runId)}`}>
+                {allocation.logicalWorker} · Open Run
+              </Link>
+            )}
+            {live?.authoritativeAllocationId === undefined ? null : (
+              <Link
+                to={`/operations/allocations#${encodeURIComponent(live.authoritativeAllocationId)}`}
+              >
+                Inspect allocation →
+              </Link>
+            )}
+          </div>
+        </div>
+      </details>
       {editing && bindings !== undefined ? (
         <AgentLabelsDialog
           principal={principal}

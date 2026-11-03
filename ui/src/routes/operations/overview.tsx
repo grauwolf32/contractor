@@ -1,17 +1,16 @@
-import { Link } from "react-router";
-
+import { Link, useLocation } from "react-router";
 import type { RuntimeAgentObservation } from "../../api/operations";
 import type { StatusTone } from "../../app/status-tone";
-import { ProgressSegments, StatusGlyph } from "../../ui";
+import { Icon } from "../../app/icon";
+import { plural } from "../../app/format";
+import { StatusGlyph } from "../../ui";
 import { OpsSection } from "./common";
 import { useOperationsSnapshot } from "./context";
-import { plural } from "../../app/format";
+import { ProcessRow } from "./runtime-agents/process-inventory";
+import { AllocationEntry } from "./allocations";
 
-type SlotState = RuntimeAgentObservation["slotState"];
-
-/** Slot states in display order, each with its word and tone. */
 const SLOT_STATES: readonly {
-  state: SlotState;
+  state: RuntimeAgentObservation["slotState"];
   label: string;
   tone: StatusTone;
 }[] = [
@@ -22,147 +21,220 @@ const SLOT_STATES: readonly {
   { state: "fenced", label: "Fenced", tone: "blocked" },
 ];
 
-/** A count that links to the section it summarizes. */
-function OverviewTile({
-  to,
-  label,
-  count,
-  noun,
-  text,
-  warn = false,
-}: {
-  to: string;
-  label: string;
-  count: number;
-  noun: readonly [one: string, many: string];
-  text: string;
-  warn?: boolean;
-}) {
-  // The spaces between the parts keep the link's accessible name readable;
-  // the flex layout does not render them.
-  return (
-    <li>
-      <Link className="ops-tile" to={to}>
-        <span className="ops-tile-label">{label}</span>{" "}
-        <span
-          className="ops-tile-value"
-          data-tone={warn ? "warning" : undefined}
-        >
-          {warn ? <StatusGlyph tone="warning" /> : null}
-          <strong>{count}</strong> {count === 1 ? noun[0] : noun[1]}
-        </span>{" "}
-        <span className="ui-caption">{text}</span>
-      </Link>
-    </li>
-  );
-}
-
 export function OperationsOverviewRoute() {
   const { snapshot } = useOperationsSnapshot();
+  const { hash } = useLocation();
   const agents = snapshot.runtimeAgents;
   const mismatches = agents.filter(
     (agent) =>
       agent.reconciliationReason !== undefined ||
       agent.currentAllocationId !== agent.authoritativeAllocationId,
-  ).length;
+  );
   const counts = SLOT_STATES.map((slot) => ({
     ...slot,
     count: agents.filter((agent) => agent.slotState === slot.state).length,
   }));
-  const ordered = counts.flatMap((slot) =>
-    Array.from({ length: slot.count }, () => ({
-      tone: slot.tone,
-      label: slot.label,
-    })),
-  );
+  const draining = counts.find((slot) => slot.state === "draining")!.count;
   const summary = counts
     .filter((slot) => slot.count > 0)
     .map((slot) => `${slot.count} ${slot.label.toLowerCase()}`)
     .join(", ");
   return (
-    <div className="ops-stack">
-      <OpsSection
-        id="operations-readiness-heading"
-        title="Execution readiness"
-        description="Slots reported by the Runtime Agents in this snapshot."
-      >
-        <div className="ops-slot-line">
-          <span className="ops-slot-total">
-            {plural(agents.length, "slot", "slots")}
-          </span>
-          {agents.length === 0 ? null : (
-            <ProgressSegments
-              label={`${plural(agents.length, "Runtime Agent slot", "Runtime Agent slots")}: ${summary}`}
-              segments={ordered}
-            />
+    <div className="ops-overview ops-stack">
+      <ul className="ops-tiles" aria-label="Snapshot counts">
+        <li>
+          <Link className="ops-tile" to="/operations/runtime-agents">
+            <span className="ops-tile-label">
+              <Icon name="operations" /> Runtime processes
+            </span>
+            <span className="ops-tile-value">
+              <strong>{agents.length}</strong>
+            </span>
+            <span className="ui-caption">One slot per deployed process</span>
+          </Link>
+        </li>
+        <li>
+          <Link className="ops-tile" to="/operations/allocations">
+            <span className="ops-tile-label">
+              <Icon name="binding" /> Current allocations
+            </span>
+            <span className="ops-tile-value">
+              <strong>{snapshot.allocations.length}</strong>
+            </span>
+            <span className="ui-caption">Temporary Runtime roles</span>
+          </Link>
+        </li>
+        <li>
+          <Link
+            className="ops-tile"
+            data-warning={mismatches.length > 0 || undefined}
+            to="/operations/runtime-agents"
+          >
+            <span className="ops-tile-label">
+              <Icon name="issues" /> Reconciliation
+            </span>
+            <span
+              className="ops-tile-value"
+              data-tone={mismatches.length > 0 ? "warning" : undefined}
+            >
+              <strong>{mismatches.length}</strong>
+            </span>
+            <span className="ui-caption">
+              Observed allocation differs from assignment
+            </span>
+          </Link>
+        </li>
+      </ul>
+      <div className="ops-readiness-grid">
+        <OpsSection
+          className="ops-readiness-panel"
+          id="operations-readiness-heading"
+          title="Execution slots"
+          aside={plural(agents.length, "slot", "slots")}
+        >
+          {agents.length === 0 ? (
+            <p className="ops-empty">
+              No Runtime processes are present in this snapshot. Inspect agent
+              readiness before starting execution.
+            </p>
+          ) : (
+            <div
+              className="ops-slot-track"
+              role="img"
+              aria-label={`${plural(agents.length, "Runtime Agent slot", "Runtime Agent slots")}: ${summary}`}
+            >
+              {counts
+                .filter((slot) => slot.count > 0)
+                .map((slot) => (
+                  <span
+                    key={slot.state}
+                    data-state={slot.state}
+                    style={{ flexGrow: slot.count }}
+                  />
+                ))}
+            </div>
           )}
-        </div>
-        <ul className="ops-legend" aria-label="Slots by state">
-          {counts.map((slot) => (
-            <li key={slot.state}>
-              <span
-                className="ops-legend-swatch"
-                data-tone={slot.tone}
-                aria-hidden="true"
-              />
-              <span>{slot.label}</span>{" "}
-              <span className="ops-legend-count">{slot.count}</span>
-            </li>
-          ))}
-        </ul>
-        <p className="ops-capacity-note">
-          <StatusGlyph tone="info" size={15} />
-          <span>
+          <ul className="ops-legend" aria-label="Slots by state">
+            {counts.map((slot) => (
+              <li key={slot.state}>
+                <span className="ops-slot-pill" data-state={slot.state}>
+                  {slot.label}
+                </span>{" "}
+                <strong className="ops-legend-count">{slot.count}</strong>
+              </li>
+            ))}
+          </ul>
+          <p className="ops-capacity-note">
             Idle slots do not guarantee capacity for a particular Run.
-          </span>
-        </p>
-        {agents.length === 0 ? (
-          <div className="notice notice-warning" role="status">
-            No Runtime processes are present in this snapshot. Inspect agent
-            readiness before starting execution.
-          </div>
+          </p>
+        </OpsSection>
+        <OpsSection
+          className="ops-inspection-panel"
+          id="operations-inspection-heading"
+          title="Needs inspection"
+        >
+          {mismatches.length === 0 ? (
+            <p className="ui-caption">
+              No reconciliation mismatch in this snapshot.
+            </p>
+          ) : (
+            mismatches.slice(0, 4).map((agent) => (
+              <div key={agent.instanceId} className="ops-inspection-item">
+                <StatusGlyph tone="warning" size={16} />
+                <div>
+                  <Link
+                    to={`${agents.slice(0, 6).includes(agent) ? "" : "/operations/runtime-agents"}#process-${encodeURIComponent(agent.instanceId)}`}
+                  >
+                    {agent.instanceId}
+                  </Link>
+                  <p>
+                    {agent.reconciliationReason?.code.replaceAll("_", " ") ??
+                      (agent.slotState === "reserved"
+                        ? "Reserved — awaiting a Runtime allocation observation."
+                        : "Observed allocation differs from its assignment.")}
+                  </p>
+                </div>
+              </div>
+            ))
+          )}
+          {draining === 0 ? null : (
+            <p className="ui-caption">
+              {plural(draining, "draining slot", "draining slots")} · inspect
+              current allocations.
+            </p>
+          )}
+          <Link className="ops-details-link" to="/operations/runtime-agents">
+            Inspect Runtime Agents →
+          </Link>
+        </OpsSection>
+      </div>
+      <OpsSection
+        id="operations-processes-heading"
+        title="Runtime processes"
+        aside={`${agents.length} current`}
+        actions={<Link to="/operations/runtime-agents">Runtime Agents →</Link>}
+      >
+        <div className="ops-process-list">
+          {agents.slice(0, 6).map((agent) => (
+            <ProcessRow
+              key={agent.instanceId}
+              agent={agent}
+              targeted={
+                hash === `#process-${encodeURIComponent(agent.instanceId)}`
+              }
+            />
+          ))}
+        </div>
+        {agents.length > 6 ? (
+          <Link to="/operations/runtime-agents">
+            View all {agents.length} processes →
+          </Link>
         ) : null}
-        <ul className="ops-shortcuts" aria-label="Readiness shortcuts">
-          <li>
-            <Link to="/operations/runtime-agents">
-              Inspect Runtime Agents →
-            </Link>
-          </li>
-          <li>
-            <Link to="/operations/configuration">Runtime configuration →</Link>
-          </li>
-          <li>
-            <Link to="/runs">Inspect Run wait reasons →</Link>
-          </li>
-        </ul>
       </OpsSection>
-
-      <OpsSection id="operations-glance-heading" title="Processes and roles">
-        <ul className="ops-tiles">
-          <OverviewTile
-            to="/operations/runtime-agents"
-            label="Runtime Agents"
-            count={agents.length}
-            noun={["deployed process", "deployed processes"]}
-            text="Each is one long-running, single-slot process."
-          />
-          <OverviewTile
-            to="/operations/allocations"
-            label="Allocations"
-            count={snapshot.allocations.length}
-            noun={["temporary role", "temporary roles"]}
-            text="A Worker exists only as the role bound to one allocation."
-          />
-          <OverviewTile
-            to="/operations/runtime-agents"
-            label="Reconciliation"
-            count={mismatches}
-            noun={["visible mismatch", "visible mismatches"]}
-            text="Runtime Agents whose observed state differs from their assignment."
-            warn={mismatches > 0}
-          />
-        </ul>
+      <OpsSection
+        id="operations-current-allocations-heading"
+        title="Current allocations"
+        aside={`${snapshot.allocations.length} current`}
+        actions={
+          <Link to="/operations/allocations/completed">
+            Completed history →
+          </Link>
+        }
+      >
+        <p className="ui-caption">
+          Runtime “prepared” confirms a role was prepared; it does not prove a
+          Worker call is currently executing.
+        </p>
+        {snapshot.allocations.length === 0 ? (
+          <p className="ops-empty">No current allocations in this snapshot.</p>
+        ) : (
+          <ul className="ops-allocation-list">
+            {snapshot.allocations.slice(0, 6).map((allocation) => (
+              <AllocationEntry
+                key={allocation.allocationId}
+                allocation={allocation}
+                targeted={false}
+              />
+            ))}
+          </ul>
+        )}
+        {snapshot.allocations.length > 6 ? (
+          <Link to="/operations/allocations">
+            View all {snapshot.allocations.length} allocations →
+          </Link>
+        ) : null}
       </OpsSection>
+      <ul className="ops-shortcuts" aria-label="Readiness shortcuts">
+        <li>
+          <Link to="/operations/configuration">Runtime configuration →</Link>
+        </li>
+        <li>
+          <Link to="/runs">Inspect Run wait reasons →</Link>
+        </li>
+        <li>
+          <Link to="/operations/performance">Performance →</Link>
+        </li>
+      </ul>
     </div>
   );
 }

@@ -9,16 +9,26 @@ import { SettingSection, type SettingHeadingLevel } from "./section";
 
 const THEME_OPTIONS: Record<
   ThemePreference,
-  { label: string; description: string }
+  { label: string; description: string; className: string }
 > = {
   system: {
     label: "System",
+    className: "ops-theme-system",
     description: "Light or dark, following this device's setting.",
   },
-  light: { label: "Light", description: "Light surfaces at any time of day." },
-  dark: { label: "Dark", description: "Navy-charcoal surfaces." },
+  light: {
+    className: "ops-theme-light",
+    label: "Light",
+    description: "Light surfaces at any time of day.",
+  },
+  dark: {
+    className: "ops-theme-dark",
+    label: "Dark",
+    description: "Navy-charcoal surfaces.",
+  },
   black: {
     label: "Black",
+    className: "ops-theme-black",
     description: "Pure black, for OLED screens and dark rooms.",
   },
 };
@@ -55,6 +65,14 @@ export function AppearanceSettings({
               checked={preference === option}
               onChange={() => setThemePreference(option)}
             />
+            <span
+              className={`ops-theme-swatch ${THEME_OPTIONS[option].className}`}
+              aria-hidden="true"
+            >
+              <i />
+              <i />
+              <i />
+            </span>
             <span>
               <strong>{THEME_OPTIONS[option].label}</strong>
               <small>{THEME_OPTIONS[option].description}</small>

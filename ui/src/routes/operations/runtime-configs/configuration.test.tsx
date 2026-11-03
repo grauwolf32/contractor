@@ -469,8 +469,11 @@ describe("Runtime configuration hub navigation", () => {
 
   it("opens Runtime configuration as an Operations section with a scope label and refresh", async () => {
     const { router, paths, user } = setup("/operations/configuration");
-    await screen.findByRole("heading", { name: "RuntimeConfig versions" });
-    expect(await screen.findByRole("link", { name: "debug@1" })).toBeVisible();
+    await screen.findByRole("heading", { name: "Runtime configuration" });
+    await user.click(
+      await screen.findByText("debug@1", { selector: "strong" }),
+    );
+    expect(screen.getByRole("link", { name: "debug@1" })).toBeVisible();
     expect(router.state.location.pathname).toBe("/operations/configuration");
     expect(
       screen.getByRole("heading", { name: "Runtime configuration" }),
@@ -500,11 +503,15 @@ describe("Runtime configuration hub navigation", () => {
     expect(
       within(tabs).getByRole("link", { name: "LLM configurations" }),
     ).not.toHaveAttribute("aria-current");
+    const mobile = screen
+      .getByText("Operations sections", {
+        selector: ".ops-mobile-navigation small",
+      })
+      .closest("details")!;
+    await user.click(mobile.querySelector("summary")!);
     expect(
-      within(
-        screen.getByRole("combobox", { name: "Operations section" }),
-      ).getByRole("option", { name: "Configuration" }),
-    ).toHaveValue("/operations/configuration");
+      within(mobile).getByRole("link", { name: "Configuration" }),
+    ).toHaveAttribute("href", "/operations/configuration");
     expect(screen.queryByRole("navigation", { name: "Run views" })).toBeNull();
     const reads = () =>
       paths().filter((path) => path === "/v1/operations/runtime-configs")

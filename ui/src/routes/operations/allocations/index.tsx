@@ -5,7 +5,7 @@ import { Facts, IdChip } from "../../../ui";
 import { useOperationsSnapshot } from "../context";
 import {
   ConfigurationRefLink,
-  DisclosureChevron,
+  EntryHeading,
   MetricsSummary,
   OperationsState,
   OpsSection,
@@ -14,7 +14,7 @@ import {
 import { exactConfigurationRef } from "../references";
 import { AllocationViewTabs } from "./tabs";
 
-function AllocationEntry({
+export function AllocationEntry({
   allocation,
   targeted,
 }: {
@@ -31,12 +31,11 @@ function AllocationEntry({
         data-targeted={targeted ? "" : undefined}
       >
         <summary>
-          <span className="ops-allocation-title">
-            <DisclosureChevron />
-            <strong>{allocation.logicalWorker}</strong>{" "}
-            <code className="ops-digest">{allocation.allocationId}</code>
-          </span>{" "}
-          <span className="ops-allocation-phases">
+          <EntryHeading
+            icon="runs"
+            title={<strong>{allocation.logicalWorker}</strong>}
+            subtitle={allocation.allocationId}
+          >
             <OperationsState
               prefix="Control Plane"
               state={allocation.authoritativePhase}
@@ -45,7 +44,7 @@ function AllocationEntry({
               prefix="Runtime"
               state={allocation.observedPhase}
             />
-          </span>
+          </EntryHeading>
         </summary>
         <div className="ops-allocation-body">
           <div>
@@ -169,9 +168,13 @@ export function AllocationListRoute() {
       <OpsSection
         id="current-allocations-heading"
         title="Current allocations"
-        description="Allocated means the temporary Worker role was prepared; it does not prove that an A2A model call is executing now."
+        description="Temporary Worker roles that have not been released. Lifecycle actions remain Scheduler-owned."
         aside={`${snapshot.allocations.length} unreleased`}
       >
+        <p className="ops-inventory-note">
+          Runtime “prepared” confirms role preparation. It does not establish
+          that a Worker call is executing.
+        </p>
         {snapshot.allocations.length === 0 ? (
           <div className="ops-empty">
             <strong>No active allocation exists.</strong>

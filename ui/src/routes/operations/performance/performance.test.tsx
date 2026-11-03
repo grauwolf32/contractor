@@ -368,15 +368,17 @@ describe("Operations performance views", () => {
         name: "Completed allocation resources",
       }),
     ).toBeInTheDocument();
-    expect(
-      await screen.findByRole("link", { name: "run-complete" }),
-    ).toHaveAttribute("href", "/runs/run-complete");
-    const metrics = screen.getByRole("button", {
+    const metrics = await screen.findByRole("button", {
       name: "Metrics for allocation-complete",
     });
     expect(metrics).toHaveAttribute("aria-expanded", "false");
     await user.click(metrics);
     expect(metrics).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("link", { name: "run-complete" })).toHaveAttribute(
+      "href",
+      "/runs/run-complete",
+    );
+
     expect(screen.getByText("128.0 MiB")).toBeVisible();
     await user.click(
       screen.getByRole("button", { name: "Metrics for allocation-missing" }),

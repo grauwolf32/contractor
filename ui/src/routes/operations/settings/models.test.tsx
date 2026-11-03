@@ -95,8 +95,8 @@ describe("Server model selection", () => {
       screen.getByRole("combobox", { name: "Summarizer model" }),
     ).toHaveValue("alpha");
     expect(
-      screen.getByRole("button", { name: "Save model defaults" }),
-    ).toBeDisabled();
+      screen.queryByRole("button", { name: "Save model defaults" }),
+    ).not.toBeInTheDocument();
     expect(
       requests.filter(
         (request) =>
