@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-74 open tasks: 10 in progress, 51 pending, 13 deferred. 1411 finished: 1393 completed, 18 archived.
+75 open tasks: 11 in progress, 51 pending, 13 deferred. 1411 finished: 1393 completed, 18 archived.
 
 ## In progress
 
@@ -21,6 +21,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V443-002](v443-002-podman-cli-test-budgets.yml) | quality | chore | P2 | Separate Podman CLI output and timeout test budgets |
 
 ## Pending
 
@@ -179,9 +180,9 @@ tasks in `introduced_by`.
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 36 | 39 | 16 | 66 |
 | Audits (`audits`) | 14 | 68 | 92 | 39 | 144 |
 | Evaluations (`evals`) | 6 | 21 | 40 | 16 | 49 |
-| Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 5 |
+| Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
 | Web UI (`ui`) | 2 | 42 | 70 | 26 | 71 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 46 | 9 | 22 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 39 | 29 | 20 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 27 | 47 | 17 |
-| Quality, CI and process (`quality`) | 11 | 1 | 29 | 123 | 27 |
+| Quality, CI and process (`quality`) | 12 | 1 | 29 | 124 | 27 |
