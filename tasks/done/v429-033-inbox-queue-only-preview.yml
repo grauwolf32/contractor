@@ -5,7 +5,8 @@ milestone: ui-journey-usability
 epic: ui
 kind: feature
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: a9c64ebfbe21d4466663e9145f32dc83eb8e87bc
 depends_on: [V429-032]
 languages: [javascript, typescript]
 goal: The Inbox preview omits the redundant Runs and capacity disclosure while retaining the actionable queue and complete issue/report readers.
@@ -62,3 +63,11 @@ tests:
     covers: [A1, A2, A3]
   - command: git diff --check
     covers: [A1, A2, A3]
+verification:
+  results:
+    - Browser verification passed 52 layout/state cases and four Reports parity comparisons, now also asserting absence of the disclosure and optional capacity readers.
+    - Full issue/report content, exact downloads, J/K, mobile Back and local decision refusal passed with no browser errors or live API requests; 168 protected hashes matched.
+    - Task/spec consistency and whitespace checks passed. The updated preview was opened and visibly verified in the in-app browser.
+    - Future active-test approval/main reconciliation is recorded in merge-notes.md; production source and current approval owners remain unchanged.
+  artifact: docs/design/ui/experiments/inbox-inline-report-2026-11-04/verification.json
+  delivery: Committed on codex/inbox-design; main merge awaits the user's separate request.
