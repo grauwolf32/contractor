@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-74 open tasks: 11 in progress, 50 pending, 13 deferred. 1437 finished: 1419 completed, 18 archived.
+73 open tasks: 10 in progress, 50 pending, 13 deferred. 1438 finished: 1420 completed, 18 archived.
 
 ## In progress
 
@@ -21,7 +21,6 @@ the epics are in [epics.yml](epics.yml).
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V444-003](v444-003-verify-engagement-boundary.yml) | quality | chore | P1 | Verify the reduced engagement boundary across existing HTTP execution |
 
 ## Pending
 
@@ -47,8 +46,8 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V410-008](v410-008-sitemap-caido-history.yml) | feature | P2 | V410-007 | Import selected Caido history incrementally with durable checkpoints |
 | [V410-009](v410-009-sitemap-browser-collection.yml) | feature | P2 | V410-007, V412-001 | Collect managed Playwright network observations into the sitemap |
-| [V412-001](v412-001-managed-pentest-browser.yml) | feature | P2 | V444-003 | Add allocation-owned browser investigation with explicit network authority |
-| [V412-004](v412-004-trusted-pentest-callback-proof.yml) | feature | P2 | V411-015, V411-016, V444-003 | Use existing Interactsh tools as bounded HTTP investigation evidence |
+| [V412-001](v412-001-managed-pentest-browser.yml) | feature | P2 | — | Add allocation-owned browser investigation with explicit network authority |
+| [V412-004](v412-004-trusted-pentest-callback-proof.yml) | feature | P2 | V411-015, V411-016 | Use existing Interactsh tools as bounded HTTP investigation evidence |
 
 ### Scanner tool Workers and scan planning (`scan-tools`)
 
@@ -56,13 +55,13 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
 | [V410-026](v410-026-sitemap-source-comparison.yml) | chore | P2 | — | Compare transport observations and scanner report projections for sitemap |
-| [V412-005](v412-005-controlled-scanner-pentest-integration.yml) | feature | P2 | V444-003 | Run ffuf through the existing allocation-local engagement authority |
+| [V412-005](v412-005-controlled-scanner-pentest-integration.yml) | feature | P2 | — | Run ffuf through the existing allocation-local engagement authority |
 
 ### Findings tools and collections (`findings`)
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V411-007](v411-007-trusted-http-capture.yml) | feature | P1 | V444-003 | Retain actual HTTP exchanges in ordinary check results and findings |
+| [V411-007](v411-007-trusted-http-capture.yml) | feature | P1 | — | Retain actual HTTP exchanges in ordinary check results and findings |
 
 ### Workflow catalog and document workflows (`workflows`)
 
@@ -70,9 +69,9 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V410-006](v410-006-sitemap-workflow-composition.yml) | feature | P1 | — | Ship standalone sitemap discovery and reconciliation Workflows |
 | [V410-025](v410-025-sitemap-audit-composition.yml) | feature | P1 | V410-007 | Compose exact sitemap artifacts through ordinary Audit tasks |
-| [V411-014](v411-014-pentest-discovery-surface.yml) | feature | P1 | V411-015, V410-025, V444-003 | Discover URL-only targets using HTTP tools and the shared sitemap |
-| [V411-015](v411-015-http-pentest-workflow-presets.yml) | feature | P1 | V411-007, V411-019, V444-003 | Demonstrate an ordinary HTTP Workflow on the lean Audit path |
-| [V412-003](v412-003-browser-pentest-profiles-and-gate.yml) | feature | P2 | V412-001, V410-009, V411-020, V444-003 | Compose optional browser investigation with truthful availability and results |
+| [V411-014](v411-014-pentest-discovery-surface.yml) | feature | P1 | V411-015, V410-025 | Discover URL-only targets using HTTP tools and the shared sitemap |
+| [V411-015](v411-015-http-pentest-workflow-presets.yml) | feature | P1 | V411-007, V411-019 | Demonstrate an ordinary HTTP Workflow on the lean Audit path |
+| [V412-003](v412-003-browser-pentest-profiles-and-gate.yml) | feature | P2 | V412-001, V410-009, V411-020 | Compose optional browser investigation with truthful availability and results |
 | [V425-043](v425-043-resolve-historical-run-model-policy-snapshots.yml) | defect | P2 | — | Resolve historical Run snapshots after Workflow-owned model selection |
 
 ### Audits (`audits`)
@@ -87,8 +86,8 @@ the epics are in [epics.yml](epics.yml).
 | [V64-015](v64-015-audit-research-frontier.yml) | feature | P2 | V64-011 | Measure whether a larger Audit frontier needs incremental indexing |
 | [V64-016](v64-016-audit-research-ranking-evaluation.yml) | chore | P2 | V64-005, V64-011 | Evaluate optional Audit ranking against the deterministic baseline |
 | [V64-017](v64-017-audit-attack-tree-projection.yml) | feature | P2 | V64-011 | Project optional attack trees over retained research conclusions |
-| [V64-018](v64-018-audit-research-pentest-integration.yml) | feature | P2 | V64-011, V411-020, V444-003 | Compose optional hypothesis generation with ordinary HTTP Audit tasks |
-| [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-015, V411-014, V64-008, V444-003 | Show HTTP engagement context and gaps in ordinary retained Audit reports |
+| [V64-018](v64-018-audit-research-pentest-integration.yml) | feature | P2 | V64-011, V411-020 | Compose optional hypothesis generation with ordinary HTTP Audit tasks |
+| [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-015, V411-014, V64-008 | Show HTTP engagement context and gaps in ordinary retained Audit reports |
 | [V417-005](v417-005-audit-worker-context-compaction.yml) | feature | P1 | V417-003, V417-004 | Admit compaction without bypassing trusted Audit completion |
 | [V425-017](v425-017-machine-report-ceiling-test.yml) | chore | P3 | V64-010, V64-008 | Drive the cumulative 64 MiB machine report check to its rejection in a test |
 
@@ -97,8 +96,8 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V40-003](v40-003-agent-instruction-eval-decision.yml) | feature | P1 | V40-002 | Evaluate instruction candidates and record evidence-based adoption decisions |
-| [V411-019](v411-019-pentest-target-fixtures-and-proof-scorers.yml) | chore | P1 | V444-003 | Build small paired HTTP targets and independent result oracles |
-| [V411-021](v411-021-pentest-frozen-live-quality-evaluation.yml) | chore | P2 | V411-020, V444-003 | Evaluate HTTP investigation quality with frozen repeated comparisons |
+| [V411-019](v411-019-pentest-target-fixtures-and-proof-scorers.yml) | chore | P1 | — | Build small paired HTTP targets and independent result oracles |
+| [V411-021](v411-021-pentest-frozen-live-quality-evaluation.yml) | chore | P2 | V411-020 | Evaluate HTTP investigation quality with frozen repeated comparisons |
 | [V417-008](v417-008-context-compaction-eval-harness.yml) | chore | P2 | V417-001, V417-003 | Build frozen context-compaction evaluation fixtures and an opt-in harness |
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | chore | P2 | V417-008, V417-009 | Measure compaction and reasoning choices with repeated frozen live experiments |
 
@@ -106,20 +105,20 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V411-013](v411-013-pentest-sandbox-integration.yml) | feature | P1 | V411-015, V444-003 | Compose the existing networked sandbox into HTTP investigations |
+| [V411-013](v411-013-pentest-sandbox-integration.yml) | feature | P1 | V411-015 | Compose the existing networked sandbox into HTTP investigations |
 
 ### Web UI (`ui`)
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V64-009](v64-009-audit-priority-ui.yml) | feature | P1 | V64-008, V64-010 | Show the basic research journey in the existing Audit UI |
-| [V411-018](v411-018-pentest-ui-journey.yml) | feature | P1 | V411-015, V411-017, V64-009, V444-003 | Build the ordinary HTTP Audit setup and evidence UI journey |
+| [V411-018](v411-018-pentest-ui-journey.yml) | feature | P1 | V411-015, V411-017, V64-009 | Build the ordinary HTTP Audit setup and evidence UI journey |
 
 ### Public API and wire contracts (`api-contracts`)
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V411-017](v411-017-pentest-api-cli.yml) | feature | P1 | V411-015, V411-016, V64-008, V444-003 | Expose HTTP engagement setup and results through existing API and CLI |
+| [V411-017](v411-017-pentest-api-cli.yml) | feature | P1 | V411-015, V411-016, V64-008 | Expose HTTP engagement setup and results through existing API and CLI |
 
 ### PostgreSQL persistence and schema (`persistence`)
 
@@ -134,7 +133,7 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V347-001](v347-001-protect-main-branch.yml) | chore | P1 | — | Protect main with a required check |
 | [V410-007](v410-007-sitemap-release-gate.yml) | chore | P1 | V410-006 | Verify the standalone sitemap slice across scale and lifecycle boundaries |
-| [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V64-011, V411-013, V411-014, V411-016, V411-017, V411-018, V411-019, V410-025, V444-003 | Gate the composed ordinary HTTP pentest through real processes |
+| [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V64-011, V411-013, V411-014, V411-016, V411-017, V411-018, V411-019, V410-025 | Gate the composed ordinary HTTP pentest through real processes |
 | [V417-009](v417-009-context-compaction-release-gate.yml) | chore | P1 | V417-003, V417-004, V417-005, V417-006, V417-007 | Verify context compaction across real processes and close the deterministic milestone |
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-006, V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
 | [V425-014](v425-014-runtime-tests-fail-on-macos.yml) | chore | P3 | — | Make the Runtime process-liveness assertions able to fail on macOS |
@@ -184,4 +183,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 46 | 9 | 22 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 39 | 29 | 20 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 27 | 47 | 17 |
-| Quality, CI and process (`quality`) | 12 | 1 | 29 | 127 | 27 |
+| Quality, CI and process (`quality`) | 11 | 1 | 29 | 127 | 27 |
