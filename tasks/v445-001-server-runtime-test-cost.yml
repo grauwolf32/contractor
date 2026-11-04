@@ -1,0 +1,72 @@
+schema_version: "1.0"
+id: V445-001
+title: "Remove repeated setup and waits from Server and Runtime tests"
+milestone: test-gate-cost-2026-10
+epic: quality
+kind: chore
+introduced_by: V57-005
+priority: P3
+status: in_progress
+depends_on: []
+languages: [go, python]
+goal: >-
+  Preserve production boundary coverage while avoiding repeated OpenAPI preparation,
+  obsolete transport comparisons and real-time waits in deterministic tests.
+context:
+  authority:
+    - date: "2026-11-04"
+      decision: "User requested implementing all reviewed Server and Runtime optimizations in one pass."
+  review: "Server and Runtime test review in this chat on 2026-11-04."
+  specification:
+    - docs/testing/README.md
+    - docs/spec/execution/control-plane.md
+    - docs/spec/execution/worker.md
+    - docs/spec/tools/workspace.md
+  finding: >-
+    internal/httpapi/public/openapi_contract_test.go:864 reparses and validates the
+    public contract at 72 call sites. The A2A lifecycle experiment repeats scenarios
+    with a test-only non-reusing transport. Scanner discovery repeats a two-second
+    hung-process wait five times. Skill cancellation waits ten seconds, and the
+    filesystem responsiveness check asserts a 120-ms scheduling gap.
+  boundary: "Test fixtures and checks only; production owners, deadlines and supported scale ceilings are retained."
+  decision: >-
+    Reuse immutable validated contract data with isolated mutable consumers; exercise
+    A2A lifecycle cases through NewMTLS; preserve one real hung-process probe and all
+    scanner identities; use the existing advanceable clock and off-thread synchronization.
+    Leaving repeated setup/waits is the simpler alternative but adds suite cost and
+    scheduling sensitivity without another production guarantee.
+  coverage_mapping:
+    a2a: >-
+      All nine cancellation phases, wrong principal, later allocation, retired
+      tenant, initial/established certificate expiry and key rotation use NewMTLS.
+      The existing wait injection synchronizes poll_wait without overriding the
+      production transport. The benchmark retains the unsupported transport comparison.
+    scanner: "Every scanner remains in the independence matrix; one separate real timeout proves the hung PID is gone."
+    skill: "All six error/cancellation components remain; the native close case advances the existing loop clock after cancellation."
+    filesystem: "Both read windows and literal/regex grep retain full-size results and gated CPU-thread ownership checks."
+scope:
+  in:
+    - "Reuse prepared OpenAPI contract data without shared mutable test state."
+    - "Remove obsolete non-reuse lifecycle comparisons; retain unique production TLS/cancellation cases and benchmarks."
+    - "Separate scanner independence from its one real process-timeout proof."
+    - "Replace Skill cleanup waits and filesystem latency thresholds with deterministic checks."
+  out:
+    - "Production behavior, public/wire API changes, live models, Audit removal-map retirement and scale reductions."
+acceptance_criteria:
+  - id: A1
+    text: "Public contract tests reuse prepared data, retain operation coverage and pass whole under the race detector."
+  - id: A2
+    text: "A2A cancellation/deadline/TLS ownership cases run through the production client without obsolete transport comparisons."
+  - id: A3
+    text: "All scanner identities, hung-process cleanup, Skill fencing and large-file off-thread behavior remain covered with fewer real waits."
+  - id: A4
+    text: "Full touched Go packages, Runtime and lint pass; gate references select existing tests."
+tests:
+  - command: "go test -race -count=1 ./internal/httpapi/public"
+    covers: [A1, A4]
+  - command: "go test -race -count=1 ./internal/planner/a2a"
+    covers: [A2, A4]
+  - command: "cd runtime && uv run pytest -W error tests"
+    covers: [A3, A4]
+  - command: "make lint"
+    covers: [A1, A2, A3, A4]

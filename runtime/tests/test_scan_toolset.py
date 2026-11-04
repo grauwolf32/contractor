@@ -5,6 +5,7 @@ import inspect
 import ipaddress
 import json
 import os
+import shlex
 import shutil
 import sys
 import tempfile
@@ -48,7 +49,7 @@ def executable(tmp_path: Path, name: str, source: str) -> Path:
 
 @pytest.mark.parametrize("available_scanner", scan.SCANNERS, ids=lambda scanner: scanner.name)
 def test_capabilities_check_each_binary_independently(tmp_path, monkeypatch, available_scanner):
-    failures = iter(["exec /bin/sleep 60", "exit 2", "exit 3", "exit 4"])
+    failures = iter(["exit 5", "exit 2", "exit 3", "exit 4"])
     for scanner in scan.SCANNERS:
         # These probes test scanner independence, not Python interpreter startup time.
         source = (
@@ -95,6 +96,29 @@ def test_capabilities_check_each_binary_independently(tmp_path, monkeypatch, ava
         assert not empty.has_toolset("scan@1")
         assert empty.wire_toolsets() == []
         assert empty.runtimes == ("adk@1",)
+
+    asyncio.run(scenario())
+
+
+def test_hung_scanner_probe_does_not_hide_a_healthy_binary(tmp_path, monkeypatch):
+    # One real timeout retains process cleanup coverage. The identity matrix
+    # above exercises every selected scanner with immediately failing siblings.
+    marker = tmp_path / "hung.pid"
+    hanging = tmp_path / "nuclei"
+    hanging.write_text(
+        f"#!/bin/sh\nprintf '%s' $$ > {shlex.quote(str(marker))}\nexec /bin/sleep 60\n"
+    )
+    hanging.chmod(0o700)
+    healthy = tmp_path / "katana"
+    healthy.write_text("#!/bin/sh\nprintf '%s\\n' 'Current version: v1.7.0'\n")
+    healthy.chmod(0o700)
+    monkeypatch.setenv("PATH", str(tmp_path))
+
+    async def scenario():
+        factory = scan.ScanToolsetFactory()
+        assert await factory.probe() == frozenset({"scan_katana"})
+        with pytest.raises(ProcessLookupError):
+            os.kill(int(marker.read_text()), 0)
 
     asyncio.run(scenario())
 
