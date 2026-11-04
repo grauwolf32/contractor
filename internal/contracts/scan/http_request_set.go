@@ -4,11 +4,7 @@
 package scan
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
 	"net/url"
-	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -37,52 +33,52 @@ const (
 // HTTPRequestSet is neutral preparation output, not a scanner invocation. A
 // consumer must select scan parameters and apply its adapter's validation.
 type HTTPRequestSet struct {
-	SchemaVersion     int                `json:"schemaVersion"`
-	Source            RequestSetSource   `json:"source"`
-	PreparationDigest string             `json:"preparationDigest"`
-	Requests          []RequestSetEntry  `json:"requests"`
-	Gaps              []PreparationGap   `json:"gaps"`
-	Coverage          RequestSetCoverage `json:"coverage"`
+	SchemaVersion     int                `json:"schemaVersion" strictjson:"required"`
+	Source            RequestSetSource   `json:"source" strictjson:"required"`
+	PreparationDigest string             `json:"preparationDigest" strictjson:"required"`
+	Requests          []RequestSetEntry  `json:"requests" strictjson:"required"`
+	Gaps              []PreparationGap   `json:"gaps" strictjson:"required"`
+	Coverage          RequestSetCoverage `json:"coverage" strictjson:"required"`
 }
 
 type RequestSetSource struct {
-	Artifact      contracts.ArtifactRef `json:"artifact"`
-	ContentDigest string                `json:"contentDigest"`
+	Artifact      contracts.ArtifactRef `json:"artifact" strictjson:"required"`
+	ContentDigest string                `json:"contentDigest" strictjson:"required"`
 }
 
 type RequestSetEntry struct {
-	ID            string              `json:"id"`
-	ContentDigest string              `json:"contentDigest"`
-	Request       PreparedHTTPRequest `json:"request"`
-	Origins       []RequestOrigin     `json:"origins"`
+	ID            string              `json:"id" strictjson:"required"`
+	ContentDigest string              `json:"contentDigest" strictjson:"required"`
+	Request       PreparedHTTPRequest `json:"request" strictjson:"required"`
+	Origins       []RequestOrigin     `json:"origins" strictjson:"required"`
 }
 
 type PreparedHTTPRequest struct {
-	Method  string              `json:"method"`
-	URL     string              `json:"url"`
-	Headers []HTTPRequestHeader `json:"headers"`
-	Body    string              `json:"body"`
+	Method  string              `json:"method" strictjson:"required"`
+	URL     string              `json:"url" strictjson:"required"`
+	Headers []HTTPRequestHeader `json:"headers" strictjson:"required"`
+	Body    string              `json:"body" strictjson:"required"`
 }
 
 type HTTPRequestHeader struct {
-	Name  string `json:"name"`
-	Value string `json:"value"`
+	Name  string `json:"name" strictjson:"required"`
+	Value string `json:"value" strictjson:"required"`
 }
 
 type RequestOrigin struct {
-	Pointer string `json:"pointer"`
+	Pointer string `json:"pointer" strictjson:"required"`
 }
 
 type PreparationGap struct {
-	Pointer string `json:"pointer"`
-	Code    string `json:"code"`
+	Pointer string `json:"pointer" strictjson:"required"`
+	Code    string `json:"code" strictjson:"required"`
 }
 
 type RequestSetCoverage struct {
-	Operations int  `json:"operations"`
-	Prepared   int  `json:"prepared"`
-	Skipped    int  `json:"skipped"`
-	Complete   bool `json:"complete"`
+	Operations int  `json:"operations" strictjson:"required"`
+	Prepared   int  `json:"prepared" strictjson:"required"`
+	Skipped    int  `json:"skipped" strictjson:"required"`
+	Complete   bool `json:"complete" strictjson:"required"`
 }
 
 var (
@@ -245,14 +241,8 @@ func DecodeHTTPRequestSet(data []byte) (HTTPRequestSet, error) {
 	if len(data) > MaxHTTPRequestSetBytes || !utf8.Valid(data) {
 		return value, contracts.Invalidf("HTTPRequestSet exceeds byte bound or is not UTF-8")
 	}
-	if err := strictjson.RejectDuplicateKeys(data); err != nil {
+	if err := strictjson.DecodeNonNull(data, &value); err != nil {
 		return value, contracts.Invalidf("HTTPRequestSet is not strict JSON")
-	}
-	if err := requestSetJSONShape(data, reflect.TypeOf(value)); err != nil {
-		return value, err
-	}
-	if err := json.Unmarshal(data, &value); err != nil {
-		return value, contracts.Invalidf("HTTPRequestSet field type is invalid")
 	}
 	if err := value.Validate(); err != nil {
 		return value, err
@@ -275,58 +265,4 @@ func MarshalHTTPRequestSet(value HTTPRequestSet) ([]byte, error) {
 		return nil, contracts.Invalidf("HTTPRequestSet exceeds byte bound")
 	}
 	return data, nil
-}
-
-// All fields in this artifact are mandatory, including zero-valued strings,
-// booleans and arrays. Checking the raw shape prevents encoding/json's lenient
-// missing/null handling and case-insensitive matching from weakening that rule.
-func requestSetJSONShape(data json.RawMessage, kind reflect.Type) error {
-	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
-		return contracts.Invalidf("HTTPRequestSet fields must not be null")
-	}
-	if kind.Kind() == reflect.Pointer {
-		return requestSetJSONShape(data, kind.Elem())
-	}
-	switch kind.Kind() {
-	case reflect.Struct:
-		var fields map[string]json.RawMessage
-		if err := json.Unmarshal(data, &fields); err != nil || len(fields) != kind.NumField() {
-			return contracts.Invalidf("HTTPRequestSet object has missing or unknown fields")
-		}
-		for i := 0; i < kind.NumField(); i++ {
-			field := kind.Field(i)
-			name := strings.Split(field.Tag.Get("json"), ",")[0]
-			raw, exists := fields[name]
-			if !exists {
-				return contracts.Invalidf("HTTPRequestSet object is missing field %s", name)
-			}
-			if err := requestSetJSONShape(raw, field.Type); err != nil {
-				return err
-			}
-		}
-	case reflect.Slice:
-		var items []json.RawMessage
-		if err := json.Unmarshal(data, &items); err != nil {
-			return contracts.Invalidf("HTTPRequestSet array has invalid type")
-		}
-		for _, item := range items {
-			if err := requestSetJSONShape(item, kind.Elem()); err != nil {
-				return err
-			}
-		}
-	case reflect.String:
-		if !strictjson.ValidUnicodeEscapes(data) {
-			return contracts.Invalidf("HTTPRequestSet string contains invalid Unicode")
-		}
-		if err := json.Unmarshal(data, reflect.New(kind).Interface()); err != nil {
-			return contracts.Invalidf("HTTPRequestSet scalar has invalid type")
-		}
-	case reflect.Int, reflect.Bool:
-		if err := json.Unmarshal(data, reflect.New(kind).Interface()); err != nil {
-			return contracts.Invalidf("HTTPRequestSet scalar has invalid type")
-		}
-	default:
-		return fmt.Errorf("unsupported HTTPRequestSet contract type %s", kind)
-	}
-	return nil
 }

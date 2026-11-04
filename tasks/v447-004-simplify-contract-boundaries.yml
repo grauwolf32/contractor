@@ -2,7 +2,7 @@ schema_version: "1.0"
 milestone: contracts-review-2026-11
 epic: api-contracts
 priority: P2
-status: pending
+status: in_progress
 id: V447-004
 title: Reuse strict JSON decoding and restore contracts domain boundaries
 kind: chore
