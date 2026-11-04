@@ -40,3 +40,11 @@ tests:
     covers: [A1, A2]
   - command: make lint
     covers: [A1, A2]
+
+verification:
+  date: "2026-11-05"
+  result: >-
+    go test -count=1 ./tests/e2e and make lint pass. The complete synthetic report
+    follows the canonical required membership; every existing missing/skip/fail/
+    never-run/malformed mutation remains rejected. Production gate code and its
+    required membership are unchanged.
