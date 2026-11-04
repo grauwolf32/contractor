@@ -6,6 +6,8 @@ V429-032 follows the user's request to load the report directly in the Inbox, al
 
 Inbox keeps its queue bar, previous/next, J/K, mobile Back, focus and late decision navigation. “Open report” retains the requested review identity. If a ready row disappears after a report read fails or becomes unavailable, the selected check still reaches the shared report reader and its actual error/status UI. Acceptance is never inferred from the queue row alone.
 
+V429-033 removes the redundant “Runs and capacity” disclosure from the latest preview copy, including its optional Operations/Workflow readers. Actionable Run rows and ordinary navigation stay available. [Future merge notes](merge-notes.md) record the user's upcoming active-test approval removal and separate merge instruction; its current owner and fixture are unchanged.
+
 `report-fixtures.ts` provides two schema-validated synthetic reports below 16 KiB each. Their complete Markdown includes a table, limitations and follow-up beyond the former excerpt. Markdown and JSON downloads match the response exactly; retained metadata records real SHA-256 digests and byte lengths. Pending, unavailable, failed-read and mismatched-review cases use the existing Reports UI. All requests stay in the in-memory fixture, and every mutation is refused locally.
 
 ## Review

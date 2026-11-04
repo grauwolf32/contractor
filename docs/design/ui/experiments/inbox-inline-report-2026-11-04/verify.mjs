@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';import {readFile,writeFile,mkdir} from 'node:fs/promises';import {createHash} from 'node:crypto';import {chromium,expect} from '../../../../../ui/node_modules/@playwright/test/index.mjs';
 const root=new URL('./',import.meta.url),review=new URL('review/',root);await mkdir(review,{recursive:true});
 const preserved=JSON.parse(await readFile(new URL('preserved-artifacts.json',root),'utf8'));for(const [path,hash] of Object.entries(preserved.files))assert.equal(createHash('sha256').update(await readFile(new URL('../../../../../'+path,root))).digest('hex'),hash,'Protected file changed: '+path);
+const previewList=await readFile(new URL('../../../../../ui/test-results/inbox-inline-report/focus-list.tsx',root),'utf8');assert(!/Runs and capacity|CapacityCounts|capacityOpen|getOperationsSnapshot|useWorkflowInventory/.test(previewList),'Optional capacity UI/readers remain');
 const browser=await chromium.launch(),page=await browser.newPage(),errors=[],network=[],checks=[],parity=[];page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{if(new URL(r.url()).pathname.startsWith('/v1/'))network.push(r.url())});
 const base='http://127.0.0.1:17560/test-results/inbox-inline-report/current.html';
-async function clean(){assert.deepEqual(await page.evaluate(()=>window.__inboxViolations),[]);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);}
+async function clean(){assert.deepEqual(await page.evaluate(()=>window.__inboxViolations),[]);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);await expect(page.getByText('Runs and capacity',{exact:true})).toHaveCount(0);}
 async function open(view='report',width=1440,theme='dark',state='normal',version='new'){
  await page.setViewportSize({width,height:1000});await page.goto(base+'?'+new URLSearchParams({view,width:String(width),theme,state,version}));await expect(page.locator('.reports-body')).toBeVisible();
  if(state==='report-error'){await expect(page.locator('.reports-body')).toContainText('Synthetic report read failure');await expect(page.getByRole('button',{name:'Approve',exact:true})).toHaveCount(0);}

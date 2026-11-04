@@ -1,7 +1,18 @@
-import {readFile,writeFile,mkdir,copyFile} from 'node:fs/promises';import {createHash} from 'node:crypto';
+import {readFile,writeFile,mkdir,copyFile} from 'node:fs/promises';import {createHash} from 'node:crypto';import assert from 'node:assert/strict';import {posix} from 'node:path';
 const root=new URL('./',import.meta.url),repo=new URL('../../../../../',root),previous=new URL('../inbox-full-issue-2026-11-04/',root),oldTarget=new URL('ui/test-results/inbox-full-issue/',repo),target=new URL('ui/test-results/inbox-inline-report/',repo);await mkdir(target,{recursive:true});await import(new URL('prepare.mjs',previous));
 const digest=createHash('sha256').update(await readFile(new URL('prepare.mjs',root)));for(const name of ['full-report.tsx','report-fixtures.ts'])digest.update(await readFile(new URL(name,root)));const revision=digest.digest('hex').slice(0,12),rev=s=>s.replace(/\?rev=[a-f0-9]{12}/g,'?rev='+revision);
 for(const name of ['focus-overview.tsx','focus.css','focus-route.tsx','full-issue.tsx','fixtures.ts','full.css'])await writeFile(new URL(name,target),rev(await readFile(new URL(name,oldTarget),'utf8')));
+// Preview-only list change: omit the optional disclosure and its readers.
+let list=await readFile(new URL('ui/src/routes/inbox/list.tsx',repo),'utf8');
+const capacityStart=list.indexOf('/**\n * Counts that were Home tiles:'),capacityEnd=list.indexOf('interface InboxListProps',capacityStart),disclosure=/      <TechnicalDetails\n        summary="Runs and capacity"[\s\S]*?      <\/TechnicalDetails>\n/;
+assert(capacityStart>=0&&capacityEnd>capacityStart&&disclosure.test(list),'Inbox capacity source boundary changed');
+list=list.slice(0,capacityStart)+list.slice(capacityEnd);
+list=list.replace(disclosure,'').replace('  const [capacityOpen, setCapacityOpen] = useState(false);\n','');
+for(const line of ['import { useQuery } from "@tanstack/react-query";','import { usePublicAPI } from "../../api/context";','import { getOperationsSnapshot } from "../../api/operations";','import { queryKeys } from "../../api/query-keys";','import { useSession } from "../../auth/session";','import { useWorkflowInventory } from "../workflows/inventory";','  Facts,','  TechnicalDetails,'])list=list.replace(line+'\n','');
+list=list.replace(/(from\s+|import\s+)(["'])(\.[^"']+)\2/g,(_,prefix,quote,path)=>prefix+quote+posix.normalize('/src/routes/inbox/'+path)+quote);
+assert(!/CapacityCounts|capacityOpen|getOperationsSnapshot|useWorkflowInventory/.test(list),'Optional capacity readers remain');
+await writeFile(new URL('focus-list.tsx',target),list);
+let route=rev(await readFile(new URL('focus-route.tsx',target),'utf8'));assert(route.includes('from "/src/routes/inbox/list"'),'Inbox list import changed');route=route.replace('from "/src/routes/inbox/list"','from "./focus-list?rev='+revision+'"');await writeFile(new URL('focus-route.tsx',target),route);
 for(const name of ['full-report.tsx','report-fixtures.ts','index.html'])await copyFile(new URL(name,root),new URL(name,target));
 let detail=await readFile(new URL('focus-detail.tsx',oldTarget),'utf8');
 detail=detail.replace('ReportDetail, ReviewDetail } from "/src/routes/inbox/detail-decisions"','ReportDetail as CompactReportDetail, ReviewDetail as CompactReviewDetail } from "/src/routes/inbox/detail-decisions"');
