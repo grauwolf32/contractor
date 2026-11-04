@@ -6,7 +6,7 @@ epic: http-tools
 kind: defect
 introduced_by: V410-030
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V410-030]
 languages: [python, markdown]
 goal: Controlled HTTP and scanner IPC preserve authorized request targets and encoded body bytes without implicit recompression.
@@ -58,3 +58,7 @@ tests:
   covers: [A4]
 - command: cd runtime && uv run python ../scripts/check_tasks.py
   covers: [A4]
+implementation_commit: 4c5ea174e7c0d78ecf69683c418d37cea726d913
+verification:
+- 2026-11-04 — all eight original regression cases failed on the reviewed implementation; after repair all eleven expanded message cases passed, including real HTTP/1.1 and HTTP/2 target/scanner traffic.
+- 2026-11-04 — full affected HTTP/scanner suites passed (159 tests); make lint, check_spec.py and check_tasks.py passed. HTTP/1.0 rejection remains covered.
