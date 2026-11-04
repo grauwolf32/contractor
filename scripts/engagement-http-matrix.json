@@ -175,6 +175,11 @@
     "tests.test_bridge_retirement::test_connection_retirement_joins_wakeup_before_start_or_during_dispatch[pending]",
     "tests.test_bridge_retirement::test_connection_retirement_joins_wakeup_before_start_or_during_dispatch[dispatch]",
     "tests.test_bridge_retirement::test_connection_cleanup_joins_retirement_through_repeated_cancellation",
-    "tests.test_bridge_retirement::test_live_native_wakeup_dispatch_reschedules_and_releases_its_old_route"
+    "tests.test_bridge_retirement::test_live_native_wakeup_dispatch_reschedules_and_releases_its_old_route",
+    "tests.test_bridge_ingress::test_scanner_request_line_whitespace_cannot_skip_source_admission[crlf-repeated-space]",
+    "tests.test_bridge_ingress::test_scanner_request_line_whitespace_cannot_skip_source_admission[crlf-tab]",
+    "tests.test_bridge_ingress::test_scanner_request_line_whitespace_cannot_skip_source_admission[lf-repeated-space]",
+    "tests.test_bridge_ingress::test_scanner_request_line_whitespace_cannot_skip_source_admission[lf-tab]",
+    "tests.test_bridge_ingress::test_scanner_lf_headers_preserve_an_admitted_empty_query"
   ]
 }

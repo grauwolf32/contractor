@@ -6,6 +6,7 @@ import logging
 import time
 from urllib.parse import urlsplit
 
+from h11._receivebuffer import blank_line_regex
 from mitmproxy import http
 from mitmproxy.proxy import commands, events, layers, server
 from mitmproxy.proxy.layers import http as native_http
@@ -37,22 +38,25 @@ class IngressHttp1(BoundedHttp1Body, _http1.Http1Server):
         path = None
         if isinstance(event, events.DataReceived):
             buffered = bytes(self.buf)
-            end = buffered.find(b"\r\n\r\n")
-            size = len(buffered) if end < 0 else end + 4
+            end = blank_line_regex.search(buffered)
+            size = len(buffered) if end is None else end.end()
             self.header_bytes = size
             if size > request_header_max_bytes() or (
-                end >= 0
-                and (
-                    buffered[:end].count(b"\r\n") > MAX_HEADERS
-                    or not buffered.split(b"\r\n", 1)[0].endswith(b" HTTP/1.1")
-                )
+                end is not None and buffered[:size].count(b"\n") - 2 > MAX_HEADERS
             ):
                 yield commands.CloseConnection(self.conn)
                 self.stop_input()
                 return
-            target = buffered.split(b"\r\n", 1)[0].split(b" ")
+            # Match the native reader's whitespace tokenization and LF line
+            # boundary and header delimiter. Validate once a complete head is
+            # available, before the native reader can normalize its target.
+            target = buffered.split(b"\n", 1)[0].split()
+            if end is not None and (len(target) != 3 or target[2] != b"HTTP/1.1"):
+                self.stop_input()
+                yield commands.CloseConnection(self.conn)
+                return
             if (
-                end >= 0
+                end is not None
                 and len(target) == 3
                 and target[0] != b"CONNECT"
                 and not target[1].startswith(b"/")

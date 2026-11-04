@@ -251,3 +251,58 @@ def test_scanner_connect_rejects_original_authority():
             assert bridge.error_code == "scan_request_failed" and bridge._exception is None
 
     run(scenario)
+
+
+@pytest.mark.parametrize("separator", [b"  ", b"\t"], ids=["repeated-space", "tab"])
+@pytest.mark.parametrize("ending", [b"\r\n", b"\n"], ids=["crlf", "lf"])
+def test_scanner_request_line_whitespace_cannot_skip_source_admission(separator, ending):
+    async def scenario():
+        async with SocketTarget() as target, preflight(target) as (owner, _):
+            owner.configure(authority_deadline=lambda: time.monotonic() + 60)
+            raw = target.origin.replace("://target.example:", "://target.example:0") + "/allowed"
+            async with HTTPProxyBridge(
+                owner, credential_id=None, deadline=time.monotonic() + 10
+            ) as bridge:
+                reply = await raw_request(
+                    bridge,
+                    b"GET"
+                    + separator
+                    + raw.encode()
+                    + b" HTTP/1.1"
+                    + ending
+                    + b"Host: target.example:"
+                    + str(target.port).encode()
+                    + ending
+                    + b"Proxy-Authorization: "
+                    + bridge._authorization
+                    + ending
+                    + ending,
+                )
+                assert not reply.startswith(b"HTTP/1.1 200")
+                assert not target.connections and not owner._request_count
+            assert bridge.error_code == "scan_request_failed" and bridge._exception is None
+
+    run(scenario)
+
+
+def test_scanner_lf_headers_preserve_an_admitted_empty_query():
+    async def scenario():
+        async with SocketTarget() as target, preflight(target) as (owner, _):
+            owner.configure(authority_deadline=lambda: time.monotonic() + 60)
+            async with HTTPProxyBridge(
+                owner, credential_id=None, deadline=time.monotonic() + 10
+            ) as bridge:
+                reply = await raw_request(
+                    bridge,
+                    b"GET "
+                    + (target.origin + "/allowed;p?").encode()
+                    + b" HTTP/1.1\nHost: target.example:"
+                    + str(target.port).encode()
+                    + b"\nProxy-Authorization: "
+                    + bridge._authorization
+                    + b"\n\n",
+                )
+                assert reply.startswith(b"HTTP/1.1 200") and bridge.error_code is None
+                assert target.requests[0].startswith(b"GET /allowed;p? HTTP/1.1\r\n")
+
+    run(scenario)
