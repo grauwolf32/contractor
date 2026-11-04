@@ -5,7 +5,7 @@ milestone: audit-check-prioritization
 epic: audits
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V64-012
 - V64-004
@@ -26,6 +26,15 @@ demonstration: After an exploratory discovery and a negative or inconclusive che
   reads pinned selected context, proposes one attributed hypothesis/task, and a later check retains its
   result and optional finding.
 context:
+  verification_evidence: tasks/evidence/v64-013-2026-11-05.json
+  completion: >-
+    2026-11-05: Configured continuation now settles before Audit completion through
+    the existing coordinator and Task/Run intake. Clean Server/Runtime/PostgreSQL
+    process proof covers initial generation and refutation -> generation -> check
+    -> retained result -> empty decision, with pause/restart/Resume and replay.
+    Bounded exact context, whole-batch validation, trusted IDs/provenance and
+    existing receipts are implemented. Scope remains the assigned V64-013 slice;
+    live model quality and demo deployment are not part of deterministic proof.
   execution_authority: >-
     User assigned implementation on a separate branch on 2026-11-04. The same-day
     clarification confirms that ACT-R7 continuation before Audit completion,
@@ -45,7 +54,10 @@ context:
     The user accepted the common execution skeleton and requested concrete tasks; implementation is a
     subsequent step, not part of this task-formation request. User decision on 2026-11-02 keeps
     deterministic OpenAPI preparation with V64-026 and its common task intake with V64-002;
-    neither depends on this optional semantic generator or introduces a second intake engine.'
+    neither depends on this optional semantic generator or introduces a second intake engine.
+    User instruction on 2026-11-04 assigns implementation on a separate branch and clarifies
+    that ACT-R7 continuation before Audit completion, Pause/Resume, empty-result settlement
+    and reuse of accepted identities/receipts belong to this existing task.'
   implementation_decisions:
   - '2026-11-04 agent implementation: selected ordinary results become exact source_01 through source_16 Run inputs. The existing proposal-context carries handles, per-source task identity, optional exact hypothesis snapshots and gaps. This reuses Artifact paging and retention; embedding payloads would impose a combined content bound and duplicate readers. The existing 8 MiB common-document context ceiling remains; mutation metadata stays bounded by 1 MiB.'
   - '2026-11-04 agent implementation: the ordinary accepted continuation Task retains its consumed source boundary; indexed per-binding seeks exclude producer outputs and preserve unselected history. Manual/initial producers never reset that boundary. Hypothesis/task acceptance shares the existing keyed mutation and execution source cursor, including empty and hypothesis-only decisions.'
@@ -173,8 +185,9 @@ acceptance_criteria:
   then: the bounded declared batch fails explicitly without partial authoritative membership
 tests:
 - command: make require-database
-- command: go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditstore/... ./internal/auditservice
-    ./internal/auditcontroller ./internal/runservice
+- command: go test -p 2 -tags=integration -count=1 ./internal/auditdomain ./internal/auditstore/... ./internal/auditservice
+    ./internal/auditcontroller ./internal/runservice ./internal/auditimport ./internal/config/... ./internal/configload/...
+    ./internal/contracts/... ./internal/publicclient/...
   covers:
   - A1
   - A2
@@ -197,7 +210,6 @@ tests:
   - A5
 - command: make lint
 test_prerequisites:
-- Commands below are future implementation acceptance, not results of this planning update.
 - Use disposable PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set; configured/unavailable DB or mandatory
   skips fail. A focused selector matching zero tests fails.
 - Use testdata catalogs and pseudo-Skills, not live configs in unit/integration tests. Run whole touched-package
@@ -211,7 +223,7 @@ verification_requirements:
   dependencies and strict reads/writes.
 - Delete the replaced vertical path and its exclusive schemas/states/tests as its callers migrate. Final
   V64-011 proves no parallel legacy pipeline remains.
-implementation_commit: null
+implementation_commit: 6696978451c09d90bfd1249096b2bedb804eb2dc
 replanning:
   date: '2026-10-31'
   previous_title: Generate cold hypotheses and accept bounded concrete experiment plans

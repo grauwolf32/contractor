@@ -5,14 +5,13 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-72 open tasks: 11 in progress, 48 pending, 13 deferred. 1416 finished: 1398 completed, 18 archived.
+71 open tasks: 10 in progress, 48 pending, 13 deferred. 1417 finished: 1399 completed, 18 archived.
 
 ## In progress
 
 | Task | Epic | Kind | Priority | Title |
 | --- | --- | --- | --- | --- |
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
-| [V64-013](v64-013-audit-hypothesis-generation.yml) | audits | feature | P1 | Generate scoped hypotheses from selected materials and check results |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | quality | chore | P3 | Make the Runtime suite pass on macOS: declare the Linux-only Podman tests, make the other tests portable and file the macOS defects |
@@ -78,9 +77,9 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V64-005](v64-005-independent-priority-verdicts.yml) | feature | P2 | V64-013 | Optionally rank the common Audit ready-task shortlist |
-| [V64-008](v64-008-audit-priority-api-coverage.yml) | feature | P1 | V64-013 | Expose Audit tasks check results findings and selected materials |
-| [V64-010](v64-010-audit-priority-profile.yml) | feature | P1 | V64-013 | Verify shipped Audit programs and retire the remaining old pipeline |
+| [V64-005](v64-005-independent-priority-verdicts.yml) | feature | P2 | — | Optionally rank the common Audit ready-task shortlist |
+| [V64-008](v64-008-audit-priority-api-coverage.yml) | feature | P1 | — | Expose Audit tasks check results findings and selected materials |
+| [V64-010](v64-010-audit-priority-profile.yml) | feature | P1 | — | Verify shipped Audit programs and retire the remaining old pipeline |
 | [V64-011](v64-011-audit-priority-release.yml) | feature | P1 | V64-009, V64-010, V411-015, V425-017 | Gate the basic Audit research scenario and complexity reduction |
 | [V64-015](v64-015-audit-research-frontier.yml) | feature | P2 | V64-011 | Measure whether a larger Audit frontier needs incremental indexing |
 | [V64-016](v64-016-audit-research-ranking-evaluation.yml) | chore | P2 | V64-005, V64-011 | Evaluate optional Audit ranking against the deterministic baseline |
@@ -175,7 +174,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 1 | 17 | 10 | 10 | 15 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 21 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 36 | 39 | 16 | 66 |
-| Audits (`audits`) | 13 | 68 | 94 | 39 | 146 |
+| Audits (`audits`) | 12 | 68 | 94 | 39 | 146 |
 | Evaluations (`evals`) | 6 | 21 | 40 | 16 | 49 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
 | Web UI (`ui`) | 2 | 42 | 70 | 26 | 71 |

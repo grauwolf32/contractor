@@ -1,0 +1,122 @@
+{
+  "task": "V64-013",
+  "date": "2026-11-05",
+  "status": "completed",
+  "branch": "codex/audit-hypothesis-generation",
+  "base": "0d6bf1d03218f1a622364b855c85ece941d46880",
+  "implementation_commit": "6696978451c09d90bfd1249096b2bedb804eb2dc",
+  "merged_to_main": false,
+  "outcome": "The existing coordinator invokes configured continuation before ordinary Audit completion. Exact saved results reach one ordinary producer Run; typed proposals atomically admit system-attributed hypotheses and ordinary checking Tasks; the checking Run retains its result. Initial generation is also supported. Pause prevents dispatch and Resume preserves accepted identities. Empty proposals settle without a same-context loop; acknowledgement recovery reuses existing receipts.",
+  "checks": [
+    {
+      "command": "make require-database; go test -p 2 -tags=integration -count=1 ./internal/auditdomain ./internal/auditstore/... ./internal/auditservice ./internal/auditcontroller ./internal/runservice ./internal/auditimport ./internal/config/... ./internal/configload/... ./internal/contracts/... ./internal/publicclient/...",
+      "result": "Passed all selected packages in full against disposable PostgreSQL; no mandatory database skips. Includes continuation admission, pause/restart/Resume, empty and hypothesis-only decisions, whole-batch rejection, cancellation, receipt recovery, 20 sources consumed as 16 + 4, a >512 KiB accepted Task projection and 100,000-row query plans.",
+      "log": "/tmp/v64-go-accepted.log",
+      "log_digest": "sha256:eedb04fbd24bc81b49a0467be68bdede856f04b03970cfac26fe7f6ba8184b9c"
+    },
+    {
+      "command": "make test-runtime test-wire-cross-language test-audit-basic-e2e",
+      "result": "Passed sequentially on the clean implementation revision. Runtime: 5758 passed, 135 existing optional environment/platform skips; runtime report verifier passed. Focused wire tests: 385 passed. Shared fixture gate: 1473 passed; 369 fixtures, 404 Go and 259 Python shared tests. Audit process gate: all 11 required cases passed, no selected skips.",
+      "log": "/tmp/v64-acceptance-retry.log",
+      "log_digest": "sha256:25fd627274116b94bad2e2d6a9c732453aed11604799028fddbebbeaae112e83"
+    },
+    {
+      "command": "make lint verify-public-api verify-public-api-postgres",
+      "result": "Passed, including strict shared schemas, generated clients, architecture/layer checks, spec/task checks, release graph registration, Ruff/import contracts and race-backed PostgreSQL public API tests.",
+      "log": "/tmp/v64-quality-final.log",
+      "log_digest": "sha256:30deac287e7c918a29ae934d7a43ed71a01233b85bd2de54401d68f795e26620"
+    },
+    {
+      "command": "make ui-generate-check ui-lint ui-typecheck; cd ui && corepack pnpm exec vitest run --maxWorkers=2 && corepack pnpm test:server && corepack pnpm build",
+      "result": "Passed: 212 test files, 2423 passing tests and one expected negative test; generated-client checks, lint, typecheck, static-server tests and production build passed.",
+      "log": "/tmp/v64-ui-final.log",
+      "log_digest": "sha256:ad1fbc961ee967d0edcaf9e45f26ce40f623990a359b6587468738dfa19fd9cc"
+    },
+    {
+      "command": "go test -count=1 ./internal/persistence/postgres",
+      "result": "Passed in full using disposable PostgreSQL over TCP (45.109s). This repeat followed an earlier Unix-socket broken-pipe failure in TestClosedConnectionAfterBackendTerminationIsUnavailable; the database test was not skipped or modified.",
+      "log": "/tmp/v64-task-go.log",
+      "log_digest": "sha256:2ac96950126900a91686c1db57d7e7b2bce2028127ba85d62e066d78d9aa7361"
+    },
+    {
+      "command": "go run ./cmd/contractor server config validate --root ./configs",
+      "result": "Passed: 27 Workflows, 29 AgentTemplates, 15 AuditProfiles and 41 instructions, including the shipped hypothesis-research caller.",
+      "log": "/tmp/v64-config-final.log",
+      "log_digest": "sha256:749ff10dfc746f32c8b27e2def019f288065e7ac8ab2bc3cd953268b52017163"
+    },
+    {
+      "command": "make docs-dependencies docs-erd",
+      "result": "Regenerated dependency graph and ERD. Disposable schema at migration 8; 73 tables, 95 foreign keys; no new receipt, lease, controller or relation.",
+      "log": "/tmp/v64-docs.log",
+      "log_digest": "sha256:1e7f9a834830885cdee725f43759a2d1e0099c92e9f0ff483d771d687b543d86"
+    },
+    {
+      "command": "make tasks-backlog; cd runtime && uv run python ../scripts/check_tasks.py; python3 scripts/check_spec.py; make docs-dependencies-check; python3 scripts/check_release_verify_graph.py; git diff --check",
+      "result": "Passed after completion metadata and task move: 1488 task records, 50 owning specification documents, current dependency graph, registered release selectors and clean whitespace.",
+      "log": "/tmp/v64-close-check.log",
+      "log_digest": "sha256:aa2b85dc5d09b3ec39acc5706e2a0b00b22e51054662ae127e43cfed3c9832c0"
+    }
+  ],
+  "process_evidence_path": ".local/audit-basic-gate/run-ctrjcgj6/executed.json",
+  "process_evidence": {
+    "status": "passed",
+    "case_set": "core",
+    "source": {
+      "revision": "6696978451c09d90bfd1249096b2bedb804eb2dc",
+      "dirty": false
+    },
+    "matrix": {
+      "path": "scripts/audit-basic-matrix.json",
+      "digest": "sha256:f8f3d57cd9e54e2ce9a6917c2f2f86accb27aba040508c8f79119e3b4b526522"
+    },
+    "go": [
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditBasicExactHandoffAcrossProductionProcesses",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditBasicExactHandoffAcrossProductionProcesses/finding_false",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditBasicExactHandoffAcrossProductionProcesses/finding_true",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditCommonObservationProfilesAcrossProductionProcesses",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditCommonObservationProfilesAcrossProductionProcesses/observe",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditCommonObservationProfilesAcrossProductionProcesses/trace",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditCommonPrepared256PauseRestartAndCancelAcrossProcesses",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditFixedHypothesesAcrossProductionProcesses",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditHypothesisContinuationAcrossProductionProcesses",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditHypothesisContinuationAcrossProductionProcesses/initial=false",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditHypothesisContinuationAcrossProductionProcesses/initial=true"
+    ],
+    "reports": {
+      "go.jsonl": "sha256:01cce7be848689ea966af8d8e5c9f0d95a68fe87a6a9732feee59392fc90c356"
+    }
+  },
+  "acceptance": {
+    "A1": [
+      "TestAuditHypothesisContinuationAcrossProductionProcesses/initial=false",
+      "TestAuditHypothesisContinuationAcrossProductionProcesses/initial=true",
+      "test_shared_producer_assembler_cases"
+    ],
+    "A2": [
+      "TestPostgresContinuationKeepsExactSourcesPauseResumeAndEmptySettlement",
+      "TestAuditHypothesisContinuationAcrossProductionProcesses"
+    ],
+    "A3": [
+      "TestPostgresContinuationKeepsExactSourcesPauseResumeAndEmptySettlement",
+      "TestPostgresProducerRejectsWholeInvalidBatchAndCollectsDuringCancellation/hypothesis-only",
+      "TestAuditHypothesisContinuationAcrossProductionProcesses (two identical local submissions per producer)"
+    ],
+    "A4": [
+      "TestPostgresProducerRejectsWholeInvalidBatchAndCollectsDuringCancellation",
+      "shared audit-common/proposals.json fixtures",
+      "shared rejection of a binding exposing both work and proposals"
+    ],
+    "A5": [
+      "TestPostgresContinuationKeepsExactSourcesPauseResumeAndEmptySettlement",
+      "TestAuditHypothesisContinuationAcrossProductionProcesses"
+    ]
+  },
+  "retry_history": [
+    {
+      "command": "make test-runtime test-wire-cross-language test-audit-basic-e2e",
+      "result": "An earlier attempt stopped in the unchanged sqlmap timeout-scanner fixture when its three-second startup deadline expired: 1 failed, 5757 passed, 135 optional skips. The entire command was repeated without concurrent verification groups and passed; no test was deselected or modified to obtain the passing run.",
+      "log": "/tmp/v64-acceptance-final.log"
+    }
+  ],
+  "scope": "Deterministic local implementation and disposable-database verification. No live-model quality or demo deployment is claimed."
+}
