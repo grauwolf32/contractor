@@ -17,7 +17,6 @@ type Store struct {
 	storage *artifactpostgres.Storage
 	*pgstore.ClaimStore
 	*pgstore.OwnerStore
-	*pgstore.ReviewStore
 	*pgstore.QueryStore
 	*pgstore.FindingEvents
 	*pgstore.RunDeletion
@@ -30,7 +29,7 @@ type Store struct {
 func NewStore(db persistencepostgres.DBTX, storage *artifactpostgres.Storage) *Store {
 	return &Store{db: db, storage: storage,
 		ClaimStore: pgstore.NewClaimStore(db, storage), OwnerStore: pgstore.NewOwnerStore(db, storage),
-		ReviewStore: pgstore.NewReviewStore(db, storage), QueryStore: pgstore.NewQueryStore(db, storage),
+		QueryStore:    pgstore.NewQueryStore(db, storage),
 		FindingEvents: pgstore.NewFindingEvents(db, storage), RunDeletion: pgstore.NewRunDeletion(db, storage),
 		ProjectDeletion: pgstore.NewProjectDeletion(db, storage), CredentialHolds: pgstore.NewCredentialHolds(db, storage),
 	}
@@ -41,7 +40,6 @@ func NewStore(db persistencepostgres.DBTX, storage *artifactpostgres.Storage) *S
 type TxStore struct {
 	*pgstore.ClaimStore
 	*pgstore.OwnerTxStore
-	*pgstore.ReviewTxStore
 	*pgstore.QueryStore
 	*pgstore.FindingEventsTx
 	*pgstore.RunDeletionTx
@@ -53,7 +51,7 @@ type TxStore struct {
 func NewTxStore(tx pgx.Tx, storage *artifactpostgres.Storage) *TxStore {
 	return &TxStore{
 		ClaimStore: pgstore.NewClaimStore(tx, storage), OwnerTxStore: pgstore.NewOwnerTxStore(tx, storage),
-		ReviewTxStore: pgstore.NewReviewTxStore(tx, storage), QueryStore: pgstore.NewQueryStore(tx, storage),
+		QueryStore:      pgstore.NewQueryStore(tx, storage),
 		FindingEventsTx: pgstore.NewFindingEventsTx(tx, storage), RunDeletionTx: pgstore.NewRunDeletionTx(tx, storage),
 		ProjectDeletion: pgstore.NewProjectDeletion(tx, storage), CredentialHolds: pgstore.NewCredentialHolds(tx, storage),
 	}

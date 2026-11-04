@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-74 open tasks: 10 in progress, 51 pending, 13 deferred. 1414 finished: 1396 completed, 18 archived.
+74 open tasks: 11 in progress, 50 pending, 13 deferred. 1414 finished: 1396 completed, 18 archived.
 
 ## In progress
 
@@ -16,6 +16,7 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | quality | chore | P3 | Make the Runtime suite pass on macOS: declare the Linux-only Podman tests, make the other tests portable and file the macOS defects |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
+| [V411-010](v411-010-pentest-program-availability.yml) | audits | feature | P1 | Remove the remaining item and report approvals from Audit |
 | [V417-001](v417-001-terminal-summarizer-include-reasoning.yml) | planner-worker | feature | P1 | Make terminal summarizer reasoning input explicitly configurable |
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Continue an isolated Worker through workflow-selected context compaction |
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
@@ -87,7 +88,6 @@ the epics are in [epics.yml](epics.yml).
 | [V64-016](v64-016-audit-research-ranking-evaluation.yml) | chore | P2 | V64-005, V64-011 | Evaluate optional Audit ranking against the deterministic baseline |
 | [V64-017](v64-017-audit-attack-tree-projection.yml) | feature | P2 | V64-011 | Project optional attack trees over retained research conclusions |
 | [V64-018](v64-018-audit-research-pentest-integration.yml) | feature | P2 | V64-011, V411-020 | Compose optional hypothesis generation with ordinary HTTP Audit tasks |
-| [V411-010](v411-010-pentest-program-availability.yml) | feature | P1 | — | Remove the remaining item and report approvals from Audit |
 | [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-015, V411-014, V64-008 | Show HTTP engagement context and gaps in ordinary retained Audit reports |
 | [V417-005](v417-005-audit-worker-context-compaction.yml) | feature | P1 | V417-003, V417-004 | Admit compaction without bypassing trusted Audit completion |
 | [V425-017](v425-017-machine-report-ceiling-test.yml) | chore | P3 | V64-010, V64-008 | Drive the cumulative 64 MiB machine report check to its rejection in a test |

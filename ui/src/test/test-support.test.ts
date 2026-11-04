@@ -2,14 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { schemaViolation } from "../api/contract";
-import {
-  audit,
-  conforming,
-  finding,
-  project,
-  report,
-  review,
-} from "./builders";
+import { audit, conforming, finding, project, report } from "./builders";
 import { createEvalFixture } from "./evals-fixture";
 import { fakeServer, invalidJSON } from "./fake-server";
 import { testAPI } from "./render";
@@ -150,12 +143,7 @@ describe("builders", () => {
     expect(check.taskCount).toBe(0);
     expect(audit("project_1", "audit_2", "draft").iteration).toBe(0);
     expect(finding("project_1", "finding_1").state).toBeNull();
-    expect(
-      review("audit_1", "review_1", "active-check-approval").subjectKind,
-    ).toBe("audit-item-action");
-    expect(report("audit_1", "proposed").review?.kind).toBe(
-      "report-acceptance",
-    );
+    expect(report("audit_1", "ready").status).toBe("ready");
     expect(() =>
       audit("project_1", "audit_3", "draft", { inputs: {} }),
     ).toThrow("Audit fixture breaks the contract at #/inputs");

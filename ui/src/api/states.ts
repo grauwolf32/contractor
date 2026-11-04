@@ -38,13 +38,12 @@ export const WORKING_AUDIT_STATES = [
 /** Audits running or waiting for the user: the Inbox's checks. */
 export const INBOX_AUDIT_STATES = [
   "active",
-  "waiting_review",
 ] as const satisfies readonly AuditState[];
 
 /** Audits the Inbox lists in one of its sections. */
 export const INBOX_LISTED_AUDIT_STATES = [
   "active",
-  "waiting_review",
+
   "paused",
   "finalizing",
   "completed",
@@ -57,7 +56,7 @@ export const INBOX_LISTED_AUDIT_STATES = [
  */
 export const OPEN_AUDIT_STATES = [
   "active",
-  "waiting_review",
+
   "paused",
   "finalizing",
 ] as const satisfies readonly AuditState[];
@@ -78,12 +77,10 @@ export const LIVE_AUDIT_STATES = [
   "active",
   "finalizing",
   "cancelling",
-  "waiting_review",
 ] as const satisfies readonly AuditState[];
 
 /** Audits that can have a report: waiting, finishing or ended. */
 export const REPORT_AUDIT_STATES = [
-  "waiting_review",
   "finalizing",
   "completed",
   "cancelled",
@@ -106,7 +103,7 @@ export const ENDED_AUDIT_STATES = [
 /** Audits that change without the user acting, so views poll them. */
 export const CHANGING_AUDIT_STATES = [
   "active",
-  "waiting_review",
+
   "finalizing",
   "cancelling",
   "deleting",

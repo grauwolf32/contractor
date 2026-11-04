@@ -12,7 +12,7 @@ import {
 } from "./test-support";
 
 /**
- * Three projects: one report waiting for acceptance, two ready ones, and
+ * Three projects: two ready reports and
  * checks whose reports are not listed (pending, unavailable, running).
  */
 function state(): ServerState {
@@ -23,9 +23,6 @@ function state(): ServerState {
       project("project_empty", "Empty project"),
     ],
     audits: [
-      audit("project_payment", "audit_proposed", "waiting_review", {
-        updatedAt: "2026-10-05T09:00:00Z",
-      }),
       audit("project_crapi", "audit_trace", "completed", {
         profile: "openapi-operation-trace",
         updatedAt: "2026-10-04T09:00:00Z",
@@ -39,7 +36,6 @@ function state(): ServerState {
       audit("project_crapi", "audit_running", "active"),
     ],
     reports: {
-      audit_proposed: report("audit_proposed", "proposed"),
       audit_trace: report("audit_trace", "ready"),
       audit_ready: report("audit_ready", "ready"),
       audit_finishing: report("audit_finishing", "pending"),
@@ -57,43 +53,19 @@ function rowTitles() {
 
 async function settled() {
   // The All chip carries its count once every read has settled.
-  await screen.findByRole("button", { name: "All 3" });
+  await screen.findByRole("button", { name: "All 2" });
 }
 
 describe("Reports list", () => {
-  it("lists reports of every project, waiting for acceptance first", async () => {
+  it("lists ready reports across projects without acceptance actions", async () => {
     renderRoutes("/reports", reportsServer(state()));
     await settled();
-
-    expect(
-      screen.getByRole("heading", { level: 1, name: "Reports" }),
-    ).toBeVisible();
-    expect(
-      screen.getByText("1 waiting for acceptance, 2 ready."),
-    ).toBeVisible();
-    const waiting = screen.getByRole("region", {
-      name: "Waiting for acceptance",
-    });
-    const ready = screen.getByRole("region", { name: "Ready" });
-    expect(within(waiting).getAllByRole("listitem")).toHaveLength(1);
-    expect(within(ready).getAllByRole("listitem")).toHaveLength(2);
-    // Check type · project, the status chip and the update time.
     expect(rowTitles()).toEqual([
-      "OWASP Top 10 · Source risks · Payment service",
       "OpenAPI · Operation trace · crapi-workshop",
       "ASVS 5.0 · Level 1 source review · Payment service",
     ]);
-    const first = within(waiting).getByRole("listitem");
-    expect(within(first).getByText("Waiting for acceptance")).toBeVisible();
-    expect(
-      within(first).getByText(
-        (_, element) =>
-          element?.getAttribute("datetime") === "2026-10-05T09:00:00Z",
-      ),
-    ).toBeInTheDocument();
-    // Pending and unavailable reports are not reports yet.
-    expect(screen.queryByText(/Not ready yet|Not available/)).toBeNull();
-    // Nothing is selected: the detail asks for a choice.
+    expect(screen.getByRole("region", { name: "Ready" })).toBeVisible();
+    expect(screen.queryByText("Waiting for acceptance")).toBeNull();
     expect(screen.getByText("Choose a report")).toBeVisible();
   });
 
@@ -101,29 +73,11 @@ describe("Reports list", () => {
     const user = userEvent.setup();
     const { location } = renderRoutes("/reports", reportsServer(state()));
     await settled();
-    const filters = screen.getByRole("group", { name: "Filter by status" });
-    expect(
-      within(filters).getByRole("button", { name: "All 3" }),
-    ).toHaveAttribute("aria-pressed", "true");
-
-    await user.click(
-      within(filters).getByRole("button", { name: "Waiting for acceptance 1" }),
-    );
-    expect(location()).toBe("/reports?status=proposed");
-    expect(rowTitles()).toEqual([
-      "OWASP Top 10 · Source risks · Payment service",
-    ]);
-
-    await user.click(within(filters).getByRole("button", { name: "Ready 2" }));
+    await user.click(screen.getByRole("button", { name: "Ready 2" }));
     expect(location()).toBe("/reports?status=ready");
     expect(rowTitles()).toHaveLength(2);
-    expect(
-      screen.queryByRole("region", { name: "Waiting for acceptance" }),
-    ).toBeNull();
-
-    await user.click(within(filters).getByRole("button", { name: "All 3" }));
+    await user.click(screen.getByRole("button", { name: "All 2" }));
     expect(location()).toBe("/reports");
-    expect(rowTitles()).toHaveLength(3);
   });
 
   it("opens with the filters a link carries and keeps them on selection", async () => {
@@ -232,20 +186,6 @@ describe("Reports list", () => {
     expect(screen.getByText("No reports yet.")).toBeVisible();
   });
 
-  it("says which filter is empty", async () => {
-    const user = userEvent.setup();
-    const server = reportsServer(state());
-    server.state.reports = {
-      audit_trace: report("audit_trace", "ready"),
-    };
-    renderRoutes("/reports", server);
-    await screen.findByRole("button", { name: "All 1" });
-    await user.click(
-      screen.getByRole("button", { name: "Waiting for acceptance 0" }),
-    );
-    expect(screen.getByText("Nothing is waiting for acceptance")).toBeVisible();
-  });
-
   it("keeps the readable reports when some reads fail", async () => {
     const user = userEvent.setup();
     const server = reportsServer({
@@ -253,20 +193,19 @@ describe("Reports list", () => {
       failingProjects: ["project_crapi"],
     });
     renderRoutes("/reports", server);
-    await screen.findByRole("button", { name: "All 2" });
+    await screen.findByRole("button", { name: "All 1" });
     expect(
       screen.getByText(
         "Some reports could not be loaded, so this list may be incomplete.",
       ),
     ).toBeVisible();
     expect(rowTitles()).toEqual([
-      "OWASP Top 10 · Source risks · Payment service",
       "ASVS 5.0 · Level 1 source review · Payment service",
     ]);
 
     server.state.failingProjects = [];
     await user.click(screen.getByRole("button", { name: "Try again" }));
-    await waitFor(() => expect(rowTitles()).toHaveLength(3));
+    await waitFor(() => expect(rowTitles()).toHaveLength(2));
     expect(
       screen.queryByText(
         "Some reports could not be loaded, so this list may be incomplete.",
@@ -288,13 +227,49 @@ describe("Reports list", () => {
       within(filters)
         .getAllByRole("button")
         .map((chip) => chip.textContent),
-    ).toEqual(["Waiting for acceptance", "Ready", "All"]);
+    ).toEqual(["Ready", "All"]);
     expect(screen.queryByRole("button", { name: "All 0" })).toBeNull();
     expect(screen.queryByText("No reports yet.")).toBeNull();
 
     server.state.indexFails = false;
     await user.click(screen.getByRole("button", { name: "Try again" }));
     await settled();
-    expect(rowTitles()).toHaveLength(3);
+    expect(rowTitles()).toHaveLength(2);
+  });
+  it("lists ready reports and leaves completed checks without a summary out of the list", async () => {
+    const server = reportsServer({
+      projects: [project("project_reports", "Reports project")],
+      audits: [
+        audit("project_reports", "audit_ready", "completed"),
+        audit("project_reports", "audit_results", "completed"),
+      ],
+      reports: {
+        audit_ready: report("audit_ready", "ready"),
+        audit_results: report("audit_results", "unavailable"),
+      },
+    });
+    renderRoutes("/reports", server);
+    await waitFor(() =>
+      expect(
+        screen
+          .getAllByRole("link")
+          .some((link) =>
+            link.getAttribute("href")?.startsWith("/reports/audit_ready"),
+          ),
+      ).toBe(true),
+    );
+    expect(
+      screen
+        .getAllByRole("link")
+        .some((link) =>
+          link.getAttribute("href")?.startsWith("/reports/audit_results"),
+        ),
+    ).toBe(false);
+    expect(screen.queryByText(/waiting for acceptance/i)).toBeNull();
+    expect(
+      server.requests.some((request) =>
+        new URL(request.url).pathname.includes("/reviews"),
+      ),
+    ).toBe(false);
   });
 });

@@ -1,5 +1,5 @@
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
-import { Link, useSearchParams } from "react-router";
+import { Link } from "react-router";
 
 import { AUDIT_ID_PATTERN, type Audit } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
@@ -16,16 +16,8 @@ import {
   IdChip,
 } from "../../ui";
 import { auditProfileLabel } from "../projects/audits/labels";
-import {
-  showsAcceptance,
-  useAuditReport,
-  useReportAcceptance,
-} from "./report-data";
-import {
-  ReportAcceptanceDecision,
-  ReportContent,
-  ReportStatusChip,
-} from "./report-view";
+import { useAuditReport } from "./report-data";
+import { ReportContent, ReportStatusChip } from "./report-view";
 
 import "./reports.css";
 import { checkPath } from "../projects/audits/check-links";
@@ -46,14 +38,7 @@ export function NoReportSelected() {
 
 function LoadedReport({ audit }: { audit: Audit }) {
   const api = usePublicAPI();
-  const [params] = useSearchParams();
   const query = useAuditReport(audit, api);
-  const acceptance = useReportAcceptance(
-    api,
-    audit.auditId,
-    query.data,
-    params.get("review"),
-  );
   const project = useQuery({
     queryKey: queryKeys.projects.detail(audit.projectId),
     queryFn: () => getProject(api, audit.projectId),
@@ -91,18 +76,8 @@ function LoadedReport({ audit }: { audit: Audit }) {
           }
         />
       }
-      footer={
-        showsAcceptance(acceptance) ? (
-          <div className="reports-decision-footer">
-            <ReportAcceptanceDecision
-              auditId={audit.auditId}
-              acceptance={acceptance}
-            />
-          </div>
-        ) : undefined
-      }
     >
-      <ReportContent audit={audit} query={query} acceptance={acceptance} />
+      <ReportContent audit={audit} query={query} />
     </DetailPane>
   );
 }

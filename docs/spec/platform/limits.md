@@ -693,9 +693,9 @@ its owning requirement.
 | `LIM-RCF-30` | 1–128 pairs; name 1–256 ASCII token bytes, value 0–8192 ASCII cookie-octets | target-cookies@1 supplied cookies | Go/Python/schema and Server credential creation | [RCF-R184](../configuration/runtime-config.md) |
 | `LIM-RCF-31` | 16 KiB | target-cookies@1 combined cookie name/value bytes | Go/Python and Server credential creation | [RCF-R184](../configuration/runtime-config.md) |
 | `LIM-REV-1` | 1 initial coverage row per selected requirement or operation | Audit coverage at start (requirement rows start as not-tested) | Audit Controller (coverage) | [REV-R13](../audits/review-and-reports.md) |
-| `LIM-REV-2` | 1 Audit revision advance per event (each review.expired and each review.requested) | Review renewal of expired item requests by Resume or the Controller | Audit API (Resume) and Audit Controller, in PostgreSQL | [REV-R39](../audits/review-and-reports.md) |
-| `LIM-REV-3` | 2 exact report links | Atomic publication on human report acceptance | Audit API | [REV-R47](../audits/review-and-reports.md) |
-| `LIM-REV-4` | 1 review.expired event per exit, recorded after the lifecycle event | Exit from waiting_review by owner cancellation, owner deletion or deletion of the owning Project while a report request is pending | Audit lifecycle transition (Audit API, Project deletion) | [REV-R49](../audits/review-and-reports.md) |
+| `LIM-REV-2` | Retired | Formal approval lifecycle removed | No current operation | [REV-R39](../audits/review-and-reports.md) |
+| `LIM-REV-3` | Retired | Formal approval lifecycle removed | No current operation | [REV-R47](../audits/review-and-reports.md) |
+| `LIM-REV-4` | Retired | Formal approval lifecycle removed | No current operation | [REV-R49](../audits/review-and-reports.md) |
 | `LIM-REV-5` | retired | Findings have no expiring review requests; collection appends historical facts | Direct Project owner command | [REV-R67](../audits/review-and-reports.md) |
 | `LIM-REV-6` | exactly 1 required primary Workflow output (more than one is ambiguous and verifies nothing) | Direct verification opt-in output declaring application/vnd.contractor.audit.direct-verifications+json | Server (import into an Audit; trusted collection and assessment) | [REV-R118](../audits/review-and-reports.md) |
 | `LIM-REV-7` | 100,000 findings | Findings of one Audit report | Audit importer (report finalization) | [REV-R194](../audits/review-and-reports.md) |

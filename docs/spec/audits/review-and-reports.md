@@ -6,22 +6,19 @@ Requirement prefix: `REV` · [Specification index](../README.md)
 
 This document owns what Audit results may and may not claim and how people
 act on them: the separation of Run outcome, evidence, assessment and triage;
-evidence content; finding identity and duplicates; coverage; human review
-through the exact-subject review ledger, including request expiry and renewal,
-report acceptance and analyst verdicts and severity; the human-readable and
+evidence content; finding identity and duplicates; coverage; optional canonical
+Project analyst verdicts and severity; the human-readable and
 machine-readable reports; finding backtrace and offline attribution; direct
 findings verified inside the source Workflow; owner import of ordinary-Run
 proposals; Audit retention, Audit-managed artifact links and holds; the
 effects of Run deletion on Audit reports and collection; Audit deletion; and
-the finding, review, provenance and report reads of the public API and the
-Reviews view.
+the finding, provenance and report reads of the public API.
 
 It leaves to other documents:
 
 - AuditProfile, standard packages, baseline and scope, the durable records,
   the result-layer table, the Audit, Round and item lifecycle (including the
-  uses of `waiting_review`, what `completed` requires and which items start in
-  `awaiting_review`), item origin and the Audit endpoint table:
+  completion requirements and item execution states), item origin and the Audit endpoint table:
   [audits](audits.md).
 - Collection of Audit child Runs, Audit-side proposal retention during
   collection, budgets and omission accounting: [execution](execution.md).
@@ -44,20 +41,6 @@ It leaves to other documents:
 Terms are defined once in [the glossary](../glossary.md); the ones this
 document owns are:
 
-- **Exact-subject review ledger.** The shared mechanism for human decisions on
-  Audit items and reports: a review request pins an immutable subject
-  revision/digest, and a decision is accepted only through the
-  owner-authenticated Audit API with CAS and idempotency.
-- **Review kind.** The purpose of a review request: `active-check-approval`,
-  `requirement-applicability` or `report-acceptance`.
-- **Item-action subject.** The subject of an item review: a hash over the
-  Audit and item identities, the pinned profile digest, the Workflow role and
-  the exact task artifact.
-- **Review renewal.** The single procedure that Resume and the Controller use
-  to replace an expired item request with a fresh exact-subject request.
-- **Frozen report candidate.** The exact machine/summary report candidate that
-  finalization freezes, together with its acceptance request, when a human
-  report policy is selected.
 - **Analyst verdict.** An owner's `true_positive` or `false_positive` decision
   on a canonical Project Finding through the direct owner command.
 - **Analyst severity.** The owner-assigned severity of a `true_positive`
@@ -94,35 +77,15 @@ document owns are:
 
 The result layers (Run outcome, check observation, hypothesis assessment,
 requirement evaluation, finding triage and Audit completion) and the durable
-records `ProjectFinding`, `AuditReviewRequest`, `AuditReviewDecision`,
-`AuditReportCandidate`, `AuditArtifactLink` and `AuditCollectionReceipt` are
+records `ProjectFinding`, `AuditArtifactLink` and `AuditCollectionReceipt` are
 defined in [audits](audits.md). This document states the rules that keep the
 layers apart and that govern those records.
 
-### Review kinds
+### Direct analyst edits
 
-| Review kind | Subject | Owner actions |
-| --- | --- | --- |
-| `active-check-approval` | Item-action subject | `approve`, `reject` |
-| `requirement-applicability` | Item-action subject | `approve`, `reject`, `not_applicable` |
-| `report-acceptance` | Frozen candidate digest and pre-publication Audit revision | `approve`, `reject` |
-
-`plan-approval` and `provide-evidence` are reserved extensions (REV-R25).
-
-### Review request states
-
-Reviews are filtered by the states `pending`, `decided` and `expired`
-(REV-R167).
-
-```mermaid
-stateDiagram-v2
-    [*] --> pending: request pins the exact subject revision/digest
-    pending --> decided: owner decision through the Audit API with CAS and idempotency
-    pending --> expired: expiry reached, renewal, other exit from waiting_review, or newer finding revision collected
-    decided --> expired: renewal of an approved item request
-    decided --> [*]
-    expired --> [*]
-```
+The Project Finding owner accepts explicit revision-checked edits with idempotency
+and immutable edit history (FND-R212). Audit results and sources remain independent
+immutable facts; absent analyst fields mean no current assessment.
 
 ### Analyst verdict
 
@@ -146,29 +109,12 @@ stateDiagram-v2
 | `report.md` | `text/markdown` | Human-readable report with headings and coverage, finding and attempt tables |
 | `report.json` | not specified | Machine-readable report |
 
-### Report acceptance
+### Report availability
 
-```mermaid
-sequenceDiagram
-    actor Owner
-    participant API as Audit API
-    participant C as Audit Controller
-    participant DB as PostgreSQL
-    Note over DB: finalization froze the exact machine/summary candidate and its acceptance request, Audit in waiting_review, the request pins the candidate digest and the pre-publication Audit revision
-    Owner->>API: read the proposed report with its exact request and retained bytes
-    alt owner accepts
-        Owner->>API: accept the matching pending request
-        API->>DB: publish the two exact report links, mark completed, record audit.report_committed, then review.decided
-    else owner rejects
-        Owner->>API: reject the matching pending request
-        API->>DB: record audit.state_changed to failed with a stable terminal reason, then review.decided
-    else bounded expiry
-        C->>DB: claim the expired request solely for deterministic cleanup, the Audit fails with a stable terminal reason
-    else owner cancellation, owner deletion or deletion of the owning Project
-        Note over API,DB: owner cancellation or deletion through the Audit API, or deletion of the owning Project
-        API->>DB: lifecycle transition and, in the same Audit transition, expire the request and record one review.expired after the lifecycle event
-    end
-```
+Reports are optional retained artifacts. Completion without an aggregate report
+returns `unavailable`; a retained exact pair returns `ready`. Partial pairs and
+integrity failures remain errors (REV-R201). No candidate or acceptance request
+participates in execution or report reads.
 
 ### Backtrace relations
 
@@ -268,8 +214,8 @@ operation (LIM-REV-1).
 **REV-R14.** Every selected requirement gets an initial
 `not-tested` coverage row, even when no automated Workflow applies.
 
-**REV-R15.** Manual and documentary requirements create review work
-rather than disappearing from the denominator.
+**REV-R15.** Manual and documentary requirements remain in the original coverage denominator.
+Missing evidence is an explicit gap, without a formal review request or completion gate.
 
 **REV-R16.** `not-applicable` requires a rationale and a
 policy-authorized decision.
@@ -311,142 +257,73 @@ omission reasons and coverage gaps is specified in [execution](execution.md)
 
 ### Human review
 
-#### Review kinds
+Formal item/report approvals are removed. Pinned scope and operation policy remain;
+ordinary Project Finding edits use FND-R212. Unresolved evidence stays visible in
+Task results and never blocks completion. Report availability follows REV-R201.
 
-**REV-R24.** Review requests cover active-check-approval, requirement-applicability and report-
-acceptance. Findings use direct Project owner commands and never enter this ledger.
+**REV-R24.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
 
-**REV-R25.** `plan-approval` and `provide-evidence` are reserved
-extensions and do not become effective merely because a model emits those
-strings.
+**REV-R25.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
 
-Which items start in `awaiting_review` (items of a Workflow role that exposes
-a classified active-check tool under the effective pinned Project
-`activeChecks: approval-required` policy,
-manual checklist items, and standard-backed items with package-authored
-`human-review` applicability or a `required` evidence-contract review) is
-specified in [audits](audits.md) (AUD-R83 to AUD-R87). Those item decisions
-and report acceptance use the exact-subject review ledger below (AUD-R85).
+**REV-R26.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
 
-#### Exact-subject review ledger
+**REV-R27.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
 
-**REV-R26.** A review request pins an immutable subject revision/digest.
+**REV-R200.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
 
-**REV-R27.** A decision is accepted only through the owner-authenticated
-Audit API with CAS and idempotency (FAIL-REV-1).
+**REV-R28.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
 
-**REV-R200.** Every review decision, a finding verdict as much as an item or
-report action, accepts exactly the public `Idempotency-Key` grammar
-(`[A-Za-z0-9][A-Za-z0-9._:-]*`, at most 128 characters). A decision that the
-review ledger's stored constraints refuse is invalid, `400 invalid_request`
-for the API and the service's invalid-argument error for trusted callers,
-never an internal error, and nothing is written.
+**REV-R29.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
 
-**REV-R28.** Model text or an artifact claiming "approved" has no
-authority.
+**REV-R30.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
 
-**REV-R29.** A new subject revision requires a new decision.
+**REV-R31.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
 
-**REV-R30.** An item-action subject hashes the Audit and item
-identities, the pinned profile digest, the Workflow role and the exact task
-artifact; the immutable Audit baseline supplies the associated scope,
-execution closure and credential selections.
+**REV-R32.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
 
-**REV-R31.** Active-check approval is attached only to roles whose
-pinned AgentTemplates select a classified active tool.
+**REV-R33.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
 
-**REV-R32.** Runtime adapters still enforce their own scope and
-egress controls.
+**REV-R34.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
 
-**REV-R33.** A decision never rewrites original observations.
+**REV-R35.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
 
-#### Waiting, expiry and renewal
+**REV-R36.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
 
-**REV-R34.** Waiting for a person holds no allocation, Controller claim or
-database transaction.
+**REV-R37.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
 
-**REV-R35.** A new item request uses the current Audit deadline as
-its expiry when one is set; with no Audit deadline, its expiry may be absent.
+**REV-R38.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
 
-**REV-R36.** Pausing, extending or disabling the Audit clock does not
-extend an existing review's authority.
+**REV-R39.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
 
-**REV-R37.** Resume replaces expired requests with fresh exact-subject
-requests for eligible unfinished work, requiring a new decision.
+**REV-R40.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
 
-**REV-R38.** The Controller also renews item requests that expire
-after Resume, including while the Audit waits for review.
+**REV-R41.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
 
-**REV-R39.** Resume and the Controller use one renewal: it expires a
-still-pending or approved request, creates the fresh request, returns a
-formerly ready item to awaiting review, and records `review.expired` and
-`review.requested` events, each advancing the Audit revision by one
-(LIM-REV-2).
+**REV-R42.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
 
-**REV-R40.** Resume records these events before `audit.resumed`,
-and its fresh requests expire with the deadline Resume applies.
+**REV-R43.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
 
-**REV-R41.** Historical expired requests do not keep the Audit
-claimable after a live replacement exists.
+**REV-R189.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
 
-**REV-R42.** Before creating an authorized execution intent,
-PostgreSQL rechecks that the item is still ready, the exact request was
-accepted, its digest still matches and its expiry is absent or in the future
-(FAIL-REV-2).
+**REV-R44.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
 
-**REV-R43.** Every review expiry, whether the Controller, an owner
-decision, finding-review creation or Resume judges it, compares against the
-PostgreSQL clock under the request's lock, so process clock skew cannot end or
-extend human authority.
+**REV-R45.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
 
-**REV-R189.** Retired: Findings have no confirmation window, expiring triage request or renewal.
-Direct edits use Project CAS and existing mutation receipts (FND-R212).
+**REV-R46.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
 
-**REV-R44.** An expired request cannot authorize later execution.
+**REV-R47.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
 
-Rejecting an item settles it as excluded with a visible coverage gap, and
-resuming never silently extends human authority; both are specified in
-[audits](audits.md) (AUD-R178, AUD-R173).
+**REV-R188.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
 
-#### Report acceptance
+**REV-R48.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
 
-**REV-R45.** Human report acceptance uses a frozen candidate rather than
-regenerating bytes after review.
+**REV-R49.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
 
-**REV-R46.** The report-acceptance request pins the candidate digest and
-the pre-publication Audit revision.
+**REV-R50.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
 
-**REV-R47.** Acceptance atomically publishes the two exact report
-links (LIM-REV-3) and marks the Audit `completed`.
+**REV-R51.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
 
-**REV-R188.** Rejection or bounded expiry of a report request records a
-stable terminal reason.
-
-**REV-R48.** Each outcome is an ordinary revisioned Audit transition:
-acceptance records the same `audit.report_committed` event as an automatic
-report commit, rejection records `audit.state_changed` to `failed`, and the
-owner's decision then records `review.decided`.
-
-**REV-R49.** Every other exit from `waiting_review` (owner
-cancellation, owner deletion or deletion of the owning Project) expires the
-pending report request in the same Audit transition and records one
-`review.expired` event after the lifecycle event (LIM-REV-4).
-
-**REV-R50.** A non-expired report request is excluded from Controller
-claims, while an expired request becomes claimable solely for deterministic
-cleanup.
-
-**REV-R51.** A pending report review continues to authorize only
-its frozen subject revision/digest, independent of the current Audit revision
-after an availability change.
-
-**REV-R52.** Historical or unavailable report requests cannot
-silently decide a replacement report.
-
-The two uses of `waiting_review`, the fence on new finding reviews, finding
-imports and pause/resume during the report decision, the effect of accept,
-reject and expiry on the Audit state, and continued finding triage after the
-decision are specified in [audits](audits.md) (AUD-R178 to AUD-R181).
+**REV-R52.** Retired: formal Audit approval lifecycle is removed (ACT-R9).
 
 #### Analyst verdict and severity
 
@@ -508,9 +385,8 @@ deletion begins. An edit does not restart execution.
 **REV-R69.** Canonical edits advance the Finding and Project fence revisions. They do not fan out
 state or revision writes to every referencing Audit.
 
-**REV-R70.** An already accepted report retains the finding and
-decision revisions it used; the API and UI distinguish its historical ratings
-from current analyst ratings rather than rewriting that report.
+**REV-R70.** A retained report preserves the Finding and source/result state it
+captured. Subsequent analyst edits never rewrite its exact bytes.
 
 ### Reports
 
@@ -530,8 +406,7 @@ failure remains an error.
 **REV-R73.** The Audit Report view renders `report.md` with the
 existing safe Markdown preview and downloads the exact Markdown bytes.
 
-**REV-R74.** Report commit, candidate reads, approval and
-accepted-report reads require the current media type `text/markdown`.
+**REV-R74.** Report commit and exact retained-report reads require the current media type `text/markdown`.
 
 **REV-R75.** Historical `text/plain` summaries are unsupported;
 readers never relabel or rewrite their artifacts.
@@ -539,7 +414,7 @@ readers never relabel or rewrite their artifacts.
 **REV-R76.** Report reads require the retained descriptor to match the
 artifact's actual media type, digest and byte length.
 
-**REV-R77.** Rejected reads and approval attempts leave report links,
+**REV-R77.** Rejected reads leave report links,
 review decisions and Audit history unchanged (FAIL-REV-4).
 
 **REV-R78.** The report covers the items of every Round, ordered by
@@ -976,10 +851,9 @@ staging instead holds the draft Audit row; finding intake holds the Audit
 through its existing decision transaction. Artifact storage never reads Audit
 tables to infer this authority.
 
-**REV-R160.** Audit purge removes its execution rows, item/report decisions, report pages, Audit links
-and memberships in bounded order. Canonical Project Findings, independent sources and
-Project history remain until Project cleanup. No removed Finding-assessment/review table
-participates.
+**REV-R160.** Audit purge removes its execution rows, report pages, Audit links
+and execution-local holds through the existing bounded owner cleanup. Canonical
+Project Findings, independent sources and edit history remain until Project purge.
 
 **REV-R161.** Audit deletion cleanup runs regardless of owner or Audit
 queue pause.
@@ -999,31 +873,24 @@ every Audit hold by a completed Project purge are specified in
 DEL-R45, DEL-R50, DEL-R55, DEL-R56). Cancellation and drain of owned Runs are
 specified in [execution](execution.md).
 
-### Finding, review, provenance and report reads
+### Finding, provenance and report reads
 
 The endpoints are listed in [audits](audits.md); this section specifies the
-behaviour of the finding, review, provenance and report reads.
+behaviour of the finding, provenance and report reads.
 
-**REV-R164.** Findings and Reviews use bounded server pages.
+**REV-R164.** Findings use bounded server pages.
 
-**REV-R165.** Reviews retain exact normalized-filter totals. Finding pages return bounded candidate
-windows and no lifetime total; empty matching pages may still have a continuation.
-Workspace aggregate counts are separate reads.
+**REV-R165.** Finding pages return bounded candidate windows and no lifetime total;
+empty matching pages may still have a continuation. Workspace aggregate counts
+are separate reads.
 
 **REV-R166.** Finding lists support filters for triage
 disposition, analyst verdict (including unreviewed) and analyst severity, and
 distinguish analyst severity from a model suggestion.
 
-**REV-R167.** Item/report reviews filter by pending, decided or expired. Finding history uses ordinary
-Project source/history APIs rather than a findingId review filter.
+**REV-R167.** Retired: Audit review endpoints and acceptance UI are removed (ACT-R9).
 
-**REV-R198.** The owner-wide review list `GET /v1/reviews` filtered by
-`pending` lists only requests that can still be decided: a stored pending
-request whose expiry has passed at the PostgreSQL statement time is left out
-before anything has expired it (REV-R43), by the same rule as the workspace's
-pending count. Its `decided` and `expired` filters, its unfiltered list and
-the revision-pinned per-Audit Reviews projection (REV-R167, REV-R168) match
-the stored state.
+**REV-R198.** Retired: Audit review endpoints and acceptance UI are removed (ACT-R9).
 
 **REV-R199.** GET /v1/findings reads compact canonical summaries through an immutable owner-scoped
 index. Each window examines bounded candidate rows before visibility and current-field
@@ -1031,9 +898,9 @@ filters; it never hydrates per-Audit receipt, assessment or decision copies. The
 signed keyset binds owner, endpoint and filters, with no cross-Project snapshot
 guarantee.
 
-**REV-R168.** Audit Findings include auditRevision, projectRevision and asOf; Project Findings include
-projectRevision. Reviews retain auditRevision and asOf. Optional revision pins and
-continuations require the corresponding current fences.
+**REV-R168.** Audit Findings include auditRevision, projectRevision and asOf;
+Project Findings include projectRevision. Optional revision pins and continuations
+require the corresponding current fences.
 
 **REV-R169.** Signed continuation cursors bind owner, Audit, normalized
 filters and revision.
@@ -1088,10 +955,9 @@ which reads ratings and follows revision-bound pagination to emit one
 finding's complete backtrace; no analytics service, dashboard or direct SQL
 access is required.
 
-**REV-R180.** An exact review read exposes its ETag.
+**REV-R180.** Retired: Audit review endpoints and acceptance UI are removed (ACT-R9).
 
-**REV-R181.** A proposed report read includes its exact review request
-and the retained bytes under an Audit revision fence.
+**REV-R181.** Retired: Audit review endpoints and acceptance UI are removed (ACT-R9).
 
 **REV-R182.** A duplicate edit accepts an exact same-Project canonical target, including an ID
 obtained from another page. Owner/CAS validation, cycle and bounded path checks still
@@ -1099,28 +965,22 @@ apply.
 
 #### Reviews view
 
-**REV-R183.** The Reviews view renders pending item-action requests
-with an explicit rationale and exact-subject controls.
+**REV-R183.** Retired: formal Audit item/report approvals are removed (ACT-R9).
 
-**REV-R184.** Applicability reviews offer `approve`, `reject` and
-`not_applicable`; `not_applicable` settles the item with a durable owner
-rationale and removes only that item from the applicable denominator.
+**REV-R184.** Retired: Audit review endpoints and acceptance UI are removed (ACT-R9).
 
-**REV-R185.** Other item reviews and report reviews remain
-approve/reject.
+**REV-R185.** Retired: Audit review endpoints and acceptance UI are removed (ACT-R9).
 
-**REV-R186.** A proposed report is readable before acceptance and
-links back to its request; it is never presented as an accepted result.
+**REV-R186.** Retired: Audit review endpoints and acceptance UI are removed (ACT-R9).
 
 ## Interfaces
 
-- Finding, review, report, coverage, proposal-inbox, proposal-import and
+- Finding, report, coverage, proposal-inbox, proposal-import and
   delete endpoints are part of the
   [public API schema](../../../api/openapi/contractor-public-v1.yaml):
   `listAuditFindings`, `getAuditFinding`, `listProjectFindings`,
   `getProjectFinding`, `editProjectFinding`, `listProjectFindingSources`,
-  `getProjectFindingSource`, `listProjectFindingSourceHistory`, `listAuditReviews`, `getAuditReview`,
-  `decideAuditReview`, `getAuditReport`, `listAuditCoverage`,
+  `getProjectFindingSource`, `listProjectFindingSourceHistory`, `getAuditReport`, `listAuditCoverage`,
   `listAuditFindingProposals`, `importAuditFindingProposal` and
   `deleteAudit`. Their paths and purposes are listed in
   [audits](audits.md); shared conventions are in
@@ -1142,14 +1002,9 @@ Registry entries owned by this document:
 
 - [LIM-REV-1](../platform/limits.md): one initial coverage row per selected
   requirement or operation (REV-R13).
-- [LIM-REV-2](../platform/limits.md): one Audit revision advance per
-  `review.expired` and per `review.requested` event of a review renewal
-  (REV-R39).
-- [LIM-REV-3](../platform/limits.md): two exact report links published on
-  report acceptance (REV-R47).
-- [LIM-REV-4](../platform/limits.md): one `review.expired` event per exit
-  from `waiting_review` by owner cancellation, owner deletion or deletion of
-  the owning Project (REV-R49).
+- [LIM-REV-2](../platform/limits.md): retired approval lifecycle bound (ACT-R9).
+- [LIM-REV-3](../platform/limits.md): retired approval lifecycle bound (ACT-R9).
+- [LIM-REV-4](../platform/limits.md): retired approval lifecycle bound (ACT-R9).
 - [LIM-REV-5](../platform/limits.md): retired Finding-review event bound (REV-R67).
 - [LIM-REV-6](../platform/limits.md): exactly one required primary Workflow
   output opts in to direct verification (REV-R118).
@@ -1159,15 +1014,12 @@ Registry entries owned by this document:
   Markdown summary (REV-R194).
 - [LIM-REV-9](../platform/limits.md): report finalization pages and the
   pages one attempt records (REV-R196).
-- [LIM-REV-11](../platform/limits.md): at most 64 KiB of UTF-8 per decision
+- [LIM-REV-11](../platform/limits.md): at most 64 KiB of UTF-8 per Project edit
   rationale (REV-R56).
-- [FAIL-REV-1](../platform/failure-model.md): owner review decision
-  (REV-R27).
-- [FAIL-REV-2](../platform/failure-model.md): creation of an authorized
-  execution intent for an approved item (REV-R42).
+- [FAIL-REV-1](../platform/failure-model.md): retired approval operation (ACT-R9).
+- [FAIL-REV-2](../platform/failure-model.md): retired approval operation (ACT-R9).
 - [FAIL-REV-3](../platform/failure-model.md): retired Finding-review operation (REV-R64).
-- [FAIL-REV-4](../platform/failure-model.md): report reads and approval
-  attempts (REV-R77).
+- [FAIL-REV-4](../platform/failure-model.md): exact retained report reads (REV-R77).
 - [FAIL-REV-5](../platform/failure-model.md): lineage write at result import
   (REV-R96, REV-R97).
 - [FAIL-REV-6](../platform/failure-model.md): direct verification acceptance
@@ -1183,7 +1035,7 @@ Registry entries owned by this document:
 - [FAIL-REV-11](../platform/failure-model.md): Audit deletion
   (REV-R159).
 - [FAIL-REV-12](../platform/failure-model.md): revision-fenced pagination of
-  Audit Findings and remaining approval requests (REV-R170); Project source/history
+  Audit Findings (REV-R170); Project source/history
   pages use the canonical Project fence (FND-R217).
 - [FAIL-REV-13](../platform/failure-model.md): bounded, resumable report
   finalization (REV-R196, REV-R197).
@@ -1208,19 +1060,16 @@ Registry entries owned by this document:
 Limits owned elsewhere and used here: `maxEvidenceBytes` (LIM-AUX-6,
 [execution](execution.md)); the Audit revision advance on Run deletion
 (LIM-DEL-1, [retention and deletion](../artifacts/retention-and-deletion.md)).
-Failure entries owned elsewhere: the human report acceptance fence
-(FAIL-AUD-11, [audits](audits.md)); a proposal import racing source Run
+Failure entries owned elsewhere: a proposal import racing source Run
 deletion (FAIL-DEL-6); Audit-bound Run deletion before collection
 (FAIL-DEL-1).
 
 ## Security
 
-Human authority is exact-subject and owner-authenticated: only the Audit API
-with CAS and idempotency records decisions (REV-R27), model text and
-artifacts have no approval authority (REV-R28, REV-R25),
-and expiry is judged against the PostgreSQL clock so that clock changes and
-skew cannot extend authority (REV-R36, REV-R43). Approval never
-replaces Runtime scope and egress controls (REV-R32). Code, documents
+Pinned scope, selected tools and allowed/prohibited operation policy bound target
+activity (ACT-R9). Project Finding edits use the owner-authenticated command with
+revision CAS and idempotency (FND-R212). Archived historical facts and consent have
+no current authority (FND-R215). Code, documents
 and HTTP responses are untrusted data (REV-R9). Workers have no
 Audit or Project Artifact authority (REV-R150); generic Project routes
 hide Audit-managed bindings (ART-R26). Lineage rejects references outside the
@@ -1232,27 +1081,22 @@ configuration provenance contains no credential values or active grants
 
 ## Observability
 
-Review and report transitions record the Audit events `review.requested`,
-`review.expired`, `review.decided`, `audit.report_committed`,
-`audit.state_changed` and `audit.resumed` (REV-R39,
-REV-R40, REV-R48, REV-R49,
-REV-R67). Finding and Audit revisions advance on visible review,
-assessment and duplicate changes (REV-R69). Findings and Reviews
-projections carry `auditRevision` and `asOf` (REV-R168), and retained
-provenance reports `runDeleted` (REV-R105). The Audit event history
-itself is specified in [audits](audits.md); shared rules are in
-[observability](../platform/observability.md).
+Audit lifecycle and retained result transitions use the ordinary Audit event history.
+Project Finding edits advance the canonical Finding and Project revisions without
+fan-out to Audits (REV-R69). Finding projections carry their current revision fences
+(REV-R168), and retained provenance reports `runDeleted` (REV-R105). Historical
+approval events may remain as opaque facts; no current reader interprets them as
+authority. Shared rules are in [observability](../platform/observability.md).
 
 ## Invariants
 
 1. No Run outcome, model text or artifact confirms a finding, satisfies a
    requirement, refutes a hypothesis or approves work (REV-R1,
    REV-R2, REV-R28, REV-R116).
-2. A human decision authorizes only its exact subject revision/digest and
-   never outlives its expiry (REV-R26, REV-R29, REV-R44,
-   REV-R51).
+2. Only pinned scope, tool and operation policy govern execution; historical
+   decision metadata grants no current authority (ACT-R9, FND-R215).
 3. Decisions and corrections never rewrite observations, proposals, check
-   results, earlier assessments, earlier decisions or an accepted report
+   results, earlier assessments, earlier decisions or a retained report
    (REV-R33, REV-R65, REV-R70).
 4. Every selected requirement has a coverage row, and a zero denominator is
    never reported as 100% (REV-R14, REV-R23).
@@ -1262,7 +1106,7 @@ itself is specified in [audits](audits.md); shared rules are in
    Audit or Project purge, and deleting one destination Audit never affects
    another (REV-R143, REV-R126, REV-R140,
    REV-R108).
-7. Paginated finding, review and provenance reads never mix revisions
+7. Paginated finding and provenance reads never mix revisions
    (REV-R170, REV-R191, REV-R192).
 
 ## Examples
@@ -1300,6 +1144,5 @@ original key/body/revision.
 - An analytics service, dashboard or direct SQL access for attribution
   (REV-R179, REV-R103).
 - A separate analyst role or second approval system (REV-R54).
-- The reserved review kinds `plan-approval` and `provide-evidence`
-  (REV-R25) and historical `text/plain` report summaries
+- Formal Audit approval requests (ACT-R9) and historical `text/plain` report summaries
   (REV-R75).

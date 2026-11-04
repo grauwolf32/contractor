@@ -321,28 +321,24 @@ func TestAuditLifecycleHandlersRequireCASAndIdempotency(t *testing.T) {
 
 type fakeAuditManagement struct {
 	AuditManagement
-	events             auditservice.EventPage
-	eventParams        auditstore.EventListParams
-	ownerFindings      auditstore.OwnerFindingListParams
-	ownerReviews       auditstore.OwnerReviewListParams
-	profiles           []auditservice.ProfileProjection
-	standards          []auditstandards.PackageProjection
-	audit              auditstore.Audit
-	started            auditservice.StartedAudit
-	attempts           map[string][]auditstore.ItemAttempt
-	coverage           auditservice.CoveragePage
-	artifactRead       artifacts.ReadResult
-	created            auditservice.CreateDraftParams
-	start              auditservice.StartParams
-	mutation           auditservice.MutationParams
-	err                error
-	report             auditservice.ReportProjection
-	findings           []auditstore.ProjectFinding
-	reviews            []auditstore.ReviewRequest
-	findingListParams  auditstore.FindingListParams
-	reviewListParams   auditstore.ReviewListParams
-	decideActionParams auditservice.DecideActionReviewParams
-	decisionReplayed   bool
+	events            auditservice.EventPage
+	eventParams       auditstore.EventListParams
+	ownerFindings     auditstore.OwnerFindingListParams
+	profiles          []auditservice.ProfileProjection
+	standards         []auditstandards.PackageProjection
+	audit             auditstore.Audit
+	started           auditservice.StartedAudit
+	attempts          map[string][]auditstore.ItemAttempt
+	coverage          auditservice.CoveragePage
+	artifactRead      artifacts.ReadResult
+	created           auditservice.CreateDraftParams
+	start             auditservice.StartParams
+	mutation          auditservice.MutationParams
+	err               error
+	report            auditservice.ReportProjection
+	findings          []auditstore.ProjectFinding
+	findingListParams auditstore.FindingListParams
+	decisionReplayed  bool
 }
 
 // Detail returns audit unless prepared selects it. A selected Audit is read
@@ -548,38 +544,6 @@ func (f *fakeAuditManagement) GetFinding(
 	return f.findings[0], f.err
 }
 
-func (f *fakeAuditManagement) DecideActionReview(
-	_ context.Context, params auditservice.DecideActionReviewParams,
-) (auditservice.ActionReviewDecisionResult, error) {
-	f.decideActionParams = params
-	if len(f.reviews) == 0 || f.reviews[0].Decision == nil {
-		return auditservice.ActionReviewDecisionResult{}, f.err
-	}
-	return auditservice.ActionReviewDecisionResult{
-		Request: f.reviews[0], Decision: *f.reviews[0].Decision,
-		Replayed: f.decisionReplayed,
-	}, f.err
-}
-
-func (f *fakeAuditManagement) GetReview(
-	context.Context, string, string, string,
-) (auditstore.ReviewRequest, error) {
-	if len(f.reviews) == 0 {
-		return auditstore.ReviewRequest{}, f.err
-	}
-	return f.reviews[0], f.err
-}
-
-func (f *fakeAuditManagement) ListReviews(
-	_ context.Context, params auditstore.ReviewListParams,
-) ([]auditstore.ReviewRequest, error) {
-	if err := fakePageFetch(params.Limit, auditstore.ErrInvalid); err != nil {
-		return nil, err
-	}
-	f.reviewListParams = params
-	return append([]auditstore.ReviewRequest(nil), f.reviews...), f.err
-}
-
 func auditTestHandler(audits AuditManagement) *auditHandlers {
 	return &auditHandlers{AuditDependencies: AuditDependencies{Transfers: artifactpgtest.NewStorage(),
 		Audits: audits, Projects: newFakeProjectStore(),
@@ -619,13 +583,6 @@ func (f *fakeAuditManagement) ListFindingsPage(ctx context.Context, params audit
 	items, err := f.ListFindings(ctx, params)
 	return auditservice.FindingPage{Items: items, FindingPageBasis: auditstore.FindingPageBasis{AuditRevision: f.audit.Revision, ProjectRevision: 1, AsOf: time.Now()}}, err
 }
-func (f *fakeAuditManagement) ListReviewsPage(ctx context.Context, params auditstore.ReviewListParams) (auditservice.ReviewPage, error) {
-	if params.AuditRevision != nil && *params.AuditRevision != f.audit.Revision {
-		return auditservice.ReviewPage{}, auditstore.ErrConflict
-	}
-	items, err := f.ListReviews(ctx, params)
-	return auditservice.ReviewPage{Items: items, PageBasis: auditstore.PageBasis{AuditRevision: f.audit.Revision, AsOf: time.Now(), Total: len(items)}}, err
-}
 
 func (f *fakeAuditManagement) ListOwnerFindings(ctx context.Context, params auditstore.OwnerFindingListParams) (auditstore.FindingWindow, error) {
 	if err := fakePageFetch(params.Limit, auditstore.ErrInvalid); err != nil {
@@ -639,13 +596,6 @@ func (f *fakeAuditManagement) ListOwnerFindings(ctx context.Context, params audi
 		window.ContinueBefore = &items[params.Limit-2]
 	}
 	return window, err
-}
-func (f *fakeAuditManagement) ListOwnerReviews(_ context.Context, params auditstore.OwnerReviewListParams) ([]auditstore.ReviewRequest, error) {
-	if err := fakePageFetch(params.Limit, auditstore.ErrInvalid); err != nil {
-		return nil, err
-	}
-	f.ownerReviews = params
-	return f.reviews, f.err
 }
 
 func (f *fakeAuditManagement) FindingCandidates(context.Context, auditservice.FindingCandidatesParams) (auditservice.FindingCandidatesPage, error) {

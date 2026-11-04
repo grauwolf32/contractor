@@ -1,6 +1,6 @@
 [
   {"value":"automatic","valid":true},
-  {"value":"approval-required","valid":true},
+  {"value":"approval-required","valid":false},
   {"value":"prohibited","valid":true},
   {"value":"","valid":false},
   {"value":"Automatic","valid":false},

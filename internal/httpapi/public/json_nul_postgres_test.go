@@ -40,7 +40,7 @@ func TestPostgresJSONNULFailureIsPermanent(t *testing.T) {
 func nulWriteCounts(t *testing.T, h *evalAPIHarness) map[string]int {
 	t.Helper()
 	counts := map[string]int{}
-	for _, table := range []string{"projects", "workflow_runs", "audits", "mutation_receipts", "finding_proposal_receipts", "audit_review_decisions"} {
+	for _, table := range []string{"projects", "workflow_runs", "audits", "mutation_receipts", "finding_proposal_receipts"} {
 		var count int
 		if err := h.pool.QueryRow(t.Context(), "SELECT count(*) FROM "+table).Scan(&count); err != nil {
 			t.Fatal(err)

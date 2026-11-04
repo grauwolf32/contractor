@@ -171,8 +171,8 @@ paths:
 - prefix: ui/src/routes/projects/audits/
   action: replace
   owner: V64-009
-  facts: Keep goal/work/material/result/finding views and controls; remove approvals inbox and candidate
-    acceptance.
+  facts: Keep goal/work/material/result/finding views and controls. V411-010 removes approval inbox
+    rows and candidate acceptance with their callers; V64-009 completes the research workspace views.
 - prefix: ui/src/routes/catalog/audit-preset
   action: replace
   owner: V64-009

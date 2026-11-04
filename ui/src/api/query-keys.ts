@@ -172,19 +172,8 @@ export const queryKeys = {
       ["audits", "detail", auditId, "report"] as const,
     allFindings: (auditId: string) =>
       ["audits", "detail", auditId, "findings", "all"] as const,
-    allReviews: (auditId: string) =>
-      ["audits", "detail", auditId, "reviews", "all"] as const,
     allItems: (auditId: string) =>
       ["audits", "detail", auditId, "items", "all"] as const,
-    reviews: (auditId: string, findingId?: string, cursor?: string) =>
-      [
-        "audits",
-        "detail",
-        auditId,
-        "reviews",
-        findingId ?? null,
-        cursor ?? null,
-      ] as const,
     provenance: (
       auditId: string,
       findingId: string,
@@ -506,8 +495,6 @@ export const queryKeys = {
       severity: string | null,
     ) =>
       ["cross-project", "findings", "owner", state, verdict, severity] as const,
-    ownerReviews: (auditStates: string) =>
-      ["cross-project", "pending-reviews", "owner", auditStates] as const,
     audits: (projectId: string, state: string | null) =>
       ["cross-project", "audits", projectId, state] as const,
     findingsOf: (
@@ -517,35 +504,8 @@ export const queryKeys = {
       severity: string | null,
     ) =>
       ["cross-project", "findings", auditId, state, verdict, severity] as const,
-    pendingReviewsOf: (auditId: string) =>
-      ["cross-project", "pending-reviews", auditId] as const,
     reportOf: (auditId: string) =>
       ["cross-project", "report", auditId] as const,
-  },
-  /**
-   * Reads of the Issues destination (src/routes/issues). They sit under the
-   * check's detail key, so a decision's refresh, which invalidates
-   * `audits.detail(auditId)`, refetches them too.
-   */
-  issues: {
-    /** One possible issue, read exactly (shared with FindingSummary). */
-    finding: (auditId: string, findingId: string) =>
-      ["audits", "detail", auditId, "findings", findingId, "exact"] as const,
-    /** Every review request of one possible issue, for its history. */
-    history: (auditId: string, findingId: string) =>
-      ["audits", "detail", auditId, "reviews", findingId, "history"] as const,
-    /** One review request named by a deep link (`?review=`). */
-    review: (auditId: string, requestId: string) =>
-      ["audits", "detail", auditId, "reviews", requestId] as const,
-  },
-  /**
-   * Reports (src/routes/reports). The acceptance request a report page has
-   * shown sits under the check's detail key, so a decision's refresh
-   * (invalidating `audits.detail`) refetches it with the report.
-   */
-  reports: {
-    acceptance: (auditId: string, requestId: string) =>
-      ["audits", "detail", auditId, "report-acceptance", requestId] as const,
   },
   /**
    * Inbox reads (src/routes/inbox) that no other page shares. All are pinned
@@ -557,12 +517,6 @@ export const queryKeys = {
     /** Workspace counters of one check at one revision. */
     workspace: (auditId: string, revision: number) =>
       ["inbox", "workspace", auditId, revision] as const,
-    /**
-     * Work items of one check that wait for the owner's decision, at one
-     * revision, to name the subjects of approval and applicability requests.
-     */
-    awaitingItems: (auditId: string, revision: number) =>
-      ["inbox", "awaiting-items", auditId, revision] as const,
     /** The report of one finished check at one revision; null when none. */
     report: (auditId: string, revision: number) =>
       ["inbox", "report", auditId, revision] as const,

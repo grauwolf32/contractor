@@ -49,9 +49,6 @@ var foreignKeyProbeAllowances = map[string]probeAllowance{
 	"audit_items_round_fkey": {
 		prefixIndex: "audit_items_round_key", reason: "the items of one Round, which its deletion cascades to",
 	},
-	"audit_review_decisions_request_fkey": {
-		prefixIndex: "audit_review_decisions_request_id_key", reason: "one decision per review request",
-	},
 	"audits_current_round_fkey": {
 		prefixIndex: "audits_pkey", reason: "audit_id is unique",
 	},

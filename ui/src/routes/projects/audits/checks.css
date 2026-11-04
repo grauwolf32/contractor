@@ -269,15 +269,6 @@
   font-size: var(--text-sm);
 }
 
-.checks-progress-waiting {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-5);
-  margin: 0;
-  font-size: var(--text-sm);
-  font-weight: 700;
-}
-
 /* ---------- Check page: sections ---------- */
 
 .checks-section-heading {

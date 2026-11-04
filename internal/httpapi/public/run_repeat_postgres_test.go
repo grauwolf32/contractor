@@ -3,7 +3,6 @@ package public
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/grauwolf32/contractor/internal/runservice"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -11,6 +10,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/runservice"
 
 	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 

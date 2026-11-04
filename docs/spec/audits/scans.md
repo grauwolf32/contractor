@@ -39,7 +39,7 @@ This document owns:
 It leaves to other documents:
 
 - AuditProfile, Workflow role bindings and role kinds, the baseline, the
-  `phase` values, active-check approval and the Audit, Round and item
+  `phase` values, active-check policy and the Audit, Round and item
   lifecycle: [audits](audits.md).
 - Audit Controller submission, dispatch, collection, import, recovery, the
   cumulative Run budget `maxSubmittedRuns` and the evidence budget
@@ -183,11 +183,10 @@ preview validates the presence and media contracts of the original inputs;
 parsing of generated documents waits until accepted preparation outputs exist.
 
 **ASC-R9.** Preparation may use classified active tools only when the effective
-Project policy pinned at Audit start is automatic. Preparation has no item for
-individual approval: approval-required mode rejects active preparation before
-dispatch, and prohibited mode rejects classified active capabilities.
+Project policy pinned at Audit start is automatic. Prohibited policy rejects
+classified active capabilities before dispatch. There is no individual approval.
 
-**ASC-R10.** Preparation leaves the scan approval and
+**ASC-R10.** Preparation leaves the scan operation policy and
 outcome-aware retry rules unchanged.
 
 ### Inventory references and mapping sources
@@ -393,7 +392,7 @@ follows the store's transaction retry and then returns the retryable `503`
 `storage_transaction_conflict`, a snapshot that fails exact verification is
 an integrity failure, and cancellation ends the read without a mutation.
 Retained-artifact reads (ASC-R148) check the Audit revision after reading
-and return `409` for a changed Audit, and public coverage, finding, review and
+and return `409` for a changed Audit, and public coverage, finding and
 provenance pagination keeps its revision pin.
 
 Rationale: an earlier detail checked the Audit revision after hydrating it and
@@ -510,7 +509,7 @@ Terminal Audits do not resume ([AUD-R170](audits.md)).
 empty and no aggregate report is ready; phase, role status and stop reason
 explain progress.
 
-**ASC-R63.** After Round creation, the ordinary controls, review,
+**ASC-R63.** After Round creation, the ordinary controls,
 budgets and Round barriers apply ([audits](audits.md),
 [execution](execution.md)).
 
@@ -538,7 +537,7 @@ the accepted OpenAPI revision with the scan adapter, and forks that revision
 into each check Run.
 
 **ASC-R68.** The `source-openapi-sqlmap-scan@1` preset keeps the
-same explicit operation denominator, active-check approvals, scanner arguments
+same explicit operation denominator, active-check policy, scanner arguments
 and retry rules as the supplied-input SQLMap profile.
 
 ### Inventory builder and executor
@@ -575,7 +574,7 @@ mappings.
 Workflow Stages and other Audit roles are allowed.
 
 **ASC-R75.** The scan executor accepts one assigned item and one
-scanner Worker (LIM-ASC-9); its batch-size, exact-input and approval
+scanner Worker (LIM-ASC-9); its batch-size, exact-input and operation-policy
 constraints belong to that executor.
 
 **ASC-R76.** The scan executor uniquely owns the canonical
@@ -629,7 +628,7 @@ they do not perform ownership checks or grant network authority.
 target server selected before start. It passes this override into preparation
 instead of trusting generated OpenAPI servers as authorization.
 
-**ASC-R90.** Scope and active-check approval ([audits](audits.md))
+**ASC-R90.** Scope and active-check policy ([audits](audits.md))
 remain authoritative.
 
 **ASC-R91.** Scanner arguments and template selections are pinned
@@ -691,7 +690,7 @@ are not accepted through the settings artifact.
 
 **ASC-R105.** `auditdomain.BuildOpenAPIScanInventory` creates an
 `openapi-scans` inventory with `openapi-scan` task items. It requires
-the effective approval policy pinned in the Audit baseline. It prepares the
+the effective operation policy pinned in the Audit baseline. It prepares the
 selected operations from one parse of the source
 ([SCN-R256](../tools/scanners.md)).
 
@@ -919,7 +918,7 @@ parameter bindings (`template_ids`, `tags`, `severity`, integer-parsed
 Audit settings and forked inputs supply them. Plans retain those parameters
 and exact input refs and validate their resolved Nuclei arguments before
 execution. Run/Stage journals, ambiguous-outcome recovery, deadlines,
-active-check approvals, cancellation, evidence collection, inconclusive
+active-check policy, cancellation, evidence collection, inconclusive
 scanner coverage and Audit deletion reuse the ordinary scanner Audit path.
 No new controller, persistence table, receipt or lease is introduced. The
 Web scan profile bounds its inventory to one item, one job per attempt and
@@ -943,7 +942,7 @@ Finding state, current machine assessment and human decision are pinned to
 the captured revision.
 
 **ASC-R156.** Capture reads only indexed rows of the selected Round, under
-the existing Audit claim and Audit/review mutation lock. Unaccepted pages
+the existing Audit claim and Audit mutation lock. Unaccepted pages
 belong to one Audit revision. A changed revision discards their bounded
 staging and restarts; no staged ArtifactRef or partial root is consumable.
 The final capture verifies expected membership and seals that coherent source
@@ -1266,7 +1265,7 @@ scanner report can retarget it (ASC-R85, ASC-R86);
 dispatch validates fork mappings and preparation helpers grant no authority
 (ASC-R87, ASC-R88, ASC-R111); the target
 server is an explicit pre-start override rather than a generated OpenAPI server
-(ASC-R89, ASC-R97); scope and active-check approval stay
+(ASC-R89, ASC-R97); scope and active-check policy stay
 authoritative and the scan inventory uses the effective pinned active-check policy
 (ASC-R90, ASC-R105); scanner arguments and templates are
 pinned by configuration, never by model output or the settings artifact
@@ -1315,7 +1314,7 @@ operation policy. The same common Task/ordinary Run path executes both bindings.
   inputs, exact retained item dependencies and typed check routing use the
   separate contracts above.
 - Profiles whose preparation requires classified active-check tools before
-  item approval (ASC-R9).
+  operation policy (ASC-R9).
 - The OpenAPI scan adapter does not interpret snapshot attachments, retained
   dependencies or proposed-check routing, or add standalone project-analysis preparation.
 - Implicit whole-document scans (ASC-R98), synthetic GET

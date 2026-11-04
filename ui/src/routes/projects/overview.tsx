@@ -10,7 +10,7 @@ import { Icon } from "../../app/icon";
 import { RecordedTime } from "../../app/recorded-time";
 import { RefreshButton } from "../../app/refresh-button";
 import { checkStateLabel } from "../../app/vocabulary";
-import { ButtonLink, StatusChip, StatusGlyph } from "../../ui";
+import { StatusChip, StatusGlyph } from "../../ui";
 import { artifactDetailPath } from "../artifacts/paths";
 import { auditProfileLabel } from "./audits/labels";
 import { CheckComposer } from "./check-composer";
@@ -23,7 +23,6 @@ import {
   useProjectChecks,
   useRecentRuns,
   useSuccessfulRuns,
-  useWaitingChecks,
 } from "./overview-data";
 import { RecentResults, RecentRuns } from "./overview-runs";
 import {
@@ -365,57 +364,20 @@ function GlanceStrip({
 /** Review needs from the same bounded reads used by the summary counts. */
 function Attention({
   projectId,
-  waiting,
   issues,
 }: {
   projectId: string;
-  waiting: ReturnType<typeof useWaitingChecks>;
   issues: PossibleIssuesToReview;
 }) {
   const heading = useId();
-  const items = waiting.data?.items ?? [];
   const proposed = issues.items.slice(0, 3);
-  const failed = waiting.error !== null && waiting.data === undefined;
-  if (items.length === 0 && proposed.length === 0 && !failed) return null;
+  if (proposed.length === 0) return null;
   return (
     <section className="projects-attention" aria-labelledby={heading}>
       <div className="projects-section-heading">
         <h3 id={heading}>Needs your attention</h3>
-        {waiting.data?.page.hasMore ? (
-          <Link to={projectPath(projectId, "audits")}>All checks</Link>
-        ) : null}
       </div>
-      {failed ? (
-        <ErrorNotice
-          error={waiting.error}
-          context="Could not check for decisions"
-          onRetry={() => void waiting.refetch()}
-          retryPending={waiting.isFetching}
-        />
-      ) : null}
-      <ul role="list" className="projects-attention-list">
-        {items.map((audit) => (
-          <li className="projects-attention-check" key={audit.auditId}>
-            <div className="projects-row-main">
-              <strong>{auditProfileLabel(audit)}</strong>
-              <span className="projects-row-meta">
-                <StatusChip tone="review" size="sm">
-                  Waiting for you
-                </StatusChip>
-                <span>
-                  updated <RecordedTime value={audit.updatedAt} />
-                </span>
-              </span>
-            </div>
-            <ButtonLink
-              size="sm"
-              returnLabel="Project Overview"
-              to={`${projectPath(projectId, "audits")}/${encodeURIComponent(audit.auditId)}/reviews?state=pending`}
-            >
-              Review decisions
-            </ButtonLink>
-          </li>
-        ))}
+      <ul className="projects-attention-list">
         {proposed.map((finding) => (
           <li className="projects-attention-issue" key={finding.findingId}>
             <StatusChip tone="review" size="sm" glyph={false}>
@@ -447,7 +409,6 @@ export function ProjectOverview({ project }: { project: Project }) {
   const timelineFilter = parseTimelineFilter(searchParams.get("timeline"));
   const checks = useProjectChecks(projectId);
   const checkItems = checks.data?.items ?? NO_CHECKS;
-  const waiting = useWaitingChecks(projectId);
   const issues = usePossibleIssuesToReview(projectId);
   const runs = useRecentRuns(projectId);
   const results = useSuccessfulRuns(projectId);
@@ -472,7 +433,6 @@ export function ProjectOverview({ project }: { project: Project }) {
 
   const fetching =
     checks.isFetching ||
-    waiting.isFetching ||
     runs.isFetching ||
     results.isFetching ||
     materials.isFetching;
@@ -486,7 +446,6 @@ export function ProjectOverview({ project }: { project: Project }) {
           onRefresh={() => {
             void issues.refetch();
             void checks.refetch();
-            void waiting.refetch();
             void runs.refetch();
             void results.refetch();
             materials.refetch();
@@ -494,7 +453,7 @@ export function ProjectOverview({ project }: { project: Project }) {
         />
       </ProjectSectionActions>
       <CheckComposer project={project} materials={materials.items} />
-      <Attention projectId={projectId} waiting={waiting} issues={issues} />
+      <Attention projectId={projectId} issues={issues} />
       {checks.error !== null && checks.data === undefined ? (
         <ErrorNotice
           error={checks.error}

@@ -20,7 +20,7 @@ var comparisonHex = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 func validComparisonIDs(ids ...string) bool {
 	for _, id := range ids {
-		if !auditstore.ValidReviewIdentity(id, 256) {
+		if !auditstore.ValidFindingIdentity(id, 256) {
 			return false
 		}
 	}
@@ -284,7 +284,7 @@ func decodeComparisonProjection(raw []byte, display bool) (auditstore.FindingCom
 	if h.Families == nil || h.Sites == nil || len(h.Families) > 32 || len(h.Sites) > 32 || !h.FamiliesAvailable && len(h.Families) > 0 || h.ProducerKey != "" && !comparisonHex.MatchString(h.ProducerKey) || len(h.Repository) > 4096 || h.Commit != "" && (len(h.Commit) != 40 || strings.Trim(h.Commit, "0123456789abcdef") != "") {
 		return value, errors.New("invalid stored comparison hints")
 	}
-	if h.Subject != nil && (!auditstore.ValidReviewIdentity(h.Subject.Kind, auditdomain.MaximumIdentifierBytes) || !auditstore.ValidReviewIdentity(h.Subject.Key, auditdomain.MaximumIdentifierBytes)) {
+	if h.Subject != nil && (!auditstore.ValidFindingIdentity(h.Subject.Kind, auditdomain.MaximumIdentifierBytes) || !auditstore.ValidFindingIdentity(h.Subject.Key, auditdomain.MaximumIdentifierBytes)) {
 		return value, errors.New("invalid comparison subject")
 	}
 	for _, site := range h.Sites {
@@ -293,7 +293,7 @@ func decodeComparisonProjection(raw []byte, display bool) (auditstore.FindingCom
 		}
 	}
 	for _, ref := range h.Families {
-		if (!auditstore.ValidReviewIdentity(ref.Scheme, auditdomain.MaximumIdentifierBytes) || !auditstore.ValidReviewIdentity(ref.RequirementID, auditdomain.MaximumIdentifierBytes)) || ref.Version == "" || len(ref.Version) > 160 || !utf8.ValidString(ref.Version) {
+		if (!auditstore.ValidFindingIdentity(ref.Scheme, auditdomain.MaximumIdentifierBytes) || !auditstore.ValidFindingIdentity(ref.RequirementID, auditdomain.MaximumIdentifierBytes)) || ref.Version == "" || len(ref.Version) > 160 || !utf8.ValidString(ref.Version) {
 			return value, errors.New("invalid comparison family")
 		}
 	}

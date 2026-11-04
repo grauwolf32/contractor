@@ -131,7 +131,7 @@ func (s *QueryStore) FindingPageBasis(
 }
 
 func validateFindingList(params auditstore.FindingListParams) error {
-	if !auditstore.ValidReviewIdentity(params.OwnerID, 256) || !auditstore.ValidReviewIdentity(params.AuditID, 256) ||
+	if !auditstore.ValidFindingIdentity(params.OwnerID, 256) || !auditstore.ValidFindingIdentity(params.AuditID, 256) ||
 		!pagelimit.ValidFetch(params.Limit) ||
 		(params.AfterCreatedAt == nil) != (params.AfterFindingID == "") ||
 		(params.State != nil && !params.State.Valid()) ||
@@ -147,20 +147,10 @@ func validateFindingList(params auditstore.FindingListParams) error {
 	return nil
 }
 
-func validateReviewList(params auditstore.ReviewListParams) error {
-	if !auditstore.ValidReviewIdentity(params.OwnerID, 256) || !auditstore.ValidReviewIdentity(params.AuditID, 256) ||
-		!pagelimit.ValidFetch(params.Limit) ||
-		(params.AfterCreatedAt == nil) != (params.AfterRequestID == "") ||
-		(params.State != nil && !params.State.Valid()) {
-		return auditstore.ErrInvalid
-	}
-	return nil
-}
-
 func validateOwnerPage(ownerID string, limit int, before *time.Time, id string, states []auditstore.AuditState) error {
-	if !auditstore.ValidReviewIdentity(ownerID, 256) || !pagelimit.ValidFetch(limit) ||
+	if !auditstore.ValidFindingIdentity(ownerID, 256) || !pagelimit.ValidFetch(limit) ||
 		(before == nil) != (id == "") ||
-		(before != nil && (before.IsZero() || !auditstore.ValidReviewIdentity(id, 256))) || len(states) > 10 {
+		(before != nil && (before.IsZero() || !auditstore.ValidFindingIdentity(id, 256))) || len(states) > 10 {
 		return auditstore.ErrInvalid
 	}
 	for _, state := range states {

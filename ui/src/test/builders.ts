@@ -1,6 +1,27 @@
 // Response fixtures built on the generated types and checked against the
 // generated schemas when they are built, so a test cannot rely on a
 // response the Server would never send.
+// Response fixtures built on the generated types and checked against the
+// generated schemas when they are built, so a test cannot rely on a
+// response the Server would never send.
+// Response fixtures built on the generated types and checked against the
+// generated schemas when they are built, so a test cannot rely on a
+// response the Server would never send.
+// Response fixtures built on the generated types and checked against the
+// generated schemas when they are built, so a test cannot rely on a
+// response the Server would never send.
+// Response fixtures built on the generated types and checked against the
+// generated schemas when they are built, so a test cannot rely on a
+// response the Server would never send.
+// Response fixtures built on the generated types and checked against the
+// generated schemas when they are built, so a test cannot rely on a
+// response the Server would never send.
+// Response fixtures built on the generated types and checked against the
+// generated schemas when they are built, so a test cannot rely on a
+// response the Server would never send.
+// Response fixtures built on the generated types and checked against the
+// generated schemas when they are built, so a test cannot rely on a
+// response the Server would never send.
 import { schemaViolation } from "../api/contract";
 import type { components } from "../api/generated/public";
 import type { PublicSchemaName } from "../api/generated/response-schemas";
@@ -297,94 +318,19 @@ export const ALL_VERDICTS: Schemas["FindingVerdict"][] = [
   "needs_evidence",
 ];
 
-/** A pending review request of `kind`. */
-export function review(
-  auditId: string,
-  requestId: string,
-  kind: Schemas["AuditReviewRequest"]["kind"],
-  overrides: Overrides<Schemas["AuditReviewRequest"]> = {},
-): Schemas["AuditReviewRequest"] {
-  const subject = {
-    "active-check-approval": {
-      subjectKind: "audit-item-action",
-      requestedActions: ["approve", "reject"],
-    },
-    "requirement-applicability": {
-      subjectKind: "audit-item-action",
-      requestedActions: ["approve", "reject", "not_applicable"],
-    },
-    "report-acceptance": {
-      subjectKind: "audit-report",
-      requestedActions: ["approve", "reject"],
-    },
-  } as const;
-  return conforming(
-    "AuditReviewRequest",
-    merge<Schemas["AuditReviewRequest"]>(
-      {
-        requestId,
-        auditId,
-        subjectKind: subject[kind].subjectKind,
-        subjectId: kind === "report-acceptance" ? auditId : "subject_1",
-        kind,
-        subjectRevision: 1,
-        subjectDigest: DIGEST,
-        requestedActions: [...subject[kind].requestedActions],
-        state: "pending",
-        revision: 1,
-        createdAt: NOW,
-        updatedAt: NOW,
-      },
-      overrides,
-    ),
-  );
-}
-
-/** The decision recorded for `request`. */
-export function decision(
-  request: Schemas["AuditReviewRequest"],
-  overrides: Overrides<Schemas["AuditReviewDecision"]> = {},
-): Schemas["AuditReviewDecision"] {
-  return conforming(
-    "AuditReviewDecision",
-    merge<Schemas["AuditReviewDecision"]>(
-      {
-        decisionId: `decision_${request.requestId}`,
-        requestId: request.requestId,
-        auditId: request.auditId,
-        action: "approve",
-        actorId: "user_analyst",
-        rationale: "Confirmed against the **retained** source.",
-        subjectRevision: request.subjectRevision,
-        subjectDigest: request.subjectDigest,
-        createdAt: NOW,
-      },
-      overrides,
-    ),
-  );
-}
-
 /** A proposed or ready report with both files; others carry only a status. */
 export function report(
   auditId: string,
   status: Schemas["AuditReport"]["status"],
   options: {
     summary?: string | undefined;
-    review?: Schemas["AuditReviewRequest"] | undefined;
   } = {},
 ): Schemas["AuditReport"] {
-  if (status !== "proposed" && status !== "ready") {
+  if (status !== "ready") {
     return conforming("AuditReport", { status });
   }
   return conforming("AuditReport", {
     status,
-    ...(status === "proposed"
-      ? {
-          review:
-            options.review ??
-            review(auditId, `review_${auditId}`, "report-acceptance"),
-        }
-      : {}),
     machineArtifact: {
       ref: {
         namespace: `audit-${auditId}`,
@@ -469,7 +415,7 @@ export function auditItem(
         },
         workflowRole: "check",
         state: "settled",
-        approvalKind: "none",
+
         attempts: [],
         findingIds: [],
         createdAt: NOW,
@@ -493,7 +439,6 @@ export function workspace(
       | "unchecked"
       | "findings"
       | "unreviewedFindings"
-      | "pendingReviews"
     >
   > = {},
 ): Schemas["AuditWorkspace"] {
@@ -511,7 +456,7 @@ export function workspace(
     unchecked: 0,
     findings: 0,
     unreviewedFindings: 0,
-    pendingReviews: 0,
+
     ...counts,
   });
 }

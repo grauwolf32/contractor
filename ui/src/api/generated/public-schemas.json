@@ -4378,7 +4378,7 @@
     },
     "ActiveChecksPolicy": {
       "type": "string",
-      "enum": ["prohibited", "automatic", "approval-required"]
+      "enum": ["prohibited", "automatic"]
     },
     "HTTPOriginCredentialRef": {
       "type": "object",
@@ -5323,24 +5323,6 @@
         }
       }
     },
-    "AuditInteractionPolicy": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["activeChecks", "notApplicable", "reportAcceptance"],
-      "properties": {
-        "activeChecks": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ActiveChecksPolicy"
-        },
-        "notApplicable": {
-          "type": "string",
-          "enum": ["human-required", "profile-rule"]
-        },
-        "reportAcceptance": {
-          "type": "string",
-          "enum": ["automatic", "human-required"]
-        }
-      }
-    },
     "AuditCompatibilityReason": {
       "type": "string",
       "enum": [
@@ -5351,9 +5333,6 @@
         "batching_unsupported",
         "automatic_active_checks_unsupported",
         "project_active_checks_prohibited",
-        "active_check_approval_unsupported",
-        "manual_applicability_unsupported",
-        "report_acceptance_unsupported",
         "manual_item_unsupported",
         "engagement_capability_unsupported",
         "engagement_source_closure_unsupported",
@@ -6289,7 +6268,6 @@
       "enum": [
         "draft",
         "active",
-        "waiting_review",
         "paused",
         "finalizing",
         "cancelling",
@@ -6463,20 +6441,6 @@
         "disposition": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCollectionDisposition"
         },
-        "subjectKind": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditReviewSubjectKind"
-        },
-        "kind": {
-          "type": "string",
-          "enum": [
-            "active-check-approval",
-            "requirement-applicability",
-            "report-acceptance"
-          ]
-        },
-        "action": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditReviewAction"
-        },
         "verdict": {
           "type": "string",
           "enum": [
@@ -6501,7 +6465,6 @@
         },
         "round": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
         "items": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
-        "reviews": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
         "members": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
         "count": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
         "createdCount": { "type": "integer", "minimum": 0, "maximum": 128 },
@@ -7031,14 +6994,7 @@
     },
     "AuditItemState": {
       "type": "string",
-      "enum": [
-        "pending",
-        "awaiting_review",
-        "ready",
-        "submitted",
-        "collecting",
-        "settled"
-      ]
+      "enum": ["pending", "ready", "submitted", "collecting", "settled"]
     },
     "AuditFinalDisposition": {
       "type": "string",
@@ -7267,7 +7223,6 @@
         "origin",
         "workflowRole",
         "state",
-        "approvalKind",
         "attempts",
         "createdAt",
         "updatedAt",
@@ -7297,12 +7252,6 @@
         },
         "state": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditItemState"
-        },
-        "approvalKind": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditItemApprovalKind"
-        },
-        "approvalDigest": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Digest"
         },
         "finalDisposition": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditFinalDisposition"
@@ -7543,10 +7492,6 @@
         "auditRevision": { "type": "integer", "minimum": 1 }
       }
     },
-    "AuditItemApprovalKind": {
-      "type": "string",
-      "enum": ["none", "active-check-approval", "requirement-applicability"]
-    },
     "AuditReportSummaryArtifact": {
       "type": "object",
       "additionalProperties": false,
@@ -7564,20 +7509,13 @@
     },
     "AuditReportStatus": {
       "type": "string",
-      "enum": ["pending", "proposed", "ready", "unavailable"]
+      "enum": ["pending", "ready", "unavailable"]
     },
     "AuditReport": {
       "type": "object",
       "additionalProperties": false,
       "required": ["status"],
-      "not": {
-        "properties": { "status": { "type": "string", "enum": ["proposed"] } },
-        "not": { "required": ["review"] }
-      },
       "properties": {
-        "review": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditReviewRequest"
-        },
         "status": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditReportStatus"
         },
@@ -8580,122 +8518,6 @@
         "replayed": { "type": "boolean" }
       }
     },
-    "AuditReviewAction": {
-      "type": "string",
-      "enum": ["approve", "reject", "not_applicable"]
-    },
-    "AuditReviewRequestedAction": {
-      "type": "string",
-      "enum": ["approve", "reject", "not_applicable"]
-    },
-    "AuditReviewSubjectKind": {
-      "type": "string",
-      "enum": ["audit-item-action", "audit-report"]
-    },
-    "AuditReviewState": {
-      "type": "string",
-      "enum": ["pending", "decided", "expired"]
-    },
-    "AuditReviewDecision": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "decisionId",
-        "requestId",
-        "auditId",
-        "actorId",
-        "rationale",
-        "subjectRevision",
-        "subjectDigest",
-        "createdAt",
-        "action"
-      ],
-      "properties": {
-        "decisionId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "requestId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "auditId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "actorId": { "type": "string", "minLength": 1, "maxLength": 256 },
-        "action": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditReviewAction"
-        },
-        "rationale": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DecisionRationale"
-        },
-        "subjectRevision": { "type": "integer", "minimum": 1 },
-        "subjectDigest": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Digest"
-        },
-        "createdAt": { "type": "string", "format": "date-time" }
-      }
-    },
-    "AuditReviewRequest": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "requestId",
-        "auditId",
-        "subjectKind",
-        "subjectId",
-        "kind",
-        "subjectRevision",
-        "subjectDigest",
-        "requestedActions",
-        "state",
-        "revision",
-        "createdAt",
-        "updatedAt"
-      ],
-      "properties": {
-        "requestId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "auditId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "subjectKind": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditReviewSubjectKind"
-        },
-        "subjectId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "kind": {
-          "type": "string",
-          "enum": [
-            "active-check-approval",
-            "requirement-applicability",
-            "report-acceptance"
-          ]
-        },
-        "subjectRevision": { "type": "integer", "minimum": 1 },
-        "subjectDigest": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Digest"
-        },
-        "requestedActions": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 16,
-          "items": {
-            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditReviewRequestedAction"
-          }
-        },
-        "state": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditReviewState"
-        },
-        "expiresAt": { "type": "string", "format": "date-time" },
-        "revision": { "type": "integer", "minimum": 1 },
-        "decision": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditReviewDecision"
-        },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
-      }
-    },
     "AuditWorkspace": {
       "type": "object",
       "additionalProperties": false,
@@ -8711,8 +8533,7 @@
         "gaps",
         "unchecked",
         "findings",
-        "unreviewedFindings",
-        "pendingReviews"
+        "unreviewedFindings"
       ],
       "properties": {
         "auditId": {
@@ -8733,8 +8554,7 @@
         "gaps": { "type": "integer", "minimum": 0 },
         "unchecked": { "type": "integer", "minimum": 0 },
         "findings": { "type": "integer", "minimum": 0 },
-        "unreviewedFindings": { "type": "integer", "minimum": 0 },
-        "pendingReviews": { "type": "integer", "minimum": 0 }
+        "unreviewedFindings": { "type": "integer", "minimum": 0 }
       }
     },
     "OwnerFindingPage": {
@@ -8747,23 +8567,6 @@
           "maxItems": 200,
           "items": {
             "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ProjectFindingSummary"
-          }
-        },
-        "page": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PageInfo"
-        }
-      }
-    },
-    "OwnerReviewPage": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["items", "page"],
-      "properties": {
-        "items": {
-          "type": "array",
-          "maxItems": 200,
-          "items": {
-            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditReviewRequest"
           }
         },
         "page": {
@@ -8793,53 +8596,6 @@
           "minimum": 1,
           "maximum": 9007199254740991
         }
-      }
-    },
-    "AuditReviewPage": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["items", "page", "auditRevision", "asOf", "total"],
-      "properties": {
-        "auditRevision": { "type": "integer", "minimum": 1 },
-        "asOf": { "type": "string", "format": "date-time" },
-        "total": { "type": "integer", "minimum": 0 },
-        "items": {
-          "type": "array",
-          "maxItems": 200,
-          "items": {
-            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditReviewRequest"
-          }
-        },
-        "page": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PageInfo"
-        }
-      }
-    },
-    "DecideAuditReviewRequest": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["action", "rationale"],
-      "properties": {
-        "action": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditReviewAction"
-        },
-        "rationale": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DecisionRationale"
-        }
-      }
-    },
-    "AuditReviewDecisionResult": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["request", "decision", "replayed"],
-      "properties": {
-        "request": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditReviewRequest"
-        },
-        "decision": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditReviewDecision"
-        },
-        "replayed": { "type": "boolean" }
       }
     },
     "RuntimeInfrastructureId": {

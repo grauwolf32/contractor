@@ -15,9 +15,3 @@ func (s *Service) ListOwnerFindings(ctx context.Context, params auditstore.Owner
 	}
 	return rows, nil
 }
-
-// ListOwnerReviews lists the owner's review requests newest first. The
-// pending filter lists only requests that can still be decided.
-func (s *Service) ListOwnerReviews(ctx context.Context, params auditstore.OwnerReviewListParams) ([]auditstore.ReviewRequest, error) {
-	return s.reads().ListOwnerReviews(ctx, params)
-}

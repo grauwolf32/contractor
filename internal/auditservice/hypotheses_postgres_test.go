@@ -4,6 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
@@ -15,10 +20,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
-	"os"
-	"path/filepath"
-	"testing"
-	"time"
 )
 
 func checkingProgram(p *auditcontract.Program) {

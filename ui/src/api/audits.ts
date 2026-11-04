@@ -18,7 +18,6 @@ type AuditPage = components["schemas"]["AuditPage"];
 type AuditEventPage = components["schemas"]["AuditEventPage"];
 export type AuditState = components["schemas"]["AuditState"];
 export type AuditItem = components["schemas"]["AuditItem"];
-export type AuditItemPage = components["schemas"]["AuditItemPage"];
 export type AuditReport = components["schemas"]["AuditReport"];
 type AuditStartResponse = components["schemas"]["AuditStartResponse"];
 export type CreateAuditRequest = components["schemas"]["CreateAuditRequest"];
@@ -35,12 +34,7 @@ export type EditProjectFindingRequest =
 export type FindingState = components["schemas"]["FindingState"];
 export type FindingSeverity = components["schemas"]["FindingSeverity"];
 export type FindingVerdict = components["schemas"]["FindingVerdict"];
-export type AuditReviewRequest = components["schemas"]["AuditReviewRequest"];
 type OwnerFindingPage = components["schemas"]["OwnerFindingPage"];
-type OwnerReviewPage = components["schemas"]["OwnerReviewPage"];
-export type AuditReviewAction = components["schemas"]["AuditReviewAction"];
-export type AuditReviewDecisionResult =
-  components["schemas"]["AuditReviewDecisionResult"];
 
 export type AuditWorkspace = components["schemas"]["AuditWorkspace"];
 export interface FindingPageRequest extends PageRequest {
@@ -122,23 +116,6 @@ export async function listOwnerFindings(
 ): Promise<OwnerFindingPage> {
   const result = await api.request((client) =>
     client.GET("/v1/findings", {
-      ...(signal === undefined ? {} : { signal }),
-      params: { query: request },
-    }),
-  );
-  return requireData(result);
-}
-
-export async function listOwnerReviews(
-  api: PublicAPI,
-  request: PageRequest & {
-    state?: AuditReviewRequest["state"];
-    auditState?: string;
-  } = {},
-  signal?: AbortSignal,
-): Promise<OwnerReviewPage> {
-  const result = await api.request((client) =>
-    client.GET("/v1/reviews", {
       ...(signal === undefined ? {} : { signal }),
       params: { query: request },
     }),
@@ -459,46 +436,12 @@ export async function getAuditReport(
   const report = requireData(result);
   // Cross-field: a proposed or ready report carries its summary.
   if (
-    (report.status === "ready" || report.status === "proposed") &&
+    report.status === "ready" &&
     (report.summaryArtifact === undefined || report.summary === undefined)
   ) {
     throw invalidAuditResponse(result.response.status);
   }
   return report;
-}
-
-export async function decideAuditAction(
-  api: PublicAPI,
-  options: {
-    auditId: string;
-    requestId: string;
-    expectedRevision: number;
-    idempotencyKey: string;
-    action: AuditReviewAction;
-    rationale: string;
-  },
-): Promise<AuditReviewDecisionResult> {
-  requireAuditID(options.auditId);
-  requireAuditID(options.requestId);
-  requireAuditRevision(options.expectedRevision);
-  const result = await api.request((client) =>
-    client.POST("/v1/audits/{auditId}/reviews/{requestId}/decisions", {
-      params: {
-        path: { auditId: options.auditId, requestId: options.requestId },
-        header: {
-          "Idempotency-Key": options.idempotencyKey,
-          "If-Match": `"${options.expectedRevision}"`,
-        },
-      },
-      body: { action: options.action, rationale: options.rationale },
-    }),
-  );
-  const response = requireData(result);
-  // Cross-field: an action decision does not answer with a finding result.
-  if ("finding" in response) {
-    throw invalidAuditResponse(result.response.status);
-  }
-  return response;
 }
 
 export function auditMutationAudit(value: Audit | AuditStartResponse): Audit {
@@ -546,26 +489,6 @@ export async function getAuditWorkspace(
   // Cross-field: the Server answered for the requested Audit.
   if (value.auditId !== auditId)
     throw invalidAuditResponse(result.response.status);
-  return value;
-}
-
-export async function getAuditReview(
-  api: PublicAPI,
-  auditId: string,
-  requestId: string,
-): Promise<AuditReviewRequest> {
-  requireAuditID(auditId);
-  requireAuditID(requestId);
-  const result = await api.request((client) =>
-    client.GET("/v1/audits/{auditId}/reviews/{requestId}", {
-      params: { path: { auditId, requestId } },
-    }),
-  );
-  const value = requireData(result);
-  // Cross-field: the Server answered for the requested review request.
-  if (value.auditId !== auditId || value.requestId !== requestId)
-    throw invalidAuditResponse(result.response.status);
-  requireRevisionETag(result.response, value.revision);
   return value;
 }
 

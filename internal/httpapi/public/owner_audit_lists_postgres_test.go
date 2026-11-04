@@ -183,10 +183,6 @@ func TestPublicOwnerAuditLists(t *testing.T) {
 	if err != nil || len(foreignFindings.Items) != 1 || foreignFindings.Items[0].ProjectID != "project-foreign" {
 		t.Fatalf("foreign owner's list: %+v %v", foreignFindings, err)
 	}
-	foreignReviews, err := service.ListOwnerReviews(ctx, auditstore.OwnerReviewListParams{OwnerID: "user-foreign", Limit: 200})
-	if err != nil || len(foreignReviews) != 0 {
-		t.Fatalf("foreign owner's reviews: %+v %v", foreignReviews, err)
-	}
 
 	// A different owner cannot consume a cursor even with the same signing key.
 	h := pageCursors{}

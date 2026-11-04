@@ -5,7 +5,7 @@ import { PROJECT_ID_PATTERN } from "../../api/projects";
  * reports, or all reports (both). Pending and unavailable reports are not
  * reports yet; their checks show them, and /reports/:auditId opens them.
  */
-export type ReportFilter = "proposed" | "ready" | "all";
+export type ReportFilter = "ready" | "all";
 
 export interface ReportFilters {
   status: ReportFilter;
@@ -17,7 +17,7 @@ export interface ReportFilters {
 export const STATUS_PARAM = "status";
 export const PROJECT_PARAM = "project";
 
-const STATUS_FILTERS: readonly ReportFilter[] = ["proposed", "ready", "all"];
+const STATUS_FILTERS: readonly ReportFilter[] = ["ready", "all"];
 
 function isReportFilter(value: string | null): value is ReportFilter {
   return STATUS_FILTERS.some((filter) => filter === value);

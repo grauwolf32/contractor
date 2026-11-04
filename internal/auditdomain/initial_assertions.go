@@ -3,14 +3,15 @@ package auditdomain
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
+	"strings"
+
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
-	"maps"
-	"slices"
-	"strings"
 )
 
 // ChecklistAssertions interprets a finite authored source through the owning

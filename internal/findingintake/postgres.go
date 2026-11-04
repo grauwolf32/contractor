@@ -269,9 +269,9 @@ func validListQuery(query ListQuery) bool {
 // close, and the settlement barrier waits for that collection before the
 // report is built or the Audit becomes Cancelled.
 var (
-	ownerImportAuditStates         = []string{"draft", "active", "waiting_review", "paused"}
+	ownerImportAuditStates         = []string{"draft", "active", "paused"}
 	collectionRetentionAuditStates = []string{
-		"draft", "active", "waiting_review", "paused", "finalizing", "cancelling",
+		"draft", "active", "paused", "finalizing", "cancelling",
 	}
 )
 

@@ -692,8 +692,6 @@ func TestMutationPrecedenceTable(t *testing.T) {
 		{name: "startAudit text/plain body", method: http.MethodPost, path: "/v1/audits/audit-one/start",
 			headers: with(keyed, "Content-Type", "text/plain", "If-Match", `"1"`), body: `{"deadlineSeconds":60}`,
 			status: http.StatusBadRequest, code: "invalid_request"},
-		{name: "decideAuditReview text/plain", method: http.MethodPost, path: "/v1/audits/audit-one/reviews/request-one/decisions",
-			headers: with(keyed, "Content-Type", "text/plain", "If-Match", `"1"`), body: `{}`, status: http.StatusBadRequest, code: "invalid_request"},
 		{name: "startAudit oversized", method: http.MethodPost, path: "/v1/audits/audit-one/start",
 			headers: with(keyed, "If-Match", `"1"`), body: "{}" + strings.Repeat(" ", int(maximumAuditTimeLimitBodyBytes)-1),
 			status: http.StatusRequestEntityTooLarge, code: "request_too_large", readsBody: true},
@@ -702,8 +700,6 @@ func TestMutationPrecedenceTable(t *testing.T) {
 		{name: "deleteAudit malformed If-Match", method: http.MethodDelete, path: "/v1/audits/audit-one",
 			headers: map[string]string{idempotencyKeyHeader: "precedence-key", "If-Match": "1"}, body: "x",
 			status: http.StatusBadRequest, code: "invalid_request"},
-		{name: "decideAuditReview without key", method: http.MethodPost, path: "/v1/audits/audit-one/reviews/request-one/decisions",
-			headers: with(jsonBody, "If-Match", `"1"`), body: `{}`, status: http.StatusBadRequest, code: "invalid_request"},
 		// Configuration and credentials.
 		{name: "publishConfiguration text/plain", method: http.MethodPost, path: "/v1/configurations/agent-templates",
 			headers: with(keyed, "Content-Type", "text/plain"), body: `{}`, status: http.StatusBadRequest, code: "invalid_request"},

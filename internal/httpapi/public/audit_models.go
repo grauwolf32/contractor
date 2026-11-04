@@ -97,7 +97,6 @@ func auditItemReadModel(source auditstore.Item) auditItemResponse {
 		ItemID:     source.ItemID, RoundID: source.RoundID, ItemKey: source.ItemKey,
 		Ordinal: source.Ordinal, Kind: source.Kind, SubjectKey: source.SubjectKey,
 		Task: source.Task, Origin: source.Origin, WorkflowRole: source.WorkflowRole, State: source.State,
-		ApprovalKind: source.ApprovalKind, ApprovalDigest: source.ApprovalDigest,
 		FinalDisposition: source.FinalDisposition, AcceptedResult: source.AcceptedResult,
 		LastExecutionItemID: source.LastExecutionItemID,
 		Attempts:            []auditstore.ItemAttempt{},

@@ -15,7 +15,7 @@ import (
 func TestClosedStateAndTransitionValidation(t *testing.T) {
 	t.Parallel()
 	for _, state := range []auditstore.AuditState{
-		auditstore.AuditDraft, auditstore.AuditActive, auditstore.AuditWaitingReview, auditstore.AuditPaused, auditstore.AuditFinalizing,
+		auditstore.AuditDraft, auditstore.AuditActive, auditstore.AuditPaused, auditstore.AuditFinalizing,
 		auditstore.AuditCancelling, auditstore.AuditCompleted, auditstore.AuditCancelled, auditstore.AuditFailed, auditstore.AuditDeleting,
 	} {
 		if !state.Valid() {
@@ -51,17 +51,7 @@ func TestClosedStateAndTransitionValidation(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("valid Resume: %v", err)
 	}
-	trusted := auditstore.TrustedTransitionParams{
-		AuditID: "audit", ExpectedRevision: 2,
-		ExpectedState: auditstore.AuditWaitingReview, TargetState: auditstore.AuditActive,
-	}
-	if err := validateTrustedTransition(trusted); err != nil {
-		t.Fatalf("valid trusted transition: %v", err)
-	}
-	trusted.ExpectedState = auditstore.AuditCompleted
-	if err := validateTrustedTransition(trusted); !errors.Is(err, auditstore.ErrInvalid) {
-		t.Fatalf("disallowed trusted transition error = %v", err)
-	}
+
 }
 
 func TestReportSummaryRequiresMarkdown(t *testing.T) {
@@ -82,7 +72,6 @@ func TestReportSummaryRequiresMarkdown(t *testing.T) {
 		}
 		for name, err := range map[string]error{
 			"commit": validateCommitReport(params),
-			"review": validateReportCandidateLinks(params.Machine, params.Summary),
 		} {
 			if media != "text/markdown" {
 				if !errors.Is(err, auditstore.ErrInvalid) {

@@ -8,7 +8,6 @@ import { RESOURCE_ID } from "../../api/contract";
 import type { AuditState, AuditWorkspace } from "../../api/audits";
 import type {
   CrossProjectCheck,
-  CrossProjectDecision,
   CrossProjectIssue,
   CrossProjectReport,
 } from "../../api/cross-project";
@@ -31,7 +30,6 @@ export type InboxSectionId = "decide" | "unblock" | "ready" | "running";
 /** The selected item, as `?item=` holds it. */
 export type InboxRef =
   | { kind: "issue"; projectId: string; findingId: string }
-  | { kind: "review"; auditId: string; requestId: string }
   | { kind: "run"; runId: string }
   | { kind: "check"; auditId: string }
   | { kind: "report"; auditId: string };
@@ -54,7 +52,6 @@ interface RowBase {
 
 export type InboxRow =
   | (RowBase & { type: "issue"; issue: CrossProjectIssue })
-  | (RowBase & { type: "review"; decision: CrossProjectDecision })
   | (RowBase & {
       type: "check";
       check: CrossProjectCheck;
@@ -85,8 +82,7 @@ interface InboxInput {
   now: number;
   /** Possible issues that need a review, newest first. */
   issues: readonly CrossProjectIssue[];
-  /** Pending approvals, applicability and report acceptance, newest first. */
-  decisions: readonly CrossProjectDecision[];
+  /** Optional Project Finding annotations, newest first. */
   /** Listed checks, newest first. */
   checks: readonly CrossProjectCheck[];
   /** Ready reports, newest check first. */
@@ -140,8 +136,6 @@ function idsOf(ref: InboxRef): string[] {
   switch (ref.kind) {
     case "issue":
       return [ref.projectId, ref.findingId];
-    case "review":
-      return [ref.auditId, ref.requestId];
     case "run":
       return [ref.runId];
     case "check":
@@ -179,10 +173,6 @@ export function parseRefKey(
     case "issue":
       return ids.length === 2 && second !== undefined
         ? { kind, projectId: first, findingId: second }
-        : undefined;
-    case "review":
-      return ids.length === 2 && second !== undefined
-        ? { kind, auditId: first, requestId: second }
         : undefined;
     case "run":
       return ids.length === 1 ? { kind, runId: first } : undefined;
@@ -334,20 +324,6 @@ export function buildInbox(input: InboxInput): InboxModel {
         findingId: issue.finding.findingId,
       };
       return { key: refKey(ref), ref, section: "decide", type: "issue", issue };
-    }),
-    ...input.decisions.map((decision): InboxRow => {
-      const ref: InboxRef = {
-        kind: "review",
-        auditId: decision.audit.auditId,
-        requestId: decision.review.requestId,
-      };
-      return {
-        key: refKey(ref),
-        ref,
-        section: "decide",
-        type: "review",
-        decision,
-      };
     }),
   ];
 

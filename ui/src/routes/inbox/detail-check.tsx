@@ -158,7 +158,6 @@ export function CheckDetail({
                       term: "Possible issues to review",
                       value: counts.unreviewedFindings,
                     },
-                    { term: "Decisions waiting", value: counts.pendingReviews },
                   ]}
                 />
               </>

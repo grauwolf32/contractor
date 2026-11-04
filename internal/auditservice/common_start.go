@@ -236,7 +236,7 @@ func commonActiveCheckPolicy(profile auditprofile.PinnedProgram, policy contract
 	if !policy.Valid() {
 		return "", ErrInvalid
 	}
-	if profile.Program.Policy.ActiveOperations == "prohibited" || policy == contracts.ActiveChecksApprovalRequired {
+	if profile.Program.Policy.ActiveOperations == "prohibited" {
 		policy = contracts.ActiveChecksProhibited
 	}
 	if policy == contracts.ActiveChecksProhibited {

@@ -4066,31 +4066,6 @@ paths:
         '500': {$ref: '#/components/responses/InternalError'}
         '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
-  /v1/reviews:
-    get:
-      operationId: listOwnerReviews
-      tags: [Audits]
-      summary: List review requests across the owner’s active Projects
-      description: >-
-        Live newest-first keyset pagination by creation time and identity. Only
-        the authenticated owner's active regular Projects are included; evaluation
-        workspaces are excluded. Cursors bind the owner, endpoint and filters.
-        These are live lists, not a revision-pinned cross-project snapshot.
-      parameters:
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Cursor'
-        - {name: auditState, in: query, schema: {type: string}, description: 'Comma-separated Audit states.'}
-        - {name: state, in: query, schema: {type: string, enum: [pending, decided, expired]}, description: 'pending lists only requests that can still be decided: a pending request past its expiresAt at the Server database clock is left out before anything has expired it. decided and expired match the stored state.'}
-      responses:
-        '200':
-          description: Newest-first page across owned Projects
-          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}, Cache-Control: {$ref: '#/components/headers/NoStore'}}
-          content: {application/json: {schema: {$ref: '#/components/schemas/OwnerReviewPage'}}}
-        '400': {$ref: '#/components/responses/BadRequest'}
-        '401': {$ref: '#/components/responses/Unauthorized'}
-        '500': {$ref: '#/components/responses/InternalError'}
-        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
-
   /v1/audits/{auditId}:
     parameters:
       - $ref: '#/components/parameters/AuditId'
@@ -4857,25 +4832,6 @@ paths:
         '500': {$ref: '#/components/responses/InternalError'}
         '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
-  /v1/audits/{auditId}/reviews/{requestId}:
-    parameters:
-      - $ref: '#/components/parameters/AuditId'
-      - $ref: '#/components/parameters/ReviewRequestId'
-    get:
-      operationId: getAuditReview
-      tags: [Audits]
-      summary: Read the exact owned review subject and revision
-      responses:
-        '200':
-          description: Owner-scoped snapshot
-          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}, Cache-Control: {$ref: '#/components/headers/NoStore'}, ETag: {$ref: '#/components/headers/ETag'}}
-          content: {application/json: {schema: {$ref: '#/components/schemas/AuditReviewRequest'}}}
-        '400': {$ref: '#/components/responses/BadRequest'}
-        '401': {$ref: '#/components/responses/Unauthorized'}
-        '404': {$ref: '#/components/responses/NotFound'}
-        '500': {$ref: '#/components/responses/InternalError'}
-        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
-
   /v1/audits/{auditId}/findings:
     parameters:
     - $ref: '#/components/parameters/AuditId'
@@ -4980,86 +4936,6 @@ paths:
           $ref: '#/components/responses/InternalError'
         '503':
           $ref: '#/components/responses/StorageTransactionConflict'
-  /v1/audits/{auditId}/reviews:
-    parameters:
-    - $ref: '#/components/parameters/AuditId'
-    get:
-      operationId: listAuditReviews
-      tags:
-      - Audits
-      summary: List item and report review requests and immutable decisions
-      parameters:
-      - $ref: '#/components/parameters/Limit'
-      - $ref: '#/components/parameters/Cursor'
-      - name: auditRevision
-        in: query
-        required: false
-        schema:
-          type: integer
-          minimum: 1
-        description: Pin this page to the summary revision. Continuations bind owner, filters and revision; stale
-          revisions return 409.
-      - name: state
-        in: query
-        required: false
-        schema:
-          $ref: '#/components/schemas/AuditReviewState'
-      responses:
-        '200':
-          description: Stable oldest-first review page
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/RequestId'
-            Cache-Control:
-              $ref: '#/components/headers/NoStore'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AuditReviewPage'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '500':
-          $ref: '#/components/responses/InternalError'
-        '503':
-          $ref: '#/components/responses/StorageTransactionConflict'
-  /v1/audits/{auditId}/reviews/{requestId}/decisions:
-    parameters:
-      - $ref: '#/components/parameters/AuditId'
-      - $ref: '#/components/parameters/ReviewRequestId'
-    post:
-      operationId: decideAuditReview
-      tags: [Audits]
-      summary: Append one owner decision for an exact unexpired review subject
-      x-max-request-body-bytes: 1048576
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-        - $ref: '#/components/parameters/RequiredIfMatch'
-        - $ref: '#/components/parameters/OptionalOrigin'
-        - $ref: '#/components/parameters/OptionalCSRFToken'
-      requestBody:
-        required: true
-        content: {application/json: {schema: {$ref: '#/components/schemas/DecideAuditReviewRequest'}}}
-      responses:
-        '200':
-          description: Immutable exact-subject decision and affected projection
-          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}, ETag: {$ref: '#/components/headers/ETag'}, Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}, Cache-Control: {$ref: '#/components/headers/NoStore'}}
-          content: {application/json: {schema: {$ref: '#/components/schemas/AuditReviewDecisionResult'}}}
-        '400': {$ref: '#/components/responses/BadRequest'}
-        '401': {$ref: '#/components/responses/Unauthorized'}
-        '403': {$ref: '#/components/responses/Forbidden'}
-        '404': {$ref: '#/components/responses/NotFound'}
-        '409': {$ref: '#/components/responses/Conflict'}
-        '412': {$ref: '#/components/responses/PreconditionFailed'}
-        '413': {$ref: '#/components/responses/PayloadTooLarge'}
-        '500': {$ref: '#/components/responses/InternalError'}
-        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
-
   /v1/queue:
     get:
       operationId: listRunQueue
@@ -7383,11 +7259,6 @@ components:
       schema: {$ref: '#/components/schemas/ResourceId'}
     FindingId:
       name: findingId
-      in: path
-      required: true
-      schema: {$ref: '#/components/schemas/ResourceId'}
-    ReviewRequestId:
-      name: requestId
       in: path
       required: true
       schema: {$ref: '#/components/schemas/ResourceId'}
@@ -13298,8 +13169,8 @@ components:
             - {type: 'null'}
     ActiveChecksPolicy:
       type: string
-      enum: [prohibited, automatic, approval-required]
-      description: Project approval policy for active-enabled Audit profiles, pinned at Audit start. A profile prohibition always remains prohibited.
+      enum: [prohibited, automatic]
+      description: Project operation policy, pinned at Audit start. A profile prohibition always remains prohibited.
     HTTPOriginCredentialRef:
       type: object
       additionalProperties: false
@@ -13713,26 +13584,6 @@ components:
         deadlineSeconds: {type: integer, minimum: 1, maximum: 31536000}
         maxEvidenceBytes: {type: integer, minimum: 1, maximum: 1073741824}
         incompleteRound: {type: string, enum: [assess-with-gaps, fail]}
-    AuditInteractionPolicy:
-      type: object
-      additionalProperties: false
-      required:
-      - activeChecks
-      - notApplicable
-      - reportAcceptance
-      properties:
-        activeChecks:
-          $ref: '#/components/schemas/ActiveChecksPolicy'
-        notApplicable:
-          type: string
-          enum:
-          - human-required
-          - profile-rule
-        reportAcceptance:
-          type: string
-          enum:
-          - automatic
-          - human-required
     AuditCompatibilityReason:
       type: string
       enum:
@@ -13743,9 +13594,6 @@ components:
       - batching_unsupported
       - automatic_active_checks_unsupported
       - project_active_checks_prohibited
-      - active_check_approval_unsupported
-      - manual_applicability_unsupported
-      - report_acceptance_unsupported
       - manual_item_unsupported
       - engagement_capability_unsupported
       - engagement_source_closure_unsupported
@@ -14408,7 +14256,7 @@ components:
           additionalProperties: {$ref: '#/components/schemas/AuditPreparationRole'}
     AuditState:
       type: string
-      enum: [draft, active, waiting_review, paused, finalizing, cancelling, completed, cancelled, failed, deleting]
+      enum: [draft, active, paused, finalizing, cancelling, completed, cancelled, failed, deleting]
     AuditDispatchState: {type: string, enum: [open, closed]}
     AuditHoldState: {type: string, enum: [pending, held, released]}
     AuditLimits:
@@ -14487,9 +14335,6 @@ components:
         role: {$ref: '#/components/schemas/AuditExecutionRole'}
         outcome: {$ref: '#/components/schemas/AuditTerminalOutcome'}
         disposition: {$ref: '#/components/schemas/AuditCollectionDisposition'}
-        subjectKind: {$ref: '#/components/schemas/AuditReviewSubjectKind'}
-        kind: {type: string, enum: [active-check-approval, requirement-applicability, report-acceptance]}
-        action: {$ref: '#/components/schemas/AuditReviewAction'}
         verdict: {type: string, enum: [true_positive, false_positive, needs_evidence, duplicate, reopen]}
         runId: {$ref: '#/components/schemas/ResourceId'}
         subjectId: {$ref: '#/components/schemas/ResourceId'}
@@ -14497,7 +14342,6 @@ components:
         workflowRole: {$ref: '#/components/schemas/ResourceId'}
         round: {type: integer, minimum: 0, maximum: 2147483647}
         items: {type: integer, minimum: 0, maximum: 2147483647}
-        reviews: {type: integer, minimum: 0, maximum: 2147483647}
         members: {type: integer, minimum: 0, maximum: 2147483647}
         count: {type: integer, minimum: 0, maximum: 2147483647}
         createdCount: {type: integer, minimum: 0, maximum: 128}
@@ -14921,7 +14765,7 @@ components:
             $ref: '#/components/schemas/AuditTask'
         page:
           $ref: '#/components/schemas/PageInfo'
-    AuditItemState: {type: string, enum: [pending, awaiting_review, ready, submitted, collecting, settled]}
+    AuditItemState: {type: string, enum: [pending, ready, submitted, collecting, settled]}
     AuditFinalDisposition: {type: string, enum: [accepted-result, missing-output, invalid-result, execution-failed, execution-cancelled, excluded, not-applicable]}
     AuditExecutionRole: {type: string, enum: [prepare, discovery, check, assessment]}
     AuditExecutionItemState: {type: string, enum: [submitted, collecting, settled]}
@@ -15025,7 +14869,6 @@ components:
       - origin
       - workflowRole
       - state
-      - approvalKind
       - attempts
       - createdAt
       - updatedAt
@@ -15057,10 +14900,6 @@ components:
           $ref: '#/components/schemas/ArtifactName'
         state:
           $ref: '#/components/schemas/AuditItemState'
-        approvalKind:
-          $ref: '#/components/schemas/AuditItemApprovalKind'
-        approvalDigest:
-          $ref: '#/components/schemas/Digest'
         finalDisposition:
           $ref: '#/components/schemas/AuditFinalDisposition'
         acceptedResult:
@@ -15195,7 +15034,6 @@ components:
         items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/AuditCoverageRow'}}
         page: {$ref: '#/components/schemas/PageInfo'}
         auditRevision: {type: integer, minimum: 1, description: The Audit revision every row of this page was read at.}
-    AuditItemApprovalKind: {type: string, enum: [none, active-check-approval, requirement-applicability]}
     AuditReportSummaryArtifact:
       type: object
       additionalProperties: false
@@ -15206,17 +15044,12 @@ components:
         digest: {$ref: '#/components/schemas/Digest'}
         mediaType: {type: string, const: text/markdown}
         sizeBytes: {type: integer, minimum: 0, maximum: 67108864}
-    AuditReportStatus: {type: string, enum: [pending, proposed, ready, unavailable]}
+    AuditReportStatus: {type: string, enum: [pending, ready, unavailable]}
     AuditReport:
       type: object
       additionalProperties: false
       required: [status]
-      # Reject proposed reports without review.
-      not:
-        properties: {status: {type: string, enum: [proposed]}}
-        not: {required: [review]}
       properties:
-        review: {$ref: '#/components/schemas/AuditReviewRequest'}
         status: {$ref: '#/components/schemas/AuditReportStatus'}
         machineArtifact: {$ref: '#/components/schemas/AuditExactArtifact'}
         summaryArtifact: {$ref: '#/components/schemas/AuditReportSummaryArtifact'}
@@ -15732,117 +15565,10 @@ components:
       properties:
         hold: {$ref: '#/components/schemas/FindingAuditHold'}
         replayed: {type: boolean}
-    AuditReviewAction: {type: string, enum: [approve, reject, not_applicable]}
-    AuditReviewRequestedAction:
-      type: string
-      enum:
-      - approve
-      - reject
-      - not_applicable
-    AuditReviewSubjectKind:
-      type: string
-      enum:
-      - audit-item-action
-      - audit-report
-    AuditReviewState: {type: string, enum: [pending, decided, expired]}
-    AuditReviewDecision:
-      type: object
-      additionalProperties: false
-      required:
-      - decisionId
-      - requestId
-      - auditId
-      - actorId
-      - rationale
-      - subjectRevision
-      - subjectDigest
-      - createdAt
-      - action
-      properties:
-        decisionId:
-          $ref: '#/components/schemas/ResourceId'
-        requestId:
-          $ref: '#/components/schemas/ResourceId'
-        auditId:
-          $ref: '#/components/schemas/ResourceId'
-        actorId:
-          type: string
-          minLength: 1
-          maxLength: 256
-        action:
-          $ref: '#/components/schemas/AuditReviewAction'
-        rationale:
-          $ref: '#/components/schemas/DecisionRationale'
-        subjectRevision:
-          type: integer
-          minimum: 1
-        subjectDigest:
-          $ref: '#/components/schemas/Digest'
-        createdAt:
-          type: string
-          format: date-time
-    AuditReviewRequest:
-      type: object
-      additionalProperties: false
-      required:
-      - requestId
-      - auditId
-      - subjectKind
-      - subjectId
-      - kind
-      - subjectRevision
-      - subjectDigest
-      - requestedActions
-      - state
-      - revision
-      - createdAt
-      - updatedAt
-      properties:
-        requestId:
-          $ref: '#/components/schemas/ResourceId'
-        auditId:
-          $ref: '#/components/schemas/ResourceId'
-        subjectKind:
-          $ref: '#/components/schemas/AuditReviewSubjectKind'
-        subjectId:
-          $ref: '#/components/schemas/ResourceId'
-        kind:
-          type: string
-          enum:
-          - active-check-approval
-          - requirement-applicability
-          - report-acceptance
-        subjectRevision:
-          type: integer
-          minimum: 1
-        subjectDigest:
-          $ref: '#/components/schemas/Digest'
-        requestedActions:
-          type: array
-          minItems: 1
-          maxItems: 16
-          items:
-            $ref: '#/components/schemas/AuditReviewRequestedAction'
-        state:
-          $ref: '#/components/schemas/AuditReviewState'
-        expiresAt:
-          type: string
-          format: date-time
-        revision:
-          type: integer
-          minimum: 1
-        decision:
-          $ref: '#/components/schemas/AuditReviewDecision'
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
     AuditWorkspace:
       type: object
       additionalProperties: false
-      required: [auditId, auditRevision, asOf, executionState, outstandingRuns, totalChecks, completedChecks, issues, gaps, unchecked, findings, unreviewedFindings, pendingReviews]
+      required: [auditId, auditRevision, asOf, executionState, outstandingRuns, totalChecks, completedChecks, issues, gaps, unchecked, findings, unreviewedFindings]
       properties:
         auditId: {$ref: '#/components/schemas/ResourceId'}
         auditRevision: {type: integer, minimum: 1}
@@ -15857,7 +15583,6 @@ components:
         unchecked: {type: integer, minimum: 0}
         findings: {type: integer, minimum: 0}
         unreviewedFindings: {type: integer, minimum: 0}
-        pendingReviews: {type: integer, minimum: 0}
     OwnerFindingPage:
       type: object
       additionalProperties: false
@@ -15872,13 +15597,6 @@ components:
             $ref: '#/components/schemas/ProjectFindingSummary'
         page:
           $ref: '#/components/schemas/PageInfo'
-    OwnerReviewPage:
-      type: object
-      additionalProperties: false
-      required: [items, page]
-      properties:
-        items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/AuditReviewRequest'}}
-        page: {$ref: '#/components/schemas/PageInfo'}
     AuditFindingPage:
       type: object
       additionalProperties: false
@@ -15906,41 +15624,6 @@ components:
           type: integer
           minimum: 1
           maximum: 9007199254740991
-    AuditReviewPage:
-      type: object
-      additionalProperties: false
-      required: [items, page, auditRevision, asOf, total]
-      properties:
-        auditRevision: {type: integer, minimum: 1}
-        asOf: {type: string, format: date-time}
-        total: {type: integer, minimum: 0, description: Whole-Audit count matching all filters before the cursor.}
-        items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/AuditReviewRequest'}}
-        page: {$ref: '#/components/schemas/PageInfo'}
-    DecideAuditReviewRequest:
-      type: object
-      additionalProperties: false
-      required:
-      - action
-      - rationale
-      properties:
-        action:
-          $ref: '#/components/schemas/AuditReviewAction'
-        rationale:
-          $ref: '#/components/schemas/DecisionRationale'
-    AuditReviewDecisionResult:
-      type: object
-      additionalProperties: false
-      required:
-      - request
-      - decision
-      - replayed
-      properties:
-        request:
-          $ref: '#/components/schemas/AuditReviewRequest'
-        decision:
-          $ref: '#/components/schemas/AuditReviewDecision'
-        replayed:
-          type: boolean
     RuntimeInfrastructureId:
       type: string
       minLength: 1

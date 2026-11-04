@@ -50,7 +50,7 @@ const DELETION: Readonly<
 > = {
   draft: "direct",
   active: "stops-first",
-  waiting_review: "stops-first",
+
   paused: "stops-first",
   finalizing: "stops-first",
   cancelling: "stops-first",
@@ -183,7 +183,7 @@ function controlButtons(audit: Audit): ControlButton[] {
       icon: <Icon name="play" />,
       variant: "primary",
     });
-  if (audit.state === "active" || audit.state === "waiting_review")
+  if (audit.state === "active")
     buttons.push({
       action: "pause",
       text: "Pause",

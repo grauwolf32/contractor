@@ -143,9 +143,9 @@ func TestProjectFindingEditsAreSharedAcrossAuditsAndReplayOriginalSnapshots(t *t
 	if _, err = f.service.EditProjectFinding(f.ctx, foreign); !errors.Is(err, auditstore.ErrNotFound) {
 		t.Fatalf("cross-Project duplicate: %v", err)
 	}
-	var sources, reviews int
-	if err = f.pool.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM project_finding_sources WHERE finding_id=$1),(SELECT count(*) FROM audit_review_requests WHERE audit_id IN ($2,$3))`, f.finding, f.first, f.second).Scan(&sources, &reviews); err != nil || sources != 2 || reviews != 0 {
-		t.Fatalf("sources=%d invented reviews=%d err=%v", sources, reviews, err)
+	var sources int
+	if err = f.pool.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM project_finding_sources WHERE finding_id=$1)`, f.finding).Scan(&sources); err != nil || sources != 2 {
+		t.Fatalf("sources=%d err=%v", sources, err)
 	}
 	for _, receiptID := range []string{"receipt-shared-a", "receipt-shared-b"} {
 		source, err := f.service.findings.GetProjectReceipt(f.ctx, f.owner, f.project, receiptID)

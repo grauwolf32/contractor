@@ -520,28 +520,6 @@
     "Ограждение чтений сравнения и участников группы"
    ]
   ],
-  "audit_review_requests": [
-   "audits",
-   "Запрос на ревью человеком: находки, действия или отчёта (с замороженным кандидатом отчёта)",
-   "Запросы на решение человека: триаж находки, одобрение действия, приёмка отчёта. Запрос на приёмку хранит замороженный кандидат отчёта (report_*).",
-   [
-    "Ревью находок и действий",
-    "Принятие раунда (одобрение действий)",
-    "Предложение, приёмка, отклонение и истечение отчёта",
-    "Гейт диспетчеризации"
-   ]
-  ],
-  "audit_review_decisions": [
-   "audits",
-   "Решение ревьюера",
-   "Неизменяемое решение человека по запросу.",
-   [
-    "API решений",
-    "Обновление находок",
-    "Гейт диспетчеризации",
-    "Возобновление аудита"
-   ]
-  ],
   "eval_dataset_revisions": [
    "evals",
    "Версии датасета с кейсами",
@@ -817,10 +795,6 @@
    "kind": "fold",
    "text": "Вобрала audit_coverage_rows, audit_proposal_items. Покрытие (coverage_*) изменяемо; источник (proposal_*) задаётся один раз, его уникальность — барьер повторного использования предложения."
   },
-  "audit_review_requests": {
-   "kind": "fold",
-   "text": "Вобрала audit_report_candidates. Кандидат отчёта (report_*) хранится в запросе на приёмку; один на аудит. В audit_artifact_links он не попадает: их читают eval-доказательства."
-  },
   "finding_proposal_receipts": {
    "kind": "fold",
    "text": "Вобрала finding_proposal_retention. Состояние хранения — единственные изменяемые колонки квитанции."
@@ -860,7 +834,6 @@
   "audit_collection_receipts": "→ audit_executions (collection_*)",
   "audit_coverage_rows": "→ audit_items (coverage_*)",
   "audit_proposal_items": "→ audit_items (proposal_*)",
-  "audit_report_candidates": "→ audit_review_requests (report_*)",
   "finding_proposal_retention": "→ finding_proposal_receipts (retention_state и др.)",
   "eval_project_dependencies": "→ eval_submissions.execution_project_id",
   "eval_view_generations": "→ eval_projection_queue (generation, summary, suites и др.)",

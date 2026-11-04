@@ -139,15 +139,6 @@ export function ProjectAuditWorkspace({
                     </p>
                   )}
                   <div className="checks-row-actions">
-                    {audit.state === "waiting_review" ? (
-                      <ButtonLink
-                        size="sm"
-                        returnLabel="Project checks"
-                        to={`${root}/reviews?state=pending`}
-                      >
-                        Review decisions
-                      </ButtonLink>
-                    ) : null}
                     <AuditControls
                       audit={audit}
                       projectName={projectName}

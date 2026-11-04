@@ -34,7 +34,7 @@ func (s ScanTask) CoverageRequirement() string {
 }
 
 func openAPIScanSubjects(source []byte, sourceMediaType string, settingsData []byte, settingsInput ExactInput, options InventoryOptions, maxItems int) (inventoryBasis, []inventorySubject, error) {
-	if (options.ApprovalRequirement != ApprovalActiveCheck && options.ApprovalRequirement != ApprovalNone) || settingsInput.Name == options.SourceInputName ||
+	if settingsInput.Name == options.SourceInputName ||
 		validateIdentifier(settingsInput.Name, "settings.name") != nil || settingsInput.Ref.ValidateExact() != nil ||
 		settingsInput.Digest != DigestBytes(settingsData) {
 		return inventoryBasis{}, nil, invalid(CodeInventoryInvalid, "scan.settings")
@@ -59,7 +59,7 @@ func openAPIScanSubjects(source []byte, sourceMediaType string, settingsData []b
 		}
 		task := openAPIScanTask(settings, settingsInput, prepared)
 		subjects = append(subjects, inventorySubject{kind: "openapi-scan", scan: &task,
-			approval: options.ApprovalRequirement, requested: []string{task.CoverageRequirement()}, gaps: task.Gaps})
+			requested: []string{task.CoverageRequirement()}, gaps: task.Gaps})
 		basis.Subjects = append(basis.Subjects, map[string]any{"scan": task})
 	}
 	canonical, err := canonicalJSON(basis)

@@ -43,7 +43,10 @@ func TestPublicAuditEventHistory(t *testing.T) {
 	}
 	appendEvent := func(sequence int) {
 		t.Helper()
-		err := store.AppendReviewEvent(ctx, auditstore.ReviewEventParams{AuditID: "audit-events", Kind: "review.decided", EntityID: fmt.Sprintf("decision-%d", sequence), Summary: map[string]any{"action": "approve", "kind": "active-check-approval", "message": "secret-must-not-appear", "previousStopReason": map[string]any{"Message": "secret"}}})
+		_, err := pool.Exec(ctx, `WITH changed AS (UPDATE audits SET revision=revision+1,next_event_sequence=next_event_sequence+1
+WHERE audit_id='audit-events' RETURNING audit_id,next_event_sequence-1 AS sequence)
+INSERT INTO audit_events(audit_id,sequence_number,kind,entity_id,summary)
+SELECT audit_id,sequence,'task.accepted',$1,'{"count":1,"message":"secret-must-not-appear"}' FROM changed`, fmt.Sprintf("event-%d", sequence))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -88,7 +91,7 @@ func TestPublicAuditEventHistory(t *testing.T) {
 		t.Fatalf("full event page=%+v", first)
 	}
 	for i, event := range first.Items {
-		if event.Sequence != uint64(201-i) || len(event.Summary) != 2 || event.Summary["action"] != "approve" {
+		if event.Sequence != uint64(201-i) || len(event.Summary) != 1 || event.Summary["count"] != float64(1) {
 			t.Fatalf("order or safe projection=%+v", event)
 		}
 	}

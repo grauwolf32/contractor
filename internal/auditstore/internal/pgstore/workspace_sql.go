@@ -7,19 +7,14 @@ package pgstore
 // current-round coverage counts (total, then the completed $3, issue $4, gap
 // $5 and unchecked $6 coverage statuses of auditdomain's one bucket table, in
 // one pass over the round's items), finding and unreviewed-finding counts (in
-// one pass over the Audit's findings), and the review requests that can
-// still be decided: pending and not past their expiry at the statement time
-// the snapshot reports as asOf. Every count is exact, so each pass reads the
+// one pass over the Audit's findings). The statement time is reported as
+// asOf. Every count is exact, so each pass reads the
 // rows it counts. Used by QueryStore.GetWorkspace.
 var getWorkspaceSQL = `
 SELECT audit.audit_id, audit.revision, statement_timestamp(), audit.current_round_id,
        audit.state, audit.outstanding_run_count,
        coverage.total, coverage.completed, coverage.issues, coverage.gaps, coverage.unchecked,
-       findings.total, findings.unreviewed,
-       (SELECT count(*) FROM audit_review_requests AS request
-         WHERE request.audit_id = audit.audit_id AND request.state = 'pending'
-           AND ` + visibleItemReviewSQL + `
-           AND ` + reviewUnexpiredSQL + `)
+       findings.total, findings.unreviewed
   FROM audits AS audit
  CROSS JOIN LATERAL (
        SELECT count(*) AS total,

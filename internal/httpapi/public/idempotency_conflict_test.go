@@ -111,8 +111,7 @@ func keyedOperationRequests(t *testing.T) (handlerFixture, *reusedKeyAudits, map
 		"cancelAudit":        {http.MethodPost, "/v1/audits/audit-one/cancel", "", map[string]string{"If-Match": `"3"`}},
 		"deleteAudit":        {http.MethodDelete, "/v1/audits/audit-one", "", map[string]string{"If-Match": `"4"`}},
 		"editProjectFinding": {http.MethodPatch, "/v1/projects/project-one/findings/finding-one", `{"verdict":"false_positive","rationale":"Not an issue."}`, map[string]string{"If-Match": `"1"`}},
-		"decideAuditReview": {http.MethodPost, "/v1/audits/audit-one/reviews/review-one/decisions",
-			`{"action":"approve","rationale":"Approved."}`, map[string]string{"If-Match": `"1"`}},
+
 		"publishConfiguration": {http.MethodPost, "/v1/configurations/model-policies",
 			`{"name":"keyed","version":"1","modelPolicy":{"model":"m"}}`, nil},
 		"publishRuntimeConfig": {http.MethodPost, "/v1/operations/runtime-configs",
@@ -340,12 +339,6 @@ func (a *reusedKeyAudits) Cancel(context.Context, auditservice.MutationParams) (
 
 func (a *reusedKeyAudits) Delete(context.Context, auditservice.MutationParams) (auditservice.MutationResult, error) {
 	return auditservice.MutationResult{}, a.reach("Delete")
-}
-
-func (a *reusedKeyAudits) DecideActionReview(
-	context.Context, auditservice.DecideActionReviewParams,
-) (auditservice.ActionReviewDecisionResult, error) {
-	return auditservice.ActionReviewDecisionResult{}, a.reach("DecideActionReview")
 }
 
 func (a *reusedKeyAudits) PublishMaterial(context.Context, string, string, string, auditservice.MaterialPublicationRequest, *string) (auditservice.MaterialPublication, error) {

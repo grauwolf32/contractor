@@ -84,20 +84,6 @@ func itemPageQuery(params auditstore.ListItemsParams) (string, []any) {
 	}
 }
 
-// onlyAwaitingReview reports whether at least one item is unsettled and every
-// unsettled item awaits human review.
-func (s *store) onlyAwaitingReview(ctx context.Context, auditID string) (bool, error) {
-	var unsettled, awaiting int64
-	if err := s.db.QueryRow(ctx, `
-SELECT count(*), count(*) FILTER (WHERE item.state = 'awaiting_review')
-  FROM audit_items AS item
- WHERE item.audit_id = $1 AND item.state <> 'settled'
-   AND `+acceptedItemSQL("item"), auditID).Scan(&unsettled, &awaiting); err != nil {
-		return false, fmt.Errorf("count Audit items awaiting review: %w", err)
-	}
-	return unsettled != 0 && unsettled == awaiting, nil
-}
-
 // listWindowExecutions reads the reconcile window of unsettled executions,
 // one more than MaxReconcileRows so the caller can detect more, together with
 // the lifecycle state of each bound Run keyed by Run ID. The join replaces one
@@ -447,15 +433,14 @@ func scanRound(row scanner) (auditstore.Round, error) {
 func scanItem(row scanner) (auditstore.Item, error) {
 	var result auditstore.Item
 	var taskRef, origin, acceptedRef, dependencies []byte
-	var state, approvalKind string
-	var approvalDigest *string
+	var state string
 	var final *string
 	var acceptedDigest *string
 	if err := row.Scan(
 		&result.ItemID, &result.AuditID, &result.RoundID, &result.ItemKey,
 		&result.Ordinal, &result.Kind, &result.SubjectKey, &taskRef,
 		&result.Task.Digest, &origin, &result.WorkflowRole, &state,
-		&approvalKind, &approvalDigest, &final,
+		&final,
 		&acceptedRef, &acceptedDigest, &result.LastExecutionItemID,
 		&result.CreatedAt, &result.UpdatedAt, &dependencies,
 	); err != nil {
@@ -481,17 +466,6 @@ func scanItem(row scanner) (auditstore.Item, error) {
 	result.State = auditstore.ItemState(state)
 	if !result.State.Valid() {
 		return auditstore.Item{}, errors.New("stored Audit item state is invalid")
-	}
-	result.ApprovalKind = auditstore.ItemApprovalKind(approvalKind)
-	if !result.ApprovalKind.Valid() ||
-		(result.ApprovalKind == auditstore.ItemApprovalNone) != (approvalDigest == nil) {
-		return auditstore.Item{}, errors.New("stored Audit item approval is invalid")
-	}
-	if approvalDigest != nil {
-		if validateDigest("stored item approval digest", *approvalDigest) != nil {
-			return auditstore.Item{}, errors.New("stored Audit item approval digest is invalid")
-		}
-		result.ApprovalDigest = *approvalDigest
 	}
 	if final != nil {
 		value := auditstore.FinalDisposition(*final)
