@@ -6,7 +6,7 @@ epic: http-tools
 kind: defect
 introduced_by: V410-032
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V410-032]
 languages: [python, markdown, json]
 goal: Scanner ingress rejects forbidden or noncanonical source targets before any target traffic or lossy URL conversion.
@@ -68,3 +68,12 @@ followup:
   decision: Match native whitespace tokenization and its existing h11 blank-line delimiter before validating the original target; add real bridge/owner/socket regressions for repeated SP, TAB and LF/CRLF headers. This is the same source-admission defect and does not change URL grammar.
   red: Both repeated-SP/TAB cases returned 200 on the first fix; all four SP/TAB with LF/CRLF variants failed before the follow-up. All 29 ingress cases now pass, including a valid LF-delimited empty query.
   focused: The final complete HTTP/bridge/scanner suites passed (227 tests, no selected skips); the expanded mandatory conformance matrix accepted /tmp/v410-bridge-review-focused.xml.
+  lint: Final make lint, Ruff/import layers, spec/task checks and mandatory Python HTTP conformance validation passed on the follow-up production code.
+  full_runtime: >-
+    The final make test-runtime failed: 6022 passed, 135 skipped, two failures in
+    458.57 seconds. Podman flood returned sandbox_timeout (the reproduced baseline
+    failure); the unchanged LikeC4 validator ownership case timed out waiting for
+    its process marker. No full Runtime pass is claimed.
+  isolated_ownership: The entire unchanged test_tool_operation_ownership.py module passed on rerun (12 tests in 3.57 seconds); this does not turn the failed broad run into a pass.
+  full_report: The expanded HTTP conformance matrix accepted the final full Runtime JUnit report with no selected HTTP failures/skips.
+implementation_commit: 748ebd67b55cb2efa37c35a7fc430d720471a88b
