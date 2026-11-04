@@ -1127,6 +1127,11 @@ pinned default is a resolved dependency rather than caller input; Run
 idempotency and replay are owned by [Runs](../execution/runs.md). Rebinding
 `default` or a selected label affects only later Runs.
 
+The snapshot's `llmCredentialIds` and `runtimeCredentialIds` indexes are
+unique sets in strictly ascending ASCII byte order. Go and PostgreSQL validate
+the same order and ASCII identity grammar independently of database locale.
+For example, `a-1` precedes `a_2`.
+
 **RCF-R134.** Run creation locks the default and selected binding rows in
 lexical order in the same PostgreSQL transaction that stores the Run snapshot.
 Binding rebind uses the same row lock plus revision compare-and-set. A race
