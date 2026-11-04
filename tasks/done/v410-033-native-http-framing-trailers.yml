@@ -6,7 +6,7 @@ epic: http-tools
 kind: defect
 introduced_by: V410-030
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V410-030]
 languages: [python, markdown]
 goal: Unfinished chunk framing cannot grow Runtime memory without a bound, and valid chunked messages with trailers complete normally.
@@ -53,3 +53,7 @@ tests:
   covers: [A4]
 - command: cd runtime && uv run python ../scripts/check_tasks.py
   covers: [A4]
+implementation_commit: 2e36df1a6e81668dbf91470d804f146656797bc5
+verification:
+- 2026-11-04 — seven of nine target regression cases failed on the preceding implementation. The repaired native readers pass all eighteen target/scanner socket cases, with parser retention observed for complete and unfinished size lines, extensions and trailers.
+- 2026-11-04 — full affected HTTP/scanner suites passed (177 tests); make lint, check_spec.py and check_tasks.py passed. Native framing rejection also clears the buffer and ignores queued input after half-close.
