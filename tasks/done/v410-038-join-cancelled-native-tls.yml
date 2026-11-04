@@ -6,7 +6,7 @@ epic: http-tools
 kind: defect
 introduced_by: V410-030
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V410-036]
 languages: [python, markdown, json]
 goal: A cancelled or timed-out controlled request cannot leave TCP/TLS work capable of sending its HTTP bytes after the call returns.
@@ -68,3 +68,4 @@ verification:
   lint: make lint passed, including Runtime Ruff/import layers and release graph; check_spec.py and check_tasks.py also passed directly.
   broad_gate: make test-runtime was not rerun for this fix. Its previous Podman/validator failures are not reported as passes; no broad Runtime or release pass is claimed.
   delivery: Local branch codex/sitemap-source-comparison; not merged into main. The separate untracked V410-037 task is outside this change.
+implementation_commit: 8b200b224e09bc77b62aa7b84230f3e1cc332084
