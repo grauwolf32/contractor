@@ -31,6 +31,8 @@ const (
 // Task retains one immutable accepted document and its source identity. The
 // source key reconciles the same producer/list/entry without creating work.
 type Task struct {
+	Attention     bool
+	Hypothesis    *auditcontract.Hypothesis
 	Document      auditcontract.Task
 	SourceKey     string
 	Source        TaskSource
@@ -52,6 +54,7 @@ type TaskPage struct {
 }
 
 type ListTasksParams struct {
+	HypothesisID string
 	OwnerID      string
 	AuditID      string
 	State        *TaskState
@@ -62,8 +65,10 @@ type ListTasksParams struct {
 // AcceptedTask is the immutable work admitted by one common mutation, after
 // its exact selected inputs have been retained under the normal Audit scope.
 type AcceptedTask struct {
-	Document auditcontract.Task `json:"document"`
-	Source   TaskSource         `json:"source"`
+	Attention  bool                      `json:"attention"`
+	Hypothesis *auditcontract.Hypothesis `json:"hypothesis_snapshot,omitempty"`
+	Document   auditcontract.Task        `json:"document"`
+	Source     TaskSource                `json:"source"`
 }
 
 // TaskSource distinguishes explicit work from one exact accepted producer
@@ -76,15 +81,19 @@ type TaskSource struct {
 }
 
 type AcceptTasksParams struct {
-	OwnerID          string
-	AuditID          string
-	ExpectedRevision uint64
-	Claim            *ControllerClaim
-	IdempotencyKey   string
-	RequestDigest    string
-	Tasks            []AcceptedTask
-	InitialProgress  *InitialWorkProgress
-	PreparedProgress *PreparedWorkProgress
+	HypothesisWrites   []HypothesisWrite
+	AssertionSnapshots map[string]auditcontract.Hypothesis
+	Attention          []string
+	Hypotheses         map[string]string
+	OwnerID            string
+	AuditID            string
+	ExpectedRevision   uint64
+	Claim              *ControllerClaim
+	IdempotencyKey     string
+	RequestDigest      string
+	Tasks              []AcceptedTask
+	InitialProgress    *InitialWorkProgress
+	PreparedProgress   *PreparedWorkProgress
 }
 
 type TaskAcceptance struct {

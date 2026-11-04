@@ -125,7 +125,7 @@ func (s *Service) Fork(ctx context.Context, fork Fork) (ForkResult, error) {
 	if !forkRouteAllowed(fork) {
 		return ForkResult{}, ErrInvalidScope
 	}
-	if fork.Source.kind == ScopeProject && fork.Target.kind == ScopeAudit && (!fork.Frozen || fork.SourceRef.ValidateExact() != nil) {
+	if (fork.Source.kind == ScopeProject || fork.Source.kind == ScopeUser) && fork.Target.kind == ScopeAudit && (!fork.Frozen || fork.SourceRef.ValidateExact() != nil) {
 		return ForkResult{}, ErrInvalidScope
 	}
 	if fork.Source.kind == ScopeProject && fork.Source == fork.Target && !fork.Frozen {
@@ -160,7 +160,7 @@ func forkScopesAllowed(source, target Scope) bool {
 	case target.kind == ScopeProject:
 		return source.kind == ScopeRun || source.kind == ScopeAudit || source == target
 	case target.kind == ScopeAudit:
-		return source.kind == ScopeRun || source.kind == ScopeProject
+		return source.kind == ScopeRun || source.kind == ScopeProject || source.kind == ScopeUser
 	}
 	return false
 }
@@ -204,7 +204,7 @@ func forkRouteAllowed(fork Fork) bool {
 		return fork.Source.kind == ScopeRun && fork.Target.kind == ScopeAudit
 	case LineageAuditInput:
 		return fork.Source.kind == ScopeAudit && fork.Target.kind == ScopeRun ||
-			fork.Source.kind == ScopeProject && fork.Target.kind == ScopeAudit
+			(fork.Source.kind == ScopeProject || fork.Source.kind == ScopeUser) && fork.Target.kind == ScopeAudit
 	case LineageAuditPublish:
 		return fork.Source.kind == ScopeAudit && fork.Target.kind == ScopeProject
 	default:

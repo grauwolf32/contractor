@@ -16,10 +16,13 @@ NAMES = {
     "workflow": "AuditProgramWorkflow", "input_mapping": "AuditProgramInputMapping",
     "seed": "AuditProgramHypothesisSeed", "initial": "AuditProgramInitialWork",
     "attempt_limit": "AuditProgramAttemptLimit",
+ "seed_source": "AuditProgramSeedSource",
+ "assertion_source": "AuditAssertionsSource", "assertion_source_entry": "AuditAssertionSourceEntry",
+ "hypothesis": "AuditHypothesisDocument", "assertion_scope": "AuditAssertionScope", "artifact": "AuditTaskMaterial",
     "key": "AuditCommonKey", "text": "AuditCommonText", "digest": "AuditCommonDigest",
     "resource_id": "AuditCommonResourceId", "ref": "AuditCommonExactRef",
 }
-SHARED = {"key", "text", "digest", "resource_id", "ref"}
+SHARED = {"key", "text", "digest", "resource_id", "ref", "artifact"}
 
 
 def generated():
@@ -45,7 +48,7 @@ def generated():
                     if not child.startswith(common["$id"]+"#/$defs/"):
                         raise ValueError("unexpected external Program schema reference")
                     name=child.rsplit("/",1)[-1]
-                    target={"name":"AuditCommonKey","mediaType":"MediaType","selector":"AuditProgramSelector"}[name]
+                    target={"name":"AuditCommonKey","mediaType":"MediaType","selector":"AuditProgramSelector", "version":"ConfigVersion"}[name]
                     if name=="selector":selected[target]=copy(common["$defs"][name])
                 child = "#/components/schemas/" + target
             result[key] = copy(child)
@@ -56,6 +59,8 @@ def generated():
         return result
 
     copy({"$ref": "#/$defs/program"})
+    copy({"$ref": "#/$defs/hypothesis"})
+    copy({"$ref": "#/$defs/assertion_source"})
     selected["AuditProgramPolicy"] = copy(schema["$defs"]["program"]["properties"]["policy"])
     selected["AuditProgram"]["properties"]["policy"] = {"$ref": "#/components/schemas/AuditProgramPolicy"}
     body = yaml.safe_dump(selected, sort_keys=True, allow_unicode=True, width=100)

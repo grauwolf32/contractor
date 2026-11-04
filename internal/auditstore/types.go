@@ -235,28 +235,29 @@ type StopReason struct {
 }
 
 type Audit struct {
-	AuditID            string
-	OwnerID            string
-	ProjectID          string
-	Profile            ProfileIdentity
-	ProfileSnapshot    json.RawMessage
-	InputSelection     json.RawMessage
-	BaselineSnapshot   json.RawMessage
-	State              AuditState
-	Phase              auditdomain.AuditPhase
-	Revision           uint64
-	CurrentRoundID     *string
-	Dispatch           DispatchState
-	Hold               HoldState
-	DeadlineAt         *time.Time
-	PausedAt           *time.Time
-	Limits             Limits
-	ReservedRunCount   int
-	SubmittedRunCount  int
-	TaskCount          int
-	TaskIteration      int
-	IterationTaskCount int
-	InitialWorkOffset  int
+	AuditID                 string
+	OwnerID                 string
+	ProjectID               string
+	Profile                 ProfileIdentity
+	ProfileSnapshot         json.RawMessage
+	InputSelection          json.RawMessage
+	BaselineSnapshot        json.RawMessage
+	State                   AuditState
+	Phase                   auditdomain.AuditPhase
+	Revision                uint64
+	CurrentRoundID          *string
+	Dispatch                DispatchState
+	Hold                    HoldState
+	DeadlineAt              *time.Time
+	PausedAt                *time.Time
+	Limits                  Limits
+	ReservedRunCount        int
+	SubmittedRunCount       int
+	TaskCount               int
+	TaskIteration           int
+	IterationTaskCount      int
+	InitialHypothesisOffset int
+	InitialWorkOffset       int
 	// OutstandingRunCount counts every child Run that holds a dispatch
 	// reservation; OutstandingToolRunCount is its `tool` class part
 	// (AUX-R3).
@@ -315,11 +316,12 @@ type ListItemsParams struct {
 type MutationOperation string
 
 const (
-	MutationCreate      MutationOperation = "audit.create"
-	MutationStart       MutationOperation = "audit.start"
-	MutationTransition  MutationOperation = "audit.transition"
-	MutationDelete      MutationOperation = "audit.delete"
-	MutationAcceptTasks MutationOperation = "audit.tasks.accept"
+	MutationCreate          MutationOperation = "audit.create"
+	MutationStart           MutationOperation = "audit.start"
+	MutationTransition      MutationOperation = "audit.transition"
+	MutationDelete          MutationOperation = "audit.delete"
+	MutationAcceptTasks     MutationOperation = "audit.tasks.accept"
+	MutationWriteHypotheses MutationOperation = "audit.hypotheses.write"
 )
 
 type TransitionParams struct {

@@ -13,6 +13,7 @@ it("reads an ordinary retained task result without a hypothesis or Finding", asy
     submittedRunCount: 1,
   });
   const task = conforming("AuditTask", {
+    attention: false,
     document: {
       schema: "contractor.audit.task.v1",
       audit_id: "audit_1",
@@ -81,6 +82,7 @@ it("pages accepted tasks instead of stopping after the first page", async () => 
         page(
           [
             conforming("AuditTask", {
+              attention: false,
               document: {
                 schema: "contractor.audit.task.v1",
                 audit_id: "audit_1",

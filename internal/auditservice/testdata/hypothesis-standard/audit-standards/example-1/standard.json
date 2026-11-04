@@ -1,0 +1,18 @@
+{
+  "schema": "contractor.audit-standard.v1",
+  "standard": {
+    "scheme": "example", "version": "1", "title": "Example assertion source",
+    "description": "An isolated source-selection fixture.",
+    "source": {"name": "Example", "url": "https://example.invalid/standard", "revision": "1"},
+    "license": {"id": "CC-BY-4.0", "url": "https://creativecommons.org/licenses/by/4.0/", "attribution": "Example authors", "disclosure": "full"}
+  },
+  "evidenceContracts": [{"id": "source", "version": "1", "assessments": ["inconclusive", "satisfied", "violated"], "evidenceKinds": ["artifact"], "minimumEvidence": 1, "maximumEvidence": 8, "humanReview": "never", "rationaleRequired": true}],
+  "entries": [
+    {"id": "EX-1", "kind": "requirement", "title": "First property", "statement": "The first scoped property holds.", "applicability": {"mode": "always"}, "allowedMethods": ["source-analysis"], "evidenceContract": {"id": "source", "version": "1"}},
+    {"id": "EX-2", "kind": "requirement", "title": "Second property", "statement": "The second scoped property holds.", "applicability": {"mode": "always"}, "allowedMethods": ["source-analysis"], "evidenceContract": {"id": "source", "version": "1"}}
+  ],
+  "mappings": [
+    {"key": "first", "entryIds": ["EX-1"], "workflowRole": "inspect", "method": "source-analysis", "evidenceContract": {"id": "source", "version": "1"}, "title": "Inspect first", "objective": "Inspect the first property with exact source evidence."},
+    {"key": "second", "entryIds": ["EX-2"], "workflowRole": "inspect", "method": "source-analysis", "evidenceContract": {"id": "source", "version": "1"}, "title": "Inspect second", "objective": "Inspect the second property with exact source evidence."}
+  ]
+}

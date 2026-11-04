@@ -19,6 +19,9 @@ import (
 )
 
 type AuditManagement interface {
+	WriteHypothesis(context.Context, auditservice.HypothesisMutationParams) (auditstore.HypothesisAcceptance, bool, error)
+	Hypotheses(context.Context, auditstore.ListHypothesesParams) (auditstore.HypothesisPage, error)
+	Hypothesis(context.Context, string, string, string, uint64) (auditstore.Hypothesis, error)
 	CreateTasks(context.Context, auditservice.TaskCreationParams) (auditservice.TaskCreationResult, error)
 	Tasks(context.Context, auditstore.ListTasksParams) (auditstore.TaskPage, error)
 	Task(context.Context, string, string, string) (auditstore.Task, error)

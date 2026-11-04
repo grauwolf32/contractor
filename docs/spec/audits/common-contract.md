@@ -289,6 +289,55 @@ explicit limitations and gaps; Run state and Finding state remain separate. It
 does not claim coverage or a security verdict from successful Run completion.
 Activity uses the existing paged Audit event history.
 
+**ACT-R16.** The Audit owns hypothesis identities and append-only exact revisions.
+Initial authored seeds receive opaque deterministic IDs; manual commands receive
+owner-assigned IDs. Public writers provide source key, statement, scope and
+grounds, never identity, revision or origin. The admission origin remains immutable
+across edits; it records how the assertion entered this Audit. An edit appends a
+revision and never changes an accepted Task's full frozen hypothesis snapshot.
+Creating/editing an assertion together with its check uses the existing Task
+mutation receipt and one transaction; refusal commits neither. Standalone edits
+use the existing keyed Audit mutation family. Concurrent edits use the Audit
+revision precondition. Replaying a lost acknowledgement reads the receipt before
+mutable hypothesis heads.
+
+The assertion editor captures the Audit revision with the source content when
+opened. Both Save and Save and check retain that precondition through polling.
+A changed source revision or a definite precondition refusal preserves the
+unsaved text and blocks another write until the user explicitly reloads the
+current assertion. A new assertion may explicitly adopt the refreshed Audit
+revision after a refusal. An ambiguous acknowledgement retains the original
+request body, key and precondition until its retry resolves.
+
+Registry pages expose checking Workflow aliases from the stored Program pin, so
+continuation does not depend on a changed or removed live catalog entry. Only
+bindings that can use already available Audit inputs are offered by this form.
+Current assertions use ordinal keyset pages bounded by rows and 1 MiB; exact
+revision reads are explicit. Task history can filter one hypothesis ID through
+its indexed accepted references. A normalized batch result remains one exact
+Run artifact with separate trusted per-item origins. The UI displays only the
+member whose origin names the selected Task; downloading returns the original
+batch. No semantic conclusion fans out to other hypotheses.
+
+**ACT-R17.** A Program may select `seed_source` from one required checklist input
+or one exact curated standard version. Start freezes the interpreted selection
+and its ordinary Audit-owned source artifact. `contractor.audit.assertions.v1`
+is a strict finite JSON/YAML source: ordered entries contain key, version,
+statement, scope, grounds, applicability, sorted allowed methods and sorted
+required evidence. Its owning shared schema defines the shape; the ordinary
+Audit domain owns YAML parsing and standard mappings. No model generates fixed
+seeds. Selection is at most 128 assertions / 1 MiB of frozen metadata. A standard
+entry retains its original version, applicability, mappings, allowed methods and
+evidence sufficiency contract. Unmapped selected requirements stay unchecked in
+the original denominator, without fabricated work.
+
+Seed admission precedes Task admission and charges the ordinary pinned hypothesis
+budgets. Each slice has at most 128 primary records / 1 MiB; an explicit pending
+fixed count exposes incomplete seed admission. Additional assertions, edits,
+split checks, exclusions, unavailable evidence and generated work never change
+the frozen fixed denominator. Registry usage is cumulative: revisions consume
+bytes and revision budget even when no longer current.
+
 ## Interfaces
 
 `internal/contracts/auditcontract.Decode` returns one canonical JSON document

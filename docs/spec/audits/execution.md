@@ -956,6 +956,16 @@ Audit. Live owner/Project lifecycle fences and expiring approvals still
 apply. Missing configured capability is a permanent configuration/admission
 failure; temporary Runtime capacity remains an ordinary scheduling wait.
 
+**AUX-R111.** Compatible ready Tasks are selected by explicit human attention
+first and original source ordinal second, through the ready index. Attention is
+owner-authored scheduling intent and grants no truth, scope or operation authority.
+Prerequisites are the binding's required exact available materials and accepted
+prior results at ordinary admission; no future dependency graph is inferred.
+Current lane, Project, control, deadline, Task/iteration/attempt/Run and evidence
+budgets still bound selection. Settled history is not rescanned to rank work.
+Fixed seeds are admitted independently of remaining Task capacity, so a limited
+check budget does not silently remove selected source requirements.
+
 ## Interfaces
 
 This document defines no public endpoint; the start, pause, resume and cancel

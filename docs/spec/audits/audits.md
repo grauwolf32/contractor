@@ -1954,6 +1954,15 @@ execution and configured-session semantics belong to
 The existing private protocol and allocation lifecycle own validation,
 cancellation and release ([CTL-R169](../execution/control-plane.md)).
 
+**AUD-R249.** Fixed checklist and curated-standard checking Programs use
+[ACT-R16](common-contract.md) and [ACT-R17](common-contract.md). Start validates
+and freezes the exact selected source before activation, retains its immutable
+source/license/version provenance and registers it through ordinary Audit artifact
+links. Foreign source scopes and changed exact metadata fail admission. Source
+interpretation belongs to `auditdomain` and `auditstandards`; Server owns
+identity, authorization, budgets, receipts and persistence. There is no second
+checklist coordinator or compatibility format reader.
+
 ## Non-goals
 
 - Publishing AuditProfile through generic managed configuration publication

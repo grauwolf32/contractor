@@ -4285,6 +4285,184 @@ paths:
         '500': {$ref: '#/components/responses/InternalError'}
         '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
+  /v1/audits/{auditId}/hypotheses:
+    parameters:
+    - $ref: '#/components/parameters/AuditId'
+    post:
+      operationId: createAuditHypothesis
+      tags:
+      - Audits
+      summary: Create an Audit hypothesis with trusted manual origin
+      responses:
+        '200':
+          description: Original acceptance receipt
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditHypothesisAcceptance'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/StorageTransactionConflict'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - $ref: '#/components/parameters/RequiredIfMatch'
+      description: Accept one bounded assertion with a stable opaque identity. The owner assigns identity,
+        revision and origin. The existing Audit keyed receipt reconciles response loss.
+      x-max-request-body-bytes: 32768
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuditHypothesisContent'
+    get:
+      operationId: listAuditHypotheses
+      tags:
+      - Audits
+      summary: List current exact Audit hypotheses
+      responses:
+        '200':
+          description: Bounded accepted work
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditHypothesisPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/StorageTransactionConflict'
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+  /v1/audits/{auditId}/hypotheses/{hypothesisId}:
+    parameters:
+    - $ref: '#/components/parameters/AuditId'
+    - name: hypothesisId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/ResourceId'
+    get:
+      operationId: getAuditHypothesis
+      tags:
+      - Audits
+      summary: Read an exact immutable hypothesis revision
+      responses:
+        '200':
+          description: Bounded accepted work
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditHypothesis'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/StorageTransactionConflict'
+      parameters:
+      - name: revision
+        in: query
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+    patch:
+      operationId: editAuditHypothesis
+      tags:
+      - Audits
+      summary: Append an immutable hypothesis revision
+      responses:
+        '200':
+          description: Original acceptance receipt
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditHypothesisAcceptance'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/StorageTransactionConflict'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - $ref: '#/components/parameters/RequiredIfMatch'
+      description: The Audit revision precondition rejects stale edits. New content preserves the original
+        identity, provenance and fixed coverage membership. Accepted Tasks keep their exact original revision.
+      x-max-request-body-bytes: 32768
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuditHypothesisContent'
   /v1/audits/{auditId}/tasks:
     parameters:
     - $ref: '#/components/parameters/AuditId'
@@ -4371,6 +4549,9 @@ paths:
       parameters:
       - $ref: '#/components/parameters/Limit'
       - $ref: '#/components/parameters/Cursor'
+      - name: hypothesis_id
+        in: query
+        schema: {$ref: '#/components/schemas/ResourceId'}
       - name: state
         in: query
         schema:
@@ -13571,8 +13752,149 @@ components:
       - engagement_active_checks_unsupported
     # BEGIN GENERATED COMMON AUDIT PROGRAM
     # Generated by scripts/generate_audit_public_schema.py; do not edit.
+    AuditAssertionScope:
+      additionalProperties:
+        $ref: '#/components/schemas/AuditCommonText'
+      maxProperties: 64
+      propertyNames:
+        $ref: '#/components/schemas/AuditCommonKey'
+      type: object
+    AuditAssertionSourceEntry:
+      additionalProperties: false
+      properties:
+        allowed_methods:
+          items:
+            $ref: '#/components/schemas/AuditCommonKey'
+          maxItems: 512
+          minItems: 1
+          type: array
+          uniqueItems: true
+        applicability:
+          $ref: '#/components/schemas/AuditCommonText'
+        grounds:
+          $ref: '#/components/schemas/AuditCommonText'
+        key:
+          $ref: '#/components/schemas/AuditCommonKey'
+        required_evidence:
+          items:
+            $ref: '#/components/schemas/AuditCommonText'
+          maxItems: 256
+          type: array
+          uniqueItems: true
+        scope:
+          $ref: '#/components/schemas/AuditAssertionScope'
+        statement:
+          $ref: '#/components/schemas/AuditCommonText'
+        version:
+          $ref: '#/components/schemas/ConfigVersion'
+          maxLength: 64
+          not:
+            pattern: '[^A-Za-z0-9._+-]'
+      required:
+      - statement
+      - scope
+      - grounds
+      - key
+      - version
+      - applicability
+      - allowed_methods
+      - required_evidence
+      type: object
+    AuditAssertionsSource:
+      additionalProperties: false
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/AuditAssertionSourceEntry'
+          maxItems: 128
+          minItems: 1
+          type: array
+        schema:
+          const: contractor.audit.assertions.v1
+          type: string
+      required:
+      - schema
+      - items
+      type: object
+      x-max-document-bytes: 1048576
+    AuditHypothesisDocument:
+      additionalProperties: false
+      properties:
+        grounds:
+          $ref: '#/components/schemas/AuditCommonText'
+        id:
+          $ref: '#/components/schemas/AuditCommonResourceId'
+        origin:
+          additionalProperties: false
+          oneOf:
+          - properties:
+              kind:
+                const: run
+                type: string
+            required:
+            - task_id
+            - run_id
+          - not:
+              anyOf:
+              - required:
+                - task_id
+              - required:
+                - run_id
+            properties:
+              kind:
+                enum:
+                - manual
+                - checklist
+                type: string
+          properties:
+            audit_id:
+              $ref: '#/components/schemas/AuditCommonResourceId'
+            kind:
+              enum:
+              - manual
+              - checklist
+              - run
+              type: string
+            run_id:
+              $ref: '#/components/schemas/AuditCommonResourceId'
+            source:
+              $ref: '#/components/schemas/AuditTaskMaterial'
+            task_id:
+              $ref: '#/components/schemas/AuditCommonResourceId'
+          required:
+          - kind
+          - audit_id
+          type: object
+        revision:
+          maximum: 9007199254740991
+          minimum: 1
+          type: integer
+        schema:
+          const: contractor.audit.hypothesis.v1
+          type: string
+        scope:
+          $ref: '#/components/schemas/AuditAssertionScope'
+        statement:
+          $ref: '#/components/schemas/AuditCommonText'
+      required:
+      - schema
+      - id
+      - revision
+      - statement
+      - scope
+      - grounds
+      - origin
+      type: object
+      x-maxEncodedBytes: 32768
     AuditProgram:
       additionalProperties: false
+      allOf:
+      - anyOf:
+        - properties:
+            initial_work:
+              minItems: 1
+        - required:
+          - seed_source
       properties:
         continuation:
           additionalProperties: false
@@ -13593,7 +13915,7 @@ components:
           items:
             $ref: '#/components/schemas/AuditProgramInitialWork'
           maxItems: 10000
-          minItems: 1
+          minItems: 0
           type: array
         inputs:
           additionalProperties:
@@ -13609,6 +13931,8 @@ components:
         schema:
           const: contractor.audit.program.v1
           type: string
+        seed_source:
+          $ref: '#/components/schemas/AuditProgramSeedSource'
         workflows:
           additionalProperties:
             $ref: '#/components/schemas/AuditProgramWorkflow'
@@ -13640,12 +13964,7 @@ components:
         grounds:
           $ref: '#/components/schemas/AuditCommonText'
         scope:
-          additionalProperties:
-            $ref: '#/components/schemas/AuditCommonText'
-          maxProperties: 64
-          propertyNames:
-            $ref: '#/components/schemas/AuditCommonKey'
-          type: object
+          $ref: '#/components/schemas/AuditAssertionScope'
         statement:
           $ref: '#/components/schemas/AuditCommonText'
       required:
@@ -13788,6 +14107,48 @@ components:
           type: string
       required:
       - active_operations
+      type: object
+    AuditProgramSeedSource:
+      additionalProperties: false
+      oneOf:
+      - not:
+          anyOf:
+          - required:
+            - standard
+          - required:
+            - entry_ids
+        required:
+        - input
+      - not:
+          required:
+          - input
+        required:
+        - standard
+      properties:
+        entry_ids:
+          items:
+            $ref: '#/components/schemas/AuditCommonText'
+          maxItems: 128
+          minItems: 1
+          type: array
+          uniqueItems: true
+        input:
+          $ref: '#/components/schemas/AuditCommonKey'
+        standard:
+          additionalProperties: false
+          properties:
+            scheme:
+              $ref: '#/components/schemas/AuditCommonKey'
+            version:
+              $ref: '#/components/schemas/AuditCommonText'
+          required:
+          - scheme
+          - version
+          type: object
+        workflow:
+          $ref: '#/components/schemas/AuditCommonKey'
+      required:
+      - workflow
       type: object
     AuditProgramSelector:
       pattern: ^[a-z][a-z0-9_-]*@[A-Za-z0-9][A-Za-z0-9._+-]*$
@@ -14345,6 +14706,83 @@ components:
             $ref: '#/components/schemas/AuditTaskMaterial'
           minProperties: 0
           maxProperties: 32
+    AuditHypothesisContent:
+      type: object
+      additionalProperties: false
+      required:
+      - key
+      - statement
+      - scope
+      - grounds
+      properties:
+        key:
+          $ref: '#/components/schemas/AuditCommonKey'
+        statement:
+          $ref: '#/components/schemas/AuditCommonText'
+        scope: {$ref: '#/components/schemas/AuditAssertionScope'}
+        grounds:
+          $ref: '#/components/schemas/AuditCommonText'
+    AuditHypothesis:
+      type: object
+      additionalProperties: false
+      required:
+      - document
+      - source_key
+      - fixed
+      - ordinal
+      properties:
+        document:
+          $ref: '#/components/schemas/AuditHypothesisDocument'
+        source_key:
+          $ref: '#/components/schemas/AuditCommonKey'
+        fixed:
+          type: boolean
+        ordinal:
+          type: integer
+          minimum: 1
+          maximum: 10000
+    AuditHypothesisAcceptance:
+      type: object
+      additionalProperties: false
+      required:
+      - hypotheses
+      - audit_revision
+      properties:
+        hypotheses:
+          type: array
+          minItems: 1
+          maxItems: 128
+          items:
+            $ref: '#/components/schemas/AuditTaskHypothesisRef'
+        audit_revision:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+    AuditCheckingWorkflows:
+      type: array
+      maxItems: 16
+      uniqueItems: true
+      items: {$ref: '#/components/schemas/AuditCommonKey'}
+    AuditHypothesisPage:
+      type: object
+      additionalProperties: false
+      required:
+      - checking_workflows
+      - pending_fixed_count
+      - fixed_denominator
+      - items
+      - page
+      properties:
+        checking_workflows: {$ref: '#/components/schemas/AuditCheckingWorkflows'}
+        pending_fixed_count: {type: integer, minimum: 0, maximum: 10000}
+        fixed_denominator: {type: integer, minimum: 0, maximum: 10000}
+        items:
+          type: array
+          maxItems: 200
+          items:
+            $ref: '#/components/schemas/AuditHypothesis'
+        page:
+          $ref: '#/components/schemas/PageInfo'
     AuditTaskState:
       type: string
       enum:
@@ -14357,6 +14795,23 @@ components:
       required:
       - work
       properties:
+        assertions:
+          type: object
+          maxProperties: 64
+          propertyNames: {$ref: '#/components/schemas/AuditCommonKey'}
+          additionalProperties: {$ref: '#/components/schemas/AuditHypothesisContent'}
+        attention:
+          type: array
+          maxItems: 128
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/AuditCommonKey'}
+        hypotheses:
+          type: object
+          maxProperties: 128
+          propertyNames:
+            $ref: '#/components/schemas/AuditCommonKey'
+          additionalProperties:
+            $ref: '#/components/schemas/ResourceId'
         work:
           type: array
           minItems: 1
@@ -14408,6 +14863,7 @@ components:
       type: object
       additionalProperties: false
       required:
+      - attention
       - document
       - source
       - ordinal
@@ -14417,6 +14873,8 @@ components:
       - created_at
       - updated_at
       properties:
+        hypothesis_snapshot: {$ref: '#/components/schemas/AuditHypothesisDocument'}
+        attention: {type: boolean}
         document:
           $ref: '#/components/schemas/AuditTaskDocument'
         source:
@@ -15148,6 +15606,8 @@ components:
       additionalProperties: false
       required: [auditId, executionId, taskId]
       properties:
+        hypothesisSnapshot:
+          $ref: '#/components/schemas/FindingExactArtifact'
         auditId: {$ref: '#/components/schemas/ResourceId'}
         executionId: {$ref: '#/components/schemas/ResourceId'}
         taskId: {$ref: '#/components/schemas/ResourceId'}

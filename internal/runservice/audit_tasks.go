@@ -168,7 +168,10 @@ func materializeTaskRunContext(ctx context.Context, service *artifacts.Service, 
 		}
 		item := map[string]any{"item_key": auditcontract.ExecutionItemKey(i), "task_id": task.Document.TaskID, "objective": task.Document.Objective, "evidence": evidence}
 		if task.Document.Hypothesis != nil {
-			return fmt.Errorf("%w: accepted hypothesis snapshot is unavailable", ErrInvalid)
+			if task.Hypothesis == nil || task.Hypothesis.ID != task.Document.Hypothesis.ID || task.Hypothesis.Revision != task.Document.Hypothesis.Revision {
+				return ErrInvalid
+			}
+			item["hypothesis"] = task.Hypothesis
 		}
 		items = append(items, item)
 	}

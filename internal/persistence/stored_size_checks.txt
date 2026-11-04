@@ -169,3 +169,8 @@ audit_tasks_document_check                                 LIM-ACT-2
 audit_tasks_source_check                                   invariant: system-assigned intake provenance tuple of bounded IDs, exact source descriptor and entry key
 audit_tasks_result_check                                   invariant: exact result descriptor containing only bounded scope, ref, digest, media and size fields
 audit_tasks_gap_code_check                                 LIM-PER-15
+
+audit_hypotheses_source_key_check                         LIM-API-20
+audit_hypothesis_revisions_document_check                  LIM-ACT-1
+audit_tasks_hypothesis_snapshot_check                      LIM-ACT-1
+finding_proposal_receipts_hypothesis_snapshot_check         LIM-FND-51

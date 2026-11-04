@@ -1135,6 +1135,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/audits/{auditId}/hypotheses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        /** List current exact Audit hypotheses */
+        get: operations["listAuditHypotheses"];
+        put?: never;
+        /**
+         * Create an Audit hypothesis with trusted manual origin
+         * @description Accept one bounded assertion with a stable opaque identity. The owner assigns identity, revision and origin. The existing Audit keyed receipt reconciles response loss.
+         */
+        post: operations["createAuditHypothesis"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/audits/{auditId}/hypotheses/{hypothesisId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+                hypothesisId: components["schemas"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /** Read an exact immutable hypothesis revision */
+        get: operations["getAuditHypothesis"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Append an immutable hypothesis revision
+         * @description The Audit revision precondition rejects stale edits. New content preserves the original identity, provenance and fixed coverage membership. Accepted Tasks keep their exact original revision.
+         */
+        patch: operations["editAuditHypothesis"];
+        trace?: never;
+    };
     "/v1/audits/{auditId}/tasks": {
         parameters: {
             query?: never;
@@ -4072,6 +4119,47 @@ export interface components {
         };
         /** @enum {string} */
         AuditCompatibilityReason: "preparation_unsupported" | "discovery_unsupported" | "assessment_unsupported" | "multiple_rounds_unsupported" | "batching_unsupported" | "automatic_active_checks_unsupported" | "project_active_checks_prohibited" | "active_check_approval_unsupported" | "manual_applicability_unsupported" | "report_acceptance_unsupported" | "manual_item_unsupported" | "engagement_capability_unsupported" | "engagement_source_closure_unsupported" | "engagement_active_checks_unsupported";
+        AuditAssertionScope: {
+            [key: string]: components["schemas"]["AuditCommonText"];
+        };
+        AuditAssertionSourceEntry: {
+            allowed_methods: components["schemas"]["AuditCommonKey"][];
+            applicability: components["schemas"]["AuditCommonText"];
+            grounds: components["schemas"]["AuditCommonText"];
+            key: components["schemas"]["AuditCommonKey"];
+            required_evidence: components["schemas"]["AuditCommonText"][];
+            scope: components["schemas"]["AuditAssertionScope"];
+            statement: components["schemas"]["AuditCommonText"];
+            version: components["schemas"]["ConfigVersion"];
+        };
+        AuditAssertionsSource: {
+            items: components["schemas"]["AuditAssertionSourceEntry"][];
+            /** @constant */
+            schema: "contractor.audit.assertions.v1";
+        };
+        AuditHypothesisDocument: {
+            grounds: components["schemas"]["AuditCommonText"];
+            id: components["schemas"]["AuditCommonResourceId"];
+            origin: {
+                audit_id: components["schemas"]["AuditCommonResourceId"];
+                /** @enum {string} */
+                kind: "manual" | "checklist" | "run";
+                run_id?: components["schemas"]["AuditCommonResourceId"];
+                source?: components["schemas"]["AuditTaskMaterial"];
+                task_id?: components["schemas"]["AuditCommonResourceId"];
+            } & ({
+                /** @constant */
+                kind?: "run";
+            } | {
+                /** @enum {string} */
+                kind?: "manual" | "checklist";
+            });
+            revision: number;
+            /** @constant */
+            schema: "contractor.audit.hypothesis.v1";
+            scope: components["schemas"]["AuditAssertionScope"];
+            statement: components["schemas"]["AuditCommonText"];
+        };
         AuditProgram: {
             continuation?: {
                 workflow: components["schemas"]["AuditCommonKey"];
@@ -4087,17 +4175,18 @@ export interface components {
             policy: components["schemas"]["AuditProgramPolicy"];
             /** @constant */
             schema: "contractor.audit.program.v1";
+            seed_source?: components["schemas"]["AuditProgramSeedSource"];
             workflows: {
                 [key: string]: components["schemas"]["AuditProgramWorkflow"];
             };
-        };
+        } & ({
+            initial_work?: unknown;
+        } | unknown);
         AuditProgramAttemptLimit: number;
         /** @description The complete seed's RFC 8785 canonical UTF-8 encoding must fit 32768 bytes. This early content bound does not replace the complete hypothesis document bound after trusted identity, revision and origin are assigned. */
         AuditProgramHypothesisSeed: {
             grounds: components["schemas"]["AuditCommonText"];
-            scope: {
-                [key: string]: components["schemas"]["AuditCommonText"];
-            };
+            scope: components["schemas"]["AuditAssertionScope"];
             statement: components["schemas"]["AuditCommonText"];
         };
         AuditProgramInitialWork: {
@@ -4138,6 +4227,15 @@ export interface components {
             /** @enum {string} */
             active_operations: "allowed" | "prohibited";
         };
+        AuditProgramSeedSource: {
+            entry_ids?: components["schemas"]["AuditCommonText"][];
+            input?: components["schemas"]["AuditCommonKey"];
+            standard?: {
+                scheme: components["schemas"]["AuditCommonKey"];
+                version: components["schemas"]["AuditCommonText"];
+            };
+            workflow: components["schemas"]["AuditCommonKey"];
+        } & (unknown | unknown);
         AuditProgramSelector: string;
         AuditProgramWorkflow: {
             inputs: {
@@ -4457,9 +4555,40 @@ export interface components {
                 [key: string]: components["schemas"]["AuditTaskMaterial"];
             };
         };
+        AuditHypothesisContent: {
+            key: components["schemas"]["AuditCommonKey"];
+            statement: components["schemas"]["AuditCommonText"];
+            scope: components["schemas"]["AuditAssertionScope"];
+            grounds: components["schemas"]["AuditCommonText"];
+        };
+        AuditHypothesis: {
+            document: components["schemas"]["AuditHypothesisDocument"];
+            source_key: components["schemas"]["AuditCommonKey"];
+            fixed: boolean;
+            ordinal: number;
+        };
+        AuditHypothesisAcceptance: {
+            hypotheses: components["schemas"]["AuditTaskHypothesisRef"][];
+            audit_revision: number;
+        };
+        AuditCheckingWorkflows: components["schemas"]["AuditCommonKey"][];
+        AuditHypothesisPage: {
+            checking_workflows: components["schemas"]["AuditCheckingWorkflows"];
+            pending_fixed_count: number;
+            fixed_denominator: number;
+            items: components["schemas"]["AuditHypothesis"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** @enum {string} */
         AuditTaskState: "ready" | "selected" | "settled";
         AuditTaskCreationRequest: {
+            assertions?: {
+                [key: string]: components["schemas"]["AuditHypothesisContent"];
+            };
+            attention?: components["schemas"]["AuditCommonKey"][];
+            hypotheses?: {
+                [key: string]: components["schemas"]["ResourceId"];
+            };
             work: components["schemas"]["AuditTaskSelection"][];
         };
         AuditTaskAcceptance: {
@@ -4475,6 +4604,8 @@ export interface components {
             output?: components["schemas"]["AuditTaskMaterial"];
         };
         AuditTask: {
+            hypothesis_snapshot?: components["schemas"]["AuditHypothesisDocument"];
+            attention: boolean;
             document: components["schemas"]["AuditTaskDocument"];
             source: components["schemas"]["AuditTaskSource"];
             ordinal: number;
@@ -4927,6 +5058,7 @@ export interface components {
             closureDigest: components["schemas"]["Digest"];
         };
         FindingAuditOrigin: {
+            hypothesisSnapshot?: components["schemas"]["FindingExactArtifact"];
             auditId: components["schemas"]["ResourceId"];
             executionId: components["schemas"]["ResourceId"];
             taskId: components["schemas"]["ResourceId"];
@@ -10789,11 +10921,163 @@ export interface operations {
             503: components["responses"]["StorageTransactionConflict"];
         };
     };
+    listAuditHypotheses: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Bounded accepted work */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditHypothesisPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
+    createAuditHypothesis: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "If-Match": components["parameters"]["RequiredIfMatch"];
+            };
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuditHypothesisContent"];
+            };
+        };
+        responses: {
+            /** @description Original acceptance receipt */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    ETag: components["headers"]["ETag"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditHypothesisAcceptance"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            412: components["responses"]["PreconditionFailed"];
+            413: components["responses"]["PayloadTooLarge"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
+    getAuditHypothesis: {
+        parameters: {
+            query: {
+                revision: number;
+            };
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+                hypothesisId: components["schemas"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Bounded accepted work */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditHypothesis"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
+    editAuditHypothesis: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "If-Match": components["parameters"]["RequiredIfMatch"];
+            };
+            path: {
+                auditId: components["parameters"]["AuditId"];
+                hypothesisId: components["schemas"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuditHypothesisContent"];
+            };
+        };
+        responses: {
+            /** @description Original acceptance receipt */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    ETag: components["headers"]["ETag"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditHypothesisAcceptance"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            412: components["responses"]["PreconditionFailed"];
+            413: components["responses"]["PayloadTooLarge"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
     listAuditTasks: {
         parameters: {
             query?: {
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];
+                hypothesis_id?: components["schemas"]["ResourceId"];
                 state?: components["schemas"]["AuditTaskState"];
             };
             header?: never;

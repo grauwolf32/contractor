@@ -1,7 +1,9 @@
 package app
 
 import (
+	"encoding/json"
 	"errors"
+	"github.com/grauwolf32/contractor/internal/configtest"
 	"io"
 	"log/slog"
 	"os"
@@ -257,4 +259,65 @@ func copyConfigValidationTree(t *testing.T) string {
 func validateConfigForTest(operator, managed string) error {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	return runConfigCLI([]string{"validate", "--root", operator, "--managed-root", managed}, logger)
+}
+
+func TestConfigValidateCommonStandardAssertionSelections(t *testing.T) {
+	for _, test := range []struct {
+		name, version, entry string
+		valid                bool
+	}{
+		{"valid", "5.0.0", "1.2.1", true},
+		{"unknown version", "missing", "1.2.1", false},
+		{"unknown requirement", "5.0.0", "missing", false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			operator := configtest.CopyWithPolicies(t, copyConfigValidationTree(t))
+			if err := os.CopyFS(operator, os.DirFS("../config/testdata/audit-common-catalog")); err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(operator, "audit-profiles", "common_tasks.yaml")
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var document map[string]any
+			if err := json.Unmarshal(data, &document); err != nil {
+				t.Fatal(err)
+			}
+			spec := document["spec"].(map[string]any)
+			spec["workflows"].(map[string]any)["inspect"] = map[string]any{"ref": "audit-contract-check@1", "inputs": map[string]any{"source": map[string]any{"source": "audit-input", "name": "source"}, "context": map[string]any{"source": "task-context"}}, "parameters": map[string]any{}, "outputs": map[string]any{"result": "result"}}
+			spec["seed_source"] = map[string]any{"workflow": "inspect", "standard": map[string]any{"scheme": "owasp-asvs", "version": test.version}, "entry_ids": []string{test.entry}}
+			// Use the packaged original requirement ID; this test does not alter it.
+			if test.valid {
+				files, err := filepath.Glob(filepath.Join(operator, "audit-standards", "*", "standard.json"))
+				if err != nil || len(files) != 1 {
+					t.Fatal(err)
+				}
+				data, err := os.ReadFile(files[0])
+				if err != nil {
+					t.Fatal(err)
+				}
+				var standard struct {
+					Entries []struct {
+						ID string `json:"id"`
+					} `json:"entries"`
+				}
+				if json.Unmarshal(data, &standard) != nil || len(standard.Entries) == 0 {
+					t.Fatal("missing standard fixture")
+				}
+				spec["seed_source"].(map[string]any)["entry_ids"] = []string{standard.Entries[0].ID}
+			}
+			data, err = json.Marshal(document)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, data, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			err = validateConfigForTest(operator, filepath.Join(t.TempDir(), "managed"))
+			if (err == nil) != test.valid {
+				t.Fatalf("valid=%v error=%v", test.valid, err)
+			}
+		})
+	}
 }

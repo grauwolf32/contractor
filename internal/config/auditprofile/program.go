@@ -11,6 +11,22 @@ import (
 // exact allowed Workflow closures. Offline validation and accepted execution
 // share this rule; a resolved closure alone grants no execution authority.
 func ResolveProgramWorkflows(program auditcontract.Program, lookup func(string) (resolved.ResolvedWorkflow, error)) (map[string]resolved.ResolvedWorkflow, error) {
+	if source := program.SeedSource; source != nil {
+		binding, exists := program.Workflows[source.Workflow]
+		context := false
+		for _, m := range binding.Inputs {
+			context = context || m.Source == "task-context"
+		}
+		if !exists || !context || binding.Outputs["result"] == "" {
+			return nil, apierror.New(apierror.AuditDocumentInvalid, "audit_document_invalid: seed checking binding is invalid")
+		}
+		if source.Input != "" {
+			input, exists := program.Inputs[source.Input]
+			if !exists || !input.Required {
+				return nil, apierror.New(apierror.AuditDocumentInvalid, "audit_document_invalid: seed source input is required")
+			}
+		}
+	}
 	inputs := program.Inputs
 	workflows := map[string]resolved.ResolvedWorkflow{}
 	workflowInputs := map[string]map[string]resolved.ArtifactSlot{}

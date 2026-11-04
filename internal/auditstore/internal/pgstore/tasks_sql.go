@@ -8,18 +8,18 @@ const readyTasksSQL = `
 WITH candidates AS MATERIALIZED (
  SELECT candidate.* FROM unnest($2::text[]) AS allowed(alias)
  CROSS JOIN LATERAL (
-  SELECT task_id,ordinal,metadata_bytes FROM audit_tasks
+  SELECT task_id,ordinal,metadata_bytes,attention FROM audit_tasks
    WHERE audit_id=$1 AND workflow_alias=allowed.alias AND state='ready'
-   ORDER BY ordinal LIMIT 64
+   ORDER BY attention DESC,ordinal LIMIT 64
  ) AS candidate
 ), selected AS MATERIALIZED (
- SELECT * FROM candidates ORDER BY ordinal LIMIT 64
+ SELECT * FROM candidates ORDER BY attention DESC,ordinal LIMIT 64
 ), bounded AS (
- SELECT task_id,ordinal,sum(metadata_bytes) OVER (ORDER BY ordinal) AS used_bytes
+ SELECT task_id,ordinal,sum(metadata_bytes) OVER (ORDER BY attention DESC,ordinal) AS used_bytes
  FROM selected
 )
 SELECT ` + taskColumnSQL + ` FROM audit_tasks JOIN bounded USING(task_id,ordinal)
- WHERE used_bytes<=1048576 ORDER BY ordinal`
+ WHERE used_bytes<=1048576 ORDER BY attention DESC,ordinal`
 
 var settledTaskEvents = auditEvents(auditEvent("'tasks.dispatch_closed'", "audit.audit_id", "audit.revision", "jsonb_build_object('count',(SELECT count(*) FROM changed_tasks))"))
 
@@ -67,12 +67,12 @@ func taskStateFilterSQL(state *auditstore.TaskState) string {
 // SQL for the common accepted-task owner. The candidate LIMIT runs before the
 // metadata window, so a page never examines the containing Audit history.
 const taskColumnSQL = `document,source_key,source,ordinal,iteration,batch_digest,
-state,attempts,last_execution_id,result,gap_code,created_at,updated_at`
+state,attempts,last_execution_id,result,gap_code,created_at,updated_at,hypothesis_snapshot,attention`
 
 const taskPageSQL = `
 WITH candidates AS MATERIALIZED (
     SELECT document,source_key,source,ordinal,iteration,batch_digest,state,attempts,
-           last_execution_id,result,gap_code,created_at,updated_at,metadata_bytes
+           last_execution_id,result,gap_code,created_at,updated_at,hypothesis_snapshot,attention,metadata_bytes
       FROM audit_tasks
      WHERE audit_id=$1 AND ordinal>$2 %s
      ORDER BY ordinal
@@ -96,10 +96,10 @@ const getTaskSQL = `SELECT ` + taskColumnSQL + ` FROM audit_tasks
 // identities are checked under the locked Audit row before this statement.
 const insertTasksSQL = `
 INSERT INTO audit_tasks
- (task_id,audit_id,source_key,source,document,batch_digest,ordinal,iteration)
+ (task_id,audit_id,source_key,source,document,batch_digest,ordinal,iteration,hypothesis_snapshot,attention)
 SELECT entry->'document'->>'task_id',$1,entry->>'source_key',entry->'source',
        entry->'document',entry->>'batch_digest',(entry->>'ordinal')::integer,
-       (entry->>'iteration')::integer
+       (entry->>'iteration')::integer,entry->'hypothesis_snapshot',(entry->>'attention')::boolean
   FROM json_array_elements($2::json) AS entry`
 
 var tasksAcceptedEvents = auditEvents(auditEvent("'tasks.accepted'", "audit.audit_id", "audit.revision", "jsonb_build_object('createdCount',$5::integer)"))

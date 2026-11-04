@@ -12,25 +12,30 @@ import (
 )
 
 type auditTaskCreationRequest struct {
-	Work []auditcontract.PreparedSelection `json:"work"`
+	Assertions map[string]auditservice.HypothesisContent `json:"assertions,omitempty"`
+	Attention  []string                                  `json:"attention,omitempty"`
+	Work       []auditcontract.PreparedSelection         `json:"work"`
+	Hypotheses map[string]string                         `json:"hypotheses,omitempty"`
 }
 
 type auditTaskResponse struct {
-	Document      auditcontract.Task      `json:"document"`
-	Source        auditstore.TaskSource   `json:"source"`
-	Ordinal       int                     `json:"ordinal"`
-	Iteration     int                     `json:"iteration"`
-	State         auditstore.TaskState    `json:"state"`
-	Attempts      int                     `json:"attempts"`
-	LastExecution *string                 `json:"last_execution_id,omitempty"`
-	Result        *auditcontract.Material `json:"result,omitempty"`
-	GapCode       *string                 `json:"gap_code,omitempty"`
-	CreatedAt     time.Time               `json:"created_at"`
-	UpdatedAt     time.Time               `json:"updated_at"`
+	Hypothesis    *auditcontract.Hypothesis `json:"hypothesis_snapshot,omitempty"`
+	Attention     bool                      `json:"attention"`
+	Document      auditcontract.Task        `json:"document"`
+	Source        auditstore.TaskSource     `json:"source"`
+	Ordinal       int                       `json:"ordinal"`
+	Iteration     int                       `json:"iteration"`
+	State         auditstore.TaskState      `json:"state"`
+	Attempts      int                       `json:"attempts"`
+	LastExecution *string                   `json:"last_execution_id,omitempty"`
+	Result        *auditcontract.Material   `json:"result,omitempty"`
+	GapCode       *string                   `json:"gap_code,omitempty"`
+	CreatedAt     time.Time                 `json:"created_at"`
+	UpdatedAt     time.Time                 `json:"updated_at"`
 }
 
 func auditTaskReadModel(task auditstore.Task) auditTaskResponse {
-	return auditTaskResponse{Document: task.Document, Source: task.Source, Ordinal: task.Ordinal,
+	return auditTaskResponse{Hypothesis: task.Hypothesis, Attention: task.Attention, Document: task.Document, Source: task.Source, Ordinal: task.Ordinal,
 		Iteration: task.Iteration, State: task.State, Attempts: task.Attempts, LastExecution: task.LastExecution,
 		Result: task.Result, GapCode: task.GapCode, CreatedAt: task.CreatedAt, UpdatedAt: task.UpdatedAt}
 }
@@ -69,14 +74,13 @@ func (h *auditHandlers) createAuditTasks(w http.ResponseWriter, r *http.Request)
 		return errInvalidRequest
 	}
 	auditID := r.PathValue("auditId")
-	digest, err := auditservice.TaskCreationRequestDigest(auditID, revision, request.Work)
+	params := auditservice.TaskCreationParams{OwnerID: principalUserID(r.Context()), AuditID: auditID, ExpectedRevision: revision, IdempotencyKey: key, Work: request.Work, Hypotheses: request.Hypotheses, Attention: request.Attention, Assertions: request.Assertions}
+	digest, err := auditservice.TaskCreationRequestDigest(params)
 	if err != nil {
 		return errInvalidRequest
 	}
-	result, err := h.Audits.CreateTasks(r.Context(), auditservice.TaskCreationParams{
-		OwnerID: principalUserID(r.Context()), AuditID: auditID, ExpectedRevision: revision,
-		IdempotencyKey: key, RequestDigest: digest, Work: request.Work,
-	})
+	params.RequestDigest = digest
+	result, err := h.Audits.CreateTasks(r.Context(), params)
 	if err != nil {
 		return err
 	}
@@ -91,7 +95,7 @@ func (h *auditHandlers) createAuditTasks(w http.ResponseWriter, r *http.Request)
 
 func (h *auditHandlers) listAuditTasks(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Cache-Control", "no-store")
-	query, limit, encoded, err := pageQuery(r.URL.RawQuery, "state")
+	query, limit, encoded, err := pageQuery(r.URL.RawQuery, "state", "hypothesis_id")
 	if err != nil {
 		return err
 	}
@@ -105,7 +109,13 @@ func (h *auditHandlers) listAuditTasks(w http.ResponseWriter, r *http.Request) e
 		}
 		params.State = &candidate
 	}
-	kind := "audit-tasks:" + params.AuditID + ":" + state
+	if values, exists := query["hypothesis_id"]; exists {
+		params.HypothesisID = values[0]
+		if params.HypothesisID == "" {
+			return errInvalidRequest
+		}
+	}
+	kind := "audit-tasks:" + params.AuditID + ":" + state + ":" + params.HypothesisID
 	cursor, err := h.cursors.decodePageCursor(encoded, kind, 1)
 	if err != nil {
 		return err

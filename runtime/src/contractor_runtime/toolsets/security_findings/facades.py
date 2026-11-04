@@ -67,6 +67,8 @@ class GeneralFindingTool(_FindingFacade):
             method. At most 512; these suggestions grant no execution authority.
         item_key: Assigned Audit member key from read_audit_task; required for a batch.
             Omit for an ordinary Run or a single assigned task.
+        incidental: An independent discovery that does not test the assigned hypothesis.
+            Its Audit/task origin is retained without a hypothesis association.
         publish_problem: Explicitly publish the described problem to the Project.
             Requires selected exact evidence. False keeps an ordinary proposal.
     """
@@ -85,6 +87,7 @@ class GeneralFindingTool(_FindingFacade):
         proposed_checks: list[ProposedCheck] | None = None,
         publish_problem: bool = False,
         item_key: str | None = None,
+        incidental: bool = False,
     ) -> dict[str, Any]:
         return await self._publisher.submit(
             title=title,
@@ -97,6 +100,7 @@ class GeneralFindingTool(_FindingFacade):
             proposed_checks=proposed_checks,
             publish_problem=publish_problem,
             item_key=item_key,
+            incidental=incidental,
             request_id=request_id,
             caido_request_id=caido_request_id,
         )
@@ -126,6 +130,8 @@ class CodeFindingTool(_FindingFacade):
             method. At most 512; these suggestions grant no execution authority.
         item_key: Assigned Audit member key from read_audit_task; required for a batch.
             Omit for an ordinary Run or a single assigned task.
+        incidental: An independent discovery that does not test the assigned hypothesis.
+            Its Audit/task origin is retained without a hypothesis association.
         publish_problem: Explicitly publish the described problem to the Project.
             Requires selected exact evidence. False keeps an ordinary proposal.
     """
@@ -144,6 +150,7 @@ class CodeFindingTool(_FindingFacade):
         proposed_checks: list[ProposedCheck] | None = None,
         publish_problem: bool = False,
         item_key: str | None = None,
+        incidental: bool = False,
     ) -> dict[str, Any]:
         location: dict[str, Any] = {"file": file}
         if line is not None:
@@ -161,6 +168,7 @@ class CodeFindingTool(_FindingFacade):
             proposed_checks=proposed_checks,
             publish_problem=publish_problem,
             item_key=item_key,
+            incidental=incidental,
         )
 
 
@@ -192,6 +200,8 @@ class HTTPFindingTool(_FindingFacade):
             method. At most 512; these suggestions grant no execution authority.
         item_key: Assigned Audit member key from read_audit_task; required for a batch.
             Omit for an ordinary Run or a single assigned task.
+        incidental: An independent discovery that does not test the assigned hypothesis.
+            Its Audit/task origin is retained without a hypothesis association.
         publish_problem: Explicitly publish the described problem to the Project.
             Requires selected exact evidence. False keeps an ordinary proposal.
     """
@@ -211,6 +221,7 @@ class HTTPFindingTool(_FindingFacade):
         proposed_checks: list[ProposedCheck] | None = None,
         publish_problem: bool = False,
         item_key: str | None = None,
+        incidental: bool = False,
     ) -> dict[str, Any]:
         return await self._publisher.submit(
             title=title,
@@ -223,6 +234,7 @@ class HTTPFindingTool(_FindingFacade):
             proposed_checks=proposed_checks,
             publish_problem=publish_problem,
             item_key=item_key,
+            incidental=incidental,
             request_id=request_id,
             caido_request_id=caido_request_id,
         )

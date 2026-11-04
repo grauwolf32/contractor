@@ -1412,6 +1412,13 @@ Neither user source changed during this Run. If requested after success,
 `openapi/payment-service-v2`; it is not copied back to
 `openapi/payment-service-current` automatically.
 
+**ART-R141.** Curated standard assertion sources may fork from their owner's
+User scope into an Audit input through the existing `audit-input` lineage.
+Artifact membership requires the same User, Audit and active Project owner;
+foreign User sources are rejected. The ordinary frozen Audit artifact retains
+exact bytes and metadata. Hypothesis source snapshots published with a Finding
+are Project-owned `finding-materials`, independent of Audit-local purge.
+
 ## Non-goals
 
 - ArtifactStore exposes no Worker subscription or event-stream contract.

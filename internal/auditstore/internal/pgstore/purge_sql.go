@@ -54,6 +54,10 @@ DELETE FROM audit_execution_items AS target USING batch WHERE target.ctid = batc
   SELECT ctid FROM audit_tasks WHERE audit_id = $1 ORDER BY ordinal LIMIT $2
 )
 DELETE FROM audit_tasks AS target USING batch WHERE target.ctid = batch.ctid`,
+	`WITH batch AS (SELECT hypothesis_id,revision FROM audit_hypothesis_revisions WHERE audit_id=$1 ORDER BY hypothesis_id,revision LIMIT $2)
+DELETE FROM audit_hypothesis_revisions r USING batch b WHERE r.hypothesis_id=b.hypothesis_id AND r.revision=b.revision`,
+	`WITH batch AS (SELECT hypothesis_id FROM audit_hypotheses WHERE audit_id=$1 ORDER BY ordinal LIMIT $2)
+DELETE FROM audit_hypotheses h USING batch b WHERE h.hypothesis_id=b.hypothesis_id`,
 	purgeAuditItemsSQL,
 	`WITH batch AS (
   SELECT ctid FROM audit_executions WHERE audit_id = $1 LIMIT $2

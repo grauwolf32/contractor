@@ -15,11 +15,14 @@ import (
 )
 
 type TaskCreationParams struct {
+	Assertions       map[string]HypothesisContent
+	Attention        []string
 	OwnerID          string
 	AuditID          string
 	ExpectedRevision uint64
 	IdempotencyKey   string
 	RequestDigest    string
+	Hypotheses       map[string]string
 	Work             []auditcontract.PreparedSelection
 }
 
@@ -30,8 +33,19 @@ type TaskCreationResult struct {
 
 // TaskCreationRequestDigest binds a public key to the exact accepted request,
 // including its Audit revision. All callers use this owner-defined identity.
-func TaskCreationRequestDigest(auditID string, revision uint64, work []auditcontract.PreparedSelection) (string, error) {
-	return contentdigest.CanonicalJSON(map[string]any{"audit_id": auditID, "revision": revision, "work": work})
+func TaskCreationRequestDigest(p TaskCreationParams) (string, error) {
+	request := map[string]any{"audit_id": p.AuditID, "revision": p.ExpectedRevision, "work": p.Work}
+	if len(p.Hypotheses) > 0 {
+		request["hypotheses"] = p.Hypotheses
+	}
+	if len(p.Attention) > 0 {
+		request["attention"] = p.Attention
+		request["hypotheses"] = p.Hypotheses
+	}
+	if len(p.Assertions) > 0 {
+		request["assertions"] = p.Assertions
+	}
+	return contentdigest.CanonicalJSON(request)
 }
 
 // CreateTasks accepts explicit already available work. It submits no Run;
@@ -50,7 +64,7 @@ func (s *Service) CreateTasks(ctx context.Context, p TaskCreationParams) (TaskCr
 	if audit.State != auditstore.AuditActive && audit.State != auditstore.AuditPaused || audit.Revision != p.ExpectedRevision {
 		return TaskCreationResult{}, auditstore.ErrPrecondition
 	}
-	pinned, err := auditprofile.DecodePinnedProgram(audit.ProfileSnapshot)
+	pinned, err := executionProfile(audit)
 	if err != nil {
 		return TaskCreationResult{}, err
 	}
@@ -58,7 +72,46 @@ func (s *Service) CreateTasks(ctx context.Context, p TaskCreationParams) (TaskCr
 	if err != nil {
 		return TaskCreationResult{}, err
 	}
-	params := auditstore.AcceptTasksParams{OwnerID: p.OwnerID, AuditID: p.AuditID, ExpectedRevision: p.ExpectedRevision, IdempotencyKey: p.IdempotencyKey, RequestDigest: p.RequestDigest}
+	params := auditstore.AcceptTasksParams{Attention: p.Attention, Hypotheses: p.Hypotheses, OwnerID: p.OwnerID, AuditID: p.AuditID, ExpectedRevision: p.ExpectedRevision, IdempotencyKey: p.IdempotencyKey, RequestDigest: p.RequestDigest}
+	seeds := map[string]auditcontract.Hypothesis{}
+	for key, content := range p.Assertions {
+		if len(p.Assertions)+len(p.Work) > auditcontract.MaxMutationRecords {
+			return TaskCreationResult{}, ErrInvalid
+		}
+		found := false
+		for _, work := range p.Work {
+			found = found || work.Key == key
+		}
+		if !found {
+			return TaskCreationResult{}, ErrInvalid
+		}
+		h := auditcontract.Hypothesis{Schema: auditcontract.HypothesisSchema, ID: auditdomain.DeterministicID("hypothesis", audit.AuditID, p.IdempotencyKey, content.Key), Revision: 1, Statement: content.Statement, Scope: content.Scope, Grounds: content.Grounds, Origin: auditcontract.HypothesisOrigin{Kind: "manual", AuditID: audit.AuditID}}
+		fixed := false
+		if id := p.Hypotheses[key]; id != "" {
+			prior, err := s.reads().CurrentHypothesis(ctx, audit.OwnerID, audit.AuditID, id)
+			if err != nil {
+				return TaskCreationResult{}, err
+			}
+			if content.Key != prior.SourceKey {
+				return TaskCreationResult{}, ErrInvalid
+			}
+			h.ID = prior.Document.ID
+			h.Revision = prior.Document.Revision + 1
+			h.Origin = prior.Document.Origin
+			fixed = prior.Fixed
+		}
+		data, err := strictjson.Canonical(h)
+		if err != nil {
+			return TaskCreationResult{}, ErrInvalid
+		}
+		h, err = auditcontract.DecodeHypothesis(data)
+		if err != nil {
+			return TaskCreationResult{}, err
+		}
+		seeds[key] = h
+		params.HypothesisWrites = append(params.HypothesisWrites, auditstore.HypothesisWrite{Document: h, SourceKey: content.Key, Fixed: fixed})
+	}
+	params.AssertionSnapshots = seeds
 	return s.acceptCommonWork(ctx, audit, pinned, baseline, p.Work, params, func(item auditcontract.PreparedSelection) auditstore.TaskSource {
 		return auditstore.TaskSource{Kind: "manual", Key: item.Key}
 	})
@@ -78,6 +131,34 @@ func (s *Service) Task(ctx context.Context, ownerID, auditID, taskID string) (au
 func (s *Service) acceptCommonWork(ctx context.Context, audit auditstore.Audit, pinned auditprofile.PinnedProgram, baseline BaselineSnapshot, work []auditcontract.PreparedSelection, params auditstore.AcceptTasksParams, source func(auditcontract.PreparedSelection) auditstore.TaskSource) (TaskCreationResult, error) {
 	if len(work) == 0 || len(work) > auditcontract.MaxMutationRecords {
 		return TaskCreationResult{}, ErrInvalid
+	}
+	for key := range params.Hypotheses {
+		found := false
+		for _, w := range work {
+			found = found || w.Key == key
+		}
+		if !found {
+			return TaskCreationResult{}, ErrInvalid
+		}
+	}
+	attention := map[string]bool{}
+	for _, key := range params.Attention {
+		if attention[key] {
+			return TaskCreationResult{}, ErrInvalid
+		}
+		attention[key] = true
+	}
+	if len(attention) > len(work) {
+		return TaskCreationResult{}, ErrInvalid
+	}
+	for key := range attention {
+		found := false
+		for _, w := range work {
+			found = found || w.Key == key
+		}
+		if !found {
+			return TaskCreationResult{}, ErrInvalid
+		}
 	}
 	selected := make([]auditstore.AcceptedTask, 0, len(work))
 	materials := map[string]auditcontract.Material{}
@@ -141,7 +222,37 @@ func (s *Service) acceptCommonWork(ctx context.Context, audit auditstore.Audit, 
 		if len(materials) > auditcontract.MaxMutationRecords {
 			return TaskCreationResult{}, ErrInvalid
 		}
-		selected = append(selected, auditstore.AcceptedTask{Document: frozen, Source: origin})
+		accepted := auditstore.AcceptedTask{Attention: attention[item.Key], Document: frozen, Source: origin}
+
+		if id := params.Hypotheses[item.Key]; id != "" {
+			h, err := s.reads().CurrentHypothesis(ctx, audit.OwnerID, audit.AuditID, id)
+			if err != nil {
+				return TaskCreationResult{}, err
+			}
+			accepted.Hypothesis = &h.Document
+			accepted.Document.Hypothesis = &auditcontract.HypothesisRef{ID: h.Document.ID, Revision: h.Document.Revision}
+		}
+
+		if h, found := params.AssertionSnapshots[item.Key]; found {
+			accepted.Hypothesis = &h
+			accepted.Document.Hypothesis = &auditcontract.HypothesisRef{ID: h.ID, Revision: h.Revision}
+		}
+		if origin.Kind == "initial" {
+			for _, initial := range pinned.Program.InitialWork {
+				if initial.Key == origin.Key && initial.Hypothesis != "" {
+					h := auditdomain.InitialHypothesis(audit.AuditID, initial.Hypothesis, pinned.Program.Hypotheses[initial.Hypothesis])
+					if baseline.InitialAssertions != nil {
+						if _, found := baseline.InitialAssertions.Hypotheses[initial.Hypothesis]; found {
+							h.Origin.Source = &baseline.InitialAssertions.Source
+						}
+					}
+					accepted.Hypothesis = &h
+					accepted.Document.Hypothesis = &auditcontract.HypothesisRef{ID: h.ID, Revision: h.Revision}
+					break
+				}
+			}
+		}
+		selected = append(selected, accepted)
 	}
 	keys := make([]string, 0, len(materials))
 	for key := range materials {

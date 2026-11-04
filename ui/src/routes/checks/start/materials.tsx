@@ -1,3 +1,4 @@
+import { AssertionMaterialEditor } from "./assertion-material-editor";
 import { useId, type ReactNode } from "react";
 import { Link } from "react-router";
 
@@ -217,7 +218,15 @@ export function MaterialsCard({ model }: { model: StartCheck }) {
               complete={materials.complete}
               addHref={paths.addMaterial}
               onChoose={model.chooseMaterial}
-            />
+            >
+              {model.exact?.program?.seed_source?.input === slot.name ? (
+                <AssertionMaterialEditor
+                  key={`${model.projectId}:${model.exact.ref.digest}`}
+                  model={model}
+                  input={slot.name}
+                />
+              ) : null}
+            </MaterialSlot>
           ))}
           {usesTarget ? (
             <LiveTargetMaterial

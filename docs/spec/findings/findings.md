@@ -1928,6 +1928,18 @@ no FK that erases original identity on parent purge and does not create a second
 Finding lifecycle. Collection publication and Runtime readers use the shared
 ResourceId and exact revision rules for these origins.
 
+**FND-R223.** An explicit evidenced problem publication from a hypothesis-bound
+Task copies that Task's exact frozen hypothesis document into ordinary immutable
+Project `finding-materials`. The source receipt exposes `hypothesisSnapshot`
+beside the system-filled hypothesis ID/revision. This contextual assertion is not
+counted as proof evidence. It survives Audit registry and producer Run purge
+alongside the independent Project source contribution and selected evidence.
+An incidental submission explicitly sets `incidental: true`; intake still derives
+trusted Audit/Run/Task membership from its batch item key and omits hypothesis
+association. Submission receipts bind that item key and incidental flag, so retry
+cannot reassign a source to another member. A supported positive property or
+refuted bug claim alone creates no problem Finding.
+
 ## Non-goals
 
 - Compatibility variants of old development shapes: the application uses one

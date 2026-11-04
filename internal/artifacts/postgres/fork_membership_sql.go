@@ -9,6 +9,10 @@ const auditForkMembershipSQL = `
           SELECT 1 FROM audits AS audit JOIN projects AS project ON project.project_id=audit.project_id
           WHERE audit.audit_id=$7 AND audit.project_id=$2
             AND audit.state IN ('draft','active','paused') AND project.lifecycle_state='active'
+      )) OR ($1::text='user' AND EXISTS (
+          SELECT 1 FROM audits AS audit JOIN projects AS project ON project.project_id=audit.project_id
+          WHERE audit.audit_id=$7 AND audit.owner_id=$2 AND project.owner_id=$2
+            AND audit.state IN ('draft','active','paused') AND project.lifecycle_state='active'
       )) OR ($1::text='run' AND EXISTS (
           SELECT 1 FROM audits AS audit JOIN workflow_runs AS run ON run.run_id=$2
           WHERE audit.audit_id=$7 AND run.project_id=audit.project_id

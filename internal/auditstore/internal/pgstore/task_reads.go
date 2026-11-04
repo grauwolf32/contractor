@@ -18,14 +18,23 @@ import (
 
 func scanTask(row scanner, extra ...any) (auditstore.Task, error) {
 	var task auditstore.Task
-	var document, source, result json.RawMessage
-	values := []any{&document, &task.SourceKey, &source, &task.Ordinal, &task.Iteration, &task.BatchDigest, &task.State, &task.Attempts, &task.LastExecution, &result, &task.GapCode, &task.CreatedAt, &task.UpdatedAt}
+	var document, source, result, hypothesis json.RawMessage
+	values := []any{&document, &task.SourceKey, &source, &task.Ordinal, &task.Iteration, &task.BatchDigest, &task.State, &task.Attempts, &task.LastExecution, &result, &task.GapCode, &task.CreatedAt, &task.UpdatedAt, &hypothesis, &task.Attention}
 	if err := row.Scan(append(values, extra...)...); err != nil {
 		return auditstore.Task{}, err
 	}
 	var err error
 	task.Document, err = auditcontract.DecodeTask(document)
 	if err != nil || strictjson.Decode(source, &task.Source) != nil || !validTaskSource(task.Source) || task.Ordinal < 1 || task.Iteration < 1 || task.Attempts < 0 || task.State != auditstore.TaskReady && task.State != auditstore.TaskSelected && task.State != auditstore.TaskSettled {
+		return auditstore.Task{}, errStoredTask
+	}
+	if hypothesis != nil {
+		h, err := auditcontract.DecodeHypothesis(hypothesis)
+		if err != nil || task.Document.Hypothesis == nil || h.ID != task.Document.Hypothesis.ID || h.Revision != task.Document.Hypothesis.Revision || h.Origin.AuditID != task.Document.AuditID {
+			return auditstore.Task{}, errStoredTask
+		}
+		task.Hypothesis = &h
+	} else if task.Document.Hypothesis != nil {
 		return auditstore.Task{}, errStoredTask
 	}
 	sourceKey, err := contentdigest.CanonicalJSON(task.Source)
@@ -57,7 +66,7 @@ func scanTask(row scanner, extra ...any) (auditstore.Task, error) {
 // ListTasks returns a row/byte bounded keyset page. Its continuation belongs
 // to this page, including when the byte budget selects a shorter prefix.
 func (s *QueryStore) ListTasks(ctx context.Context, p auditstore.ListTasksParams) (auditstore.TaskPage, error) {
-	if !pagelimit.ValidPage(p.Limit) || p.AfterOrdinal < 0 || p.State != nil && *p.State != auditstore.TaskReady && *p.State != auditstore.TaskSelected && *p.State != auditstore.TaskSettled {
+	if p.HypothesisID != "" && !contracts.ValidResourceID(p.HypothesisID) || !pagelimit.ValidPage(p.Limit) || p.AfterOrdinal < 0 || p.State != nil && *p.State != auditstore.TaskReady && *p.State != auditstore.TaskSelected && *p.State != auditstore.TaskSettled {
 		return auditstore.TaskPage{}, auditstore.ErrInvalid
 	}
 	audit, err := s.get(ctx, p.OwnerID, p.AuditID)
@@ -70,6 +79,10 @@ func (s *QueryStore) ListTasks(ctx context.Context, p auditstore.ListTasksParams
 	}
 	filter := taskStateFilterSQL(p.State)
 	arguments := []any{p.AuditID, p.AfterOrdinal, pagelimit.FetchRows(p.Limit)}
+	if p.HypothesisID != "" {
+		filter += " AND document->'hypothesis' IS NOT NULL AND document->'hypothesis'->>'id'=$4"
+		arguments = append(arguments, p.HypothesisID)
+	}
 	rows, err := s.db.Query(ctx, fmt.Sprintf(taskPageSQL, filter), arguments...)
 	if err != nil {
 		return auditstore.TaskPage{}, err

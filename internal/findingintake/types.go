@@ -51,6 +51,7 @@ var (
 var identityPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
 
 type Submission struct {
+	Incidental     bool                              `json:"incidental,omitempty"`
 	ItemKey        *string                           `json:"itemKey,omitempty"`
 	PublishProblem bool                              `json:"publishProblem,omitempty"`
 	DerivedAnchors json.RawMessage                   `json:"derived_anchors,omitempty"`
@@ -73,11 +74,12 @@ func (input *Submission) UnmarshalJSON(data []byte) error {
 		HTTPEvidence   json.RawMessage `json:"httpEvidence"`
 		PublishProblem json.RawMessage `json:"publishProblem"`
 		ItemKey        json.RawMessage `json:"itemKey"`
+		Incidental     json.RawMessage `json:"incidental"`
 	}
 	if err := json.Unmarshal(data, &fields); err != nil {
 		return err
 	}
-	if string(fields.HTTPEvidence) == "null" || string(fields.PublishProblem) == "null" || string(fields.ItemKey) == "null" {
+	if string(fields.Incidental) == "null" || string(fields.HTTPEvidence) == "null" || string(fields.PublishProblem) == "null" || string(fields.ItemKey) == "null" {
 		return ErrInvalid
 	}
 	return nil
@@ -99,10 +101,11 @@ type WorkflowOrigin struct {
 }
 
 type AuditOrigin struct {
-	AuditID     string                       `json:"auditId"`
-	ExecutionID string                       `json:"executionId"`
-	TaskID      string                       `json:"taskId"`
-	Hypothesis  *auditcontract.HypothesisRef `json:"hypothesis,omitempty"`
+	HypothesisSnapshot *ExactArtifact               `json:"hypothesisSnapshot,omitempty"`
+	AuditID            string                       `json:"auditId"`
+	ExecutionID        string                       `json:"executionId"`
+	TaskID             string                       `json:"taskId"`
+	Hypothesis         *auditcontract.HypothesisRef `json:"hypothesis,omitempty"`
 }
 
 type Origin struct {
@@ -279,12 +282,14 @@ func canonicalize(input Submission) (canonicalSubmission, error) {
 		}
 	}
 	digestValue := struct {
+		ItemKey        *string                           `json:"itemKey,omitempty"`
+		Incidental     bool                              `json:"incidental,omitempty"`
 		PublishProblem bool                              `json:"publishProblem,omitempty"`
 		DerivedAnchors json.RawMessage                   `json:"derived_anchors,omitempty"`
 		Proposal       json.RawMessage                   `json:"proposal"`
 		EvidenceRefs   []contracts.ArtifactRef           `json:"evidenceRefs"`
 		HTTPEvidence   *auditdomain.CapturedHTTPExchange `json:"httpEvidence,omitempty"`
-	}{PublishProblem: input.PublishProblem, DerivedAnchors: input.DerivedAnchors, Proposal: proposalBytes, EvidenceRefs: refs, HTTPEvidence: input.HTTPEvidence}
+	}{ItemKey: input.ItemKey, Incidental: input.Incidental, PublishProblem: input.PublishProblem, DerivedAnchors: input.DerivedAnchors, Proposal: proposalBytes, EvidenceRefs: refs, HTTPEvidence: input.HTTPEvidence}
 	encoded, err := json.Marshal(digestValue)
 	if err != nil {
 		return canonicalSubmission{}, fmt.Errorf("canonicalize finding submission: %w", err)

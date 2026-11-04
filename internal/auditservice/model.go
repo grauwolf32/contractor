@@ -102,6 +102,9 @@ func validateDraftSelection(value DraftSelection) error {
 }
 
 func ValidateBaseline(value BaselineSnapshot) error {
+	if value.InitialAssertions != nil && auditdomain.ValidateInitialAssertions(*value.InitialAssertions) != nil {
+		return fmt.Errorf("%w: Audit assertion selection is invalid", ErrInvalid)
+	}
 	if err := validateEngagementBaseline(value); err != nil {
 		return err
 	}
