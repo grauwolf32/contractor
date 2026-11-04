@@ -12,6 +12,7 @@ mutation accepted by one side only fails a test.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -78,7 +79,17 @@ def _mutation(raw: str, kind: str, pointer: str, bound: int = 0) -> str:
 
     document = json.loads(raw)
     duplicate = None
-    if kind == "enum":
+    if kind == "zero":
+        document = _set_value(document, pointer, 0)
+    elif kind in {"memberAlias", "shadowAlias"}:
+        parts = _tokens(pointer)
+        name = parts[-1]
+        parent = _value_at(document, "".join("/" + _escape(part) for part in parts[:-1]))
+        alias = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", name).lower()
+        parent[alias] = parent[name]
+        if kind == "memberAlias":
+            del parent[name]
+    elif kind == "enum":
         current = _value_at(document, pointer)
         number = isinstance(current, int | float) and not isinstance(current, bool)
         document = _set_value(document, pointer, SENTINELS["number" if number else "string"])
@@ -113,6 +124,12 @@ def test_shared_mutation_cases_are_rejected() -> None:
         validator = private_validator(entry["schema"])
         model = None if entry["type"] in GO_ONLY_TYPES else MODELS[entry["type"]]
         mutations = [
+            *(("zero", pointer, 0) for pointer in cases["zero"]),
+            *(
+                (kind, pointer, 0)
+                for pointer in cases["memberAliases"]
+                for kind in ("memberAlias", "shadowAlias")
+            ),
             *(("enum", pointer, 0) for pointer in cases["enum"]),
             *(("maxLength", item["pointer"], item["maxLength"]) for item in cases["maxLength"]),
             *(("unknownMember", pointer, 0) for pointer in cases["unknownMember"]),

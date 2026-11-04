@@ -41,6 +41,7 @@ from contractor_runtime.contracts import (
     StageContentRequest,
     WorkerCompletion,
 )
+from contractor_runtime.contracts.codec import decode_private_value
 
 STAGE_CONTENT_MEDIA_TYPE = "application/vnd.contractor.stage-content+json"
 WORKER_COMPLETION_MEDIA_TYPE = "application/vnd.contractor.worker-completion+json"
@@ -273,7 +274,7 @@ def _stage_request(context: RequestContext) -> StageContentRequest:
     value = MessageToDict(part.data)
     if not isinstance(value, dict):
         raise TypeError("StageContentRequest DataPart must be an object")
-    return StageContentRequest.model_validate(value)
+    return decode_private_value(StageContentRequest, value)
 
 
 def _result_message(result: WorkerCompletion, context: RequestContext) -> Message:

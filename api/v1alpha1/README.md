@@ -59,6 +59,9 @@ null for optional members outside their schema-declared `nullable_fields`.
 every valid fixture it lists the members whose value outside an `enum` or
 `const`, the strings one character over `maxLength`, and the objects whose
 added member or repeated key the schema, Go and Python must all reject.
+The same catalog probes schema-forbidden numeric zeroes, including omitted
+optional ModelPolicy limits, and both renamed and shadowing snake_case aliases
+of closed-object camelCase members.
 `maxLength` counts characters. Where Go and Python bound a string in UTF-8
 bytes, the schema also states the byte bound as `x-maxBytes`, which the Go and
 Python schema tests enforce, and the cases record the verdict all three reach

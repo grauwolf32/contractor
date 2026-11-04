@@ -2,7 +2,7 @@ schema_version: "1.0"
 milestone: contracts-review-2026-11
 epic: api-contracts
 priority: P2
-status: pending
+status: in_progress
 id: V447-002
 title: Reject explicit zero ModelPolicy limits and non-wire member aliases
 kind: defect
@@ -21,7 +21,7 @@ context:
   finding: internal/contracts/agent_template.go:296 reads present zero limits as omitted values; runtime/src/contractor_runtime/contracts/base.py:486 accepts snake_case names on private input.
   siblings: Cover every optional numeric ModelPolicy limit, all nested private WireModel readers and A2A StageContentRequest decoding. Internal Python constructors may use Python field names; incoming JSON and A2A must use wire names. Preserve isolated Runtime telemetry handling.
   provenance: Optional scalar fields originate in MVP-002 and V3 consumer-policy work; Python populate_by_name was preserved by the later Runtime component reorganization.
-  decision: Validate field presence at Go JSON decoding and exact names at Python wire decoding, reusing existing strict codecs and model validation. Changing every internal scalar to a pointer or every Python constructor to wire spelling adds unrelated churn. Reopen when resolved in-process values themselves need presence semantics.
+  decision: Validate field presence at Go JSON decoding and exact names at Python wire decoding, reusing existing strict codecs and model validation. Changing every internal scalar to a pointer or every Python constructor to wire spelling adds unrelated churn. The pinned Pydantic 2.13 loses strict JSON datetime conversions under model before/wrap validators and silently ignores some disabled optional aliases. Exact-name checks therefore reuse model field metadata in the existing JSON codec and A2A DataPart entry point, before ordinary Pydantic validation. Reopen when resolved in-process values themselves need presence semantics.
 scope:
   in:
     - Reject every explicit zero optional limit and alternative wire spelling, with shared mutation cases and real A2A regressions.
