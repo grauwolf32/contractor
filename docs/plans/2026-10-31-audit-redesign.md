@@ -67,7 +67,7 @@ V64-001 остаётся завершённой историей; исправл
 | 2 | [V64-026](../../tasks/done/v64-026-openapi-prepared-work-operation.yml) | Обычный Server-operation Workflow подготовки OpenAPI и ограниченный exact work-list контракт для общего приёма отдельных заданий |
 | 3 | [V64-002](../../tasks/done/v64-002-audit-priority-store.yml) | Один coordinator, обычные Runs, pause/recovery, первый exploratory сценарий и переписывание YAML шести observation/tracing/scan программ |
 | 4 | [V64-012](../../tasks/done/v64-012-audit-hypothesis-registry.yml) | Fixed/manual hypotheses, automatic exact association и checklist coverage; переписывание YAML восьми checklist/standard программ вместе с их проверяющими consumers |
-| 4 | [V411-010](../../tasks/v411-010-pentest-program-availability.yml) | Удаление оставшихся item/report approvals и Audit control policy; использование готовых Project Finding-команд |
+| 4 | [V411-010](../../tasks/done/v411-010-pentest-program-availability.yml) | Удаление оставшихся item/report approvals и Audit control policy; использование готовых Project Finding-команд |
 | 4 | [V411-011](../../tasks/done/v411-011-project-findings-reader.yml) | Реальный обычный consumer выбранных Project findings и exact snapshots/evidence |
 | 5 | [V64-013](../../tasks/v64-013-audit-hypothesis-generation.yml) | Обычный Workflow генерации по материалам, findings и результатам, включая опровержения/пробелы; следующая итерация тем же путём |
 | 6 | [V64-008](../../tasks/v64-008-audit-priority-api-coverage.yml) | API/CLI чтение цепочки исследования, управление и публикация материалов |

@@ -17,7 +17,7 @@ var listItemsPageSQL = itemPageSQL(`candidate.round_id = round.round_id`)
 
 // listItemsStatePageSQL is listItemsPageSQL for a state $4 other than
 // settled: each round's candidates come from audit_items_dispatch_idx, which
-// holds only unsettled items, so a sparse state such as awaiting_review reads
+// holds only unsettled items, so a sparse state such as collecting reads
 // only its own items and not every item of each round.
 // Used by QueryStore.ListItemsPage.
 var listItemsStatePageSQL = itemPageSQL(`candidate.audit_id = $2 AND candidate.state = $4

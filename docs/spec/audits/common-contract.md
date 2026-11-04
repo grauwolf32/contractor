@@ -158,6 +158,10 @@ policy and report acceptance are absent from the common contract. Ordinary
 scope, allowed/prohibited operations and access checks remain. Historical
 consent cannot become an active permission; no compatibility reader, special
 policy-wait state or old-policy Resume is defined.
+The schema removal requires the earlier FND-R215 cutover to have archived and
+removed executable old records. Remaining requests, decisions, waiting states
+or approval-bearing items reject migration atomically without changing their
+bytes. The removal neither repeats archival nor interprets archived facts.
 
 **ACT-R10.** Numeric limits are LIM-ACT-1 through LIM-ACT-5. Existing tighter
 owner bounds still apply. Each initial or generated hypothesis seed must fit

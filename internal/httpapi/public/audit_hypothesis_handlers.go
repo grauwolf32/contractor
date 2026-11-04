@@ -1,11 +1,12 @@
 package public
 
 import (
-	"github.com/grauwolf32/contractor/internal/auditservice"
-	"github.com/grauwolf32/contractor/internal/auditstore"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/grauwolf32/contractor/internal/auditservice"
+	"github.com/grauwolf32/contractor/internal/auditstore"
 )
 
 func (h *auditHandlers) writeAuditHypothesis(w http.ResponseWriter, r *http.Request) error {

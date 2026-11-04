@@ -1,4 +1,4 @@
-import type { Audit, ProjectFinding, AuditReviewRequest } from "../api/audits";
+import type { Audit, ProjectFinding } from "../api/audits";
 import type { Project } from "../api/projects";
 import { findingSummary } from "./builders";
 import type { FakeCall, Routes } from "./fake-server";
@@ -8,18 +8,6 @@ export interface OwnerListData {
   projects: Project[];
   audits: Audit[];
   findings?: ProjectFinding[];
-  reviews?: AuditReviewRequest[];
-}
-
-/**
- * The Server's `state=pending` rule for `GET /v1/reviews`: only requests that
- * can still be decided, so a stored pending request past its expiry is left
- * out (the Server judges it at its database clock).
- */
-function decidable(review: AuditReviewRequest): boolean {
-  return (
-    review.expiresAt === undefined || Date.parse(review.expiresAt) > Date.now()
-  );
 }
 
 /** Whether the comma-separated filter `field` is absent or lists `value`. */
@@ -81,18 +69,6 @@ export function ownerListResponse(
           .map(findingSummary),
       );
     }
-    case "/v1/reviews": {
-      const auditIds = new Set(audits("auditState").map((a) => a.auditId));
-      return offsetPage(
-        url,
-        (data.reviews ?? []).filter(
-          (r) =>
-            auditIds.has(r.auditId) &&
-            matches(url, "state", r.state) &&
-            (url.searchParams.get("state") !== "pending" || decidable(r)),
-        ),
-      );
-    }
     default:
       return undefined;
   }
@@ -104,6 +80,5 @@ export function ownerListRoutes(data: () => OwnerListData): Routes {
   return {
     "GET /v1/audits": route,
     "GET /v1/findings": route,
-    "GET /v1/reviews": route,
   };
 }

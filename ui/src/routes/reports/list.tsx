@@ -35,24 +35,16 @@ import "./reports.css";
 type ListedStatus = Exclude<ReportFilter, "all">;
 
 // Sections in display order: what needs the user first.
-const SECTIONS: readonly { status: ListedStatus }[] = [
-  { status: "proposed" },
-  { status: "ready" },
-];
+const SECTIONS: readonly { status: ListedStatus }[] = [{ status: "ready" }];
 
 function countOf(reports: readonly CrossProjectReport[], status: string) {
   return reports.filter((entry) => entry.report.status === status).length;
 }
 
-function subtitle(
-  counts: { proposed: number; ready: number },
-  loading: boolean,
-): string {
-  if (counts.proposed + counts.ready === 0)
+function subtitle(counts: { ready: number }, loading: boolean): string {
+  if (counts.ready === 0)
     return loading ? "Loading reports…" : "No reports yet.";
   const parts: string[] = [];
-  if (counts.proposed > 0)
-    parts.push(`${counts.proposed} waiting for acceptance`);
   if (counts.ready > 0) parts.push(`${counts.ready} ready`);
   return `${parts.join(", ")}.`;
 }
@@ -60,15 +52,10 @@ function subtitle(
 function emptyCopy(filters: ReportFilters): { title: string; body: string } {
   const where = filters.project === null ? "" : " in this project";
   switch (filters.status) {
-    case "proposed":
-      return {
-        title: `Nothing is waiting for acceptance${where}`,
-        body: "Reports that need your acceptance appear here.",
-      };
     case "ready":
       return {
         title: `No ready reports${where}`,
-        body: "Accepted reports appear here.",
+        body: "Saved reports appear here.",
       };
     case "all":
       return {
@@ -149,8 +136,7 @@ function ReportRow({
 
 /**
  * The Reports list pane: reports of every listed project, filtered by status
- * and project in the URL (`?status=proposed|ready&project=<projectId>`).
- * Reports waiting for acceptance come first.
+ * and project in the URL (`?status=ready|all&project=<projectId>`).
  */
 export function ReportsList({
   selectedId,
@@ -173,7 +159,6 @@ export function ReportsList({
     [filters.project, reports.reports],
   );
   const counts = {
-    proposed: countOf(scoped, "proposed"),
     ready: countOf(scoped, "ready"),
   };
   const sections = SECTIONS.filter(
@@ -226,11 +211,6 @@ export function ReportsList({
             onChange={(value) => setFilter(STATUS_PARAM, value)}
             options={[
               {
-                value: "proposed",
-                label: reportStatusLabel("proposed").label,
-                count: settled ? counts.proposed : undefined,
-              },
-              {
                 value: "ready",
                 label: reportStatusLabel("ready").label,
                 count: settled ? counts.ready : undefined,
@@ -238,7 +218,7 @@ export function ReportsList({
               {
                 value: "all",
                 label: "All",
-                count: settled ? counts.proposed + counts.ready : undefined,
+                count: settled ? counts.ready : undefined,
               },
             ]}
           />

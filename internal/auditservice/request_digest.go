@@ -3,7 +3,6 @@ package auditservice
 import (
 	"fmt"
 
-	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
@@ -63,31 +62,4 @@ func LifecycleRequestDigest(action, auditID string, revision uint64, deadlineSec
 func ProjectFindingEditRequestDigest(params ProjectFindingEditParams) (string, error) {
 	return contentdigest.CanonicalJSON([]any{"contractor/project-finding-edit/v1", params.ProjectID,
 		params.FindingID, params.ExpectedRevision, params.Verdict, params.Severity, params.Rationale, params.DuplicateTargetID})
-}
-
-// DecideActionReviewRequestDigest binds a decision on an action review
-// request: the Audit, the review request, its expected revision, the action
-// and the rationale.
-func DecideActionReviewRequestDigest(params DecideActionReviewParams) (string, error) {
-	return reviewRequestDigest("decide", params.AuditID, params.RequestID, params.ExpectedRequestRevision, reviewDecision{
-		Action: &params.Action, Rationale: params.Rationale,
-	})
-}
-
-// reviewDecision binds one item/report approval body; field order is part of its digest.
-type reviewDecision struct {
-	Action    *auditstore.ReviewAction `json:"action,omitempty"`
-	Rationale string                   `json:"rationale"`
-}
-
-func reviewRequestDigest(kind string, identity ...any) (string, error) {
-	digest, err := contentdigest.JSON(struct {
-		Schema   string `json:"schema"`
-		Kind     string `json:"kind"`
-		Identity []any  `json:"identity"`
-	}{Schema: "contractor.audit.review-request.v1", Kind: kind, Identity: identity})
-	if err != nil {
-		return "", fmt.Errorf("encode Audit review %s request: %w", kind, err)
-	}
-	return digest, nil
 }

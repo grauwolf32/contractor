@@ -3,7 +3,6 @@ import type {
   Audit,
   ProjectFinding,
   FindingProposalReceipt,
-  AuditReviewRequest,
   AuditState,
   EditProjectFindingRequest,
 } from "../../api/audits";
@@ -52,7 +51,6 @@ export interface IssuesServer {
   audits: Audit[];
   findings: ProjectFinding[];
   sources: FindingProposalReceipt[];
-  reviews: AuditReviewRequest[];
   failing: Set<string>;
   more: Set<string>;
   gate?: Promise<void> | undefined;
@@ -203,7 +201,6 @@ export function issuesServer(
   return {
     findings,
     sources: findings.map((f) => build.findingSource(f)),
-    reviews: [],
     failing: new Set(),
     more: new Set(),
     ...initial,

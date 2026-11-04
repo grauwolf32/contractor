@@ -2,19 +2,16 @@ package pgstore
 
 // SQL statements for transition.go.
 
-// transitionEvents record an owner transition and expire a pending report
-// review after it.
+// transitionEvents records an owner lifecycle transition.
 var transitionEvents = auditEvents(
 	auditEvent("'audit.state_changed'", "audit.audit_id", "audit.revision",
 		"jsonb_build_object('from', $4::text, 'to', $5::text)"),
-	reportReviewExpiryEvents,
 )
 
 // transitionSQL applies owner $1's pause or cancellation of Audit $2 from
 // state $4 at revision $3 to $5 with stop reason $6/$7; cancelling closes
-// dispatch. Leaving waiting_review expires the pending report review in the
-// same revision step. It records audit.state_changed before the
-// review.expired events. The caller completes the trailing SELECT and claims
+// dispatch. It records audit.state_changed. The caller completes the trailing
+// SELECT and claims
 // the request's receipt. Used by OwnerStore.Transition.
 var transitionSQL = `
 WITH target AS MATERIALIZED (
@@ -22,7 +19,7 @@ WITH target AS MATERIALIZED (
       FROM audits AS audit
      WHERE audit.audit_id = $2 AND audit.owner_id = $1
      FOR UPDATE OF audit
-), ` + reportReviewSelectionCTE("target") + `, changed AS (
+), changed AS (
     UPDATE audits AS audit
        SET state = $5,
            paused_at = CASE WHEN $5 = 'paused' THEN clock_timestamp() ELSE NULL END,
@@ -35,7 +32,7 @@ WITH target AS MATERIALIZED (
      WHERE audit.audit_id = target.audit_id
        AND audit.revision = $3 AND audit.state = $4
     RETURNING audit.*, ` + transitionEvents.appended() + `
-), ` + reportReviewClosureCTE + `
+ )` + `
 SELECT `
 
 // claimedTransitionEvents record a controller transition.
@@ -125,51 +122,5 @@ WITH previous AS MATERIALIZED (
      WHERE audit.audit_id = previous.audit_id
        AND audit.revision = $3 AND audit.state = 'paused'
     RETURNING audit.*, ` + resumeEvents.appended() + `
-)
-SELECT `
-
-// trustedTransitionEvents record a service-authorized transition.
-var trustedTransitionEvents = auditEvents(auditEvent(
-	"'audit.state_changed'", "audit.audit_id", "audit.revision",
-	"jsonb_build_object('from', $3::text, 'to', $4::text)",
-))
-
-// transitionTrustedSQL is the claim-free form of transitionClaimedSQL for
-// service-authorized changes: it locks Audit $1 and moves it from state $3 at
-// revision $2 to $4 with stop reason $5/$6, applying the same active-Project
-// gate, dispatch closing, timestamps and audit.state_changed event. The caller
-// completes the trailing SELECT. Used by ReviewStore.transitionTrusted.
-var transitionTrustedSQL = `
-WITH active_project_gate AS MATERIALIZED (
-    SELECT audit.audit_id,
-           CASE WHEN $4 = 'active'
-                THEN contractor_require_active_audit_project(audit.project_id, audit.owner_id)
-           END
-      FROM audits AS audit
-     WHERE audit.audit_id = $1
-     FOR UPDATE OF audit
-), changed AS (
-    UPDATE audits AS audit
-       SET state = $4,
-           paused_at = CASE WHEN $4 = 'paused' THEN clock_timestamp() ELSE NULL END,
-           dispatch_state = CASE
-               WHEN $4 IN ('finalizing', 'cancelling', 'completed', 'cancelled', 'failed', 'deleting')
-                   THEN 'closed'
-               ELSE audit.dispatch_state
-           END,
-           stop_reason_code = $5,
-           stop_reason_message = $6,
-           deletion_requested_at = CASE WHEN $4 = 'deleting'
-               THEN COALESCE(audit.deletion_requested_at, clock_timestamp())
-               ELSE audit.deletion_requested_at
-           END,
-           finished_at = CASE WHEN $4 IN ('completed', 'cancelled', 'failed')
-                              THEN clock_timestamp() ELSE NULL END,
-           ` + trustedTransitionEvents.advance() + `,
-           updated_at = GREATEST(clock_timestamp(), audit.updated_at + interval '1 microsecond')
-      FROM active_project_gate
-     WHERE audit.audit_id = active_project_gate.audit_id
-       AND audit.revision = $2 AND audit.state = $3
-    RETURNING audit.*, ` + trustedTransitionEvents.appended() + `
 )
 SELECT `

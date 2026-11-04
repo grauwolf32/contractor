@@ -276,7 +276,6 @@
       "required": [
         "scope_digest",
         "active_checks",
-        "approval_requirement",
         "limits_digest"
       ],
       "properties": {
@@ -287,15 +286,7 @@
         "active_checks": {
           "enum": [
             "prohibited",
-            "automatic",
-            "approval-required"
-          ]
-        },
-        "approval_requirement": {
-          "enum": [
-            "none",
-            "active-check",
-            "human-review"
+            "automatic"
           ]
         },
         "limits_digest": {

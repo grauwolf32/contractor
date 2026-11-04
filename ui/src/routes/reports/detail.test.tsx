@@ -1,19 +1,16 @@
-import { type QueryClient } from "@tanstack/react-query";
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { queryKeys } from "../../api/query-keys";
-import { deferred } from "../../test/deferred";
+
 import { failure, json } from "../../test/responses";
 import {
-  acceptanceReview,
   audit,
   project,
   renderRoutes,
   report,
   reportsServer,
-  type ReportsServer,
   type ServerState,
 } from "./test-support";
 
@@ -23,7 +20,7 @@ function state(): ServerState {
   return {
     projects: [project("project_payment", "Payment service")],
     audits: [
-      audit("project_payment", "audit_proposed", "waiting_review"),
+      audit("project_payment", "audit_proposed", "completed"),
       audit("project_payment", "audit_ready", "completed", {
         profile: "owasp-asvs-5-0-l1-source-review",
       }),
@@ -31,8 +28,9 @@ function state(): ServerState {
       audit("project_payment", "audit_failed", "failed"),
     ],
     reports: {
-      audit_proposed: report("audit_proposed", "proposed", {
-        summary: "# Payment review\n\nThe owner must accept this summary.",
+      audit_proposed: report("audit_proposed", "ready", {
+        summary:
+          "# Payment review\n\nThe summary records the retained evidence.",
       }),
       audit_ready: report("audit_ready", "ready", {
         summary:
@@ -49,340 +47,11 @@ function detail() {
   return screen.getByRole("region", { name: "Report" });
 }
 
-/**
- * Another session approves the proposed report of audit_proposed: its
- * request is decided, and the next read of the report shows it ready.
- */
-function approveElsewhere(server: ReportsServer) {
-  const review = acceptanceReview("audit_proposed");
-  server.reviews.set(review.requestId, {
-    ...review,
-    state: "decided",
-    revision: 2,
-    decision: {
-      decisionId: "decision_elsewhere",
-      requestId: review.requestId,
-      auditId: review.auditId,
-      action: "approve",
-      actorId: "user_other",
-      rationale: "Accepted in the review meeting.",
-      subjectRevision: review.subjectRevision,
-      subjectDigest: review.subjectDigest,
-      createdAt: review.createdAt,
-    },
-  });
-  server.state.reports.audit_proposed = report("audit_proposed", "ready");
-}
-
-/** Reads the report of audit_proposed again, as polling would. */
-function rereadReport(queryClient: QueryClient) {
-  return act(() =>
-    queryClient.invalidateQueries({
-      queryKey: queryKeys.audits.report("audit_proposed"),
-    }),
-  );
-}
-
-/** Lets scheduled query notifications render. */
-function settle() {
-  return act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
-}
-
-const ACCEPTANCE_READ = "/reviews/review_audit_proposed";
-
 afterEach(() => {
   document.title = "";
 });
 
 describe("Report detail", () => {
-  it("shows a proposed report as waiting for acceptance, never as accepted", async () => {
-    renderRoutes("/reports/audit_proposed", reportsServer(state()));
-    expect(
-      await screen.findByText("This report is awaiting owner acceptance."),
-    ).toBeVisible();
-    const pane = detail();
-    expect(
-      within(pane).getByRole("heading", {
-        level: 2,
-        name: "OWASP Top 10 · Source risks",
-      }),
-    ).toBeVisible();
-    expect(within(pane).getByText("Waiting for acceptance")).toBeVisible();
-    expect(
-      within(pane).getByText(
-        "Review the contents below before making a decision.",
-      ),
-    ).toBeVisible();
-    expect(
-      await within(pane).findByRole("heading", { name: "Payment review" }),
-    ).toBeVisible();
-    const decision = within(pane).getByRole("region", {
-      name: "Your decision",
-    });
-    expect(
-      within(decision)
-        .getAllByRole("button", { pressed: false })
-        .map((button) => button.textContent),
-    ).toEqual(["Approve", "Reject"]);
-    expect(
-      within(decision).getByRole("button", { name: "Record decision" }),
-    ).toBeDisabled();
-    // Nothing reads as accepted before the Server records an approval.
-    expect(within(pane).queryByText("Ready")).toBeNull();
-    expect(within(pane).queryByText("Approved")).toBeNull();
-  });
-
-  it("records the acceptance and keeps the decision on the page", async () => {
-    const user = userEvent.setup();
-    const server = reportsServer(state());
-    renderRoutes("/reports/audit_proposed?status=proposed", server);
-    const decision = await screen.findByRole("region", {
-      name: "Your decision",
-    });
-    await user.click(within(decision).getByRole("button", { name: "Approve" }));
-    await user.type(
-      within(decision).getByRole("textbox", { name: "Why" }),
-      "Coverage and gaps are stated plainly.",
-    );
-    await user.click(
-      within(decision).getByRole("button", { name: "Record decision" }),
-    );
-
-    expect(
-      await screen.findByText("Decision recorded: Approved."),
-    ).toBeVisible();
-    const [post] = server.sent(
-      "POST",
-      "/audits/audit_proposed/reviews/review_audit_proposed/decisions",
-    );
-    expect(post?.headers.get("If-Match")).toBe('"1"');
-    expect(await post?.json()).toEqual({
-      action: "approve",
-      rationale: "Coverage and gaps are stated plainly.",
-    });
-    const pane = detail();
-    // The report is ready now, and the decision stays with its reason.
-    await waitFor(() =>
-      expect(
-        within(pane).queryByText("This report is awaiting owner acceptance."),
-      ).toBeNull(),
-    );
-    const record = within(pane).getByRole("group", {
-      name: "Decision on report acceptance",
-    });
-    expect(within(record).getByText("Approved")).toBeVisible();
-    expect(
-      await within(record).findByText("Coverage and gaps are stated plainly."),
-    ).toBeVisible();
-    expect(record).toHaveFocus();
-    expect(within(pane).getByText("Ready")).toBeVisible();
-    expect(
-      within(pane).queryByRole("region", { name: "Your decision" }),
-    ).toBeNull();
-    // The list follows: nothing waits for acceptance any more.
-    expect(
-      await screen.findByRole("button", { name: "Waiting for acceptance 0" }),
-    ).toBeVisible();
-  });
-
-  it("shows a decision recorded elsewhere once the report moves on", async () => {
-    const server = reportsServer(state());
-    const { queryClient } = renderRoutes("/reports/audit_proposed", server);
-    await screen.findByRole("region", { name: "Your decision" });
-    approveElsewhere(server);
-    await rereadReport(queryClient);
-    const pane = detail();
-    // The request is read once the report moves on; its decision follows.
-    expect(await within(pane).findByText("user_other")).toBeVisible();
-    const record = within(pane).getByRole("group", {
-      name: "Decision on report acceptance",
-    });
-    expect(within(record).getByText("user_other")).toBeVisible();
-    expect(within(record).getByText("Approved")).toBeVisible();
-    expect(within(pane).getByText("Ready")).toBeVisible();
-    expect(
-      within(pane).queryByRole("region", { name: "Your decision" }),
-    ).toBeNull();
-    expect(server.sent("POST", "/decisions")).toEqual([]);
-  });
-
-  it("offers nothing while it reads the request of a report that moved on", async () => {
-    const server = reportsServer(state());
-    const { queryClient } = renderRoutes("/reports/audit_proposed", server);
-    await screen.findByRole("region", { name: "Your decision" });
-    const read = deferred();
-    server.state.hold = {
-      path: /\/reviews\/review_audit_proposed$/,
-      until: read.promise,
-    };
-    approveElsewhere(server);
-    await rereadReport(queryClient);
-    await waitFor(() =>
-      expect(server.sent("GET", ACCEPTANCE_READ)).toHaveLength(1),
-    );
-    const pane = detail();
-    expect(within(pane).getByText("Ready")).toBeVisible();
-    // The request it showed may be settled already: nothing to decide.
-    expect(
-      within(pane).queryByRole("region", { name: "Your decision" }),
-    ).toBeNull();
-    expect(within(pane).queryByRole("button", { name: "Approve" })).toBeNull();
-
-    read.resolve();
-    const record = await within(pane).findByRole("group", {
-      name: "Decision on report acceptance",
-    });
-    expect(await within(record).findByText("user_other")).toBeVisible();
-  });
-
-  it("says when the request of a report that moved on cannot be read", async () => {
-    const user = userEvent.setup();
-    const server = reportsServer(state());
-    const { queryClient } = renderRoutes("/reports/audit_proposed", server);
-    await screen.findByRole("region", { name: "Your decision" });
-    server.state.reviewRead = () =>
-      failure(503, "storage_transaction_conflict", "Review store unavailable");
-    approveElsewhere(server);
-    await rereadReport(queryClient);
-    const pane = detail();
-    const problem = await within(pane).findByRole("alert");
-    expect(problem).toHaveTextContent("Could not load the acceptance request");
-    expect(problem).toHaveTextContent("Review store unavailable");
-    expect(within(pane).getByText("Ready")).toBeVisible();
-    // Neither the request it showed nor a report mismatch is offered.
-    expect(
-      within(pane).queryByRole("region", { name: "Your decision" }),
-    ).toBeNull();
-    expect(
-      within(pane).queryByText(/no longer matches its acceptance request/),
-    ).toBeNull();
-
-    server.state.reviewRead = undefined;
-    await user.click(
-      within(problem).getByRole("button", { name: "Try again" }),
-    );
-    const record = await within(pane).findByRole("group", {
-      name: "Decision on report acceptance",
-    });
-    expect(await within(record).findByText("user_other")).toBeVisible();
-    expect(within(record).getByText("Approved")).toBeVisible();
-    expect(
-      within(pane).queryByText("Could not load the acceptance request"),
-    ).toBeNull();
-    expect(server.sent("POST", "/decisions")).toEqual([]);
-  });
-
-  it("keeps a decision made here while its refresh cannot read the request", async () => {
-    const user = userEvent.setup();
-    const server = reportsServer(state());
-    const { queryClient } = renderRoutes("/reports/audit_proposed", server);
-    const decision = await screen.findByRole("region", {
-      name: "Your decision",
-    });
-    // The decision's refresh waits for the project index; meanwhile the
-    // report moves on and reading its request fails.
-    const refresh = deferred();
-    server.state.hold = { path: /^\/v1\/projects$/, until: refresh.promise };
-    server.state.reviewRead = () =>
-      failure(503, "storage_transaction_conflict", "Review store unavailable");
-    await user.click(within(decision).getByRole("button", { name: "Approve" }));
-    await user.type(
-      within(decision).getByRole("textbox", { name: "Why" }),
-      "Coverage and gaps are stated plainly.",
-    );
-    await user.click(
-      within(decision).getByRole("button", { name: "Record decision" }),
-    );
-    await waitFor(() =>
-      expect(
-        queryClient.getQueryState(
-          queryKeys.reports.acceptance(
-            "audit_proposed",
-            "review_audit_proposed",
-          ),
-        )?.status,
-      ).toBe("error"),
-    );
-    await settle();
-    const pane = detail();
-    expect(within(pane).getByText("Ready")).toBeVisible();
-    // The decision stays as it was opened, still recording.
-    expect(within(pane).getByRole("region", { name: "Your decision" })).toBe(
-      decision,
-    );
-    expect(within(decision).getByText("Recording…")).toBeVisible();
-    expect(within(pane).queryByRole("alert")).toBeNull();
-
-    refresh.resolve();
-    expect(
-      await screen.findByText("Decision recorded: Approved."),
-    ).toBeVisible();
-    const record = within(pane).getByRole("group", {
-      name: "Decision on report acceptance",
-    });
-    expect(within(record).getByText("Approved")).toBeVisible();
-    expect(
-      await within(record).findByText("Coverage and gaps are stated plainly."),
-    ).toBeVisible();
-    expect(record).toHaveFocus();
-    expect(
-      within(pane).queryByText("Could not load the acceptance request"),
-    ).toBeNull();
-  });
-
-  it("follows the read request over another change in flight", async () => {
-    const server = reportsServer(state());
-    const { queryClient } = renderRoutes("/reports/audit_proposed", server);
-    await screen.findByRole("region", { name: "Your decision" });
-    // Another change of the page is in flight while the report moves on
-    // and its request stays pending.
-    const other = deferred();
-    void queryClient
-      .getMutationCache()
-      .build(queryClient, { mutationFn: () => other.promise })
-      .execute(undefined);
-    server.state.reports.audit_proposed = report("audit_proposed", "pending");
-    await rereadReport(queryClient);
-    const pane = detail();
-    expect(
-      await within(pane).findByText(/no longer matches its acceptance request/),
-    ).toBeVisible();
-    expect(
-      within(pane).queryByRole("region", { name: "Your decision" }),
-    ).toBeNull();
-    other.resolve();
-  });
-
-  it("ends without an accepted report when the owner rejects it", async () => {
-    const user = userEvent.setup();
-    renderRoutes("/reports/audit_proposed", reportsServer(state()));
-    const decision = await screen.findByRole("region", {
-      name: "Your decision",
-    });
-    await user.click(within(decision).getByRole("button", { name: "Reject" }));
-    await user.type(
-      within(decision).getByRole("textbox", { name: "Why" }),
-      "The summary misses the export endpoint.",
-    );
-    await user.keyboard("{Control>}{Enter}{/Control}");
-
-    expect(
-      await screen.findByText("Decision recorded: Rejected."),
-    ).toBeVisible();
-    const pane = detail();
-    expect(
-      await within(pane).findByText("No accepted report is available."),
-    ).toBeVisible();
-    expect(within(pane).getByText("Not available")).toBeVisible();
-    expect(
-      within(
-        within(pane).getByRole("group", {
-          name: "Decision on report acceptance",
-        }),
-      ).getByText("Rejected"),
-    ).toBeVisible();
-  });
-
   it("shows a ready report with its header, links and files", async () => {
     const user = userEvent.setup();
     renderRoutes("/reports/audit_ready", reportsServer(state()));
@@ -495,11 +164,9 @@ describe("Report detail", () => {
     ).toBeVisible();
   });
 
-  it("says when no accepted report is available", async () => {
+  it("says when no report is available", async () => {
     renderRoutes("/reports/audit_failed", reportsServer(state()));
-    expect(
-      await screen.findByText("No accepted report is available."),
-    ).toBeVisible();
+    expect(await screen.findByText("No report is available.")).toBeVisible();
     expect(within(detail()).getByText("Not available")).toBeVisible();
     expect(
       within(detail()).queryByRole("heading", { name: "Summary" }),
@@ -582,7 +249,7 @@ describe("Report detail", () => {
     ).toBeVisible();
 
     // The Server's summaries say it themselves: not twice.
-    server.state.reports.audit_proposed = report("audit_proposed", "proposed", {
+    server.state.reports.audit_proposed = report("audit_proposed", "ready", {
       summary:
         "# Audit audit_proposed\n\nCompletion describes the bounded Audit process; it is not a security or\ncompliance certification.\n",
     });
@@ -594,36 +261,6 @@ describe("Report detail", () => {
     expect(
       within(detail()).queryByText(
         "A report describes this bounded check. It is not a security or compliance certification.",
-      ),
-    ).toBeNull();
-  });
-
-  it("does not decide a review that the report does not carry", async () => {
-    const server = reportsServer(state());
-    renderRoutes("/reports/audit_proposed?review=review_removed", server);
-    expect(
-      await screen.findByText(
-        "The requested report review is unavailable or no longer current.",
-      ),
-    ).toBeVisible();
-    expect(
-      screen.getByText("This report cannot be used to decide that review."),
-    ).toBeVisible();
-    expect(screen.queryByRole("region", { name: "Your decision" })).toBeNull();
-    expect(server.sent("POST", "/decisions")).toEqual([]);
-  });
-
-  it("offers the review a link names when the report carries it", async () => {
-    renderRoutes(
-      `/reports/audit_proposed?review=${acceptanceReview("audit_proposed").requestId}`,
-      reportsServer(state()),
-    );
-    expect(
-      await screen.findByRole("region", { name: "Your decision" }),
-    ).toBeVisible();
-    expect(
-      screen.queryByText(
-        "The requested report review is unavailable or no longer current.",
       ),
     ).toBeNull();
   });
@@ -640,5 +277,35 @@ describe("Report detail", () => {
     expect(
       await screen.findByText("This report link is not valid"),
     ).toBeVisible();
+  });
+  it("shows normal completion without a report and links to saved task results", async () => {
+    const fixture = state();
+    fixture.reports.audit_ready = report("audit_ready", "unavailable");
+    const server = reportsServer(fixture);
+    renderRoutes("/reports/audit_ready", server);
+    expect(
+      await screen.findByText("This check completed without a summary report."),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "View task results →" }),
+    ).toHaveAttribute("href", expect.stringContaining("audit_ready"));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+  it("keeps failed report reads distinct from normal unavailable reports", async () => {
+    const fixture = state();
+    fixture.reports.audit_ready = () =>
+      failure(
+        500,
+        "internal_error",
+        "Retained report failed integrity validation",
+      );
+    const server = reportsServer(fixture);
+    renderRoutes("/reports/audit_ready", server);
+    await waitFor(() =>
+      expect(screen.getByText("Could not load the report")).toBeVisible(),
+    );
+    expect(
+      screen.queryByText("This check completed without a summary report."),
+    ).toBeNull();
   });
 });

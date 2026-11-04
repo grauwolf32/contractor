@@ -1,7 +1,7 @@
 import { ContextLink } from "../../app/context-navigation";
 import { DetailPane, EmptyState } from "../../ui";
 import { CheckDetail } from "./detail-check";
-import { IssueDetail, ReportDetail, ReviewDetail } from "./detail-decisions";
+import { IssueDetail, ReportDetail } from "./detail-decisions";
 import { Overview, type DetailContext } from "./detail-parts";
 import { RunDetail } from "./detail-run";
 import type { InboxRef, InboxRow, InboxSectionId } from "./model";
@@ -19,7 +19,6 @@ function referencePage(ref: InboxRef): { to: string; label: string } {
       };
     case "report":
       return { to: reportPath(ref.auditId), label: "Open report" };
-    case "review":
     case "check":
       return {
         to: `/checks?check=${encodeURIComponent(ref.auditId)}`,
@@ -106,8 +105,6 @@ export function InboxDetail({
   }
   if (row?.type === "issue")
     return <IssueDetail key={row.key} row={row} context={context} />;
-  if (row?.type === "review")
-    return <ReviewDetail key={row.key} row={row} context={context} />;
   if (row?.type === "report")
     return <ReportDetail key={row.key} row={row} context={context} />;
   return <NotListed selected={selected} loading={loading} />;

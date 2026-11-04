@@ -9,7 +9,7 @@ import {
 import { Kbd } from "./chips";
 import { modKeyLabel, useShortcuts, type ShortcutHandler } from "./shortcuts";
 
-export interface DecisionOption {
+interface DecisionOption {
   id: string;
   label: string;
   /** One key that chooses this option, e.g. "c". Shown as a key hint. */

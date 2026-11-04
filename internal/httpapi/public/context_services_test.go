@@ -3,9 +3,10 @@ package public
 import (
 	"context"
 	"errors"
-	"github.com/grauwolf32/contractor/internal/runservice"
 	"log/slog"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/runservice"
 
 	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
 

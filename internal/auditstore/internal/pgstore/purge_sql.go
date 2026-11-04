@@ -37,14 +37,6 @@ DELETE FROM audit_round_result_pages AS target USING batch WHERE target.ctid = b
 )
 UPDATE audit_items AS target SET last_execution_item_id = NULL
 FROM batch WHERE target.ctid = batch.ctid`,
-	`WITH batch AS (
-  SELECT ctid FROM audit_review_decisions WHERE audit_id = $1 LIMIT $2
-)
-DELETE FROM audit_review_decisions AS target USING batch WHERE target.ctid = batch.ctid`,
-	`WITH batch AS (
-  SELECT ctid FROM audit_review_requests WHERE audit_id = $1 LIMIT $2
-)
-DELETE FROM audit_review_requests AS target USING batch WHERE target.ctid = batch.ctid`,
 
 	`WITH batch AS (
   SELECT ctid FROM audit_execution_items WHERE audit_id = $1 LIMIT $2

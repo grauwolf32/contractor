@@ -83,8 +83,6 @@ audits                               internal/auditstore/internal/pgstore audits
 project_findings                     internal/auditstore/internal/pgstore findings
 project_finding_sources              internal/auditstore/internal/pgstore findings
 project_finding_audits               internal/auditstore/internal/pgstore findings
-audit_review_decisions               internal/auditstore/internal/pgstore audits
-audit_review_requests                internal/auditstore/internal/pgstore audits
 finding_correlation_fences           internal/auditstore/internal/pgstore findings
 finding_proposal_audit_holds         internal/findingintake           findings
 finding_proposal_receipts            internal/findingintake           findings
@@ -109,7 +107,6 @@ eval_suboperations                   internal/evalstore               evals
 eval_view_charts                     internal/evalstore               evals
 eval_view_pairs                      internal/evalstore               evals
 
-audit_live_item_reviews              internal/auditstore/internal/pgstore -
 contractor_schema_migrations         internal/persistence/postgres    -
 
 [reads]
@@ -180,7 +177,6 @@ internal/evalstore           workflow_runs                  Inventories, executi
 internal/findingintake       audit_executions               Allocation readers prove the ordinary Run/Audit binding before using pinned source-mode restrictions.
 internal/findingintake       audit_events                   Collection listing and rejection look for
     finding.proposal_rejected events.
-internal/findingintake       audit_review_requests          Proposal import refuses an Audit with a pending report review.
 internal/findingintake       audits                         Receipt reads, inboxes and collection publication check the
     Audit's owner and Project; finding provenance reads its confirmation policy; import checks its state and
     policy and direct verification its evidence budget under the Audit lock that auditstore takes.

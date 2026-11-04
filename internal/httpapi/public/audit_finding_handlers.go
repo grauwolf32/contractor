@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 )
@@ -14,17 +13,6 @@ type findingPageResponse struct {
 	auditstore.FindingPageBasis
 	Items []auditstore.ProjectFindingSummary `json:"items"`
 	Page  pageInfoResponse                   `json:"page"`
-}
-
-type reviewPageResponse struct {
-	auditstore.PageBasis
-	Items []auditstore.ReviewRequest `json:"items"`
-	Page  pageInfoResponse           `json:"page"`
-}
-
-type decideActionRequest struct {
-	Action    auditstore.ReviewAction `json:"action"`
-	Rationale string                  `json:"rationale"`
 }
 
 func (h *auditHandlers) listAuditFindings(w http.ResponseWriter, r *http.Request) error {
@@ -131,94 +119,8 @@ func (h *auditHandlers) getAuditFinding(w http.ResponseWriter, r *http.Request) 
 	return nil
 }
 
-func (h *auditHandlers) listAuditReviews(w http.ResponseWriter, r *http.Request) error {
-	w.Header().Set("Cache-Control", "no-store")
-	query, limit, cursorValue, err := pageQuery(r.URL.RawQuery, "state", "auditRevision")
-	if err != nil {
-		return err
-	}
-	params := auditstore.ReviewListParams{
-		OwnerID: principalUserID(r.Context()), AuditID: r.PathValue("auditId"), Limit: pagelimit.FetchRows(limit),
-	}
-	stateValue := ""
-	if values, ok := query["state"]; ok {
-		value := auditstore.ReviewState(values[0])
-		if !value.Valid() {
-			return errInvalidRequest
-		}
-		params.State, stateValue = &value, values[0]
-	}
-	cursorKind := "audit-reviews:" + params.OwnerID + ":" + params.AuditID + ":" + stateValue
-	cursor, revision, err := h.decodeAuditPageCursor(cursorValue, cursorKind, query.Get("auditRevision"), 3)
-	if err != nil {
-		return err
-	}
-	params.AuditRevision = revision
-	if len(cursor) != 0 {
-		createdAt, parseErr := time.Parse(time.RFC3339Nano, cursor[0])
-		if parseErr != nil {
-			return errInvalidRequest
-		}
-		params.AfterCreatedAt, params.AfterRequestID = &createdAt, cursor[1]
-	}
-	result, err := h.Audits.ListReviewsPage(r.Context(), params)
-	if err != nil {
-		return err
-	}
-	reviews := result.Items
-	reviews, page, err := paginate(h.cursors, reviews, limit, cursorKind, func(last auditstore.ReviewRequest) []string {
-		return []string{
-			last.CreatedAt.UTC().Format(time.RFC3339Nano),
-			last.RequestID,
-			strconv.FormatUint(result.AuditRevision, 10),
-		}
-	})
-	if err != nil {
-		return err
-	}
-	writeJSON(w, http.StatusOK, reviewPageResponse{Items: reviews, Page: page, PageBasis: result.PageBasis})
-	return nil
-}
-
-func (h *auditHandlers) decideAuditReview(w http.ResponseWriter, r *http.Request) error {
-	w.Header().Set("Cache-Control", "no-store")
-	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		return err
-	}
-	if err := requireJSONMediaType(r); err != nil {
-		return err
-	}
-	key, revision, err := auditMutationHeaders(r)
-	if err != nil {
-		return err
-	}
-	var request decideActionRequest
-	if err := decodeJSON(w, r, &request); err != nil {
-		return err
-	}
-	decisionID, err := h.NewID("decision_")
-	if err != nil {
-		return err
-	}
-	params := auditservice.DecideActionReviewParams{OwnerID: principalUserID(r.Context()), AuditID: r.PathValue("auditId"), RequestID: r.PathValue("requestId"), ExpectedRequestRevision: revision, DecisionID: decisionID, Action: request.Action, Rationale: request.Rationale, IdempotencyKey: key}
-	params.RequestDigest, err = auditservice.DecideActionReviewRequestDigest(params)
-	if err != nil {
-		return err
-	}
-	result, err := h.Audits.DecideActionReview(r.Context(), params)
-	if err != nil {
-		return err
-	}
-	if result.Replayed {
-		w.Header().Set("Idempotency-Replayed", "true")
-	}
-	w.Header().Set("ETag", strconv.Quote(strconv.FormatUint(result.Request.Revision, 10)))
-	writeJSON(w, http.StatusOK, result)
-	return nil
-}
-
 // auditMutationHeaders returns the Idempotency-Key and the one strong If-Match
-// revision that every Audit control and review mutation requires.
+// revision that Audit lifecycle controls require.
 // Callers check them before they read the body (API-R112).
 func auditMutationHeaders(r *http.Request) (string, uint64, error) {
 	key, err := requireIdempotencyKey(r)
@@ -266,20 +168,6 @@ func (h *auditHandlers) getAuditWorkspace(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		return err
 	}
-	writeJSON(w, http.StatusOK, result)
-	return nil
-}
-
-func (h *auditHandlers) getAuditReview(w http.ResponseWriter, r *http.Request) error {
-	w.Header().Set("Cache-Control", "no-store")
-	if _, err := exactQuery(r.URL.RawQuery); err != nil {
-		return err
-	}
-	result, err := h.Audits.GetReview(r.Context(), principalUserID(r.Context()), r.PathValue("auditId"), r.PathValue("requestId"))
-	if err != nil {
-		return err
-	}
-	w.Header().Set("ETag", strconv.Quote(strconv.FormatUint(result.Revision, 10)))
 	writeJSON(w, http.StatusOK, result)
 	return nil
 }

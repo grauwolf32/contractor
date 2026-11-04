@@ -13,7 +13,7 @@ import (
 func TestOwnerTransitionsOnlyPauseOrCancel(t *testing.T) {
 	t.Parallel()
 	states := []auditstore.AuditState{
-		auditstore.AuditDraft, auditstore.AuditActive, auditstore.AuditWaitingReview, auditstore.AuditPaused, auditstore.AuditFinalizing,
+		auditstore.AuditDraft, auditstore.AuditActive, auditstore.AuditState("waiting_review"), auditstore.AuditPaused, auditstore.AuditFinalizing,
 		auditstore.AuditCancelling, auditstore.AuditCompleted, auditstore.AuditCancelled, auditstore.AuditFailed, auditstore.AuditDeleting,
 	}
 	allowed := 0
@@ -33,7 +33,7 @@ func TestOwnerTransitionsOnlyPauseOrCancel(t *testing.T) {
 			}
 		}
 	}
-	if allowed != 6 {
-		t.Fatalf("owner transitions = %d, want 2 pauses and 4 cancellations", allowed)
+	if allowed != 4 {
+		t.Fatalf("owner transitions = %d, want 1 pause and 3 cancellations", allowed)
 	}
 }

@@ -9,7 +9,7 @@ roles, the primary Project journey, the capabilities of the Workflow user
 surface, and the user stories US-01 to US-11 with their completion criteria.
 Within those stories it owns the Audit draft input selection, the Audit Start
 and Continue time-limit dialog, the Audit lifecycle controls, finding detail
-and navigation between reviews and their subjects.
+and navigation between Findings and their exact evidence.
 
 Other documents own the adjacent concepts:
 
@@ -39,8 +39,7 @@ Other documents own the adjacent concepts:
   [HTTP and Caido tools](../tools/http-caido.md).
 - The Audit time limit and its semantics: [Audits](../audits/audits.md) and
   [Audit execution](../audits/execution.md).
-- The review ledger, finding decisions, proposed report reads and the Reviews
-  view actions: [Review and reports](../audits/review-and-reports.md).
+- Direct Project Finding edits and retained report reads: [Review and reports](../audits/review-and-reports.md).
 - Managed Eval experiments, their denominators, metrics and assessment
   authority: [Managed Evals](../evals/managed-evals.md).
 - The Runtime readiness overview, performance metrics and profiling:
@@ -417,32 +416,19 @@ lists.
 **UIJ-R63.** Technical success, coverage completeness and the researcher's
 decision are shown separately.
 
-**UIJ-R64.** Each review links directly to its exact finding or proposed
-report with retained evidence, so a pending review opens that subject with its
-exact evidence in one action.
+**UIJ-R64.** An unassessed Finding opens its canonical issue and retained
+evidence in one action. Reports open their retained exact bytes or normal
+unavailability, without any approval action.
 
-**UIJ-R65.** The return link from a review subject preserves the queue URL,
-filters and cursor.
+**UIJ-R65.** The return link from a Finding or report preserves the Inbox URL,
+filters and selected result context.
 
-**UIJ-R66.** A missing subject or a mismatched revision shows an
-unavailable/stale state without an actionable decision (FAIL-UIJ-4).
+**UIJ-R66.** Retired: item/report approval controls and exact review reads are removed (ACT-R9).
 
-**UIJ-R67.** Approval and rejection of a proposed report are offered alongside
-that report, and only for its matching pending request (FAIL-UIJ-4).
+**UIJ-R67.** Retired: item/report approval controls and exact review reads are removed (ACT-R9).
 
-**UIJ-R68.** A conflict refreshes the evidence without replaying a mutation
-(FAIL-UIJ-4).
-
-The ETag of an exact review read, the proposed report read with its exact
-review request and retained bytes under an Audit revision fence, the rule that
-historical or unavailable report requests cannot silently decide a replacement
-report, and duplicate finding decisions that accept an exact same-Audit target
-ID from another page are specified in
-[Review and reports](../audits/review-and-reports.md). So are the Reviews view
-for pending item-action requests, the `approve`, `reject` and `not_applicable`
-actions of applicability reviews, the approve/reject actions of other item and
-report reviews, and the proposed report that is readable before acceptance but
-never presented as an accepted result.
+**UIJ-R68.** A Finding edit conflict refreshes the evidence without replaying
+the mutation or overwriting the retained draft (FND-R212).
 
 #### Audit draft inputs
 
@@ -663,7 +649,7 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
   Audit controls (UIJ-R81, UIJ-R83, UIJ-R84).
 - FAIL-UIJ-3 — finding decision edit from finding detail (verdict, severity,
   rationale, duplicate, reopen) (UIJ-R89).
-- FAIL-UIJ-4 — review decision (approval or rejection) offered from review
+- FAIL-UIJ-4 — retired formal review decision offered from review
   navigation (UIJ-R66 to UIJ-R68).
 - FAIL-UIJ-5 — Artifact update in the file journey (US-09) (UIJ-R99).
 - FAIL-UIJ-6 — Project deletion submitted from a Project card or the Project

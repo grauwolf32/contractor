@@ -70,7 +70,7 @@ async function installProjectAPI(
   const reviewCheck = auditBuilder(
     PROJECT_ID,
     "check_review_browser",
-    "waiting_review",
+    "active",
     {
       profile: {
         name: "source-checklist",

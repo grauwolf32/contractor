@@ -14,7 +14,6 @@ import (
 type testStore struct {
 	*ClaimStore
 	*OwnerStore
-	*ReviewStore
 	*QueryStore
 	*FindingEvents
 	*RunDeletion
@@ -24,7 +23,7 @@ type testStore struct {
 
 func newTestStore(db persistencepostgres.DBTX) *testStore {
 	return &testStore{
-		ClaimStore: NewClaimStore(db, artifactpgtest.NewStorage()).WithPurgeDependencies(purgeTestAuditHolds), OwnerStore: NewOwnerStore(db, artifactpgtest.NewStorage()), ReviewStore: NewReviewStore(db, artifactpgtest.NewStorage()),
+		ClaimStore: NewClaimStore(db, artifactpgtest.NewStorage()).WithPurgeDependencies(purgeTestAuditHolds), OwnerStore: NewOwnerStore(db, artifactpgtest.NewStorage()),
 		QueryStore: NewQueryStore(db, artifactpgtest.NewStorage()), FindingEvents: NewFindingEvents(db, artifactpgtest.NewStorage()), RunDeletion: NewRunDeletion(db, artifactpgtest.NewStorage()),
 		ProjectDeletion: NewProjectDeletion(db, artifactpgtest.NewStorage()), CredentialHolds: NewCredentialHolds(db, artifactpgtest.NewStorage()),
 	}

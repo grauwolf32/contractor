@@ -104,7 +104,7 @@ describe("V3B destinations", () => {
     ["/", InboxRoute],
     ["/checks", ChecksRoute],
     [
-      "/checks?state=waiting_review&project=project_example&check=audit_example",
+      "/checks?state=active&project=project_example&check=audit_example",
       ChecksRoute,
     ],
     ["/checks/new", StartCheckRoute],

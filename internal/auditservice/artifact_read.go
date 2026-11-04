@@ -11,7 +11,7 @@ import (
 )
 
 // ReadArtifact resolves one committed receipt link in an owned Audit. The
-// requested revision is mandatory: later report acceptance cannot change the
+// requested revision is mandatory: later publication cannot change the
 // bytes beneath a saved link. Staged Project artifacts have no receipt link.
 func (s *Service) ReadArtifact(ctx context.Context, ownerID, auditID, key, revision string) (artifacts.ReadResult, error) {
 	audit, err := s.reads().Get(ctx, ownerID, auditID)

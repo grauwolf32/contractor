@@ -54,7 +54,7 @@ func executionView(r evalstore.ExecutionObservation) ExecutionView {
 			out.State = "cancelled"
 		case "initializing", "draft":
 			out.State = "accepted"
-		case "running", "active", "paused", "waiting_review", "finalizing", "cancelling":
+		case "running", "active", "paused", "finalizing", "cancelling":
 			out.State = "running"
 		default:
 			out.State = "unknown"

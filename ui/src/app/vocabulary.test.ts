@@ -1,13 +1,11 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
-import type { components } from "../api/generated/public";
 
 import type {
   Audit,
   AuditItem,
   AuditProfile,
-  AuditReviewRequest,
   AuditState,
   FindingSeverity,
   FindingState,
@@ -24,9 +22,6 @@ import {
   itemNoun,
   readableValue,
   reportStatusLabel,
-  reviewActionLabel,
-  reviewKindLabel,
-  reviewStateLabel,
   RUN_STATE_LABELS,
   runRecoveryReason,
   runStateLabel,
@@ -78,16 +73,6 @@ describe("vocabulary", () => {
       VERDICT_LABELS,
       [...enumOf("FindingVerdict"), "unreviewed"],
     ],
-    [
-      "AuditReviewState",
-      Object.fromEntries(
-        enumOf("AuditReviewState").map((state) => [
-          state,
-          reviewStateLabel(state as components["schemas"]["AuditReviewState"]),
-        ]),
-      ),
-      enumOf("AuditReviewState"),
-    ],
     ["WorkflowRunState", RUN_STATE_LABELS, enumOf("WorkflowRunState")],
   ])("labels every %s value with a tone", (_schema, table, values) => {
     expect(Object.keys(table).sort()).toEqual([...values].sort());
@@ -100,12 +85,6 @@ describe("vocabulary", () => {
   // labelOf returns the table's own entry, while a value missing from it
   // gets a new fallback object on every call.
   it.each<[string, (value: string) => VocabularyLabel, string[]]>([
-    [
-      "AuditReviewAction",
-      (value) =>
-        reviewActionLabel(value as Parameters<typeof reviewActionLabel>[0]),
-      enumOf("AuditReviewAction"),
-    ],
     [
       "AuditReportStatus",
       (value) =>
@@ -120,12 +99,7 @@ describe("vocabulary", () => {
     expect(lookup("unknown_value")).not.toBe(lookup("unknown_value"));
   });
 
-  it("labels every review kind and severity", () => {
-    const kinds = enumOf("AuditReviewRequest", "kind");
-    for (const kind of kinds)
-      expect(
-        reviewKindLabel(kind as AuditReviewRequest["kind"]).trim(),
-      ).not.toBe("");
+  it("labels every severity", () => {
     const severities = enumOf("FindingSeverity");
     expect(Object.keys(SEVERITY_LABELS).sort()).toEqual([...severities].sort());
     for (const severity of severities)
@@ -135,23 +109,15 @@ describe("vocabulary", () => {
   });
 
   it("looks labels up through the functions", () => {
-    expect(checkStateLabel("waiting_review")).toBe(
-      CHECK_STATE_LABELS.waiting_review,
-    );
     expect(findingStateLabel("needs-evidence")).toBe(
       FINDING_STATE_LABELS["needs-evidence"],
     );
-    expect(reviewStateLabel("pending")).toEqual({
-      label: "Waiting for you",
-      tone: "review",
-    });
   });
 
   it("matches the contract tables", () => {
     const states: Record<AuditState, [string, string]> = {
       draft: ["Draft", "idle"],
       active: ["Running", "progress"],
-      waiting_review: ["Waiting for you", "review"],
       paused: ["Paused", "warning"],
       finalizing: ["Finishing", "progress"],
       cancelling: ["Stopping", "warning"],
@@ -177,7 +143,7 @@ describe("vocabulary", () => {
       });
   });
 
-  it("names verdicts, actions, review kinds and severities", () => {
+  it("names verdicts and severities", () => {
     expect(verdictLabel("true_positive").label).toBe("Confirmed");
     expect(verdictLabel("false_positive").label).toBe("Not an issue");
     expect(verdictLabel("needs_evidence").label).toBe("Needs evidence");
@@ -187,18 +153,6 @@ describe("vocabulary", () => {
     expect(verdictLabel(undefined).label).toBe("Not reviewed");
     expect(verdictLabel(null).label).toBe("Not reviewed");
 
-    expect(reviewActionLabel("approve").label).toBe("Approved");
-    expect(reviewActionLabel("reject").label).toBe("Rejected");
-    expect(reviewActionLabel("not_applicable").label).toBe("Not applicable");
-
-    expect(reviewKindLabel("active-check-approval")).toBe(
-      "Active test approval",
-    );
-    expect(reviewKindLabel("requirement-applicability")).toBe(
-      "Requirement applicability",
-    );
-    expect(reviewKindLabel("report-acceptance")).toBe("Report acceptance");
-
     expect(severityLabel("informational")).toBe("Informational");
     expect(severityLabel("critical")).toBe("Critical");
     expect(severityLabel("")).toBe("Not set");
@@ -206,8 +160,7 @@ describe("vocabulary", () => {
     expect(severityLabel(null)).toBe("Not set");
   });
 
-  it("never reads a proposed report as accepted", () => {
-    expect(reportStatusLabel("proposed").label).not.toMatch(/ready|accepted/i);
+  it("labels retained reports as ready", () => {
     expect(reportStatusLabel("ready").label).toBe("Ready");
   });
 
@@ -220,9 +173,6 @@ describe("vocabulary", () => {
       label: "ToString",
       tone: "neutral",
     });
-    expect(
-      reviewKindLabel("budget-approval" as AuditReviewRequest["kind"]),
-    ).toBe("Budget approval");
     expect(severityLabel("severe" as FindingSeverity)).toBe("Severe");
   });
 

@@ -90,14 +90,6 @@ func (p *Package) MemberByID(id string) (Member, bool) {
 	return Member{}, false
 }
 
-type ApprovalRequirement string
-
-const (
-	ApprovalNone        ApprovalRequirement = "none"
-	ApprovalActiveCheck ApprovalRequirement = "active-check"
-	ApprovalHumanReview ApprovalRequirement = "human-review"
-)
-
 type ItemTask struct {
 	AcceptedPlan             *AcceptedPlan               `json:"accepted_plan,omitempty"`
 	Dependencies             *RetainedDependencyManifest `json:"dependencies,omitempty"`
@@ -313,14 +305,13 @@ type CoverageRow struct {
 }
 
 type InventoryOptions struct {
-	Round               int
-	ProfileMode         string
-	WorkflowRole        string
-	SourceInputName     string
-	SourceRef           contracts.ArtifactRef
-	Scope               map[string]string
-	ApprovalRequirement ApprovalRequirement
-	StandardSelection   *StandardSelection
+	Round             int
+	ProfileMode       string
+	WorkflowRole      string
+	SourceInputName   string
+	SourceRef         contracts.ArtifactRef
+	Scope             map[string]string
+	StandardSelection *StandardSelection
 }
 
 // StandardSelection is the already-normalized exact denominator selected by

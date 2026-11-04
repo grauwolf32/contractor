@@ -3,7 +3,6 @@
   "date": "2026-11-04",
   "branch": "codex/project-findings-reader",
   "base": "7a7daee624b5afc3706b2bd258143888435dc774",
-  "merged_to_main": false,
   "scope": "Ordinary Project finding discovery and explicit immutable evidence selections through existing allocation and Artifact owners. No demo deployment, migration or live-model quality claim.",
   "checks": [
     {
@@ -107,5 +106,42 @@
     "formatted_green_log": "/tmp/v411-011-reader-formatted.log"
   },
   "status": "completed",
-  "implementation_commit": "06b2907745288a3b1c0821e112126af986819063"
+  "implementation_commit": "06b2907745288a3b1c0821e112126af986819063",
+  "initial_delivery_merged_to_main": false,
+  "integration_main": "b2e734febdf9622018f7bafa4371152fe9849790",
+  "merge_authority": "User requested merging into main on 2026-11-04 using the repository no-ff delivery policy.",
+  "integration_result": "Combined current main, including V411-010 approval removal, with V411-011. Code merged without conflicts; task links were combined and generated documents/clients rebuilt. All integration checks passed before main landing.",
+  "integration_checks": [
+    {
+      "command": "make generate-public-client ui-generate tasks-backlog docs-dependencies docs-erd",
+      "result": "passed; ERD reflects all seven migrations, 73 tables and 95 foreign keys",
+      "log": "/tmp/v411-011-merge-generate.log"
+    },
+    {
+      "command": "go test -count=1 ./internal/auditdomain ./internal/auditservice ./internal/controlplane ./internal/config/... ./internal/httpapi/privateartifacts ./internal/app ./internal/persistence/... ./internal/archtest ./internal/publicclient/...",
+      "result": "passed in full",
+      "log": "/tmp/v411-011-merge-go.log"
+    },
+    {
+      "command": "go test -tags=integration -count=1 ./internal/findingintake/... ./internal/auditimport/... ./internal/auditstore/... ./internal/artifacts/...",
+      "result": "passed in full on disposable PostgreSQL with no mandatory database skips",
+      "log": "/tmp/v411-011-merge-owners.log"
+    },
+    {
+      "command": "make verify-public-api verify-public-api-postgres",
+      "result": "passed, including race-enabled public PostgreSQL operations",
+      "log": "/tmp/v411-011-merge-api.log"
+    },
+    {
+      "command": "make test-findings-e2e test-wire-cross-language",
+      "result": "passed: 210 Runtime findings tests, 15 required process cases, 385 contract tests and 1427 shared-suite tests; 369 fixtures, 404 Go and 258 Python shared tests",
+      "log": "/tmp/v411-011-merge-e2e-wire.log"
+    },
+    {
+      "command": "make lint ui-generate-check ui-typecheck",
+      "result": "passed in full",
+      "log": "/tmp/v411-011-merge-lint.log"
+    }
+  ],
+  "integration_runtime_note": "Main introduced no Runtime source changes. The combined source passed the Runtime findings and shared suites above; the earlier complete Runtime suite result remains recorded under checks."
 }

@@ -345,13 +345,11 @@ bottom) with the destinations and routes shown in [Navigation](#navigation).
 **UI-R38.** The rail is the main navigation; the user journeys in
 [UI journeys](journeys.md) add no navigation items.
 
-**UI-R39.** The Inbox at `/` puts decisions first, then blocked work, finished
-results and running checks. Inbox decisions are pending Audit reviews for
-finding triage of possible issues, active-check approval, requirement
-applicability and report acceptance that can still be decided: the Inbox and
-the rail badge read them from `GET /v1/reviews` with `state=pending`, which
-leaves out a request past its expiry ([REV-R198](../audits/review-and-reports.md)),
-as the workspace's pending count does (UI-R143).
+**UI-R39.** The Inbox at `/` puts optional Project Finding annotations first,
+then blocked work, finished results and running checks. Its rail badge counts
+canonical unassessed Project Findings through the owner-scoped Finding list.
+Annotations do not block execution or completion. There are no item approval or
+report acceptance requests (ACT-R9).
 
 **UI-R40.** An Audit page under `/projects/:projectId/audits/:auditId` marks
 Checks as current in the rail.
@@ -933,7 +931,7 @@ no retained copy has no fabricated link.
 ### Audits
 
 **UI-R139.** Audit navigation is Project → Audits → Overview / Coverage /
-Findings / Checks / Reviews / Runs / Report.
+Findings / Checks / Runs / Report.
 
 **UI-R140.** Audit pages display technical Run outcome separately from semantic
 assessment, and proposed findings separately from confirmed findings.
@@ -954,29 +952,25 @@ with the exact ID and a copy action.
 
 **UI-R143.** `GET /v1/audits/{auditId}/workspace` returns one owner-scoped SQL
 snapshot (`auditRevision`, `asOf`): current-round completed and total checks,
-issues, gaps and unchecked work, plus whole-Audit unreviewed findings and
-pending reviews. Pending reviews count only requests that can still be
-decided: a pending request whose expiry has passed at `asOf` is not counted,
-whether or not anything has expired it yet.
+issues, gaps and unchecked work, plus whole-Audit unassessed Findings. It carries
+no pending approval count.
 
 **UI-R144.** Completed, gaps and unchecked partition the current round by the
-coverage buckets the report concludes with (REV-R193): completed includes
-concluded assessments and not-applicable decisions, issues are its `violated`
-part, and an item the owner rejected is excluded and counts as a gap. None of
-the workspace counts implies accepted findings or an approved report.
+coverage buckets used by retained results (REV-R193). Issues are its violated
+part; excluded or incomplete work remains a gap. No count implies an analyst
+assessment or a successful security evaluation.
 
-**UI-R145.** Audit Overview begins with current-round progress and pending
-decisions, based on complete coverage and review collections.
+**UI-R145.** Audit Overview begins with current-round progress, retained results
+and optional Project Finding annotation links.
 
-**UI-R146.** Overview counts link to the same result groups used by Coverage,
-or to the URL-backed pending review filter. A sole pending review is anchored
-directly.
+**UI-R146.** Overview counts link to the same result groups used by Coverage
+and to the corresponding canonical Finding filters.
 
 **UI-R147.** Unavailable counts remain unknown; refresh errors identify
 retained snapshot counts (FAIL-UI-6).
 
-**UI-R148.** Execution state, coverage assessments and human acceptance remain
-separate.
+**UI-R148.** Execution state, coverage assessments and optional current Project
+Finding annotations remain separate.
 
 **UI-R149.** Profile and scope remain expanded for drafts; immutable baseline
 details are available through disclosure.
@@ -984,16 +978,10 @@ details are available through disclosure.
 **UI-R150.** Audit Overview adds no Evals experiment API or comparison
 metrics.
 
-The Findings and Reviews projections (bounded server pages, a `total` over the
-entire normalized filter, finding and review filters, `auditRevision` and
-`asOf`, revision pins, signed continuation cursors and the revision fence that
-returns 409 on concurrent changes), the clearing of incompatible cursors and
-revision pins on a filter change, the explicit new context on refresh, and the
-summary-revision pin of Coverage links that the UI checks before collecting
-the current-round coverage pages and the Server enforces on every page,
-rejecting mixed revisions, are
-specified in [Review and reports](../audits/review-and-reports.md) (REV-R171,
-REV-R172).
+Finding pages use bounded candidate windows, revision pins and signed continuation
+cursors. A concurrent change conflicts, filter changes clear incompatible cursors,
+and refresh starts a new context. Coverage links pin the summary revision and
+reject mixed revisions (REV-R170 through REV-R172).
 
 **UI-R153.** All activity reads 50 events at a time (LIM-UI-11), exposes Load
 older activity, keeps settled events visible on continuation errors and
@@ -1142,7 +1130,6 @@ public API conventions are in [Public API](../api/public-api.md).
 | `/v1/queue` | Queue view | UI-R103 |
 | `/v1/runs` with `lifecycle=terminal` | Completed view | UI-R104, UI-R105 |
 | `GET /v1/audits/{auditId}/workspace` | Audit workspace snapshot | UI-R143, UI-R144 |
-| `GET /v1/reviews` with `state=pending` | Inbox decisions and the rail badge | UI-R39 |
 | `POST /v1/runs/{runId}/resume` | Continue from failed stage | [Runs](../execution/runs.md) RUN-R55 to RUN-R57 |
 
 Client routes owned here:

@@ -35,7 +35,7 @@ export const checkKeys = {
     [...queryKeys.audits.allFindings(auditId), "check-items"] as const,
   /** Pending review requests shown on the check's activity view. */
   waiting: (auditId: string) =>
-    [...queryKeys.audits.allReviews(auditId), "check-activity"] as const,
+    [...queryKeys.audits.events(auditId), "check-activity"] as const,
 };
 
 /** The newest cached workspace of a check, shown while a newer one loads. */

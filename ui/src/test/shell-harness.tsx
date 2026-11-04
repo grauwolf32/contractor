@@ -8,12 +8,7 @@ import { createMemoryRouter, useLocation } from "react-router";
 import { RouterProvider } from "react-router/dom";
 import { vi } from "vitest";
 
-import type {
-  Audit,
-  AuditProfile,
-  AuditReviewRequest,
-  AuditState,
-} from "../api/audits";
+import type { Audit, AuditProfile, AuditState } from "../api/audits";
 import type { AuthSession } from "../api/client";
 import { PublicAPIProvider } from "../api/context";
 import type { Project } from "../api/projects";
@@ -58,17 +53,6 @@ export function auditFixture(
   });
 }
 
-export function reviewFixture(
-  auditId: string,
-  requestId: string,
-  kind: AuditReviewRequest["kind"],
-): AuditReviewRequest {
-  return build.review(auditId, requestId, kind, {
-    createdAt: "2026-10-03T10:00:00Z",
-    updatedAt: "2026-10-03T10:00:00Z",
-  });
-}
-
 export function workflowFixture(
   name: string,
   version: string,
@@ -97,7 +81,6 @@ export interface FakeServer {
   audits?: Record<string, Audit[]>;
   /** Possible issues in state `proposed` per check, as the Server counts them. */
   proposedFindings?: Record<string, number>;
-  reviews?: Record<string, AuditReviewRequest[]>;
   profiles?: AuditProfile[];
   workflows?: WorkflowSummary[];
 }
@@ -124,7 +107,6 @@ function answer(server: FakeServer, url: URL): Response {
           ),
         ),
     ),
-    reviews: Object.values(server.reviews ?? {}).flat(),
   });
   if (ownerResponse !== undefined) return ownerResponse;
   if (path === "/v1/projects") return json(page(server.projects ?? []));
@@ -134,20 +116,6 @@ function answer(server: FakeServer, url: URL): Response {
   if (projectAudits !== null) {
     const projectId = decodeURIComponent(projectAudits[1] ?? "");
     return json(page(server.audits?.[projectId] ?? []));
-  }
-  const perAudit = /^\/v1\/audits\/([^/]+)\/(findings|reviews)$/.exec(path);
-  if (perAudit !== null) {
-    const auditId = decodeURIComponent(perAudit[1] ?? "");
-    const summary = { auditRevision: 1, asOf: "2026-10-03T10:00:00Z" };
-    if (perAudit[2] === "findings") {
-      const total =
-        url.searchParams.get("state") === "proposed"
-          ? (server.proposedFindings?.[auditId] ?? 0)
-          : 0;
-      return json({ ...summary, total, ...page([]) });
-    }
-    const reviews = server.reviews?.[auditId] ?? [];
-    return json({ ...summary, total: reviews.length, ...page(reviews) });
   }
   return json(page([]));
 }

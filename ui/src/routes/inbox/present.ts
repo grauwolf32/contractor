@@ -3,16 +3,11 @@
  * from the shared vocabulary (src/app/vocabulary.ts); nothing here reads the
  * Server.
  */
-import type { AuditCollection } from "../../api/audit-collections";
-import type { Audit, AuditItem, AuditWorkspace } from "../../api/audits";
-import type {
-  CrossProjectCheck,
-  CrossProjectDecision,
-} from "../../api/cross-project";
+import type { Audit, AuditWorkspace } from "../../api/audits";
+import type { CrossProjectCheck } from "../../api/cross-project";
 import type { RunStatus, RunSummary } from "../../api/runs";
 import { formatNumber, plural } from "../../app/format";
 import {
-  capitalize,
   checkItemKind,
   COVERAGE_STATUS_LABELS,
   itemCount,
@@ -90,10 +85,6 @@ export function followUpPath(projectId: string, auditId: string): string {
   return `${sectionPath(projectId, auditId, "coverage")}?result=uncertain`;
 }
 
-export function pendingReviewsPath(projectId: string, auditId: string) {
-  return `${sectionPath(projectId, auditId, "reviews")}?state=pending`;
-}
-
 export function issuePath(auditId: string, findingId: string): string {
   return `/issues/${segment(auditId)}/${segment(findingId)}`;
 }
@@ -117,13 +108,6 @@ export function rowPage(row: InboxRow): string {
         row.issue.finding.projectId,
         row.issue.finding.findingId,
       );
-    case "review":
-      return row.decision.review.kind === "report-acceptance"
-        ? reportPath(row.decision.audit.auditId)
-        : pendingReviewsPath(
-            row.decision.project.projectId,
-            row.decision.audit.auditId,
-          );
     case "check":
       return checkPath(row.check.project.projectId, row.check.audit.auditId);
     case "report":
@@ -227,39 +211,6 @@ export function gapsTitle(gaps: number, kind: ItemKind): string {
 /** What a check's work items are called. */
 export function checkKind(check: CrossProjectCheck): ItemKind {
   return checkItemKind(check.audit);
-}
-
-// OpenAPI operation keys are opaque digests; the ordinal names those items.
-const OPAQUE_SUBJECT = /^op-[a-f0-9]{16,}$/i;
-
-/** A work item for people: its key, or "Endpoint 3" for an opaque key. */
-export function itemLabel(item: AuditItem): string {
-  return OPAQUE_SUBJECT.test(item.subjectKey)
-    ? `${capitalize(itemNoun(checkItemKind(item), 1))} ${item.ordinal + 1}`
-    : item.subjectKey;
-}
-
-/**
- * The work item an approval or applicability request is about, when the
- * check's items have been read; undefined otherwise (and for a report).
- */
-export function reviewSubjectItem(
-  decision: CrossProjectDecision,
-  items: ReadonlyMap<string, AuditCollection<AuditItem>>,
-): AuditItem | undefined {
-  if (decision.review.subjectKind !== "audit-item-action") return undefined;
-  return items
-    .get(decision.audit.auditId)
-    ?.items.find((item) => item.itemId === decision.review.subjectId);
-}
-
-/** "Active test approval: WSTG-ATHN-01" or "Report acceptance: crapi". */
-export function reviewTitle(
-  decision: CrossProjectDecision,
-  item: AuditItem | undefined,
-  kindLabel: string,
-): string {
-  return `${kindLabel}: ${item === undefined ? decision.project.name : itemLabel(item)}`;
 }
 
 type OutputArtifact = NonNullable<OutputEntry["artifact"]>;

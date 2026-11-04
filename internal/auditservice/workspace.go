@@ -11,10 +11,6 @@ type FindingPage struct {
 	Items         []auditstore.ProjectFindingSummary
 	auditstore.FindingPageBasis
 }
-type ReviewPage struct {
-	Items []auditstore.ReviewRequest
-	auditstore.PageBasis
-}
 
 func (s *Service) GetWorkspace(ctx context.Context, ownerID, auditID string) (auditstore.WorkspaceSummary, error) {
 	return s.reads().GetWorkspace(ctx, ownerID, auditID)
@@ -76,21 +72,4 @@ func (s *Service) ListFindingsPage(ctx context.Context, params auditstore.Findin
 		return result, auditstore.ErrConflict
 	}
 	return result, nil
-}
-
-func (s *Service) ListReviewsPage(ctx context.Context, params auditstore.ReviewListParams) (ReviewPage, error) {
-	var result ReviewPage
-	basis, err := s.reads().ReviewPageBasis(ctx, params)
-	if err != nil {
-		return result, err
-	}
-	result.PageBasis = basis
-	if params.AuditRevision != nil && *params.AuditRevision != result.AuditRevision {
-		return result, auditstore.ErrConflict
-	}
-	result.Items, err = s.ListReviews(ctx, params)
-	if err != nil {
-		return result, err
-	}
-	return result, s.checkPageRevision(ctx, params.OwnerID, params.AuditID, result.AuditRevision)
 }

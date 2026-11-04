@@ -15,12 +15,12 @@ func TestEventSummaryPublicProjection(t *testing.T) {
  "message":"secret","rationale":"private","requestDigest":"digest",
  "previousStopReason":{"Message":"secret"},"reason":"sensitive text","future":{"secret":"value"}
 }`))
-	for _, key := range []string{"message", "rationale", "requestDigest", "previousStopReason", "reason", "future"} {
+	for _, key := range []string{"message", "rationale", "requestDigest", "previousStopReason", "reason", "future", "subjectKind", "kind", "action", "reviews"} {
 		if _, ok := result[key]; ok {
 			t.Fatalf("unsafe summary member %q exposed", key)
 		}
 	}
-	if len(result) != 18 || result["action"] != "approve" || result["items"] != int64(50) {
+	if len(result) != 14 || result["items"] != int64(50) {
 		t.Fatalf("structured summary = %#v", result)
 	}
 	for _, raw := range []string{`null`, `{`, `[]`, `{"items":-1,"count":2147483648,"runId":"https://secret","kind":"unknown","to":"arbitrary text","action":"execute","verdict":"unsupported","role":"unknown"}`} {

@@ -15,25 +15,12 @@ import (
 )
 
 // claimCondition is one reconcile condition of the candidate matrix: an
-// Audit state with the executions, deadline, report review and item approval
-// that decide whether the Audit is a candidate.
+// Audit state and executions that decide whether the Audit is a candidate.
 type claimCondition struct {
 	name  string
 	state auditstore.AuditState
 	// execution is the state of the Audit's one execution, if it has one.
 	execution string
-	// deadline places the deadline that long from now; an hour by default.
-	deadline string
-	// report is the state of the report review, if there is one: pending,
-	// due (pending past its expiry), expired or decided.
-	report string
-	// item is the state of the Audit's one item that needs an approval, if it
-	// has one; review is the state of its approval request (pending, due,
-	// expired, approved or rejected, the last two past their expiry),
-	// replacement that of a second request for the same approval, and
-	// otherDigest asks for both requests to approve another digest.
-	item, review, replacement string
-	otherDigest               bool
 	// candidate is whether the Audit passes the reconcile predicate.
 	candidate bool
 }
@@ -49,22 +36,6 @@ var claimConditions = []claimCondition{
 	{name: "paused with an intent", state: auditstore.AuditPaused, execution: "intent"},
 	{name: "paused with a submitted execution", state: auditstore.AuditPaused, execution: "submitted", candidate: true},
 	{name: "paused with a collecting execution", state: auditstore.AuditPaused, execution: "collecting", candidate: true},
-	{name: "waiting before the deadline", state: auditstore.AuditWaitingReview},
-	{name: "waiting past the deadline without a report", state: auditstore.AuditWaitingReview, deadline: "-1 hour", candidate: true},
-	{name: "waiting past the deadline with a report", state: auditstore.AuditWaitingReview, deadline: "-1 hour", report: "pending"},
-	{name: "waiting with an expired report review", state: auditstore.AuditWaitingReview, report: "expired", candidate: true},
-	{name: "waiting with a report review past its expiry", state: auditstore.AuditWaitingReview, report: "due", candidate: true},
-	{name: "waiting with a decided report review", state: auditstore.AuditWaitingReview, report: "decided"},
-	{name: "waiting with an expired item approval", state: auditstore.AuditWaitingReview, item: "awaiting_review", review: "expired", candidate: true},
-	{name: "waiting with an item approval past its expiry", state: auditstore.AuditWaitingReview, item: "awaiting_review", review: "due", candidate: true},
-	{name: "waiting with an approved item approval past its expiry", state: auditstore.AuditWaitingReview, item: "awaiting_review", review: "approved", candidate: true},
-	{name: "waiting with a rejected item approval past its expiry", state: auditstore.AuditWaitingReview, item: "awaiting_review", review: "rejected"},
-	{name: "waiting with a pending item approval", state: auditstore.AuditWaitingReview, item: "awaiting_review", review: "pending"},
-	{name: "waiting with an expired approval of a ready item", state: auditstore.AuditWaitingReview, item: "ready", review: "expired", candidate: true},
-	{name: "waiting with an expired approval of a settled item", state: auditstore.AuditWaitingReview, item: "settled", review: "expired"},
-	{name: "waiting with an expired approval of another digest", state: auditstore.AuditWaitingReview, item: "awaiting_review", review: "expired", otherDigest: true},
-	{name: "waiting with an expired item approval and a pending replacement", state: auditstore.AuditWaitingReview, item: "awaiting_review", review: "expired", replacement: "pending"},
-	{name: "waiting with an expired item approval and an approved replacement", state: auditstore.AuditWaitingReview, item: "awaiting_review", review: "expired", replacement: "approved"},
 	{name: "draft", state: auditstore.AuditDraft},
 	{name: "completed", state: auditstore.AuditCompleted},
 	{name: "cancelled", state: auditstore.AuditCancelled},
@@ -127,7 +98,7 @@ UPDATE audit_controller_claims
  WHERE audit_id = $1`, f.audit.AuditID); err != nil {
 		t.Fatal(err)
 	}
-	roundID := seedReviewRows(t, f.ctx, f.pool, f.audit.AuditID, f.itemID)
+	_ = seedItemRows(t, f.ctx, f.pool, f.audit.AuditID, f.itemID)
 	setup, err := f.pool.Begin(f.ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -155,9 +126,6 @@ UPDATE audit_controller_claims
 		case condition.state == auditstore.AuditDeleting:
 			overrides["deletion_requested_at"] = `clock_timestamp()`
 		}
-		if condition.deadline != "" {
-			overrides["deadline_at"] = `clock_timestamp() + interval '` + condition.deadline + `'`
-		}
 		cloneRows(t, f.ctx, setup, "audits", "audit_id", f.audit.AuditID, 1, overrides)
 		holder := map[string]string{
 			"free":    `NULL, NULL, NULL`,
@@ -168,10 +136,6 @@ UPDATE audit_controller_claims
 INSERT INTO audit_controller_claims (audit_id, epoch, holder_id, claimed_at, expires_at)
 VALUES ($1, $2, `+holder+`)`, audit.id, int64(audit.epoch)); err != nil {
 			t.Fatal(err)
-		}
-		round := quote(audit.id + "-round")
-		if condition.report != "" || condition.item != "" {
-			cloneRows(t, f.ctx, setup, "audit_rounds", "round_id", roundID, 1, map[string]string{"round_id": round, "audit_id": id})
 		}
 		if condition.execution != "" {
 			execution := map[string]string{
@@ -190,38 +154,7 @@ VALUES ($1, $2, `+holder+`)`, audit.id, int64(audit.epoch)); err != nil {
 			}
 			cloneRows(t, f.ctx, setup, "audit_executions", "execution_id", f.execution.ExecutionID, 1, execution)
 		}
-		if condition.report != "" {
-			state, expires := claimReviewState(condition.report)
-			if _, err := setup.Exec(f.ctx, `
-INSERT INTO audit_review_requests (request_id, audit_id, kind, subject_revision, subject_digest, requested_actions,
-       state, expires_at, idempotency_key, request_digest, subject_kind, subject_id,
-       report_round_id, report_machine_link, report_summary_link)
-VALUES ($1 || '-report', $1, 'report-acceptance', 1, $2, '["accept"]', $3, clock_timestamp() + $4::interval,
-        $1 || '-report', $2, 'audit-report', $1, $1 || '-round', '{}', '{}')`,
-				audit.id, testDigest("c"), state, expires); err != nil {
-				t.Fatal(err)
-			}
-		}
-		if condition.item != "" {
-			finalDisposition := `NULL`
-			if condition.item == "settled" {
-				finalDisposition = `'excluded'`
-			}
-			cloneRows(t, f.ctx, setup, "audit_items", "item_id", f.itemID, 1, map[string]string{
-				"item_id": quote(audit.id + "-item"), "audit_id": id, "round_id": round,
-				"state": quote(condition.item), "final_disposition": finalDisposition,
-				"accepted_result_ref": `NULL`, "accepted_result_digest": `NULL`, "last_execution_item_id": `NULL`,
-				"approval_kind": `'active-check-approval'`, "approval_subject_digest": quote(testDigest("a")),
-			})
-			digest := testDigest("a")
-			if condition.otherDigest {
-				digest = testDigest("b")
-			}
-			insertClaimItemReview(t, f.ctx, setup, audit.id, "-approval", digest, condition.review)
-			if condition.replacement != "" {
-				insertClaimItemReview(t, f.ctx, setup, audit.id, "-replacement", digest, condition.replacement)
-			}
-		}
+
 	}
 	if _, err := setup.Exec(f.ctx, `ALTER TABLE audit_executions ENABLE TRIGGER USER`); err != nil {
 		t.Fatal(err)
@@ -230,63 +163,10 @@ VALUES ($1 || '-report', $1, 'report-acceptance', 1, $2, '["accept"]', $3, clock
 		t.Fatal(err)
 	}
 	if _, err := f.pool.Exec(f.ctx, `ANALYZE audits, audit_controller_claims, audit_executions, audit_rounds,
-       audit_items, audit_review_requests, audit_review_decisions`); err != nil {
+       audit_items`); err != nil {
 		t.Fatal(err)
 	}
 	return f
-}
-
-// claimReviewState returns the stored state of a review request the matrix
-// names, and the time from now at which it expires.
-func claimReviewState(review string) (state, expires string) {
-	switch review {
-	case "pending":
-		return "pending", "1 hour"
-	case "due":
-		return "pending", "-1 hour"
-	case "expired":
-		return "expired", "-1 hour"
-	case "decided":
-		return "decided", "1 hour"
-	case "approved", "rejected":
-		return "decided", "-1 hour"
-	}
-	panic("unknown review " + review)
-}
-
-// insertClaimItemReview stores an approval request of the matrix Audit's
-// item named by suffix and, for a decided one, its decision: approved and
-// rejected requests are past their expiry, while a replacement that is
-// approved, like a pending one, lasts another hour and is live.
-func insertClaimItemReview(t *testing.T, ctx context.Context, tx pgx.Tx, auditID, suffix, digest, review string) {
-	t.Helper()
-	state, expires := claimReviewState(review)
-	action := "approve"
-	if review == "rejected" {
-		action = "reject"
-	}
-	if suffix == "-replacement" && review == "approved" {
-		expires = "1 hour"
-	}
-	requestID := auditID + suffix
-	if _, err := tx.Exec(ctx, `
-INSERT INTO audit_review_requests (request_id, audit_id, kind, subject_revision, subject_digest, requested_actions,
-       state, expires_at, idempotency_key, request_digest, subject_kind, subject_id)
-VALUES ($1, $2, 'active-check-approval', 1, $3, '["approve","reject"]', $4, clock_timestamp() + $5::interval,
-        $1, $3, 'audit-item-action', $2 || '-item')`,
-		requestID, auditID, digest, state, expires); err != nil {
-		t.Fatal(err)
-	}
-	if state != "decided" {
-		return
-	}
-	if _, err := tx.Exec(ctx, `
-INSERT INTO audit_review_decisions (decision_id, request_id, audit_id, actor_id, rationale, subject_revision,
-       subject_digest, idempotency_key, request_digest, action)
-VALUES ($1 || '-decision', $1, $2, 'reviewer', 'decided by the matrix', 1, $3, $1 || '-decision', $3, $4)`,
-		requestID, auditID, digest, action); err != nil {
-		t.Fatal(err)
-	}
 }
 
 // matrixClaimer leases up to limit Audits to the matrix controller in tx.
@@ -390,7 +270,7 @@ func TestPostgresAuditClaimLeasesTheOriginalCandidatesInOrder(t *testing.T) {
 	audits := claimMatrix()
 	f := newClaimMatrixFixture(t, audits)
 	expected := expectedClaimOrder(audits)
-	if len(expected) < 20 {
+	if len(expected) < 12 {
 		t.Fatalf("the matrix has %d candidates, want enough to order", len(expected))
 	}
 	names := make(map[string]string, len(audits))

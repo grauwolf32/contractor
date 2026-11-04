@@ -215,13 +215,11 @@ func transitionAllowed(from, to auditstore.AuditState) bool {
 	case auditstore.AuditDraft:
 		return to == auditstore.AuditActive || to == auditstore.AuditDeleting
 	case auditstore.AuditActive:
-		return to == auditstore.AuditWaitingReview || to == auditstore.AuditPaused || to == auditstore.AuditFinalizing || to == auditstore.AuditCancelling
-	case auditstore.AuditWaitingReview:
-		return to == auditstore.AuditActive || to == auditstore.AuditPaused || to == auditstore.AuditFinalizing || to == auditstore.AuditCancelling
+		return to == auditstore.AuditPaused || to == auditstore.AuditFinalizing || to == auditstore.AuditCancelling
 	case auditstore.AuditPaused:
 		return to == auditstore.AuditActive || to == auditstore.AuditCancelling
 	case auditstore.AuditFinalizing:
-		return to == auditstore.AuditWaitingReview || to == auditstore.AuditCompleted || to == auditstore.AuditFailed || to == auditstore.AuditCancelling
+		return to == auditstore.AuditCompleted || to == auditstore.AuditFailed || to == auditstore.AuditCancelling
 	case auditstore.AuditCancelling:
 		return to == auditstore.AuditCancelled || to == auditstore.AuditDeleting
 	case auditstore.AuditCompleted, auditstore.AuditCancelled, auditstore.AuditFailed:
@@ -272,13 +270,13 @@ func validateResume(params auditstore.ResumeParams) error {
 
 // ownerTransitionAllowed lists the plain owner transitions. Paused to active
 // is deliberately absent: only Resume may reopen dispatch, because it also
-// renews the hold, deadline and expired reviews behind the Project gate.
+// renews the hold and deadline behind the Project gate.
 func ownerTransitionAllowed(from, to auditstore.AuditState) bool {
 	if to == auditstore.AuditPaused {
-		return from == auditstore.AuditActive || from == auditstore.AuditWaitingReview
+		return from == auditstore.AuditActive
 	}
 	if to == auditstore.AuditCancelling {
-		return from == auditstore.AuditActive || from == auditstore.AuditWaitingReview ||
+		return from == auditstore.AuditActive ||
 			from == auditstore.AuditPaused || from == auditstore.AuditFinalizing
 	}
 	return false
@@ -297,24 +295,6 @@ func ValidateClaimedTransition(params auditstore.ClaimedTransitionParams) error 
 		!params.TargetState.Valid() || !transitionAllowed(params.ExpectedState, params.TargetState) ||
 		(params.ExpectedState == auditstore.AuditDraft && params.TargetState == auditstore.AuditActive) {
 		return invalidf("claimed Audit transition is invalid")
-	}
-	if params.Reason != nil {
-		if err := validateText("reason code", params.Reason.Code, 128, true); err != nil {
-			return err
-		}
-		return validateText("reason message", params.Reason.Message, auditstore.MaxStopReasonMessageBytes, false)
-	}
-	return nil
-}
-
-func validateTrustedTransition(params auditstore.TrustedTransitionParams) error {
-	if err := validateID("auditID", params.AuditID); err != nil {
-		return err
-	}
-	if params.ExpectedRevision == 0 || params.ExpectedRevision > math.MaxInt64 || !params.ExpectedState.Valid() ||
-		!params.TargetState.Valid() || !transitionAllowed(params.ExpectedState, params.TargetState) ||
-		(params.ExpectedState == auditstore.AuditDraft && params.TargetState == auditstore.AuditActive) {
-		return invalidf("trusted Audit transition is invalid")
 	}
 	if params.Reason != nil {
 		if err := validateText("reason code", params.Reason.Code, 128, true); err != nil {
@@ -500,22 +480,8 @@ func validateRoundItems(items []auditstore.MaterializedItem) error {
 		if err := validateText("item Workflow role", item.WorkflowRole, 128, true); err != nil {
 			return err
 		}
-		if item.InitialState != auditstore.ItemReady && item.InitialState != auditstore.ItemAwaitingReview {
+		if item.InitialState != auditstore.ItemReady {
 			return invalidf("round item initial state is invalid")
-		}
-		approvalKind := item.ApprovalKind
-		if approvalKind == "" {
-			approvalKind = auditstore.ItemApprovalNone
-		}
-		if !approvalKind.Valid() ||
-			(approvalKind == auditstore.ItemApprovalNone) != (item.ApprovalDigest == "") ||
-			(item.InitialState == auditstore.ItemAwaitingReview) != (approvalKind != auditstore.ItemApprovalNone) {
-			return invalidf("round item approval is invalid")
-		}
-		if item.ApprovalDigest != "" {
-			if err := validateDigest("item approval digest", item.ApprovalDigest); err != nil {
-				return err
-			}
 		}
 		if err := validateExactArtifact("item task", item.Task, false); err != nil {
 			return err
@@ -855,20 +821,6 @@ func validateArtifactLinks(links []auditstore.ArtifactLink) (int64, error) {
 		return 0, invalidf("retained artifact refs are too large")
 	}
 	return retainedBytes, nil
-}
-
-func validateReportDecision(params auditstore.ReportDecisionParams) error {
-	if err := validateID("auditID", params.AuditID); err != nil {
-		return err
-	}
-	if err := validateID("report review request ID", params.RequestID); err != nil {
-		return err
-	}
-	if params.ExpectedAuditRevision == 0 || params.ExpectedAuditRevision > math.MaxInt64 ||
-		params.SubjectRevision == 0 || params.SubjectRevision > math.MaxInt64 {
-		return invalidf("Audit report decision revision is invalid")
-	}
-	return validateDigest("Audit report subject digest", params.SubjectDigest)
 }
 
 func validateCommitReport(params auditstore.CommitReportParams) error {
