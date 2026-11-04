@@ -276,7 +276,9 @@ def test_scoped_read_preserves_errors_and_does_not_snapshot_memory_views(
     asyncio.run(scenario())
 
 
-def test_large_file_reads_and_grep_keep_event_loop_responsive(tmp_path: Path) -> None:
+def test_large_file_reads_and_grep_keep_event_loop_responsive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     async def scenario() -> None:
         line = "x" * 79 + "\n"
         text = line * (filesystem_module.MAX_READ_SCAN_BYTES // len(line)) + "x" * 16
@@ -285,20 +287,41 @@ def test_large_file_reads_and_grep_keep_event_loop_responsive(tmp_path: Path) ->
         tools = await create_tools(
             FilesystemToolsetFactory(), reader, WorkerState(), tmp_path, ["read_file", "grep"]
         )
+
+        async def off_thread(operation, target):
+            loop_thread = threading.get_ident()
+            entered, resume = threading.Event(), threading.Event()
+            original = getattr(filesystem_module, target)
+
+            def held(*args, **kwargs):
+                assert threading.get_ident() != loop_thread
+                entered.set()
+                if not resume.wait(10):
+                    raise RuntimeError("test never released filesystem CPU work")
+                return original(*args, **kwargs)
+
+            with monkeypatch.context() as patch:
+                patch.setattr(filesystem_module, target, held)
+                running = asyncio.create_task(operation)
+                try:
+                    assert await asyncio.to_thread(entered.wait, 5)
+                    assert not running.done()
+                finally:
+                    resume.set()
+                return await asyncio.wait_for(running, 10)
+
         try:
             for start_line in (1, 100_000):
-                result, gap = await _call_with_loop_gap(
-                    tools["read_file"]("big.txt", start_line, 200)
+                result = await off_thread(
+                    tools["read_file"]("big.txt", start_line, 200), "_read_file_window"
                 )
                 assert result["startLine"] == start_line
                 assert result["totalLines"] == text.count("\n") + 1
-                assert gap < 0.12
             for use_regex in (False, True):
-                result, gap = await _call_with_loop_gap(
-                    tools["grep"]("missing", "", "**/*", use_regex)
+                result = await off_thread(
+                    tools["grep"]("missing", "", "**/*", use_regex), "_scan_grep"
                 )
                 assert result["matches"] == []
-                assert gap < 0.12
         finally:
             await tools["read_file"].close()
             await tools["grep"].close()
@@ -496,30 +519,6 @@ def _reference_pages(paths: list[str], pattern: str, limit: int) -> list[tuple[l
         pages.append((page, scanned))
         if index >= len(paths):
             return pages
-
-
-async def _call_with_loop_gap(operation: Any) -> tuple[dict[str, Any], float]:
-    loop = asyncio.get_running_loop()
-    gaps: list[float] = []
-    stopped = False
-
-    async def ticker() -> None:
-        previous = loop.time()
-        while not stopped:
-            await asyncio.sleep(0.005)
-            current = loop.time()
-            gaps.append(current - previous)
-            previous = current
-
-    ticking = asyncio.create_task(ticker())
-    await asyncio.sleep(0.01)
-    try:
-        result = await operation
-    finally:
-        stopped = True
-        await ticking
-    assert gaps
-    return result, max(gaps)
 
 
 async def workspace(mode: str, name: str) -> DirectWorkspaceSession:

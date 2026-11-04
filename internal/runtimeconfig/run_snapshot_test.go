@@ -1,9 +1,40 @@
 package runtimeconfig
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
+
+func TestSharedRunSnapshotCredentialSetsUseByteOrder(t *testing.T) {
+	var fixture struct {
+		Cases []struct {
+			Name  string   `json:"name"`
+			IDs   []string `json:"ids"`
+			Valid bool     `json:"valid"`
+		} `json:"cases"`
+	}
+	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "runtime-snapshot-credential-sets.json"), &fixture); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range fixture.Cases {
+		t.Run(c.Name, func(t *testing.T) {
+			for _, llm := range []bool{false, true} {
+				snapshot := builtInRunSnapshot()
+				if llm {
+					snapshot.LLMCredentialIDs = c.IDs
+				} else {
+					snapshot.RuntimeCredentialIDs = c.IDs
+				}
+				if err := snapshot.Validate(); (err == nil) != c.Valid {
+					t.Fatalf("llm=%t: valid=%t, error=%v", llm, c.Valid, err)
+				}
+			}
+		})
+	}
+}
 
 // builtInRunSnapshot pins the default label to the built-in RuntimeConfig,
 // as runtimeconfigtest.BuiltInRunSnapshot does for other packages' tests.

@@ -10,6 +10,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from fakes.clock import advance_clock, run_with_advanceable_clock
 from fakes.model import scripted_model, text_result, tool_call
 from fakes.spec import allocation_spec
 from filesystem_audit import FilesystemAudit
@@ -320,6 +321,11 @@ def test_interrupted_adk_skill_cleanup_keeps_the_slot_fenced(
                 running.cancel()
                 with pytest.raises(asyncio.CancelledError):
                     await running
+                if component == "native":
+                    # ADK joins its shielded ten-second toolset-close timer.
+                    # The native owner is already held at resume.wait().
+                    assert any(not task.done() for task in closing_tasks)
+                    advance_clock(11)
             else:
                 resume.set()
                 with pytest.raises(AllocationError) as failed:
@@ -343,7 +349,7 @@ def test_interrupted_adk_skill_cleanup_keeps_the_slot_fenced(
         # this is not a successful-release or weakref assertion.
         await owner.close()
 
-    asyncio.run(scenario())
+    run_with_advanceable_clock(scenario())
 
 
 def test_cancelled_release_joins_one_cleanup_before_skill_slot_reuse(

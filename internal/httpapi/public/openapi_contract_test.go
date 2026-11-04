@@ -2,6 +2,7 @@ package public
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -861,22 +863,31 @@ func TestProjectRunHandlersConformToOpenAPI(t *testing.T) {
 	}
 }
 
-func loadPublicOpenAPI(t *testing.T) *openapi3.T {
-	t.Helper()
+// Tests read this validated document without mutation. Routers, requests and
+// handler fixtures remain local to each test; kin-openapi caches patterns safely.
+var preparedPublicOpenAPI = sync.OnceValues(func() (*openapi3.T, error) {
 	loader := openapi3.NewLoader()
 	loader.IsExternalRefsAllowed = false
 	document, err := loader.LoadFromFile(publicOpenAPIPath)
 	if err != nil {
-		t.Fatalf("load public OpenAPI: %v", err)
+		return nil, fmt.Errorf("load public OpenAPI: %w", err)
 	}
-	if err := document.Validate(
-		t.Context(),
+	if err := document.Validate(context.Background(),
 		openapi3.EnableExamplesValidation(),
 		openapi3.EnableSchemaFormatValidation(),
 		openapi3.EnableSchemaPatternValidation(),
 		openapi3.EnableMultiError(),
 	); err != nil {
-		t.Fatalf("validate public OpenAPI: %v", err)
+		return nil, fmt.Errorf("validate public OpenAPI: %w", err)
+	}
+	return document, nil
+})
+
+func loadPublicOpenAPI(t *testing.T) *openapi3.T {
+	t.Helper()
+	document, err := preparedPublicOpenAPI()
+	if err != nil {
+		t.Fatal(err)
 	}
 	return document
 }
