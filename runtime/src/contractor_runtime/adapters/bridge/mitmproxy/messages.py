@@ -29,6 +29,7 @@ def end_to_end(headers):
 
 
 def request_target(url: str) -> bytes:
+    """Extract the path/query of a URL already admitted by canonical_url."""
     parsed = urlsplit(url)
     return (parsed.path + ("?" + parsed.query if "?" in url else "")).encode("ascii")
 

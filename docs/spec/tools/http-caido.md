@@ -1347,6 +1347,10 @@ configured request/response-body limits may tighten them. Do not decompress or
 re-encode bodies: native messages carry raw bytes and preserve Content-Encoding.
 Native target equality uses exact path/query components (including an empty `?`)
 and bracketed IPv6 authority; it must not depend on lossy library URL rendering.
+Scanner ingress validates the original absolute-form target against canonical_url
+before native parsing or path extraction can erase forbidden syntax (including
+fragments or noncanonical authority). Reconstructed native URL and Host/authority
+checks remain additional admission checks; rejection sends no target traffic.
 Scanner response framing preserves HEAD/304 Content-Length metadata, omits a
 204 body/Content-Length, and otherwise measures the raw transmitted bytes. HTTP/1.1 chunk size/extension
 lines and incomplete trailers have bounded parser retention (the common header

@@ -34,6 +34,7 @@ class IngressHttp1(BoundedHttp1Body, _http1.Http1Server):
         return request_header_max_bytes(), self.header_bytes, len(self.request.headers.fields)
 
     def read_headers(self, event):
+        path = None
         if isinstance(event, events.DataReceived):
             buffered = bytes(self.buf)
             end = buffered.find(b"\r\n\r\n")
@@ -49,19 +50,32 @@ class IngressHttp1(BoundedHttp1Body, _http1.Http1Server):
                 yield commands.CloseConnection(self.conn)
                 self.stop_input()
                 return
-        # Native absolute-form parsing uses urlparse, which erases a trailing '?'.
-        # Restore only the exact target path after its normal syntax validation.
-        target = bytes(self.buf).split(b"\r\n", 1)[0].split(b" ")
+            target = buffered.split(b"\r\n", 1)[0].split(b" ")
+            if (
+                end >= 0
+                and len(target) == 3
+                and target[0] != b"CONNECT"
+                and not target[1].startswith(b"/")
+                and target[1] != b"*"
+            ):
+                try:
+                    raw = target[1].decode("ascii")
+                    if canonical_url(raw) != raw:
+                        raise ValueError("noncanonical target")
+                    path = request_target(raw).decode("ascii")
+                except ValueError:
+                    self.stop_input()
+                    yield commands.CloseConnection(self.conn)
+                    return
+        # Native absolute-form parsing erases an empty '?'. Restore only a
+        # target admitted above, before any parser could remove forbidden syntax.
         for command in super().read_headers(event):
             if (
                 isinstance(command, native_http.ReceiveHttp)
                 and isinstance(command.event, native_http.RequestHeaders)
-                and len(target) == 3
-                and target[1].startswith((b"http://", b"https://"))
+                and path is not None
             ):
-                command.event.request.path = request_target(target[1].decode("ascii")).decode(
-                    "ascii"
-                )
+                command.event.request.path = path
             yield command
 
 

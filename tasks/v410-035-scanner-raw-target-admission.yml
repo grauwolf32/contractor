@@ -1,0 +1,62 @@
+schema_version: '1.0'
+id: V410-035
+title: Validate scanner request targets before native URL normalization
+milestone: project-sitemap-2026-10
+epic: http-tools
+kind: defect
+introduced_by: V410-032
+priority: P2
+status: in_progress
+depends_on: [V410-032]
+languages: [python, markdown, json]
+goal: Scanner ingress rejects forbidden or noncanonical source targets before any target traffic or lossy URL conversion.
+context:
+  authority: User review 2026-11-04 of cd00a5ab0d593752224e9b173cf4395b3ac00bf1 reports fragment and noncanonical authority normalization before admission.
+  finding: >-
+    bridge/mitmproxy/ingress.py:62 restores request paths through messages.py:31
+    request_target/urlsplit, discarding a raw fragment. Native parsing also normalizes
+    authority such as :080 before native_url is checked. A real scanner request to
+    /allowed#forbidden reaches /allowed and completes instead of failing closed.
+  siblings: >-
+    HTTP/1.1 absolute-form ingress, origin-form requests inside CONNECT, CONNECT
+    authority and HTTP/2 :authority/:path. Native component equality and Host checks
+    remain required. Programmatic requests already validate their original URL;
+    redirect sources already validate raw syntax before resolution.
+  specification:
+  - docs/spec/tools/http-caido.md#HTP-R137
+  - docs/spec/tools/http-caido.md#HTP-R139
+  - docs/spec/tools/http-caido.md#HTP-R148
+  boundary_decision: >-
+    Reuse canonical_url against the original ASCII absolute target before native
+    parsing or request_target/urlsplit. Preserve exact approved path/query, and keep
+    native_url equality as an independent check. Unsupported input fails with existing
+    scanner request failure, without target bytes, retries or content diagnostics.
+scope:
+  in:
+  - Reject fragments and noncanonical authority/path syntax in original scanner targets before normalization.
+  - Verify sibling source forms preserve the same admission rule and valid HTTP/1.1 and HTTP/2 requests still work.
+  - Add real bridge plus HTTPTransport plus target-socket regressions, including fragmented ingress headers and valid empty queries.
+  out:
+  - New canonical grammar, protocol capabilities, Server/API changes or Podman timeout changes.
+acceptance_criteria:
+- id: A1
+  text: Raw forbidden/noncanonical absolute targets fail with a scanner error and zero target connections/bytes; canonical empty-query and semicolon targets remain exact.
+- id: A2
+  text: HTTP/1.1 origin-form, CONNECT authority and HTTP/2 siblings reject forbidden syntax before target traffic, retaining the assembled native URL check.
+- id: A3
+  text: Regressions fail on the reviewed revision; complete affected HTTP/scanner suites, conformance report, lint and spec/task checks pass.
+tests:
+- command: cd runtime && uv run pytest -W error tests/test_bridge_ingress.py tests/test_bridge_messages.py tests/test_bridge_framing.py tests/test_bridge_lifecycle.py tests/test_http_engine.py tests/test_http_proxy_bridge.py tests/test_engagement_socket_conformance.py tests/test_nuclei_engagement.py tests/test_engagement_target.py tests/test_engagement_identity.py tests/test_engagement_allocation.py tests/test_audit_http_credentials.py --junitxml=/tmp/v410-035-focused.xml
+  covers: [A1, A2, A3]
+- command: python3 scripts/test-engagement-http-process.py --verify-python-report /tmp/v410-035-focused.xml
+  covers: [A3]
+- command: make lint
+  covers: [A3]
+- command: python3 scripts/check_spec.py
+  covers: [A3]
+- command: cd runtime && uv run python ../scripts/check_tasks.py
+  covers: [A3]
+verification:
+  red: Eight original-target cases failed on cd00a5ab0d593752224e9b173cf4395b3ac00bf1 (fragments, zero-prefixed ports and Unicode query input); sixteen sibling/valid cases already passed.
+  focused: All 24 ingress cases and the full affected suites passed (215 tests); tests cover real bridge, HTTPTransport and target sockets, split headers, CONNECT, TLS HTTP/2 and exact valid targets.
+  gate: The mandatory Python conformance matrix now includes all new ingress identities.
