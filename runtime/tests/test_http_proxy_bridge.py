@@ -7,7 +7,7 @@ import httpx
 import pytest
 from shared_config_defaults import MAX_REQUEST_BODY_BYTES
 
-from contractor_runtime.adapters.http_proxy_bridge import HTTPProxyBridge
+from contractor_runtime.adapters.bridge import HTTPProxyBridge
 from contractor_runtime.adapters.http_session import PrivateResponse
 from contractor_runtime.adapters.http_transport import HTTPOutcome
 
@@ -18,9 +18,9 @@ class Owner:
         self.engine = None
 
     async def open_proxy(self):
-        from contractor_runtime.adapters.http_engine import HTTPEngine
+        from contractor_runtime.adapters.bridge.mitmproxy.engine import MitmproxyEngine
 
-        self.engine = HTTPEngine(require_authority=lambda: None)
+        self.engine = MitmproxyEngine(require_authority=lambda: None)
         await self.engine.start()
         return self.engine
 
@@ -86,10 +86,10 @@ def test_bridge_delegates_plaintext_and_tls_without_target_resolution(
         try:
             await scenario()
         finally:
-            from contractor_runtime.adapters import http_engine
+            from contractor_runtime.adapters.bridge.mitmproxy import engine as mitmproxy_engine
 
-            if http_engine._active is not None:
-                await http_engine._active.close()
+            if mitmproxy_engine._active is not None:
+                await mitmproxy_engine._active.close()
 
     asyncio.run(joined())
 
@@ -118,10 +118,10 @@ def test_bridge_uses_runtime_cookie_authority_and_keeps_partial_failures(tmp_pat
         try:
             await scenario()
         finally:
-            from contractor_runtime.adapters import http_engine
+            from contractor_runtime.adapters.bridge.mitmproxy import engine as mitmproxy_engine
 
-            if http_engine._active is not None:
-                await http_engine._active.close()
+            if mitmproxy_engine._active is not None:
+                await mitmproxy_engine._active.close()
 
     asyncio.run(joined())
 
@@ -147,10 +147,10 @@ def test_bridge_refuses_unauthenticated_local_client_before_forwarding(tmp_path)
         try:
             await scenario()
         finally:
-            from contractor_runtime.adapters import http_engine
+            from contractor_runtime.adapters.bridge.mitmproxy import engine as mitmproxy_engine
 
-            if http_engine._active is not None:
-                await http_engine._active.close()
+            if mitmproxy_engine._active is not None:
+                await mitmproxy_engine._active.close()
 
     asyncio.run(joined())
 
@@ -187,10 +187,10 @@ def test_bridge_early_engine_exit_joins_and_reports_unfinished_exchange(tmp_path
         try:
             await scenario()
         finally:
-            from contractor_runtime.adapters import http_engine
+            from contractor_runtime.adapters.bridge.mitmproxy import engine as mitmproxy_engine
 
-            if http_engine._active is not None:
-                await http_engine._active.close()
+            if mitmproxy_engine._active is not None:
+                await mitmproxy_engine._active.close()
 
     asyncio.run(joined())
 

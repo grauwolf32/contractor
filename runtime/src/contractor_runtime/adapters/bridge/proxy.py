@@ -7,11 +7,14 @@ import base64
 import json
 import secrets
 import time
+from typing import TYPE_CHECKING
 
-from contractor_runtime.adapters.http_transport import HTTPTransport
 from contractor_runtime.core.async_tasks import join_owned_task
 from contractor_runtime.redaction import redact_private_values
 from contractor_runtime.threads import consume_task_exception
+
+if TYPE_CHECKING:
+    from contractor_runtime.adapters.http_transport import HTTPTransport
 
 
 class HTTPProxyBridge:
@@ -76,10 +79,8 @@ class HTTPProxyBridge:
         return self._proxy_url
 
     def _accept(self, reader, writer):
-        from contractor_runtime.adapters.http_engine_ingress import Ingress
-
         self._writers.add(writer)
-        handler = Ingress(self, reader, writer, self._engine)
+        handler = self._engine.create_ingress(self, reader, writer)
         self._handlers.add(handler)
         task = asyncio.create_task(self._handle(handler, writer), name="http-bridge-request")
         self._tasks.add(task)

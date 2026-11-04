@@ -463,7 +463,7 @@ async def runtime_import_probe():
         "import json, importlib.metadata as m; "
         "import contractor_runtime.allocation.preparation; "
         "import contractor_runtime.adapters.http_transport; "
-        "import contractor_runtime.adapters.http_proxy_bridge; "
+        "import contractor_runtime.adapters.bridge; "
         "from mitmproxy import master; "
         "print(json.dumps({name:m.version(name) for name in "
         "('mitmproxy','google-adk','cryptography','mitmproxy-rs')}))"

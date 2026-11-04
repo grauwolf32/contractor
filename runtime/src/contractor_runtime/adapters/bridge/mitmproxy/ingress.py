@@ -12,7 +12,7 @@ from mitmproxy.proxy.layers import http as native_http
 from mitmproxy.proxy.layers.http import _http1, _http2
 from mitmproxy.proxy.mode_specs import ProxyMode
 
-from contractor_runtime.adapters.http_engine_lifecycle import OwnedHandler
+from contractor_runtime.adapters.bridge.mitmproxy.lifecycle import OwnedHandler
 from contractor_runtime.adapters.http_transport import HTTPTransportError
 from contractor_runtime.contracts.engagement import canonical_url
 from contractor_runtime.core.http_limits import MAX_HEADERS, request_header_max_bytes

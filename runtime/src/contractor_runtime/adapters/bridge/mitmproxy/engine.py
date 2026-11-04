@@ -22,13 +22,14 @@ from mitmproxy.proxy import events, server
 from mitmproxy.proxy.context import Context
 from mitmproxy.proxy.layers.http import HttpErrorHook, HttpResponseHook
 
-from contractor_runtime.adapters.http_engine_lifecycle import OwnedHandler
-from contractor_runtime.adapters.http_engine_protocol import (
+from contractor_runtime.adapters.bridge import BridgeFailure
+from contractor_runtime.adapters.bridge.mitmproxy.lifecycle import OwnedHandler
+from contractor_runtime.adapters.bridge.mitmproxy.protocol import (
     Abort,
     RoutedHttpLayer,
     Submit,
 )
-from contractor_runtime.adapters.http_engine_state import EngineFailure, Exchange
+from contractor_runtime.adapters.bridge.mitmproxy.state import Exchange
 from contractor_runtime.adapters.http_session import PrivateResponse
 from contractor_runtime.adapters.http_transport import HTTPTransportError
 from contractor_runtime.core.async_tasks import join_owned_task
@@ -40,7 +41,7 @@ VERSION = "12.3.1"
 _active = None
 
 
-_dial = contextvars.ContextVar("http_engine_dial")
+_dial = contextvars.ContextVar("bridge_mitmproxy_dial")
 
 
 class _Permit:
@@ -214,7 +215,7 @@ class _Pool(OwnedHandler, server.ConnectionHandler):
 
     async def submit(self, exchange):
         if self.closed:
-            raise EngineFailure("transport_failed")
+            raise BridgeFailure("transport_failed")
         exchange.stream_id = self.next_stream
         self.next_stream += 2
         exchange.flow = http.HTTPFlow(self.client, Server(address=(self.host, self.port)))
@@ -263,7 +264,7 @@ class _Pool(OwnedHandler, server.ConnectionHandler):
         self.verified.clear()
 
 
-class HTTPEngine:
+class MitmproxyEngine:
     """Native engine resource; HTTPTransport remains the sole domain owner."""
 
     def __init__(self, *, require_authority, ssl_context=None):
@@ -350,6 +351,12 @@ class HTTPEngine:
         self.next_layer.configure(set(self.options.keys()))
         self.started = True
         self.starting = False
+
+    def create_ingress(self, bridge, reader, writer):
+        """Construct this implementation's local scanner protocol handler."""
+        from contractor_runtime.adapters.bridge.mitmproxy.ingress import Ingress
+
+        return Ingress(bridge, reader, writer, self)
 
     async def request(self, url, boundary, request, policy, identity, body_limit):
         parsed = urlsplit(url)

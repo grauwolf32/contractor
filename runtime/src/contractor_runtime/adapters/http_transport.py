@@ -10,7 +10,7 @@ from contextlib import nullcontext
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
-from contractor_runtime.adapters.http_engine_state import EngineFailure
+from contractor_runtime.adapters.bridge import BridgeFailure
 from contractor_runtime.adapters.http_policy import HTTPRoutePolicy
 from contractor_runtime.adapters.http_session import IdentitySession
 from contractor_runtime.adapters.http_stream import RequestBoundary
@@ -190,9 +190,9 @@ class HTTPTransport:
                 return
             await self._policy.initialize(self._settings)
             if self._engine is None:
-                from contractor_runtime.adapters.http_engine import HTTPEngine
+                from contractor_runtime.adapters.bridge.mitmproxy import MitmproxyEngine
 
-                self._engine = HTTPEngine(
+                self._engine = MitmproxyEngine(
                     require_authority=self._require_authority, ssl_context=self._ssl
                 )
                 try:
@@ -427,7 +427,7 @@ class HTTPTransport:
                 outcome = self._failure(boundary, "policy_denied")
             except TimeoutError:
                 outcome = self._failure(boundary, "timeout")
-            except EngineFailure as error:
+            except BridgeFailure as error:
                 outcome = self._failure(boundary, error.reason)
             except TargetUnresolved:
                 outcome = self._failure(boundary, "connect_failed")

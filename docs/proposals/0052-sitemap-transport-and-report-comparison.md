@@ -52,7 +52,7 @@ Finding, scanner match и зарегистрированный HTTP response —
 
 [HTTPTransport](../../runtime/src/contractor_runtime/adapters/http_transport.py)
 уже обслуживает controlled HTTP tools и поддержанный HTTP-режим Nuclei.
-Scanner использует [локальный proxy bridge](../../runtime/src/contractor_runtime/adapters/http_proxy_bridge.py),
+Scanner использует [локальный proxy bridge](../../runtime/src/contractor_runtime/adapters/bridge/proxy.py),
 который передаёт отдельные HTTP-запросы тому же transport. Сейчас transport и
 bridge не подписаны на sitemap collector, а controlled HTTP tools обходят
 обычный observation sink. Поэтому эта связка ещё не является готовым общим

@@ -4,7 +4,7 @@ from urllib.parse import urlsplit
 
 import httpcore
 
-from contractor_runtime.adapters.http_engine_state import EngineFailure
+from contractor_runtime.adapters.bridge import BridgeFailure
 from contractor_runtime.adapters.http_session import PrivateResponse
 from contractor_runtime.adapters.http_transport import HTTPTransport
 from fakes.controlled_stream import ControlledBackend
@@ -52,11 +52,11 @@ class Engine:
                         url, response.status, response.headers, bytes(body), truncated
                     )
         except httpcore.ConnectError as error:
-            raise EngineFailure("tls_failed" if error.__cause__ else "connect_failed") from None
+            raise BridgeFailure("tls_failed" if error.__cause__ else "connect_failed") from None
         except httpcore.RemoteProtocolError:
-            raise EngineFailure("response_invalid") from None
+            raise BridgeFailure("response_invalid") from None
         except (httpcore.ReadError, httpcore.WriteError):
-            raise EngineFailure("transport_failed") from None
+            raise BridgeFailure("transport_failed") from None
         finally:
             stream = getattr(boundary, "transport", None)
             if stream is None or stream.closed:

@@ -70,7 +70,7 @@ macOS arm64. Production dependency files и transport не менялись.
 
 ## Текущий bridge и ожидаемая польза
 
-Существующий [HTTPProxyBridge](../../runtime/src/contractor_runtime/adapters/http_proxy_bridge.py)
+Существующий [HTTPProxyBridge](../../runtime/src/contractor_runtime/adapters/bridge/proxy.py)
 предоставляет scanner локальный explicit HTTP proxy с приватным токеном.
 Обычные запросы и HTTPS после `CONNECT` передаются в allocation-owned
 [HTTPTransport](../../runtime/src/contractor_runtime/adapters/http_transport.py).

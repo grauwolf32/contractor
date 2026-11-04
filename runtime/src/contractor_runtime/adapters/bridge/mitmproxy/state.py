@@ -7,13 +7,8 @@ import io
 from dataclasses import dataclass, field
 from typing import Any
 
+from contractor_runtime.adapters.bridge import BridgeFailure
 from contractor_runtime.adapters.http_session import PrivateResponse
-
-
-class EngineFailure(Exception):
-    def __init__(self, reason: str):
-        super().__init__(reason)
-        self.reason = reason
 
 
 @dataclass(eq=False, repr=False)
@@ -50,7 +45,7 @@ class Exchange:
             self.response.truncated = self.truncated
             self.future.set_result(self.response)
         else:
-            self.future.set_exception(EngineFailure(self.reason or "response_invalid"))
+            self.future.set_exception(BridgeFailure(self.reason or "response_invalid"))
 
     def clear(self) -> None:
         self.buffer.close()

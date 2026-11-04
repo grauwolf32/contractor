@@ -286,7 +286,7 @@ def test_socket_redirect_rejects_raw_ambiguous_paths_before_resolution(location)
 
 
 def test_socket_failed_close_keeps_ownership_until_the_real_stream_joins(monkeypatch):
-    from contractor_runtime.adapters.http_engine import _Writer
+    from contractor_runtime.adapters.bridge.mitmproxy.engine import _Writer
 
     permitted = False
 

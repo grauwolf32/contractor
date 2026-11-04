@@ -1317,7 +1317,11 @@ a shared connection failure may terminate other active streams. Cancellation
 and release join all owned callbacks, streams and tasks.
 
 The allocation owns one lazily initialized, pinned mitmproxy 12.3.1 native
-engine. Its native HTTP layers own parsing, framing, HPACK, flow control and TLS.
+engine. The implementation-neutral module is `adapters.bridge`; its existing
+IPC handle and classified failures belong there. The concrete `MitmproxyEngine`
+and native protocol/lifecycle internals belong to `adapters.bridge.mitmproxy`,
+selected by HTTPTransport's existing composition point. Its native HTTP layers
+own parsing, framing, HPACK, flow control and TLS.
 Contractor owns admission, session state, counters and bounded result assembly.
 Programmatic requests enter the native HTTP layer as messages; scanner ingress
 uses the same engine and delegates each target exchange to that owner. There is

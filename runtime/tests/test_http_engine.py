@@ -100,7 +100,7 @@ def test_native_rejects_http10_response():
 
 @pytest.mark.parametrize("phase", ["tcp", "tls"])
 def test_native_expiry_after_connection_setup_prevents_http_bytes(tmp_path, monkeypatch, phase):
-    from contractor_runtime.adapters.http_engine import _Pool
+    from contractor_runtime.adapters.bridge.mitmproxy.engine import _Pool
 
     async def scenario():
         now = time.monotonic()
@@ -141,7 +141,7 @@ def test_native_expiry_after_connection_setup_prevents_http_bytes(tmp_path, monk
 def test_native_http2_cancel_removes_a_request_queued_by_remote_settings(tmp_path, monkeypatch):
     from mitmproxy.proxy.layers.http import RequestHeaders
 
-    from contractor_runtime.adapters.http_engine_protocol import BoundedHttp2Client
+    from contractor_runtime.adapters.bridge.mitmproxy.protocol import BoundedHttp2Client
 
     async def scenario():
         server, trust, _ = tls_contexts(tmp_path)
@@ -190,7 +190,7 @@ def test_native_startup_failure_restores_context_and_allows_clean_next_allocatio
     from mitmproxy import ctx
     from mitmproxy.addons.tlsconfig import TlsConfig
 
-    from contractor_runtime.adapters import http_engine
+    from contractor_runtime.adapters.bridge.mitmproxy import engine as mitmproxy_engine
 
     original = TlsConfig.configure
     previous = {key: getattr(ctx, key, None) for key in ("master", "options", "log")}
@@ -208,13 +208,13 @@ def test_native_startup_failure_restores_context_and_allows_clean_next_allocatio
             monkeypatch.setattr(TlsConfig, "configure", refuse)
             with pytest.raises(RuntimeError, match="injected native startup failure"):
                 await owner.request(target.origin + "/allowed")
-            assert http_engine._active is None and owner._engine is None
+            assert mitmproxy_engine._active is None and owner._engine is None
             assert all(not directory.exists() for directory in directories)
             assert all(getattr(ctx, key, None) is value for key, value in previous.items())
             assert target.written == b""
             monkeypatch.setattr(TlsConfig, "configure", original)
             assert (await owner.request(target.origin + "/allowed"))[0].kind == "completed"
-        assert http_engine._active is None
+        assert mitmproxy_engine._active is None
 
     asyncio.run(scenario())
 
@@ -311,9 +311,9 @@ def test_native_http2_applies_common_body_and_header_bounds(tmp_path, case):
 
 
 def test_native_callback_bug_fails_closed_without_logging_content(monkeypatch, caplog):
-    from contractor_runtime.adapters.http_engine import HTTPEngine
+    from contractor_runtime.adapters.bridge.mitmproxy.engine import MitmproxyEngine
 
-    original = HTTPEngine.handle_hook
+    original = MitmproxyEngine.handle_hook
 
     async def fail(engine, pool, event):
         if event.name == "requestheaders":
@@ -321,7 +321,7 @@ def test_native_callback_bug_fails_closed_without_logging_content(monkeypatch, c
         return await original(engine, pool, event)
 
     async def scenario():
-        monkeypatch.setattr(HTTPEngine, "handle_hook", fail)
+        monkeypatch.setattr(MitmproxyEngine, "handle_hook", fail)
         async with SocketTarget() as target, preflight(target) as (owner, _):
             owner.configure(authority_deadline=lambda: time.monotonic() + 60)
             with pytest.raises(RuntimeError, match="native HTTP engine callback failed") as caught:
