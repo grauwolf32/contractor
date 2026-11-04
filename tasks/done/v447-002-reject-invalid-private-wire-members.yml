@@ -2,7 +2,8 @@ schema_version: "1.0"
 milestone: contracts-review-2026-11
 epic: api-contracts
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 74735b3f9c74cdd606bd75f6fc5f813c9237e1cb
 id: V447-002
 title: Reject explicit zero ModelPolicy limits and non-wire member aliases
 kind: defect
@@ -36,3 +37,7 @@ tests:
   - {command: 'cd runtime && uv run pytest tests/test_contracts.py tests/test_allocation_contracts.py tests/test_shared_mutation_cases.py tests/test_a2a_server.py tests/test_artifacts.py', covers: [A1, A2, A3]}
   - {command: make test-wire-cross-language, covers: [A1, A2, A3]}
   - {command: make lint, covers: [A1, A2, A3]}
+verification:
+  date: '2026-11-05'
+  result: >-
+    Generated regressions found 27 accepted zero-limit mutations and 1569 accepted alias mutations before the fix. A2A rename and all six Artifact list/write reader cases failed before their fixes. Complete affected Go packages passed with PostgreSQL; 426 Runtime contract/A2A/Artifact tests passed. The shared-wire gate passed: 372 fixtures, 409 Go and 261 Python readers; lint passed.
