@@ -6,7 +6,7 @@ epic: http-tools
 kind: chore
 introduced_by: V410-030
 priority: P3
-status: in_progress
+status: completed
 depends_on: [V410-030]
 languages: [python, markdown]
 goal: Keep the common bridge name independent of the selected protocol implementation without changing HTTP behavior.
@@ -63,7 +63,7 @@ verification:
   focused: The complete selected HTTP engine, bridge, socket, real Nuclei, identity, allocation and HTTP-tool suites passed (148 cases).
   lint: make lint passed, including Runtime import layers, Ruff check/format and task/spec checks.
   experiment: Three original protocol experiment repetitions and three production-engine memory processes passed; temporary outputs are /tmp/v410-031-mitmproxy-embedding.json and /tmp/v410-031-native-memory.json. Historical evidence was preserved.
-  full_runtime: >-
+  earlier_full_runtime: >-
     make test-runtime failed: 5942 passed, 135 skipped, three failures. Two scanner capability
     probes passed when the full scanner package ran separately; the remaining Podman flood
     test returned sandbox_timeout instead of sandbox_output_limit with a 150 ms deadline.
@@ -75,8 +75,12 @@ verification:
     Extracted runtime/src from the unchanged HEAD into /tmp/v410-031-baseline-src and
     selected it with PYTHONPATH. The identical Podman CLI selection failed on that source
     too (one failed, two passed). This demonstrates the failure predates the bridge rename.
-  completion_state: >-
-    Namespace implementation is complete and reviewable. Keep in_progress because the
-    listed full Runtime gate is not green; do not silently broaden a naming refactor into
-    sandbox timeout/test changes or claim a successful complete gate.
+  final_full_runtime: >-
+    On 2026-11-04 after V410-032/033/034, make test-runtime passed: 5988 passed,
+    135 skipped in 425.64 seconds, followed by successful Runtime release-report
+    verification. The full conformance matrix accepted the same JUnit report.
+    make lint passed on the same production revision. Earlier unrelated failures
+    remain recorded above as historical evidence and did not reproduce in this run.
+  completion_state: Namespace implementation and every listed verification command have passed; final broad Runtime verification removes the remaining completion blocker.
   delivery: Local branch codex/sitemap-source-comparison; not merged into main.
+implementation_commit: a5e21bc4bf7071a6647e08398d771f2f38146771
