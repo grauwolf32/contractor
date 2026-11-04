@@ -4,7 +4,6 @@ package credentials
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -56,8 +55,8 @@ func NewStaticProvider(entries []StaticEntry) (*StaticProvider, error) {
 		}
 		// The token is the Gateway Authorization value of the Planner and of
 		// the Runtime model client, so it must be sent unchanged (RCF-R39).
-		if !contracts.ValidCredentialFieldValue(entry.Token.Reveal()) {
-			return nil, errors.New("development credential token must be a non-empty HTTP field value")
+		if !validTokenValue(entry.Token.Reveal()) {
+			return nil, fmt.Errorf("development credential token must be an HTTP field value of 1 through %d bytes", MaximumTokenBytes)
 		}
 		if _, exists := result.entries[id]; exists {
 			return nil, fmt.Errorf("duplicate development credential %q", id)

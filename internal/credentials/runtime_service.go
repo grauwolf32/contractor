@@ -313,7 +313,7 @@ func (s *RuntimeCredentialService) Delete(
 			if contextError := ctx.Err(); contextError != nil {
 				return contextError
 			}
-			return errors.New("inspect Runtime credential references")
+			return persistencepostgres.WrapError("inspect Runtime credential references", usageErr)
 		}
 		usage = normalizeRuntimeUsage(usage, maximumRuntimeCredentialReferences)
 		if !usage.Empty() {
@@ -373,7 +373,13 @@ func (s *RuntimeCredentialService) creationReplayWithRepository(
 		)
 	}
 	record, err := repository.GetAnyRecord(ctx, creation.CredentialID)
-	if err != nil || record.Metadata.Kind != creation.Kind {
+	if errors.Is(err, ErrRuntimeCredentialNotFound) {
+		return RuntimeCredentialCreateResult{}, false, ErrRuntimeCredentialConflict
+	}
+	if err != nil {
+		return RuntimeCredentialCreateResult{}, false, persistencepostgres.WrapError("read Runtime credential creation replay", err)
+	}
+	if record.Metadata.Kind != creation.Kind {
 		return RuntimeCredentialCreateResult{}, false, ErrRuntimeCredentialConflict
 	}
 	return RuntimeCredentialCreateResult{Credential: record.Metadata, Replayed: true}, true, nil

@@ -396,8 +396,8 @@ label and the typed Gateway policy of RCF-R63.
 UTF-8 bytes (LIM-RCF-3) that is a credential field value (RCF-R114) and a
 bounded stable non-secret remote key identifier. Server performs no trimming
 and rejects a missing, malformed or oversized response (FAIL-RCF-1). A
-development Gateway token configured at startup follows the same field-value
-rule, and startup refuses one that does not.
+development Gateway token configured at startup follows the same byte bound
+and field-value rule, and startup refuses one that does not.
 
 **RCF-R40.** Server encrypts the exact token bytes with AES-256-GCM using a
 fresh 96-bit cryptographically random nonce. The canonical schema version,

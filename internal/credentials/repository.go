@@ -139,6 +139,9 @@ ON CONFLICT DO NOTHING`,
 		return nil
 	}
 	existing, getErr := r.GetCredential(ctx, record.CredentialID)
+	if getErr != nil && !errors.Is(getErr, ErrNotFound) {
+		return persistencepostgres.WrapError("reconcile encrypted credential insert", getErr)
+	}
 	if getErr == nil && recordsEqual(existing, record) {
 		return nil
 	}
@@ -205,6 +208,9 @@ ON CONFLICT DO NOTHING`,
 		return nil
 	}
 	existing, getErr := r.GetOperationByIdempotency(ctx, operation.Kind, operation.IdempotencyKey)
+	if getErr != nil && !errors.Is(getErr, ErrNotFound) {
+		return persistencepostgres.WrapError("reconcile credential operation insert", getErr)
+	}
 	if getErr == nil && operationsEqual(existing, operation) {
 		return nil
 	}
