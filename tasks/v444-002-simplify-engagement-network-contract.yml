@@ -1,0 +1,93 @@
+schema_version: "1.0"
+id: V444-002
+title: Reduce engagement to network policy limits and identities
+milestone: autonomous-http-pentest-2026-10
+epic: http-tools
+kind: chore
+introduced_by: V411-002
+priority: P1
+status: pending
+depends_on: [V444-001, V439-003, V422-003]
+languages: [go, python, json, yaml, typescript]
+goal: Engagement describes allowed network use and identities while Workflow selection determines required execution capabilities.
+demonstration: >-
+  The existing HTTP Audit executes with a strict document containing schema, egress,
+  optional limits and identities. Its selected HTTP tools place on http-target@1;
+  offline work needs no HTTP assignment and unsupported network paths remain refused.
+context:
+  authority:
+    - date: "2026-11-04"
+      decision: >-
+        User accepted engagement responsibility for egress, rate/traffic limits and
+        authorization identities, rejected source modes and backward compatibility,
+        requested tasks on main and authorized starting implementation.
+  specification:
+    - docs/spec/audits/audits.md#AUD-R243
+    - docs/spec/audits/audits.md#AUD-R244
+    - docs/spec/audits/audits.md#AUD-R248
+    - docs/spec/execution/control-plane.md#CTL-R168
+    - docs/spec/execution/control-plane.md#CTL-R169
+    - docs/spec/tools/http-caido.md#HTP-R137
+    - docs/spec/tools/http-caido.md#HTP-R145
+    - docs/spec/tools/scanners.md#SCN-R259
+  boundary: >-
+    Reuse engagementcontract, Audit baseline, engagementadapter, existing template
+    descriptors and allocation HTTP owner. Workflow/tool selection determines
+    required adapters; capability declarations cannot grant network authority.
+    The egress block retains the current HTTP routes/exclusions semantics. Future
+    sandbox/browser/non-HTTP enforcement extends its concrete owner separately.
+  decision: >-
+    Use one strict network document instead of retaining a broad passport with
+    unused optional fields. Keep exact engagement digest and trusted authorization
+    attribution; remove the separate digest of the deleted policy wrapper.
+    Reopen additional fields only for a concrete execution caller and reviewed rule.
+scope:
+  in:
+    - Use schema, egress.routes/exclusions, optional limits and identities; remove target/deployment, policy and the budgets wrapper end to end.
+    - Validate identity origins against current allowed route origins and preserve canonical URL/path/CIDR/exclusion rules.
+    - Derive controlled HTTP adapter needs from actual selected tool/Workflow descriptors; retain strict refusal of unintegrated network paths.
+    - Simplify private projection and snapshot metadata while preserving exact refs/digests, owner/time, private credentials and the existing preparation seam.
+    - Update all Go/Python/schema consumers, public errors/clients when affected, shared fixtures, shipped bindings/instructions and owning spec requirements together.
+  out:
+    - New network protocols, sandbox/browser integration, automatic login, global quotas or a generic transport/plugin framework.
+    - Independent ordinary-Run engagement authoring, new APIs/tables and old-format readers.
+requirements:
+  - id: R1
+    text: HTTP tools and controlled Nuclei use the same allocation-owned scope, credentials and optional limits; selection cannot widen authority.
+  - id: R2
+    text: Offline allocations remain supported; target preparation is passive and never resolves/probes the target merely to establish readiness.
+  - id: R3
+    text: No requiredCapabilities/optionalCapabilities/activeChecks or deployment marker remains in engagement or its execution projection.
+failure_outcomes:
+  - operation: Derive placement requirements and prepare network authority
+    permanent: Invalid/unsupported documents or uncontrolled paths fail before target bytes; unavailable capacity follows existing placement semantics without fallback.
+    retryable: Existing storage and allocation retry boundaries apply; no new request retry or journal.
+    ambiguous: Ordinary Run/start/allocation receipts retain exact authority; no target call reconstructs missing state.
+    cancelled: Join private prepare/HTTP/scanner work before clearing credentials under the existing allocation lifecycle.
+    timeout: Preserve separate identity-material, allocation and request deadlines.
+cardinality:
+  - collection: Routes exclusions identities and protected destinations
+    expected: A few routes and identities per allocation.
+    bound: Preserve current LIM-AUD and LIM-HTP collection/byte ceilings and constant-size local counters.
+lifecycle:
+  - entity: Immutable engagement snapshot and allocation-owned HTTP state
+    delete: Existing drained owner deletion and allocation release.
+    retention: Artifact/credential pins survive ordinary pause/replay; private sessions end with allocation cleanup.
+acceptance_criteria:
+  - id: A1
+    text: Shared Go/Python/schema fixtures accept the reduced network document and reject every removed wrapper/field without compatibility paths.
+  - id: A2
+    text: Real placement/prepare tests select HTTP capacity from actual tools, support offline work and refuse uncontrolled paths before credential exposure or target sends.
+  - id: A3
+    text: Real HTTP/Nuclei scenarios retain scope, identity isolation, shared optional local limits and cancellation/release ownership.
+  - id: A4
+    text: Snapshot readers/writers, errors, generated clients, catalog and specs agree; complete touched-package suites and declared gates pass.
+tests:
+  - command: make require-database
+    covers: [A2, A3]
+  - command: go test -tags=integration -count=1 ./internal/contracts/... ./internal/config/... ./internal/auditservice ./internal/controlplane/... ./internal/app ./internal/httpapi/public ./internal/publicclient/... ./internal/archtest
+    covers: [A1, A2, A4]
+  - command: make test-runtime test-wire-cross-language test-engagement-http-process verify-public-api
+    covers: [A1, A2, A3, A4]
+  - command: make test-config lint
+    covers: [A1, A2, A4]
