@@ -2,7 +2,8 @@ schema_version: "1.0"
 milestone: contracts-review-2026-11
 epic: api-contracts
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 0ae569537efa20b41d56bf2d05dbf80459786a41
 id: V447-003
 title: Count Audit JSON values consistently across Server and Runtime
 kind: defect
@@ -35,3 +36,7 @@ tests:
   - {command: 'go test ./internal/contracts/auditcontract', covers: [A1, A2, A3]}
   - {command: 'cd runtime && uv run pytest tests/test_audit_common_contract.py tests/test_audit_completion_contracts.py tests/test_audit_results_toolset.py tests/test_audit_completion_runtime.py', covers: [A1, A2, A3]}
   - {command: make lint, covers: [A1, A2, A3]}
+verification:
+  date: '2026-11-05'
+  result: >-
+    The production Runtime encoder rejected the common 64-member scale context before the fix and accepts it after the fix. Complete Go auditcontract and 67 Runtime Audit tests passed, retaining excessive-value and malformed-name rejections. make lint and the shared-wire gate passed.
