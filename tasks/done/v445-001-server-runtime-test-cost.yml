@@ -6,7 +6,7 @@ epic: quality
 kind: chore
 introduced_by: V57-005
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [go, python]
 goal: >-
@@ -70,3 +70,19 @@ tests:
     covers: [A3, A4]
   - command: "make lint"
     covers: [A1, A2, A3, A4]
+implementation_commit: d8aacbef4efd924a780b0d18b266c42a425c7b59
+verification:
+  date: "2026-11-05"
+  result: >-
+    Full public API and A2A packages passed under -race with real PostgreSQL for public API
+    persistence cases. The initial combined pass exposed a poll_wait fixture classification error;
+    after correction the full A2A package passed again, while the full public package had passed
+    without races. Full Runtime with warnings as errors: 5713 passed and 135 existing
+    platform/explicit-gate/live-model skips in 1022.23 seconds during concurrent host
+    verification. The report verifier accepted it. Native Skill cancellation took 0.029 seconds
+    instead of the earlier ten-second wait; all six components remain. One real hung scanner probe
+    took 2.038 seconds and verified PID termination; every scanner identity remains covered
+    separately. Temporary mutation probes confirmed that inline read-window or grep CPU work fails
+    the retained off-thread test. make lint passed, including the release graph, Go analysis,
+    script and deployment harnesses, Ruff and all four import-layer contracts. No overall suite
+    speed ratio is claimed from concurrent runs.
