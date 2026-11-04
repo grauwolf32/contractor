@@ -6,7 +6,7 @@ epic: http-tools
 kind: chore
 introduced_by: V410-030
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V410-032, V410-033]
 languages: [python, markdown, json]
 goal: Make resource ownership and exchange state reviewable while ensuring protocol assertions exercise the actual native engine.
@@ -70,4 +70,7 @@ conformance_gate:
 verification:
   focused: Full affected HTTP/scanner suites passed (191 tests), including fourteen new native lifecycle/retry/partial-write cases.
   conformance: Updated Python conformance matrix accepted the real focused JUnit report; all six gate regression tests passed. The full process gate was attempted and failed setup because CONTRACTOR_TEST_DATABASE_URL is unset; no PostgreSQL/process pass is claimed.
-  full_runtime: Running final broad diagnostic; no production code changes after its start.
+  full_runtime: make test-runtime passed (5988 passed, 135 skipped in 425.64 seconds), including the Runtime release-report verifier. The conformance matrix also accepted the full Runtime JUnit report. Previously observed unrelated failures did not reproduce in this final run.
+  lint: make lint, Ruff/import layers, check_spec.py and check_tasks.py passed.
+  delivery: Local branch codex/sitemap-source-comparison, not merged into main.
+implementation_commit: 2d1b0bd37c35cb58a0b72227923af626d48e2d6d
