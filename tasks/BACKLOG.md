@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-75 open tasks: 11 in progress, 51 pending, 13 deferred. 1436 finished: 1418 completed, 18 archived.
+74 open tasks: 10 in progress, 51 pending, 13 deferred. 1437 finished: 1419 completed, 18 archived.
 
 ## In progress
 
@@ -21,7 +21,6 @@ the epics are in [epics.yml](epics.yml).
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V444-002](v444-002-simplify-engagement-network-contract.yml) | http-tools | chore | P1 | Reduce engagement to network policy limits and identities |
 
 ## Pending
 
@@ -139,7 +138,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-006, V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
 | [V425-014](v425-014-runtime-tests-fail-on-macos.yml) | chore | P3 | — | Make the Runtime process-liveness assertions able to fail on macOS |
 | [V433-005](v433-005-runtime-resource-bounds-gate.yml) | chore | P3 | — | Verify the Runtime resource-bound fixes and reconcile the review dispositions |
-| [V444-003](v444-003-verify-engagement-boundary.yml) | chore | P1 | V444-002 | Verify the reduced engagement boundary across existing HTTP execution |
+| [V444-003](v444-003-verify-engagement-boundary.yml) | chore | P1 | — | Verify the reduced engagement boundary across existing HTTP execution |
 
 ## Deferred
 
@@ -173,7 +172,7 @@ tasks in `introduced_by`.
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 15 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
-| HTTP and Caido tools (`http-tools`) | 5 | 23 | 32 | 15 | 35 |
+| HTTP and Caido tools (`http-tools`) | 4 | 23 | 32 | 15 | 35 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 3 | 17 | 10 | 10 | 20 |
 | Findings tools and collections (`findings`) | 1 | 17 | 10 | 10 | 16 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 21 |
