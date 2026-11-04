@@ -168,6 +168,13 @@
     "tests.test_bridge_ingress::test_scanner_tunnel_target_siblings[h2-fragment]",
     "tests.test_bridge_ingress::test_scanner_tunnel_target_siblings[h2-zero-port]",
     "tests.test_bridge_ingress::test_scanner_tunnel_target_siblings[h2-valid]",
-    "tests.test_bridge_ingress::test_scanner_connect_rejects_original_authority"
+    "tests.test_bridge_ingress::test_scanner_connect_rejects_original_authority",
+    "tests.test_bridge_retirement::test_closed_target_connections_release_timers_and_protocol_layers[http11]",
+    "tests.test_bridge_retirement::test_closed_target_connections_release_timers_and_protocol_layers[http2]",
+    "tests.test_bridge_retirement::test_retiring_one_http2_connection_keeps_another_stream_and_keepalive",
+    "tests.test_bridge_retirement::test_connection_retirement_joins_wakeup_before_start_or_during_dispatch[pending]",
+    "tests.test_bridge_retirement::test_connection_retirement_joins_wakeup_before_start_or_during_dispatch[dispatch]",
+    "tests.test_bridge_retirement::test_connection_cleanup_joins_retirement_through_repeated_cancellation",
+    "tests.test_bridge_retirement::test_live_native_wakeup_dispatch_reschedules_and_releases_its_old_route"
   ]
 }

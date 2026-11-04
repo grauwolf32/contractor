@@ -1,0 +1,63 @@
+schema_version: '1.0'
+id: V410-036
+title: Retire HTTP/2 timers with their closed target connection
+milestone: project-sitemap-2026-10
+epic: http-tools
+kind: defect
+introduced_by: V410-030
+priority: P2
+status: in_progress
+depends_on: [V410-030]
+languages: [python, markdown, json]
+goal: Repeated target connection rotation within an allocation releases closed HTTP/2 protocol layers and timers immediately after joined connection cleanup.
+context:
+  authority: User review 2026-11-04 of cd00a5ab0d593752224e9b173cf4395b3ac00bf1 reproduces fifty retained HTTP/2 wakeup timers and command sources after fifty closed connections.
+  finding: >-
+    bridge/mitmproxy/engine.py:263 removes target transports/parsers/connections but
+    omits native RequestWakeup tasks and their command_sources routes. Closed HTTP/2
+    layers remain retained until the 58-second keepalive or allocation cleanup.
+  siblings: >-
+    Reused and multiplexed target pools, timer creation before a task starts,
+    in-flight timer dispatch, peer close and cancellation. HTTP/1.1 has no native
+    keepalive RequestWakeup; ingress owns a whole connection handler and already
+    cancels/joins all of its timers during handler join, without a shared target pool.
+  specification:
+  - docs/spec/tools/http-caido.md#HTP-R138
+  - docs/spec/tools/http-caido.md#HTP-R146
+  boundary_decision: >-
+    Keep native timer scheduling and dispatch. The pool binds each returned native
+    wakeup coroutine to its exact Server and RequestWakeup at creation, including
+    before execution. Connection retirement cancels/joins only its timers and removes
+    their routing entries before releasing protocol maps. Live connections retain
+    native keepalives. Cleanup uses the existing owned-task join mechanism; no global
+    timer disable, shorter keepalive, periodic GC or protocol dispatcher copy is added.
+scope:
+  in:
+  - Track and retire native wakeups per target connection, including pending and dispatching tasks, without retaining completed timer records.
+  - Keep close cancellation joined and retryable resource ownership intact.
+  - Prove fifty sequential TLS HTTP/2 closes inside one allocation retain no dead timers/routes/parsers; verify HTTP/1.1 and a concurrent live HTTP/2 connection.
+  - Add exact regression identities to the existing conformance matrix.
+  out:
+  - Podman timing changes, speculative RSS thresholds, new HTTP capabilities, global keepalive disabling or a new lifecycle framework.
+acceptance_criteria:
+- id: A1
+  text: Fifty real TLS HTTP/2 connection rotations inside one live allocation leave no closed transports, flows, wakeup tasks, timer routing records or reachable parser instances; HTTP/1.1 remains correct.
+- id: A2
+  text: Closing one connection preserves another connection's active stream and native keepalive; pending and dispatching timer cancellation is joined and leaves no stale route.
+- id: A3
+  text: The reported retention test fails on the reviewed code, full affected suites and mandatory Python conformance report pass, and lint/spec/task checks pass. Broad Runtime diagnostic results and skips are recorded as observed.
+tests:
+- command: cd runtime && uv run pytest -W error tests/test_bridge_retirement.py tests/test_bridge_ingress.py tests/test_bridge_messages.py tests/test_bridge_framing.py tests/test_bridge_lifecycle.py tests/test_http_engine.py tests/test_http_proxy_bridge.py tests/test_engagement_socket_conformance.py tests/test_nuclei_engagement.py tests/test_engagement_target.py tests/test_engagement_identity.py tests/test_engagement_allocation.py tests/test_audit_http_credentials.py --junitxml=/tmp/v410-bridge-review-focused.xml
+  covers: [A1, A2, A3]
+- command: python3 scripts/test-engagement-http-process.py --verify-python-report /tmp/v410-bridge-review-focused.xml
+  covers: [A3]
+- command: make lint
+  covers: [A3]
+- command: python3 scripts/check_spec.py
+  covers: [A3]
+- command: cd runtime && uv run python ../scripts/check_tasks.py
+  covers: [A3]
+verification:
+  red: The reviewed implementation retained fifty wakeup tasks/routes after fifty actual HTTP/2 peer closes; the concurrent live-connection case retained two timers instead of one. The HTTP/1.1 control has no timer retention.
+  regression: All seven new cases pass, covering 50 HTTP/1.1 and 50 HTTP/2 rotations, parser weak references after dropping test observer handles, exact connection isolation, pre-start/dispatch cancellation, repeated cleanup cancellation and normal native rescheduling.
+  focused: Full affected HTTP/bridge/scanner suites passed (222 tests, zero selected skips); updated mandatory Python conformance matrix accepted the report, and all six conformance-gate regression tests passed.

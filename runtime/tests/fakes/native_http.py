@@ -12,7 +12,9 @@ from fakes.engagement_socket import SocketTarget
 
 
 class NativeTarget(SocketTarget):
-    def __init__(self, *, ssl_context=None, max_streams=100, payload=b"ok", headers=()):
+    def __init__(
+        self, *, ssl_context=None, max_streams=100, payload=b"ok", headers=(), close_paths=()
+    ):
         super().__init__(ssl_context=ssl_context)
         self.payload, self.headers = payload, headers
         self.max_streams = max_streams
@@ -20,7 +22,7 @@ class NativeTarget(SocketTarget):
         self.bodies = []
         self.held = asyncio.Event()
         self.release = asyncio.Event()
-        self.responders = set()
+        self.close_paths = set(close_paths)
         self.resets = []
 
     async def _observe(self, reader, writer):
@@ -37,9 +39,6 @@ class NativeTarget(SocketTarget):
         except (OSError, asyncio.IncompleteReadError):
             pass
         finally:
-            for task in tuple(self.responders):
-                task.cancel()
-            await asyncio.gather(*self.responders, return_exceptions=True)
             writer.close()
             with suppress(OSError):
                 await writer.wait_closed()
@@ -72,6 +71,8 @@ class NativeTarget(SocketTarget):
                 + self.payload
             )
             await writer.drain()
+            if path in self.close_paths:
+                return
 
     async def http2(self, reader, writer):
         connection = h2.connection.H2Connection(h2.config.H2Configuration(client_side=False))
@@ -81,6 +82,7 @@ class NativeTarget(SocketTarget):
         writer.write(connection.data_to_send())
         streams = {}
         bodies = {}
+        responders = set()
 
         async def respond(stream, headers):
             if headers[b":path"] == b"/hold":
@@ -95,28 +97,40 @@ class NativeTarget(SocketTarget):
                 ],
             )
             connection.send_data(stream, self.payload, end_stream=True)
+            closing = headers[b":path"] in self.close_paths
+            if closing:
+                connection.close_connection()
             writer.write(connection.data_to_send())
             await writer.drain()
+            if closing:
+                writer.close()
 
-        while data := await reader.read(65536):
-            for event in connection.receive_data(data):
-                if isinstance(event, h2.events.RequestReceived):
-                    streams[event.stream_id] = dict(event.headers)
-                    bodies[event.stream_id] = bytearray()
-                elif isinstance(event, h2.events.DataReceived):
-                    bodies[event.stream_id].extend(event.data)
-                    connection.acknowledge_received_data(
-                        event.flow_controlled_length, event.stream_id
-                    )
-                elif isinstance(event, h2.events.StreamReset):
-                    self.resets.append(event.stream_id)
-                elif isinstance(event, h2.events.StreamEnded):
-                    headers = streams.pop(event.stream_id)
-                    self.bodies.append(bytes(bodies.pop(event.stream_id)))
-                    self.trace.append((headers[b":method"], headers[b":path"], b"HTTP/2", headers))
-                    assert len(self.trace) <= 64
-                    task = asyncio.create_task(respond(event.stream_id, headers))
-                    self.responders.add(task)
-                    task.add_done_callback(self.responders.discard)
-            writer.write(connection.data_to_send())
-            await writer.drain()
+        try:
+            while data := await reader.read(65536):
+                for event in connection.receive_data(data):
+                    if isinstance(event, h2.events.RequestReceived):
+                        streams[event.stream_id] = dict(event.headers)
+                        bodies[event.stream_id] = bytearray()
+                    elif isinstance(event, h2.events.DataReceived):
+                        bodies[event.stream_id].extend(event.data)
+                        connection.acknowledge_received_data(
+                            event.flow_controlled_length, event.stream_id
+                        )
+                    elif isinstance(event, h2.events.StreamReset):
+                        self.resets.append(event.stream_id)
+                    elif isinstance(event, h2.events.StreamEnded):
+                        headers = streams.pop(event.stream_id)
+                        self.bodies.append(bytes(bodies.pop(event.stream_id)))
+                        self.trace.append(
+                            (headers[b":method"], headers[b":path"], b"HTTP/2", headers)
+                        )
+                        assert len(self.trace) <= 64
+                        task = asyncio.create_task(respond(event.stream_id, headers))
+                        responders.add(task)
+                        task.add_done_callback(responders.discard)
+                writer.write(connection.data_to_send())
+                await writer.drain()
+        finally:
+            for task in tuple(responders):
+                task.cancel()
+            await asyncio.gather(*responders, return_exceptions=True)

@@ -11,7 +11,8 @@ import logging
 import ssl
 import sys
 import tempfile
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
@@ -20,7 +21,7 @@ from mitmproxy import ctx, http, master, options
 from mitmproxy.addons import next_layer, proxyserver, tlsconfig
 from mitmproxy.connection import Client, ConnectionState, Server
 from mitmproxy.net import tls as native_tls
-from mitmproxy.proxy import events, server
+from mitmproxy.proxy import commands, events, server
 from mitmproxy.proxy.context import Context
 from mitmproxy.proxy.layers.http import HttpErrorHook, HttpResponseHook
 
@@ -103,6 +104,13 @@ class _ProcessState:
 _dial: contextvars.ContextVar[Exchange] = contextvars.ContextVar("bridge_mitmproxy_dial")
 
 
+@dataclass
+class _Wakeup:
+    connection: Server
+    request: commands.RequestWakeup
+    task: asyncio.Task[None] | None = None
+
+
 class _Permit:
     """Native connection backpressure with a second check after its queue."""
 
@@ -177,6 +185,7 @@ class _Pool(OwnedHandler, server.ConnectionHandler):
         self.closed = False
         self.hooks: set[asyncio.Task[None]] = set()
         self.writers: set[asyncio.StreamWriter | _Writer] = set()
+        self._wakeups: dict[Coroutine[object, object, None], _Wakeup] = {}
         native_limit = self.max_conns.default_factory
         self.max_conns = collections.defaultdict(lambda: _Permit(native_limit()))
 
@@ -242,6 +251,43 @@ class _Pool(OwnedHandler, server.ConnectionHandler):
             if exchange is not None:
                 exchange.finish()
 
+    def wakeup(self, request: commands.RequestWakeup):
+        # Native dispatch calls this synchronously before creating its Task.
+        # Bind now so retirement also owns timers cancelled before first execution.
+        source = self.layer.command_sources[request]
+        owned = _Wakeup(source.context.server, request)
+        coroutine = self._run_wakeup(owned)
+        self._wakeups[coroutine] = owned
+        return coroutine
+
+    async def _run_wakeup(self, owned: _Wakeup) -> None:
+        task = asyncio.current_task()
+        if task is None:
+            raise RuntimeError("native HTTP timer has no task")
+        owned.task = task
+        try:
+            await super().wakeup(owned.request)
+        finally:
+            self.wakeup_timer.discard(task)
+            self._wakeups.pop(task.get_coro(), None)
+            self.layer.command_sources.pop(owned.request, None)
+
+    async def _retire_timers(self, connection: Server) -> None:
+        owned = {c: w for c, w in self._wakeups.items() if w.connection is connection}
+        # Native wakeup_timer drops a task before dispatch, so include tasks
+        # already waiting to deliver Wakeup as well as those not yet started.
+        tasks = {w.task for w in owned.values() if w.task is not None}
+        tasks.update(task for task in self.wakeup_timer if task.get_coro() in owned)
+        for task in tasks:
+            task.cancel()
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for coroutine, wakeup in owned.items():
+            self._wakeups.pop(coroutine, None)
+            self.layer.command_sources.pop(wakeup.request, None)
+        self.wakeup_timer.difference_update(tasks)
+        if any(isinstance(result, Exception) for result in results):
+            raise RuntimeError("native HTTP engine timer failed")
+
     async def open_connection(self, command):
         exchange = self.connecting[command.connection]
         token = _dial.set(exchange)
@@ -253,21 +299,29 @@ class _Pool(OwnedHandler, server.ConnectionHandler):
             await self.server_event(events.OpenConnectionCompleted(command, exchange.reason))
         finally:
             _dial.reset(token)
-            io = self.transports.get(command.connection)
-            if io is not None and io.writer is not None:
-                self.writers.add(io.writer)
-                await self.close_writer(io.writer)
-                self.transports.pop(command.connection, None)
-            elif io is not None:
-                self.transports.pop(command.connection, None)
-            self.parsers.pop(command.connection, None)
-            self.connecting.pop(command.connection, None)
-            self.verified.discard(command.connection)
-            self.layer.connections.pop(command.connection, None)
-            self.layer.waiting_for_establishment.pop(command.connection, None)
-            permit = self.max_conns.get(command.connection.address)
-            if permit is not None and not permit.users:
-                self.max_conns.pop(command.connection.address, None)
+            cleanup = asyncio.create_task(
+                self._release_connection(command.connection), name="http-engine-connection-close"
+            )
+            cancelled = await join_owned_task(cleanup)
+            cleanup.result()
+            if cancelled:
+                raise asyncio.CancelledError
+
+    async def _release_connection(self, connection: Server) -> None:
+        await self._retire_timers(connection)
+        io = self.transports.get(connection)
+        if io is not None and io.writer is not None:
+            self.writers.add(io.writer)
+            await self.close_writer(io.writer)
+        self.transports.pop(connection, None)
+        self.parsers.pop(connection, None)
+        self.connecting.pop(connection, None)
+        self.verified.discard(connection)
+        self.layer.connections.pop(connection, None)
+        self.layer.waiting_for_establishment.pop(connection, None)
+        permit = self.max_conns.get(connection.address)
+        if permit is not None and not permit.users:
+            self.max_conns.pop(connection.address, None)
 
     async def submit(self, exchange: Exchange):
         if self.closed:
@@ -311,6 +365,7 @@ class _Pool(OwnedHandler, server.ConnectionHandler):
         self.layer.connections.clear()
         self.layer.streams.clear()
         self.layer.command_sources.clear()
+        self._wakeups.clear()
         self.layer.waiting_for_establishment.clear()
         self.parsers.clear()
         self.connecting.clear()

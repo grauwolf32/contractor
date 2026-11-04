@@ -1314,7 +1314,11 @@ mark a queued HTTP/2 send as possibly sent. The whole call is bounded by its
 request timeout and allocation lease; ordinary Scheduler/Audit cancellation owns
 wider deadlines. Cancellation resets the exact HTTP/2 stream where possible;
 a shared connection failure may terminate other active streams. Cancellation
-and release join all owned callbacks, streams and tasks.
+and release join all owned callbacks, streams and tasks. Retiring a target connection
+also cancels and joins its pending or dispatching native keepalive timers and removes
+their command routes before releasing protocol state. Retention cannot depend on
+past closed-connection count or timer expiry; other live connections keep their
+native keepalive scheduling.
 
 The allocation owns one lazily initialized, pinned mitmproxy 12.3.1 native
 engine. The implementation-neutral module is `adapters.bridge`; its existing
