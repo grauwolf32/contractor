@@ -1,0 +1,212 @@
+{
+  "preBackup": "/Users/ruslan/src/third-party/open-design-backups/20261103T210613Z",
+  "postBackup": "/Users/ruslan/src/third-party/open-design-backups/20261103T212247Z",
+  "sqliteIntegrity": "ok",
+  "previousFiles": 327,
+  "currentFiles": 342,
+  "mutableOperationalFiles": [
+    "sandbox/config/data/opencode/log/opencode.log",
+    "sandbox/config/data/opencode/opencode.db"
+  ],
+  "fileScope": [
+    "projects/",
+    "runs/",
+    "od-next-task-inputs/",
+    "sandbox/",
+    "memory/"
+  ],
+  "priorFilesChanged": 0,
+  "priorFilesMissing": 0,
+  "tables": {
+    "projects": {
+      "before": 10,
+      "after": 11,
+      "allPriorRowsIdentical": true
+    },
+    "conversations": {
+      "before": 15,
+      "after": 16,
+      "allPriorRowsIdentical": true
+    },
+    "messages": {
+      "before": 64,
+      "after": 68,
+      "allPriorRowsIdentical": true
+    },
+    "project_user_submissions": {
+      "before": 27,
+      "after": 29,
+      "allPriorRowsIdentical": true
+    },
+    "strategy_task_executions": {
+      "before": 27,
+      "after": 29,
+      "allPriorRowsIdentical": true
+    },
+    "strategy_task_runs": {
+      "before": 31,
+      "after": 33,
+      "allPriorRowsIdentical": true
+    },
+    "workspace_artifacts": {
+      "before": 10,
+      "after": 10,
+      "allPriorRowsIdentical": true
+    },
+    "workspace_resources": {
+      "before": 0,
+      "after": 0,
+      "allPriorRowsIdentical": true
+    },
+    "message_artifacts": {
+      "before": 10,
+      "after": 10,
+      "allPriorRowsIdentical": true
+    },
+    "chat_artifact_snapshots": {
+      "before": 0,
+      "after": 0,
+      "allPriorRowsIdentical": true
+    },
+    "chat_artifact_blobs": {
+      "before": 0,
+      "after": 0,
+      "allPriorRowsIdentical": true
+    },
+    "message_event_batches": {
+      "before": 0,
+      "after": 0,
+      "allPriorRowsIdentical": true
+    },
+    "agent_sessions": {
+      "before": 0,
+      "after": 0,
+      "allPriorRowsIdentical": true
+    }
+  },
+  "openCodeSQLiteIntegrity": "ok",
+  "openCodeTables": {
+    "workspace": {
+      "before": 0,
+      "after": 0,
+      "allPriorRowsIdentical": true,
+      "allowedMetadataChanges": []
+    },
+    "data_migration": {
+      "before": 0,
+      "after": 0,
+      "allPriorRowsIdentical": true,
+      "allowedMetadataChanges": []
+    },
+    "account_state": {
+      "before": 0,
+      "after": 0,
+      "allPriorRowsIdentical": true,
+      "allowedMetadataChanges": []
+    },
+    "account": {
+      "before": 0,
+      "after": 0,
+      "allPriorRowsIdentical": true,
+      "allowedMetadataChanges": []
+    },
+    "control_account": {
+      "before": 0,
+      "after": 0,
+      "allPriorRowsIdentical": true,
+      "allowedMetadataChanges": []
+    },
+    "credential": {
+      "before": 0,
+      "after": 0,
+      "allPriorRowsIdentical": true,
+      "allowedMetadataChanges": []
+    },
+    "event_sequence": {
+      "before": 33,
+      "after": 35,
+      "allPriorRowsIdentical": true,
+      "allowedMetadataChanges": []
+    },
+    "event": {
+      "before": 3179,
+      "after": 3267,
+      "allPriorRowsIdentical": true,
+      "allowedMetadataChanges": []
+    },
+    "permission": {
+      "before": 0,
+      "after": 0,
+      "allPriorRowsIdentical": true,
+      "allowedMetadataChanges": []
+    },
+    "project_directory": {
+      "before": 0,
+      "after": 0,
+      "allPriorRowsIdentical": true,
+      "allowedMetadataChanges": []
+    },
+    "project": {
+      "before": 1,
+      "after": 1,
+      "allPriorRowsIdentical": false,
+      "allowedMetadataChanges": [
+        "time_updated"
+      ]
+    },
+    "message": {
+      "before": 262,
+      "after": 270,
+      "allPriorRowsIdentical": true,
+      "allowedMetadataChanges": []
+    },
+    "part": {
+      "before": 937,
+      "after": 962,
+      "allPriorRowsIdentical": true,
+      "allowedMetadataChanges": []
+    },
+    "session_context_epoch": {
+      "before": 0,
+      "after": 0,
+      "allPriorRowsIdentical": true,
+      "allowedMetadataChanges": []
+    },
+    "session_input": {
+      "before": 0,
+      "after": 0,
+      "allPriorRowsIdentical": true,
+      "allowedMetadataChanges": []
+    },
+    "session_message": {
+      "before": 0,
+      "after": 0,
+      "allPriorRowsIdentical": true,
+      "allowedMetadataChanges": []
+    },
+    "session": {
+      "before": 33,
+      "after": 35,
+      "allPriorRowsIdentical": true,
+      "allowedMetadataChanges": []
+    },
+    "todo": {
+      "before": 62,
+      "after": 62,
+      "allPriorRowsIdentical": true,
+      "allowedMetadataChanges": []
+    },
+    "session_share": {
+      "before": 0,
+      "after": 0,
+      "allPriorRowsIdentical": true,
+      "allowedMetadataChanges": []
+    },
+    "migration": {
+      "before": 38,
+      "after": 38,
+      "allPriorRowsIdentical": true,
+      "allowedMetadataChanges": []
+    }
+  }
+}

@@ -28,7 +28,6 @@ import {
 import { rowPage } from "./present";
 
 import "./inbox.css";
-import { plural } from "../../app/format";
 
 /** The overview, where focus requests and announcements name no item. */
 const OVERVIEW = "";
@@ -37,45 +36,6 @@ const OVERVIEW = "";
 interface RowChoice {
   key: string;
   section: InboxSectionId;
-}
-
-/** One line per section for the overview shown when nothing is selected. */
-function overviewCounts(
-  decide: number,
-  data: InboxData,
-): Record<InboxSectionId, string> {
-  const { model } = data;
-  const unblock = distinctCount(model.unblock);
-  const ready = distinctCount(model.ready);
-  const checks = model.running.length;
-  const runs = data.activeRuns.data?.items.length ?? 0;
-  return {
-    decide:
-      decide === 0
-        ? "Nothing to decide"
-        : `${plural(decide, "needs", "need")} your decision`,
-    unblock:
-      unblock === 0
-        ? "Nothing is stuck"
-        : plural(unblock, "is stuck", "are stuck"),
-    ready:
-      ready === 0
-        ? "Nothing finished in the last 7 days"
-        : `${ready} finished in the last 7 days`,
-    running:
-      checks === 0 && runs === 0
-        ? "Nothing is running"
-        : [
-            checks === 0
-              ? ""
-              : plural(checks, "check is running", "checks are running"),
-            runs === 0
-              ? ""
-              : `${data.activeRunCount ?? runs} ${runs === 1 ? "Run" : "Runs"} in progress`,
-          ]
-            .filter((part) => part !== "")
-            .join(", "),
-  };
 }
 
 /** Whether the lists that could hold this item are still loading. */
@@ -255,6 +215,25 @@ export function InboxRoute() {
     },
   });
 
+  // Consume initial selection once: explicit links and mobile Back always win.
+  const initialEntry = useRef(false);
+  useLayoutEffect(() => {
+    if (initialEntry.current) return;
+    if (params.has("item") || window.innerWidth <= 820) {
+      initialEntry.current = true;
+      return;
+    }
+    if (Object.values(data.pending).some(Boolean)) return;
+    initialEntry.current = true;
+    if (data.incomplete) return;
+    const first = model.order[0];
+    if (first !== undefined)
+      void navigate(
+        { pathname: "/", search: inboxSearch(first.ref) },
+        { replace: true },
+      );
+  }, [params, data.pending, data.incomplete, model.order, navigate]);
+
   const decideCount = data.summary.needsDecision ?? model.decide.length;
   const settled = !data.pending.decide || model.order.length > 0;
   const subtitle = settled
@@ -285,6 +264,7 @@ export function InboxRoute() {
         {recorded}
       </p>
       <PaneLayout
+        className="inbox-workspace"
         listLabel="Inbox"
         detailLabel="Selected item"
         showDetail={selected !== undefined}
@@ -304,7 +284,6 @@ export function InboxRoute() {
             row={row}
             loading={selected !== undefined && listing(selected, data)}
             context={context}
-            counts={overviewCounts(decideCount, data)}
           />
         }
       />

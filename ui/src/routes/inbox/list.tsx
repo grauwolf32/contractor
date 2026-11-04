@@ -1,17 +1,11 @@
-import { useQuery } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
 
-import { usePublicAPI } from "../../api/context";
-import { getOperationsSnapshot } from "../../api/operations";
-import { queryKeys } from "../../api/query-keys";
 import { Icon } from "../../app/icon";
 import { RecordedTime } from "../../app/recorded-time";
 import { checkStateLabel } from "../../app/vocabulary";
-import { useSession } from "../../auth/session";
 import {
   Button,
-  Facts,
   IconButton,
   Kbd,
   ListPane,
@@ -19,13 +13,11 @@ import {
   ListSection,
   ProgressSegments,
   StatusGlyph,
-  TechnicalDetails,
   type ListNavigationContainerProps,
   type StatusTone,
 } from "../../ui";
 import { describeStopReason } from "../projects/audits/stop-reason";
 import { deriveRunTriage } from "../runs/triage";
-import { useWorkflowInventory } from "../workflows/inventory";
 import type { InboxData, RunList } from "./data";
 import {
   inboxSearch,
@@ -451,97 +443,6 @@ function ActiveRunsRow({ data }: { data: InboxData }) {
   );
 }
 
-/**
- * Counts that were Home tiles: active and failed Runs, idle Runtime slots
- * and published Workflow versions. Read only while the disclosure is open.
- */
-function CapacityCounts({ data }: { data: InboxData }) {
-  const api = usePublicAPI();
-  const { session } = useSession();
-  const operations =
-    session?.principal.capabilities.includes("operations") === true;
-  const snapshot = useQuery({
-    queryKey: queryKeys.operations.snapshot,
-    queryFn: () => getOperationsSnapshot(api),
-    enabled: operations,
-  });
-  const workflows = useWorkflowInventory();
-  const idle = snapshot.data?.runtimeAgents.filter(
-    (agent) => agent.slotState === "idle",
-  ).length;
-  const failed = data.failedRuns.recent;
-  const failedPage = data.failedRuns.query.data;
-  // A lower bound when the Server's next page may hold more recent ones.
-  const failedCount =
-    failedPage === undefined
-      ? "—"
-      : `${failed.shown.length + failed.hidden}${
-          moreRecentRunsMayFollow(
-            failedPage.items,
-            failedPage.page.hasMore,
-            data.now,
-          )
-            ? "+"
-            : ""
-        }`;
-  return (
-    <>
-      <Facts
-        className="inbox-facts"
-        size="sm"
-        items={[
-          {
-            term: "Active Runs",
-            value: (
-              <>
-                {data.activeRunCount ?? "—"} · <Link to="/runs">Open Runs</Link>
-              </>
-            ),
-          },
-          {
-            term: "Failed Runs, last 7 days",
-            value: (
-              <>
-                {failedCount} · <Link to={FAILED_RUNS_PATH}>See all</Link>
-              </>
-            ),
-          },
-          {
-            term: "Idle Runtime slots",
-            value: !operations ? (
-              "Needs operations access"
-            ) : snapshot.data === undefined ? (
-              snapshot.isError ? (
-                "Could not be loaded"
-              ) : (
-                "Loading…"
-              )
-            ) : (
-              <>
-                {idle} of {snapshot.data.runtimeAgents.length} ·{" "}
-                <Link to="/operations/runtime-agents">Runtime agents</Link>
-              </>
-            ),
-          },
-          {
-            term: "Published Workflow versions",
-            value: (
-              <>
-                {workflows.data?.length ??
-                  (workflows.isError ? "Could not be loaded" : "Loading…")}{" "}
-                · <Link to="/catalog/workflows">Workflows</Link>
-              </>
-            ),
-          },
-        ]}
-      />
-      <p className="ui-caption">
-        An idle slot does not guarantee room for a particular Run.
-      </p>
-    </>
-  );
-}
-
 interface InboxListProps extends Selection {
   data: InboxData;
   subtitle: string;
@@ -558,7 +459,6 @@ export function InboxList({
 }: InboxListProps) {
   const { model } = data;
   const [retrying, setRetrying] = useState(false);
-  const [capacityOpen, setCapacityOpen] = useState(false);
   const paused = data.queue.data?.paused === true;
   const activeRuns = data.activeRuns.data?.items.length ?? 0;
   const selection: Selection = { selected, onChoose };
@@ -672,13 +572,6 @@ export function InboxList({
           <ActiveRunsRow data={data} />
         </Section>
       </div>
-      <TechnicalDetails
-        summary="Runs and capacity"
-        description="Run counts, idle Runtime slots and published Workflows."
-        onToggle={setCapacityOpen}
-      >
-        {capacityOpen ? <CapacityCounts data={data} /> : null}
-      </TechnicalDetails>
     </ListPane>
   );
 }

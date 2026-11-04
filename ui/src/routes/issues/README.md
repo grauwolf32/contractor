@@ -47,7 +47,7 @@ opens History. These preserve the finding identity and independent review.
   and no severity filter is set (possible issues that need review are not
   rated yet); otherwise "No possible issues match these filters" or, after
   failed reads, "No possible issues listed".
-- `FindingLocations`, `LocationList` and `CapturedExchange`
+- `LocationList` and `CapturedExchange`
   (`projects/audits/finding-locations.tsx`): authored locations as text,
   never links, and the captured HTTP exchange. Values of credential-looking
   headers (`isCredentialHeader` in `evidence.ts`: Authorization,

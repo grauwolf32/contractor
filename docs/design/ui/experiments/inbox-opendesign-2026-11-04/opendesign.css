@@ -1,0 +1,104 @@
+/* opendesign.css — Contractor Inbox redesign; scoped to .inbox-redesign only. */
+/* Preserves existing DOM, fonts, tokens, icons, [hidden] and pane behavior. */
+
+.inbox-redesign [hidden] { display: none !important; }
+.inbox-redesign :is(button, a, [tabindex]):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Section accents: amber, red, green, blue */
+.inbox-redesign .inbox-sections>.ui-list-section:nth-child(1) { --sect: var(--warning); --sect-bg: var(--warning-bg); --sect-line: var(--warning-line); }
+.inbox-redesign .inbox-sections>.ui-list-section:nth-child(2) { --sect: var(--danger); --sect-bg: var(--danger-bg); --sect-line: var(--danger-line); }
+.inbox-redesign .inbox-sections>.ui-list-section:nth-child(3) { --sect: var(--success); --sect-bg: var(--success-bg); --sect-line: var(--success-line); }
+.inbox-redesign .inbox-sections>.ui-list-section:nth-child(4) { --sect: var(--info); --sect-bg: var(--info-bg); --sect-line: var(--info-line); }
+
+/* Head: clear title rhythm */
+.inbox-redesign .inbox-head { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-4); }
+.inbox-redesign .inbox-head h1,
+.inbox-redesign .inbox-head h2,
+.inbox-redesign .inbox-head [class*="title"] { margin: 0; font-size: clamp(1.2rem, 1rem + 1vw, 1.5rem); font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; }
+.inbox-redesign .inbox-head p,
+.inbox-redesign .inbox-head [class*="sub"] { margin: 0; color: var(--muted); font-size: 0.9rem; }
+
+/* Overview: strong four-action composition in two columns */
+.inbox-redesign .inbox-overview { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); margin-bottom: var(--space-4); }
+.inbox-redesign .inbox-overview>* { --sect: var(--accent); display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); min-width: 0; padding: var(--space-4); background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--sect); border-radius: var(--radius-lg); }
+.inbox-redesign .inbox-overview>:nth-child(1) { --sect: var(--warning); }
+.inbox-redesign .inbox-overview>:nth-child(2) { --sect: var(--danger); }
+.inbox-redesign .inbox-overview>:nth-child(3) { --sect: var(--success); }
+.inbox-redesign .inbox-overview>:nth-child(4) { --sect: var(--info); }
+.inbox-redesign .inbox-overview>:nth-child(n+3) { padding: var(--space-3); gap: var(--space-1); }
+.inbox-redesign .inbox-overview svg { width: 20px; height: 20px; }
+.inbox-redesign .inbox-overview [class*="icon"]:not(svg) { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 34px; height: 34px; border-radius: var(--radius-lg); background: var(--sect-bg); color: var(--sect); }
+.inbox-redesign .inbox-overview [class*="icon"]:not(svg) svg { width: 18px; height: 18px; }
+.inbox-redesign .inbox-overview [class*="title"] { margin: 0; font-size: 0.95rem; font-weight: 600; line-height: 1.25; }
+.inbox-redesign .inbox-overview>:nth-child(-n+2) [class*="title"] { font-size: 1.05rem; }
+.inbox-redesign .inbox-overview [class*="count"] { margin: 0; font-size: 1.5rem; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; color: var(--text); }
+.inbox-redesign .inbox-overview>:nth-child(-n+2) [class*="count"] { font-size: 1.9rem; }
+.inbox-redesign .inbox-overview p,
+.inbox-redesign .inbox-overview [class*="meta"],
+.inbox-redesign .inbox-overview [class*="label"] { margin: 0; color: var(--muted); font-size: 0.85rem; }
+
+/* Sections: restrained heading/count pills */
+.inbox-redesign .inbox-sections { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+.inbox-redesign .inbox-sections>.ui-list-section { min-width: 0; }
+.inbox-redesign .inbox-sections>.ui-list-section>h2,
+.inbox-redesign .inbox-sections>.ui-list-section>h3,
+.inbox-redesign .inbox-sections>.ui-list-section>[class*="head"] { display: flex; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-2); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.inbox-redesign .inbox-sections>.ui-list-section>h2 [class*="count"],
+.inbox-redesign .inbox-sections>.ui-list-section>h3 [class*="count"],
+.inbox-redesign .inbox-sections>.ui-list-section>[class*="head"] [class*="count"],
+.inbox-redesign .inbox-sections>.ui-list-section>[class*="count"] { display: inline-flex; align-items: center; justify-content: center; flex: none; min-width: 1.4rem; height: 1.3rem; padding: 0 var(--space-2); border: 1px solid var(--sect-line); border-radius: 999px; background: var(--sect-bg); color: var(--sect); font-size: 0.75rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* Distinct selected row treatment */
+.inbox-redesign .ui-list-section li[aria-selected="true"],
+.inbox-redesign .ui-list-section li[aria-current="true"],
+.inbox-redesign .ui-list-section li.is-selected,
+.inbox-redesign .ui-list-section li[class*="selected"] { background: var(--sect-bg); border-radius: var(--radius-lg); box-shadow: inset 2px 0 0 var(--sect); }
+
+/* Detail bar: compact */
+.inbox-redesign .inbox-detail-bar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); padding: var(--space-2) var(--space-3); background: var(--sunken); border: 1px solid var(--line); border-radius: var(--radius-lg); font-size: 0.88rem; }
+.inbox-redesign .inbox-detail-bar [class*="title"] { font-weight: 600; color: var(--text); }
+.inbox-redesign .inbox-detail-bar [class*="meta"],
+.inbox-redesign .inbox-detail-bar [class*="muted"] { color: var(--muted); }
+
+/* Blocks: quiet separators */
+.inbox-redesign .inbox-block { margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--line); }
+.inbox-redesign .inbox-block:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+
+/* Progress / result / stop surfaces */
+.inbox-redesign [class*="progress"] { --tone: var(--info); --tone-bg: var(--info-bg); --tone-line: var(--info-line); }
+.inbox-redesign [class*="result"] { --tone: var(--success); --tone-bg: var(--success-bg); --tone-line: var(--success-line); }
+.inbox-redesign [class*="stop"] { --tone: var(--danger); --tone-bg: var(--danger-bg); --tone-line: var(--danger-line); }
+.inbox-redesign [class*="progress"],
+.inbox-redesign [class*="result"],
+.inbox-redesign [class*="stop"] { padding: var(--space-3); border: 1px solid var(--tone-line); border-radius: var(--radius-lg); background: var(--tone-bg); color: var(--text); font-size: 0.9rem; }
+
+/* Facts: readable */
+.inbox-redesign [class*="fact"] { display: flex; flex-direction: column; gap: var(--space-2); font-size: 0.9rem; line-height: 1.5; color: var(--text); }
+.inbox-redesign [class*="fact"] dt { color: var(--muted); font-size: 0.78rem; }
+.inbox-redesign [class*="fact"] dd { margin: 0; }
+.inbox-redesign [class*="fact"]>[class*="label"] { color: var(--muted); font-size: 0.78rem; }
+
+/* Decision footer: readable, wrapping */
+.inbox-redesign [class*="decision"] { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--line); }
+.inbox-redesign [class*="decision"] button { flex: 0 1 auto; }
+
+/* Responsive: 1440 / 1100 / 390 / 320 */
+@media (max-width: 1100px) {
+  .inbox-redesign .inbox-overview { gap: var(--space-2); }
+  .inbox-redesign .inbox-overview>* { padding: var(--space-3); }
+}
+@media (max-width: 820px) {
+  .inbox-redesign .inbox-sections { gap: var(--space-3); }
+  .inbox-redesign .inbox-detail-bar { font-size: 0.85rem; }
+}
+@media (max-width: 480px) {
+  .inbox-redesign .inbox-overview { grid-template-columns: minmax(0, 1fr); }
+  .inbox-redesign .inbox-overview>*,
+  .inbox-redesign .inbox-detail-bar,
+  .inbox-redesign [class*="progress"],
+  .inbox-redesign [class*="result"],
+  .inbox-redesign [class*="stop"] { padding: var(--space-2); }
+  .inbox-redesign .inbox-overview>:nth-child(-n+2) [class*="count"] { font-size: 1.5rem; }
+  .inbox-redesign [class*="decision"] button,
+  .inbox-redesign .inbox-detail-bar button { flex: 1 1 auto; }
+}

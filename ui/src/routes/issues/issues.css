@@ -401,13 +401,6 @@
 
 /* ---------- Locations and captured HTTP evidence ---------- */
 
-.issues-locations {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
 .issues-location-list {
   margin: 0;
   padding: 0;

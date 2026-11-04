@@ -1,0 +1,1077 @@
+{
+  "layouts": 118,
+  "checks": [
+    {
+      "view": "overview",
+      "theme": "light",
+      "width": 1440,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "issue",
+      "theme": "light",
+      "width": 1440,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "review",
+      "theme": "light",
+      "width": 1440,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "blocked",
+      "theme": "light",
+      "width": 1440,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "ready",
+      "theme": "light",
+      "width": 1440,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "running",
+      "theme": "light",
+      "width": 1440,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "light",
+      "width": 1100,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "issue",
+      "theme": "light",
+      "width": 1100,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "review",
+      "theme": "light",
+      "width": 1100,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "blocked",
+      "theme": "light",
+      "width": 1100,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "ready",
+      "theme": "light",
+      "width": 1100,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "running",
+      "theme": "light",
+      "width": 1100,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "light",
+      "width": 390,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "issue",
+      "theme": "light",
+      "width": 390,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "review",
+      "theme": "light",
+      "width": 390,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "blocked",
+      "theme": "light",
+      "width": 390,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "ready",
+      "theme": "light",
+      "width": 390,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "running",
+      "theme": "light",
+      "width": 390,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "light",
+      "width": 320,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "issue",
+      "theme": "light",
+      "width": 320,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "review",
+      "theme": "light",
+      "width": 320,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "blocked",
+      "theme": "light",
+      "width": 320,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "ready",
+      "theme": "light",
+      "width": 320,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "running",
+      "theme": "light",
+      "width": 320,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "dark",
+      "width": 1440,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "issue",
+      "theme": "dark",
+      "width": 1440,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "review",
+      "theme": "dark",
+      "width": 1440,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "blocked",
+      "theme": "dark",
+      "width": 1440,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "ready",
+      "theme": "dark",
+      "width": 1440,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "running",
+      "theme": "dark",
+      "width": 1440,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "dark",
+      "width": 1100,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "issue",
+      "theme": "dark",
+      "width": 1100,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "review",
+      "theme": "dark",
+      "width": 1100,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "blocked",
+      "theme": "dark",
+      "width": 1100,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "ready",
+      "theme": "dark",
+      "width": 1100,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "running",
+      "theme": "dark",
+      "width": 1100,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "dark",
+      "width": 390,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "issue",
+      "theme": "dark",
+      "width": 390,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "review",
+      "theme": "dark",
+      "width": 390,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "blocked",
+      "theme": "dark",
+      "width": 390,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "ready",
+      "theme": "dark",
+      "width": 390,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "running",
+      "theme": "dark",
+      "width": 390,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "dark",
+      "width": 320,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "issue",
+      "theme": "dark",
+      "width": 320,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "review",
+      "theme": "dark",
+      "width": 320,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "blocked",
+      "theme": "dark",
+      "width": 320,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "ready",
+      "theme": "dark",
+      "width": 320,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "running",
+      "theme": "dark",
+      "width": 320,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "black",
+      "width": 1440,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "issue",
+      "theme": "black",
+      "width": 1440,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "review",
+      "theme": "black",
+      "width": 1440,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "blocked",
+      "theme": "black",
+      "width": 1440,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "ready",
+      "theme": "black",
+      "width": 1440,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "running",
+      "theme": "black",
+      "width": 1440,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "black",
+      "width": 1100,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "issue",
+      "theme": "black",
+      "width": 1100,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "review",
+      "theme": "black",
+      "width": 1100,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "blocked",
+      "theme": "black",
+      "width": 1100,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "ready",
+      "theme": "black",
+      "width": 1100,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "running",
+      "theme": "black",
+      "width": 1100,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "black",
+      "width": 390,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "issue",
+      "theme": "black",
+      "width": 390,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "review",
+      "theme": "black",
+      "width": 390,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "blocked",
+      "theme": "black",
+      "width": 390,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "ready",
+      "theme": "black",
+      "width": 390,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "running",
+      "theme": "black",
+      "width": 390,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "black",
+      "width": 320,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "issue",
+      "theme": "black",
+      "width": 320,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "review",
+      "theme": "black",
+      "width": 320,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "blocked",
+      "theme": "black",
+      "width": 320,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "ready",
+      "theme": "black",
+      "width": 320,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "running",
+      "theme": "black",
+      "width": 320,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "light",
+      "width": 1440,
+      "state": "empty",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "light",
+      "width": 390,
+      "state": "empty",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "light",
+      "width": 320,
+      "state": "empty",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "dark",
+      "width": 1440,
+      "state": "empty",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "dark",
+      "width": 390,
+      "state": "empty",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "dark",
+      "width": 320,
+      "state": "empty",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "black",
+      "width": 1440,
+      "state": "empty",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "black",
+      "width": 390,
+      "state": "empty",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "black",
+      "width": 320,
+      "state": "empty",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "light",
+      "width": 1440,
+      "state": "partial",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "light",
+      "width": 390,
+      "state": "partial",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "light",
+      "width": 320,
+      "state": "partial",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "dark",
+      "width": 1440,
+      "state": "partial",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "dark",
+      "width": 390,
+      "state": "partial",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "dark",
+      "width": 320,
+      "state": "partial",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "black",
+      "width": 1440,
+      "state": "partial",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "black",
+      "width": 390,
+      "state": "partial",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "black",
+      "width": 320,
+      "state": "partial",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "light",
+      "width": 1440,
+      "state": "error",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "light",
+      "width": 390,
+      "state": "error",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "light",
+      "width": 320,
+      "state": "error",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "dark",
+      "width": 1440,
+      "state": "error",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "dark",
+      "width": 390,
+      "state": "error",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "dark",
+      "width": 320,
+      "state": "error",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "black",
+      "width": 1440,
+      "state": "error",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "black",
+      "width": 390,
+      "state": "error",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "black",
+      "width": 320,
+      "state": "error",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "dark",
+      "width": 1440,
+      "state": "normal",
+      "version": "current",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "dark",
+      "width": 1440,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "issue",
+      "theme": "dark",
+      "width": 1440,
+      "state": "normal",
+      "version": "current",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "issue",
+      "theme": "dark",
+      "width": 1440,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "review",
+      "theme": "dark",
+      "width": 1440,
+      "state": "normal",
+      "version": "current",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "review",
+      "theme": "dark",
+      "width": 1440,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "blocked",
+      "theme": "dark",
+      "width": 1440,
+      "state": "normal",
+      "version": "current",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "blocked",
+      "theme": "dark",
+      "width": 1440,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "ready",
+      "theme": "dark",
+      "width": 1440,
+      "state": "normal",
+      "version": "current",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "ready",
+      "theme": "dark",
+      "width": 1440,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "running",
+      "theme": "dark",
+      "width": 1440,
+      "state": "normal",
+      "version": "current",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "running",
+      "theme": "dark",
+      "width": 1440,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "dark",
+      "width": 390,
+      "state": "normal",
+      "version": "current",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "issue",
+      "theme": "dark",
+      "width": 390,
+      "state": "normal",
+      "version": "current",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "blocked",
+      "theme": "dark",
+      "width": 390,
+      "state": "normal",
+      "version": "current",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "overview",
+      "theme": "dark",
+      "width": 1440,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "issue",
+      "theme": "black",
+      "width": 390,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "blocked",
+      "theme": "dark",
+      "width": 390,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    },
+    {
+      "view": "issue",
+      "theme": "black",
+      "width": 390,
+      "state": "normal",
+      "version": "new",
+      "overflow": false,
+      "apiSchemaViolations": 0
+    }
+  ],
+  "interactions": [
+    "overview action",
+    "J/K selection",
+    "mobile Back and queue selection",
+    "read-only model retry",
+    "decision draft / read-only rejection"
+  ],
+  "browserErrors": [],
+  "liveAPIRequests": [],
+  "nativeCSSSha256": "a10fa9e67d1d2c8e10fa59a4919ebb7dcf8d00c14e68789e608e2c5f1d3d73a9"
+}

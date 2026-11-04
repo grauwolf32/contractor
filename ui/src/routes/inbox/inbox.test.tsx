@@ -570,12 +570,55 @@ describe("Inbox", () => {
     ).toBeInTheDocument();
     // Nothing selected: the detail pane gives the overview.
     expect(
-      within(await findDetail()).getByRole("heading", { name: "Overview" }),
+      within(await findDetail()).getByRole("heading", {
+        name: "Your Inbox is clear",
+      }),
     ).toBeInTheDocument();
     expect(
       screen.queryByText(/Queue admission is paused/),
     ).not.toBeInTheDocument();
     expect(screen.queryByText(/could not be read/)).not.toBeInTheDocument();
+  });
+
+  it("reads the complete report in place and retains unavailable task-result navigation", async () => {
+    const server = busyServer();
+    server.reports.audit_done = build.report("audit_done", "ready", {
+      summary:
+        "# Retained report\n\n" +
+        "Bounded observation. ".repeat(60) +
+        "\n\n## Follow-up\n\nRead the exact retained results.",
+    });
+    renderApplication("/?item=report:audit_done", {
+      server: inboxServer(server),
+    });
+    const pane = await findDetail();
+    expect(
+      await within(pane).findByText("Read the exact retained results."),
+    ).toBeInTheDocument();
+    expect(
+      within(pane).getByRole("button", { name: "Download summary" }),
+    ).toBeEnabled();
+    expect(screen.queryByText("Runs and capacity")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/acceptance|Active test approval/),
+    ).not.toBeInTheDocument();
+    server.reports.audit_done = build.report("audit_done", "unavailable");
+    advance(server, "audit_done");
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Refresh" }));
+    expect(
+      await within(pane).findByText(
+        "This check completed without a summary report.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(pane).getByRole("link", { name: "View task results →" }),
+    ).toHaveAttribute("href", "/projects/project_identity/audits/audit_done");
+    expect(
+      within(pane).queryByRole("button", { name: "Download summary" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Refresh" })).toHaveFocus();
   });
 
   it("opens the item named in the URL", async () => {
@@ -594,7 +637,7 @@ describe("Inbox", () => {
       }),
     ).toBeInTheDocument();
     expect(
-      within(pane).getByRole("link", { name: "Open possible issue" }),
+      within(pane).getByRole("link", { name: "Open in Issues" }),
     ).toHaveAttribute("href", "/issues/project_shop/finding_sqli");
     expect(
       within(pane).getByRole("button", { name: "Previous item" }),
@@ -618,12 +661,12 @@ describe("Inbox", () => {
       name: "Any user can read any report",
     });
 
-    await user.keyboard("j");
     await waitFor(() =>
       expect(router.state.location.search).toBe(
         "?item=issue:project_shop:finding_idor",
       ),
     );
+    await waitFor(() => expect(first).toHaveAttribute("aria-current", "true"));
     await user.keyboard("j");
     await waitFor(() =>
       expect(router.state.location.search).toBe(

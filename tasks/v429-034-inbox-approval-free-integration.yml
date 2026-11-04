@@ -1,0 +1,76 @@
+schema_version: "1.0"
+id: V429-034
+title: Integrate the reviewed Inbox design with approval-free Audits
+milestone: ui-journey-usability
+epic: ui
+kind: feature
+priority: P2
+status: in_progress
+depends_on: [V429-033, V411-010, V411-011]
+languages: [typescript, css, javascript]
+goal: The working Inbox uses the reviewed OpenDesign layout, complete Issue and Report readers and useful initial selection with the current approval-free Audit model.
+demonstration: Navigate between canonical unassessed Project Findings, stopped work and a full ready report in the real Inbox route, annotate a finding through its existing owner and inspect task results for a completed check without a report.
+context:
+  authority: User 2026-11-04 says Audit changes are merged, requests adapting the UI and merging our reviewed changes into main. Earlier decisions retain all OpenDesign data, shared typography, full issue/report details, mobile queue-first entry and removal of Runs and capacity.
+  specification: [docs/spec/ui/ui.md#UI-R39, docs/spec/audits/review-and-reports.md#REV-R201]
+  design: docs/design/ui/README.md
+  boundary: Main owns the approval-free API/domain and canonical Project Finding commands. Issues owns its full detail/evidence/annotation UI; Reports owns reads, safe Markdown and downloads. Inbox owns navigation and queue context. Port presentation onto current owners without restoring approvals or introducing a second state/read owner.
+scope:
+  in:
+    - Integrate current main without reverting removed approvals or report acceptance.
+    - Apply reviewed Inbox composition with shared theme tokens and typography, compact unselected states, desktop first selection and mobile queue-first behavior.
+    - Reuse complete Issues and Reports components, retained evidence/downloads and truthful pending/unavailable/error report states.
+    - Remove redundant capacity disclosure/readers; update real-route tests and an approval-free production preview.
+    - Remove the superseded compact Finding reader and unused exports; retain the source-location and HTTP evidence components used by the complete Issues reader.
+    - Bump the UI patch release, run the UI and relevant repository checks, and merge the verified branch into main with no fast-forward.
+  out:
+    - New Audit execution, hypothesis or report generation mechanisms, backend/API changes, live demo deployment or model calls.
+requirements:
+  - id: R1
+    text: Decide lists only canonical unassessed Project Findings; no item approval or report acceptance UI, state, request or badge is restored.
+  - id: R2
+    text: Full issue details and ready report contents use their existing owners, preserve exact retained references/downloads and keep queue context, late-action guards and direct navigation.
+  - id: R3
+    text: Desktop opens the first item once after successful queue reads; explicit selections, failed reads and mobile Back are respected. Mobile begins with its queue.
+  - id: R4
+    text: The Inbox follows the reviewed visual hierarchy without global typography drift or capacity summaries; 390px and all three themes remain usable.
+  - id: R5
+    text: A completed check without an aggregate report remains completed and links to ordinary task results; no report or human decision is fabricated.
+failure_outcomes:
+  - operation: Existing queue, finding and report reads/annotations
+    permanent: Existing owners show classified errors and revision conflicts, retaining drafts and truthful state.
+    retryable: Retain owner polling/backoff and Retry controls without new requests or loops.
+    ambiguous: Reuse existing revisioned Project Finding mutation owner and keys; never create another annotation path.
+    cancelled: Keep existing query/selection ownership and guarded late decision navigation.
+    timeout: Existing read/mutation boundaries retain their deadlines; no new process or external call.
+cardinality:
+  - collection: Inbox lists and selected detail
+    expected: Existing owner-scoped paged queue and one selected finding/report.
+    maximum: Existing Inbox list/read budgets and existing retained evidence/report bounds.
+    bound: No added whole-project scan, polling fanout or new collection reads; remove optional capacity/workflow reads.
+lifecycle:
+  - entity: Selected Inbox item and original design data
+    delete: Existing owners handle deletion; disappearance yields truthful unavailable content.
+    cascade: No new persistent entity, table or retention rule.
+    retention: Keep original OpenDesign/native artifacts and preview history unchanged; add a current production preview.
+acceptance_criteria:
+  - id: A1
+    text: Production Inbox shows the reviewed full issue/report experience and action-focused queue on current main contracts without approval or capacity UI.
+  - id: A2
+    text: Browser and route tests cover first selection, explicit navigation, mobile Back, full retained evidence/report content, annotation handling and unavailable reports across themes without overflow or browser errors.
+  - id: A3
+    text: Original design artifacts are preserved, the production preview is opened, UI verification and relevant lint/contracts checks pass, and the final branch is merged into main.
+tests:
+  - command: make ui-verify
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+  - command: node docs/design/ui/experiments/inbox-production-2026-11-04/verify.mjs
+    covers: [A1, A2, A3]
+  - command: >-
+      node --input-type=module -e 'import { runBrowserGate } from "./ui/server/browser-gate.mjs";
+      await runBrowserGate("inbox-integration", "Inbox integration",
+      ["e2e/decision-focus.spec.ts", "e2e/owner-lists.spec.ts"]);'
+    covers: [A1, A2, A3]
+  - command: git diff --check
+    covers: [A1, A2, A3]
