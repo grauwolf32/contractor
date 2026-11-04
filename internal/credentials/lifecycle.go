@@ -468,8 +468,11 @@ func (s *Service) Create(ctx context.Context, request CreateRequest) (CreateResu
 			return CreateResult{}, ErrCreateAbandoned
 		}
 		record, getErr := s.repository.GetCredential(ctx, normalized.CredentialID)
-		if getErr != nil {
+		if errors.Is(getErr, ErrNotFound) {
 			return CreateResult{}, ErrConflict
+		}
+		if getErr != nil {
+			return CreateResult{}, persistencepostgres.WrapError("read LLM credential creation replay", getErr)
 		}
 		return CreateResult{Credential: record, Replayed: true}, nil
 	}
