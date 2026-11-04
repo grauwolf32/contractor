@@ -2,7 +2,8 @@ schema_version: "1.0"
 milestone: contracts-review-2026-11
 epic: api-contracts
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: d02263e82977ff0c99bbd803279480eb8243fa42
 id: V447-001
 title: Reject unusable Gateway and Runtime endpoints at every admission boundary
 kind: defect
@@ -35,3 +36,7 @@ tests:
   - {command: 'go test ./internal/contracts/... ./internal/config/... ./internal/configload/... ./internal/runtimeconfig', covers: [A1, A2, A3]}
   - {command: 'cd runtime && uv run pytest tests/test_contracts.py tests/test_allocation_contracts.py', covers: [A1, A2, A3]}
   - {command: make lint, covers: [A1, A2, A3]}
+verification:
+  date: '2026-11-05'
+  result: >-
+    Common endpoint regressions failed on the original configured/resolved validators. Full contracts/config/configload/runtimeconfig suites passed with disposable PostgreSQL; 371 Runtime contract tests passed. make lint and the shared-wire gate passed.
