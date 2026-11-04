@@ -5,19 +5,22 @@
  */
 import { useId, useLayoutEffect, useRef, type ReactNode } from "react";
 
+import { Link } from "react-router";
+
 import { ContextLink } from "../../app/context-navigation";
 import { Icon } from "../../app/icon";
 import {
   DetailPane,
   IconButton,
-  Kbd,
+  Button,
+  ButtonLink,
   StatusChip,
   StatusGlyph,
   type StatusTone,
 } from "../../ui";
 import type { InboxData } from "./data";
-import type { InboxRow, InboxSectionId } from "./model";
-import { SECTIONS } from "./present";
+import type { InboxRow } from "./model";
+import { SECTIONS, checkName } from "./present";
 
 /** What every detail view needs from the page. */
 export interface DetailContext {
@@ -187,71 +190,71 @@ export function Block({
   );
 }
 
-const OVERVIEW_ORDER: readonly InboxSectionId[] = [
-  "decide",
-  "unblock",
-  "ready",
-  "running",
-];
-
-const OVERVIEW_TONES: Readonly<Record<InboxSectionId, StatusTone>> = {
-  decide: "review",
-  unblock: "blocked",
-  ready: "done",
-  running: "progress",
-};
-
-/** What the detail pane shows while nothing is selected. */
-export function Overview({
-  context,
-  counts,
-}: {
-  context: DetailContext;
-  counts: Record<InboxSectionId, string>;
-}) {
-  const { model } = context.data;
+/** A compact continuation when entry did not select an item. */
+export function Overview({ context }: { context: DetailContext }) {
+  const { data } = context;
+  const first = data.model.order[0];
   const heading = useRef<HTMLHeadingElement>(null);
-  // "": the last decision left nothing to select.
   useFocusRequest(heading, context.focusKey === "", context.onFocused);
+  const pending = Object.values(data.pending).some(Boolean);
+  let title = "Your Inbox is clear";
+  let description =
+    "No decisions, stopped work, recent results or running checks are listed.";
+  if (pending) {
+    title = "Loading your Inbox";
+    description = "Reading possible issues, stopped work and results.";
+  } else if (data.incomplete) {
+    title = "Some Inbox items couldn't be loaded";
+    description =
+      "Loaded items are still available in the queue. Retry to refresh the missing information.";
+  } else if (first !== undefined) {
+    title =
+      first.type === "issue"
+        ? first.issue.finding.title
+        : first.type === "report"
+          ? `${first.report.project.name} report`
+          : first.type === "run"
+            ? first.run.workflow
+            : checkName(first.check);
+    description = "Choose an item from the queue, or continue with this one.";
+  }
   return (
     <DetailPane>
       <Recorded text={context.recorded} />
-      <header className="inbox-head">
-        <h2 className="inbox-title" ref={heading} tabIndex={-1}>
-          Overview
+      <div className="inbox-focus-state">
+        <StatusGlyph
+          tone={
+            pending
+              ? "progress"
+              : data.incomplete
+                ? "warning"
+                : first === undefined
+                  ? "done"
+                  : "info"
+          }
+        />
+        {first !== undefined && !pending && !data.incomplete ? (
+          <p className="inbox-focus-eyebrow">{SECTIONS[first.section].title}</p>
+        ) : null}
+        <h2 ref={heading} tabIndex={-1}>
+          {title}
         </h2>
-        <p className="inbox-head-meta">
-          What needs you across your projects. Choose an item in the list, or
-          press <Kbd>J</Kbd> to start with the first one.
-        </p>
-      </header>
-      <ul className="inbox-overview" role="list">
-        {OVERVIEW_ORDER.map((id) => {
-          const first = model[id][0];
-          const content = (
-            <>
-              <StatusGlyph tone={OVERVIEW_TONES[id]} />
-              <span className="inbox-overview-title">{SECTIONS[id].title}</span>
-              <span className="inbox-overview-count">{counts[id]}</span>
-            </>
-          );
-          return (
-            <li key={id}>
-              {first === undefined ? (
-                <div className="inbox-overview-item">{content}</div>
-              ) : (
-                <button
-                  type="button"
-                  className="inbox-overview-item"
-                  onClick={() => context.onSelect(first)}
-                >
-                  {content}
-                </button>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+        <p role={pending ? "status" : undefined}>{description}</p>
+        {pending ? null : data.incomplete ? (
+          <Button onClick={() => void data.retry()}>Retry missing items</Button>
+        ) : first === undefined ? (
+          <div className="inbox-focus-actions">
+            <ButtonLink variant="primary" to="/checks/new">
+              Start a check
+            </ButtonLink>
+            <Link to="/projects">Browse projects</Link>
+          </div>
+        ) : (
+          <Button variant="primary" onClick={() => context.onSelect(first)}>
+            Continue
+          </Button>
+        )}
+      </div>
     </DetailPane>
   );
 }

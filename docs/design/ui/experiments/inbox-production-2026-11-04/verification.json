@@ -1,0 +1,602 @@
+{
+  "layouts": 81,
+  "checks": [
+    {
+      "view": "overview",
+      "width": 1440,
+      "theme": "light",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "sql",
+      "width": 1440,
+      "theme": "light",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "report",
+      "width": 1440,
+      "theme": "light",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "blocked",
+      "width": 1440,
+      "theme": "light",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "running",
+      "width": 1440,
+      "theme": "light",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "overview",
+      "width": 1100,
+      "theme": "light",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "sql",
+      "width": 1100,
+      "theme": "light",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "report",
+      "width": 1100,
+      "theme": "light",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "blocked",
+      "width": 1100,
+      "theme": "light",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "running",
+      "width": 1100,
+      "theme": "light",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "overview",
+      "width": 390,
+      "theme": "light",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "sql",
+      "width": 390,
+      "theme": "light",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "report",
+      "width": 390,
+      "theme": "light",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "blocked",
+      "width": 390,
+      "theme": "light",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "running",
+      "width": 390,
+      "theme": "light",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "overview",
+      "width": 320,
+      "theme": "light",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "sql",
+      "width": 320,
+      "theme": "light",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "report",
+      "width": 320,
+      "theme": "light",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "blocked",
+      "width": 320,
+      "theme": "light",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "running",
+      "width": 320,
+      "theme": "light",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "overview",
+      "width": 1440,
+      "theme": "dark",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "sql",
+      "width": 1440,
+      "theme": "dark",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "sql",
+      "width": 1440,
+      "theme": "dark",
+      "state": "normal",
+      "version": "issues"
+    },
+    {
+      "view": "report",
+      "width": 1440,
+      "theme": "dark",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "report",
+      "width": 1440,
+      "theme": "dark",
+      "state": "normal",
+      "version": "reports"
+    },
+    {
+      "view": "blocked",
+      "width": 1440,
+      "theme": "dark",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "running",
+      "width": 1440,
+      "theme": "dark",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "overview",
+      "width": 1100,
+      "theme": "dark",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "sql",
+      "width": 1100,
+      "theme": "dark",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "report",
+      "width": 1100,
+      "theme": "dark",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "blocked",
+      "width": 1100,
+      "theme": "dark",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "running",
+      "width": 1100,
+      "theme": "dark",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "overview",
+      "width": 390,
+      "theme": "dark",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "sql",
+      "width": 390,
+      "theme": "dark",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "sql",
+      "width": 390,
+      "theme": "dark",
+      "state": "normal",
+      "version": "issues"
+    },
+    {
+      "view": "report",
+      "width": 390,
+      "theme": "dark",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "report",
+      "width": 390,
+      "theme": "dark",
+      "state": "normal",
+      "version": "reports"
+    },
+    {
+      "view": "blocked",
+      "width": 390,
+      "theme": "dark",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "running",
+      "width": 390,
+      "theme": "dark",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "overview",
+      "width": 320,
+      "theme": "dark",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "sql",
+      "width": 320,
+      "theme": "dark",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "report",
+      "width": 320,
+      "theme": "dark",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "blocked",
+      "width": 320,
+      "theme": "dark",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "running",
+      "width": 320,
+      "theme": "dark",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "overview",
+      "width": 1440,
+      "theme": "black",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "sql",
+      "width": 1440,
+      "theme": "black",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "report",
+      "width": 1440,
+      "theme": "black",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "blocked",
+      "width": 1440,
+      "theme": "black",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "running",
+      "width": 1440,
+      "theme": "black",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "overview",
+      "width": 1100,
+      "theme": "black",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "sql",
+      "width": 1100,
+      "theme": "black",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "report",
+      "width": 1100,
+      "theme": "black",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "blocked",
+      "width": 1100,
+      "theme": "black",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "running",
+      "width": 1100,
+      "theme": "black",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "overview",
+      "width": 390,
+      "theme": "black",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "sql",
+      "width": 390,
+      "theme": "black",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "report",
+      "width": 390,
+      "theme": "black",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "blocked",
+      "width": 390,
+      "theme": "black",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "running",
+      "width": 390,
+      "theme": "black",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "overview",
+      "width": 320,
+      "theme": "black",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "sql",
+      "width": 320,
+      "theme": "black",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "report",
+      "width": 320,
+      "theme": "black",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "blocked",
+      "width": 320,
+      "theme": "black",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "running",
+      "width": 320,
+      "theme": "black",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "report",
+      "width": 1440,
+      "theme": "dark",
+      "state": "report-error",
+      "version": "new"
+    },
+    {
+      "view": "report",
+      "width": 390,
+      "theme": "dark",
+      "state": "report-error",
+      "version": "new"
+    },
+    {
+      "view": "report",
+      "width": 1440,
+      "theme": "dark",
+      "state": "report-pending",
+      "version": "new"
+    },
+    {
+      "view": "report",
+      "width": 390,
+      "theme": "dark",
+      "state": "report-pending",
+      "version": "new"
+    },
+    {
+      "view": "report",
+      "width": 1440,
+      "theme": "dark",
+      "state": "report-unavailable",
+      "version": "new"
+    },
+    {
+      "view": "report",
+      "width": 390,
+      "theme": "dark",
+      "state": "report-unavailable",
+      "version": "new"
+    },
+    {
+      "view": "overview",
+      "width": 1440,
+      "theme": "dark",
+      "state": "empty",
+      "version": "new"
+    },
+    {
+      "view": "overview",
+      "width": 390,
+      "theme": "dark",
+      "state": "empty",
+      "version": "new"
+    },
+    {
+      "view": "overview",
+      "width": 1440,
+      "theme": "dark",
+      "state": "partial",
+      "version": "new"
+    },
+    {
+      "view": "overview",
+      "width": 390,
+      "theme": "dark",
+      "state": "partial",
+      "version": "new"
+    },
+    {
+      "view": "overview",
+      "width": 1440,
+      "theme": "dark",
+      "state": "error",
+      "version": "new"
+    },
+    {
+      "view": "overview",
+      "width": 390,
+      "theme": "dark",
+      "state": "error",
+      "version": "new"
+    },
+    {
+      "view": "sql",
+      "width": 390,
+      "theme": "black",
+      "state": "detail-error",
+      "version": "new"
+    },
+    {
+      "view": "report",
+      "width": 1440,
+      "theme": "dark",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "overview",
+      "width": 390,
+      "theme": "dark",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "sql",
+      "width": 390,
+      "theme": "dark",
+      "state": "normal",
+      "version": "new"
+    },
+    {
+      "view": "report",
+      "width": 390,
+      "theme": "dark",
+      "state": "report-unavailable",
+      "version": "new"
+    }
+  ],
+  "contentParity": [
+    {
+      "view": "sql",
+      "width": 1440
+    },
+    {
+      "view": "report",
+      "width": 1440
+    },
+    {
+      "view": "sql",
+      "width": 390
+    },
+    {
+      "view": "report",
+      "width": 390
+    }
+  ],
+  "preservedFiles": 118,
+  "browserErrors": [],
+  "liveAPIRequests": [],
+  "interactions": [
+    "desktop first selection",
+    "mobile queue/Back/resize",
+    "no approval or capacity requests/UI",
+    "complete issue evidence/snippets/history",
+    "full Reports parity and exact downloads",
+    "truthful completed-without-report task-result link",
+    "queue J/K and refused demo annotation"
+  ]
+}

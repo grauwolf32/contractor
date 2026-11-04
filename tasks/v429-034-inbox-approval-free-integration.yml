@@ -21,6 +21,7 @@ scope:
     - Apply reviewed Inbox composition with shared theme tokens and typography, compact unselected states, desktop first selection and mobile queue-first behavior.
     - Reuse complete Issues and Reports components, retained evidence/downloads and truthful pending/unavailable/error report states.
     - Remove redundant capacity disclosure/readers; update real-route tests and an approval-free production preview.
+    - Remove the superseded compact Finding reader and unused exports; retain the source-location and HTTP evidence components used by the complete Issues reader.
     - Bump the UI patch release, run the UI and relevant repository checks, and merge the verified branch into main with no fast-forward.
   out:
     - New Audit execution, hypothesis or report generation mechanisms, backend/API changes, live demo deployment or model calls.
@@ -65,6 +66,11 @@ tests:
   - command: make lint
     covers: [A1, A2, A3]
   - command: node docs/design/ui/experiments/inbox-production-2026-11-04/verify.mjs
+    covers: [A1, A2, A3]
+  - command: >-
+      node --input-type=module -e 'import { runBrowserGate } from "./ui/server/browser-gate.mjs";
+      await runBrowserGate("inbox-integration", "Inbox integration",
+      ["e2e/decision-focus.spec.ts", "e2e/owner-lists.spec.ts"]);'
     covers: [A1, A2, A3]
   - command: git diff --check
     covers: [A1, A2, A3]

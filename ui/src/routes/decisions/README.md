@@ -5,7 +5,7 @@ Shared by Inbox, Issues and Checks
 Import from the folder:
 
 ```tsx
-import { FindingDecision, FindingSummary } from "../decisions";
+import { FindingDecision } from "../decisions";
 ```
 
 The components need the app's `QueryClientProvider` and `PublicAPIProvider`.
@@ -15,30 +15,15 @@ accept `undefined` (`exactOptionalPropertyTypes`).
 
 ## Project Finding components
 
-`FindingSummary` and `FindingDecision` take the same canonical `ProjectFinding`
-from any Project, check or Inbox view. They do not take an Audit ID or an Audit
-review request. The initial current assessment is nullable; source severity
-suggestions and check results never fill it in.
+`FindingDecision` takes the canonical `ProjectFinding` from any Project,
+check or Inbox view. It does not take an Audit ID or an Audit review request.
+The initial current assessment is nullable; source severity suggestions and
+check results never fill it in.
 
-```tsx
-<DetailPane
-  footer={
-    <FindingDecision
-      finding={issue.finding}
-      next={{ label: "Next possible issue", onNext: selectNext }}
-      onDecided={() => selectNext()}
-    />
-  }
->
-  <FindingSummary finding={issue.finding} />
-</DetailPane>
-```
-
-`FindingSummary` accepts `variant: "full" | "compact"` and `titleAs: "h2" | "h3"`.
-It renders the immutable initial claim separately from the current analyst
-verdict, severity, rationale, actor and time. Independent sources, exact
-evidence and result history belong to the issue workspace's Evidence and
-History tabs, and have no assessment commands.
+Issues and Inbox share the complete `IssueDetail` reader, including identity,
+Summary, exact retained evidence and independent-source History. The reader
+uses `FindingDecision` with `presentation: "review"`. There is no separate
+compact Finding summary in Inbox and no second annotation command owner.
 
 `FindingDecision` offers confirm with a required severity, false positive,
 needs evidence, duplicate and reopen. Reopen is available after an assessment.
