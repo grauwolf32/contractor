@@ -6,7 +6,6 @@ package llmgateway
 
 import (
 	"net"
-	"net/url"
 	"regexp"
 	"slices"
 	"strings"
@@ -229,7 +228,7 @@ func (c ResolvedLLMGatewayConfig) Validate() error {
 }
 
 func validateInferenceGatewayURL(raw string) error {
-	parsed, err := parseGatewayURL(raw)
+	parsed, err := contracts.ParseRuntimeEndpoint("Gateway URL", raw)
 	if err != nil {
 		return contracts.Invalidf("llmGatewayConfig.url must be an absolute HTTP(S) URL without userinfo, query, or fragment")
 	}
@@ -240,7 +239,7 @@ func validateInferenceGatewayURL(raw string) error {
 }
 
 func validateCanonicalManagementURL(raw string) error {
-	parsed, err := parseGatewayURL(raw)
+	parsed, err := contracts.ParseRuntimeEndpoint("Gateway URL", raw)
 	if err != nil || parsed.Path != "" {
 		return contracts.Invalidf("llmGatewayConfig credential management URL must be a canonical HTTP(S) origin")
 	}
@@ -252,17 +251,4 @@ func validateCanonicalManagementURL(raw string) error {
 		return contracts.Invalidf("HTTP credential management URL is allowed only for a loopback IP origin")
 	}
 	return nil
-}
-
-func parseGatewayURL(raw string) (*url.URL, error) {
-	if raw == "" || raw != strings.TrimSpace(raw) || strings.Contains(raw, "#") {
-		return nil, contracts.Invalidf("Gateway URL is invalid")
-	}
-	parsed, err := url.Parse(raw)
-	if err != nil || parsed.IsAbs() == false || parsed.Opaque != "" || parsed.Host == "" ||
-		parsed.Hostname() == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.ForceQuery ||
-		(parsed.Scheme != "http" && parsed.Scheme != "https") {
-		return nil, contracts.Invalidf("Gateway URL is invalid")
-	}
-	return parsed, nil
 }

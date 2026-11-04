@@ -6,9 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/url"
 	"sort"
-	"strings"
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -22,7 +20,6 @@ import (
 
 const (
 	maxDocumentBytes = 128 * 1024
-	maxURLBytes      = 2048
 )
 
 type optional[T any] struct {
@@ -743,14 +740,9 @@ func ValidateLabel(label string) error {
 }
 
 func validateURL(field, raw string) (string, error) {
-	if raw == "" || len([]byte(raw)) > maxURLBytes || raw != strings.TrimSpace(raw) || !utf8.ValidString(raw) {
+	parsed, err := contracts.ParseRuntimeEndpoint(field, raw)
+	if err != nil {
 		return "", invalid("%s is invalid", field)
-	}
-	parsed, err := url.Parse(raw)
-	if err != nil || !parsed.IsAbs() || parsed.Opaque != "" || parsed.Host == "" || parsed.Hostname() == "" ||
-		parsed.User != nil || parsed.Fragment != "" || parsed.RawFragment != "" || parsed.RawQuery != "" || parsed.ForceQuery ||
-		(parsed.Scheme != "http" && parsed.Scheme != "https") {
-		return "", invalid("%s must be an absolute HTTP(S) URL without userinfo, query, or fragment", field)
 	}
 	return parsed.String(), nil
 }

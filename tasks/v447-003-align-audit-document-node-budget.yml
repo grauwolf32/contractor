@@ -1,0 +1,37 @@
+schema_version: "1.0"
+milestone: contracts-review-2026-11
+epic: api-contracts
+priority: P2
+status: pending
+id: V447-003
+title: Count Audit JSON values consistently across Server and Runtime
+kind: defect
+introduced_by: V64-002
+languages: [go, python]
+depends_on: []
+goal: Every structurally valid large Audit context accepted by the Server can be prepared by the Runtime under the same node budget.
+context:
+  authority:
+    - date: '2026-11-05'
+      decision: The user authorized fixing the newly confirmed Audit decoder regression.
+  specification:
+    - docs/spec/audits/common-contract.md#ACT-R1
+    - docs/spec/audits/common-contract.md#ACT-R10
+    - docs/spec/platform/limits.md
+  severity: medium
+  finding: runtime/src/contractor_runtime/contracts/audit_documents.py:36 counts object member names against 250000 nodes, unlike Go and LIM-ACT-3. A 3232220-byte context with 64 members and 210 evidence descriptors per member is rejected as audit_result_invalid despite only 134727 JSON values.
+  siblings: Apply the same scalar-value counting and independent member-name string checks to contexts, conclusions and retained hypotheses in the production Runtime decoder; the Server remains the existing bounded decoder.
+  decision: Count values, arrays and objects only, retain member-name Unicode and byte checks, and exercise a generated large common context through the production completion encoder. No limit increase or new decoder is needed.
+scope:
+  in:
+    - Shared scale fixture parameters, Go conformance and production Runtime preparation regression.
+  out:
+    - Changes to Audit cardinalities, evidence grants, admission or persistence.
+acceptance_criteria:
+  - {id: A1, text: The common large context succeeds through Go decoding and the production Runtime completion encoder.}
+  - {id: A2, text: Over-budget values and malformed member names still fail; boundary counting follows LIM-ACT-3.}
+  - {id: A3, text: The large-context regression fails on the original Runtime implementation and complete affected suites pass.}
+tests:
+  - {command: 'go test ./internal/contracts/auditcontract', covers: [A1, A2, A3]}
+  - {command: 'cd runtime && uv run pytest tests/test_audit_common_contract.py tests/test_audit_completion_contracts.py tests/test_audit_results_toolset.py tests/test_audit_completion_runtime.py', covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}

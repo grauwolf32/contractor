@@ -190,6 +190,9 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
+  - id: contracts-review-2026-11
+    exit_task: V447-004
+    outcome: Private contracts reject malformed endpoint ports, explicit zero limits and alternate wire names consistently; large Audit contexts share the same structural budget, with lean shared decoders and domain ownership.
   - id: httpapi-review-cleanup-2026-11
     exit_task: V440-006
     outcome: Finding HTTP transfers have bounded socket and storage work; lean adapters call existing domain owners and page cached immutable catalog projections with verified public contracts.

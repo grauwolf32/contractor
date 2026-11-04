@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-77 open tasks: 10 in progress, 54 pending, 13 deferred. 1436 finished: 1418 completed, 18 archived.
+81 open tasks: 11 in progress, 57 pending, 13 deferred. 1436 finished: 1418 completed, 18 archived.
 
 ## In progress
 
@@ -21,6 +21,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V447-001](v447-001-unify-endpoint-validation.yml) | api-contracts | defect | P2 | Reject unusable Gateway and Runtime endpoints at every admission boundary |
 
 ## Pending
 
@@ -122,6 +123,9 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V411-017](v411-017-pentest-api-cli.yml) | feature | P1 | V411-015, V411-016, V64-008, V444-003 | Expose HTTP engagement setup and results through existing API and CLI |
+| [V447-002](v447-002-reject-invalid-private-wire-members.yml) | defect | P2 | — | Reject explicit zero ModelPolicy limits and non-wire member aliases |
+| [V447-003](v447-003-align-audit-document-node-budget.yml) | defect | P2 | — | Count Audit JSON values consistently across Server and Runtime |
+| [V447-004](v447-004-simplify-contract-boundaries.yml) | chore | P2 | V447-001, V447-002, V447-003 | Reuse strict JSON decoding and restore contracts domain boundaries |
 
 ### PostgreSQL persistence and schema (`persistence`)
 
@@ -168,8 +172,8 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 2 | 47 | 66 | 35 | 100 |
-| Planners and the Worker model boundary (`planner-worker`) | 9 | 35 | 53 | 32 | 79 |
+| Run execution core (`execution-core`) | 2 | 47 | 66 | 35 | 101 |
+| Planners and the Worker model boundary (`planner-worker`) | 9 | 35 | 53 | 32 | 80 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 15 | 5 | 47 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 3 | 14 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
@@ -180,11 +184,11 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 1 | 17 | 10 | 10 | 15 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 21 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 36 | 39 | 16 | 66 |
-| Audits (`audits`) | 14 | 68 | 94 | 40 | 149 |
+| Audits (`audits`) | 14 | 68 | 94 | 40 | 150 |
 | Evaluations (`evals`) | 6 | 21 | 40 | 16 | 49 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
 | Web UI (`ui`) | 2 | 47 | 71 | 26 | 72 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 46 | 9 | 22 |
-| Public API and wire contracts (`api-contracts`) | 1 | 2 | 39 | 29 | 20 |
+| Public API and wire contracts (`api-contracts`) | 5 | 2 | 42 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 47 | 18 |
 | Quality, CI and process (`quality`) | 12 | 1 | 29 | 126 | 27 |

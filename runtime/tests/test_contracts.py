@@ -1178,3 +1178,16 @@ def test_shared_required_member_cases_are_rejected() -> None:
                 accepted.append(f"{name} {kind} {pointer}")
     assert tested > 0
     assert accepted == []
+
+
+def test_shared_runtime_endpoint_boundaries():
+    from contractor_runtime.contracts.base import _require_runtime_endpoint
+
+    cases = json.loads((FIXTURES / "runtime-endpoint-cases.json").read_text())["cases"]
+    assert cases
+    for case in cases:
+        if case["valid"]:
+            assert _require_runtime_endpoint("endpoint", case["url"]) == case["url"]
+        else:
+            with pytest.raises(ValueError):
+                _require_runtime_endpoint("endpoint", case["url"])

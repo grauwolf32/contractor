@@ -1,0 +1,75 @@
+{
+  "description": "HTTP endpoint port and component boundaries shared by Gateway admission, RuntimeConfig, Go allocations and Python Runtime. Endpoint semantics supplement URI schemas; no DNS lookup is performed.",
+  "cases": [
+    {
+      "name": "default port",
+      "url": "https://gateway.example/v1",
+      "valid": true
+    },
+    {
+      "name": "minimum port",
+      "url": "http://127.0.0.1:1/v1",
+      "valid": true
+    },
+    {
+      "name": "maximum port",
+      "url": "http://127.0.0.1:65535/v1",
+      "valid": true
+    },
+    {
+      "name": "IPv6 maximum",
+      "url": "http://[::1]:65535/v1",
+      "valid": true
+    },
+    {
+      "name": "zero port",
+      "url": "http://127.0.0.1:0/v1",
+      "valid": false
+    },
+    {
+      "name": "overflow port",
+      "url": "http://127.0.0.1:65536/v1",
+      "valid": false
+    },
+    {
+      "name": "large port",
+      "url": "http://127.0.0.1:99999/v1",
+      "valid": false
+    },
+    {
+      "name": "empty port",
+      "url": "http://127.0.0.1:/v1",
+      "valid": false
+    },
+    {
+      "name": "IPv6 empty port",
+      "url": "http://[::1]:/v1",
+      "valid": false
+    },
+    {
+      "name": "negative port",
+      "url": "http://127.0.0.1:-1/v1",
+      "valid": false
+    },
+    {
+      "name": "named port",
+      "url": "http://127.0.0.1:canary/v1",
+      "valid": false
+    },
+    {
+      "name": "empty fragment",
+      "url": "https://gateway.example/v1#",
+      "valid": false
+    },
+    {
+      "name": "userinfo",
+      "url": "https://canary@gateway.example/v1",
+      "valid": false
+    },
+    {
+      "name": "query",
+      "url": "https://gateway.example/v1?x=1",
+      "valid": false
+    }
+  ]
+}
