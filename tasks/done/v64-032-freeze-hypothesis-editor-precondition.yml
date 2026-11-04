@@ -6,7 +6,7 @@ epic: audits
 kind: defect
 introduced_by: V64-012
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V64-012]
 languages: [typescript, markdown]
 goal: An open assertion editor cannot overwrite a concurrent edit by silently adopting its newer Audit revision.
@@ -53,3 +53,5 @@ tests:
   covers: [A1, A2]
 - command: make lint
   covers: [A1, A2, A3]
+
+implementation_commit: ec8581ed05316d098d1ef13745346f6953185efa
