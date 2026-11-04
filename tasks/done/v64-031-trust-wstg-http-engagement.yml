@@ -6,7 +6,7 @@ epic: audits
 kind: defect
 introduced_by: V64-012
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V64-012]
 languages: [go, yaml]
 goal: Starting either WSTG HTTP check pins the selected engagement routes, identities and finite budgets as trusted authority.
@@ -51,3 +51,5 @@ tests:
   covers: [A1]
 - command: make lint
   covers: [A1, A2, A3]
+
+implementation_commit: 5779c886f2bb9d401a955352e9af27411baeacf3
