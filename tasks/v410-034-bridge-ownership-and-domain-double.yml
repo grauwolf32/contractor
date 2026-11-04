@@ -6,9 +6,9 @@ epic: http-tools
 kind: chore
 introduced_by: V410-030
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V410-032, V410-033]
-languages: [python, markdown]
+languages: [python, markdown, json]
 goal: Make resource ownership and exchange state reviewable while ensuring protocol assertions exercise the actual native engine.
 context:
   protocol_authority: User clarification 2026-11-04 — HTTP/1.1 is the minimum supported version; HTTP/1.0 is rejected. Native Http1 class names denote the implementation family, not enabled HTTP/1.0 support.
@@ -46,11 +46,28 @@ acceptance_criteria:
 - id: A4
   text: Affected complete test suites, import/Ruff/lint/spec/task checks pass, and any full Runtime baseline failures are reported as failures.
 tests:
-- command: cd runtime && uv run pytest -W error tests/test_bridge_framing.py tests/test_bridge_messages.py tests/test_http_engine.py tests/test_http_proxy_bridge.py tests/test_engagement_socket_conformance.py tests/test_nuclei_engagement.py tests/test_engagement_target.py tests/test_engagement_identity.py tests/test_engagement_allocation.py tests/test_audit_http_credentials.py
+- command: cd runtime && uv run pytest -W error tests/test_bridge_lifecycle.py tests/test_bridge_framing.py tests/test_bridge_messages.py tests/test_http_engine.py tests/test_http_proxy_bridge.py tests/test_engagement_socket_conformance.py tests/test_nuclei_engagement.py tests/test_engagement_target.py tests/test_engagement_identity.py tests/test_engagement_allocation.py tests/test_audit_http_credentials.py --junitxml=/tmp/v410-034-focused.xml
   covers: [A1, A2, A3, A4]
+- command: python3 scripts/test-engagement-http-process.py --verify-python-report /tmp/v410-034-focused.xml
+  covers: [A3, A4]
+- command: python3 -m unittest discover -s scripts -p 'test_test_engagement_http_process.py'
+  covers: [A3, A4]
 - command: make lint
   covers: [A4]
 - command: python3 scripts/check_spec.py
   covers: [A4]
 - command: cd runtime && uv run python ../scripts/check_tasks.py
   covers: [A4]
+measurements:
+  date: '2026-11-04'
+  fixture: Real private TLS HTTP/2 target, warmed allocation, 8 KiB responses, three batches at concurrency 1, 10 and 30; each batch held all streams before releasing responses.
+  concurrency_30: 90 requests in 144.4 ms; 120 pool checks scanned 2295 exchange entries and consumed 1.32 ms CPU. Two route checks per request consumed 8.0 ms CPU; each thread-await sum was about 77–82 ms across concurrent calls, not additive wall time.
+  artifact: /tmp/v410-034-profile.json
+  decision: Keep both checks and the current scan for this refactoring. This local sample does not justify a cache/index or demonstrate production-scale benefit; reopen when profiling a concrete workload identifies it as a bottleneck. DNS, lease and session checks remain fresh.
+
+conformance_gate:
+  selection: scripts/engagement-http-matrix.json now selects real native partial writes, pre-send retries and lifecycle failures; renamed domain cases and stable credential parameter IDs are updated in the same change.
+verification:
+  focused: Full affected HTTP/scanner suites passed (191 tests), including fourteen new native lifecycle/retry/partial-write cases.
+  conformance: Updated Python conformance matrix accepted the real focused JUnit report; all six gate regression tests passed. The full process gate was attempted and failed setup because CONTRACTOR_TEST_DATABASE_URL is unset; no PostgreSQL/process pass is claimed.
+  full_runtime: Running final broad diagnostic; no production code changes after its start.

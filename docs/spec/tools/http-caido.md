@@ -1330,7 +1330,10 @@ fail closed; library diagnostics cannot forward request/response content or
 credentials. TLS key logging from process environment is disabled on both
 local and target contexts before handshake. The embedding does not replace the process asyncio task factory
 or exception handler. After joined cleanup it restores native context and
-logging state, clears TLS context caches and removes private certificate files.
+logging state after clearing TLS context caches and removing private certificate
+files. A failed join or deletion retains the exact cleanup handles and exclusive
+process ownership for a later close retry; another allocation cannot acquire the
+engine's process state before cleanup succeeds.
 
 **HTP-R139.** Each redirect and retry passes fresh local scope/DNS admission
 and consumes the allocation's configured request/rate/concurrency allowance.

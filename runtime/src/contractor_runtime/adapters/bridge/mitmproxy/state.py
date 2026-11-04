@@ -5,28 +5,32 @@ from __future__ import annotations
 import asyncio
 import io
 from dataclasses import dataclass, field
-from typing import Any
+
+from mitmproxy import http
+from mitmproxy.connection import Server
 
 from contractor_runtime.adapters.bridge import BridgeFailure
-from contractor_runtime.adapters.http_session import PrivateResponse
+from contractor_runtime.adapters.http_session import PrivateRequest, PrivateResponse
+from contractor_runtime.adapters.http_stream import RequestBoundary
+from contractor_runtime.core.target_policy import IPAddress
 
 
 @dataclass(eq=False, repr=False)
 class Exchange:
     url: str
-    boundary: Any
-    request: Any
-    addresses: tuple
+    boundary: RequestBoundary
+    request: PrivateRequest | None
+    addresses: tuple[IPAddress, ...]
     body_limit: int
-    future: asyncio.Future
-    flow: Any = None
+    future: asyncio.Future[PrivateResponse] | None
+    flow: http.HTTPFlow | None = None
     stream_id: int = 0
-    connection: Any = None
+    connection: Server | None = None
     reason: str = ""
     exception: Exception | None = None
     response: PrivateResponse | None = None
     buffer: io.BytesIO = field(default_factory=io.BytesIO)
-    hooks: set = field(default_factory=set)
+    hooks: set[asyncio.Task[None]] = field(default_factory=set)
     truncated: bool = False
 
     def receive(self, data: bytes) -> bool:

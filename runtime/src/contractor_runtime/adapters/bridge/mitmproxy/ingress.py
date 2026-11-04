@@ -77,7 +77,7 @@ class IngressHttp(native_http.HttpLayer):
         self.handler = handler
         parser = IngressHttp2 if context.client.alpn == b"h2" else IngressHttp1
         self.connections[context.client] = parser(context.fork())
-        self.body_sizes = {}
+        self.body_sizes: dict[int, int] = {}
 
     def event_to_child(self, child, event):
         if isinstance(event, native_http.RequestHeaders):
@@ -100,9 +100,10 @@ class Ingress(OwnedHandler, server.LiveConnectionHandler):
         self.bridge, self.engine = bridge, engine
         super().__init__(reader, writer, engine.options, ProxyMode.parse("regular"))
         self.layer = layers.modes.HttpProxy(self.layer.context)
-        self.hooks, self.writers = set(), set()
+        self.hooks: set[asyncio.Task[None]] = set()
+        self.writers: set[asyncio.StreamWriter] = set()
         self.received = self.authenticated = False
-        self.pending = set()
+        self.pending: set[str] = set()
         self.completed = 0
 
     def log(self, message, level=logging.INFO, exc_info=None):

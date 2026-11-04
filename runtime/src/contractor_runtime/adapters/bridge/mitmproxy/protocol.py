@@ -107,7 +107,7 @@ class BoundedHttp2Client(_http2.Http2Client):
     def __init__(self, context, pool):
         super().__init__(context)
         self.pool = pool
-        self.header_totals = {}
+        self.header_totals: dict[int, tuple[int, int]] = {}
         self.h2_conn.decoder.max_header_list_size = MAX_CONTROLLED_HEADER_BYTES + MAX_HEADERS * 32
 
     def _handle_event(self, event):

@@ -11,7 +11,9 @@ import logging
 import ssl
 import sys
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
+from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 from mitmproxy import ctx, http, master, options
@@ -27,28 +29,84 @@ from contractor_runtime.adapters.bridge.mitmproxy.lifecycle import OwnedHandler
 from contractor_runtime.adapters.bridge.mitmproxy.messages import native_url, request_message
 from contractor_runtime.adapters.bridge.mitmproxy.protocol import (
     Abort,
+    BoundedHttp1Client,
+    BoundedHttp2Client,
     RoutedHttpLayer,
     Submit,
 )
 from contractor_runtime.adapters.bridge.mitmproxy.state import Exchange
-from contractor_runtime.adapters.http_session import PrivateResponse
+from contractor_runtime.adapters.http_session import PrivateRequest, PrivateResponse
+from contractor_runtime.adapters.http_stream import RequestBoundary
 from contractor_runtime.adapters.http_transport import HTTPTransportError
 from contractor_runtime.core.async_tasks import join_owned_task
 from contractor_runtime.core.http_limits import MAX_CONTROLLED_HEADER_BYTES, MAX_HEADERS
 from contractor_runtime.core.target_policy import TargetDenied
 from contractor_runtime.threads import to_thread_until_done
 
+if TYPE_CHECKING:
+    from contractor_runtime.adapters.bridge import HTTPProxyBridge
+    from contractor_runtime.adapters.http_policy import _RequestPolicy
+
 VERSION = "12.3.1"
-_active = None
+_active: MitmproxyEngine | None = None
+_MISSING = object()
 
 
-_dial = contextvars.ContextVar("bridge_mitmproxy_dial")
+class _ProcessState:
+    """Exclusive process state, restored only after joined resource erasure."""
+
+    def __init__(self):
+        self.owned = False
+        self.previous: dict[str, object] = {}
+        self.logger = logging.getLogger("mitmproxy")
+        self.handlers: list[logging.Handler] = []
+        self.propagate = True
+        self.keylog: native_tls.MasterSecretLogger | None = None
+
+    @staticmethod
+    def erase_tls_contexts():
+        native_tls.create_proxy_server_context.cache_clear()
+        native_tls.create_client_proxy_context.cache_clear()
+
+    def capture(self, owner: MitmproxyEngine):
+        global _active
+        if _active is not None:
+            raise RuntimeError("native HTTP engine already belongs to an allocation")
+        _active = owner
+        self.owned = True
+        self.previous = {key: getattr(ctx, key, _MISSING) for key in ("master", "log", "options")}
+        self.handlers, self.propagate = self.logger.handlers[:], self.logger.propagate
+        self.keylog = native_tls.log_master_secret
+        native_tls.log_master_secret = None
+        self.logger.handlers, self.logger.propagate = [logging.NullHandler()], False
+        self.erase_tls_contexts()
+
+    def restore(self):
+        global _active
+        if not self.owned:
+            return
+        self.erase_tls_contexts()
+        for key, previous in self.previous.items():
+            if previous is _MISSING:
+                ctx.__dict__.pop(key, None)
+            else:
+                setattr(ctx, key, previous)
+        self.logger.handlers, self.logger.propagate = self.handlers, self.propagate
+        native_tls.log_master_secret = self.keylog
+        self.previous.clear()
+        self.handlers = []
+        self.keylog = None
+        self.owned = False
+        _active = None
+
+
+_dial: contextvars.ContextVar[Exchange] = contextvars.ContextVar("bridge_mitmproxy_dial")
 
 
 class _Permit:
     """Native connection backpressure with a second check after its queue."""
 
-    def __init__(self, semaphore):
+    def __init__(self, semaphore: asyncio.Semaphore):
         self.semaphore = semaphore
         self.users = 0
 
@@ -71,7 +129,7 @@ class _Permit:
 
 
 class _Reader:
-    def __init__(self, inner, pool, connection):
+    def __init__(self, inner: asyncio.StreamReader, pool: _Pool, connection: Server):
         self.inner, self.pool, self.connection = inner, pool, connection
 
     async def read(self, maximum):
@@ -80,7 +138,7 @@ class _Reader:
 
 
 class _Writer:
-    def __init__(self, inner, pool, connection):
+    def __init__(self, inner: asyncio.StreamWriter, pool: _Pool, connection: Server):
         self.inner, self.pool, self.connection = inner, pool, connection
 
     def __getattr__(self, name):
@@ -98,7 +156,7 @@ class _Writer:
 class _Pool(OwnedHandler, server.ConnectionHandler):
     """A native HTTP layer shared only within one identity and exact origin."""
 
-    def __init__(self, engine, url):
+    def __init__(self, engine: MitmproxyEngine, url: str):
         self.engine = engine
         parsed = urlsplit(url)
         self.host, self.port = (
@@ -111,13 +169,14 @@ class _Pool(OwnedHandler, server.ConnectionHandler):
         context = Context(client, engine.options)
         super().__init__(context)
         self.layer = RoutedHttpLayer(context, self)
-        self.exchanges = {}
-        self.parsers = {}
-        self.connecting = {}
-        self.verified = set()
+        self.exchanges: dict[int, Exchange] = {}
+        self.parsers: dict[Server, BoundedHttp1Client | BoundedHttp2Client] = {}
+        self.connecting: dict[Server, Exchange] = {}
+        self.verified: set[Server] = set()
         self.next_stream = 1
         self.closed = False
-        self.hooks, self.writers = set(), set()
+        self.hooks: set[asyncio.Task[None]] = set()
+        self.writers: set[asyncio.StreamWriter | _Writer] = set()
         native_limit = self.max_conns.default_factory
         self.max_conns = collections.defaultdict(lambda: _Permit(native_limit()))
 
@@ -142,23 +201,28 @@ class _Pool(OwnedHandler, server.ConnectionHandler):
             # Never hand an authority exception to an unobserved native task.
             raise OSError("HTTP authority ended") from None
 
+    def fail(self, error: BaseException | None, *, callback: bool):
+        for exchange in self.exchanges.values():
+            if isinstance(error, TargetDenied):
+                exchange.reason = "policy_denied"
+            elif isinstance(error, TimeoutError) or (
+                callback and isinstance(error, HTTPTransportError)
+            ):
+                exchange.reason = "timeout"
+            elif isinstance(error, OSError) and not callback:
+                exchange.reason = exchange.reason or "transport_failed"
+            else:
+                source = "callback" if callback else "dispatch"
+                exchange.exception = RuntimeError(f"native HTTP engine {source} failed")
+            exchange.finish()
+        for connection in tuple(self.transports):
+            self.close_connection(connection)
+
     def log(self, message, level=logging.INFO, exc_info=None):
-        # Native protocol errors can contain raw request/response bytes.
-        # Preserve the classified/bug signal without forwarding their text.
+        # Native protocol errors can contain raw bytes. Preserve classification
+        # and bug signals without forwarding diagnostics or exception content.
         if exc_info:
-            error = sys.exc_info()[1]
-            for exchange in self.exchanges.values():
-                if isinstance(error, TimeoutError):
-                    exchange.reason = "timeout"
-                elif isinstance(error, OSError):
-                    exchange.reason = exchange.reason or "transport_failed"
-                elif isinstance(error, TargetDenied):
-                    exchange.reason = "policy_denied"
-                else:
-                    exchange.exception = RuntimeError("native HTTP engine dispatch failed")
-                exchange.finish()
-            for connection in tuple(self.transports):
-                self.close_connection(connection)
+            self.fail(sys.exc_info()[1], callback=False)
 
     async def handle_hook(self, hook):
         try:
@@ -166,16 +230,7 @@ class _Pool(OwnedHandler, server.ConnectionHandler):
         except asyncio.CancelledError:
             raise
         except Exception as error:
-            for exchange in self.exchanges.values():
-                if isinstance(error, (TimeoutError, TargetDenied, HTTPTransportError)):
-                    exchange.reason = (
-                        "policy_denied" if isinstance(error, TargetDenied) else "timeout"
-                    )
-                else:
-                    exchange.exception = RuntimeError("native HTTP engine callback failed")
-                exchange.finish()
-            for connection in tuple(self.transports):
-                self.close_connection(connection)
+            self.fail(error, callback=True)
 
     async def server_event(self, event):
         await super().server_event(event)
@@ -214,12 +269,14 @@ class _Pool(OwnedHandler, server.ConnectionHandler):
             if permit is not None and not permit.users:
                 self.max_conns.pop(command.connection.address, None)
 
-    async def submit(self, exchange):
+    async def submit(self, exchange: Exchange):
         if self.closed:
             raise BridgeFailure("transport_failed")
         exchange.stream_id = self.next_stream
         self.next_stream += 2
         exchange.flow = http.HTTPFlow(self.client, Server(address=(self.host, self.port)))
+        if exchange.request is None:
+            raise RuntimeError("native HTTP exchange was released")
         exchange.flow.request = request_message(exchange.url, exchange.request)
         self.exchanges[exchange.stream_id] = exchange
         self.engine.flows[exchange.flow.id] = exchange
@@ -263,45 +320,31 @@ class _Pool(OwnedHandler, server.ConnectionHandler):
 class MitmproxyEngine:
     """Native engine resource; HTTPTransport remains the sole domain owner."""
 
-    def __init__(self, *, require_authority, ssl_context=None):
+    def __init__(
+        self, *, require_authority: Callable[[], object], ssl_context: ssl.SSLContext | None = None
+    ):
         self.require_authority = require_authority
         self.ssl_context = ssl_context
-        self.master = self.options = self.tls = None
-        self.directory = None
-        self.close_task = None
-        self.pools = {}
-        self.flows = {}
-        self.ingresses = set()
+        self.master: master.Master | None = None
+        self.options: options.Options | None = None
+        self.tls: tlsconfig.TlsConfig | None = None
+        self.next_layer: next_layer.NextLayer | None = None
+        self.directory: tempfile.TemporaryDirectory[str] | None = None
+        self.close_task: asyncio.Task[None] | None = None
+        self.pools: dict[tuple[str, str], _Pool] = {}
+        self.flows: dict[str, Exchange] = {}
+        self.ingresses: set[HTTPProxyBridge] = set()
         self.closed = False
-        self._previous = {}
+        self._process = _ProcessState()
         self.started = self.starting = False
-        self._logging = None
-        self._keylog = None
-        self._keylog_owned = False
 
     async def start(self):
-        global _active
         if self.started or self.starting or self.closed:
             raise RuntimeError("native HTTP engine cannot be restarted")
         self.starting = True
         if importlib.metadata.version("mitmproxy") != VERSION:
             raise RuntimeError("unsupported native HTTP engine")
-        if _active is not None and _active is not self:
-            raise RuntimeError("native HTTP engine already belongs to an allocation")
-        _active = self
-        # This is native process configuration, like ctx/options. Disable the
-        # environment-derived keylog sink before creating any TLS contexts;
-        # restore it only after joined stop and cache erasure.
-        self._keylog = native_tls.log_master_secret
-        self._keylog_owned = True
-        native_tls.log_master_secret = None
-        native_tls.create_proxy_server_context.cache_clear()
-        native_tls.create_client_proxy_context.cache_clear()
-        logger = logging.getLogger("mitmproxy")
-        self._logging = (logger, logger.handlers[:], logger.propagate)
-        logger.handlers = [logging.NullHandler()]
-        logger.propagate = False
-        self._previous = {key: getattr(ctx, key, None) for key in ("master", "log", "options")}
+        self._process.capture(self)
         self.directory = await to_thread_until_done(
             lambda: tempfile.TemporaryDirectory(prefix="contractor-http-engine-"),
             name="http-engine-directory",
@@ -354,7 +397,15 @@ class MitmproxyEngine:
 
         return Ingress(bridge, reader, writer, self)
 
-    async def request(self, url, boundary, request, policy, identity, body_limit):
+    async def request(
+        self,
+        url: str,
+        boundary: RequestBoundary,
+        request: PrivateRequest,
+        policy: _RequestPolicy,
+        identity: str,
+        body_limit: int,
+    ) -> PrivateResponse:
         parsed = urlsplit(url)
         addresses = await policy.resolve(
             parsed.hostname, parsed.port or (443 if parsed.scheme == "https" else 80)
@@ -367,44 +418,46 @@ class MitmproxyEngine:
             pool = _Pool(self, url)
             self.pools[key] = pool
             await pool.server_event(events.Start())
+        future: asyncio.Future[PrivateResponse] = asyncio.get_running_loop().create_future()
         exchange = Exchange(
             url,
             boundary,
             request,
             addresses,
             body_limit,
-            asyncio.get_running_loop().create_future(),
+            future,
         )
         try:
             await pool.submit(exchange)
-            return await asyncio.shield(exchange.future)
+            return await asyncio.shield(future)
         finally:
-
-            async def release():
-                if exchange.flow is not None:
-                    await pool.abort(exchange)
-                    # Error/response hooks must finish advancing the exact
-                    # native stream before private flow state can be erased.
-                    while pending := [task for task in exchange.hooks if not task.done()]:
-                        await asyncio.gather(*pending, return_exceptions=True)
-                    self.flows.pop(exchange.flow.id, None)
-                parser = pool.parsers.get(exchange.connection)
-                if parser is not None and hasattr(parser, "forget"):
-                    parser.forget(exchange.stream_id)
-                pool.exchanges.pop(exchange.stream_id, None)
-                await pool.release_idle(exchange.connection)
-                if not exchange.future.done():
-                    exchange.future.cancel()
-                elif not exchange.future.cancelled():
-                    exchange.future.exception()
-                exchange.hooks.clear()
-                exchange.clear()
-
-            cleanup = asyncio.create_task(release(), name="http-engine-exchange-close")
+            cleanup = asyncio.create_task(
+                self._release_exchange(pool, exchange), name="http-engine-exchange-close"
+            )
             cancelled = await join_owned_task(cleanup)
             cleanup.result()
             if cancelled:
                 raise asyncio.CancelledError
+
+    async def _release_exchange(self, pool: _Pool, exchange: Exchange) -> None:
+        if exchange.flow is not None:
+            await pool.abort(exchange)
+            # Join callbacks advancing this exact stream before erasing private state.
+            while pending := [task for task in exchange.hooks if not task.done()]:
+                await asyncio.gather(*pending, return_exceptions=True)
+            self.flows.pop(exchange.flow.id, None)
+        parser = pool.parsers.get(exchange.connection)
+        if isinstance(parser, BoundedHttp2Client):
+            parser.forget(exchange.stream_id)
+        pool.exchanges.pop(exchange.stream_id, None)
+        await pool.release_idle(exchange.connection)
+        if exchange.future is not None:
+            if not exchange.future.done():
+                exchange.future.cancel()
+            elif not exchange.future.cancelled():
+                exchange.future.exception()
+        exchange.hooks.clear()
+        exchange.clear()
 
     async def handle_hook(self, pool, hook):
         data = hook.args()[0]
@@ -475,7 +528,6 @@ class MitmproxyEngine:
             raise asyncio.CancelledError
 
     async def _close(self):
-        global _active
         for ingress in tuple(self.ingresses):
             await ingress.__aexit__()
         for pool in self.pools.values():
@@ -484,25 +536,14 @@ class MitmproxyEngine:
         self.flows.clear()
         if self.master is not None:
             await self.master.done()
-        for key, previous in self._previous.items():
-            if previous is None:
-                ctx.__dict__.pop(key, None)
-            else:
-                setattr(ctx, key, previous)
-        if self._logging is not None:
-            logger, handlers, propagate = self._logging
-            logger.handlers, logger.propagate = handlers, propagate
-            self._logging = None
-        if _active is self:
-            _active = None
-        native_tls.create_proxy_server_context.cache_clear()
-        native_tls.create_client_proxy_context.cache_clear()
-        if self._keylog_owned:
-            native_tls.log_master_secret = self._keylog
-            self._keylog = None
-            self._keylog_owned = False
-        self.master = self.options = self.tls = self.ssl_context = None
+            self.master = None
+        if self._process.owned:
+            self._process.erase_tls_contexts()
+        self.options = self.tls = self.next_layer = self.ssl_context = None
         if self.directory is not None:
             await to_thread_until_done(self.directory.cleanup, name="http-engine-files-close")
             self.directory = None
+        # A failed writer join or file deletion keeps exclusive process ownership
+        # and its exact cleanup handles until a later close succeeds.
+        self._process.restore()
         self.closed = True

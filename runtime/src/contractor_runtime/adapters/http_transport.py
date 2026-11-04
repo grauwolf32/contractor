@@ -90,7 +90,6 @@ class HTTPTransport:
         self._rate_lock = asyncio.Lock()
         self._initialize_lock = asyncio.Lock()
         self._initialized = False
-        self._boundaries: set[RequestBoundary] = set()
         self._sessions: list[IdentitySession] = []
         try:
             for identity in self._assignment.identities:
@@ -146,7 +145,6 @@ class HTTPTransport:
         self._settings = None
         self._assignment = None
         self._policy = None
-        self._boundaries.clear()
         for session in self._sessions:
             session.close()
         self._sessions.clear()
@@ -175,9 +173,6 @@ class HTTPTransport:
     def finish_invocation(self, added: bool) -> None:
         if added:
             self._tasks.discard(asyncio.current_task())
-
-    async def _close_boundary(self, boundary: RequestBoundary) -> None:
-        self._boundaries.discard(boundary)
 
     async def _close_transport(self) -> None:
         if self._engine is not None:
@@ -317,13 +312,9 @@ class HTTPTransport:
             async with asyncio.timeout(max(0, deadline - self._clock())):
                 async with self._semaphore:
                     await self._initialize()
-                    return await self._execute_session(session, url, deadline=deadline, **options)
+                    return await self._request_chain(session, url, deadline=deadline, **options)
         finally:
             self.finish_invocation(added)
-
-    async def _execute_session(self, session, url, **options):
-        outcome, response = await self._request_chain(session, url, **options)
-        return outcome, response
 
     async def _admit_request(self) -> None:
         async with self._rate_lock:
@@ -413,7 +404,6 @@ class HTTPTransport:
                 monotonic=self._clock,
                 require_session=require_session,
             )
-            self._boundaries.add(boundary)
             next_url = None
             response = None
             try:
@@ -435,10 +425,6 @@ class HTTPTransport:
                 outcome = self._failure(boundary, "tls_failed")
             except (HTTPTransportError, ValueError, OSError):
                 outcome = self._failure(boundary, "transport_failed")
-            finally:
-                # Retain ownership after a close failure so allocation teardown
-                # can finish closing the exact stream.
-                await self._close_boundary(boundary)
             if response is not None:
                 response.method = method
                 response.redirects = hop

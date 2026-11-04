@@ -11,7 +11,7 @@ import pytest
 from fakes.engagement import preflight_spec
 from fakes.engagement_engine import transport as HTTPTransport
 from fakes.worker_runtime import StubADKWorkerRuntimeFactory
-from test_engagement_target import Network, policy_config
+from test_engagement_target import Results, policy_config
 
 from contractor_runtime.allocation import AllocationService
 from contractor_runtime.capabilities import discover_capabilities
@@ -27,11 +27,11 @@ from contractor_runtime.state import RuntimeState
 class Factory:
     ref = "http-target@1"
 
-    def __init__(self, network):
-        self.network, self.created = (network, [])
+    def __init__(self, results):
+        self.results, self.created = (results, [])
 
     def create(self, spec):
-        resource = HTTPTransport(spec, resolver=policy_config().resolver, backend=self.network)
+        resource = HTTPTransport(spec, resolver=policy_config().resolver, engine=self.results)
         self.created.append(resource)
         return resource
 
@@ -62,15 +62,14 @@ def test_lifecycle_cancels_and_joins_target_before_worker_resources(
 ):
 
     async def scenario():
-        events = []
-        factory = Factory(Network(events, hang=True))
+        factory = Factory(Results(hold=True))
         _, service = await service_for(tmp_path, runtime_capabilities, factory)
         spec = preflight_spec()
         await service.prepare(spec)
         task = asyncio.create_task(factory.created[0].request("http://target.example/explicit"))
-        while not factory.network.streams:
+        while not factory.results.attempts:
             await asyncio.sleep(0)
-        await factory.network.streams[0].entered_read.wait()
+        await factory.results.attempts[0].entered.wait()
         if operation == "finalize":
             await service.finalize(
                 FinalizeAllocationRequest(
@@ -84,7 +83,7 @@ def test_lifecycle_cancels_and_joins_target_before_worker_resources(
             await service.expire_control_lease(10)
         else:
             await service.reconcile_drain(spec.allocation_id, 10)
-        assert factory.network.streams[0].closed
+        assert factory.results.attempts[0].finished
         assert not factory.created[0]._tasks
         with pytest.raises(asyncio.CancelledError):
             await task
