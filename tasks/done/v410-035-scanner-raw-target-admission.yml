@@ -6,7 +6,7 @@ epic: http-tools
 kind: defect
 introduced_by: V410-032
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V410-032]
 languages: [python, markdown, json]
 goal: Scanner ingress rejects forbidden or noncanonical source targets before any target traffic or lossy URL conversion.
@@ -46,9 +46,9 @@ acceptance_criteria:
 - id: A3
   text: Regressions fail on the reviewed revision; complete affected HTTP/scanner suites, conformance report, lint and spec/task checks pass.
 tests:
-- command: cd runtime && uv run pytest -W error tests/test_bridge_ingress.py tests/test_bridge_messages.py tests/test_bridge_framing.py tests/test_bridge_lifecycle.py tests/test_http_engine.py tests/test_http_proxy_bridge.py tests/test_engagement_socket_conformance.py tests/test_nuclei_engagement.py tests/test_engagement_target.py tests/test_engagement_identity.py tests/test_engagement_allocation.py tests/test_audit_http_credentials.py --junitxml=/tmp/v410-035-focused.xml
+- command: cd runtime && uv run pytest -W error tests/test_bridge_retirement.py tests/test_bridge_ingress.py tests/test_bridge_messages.py tests/test_bridge_framing.py tests/test_bridge_lifecycle.py tests/test_http_engine.py tests/test_http_proxy_bridge.py tests/test_engagement_socket_conformance.py tests/test_nuclei_engagement.py tests/test_engagement_target.py tests/test_engagement_identity.py tests/test_engagement_allocation.py tests/test_audit_http_credentials.py --junitxml=/tmp/v410-bridge-review-focused.xml
   covers: [A1, A2, A3]
-- command: python3 scripts/test-engagement-http-process.py --verify-python-report /tmp/v410-035-focused.xml
+- command: python3 scripts/test-engagement-http-process.py --verify-python-report /tmp/v410-bridge-review-focused.xml
   covers: [A3]
 - command: make lint
   covers: [A3]
@@ -60,3 +60,7 @@ verification:
   red: Eight original-target cases failed on cd00a5ab0d593752224e9b173cf4395b3ac00bf1 (fragments, zero-prefixed ports and Unicode query input); sixteen sibling/valid cases already passed.
   focused: All 24 ingress cases and the full affected suites passed (215 tests); tests cover real bridge, HTTPTransport and target sockets, split headers, CONNECT, TLS HTTP/2 and exact valid targets.
   gate: The mandatory Python conformance matrix now includes all new ingress identities.
+  final_focused: After integrating timer retirement, all 222 affected HTTP/bridge/scanner tests passed without selected skips; both task commands share the final report at /tmp/v410-bridge-review-focused.xml, accepted by the current conformance matrix.
+  lint: make lint passed, including Runtime Ruff/import layers, release graph, gate tests and task/spec checks. check_spec.py and check_tasks.py also passed directly.
+  delivery: Local branch codex/sitemap-source-comparison, not merged into main.
+implementation_commit: 9bebbdcf84a10e0955565b0c6b6cc7d34bae4bb7
