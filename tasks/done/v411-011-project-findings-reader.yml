@@ -5,7 +5,7 @@ milestone: audit-check-prioritization
 epic: findings
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V64-002
 - V64-004
@@ -23,6 +23,15 @@ goal: Ordinary finding review, hypothesis generation and HTTP work can read boun
 demonstration: A same-change ordinary finding-review Workflow reads more than one Project page and consumes
   a frozen selected snapshot/evidence; foreign Project data is denied before Runtime exposure.
 context:
+  verification_evidence: tasks/evidence/v411-011-2026-11-04.json
+  completion: >-
+    Completed on 2026-11-04. The shipped ordinary project-findings-review Workflow reads 101
+    Project findings over two bounded pages, consumes full selected proposal/evidence and a separate
+    refuted result input, and publishes its exact frozen selection and report as ordinary outputs.
+    Real PostgreSQL verifies authority, atomic collisions, no holds on live reads and exact replay
+    after source deletion. Full Runtime passes 5712 tests with 135 existing optional skips; all
+    listed owner, API, wire, process and lint gates pass. No scope growth or new store/controller
+    was required. Branch codex/project-findings-reader remains unmerged to main.
   execution_authority: User assigned implementation on 2026-11-04 after reviewing current main. Work starts from main 7a7daee624b5afc3706b2bd258143888435dc774 on codex/project-findings-reader; no demo deployment is requested.
   authority: 'User decisions and task-formation request on 2026-10-31: Audit durably coordinates ordinary
     tasks/Runs for investigation, checking, supporting work and generation. There is no mandatory discovery-finding-generator
@@ -159,7 +168,7 @@ verification_requirements:
   dependencies and strict reads/writes.
 - Delete the replaced vertical path and its exclusive schemas/states/tests as its callers migrate. Final
   V64-011 proves no parallel legacy pipeline remains.
-implementation_commit: null
+implementation_commit: 06b2907745288a3b1c0821e112126af986819063
 replanning:
   date: '2026-10-31'
   previous_title: Read live Project findings through allocation-authorized existing mechanisms
