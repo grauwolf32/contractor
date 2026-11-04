@@ -6,7 +6,7 @@ epic: persistence
 kind: defect
 introduced_by: V428-002
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [go, sql]
 goal: "A valid Go RuntimeConfig snapshot is accepted by PostgreSQL under every database collation."
@@ -62,3 +62,14 @@ tests:
     covers: [A1, A2, A3, A4]
   - command: "make lint"
     covers: [A4]
+implementation_commit: 6932cafb0cb331fb4b56d54afea106807464a945
+verification:
+  date: "2026-11-05"
+  result: >-
+    Full persistence and RuntimeConfig packages passed with integration-tagged tests against
+    disposable PostgreSQL 17. Shared cases exercise RunSnapshot.Validate and both installed SQL
+    credential lists under C and ICU en-US. The migration regression proves the previous non-C
+    validator rejects the canonical punctuation case, then accepts it after upgrade, checks stored
+    snapshot preservation and an actual workflow_runs constraint, and verifies the complete
+    migration ledger. make lint passed, including shared fixture sources and rebuilt
+    dependency/ERD pages; ERD reports schemaVersion 000008. No demo deployment was performed.
