@@ -1,0 +1,55 @@
+schema_version: '1.0'
+id: V64-032
+title: Preserve the hypothesis editor revision through polling
+milestone: audit-check-prioritization
+epic: audits
+kind: defect
+introduced_by: V64-012
+priority: P2
+status: in_progress
+depends_on: [V64-012]
+languages: [typescript, markdown]
+goal: An open assertion editor cannot overwrite a concurrent edit by silently adopting its newer Audit revision.
+context:
+  authority: User review 2026-11-04 of commit 1b1112575 requests this P2 correction for Save and Save and check.
+  specification: docs/spec/audits/common-contract.md#ACT-R16
+  finding: >-
+    ui/src/routes/projects/audits/hypotheses.tsx:98 reads audit.revision at save time. Polling
+    supplies a newer revision while the old text stays open, allowing stale content to overwrite another writer.
+  siblings: >-
+    Plain Save and atomic Save and check share the editor request builder. Direct Check has no
+    editor content. Ambiguous retries must keep their existing exact key, body and precondition.
+  boundary: >-
+    The editor owns its captured Audit precondition and source hypothesis snapshot. Server CAS and
+    receipts remain unchanged. A stale edit preserves text and requires explicit reload; no implicit rebase.
+  verification: >-
+    Three stale-editor regressions fail against the unmodified component. The final focused suite
+    passes all nine cases, including both save routes, source-change notification, explicit new-draft
+    precondition refresh and identical ambiguous retries after polling. Full ui-verify passes
+    216 files, 2472 tests and one existing expected failure; the final added new-draft case passes
+    in the focused suite, and typecheck and formatting were rerun afterward. The browser gate passes
+    three cases with real parent polling, conflict display and explicit reload at 390 px in light,
+    dark and black themes. make lint passes. UI patch version is 0.11.8. The branch remains unmerged.
+scope:
+  in:
+  - Capture the precondition with the open form and surface changes to its source version.
+  - Cover both save paths, explicit recovery and frozen ambiguous retries through UI contract tests.
+  - Update the UI contract and patch version and verify narrow layouts in all themes.
+  out:
+  - New Server concurrency protocol, automatic text merges or hypothesis lifecycle changes.
+acceptance_criteria:
+- id: A1
+  text: Polling never updates an existing editor precondition; both save paths refuse stale writes without losing draft text.
+- id: A2
+  text: Source changes are visible and recovery requires explicitly loading current content or refreshing a new assertion's precondition.
+- id: A3
+  text: Ambiguous retries retain identical key, body and revision despite polling; definite conflicts do not retry silently.
+tests:
+- command: cd ui && corepack pnpm exec vitest run src/routes/projects/audits/hypotheses.test.tsx
+  covers: [A1, A2, A3]
+- command: VITEST_MAX_WORKERS=1 make ui-verify
+  covers: [A1, A2, A3]
+- command: node --input-type=module -e 'import {runBrowserGate} from "./ui/server/browser-gate.mjs"; await runBrowserGate("audit-hypotheses", "Audit hypotheses", ["e2e/audit-hypotheses.spec.ts"]);'
+  covers: [A1, A2]
+- command: make lint
+  covers: [A1, A2, A3]

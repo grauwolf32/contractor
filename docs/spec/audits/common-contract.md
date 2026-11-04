@@ -301,6 +301,14 @@ use the existing keyed Audit mutation family. Concurrent edits use the Audit
 revision precondition. Replaying a lost acknowledgement reads the receipt before
 mutable hypothesis heads.
 
+The assertion editor captures the Audit revision with the source content when
+opened. Both Save and Save and check retain that precondition through polling.
+A changed source revision or a definite precondition refusal preserves the
+unsaved text and blocks another write until the user explicitly reloads the
+current assertion. A new assertion may explicitly adopt the refreshed Audit
+revision after a refusal. An ambiguous acknowledgement retains the original
+request body, key and precondition until its retry resolves.
+
 Registry pages expose checking Workflow aliases from the stored Program pin, so
 continuation does not depend on a changed or removed live catalog entry. Only
 bindings that can use already available Audit inputs are offered by this form.

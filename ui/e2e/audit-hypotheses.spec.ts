@@ -16,6 +16,8 @@ for (const theme of ["light", "dark", "black"]) {
       theme,
     );
     const current = audit("project_assertions", "audit_assertions", "paused");
+    current.collectionPending = true;
+    let sourceRevision = 1;
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await mockAPI(page, async (route, request, url) => {
@@ -37,9 +39,11 @@ for (const theme of ["light", "dark", "black"]) {
               document: {
                 schema: "contractor.audit.hypothesis.v1",
                 id: "hypothesis-original",
-                revision: 1,
+                revision: sourceRevision,
                 statement:
-                  "Only the selected owner can access the selected record",
+                  sourceRevision === 1
+                    ? "Only the selected owner can access the selected record"
+                    : "Another author's updated assertion",
                 scope: {
                   conditions: "The selected fixture and actor only",
                   required_evidence: "Exact inspected source",
@@ -71,6 +75,21 @@ for (const theme of ["light", "dark", "black"]) {
     await expect(
       page.getByRole("button", { name: "Save and check" }),
     ).toBeVisible();
+    await page
+      .getByRole("textbox", { name: /^Assertion/ })
+      .fill("My unsaved assertion");
+    sourceRevision = 2;
+    current.revision++;
+    await expect(page.getByText(/Your draft is preserved/)).toBeVisible();
+    await expect(page.getByRole("textbox", { name: /^Assertion/ })).toHaveValue(
+      "My unsaved assertion",
+    );
+    await expect(
+      page.getByRole("button", { name: "Save assertion" }),
+    ).toBeDisabled();
+    await expect(
+      page.getByRole("button", { name: "Save and check" }),
+    ).toBeDisabled();
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth,
@@ -81,5 +100,12 @@ for (const theme of ["light", "dark", "black"]) {
       path: testInfo.outputPath(`assertions-${theme}-390.png`),
       fullPage: true,
     });
+    await page.getByRole("button", { name: "Edit assertion" }).click();
+    await expect(page.getByRole("textbox", { name: /^Assertion/ })).toHaveValue(
+      "Another author's updated assertion",
+    );
+    await expect(
+      page.getByRole("button", { name: "Save assertion" }),
+    ).toBeEnabled();
   });
 }

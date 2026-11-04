@@ -32,6 +32,7 @@ export function AuditHypotheses({ audit }: { audit: Audit }) {
   const cache = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Hypothesis>();
+  const [formRevision, setFormRevision] = useState(audit.revision);
   const [statement, setStatement] = useState("");
   const [conditions, setConditions] = useState("");
   const [grounds, setGrounds] = useState("");
@@ -68,6 +69,14 @@ export function AuditHypotheses({ audit }: { audit: Audit }) {
     }),
   });
   const methods = query.data?.checking_workflows ?? [];
+  const currentSource = query.data?.items.find(
+    (value) => value.document.id === editing?.document.id,
+  );
+  const sourceChanged =
+    editing !== undefined &&
+    currentSource !== undefined &&
+    currentSource.document.revision !== editing.document.revision;
+  const formConflict = conflict || (sourceChanged && !writeLocked);
 
   async function refresh() {
     await Promise.all([
@@ -83,6 +92,7 @@ export function AuditHypotheses({ audit }: { audit: Audit }) {
   function choose(value?: Hypothesis) {
     if (pending.current !== undefined || busy) return;
     setEditing(value);
+    setFormRevision(audit.revision);
     setStatement(value?.document.statement ?? "");
     setConditions(value?.document.scope.conditions ?? "");
     setGrounds(value?.document.grounds ?? "");
@@ -92,10 +102,11 @@ export function AuditHypotheses({ audit }: { audit: Audit }) {
   }
 
   async function save(method?: string) {
+    if (formConflict && !writeLocked) return;
     const request = pending.current ?? {
       key: createMutationIdempotencyKey("hypothesis"),
       ...(method === undefined ? {} : { method }),
-      revision: audit.revision,
+      revision: formRevision,
       content: {
         key: editing?.source_key ?? createMutationIdempotencyKey("assertion"),
         statement,
@@ -123,9 +134,10 @@ export function AuditHypotheses({ audit }: { audit: Audit }) {
           "If-Match": `"${request.revision}"`,
         },
       };
+      let accepted: { audit_revision: number };
       if (request.method !== undefined) {
         const taskKey = request.key;
-        requireData(
+        accepted = requireData(
           await api.request((client) =>
             client.POST("/v1/audits/{auditId}/tasks", {
               params,
@@ -148,7 +160,7 @@ export function AuditHypotheses({ audit }: { audit: Audit }) {
           ),
         );
       } else if (request.id === undefined) {
-        requireData(
+        accepted = requireData(
           await api.request((client) =>
             client.POST("/v1/audits/{auditId}/hypotheses", {
               params,
@@ -157,7 +169,7 @@ export function AuditHypotheses({ audit }: { audit: Audit }) {
           ),
         );
       } else {
-        requireData(
+        accepted = requireData(
           await api.request((client) =>
             client.PATCH("/v1/audits/{auditId}/hypotheses/{hypothesisId}", {
               params: {
@@ -172,6 +184,7 @@ export function AuditHypotheses({ audit }: { audit: Audit }) {
       pending.current = undefined;
       setWriteLocked(false);
       setEditing(undefined);
+      setFormRevision(accepted.audit_revision);
       setStatement("");
       setConditions("");
       setGrounds("");
@@ -268,7 +281,20 @@ export function AuditHypotheses({ audit }: { audit: Audit }) {
 
   return (
     <section className="ui-stack" aria-label="Assertions">
-      <Button size="sm" onClick={() => setOpen(!open)}>
+      <Button
+        size="sm"
+        onClick={() => {
+          if (
+            !open &&
+            editing === undefined &&
+            statement === "" &&
+            grounds === "" &&
+            conditions === ""
+          )
+            setFormRevision(audit.revision);
+          setOpen(!open);
+        }}
+      >
         {open ? "Hide assertions" : "Show assertions"}
       </Button>
       {open ? (
@@ -396,16 +422,22 @@ export function AuditHypotheses({ audit }: { audit: Audit }) {
                   />
                 )}
               </Field>
-              {conflict ? (
+              {formConflict ? (
                 <p role="alert">
                   {editing === undefined
                     ? "This check changed. Review your new assertion and use the refreshed check revision before retrying."
-                    : "This check changed. Select Edit assertion again to load its current content before saving."}
+                    : "This assertion or check changed. Your draft is preserved. Select Edit assertion again to load its current content before saving."}
                 </p>
               ) : null}
               <div className="ui-toolbar">
                 {conflict && editing === undefined ? (
-                  <Button disabled={busy} onClick={() => setConflict(false)}>
+                  <Button
+                    disabled={busy}
+                    onClick={() => {
+                      setFormRevision(audit.revision);
+                      setConflict(false);
+                    }}
+                  >
                     Use refreshed revision
                   </Button>
                 ) : null}
@@ -413,7 +445,7 @@ export function AuditHypotheses({ audit }: { audit: Audit }) {
                   type="submit"
                   disabled={
                     busy ||
-                    conflict ||
+                    formConflict ||
                     checkLocked ||
                     statement.trim() === "" ||
                     grounds.trim() === ""
@@ -428,7 +460,7 @@ export function AuditHypotheses({ audit }: { audit: Audit }) {
                       busy ||
                       writeLocked ||
                       checkLocked ||
-                      conflict ||
+                      formConflict ||
                       statement.trim() === "" ||
                       grounds.trim() === ""
                     }
