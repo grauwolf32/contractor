@@ -6,7 +6,7 @@ epic: http-tools
 kind: defect
 introduced_by: V410-030
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V410-030]
 languages: [python, markdown, json]
 goal: Repeated target connection rotation within an allocation releases closed HTTP/2 protocol layers and timers immediately after joined connection cleanup.
@@ -61,3 +61,13 @@ verification:
   red: The reviewed implementation retained fifty wakeup tasks/routes after fifty actual HTTP/2 peer closes; the concurrent live-connection case retained two timers instead of one. The HTTP/1.1 control has no timer retention.
   regression: All seven new cases pass, covering 50 HTTP/1.1 and 50 HTTP/2 rotations, parser weak references after dropping test observer handles, exact connection isolation, pre-start/dispatch cancellation, repeated cleanup cancellation and normal native rescheduling.
   focused: Full affected HTTP/bridge/scanner suites passed (222 tests, zero selected skips); updated mandatory Python conformance matrix accepted the report, and all six conformance-gate regression tests passed.
+  lint: make lint passed, including Runtime Ruff/import layers, release graph, conformance-gate and spec/task checks.
+  full_runtime: >-
+    make test-runtime failed with 6018 passed, 135 skipped and one failure in
+    429.06 seconds: test_podman_engine.py::test_real_cli_output_and_wait_are_bounded
+    [flood-sandbox_output_limit] returned sandbox_timeout. This matches the user's
+    reproduced baseline failure; no Podman production or test files were changed.
+    Go was explicitly available in PATH. A full Runtime pass is not claimed.
+  full_report: The updated mandatory Python HTTP conformance matrix accepted both the focused JUnit report and reports/runtime.xml; no selected HTTP cases were skipped or failed.
+  delivery: Local branch codex/sitemap-source-comparison; not merged into main.
+implementation_commit: 2d35ec66f8674f21ea6941e3da8f6334072a5837
