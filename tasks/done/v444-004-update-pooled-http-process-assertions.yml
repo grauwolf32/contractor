@@ -6,7 +6,7 @@ epic: quality
 kind: chore
 introduced_by: V410-030
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V410-030, V444-005]
 languages: [go]
 goal: Existing HTTP conformance accepts supported connection reuse while still proving exact requests, limits and denied-target bytes.
@@ -56,3 +56,4 @@ verification:
     real HTTP manifest passes 41 process cases, 2 PostgreSQL accounting cases and
     157 Runtime cases with zero selected skips. Exact allowed paths/HTTP counts,
     limits, identity isolation, TLS and zero prohibited bytes remain checked.
+implementation_commit: 9e44a86507558a8de0637c9972d9d82f0ad8336d
