@@ -1,0 +1,175 @@
+{
+  "schema": "mitmproxy-thin-transport-spike@1",
+  "mitmproxy": "12.3.1",
+  "nuclei": "3.11.1",
+  "nuclei_sha256": "b371a843a42efc3c448ef8f32ad27ef3cfd1c33ed9554b6df570ef52d2995ad1",
+  "source_sha256": "f0dd7cf230f37c8ff9dff0fd6bb20e488b4df3414d27d84a00a32ba01b6d6764",
+  "facade_lines": 40,
+  "io_guard_lines": 26,
+  "fixture_address_class": "owned private non-loopback",
+  "repetitions": [
+    {
+      "programmatic_ingress": {
+        "http": 200,
+        "verified_https": 200,
+        "host_sni_preserved": true
+      },
+      "identity_sessions": {
+        "bearer_isolated": true,
+        "cookie_updated": true,
+        "cookie_origin_isolated": true
+      },
+      "admission": {
+        "denied_path": 403,
+        "denied_method": 403,
+        "mixed_dns": 403,
+        "callback_error": 403,
+        "target_requests": 0
+      },
+      "peer_fault_injection": {
+        "target_requests": 0,
+        "send_guard_rejected": true
+      },
+      "nuclei": {
+        "exit_code": 0,
+        "fixture_matches": 1,
+        "stderr_bytes": 165,
+        "target_requests": 1
+      },
+      "lease_after_setup": {
+        "tcp": {
+          "target_requests": 0,
+          "write_guard_rejected": true
+        },
+        "tls": {
+          "target_requests": 0,
+          "write_guard_rejected": true
+        }
+      },
+      "cleanup": {
+        "engine_connections": 0,
+        "facade_tasks": 0,
+        "target_saw_eof": true,
+        "proxy_capability_erased": true,
+        "scanner_processes_joined": 2,
+        "target_stalled_connections_closed": 2
+      },
+      "policy_trace": {
+        "dns_lookups": 28,
+        "peer_checks": 13,
+        "target_send_checks": 17,
+        "blocked_writes": 3,
+        "target_requests": 10
+      }
+    },
+    {
+      "programmatic_ingress": {
+        "http": 200,
+        "verified_https": 200,
+        "host_sni_preserved": true
+      },
+      "identity_sessions": {
+        "bearer_isolated": true,
+        "cookie_updated": true,
+        "cookie_origin_isolated": true
+      },
+      "admission": {
+        "denied_path": 403,
+        "denied_method": 403,
+        "mixed_dns": 403,
+        "callback_error": 403,
+        "target_requests": 0
+      },
+      "peer_fault_injection": {
+        "target_requests": 0,
+        "send_guard_rejected": true
+      },
+      "nuclei": {
+        "exit_code": 0,
+        "fixture_matches": 1,
+        "stderr_bytes": 165,
+        "target_requests": 1
+      },
+      "lease_after_setup": {
+        "tcp": {
+          "target_requests": 0,
+          "write_guard_rejected": true
+        },
+        "tls": {
+          "target_requests": 0,
+          "write_guard_rejected": true
+        }
+      },
+      "cleanup": {
+        "engine_connections": 0,
+        "facade_tasks": 0,
+        "target_saw_eof": true,
+        "proxy_capability_erased": true,
+        "scanner_processes_joined": 2,
+        "target_stalled_connections_closed": 2
+      },
+      "policy_trace": {
+        "dns_lookups": 28,
+        "peer_checks": 13,
+        "target_send_checks": 17,
+        "blocked_writes": 3,
+        "target_requests": 10
+      }
+    },
+    {
+      "programmatic_ingress": {
+        "http": 200,
+        "verified_https": 200,
+        "host_sni_preserved": true
+      },
+      "identity_sessions": {
+        "bearer_isolated": true,
+        "cookie_updated": true,
+        "cookie_origin_isolated": true
+      },
+      "admission": {
+        "denied_path": 403,
+        "denied_method": 403,
+        "mixed_dns": 403,
+        "callback_error": 403,
+        "target_requests": 0
+      },
+      "peer_fault_injection": {
+        "target_requests": 0,
+        "send_guard_rejected": true
+      },
+      "nuclei": {
+        "exit_code": 0,
+        "fixture_matches": 1,
+        "stderr_bytes": 165,
+        "target_requests": 1
+      },
+      "lease_after_setup": {
+        "tcp": {
+          "target_requests": 0,
+          "write_guard_rejected": true
+        },
+        "tls": {
+          "target_requests": 0,
+          "write_guard_rejected": true
+        }
+      },
+      "cleanup": {
+        "engine_connections": 0,
+        "facade_tasks": 0,
+        "target_saw_eof": true,
+        "proxy_capability_erased": true,
+        "scanner_processes_joined": 2,
+        "target_stalled_connections_closed": 2
+      },
+      "policy_trace": {
+        "dns_lookups": 28,
+        "peer_checks": 13,
+        "target_send_checks": 17,
+        "blocked_writes": 3,
+        "target_requests": 10
+      }
+    }
+  ],
+  "production_dependencies_unchanged": true
+}

@@ -22,7 +22,12 @@ from contractor_runtime.adapters.host import (
     RuntimeAdapterMetricsState,
 )
 from contractor_runtime.contracts import CaidoSettings, RuntimeAdapterRef
-from contractor_runtime.http_body import HTTP_TRANSPORT_ERRORS, BodyTooLarge, read_limited_body
+from contractor_runtime.http_body import (
+    BOUNDED_ACCEPT_ENCODING,
+    HTTP_TRANSPORT_ERRORS,
+    BodyTooLarge,
+    read_limited_body,
+)
 from contractor_runtime.strict_json import strict_json_loads
 
 MAX_CAIDO_RESPONSE_BYTES = 16 * 1024 * 1024
@@ -281,7 +286,7 @@ class CaidoGraphQLClient:
             follow_redirects=False,
             timeout=httpx.Timeout(timeout_seconds),
             limits=limits,
-            headers=headers,
+            headers={"Accept-Encoding": BOUNDED_ACCEPT_ENCODING, **headers},
         )
         self._graphql_url = f"{endpoint.rstrip('/')}/graphql"
         self._metrics: RuntimeAdapterMetricsState | None = metrics
@@ -358,7 +363,11 @@ class CaidoGraphQLAdapterFactory:
                 retries=0,
                 limits=httpx.Limits(max_connections=1, max_keepalive_connections=0),
             )
-            client = httpx.AsyncClient(transport=transport, trust_env=False)
+            client = httpx.AsyncClient(
+                transport=transport,
+                trust_env=False,
+                headers={"Accept-Encoding": BOUNDED_ACCEPT_ENCODING},
+            )
         except Exception:
             return False
         finally:

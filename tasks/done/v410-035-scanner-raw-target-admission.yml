@@ -1,0 +1,79 @@
+schema_version: '1.0'
+id: V410-035
+title: Validate scanner request targets before native URL normalization
+milestone: project-sitemap-2026-10
+epic: http-tools
+kind: defect
+introduced_by: V410-032
+priority: P2
+status: completed
+depends_on: [V410-032]
+languages: [python, markdown, json]
+goal: Scanner ingress rejects forbidden or noncanonical source targets before any target traffic or lossy URL conversion.
+context:
+  authority: User review 2026-11-04 of cd00a5ab0d593752224e9b173cf4395b3ac00bf1 reports fragment and noncanonical authority normalization before admission.
+  finding: >-
+    bridge/mitmproxy/ingress.py:62 restores request paths through messages.py:31
+    request_target/urlsplit, discarding a raw fragment. Native parsing also normalizes
+    authority such as :080 before native_url is checked. A real scanner request to
+    /allowed#forbidden reaches /allowed and completes instead of failing closed.
+  siblings: >-
+    HTTP/1.1 absolute-form ingress, origin-form requests inside CONNECT, CONNECT
+    authority and HTTP/2 :authority/:path. Native component equality and Host checks
+    remain required. Programmatic requests already validate their original URL;
+    redirect sources already validate raw syntax before resolution.
+  specification:
+  - docs/spec/tools/http-caido.md#HTP-R137
+  - docs/spec/tools/http-caido.md#HTP-R139
+  - docs/spec/tools/http-caido.md#HTP-R148
+  boundary_decision: >-
+    Reuse canonical_url against the original ASCII absolute target before native
+    parsing or request_target/urlsplit. Preserve exact approved path/query, and keep
+    native_url equality as an independent check. Unsupported input fails with existing
+    scanner request failure, without target bytes, retries or content diagnostics.
+scope:
+  in:
+  - Reject fragments and noncanonical authority/path syntax in original scanner targets before normalization.
+  - Verify sibling source forms preserve the same admission rule and valid HTTP/1.1 and HTTP/2 requests still work.
+  - Add real bridge plus HTTPTransport plus target-socket regressions, including fragmented ingress headers and valid empty queries.
+  out:
+  - New canonical grammar, protocol capabilities, Server/API changes or Podman timeout changes.
+acceptance_criteria:
+- id: A1
+  text: Raw forbidden/noncanonical absolute targets fail with a scanner error and zero target connections/bytes; canonical empty-query and semicolon targets remain exact.
+- id: A2
+  text: HTTP/1.1 origin-form, CONNECT authority and HTTP/2 siblings reject forbidden syntax before target traffic, retaining the assembled native URL check.
+- id: A3
+  text: Regressions fail on the reviewed revision; complete affected HTTP/scanner suites, conformance report, lint and spec/task checks pass.
+tests:
+- command: cd runtime && uv run pytest -W error tests/test_bridge_retirement.py tests/test_bridge_ingress.py tests/test_bridge_messages.py tests/test_bridge_framing.py tests/test_bridge_lifecycle.py tests/test_http_engine.py tests/test_http_proxy_bridge.py tests/test_engagement_socket_conformance.py tests/test_nuclei_engagement.py tests/test_engagement_target.py tests/test_engagement_identity.py tests/test_engagement_allocation.py tests/test_audit_http_credentials.py --junitxml=/tmp/v410-bridge-review-focused.xml
+  covers: [A1, A2, A3]
+- command: python3 scripts/test-engagement-http-process.py --verify-python-report /tmp/v410-bridge-review-focused.xml
+  covers: [A3]
+- command: make lint
+  covers: [A3]
+- command: python3 scripts/check_spec.py
+  covers: [A3]
+- command: cd runtime && uv run python ../scripts/check_tasks.py
+  covers: [A3]
+verification:
+  red: Eight original-target cases failed on cd00a5ab0d593752224e9b173cf4395b3ac00bf1 (fragments, zero-prefixed ports and Unicode query input); sixteen sibling/valid cases already passed.
+  focused: All 24 ingress cases and the full affected suites passed (215 tests); tests cover real bridge, HTTPTransport and target sockets, split headers, CONNECT, TLS HTTP/2 and exact valid targets.
+  gate: The mandatory Python conformance matrix now includes all new ingress identities.
+  integrated_before_followup: After integrating timer retirement, all 222 affected HTTP/bridge/scanner tests passed without selected skips; both task commands share the final report at /tmp/v410-bridge-review-focused.xml, accepted by the current conformance matrix.
+  lint: make lint passed, including Runtime Ruff/import layers, release graph, gate tests and task/spec checks. check_spec.py and check_tasks.py also passed directly.
+  delivery: Local branch codex/sitemap-source-comparison, not merged into main.
+followup:
+  finding: Final native-source comparison found its request-line split() accepts repeated whitespace while the initial guard used split(b" "); a zero-prefixed port could bypass source admission through that mismatch.
+  decision: Match native whitespace tokenization and its existing h11 blank-line delimiter before validating the original target; add real bridge/owner/socket regressions for repeated SP, TAB and LF/CRLF headers. This is the same source-admission defect and does not change URL grammar.
+  red: Both repeated-SP/TAB cases returned 200 on the first fix; all four SP/TAB with LF/CRLF variants failed before the follow-up. All 29 ingress cases now pass, including a valid LF-delimited empty query.
+  focused: The final complete HTTP/bridge/scanner suites passed (227 tests, no selected skips); the expanded mandatory conformance matrix accepted /tmp/v410-bridge-review-focused.xml.
+  lint: Final make lint, Ruff/import layers, spec/task checks and mandatory Python HTTP conformance validation passed on the follow-up production code.
+  full_runtime: >-
+    The final make test-runtime failed: 6022 passed, 135 skipped, two failures in
+    458.57 seconds. Podman flood returned sandbox_timeout (the reproduced baseline
+    failure); the unchanged LikeC4 validator ownership case timed out waiting for
+    its process marker. No full Runtime pass is claimed.
+  isolated_ownership: The entire unchanged test_tool_operation_ownership.py module passed on rerun (12 tests in 3.57 seconds); this does not turn the failed broad run into a pass.
+  full_report: The expanded HTTP conformance matrix accepted the final full Runtime JUnit report with no selected HTTP failures/skips.
+implementation_commit: 748ebd67b55cb2efa37c35a7fc430d720471a88b

@@ -43,9 +43,15 @@ def read(response: httpx.Response, limit: int) -> bytes:
     return asyncio.run(read_limited_body(response, limit))
 
 
-def test_every_httpx_content_decoder_is_decoded_incrementally() -> None:
-    # A new httpx decoder (for example brotli) would bypass the bound below.
-    assert set(SUPPORTED_DECODERS) == DECODED_CONTENT_CODINGS
+def test_optional_httpx_codecs_do_not_widen_bounded_decoding() -> None:
+    # mitmproxy installs Brotli; aiter_raw must still bypass HTTPX decoders.
+    assert set(SUPPORTED_DECODERS) == DECODED_CONTENT_CODINGS | {"br"}
+    import brotli
+
+    encoded = brotli.compress(b"x" * (32 * 1024 * 1024))
+    assert read(streamed(encoded, "br"), len(encoded)) == encoded
+    with pytest.raises(BodyTooLarge):
+        read(streamed(encoded, "br"), len(encoded) - 1)
 
 
 def test_a_compression_bomb_never_inflates_past_the_limit() -> None:

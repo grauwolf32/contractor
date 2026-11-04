@@ -17,6 +17,8 @@ from contractor_runtime.shared_config import get_shared_config
 MAX_PREVIEW_CHARACTERS = 8192
 MAX_READ_UNITS = 8192
 MAX_HEADERS = 64
+# Controlled wire messages include their start line and CRLF framing.
+MAX_CONTROLLED_HEADER_BYTES = 32 * 1024
 MAX_QUERY_KEYS = 64
 MAX_HEADER_VALUE_BYTES = 8192
 # One header block as finding evidence retains it (a Server wire limit).

@@ -21,7 +21,7 @@ from contractor_runtime.contracts.settings import (
     default_gateway_failure_signatures,
 )
 from contractor_runtime.core.async_tasks import join_owned_task
-from contractor_runtime.http_body import BodyTooLarge, read_limited_body
+from contractor_runtime.http_body import BOUNDED_ACCEPT_ENCODING, BodyTooLarge, read_limited_body
 from contractor_runtime.llm.errors import GatewayFailure, classify_response
 from contractor_runtime.llm.recovery import (
     TERMINAL_RECOVERY_ACTIONS,
@@ -379,7 +379,11 @@ def new_gateway_client(
         # Process-global HTTP(S)_PROXY and trust-store variables are not an
         # allocation configuration channel. Explicit Runtime adapters supply
         # their own client when proxy routing is selected.
-        http_client = httpx.AsyncClient(timeout=timeout_seconds, trust_env=False)
+        http_client = httpx.AsyncClient(
+            timeout=timeout_seconds,
+            trust_env=False,
+            headers={"Accept-Encoding": BOUNDED_ACCEPT_ENCODING},
+        )
     return GatewayClientHandle(
         recovery=recovery,
         failure_signatures=(
