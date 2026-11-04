@@ -7,7 +7,7 @@ kind: chore
 introduced_by: V411-002
 priority: P1
 status: in_progress
-depends_on: [V411-002, V64-002, V411-011]
+depends_on: [V411-002, V64-002, V411-011, V444-004]
 languages: [go, python, json, yaml, typescript]
 goal: >-
   An HTTP Audit takes its materials and execution budgets from ordinary Audit
@@ -135,3 +135,9 @@ progress:
     verification. Merge current main, preserve the transport changes and repeat
     relevant checks before closing this task. Runtime contracts/Audit/Findings code
     does not overlap; shared paths are the UI specification and generated backlog.
+
+  integrated_gate_prerequisite: >-
+    Current main was merged as 0fcd63dfb. Native process conformance found two
+    obsolete one-TCP-connection-per-request assertions; request counts and denied
+    bytes were correct. V444-004 corrects these tests under existing HTP-R138,
+    separately from engagement implementation. V444-001 stays in_progress.
