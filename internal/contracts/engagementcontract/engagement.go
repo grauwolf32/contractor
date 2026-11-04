@@ -23,12 +23,10 @@ const (
 
 type Document struct {
 	Schema     string     `json:"schema" strictjson:"required"`
-	AccessMode string     `json:"accessMode" strictjson:"required"`
 	Target     Target     `json:"target" strictjson:"required"`
 	Scope      Scope      `json:"scope" strictjson:"required"`
 	Identities []Identity `json:"identities" strictjson:"required"`
-	Inputs     []Input    `json:"inputs" strictjson:"required"`
-	Budgets    Budgets    `json:"budgets" strictjson:"required"`
+	Budgets    HTTPLimits `json:"budgets" strictjson:"required"`
 	Policy     Policy     `json:"policy" strictjson:"required"`
 }
 type Target struct {
@@ -56,24 +54,11 @@ type Identity struct {
 	Tenant     *string                               `json:"tenant,omitempty"`
 	Credential *runtimesettings.RuntimeCredentialRef `json:"credential,omitempty"`
 }
-type Input struct {
-	ID            string                `json:"id" strictjson:"required"`
-	Role          string                `json:"role" strictjson:"required"`
-	Artifact      contracts.ArtifactRef `json:"artifact" strictjson:"required"`
-	ContentDigest string                `json:"contentDigest" strictjson:"required"`
-}
 type Policy struct {
 	Version              string   `json:"version" strictjson:"required"`
 	ActiveChecks         string   `json:"activeChecks" strictjson:"required"`
 	RequiredCapabilities []string `json:"requiredCapabilities" strictjson:"required"`
 	OptionalCapabilities []string `json:"optionalCapabilities" strictjson:"required"`
-}
-type Budgets struct {
-	HTTPLimits
-	ActiveSeconds uint32 `json:"activeSeconds" strictjson:"required"`
-	Rounds        uint32 `json:"rounds" strictjson:"required"`
-	SubmittedRuns uint32 `json:"submittedRuns" strictjson:"required"`
-	EvidenceBytes uint32 `json:"evidenceBytes" strictjson:"required"`
 }
 
 // HTTPLimits are optional ceilings enforced independently by each allocation.
@@ -115,17 +100,6 @@ func (p Policy) Digest() (string, error) {
 	}
 	return contentdigest.CanonicalJSON(p)
 }
-func (b Budgets) Validate() error {
-	if err := b.HTTPLimits.Validate(); err != nil {
-		return err
-	}
-	for _, pair := range [][2]uint32{{b.ActiveSeconds, 86400}, {b.Rounds, 8}, {b.SubmittedRuns, 512}, {b.EvidenceBytes, 67108864}} {
-		if pair[0] == 0 || pair[0] > pair[1] {
-			return invalid()
-		}
-	}
-	return nil
-}
 func (p Policy) Validate() error {
 	if p.Version != "1" || p.ActiveChecks != "automatic" || !uniqueStrings(p.RequiredCapabilities, 0, 128) || !uniqueStrings(p.OptionalCapabilities, 0, 128) {
 		return invalid()
@@ -143,10 +117,10 @@ func (p Policy) Validate() error {
 	return nil
 }
 func (d Document) Validate() error {
-	if d.Schema != Schema || (d.AccessMode != "blackbox" && d.AccessMode != "source-assisted") || d.Policy.Validate() != nil || d.Budgets.Validate() != nil {
+	if d.Schema != Schema || d.Policy.Validate() != nil || d.Budgets.Validate() != nil {
 		return invalid()
 	}
-	if !uniqueStrings(d.Target.Origins, 1, 16) || d.Scope.Routes == nil || len(d.Scope.Routes) < 1 || len(d.Scope.Routes) > 128 || d.Scope.Exclusions == nil || len(d.Scope.Exclusions) > 128 || d.Identities == nil || len(d.Identities) < 1 || len(d.Identities) > 8 || d.Inputs == nil || len(d.Inputs) > 128 {
+	if !uniqueStrings(d.Target.Origins, 1, 16) || d.Scope.Routes == nil || len(d.Scope.Routes) < 1 || len(d.Scope.Routes) > 128 || d.Scope.Exclusions == nil || len(d.Scope.Exclusions) > 128 || d.Identities == nil || len(d.Identities) < 1 || len(d.Identities) > 8 {
 		return invalid()
 	}
 	if d.Target.Deployment != nil && !text(d.Target.Deployment.Marker, 256) {
@@ -186,20 +160,6 @@ func (d Document) Validate() error {
 		}
 	}
 	if anonymous != 1 {
-		return invalid()
-	}
-	inputs := map[string]bool{}
-	sources := 0
-	for _, input := range d.Inputs {
-		if !validID(input.ID) || inputs[input.ID] || input.Artifact.ValidateExact() != nil || !contentdigest.Valid(input.ContentDigest) || !slices.Contains([]string{"source", "openapi", "request-examples", "documentation"}, input.Role) {
-			return invalid()
-		}
-		inputs[input.ID] = true
-		if input.Role == "source" {
-			sources++
-		}
-	}
-	if (d.AccessMode == "source-assisted" && sources == 0) || (d.AccessMode == "blackbox" && sources > 0) {
 		return invalid()
 	}
 	encoded, err := strictjson.Canonical(d)

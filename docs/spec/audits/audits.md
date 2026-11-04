@@ -1296,9 +1296,7 @@ override.
 | `deadlineSeconds: 0` | Start without a deadline | Clear the deadline |
 | Override omitted | Use the pinned profile's default | Preserve no-limit mode or the positive remainder frozen at `paused_at`; otherwise renew the pinned profile's default |
 
-For a typed engagement engagement, the resulting Start or Resume allowance is
-additionally capped by its pinned `budgets.activeSeconds` (AUD-R242); zero
-cannot remove that cap.
+An engagement does not override the ordinary Audit deadline or Resume allowance.
 
 **AUD-R208.** The optional override participates in the mutation's request
 digest. Reusing an idempotency key with a changed override conflicts; omission
@@ -1795,8 +1793,8 @@ substituted for source membership, exact consumer closure or authorization.
 
 **AUD-R241.** A profile selects at most one exact Project input with media type
 `application/vnd.contractor.engagement+json`. Its closed document uses
-`contractor.engagement.v1` and contains `schema`, `accessMode`, `target`,
-`scope`, `identities`, `inputs`, `budgets` and `policy`. Arrays are
+`contractor.engagement.v1` and contains `schema`, `target`, `scope`,
+`identities`, `budgets` and `policy`. Arrays are
 present even when empty; optional members are omitted, never null. Duplicate
 or unknown members, invalid Unicode, unsupported versions and non-integral,
 nonfinite or out-of-range numbers are rejected without echoing input bytes.
@@ -1816,18 +1814,16 @@ selection is unambiguous. The immutable credential ID is its revision, never a
 secret digest.
 
 
-Input entries are `{id, role, artifact, contentDigest}` with exact ArtifactRefs
-and roles `source`, `openapi`, `request-examples` or `documentation`. The
-containing Project supplies scope. Nested cardinalities are bounded by
-LIM-AUD-32/33. Action classes and test-data descriptors return only when a
-production Workflow creates test objects and owns their cleanup.
+Materials are selected and pinned through ordinary Audit inputs. Engagement
+contains no material descriptors or source-access mode. Nested network-policy
+cardinalities remain bounded by LIM-AUD-32/33. Action classes and test-data
+descriptors return only when a production Workflow creates test objects and
+owns their cleanup.
 
-**AUD-R242.** The engagement's `budgets` retain `activeSeconds`, `rounds`,
-`submittedRuns` and `evidenceBytes` under LIM-AUD-34. The ordinary Audit
-limits and deadline own these bounds, with the tighter profile bound winning;
-Start and Resume follow AUD-R207. No separate cumulative active clock exists.
-The same artifact may optionally supply `targetRequests`, `requestsPerSecond`,
-`concurrentRequests`, `requestBodyBytes` and `responseBodyBytes`. These fields
+**AUD-R242.** Ordinary Audit limits and Start/Resume deadlines own execution
+budgets independently of engagement. The engagement's `budgets` may supply only
+optional `targetRequests`, `requestsPerSecond`, `concurrentRequests`,
+`requestBodyBytes` and `responseBodyBytes`. These fields
 are projected into `allocation.engagement.http.limits` and enforced
 locally by Runtime under HTP-R145. Each omitted limit is absent; process/env
 settings and implied defaults cannot supply it. Each allocation starts fresh.
@@ -1858,26 +1854,20 @@ metadata contract is `engagement@1`; its presence does not advertise
 controlled HTTP, proof, login, browser or callback execution. Unsupported
 Server requirements fail closed with `audit_profile_unsupported`.
 
-**AUD-R245.** `blackbox` rejects source inputs, repository hydration,
-source-analysis tools and unclassified source-bearing inherited inputs or
-Skills before they reach a child Run. `source-assisted` requires an exact
-source input. Public HTTP resources and a scratch workspace for scripts are
-not repository access. Until trusted Skill provenance can prove the absence
-of target source, selected Skills are refused in blackbox mode rather than
-classified from their name or instruction text. Reopen this restriction when
-such provenance has a production writer and a validated reader. Live Project
-sitemap/findings context never changes baseline authority. Shared sitemap
-metadata is available in either mode under SMT-R14 and grants no source-file
-access; Project findings context follows its separate access contract.
+**AUD-R245.** Source availability follows ordinary Audit inputs, selected
+Workflow toolsets, workspace bindings and Skills. There is no blackbox or
+source-assisted mode and no engagement-specific source restriction or inferred
+source-isolation guarantee. Ordinary Artifact, Project and operation authority
+still governs every read. Live sitemap/findings context does not widen network
+authority or grant arbitrary referenced Artifact bytes.
 
 **AUD-R247.** Start authoritatively validates the engagement, credentials and
 compatibility. Unsupported engagements return `audit_profile_unsupported` with
-`engagement_capability_unsupported`, `engagement_source_closure_unsupported` or
-`engagement_active_checks_unsupported` reasons. Start extends its immutable baseline
+`engagement_capability_unsupported` or `engagement_active_checks_unsupported` reasons. Start extends its immutable baseline
 with the versioned `contractor.audit.engagement-baseline.v1` engagement snapshot:
 the exact artifact,
 validated document, policy digest, trusted authorizing owner, authorization
-time. The snapshot contains no executable authentication recipes. Exact nested
+time. The snapshot contains no executable authentication recipes. Ordinary Audit
 input refs and credential revisions are validated and held through existing
 Artifact links and credential dispatch holds in the start transaction.
 Profile, Workflow, Skill and RuntimeConfig

@@ -301,5 +301,5 @@ Project ID. The selection body has `clientKey`, `findings` (explicit `findingId`
 and exact `revision`) and `receiptIds`; arrays are required, with at most 128
 selectors total. Live pages return `items`, `projectRevision`, `nextCursor`;
 selection returns the existing exact collection publication descriptor.
-FND-R224 through FND-R229 own bounds, authority, source mode, replay and failures.
+FND-R224 through FND-R229 own bounds, owner/Project authority, replay and failures.
 The shared findings collection fixture pins Project source kinds in both languages.

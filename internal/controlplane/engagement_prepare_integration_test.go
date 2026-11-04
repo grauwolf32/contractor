@@ -29,8 +29,7 @@ func TestCrossLanguageMTLSEngagementMetadataPrepare(t *testing.T) {
 		Schema: "contractor.engagement.allocation.v1", AuditID: "audit-native",
 		Engagement:       contracts.ArtifactRef{Namespace: "engagements", Name: "native", Revision: &revision},
 		EngagementDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", PolicyDigest: digest,
-		AuthorizedBy: "owner-native", AuthorizedAt: time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC), AccessMode: "blackbox",
-		Policy: policy,
+		AuthorizedBy: "owner-native", AuthorizedAt: time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC), Policy: policy,
 	}
 	h := startNativeHarness(t, "native_successful_release_replay", func(h *nativeHarness) {
 		h.client.preparation = allocationPreparationFunc(func(_ context.Context, _ Reservation, spec control.AllocationSpec, dispatch func(control.AllocationSpec) (contracts.WorkerHandle, error)) (contracts.WorkerHandle, error) {

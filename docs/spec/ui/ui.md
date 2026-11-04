@@ -1619,6 +1619,6 @@ with exact-revision query keys, cancellation and no automatic retries/polling.
 Larger/unsupported content keeps an exact Material Preview link. Errors offer
 explicit retry without changing ordinary launch readiness. Engagement inputs
 explicitly declaring `application/vnd.contractor.engagement+json` move under
-Scope and project saved target/routes/exclusions/identities/budgets through the
+Scope and project saved target/routes/exclusions/identities/HTTP limits through the
 canonical schema. All declared inputs remain selectable; unsupported profiles
 remain blocked and Server validation/authorization remains authoritative.

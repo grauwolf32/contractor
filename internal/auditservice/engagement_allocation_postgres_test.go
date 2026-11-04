@@ -29,14 +29,14 @@ import (
 // actual execution/Run/Stage ownership chain. Mutable inputs and Project
 // policy cannot broaden the private task's pinned target assignment.
 func TestEngagementStartToPrivateAllocationPins(t *testing.T) {
-	for _, accessMode := range []string{"blackbox", "source-assisted"} {
+	for _, authenticated := range []bool{false, true} {
 		for _, controlled := range []bool{false, true} {
-			t.Run(fmt.Sprintf("%s/controlled=%v", accessMode, controlled), func(t *testing.T) { testEngagementStartToPrivateAllocationPins(t, accessMode, controlled) })
+			t.Run(fmt.Sprintf("authenticated=%v/controlled=%v", authenticated, controlled), func(t *testing.T) { testEngagementStartToPrivateAllocationPins(t, authenticated, controlled) })
 		}
 	}
 }
 
-func testEngagementStartToPrivateAllocationPins(t *testing.T, accessMode string, controlled bool) {
+func testEngagementStartToPrivateAllocationPins(t *testing.T, authenticated bool, controlled bool) {
 	f := newEngagementFixture(t, 1)
 	// Dispatch admission compares its deadline to the database clock. No test
 	// assertion depends on elapsed time; the authorized timestamp is compared
@@ -46,19 +46,9 @@ func testEngagementStartToPrivateAllocationPins(t *testing.T, accessMode string,
 	if controlled {
 		document.Policy.RequiredCapabilities = append(document.Policy.RequiredCapabilities, string(runtimesettings.RuntimeAdapterHTTPTarget))
 	}
-	if accessMode == "source-assisted" {
+	if authenticated {
 		requests := uint32(17)
 		document.Budgets.TargetRequests = &requests
-		document.AccessMode = accessMode
-		source, err := f.store.Write(f.ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "source"}, artifacts.Payload{MediaType: "text/plain", Data: []byte("print('fixture source')")}, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		metadata, err := f.store.Metadata(f.ctx, source.Ref)
-		if err != nil {
-			t.Fatal(err)
-		}
-		document.Inputs = append(document.Inputs, engagementcontract.Input{ID: "source", Role: "source", Artifact: source.Ref, ContentDigest: metadata.Digest})
 		f.credential(t, "allocated-account", f.project.OwnerID)
 		document.Identities = append(document.Identities, engagementcontract.Identity{ID: "account-a", Kind: "bearer", Origins: document.Target.Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "allocated-account", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
 	}
@@ -198,7 +188,7 @@ func testEngagementStartToPrivateAllocationPins(t *testing.T, accessMode string,
 		if first.HTTP.Limits != nil {
 			*first.HTTP.Limits.TargetRequests = 99
 		}
-		if accessMode == "source-assisted" {
+		if authenticated {
 			first.HTTP.Identities[1].Credential.CredentialID = "changed"
 		}
 	}

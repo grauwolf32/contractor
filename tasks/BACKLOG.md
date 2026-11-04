@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-75 open tasks: 10 in progress, 52 pending, 13 deferred. 1416 finished: 1398 completed, 18 archived.
+75 open tasks: 11 in progress, 51 pending, 13 deferred. 1416 finished: 1398 completed, 18 archived.
 
 ## In progress
 
@@ -21,6 +21,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V444-001](v444-001-remove-engagement-audit-policy.yml) | audits | chore | P1 | Remove material access modes and Audit budgets from engagement |
 
 ## Pending
 
@@ -90,7 +91,6 @@ the epics are in [epics.yml](epics.yml).
 | [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-015, V411-014, V64-008, V444-003 | Show HTTP engagement context and gaps in ordinary retained Audit reports |
 | [V417-005](v417-005-audit-worker-context-compaction.yml) | feature | P1 | V417-003, V417-004 | Admit compaction without bypassing trusted Audit completion |
 | [V425-017](v425-017-machine-report-ceiling-test.yml) | chore | P3 | V64-010, V64-008 | Drive the cumulative 64 MiB machine report check to its rejection in a test |
-| [V444-001](v444-001-remove-engagement-audit-policy.yml) | chore | P1 | — | Remove material access modes and Audit budgets from engagement |
 
 ### Evaluations (`evals`)
 

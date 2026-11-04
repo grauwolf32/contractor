@@ -158,13 +158,6 @@ class AllocationSpec(VersionedWireModel):
             material = materials[identity.id]
             if material.credential != identity.credential:
                 raise ValueError("engagement private credential differs from assignment")
-        if (
-            self.engagement is not None
-            and self.engagement.access_mode == "blackbox"
-            and self.workspace is not None
-            and (self.workspace.sources or self.workspace.state is not None)
-        ):
-            raise ValueError("blackbox allocation forbids repository workspace hydration")
         if self.completion_contract is not None:
             self.completion_contract.validate_allocation(self.namespace, self.agent_template)
         for field, value in (

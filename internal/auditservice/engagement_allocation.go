@@ -75,7 +75,7 @@ func ResolveAllocationEngagement(ctx context.Context, pool *pgxpool.Pool, runID,
 		Schema: "contractor.engagement.allocation.v1", AuditID: auditID,
 		Engagement: pin.Artifact.Ref, EngagementDigest: pin.Artifact.Digest, PolicyDigest: pin.PolicyDigest,
 		AuthorizedBy: pin.AuthorizedBy, AuthorizedAt: pin.AuthorizedAt,
-		AccessMode: pin.Document.AccessMode, Policy: pin.Document.Policy,
+		Policy: pin.Document.Policy,
 	}
 	if slices.Contains(pin.Document.Policy.RequiredCapabilities, string(runtimesettings.RuntimeAdapterHTTPTarget)) {
 		if protected == nil {
@@ -92,7 +92,7 @@ func ResolveAllocationEngagement(ctx context.Context, pool *pgxpool.Pool, runID,
 			ProtectedDestinations: destinations,
 			Identities:            pin.Document.Identities,
 		}
-		limits := pin.Document.Budgets.HTTPLimits
+		limits := pin.Document.Budgets
 		if limits != (engagementcontract.HTTPLimits{}) {
 			assignment.Limits = &limits
 		}

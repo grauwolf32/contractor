@@ -1789,7 +1789,7 @@ Planner requests and Stage results are not aliases of these policies.
 `httpRequestBodyMaxBytes`, `httpResponseBodyMaxBytes` and
 `httpHeaderBlockMaxBytes` come from the normalized HTTP evidence constants in
 `contracts`; Server domain validation and Runtime transport/capture share them.
-Provider envelopes, private transport headers and per-Run engagement budgets
+Provider envelopes, private transport headers and allocation-local HTTP limits
 remain independent.
 `gitImportUrlMaxBytes` supplies the original Git input byte ceiling;
 canonical stored provenance retains its separately derived expansion bound.

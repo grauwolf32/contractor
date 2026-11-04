@@ -81,21 +81,15 @@ func TestWSTGHTTPProgramsStartWithTrustedEngagement(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			meta, err := store.Metadata(ctx, materials.Ref)
-			if err != nil {
-				t.Fatal(err)
-			}
 			requests := uint32(7)
 			var targetRequests atomic.Int32
 			target := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { targetRequests.Add(1) }))
 			t.Cleanup(target.Close)
-			document := engagementcontract.Document{Schema: engagementcontract.Schema, AccessMode: "blackbox",
-				Target:     engagementcontract.Target{Origins: []string{target.URL}},
+			document := engagementcontract.Document{Schema: engagementcontract.Schema, Target: engagementcontract.Target{Origins: []string{target.URL}},
 				Scope:      engagementcontract.Scope{Routes: []engagementcontract.Route{{Origin: target.URL, PathPrefixes: []string{"/api"}, Methods: []string{"GET"}, AddressRanges: []string{"127.0.0.0/8"}}}, Exclusions: []engagementcontract.Route{}},
 				Identities: []engagementcontract.Identity{{ID: "anonymous", Kind: "anonymous", Origins: []string{target.URL}}},
-				Inputs:     []engagementcontract.Input{{ID: "materials", Role: "documentation", Artifact: materials.Ref, ContentDigest: meta.Digest}},
 				Policy:     engagementcontract.Policy{Version: "1", ActiveChecks: "automatic", RequiredCapabilities: []string{engagementcontract.Capability, string(runtimesettings.RuntimeAdapterHTTPTarget)}, OptionalCapabilities: []string{}},
-				Budgets:    engagementcontract.Budgets{ActiveSeconds: 120, Rounds: 1, SubmittedRuns: 3, EvidenceBytes: 4 << 20, HTTPLimits: engagementcontract.HTTPLimits{TargetRequests: &requests}}}
+				Budgets:    engagementcontract.HTTPLimits{TargetRequests: &requests}}
 			data, err := json.Marshal(document)
 			if err != nil {
 				t.Fatal(err)
@@ -129,10 +123,10 @@ func TestWSTGHTTPProgramsStartWithTrustedEngagement(t *testing.T) {
 					t.Fatal(err)
 				}
 				if baseline.Engagement == nil || !baseline.Engagement.Artifact.Ref.SameExact(engagement.Ref) || !reflect.DeepEqual(baseline.Engagement.Document, document) || baseline.Engagement.AuthorizedBy != "owner" || !baseline.Engagement.AuthorizedAt.Equal(now) {
-					t.Fatal("Start did not pin the exact authorized engagement routes, identities and budgets")
+					t.Fatal("Start did not pin the exact authorized engagement routes, identities and HTTP limits")
 				}
-				if started.Audit.Limits.MaxSubmittedRuns != 3 || started.Audit.Limits.MaxEvidenceBytes != 4<<20 || started.Audit.Limits.MaxItemRunAttempts != 1 || started.Audit.DeadlineAt == nil || !started.Audit.DeadlineAt.Equal(now.Add(120*time.Second)) || baseline.InitialAssertions == nil {
-					t.Fatal("Start lost the finite limits or standard assertion source")
+				if started.Audit.Limits.MaxSubmittedRuns != profile.Program.Limits.MaxSubmittedRuns || started.Audit.Limits.MaxEvidenceBytes != profile.Program.Limits.MaxEvidenceBytes || started.Audit.Limits.MaxItemRunAttempts != 1 || started.Audit.DeadlineAt == nil || !started.Audit.DeadlineAt.Equal(now.Add(time.Duration(profile.Program.Limits.DeadlineSeconds)*time.Second)) || baseline.InitialAssertions == nil {
+					t.Fatal("Start lost ordinary Audit limits or standard assertion source")
 				}
 				replay, err := service.Start(ctx, params)
 				if err != nil || !replay.Replayed || string(replay.Audit.BaselineSnapshot) != string(started.Audit.BaselineSnapshot) {

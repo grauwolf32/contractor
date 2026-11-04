@@ -5335,7 +5335,6 @@
         "project_active_checks_prohibited",
         "manual_item_unsupported",
         "engagement_capability_unsupported",
-        "engagement_source_closure_unsupported",
         "engagement_active_checks_unsupported"
       ]
     },

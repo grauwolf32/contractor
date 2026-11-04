@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore/querystore"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -177,15 +178,6 @@ func TestProjectFindingAllocationReaderSelectsExactInputsAndReplaysAfterDeletion
 		t.Fatalf("selection claimed a Memory binding: %v", err)
 	}
 
-	// An unknown ordinary source never becomes blackbox-authorized by its file type.
-	tx, err := pool.Begin(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := checkBlackboxFindings(ctx, tx, owner, project, []string{selected.FindingID}); !errors.Is(err, ErrAccessDenied) {
-		t.Fatalf("unknown provenance: %v", err)
-	}
-	_ = tx.Rollback(ctx)
 	// A source deletion is real; replay must use the published exact snapshot.
 	runs := runstore.NewPostgresStore(pool, storage)
 	if err := runs.MarkStageAllocationReleased(ctx, producer.AllocationID); err != nil {
@@ -214,25 +206,33 @@ func TestProjectFindingAllocationReaderSelectsExactInputsAndReplaysAfterDeletion
 	}
 }
 
-func TestProjectFindingAllocationBlackboxDeniesUnknownAndSourceAssistedProvenance(t *testing.T) {
+func TestProjectFindingAllocationReaderSharesAuditAndRunSources(t *testing.T) {
 	ctx := t.Context()
 	pool := isolatedFindingPool(t, ctx)
 	storage := artifactpgtest.NewStorage()
-	const owner, project = "blackbox-reader-owner", "blackbox-reader-project"
-	if _, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{ProjectID: project, OwnerID: owner, Kind: projectstore.KindProject, Name: "Blackbox", IdempotencyKey: "blackbox-reader", RequestDigest: auditdomain.DigestBytes([]byte("blackbox-reader"))}); err != nil {
+	const owner, project = "shared-reader-owner", "shared-reader-project"
+	if _, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{ProjectID: project, OwnerID: owner, Kind: projectstore.KindProject, Name: "Shared sources", IdempotencyKey: "shared-reader", RequestDigest: auditdomain.DigestBytes([]byte("shared-reader"))}); err != nil {
 		t.Fatal(err)
 	}
-	baseline := func(mode string) func(map[string]any) {
-		return func(document map[string]any) {
-			document["engagement"] = map[string]any{"document": map[string]any{"accessMode": mode}}
-		}
+	// A reduced engagement has no accessMode. The former SQL mode lookup
+	// classified its presence as invalid and denied the authorized reader.
+	baseline := func(document map[string]any) {
+		origin := "https://target.example"
+		document["engagement"] = map[string]any{"document": engagementcontract.Document{
+			Schema:     engagementcontract.Schema,
+			Target:     engagementcontract.Target{Origins: []string{origin}},
+			Scope:      engagementcontract.Scope{Routes: []engagementcontract.Route{{Origin: origin, PathPrefixes: []string{"/"}, Methods: []string{"GET"}, AddressRanges: []string{"192.0.2.0/24"}}}, Exclusions: []engagementcontract.Route{}},
+			Identities: []engagementcontract.Identity{{ID: "anonymous", Kind: "anonymous", Origins: []string{origin}}},
+			Budgets:    engagementcontract.HTTPLimits{},
+			Policy:     engagementcontract.Policy{Version: "1", ActiveChecks: "automatic", RequiredCapabilities: []string{engagementcontract.Capability}, OptionalCapabilities: []string{}},
+		}}
 	}
-	consumer, _ := auditSubmissionGrantWithBaseline(t, ctx, pool, owner, project, "blackbox-consumer", baseline("blackbox"))
+	consumer, _ := auditSubmissionGrantWithBaseline(t, ctx, pool, owner, project, "shared-consumer", baseline)
 	consumer.ReadPolicy = controlplane.ReadCurrentRun
 	consumer.WritePolicy = controlplane.WriteInputsAndIntermediates
 	consumer.FindingTools = []string{"list_project_findings", "read_project_finding", "select_project_findings"}
-	known, _ := auditSubmissionGrantWithBaseline(t, ctx, pool, owner, project, "blackbox-source", baseline("blackbox"))
-	assisted, _ := auditSubmissionGrantWithBaseline(t, ctx, pool, owner, project, "assisted-source", baseline("source-assisted"))
+	known, _ := auditSubmissionGrantWithBaseline(t, ctx, pool, owner, project, "first-audit-source", baseline)
+	assisted, _ := auditSubmissionGrantWithBaseline(t, ctx, pool, owner, project, "second-audit-source", baseline)
 	unknown := quotaSubmissionGrant(t, ctx, pool, owner, project, "unknown-source")
 	intake, err := New(pool, storage)
 	if err != nil {
@@ -257,30 +257,25 @@ func TestProjectFindingAllocationBlackboxDeniesUnknownAndSourceAssistedProvenanc
 		}
 		receipts = append(receipts, receipt)
 	}
-	if value, err := publisher.ListAllocationFindings(ctx, consumer, 100, ""); !errors.Is(err, ErrAccessDenied) || len(value.Items) != 0 {
-		t.Fatalf("restricted live disclosure: %+v %v", value, err)
+	if value, err := publisher.ListAllocationFindings(ctx, consumer, 100, ""); err != nil || len(value.Items) != 3 {
+		t.Fatalf("shared Project sources: %+v %v", value, err)
 	}
 	for index, receipt := range receipts {
 		_, err := publisher.ReadAllocationFinding(ctx, consumer, *receipt.FindingID, 1)
-		if (index == 0 && err != nil) || (index > 0 && !errors.Is(err, ErrAccessDenied)) {
+		if err != nil {
 			t.Fatalf("source %d read: %v", index, err)
 		}
 	}
 	selection := FindingSelection{ClientKey: "known", Findings: []CollectionFindingSelection{{FindingID: *receipts[0].FindingID, Revision: 1}}, ReceiptIDs: []string{}}
 	if snapshot, err := publisher.SelectAllocationFindings(ctx, consumer, selection); err != nil || snapshot.EntryCount != 1 {
-		t.Fatalf("known blackbox selection: %+v %v", snapshot, err)
+		t.Fatalf("first source selection: %+v %v", snapshot, err)
 	}
-	selection.ClientKey = "restricted"
+	selection.ClientKey = "mixed-sources"
 	selection.Findings = append(selection.Findings, CollectionFindingSelection{FindingID: *receipts[1].FindingID, Revision: 1})
-	if _, err := publisher.SelectAllocationFindings(ctx, consumer, selection); !errors.Is(err, ErrAccessDenied) {
-		t.Fatalf("partial restricted selection: %v", err)
+	if snapshot, err := publisher.SelectAllocationFindings(ctx, consumer, selection); err != nil || snapshot.EntryCount != 2 {
+		t.Fatalf("mixed source selection: %+v %v", snapshot, err)
 	}
-	scope, _ := artifacts.NewService(storage.Repository(pool)).Run(consumer.RunID)
-	if _, err := scope.Metadata(ctx, contracts.ArtifactRef{Namespace: CollectionNamespace, Name: "restricted"}); !errors.Is(err, artifacts.ErrArtifactNotFound) {
-		t.Fatalf("restricted snapshot retained: %v", err)
-	}
-	// The same Project sources can be explicitly selected by the owner. Their
-	// later ordinary input grant is independent of automatic blackbox discovery.
+	// Explicit owner selection uses the same ordinary Project source authority.
 	snapshot, err := publisher.PublishCollection(ctx, PublishCollectionParams{OwnerID: owner, Request: PublishCollectionRequest{ClientKey: "owner-selection", Sources: []CollectionSelection{{Kind: "project", ID: project, Findings: selection.Findings, ReceiptIDs: []string{}}}}})
 	if err != nil || snapshot.EntryCount != 2 {
 		t.Fatalf("direct owner selection: %+v %v", snapshot, err)

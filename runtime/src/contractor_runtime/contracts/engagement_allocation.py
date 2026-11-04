@@ -94,7 +94,6 @@ class EngagementAllocationProjection(StrictWireModel):
     policy_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     authorized_by: str
     authorized_at: datetime
-    access_mode: Literal["blackbox", "source-assisted"]
     policy: Policy
     http: HTTPAssignment | None = None
 

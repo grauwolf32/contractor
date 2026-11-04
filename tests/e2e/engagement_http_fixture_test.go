@@ -19,9 +19,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
-	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -145,7 +143,7 @@ func startEngagementMatrixAudit(t *testing.T, h *engagementProcessHarness, origi
 	engagementAuditPOST(t, h, "/v1/projects", map[string]string{"kind": "project", "name": "HTTP conformance fixture", "activeChecks": "automatic"}, 0, http.StatusCreated, &project)
 	checklistBytes := []byte(`{"schema":"contractor.audit.checklist.v1","items":[{"key":"check-preflight","version":"1","statement":"Record bounded preflight conformance.","applicability":"always","allowed_methods":["static"],"required_evidence":[],"review_policy":"automatic"}]}`)
 	checklist := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "inputs", "checks", "application/json", checklistBytes)
-	document := engagementcontract.Document{Schema: engagementcontract.Schema, AccessMode: "blackbox", Target: engagementcontract.Target{Origins: origins}, Scope: engagementcontract.Scope{Routes: routes, Exclusions: exclusions}, Identities: []engagementcontract.Identity{{ID: "anonymous", Kind: "anonymous", Origins: origins}}, Inputs: []engagementcontract.Input{{ID: "checklist", Role: "documentation", Artifact: contracts.ArtifactRef{Namespace: checklist.Namespace, Name: checklist.Name, Revision: checklist.Revision}, ContentDigest: contentdigest.Bytes(checklistBytes)}}, Policy: engagementcontract.Policy{Version: "1", ActiveChecks: "automatic", RequiredCapabilities: []string{engagementcontract.Capability, "http-target@1"}, OptionalCapabilities: []string{}}, Budgets: engagementcontract.Budgets{ActiveSeconds: 120, Rounds: 1, SubmittedRuns: 1, EvidenceBytes: 1048576}}
+	document := engagementcontract.Document{Schema: engagementcontract.Schema, Target: engagementcontract.Target{Origins: origins}, Scope: engagementcontract.Scope{Routes: routes, Exclusions: exclusions}, Identities: []engagementcontract.Identity{{ID: "anonymous", Kind: "anonymous", Origins: origins}}, Policy: engagementcontract.Policy{Version: "1", ActiveChecks: "automatic", RequiredCapabilities: []string{engagementcontract.Capability, "http-target@1"}, OptionalCapabilities: []string{}}, Budgets: engagementcontract.HTTPLimits{}}
 	document.Budgets.ResponseBodyBytes = &responseBytes
 	if e := document.Validate(); e != nil {
 		t.Fatal(e)

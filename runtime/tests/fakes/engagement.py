@@ -18,7 +18,6 @@ _PROJECTION = {
     "policyDigest": "sha256:" + "b" * 64,
     "authorizedBy": "owner-1",
     "authorizedAt": "2026-10-28T12:00:00Z",
-    "accessMode": "blackbox",
     "policy": {
         "version": "1",
         "requiredCapabilities": ["engagement@1"],
@@ -40,7 +39,6 @@ def preflight_spec(*, body_limit=262144):
             "policyDigest",
             "authorizedBy",
             "authorizedAt",
-            "accessMode",
             "policy",
         )
     }

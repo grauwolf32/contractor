@@ -121,9 +121,9 @@ func newEngagementFixtureWithEdits(t *testing.T, editWorker func(string) string,
 	return &engagementFixture{ctx, pool, service, creds, project, store, contracts.ExactArtifact{Ref: meta.Ref, Digest: meta.Digest, MediaType: meta.MediaType, SizeBytes: meta.Size}, now}
 }
 func (f *engagementFixture) document(origin string) engagementcontract.Document {
-	return engagementcontract.Document{Schema: engagementcontract.Schema, AccessMode: "blackbox", Target: engagementcontract.Target{Origins: []string{origin}}, Scope: engagementcontract.Scope{Routes: []engagementcontract.Route{{Origin: origin, PathPrefixes: []string{"/"}, Methods: []string{"GET"}, AddressRanges: []string{"127.0.0.0/8"}}}, Exclusions: []engagementcontract.Route{}}, Identities: []engagementcontract.Identity{{ID: "anonymous", Kind: "anonymous", Origins: []string{origin}}}, Inputs: []engagementcontract.Input{{ID: "checklist", Role: "documentation", Artifact: f.checklist.Ref, ContentDigest: f.checklist.Digest}}, Policy: engagementcontract.Policy{Version: "1", ActiveChecks: "automatic", RequiredCapabilities: []string{engagementcontract.Capability}, OptionalCapabilities: []string{}}, Budgets: engagementcontract.Budgets{ActiveSeconds: 120, Rounds: 1, SubmittedRuns: 3, EvidenceBytes: 1024}}
+	return engagementcontract.Document{Schema: engagementcontract.Schema, Target: engagementcontract.Target{Origins: []string{origin}}, Scope: engagementcontract.Scope{Routes: []engagementcontract.Route{{Origin: origin, PathPrefixes: []string{"/"}, Methods: []string{"GET"}, AddressRanges: []string{"127.0.0.0/8"}}}, Exclusions: []engagementcontract.Route{}}, Identities: []engagementcontract.Identity{{ID: "anonymous", Kind: "anonymous", Origins: []string{origin}}}, Policy: engagementcontract.Policy{Version: "1", ActiveChecks: "automatic", RequiredCapabilities: []string{engagementcontract.Capability}, OptionalCapabilities: []string{}}, Budgets: engagementcontract.HTTPLimits{}}
 }
-func (f *engagementFixture) create(t *testing.T, id string, document engagementcontract.Document) (auditstore.Audit, error) {
+func (f *engagementFixture) create(t *testing.T, id string, document engagementcontract.Document, extra ...map[string]contracts.ArtifactRef) (auditstore.Audit, error) {
 	t.Helper()
 	data, err := json.Marshal(document)
 	if err != nil {
@@ -133,7 +133,13 @@ func (f *engagementFixture) create(t *testing.T, id string, document engagementc
 	if err != nil {
 		t.Fatal(err)
 	}
-	draft, _, err := f.service.CreateDraft(f.ctx, CreateDraftParams{AuditID: id, OwnerID: f.project.OwnerID, ProjectID: f.project.ProjectID, Profile: ProfileSelector{Name: "test-checklist", Version: "1"}, Inputs: map[string]contracts.ArtifactRef{"engagement": artifact.Ref, "checklist": f.checklist.Ref}, RuntimeLabels: []string{}, Scope: Scope{Objective: "Check fixture"}, IdempotencyKey: id, RequestDigest: serviceTestDigest(id)})
+	inputs := map[string]contracts.ArtifactRef{"engagement": artifact.Ref, "checklist": f.checklist.Ref}
+	for _, additional := range extra {
+		for name, ref := range additional {
+			inputs[name] = ref
+		}
+	}
+	draft, _, err := f.service.CreateDraft(f.ctx, CreateDraftParams{AuditID: id, OwnerID: f.project.OwnerID, ProjectID: f.project.ProjectID, Profile: ProfileSelector{Name: "test-checklist", Version: "1"}, Inputs: inputs, RuntimeLabels: []string{}, Scope: Scope{Objective: "Check fixture"}, IdempotencyKey: id, RequestDigest: serviceTestDigest(id)})
 	return draft, err
 }
 func (f *engagementFixture) start(draft auditstore.Audit) StartParams {
@@ -185,8 +191,8 @@ func TestEngagementStartPinsAndReplay(t *testing.T) {
 	if baseline.Engagement == nil || baseline.Engagement.AuthorizedBy != f.project.OwnerID || !baseline.Engagement.AuthorizedAt.Equal(f.now) || !slices.Contains(baseline.RuntimeCredentialIDs, "target-one") || baseline.ProjectHTTPTarget != nil {
 		t.Fatalf("incorrect engagement baseline: %+v", baseline.Engagement)
 	}
-	if started.Audit.Limits.MaxSubmittedRuns != 3 || started.Audit.Limits.MaxEvidenceBytes != 1024 || started.Audit.DeadlineAt == nil || !started.Audit.DeadlineAt.Equal(f.now.Add(120*time.Second)) {
-		t.Fatalf("finite policy not pinned: %+v", started.Audit)
+	if started.Audit.Limits.MaxSubmittedRuns != 20 || started.Audit.Limits.MaxEvidenceBytes != 1048576 || started.Audit.DeadlineAt == nil || !started.Audit.DeadlineAt.Equal(f.now.Add(time.Hour)) {
+		t.Fatalf("ordinary Audit limits not preserved: %+v", started.Audit)
 	}
 	if _, err := f.credentials.Delete(f.ctx, "target-one", f.project.OwnerID); !errors.Is(err, credentials.ErrRuntimeCredentialInUse) {
 		t.Fatalf("held target delete=%v", err)
@@ -247,7 +253,7 @@ func TestEngagementStartAcceptsSharedSitemapKnowledge(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := f.service.Start(f.ctx, f.start(draft)); err != nil {
-		t.Fatalf("shared sitemap prevents blackbox Audit start: %v", err)
+		t.Fatalf("shared sitemap prevents Audit start: %v", err)
 	}
 }
 
@@ -283,7 +289,7 @@ func TestEngagementStartValidatesOwnershipRevisionAndCredentials(t *testing.T) {
 	}
 }
 
-func TestEngagementUnsupportedCapabilitiesAndBlackboxClosures(t *testing.T) {
+func TestEngagementUnsupportedCapabilities(t *testing.T) {
 	f := newEngagementFixture(t)
 	document := f.document("http://127.0.0.1")
 	document.Policy.RequiredCapabilities = append(document.Policy.RequiredCapabilities, "engagement-http@1")
@@ -296,66 +302,20 @@ func TestEngagementUnsupportedCapabilitiesAndBlackboxClosures(t *testing.T) {
 	if !errors.As(err, &unsupported) || !slices.Equal(unsupported.Reasons, []CompatibilityReason{ReasonEngagementCapabilityUnsupported}) {
 		t.Fatalf("unsupported start lost compatibility reasons: %v", err)
 	}
-	profile, err := f.service.profiles.AuditProfile("test-checklist@1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	selected := &engagementSelection{document: f.document("http://127.0.0.1"), inputs: []auditstore.ArtifactLink{}}
-	for _, test := range []struct {
-		name   string
-		mutate func(*auditprofile.PinnedProgram, *engagementSelection)
-	}{
-		{"unclassified inherited input", func(_ *auditprofile.PinnedProgram, e *engagementSelection) { e.unclassifiedInputs = true }},
-		{"repository hydration", func(p *auditprofile.PinnedProgram, _ *engagementSelection) {
-			for role, binding := range p.Workflows {
-				for name, stage := range binding.Stages {
-					stage.Context.Workspace = &resolved.WorkspaceContext{Mode: contracts.WorkspaceModeDirect, Sources: []resolved.WorkspaceSource{{Artifact: "repository"}}}
-					binding.Stages[name] = stage
-				}
-				p.Workflows[role] = binding
-			}
-		}},
-		{"source skill", func(p *auditprofile.PinnedProgram, _ *engagementSelection) {
-			for role, binding := range p.Workflows {
-				for name, stage := range binding.Stages {
-					for key, agent := range stage.Agents {
-						agent.Template.Skills = []contracts.ArtifactRef{{Namespace: "skills", Name: "repository-context"}}
-						stage.Agents[key] = agent
-					}
-					binding.Stages[name] = stage
-				}
-				p.Workflows[role] = binding
-			}
-		}},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			copyProfile := profile.Clone()
-			copySelection := *selected
-			test.mutate(&copyProfile, &copySelection)
-			reasons := engagementCompatibility(copyProfile, contracts.ActiveChecksAutomatic, &copySelection)
-			if !slices.Contains(reasons, ReasonEngagementSourceClosureUnsupported) {
-				t.Fatalf("source closure allowed: %v", reasons)
-			}
-		})
-	}
 }
 
-func TestEngagementSourceAssistedRetainsExactInputsAndPurgeReleasesHolds(t *testing.T) {
-	f := newEngagementFixture(t)
+func TestEngagementOrdinaryInputsRetainExactRevisionsAndPurgeReleasesHolds(t *testing.T) {
+	f := newEngagementFixtureWithEdits(t, nil, func(files map[string]string) {
+		files["audit-profiles/checklist.yaml"] = strings.Replace(files["audit-profiles/checklist.yaml"], "  inputs:\n", "  inputs:\n    source: {required: false, media_types: [text/plain]}\n", 1)
+	})
 	document := f.document("http://127.0.0.1")
 	source, err := f.store.Write(f.ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "source"}, artifacts.Payload{MediaType: "text/plain", Data: []byte("original source snapshot")}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	metadata, err := f.store.Metadata(f.ctx, source.Ref)
-	if err != nil {
-		t.Fatal(err)
-	}
-	document.AccessMode = "source-assisted"
-	document.Inputs = append(document.Inputs, engagementcontract.Input{ID: "source", Role: "source", Artifact: source.Ref, ContentDigest: metadata.Digest})
 	f.credential(t, "source-account", f.project.OwnerID)
 	document.Identities = append(document.Identities, engagementcontract.Identity{ID: "account-a", Kind: "bearer", Origins: document.Target.Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "source-account", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
-	draft, err := f.create(t, "engagement-source", document)
+	draft, err := f.create(t, "engagement-source", document, map[string]contracts.ArtifactRef{"source": source.Ref})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -366,7 +326,15 @@ func TestEngagementSourceAssistedRetainsExactInputsAndPurgeReleasesHolds(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	held, err := f.service.ReadArtifact(f.ctx, f.project.OwnerID, draft.AuditID, "engagement-input/source", *source.Ref.Revision)
+	baseline, err := DecodeBaseline(started.Audit.BaselineSnapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pinned := baseline.Inputs["source"]
+	if !pinned.Ref.SameExact(source.Ref) {
+		t.Fatal("ordinary input lost exact source revision")
+	}
+	held, err := f.store.ReadExact(f.ctx, pinned)
 	if err != nil || string(held.Payload.Data) != "original source snapshot" {
 		t.Fatalf("exact source replaced: %s %v", held.Payload.Data, err)
 	}
@@ -463,11 +431,6 @@ func TestEngagementPersistedClosureStopsBeforeExposure(t *testing.T) {
 		document func(*engagementcontract.Document)
 		want     CompatibilityReason
 	}{
-		{"unclassified-selected-input", nil, func(d *engagementcontract.Document) { d.Inputs = []engagementcontract.Input{} }, ReasonEngagementSourceClosureUnsupported},
-		{"source-skill", func(s string) string {
-			return strings.Replace(s, "  toolsets:", "  skills: [{namespace: skills, name: source-context}]\n  toolsets:", 1)
-		}, nil, ReasonEngagementSourceClosureUnsupported},
-		{"repository-hydration", nil, nil, ReasonEngagementSourceClosureUnsupported},
 		{"network-sandbox", func(s string) string { return strings.Replace(s, "local-workdir@1", "podman-network@1", 1) }, nil, ReasonEngagementCapabilityUnsupported},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -549,31 +512,6 @@ func TestEngagementStartValidatesProjectPolicyAndSuppressesDefaultIdentity(t *te
 	}
 }
 
-func TestEngagementNestedInputBound(t *testing.T) {
-	f := newEngagementFixture(t)
-	for _, count := range []int{auditprofile.MaxAuditProfileInputs, auditprofile.MaxAuditProfileInputs + 1} {
-		document := f.document("http://127.0.0.1")
-		for len(document.Inputs) < count {
-			input := document.Inputs[0]
-			input.ID = fmt.Sprintf("input-%d", len(document.Inputs))
-			document.Inputs = append(document.Inputs, input)
-		}
-		draft, err := f.create(t, fmt.Sprintf("input-bound-%d", count), document)
-		if count > auditprofile.MaxAuditProfileInputs {
-			if !errors.Is(err, ErrInvalid) {
-				t.Fatalf("oversized nested inputs accepted: %v", err)
-			}
-			continue
-		}
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err = f.service.Start(f.ctx, f.start(draft)); err != nil {
-			t.Fatalf("maximum nested input set failed: %v", err)
-		}
-	}
-}
-
 func TestEngagementMetadataAdmissionPrecedesPayloadReads(t *testing.T) {
 	f := newEngagementFixture(t)
 	profile, err := f.service.profiles.AuditProfile("test-checklist@1")
@@ -598,11 +536,8 @@ func TestEngagementMetadataAdmissionPrecedesPayloadReads(t *testing.T) {
 		t.Fatalf("oversized start=%v", err)
 	}
 
-	// A source-assisted document may classify a separate exact source while the
-	// ordinary checklist selection still needs independent metadata validation.
+	// Ordinary input metadata is validated independently of engagement.
 	document := f.document("http://127.0.0.1")
-	document.AccessMode = "source-assisted"
-	document.Inputs[0].Role = "source"
 	data, err := json.Marshal(document)
 	if err != nil {
 		t.Fatal(err)

@@ -4032,7 +4032,7 @@ export interface components {
             incompleteRound: "assess-with-gaps" | "fail";
         };
         /** @enum {string} */
-        AuditCompatibilityReason: "preparation_unsupported" | "discovery_unsupported" | "assessment_unsupported" | "multiple_rounds_unsupported" | "batching_unsupported" | "automatic_active_checks_unsupported" | "project_active_checks_prohibited" | "manual_item_unsupported" | "engagement_capability_unsupported" | "engagement_source_closure_unsupported" | "engagement_active_checks_unsupported";
+        AuditCompatibilityReason: "preparation_unsupported" | "discovery_unsupported" | "assessment_unsupported" | "multiple_rounds_unsupported" | "batching_unsupported" | "automatic_active_checks_unsupported" | "project_active_checks_prohibited" | "manual_item_unsupported" | "engagement_capability_unsupported" | "engagement_active_checks_unsupported";
         AuditAssertionScope: {
             [key: string]: components["schemas"]["AuditCommonText"];
         };

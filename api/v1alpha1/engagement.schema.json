@@ -1,51 +1,8 @@
 {
   "$defs": {
-    "ArtifactRef": {
-      "additionalProperties": false,
-      "properties": {
-        "namespace": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
-        },
-        "name": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
-        },
-        "revision": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [
-        "namespace",
-        "name",
-        "revision"
-      ],
-      "type": "object"
-    },
     "Budgets": {
       "additionalProperties": false,
       "properties": {
-        "activeSeconds": {
-          "maximum": 86400,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "rounds": {
-          "maximum": 8,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "submittedRuns": {
-          "maximum": 512,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "evidenceBytes": {
-          "maximum": 67108864,
-          "minimum": 1,
-          "type": "integer"
-        },
         "targetRequests": {
           "type": "integer",
           "minimum": 1,
@@ -72,12 +29,6 @@
           "maximum": 4294967295
         }
       },
-      "required": [
-        "activeSeconds",
-        "rounds",
-        "submittedRuns",
-        "evidenceBytes"
-      ],
       "type": "object"
     },
     "Deployment": {
@@ -92,62 +43,6 @@
       },
       "required": [
         "marker"
-      ],
-      "type": "object"
-    },
-    "EngagementInput": {
-      "additionalProperties": false,
-      "properties": {
-        "id": {
-          "type": "string",
-          "pattern": "^[a-z][a-z0-9-]{0,63}$"
-        },
-        "role": {
-          "enum": [
-            "source",
-            "openapi",
-            "request-examples",
-            "documentation"
-          ],
-          "type": "string"
-        },
-        "artifact": {
-          "$ref": "#/$defs/ArtifactRef"
-        },
-        "contentDigest": {
-          "pattern": "^sha256:[0-9a-f]{64}$",
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "role",
-        "artifact",
-        "contentDigest"
-      ],
-      "type": "object"
-    },
-    "ExactArtifact": {
-      "additionalProperties": false,
-      "properties": {
-        "ref": {
-          "$ref": "#/$defs/ArtifactRef"
-        },
-        "digest": {
-          "pattern": "^sha256:[0-9a-f]{64}$",
-          "type": "string"
-        },
-        "mediaType": {
-          "type": "string"
-        },
-        "sizeBytes": {
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "ref",
-        "digest"
       ],
       "type": "object"
     },
@@ -422,13 +317,6 @@
       "const": "contractor.engagement.v1",
       "type": "string"
     },
-    "accessMode": {
-      "enum": [
-        "blackbox",
-        "source-assisted"
-      ],
-      "type": "string"
-    },
     "target": {
       "$ref": "#/$defs/Target"
     },
@@ -443,14 +331,6 @@
       "minItems": 1,
       "maxItems": 8
     },
-    "inputs": {
-      "items": {
-        "$ref": "#/$defs/EngagementInput"
-      },
-      "type": "array",
-      "minItems": 0,
-      "maxItems": 128
-    },
     "budgets": {
       "$ref": "#/$defs/Budgets"
     },
@@ -460,11 +340,9 @@
   },
   "required": [
     "schema",
-    "accessMode",
     "target",
     "scope",
     "identities",
-    "inputs",
     "budgets",
     "policy"
   ],

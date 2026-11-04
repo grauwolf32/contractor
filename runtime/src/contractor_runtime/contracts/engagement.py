@@ -9,8 +9,7 @@ from urllib.parse import unquote, urlsplit
 
 from pydantic import ConfigDict, Field, model_validator
 
-from contractor_runtime.contracts.artifacts import ArtifactRef, validate_media_type
-from contractor_runtime.contracts.base import DIGEST_PATTERN, WireModel
+from contractor_runtime.contracts.base import WireModel
 from contractor_runtime.contracts.settings import RuntimeCredentialRef
 
 ENGAGEMENT_SCHEMA = "contractor.engagement.v1"
@@ -252,22 +251,6 @@ class Scope(_EngagementModel):
     exclusions: list[Route]
 
 
-class ExactArtifact(_EngagementModel):
-    ref: ArtifactRef
-    digest: str = Field(pattern=DIGEST_PATTERN.pattern)
-    media_type: str | None = None
-    size_bytes: int | None = Field(default=None, ge=0)
-
-    @model_validator(mode="after")
-    def validate_exact(self) -> Self:
-        self.ref.require_exact()
-        if (self.media_type is None) != (self.size_bytes is None):
-            raise _bad()
-        if self.media_type is not None:
-            validate_media_type(self.media_type)
-        return self
-
-
 class Identity(_EngagementModel):
     id: str
     kind: str
@@ -316,20 +299,6 @@ class Identity(_EngagementModel):
         return self
 
 
-class EngagementInput(_EngagementModel):
-    id: str
-    role: Literal["source", "openapi", "request-examples", "documentation"]
-    artifact: ArtifactRef
-    content_digest: str = Field(pattern=DIGEST_PATTERN.pattern)
-
-    @model_validator(mode="after")
-    def validate_input(self) -> Self:
-        if _ID.fullmatch(self.id) is None:
-            raise _bad()
-        self.artifact.require_exact()
-        return self
-
-
 class Policy(_EngagementModel):
     version: Literal["1"]
     active_checks: Literal["automatic"]
@@ -359,21 +328,12 @@ class HTTPLimits(_EngagementModel):
     response_body_bytes: Annotated[int, Field(ge=1, le=4294967295)] | None = None
 
 
-class Budgets(HTTPLimits):
-    active_seconds: Annotated[int, Field(ge=1, le=86400)]
-    rounds: Annotated[int, Field(ge=1, le=8)]
-    submitted_runs: Annotated[int, Field(ge=1, le=512)]
-    evidence_bytes: Annotated[int, Field(ge=1, le=67108864)]
-
-
 class Engagement(_EngagementModel):
     schema_: Literal[ENGAGEMENT_SCHEMA] = Field(alias="schema")
-    access_mode: Literal["blackbox", "source-assisted"]
     target: Target
     scope: Scope
     identities: list[Identity]
-    inputs: list[EngagementInput]
-    budgets: Budgets
+    budgets: HTTPLimits
     policy: Policy
 
     @model_validator(mode="after")
@@ -384,7 +344,6 @@ class Engagement(_EngagementModel):
             or not 1 <= len(self.scope.routes) <= 128
             or not 0 <= len(self.scope.exclusions) <= 128
             or not 1 <= len(self.identities) <= 8
-            or len(self.inputs) > 128
         ):
             raise _bad()
         caps = set(self.policy.required_capabilities + self.policy.optional_capabilities)
@@ -406,14 +365,6 @@ class Engagement(_EngagementModel):
             if identity.kind == "browser-login" and "browser@1" not in caps:
                 raise _bad()
         if anonymous != 1:
-            raise _bad()
-        inputs = [value.id for value in self.inputs]
-        sources = sum(value.role == "source" for value in self.inputs)
-        if (
-            len(set(inputs)) != len(inputs)
-            or (self.access_mode == "blackbox" and sources)
-            or (self.access_mode == "source-assisted" and not sources)
-        ):
             raise _bad()
         if (
             len(self.model_dump_json(by_alias=True, exclude_none=True).encode())

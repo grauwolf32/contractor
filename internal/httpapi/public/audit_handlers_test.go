@@ -170,7 +170,6 @@ func TestAuditCreateStartQueryAndStableErrors(t *testing.T) {
 
 	for _, reason := range []auditservice.CompatibilityReason{
 		auditservice.ReasonEngagementCapabilityUnsupported,
-		auditservice.ReasonEngagementSourceClosureUnsupported,
 		auditservice.ReasonEngagementActiveChecksUnsupported,
 	} {
 		management.err = &auditservice.UnsupportedError{Reasons: []auditservice.CompatibilityReason{reason}}

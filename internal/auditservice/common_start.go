@@ -197,10 +197,6 @@ func (s *Service) Start(ctx context.Context, p StartParams) (StartedAudit, error
 				}
 				baseline.Engagement = &auditbaseline.EngagementSnapshot{Schema: auditbaseline.EngagementSchema, Artifact: engagement.artifact, Document: engagement.document, PolicyDigest: digest, AuthorizedBy: p.OwnerID, AuthorizedAt: s.now().UTC()}
 				baseline.RuntimeCredentialIDs = mergeIDs(runtimeSnapshot.RuntimeCredentialIDs, engagement.credentialIDs)
-				links = append(links, engagement.inputs...)
-				if seconds == 0 || seconds > int(engagement.document.Budgets.ActiveSeconds) {
-					seconds = int(engagement.document.Budgets.ActiveSeconds)
-				}
 			}
 			encoded, err := EncodeBaseline(baseline)
 			if err != nil {

@@ -741,7 +741,6 @@
       "enum": [
         "/apiVersion",
         "/contextManagement/strategy",
-        "/engagement/accessMode",
         "/engagement/policy/activeChecks",
         "/engagement/policy/requiredCapabilities/0",
         "/engagement/policy/version",
@@ -2092,7 +2091,6 @@
       "enum": [
         "/apiVersion",
         "/contextManagement/strategy",
-        "/engagement/accessMode",
         "/engagement/http/adapter",
         "/engagement/http/identities/0/id",
         "/engagement/http/identities/0/kind",
@@ -2394,7 +2392,6 @@
       "enum": [
         "/apiVersion",
         "/contextManagement/strategy",
-        "/engagement/accessMode",
         "/engagement/http/adapter",
         "/engagement/http/identities/0/id",
         "/engagement/http/identities/0/kind",
@@ -2688,7 +2685,6 @@
       "enum": [
         "/apiVersion",
         "/contextManagement/strategy",
-        "/engagement/accessMode",
         "/engagement/http/adapter",
         "/engagement/http/identities/0/id",
         "/engagement/http/identities/0/kind",

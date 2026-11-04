@@ -139,7 +139,6 @@
     "policyDigest": "sha256:a9585c2b5ec932ffcca8c2ed9fc61b16f7940aacc338dace84ac72e526a88e54",
     "authorizedBy": "owner-engagement",
     "authorizedAt": "2026-10-28T12:00:00Z",
-    "accessMode": "blackbox",
     "policy": {
       "version": "1",
       "activeChecks": "automatic",

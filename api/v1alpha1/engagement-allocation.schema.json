@@ -12,7 +12,6 @@
     "policyDigest",
     "authorizedBy",
     "authorizedAt",
-    "accessMode",
     "policy"
   ],
   "properties": {
@@ -45,12 +44,6 @@
     },
     "authorizedAt": {
       "$ref": "common.schema.json#/$defs/timestamp"
-    },
-    "accessMode": {
-      "enum": [
-        "blackbox",
-        "source-assisted"
-      ]
     },
     "policy": {
       "allOf": [

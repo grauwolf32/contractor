@@ -6,8 +6,8 @@ epic: audits
 kind: chore
 introduced_by: V411-002
 priority: P1
-status: pending
-depends_on: [V411-002, V64-002]
+status: in_progress
+depends_on: [V411-002, V64-002, V411-011]
 languages: [go, python, json, yaml, typescript]
 goal: >-
   An HTTP Audit takes its materials and execution budgets from ordinary Audit
@@ -32,6 +32,7 @@ context:
     - docs/spec/audits/audits.md#AUD-R247
     - docs/spec/audits/execution.md#AUX-R104
     - docs/spec/tools/http-caido.md#HTP-R145
+    - docs/spec/findings/findings.md#FND-R227
     - docs/spec/platform/persistence.md
     - docs/spec/platform/lifecycle.md
   finding: >-
@@ -45,11 +46,15 @@ context:
     limits. Remove the source-mode guarantee rather than relocating or inferring it.
     V444-002 finishes the network document and placement cleanup; this first slice
     must itself build and run with a strict shared contract.
-  provenance: V411-002 introduced these fields; V422-002 retained four Audit budgets.
+  provenance: >-
+    V411-002 introduced these fields; V422-002 retained four Audit budgets.
+    V411-011 added source-mode filtering to the Project Findings reader, another
+    direct consumer removed under the same user decision.
 scope:
   in:
     - Remove accessMode and inputs from the Go/Python engagement and allocation contracts and schemas.
     - Remove activeSeconds, rounds, submittedRuns and evidenceBytes from engagement; leave optional HTTP limits intact.
+    - Remove Project Findings source-mode discovery and selection filters; preserve owner/Project/tool/lifecycle authorization.
     - Delete blackbox closure/workspace/Skill restrictions and the obsolete public compatibility reason end to end.
     - Use ordinary declared Audit inputs and retention; remove nested engagement input resolution and links.
     - Remove engagement overrides of Audit size/deadline/resume limits; preserve the existing one-attempt HTTP safety rule.
@@ -93,12 +98,40 @@ acceptance_criteria:
 tests:
   - command: make require-database
     covers: [A2, A3]
-  - command: go test -tags=integration -count=1 ./internal/contracts/... ./internal/auditbaseline ./internal/auditservice ./internal/auditstore/... ./internal/controlplane/... ./internal/httpapi/public ./internal/publicclient/... ./internal/archtest
+  - command: go test -tags=integration -count=1 -p=2 ./internal/contracts/... ./internal/auditbaseline ./internal/findingintake ./internal/auditservice ./internal/auditstore/... ./internal/controlplane/... ./internal/httpapi/public ./internal/publicclient/... ./internal/archtest
     covers: [A1, A2, A4]
-  - command: make test-runtime test-wire-cross-language test-engagement-http-process verify-public-api
-    covers: [A1, A2, A3, A4]
+  - command: go test -tags=integration -count=1 ./tests/eval/audit_programs
+    covers: [A2, A4]
+  - command: make test-runtime
+    covers: [A1, A4]
+  - command: make test-wire-cross-language verify-public-api
+    covers: [A1, A4]
+  - command: make test-engagement-http-process
+    covers: [A2, A3]
   - command: make lint
     covers: [A1, A2, A4]
 test_prerequisites:
   - Use disposable PostgreSQL; a configured unreachable database, zero selected tests or unexpected mandatory process skips fail.
   - Tests use testdata rather than live configs; no live Gateway or demo writes are authorized by this task.
+
+progress:
+  boundary_patch: >-
+    Core removal is implemented, including the V411-011 Project Findings source-mode
+    consumer. Exact input retention, ordinary Audit limits/resume, shared strict
+    documents and private allocation projections are updated. Task remains in_progress.
+  verification_before_main_integration: >-
+    Full touched Go packages passed on isolated UTF-8 PostgreSQL; Eval program suite,
+    wire/public API gates, UI typecheck and make lint passed. HTTP conformance passed
+    41 process, 2 accounting and 92 Runtime cases with no selected skips. The updated
+    Findings regression passes its full package and fails when the former source-mode
+    predicate is restored through a temporary Go overlay.
+  runtime_pending: >-
+    Initial full Runtime: 5711 passed, 135 expected platform/environment skips and
+    one large-package Nuclei worker/replay failure. That case passed isolated and
+    in the shared-fixture gate. A second whole run was interrupted for integration
+    with newly merged native HTTP transport; no full Runtime success is claimed.
+  integration: >-
+    Main gained the native mitmproxy HTTP implementation and Inbox changes during
+    verification. Merge current main, preserve the transport changes and repeat
+    relevant checks before closing this task. Runtime contracts/Audit/Findings code
+    does not overlap; shared paths are the UI specification and generated backlog.

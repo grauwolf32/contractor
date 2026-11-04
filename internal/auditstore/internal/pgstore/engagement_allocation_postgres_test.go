@@ -101,10 +101,10 @@ func allocationBaselineDrainFixture(t *testing.T, engagement bool) (collectingAu
 	if engagement {
 		origin := "https://target.example"
 		doc := engagementcontract.Document{
-			Schema: engagementcontract.Schema, AccessMode: "blackbox", Target: engagementcontract.Target{Origins: []string{origin}},
+			Schema: engagementcontract.Schema, Target: engagementcontract.Target{Origins: []string{origin}},
 			Scope:      engagementcontract.Scope{Routes: []engagementcontract.Route{{Origin: origin, PathPrefixes: []string{"/"}, Methods: []string{"GET"}, AddressRanges: []string{"192.0.2.0/24"}}}, Exclusions: []engagementcontract.Route{}},
-			Identities: []engagementcontract.Identity{{ID: "anonymous", Kind: "anonymous", Origins: []string{origin}}}, Inputs: []engagementcontract.Input{}, Policy: engagementcontract.Policy{Version: "1", ActiveChecks: "automatic", RequiredCapabilities: []string{engagementcontract.Capability}, OptionalCapabilities: []string{}},
-			Budgets: engagementcontract.Budgets{ActiveSeconds: 1, Rounds: 1, SubmittedRuns: 1, EvidenceBytes: 1},
+			Identities: []engagementcontract.Identity{{ID: "anonymous", Kind: "anonymous", Origins: []string{origin}}}, Policy: engagementcontract.Policy{Version: "1", ActiveChecks: "automatic", RequiredCapabilities: []string{engagementcontract.Capability}, OptionalCapabilities: []string{}},
+			Budgets: engagementcontract.HTTPLimits{},
 		}
 		if err := doc.Validate(); err != nil {
 			t.Fatal(err)

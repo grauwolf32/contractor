@@ -175,12 +175,6 @@ func (s *Service) CreateDraft(
 	}
 	if engagement != nil {
 		limits.MaxItemRunAttempts = 1
-		limits.MaxRounds = min(limits.MaxRounds, int(engagement.document.Budgets.Rounds))
-		limits.MaxSubmittedRuns = min(limits.MaxSubmittedRuns, int(engagement.document.Budgets.SubmittedRuns))
-		limits.MaxItemsTotal = min(limits.MaxItemsTotal, limits.MaxSubmittedRuns*limits.BatchSize)
-		limits.MaxItemsPerRound = min(limits.MaxItemsPerRound, limits.MaxItemsTotal)
-		limits.BatchSize = min(limits.BatchSize, limits.MaxItemsPerRound)
-		limits.MaxEvidenceBytes = min(limits.MaxEvidenceBytes, int64(engagement.document.Budgets.EvidenceBytes))
 	}
 	profileSnapshot, err := strictjson.Canonical(profile)
 	if err != nil {
