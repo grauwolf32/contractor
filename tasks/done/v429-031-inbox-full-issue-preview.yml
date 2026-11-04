@@ -5,7 +5,7 @@ milestone: ui-journey-usability
 epic: ui
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V429-030]
 languages: [typescript, javascript, css]
 goal: The user can inspect the same complete issue information and evidence from Inbox Decide as from Issues, without leaving the queue.
@@ -68,3 +68,11 @@ tests:
     covers: [A1, A3]
   - command: git diff --check
     covers: [A1, A2, A3]
+
+implementation_commit: a50e1386cdc7be27219a3bbdfe08b4ef0506e949
+verification:
+  date: "2026-11-04"
+  browser: verify.mjs passes forty-six layout/scenario samples and twelve paired Issues/Inbox content/typography comparisons; tabs, queue/keyboard navigation, direct links/return state, duplicate targets, retained draft, mobile Back, exact downloads and credential masking work with no browser errors or live API requests.
+  preservation: All 138 protected prior experiment and production-source files retain their hashes. The reviewed synthetic Issues data is reused; no native model call or production edit is made.
+  preview: Full source-code issue loaded and retained in browser tab 38, with the existing IssueDetail showing its source snippets and review context inside Decide.
+  repository: Task/spec checks and git diff --check pass. Branch codex/inbox-design is unmerged; production transfer remains a subsequent request.
