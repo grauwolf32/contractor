@@ -13,30 +13,17 @@ from mitmproxy.proxy.layers.http import _http1, _http2
 from mitmproxy.proxy.mode_specs import ProxyMode
 
 from contractor_runtime.adapters.bridge.mitmproxy.lifecycle import OwnedHandler
+from contractor_runtime.adapters.bridge.mitmproxy.messages import (
+    end_to_end,
+    native_url,
+    request_target,
+    response_message,
+)
 from contractor_runtime.adapters.http_transport import HTTPTransportError
 from contractor_runtime.contracts.engagement import canonical_url
 from contractor_runtime.core.http_limits import MAX_HEADERS, request_header_max_bytes
 from contractor_runtime.shared_config import get_shared_config
 from contractor_runtime.threads import to_thread_until_done
-
-HOP_HEADERS = {
-    b"connection",
-    b"proxy-authenticate",
-    b"proxy-authorization",
-    b"proxy-connection",
-    b"te",
-    b"trailer",
-    b"transfer-encoding",
-    b"upgrade",
-}
-
-
-def end_to_end(headers):
-    hop = set(HOP_HEADERS)
-    for name, value in headers:
-        if name.lower() == b"connection":
-            hop.update(item.strip().lower() for item in value.split(b","))
-    return [(k, v) for k, v in headers if k.lower() not in hop]
 
 
 class IngressHttp1(_http1.Http1Server):
@@ -55,7 +42,20 @@ class IngressHttp1(_http1.Http1Server):
                 yield commands.CloseConnection(self.conn)
                 self.state = self.done
                 return
-        yield from super().read_headers(event)
+        # Native absolute-form parsing uses urlparse, which erases a trailing '?'.
+        # Restore only the exact target path after its normal syntax validation.
+        target = bytes(self.buf).split(b"\r\n", 1)[0].split(b" ")
+        for command in super().read_headers(event):
+            if (
+                isinstance(command, native_http.ReceiveHttp)
+                and isinstance(command.event, native_http.RequestHeaders)
+                and len(target) == 3
+                and target[1].startswith((b"http://", b"https://"))
+            ):
+                command.event.request.path = request_target(target[1].decode("ascii")).decode(
+                    "ascii"
+                )
+            yield command
 
 
 class IngressHttp2(_http2.Http2Server):
@@ -189,7 +189,7 @@ class Ingress(OwnedHandler, server.LiveConnectionHandler):
                 flow.kill()
                 return
             self.bridge.requests += 1
-            url = request.url
+            url = native_url(request)
             if canonical_url(url) != url:
                 raise ValueError("noncanonical target")
             parsed = urlsplit(url)
@@ -222,17 +222,8 @@ class Ingress(OwnedHandler, server.LiveConnectionHandler):
                 return
             if response.truncated:
                 self.bridge.error_code = self.bridge.error_code or "scan_request_failed"
-            headers = [
-                (k, v) for k, v in end_to_end(response.headers) if k.lower() != b"content-length"
-            ]
-            if request.method == "HEAD" or response.status == 304:
-                headers += [(k, v) for k, v in response.headers if k.lower() == b"content-length"]
-            elif response.status != 204:
-                headers.append((b"content-length", str(len(response.body)).encode()))
-            # Frontend messages are independent scanner IPC calls; target pools
-            # retain HTTP/1.1 keepalive and HTTP/2 multiplexing.
-            headers.append((b"connection", b"close"))
-            flow.response = http.Response.make(response.status, response.body, headers)
+            # IPC messages close independently; target pools retain keepalive/H2.
+            flow.response = response_message(response, request.method)
         elif name == "response":
             self.pending.discard(flow.id)
             self.completed += 1

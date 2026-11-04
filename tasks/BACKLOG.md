@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-79 open tasks: 12 in progress, 54 pending, 13 deferred. 1405 finished: 1387 completed, 18 archived.
+82 open tasks: 14 in progress, 55 pending, 13 deferred. 1405 finished: 1387 completed, 18 archived.
 
 ## In progress
 
@@ -18,6 +18,8 @@ the epics are in [epics.yml](epics.yml).
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | quality | chore | P3 | Make the Runtime suite pass on macOS: declare the Linux-only Podman tests, make the other tests portable and file the macOS defects |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V410-031](v410-031-bridge-module-implementation-names.yml) | http-tools | chore | P3 | Name the shared bridge module separately from its mitmproxy implementation |
+| [V410-032](v410-032-native-http-message-bytes.yml) | http-tools | defect | P1 | Preserve raw bodies and canonical targets at the native HTTP boundary |
+| [V410-033](v410-033-native-http-framing-trailers.yml) | http-tools | defect | P1 | Bound native HTTP/1.1 framing and accept bounded trailers |
 | [V417-001](v417-001-terminal-summarizer-include-reasoning.yml) | planner-worker | feature | P1 | Make terminal summarizer reasoning input explicitly configurable |
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Continue an isolated Worker through workflow-selected context compaction |
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
@@ -48,6 +50,7 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V410-008](v410-008-sitemap-caido-history.yml) | feature | P2 | V410-007 | Import selected Caido history incrementally with durable checkpoints |
 | [V410-009](v410-009-sitemap-browser-collection.yml) | feature | P2 | V410-007, V412-001 | Collect managed Playwright network observations into the sitemap |
+| [V410-034](v410-034-bridge-ownership-and-domain-double.yml) | chore | P2 | V410-032, V410-033 | Make bridge ownership and domain test doubles explicit |
 | [V412-001](v412-001-managed-pentest-browser.yml) | feature | P2 | — | Add allocation-owned browser investigation with explicit network authority |
 | [V412-004](v412-004-trusted-pentest-callback-proof.yml) | feature | P2 | V411-015, V411-016 | Use existing Interactsh tools as bounded HTTP investigation evidence |
 
@@ -177,7 +180,7 @@ tasks in `introduced_by`.
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 15 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
-| HTTP and Caido tools (`http-tools`) | 5 | 23 | 27 | 13 | 28 |
+| HTTP and Caido tools (`http-tools`) | 8 | 23 | 29 | 14 | 31 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 3 | 17 | 10 | 10 | 20 |
 | Findings tools and collections (`findings`) | 2 | 17 | 10 | 10 | 15 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 21 |

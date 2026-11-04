@@ -24,6 +24,7 @@ from mitmproxy.proxy.layers.http import HttpErrorHook, HttpResponseHook
 
 from contractor_runtime.adapters.bridge import BridgeFailure
 from contractor_runtime.adapters.bridge.mitmproxy.lifecycle import OwnedHandler
+from contractor_runtime.adapters.bridge.mitmproxy.messages import native_url, request_message
 from contractor_runtime.adapters.bridge.mitmproxy.protocol import (
     Abort,
     RoutedHttpLayer,
@@ -219,12 +220,7 @@ class _Pool(OwnedHandler, server.ConnectionHandler):
         exchange.stream_id = self.next_stream
         self.next_stream += 2
         exchange.flow = http.HTTPFlow(self.client, Server(address=(self.host, self.port)))
-        exchange.flow.request = http.Request.make(
-            exchange.request.method,
-            exchange.url,
-            exchange.request.body,
-            list(exchange.request.headers),
-        )
+        exchange.flow.request = request_message(exchange.url, exchange.request)
         self.exchanges[exchange.stream_id] = exchange
         self.engine.flows[exchange.flow.id] = exchange
         await self.server_event(Submit(self.client, exchange))
@@ -448,7 +444,7 @@ class MitmproxyEngine:
             exchange = self.flows[data.id]
             if hook.name == "requestheaders":
                 exchange.boundary.require_time()
-                if data.request.url != exchange.url:
+                if native_url(data.request) != exchange.url:
                     exchange.reason = "policy_denied"
                     data.kill()
                 data.request.stream = True

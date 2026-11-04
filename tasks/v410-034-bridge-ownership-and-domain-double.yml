@@ -1,0 +1,56 @@
+schema_version: '1.0'
+id: V410-034
+title: Make bridge ownership and domain test doubles explicit
+milestone: project-sitemap-2026-10
+epic: http-tools
+kind: chore
+introduced_by: V410-030
+priority: P2
+status: pending
+depends_on: [V410-032, V410-033]
+languages: [python, markdown]
+goal: Make resource ownership and exchange state reviewable while ensuring protocol assertions exercise the actual native engine.
+context:
+  protocol_authority: User clarification 2026-11-04 — HTTP/1.1 is the minimum supported version; HTTP/1.0 is rejected. Native Http1 class names denote the implementation family, not enabled HTTP/1.0 support.
+  authority: User direction 2026-11-04 requests local refactoring after the four regressions, with performance changes justified only by measurements.
+  specification:
+  - docs/spec/tools/http-caido.md#HTP-R138
+  - docs/spec/tools/http-caido.md#HTP-R146
+  finding: >-
+    Process globals and restoration are spread across engine.start/_close; exchange
+    release is nested; state uses Any and implicit nullable transitions; log and
+    callback failures duplicate teardown. HTTPTransport retains unused boundaries
+    and a pass-through _execute_session. The domain fake reimplements httpcore framing.
+  boundary_decision: >-
+    A private process-state owner pairs capture/restore, and engine resources stay
+    owned through failed cleanup. Named exchange release and typed state expose joins
+    before secret erasure/restoration. Domain tests inject predetermined outcomes;
+    wire/framing/partial-send/cancellation checks use real native sockets. No backend
+    registry, lifecycle framework or speculative optimization is introduced.
+scope:
+  in:
+  - Extract a private paired process-state owner and named exchange-release method while retaining retryable cleanup ownership.
+  - Type exchange/engine collections and nullable post-cleanup fields, and share classified fail-closed completion mechanics.
+  - Remove unused HTTPTransport boundary tracking and pass-through session wrapper/comments.
+  - Replace httpcore/controlled_stream domain doubles with result-driven fixtures and move protocol assertions to real native tests.
+  - Measure HTTP/2 check/admission costs separately; preserve fresh DNS, lease and session checks and make no unmeasured performance claim.
+  out:
+  - Unrelated Podman/scanner probe timeouts, new public configuration/wire fields or protocol capabilities.
+acceptance_criteria:
+- id: A1
+  text: Process state capture/restoration and exchange release have named owners, with startup failure, repeated cancellation and failed close covered on the real lifecycle path.
+- id: A2
+  text: Exchange and engine state use concrete types with explicit post-cleanup nullability; duplicated failure loops and dead HTTPTransport state are removed without changing outcomes.
+- id: A3
+  text: No domain helper retains a second httpcore protocol implementation; actual native tests cover pre-send retry, partial send and cancellation rather than inferring them from a fake encoder.
+- id: A4
+  text: Affected complete test suites, import/Ruff/lint/spec/task checks pass, and any full Runtime baseline failures are reported as failures.
+tests:
+- command: cd runtime && uv run pytest -W error tests/test_bridge_framing.py tests/test_bridge_messages.py tests/test_http_engine.py tests/test_http_proxy_bridge.py tests/test_engagement_socket_conformance.py tests/test_nuclei_engagement.py tests/test_engagement_target.py tests/test_engagement_identity.py tests/test_engagement_allocation.py tests/test_audit_http_credentials.py
+  covers: [A1, A2, A3, A4]
+- command: make lint
+  covers: [A4]
+- command: python3 scripts/check_spec.py
+  covers: [A4]
+- command: cd runtime && uv run python ../scripts/check_tasks.py
+  covers: [A4]

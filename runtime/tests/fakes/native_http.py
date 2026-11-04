@@ -17,6 +17,7 @@ class NativeTarget(SocketTarget):
         self.payload, self.headers = payload, headers
         self.max_streams = max_streams
         self.trace = []
+        self.bodies = []
         self.held = asyncio.Event()
         self.release = asyncio.Event()
         self.responders = set()
@@ -51,9 +52,25 @@ class NativeTarget(SocketTarget):
             head = await reader.readuntil(b"\r\n\r\n")
             self.requests.append(head)
             method, path, protocol = head.split(b"\r\n", 1)[0].split(b" ")
+            length = next(
+                (
+                    int(line.split(b":", 1)[1])
+                    for line in head.split(b"\r\n")
+                    if line.lower().startswith(b"content-length:")
+                ),
+                0,
+            )
+            self.bodies.append(await reader.readexactly(length))
             self.trace.append((method, path, protocol, head))
             assert len(self.trace) <= 64
-            writer.write(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")
+            writer.write(
+                b"HTTP/1.1 200 OK\r\nContent-Length: "
+                + str(len(self.payload)).encode()
+                + b"\r\n"
+                + b"".join(k + b": " + v + b"\r\n" for k, v in self.headers)
+                + b"\r\n"
+                + self.payload
+            )
             await writer.drain()
 
     async def http2(self, reader, writer):
@@ -63,6 +80,7 @@ class NativeTarget(SocketTarget):
         connection.initiate_connection()
         writer.write(connection.data_to_send())
         streams = {}
+        bodies = {}
 
         async def respond(stream, headers):
             if headers[b":path"] == b"/hold":
@@ -84,7 +102,9 @@ class NativeTarget(SocketTarget):
             for event in connection.receive_data(data):
                 if isinstance(event, h2.events.RequestReceived):
                     streams[event.stream_id] = dict(event.headers)
+                    bodies[event.stream_id] = bytearray()
                 elif isinstance(event, h2.events.DataReceived):
+                    bodies[event.stream_id].extend(event.data)
                     connection.acknowledge_received_data(
                         event.flow_controlled_length, event.stream_id
                     )
@@ -92,6 +112,7 @@ class NativeTarget(SocketTarget):
                     self.resets.append(event.stream_id)
                 elif isinstance(event, h2.events.StreamEnded):
                     headers = streams.pop(event.stream_id)
+                    self.bodies.append(bytes(bodies.pop(event.stream_id)))
                     self.trace.append((headers[b":method"], headers[b":path"], b"HTTP/2", headers))
                     assert len(self.trace) <= 64
                     task = asyncio.create_task(respond(event.stream_id, headers))

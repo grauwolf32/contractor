@@ -1340,7 +1340,12 @@ and at most one retry for GET, HEAD or OPTIONS after a proven pre-send connect/T
 failure. A write method, any entered application write and every received HTTP
 status preclude automatic transport retry. The whole call includes queue wait,
 redirects and body read. Common HTTP framing/buffering bounds still apply;
-configured request/response-body limits may tighten them. Do not decompress.
+configured request/response-body limits may tighten them. Do not decompress or
+re-encode bodies: native messages carry raw bytes and preserve Content-Encoding.
+Native target equality uses exact path/query components (including an empty `?`)
+and bracketed IPv6 authority; it must not depend on lossy library URL rendering.
+Scanner response framing preserves HEAD/304 Content-Length metadata, omits a
+204 body/Content-Length, and otherwise measures the raw transmitted bytes.
 Each next origin must satisfy scope and assigned credential origins. Strip manual
 Cookie/Authorization on origin change. 303 and POST 301/302 change the method to
 GET and drop body/content headers. No request settlement or journal RPC occurs.
