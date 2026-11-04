@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-81 open tasks: 12 in progress, 56 pending, 13 deferred. 1436 finished: 1418 completed, 18 archived.
+81 open tasks: 13 in progress, 55 pending, 13 deferred. 1436 finished: 1418 completed, 18 archived.
 
 ## In progress
 
@@ -23,6 +23,7 @@ the epics are in [epics.yml](epics.yml).
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V447-001](v447-001-unify-endpoint-validation.yml) | api-contracts | defect | P2 | Reject unusable Gateway and Runtime endpoints at every admission boundary |
 | [V447-002](v447-002-reject-invalid-private-wire-members.yml) | api-contracts | defect | P2 | Reject explicit zero ModelPolicy limits and non-wire member aliases |
+| [V447-003](v447-003-align-audit-document-node-budget.yml) | api-contracts | defect | P2 | Count Audit JSON values consistently across Server and Runtime |
 
 ## Pending
 
@@ -124,7 +125,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V411-017](v411-017-pentest-api-cli.yml) | feature | P1 | V411-015, V411-016, V64-008, V444-003 | Expose HTTP engagement setup and results through existing API and CLI |
-| [V447-003](v447-003-align-audit-document-node-budget.yml) | defect | P2 | — | Count Audit JSON values consistently across Server and Runtime |
 | [V447-004](v447-004-simplify-contract-boundaries.yml) | chore | P2 | V447-001, V447-002, V447-003 | Reuse strict JSON decoding and restore contracts domain boundaries |
 
 ### PostgreSQL persistence and schema (`persistence`)

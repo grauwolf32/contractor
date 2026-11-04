@@ -2,7 +2,7 @@ schema_version: "1.0"
 milestone: contracts-review-2026-11
 epic: api-contracts
 priority: P2
-status: pending
+status: in_progress
 id: V447-003
 title: Count Audit JSON values consistently across Server and Runtime
 kind: defect

@@ -159,3 +159,51 @@ func TestSharedAuditCommonTextUsesTheWireWhitespaceRule(t *testing.T) {
 		}
 	}
 }
+
+func TestSharedAuditContextStructuralBudget(t *testing.T) {
+	var fixture struct {
+		Context           map[string]any `json:"context"`
+		Evidence          map[string]any `json:"evidence"`
+		Members           int            `json:"members"`
+		EvidencePerMember int            `json:"evidencePerMember"`
+		ValueLimit        int            `json:"valueLimit"`
+	}
+	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "audit-common", "structural-bounds.json"), &fixture); err != nil {
+		t.Fatal(err)
+	}
+	if fixture.Members != auditcontract.MaxExecutionMembers || fixture.ValueLimit != 250000 {
+		t.Fatal("shared structural bounds drifted")
+	}
+	evidence := make([]any, 0, fixture.EvidencePerMember)
+	for i := 0; i < fixture.EvidencePerMember; i++ {
+		var item map[string]any
+		data, _ := json.Marshal(fixture.Evidence)
+		if err := json.Unmarshal(data, &item); err != nil {
+			t.Fatal(err)
+		}
+		item["ref"].(map[string]any)["name"] = fmt.Sprintf("evidence-%03d", i)
+		evidence = append(evidence, item)
+	}
+	members := make([]any, fixture.Members)
+	for i := range members {
+		members[i] = map[string]any{"item_key": fmt.Sprintf("item-%02d", i), "task_id": fmt.Sprintf("task-%02d", i), "objective": "Review the admitted evidence.", "evidence": evidence}
+	}
+	fixture.Context["items"] = members
+	data, err := json.Marshal(fixture.Context)
+	if err != nil {
+		t.Fatal(err)
+	}
+	canonical, err := auditcontract.Decode(data, nil)
+	if err != nil || len(canonical) > auditcontract.MaximumDocumentBytes {
+		t.Fatalf("valid scale context: %v", err)
+	}
+	// This would exceed the common value budget even before schema validation.
+	fixture.Context["over_budget"] = make([]int, fixture.ValueLimit)
+	data, err = json.Marshal(fixture.Context)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := auditcontract.Decode(data, nil); err == nil {
+		t.Fatal("accepted over-budget context")
+	}
+}

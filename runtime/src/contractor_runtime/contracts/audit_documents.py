@@ -23,17 +23,22 @@ def decode_audit_document(data: bytes, *, schema: str) -> dict:
     value = strict_json_loads(data.decode("utf-8"))
     nodes = 0
 
+    def check_text(text):
+        if "\x00" in text or len(text.encode("utf-8")) > 65536:
+            raise ValueError("Audit document string")
+
     def check(item, depth=1):
         nonlocal nodes
         nodes += 1
         if nodes > 250000 or depth > 64:
             raise ValueError("Audit document structure")
         if isinstance(item, str):
-            if "\x00" in item or len(item.encode("utf-8")) > 65536:
-                raise ValueError("Audit document string")
+            check_text(item)
         elif isinstance(item, dict):
             for key, child in item.items():
-                check(key, depth + 1)
+                # LIM-ACT-3 excludes member names from the value budget;
+                # their independent UTF-8/NUL bound still applies.
+                check_text(key)
                 check(child, depth + 1)
                 if (
                     key == "limitations"
