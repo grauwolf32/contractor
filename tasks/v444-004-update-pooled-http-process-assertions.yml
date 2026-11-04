@@ -48,3 +48,11 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A3]
+
+verification:
+  date: "2026-11-05"
+  result: >-
+    The ordinary full e2e package and make lint pass after V444-005. The unchanged
+    real HTTP manifest passes 41 process cases, 2 PostgreSQL accounting cases and
+    157 Runtime cases with zero selected skips. Exact allowed paths/HTTP counts,
+    limits, identity isolation, TLS and zero prohibited bytes remain checked.
