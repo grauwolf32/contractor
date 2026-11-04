@@ -320,7 +320,7 @@ export function useInboxData(): InboxData {
     () =>
       finished.flatMap((check): CrossProjectReport[] => {
         const report = reportReads.byCheck.get(check.audit.auditId);
-        // A proposed report waits for acceptance: a decision, not a result.
+        // Only ready reports provide retained report content.
         return report === undefined ||
           report === null ||
           report.status !== "ready"

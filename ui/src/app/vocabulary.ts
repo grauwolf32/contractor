@@ -100,7 +100,7 @@ export const VERDICT_LABELS: Readonly<Record<VerdictValue, VocabularyLabel>> = {
   unreviewed: { label: "Not reviewed", tone: "idle" },
 };
 
-// A proposed report never reads as accepted (contract §3).
+// Only ready reports provide retained report content.
 const REPORT_STATUS_LABELS: Readonly<
   Record<AuditReportStatus, VocabularyLabel>
 > = {
@@ -159,7 +159,7 @@ export function verdictLabel(
   return labelOf(VERDICT_LABELS, verdict ?? "unreviewed");
 }
 
-/** Report status; "proposed" waits for acceptance and never reads as ready. */
+/** Availability of the retained report. */
 export function reportStatusLabel(status: AuditReportStatus): VocabularyLabel {
   return labelOf(REPORT_STATUS_LABELS, status);
 }

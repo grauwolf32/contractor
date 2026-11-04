@@ -136,8 +136,7 @@ function ReportRow({
 
 /**
  * The Reports list pane: reports of every listed project, filtered by status
- * and project in the URL (`?status=proposed|ready&project=<projectId>`).
- * Reports waiting for acceptance come first.
+ * and project in the URL (`?status=ready|all&project=<projectId>`).
  */
 export function ReportsList({
   selectedId,

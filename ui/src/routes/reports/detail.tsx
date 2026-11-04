@@ -27,10 +27,7 @@ export function NoReportSelected() {
   return (
     <DetailPane>
       <EmptyState title="Choose a report">
-        <p>
-          Pick a report to read its summary, download it, or decide whether to
-          accept it.
-        </p>
+        <p>Pick a report to read its summary or download it.</p>
       </EmptyState>
     </DetailPane>
   );
@@ -83,9 +80,8 @@ function LoadedReport({ audit }: { audit: Audit }) {
 }
 
 /**
- * /reports/:auditId: the check's report with its header, downloads and,
- * while the report waits for acceptance, the decision. `check` is the
- * check's read (useReportCheck), shared with the page title.
+ * /reports/:auditId: the check's retained report with its header and downloads.
+ * `check` is the check's read (useReportCheck), shared with the page title.
  */
 export function ReportDetail({
   auditId,

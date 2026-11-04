@@ -182,9 +182,6 @@ function ReportExcerpt({
     <>
       {summary === "" ? null : <p className="inbox-excerpt">{summary}</p>}
       <p className="ui-caption">
-        {report?.status === "ready"
-          ? "This report is proposed and not accepted yet. "
-          : ""}
         A report is not a security or compliance certification.{" "}
         <ContextLink returnLabel="Inbox" to={reportPath(auditId)}>
           Open report
