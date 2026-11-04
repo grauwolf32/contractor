@@ -1,0 +1,42 @@
+schema_version: "1.0"
+id: V444-005
+title: Build Findings gate test reports from the owning case registry
+milestone: autonomous-http-pentest-2026-10
+epic: quality
+kind: chore
+introduced_by: V411-011
+priority: P2
+status: in_progress
+depends_on: [V411-011]
+languages: [go]
+goal: Gate verifier tests follow the current required Findings cases without maintaining a second membership list.
+context:
+  authority:
+    - date: "2026-11-05"
+      decision: Agent-proposed test-only prerequisite exposed by the full e2e package check for user-authorized V444-004; no production behavior change.
+  finding: >-
+    tests/e2e/findings_gate_test.go:13 duplicates the process membership from
+    scripts/test-findings-e2e.py. V411-011 added TestProjectFindingsReaderAcrossProcesses
+    to the owning registry, but the synthetic complete report omits it and is
+    correctly rejected. The e2e package therefore fails on current main.
+  decision: >-
+    Read REQUIRED_TESTS through a test-local Python module load, with no new CLI
+    flag, export or production dependency. The simpler one-literal repair leaves
+    the duplicate definition that caused the drift. Report validation mutations
+    remain independent of the implementation and still exercise false-green cases.
+scope:
+  in:
+    - Generate the synthetic complete report from the existing registry and select a real subcase for skip/missing mutations.
+    - Preserve empty, skipped, missing, never-run, failed and malformed report rejection cases.
+  out:
+    - Changing Findings gate membership, verifier behavior, production code or process scenarios.
+acceptance_criteria:
+  - id: A1
+    text: The complete report contains every current required process case and is accepted.
+  - id: A2
+    text: Each existing false-green mutation is rejected and the ordinary complete e2e package passes.
+tests:
+  - command: go test -count=1 ./tests/e2e
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]

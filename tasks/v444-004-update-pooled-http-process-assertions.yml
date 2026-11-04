@@ -7,7 +7,7 @@ kind: chore
 introduced_by: V410-030
 priority: P1
 status: in_progress
-depends_on: [V410-030]
+depends_on: [V410-030, V444-005]
 languages: [go]
 goal: Existing HTTP conformance accepts supported connection reuse while still proving exact requests, limits and denied-target bytes.
 context:
