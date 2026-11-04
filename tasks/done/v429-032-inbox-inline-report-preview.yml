@@ -5,7 +5,8 @@ milestone: ui-journey-usability
 epic: ui
 kind: feature
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 57c312351be5ad1bdc1651ee0c7c434ee65c6aab
 depends_on: [V429-031]
 languages: [typescript, javascript, css]
 goal: The user can read the complete report directly in Inbox Decide and Ready instead of leaving the queue after a short excerpt.
@@ -68,3 +69,11 @@ tests:
     covers: [A1, A2]
   - command: git diff --check
     covers: [A1, A2, A3]
+verification:
+  results:
+    - Browser verification passed 52 layout/state checks and four paired Reports content/typography comparisons; Markdown/JSON downloads exactly matched both complete report responses.
+    - Matching-request acceptance, failed/pending/unavailable/mismatched reads, queue J/K, mobile Back and local mutation refusal passed with zero browser errors or live API requests.
+    - All 168 protected source and previous-artifact hashes matched; the complete source-code issue reader still worked.
+    - Task/spec consistency and whitespace checks passed; the preview was visibly opened in the in-app browser.
+  artifact: docs/design/ui/experiments/inbox-inline-report-2026-11-04/verification.json
+  delivery: Preview only on codex/inbox-design; production transfer and main merge remain outside this task.
