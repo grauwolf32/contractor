@@ -13,8 +13,9 @@ import zlib
 import httpx
 
 # The content codings this reader decodes. They match httpx's decoders for the
-# locked dependency set; any other coding is kept exactly as received.
+# supported bounded algorithms; optional HTTPX codecs do not widen this contract.
 DECODED_CONTENT_CODINGS = frozenset({"identity", "gzip", "deflate"})
+BOUNDED_ACCEPT_ENCODING = ", ".join(sorted(DECODED_CONTENT_CODINGS - {"identity"}))
 
 # The transport failure family of one httpx exchange, sending or reading:
 # httpx's own errors, and OSError, which httpcore's network backends let

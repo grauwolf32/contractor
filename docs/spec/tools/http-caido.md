@@ -629,7 +629,9 @@ retains a truthful failed capture without a fabricated complete body.
 
 **HTP-R63.** `gzip` and `deflate` content codings are decoded incrementally, so
 compressed data never inflates past the limit in memory; any other content
-coding is stored as received.
+coding is stored as received. Bounded-reader clients advertise only these
+supported codings by default; installing an optional provider codec does not
+widen their decoding or default advertisement.
 
 **HTP-R64.** Captured body bytes use canonical base64. `http_read_body`
 decodes text for inspection and returns binary slices as base64.
@@ -1302,10 +1304,46 @@ connected peer. It never silently uses a proxy or ordinary HTTP fallback.
 connect/TLS/read/write and immediately before the first application write.
 TLS negotiation is not an application request. A local first-write flag is set
 before entering the write, because an exception may follow a partial write;
-it only prevents automatic retry and is never published or persisted. Each
-attempt uses fresh HTTP/1. The whole call is bounded by its request timeout and
-allocation lease; ordinary Scheduler/Audit cancellation owns wider deadlines.
-Cancellation and release join all streams and tasks.
+it only prevents automatic retry and is never published or persisted. The
+controlled engine supports HTTP/1.1 keepalive and HTTP/2 multiplexing; HTTP/1.0
+responses are rejected and HTTP/3 is not advertised. A reused connection belongs
+to one credential identity and exact origin. Every attempt, including reuse,
+passes fresh scope/DNS admission; a native queue cannot retain a cancelled or
+expired request for later sending. The application-write flag may conservatively
+mark a queued HTTP/2 send as possibly sent. The whole call is bounded by its
+request timeout and allocation lease; ordinary Scheduler/Audit cancellation owns
+wider deadlines. Cancellation resets the exact HTTP/2 stream where possible;
+a shared connection failure may terminate other active streams. Cancellation
+and release join all owned callbacks, streams and tasks. Before releasing an
+exchange, Runtime marks it closing and stops/joins its pending TCP establishment
+and TLS callbacks, including TLS work already running in a thread. Cancellation
+or timeout cannot finish while that work can still resume the request. Native
+request headers, data, trailers and end events require a live non-closing exchange
+at dispatch and at the encoder, including queued HTTP/2 sends. Teardown/error
+commands remain permitted; healthy established connections stay reusable. Retiring a target connection
+also cancels and joins its pending or dispatching native keepalive timers and removes
+their command routes before releasing protocol state. Retention cannot depend on
+past closed-connection count or timer expiry; other live connections keep their
+native keepalive scheduling.
+
+The allocation owns one lazily initialized, pinned mitmproxy 12.3.1 native
+engine. The implementation-neutral module is `adapters.bridge`; its existing
+IPC handle and classified failures belong there. The concrete `MitmproxyEngine`
+and native protocol/lifecycle internals belong to `adapters.bridge.mitmproxy`,
+selected by HTTPTransport's existing composition point. Its native HTTP layers
+own parsing, framing, HPACK, flow control and TLS.
+Contractor owns admission, session state, counters and bounded result assembly.
+Programmatic requests enter the native HTTP layer as messages; scanner ingress
+uses the same engine and delegates each target exchange to that owner. There is
+no controlled httpcore fallback, flow archive or replay addon. Native callbacks
+fail closed; library diagnostics cannot forward request/response content or
+credentials. TLS key logging from process environment is disabled on both
+local and target contexts before handshake. The embedding does not replace the process asyncio task factory
+or exception handler. After joined cleanup it restores native context and
+logging state after clearing TLS context caches and removing private certificate
+files. A failed join or deletion retains the exact cleanup handles and exclusive
+process ownership for a later close retry; another allocation cannot acquire the
+engine's process state before cleanup succeeds.
 
 **HTP-R139.** Each redirect and retry passes fresh local scope/DNS admission
 and consumes the allocation's configured request/rate/concurrency allowance.
@@ -1315,7 +1353,21 @@ and at most one retry for GET, HEAD or OPTIONS after a proven pre-send connect/T
 failure. A write method, any entered application write and every received HTTP
 status preclude automatic transport retry. The whole call includes queue wait,
 redirects and body read. Common HTTP framing/buffering bounds still apply;
-configured request/response-body limits may tighten them. Do not decompress.
+configured request/response-body limits may tighten them. Do not decompress or
+re-encode bodies: native messages carry raw bytes and preserve Content-Encoding.
+Native target equality uses exact path/query components (including an empty `?`)
+and bracketed IPv6 authority; it must not depend on lossy library URL rendering.
+Scanner ingress validates the original absolute-form target against canonical_url
+before native parsing or path extraction can erase forbidden syntax (including
+fragments or noncanonical authority). Reconstructed native URL and Host/authority
+checks remain additional admission checks; rejection sends no target traffic.
+Scanner response framing preserves HEAD/304 Content-Length metadata, omits a
+204 body/Content-Length, and otherwise measures the raw transmitted bytes. HTTP/1.1 chunk size/extension
+lines and incomplete trailers have bounded parser retention (the common header
+byte bound plus one native input chunk), independently of returned body bytes.
+Trailer metadata shares the message header count/byte budget and is validated
+by the native parser, then discarded; it cannot become initial headers, cookies
+or evidence. Both target responses and scanner ingress apply these bounds.
 Each next origin must satisfy scope and assigned credential origins. Strip manual
 Cookie/Authorization on origin change. 303 and POST 301/302 change the method to
 GET and drop body/content headers. No request settlement or journal RPC occurs.
@@ -1362,7 +1414,11 @@ stop redirect continuation; the completed physical response stays available.
 A cookie credential becomes blocked when no sendable cookies remain, without
 anonymous fallback. Basic/Bearer and anonymous calls may continue independently.
 `http_session_clear` drops learned cookies and blocks cleared cookie credentials;
-it cannot restore supplied material. Controlled session defaults permit only
+it cannot restore supplied material. Concurrent calls snapshot credentials/cookies
+under a short identity lock; response cookie updates use that lock and the
+snapshot epoch. A clear invalidates queued sends and rejects stale response
+updates, so an in-flight response cannot restore a cleared jar. It does not
+hold the identity lock across network I/O. Controlled session defaults permit only
 non-auth headers; raw auth values can be supplied per request without
 credential_id. Controlled HTTP failures are nonretryable tool results; no
 possibly-sent classification or automatic write replay is exposed. Users supply replacement
@@ -1411,7 +1467,10 @@ request delegates to the same allocation HTTP owner as HTTP tools. That owner
 checks canonical URL/Host, origin/path/method/CIDRs, DNS/peer, protected services,
 TLS, assigned credential and optional HTTP limits. Inbound proxy/hop headers
 never reach the target. Scanner-added cookies are discarded in favour of the
-Runtime's exact-origin jars. Common HTTP framing and body bounds apply; there
+Runtime's exact-origin jars. Native HTTP/TLS layers implement this ingress;
+its per-invocation listener and capability remain under the existing allocation
+lifecycle. HTTP/1.1 and HTTP/2 are accepted; HTTP/1.0 and protocol upgrades are
+rejected. Common HTTP framing and body bounds apply; there
 is no default engagement quota or per-request Server authorization.
 
 **HTP-R149.** The entire scanner invocation is registered with the allocation

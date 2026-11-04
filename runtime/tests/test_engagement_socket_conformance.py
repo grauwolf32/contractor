@@ -6,7 +6,6 @@ import asyncio
 import gzip
 import time
 
-import httpcore
 import pytest
 from fakes.engagement_socket import (
     SocketTarget,
@@ -72,6 +71,7 @@ def test_socket_dns_pin_has_no_implicit_second_resolution():
             config = resolver_for(target, lambda: next(answers), calls=calls)
             async with preflight(target, config=config) as (resource, _):
                 assert (await launch(resource)).kind == "completed"
+                await resource.close()
                 await target.all_closed.wait()
             assert calls.count(("target.example", target.port)) == 1
             assert len(target.requests) == 1
@@ -101,23 +101,20 @@ def test_socket_protected_virtual_host_never_receives_request_bytes(protected):
     run(scenario)
 
 
-def test_socket_actual_peer_port_mismatch_closes_before_any_request_byte():
-
-    class MisroutedBackend(httpcore.AnyIOBackend):
-        def __init__(self, port):
-            super().__init__()
-            self.port = port
-
-        async def connect_tcp(self, host, port, **kwargs):
-            return await super().connect_tcp(host, self.port, **kwargs)
+def test_socket_actual_peer_port_mismatch_closes_before_any_request_byte(monkeypatch):
+    original = asyncio.open_connection
 
     async def scenario():
-        async with (
-            SocketTarget() as approved,
-            SocketTarget() as other,
-            preflight(approved, backend=MisroutedBackend(other.port)) as (resource, _),
-        ):
-            assert (await launch(resource)).kind in {"denied", "failed"}
+        async with SocketTarget() as approved, SocketTarget() as other:
+
+            async def misroute(host, port, **options):
+                return await original(
+                    host, other.port if port == approved.port else port, **options
+                )
+
+            monkeypatch.setattr(asyncio, "open_connection", misroute)
+            async with preflight(approved) as (resource, _):
+                assert (await launch(resource)).kind in {"denied", "failed"}
         assert approved.written == other.written == b""
 
     run(scenario)
@@ -134,6 +131,7 @@ def test_socket_tls_preserves_sni_host_and_requires_trust(tmp_path, trusted):
                 result = await launch(resource)
                 if trusted:
                     assert result.kind == "completed"
+                    await resource.close()
                     await target.all_closed.wait()
                     assert f"Host: target.example:{target.port}\r\n".encode() in target.written
                     assert names == ["target.example"]
@@ -157,6 +155,7 @@ def test_socket_maximum_canonical_url_and_proxy_environment_are_not_reinterprete
             )
             async with preflight(target, spec=socket_spec(target, path=path)) as (resource, _):
                 assert (await launch(resource, url=target.origin + path)).kind == "completed"
+                await resource.close()
                 await target.all_closed.wait()
             assert target.requests[0].split(b"\r\n", 1)[0] == f"GET {path} HTTP/1.1".encode()
         assert proxy.written == b""
@@ -194,6 +193,7 @@ def test_socket_response_header_limits_include_informational_responses(case):
                     assert result.kind == "completed"
                 else:
                     assert result.kind == "failed"
+                await resource.close()
                 await target.all_closed.wait()
             assert len(target.requests) == 1
 
@@ -227,6 +227,7 @@ def test_socket_response_body_is_bounded_discarded_and_not_decompressed(case):
             resource.configure(authority_deadline=lambda: time.monotonic() + 60)
             outcome, response = await resource.request(target.origin + "/allowed")
             assert outcome.kind == "completed"
+            await resource.close()
             await target.all_closed.wait()
             assert len(response.body) == min(limit, len(payload))
             assert response.truncated == (len(payload) > limit)
@@ -247,6 +248,7 @@ def test_socket_cancel_joins_a_stalled_response_without_retry():
             await target.request_received.wait()
             await resource.close()
             assert task.done() and task.cancelled()
+            await resource.close()
             await target.all_closed.wait()
 
     run(scenario)
@@ -274,6 +276,7 @@ def test_socket_redirect_rejects_raw_ambiguous_paths_before_resolution(location)
 
         async with SocketTarget(respond) as target, preflight(target) as (resource, _):
             assert (await launch(resource)).kind == "completed"
+            await resource.close()
             await target.all_closed.wait()
             assert len(target.requests) == 1, [
                 value.split(b"\r\n", 1)[0] for value in target.requests
@@ -282,54 +285,36 @@ def test_socket_redirect_rejects_raw_ambiguous_paths_before_resolution(location)
     run(scenario)
 
 
-def test_socket_failed_close_keeps_ownership_until_the_real_stream_joins():
+def test_socket_failed_close_keeps_ownership_until_the_real_stream_joins(monkeypatch):
+    from contractor_runtime.adapters.bridge.mitmproxy.engine import _Writer
 
-    class GatedCloseStream(httpcore.AsyncNetworkStream):
-        def __init__(self, stream, owner):
-            self.stream, self.owner = (stream, owner)
+    permitted = False
 
-        async def read(self, *args, **kwargs):
-            return await self.stream.read(*args, **kwargs)
+    def close(writer):
+        if not permitted:
+            raise RuntimeError("injected close refusal")
+        writer.inner.close()
 
-        async def write(self, *args, **kwargs):
-            return await self.stream.write(*args, **kwargs)
-
-        async def start_tls(self, *args, **kwargs):
-            return GatedCloseStream(await self.stream.start_tls(*args, **kwargs), self.owner)
-
-        def get_extra_info(self, name):
-            return self.stream.get_extra_info(name)
-
-        async def aclose(self):
-            if not self.owner.allow_close:
-                raise RuntimeError("injected close refusal")
-            await self.stream.aclose()
-
-    class GatedCloseBackend(httpcore.AnyIOBackend):
-        allow_close = False
-
-        async def connect_tcp(self, *args, **kwargs):
-            return GatedCloseStream(await super().connect_tcp(*args, **kwargs), self)
+    monkeypatch.setattr(_Writer, "close", close, raising=False)
 
     async def scenario():
-        backend = GatedCloseBackend()
-        async with (
-            SocketTarget() as target,
-            preflight(target, backend=backend) as (resource, _),
-        ):
-            try:
-                with pytest.raises(RuntimeError, match="injected close refusal"):
-                    await launch(resource)
-                assert not target.all_closed.is_set()
-                assert next(iter(resource._boundaries)).transport is not None
-                assert not next(iter(resource._boundaries)).transport.closed
-                with pytest.raises(RuntimeError, match="injected close refusal"):
-                    await resource.close()
-                with pytest.raises(HTTPTransportError):
-                    await launch(resource)
-            finally:
-                backend.allow_close = True
+        nonlocal permitted
+        async with SocketTarget() as target, preflight(target) as (resource, _):
+            assert (await launch(resource)).kind == "completed"
+            with pytest.raises(RuntimeError, match="injected close refusal"):
                 await resource.close()
-                await target.all_closed.wait()
+            assert resource._engine is not None
+            assert any(pool.writers for pool in resource._engine.pools.values())
+            with pytest.raises(HTTPTransportError):
+                await launch(resource)
+            permitted = True
+            # The first join rethrows the failed native handler after closing
+            # the retained writer; the following close confirms passive state.
+            try:
+                await resource.close()
+            except RuntimeError as error:
+                assert str(error) == "injected close refusal"
+            await resource.close()
+            await target.all_closed.wait()
 
     run(scenario)
