@@ -272,11 +272,9 @@ class ArtifactClient:
         raise_for_status(response)
         require_json(response.headers)
         try:
-            return ArtifactListResult.model_validate_json(response.body)
-        except ValidationError as error:
-            raise ArtifactTransportError(
-                "Artifact API returned an invalid list response"
-            ) from error
+            return decode_private(ArtifactListResult, response.body)
+        except PrivateProtocolDecodeError:
+            raise ArtifactTransportError("Artifact API returned an invalid list response") from None
 
     async def read_artifact_metadata(
         self, ref: ArtifactRef, *, target: ArtifactReadTarget | None = None
@@ -419,11 +417,11 @@ class ArtifactClient:
             raise ArtifactTransportError("Artifact API returned an invalid write status")
         require_json(response.headers)
         try:
-            result = ArtifactWriteResult.model_validate_json(response.body)
-        except ValidationError as error:
+            result = decode_private(ArtifactWriteResult, response.body)
+        except PrivateProtocolDecodeError:
             raise ArtifactTransportError(
                 "Artifact API returned an invalid write response"
-            ) from error
+            ) from None
         revision = _strong_etag(response.headers)
         binding_created_at, revision_created_at = _artifact_timestamps(response.headers)
         if (

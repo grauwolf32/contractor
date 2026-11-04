@@ -19,7 +19,7 @@ context:
     - docs/spec/execution/control-plane.md#CTL-R153
   severity: medium
   finding: internal/contracts/agent_template.go:296 reads present zero limits as omitted values; runtime/src/contractor_runtime/contracts/base.py:486 accepts snake_case names on private input.
-  siblings: Cover every optional numeric ModelPolicy limit, all nested private WireModel readers and A2A StageContentRequest decoding. Internal Python constructors may use Python field names; incoming JSON and A2A must use wire names. Preserve isolated Runtime telemetry handling.
+  siblings: Cover every optional numeric ModelPolicy limit, all nested private WireModel readers, ordinary Artifact list/write responses and A2A StageContentRequest decoding. Internal Python constructors may use Python field names; incoming JSON and A2A must use wire names. Preserve isolated Runtime telemetry handling.
   provenance: Optional scalar fields originate in MVP-002 and V3 consumer-policy work; Python populate_by_name was preserved by the later Runtime component reorganization.
   decision: Validate field presence at Go JSON decoding and exact names at Python wire decoding, reusing existing strict codecs and model validation. Changing every internal scalar to a pointer or every Python constructor to wire spelling adds unrelated churn. The pinned Pydantic 2.13 loses strict JSON datetime conversions under model before/wrap validators and silently ignores some disabled optional aliases. Exact-name checks therefore reuse model field metadata in the existing JSON codec and A2A DataPart entry point, before ordinary Pydantic validation. Reopen when resolved in-process values themselves need presence semantics.
 scope:
@@ -33,6 +33,6 @@ acceptance_criteria:
   - {id: A3, text: Shared and process-boundary regressions fail before the fix; complete affected suites and lint pass.}
 tests:
   - {command: 'go test ./internal/contracts/... ./internal/config/... ./internal/configload/... ./internal/controlplane/...', covers: [A1, A2, A3]}
-  - {command: 'cd runtime && uv run pytest tests/test_contracts.py tests/test_allocation_contracts.py tests/test_shared_mutation_cases.py tests/test_a2a_server.py', covers: [A1, A2, A3]}
+  - {command: 'cd runtime && uv run pytest tests/test_contracts.py tests/test_allocation_contracts.py tests/test_shared_mutation_cases.py tests/test_a2a_server.py tests/test_artifacts.py', covers: [A1, A2, A3]}
   - {command: make test-wire-cross-language, covers: [A1, A2, A3]}
   - {command: make lint, covers: [A1, A2, A3]}

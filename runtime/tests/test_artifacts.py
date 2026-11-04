@@ -853,3 +853,43 @@ def test_private_metadata_http_reader_is_strict_and_does_not_reflect_identity(da
         assert len(transport.requests) == 1 and client.observation_cursor == 0
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("operation", ["list", "write"])
+@pytest.mark.parametrize("damage", ["snake", "duplicate", "nested-duplicate"])
+def test_private_list_and_write_readers_use_the_strict_codec(operation, damage):
+    async def scenario():
+        ref = {"namespace": "analysis", "name": "report"}
+        document = {"apiVersion": "contractor/v1alpha1"}
+        if operation == "list":
+            document.update(artifacts=[ref], nextCursor="c1")
+            field, alias = "nextCursor", "next_cursor"
+        else:
+            document.update(
+                artifact={**ref, "revision": "revision-1"}, mediaType="text/plain", size=1
+            )
+            field, alias = "mediaType", "media_type"
+        if damage == "snake":
+            document[alias] = document.pop(field)
+        raw = json.dumps(document).encode()
+        if damage == "duplicate":
+            raw = raw.replace(b'"apiVersion":', b'"apiVersion":"contractor/v1alpha1","apiVersion":')
+        if damage == "nested-duplicate":
+            raw = raw.replace(b'"name":', b'"name":"other","name":')
+        headers = {"content-type": "application/json", "etag": '"revision-1"', **TIMESTAMP_HEADERS}
+        client = ArtifactClient(
+            "allocation-1",
+            FakeTransport(
+                [ArtifactHTTPResponse(200 if operation == "list" else 201, headers, raw)]
+            ),
+        )
+        with pytest.raises(ArtifactTransportError):
+            if operation == "list":
+                await client.list_artifact_page("analysis", limit=1)
+            else:
+                await client.write_artifact(
+                    ArtifactRef(**ref), data=b"x", media_type="text/plain", expected_revision=None
+                )
+        assert client.known_exact_refs == ()
+
+    asyncio.run(scenario())
