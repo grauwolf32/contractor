@@ -6,7 +6,7 @@ epic: ui
 kind: defect
 introduced_by: V429-029
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V429-029]
 languages: [typescript, javascript, css]
 goal: The revised Inbox preview opens actionable content on desktop rather than repeating four counters already visible in its queue; mobile starts with the queue.
@@ -67,3 +67,11 @@ tests:
     covers: [A1, A2]
   - command: git diff --check
     covers: [A1, A2, A3]
+
+implementation_commit: e00b425b20b4e52cf2fb71084ebab03e853ff014
+verification:
+  date: "2026-11-04"
+  browser: verify.mjs passes fifty layout/scenario samples and navigation, direct selection, refresh, mobile Back/resize, rejected in-memory decision and comparison checks; zero browser errors and zero live API requests.
+  preservation: All fifty-four prior experiment files and the original production-source hashes are unchanged. This correction reuses OpenDesign styling and makes no additional model call.
+  preview: Revised preview loaded in retained browser tab 38 with the first concrete possible issue selected; the old proposal remains available in Version and at its original URL.
+  repository: Task/spec checks and git diff --check pass. Branch codex/inbox-design remains unmerged; production transfer is outside this task.
