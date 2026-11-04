@@ -45,6 +45,7 @@ The current user-facing Workflow set is:
 - `audit-openapi-operation-trace@1` for graph-backed analysis and finding proposals
   in `openapi-operation-trace@1`, plus `findings-review@2` for a supplied collection
   and `source-findings-review@1` for exact source-backed proposal review;
+  `project-findings-review@1` discovers current Project findings and retains an explicit exact selection;
 - `audit-openapi-nuclei-scan@1` and `audit-openapi-sqlmap-scan@1` for the
   `openapi-nuclei-scan@1` and `openapi-sqlmap-scan@1` AuditProfiles;
 - `artifact-copy@2` as the ordinary artifact smoke fixture;

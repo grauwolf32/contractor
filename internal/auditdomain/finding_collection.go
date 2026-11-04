@@ -61,10 +61,11 @@ type FindingCollectionEntry struct {
 }
 
 type FindingCollectionAuditOrigin struct {
-	AuditID     string                       `json:"audit_id"`
-	ExecutionID string                       `json:"execution_id"`
-	TaskID      string                       `json:"task_id"`
-	Hypothesis  *auditcontract.HypothesisRef `json:"hypothesis,omitempty"`
+	HypothesisSnapshotDocumentID string                       `json:"hypothesis_snapshot_document_id,omitempty"`
+	AuditID                      string                       `json:"audit_id"`
+	ExecutionID                  string                       `json:"execution_id"`
+	TaskID                       string                       `json:"task_id"`
+	Hypothesis                   *auditcontract.HypothesisRef `json:"hypothesis,omitempty"`
 }
 
 type FindingCollectionEvidence struct {
@@ -149,7 +150,7 @@ func validateFindingCollection(value FindingCollection) error {
 	sources := make(map[string]bool, len(value.Sources))
 	for _, source := range value.Sources {
 		key := source.Kind + "\x00" + source.ID
-		if source.Kind != "run" && source.Kind != "audit" || validateIdentifier(source.ID, "source.id") != nil || key <= previous {
+		if source.Kind != "run" && source.Kind != "audit" && source.Kind != "project" || validateIdentifier(source.ID, "source.id") != nil || key <= previous {
 			return invalid(CodeInvalid, "collection.sources")
 		}
 		previous = key
@@ -187,6 +188,13 @@ func validateFindingCollection(value FindingCollection) error {
 		if origin := entry.AuditOrigin; origin != nil {
 			if !contracts.ValidResourceID(origin.AuditID) || !contracts.ValidResourceID(origin.ExecutionID) || !contracts.ValidResourceID(origin.TaskID) {
 				return invalid(CodeInvalid, "collection.audit_origin")
+			}
+			if origin.HypothesisSnapshotDocumentID != "" {
+				document, ok := documents[origin.HypothesisSnapshotDocumentID]
+				if !ok || origin.Hypothesis == nil || document.MediaType != JSONMediaType || document.SizeBytes == 0 || document.SizeBytes > 32<<10 {
+					return invalid(CodeReferenceInvalid, "collection.hypothesis_snapshot")
+				}
+				used[document.ID] = true
 			}
 			if origin.Hypothesis != nil && (!contracts.ValidResourceID(origin.Hypothesis.ID) || origin.Hypothesis.Revision == 0 || origin.Hypothesis.Revision > contracts.MaxExactInteger) {
 				return invalid(CodeInvalid, "hypothesis")
@@ -324,6 +332,16 @@ func DecodeFindingCollectionPackage(payload []byte) (FindingCollection, *Package
 		sort.Strings(ids)
 		if len(ids) != len(entry.Evidence) {
 			return fail(invalid(CodeReferenceInvalid, "collection.proposal_evidence"))
+		}
+		if origin := entry.AuditOrigin; origin != nil && origin.HypothesisSnapshotDocumentID != "" {
+			member, ok := pkg.MemberByID(origin.HypothesisSnapshotDocumentID)
+			if !ok {
+				return fail(invalid(CodeReferenceInvalid, "collection.hypothesis_snapshot"))
+			}
+			h, err := auditcontract.DecodeHypothesis(member.Data())
+			if err != nil || h.ID != origin.Hypothesis.ID || h.Revision != origin.Hypothesis.Revision {
+				return fail(invalid(CodeReferenceInvalid, "collection.hypothesis_snapshot"))
+			}
 		}
 		for i, id := range ids {
 			if id != entry.Evidence[i].EvidenceID {

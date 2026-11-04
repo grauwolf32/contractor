@@ -3,6 +3,8 @@ package findingintake
 import (
 	"encoding/json"
 	"errors"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"testing"
 )
 
@@ -56,6 +58,34 @@ func TestFindingCollectionPublicationRequestRejectsAmbiguousSelections(t *testin
 			mutate(&v)
 			if _, _, err := canonicalCollectionRequest(v); !errors.Is(err, ErrInvalid) {
 				t.Fatalf("invalid selection = %v", err)
+			}
+		})
+	}
+}
+
+func TestSharedAllocationFindingSelections(t *testing.T) {
+	var fixture struct {
+		Cases []struct {
+			Name    string          `json:"name"`
+			Request json.RawMessage `json:"request"`
+			Valid   bool            `json:"valid"`
+		} `json:"allocation_selections"`
+	}
+	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "findings", "finding-collection-v2.fixture.json"), &fixture); err != nil {
+		t.Fatal(err)
+	}
+	if len(fixture.Cases) == 0 {
+		t.Fatal("missing allocation selection cases")
+	}
+	for _, test := range fixture.Cases {
+		t.Run(test.Name, func(t *testing.T) {
+			var input FindingSelection
+			err := strictjson.Decode(test.Request, &input)
+			if err == nil {
+				err = input.validate()
+			}
+			if (err == nil) != test.Valid {
+				t.Fatalf("selection: %v", err)
 			}
 		})
 	}

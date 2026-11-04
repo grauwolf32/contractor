@@ -15451,7 +15451,7 @@ components:
       additionalProperties: false
       required: [kind, id, receiptIds, findings]
       properties:
-        kind: {type: string, enum: [run, audit]}
+        kind: {type: string, enum: [run, audit, project]}
         id: {$ref: '#/components/schemas/FindingCollectionIdentity'}
         receiptIds:
           type: array
@@ -15461,7 +15461,7 @@ components:
         findings:
           type: array
           maxItems: 256
-          description: Must be empty for Run sources; finding IDs are unique within an Audit source.
+          description: Must be empty for Run sources; finding IDs are unique within an Audit or Project source.
           items: {$ref: '#/components/schemas/FindingCollectionFindingSelection'}
     PublishFindingCollectionRequest:
       type: object

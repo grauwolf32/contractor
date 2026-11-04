@@ -96,7 +96,7 @@ func TestPostgresCollectionReceiptIDsReadsSelectedFindingsInOneStatement(t *test
 
 	// The first finding and 254 others hold exactly the 256 receipts allowed.
 	selected := revisions(ids[:findings-1])
-	got, err := store.CollectionReceiptIDs(f.ctx, f.audit.OwnerID, f.audit.AuditID, selected)
+	got, err := store.CollectionReceiptIDs(f.ctx, f.audit.OwnerID, f.audit.AuditID, selected, "audit")
 	want := append(slices.Clone(receipts[:findings-1]), receipts[findings])
 	slices.Sort(want)
 	if err != nil || !slices.Equal(got, want) {
@@ -128,7 +128,7 @@ func TestPostgresCollectionReceiptIDsReadsSelectedFindingsInOneStatement(t *test
 			if test.owner != "" {
 				owner = test.owner
 			}
-			got, err := store.CollectionReceiptIDs(f.ctx, owner, f.audit.AuditID, test.findings)
+			got, err := store.CollectionReceiptIDs(f.ctx, owner, f.audit.AuditID, test.findings, "audit")
 			if got != nil || !errors.Is(err, test.want) {
 				t.Fatalf("receipts = (%v, %v), want %v", got, err, test.want)
 			}
@@ -137,7 +137,7 @@ func TestPostgresCollectionReceiptIDsReadsSelectedFindingsInOneStatement(t *test
 			}
 		})
 	}
-	if got, err := store.CollectionReceiptIDs(f.ctx, f.audit.OwnerID, f.audit.AuditID, nil); err != nil || len(got) != 0 {
+	if got, err := store.CollectionReceiptIDs(f.ctx, f.audit.OwnerID, f.audit.AuditID, nil, "audit"); err != nil || len(got) != 0 {
 		t.Fatalf("empty selection = (%v, %v)", got, err)
 	}
 }

@@ -13,6 +13,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
 
@@ -77,4 +79,17 @@ func assertPrivateErrorEnvelope(
 	if response.Code != status || envelope.Code != code || envelope.Retryable != retryable {
 		t.Fatalf("error = %d %+v, want %d %s retryable=%t", response.Code, envelope, status, code, retryable)
 	}
+}
+
+func TestPrivateFindingSelectionCodecErrorsArePermanent(t *testing.T) {
+	for _, code := range []string{auditdomain.CodeInvalid, auditdomain.CodeSchemaUnsupported, auditdomain.CodeLimitExceeded, auditdomain.CodePackageInvalid, auditdomain.CodePackagePathInvalid, auditdomain.CodeMemberForbidden, auditdomain.CodeDigestMismatch, auditdomain.CodeReferenceInvalid} {
+		t.Run(code, func(t *testing.T) {
+			response := httptest.NewRecorder()
+			(&handler{}).handleError(response, fmt.Errorf("capture selection: %w", &auditdomain.ValidationError{Code: code}))
+			assertPrivateErrorEnvelope(t, response, http.StatusUnprocessableEntity, code, false)
+		})
+	}
+	response := httptest.NewRecorder()
+	(&handler{}).handleError(response, findingintake.ErrCollectionKeyConflict)
+	assertPrivateErrorEnvelope(t, response, http.StatusConflict, "idempotency_conflict", false)
 }

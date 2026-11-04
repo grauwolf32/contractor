@@ -200,6 +200,9 @@ func (r *InMemoryRegistry) reserveAll(
 			SitemapPolicy: binding.AgentTemplate.Sitemap.Clone(),
 		}
 		for _, selection := range binding.AgentTemplate.Toolsets {
+			if selection.Ref == (contracts.ToolsetRef{ToolsetID: "security-findings", Version: "1"}) {
+				grant.FindingTools = append([]string(nil), selection.Tools...)
+			}
 			if selection.Ref == (contracts.ToolsetRef{ToolsetID: "sitemap", Version: "1"}) {
 				grant.SitemapTools = append([]string(nil), selection.Tools...)
 			}

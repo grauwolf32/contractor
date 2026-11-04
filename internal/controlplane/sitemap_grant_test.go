@@ -72,3 +72,36 @@ func TestSitemapGrantPinsSelectedOperationsAndNeverAliasesPolicy(t *testing.T) {
 		t.Fatal("released sitemap grant retained authority")
 	}
 }
+
+func TestFindingReaderGrantDoesNotAliasPinnedSelection(t *testing.T) {
+	registry := newTestRegistry(t, newTestClock())
+	registration := testRegistration("agent-findings")
+	registration.SupportedToolsets = append(registration.SupportedToolsets, control.ToolsetCapability{Ref: "security-findings@1", Tools: []string{"list_project_findings", "select_project_findings"}})
+	registerReadyWith(t, registry, registration)
+	template := testTemplate(t)
+	template.Toolsets = append(template.Toolsets, contracts.ToolsetSelection{Ref: contracts.ToolsetRef{ToolsetID: "security-findings", Version: "1"}, Tools: []string{"list_project_findings"}})
+	reservations, err := registry.ReserveAll(ReservationRequest{RunID: "finding-run", StageExecutionID: "finding-stage", Bindings: []BindingRequirement{testBinding(t, "reader", "research", template)}})
+	if err != nil || len(reservations) != 1 {
+		t.Fatal(reservations, err)
+	}
+	id := reservations[0].Grant.AllocationID
+	reservations[0].Grant.FindingTools[0] = "select_project_findings"
+	grant, err := registry.GetGrant(id)
+	if err != nil || len(grant.FindingTools) != 1 || grant.FindingTools[0] != "list_project_findings" {
+		t.Fatal("reservation escalated read authority", err)
+	}
+	grant.FindingTools[0] = "select_project_findings"
+	if err := registry.WithWriteGrant(id, func(copy AllocationGrant) error {
+		if copy.FindingTools[0] != "list_project_findings" {
+			t.Fatal("getter escalated read authority")
+		}
+		copy.FindingTools[0] = "select_project_findings"
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	grant, err = registry.GetGrant(id)
+	if err != nil || grant.FindingTools[0] != "list_project_findings" {
+		t.Fatal("callback escalated read authority", err)
+	}
+}

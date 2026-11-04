@@ -177,6 +177,7 @@ internal/evalstore           stage_metrics                  Metric snapshots and
 internal/evalstore           workflow_runs                  Inventories, execution views, evidence and usage read the
     submitted Runs.
 
+internal/findingintake       audit_executions               Allocation readers prove the ordinary Run/Audit binding before using pinned source-mode restrictions.
 internal/findingintake       audit_events                   Collection listing and rejection look for
     finding.proposal_rejected events.
 internal/findingintake       audit_review_requests          Proposal import refuses an Audit with a pending report review.

@@ -13,6 +13,7 @@ SELECT source.kind, source.id
  WHERE (source.kind = 'run' AND EXISTS (
             SELECT 1 FROM workflow_runs AS run
              WHERE run.run_id = source.id AND run.owner_id = $1))
+    OR (source.kind = 'project' AND EXISTS (SELECT 1 FROM projects AS project WHERE project.project_id=source.id AND project.owner_id=$1 AND project.kind='project' AND project.lifecycle_state='active'))
     OR (source.kind = 'audit' AND EXISTS (
             SELECT 1 FROM audits AS audit
              WHERE audit.audit_id = source.id AND audit.owner_id = $1))`
@@ -26,6 +27,7 @@ SELECT receipt.receipt_id
   FROM finding_proposal_receipts AS receipt
  WHERE receipt.owner_id = $1 AND receipt.receipt_id = ANY($2::text[]) AND (
        ($3 = 'run' AND receipt.run_id = $4)
+    OR ($3 = 'project' AND receipt.project_id=$4 AND receipt.project_proposal IS NOT NULL)
     OR ($3 = 'audit' AND (receipt.audit_id = $4
         OR EXISTS (SELECT 1 FROM finding_proposal_audit_holds AS hold
                     WHERE hold.receipt_id = receipt.receipt_id AND hold.audit_id = $4)

@@ -953,7 +953,7 @@ the Artifact plane's own namespace, name and revision constraints
 insignificant fractional zeros omitted. It records when the selection was
 captured; it is not a query for the latest database state.
 
-**FND-R79.** Sources identify the requested Run or Audit scopes. Each entry explicitly records
+**FND-R79.** Sources identify the requested Run, Audit or Project scopes. Each entry explicitly records
 selected_sources, a sorted nonempty subset of the collection sources authorized during
 selection. This captures selection separately from native producer origin and surviving
 Audit holds; JSON provenance never grants authority.
@@ -1089,8 +1089,7 @@ package entry and byte bounds.
 **FND-R104.** Overlap across sources is permitted and deduplicates only
 the same receipt identity. Input order is normalized for replay identity.
 
-**FND-R105.** Selection explicitly names receipt IDs or canonical Finding IDs/revisions within a Run
-or Audit source. There is no implicit review queue or automatic publication from
+**FND-R105.** Selection explicitly names receipt IDs or canonical Finding IDs/revisions within a Run, Audit or Project source. There is no implicit review queue or automatic publication from
 selection.
 
 **FND-R155.** The caller enumerates its desired receipt IDs using existing
@@ -1939,6 +1938,93 @@ trusted Audit/Run/Task membership from its batch item key and omits hypothesis
 association. Submission receipts bind that item key and incidental flag, so retry
 cannot reassign a source to another member. A supported positive property or
 refuted bug claim alone creates no problem Finding.
+
+## Allocation-authorized Project readers
+
+**FND-R224.** `security-findings@1` additionally exports `list_project_findings`,
+`read_project_finding`, `select_project_findings` and `read_finding_selection`.
+These tools are selected independently from proposal emission and analyst commands.
+The existing allocation Registry derives its selected Finding tools from the pinned
+AgentTemplate and detaches the selection on every clone. Private reads and selections
+join the existing allocation gate: principal, instance, allocation, durable Stage/Run,
+selected tool, fence/release, active Project and Audit owner state are checked before
+Runtime receives content. The Server derives owner and Project; requests accept no
+Project/Audit/Run IDs. Pause permits reads/collection; terminal cancellation and
+deletion deny new selection. No new authorization token, store or controller exists.
+
+**FND-R225.** `GET /private/v1/allocations/{allocationID}/findings` accepts `limit`
+(default 20, 1–100, LIM-FND-26) and `cursor`. It returns bounded current Project
+Finding summaries, `projectRevision` and nullable `nextCursor`. Continuations pin
+the Project revision and containing Project; changed revisions conflict. Each read
+uses indexed, bounded canonical windows and follows empty progress pages.
+`GET .../findings/{findingID}?revision=N` reads one exact current canonical revision;
+a stale revision conflicts and a foreign/missing Finding is absent. These are live
+metadata views, not retained snapshots or byte-access grants. No read creates a hold.
+Responses fit LIM-FND-29; cursors retain LIM-FND-30/31. No whole-Project scan or
+lifetime source hydration fills a page.
+
+**FND-R226.** `POST .../finding-selections` accepts a portable `clientKey`, explicit
+`findings` (`findingId`, `revision`) and `receiptIds` arrays. Missing/null arrays are
+invalid; empty arrays explicitly select nothing. At most 128 selectors and 1 MiB
+request metadata use LIM-ACT-2. Finding selection expands its independent Project
+sources only up to the existing collection sentinel; an oversized source history
+fails and can be narrowed to explicit receipt IDs. Public collection publication
+also accepts a `project` source through the same owner and capture path.
+
+The existing publisher validates the complete selection and exact documents before
+publishing the collection and its ordinary Artifact receipt together. Allocation
+selections use frozen current-Run `finding-collections/<clientKey>` and
+`finding-collection-receipts/<clientKey>` bindings. The same transaction forks the
+collection version into the assigned Agent namespace under `clientKey`, using
+ordinary `context_projection` lineage so the Stage can expose a declared output.
+The returned exact descriptor names that Agent output binding. This is another
+binding of the same version/blob, with no payload copy. Hidden
+Memory/HTTP-body names and output collisions are rejected permanently.
+A same-key identical request
+replays the original exact collection before looking up mutable/deleted sources;
+a different request is a permanent idempotency conflict. Existing package bounds
+and immutable bytes apply. These artifacts can be selected as ordinary exact
+Workflow inputs, retained in Audit or explicitly published to Project by their
+existing owners. A selection has no independent lifecycle or recursive transfer.
+
+**FND-R227.** Automatic blackbox reads require the source receipt's same-owner,
+same-Project Audit to pin explicit blackbox provenance. Unknown, removed or
+source-assisted provenance grants no blackbox disclosure. A live page containing
+restricted sources fails before exposure; a retained selection containing any
+restricted source fails atomically. First-source provenance governs the canonical
+claim preview; every selected independent receipt is checked before its bytes are
+captured. Explicit owner-selected ordinary collection inputs retain their declared
+input authority. File extensions, provider labels and JSON refs never grant access.
+Reopen provenance storage only if a concrete consumer needs automatic blackbox
+reads after its source Audit is purged; the current conservative denial is enforced
+by the source checks.
+
+**FND-R228.** `read_finding_selection` accepts one exact current-Run collection ref,
+then reuses ordinary reader preparation and bounded pages. All embedded documents
+are verified before exposure, materialized create-only and reconciled on response
+loss. The Runtime caches at most one prepared selection; changing its explicit ref
+closes the previous reader. Close/cancellation join in-flight work before allocation
+release. Full proposals/evidence have exact local refs; source refs remain provenance.
+An optional `audit_origin.hypothesis_snapshot_document_id` links an embedded exact
+hypothesis context document with matching system ID/revision, bounded by LIM-ACT.
+The reader exposes its exact local descriptor as `hypothesis_snapshot`. Context is
+not proof evidence and survives through the collection's ordinary ownership.
+
+**FND-R229.** The ordinary `project-findings-review@1` Workflow selects the live
+reader, canonical detail read, explicit selection and exact collection reader.
+It exposes its frozen `selected-findings` collection as the ordinary optional
+`selection` output for later exact input handoff/publication, writes an
+evidence-grounded Markdown report and accepts an optional exact
+`check_results` JSON input. Refuted/inconclusive ordinary results remain separate
+inputs and never become problem Findings merely to supply context. This Workflow
+is usable without a generator, HTTP release or new execution path.
+
+Failures retain existing private Artifact/finding codes: denied access, invalid
+arguments, missing content and stale revisions are permanent; definite storage
+transaction conflicts remain retryable `503 storage_transaction_conflict`.
+Ambiguous selection replies reconcile the same key/bytes, without producer/target
+execution. Operation deadlines and joined cancellation remain with the existing
+Artifact owner and allocation. See FAIL-FND-3/4/5/9 and LIFE-FND-2/3.
 
 ## Non-goals
 

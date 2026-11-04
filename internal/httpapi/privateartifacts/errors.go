@@ -10,6 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/findingintake"
@@ -33,7 +34,11 @@ type errorResponse struct {
 }
 
 func (h *handler) handleError(w http.ResponseWriter, err error) {
+	var validation *auditdomain.ValidationError
 	switch {
+	case errors.As(err, &validation):
+		kind := validation.ErrorKind()
+		h.writeError(w, kind.Status(), kind.Code(), "finding selection does not satisfy the collection contract", kind.Retryable())
 	case errors.Is(err, errSitemapAccessDenied):
 		h.writeError(w, http.StatusForbidden, "sitemap_access_denied", "allocation does not permit this sitemap operation", false)
 	case errors.Is(err, errSitemapUnavailable):
@@ -77,10 +82,12 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 	case errors.Is(err, artifacts.ErrRunRevisionLimit):
 		// The Run never regains revisions, so no retry can succeed (ART-R118).
 		h.writeError(w, http.StatusConflict, "artifact_limit_exceeded", "the Run has reached its artifact revision limit", false)
+	case errors.Is(err, findingintake.ErrCollectionKeyConflict):
+		h.writeError(w, http.StatusConflict, "idempotency_conflict", "selection key is bound to another selection", false)
 	case errors.Is(err, findingintake.ErrConflict):
-		h.writeError(w, http.StatusConflict, "finding_submission_conflict", "finding submission identity already has different content", false)
+		h.writeError(w, http.StatusConflict, "finding_submission_conflict", "finding identity or revision conflicts", false)
 	case errors.Is(err, findingintake.ErrAccessDenied), errors.Is(err, findingintake.ErrToolNotSelected):
-		h.writeError(w, http.StatusForbidden, "finding_access_denied", "allocation does not permit finding submission", false)
+		h.writeError(w, http.StatusForbidden, "finding_access_denied", "allocation does not permit this finding operation", false)
 	case errors.Is(err, findingintake.ErrNotFound):
 		h.writeError(w, http.StatusNotFound, "finding_receipt_not_found", "finding receipt was not found", false)
 	case errors.Is(err, artifacts.ErrArtifactNotFound):

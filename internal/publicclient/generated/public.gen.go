@@ -3339,14 +3339,17 @@ func (e FindingClaimSeveritySuggestion) Valid() bool {
 
 // Defines values for FindingCollectionSourceSelectionKind.
 const (
-	FindingCollectionSourceSelectionKindAudit FindingCollectionSourceSelectionKind = "audit"
-	FindingCollectionSourceSelectionKindRun   FindingCollectionSourceSelectionKind = "run"
+	FindingCollectionSourceSelectionKindAudit   FindingCollectionSourceSelectionKind = "audit"
+	FindingCollectionSourceSelectionKindProject FindingCollectionSourceSelectionKind = "project"
+	FindingCollectionSourceSelectionKindRun     FindingCollectionSourceSelectionKind = "run"
 )
 
 // Valid indicates whether the value is a known member of the FindingCollectionSourceSelectionKind enum.
 func (e FindingCollectionSourceSelectionKind) Valid() bool {
 	switch e {
 	case FindingCollectionSourceSelectionKindAudit:
+		return true
+	case FindingCollectionSourceSelectionKindProject:
 		return true
 	case FindingCollectionSourceSelectionKindRun:
 		return true
@@ -9495,7 +9498,7 @@ type FindingCollectionIdentity = string
 
 // FindingCollectionSourceSelection defines model for FindingCollectionSourceSelection.
 type FindingCollectionSourceSelection struct {
-	// Findings Must be empty for Run sources; finding IDs are unique within an Audit source.
+	// Findings Must be empty for Run sources; finding IDs are unique within an Audit or Project source.
 	Findings   []FindingCollectionFindingSelection  `json:"findings"`
 	Id         FindingCollectionIdentity            `json:"id"`
 	Kind       FindingCollectionSourceSelectionKind `json:"kind"`
