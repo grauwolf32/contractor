@@ -356,7 +356,14 @@ def test_selected_tools_and_adk_descriptions(selected, tmp_path):
                 assert type(tool) is GeneralFindingTool
         registry = built_in_factories(tmp_path)
         assert await registry.toolsets["security-findings@1"].probe() == frozenset(
-            {"finding", "list_findings"}
+            {
+                "finding",
+                "list_findings",
+                "list_project_findings",
+                "read_project_finding",
+                "select_project_findings",
+                "read_finding_selection",
+            }
         )
 
     asyncio.run(scenario())
@@ -1224,3 +1231,157 @@ def test_every_registered_findings_code_is_reachable(code):
 
 def test_page_limit_reaches_findings_limit_exceeded_in_a_read():
     assert asyncio.run(_reached(_read({}, page_bytes=1))) == "findings_limit_exceeded"
+
+
+def test_shared_project_finding_collection_source_kinds():
+    fixture = json.loads(FIXTURE.read_text())
+    assert fixture["source_kinds"]
+    for case in fixture["source_kinds"]:
+        collection, contents = _fixture()
+        collection["sources"] = [{"kind": case["kind"], "id": "selected-source"}]
+        for entry in collection["entries"]:
+            entry["selected_sources"] = collection["sources"]
+        if case["valid"]:
+            decode_collection(_package(collection, contents))
+        else:
+            with pytest.raises(FindingsError):
+                decode_collection(_package(collection, contents))
+
+
+def test_project_finding_tools_use_exact_selection_and_transport_replay():
+
+    class ProjectTransport(Transport):
+        def __init__(self, payload):
+            super().__init__(payload)
+            self.selection_requests = []
+            self.bindings[("reader", "chosen")] = (
+                "chosen-revision",
+                COLLECTION_MEDIA_TYPE,
+                payload,
+            )
+            self.versions[("reader", "chosen", "chosen-revision")] = self.bindings[
+                ("reader", "chosen")
+            ]
+            self.payload = payload
+
+        async def request(self, method, path, **kwargs):
+            if path.endswith("/finding-selections"):
+                self.selection_requests.append(kwargs["body"])
+                if len(self.selection_requests) == 1:
+                    raise ArtifactTransportError("response was lost after commit")
+                return ArtifactHTTPResponse(
+                    200,
+                    {"content-type": "application/json"},
+                    _json(
+                        {
+                            "artifact": {
+                                "ref": {
+                                    "namespace": "reader",
+                                    "name": "chosen",
+                                    "revision": "chosen-revision",
+                                },
+                                "digest": _digest(self.payload),
+                                "mediaType": COLLECTION_MEDIA_TYPE,
+                                "sizeBytes": len(self.payload),
+                            },
+                            "snapshotAt": "2026-11-04T00:00:00Z",
+                            "entryCount": 2,
+                            "replayed": True,
+                        }
+                    ),
+                )
+            return await super().request(method, path, **kwargs)
+
+    async def scenario():
+        transport = ProjectTransport(_package(*_fixture()))
+        tools, _, _ = await _tools(
+            transport,
+            (
+                "read_finding_selection",
+                "select_project_findings",
+                "list_project_findings",
+                "read_project_finding",
+            ),
+        )
+        for name, tool in tools.items():
+            declaration = FunctionTool(tool)._get_declaration()
+            assert declaration.name == name
+        selected = await tools["select_project_findings"]("chosen", [])
+        assert selected["replayed"]
+        assert len(transport.selection_requests) == 2
+        assert transport.selection_requests[0] == transport.selection_requests[1]
+        reader = tools["read_finding_selection"]
+        first = await reader(selected["artifact"]["ref"], limit=1)
+        assert len(first["items"]) == 1 and first["next_cursor"]
+        second = await reader(selected["artifact"]["ref"], limit=1, cursor=first["next_cursor"])
+        assert len(second["items"]) == 1 and second["next_cursor"] is None
+        assert first["items"][0]["proposal"]["ref"]["revision"]
+        invalid = ("invalid-revision", COLLECTION_MEDIA_TYPE, b"invalid package")
+        transport.bindings[("reader", "invalid")] = invalid
+        transport.versions[("reader", "invalid", "invalid-revision")] = invalid
+        with pytest.raises(FindingsError):
+            await reader({"namespace": "reader", "name": "invalid", "revision": "invalid-revision"})
+        restored = await reader(selected["artifact"]["ref"], limit=1)
+        assert restored["items"] == first["items"]
+        await reader.close()
+        for name, tool in tools.items():
+            assert tool.name == name
+            await tool.close()
+        with pytest.raises(FindingsError, match="findings_reader_unavailable"):
+            await reader(selected["artifact"]["ref"])
+
+    asyncio.run(scenario())
+
+
+def test_shared_project_finding_selection_requests():
+    from contractor_runtime.toolsets.security_findings.project_reader import _selection_request
+
+    fixture = json.loads(FIXTURE.read_text())
+    assert fixture["allocation_selections"]
+    for case in fixture["allocation_selections"]:
+        value = case["request"]
+
+        if case["valid"]:
+            assert _selection_request(value) == value
+        else:
+            with pytest.raises((FindingsError, ValueError)):
+                _selection_request(value)
+
+
+def test_shared_exact_hypothesis_context_reaches_reader_and_rejects_wrong_revision():
+    from contractor_runtime.toolsets.security_findings.collection import document_id
+
+    fixture = json.loads(FIXTURE.read_text())
+    collection, contents = _fixture()
+    body = fixture["hypothesis_context_body"].encode()
+    document = {
+        "scope": {"kind": "project", "id": "project-context"},
+        "ref": {
+            "namespace": "finding-materials",
+            "name": "hypothesis-context",
+            "revision": "hypothesis-v7",
+        },
+        "digest": _digest(body),
+        "media_type": "application/json",
+        "size_bytes": len(body),
+    }
+    document["id"] = document_id(document)
+    collection["documents"].append(document)
+    collection["documents"].sort(key=lambda item: item["id"])
+    contents[document["id"]] = body
+    origin = collection["entries"][1]["audit_origin"]
+    origin["hypothesis"] = {"id": "selected-hypothesis", "revision": 7}
+    origin["hypothesis_snapshot_document_id"] = document["id"]
+
+    async def scenario():
+        tools, _, _ = await _tools(Transport(_package(collection, contents)))
+        page = await tools["list_findings"]()
+        context = page["items"][1]["audit_origin"]["hypothesis_snapshot"]
+        assert context["ref"]["revision"] and context["source"]["scope"]["kind"] == "project"
+        origin["hypothesis"]["revision"] = 8
+        transport = Transport(_package(collection, contents))
+        with pytest.raises(FindingsError):
+            await _tools(transport)
+        assert transport.puts == 0
+
+    asyncio.run(scenario())

@@ -413,6 +413,9 @@
     },
     {
       "$ref": "#/$defs/conclusions"
+    },
+    {
+      "$ref": "#/$defs/hypothesis"
     }
   ]
 }

@@ -1596,3 +1596,11 @@ Audit-owned output links by their persisted scope. An unknown scope is invalid;
 reads never probe another scope as a fallback. Staged unaccepted outputs are
 not public or publishable. Artifact material publication accepts the ordinary 1 MiB JSON bound
 for request metadata; the existing payload and transaction/history limits apply.
+
+
+**ART-R142.** Allocation-selected finding collections use ordinary frozen Run
+bindings and the existing collection publication receipt. Their exact references
+may be supplied through ordinary Workflow inputs, Audit retention and explicit
+Project publication. Merely listing or reading Project Finding metadata retains
+no Artifact or evidence. The Artifact plane neither interprets Finding semantics
+nor follows payload refs to grant foreign access (FND-R224 through FND-R229).

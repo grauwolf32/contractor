@@ -138,4 +138,27 @@ func TestProjectFindingRetainsExactHypothesisAfterAuditPurge(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	publisher, err := NewCollectionPublisher(pool, projectCollectionReads{}, artifactpgtest.NewStorage())
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := publisher.PublishCollection(ctx, PublishCollectionParams{OwnerID: owner, Request: PublishCollectionRequest{ClientKey: "hypothesis-context", Sources: []CollectionSelection{{Kind: "project", ID: project, ReceiptIDs: []string{receipt.ReceiptID}, Findings: []CollectionFindingSelection{}}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	user, _ := art.User(owner)
+	captured, err := user.Read(ctx, snapshot.Artifact.Ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	collection, pkg, err := auditdomain.DecodeFindingCollectionPackage(captured.Payload.Data)
+	if err != nil || len(collection.Entries) != 1 || collection.Entries[0].AuditOrigin == nil {
+		t.Fatalf("retained context collection: %+v %v", collection, err)
+	}
+	contextID := collection.Entries[0].AuditOrigin.HypothesisSnapshotDocumentID
+	member, ok := pkg.MemberByID(contextID)
+	if !ok || string(member.Data()) != string(read.Payload.Data) {
+		t.Fatal("selected collection lost exact hypothesis context after source purge")
+	}
+
 }

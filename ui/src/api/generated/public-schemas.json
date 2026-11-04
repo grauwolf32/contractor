@@ -8034,7 +8034,7 @@
       "additionalProperties": false,
       "required": ["kind", "id", "receiptIds", "findings"],
       "properties": {
-        "kind": { "type": "string", "enum": ["run", "audit"] },
+        "kind": { "type": "string", "enum": ["run", "audit", "project"] },
         "id": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingCollectionIdentity"
         },

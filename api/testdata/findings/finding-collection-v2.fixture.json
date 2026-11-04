@@ -216,5 +216,178 @@
       "origin": "{\"audit_id\":\"audit-a\",\"execution_id\":\"execution-b\",\"hypothesis\":{\"id\":\"hypothesis-a\",\"revision\":1.0},\"task_id\":\"task-b\"}",
       "valid": false
     }
-  ]
+  ],
+  "source_kinds": [
+    {
+      "kind": "run",
+      "valid": true
+    },
+    {
+      "kind": "audit",
+      "valid": true
+    },
+    {
+      "kind": "project",
+      "valid": true
+    },
+    {
+      "kind": "user",
+      "valid": false
+    },
+    {
+      "kind": "Run",
+      "valid": false
+    },
+    {
+      "kind": "",
+      "valid": false
+    }
+  ],
+  "allocation_selections": [
+    {
+      "name": "empty",
+      "request": {
+        "clientKey": "selection",
+        "findings": [],
+        "receiptIds": []
+      },
+      "valid": true
+    },
+    {
+      "name": "finding",
+      "request": {
+        "clientKey": "selection",
+        "findings": [
+          {
+            "findingId": "finding-a",
+            "revision": 9007199254740991
+          }
+        ],
+        "receiptIds": []
+      },
+      "valid": true
+    },
+    {
+      "name": "mixed",
+      "request": {
+        "clientKey": "selection",
+        "findings": [
+          {
+            "findingId": "finding-a",
+            "revision": 1
+          }
+        ],
+        "receiptIds": [
+          "receipt-a"
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "unversioned",
+      "request": {
+        "clientKey": "selection",
+        "findings": [
+          {
+            "findingId": "finding-a",
+            "revision": 0
+          }
+        ],
+        "receiptIds": []
+      },
+      "valid": false
+    },
+    {
+      "name": "unsafe_revision",
+      "request": {
+        "clientKey": "selection",
+        "findings": [
+          {
+            "findingId": "finding-a",
+            "revision": 9007199254740992
+          }
+        ],
+        "receiptIds": []
+      },
+      "valid": false
+    },
+    {
+      "name": "duplicate",
+      "request": {
+        "clientKey": "selection",
+        "findings": [
+          {
+            "findingId": "finding-a",
+            "revision": 1
+          },
+          {
+            "findingId": "finding-a",
+            "revision": 1
+          }
+        ],
+        "receiptIds": []
+      },
+      "valid": false
+    },
+    {
+      "name": "duplicate_receipt",
+      "request": {
+        "clientKey": "selection",
+        "findings": [],
+        "receiptIds": [
+          "receipt-a",
+          "receipt-a"
+        ]
+      },
+      "valid": false
+    },
+    {
+      "name": "null",
+      "request": {
+        "clientKey": "selection",
+        "findings": null,
+        "receiptIds": []
+      },
+      "valid": false
+    },
+    {
+      "name": "missing",
+      "request": {
+        "clientKey": "selection",
+        "findings": []
+      },
+      "valid": false
+    },
+    {
+      "name": "foreign_scope",
+      "request": {
+        "clientKey": "selection",
+        "findings": [],
+        "receiptIds": [],
+        "projectId": "foreign"
+      },
+      "valid": false
+    },
+    {
+      "name": "path_key",
+      "request": {
+        "clientKey": "../foreign",
+        "findings": [],
+        "receiptIds": []
+      },
+      "valid": false
+    },
+    {
+      "name": "long_identity",
+      "request": {
+        "clientKey": "selection",
+        "findings": [],
+        "receiptIds": [
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        ]
+      },
+      "valid": false
+    }
+  ],
+  "hypothesis_context_body": "{\"grounds\":\"Selected source\",\"id\":\"selected-hypothesis\",\"origin\":{\"audit_id\":\"audit-a\",\"kind\":\"manual\"},\"revision\":7,\"schema\":\"contractor.audit.hypothesis.v1\",\"scope\":{},\"statement\":\"An observed assertion\"}"
 }

@@ -4874,10 +4874,10 @@ export interface components {
         };
         FindingCollectionSourceSelection: {
             /** @enum {string} */
-            kind: "run" | "audit";
+            kind: "run" | "audit" | "project";
             id: components["schemas"]["FindingCollectionIdentity"];
             receiptIds: components["schemas"]["FindingCollectionIdentity"][];
-            /** @description Must be empty for Run sources; finding IDs are unique within an Audit source. */
+            /** @description Must be empty for Run sources; finding IDs are unique within an Audit or Project source. */
             findings: components["schemas"]["FindingCollectionFindingSelection"][];
         };
         PublishFindingCollectionRequest: {

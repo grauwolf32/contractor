@@ -1,0 +1,147 @@
+{
+  "task": "V411-011",
+  "date": "2026-11-04",
+  "branch": "codex/project-findings-reader",
+  "base": "7a7daee624b5afc3706b2bd258143888435dc774",
+  "scope": "Ordinary Project finding discovery and explicit immutable evidence selections through existing allocation and Artifact owners. No demo deployment, migration or live-model quality claim.",
+  "checks": [
+    {
+      "command": "make generate-public-client ui-generate docs-dependencies",
+      "result": "passed; generated files rebuilt from sources",
+      "log": "/tmp/v411-011-generate-final.log"
+    },
+    {
+      "command": "make lint",
+      "result": "passed on final source and formatted regression test; generated contracts, API client, UI gates, SQL ownership/ERD, exports/layers, task/spec/release graph, Ruff and Runtime import boundaries",
+      "log": "/tmp/v411-011-lint-formatted.log"
+    },
+    {
+      "command": "make verify-public-api verify-public-api-postgres",
+      "result": "passed, including race-enabled real PostgreSQL public operations",
+      "log": "/tmp/v411-011-api-final.log"
+    },
+    {
+      "command": "go test -count=1 ./internal/auditdomain ./internal/auditservice ./internal/controlplane ./internal/config/... ./internal/httpapi/privateartifacts ./internal/app ./internal/persistence ./internal/archtest ./internal/publicclient/...",
+      "result": "passed in full",
+      "log": "/tmp/v411-011-go-owners-final.log"
+    },
+    {
+      "command": "go test -tags=integration -count=1 ./internal/findingintake/... ./internal/auditimport/... ./internal/auditstore/... ./internal/artifacts/...",
+      "result": "passed in full against disposable PostgreSQL, no mandatory database skips",
+      "log": "/tmp/v411-011-owners-final.log"
+    },
+    {
+      "command": "make test-findings-e2e",
+      "result": "passed: 210 Runtime findings tests and 15 required process cases. New ordinary Workflow enumerates 101 findings in two pages, reads full selected proposal/evidence plus a refuted check-result input, exposes valid exact selection and report outputs.",
+      "log": "/tmp/v411-011-findings-wire-final.log"
+    },
+    {
+      "command": "make test-wire-cross-language",
+      "result": "passed: 385 contract tests and 1427 shared-suite tests; 369 fixtures, 404 Go and 258 Python shared tests",
+      "log": "/tmp/v411-011-wire-recheck.log"
+    },
+    {
+      "command": "make test-runtime",
+      "result": "passed on final reader recovery fix: 5712 passed, 135 existing optional environment/platform skips in 415.99 seconds; independent Runtime report verifier passed",
+      "log": "/tmp/v411-011-runtime-final.log"
+    },
+    {
+      "command": "go run ./cmd/contractor server config validate --root ./configs",
+      "result": "passed: 26 Workflows, 28 AgentTemplates, 14 Audit profiles and 40 instructions",
+      "log": "/tmp/v411-011-config-final.log"
+    },
+    {
+      "command": "make require-database ui-generate-check ui-typecheck",
+      "result": "passed: disposable database prerequisite set; generated TypeScript client matches OpenAPI and UI/e2e TypeScript projects compile",
+      "log": "/tmp/v411-011-ui-types-final.log"
+    }
+  ],
+  "acceptance_evidence": {
+    "A1": [
+      "TestProjectFindingsReaderAcrossProcesses",
+      "TestProjectFindingAllocationReaderSelectsExactInputsAndReplaysAfterDeletion",
+      "test_project_finding_tools_use_exact_selection_and_transport_replay"
+    ],
+    "A2": [
+      "TestProjectFindingAllocationReaderSelectsExactInputsAndReplaysAfterDeletion",
+      "TestProjectFindingAllocationBlackboxDeniesUnknownAndSourceAssistedProvenance",
+      "TestFindingsReaderBoundariesAcrossProcesses",
+      "TestFindingReaderGrantDoesNotAliasPinnedSelection",
+      "TestPrivateFindingSelectionCodecErrorsArePermanent"
+    ],
+    "A3": [
+      "TestProjectFindingAllocationReaderSelectsExactInputsAndReplaysAfterDeletion",
+      "test_project_finding_tools_use_exact_selection_and_transport_replay",
+      "TestProjectFindingRetainsExactHypothesisAfterAuditPurge",
+      "test_shared_exact_hypothesis_context_reaches_reader_and_rejects_wrong_revision"
+    ]
+  },
+  "earlier_verification_failures": [
+    {
+      "check": "Initial full Runtime suite under concurrent verification",
+      "result": "One preparation timeout in unchanged test_release_retains_no_adapter_secret_or_session_credential: 5711 passed, 135 skipped, 1 failed. Isolated recheck passed without changing that test or production timeout policy.",
+      "recheck_log": "/tmp/v411-011-runtime-timeout-recheck.log"
+    },
+    {
+      "check": "Final combined findings/wire chain",
+      "result": "Findings gate passed. Wire gate failed two unchanged test_shared_nuclei_pinned_worker_manifest_receipt_and_private_bytes variants because template-manifest was absent. All four isolated variants and the complete repeated wire gate passed without code changes. Cause not established.",
+      "failure_log": "/tmp/v411-011-findings-wire-final.log",
+      "isolated_recheck_log": "/tmp/v411-011-nuclei-recheck.log"
+    },
+    {
+      "check": "Final lint after adding recovery regression",
+      "result": "Ruff required one-line formatting in the new test. Formatter applied, the whole reader module passed again, and the complete make lint passed.",
+      "failure_log": "/tmp/v411-011-lint-accepted.log",
+      "final_log": "/tmp/v411-011-lint-formatted.log"
+    }
+  ],
+  "reader_recovery_regression": {
+    "test": "test_project_finding_tools_use_exact_selection_and_transport_replay",
+    "scenario": "Prepare selection A, reject invalid selection B, then successfully prepare and read original exact selection A again.",
+    "before": "Fails on the previous implementation with RuntimeError: prepared finding reader is missing.",
+    "after": "Whole reader module passes after allowing preparation whenever the cached reader is absent.",
+    "red_log": "/tmp/v411-011-cache-regression-before.log",
+    "green_log": "/tmp/v411-011-reader-final.log",
+    "note": "The full Runtime run in progress during review was deliberately interrupted and restarted after this fix; the interrupted run is not a pass.",
+    "formatted_green_log": "/tmp/v411-011-reader-formatted.log"
+  },
+  "status": "completed",
+  "implementation_commit": "06b2907745288a3b1c0821e112126af986819063",
+  "initial_delivery_merged_to_main": false,
+  "integration_main": "b2e734febdf9622018f7bafa4371152fe9849790",
+  "merge_authority": "User requested merging into main on 2026-11-04 using the repository no-ff delivery policy.",
+  "integration_result": "Combined current main, including V411-010 approval removal, with V411-011. Code merged without conflicts; task links were combined and generated documents/clients rebuilt. All integration checks passed before main landing.",
+  "integration_checks": [
+    {
+      "command": "make generate-public-client ui-generate tasks-backlog docs-dependencies docs-erd",
+      "result": "passed; ERD reflects all seven migrations, 73 tables and 95 foreign keys",
+      "log": "/tmp/v411-011-merge-generate.log"
+    },
+    {
+      "command": "go test -count=1 ./internal/auditdomain ./internal/auditservice ./internal/controlplane ./internal/config/... ./internal/httpapi/privateartifacts ./internal/app ./internal/persistence/... ./internal/archtest ./internal/publicclient/...",
+      "result": "passed in full",
+      "log": "/tmp/v411-011-merge-go.log"
+    },
+    {
+      "command": "go test -tags=integration -count=1 ./internal/findingintake/... ./internal/auditimport/... ./internal/auditstore/... ./internal/artifacts/...",
+      "result": "passed in full on disposable PostgreSQL with no mandatory database skips",
+      "log": "/tmp/v411-011-merge-owners.log"
+    },
+    {
+      "command": "make verify-public-api verify-public-api-postgres",
+      "result": "passed, including race-enabled public PostgreSQL operations",
+      "log": "/tmp/v411-011-merge-api.log"
+    },
+    {
+      "command": "make test-findings-e2e test-wire-cross-language",
+      "result": "passed: 210 Runtime findings tests, 15 required process cases, 385 contract tests and 1427 shared-suite tests; 369 fixtures, 404 Go and 258 Python shared tests",
+      "log": "/tmp/v411-011-merge-e2e-wire.log"
+    },
+    {
+      "command": "make lint ui-generate-check ui-typecheck",
+      "result": "passed in full",
+      "log": "/tmp/v411-011-merge-lint.log"
+    }
+  ],
+  "integration_runtime_note": "Main introduced no Runtime source changes. The combined source passed the Runtime findings and shared suites above; the earlier complete Runtime suite result remains recorded under checks."
+}

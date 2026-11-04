@@ -19,7 +19,7 @@ func (s *Service) SelectCollectionFindings(ctx context.Context, tx pgx.Tx, owner
 	for index, selection := range selected {
 		findings[index] = auditstore.FindingRevision{FindingID: selection.FindingID, Revision: selection.Revision}
 	}
-	ids, err := querystore.New(tx, s.storage).CollectionReceiptIDs(ctx, ownerID, auditID, findings)
+	ids, err := querystore.New(tx, s.storage).CollectionReceiptIDs(ctx, ownerID, auditID, findings, "audit")
 	return ids, collectionError(err)
 }
 

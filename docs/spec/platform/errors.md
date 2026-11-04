@@ -270,7 +270,7 @@ than fabricated no-interaction results.
 
 ### Findings tool errors
 
-**ERR-R23.** The error vocabulary of the findings tools of
+**ERR-R23.** The `findings_*` error vocabulary of the prepared collection tools of
 `security-findings@1` is closed. Reader preparation reports one of these
 codes as the allocation error:
 
@@ -293,7 +293,11 @@ envelope:
 Each code's retryability is its [registry](#other-error-and-stop-codes) row.
 The conditions that raise the codes are owned by
 [Findings](../findings/findings.md) (FND-R123, FND-R135, FND-R140, FND-R142,
-FND-R143).
+FND-R143). The live Project tools additionally preserve the existing
+allocation Artifact API codes and retryability, including access denial, invalid
+requests, missing content, revision/idempotency conflicts and retryable storage
+conflicts (FND-R224 through FND-R229, FAIL-FND-9). They do not turn a denied or
+failed read into an empty successful collection.
 
 ### Stage failure codes
 

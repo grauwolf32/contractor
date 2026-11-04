@@ -35,11 +35,16 @@ MAX_PAGE_BYTES = 256 * 1024
 
 
 async def prepare_reader(
-    client: ArtifactClient, metrics: ToolMetrics, secrets: tuple[str, ...]
+    client: ArtifactClient,
+    metrics: ToolMetrics,
+    secrets: tuple[str, ...],
+    *,
+    source_ref: ArtifactRef | None = None,
 ) -> ListFindingsTool:
     try:
         source = await client.read_artifact(
-            ArtifactRef(namespace="inputs", name="findings"), max_bytes=MAX_ARCHIVE_BYTES
+            source_ref or ArtifactRef(namespace="inputs", name="findings"),
+            max_bytes=MAX_ARCHIVE_BYTES,
         )
     except ArtifactResponseLimitError as error:
         raise FindingsError("findings_limit_exceeded") from error
@@ -179,6 +184,11 @@ def _project_items(
                 ],
             }
         )
+        if "audit_origin" in item:
+            item["audit_origin"] = dict(item["audit_origin"])
+            context_id = item["audit_origin"].pop("hypothesis_snapshot_document_id", None)
+            if context_id is not None:
+                item["audit_origin"]["hypothesis_snapshot"] = documents[context_id]
         items.append(item)
     return tuple(items)
 

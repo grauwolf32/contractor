@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
@@ -385,5 +386,62 @@ func TestSharedFindingCollectionTaskOriginBounds(t *testing.T) {
 				t.Fatalf("valid=%v want %v: %v", err == nil, test.Valid, err)
 			}
 		})
+	}
+}
+
+func TestSharedFindingCollectionProjectSourceKinds(t *testing.T) {
+	var fixture struct {
+		SourceKinds []struct {
+			Kind  string `json:"kind"`
+			Valid bool   `json:"valid"`
+		} `json:"source_kinds"`
+	}
+	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "findings", "finding-collection-v2.fixture.json"), &fixture); err != nil {
+		t.Fatal(err)
+	}
+	if len(fixture.SourceKinds) == 0 {
+		t.Fatal("missing source-kind fixtures")
+	}
+	for _, test := range fixture.SourceKinds {
+		t.Run(test.Kind, func(t *testing.T) {
+			value, _, _, _ := collectionFixture(t)
+			value.Sources = []FindingCollectionSource{{Kind: test.Kind, ID: "selected-source"}}
+			for i := range value.Entries {
+				value.Entries[i].SelectedSources = value.Sources
+			}
+			_, err := EncodeFindingCollection(value)
+			if (err == nil) != test.Valid {
+				t.Fatalf("source %q: %v", test.Kind, err)
+			}
+		})
+	}
+}
+
+func TestSharedFindingCollectionExactHypothesisContext(t *testing.T) {
+	var fixture struct {
+		Body string `json:"hypothesis_context_body"`
+	}
+	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "findings", "finding-collection-v2.fixture.json"), &fixture); err != nil {
+		t.Fatal(err)
+	}
+	value, contents, _, _ := collectionFixture(t)
+	revision := "hypothesis-v7"
+	document := FindingCollectionDocument{Scope: FindingCollectionSource{Kind: "project", ID: "project-context"}, Ref: contracts.ArtifactRef{Namespace: "finding-materials", Name: "hypothesis-context", Revision: &revision}, Digest: DigestBytes([]byte(fixture.Body)), MediaType: JSONMediaType, SizeBytes: int64(len(fixture.Body))}
+	var err error
+	document.ID, err = FindingCollectionDocumentID(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	value.Documents = append(value.Documents, document)
+	sort.Slice(value.Documents, func(i, j int) bool { return value.Documents[i].ID < value.Documents[j].ID })
+	contents[document.ID] = []byte(fixture.Body)
+	value.Entries[1].AuditOrigin.Hypothesis = &auditcontract.HypothesisRef{ID: "selected-hypothesis", Revision: 7}
+	value.Entries[1].AuditOrigin.HypothesisSnapshotDocumentID = document.ID
+	if _, err := BuildFindingCollectionPackage(value, contents); err != nil {
+		t.Fatal(err)
+	}
+	value.Entries[1].AuditOrigin.Hypothesis.Revision = 8
+	if _, err := BuildFindingCollectionPackage(value, contents); err == nil {
+		t.Fatal("context for a different hypothesis revision was accepted")
 	}
 }

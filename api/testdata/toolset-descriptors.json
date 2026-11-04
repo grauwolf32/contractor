@@ -177,7 +177,7 @@
       "requiredWorkflowInputs": {}
     },
     "security-findings@1": {
-      "tools": ["finding", "list_findings"],
+      "tools": ["finding", "list_findings", "list_project_findings", "read_finding_selection", "read_project_finding", "select_project_findings"],
       "infrastructureChannels": {},
       "requiresWorkspace": false,
       "workspaceObservationTools": [],

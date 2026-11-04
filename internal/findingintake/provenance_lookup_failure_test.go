@@ -127,6 +127,12 @@ func TestPostgresFindingSubmissionKeepsProvenanceLookupFailure(t *testing.T) {
 func auditSubmissionGrant(
 	t *testing.T, ctx context.Context, pool *pgxpool.Pool, ownerID, projectID, runID string, memberCounts ...int,
 ) (controlplane.AllocationGrant, *AuditOrigin) {
+	return auditSubmissionGrantWithBaseline(t, ctx, pool, ownerID, projectID, runID, nil, memberCounts...)
+}
+
+func auditSubmissionGrantWithBaseline(
+	t *testing.T, ctx context.Context, pool *pgxpool.Pool, ownerID, projectID, runID string, configureBaseline func(map[string]any), memberCounts ...int,
+) (controlplane.AllocationGrant, *AuditOrigin) {
 	t.Helper()
 	snapshot, _, err := configload.LoadUnionReadOnly("../config/testdata/valid", filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
@@ -204,7 +210,11 @@ func auditSubmissionGrant(
 	}
 	artifactService := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
 	projectArtifacts, _ := artifactService.Project(projectID)
-	source, err := projectArtifacts.Write(ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "source"}, artifacts.Payload{MediaType: "text/plain", Data: []byte("selected source")}, nil)
+	sourceName := "source"
+	if configureBaseline != nil {
+		sourceName = runID + "-source"
+	}
+	source, err := projectArtifacts.Write(ctx, contracts.ArtifactRef{Namespace: "inputs", Name: sourceName}, artifacts.Payload{MediaType: "text/plain", Data: []byte("selected source")}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,7 +228,11 @@ func auditSubmissionGrant(
 	if err != nil {
 		t.Fatal(err)
 	}
-	baseline, _ := json.Marshal(map[string]any{"schema": "contractor.audit.baseline.v1", "inputs": map[string]auditstore.ExactArtifact{"source": {Ref: source.Ref, Digest: metadata.Digest, MediaType: metadata.MediaType, SizeBytes: metadata.Size}}, "skills": []any{}})
+	baselineDocument := map[string]any{"schema": "contractor.audit.baseline.v1", "inputs": map[string]auditstore.ExactArtifact{"source": {Ref: source.Ref, Digest: metadata.Digest, MediaType: metadata.MediaType, SizeBytes: metadata.Size}}, "skills": []any{}}
+	if configureBaseline != nil {
+		configureBaseline(baselineDocument)
+	}
+	baseline, _ := json.Marshal(baselineDocument)
 	audit, _, err = audits.Activate(ctx, auditstore.ActivateParams{OwnerID: ownerID, AuditID: audit.AuditID, ExpectedRevision: audit.Revision, BaselineSnapshot: baseline, DeadlineAt: time.Now().Add(time.Hour), IdempotencyKey: runID + "-start", RequestDigest: digest("start")})
 	if err != nil {
 		t.Fatal(err)
@@ -256,7 +270,7 @@ func auditSubmissionGrant(
 		}
 		tasks = append(tasks, auditstore.AcceptedTask{Hypothesis: frozen, Document: task, Source: auditstore.TaskSource{Kind: "manual", Key: id}})
 	}
-	_, _, err = audits.AcceptTasks(ctx, auditstore.AcceptTasksParams{OwnerID: ownerID, AuditID: audit.AuditID, ExpectedRevision: audit.Revision, IdempotencyKey: "accept", RequestDigest: digest("accept"), Tasks: tasks})
+	_, _, err = audits.AcceptTasks(ctx, auditstore.AcceptTasksParams{OwnerID: ownerID, AuditID: audit.AuditID, ExpectedRevision: audit.Revision, IdempotencyKey: runID + "-accept", RequestDigest: digest("accept"), Tasks: tasks})
 	if err != nil {
 		t.Fatal(err)
 	}

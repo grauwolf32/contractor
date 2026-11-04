@@ -14,7 +14,7 @@ import (
 // privateRoutePathValues gives every path parameter of the private route
 // table the identity of the seeded test allocation and Artifact.
 var privateRoutePathValues = map[string]string{
-	"allocationID": "allocation-1", "namespace": "inputs", "name": "source",
+	"findingID": "finding-1", "allocationID": "allocation-1", "namespace": "inputs", "name": "source",
 }
 
 var privateRoutePathParameter = regexp.MustCompile(`\{[^/{}]+\}`)

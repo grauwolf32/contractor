@@ -5,7 +5,7 @@ milestone: audit-check-prioritization
 epic: findings
 kind: feature
 priority: P1
-status: pending
+status: completed
 depends_on:
 - V64-002
 - V64-004
@@ -13,13 +13,31 @@ depends_on:
 languages:
 - go
 - python
+- typescript
+- yaml
 - json
+- sql
 - markdown
 goal: Ordinary finding review, hypothesis generation and HTTP work can read bounded authorized Project
   findings and retain selected evidence/snapshots as exact inputs.
 demonstration: A same-change ordinary finding-review Workflow reads more than one Project page and consumes
   a frozen selected snapshot/evidence; foreign Project data is denied before Runtime exposure.
 context:
+  merge_authority: >-
+    User requested main integration on 2026-11-04. Current main
+    b2e734febdf9622018f7bafa4371152fe9849790 was integrated with its approval removals preserved.
+    Code merged without conflicts; task links and generated documents were reconciled.
+    Owner, API, process, wire, lint and UI type checks passed before --no-ff main landing.
+  verification_evidence: tasks/evidence/v411-011-2026-11-04.json
+  completion: >-
+    Completed on 2026-11-04. The shipped ordinary project-findings-review Workflow reads 101
+    Project findings over two bounded pages, consumes full selected proposal/evidence and a separate
+    refuted result input, and publishes its exact frozen selection and report as ordinary outputs.
+    Real PostgreSQL verifies authority, atomic collisions, no holds on live reads and exact replay
+    after source deletion. Full Runtime passes 5712 tests with 135 existing optional skips; all
+    listed owner, API, wire, process and lint gates pass. No scope growth or new store/controller
+    was required. The initial delivery left the branch unmerged for review.
+  execution_authority: User assigned implementation on 2026-11-04 after reviewing current main. Work starts from main 7a7daee624b5afc3706b2bd258143888435dc774 on codex/project-findings-reader; no demo deployment is requested.
   authority: 'User decisions and task-formation request on 2026-10-31: Audit durably coordinates ordinary
     tasks/Runs for investigation, checking, supporting work and generation. There is no mandatory discovery-finding-generator
     sequence. Assertion checks use common hypotheses; exploratory work may have none. Check results retain
@@ -31,10 +49,8 @@ context:
     Generation can use selected materials, findings and ordinary results including refutations and gaps.
     The user accepted the common execution skeleton and requested concrete tasks; implementation is a
     subsequent step, not part of this task-formation request.'
-  implementation_gate: Task formation only, requested on 2026-10-31 after acceptance of the common execution
-    skeleton. Keep pending until implementation is requested and dependencies are complete. Do not start
-    code, migrations, live Runs or deployment in this planning turn. Resolve the explicitly labelled remaining
-    contract proposals in V64-001 before dependent implementation.
+  implementation_gate: Implementation assigned by the user on 2026-11-04. V64-002, V64-004 and V64-014 are completed on the main integration baseline. Disposable verification is authorized; demo deployment is outside this task.
+  boundary_decision: Existing finding owner supplies canonical metadata and source membership; existing collection publisher validates/captures an explicit bounded Project selection and publishes frozen Run artifacts with its existing Artifact receipt. An ordinary context_projection fork exposes the same version/blob in the assigned Agent namespace as a declared selection output, with no payload copy. Runtime reuses the collection codec, joined preparation and exact local reads. Live reads create no holds. Blackbox automatically denies unknown/deleted source provenance; explicit owner-selected collection inputs retain ordinary authority. There is no new registry, lifecycle, token, controller or file transport. Reconsider only for a concrete consumer that cannot use these existing owners.
   design:
   - docs/proposals/0050-audit-common-hypothesis-model.md
   - docs/plans/2026-10-31-audit-redesign.md
@@ -68,8 +84,7 @@ scope:
   out:
   - Whole-Project dumps, unrestricted cross-Run refs, a second finding store or requiring the full HTTP/UI/sitemap
     release for this reader.
-  - Implementation during this planning-only update; changing user model configuration or deploying/migrating
-    the demo.
+  - Changing user model configuration or deploying/migrating the demo.
 requirements:
 - id: R1
   text: Live pages identify current revisions without claiming to be a snapshot. A retained selection
@@ -95,11 +110,11 @@ failure_outcomes:
     timeouts remain with their owners. No post-deadline semantic work to repair persistence.
 cardinality:
 - collection: Read bounded Project findings and retain explicit selected context
-  expected: 'Base fixture: 2 ordinary Runs, 2 seeded hypotheses, 1 generated hypothesis and several conclusions.'
+  expected: 'Real-process fixture: 2 ordinary Runs, 101 Project findings across 2 live pages, 1 frozen selection and 1 separate refuted check-result input.'
   maximum: Keep applicable published LIM-AUD/LIM-FND ceilings unless proposal 0050 explicitly identifies
     a reviewed change; no new full-pool work.
-  bound: At most 128 admitted primary records / 1 MiB metadata per mutation slice; lists use existing
-    page/byte bounds and explicit continuation.
+  bound: At most 128 explicit selectors / 1 MiB request metadata; live lists expose at most 100 findings
+    / 256 KiB per page with continuation. Existing collection entry, document and archive bounds apply.
 lifecycle:
 - entity: Task-owned records and exact artifacts
   delete: Authenticated Audit/Project deletion uses the owning drain/purge path. No work or reader may
@@ -140,9 +155,11 @@ tests:
   - A1
   - A2
   - A3
+- command: make test-runtime
+- command: go test -count=1 ./internal/auditdomain ./internal/auditservice ./internal/controlplane ./internal/config/... ./internal/httpapi/privateartifacts ./internal/app
 - command: make lint
 test_prerequisites:
-- Commands below are future implementation acceptance, not results of this planning update.
+- Required commands run against an isolated disposable PostgreSQL database; record their actual results.
 - Use disposable PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set; configured/unavailable DB or mandatory
   skips fail. A focused selector matching zero tests fails.
 - Use testdata catalogs and pseudo-Skills, not live configs in unit/integration tests. Run whole touched-package
@@ -156,7 +173,7 @@ verification_requirements:
   dependencies and strict reads/writes.
 - Delete the replaced vertical path and its exclusive schemas/states/tests as its callers migrate. Final
   V64-011 proves no parallel legacy pipeline remains.
-implementation_commit: null
+implementation_commit: 06b2907745288a3b1c0821e112126af986819063
 replanning:
   date: '2026-10-31'
   previous_title: Read live Project findings through allocation-authorized existing mechanisms
