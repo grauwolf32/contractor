@@ -191,11 +191,7 @@ func (s *Service) Start(ctx context.Context, p StartParams) (StartedAudit, error
 				seconds = *p.DeadlineSeconds
 			}
 			if engagement != nil {
-				digest, err := engagement.document.Policy.Digest()
-				if err != nil {
-					return err
-				}
-				baseline.Engagement = &auditbaseline.EngagementSnapshot{Schema: auditbaseline.EngagementSchema, Artifact: engagement.artifact, Document: engagement.document, PolicyDigest: digest, AuthorizedBy: p.OwnerID, AuthorizedAt: s.now().UTC()}
+				baseline.Engagement = &auditbaseline.EngagementSnapshot{Schema: auditbaseline.EngagementSchema, Artifact: engagement.artifact, Document: engagement.document, AuthorizedBy: p.OwnerID, AuthorizedAt: s.now().UTC()}
 				baseline.RuntimeCredentialIDs = mergeIDs(runtimeSnapshot.RuntimeCredentialIDs, engagement.credentialIDs)
 			}
 			encoded, err := EncodeBaseline(baseline)

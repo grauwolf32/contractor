@@ -22,7 +22,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
-	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
@@ -85,11 +84,9 @@ func TestWSTGHTTPProgramsStartWithTrustedEngagement(t *testing.T) {
 			var targetRequests atomic.Int32
 			target := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { targetRequests.Add(1) }))
 			t.Cleanup(target.Close)
-			document := engagementcontract.Document{Schema: engagementcontract.Schema, Target: engagementcontract.Target{Origins: []string{target.URL}},
-				Scope:      engagementcontract.Scope{Routes: []engagementcontract.Route{{Origin: target.URL, PathPrefixes: []string{"/api"}, Methods: []string{"GET"}, AddressRanges: []string{"127.0.0.0/8"}}}, Exclusions: []engagementcontract.Route{}},
+			document := engagementcontract.Document{Schema: engagementcontract.Schema, Egress: engagementcontract.Egress{Routes: []engagementcontract.Route{{Origin: target.URL, PathPrefixes: []string{"/api"}, Methods: []string{"GET"}, AddressRanges: []string{"127.0.0.0/8"}}}, Exclusions: []engagementcontract.Route{}},
 				Identities: []engagementcontract.Identity{{ID: "anonymous", Kind: "anonymous", Origins: []string{target.URL}}},
-				Policy:     engagementcontract.Policy{Version: "1", ActiveChecks: "automatic", RequiredCapabilities: []string{engagementcontract.Capability, string(runtimesettings.RuntimeAdapterHTTPTarget)}, OptionalCapabilities: []string{}},
-				Budgets:    engagementcontract.HTTPLimits{TargetRequests: &requests}}
+				Limits:     &engagementcontract.HTTPLimits{TargetRequests: &requests}}
 			data, err := json.Marshal(document)
 			if err != nil {
 				t.Fatal(err)

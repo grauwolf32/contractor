@@ -4,10 +4,7 @@ from __future__ import annotations
 
 import json
 
-import jcs
-
 from contractor_runtime.contracts.engagement_allocation import EngagementAllocationProjection
-from contractor_runtime.digests import sha256_digest
 from fakes.spec import allocation_spec
 
 _PROJECTION = {
@@ -15,15 +12,8 @@ _PROJECTION = {
     "auditId": "audit-1",
     "engagement": {"namespace": "engagements", "name": "target", "revision": "r1"},
     "engagementDigest": "sha256:" + "a" * 64,
-    "policyDigest": "sha256:" + "b" * 64,
     "authorizedBy": "owner-1",
     "authorizedAt": "2026-10-28T12:00:00Z",
-    "policy": {
-        "version": "1",
-        "requiredCapabilities": ["engagement@1"],
-        "optionalCapabilities": [],
-        "activeChecks": "automatic",
-    },
 }
 
 
@@ -36,15 +26,11 @@ def preflight_spec(*, body_limit=262144):
             "auditId",
             "engagement",
             "engagementDigest",
-            "policyDigest",
             "authorizedBy",
             "authorizedAt",
-            "policy",
         )
     }
     projection = json.loads(json.dumps(projection))
-    projection["policy"]["requiredCapabilities"].append("http-target@1")
-    projection["policyDigest"] = sha256_digest(jcs.canonicalize(projection["policy"]))
     projection["http"] = {
         "adapter": "http-target@1",
         "routes": [

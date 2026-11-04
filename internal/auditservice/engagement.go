@@ -13,7 +13,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
-	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/jackc/pgx/v5"
 )
@@ -54,7 +53,7 @@ func readEngagement(ctx context.Context, service *artifacts.Service, projectID s
 	}
 	document, err := engagementcontract.Decode(read.Payload.Data)
 	if err != nil {
-		return nil, fmt.Errorf("%w: engagement engagement failed validation", ErrInvalid)
+		return nil, fmt.Errorf("%w: engagement failed validation", ErrInvalid)
 	}
 	selected.document = document
 	for _, identity := range document.Identities {
@@ -91,27 +90,15 @@ func engagementCompatibility(profile auditprofile.PinnedProgram, activeChecks co
 	if selected == nil {
 		return reasons
 	}
-	missing := false
-	for _, capability := range append(slices.Clone(selected.document.Policy.RequiredCapabilities), selected.document.Policy.OptionalCapabilities...) {
-		// Controlled identity preflight has a placed Runtime consumer. Other
-		// execution capabilities still need their own production consumer.
-		if capability != engagementcontract.Capability && capability != string(runtimesettings.RuntimeAdapterHTTPTarget) {
-			missing = true
-		}
-	}
 	network := false
 	for _, binding := range profile.Workflows {
 		for _, stage := range binding.Stages {
 			for _, agent := range stage.Agents {
-				if slices.Contains(selected.document.Policy.RequiredCapabilities, string(runtimesettings.RuntimeAdapterHTTPTarget)) {
-					network = network || resolved.TemplateRequiresUncontrolledNetwork(agent.Template)
-				} else {
-					network = network || resolved.TemplateRequiresNetwork(agent.Template)
-				}
+				network = network || resolved.TemplateRequiresUncontrolledNetwork(agent.Template)
 			}
 		}
 	}
-	if missing || network {
+	if network {
 		reasons = append(reasons, ReasonEngagementCapabilityUnsupported)
 	}
 	if activeChecks != contracts.ActiveChecksAutomatic || profile.Program.Policy.ActiveOperations != "allowed" {
@@ -134,10 +121,6 @@ func validateEngagementBaseline(baseline BaselineSnapshot) error {
 	}
 	if engagement.Schema != auditbaseline.EngagementSchema || engagement.Artifact.Validate() != nil || !engagement.Artifact.HasMetadata() || engagement.Artifact.MediaType != engagementcontract.MediaType || engagement.Document.Validate() != nil || engagement.AuthorizedBy == "" || engagement.AuthorizedAt.IsZero() {
 		return fmt.Errorf("%w: engagement baseline is invalid", ErrInvalid)
-	}
-	digest, err := engagement.Document.Policy.Digest()
-	if err != nil || engagement.PolicyDigest != digest {
-		return fmt.Errorf("%w: engagement policy digest differs", ErrInvalid)
 	}
 	for _, identity := range engagement.Document.Identities {
 		if identity.Credential != nil && !slices.Contains(baseline.RuntimeCredentialIDs, identity.Credential.CredentialID) {

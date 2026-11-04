@@ -121,7 +121,7 @@ func newEngagementFixtureWithEdits(t *testing.T, editWorker func(string) string,
 	return &engagementFixture{ctx, pool, service, creds, project, store, contracts.ExactArtifact{Ref: meta.Ref, Digest: meta.Digest, MediaType: meta.MediaType, SizeBytes: meta.Size}, now}
 }
 func (f *engagementFixture) document(origin string) engagementcontract.Document {
-	return engagementcontract.Document{Schema: engagementcontract.Schema, Target: engagementcontract.Target{Origins: []string{origin}}, Scope: engagementcontract.Scope{Routes: []engagementcontract.Route{{Origin: origin, PathPrefixes: []string{"/"}, Methods: []string{"GET"}, AddressRanges: []string{"127.0.0.0/8"}}}, Exclusions: []engagementcontract.Route{}}, Identities: []engagementcontract.Identity{{ID: "anonymous", Kind: "anonymous", Origins: []string{origin}}}, Policy: engagementcontract.Policy{Version: "1", ActiveChecks: "automatic", RequiredCapabilities: []string{engagementcontract.Capability}, OptionalCapabilities: []string{}}, Budgets: engagementcontract.HTTPLimits{}}
+	return engagementcontract.Document{Schema: engagementcontract.Schema, Egress: engagementcontract.Egress{Routes: []engagementcontract.Route{{Origin: origin, PathPrefixes: []string{"/"}, Methods: []string{"GET"}, AddressRanges: []string{"127.0.0.0/8"}}}, Exclusions: []engagementcontract.Route{}}, Identities: []engagementcontract.Identity{{ID: "anonymous", Kind: "anonymous", Origins: []string{origin}}}}
 }
 func (f *engagementFixture) create(t *testing.T, id string, document engagementcontract.Document, extra ...map[string]contracts.ArtifactRef) (auditstore.Audit, error) {
 	t.Helper()
@@ -210,7 +210,7 @@ func TestEngagementAuditPinsOneAttemptAndHTTPLimits(t *testing.T) {
 	f := newEngagementFixture(t)
 	document := f.document("http://127.0.0.1")
 	requests := uint32(7)
-	document.Budgets.TargetRequests = &requests
+	document.Limits = &engagementcontract.HTTPLimits{TargetRequests: &requests}
 	draft, err := f.create(t, "single-attempt", document)
 	if err != nil {
 		t.Fatal(err)
@@ -230,7 +230,7 @@ func TestEngagementAuditPinsOneAttemptAndHTTPLimits(t *testing.T) {
 		t.Fatal(err)
 	}
 	baseline, err := DecodeBaseline(started.Audit.BaselineSnapshot)
-	if err != nil || baseline.Engagement.Document.Budgets.TargetRequests == nil || *baseline.Engagement.Document.Budgets.TargetRequests != requests {
+	if err != nil || baseline.Engagement.Document.Limits.TargetRequests == nil || *baseline.Engagement.Document.Limits.TargetRequests != requests {
 		t.Fatalf("HTTP limits not pinned: %v", err)
 	}
 	decoded, err := DecodeBaseline(started.Audit.BaselineSnapshot)
@@ -238,8 +238,8 @@ func TestEngagementAuditPinsOneAttemptAndHTTPLimits(t *testing.T) {
 		t.Fatal(err)
 	}
 	clone := decoded.Engagement
-	*clone.Document.Budgets.TargetRequests = 99
-	if *baseline.Engagement.Document.Budgets.TargetRequests != requests {
+	*clone.Document.Limits.TargetRequests = 99
+	if *baseline.Engagement.Document.Limits.TargetRequests != requests {
 		t.Fatal("cloned HTTP limits alias the baseline")
 	}
 }
@@ -261,7 +261,7 @@ func TestEngagementStartValidatesOwnershipRevisionAndCredentials(t *testing.T) {
 	f := newEngagementFixture(t)
 	document := f.document("http://127.0.0.1")
 	f.credential(t, "target-stale", f.project.OwnerID)
-	document.Identities = append(document.Identities, engagementcontract.Identity{ID: "account-a", Kind: "bearer", Origins: document.Target.Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "target-stale", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
+	document.Identities = append(document.Identities, engagementcontract.Identity{ID: "account-a", Kind: "bearer", Origins: document.Identities[0].Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "target-stale", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
 	draft, err := f.create(t, "engagement-stale", document)
 	if err != nil {
 		t.Fatal(err)
@@ -289,21 +289,6 @@ func TestEngagementStartValidatesOwnershipRevisionAndCredentials(t *testing.T) {
 	}
 }
 
-func TestEngagementUnsupportedCapabilities(t *testing.T) {
-	f := newEngagementFixture(t)
-	document := f.document("http://127.0.0.1")
-	document.Policy.RequiredCapabilities = append(document.Policy.RequiredCapabilities, "engagement-http@1")
-	draft, err := f.create(t, "engagement-unsupported", document)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = f.service.Start(f.ctx, f.start(draft))
-	var unsupported *UnsupportedError
-	if !errors.As(err, &unsupported) || !slices.Equal(unsupported.Reasons, []CompatibilityReason{ReasonEngagementCapabilityUnsupported}) {
-		t.Fatalf("unsupported start lost compatibility reasons: %v", err)
-	}
-}
-
 func TestEngagementOrdinaryInputsRetainExactRevisionsAndPurgeReleasesHolds(t *testing.T) {
 	f := newEngagementFixtureWithEdits(t, nil, func(files map[string]string) {
 		files["audit-profiles/checklist.yaml"] = strings.Replace(files["audit-profiles/checklist.yaml"], "  inputs:\n", "  inputs:\n    source: {required: false, media_types: [text/plain]}\n", 1)
@@ -314,7 +299,7 @@ func TestEngagementOrdinaryInputsRetainExactRevisionsAndPurgeReleasesHolds(t *te
 		t.Fatal(err)
 	}
 	f.credential(t, "source-account", f.project.OwnerID)
-	document.Identities = append(document.Identities, engagementcontract.Identity{ID: "account-a", Kind: "bearer", Origins: document.Target.Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "source-account", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
+	document.Identities = append(document.Identities, engagementcontract.Identity{ID: "account-a", Kind: "bearer", Origins: document.Identities[0].Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "source-account", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
 	draft, err := f.create(t, "engagement-source", document, map[string]contracts.ArtifactRef{"source": source.Ref})
 	if err != nil {
 		t.Fatal(err)
@@ -374,7 +359,7 @@ func TestEngagementCredentialOwnershipAndStartDeleteRace(t *testing.T) {
 				f := newEngagementFixture(t, conns)
 				document := f.document("http://127.0.0.1")
 				f.credential(t, "race-target", f.project.OwnerID)
-				document.Identities = append(document.Identities, engagementcontract.Identity{ID: "account-a", Kind: "bearer", Origins: document.Target.Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "race-target", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
+				document.Identities = append(document.Identities, engagementcontract.Identity{ID: "account-a", Kind: "bearer", Origins: document.Identities[0].Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "race-target", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
 				draft, err := f.create(t, "engagement-race", document)
 				if err != nil {
 					t.Fatal(err)
@@ -412,7 +397,7 @@ func TestEngagementCredentialOwnershipAndStartDeleteRace(t *testing.T) {
 		f := newEngagementFixture(t)
 		f.credential(t, "foreign-target", "another-owner")
 		doc := f.document("http://127.0.0.1")
-		doc.Identities = append(doc.Identities, engagementcontract.Identity{ID: "account-a", Kind: "bearer", Origins: doc.Target.Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "foreign-target", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
+		doc.Identities = append(doc.Identities, engagementcontract.Identity{ID: "account-a", Kind: "bearer", Origins: doc.Identities[0].Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "foreign-target", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
 		if _, err := f.create(t, "engagement-foreign", doc); !errors.Is(err, credentials.ErrRuntimeCredentialNotFound) {
 			t.Fatalf("foreign credential error=%v", err)
 		}

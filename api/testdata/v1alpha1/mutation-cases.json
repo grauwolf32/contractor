@@ -741,9 +741,6 @@
       "enum": [
         "/apiVersion",
         "/contextManagement/strategy",
-        "/engagement/policy/activeChecks",
-        "/engagement/policy/requiredCapabilities/0",
-        "/engagement/policy/version",
         "/engagement/schema",
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/kind",
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/kind",
@@ -758,10 +755,6 @@
         {
           "pointer": "/engagement/engagement/namespace",
           "maxLength": 128
-        },
-        {
-          "pointer": "/engagement/policy/requiredCapabilities/0",
-          "maxLength": 256
         },
         {
           "pointer": "/logicalAgentName",
@@ -805,11 +798,6 @@
         {
           "pointer": "/engagement/engagement/namespace",
           "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/engagement/policy/requiredCapabilities/0",
-          "maxLength": 256,
           "verdict": "reject"
         },
         {
@@ -865,7 +853,6 @@
         "/contextManagement",
         "/engagement",
         "/engagement/engagement",
-        "/engagement/policy",
         "/modelPolicy",
         "/modelPolicy/ref",
         "/resolvedRuntimeConfigProvenance",
@@ -894,7 +881,6 @@
         "/contextManagement",
         "/engagement",
         "/engagement/engagement",
-        "/engagement/policy",
         "/modelPolicy",
         "/modelPolicy/ref",
         "/resolvedRuntimeConfigProvenance",
@@ -2097,10 +2083,6 @@
         "/engagement/http/identities/1/credential/kind",
         "/engagement/http/identities/1/kind",
         "/engagement/http/routes/0/methods/0",
-        "/engagement/policy/activeChecks",
-        "/engagement/policy/requiredCapabilities/0",
-        "/engagement/policy/requiredCapabilities/1",
-        "/engagement/policy/version",
         "/engagement/schema",
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/kind",
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/kind",
@@ -2144,14 +2126,6 @@
         {
           "pointer": "/engagement/http/routes/0/pathPrefixes/0",
           "maxLength": 8192
-        },
-        {
-          "pointer": "/engagement/policy/requiredCapabilities/0",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/engagement/policy/requiredCapabilities/1",
-          "maxLength": 256
         },
         {
           "pointer": "/logicalAgentName",
@@ -2245,16 +2219,6 @@
           "verdict": "reject"
         },
         {
-          "pointer": "/engagement/policy/requiredCapabilities/0",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/engagement/policy/requiredCapabilities/1",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
           "pointer": "/logicalAgentName",
           "maxLength": 128,
           "verdict": "reject"
@@ -2328,7 +2292,6 @@
         "/engagement/http/identities/1/credential",
         "/engagement/http/protectedDestinations/0",
         "/engagement/http/routes/0",
-        "/engagement/policy",
         "/modelPolicy",
         "/modelPolicy/ref",
         "/resolvedRuntimeConfigProvenance",
@@ -2365,7 +2328,6 @@
         "/engagement/http/identities/1/credential",
         "/engagement/http/protectedDestinations/0",
         "/engagement/http/routes/0",
-        "/engagement/policy",
         "/modelPolicy",
         "/modelPolicy/ref",
         "/resolvedRuntimeConfigProvenance",
@@ -2399,10 +2361,6 @@
         "/engagement/http/identities/1/kind",
         "/engagement/http/routes/0/methods/0",
         "/engagement/http/routes/0/methods/1",
-        "/engagement/policy/activeChecks",
-        "/engagement/policy/requiredCapabilities/0",
-        "/engagement/policy/requiredCapabilities/1",
-        "/engagement/policy/version",
         "/engagement/schema",
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/kind",
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/kind",
@@ -2448,14 +2406,6 @@
           "maxLength": 8192
         },
         {
-          "pointer": "/engagement/policy/requiredCapabilities/0",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/engagement/policy/requiredCapabilities/1",
-          "maxLength": 256
-        },
-        {
           "pointer": "/logicalAgentName",
           "maxLength": 128
         },
@@ -2543,16 +2493,6 @@
           "verdict": "reject"
         },
         {
-          "pointer": "/engagement/policy/requiredCapabilities/0",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/engagement/policy/requiredCapabilities/1",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
           "pointer": "/logicalAgentName",
           "maxLength": 128,
           "verdict": "reject"
@@ -2621,7 +2561,6 @@
         "/engagement/http/identities/1/credential",
         "/engagement/http/protectedDestinations/0",
         "/engagement/http/routes/0",
-        "/engagement/policy",
         "/modelPolicy",
         "/modelPolicy/ref",
         "/resolvedRuntimeConfigProvenance",
@@ -2658,7 +2597,6 @@
         "/engagement/http/identities/1/credential",
         "/engagement/http/protectedDestinations/0",
         "/engagement/http/routes/0",
-        "/engagement/policy",
         "/modelPolicy",
         "/modelPolicy/ref",
         "/resolvedRuntimeConfigProvenance",
@@ -2689,10 +2627,6 @@
         "/engagement/http/identities/0/id",
         "/engagement/http/identities/0/kind",
         "/engagement/http/routes/0/methods/0",
-        "/engagement/policy/activeChecks",
-        "/engagement/policy/requiredCapabilities/0",
-        "/engagement/policy/requiredCapabilities/1",
-        "/engagement/policy/version",
         "/engagement/schema",
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/kind",
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/kind",
@@ -2727,14 +2661,6 @@
         {
           "pointer": "/engagement/http/routes/0/pathPrefixes/0",
           "maxLength": 8192
-        },
-        {
-          "pointer": "/engagement/policy/requiredCapabilities/0",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/engagement/policy/requiredCapabilities/1",
-          "maxLength": 256
         },
         {
           "pointer": "/logicalAgentName",
@@ -2806,16 +2732,6 @@
           "verdict": "reject"
         },
         {
-          "pointer": "/engagement/policy/requiredCapabilities/0",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/engagement/policy/requiredCapabilities/1",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
           "pointer": "/logicalAgentName",
           "maxLength": 128,
           "verdict": "reject"
@@ -2873,7 +2789,6 @@
         "/engagement/http/limits",
         "/engagement/http/protectedDestinations/0",
         "/engagement/http/routes/0",
-        "/engagement/policy",
         "/modelPolicy",
         "/modelPolicy/ref",
         "/resolvedRuntimeConfigProvenance",
@@ -2907,7 +2822,6 @@
         "/engagement/http/limits",
         "/engagement/http/protectedDestinations/0",
         "/engagement/http/routes/0",
-        "/engagement/policy",
         "/modelPolicy",
         "/modelPolicy/ref",
         "/resolvedRuntimeConfigProvenance",

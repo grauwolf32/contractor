@@ -21,7 +21,7 @@ func TestEngagementCookieAdmissionPinsHeldPrivateMaterial(t *testing.T) {
 		t.Fatal(err)
 	}
 	document := f.document("http://127.0.0.1")
-	document.Identities = append(document.Identities, engagementcontract.Identity{ID: "account-a", Kind: "cookies", Origins: document.Target.Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "cookies-a", Kind: runtimesettings.RuntimeCredentialTargetCookies}})
+	document.Identities = append(document.Identities, engagementcontract.Identity{ID: "account-a", Kind: "cookies", Origins: document.Identities[0].Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "cookies-a", Kind: runtimesettings.RuntimeCredentialTargetCookies}})
 	draft, err := f.create(t, "cookies-pinned", document)
 	if err != nil {
 		t.Fatal(err)

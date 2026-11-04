@@ -39,12 +39,10 @@ func newEngagementIdentityAudit(t *testing.T, h *engagementProcessHarness, origi
 		routes = append(routes, route)
 	}
 	f.document = engagementcontract.Document{
-		Schema: engagementcontract.Schema, Target: engagementcontract.Target{Origins: origins},
-		Scope:      engagementcontract.Scope{Routes: routes, Exclusions: []engagementcontract.Route{}},
+		Schema: engagementcontract.Schema, Egress: engagementcontract.Egress{Routes: routes, Exclusions: []engagementcontract.Route{}},
 		Identities: []engagementcontract.Identity{{ID: "anonymous", Kind: "anonymous", Origins: origins}},
 
-		Policy:  engagementcontract.Policy{Version: "1", ActiveChecks: "automatic", RequiredCapabilities: []string{engagementcontract.Capability, "http-target@1"}, OptionalCapabilities: []string{}},
-		Budgets: engagementcontract.HTTPLimits{},
+		Limits: &engagementcontract.HTTPLimits{},
 	}
 	return f
 }
@@ -92,7 +90,7 @@ func engagementCredential(t *testing.T, h *engagementProcessHarness, id, kind st
 
 func (f *engagementIdentityAudit) addIdentity(t *testing.T, id, kind string, credential *runtimesettings.RuntimeCredentialRef) {
 	t.Helper()
-	f.document.Identities = append(f.document.Identities, engagementcontract.Identity{ID: id, Kind: kind, Credential: credential, Origins: f.document.Target.Origins})
+	f.document.Identities = append(f.document.Identities, engagementcontract.Identity{ID: id, Kind: kind, Credential: credential, Origins: f.document.Identities[0].Origins})
 }
 
 func (f *engagementIdentityAudit) draft(t *testing.T) auditProgramAudit {

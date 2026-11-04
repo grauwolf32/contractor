@@ -6,7 +6,7 @@ epic: http-tools
 kind: chore
 introduced_by: V411-002
 priority: P1
-status: pending
+status: in_progress
 depends_on: [V444-001, V439-003, V422-003]
 languages: [go, python, json, yaml, typescript]
 goal: Engagement describes allowed network use and identities while Workflow selection determines required execution capabilities.
@@ -36,6 +36,11 @@ context:
     required adapters; capability declarations cannot grant network authority.
     The egress block retains the current HTTP routes/exclusions semantics. Future
     sandbox/browser/non-HTTP enforcement extends its concrete owner separately.
+  placement_boundary: >-
+    Derive the existing stage-wide adapter union from actual bounded bindings with
+    one immutable baseline lookup. Prepare HTTP assignment per selected Worker.
+    Preserve this grain instead of introducing a per-binding placement framework;
+    reopen only for a concrete mixed Stage needing heterogeneous Runtime capacity.
   decision: >-
     Use one strict network document instead of retaining a broad passport with
     unused optional fields. Keep exact engagement digest and trusted authorization
@@ -89,5 +94,7 @@ tests:
     covers: [A1, A2, A4]
   - command: make test-runtime test-wire-cross-language test-engagement-http-process verify-public-api
     covers: [A1, A2, A3, A4]
+  - command: make test-nuclei-engagement
+    covers: [A2, A3]
   - command: make test-config lint
     covers: [A1, A2, A4]

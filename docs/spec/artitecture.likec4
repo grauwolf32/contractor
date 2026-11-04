@@ -949,7 +949,7 @@ model {
         #contractor #optional
       }
 
-      engagementTools = component 'Selected engagement@1 / engagement-http@1 / engagement-proof@1 — enforced target adapter, isolated identities, trusted capture and replay' {
+      engagementTools = component 'Selected HTTP tools and controlled Nuclei — allocation egress, identities and local limits' {
         #contractor #planned
       }
 
@@ -1232,7 +1232,7 @@ model {
   // Draft proposals 0028, 0033 and 0034 — specified, not available product functionality
   server.auditCoordination.auditController -> server.auditCoordination.prioritySelector 'Reproducible ordering and selection from complete validated verdicts' #planned
   server.orchestration.priorityPlanner -> server.auditCoordination.prioritySelector 'Strict verdicts from independent bounded model calls' #planned
-  server.auditCoordination.engagementProgram -> runtimeAgent.allocationCapabilities.engagementTools 'Engagement projection, exact credential holds and proof registration' #planned
+  server.auditCoordination.engagementProgram -> runtimeAgent.allocationCapabilities.engagementTools 'Exact engagement projection, credential holds and selected HTTP assignment' #planned
   server.auditCoordination.engagementProgram -> server.auditCoordination.findingIntake 'Machine-assessed findings through the existing intake; no second finding store' #planned
   server.artifactPlane.sarifExporter -> server.auditCoordination.findingIntake 'Freeze explicit selection, review revisions and exact evidence' #planned
   server.artifactPlane.sarifExporter -> server.artifactPlane.artifactService 'Publish SARIF and diagnostics artifacts' #planned

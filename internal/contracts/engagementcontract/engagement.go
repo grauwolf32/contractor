@@ -4,39 +4,26 @@ package engagementcontract
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 	"unicode/utf8"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
-	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 const (
 	Schema           = "contractor.engagement.v1"
 	MediaType        = "application/vnd.contractor.engagement+json"
-	Capability       = "engagement@1"
 	MaxDocumentBytes = 4 * 1024 * 1024
 )
 
 type Document struct {
-	Schema     string     `json:"schema" strictjson:"required"`
-	Target     Target     `json:"target" strictjson:"required"`
-	Scope      Scope      `json:"scope" strictjson:"required"`
-	Identities []Identity `json:"identities" strictjson:"required"`
-	Budgets    HTTPLimits `json:"budgets" strictjson:"required"`
-	Policy     Policy     `json:"policy" strictjson:"required"`
+	Schema     string      `json:"schema" strictjson:"required"`
+	Egress     Egress      `json:"egress" strictjson:"required"`
+	Identities []Identity  `json:"identities" strictjson:"required"`
+	Limits     *HTTPLimits `json:"limits,omitempty"`
 }
-type Target struct {
-	Origins    []string    `json:"origins" strictjson:"required"`
-	Deployment *Deployment `json:"deployment,omitempty"`
-}
-type Deployment struct {
-	Marker string `json:"marker" strictjson:"required"`
-}
-type Scope struct {
+type Egress struct {
 	Routes     []Route `json:"routes" strictjson:"required"`
 	Exclusions []Route `json:"exclusions" strictjson:"required"`
 }
@@ -53,12 +40,6 @@ type Identity struct {
 	Role       *string                               `json:"role,omitempty"`
 	Tenant     *string                               `json:"tenant,omitempty"`
 	Credential *runtimesettings.RuntimeCredentialRef `json:"credential,omitempty"`
-}
-type Policy struct {
-	Version              string   `json:"version" strictjson:"required"`
-	ActiveChecks         string   `json:"activeChecks" strictjson:"required"`
-	RequiredCapabilities []string `json:"requiredCapabilities" strictjson:"required"`
-	OptionalCapabilities []string `json:"optionalCapabilities" strictjson:"required"`
 }
 
 // HTTPLimits are optional ceilings enforced independently by each allocation.
@@ -80,7 +61,7 @@ func (l HTTPLimits) Validate() error {
 	return nil
 }
 
-func invalid() error { return fmt.Errorf("engagement engagement is invalid") }
+func invalid() error { return fmt.Errorf("engagement is invalid") }
 
 // Decode rejects unknown/duplicate members, omitted arrays, null optionals and
 // invalid Unicode before semantic validation; errors never contain input data.
@@ -94,45 +75,25 @@ func Decode(data []byte) (Document, error) {
 	}
 	return value, nil
 }
-func (p Policy) Digest() (string, error) {
-	if p.Validate() != nil {
-		return "", invalid()
-	}
-	return contentdigest.CanonicalJSON(p)
-}
-func (p Policy) Validate() error {
-	if p.Version != "1" || p.ActiveChecks != "automatic" || !uniqueStrings(p.RequiredCapabilities, 0, 128) || !uniqueStrings(p.OptionalCapabilities, 0, 128) {
-		return invalid()
-	}
-	for _, v := range append(slices.Clone(p.RequiredCapabilities), p.OptionalCapabilities...) {
-		if len(v) > 256 || !contracts.ValidSelector(v) {
-			return invalid()
-		}
-	}
-	for _, v := range p.RequiredCapabilities {
-		if slices.Contains(p.OptionalCapabilities, v) {
-			return invalid()
-		}
-	}
-	return nil
-}
 func (d Document) Validate() error {
-	if d.Schema != Schema || d.Policy.Validate() != nil || d.Budgets.Validate() != nil {
+	if d.Schema != Schema || (d.Limits != nil && d.Limits.Validate() != nil) {
 		return invalid()
 	}
-	if !uniqueStrings(d.Target.Origins, 1, 16) || d.Scope.Routes == nil || len(d.Scope.Routes) < 1 || len(d.Scope.Routes) > 128 || d.Scope.Exclusions == nil || len(d.Scope.Exclusions) > 128 || d.Identities == nil || len(d.Identities) < 1 || len(d.Identities) > 8 {
+	if d.Egress.Routes == nil || len(d.Egress.Routes) < 1 || len(d.Egress.Routes) > 128 || d.Egress.Exclusions == nil || len(d.Egress.Exclusions) > 128 || d.Identities == nil || len(d.Identities) < 1 || len(d.Identities) > 8 {
 		return invalid()
 	}
-	if d.Target.Deployment != nil && !text(d.Target.Deployment.Marker, 256) {
-		return invalid()
-	}
-	for _, origin := range d.Target.Origins {
-		if !validOrigin(origin) {
+	origins := map[string]bool{}
+	for _, route := range d.Egress.Routes {
+		if route.Validate() != nil {
 			return invalid()
 		}
+		origins[route.Origin] = true
 	}
-	for _, route := range append(slices.Clone(d.Scope.Routes), d.Scope.Exclusions...) {
-		if route.Validate() != nil || !slices.Contains(d.Target.Origins, route.Origin) {
+	if len(origins) > 16 {
+		return invalid()
+	}
+	for _, route := range d.Egress.Exclusions {
+		if route.Validate() != nil || !origins[route.Origin] {
 			return invalid()
 		}
 	}
@@ -154,7 +115,7 @@ func (d Document) Validate() error {
 			anonymous++
 		}
 		for _, origin := range identity.Origins {
-			if !slices.Contains(d.Target.Origins, origin) {
+			if !origins[origin] {
 				return invalid()
 			}
 		}

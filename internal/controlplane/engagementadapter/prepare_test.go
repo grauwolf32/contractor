@@ -99,7 +99,7 @@ func TestSharedEngagementPreparationPreservesAuthorityAndPrivateMaterialLifetime
 			defer cancel()
 			materialCalls := 0
 			adapter := &Adapter{
-				projection: func(_ context.Context, selected controlplane.Reservation, _ runtimesettings.RuntimeSettings) (*engagementcontract.AllocationProjection, error) {
+				projection: func(_ context.Context, selected controlplane.Reservation, _ runtimesettings.RuntimeSettings, _ bool) (*engagementcontract.AllocationProjection, error) {
 					if !reflect.DeepEqual(selected.Grant, reservation.Grant) {
 						t.Fatal("foreign reservation selected")
 					}
@@ -218,7 +218,7 @@ func TestSharedEngagementRejectsUncontrolledNetworkBeforeIdentityLookup(t *testi
 		t.Fatal(err)
 	}
 	fixture.AgentTemplate.SandboxProfile.SandboxProfileID = "podman-network"
-	adapter := &Adapter{projection: func(context.Context, controlplane.Reservation, runtimesettings.RuntimeSettings) (*engagementcontract.AllocationProjection, error) {
+	adapter := &Adapter{projection: func(context.Context, controlplane.Reservation, runtimesettings.RuntimeSettings, bool) (*engagementcontract.AllocationProjection, error) {
 		return fixture.Engagement, nil
 	}, materials: func(context.Context, *engagementcontract.AllocationProjection) (map[string]runtimesettings.HTTPIdentityMaterial, error) {
 		t.Fatal("rejected network policy decrypted credentials")
@@ -230,5 +230,53 @@ func TestSharedEngagementRejectsUncontrolledNetworkBeforeIdentityLookup(t *testi
 	})
 	if !errors.Is(err, controlplane.ErrInvalidRequest) {
 		t.Fatalf("network policy error = %v", err)
+	}
+}
+
+func TestSharedPreparationDerivesHTTPAuthorityFromActualWorkerTools(t *testing.T) {
+	for _, tool := range []string{"read_artifact", "http_request", "http_credentials", "http_session_get", "scan_nuclei"} {
+		t.Run(tool, func(t *testing.T) {
+			spec, err := contracts.DecodePrivateStrict[control.AllocationSpec](contractstest.ReadFixture(t, "valid", "engagement-allocation-preflight.json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			toolset := "http-tools"
+			if tool == "read_artifact" {
+				toolset = "run-artifacts"
+			}
+			if tool == "scan_nuclei" {
+				toolset = "scan"
+			}
+			spec.AgentTemplate.Toolsets = []contracts.ToolsetSelection{{Ref: contracts.ToolsetRef{ToolsetID: toolset, Version: "1"}, Tools: []string{tool}}}
+			expected := tool != "read_artifact"
+			projection := spec.Engagement
+			if !expected {
+				projection.HTTP = nil
+			}
+			materialCalls := 0
+			adapter := &Adapter{
+				projection: func(_ context.Context, _ controlplane.Reservation, _ runtimesettings.RuntimeSettings, usesHTTP bool) (*engagementcontract.AllocationProjection, error) {
+					if usesHTTP != expected {
+						t.Fatalf("HTTP owner=%v want=%v", usesHTTP, expected)
+					}
+					return projection, nil
+				},
+				materials: func(context.Context, *engagementcontract.AllocationProjection) (map[string]runtimesettings.HTTPIdentityMaterial, error) {
+					materialCalls++
+					return nil, nil
+				},
+			}
+			dispatched := false
+			_, err = adapter.WithPreparedSpec(t.Context(), controlplane.Reservation{}, spec, func(prepared control.AllocationSpec) (contracts.WorkerHandle, error) {
+				dispatched = true
+				if (prepared.Engagement.HTTP != nil) != expected {
+					t.Fatal("incorrect HTTP assignment")
+				}
+				return contracts.WorkerHandle{}, nil
+			})
+			if err != nil || !dispatched || (materialCalls == 1) != expected {
+				t.Fatalf("dispatch=%v material=%d err=%v", dispatched, materialCalls, err)
+			}
+		})
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -37,20 +38,22 @@ func TestEngagementStartToPrivateAllocationPins(t *testing.T) {
 }
 
 func testEngagementStartToPrivateAllocationPins(t *testing.T, authenticated bool, controlled bool) {
-	f := newEngagementFixture(t, 1)
+	f := newEngagementFixtureWithEdits(t, func(worker string) string {
+		if !controlled {
+			return worker
+		}
+		return strings.Replace(worker, "- ref: run-artifacts@1\n      tools: [read_artifact, write_artifact]", "- ref: http-tools@1\n      tools: [http_request]", 1)
+	}, nil, 1)
 	// Dispatch admission compares its deadline to the database clock. No test
 	// assertion depends on elapsed time; the authorized timestamp is compared
 	// only to the exact baseline returned by start.
 	f.service.now = time.Now
 	document := f.document("http://127.0.0.1")
-	if controlled {
-		document.Policy.RequiredCapabilities = append(document.Policy.RequiredCapabilities, string(runtimesettings.RuntimeAdapterHTTPTarget))
-	}
 	if authenticated {
 		requests := uint32(17)
-		document.Budgets.TargetRequests = &requests
+		document.Limits = &engagementcontract.HTTPLimits{TargetRequests: &requests}
 		f.credential(t, "allocated-account", f.project.OwnerID)
-		document.Identities = append(document.Identities, engagementcontract.Identity{ID: "account-a", Kind: "bearer", Origins: document.Target.Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "allocated-account", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
+		document.Identities = append(document.Identities, engagementcontract.Identity{ID: "account-a", Kind: "bearer", Origins: document.Identities[0].Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "allocated-account", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
 	}
 	draft, err := f.create(t, "allocation-engagement", document)
 	if err != nil {
@@ -124,36 +127,43 @@ func testEngagementStartToPrivateAllocationPins(t *testing.T, authenticated bool
 		}
 		return []engagementcontract.ProtectedDestination{{Hostname: "server.example", Addresses: []string{"10.22.1.2"}, Port: 443}}, nil
 	}
-	requirements, err := AllocationEngagementAdapterRequirements(f.ctx, f.pool, runID, stage.StageExecutionID, artifactpgtest.NewStorage())
+	usesHTTP := false
+	for _, agent := range workflow.Stages[workflow.EntryStage].Agents {
+		usesHTTP = usesHTTP || resolved.TemplateUsesControlledHTTP(agent.Template)
+	}
+	if usesHTTP != controlled {
+		t.Fatal("selected tools lost HTTP requirement")
+	}
+	requirements, err := AllocationEngagementAdapterRequirements(f.ctx, f.pool, runID, stage.StageExecutionID, usesHTTP, artifactpgtest.NewStorage())
 	if err != nil || (len(requirements) == 1) != controlled {
 		t.Fatalf("requirements=%v err=%v", requirements, err)
 	}
 	if controlled {
-		if _, err := ResolveAllocationEngagement(f.ctx, f.pool, runID, stage.StageExecutionID, nil, artifactpgtest.NewStorage()); err == nil {
+		if _, err := ResolveAllocationEngagement(f.ctx, f.pool, runID, stage.StageExecutionID, usesHTTP, nil, artifactpgtest.NewStorage()); err == nil {
 			t.Fatal("controlled projection omitted protected destinations")
 		}
 	}
-	first, err := ResolveAllocationEngagement(f.ctx, f.pool, runID, stage.StageExecutionID, protected, artifactpgtest.NewStorage())
+	first, err := ResolveAllocationEngagement(f.ctx, f.pool, runID, stage.StageExecutionID, usesHTTP, protected, artifactpgtest.NewStorage())
 	if err != nil || first == nil {
 		t.Fatalf("private projection=%+v %v", first, err)
 	}
 	pin := baseline.Engagement
 	if controlled {
-		if document.Budgets.TargetRequests == nil {
+		if document.Limits == nil {
 			if first.HTTP.Limits != nil {
 				t.Fatal("omitted limits acquired a default")
 			}
-		} else if first.HTTP.Limits == nil || first.HTTP.Limits.TargetRequests == nil || *first.HTTP.Limits.TargetRequests != *document.Budgets.TargetRequests {
+		} else if first.HTTP.Limits == nil || first.HTTP.Limits.TargetRequests == nil || *first.HTTP.Limits.TargetRequests != *document.Limits.TargetRequests {
 			t.Fatal("allocation lost the engagement's explicit HTTP limit")
 		}
 	}
-	if first.EngagementDigest != pin.Artifact.Digest || first.PolicyDigest != pin.PolicyDigest || first.AuthorizedBy != f.project.OwnerID || !first.AuthorizedAt.Equal(pin.AuthorizedAt) || !first.Engagement.SameExact(pin.Artifact.Ref) || (first.HTTP != nil) != controlled {
+	if first.EngagementDigest != pin.Artifact.Digest || first.AuthorizedBy != f.project.OwnerID || !first.AuthorizedAt.Equal(pin.AuthorizedAt) || !first.Engagement.SameExact(pin.Artifact.Ref) || (first.HTTP != nil) != controlled {
 		t.Fatalf("private projection drifted or exposed unassigned authority: %+v", first)
 	}
-	if controlled && (!reflect.DeepEqual(first.HTTP.Routes, document.Scope.Routes) || first.HTTP.Identities[0].ID != "anonymous" || first.HTTP.Identities[0].Credential != nil) {
+	if controlled && (!reflect.DeepEqual(first.HTTP.Routes, document.Egress.Routes) || first.HTTP.Identities[0].ID != "anonymous" || first.HTTP.Identities[0].Credential != nil) {
 		t.Fatal("controlled assignment drifted or exposed identity authority")
 	}
-	document.Target.Deployment = &engagementcontract.Deployment{Marker: "new mutable document"}
+	document.Egress.Routes[0].PathPrefixes = []string{"/new-mutable-document"}
 	replacement, err := json.Marshal(document)
 	if err != nil {
 		t.Fatal(err)
@@ -165,7 +175,7 @@ func testEngagementStartToPrivateAllocationPins(t *testing.T, authenticated bool
 	if _, err = projectstore.NewPostgresStore(f.pool).Update(f.ctx, projectstore.UpdateParams{ProjectID: f.project.ProjectID, OwnerID: f.project.OwnerID, ExpectedRevision: f.project.Revision, Name: f.project.Name, ActiveChecks: &prohibited}); err != nil {
 		t.Fatal(err)
 	}
-	second, err := ResolveAllocationEngagement(f.ctx, f.pool, runID, stage.StageExecutionID, protected, artifactpgtest.NewStorage())
+	second, err := ResolveAllocationEngagement(f.ctx, f.pool, runID, stage.StageExecutionID, usesHTTP, protected, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +191,6 @@ func testEngagementStartToPrivateAllocationPins(t *testing.T, authenticated bool
 		t.Fatal("private metadata reread mutable Project or engagement")
 	}
 	*first.Engagement.Revision = "changed"
-	first.Policy.RequiredCapabilities[0] = "changed"
 	if controlled {
 		first.HTTP.Routes[0].PathPrefixes[0] = "/changed"
 		first.HTTP.Identities[0].Origins[0] = "http://changed.invalid"
@@ -192,7 +201,7 @@ func testEngagementStartToPrivateAllocationPins(t *testing.T, authenticated bool
 			first.HTTP.Identities[1].Credential.CredentialID = "changed"
 		}
 	}
-	third, err := ResolveAllocationEngagement(f.ctx, f.pool, runID, stage.StageExecutionID, protected, artifactpgtest.NewStorage())
+	third, err := ResolveAllocationEngagement(f.ctx, f.pool, runID, stage.StageExecutionID, usesHTTP, protected, artifactpgtest.NewStorage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,10 +209,10 @@ func testEngagementStartToPrivateAllocationPins(t *testing.T, authenticated bool
 	if err != nil || string(thirdBytes) != string(secondBytes) {
 		t.Fatalf("mutating an allocation projection changed its retained authority: %v", err)
 	}
-	if _, err = ResolveAllocationEngagement(f.ctx, f.pool, "foreign-run", stage.StageExecutionID, nil, artifactpgtest.NewStorage()); !errors.Is(err, runstore.ErrNotFound) {
+	if _, err = ResolveAllocationEngagement(f.ctx, f.pool, "foreign-run", stage.StageExecutionID, usesHTTP, nil, artifactpgtest.NewStorage()); !errors.Is(err, runstore.ErrNotFound) {
 		t.Fatalf("foreign Run reached baseline: %v", err)
 	}
-	if _, err = ResolveAllocationEngagement(f.ctx, f.pool, runID, "foreign-stage", nil, artifactpgtest.NewStorage()); !errors.Is(err, runstore.ErrNotFound) {
+	if _, err = ResolveAllocationEngagement(f.ctx, f.pool, runID, "foreign-stage", controlled, nil, artifactpgtest.NewStorage()); !errors.Is(err, runstore.ErrNotFound) {
 		t.Fatalf("foreign Stage reached baseline: %v", err)
 	}
 }

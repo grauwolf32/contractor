@@ -671,6 +671,16 @@
       "schema": "allocation.schema.json",
       "strict": true,
       "reason": "invariant"
+    },
+    "allocation-spec-engagement-removed-policy.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-engagement-removed-policyDigest.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
     }
   }
 }

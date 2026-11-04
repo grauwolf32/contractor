@@ -309,10 +309,10 @@ The Runtime protocol client validates the completed AllocationSpec, rechecks its
 grant immediately before dispatch and checks the returned Agent Card. It does
 not resolve Audit data or interpret engagement network policy. Composition
 connects the adapter; the core package never imports it. It follows [AUD-R248](../audits/audits.md):
-exact immutable attribution, no secret material, and only task-assigned routes,
-identities and inputs. Metadata-only preparation omits the typed `http`
-assignment. Controlled HTTP requires the explicit `http-target@1`
-capability in the immutable policy and the selected Runtime advertisement; it
+exact immutable attribution, no secret material, and only task-assigned routes
+and identities. Offline preparation omits the typed `http`
+assignment. Selected HTTP-consuming Workflow tools require `http-target@1`
+from the selected Runtime advertisement; this requirement
 is independent of RuntimeConfig adapter provenance. Both wire validators and
 Runtime prepare reject an execution assignment whose enforcement is absent.
 The assignment requires `identities`; non-anonymous entries select exact held

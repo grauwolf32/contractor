@@ -60,16 +60,6 @@
       "revision": "engagement-r1"
     },
     "engagementDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    "policy": {
-      "activeChecks": "automatic",
-      "optionalCapabilities": [],
-      "requiredCapabilities": [
-        "engagement@1",
-        "http-target@1"
-      ],
-      "version": "1"
-    },
-    "policyDigest": "sha256:c3b563471f157fc91767120d184022c56fd950fa1ffb83ed9cbf48ec2a48df30",
     "http": {
       "adapter": "http-proxy@1",
       "exclusions": [],

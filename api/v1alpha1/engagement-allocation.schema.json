@@ -9,10 +9,8 @@
     "auditId",
     "engagement",
     "engagementDigest",
-    "policyDigest",
     "authorizedBy",
-    "authorizedAt",
-    "policy"
+    "authorizedAt"
   ],
   "properties": {
     "schema": {
@@ -36,33 +34,11 @@
     "engagementDigest": {
       "$ref": "common.schema.json#/$defs/digest"
     },
-    "policyDigest": {
-      "$ref": "common.schema.json#/$defs/digest"
-    },
     "authorizedBy": {
       "$ref": "common.schema.json#/$defs/opaqueId"
     },
     "authorizedAt": {
       "$ref": "common.schema.json#/$defs/timestamp"
-    },
-    "policy": {
-      "allOf": [
-        {
-          "$ref": "engagement.schema.json#/$defs/Policy"
-        },
-        {
-          "properties": {
-            "requiredCapabilities": {
-              "items": {
-                "enum": [
-                  "engagement@1",
-                  "http-target@1"
-                ]
-              }
-            }
-          }
-        }
-      ]
     },
     "http": {
       "type": "object",
@@ -186,34 +162,5 @@
         "identities"
       ]
     }
-  },
-  "allOf": [
-    {
-      "if": {
-        "properties": {
-          "policy": {
-            "properties": {
-              "requiredCapabilities": {
-                "contains": {
-                  "const": "http-target@1"
-                }
-              }
-            }
-          }
-        }
-      },
-      "then": {
-        "required": [
-          "http"
-        ]
-      },
-      "else": {
-        "not": {
-          "required": [
-            "http"
-          ]
-        }
-      }
-    }
-  ]
+  }
 }

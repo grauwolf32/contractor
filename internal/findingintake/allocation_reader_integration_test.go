@@ -220,11 +220,9 @@ func TestProjectFindingAllocationReaderSharesAuditAndRunSources(t *testing.T) {
 		origin := "https://target.example"
 		document["engagement"] = map[string]any{"document": engagementcontract.Document{
 			Schema:     engagementcontract.Schema,
-			Target:     engagementcontract.Target{Origins: []string{origin}},
-			Scope:      engagementcontract.Scope{Routes: []engagementcontract.Route{{Origin: origin, PathPrefixes: []string{"/"}, Methods: []string{"GET"}, AddressRanges: []string{"192.0.2.0/24"}}}, Exclusions: []engagementcontract.Route{}},
+			Egress:     engagementcontract.Egress{Routes: []engagementcontract.Route{{Origin: origin, PathPrefixes: []string{"/"}, Methods: []string{"GET"}, AddressRanges: []string{"192.0.2.0/24"}}}, Exclusions: []engagementcontract.Route{}},
 			Identities: []engagementcontract.Identity{{ID: "anonymous", Kind: "anonymous", Origins: []string{origin}}},
-			Budgets:    engagementcontract.HTTPLimits{},
-			Policy:     engagementcontract.Policy{Version: "1", ActiveChecks: "automatic", RequiredCapabilities: []string{engagementcontract.Capability}, OptionalCapabilities: []string{}},
+			Limits:     &engagementcontract.HTTPLimits{},
 		}}
 	}
 	consumer, _ := auditSubmissionGrantWithBaseline(t, ctx, pool, owner, project, "shared-consumer", baseline)

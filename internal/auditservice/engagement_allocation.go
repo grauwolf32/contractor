@@ -3,7 +3,6 @@ package auditservice
 import (
 	"context"
 	"fmt"
-	"slices"
 
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/auditbaseline"
@@ -49,14 +48,14 @@ func allocationEngagement(ctx context.Context, pool *pgxpool.Pool, runID, stageI
 	return auditID, pin, err
 }
 
-// AllocationEngagementAdapterRequirements adds only explicitly selected controlled
+// AllocationEngagementAdapterRequirements adds only tool-selected controlled
 // execution to placement. Ordinary and metadata-only allocations add nothing.
-func AllocationEngagementAdapterRequirements(ctx context.Context, pool *pgxpool.Pool, runID, stageID string, storage *artifactpostgres.Storage) ([]runtimesettings.RuntimeAdapterRef, error) {
+func AllocationEngagementAdapterRequirements(ctx context.Context, pool *pgxpool.Pool, runID, stageID string, usesHTTP bool, storage *artifactpostgres.Storage) ([]runtimesettings.RuntimeAdapterRef, error) {
 	_, pin, err := allocationEngagement(ctx, pool, runID, stageID, storage)
 	if err != nil {
 		return nil, err
 	}
-	if pin != nil && slices.Contains(pin.Document.Policy.RequiredCapabilities, string(runtimesettings.RuntimeAdapterHTTPTarget)) {
+	if pin != nil && usesHTTP {
 		return []runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterHTTPTarget}, nil
 	}
 	return nil, nil
@@ -65,7 +64,7 @@ func AllocationEngagementAdapterRequirements(ctx context.Context, pool *pgxpool.
 // ResolveAllocationEngagement derives the narrow private assignment from the
 // immutable Audit binding. Protected endpoint resolution runs after its two
 // bounded database reads, outside the transaction and Registry mutex.
-func ResolveAllocationEngagement(ctx context.Context, pool *pgxpool.Pool, runID, stageID string, protected func(context.Context) ([]engagementcontract.ProtectedDestination, error), storage *artifactpostgres.Storage) (*engagementcontract.AllocationProjection, error) {
+func ResolveAllocationEngagement(ctx context.Context, pool *pgxpool.Pool, runID, stageID string, usesHTTP bool, protected func(context.Context) ([]engagementcontract.ProtectedDestination, error), storage *artifactpostgres.Storage) (*engagementcontract.AllocationProjection, error) {
 	auditID, pin, err := allocationEngagement(ctx, pool, runID, stageID, storage)
 	if err != nil || pin == nil {
 		return nil, err
@@ -73,11 +72,10 @@ func ResolveAllocationEngagement(ctx context.Context, pool *pgxpool.Pool, runID,
 	// pin is freshly decoded for this call; transfer its fields to the result.
 	result := &engagementcontract.AllocationProjection{
 		Schema: "contractor.engagement.allocation.v1", AuditID: auditID,
-		Engagement: pin.Artifact.Ref, EngagementDigest: pin.Artifact.Digest, PolicyDigest: pin.PolicyDigest,
+		Engagement: pin.Artifact.Ref, EngagementDigest: pin.Artifact.Digest,
 		AuthorizedBy: pin.AuthorizedBy, AuthorizedAt: pin.AuthorizedAt,
-		Policy: pin.Document.Policy,
 	}
-	if slices.Contains(pin.Document.Policy.RequiredCapabilities, string(runtimesettings.RuntimeAdapterHTTPTarget)) {
+	if usesHTTP {
 		if protected == nil {
 			return nil, fmt.Errorf("controlled preflight requires trusted infrastructure destinations")
 		}
@@ -87,15 +85,12 @@ func ResolveAllocationEngagement(ctx context.Context, pool *pgxpool.Pool, runID,
 		}
 		assignment := &engagementcontract.HTTPAssignment{
 			Adapter:               runtimesettings.RuntimeAdapterHTTPTarget,
-			Routes:                pin.Document.Scope.Routes,
-			Exclusions:            pin.Document.Scope.Exclusions,
+			Routes:                pin.Document.Egress.Routes,
+			Exclusions:            pin.Document.Egress.Exclusions,
 			ProtectedDestinations: destinations,
 			Identities:            pin.Document.Identities,
 		}
-		limits := pin.Document.Budgets
-		if limits != (engagementcontract.HTTPLimits{}) {
-			assignment.Limits = &limits
-		}
+		assignment.Limits = pin.Document.Limits
 		result.HTTP = assignment
 	}
 	if err := result.Validate(); err != nil {

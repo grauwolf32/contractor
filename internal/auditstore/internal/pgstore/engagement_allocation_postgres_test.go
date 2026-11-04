@@ -101,21 +101,15 @@ func allocationBaselineDrainFixture(t *testing.T, engagement bool) (collectingAu
 	if engagement {
 		origin := "https://target.example"
 		doc := engagementcontract.Document{
-			Schema: engagementcontract.Schema, Target: engagementcontract.Target{Origins: []string{origin}},
-			Scope:      engagementcontract.Scope{Routes: []engagementcontract.Route{{Origin: origin, PathPrefixes: []string{"/"}, Methods: []string{"GET"}, AddressRanges: []string{"192.0.2.0/24"}}}, Exclusions: []engagementcontract.Route{}},
-			Identities: []engagementcontract.Identity{{ID: "anonymous", Kind: "anonymous", Origins: []string{origin}}}, Policy: engagementcontract.Policy{Version: "1", ActiveChecks: "automatic", RequiredCapabilities: []string{engagementcontract.Capability}, OptionalCapabilities: []string{}},
-			Budgets: engagementcontract.HTTPLimits{},
+			Schema: engagementcontract.Schema, Egress: engagementcontract.Egress{Routes: []engagementcontract.Route{{Origin: origin, PathPrefixes: []string{"/"}, Methods: []string{"GET"}, AddressRanges: []string{"192.0.2.0/24"}}}, Exclusions: []engagementcontract.Route{}},
+			Identities: []engagementcontract.Identity{{ID: "anonymous", Kind: "anonymous", Origins: []string{origin}}}, Limits: &engagementcontract.HTTPLimits{},
 		}
 		if err := doc.Validate(); err != nil {
 			t.Fatal(err)
 		}
-		digest, err := doc.Policy.Digest()
-		if err != nil {
-			t.Fatal(err)
-		}
 		baseline["engagement"] = map[string]any{
 			"schema": "contractor.audit.engagement-baseline.v1", "artifact": testExact("inputs", "engagement", "r1"),
-			"document": doc, "policyDigest": digest, "authorizedBy": "owner-baseline-drain",
+			"document": doc, "authorizedBy": "owner-baseline-drain",
 			"authorizedAt": time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC),
 		}
 	}
