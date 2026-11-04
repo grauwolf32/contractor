@@ -440,3 +440,14 @@ func commonTaskBaselineInputs(material auditcontract.Material) json.RawMessage {
 	data, _ := json.Marshal(map[string]auditstore.ExactArtifact{"source": {Ref: material.Ref, Digest: material.Digest, MediaType: material.MediaType, SizeBytes: material.SizeBytes}})
 	return data
 }
+
+func TestTaskAcceptanceReceiptDistinguishesEmptyFromNull(t *testing.T) {
+	for _, value := range []string{`{"task_ids":null,"created_count":0,"audit_revision":1}`, `{"created_count":0,"audit_revision":1}`} {
+		if _, err := decodeTaskAcceptance([]byte(value)); err == nil {
+			t.Fatal("missing/null membership accepted as an empty producer decision")
+		}
+	}
+	if _, err := decodeTaskAcceptance([]byte(`{"task_ids":[],"created_count":0,"audit_revision":1}`)); err != nil {
+		t.Fatal(err)
+	}
+}

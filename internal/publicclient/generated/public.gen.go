@@ -1323,14 +1323,17 @@ func (e AuditTaskMaterialScopeKind) Valid() bool {
 
 // Defines values for AuditTaskSourceKind.
 const (
-	AuditTaskSourceKindInitial  AuditTaskSourceKind = "initial"
-	AuditTaskSourceKindManual   AuditTaskSourceKind = "manual"
-	AuditTaskSourceKindPrepared AuditTaskSourceKind = "prepared"
+	AuditTaskSourceKindContinuation AuditTaskSourceKind = "continuation"
+	AuditTaskSourceKindInitial      AuditTaskSourceKind = "initial"
+	AuditTaskSourceKindManual       AuditTaskSourceKind = "manual"
+	AuditTaskSourceKindPrepared     AuditTaskSourceKind = "prepared"
 )
 
 // Valid indicates whether the value is a known member of the AuditTaskSourceKind enum.
 func (e AuditTaskSourceKind) Valid() bool {
 	switch e {
+	case AuditTaskSourceKindContinuation:
+		return true
 	case AuditTaskSourceKindInitial:
 		return true
 	case AuditTaskSourceKindManual:
@@ -7581,6 +7584,9 @@ type AuditTaskSource struct {
 	Key         AuditCommonKey      `json:"key"`
 	Kind        AuditTaskSourceKind `json:"kind"`
 	Output      *AuditTaskMaterial  `json:"output,omitempty"`
+
+	// ThroughOrdinal Last source Task ordinal consumed by this exact continuation decision.
+	ThroughOrdinal *int `json:"through_ordinal,omitempty"`
 }
 
 // AuditTaskSourceKind defines model for AuditTaskSource.Kind.

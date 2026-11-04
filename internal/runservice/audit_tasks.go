@@ -176,7 +176,7 @@ func materializeTaskRunContext(ctx context.Context, service *artifacts.Service, 
 		items = append(items, item)
 	}
 	for slot, mapping := range binding.Inputs {
-		if mapping.Source == "audit-input" || mapping.Source == "task-input" {
+		if mapping.Source == "audit-input" || mapping.Source == "task-input" || mapping.Source == "prior-results" {
 			continue
 		}
 		if mapping.Source != "task-context" {

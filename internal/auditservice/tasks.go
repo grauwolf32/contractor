@@ -51,6 +51,10 @@ func TaskCreationRequestDigest(p TaskCreationParams) (string, error) {
 // CreateTasks accepts explicit already available work. It submits no Run;
 // paused intake uses exactly the same mutation as initial/prepared work.
 func (s *Service) CreateTasks(ctx context.Context, p TaskCreationParams) (TaskCreationResult, error) {
+	if len(p.Work) == 0 {
+		return TaskCreationResult{}, ErrInvalid
+	}
+
 	if !contracts.ValidResourceID(p.AuditID) || p.OwnerID == "" || p.ExpectedRevision == 0 || !contracts.ValidIdempotencyKey(p.IdempotencyKey) || !contentdigest.Valid(p.RequestDigest) {
 		return TaskCreationResult{}, ErrInvalid
 	}
@@ -71,6 +75,14 @@ func (s *Service) CreateTasks(ctx context.Context, p TaskCreationParams) (TaskCr
 	baseline, err := DecodeBaseline(audit.BaselineSnapshot)
 	if err != nil {
 		return TaskCreationResult{}, err
+	}
+	for _, item := range p.Work {
+		for slot := range item.Inputs {
+			mapping := pinned.Program.Workflows[item.Workflow].Inputs[slot]
+			if mapping.Source == "prior-results" || mapping.Source == "task-context" {
+				return TaskCreationResult{}, ErrInvalid
+			}
+		}
 	}
 	params := auditstore.AcceptTasksParams{Attention: p.Attention, Hypotheses: p.Hypotheses, OwnerID: p.OwnerID, AuditID: p.AuditID, ExpectedRevision: p.ExpectedRevision, IdempotencyKey: p.IdempotencyKey, RequestDigest: p.RequestDigest}
 	seeds := map[string]auditcontract.Hypothesis{}
@@ -129,7 +141,7 @@ func (s *Service) Task(ctx context.Context, ownerID, auditID, taskID string) (au
 // retain its exact material through ArtifactStore, then commit Task records
 // and intake progress through the existing keyed mutation family.
 func (s *Service) acceptCommonWork(ctx context.Context, audit auditstore.Audit, pinned auditprofile.PinnedProgram, baseline BaselineSnapshot, work []auditcontract.PreparedSelection, params auditstore.AcceptTasksParams, source func(auditcontract.PreparedSelection) auditstore.TaskSource) (TaskCreationResult, error) {
-	if len(work) == 0 || len(work) > auditcontract.MaxMutationRecords {
+	if len(work) == 0 && params.PreparedProgress == nil || len(work) > auditcontract.MaxMutationRecords {
 		return TaskCreationResult{}, ErrInvalid
 	}
 	for key := range params.Hypotheses {
@@ -185,6 +197,17 @@ func (s *Service) acceptCommonWork(ctx context.Context, audit auditstore.Audit, 
 		}
 		for slot, material := range item.Inputs {
 			inputs[slot] = material
+		}
+		for slot, mapping := range binding.Inputs {
+			if mapping.Source == "prior-results" {
+				if _, exists := inputs[slot]; !exists {
+					selectedContext, err := s.generationContext(ctx, audit, params.Claim, pinned, baseline, nil, inputs)
+					if err != nil {
+						return TaskCreationResult{}, err
+					}
+					inputs[slot] = selectedContext
+				}
+			}
 		}
 		if err := auditprofile.ValidateTaskInputs(binding, workflow, inputs); err != nil {
 			return TaskCreationResult{}, err

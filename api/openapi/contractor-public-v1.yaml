@@ -14003,6 +14003,12 @@ components:
       type: string
     AuditProgramWorkflow:
       additionalProperties: false
+      not:
+        properties:
+          outputs:
+            required:
+            - work
+            - proposals
       properties:
         inputs:
           additionalProperties:
@@ -14697,8 +14703,14 @@ components:
           - initial
           - manual
           - prepared
+          - continuation
         key:
           $ref: '#/components/schemas/AuditCommonKey'
+        through_ordinal:
+          type: integer
+          minimum: 1
+          maximum: 100000
+          description: Last source Task ordinal consumed by this exact continuation decision.
         execution_id:
           $ref: '#/components/schemas/ResourceId'
         output:

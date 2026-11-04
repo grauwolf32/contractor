@@ -172,5 +172,58 @@
       },
       "scope": "project"
     }
+  },
+  {
+    "name": "continuation_source_exact_boundary",
+    "schema": "AuditTaskSource",
+    "valid": true,
+    "value": {
+      "kind": "continuation",
+      "key": "continuation-context",
+      "through_ordinal": 16
+    }
+  },
+  {
+    "name": "continuation_source_zero_boundary",
+    "schema": "AuditTaskSource",
+    "valid": false,
+    "value": {
+      "kind": "continuation",
+      "key": "continuation-context",
+      "through_ordinal": 0
+    }
+  },
+  {
+    "name": "continuation_source_over_boundary",
+    "schema": "AuditTaskSource",
+    "valid": false,
+    "value": {
+      "kind": "continuation",
+      "key": "continuation-context",
+      "through_ordinal": 100001
+    }
+  },
+  {
+    "name": "unknown_task_source_kind",
+    "schema": "AuditTaskSource",
+    "valid": false,
+    "value": {
+      "kind": "semantic-generator-service",
+      "key": "context"
+    }
+  },
+  {
+    "name": "one_task_intake_output_per_workflow",
+    "schema": "AuditProgramWorkflow",
+    "valid": false,
+    "value": {
+      "ref": "artifact-copy@1",
+      "inputs": {},
+      "parameters": {},
+      "outputs": {
+        "work": "work",
+        "proposals": "proposals"
+      }
+    }
   }
 ]

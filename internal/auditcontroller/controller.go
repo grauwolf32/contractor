@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
@@ -380,9 +381,10 @@ func terminalRun(state runstore.WorkflowRunState) bool {
 // The intent then fails instead of being resumed (AUX-R99, FAIL-AUX-1). Any
 // other error leaves the intent to retry.
 func permanentSubmissionError(err error) bool {
+	classified, classifiedError := apierror.Of(err)
 	var skill *agentskills.RunSkillError
 	var document *auditdomain.ValidationError
-	return errors.Is(err, runservice.ErrInvalid) || errors.Is(err, runstore.ErrInvalid) ||
+	return classifiedError && classified.ErrorKind() == apierror.AuditDocumentInvalid || errors.Is(err, runservice.ErrInvalid) || errors.Is(err, runstore.ErrInvalid) ||
 		errors.Is(err, auditstore.ErrInvalid) || errors.Is(err, auditstore.ErrConflict) ||
 		artifacts.IsExactReferenceRejection(err) || artifactpostgres.IsExactRevisionMissing(err) ||
 		errors.Is(err, artifacts.ErrHistoryProtected) || errors.Is(err, artifacts.ErrArtifactConflict) ||

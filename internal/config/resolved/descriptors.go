@@ -142,6 +142,10 @@ func builtInDescriptors() descriptorTable {
 					"exec_command": {channelSandboxExecution},
 				},
 			},
+			"audit-proposals@1": {
+				Tools:                  []string{"submit_hypothesis_proposals"},
+				RequiredWorkflowInputs: map[string]workflowInputRequirement{"submit_hypothesis_proposals": {Input: "generation_context", MediaType: "application/json"}},
+			},
 			AuditResultsToolsetID + "@" + AuditResultsToolsetVersion: {
 				Tools: []string{ReadAuditTaskTool, SubmitCheckResultTool},
 			},

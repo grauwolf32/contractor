@@ -204,6 +204,14 @@ def _validate_case(case):
             raise ValueError("unknown continuation")
         return
     if value["schema"] == "contractor.audit.proposal-context.v1":
+        keys, tasks = set(), set()
+        for item in value.get("observations", []):
+            if item["key"] in keys or item["task_id"] in tasks:
+                raise ValueError("observation membership")
+            keys.add(item["key"])
+            tasks.add(item["task_id"])
+            if item["key"] not in value["materials"] and "gap" not in item:
+                raise ValueError("missing selected source")
         _validate_case({"document": json.dumps(value["program"])})
         return
     if value["schema"] in {
@@ -232,6 +240,8 @@ def _validate_case(case):
                 raise ValueError("work binding")
             seen.add(task["key"])
             binding = program["workflows"][task["workflow"]]
+            if "proposals" in binding["outputs"]:
+                raise ValueError("producer self-loop")
             for slot, name in task.get("inputs", {}).items():
                 if (
                     slot not in binding["inputs"]

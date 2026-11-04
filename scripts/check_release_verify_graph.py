@@ -22,6 +22,7 @@ MODULE = "github.com/grauwolf32/contractor/"
 
 # Union of the process e2e names selected by release-verify before V155.
 EXPECTED_PROCESS_TESTS = {
+    "TestAuditHypothesisContinuationAcrossProductionProcesses",
     "TestAuditBasicExactHandoffAcrossProductionProcesses",
     "TestAuditFixedHypothesesAcrossProductionProcesses",
     "TestAuditCommonPrepared256PauseRestartAndCancelAcrossProcesses",

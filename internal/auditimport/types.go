@@ -52,6 +52,7 @@ type Importer struct {
 }
 
 type TaskWorkIntake interface {
+	AcceptProposals(context.Context, auditstore.ControllerClaim, auditstore.ReconcileSnapshot, auditstore.Execution, auditcontract.Material, []byte) (auditstore.TaskIntakeResult, error)
 	AcceptPreparedWork(context.Context, auditstore.ControllerClaim, auditstore.ReconcileSnapshot, auditstore.Execution, auditcontract.Material, []byte) (auditstore.TaskIntakeResult, error)
 }
 

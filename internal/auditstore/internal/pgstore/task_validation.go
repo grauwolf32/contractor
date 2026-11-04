@@ -31,8 +31,13 @@ func validTaskSource(source auditstore.TaskSource) bool {
 	}
 	switch source.Kind {
 	case "manual", "initial":
-		return source.ExecutionID == "" && source.Output == nil
+		return source.ExecutionID == "" && source.Output == nil && source.ThroughOrdinal == 0
+	case "continuation":
+		return source.ExecutionID == "" && source.Output == nil && source.ThroughOrdinal > 0 && source.ThroughOrdinal <= auditprofile.MaxAuditItemsTotal
 	case "prepared":
+		if source.ThroughOrdinal != 0 {
+			return false
+		}
 		if !contracts.ValidResourceID(source.ExecutionID) || source.Output == nil || source.Output.ScopeKind != "run" || !contracts.ValidResourceID(source.Output.ScopeID) {
 			return false
 		}
@@ -56,7 +61,7 @@ func taskBatchDigest(document auditcontract.Task) (string, error) {
 // A slice bounds both primary Task records and distinct exact input references;
 // metadata verification can therefore use at most four ordinary 32-ref reads.
 func validateAcceptedTasks(params auditstore.AcceptTasksParams) ([]validatedTask, error) {
-	if !contracts.ValidResourceID(params.AuditID) || params.OwnerID == "" || len(params.Tasks) == 0 || len(params.Tasks) > auditcontract.MaxMutationRecords || validateIdempotency(params.IdempotencyKey, params.RequestDigest) != nil {
+	if !contracts.ValidResourceID(params.AuditID) || params.OwnerID == "" || len(params.Tasks) == 0 && params.PreparedProgress == nil || len(params.Tasks) > auditcontract.MaxMutationRecords || validateIdempotency(params.IdempotencyKey, params.RequestDigest) != nil {
 		return nil, auditstore.ErrInvalid
 	}
 	if params.Claim == nil && (params.ExpectedRevision == 0 || params.InitialProgress != nil || params.PreparedProgress != nil) || params.Claim != nil && (validateClaimIdentity(*params.Claim) != nil || params.Claim.AuditID != params.AuditID || params.ExpectedRevision != 0) || params.InitialProgress != nil && params.PreparedProgress != nil {
@@ -83,7 +88,7 @@ func validateAcceptedTasks(params auditstore.AcceptTasksParams) ([]validatedTask
 		if strictjson.Decode(sourceBytes, &source) != nil {
 			return nil, auditstore.ErrInvalid
 		}
-		if params.Claim == nil && source.Kind != "manual" || source.Kind == "initial" && params.InitialProgress == nil || source.Kind == "prepared" && (params.PreparedProgress == nil || params.PreparedProgress.ExecutionID != source.ExecutionID) || params.InitialProgress != nil && source.Kind != "initial" || params.PreparedProgress != nil && source.Kind != "prepared" {
+		if params.Claim == nil && source.Kind != "manual" || source.Kind == "initial" && params.InitialProgress == nil || source.Kind == "continuation" && (params.ContinuationRevision == 0 || params.Claim == nil) || source.Kind == "prepared" && (params.PreparedProgress == nil || params.PreparedProgress.ExecutionID != source.ExecutionID) || params.InitialProgress != nil && source.Kind != "initial" || params.PreparedProgress != nil && source.Kind != "prepared" {
 			return nil, auditstore.ErrInvalid
 		}
 		sourceKey := contentdigest.Bytes(sourceBytes)

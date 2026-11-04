@@ -251,7 +251,17 @@
         "parameters",
         "outputs"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "not": {
+        "properties": {
+          "outputs": {
+            "required": [
+              "work",
+              "proposals"
+            ]
+          }
+        }
+      }
     },
     "initial": {
       "type": "object",
@@ -1182,6 +1192,33 @@
             "$ref": "#/$defs/artifact"
           },
           "maxProperties": 32
+        },
+        "observations": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "key",
+              "task_id"
+            ],
+            "properties": {
+              "key": {
+                "$ref": "#/$defs/key"
+              },
+              "gap": {
+                "type": "string",
+                "maxLength": 512
+              },
+              "hypothesis": {
+                "$ref": "#/$defs/hypothesis"
+              },
+              "task_id": {
+                "$ref": "#/$defs/resource_id"
+              }
+            }
+          }
         }
       }
     },

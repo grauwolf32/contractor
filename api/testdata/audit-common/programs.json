@@ -209,6 +209,11 @@
       "name": "conflicting-seed-source-kinds",
       "valid": false,
       "document": "{\"schema\":\"contractor.audit.program.v1\",\"inputs\":{\"source\":{\"required\":true,\"media_types\":[\"text/plain\"]},\"checklist\":{\"required\":true,\"media_types\":[\"application/json\"]}},\"workflows\":{\"inspect\":{\"ref\":\"audit-contract-check@1\",\"inputs\":{\"source\":{\"source\":\"audit-input\",\"name\":\"source\"},\"context\":{\"source\":\"task-context\"}},\"parameters\":{},\"outputs\":{\"result\":\"result\"}}},\"hypotheses\":{},\"initial_work\":[],\"limits\":{\"max_tasks\":100000,\"max_iterations\":32,\"max_tasks_per_iteration\":10000,\"batch_size\":64,\"max_submitted_runs\":1000000,\"max_attempts\":10,\"deadline_seconds\":31536000,\"max_evidence_bytes\":1073741824,\"max_hypotheses\":10000,\"max_hypothesis_revisions\":50000,\"max_hypothesis_bytes\":268435456},\"policy\":{\"active_operations\":\"prohibited\"},\"seed_source\":{\"input\":\"checklist\",\"workflow\":\"inspect\",\"standard\":{\"scheme\":\"test\",\"version\":\"1\"}}}"
+    },
+    {
+      "name": "one-intake-output-per-binding",
+      "document": "{\"schema\": \"contractor.audit.program.v1\", \"inputs\": {\"source\": {\"required\": true, \"media_types\": [\"text/plain\"]}}, \"workflows\": {\"inspect\": {\"ref\": \"artifact-copy@1\", \"inputs\": {\"source\": {\"source\": \"audit-input\", \"name\": \"source\"}}, \"parameters\": {}, \"outputs\": {\"material\": \"result\", \"work\": \"result\", \"proposals\": \"result\"}}}, \"hypotheses\": {}, \"initial_work\": [{\"key\": \"inspect-1\", \"workflow\": \"inspect\", \"objective\": \"Inspect selected source\"}], \"limits\": {\"max_tasks\": 100000, \"max_iterations\": 32, \"max_tasks_per_iteration\": 10000, \"batch_size\": 64, \"max_submitted_runs\": 1000000, \"max_attempts\": 10, \"deadline_seconds\": 31536000, \"max_evidence_bytes\": 1073741824, \"max_hypotheses\": 10000, \"max_hypothesis_revisions\": 50000, \"max_hypothesis_bytes\": 268435456}, \"policy\": {\"active_operations\": \"prohibited\"}}",
+      "valid": false
     }
   ],
   "loader_cases": [

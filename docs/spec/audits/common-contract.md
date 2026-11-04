@@ -137,6 +137,39 @@ inputs or select foreign/incompatible artifacts. Initial selections name only
 already selected Audit input slots. The owner resolves accepted choices to exact
 ordinary Task input descriptors, without a graph of future output dependencies.
 
+The ordinary idle barrier checks continuation before completing an active Audit.
+Its source cursor is retained on the accepted Task, independently of that Task's
+ordinal: a bounded decision does not consume unselected history. Up to 16 earlier
+Tasks contribute exact ordinary input forks named `source_01` through `source_16`;
+`generation_context` is the system-owned `prior-results` input. The ordinary
+`context` input supplies the current accepted Task/objective and Run membership;
+a producer executes one assigned Task per Run. Its immutable
+proposal-context names selected material handles and observations (source handle,
+exact hypothesis snapshot when present, technical gap when present). Material
+bytes remain ordinary explicit inputs, including supported/refuted/inconclusive
+results; no embedded reference grants additional reads. LIM-ACT-7 bounds this work.
+
+`audit-proposals@1` exposes `submit_hypothesis_proposals`. The Runtime validates
+named content against that selected context and assembles the declared logical
+`proposals` output. A binding selects at most one intake output (`proposals`
+or `work`); competing declarations are invalid before admission because the
+existing execution owns one exact source/cursor. The Server revalidates the exact output/context and commits
+generated hypotheses and checking Tasks in one existing Task mutation, including
+a hypothesis-only or empty decision. Producer-local aliases are namespaced by
+that producer. Origin Audit/task/Run and source are system-derived. A proposal
+cannot select another producer binding: a producer response does not authorize
+its own continuation. A later generator requires distinct accepted sources or
+an explicit owner decision.
+
+Pause retains accepted continuation Tasks and reserved identities but submits no
+new generator Run. Resume dispatches that same accepted work. An empty decision
+settles successfully; producer outputs are excluded from new source selection.
+Ordinary execution source/cursor and Task receipts reconcile response loss and
+restart before mutable source reads. Cancellation/deletion may collect the
+producer output without admitting new hypotheses or Tasks. Definite invalid or
+foreign/over-bound proposal batches retain an explicit technical collection gap
+with no partial authoritative hypothesis/task membership.
+
 **ACT-R8.** The control contract is soft pause/drain, Resume of accepted work,
 and terminal Cancel. Admission and Run/HTTP/model timeouts retain separate owners.
 The admission clock freezes while paused; Resume uses its remaining allowance
@@ -260,7 +293,7 @@ The reconcile snapshot probes no more than 64 ready index keys per allowed
 Workflow (at most 16 Workflows), then hydrates no more than 64 Tasks and 1 MiB
 of Task metadata. Closed lane windows exclude their aliases before selection,
 so a full model lane cannot hide ready tool work. A sparse queue does not read
-settled Task history. An active Audit completes only after its initial work is
+settled Task history. An active Audit completes only after any eligible configured continuation is settled or explicitly limited, its initial work is
 accepted or explicitly limited, its Tasks settle and its execution window
 drains; completion uses the same Audit revision/control fence as acceptance.
 An empty paused Audit never completes automatically. Successful supporting

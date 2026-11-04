@@ -22,7 +22,7 @@ func ValidateTaskInputs(binding auditcontract.ProgramWorkflow, workflow resolved
 	for name, selected := range inputs {
 		mapping, declared := binding.Inputs[name]
 		slot, exists := workflow.Inputs[name]
-		if !declared || !exists || mapping.Source != "task-input" && mapping.Source != "audit-input" || !contracts.AcceptsMediaType(slot.MediaTypes, selected.MediaType) {
+		if !declared || !exists || mapping.Source != "task-input" && mapping.Source != "audit-input" && mapping.Source != "prior-results" || !contracts.AcceptsMediaType(slot.MediaTypes, selected.MediaType) {
 			return apierror.New(apierror.AuditDocumentInvalid, "audit_document_invalid: incompatible task material")
 		}
 	}

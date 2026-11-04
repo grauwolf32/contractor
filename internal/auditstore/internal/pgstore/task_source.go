@@ -50,7 +50,7 @@ func (s *OwnerStore) RecordPreparedSource(ctx context.Context, p auditstore.Prep
 		if err != nil {
 			return err
 		}
-		if execution.Role != auditstore.ExecutionTask || execution.State != auditstore.ExecutionCollecting && execution.State != auditstore.ExecutionCollected || execution.TerminalOutcome == nil || *execution.TerminalOutcome != auditstore.TerminalSucceeded || execution.RunID == nil || *execution.RunID != p.Source.ScopeID || p.Source.Ref.Namespace != "outputs" || p.Source.Ref.Name != pinned.Program.Workflows[execution.WorkflowRole].Outputs["work"] {
+		if execution.Role != auditstore.ExecutionTask || execution.State != auditstore.ExecutionCollecting && execution.State != auditstore.ExecutionCollected || execution.TerminalOutcome == nil || *execution.TerminalOutcome != auditstore.TerminalSucceeded || execution.RunID == nil || *execution.RunID != p.Source.ScopeID || p.Source.Ref.Namespace != "outputs" || (p.Source.Ref.Name != pinned.Program.Workflows[execution.WorkflowRole].Outputs["work"] && p.Source.Ref.Name != pinned.Program.Workflows[execution.WorkflowRole].Outputs["proposals"]) {
 			return auditstore.ErrPrecondition
 		}
 		result.Count = p.Count

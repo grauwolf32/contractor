@@ -280,7 +280,7 @@ func (i *Importer) collectTasks(ctx context.Context, claim auditstore.Controller
 	}
 	if *execution.TerminalOutcome == auditstore.TerminalSucceeded {
 		for _, output := range outputs {
-			if output.logical != "work" {
+			if output.logical != "work" && output.logical != "proposals" {
 				continue
 			}
 			if i.intake == nil || output.source.MediaType != "application/json" || output.source.SizeBytes > auditcontract.MaxPreparedWorkBytes {
@@ -293,7 +293,11 @@ func (i *Importer) collectTasks(ctx context.Context, claim auditstore.Controller
 				return false, err
 			}
 			source := auditcontract.Material{ScopeKind: "run", ScopeID: *execution.RunID, Ref: output.source.Ref, Digest: output.source.Digest, MediaType: output.source.MediaType, SizeBytes: output.source.SizeBytes}
-			intake, err := i.intake.AcceptPreparedWork(ctx, claim, snapshot, execution, source, data)
+			accept := i.intake.AcceptPreparedWork
+			if output.logical == "proposals" {
+				accept = i.intake.AcceptProposals
+			}
+			intake, err := accept(ctx, claim, snapshot, execution, source, data)
 			if err != nil {
 				var classified apierror.Classified
 				invalid := errors.Is(err, auditstore.ErrInvalid) || errors.Is(err, auditstore.ErrConflict) || artifacts.IsExactReferenceRejection(err) || artifactpostgres.IsExactRevisionMissing(err) || errors.As(err, &classified) && classified.ErrorKind() == apierror.AuditDocumentInvalid

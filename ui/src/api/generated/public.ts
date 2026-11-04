@@ -4507,8 +4507,10 @@ export interface components {
         };
         AuditTaskSource: {
             /** @enum {string} */
-            kind: "initial" | "manual" | "prepared";
+            kind: "initial" | "manual" | "prepared" | "continuation";
             key: components["schemas"]["AuditCommonKey"];
+            /** @description Last source Task ordinal consumed by this exact continuation decision. */
+            through_ordinal?: number;
             execution_id?: components["schemas"]["ResourceId"];
             output?: components["schemas"]["AuditTaskMaterial"];
         };

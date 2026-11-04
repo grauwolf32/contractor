@@ -1220,3 +1220,13 @@ retryable failures retain their original receipt and permit only bounded new
 attempts after terminal observation. Logical outputs remain ordinary immutable
 Artifacts, with trusted common results normalized only for a declared `result`.
 A material without Findings remains a useful completed outcome.
+
+
+**AUX-R112.** At the ordinary drained Task barrier the coordinator asks the Audit
+owner to accept configured continuation before closing the Audit (ACT-R7). One
+bounded frozen source selection creates one ordinary ready Task with a durable
+consumed source boundary. Existing RunService, claims, mutation and collection
+receipts own dispatch, intake and reconciliation. A producer's own result is not
+a continuation source. Pause preserves the Task; cancellation/deletion drain
+outputs without admitting more semantic work. No other controller or intake
+engine exists.

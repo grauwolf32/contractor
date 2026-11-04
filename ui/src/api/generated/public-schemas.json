@@ -5801,6 +5801,9 @@
     },
     "AuditProgramWorkflow": {
       "additionalProperties": false,
+      "not": {
+        "properties": { "outputs": { "required": ["work", "proposals"] } }
+      },
       "properties": {
         "inputs": {
           "additionalProperties": {
@@ -6921,9 +6924,17 @@
       "additionalProperties": false,
       "required": ["kind", "key"],
       "properties": {
-        "kind": { "type": "string", "enum": ["initial", "manual", "prepared"] },
+        "kind": {
+          "type": "string",
+          "enum": ["initial", "manual", "prepared", "continuation"]
+        },
         "key": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCommonKey"
+        },
+        "through_ordinal": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
         },
         "execution_id": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"

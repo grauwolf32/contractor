@@ -377,6 +377,22 @@ func validProgram(v map[string]any) bool {
 }
 
 func validProposalContext(value map[string]any) bool {
+	keys, tasks := map[string]bool{}, map[string]bool{}
+	if observations, ok := value["observations"].([]any); ok {
+		for _, raw := range observations {
+			item := raw.(map[string]any)
+			key, task := item["key"].(string), item["task_id"].(string)
+			if keys[key] || tasks[task] {
+				return false
+			}
+			keys[key], tasks[task] = true, true
+			if _, found := value["materials"].(map[string]any)[key]; !found {
+				if _, gap := item["gap"]; !gap {
+					return false
+				}
+			}
+		}
+	}
 	data, err := strictjson.Canonical(value["program"])
 	if err != nil {
 		return false
@@ -460,6 +476,9 @@ func validProposals(v, program, materials map[string]any) bool {
 		}
 		seen[key] = true
 		if _, ok := program["workflows"].(map[string]any)[task["workflow"].(string)]; !ok {
+			return false
+		}
+		if _, producer := program["workflows"].(map[string]any)[task["workflow"].(string)].(map[string]any)["outputs"].(map[string]any)["proposals"]; producer {
 			return false
 		}
 		if !validInputSelections(task, program["workflows"].(map[string]any)[task["workflow"].(string)].(map[string]any), program["inputs"].(map[string]any), materials) {

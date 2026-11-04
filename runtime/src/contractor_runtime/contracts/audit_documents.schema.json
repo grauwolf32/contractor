@@ -49,6 +49,11 @@
       },
       "type": "object"
     },
+    "attempt_limit": {
+      "maximum": 10,
+      "minimum": 1,
+      "type": "integer"
+    },
     "common_artifactRef": {
       "additionalProperties": false,
       "properties": {
@@ -349,8 +354,178 @@
       "type": "object",
       "x-maxEncodedBytes": 32768
     },
+    "initial": {
+      "additionalProperties": false,
+      "properties": {
+        "hypothesis": {
+          "$ref": "#/$defs/key"
+        },
+        "inputs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/key"
+          },
+          "maxProperties": 32,
+          "propertyNames": {
+            "$ref": "#/$defs/key"
+          },
+          "type": "object"
+        },
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "objective": {
+          "$ref": "#/$defs/text"
+        },
+        "workflow": {
+          "$ref": "#/$defs/key"
+        }
+      },
+      "required": [
+        "key",
+        "workflow",
+        "objective"
+      ],
+      "type": "object"
+    },
+    "input": {
+      "additionalProperties": false,
+      "properties": {
+        "media_types": {
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/common_mediaType"
+              },
+              {
+                "const": "*/*"
+              }
+            ]
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "required": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "required",
+        "media_types"
+      ],
+      "type": "object"
+    },
+    "input_mapping": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "$ref": "#/$defs/key"
+            },
+            "source": {
+              "const": "audit-input"
+            }
+          },
+          "required": [
+            "source",
+            "name"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "source": {
+              "enum": [
+                "task-context",
+                "prior-results",
+                "task-input"
+              ]
+            }
+          },
+          "required": [
+            "source"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "key": {
       "$ref": "#/$defs/common_name"
+    },
+    "limits": {
+      "additionalProperties": false,
+      "properties": {
+        "batch_size": {
+          "maximum": 64,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "deadline_seconds": {
+          "maximum": 31536000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_attempts": {
+          "$ref": "#/$defs/attempt_limit"
+        },
+        "max_evidence_bytes": {
+          "maximum": 1073741824,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_hypotheses": {
+          "maximum": 10000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_hypothesis_bytes": {
+          "maximum": 268435456,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_hypothesis_revisions": {
+          "maximum": 50000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_iterations": {
+          "maximum": 32,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_submitted_runs": {
+          "maximum": 1000000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_tasks": {
+          "maximum": 100000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_tasks_per_iteration": {
+          "maximum": 10000,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "max_tasks",
+        "max_iterations",
+        "max_tasks_per_iteration",
+        "batch_size",
+        "max_submitted_runs",
+        "max_attempts",
+        "deadline_seconds",
+        "max_evidence_bytes",
+        "max_hypotheses",
+        "max_hypothesis_revisions",
+        "max_hypothesis_bytes"
+      ],
+      "type": "object"
     },
     "member": {
       "additionalProperties": false,
@@ -392,11 +567,298 @@
       ],
       "type": "object"
     },
+    "program": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "anyOf": [
+            {
+              "properties": {
+                "initial_work": {
+                  "minItems": 1
+                }
+              }
+            },
+            {
+              "required": [
+                "seed_source"
+              ]
+            }
+          ]
+        }
+      ],
+      "properties": {
+        "continuation": {
+          "additionalProperties": false,
+          "properties": {
+            "workflow": {
+              "$ref": "#/$defs/key"
+            }
+          },
+          "required": [
+            "workflow"
+          ],
+          "type": "object"
+        },
+        "hypotheses": {
+          "additionalProperties": {
+            "$ref": "#/$defs/seed"
+          },
+          "maxProperties": 10000,
+          "propertyNames": {
+            "$ref": "#/$defs/key"
+          },
+          "type": "object"
+        },
+        "initial_work": {
+          "items": {
+            "$ref": "#/$defs/initial"
+          },
+          "maxItems": 10000,
+          "minItems": 0,
+          "type": "array"
+        },
+        "inputs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/input"
+          },
+          "maxProperties": 32,
+          "propertyNames": {
+            "$ref": "#/$defs/key"
+          },
+          "type": "object"
+        },
+        "limits": {
+          "$ref": "#/$defs/limits"
+        },
+        "policy": {
+          "additionalProperties": false,
+          "properties": {
+            "active_operations": {
+              "enum": [
+                "allowed",
+                "prohibited"
+              ]
+            }
+          },
+          "required": [
+            "active_operations"
+          ],
+          "type": "object"
+        },
+        "schema": {
+          "const": "contractor.audit.program.v1"
+        },
+        "seed_source": {
+          "$ref": "#/$defs/seed_source"
+        },
+        "workflows": {
+          "additionalProperties": {
+            "$ref": "#/$defs/workflow"
+          },
+          "maxProperties": 16,
+          "minProperties": 1,
+          "propertyNames": {
+            "$ref": "#/$defs/key"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "schema",
+        "inputs",
+        "workflows",
+        "hypotheses",
+        "initial_work",
+        "limits",
+        "policy"
+      ],
+      "type": "object",
+      "x-maxEncodedBytes": 4194304
+    },
+    "proposal_context": {
+      "additionalProperties": false,
+      "properties": {
+        "materials": {
+          "additionalProperties": {
+            "$ref": "#/$defs/artifact"
+          },
+          "maxProperties": 32,
+          "propertyNames": {
+            "$ref": "#/$defs/key"
+          },
+          "type": "object"
+        },
+        "observations": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "gap": {
+                "maxLength": 512,
+                "type": "string"
+              },
+              "hypothesis": {
+                "$ref": "#/$defs/hypothesis"
+              },
+              "key": {
+                "$ref": "#/$defs/key"
+              },
+              "task_id": {
+                "$ref": "#/$defs/resource_id"
+              }
+            },
+            "required": [
+              "key",
+              "task_id"
+            ],
+            "type": "object"
+          },
+          "maxItems": 16,
+          "type": "array"
+        },
+        "program": {
+          "$ref": "#/$defs/program"
+        },
+        "schema": {
+          "const": "contractor.audit.proposal-context.v1"
+        }
+      },
+      "required": [
+        "schema",
+        "program",
+        "materials"
+      ],
+      "type": "object"
+    },
+    "proposals": {
+      "additionalProperties": false,
+      "properties": {
+        "hypotheses": {
+          "additionalProperties": {
+            "$ref": "#/$defs/seed"
+          },
+          "maxProperties": 128,
+          "propertyNames": {
+            "$ref": "#/$defs/key"
+          },
+          "type": "object"
+        },
+        "schema": {
+          "const": "contractor.audit.proposals.v1"
+        },
+        "work": {
+          "items": {
+            "$ref": "#/$defs/initial"
+          },
+          "maxItems": 128,
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema",
+        "hypotheses",
+        "work"
+      ],
+      "type": "object"
+    },
     "ref": {
       "$ref": "#/$defs/common_exactArtifactRef"
     },
     "resource_id": {
       "$ref": "#/$defs/common_resourceId"
+    },
+    "seed": {
+      "additionalProperties": false,
+      "description": "The complete seed's RFC 8785 canonical UTF-8 encoding must fit 32768 bytes. This early content bound does not replace the complete hypothesis document bound after trusted identity, revision and origin are assigned.",
+      "properties": {
+        "grounds": {
+          "$ref": "#/$defs/text"
+        },
+        "scope": {
+          "$ref": "#/$defs/assertion_scope"
+        },
+        "statement": {
+          "$ref": "#/$defs/text"
+        }
+      },
+      "required": [
+        "statement",
+        "scope",
+        "grounds"
+      ],
+      "type": "object",
+      "x-maxCanonicalBytes": 32768
+    },
+    "seed_source": {
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "standard"
+                ]
+              },
+              {
+                "required": [
+                  "entry_ids"
+                ]
+              }
+            ]
+          },
+          "required": [
+            "input"
+          ]
+        },
+        {
+          "not": {
+            "required": [
+              "input"
+            ]
+          },
+          "required": [
+            "standard"
+          ]
+        }
+      ],
+      "properties": {
+        "entry_ids": {
+          "items": {
+            "$ref": "#/$defs/text"
+          },
+          "maxItems": 128,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "input": {
+          "$ref": "#/$defs/key"
+        },
+        "standard": {
+          "additionalProperties": false,
+          "properties": {
+            "scheme": {
+              "$ref": "#/$defs/key"
+            },
+            "version": {
+              "$ref": "#/$defs/text"
+            }
+          },
+          "required": [
+            "scheme",
+            "version"
+          ],
+          "type": "object"
+        },
+        "workflow": {
+          "$ref": "#/$defs/key"
+        }
+      },
+      "required": [
+        "workflow"
+      ],
+      "type": "object"
     },
     "text": {
       "maxLength": 65536,
@@ -404,6 +866,67 @@
       "pattern": "[^\t\n\u000b\f\r                  　]",
       "type": "string",
       "x-maxUtf8Bytes": 65536
+    },
+    "workflow": {
+      "additionalProperties": false,
+      "not": {
+        "properties": {
+          "outputs": {
+            "required": [
+              "work",
+              "proposals"
+            ]
+          }
+        }
+      },
+      "properties": {
+        "inputs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/input_mapping"
+          },
+          "maxProperties": 128,
+          "propertyNames": {
+            "$ref": "#/$defs/key"
+          },
+          "type": "object"
+        },
+        "max_attempts": {
+          "$ref": "#/$defs/attempt_limit"
+        },
+        "outputs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/key"
+          },
+          "maxProperties": 128,
+          "propertyNames": {
+            "$ref": "#/$defs/key"
+          },
+          "type": "object"
+        },
+        "parameters": {
+          "additionalProperties": {
+            "maxLength": 4096,
+            "type": "string",
+            "x-maxUtf8Bytes": 4096
+          },
+          "maxProperties": 128,
+          "propertyNames": {
+            "$ref": "#/$defs/key"
+          },
+          "type": "object"
+        },
+        "ref": {
+          "$ref": "#/$defs/common_selector",
+          "maxLength": 193
+        }
+      },
+      "required": [
+        "ref",
+        "inputs",
+        "parameters",
+        "outputs"
+      ],
+      "type": "object"
     }
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -416,6 +939,15 @@
     },
     {
       "$ref": "#/$defs/hypothesis"
+    },
+    {
+      "$ref": "#/$defs/proposal_context"
+    },
+    {
+      "$ref": "#/$defs/proposals"
+    },
+    {
+      "$ref": "#/$defs/program"
     }
   ]
 }

@@ -38,7 +38,7 @@ func (s *OwnerStore) LookupTaskAcceptance(ctx context.Context, ownerID, auditID,
 
 func decodeTaskAcceptance(data []byte) (auditstore.TaskAcceptance, error) {
 	var result auditstore.TaskAcceptance
-	if strictjson.Decode(data, &result) != nil || len(result.TaskIDs) == 0 || len(result.TaskIDs) > auditcontract.MaxMutationRecords || result.CreatedCount < 0 || result.CreatedCount > len(result.TaskIDs) || result.AuditRevision == 0 || result.AuditRevision > contracts.MaxExactInteger {
+	if strictjson.Decode(data, &result) != nil || result.TaskIDs == nil || len(result.TaskIDs) > auditcontract.MaxMutationRecords || result.CreatedCount < 0 || result.CreatedCount > len(result.TaskIDs) || result.AuditRevision == 0 || result.AuditRevision > contracts.MaxExactInteger {
 		return auditstore.TaskAcceptance{}, errStoredTask
 	}
 	seen := map[string]bool{}
@@ -55,7 +55,7 @@ func decodeTaskAcceptance(data []byte) (auditstore.TaskAcceptance, error) {
 // producer outputs. Material retention precedes this bounded transaction.
 func (s *OwnerStore) AcceptTasks(ctx context.Context, p auditstore.AcceptTasksParams) (auditstore.TaskAcceptance, bool, error) {
 	if len(p.HypothesisWrites) > 0 {
-		if p.Claim != nil || len(p.HypothesisWrites)+len(p.Tasks) > auditcontract.MaxMutationRecords {
+		if p.Claim != nil && p.PreparedProgress == nil || len(p.HypothesisWrites)+len(p.Tasks) > auditcontract.MaxMutationRecords {
 			return auditstore.TaskAcceptance{}, false, auditstore.ErrInvalid
 		}
 		data, err := strictjson.Canonical(struct {
@@ -70,10 +70,10 @@ func (s *OwnerStore) AcceptTasks(ctx context.Context, p auditstore.AcceptTasksPa
 			for _, task := range p.Tasks {
 				referenced = referenced || task.Hypothesis != nil && task.Hypothesis.ID == write.Document.ID && task.Hypothesis.Revision == write.Document.Revision
 			}
-			if !referenced {
+			if !referenced && p.PreparedProgress == nil {
 				return auditstore.TaskAcceptance{}, false, auditstore.ErrInvalid
 			}
-			if write.Document.Revision == 1 && (write.Document.Origin.Kind != "manual" || write.Fixed) {
+			if write.Document.Revision == 1 && (write.Document.Origin.Kind != "manual" && !(p.PreparedProgress != nil && write.Document.Origin.Kind == "run") || write.Fixed) {
 				return auditstore.TaskAcceptance{}, false, auditstore.ErrInvalid
 			}
 		}
@@ -137,7 +137,7 @@ func acceptTasksInTransaction(ctx context.Context, tx pgx.Tx, p auditstore.Accep
 	if err != nil {
 		return auditstore.TaskAcceptance{}, err
 	}
-	if audit.State != auditstore.AuditActive && audit.State != auditstore.AuditPaused || p.Claim == nil && audit.Revision != p.ExpectedRevision {
+	if audit.State != auditstore.AuditActive && audit.State != auditstore.AuditPaused || p.Claim == nil && audit.Revision != p.ExpectedRevision || p.ContinuationRevision != 0 && audit.Revision != p.ContinuationRevision {
 		return auditstore.TaskAcceptance{}, auditstore.ErrPrecondition
 	}
 	pinned, err := decodeAuditProgram(audit)
@@ -149,11 +149,12 @@ func acceptTasksInTransaction(ctx context.Context, tx pgx.Tx, p auditstore.Accep
 			return auditstore.TaskAcceptance{}, err
 		}
 	}
+
 	if err := validateTaskIntakeProgress(ctx, tx, audit, pinned, p, selected); err != nil {
 		return auditstore.TaskAcceptance{}, err
 	}
 	if len(p.HypothesisWrites) > 0 {
-		if err := persistHypotheses(ctx, tx, audit, pinned, p.HypothesisWrites, false); err != nil {
+		if err := persistHypotheses(ctx, tx, audit, pinned, p.HypothesisWrites, p.PreparedProgress != nil); err != nil {
 			return auditstore.TaskAcceptance{}, err
 		}
 	}
@@ -313,6 +314,11 @@ func verifyTaskMaterials(ctx context.Context, tx pgx.Tx, auditID string, selecte
 }
 
 func validateTaskIntakeProgress(ctx context.Context, tx pgx.Tx, audit auditstore.Audit, pinned auditprofile.PinnedProgram, p auditstore.AcceptTasksParams, selected []validatedTask) error {
+	if p.ContinuationRevision != 0 {
+		if len(selected) != 1 || pinned.Program.Continuation == nil || selected[0].Source.Kind != "continuation" || selected[0].Source.ThroughOrdinal > audit.TaskCount || selected[0].Document.Workflow != pinned.Program.Continuation.Workflow {
+			return auditstore.ErrInvalid
+		}
+	}
 	if progress := p.InitialProgress; progress != nil {
 		if progress.From != audit.InitialWorkOffset || progress.To-progress.From != len(selected) || progress.To > len(pinned.Program.InitialWork) || progress.From < 0 {
 			return auditstore.ErrPrecondition
@@ -348,6 +354,25 @@ func validateTaskIntakeProgress(ctx context.Context, tx pgx.Tx, audit auditstore
 		var expected auditcontract.Material
 		if strictjson.Decode(source, &expected) != nil {
 			return errStoredTask
+		}
+
+		if len(p.HypothesisWrites) > 0 {
+			origin := p.HypothesisWrites[0].Document.Origin
+			var member bool
+			if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM audit_execution_items WHERE audit_id=$1 AND execution_id=$2 AND task_id=$3)`, p.AuditID, progress.ExecutionID, origin.TaskID).Scan(&member); err != nil {
+				return err
+			}
+			if !member {
+				return auditstore.ErrInvalid
+			}
+			for _, write := range p.HypothesisWrites {
+				h := write.Document
+				a, ae := strictjson.Canonical(h.Origin.Source)
+				b, be := strictjson.Canonical(expected)
+				if h.Origin.Kind != "run" || h.Origin.RunID != expected.ScopeID || h.Origin.TaskID != origin.TaskID || ae != nil || be != nil || string(a) != string(b) || write.Fixed {
+					return auditstore.ErrInvalid
+				}
+			}
 		}
 		for _, task := range selected {
 			a, err := strictjson.Canonical(task.Source.Output)
