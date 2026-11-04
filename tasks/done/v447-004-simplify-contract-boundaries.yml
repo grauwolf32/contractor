@@ -2,7 +2,8 @@ schema_version: "1.0"
 milestone: contracts-review-2026-11
 epic: api-contracts
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: f4bd8f8b39bab7aaefea1f832cbee84507eb1b41
 id: V447-004
 title: Reuse strict JSON decoding and restore contracts domain boundaries
 kind: chore
@@ -33,3 +34,10 @@ tests:
   - {command: 'go test ./internal/contracts/... ./internal/auditdomain ./internal/archtest ./internal/controlplane/... ./internal/config/... ./internal/configload/...', covers: [A1, A2, A3, A4]}
   - {command: make test-wire-cross-language, covers: [A1, A2, A3, A4]}
   - {command: make lint, covers: [A1, A2, A3, A4]}
+  - {command: make test-runtime, covers: [A4]}
+verification:
+  date: '2026-11-05'
+  result: >-
+    Complete contracts/auditdomain/archtest/controlplane/config/configload Go suites passed with disposable PostgreSQL. make lint passed. The complete shared-wire gate passed with GOFLAGS=-p=4: 372 fixtures, 409 Go and 261 Python shared tests, including 1430 selected Runtime tests. The first concurrent attempt exhausted the disposable PostgreSQL lock table; its eight failed tests passed separately, and the complete rerun passed with max_locks_per_transaction=256. make test-runtime passed with 5835 tests and 135 skips; the first run had one Nuclei large-package failure, which passed separately on main and this branch and in the complete rerun. No unrelated production changes were needed.
+  performance: >-
+    BenchmarkHTTPRequestSetDecode on Apple M5 Max, Go 1.26.9, four samples per variant with -benchtime=250ms -benchmem: median 2MiB decode time decreased from 60.27ms to 25.83ms, allocated bytes from 43.29MB/op to 31.20MB/op, allocations from 19085.5 to 7917/op. Small-document median decreased from 25.60us to 6.48us and from 270 to 62 allocations/op. The same benchmark source ran before the change through a Go overlay and after it as the committed benchmark; these are local workload measurements.
