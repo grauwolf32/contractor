@@ -6,7 +6,7 @@ epic: quality
 kind: chore
 introduced_by: V411-011
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V411-011]
 languages: [go]
 goal: Gate verifier tests follow the current required Findings cases without maintaining a second membership list.
@@ -48,3 +48,4 @@ verification:
     follows the canonical required membership; every existing missing/skip/fail/
     never-run/malformed mutation remains rejected. Production gate code and its
     required membership are unchanged.
+implementation_commit: 187857e636ff09109ea5ceb87691615cedc29968
