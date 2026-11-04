@@ -32,6 +32,7 @@ class Exchange:
     buffer: io.BytesIO = field(default_factory=io.BytesIO)
     hooks: set[asyncio.Task[None]] = field(default_factory=set)
     truncated: bool = False
+    closing: bool = False
 
     def receive(self, data: bytes) -> bool:
         available = self.body_limit - self.buffer.tell()

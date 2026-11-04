@@ -1,0 +1,70 @@
+schema_version: '1.0'
+id: V410-038
+title: Join cancelled target establishment before releasing its HTTP exchange
+milestone: project-sitemap-2026-10
+epic: http-tools
+kind: defect
+introduced_by: V410-030
+priority: P1
+status: in_progress
+depends_on: [V410-036]
+languages: [python, markdown, json]
+goal: A cancelled or timed-out controlled request cannot leave TCP/TLS work capable of sending its HTTP bytes after the call returns.
+context:
+  authority: User P1 review 2026-11-04 reproduces a late HTTPS POST after cancellation and timeout on a real TLS/HTTP/1.1 socket while allocation authority remains valid.
+  finding: >-
+    bridge/mitmproxy/engine.py:501 joins only exchange.hooks before deleting the
+    exchange. lifecycle.py binds hooks only by flow id, leaving TLS connection
+    callbacks outside that set. protocol.py:191 forwards SendHttp commands when
+    the exchange is missing, so a delayed TLS callback can resume a released POST.
+  siblings: >-
+    Pending TCP dial/permit wait, native TLS setup in to_thread_until_done, HTTP/1.1
+    and HTTP/2 establishment, queued HTTP/2 requests, reused established pools and
+    active multiplexed streams. Scanner target exchanges use the same owner.
+  specification:
+  - docs/spec/tools/http-caido.md#HTP-R138
+  - docs/spec/tools/http-caido.md#HTP-R146
+  boundary_decision: >-
+    Mark an exchange as closing before aborting work. Bind connection establishment
+    and TLS hooks to their request before native dispatch can suspend, and cancel/join
+    unfinished establishment and its callbacks before removing flow/private state.
+    A blocking TLS thread must finish under the existing joined-thread mechanism;
+    caller completion cannot outrun it. Native request sends require a live exchange
+    even when resuming queued work. Established reusable connections remain pooled,
+    and HTTP/2 stream cancellation preserves unrelated live streams.
+scope:
+  in:
+  - Own and stop pending TCP/TLS tasks and callbacks during exact-exchange teardown, including repeated cancellation and callbacks created during cleanup.
+  - Reject native request headers/data/trailers/end without a live admitted exchange and retain deadline checks before sending.
+  - Remove cancelled native routing/stream state only after its owned tasks join, retaining retryable cleanup handles if close fails.
+  - Add deterministic real-socket cancellation/timeout regressions during threaded TLS setup, plus TCP and HTTP/2 siblings and pool reuse.
+  out:
+  - OpenVPN task V410-037, new protocols, public/wire fields, global connection shutdown or unrelated Podman/validator timing repairs.
+acceptance_criteria:
+- id: A1
+  text: Cancelling or timing out POST while native TLS setup is held in its real worker thread cannot complete cleanup before that thread is joined; no POST bytes reach the real target before or after release, and a later request in the same allocation succeeds.
+- id: A2
+  text: Pending TCP establishment and HTTP/2 TLS siblings obey the same ownership rule; repeated cancellation cannot abandon cleanup, and an established unrelated HTTP/2 stream remains usable.
+- id: A3
+  text: Native send paths fail closed for missing/closing exchanges; completed requests retain verified keepalive/H2 reuse and no stale hooks/flows/streams remain after the cancelled attempt.
+- id: A4
+  text: Real-path regressions fail before the fix; complete affected HTTP/scanner suites, mandatory Python conformance report, lint and task/spec checks pass, without claiming an unrun or failed broad gate passed.
+tests:
+- command: cd runtime && uv run pytest -W error tests/test_bridge_establishment.py tests/test_bridge_retirement.py tests/test_bridge_ingress.py tests/test_bridge_messages.py tests/test_bridge_framing.py tests/test_bridge_lifecycle.py tests/test_http_engine.py tests/test_http_proxy_bridge.py tests/test_engagement_socket_conformance.py tests/test_nuclei_engagement.py tests/test_engagement_target.py tests/test_engagement_identity.py tests/test_engagement_allocation.py tests/test_audit_http_credentials.py --junitxml=/tmp/v410-038-focused.xml
+  covers: [A1, A2, A3, A4]
+- command: python3 scripts/test-engagement-http-process.py --verify-python-report /tmp/v410-038-focused.xml
+  covers: [A4]
+- command: make lint
+  covers: [A4]
+- command: python3 scripts/check_spec.py
+  covers: [A4]
+- command: cd runtime && uv run python ../scripts/check_tasks.py
+  covers: [A4]
+verification:
+  red: Eight real-socket TLS scenarios (HTTP/1.1 and HTTP/2, cancellation and an explicitly rescheduled real inner timeout, with single/repeated cancellation) failed before the fix; the TCP delay control cases already passed.
+  regression: All fifteen new establishment/encoder/cleanup cases pass. The TLS gate wraps the existing TlsConfig.tls_start_server call in its actual worker thread; timeout is triggered only after entry, with allocation authority still valid. No POST is emitted, all callbacks/TCP work are terminal before return, and a fresh GET succeeds in the same allocation.
+  failure_path: A forced connection-close refusal still joins the TLS thread before returning failure, retains ownership until allocation close retries, and erases private exchange state without an unobserved Future exception.
+  focused: Complete affected HTTP/bridge/scanner suites passed (242 tests, no skips); mandatory Python HTTP conformance accepted /tmp/v410-038-focused.xml and all six gate regression tests passed.
+  lint: make lint passed, including Runtime Ruff/import layers and release graph; check_spec.py and check_tasks.py also passed directly.
+  broad_gate: make test-runtime was not rerun for this fix. Its previous Podman/validator failures are not reported as passes; no broad Runtime or release pass is claimed.
+  delivery: Local branch codex/sitemap-source-comparison; not merged into main. The separate untracked V410-037 task is outside this change.

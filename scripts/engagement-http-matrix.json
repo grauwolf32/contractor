@@ -180,6 +180,21 @@
     "tests.test_bridge_ingress::test_scanner_request_line_whitespace_cannot_skip_source_admission[crlf-tab]",
     "tests.test_bridge_ingress::test_scanner_request_line_whitespace_cannot_skip_source_admission[lf-repeated-space]",
     "tests.test_bridge_ingress::test_scanner_request_line_whitespace_cannot_skip_source_admission[lf-tab]",
-    "tests.test_bridge_ingress::test_scanner_lf_headers_preserve_an_admitted_empty_query"
+    "tests.test_bridge_ingress::test_scanner_lf_headers_preserve_an_admitted_empty_query",
+    "tests.test_bridge_establishment::test_cancelled_tls_setup_is_joined_before_call_returns[once-cancel-http11]",
+    "tests.test_bridge_establishment::test_cancelled_tls_setup_is_joined_before_call_returns[once-cancel-http2]",
+    "tests.test_bridge_establishment::test_cancelled_tls_setup_is_joined_before_call_returns[once-timeout-http11]",
+    "tests.test_bridge_establishment::test_cancelled_tls_setup_is_joined_before_call_returns[once-timeout-http2]",
+    "tests.test_bridge_establishment::test_cancelled_tls_setup_is_joined_before_call_returns[repeated-cancel-http11]",
+    "tests.test_bridge_establishment::test_cancelled_tls_setup_is_joined_before_call_returns[repeated-cancel-http2]",
+    "tests.test_bridge_establishment::test_cancelled_tls_setup_is_joined_before_call_returns[repeated-timeout-http11]",
+    "tests.test_bridge_establishment::test_cancelled_tls_setup_is_joined_before_call_returns[repeated-timeout-http2]",
+    "tests.test_bridge_establishment::test_cancelled_tcp_dial_cannot_connect_after_call_returns[cancel]",
+    "tests.test_bridge_establishment::test_cancelled_tcp_dial_cannot_connect_after_call_returns[timeout]",
+    "tests.test_bridge_establishment::test_native_encoders_and_command_filter_drop_unowned_request_messages[missing-http11]",
+    "tests.test_bridge_establishment::test_native_encoders_and_command_filter_drop_unowned_request_messages[missing-http2]",
+    "tests.test_bridge_establishment::test_native_encoders_and_command_filter_drop_unowned_request_messages[closing-http11]",
+    "tests.test_bridge_establishment::test_native_encoders_and_command_filter_drop_unowned_request_messages[closing-http2]",
+    "tests.test_bridge_establishment::test_failed_establishment_close_still_joins_tls_and_retains_cleanup_ownership"
   ]
 }

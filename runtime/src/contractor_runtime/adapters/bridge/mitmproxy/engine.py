@@ -241,6 +241,34 @@ class _Pool(OwnedHandler, server.ConnectionHandler):
         except Exception as error:
             self.fail(error, callback=True)
 
+    def exchange_for_hook(self, hook):
+        exchange = super().exchange_for_hook(hook)
+        if exchange is not None:
+            return exchange
+        data = hook.args()[0]
+        connection = getattr(data, "conn", None) or getattr(data, "server", None)
+        exchange = self.connecting.get(connection)
+        if exchange is not None and self.exchanges.get(exchange.stream_id) is exchange:
+            return exchange
+        return None
+
+    async def stop_establishment(self, connection: Server, exchange: Exchange) -> None:
+        io = self.transports.get(connection)
+        results = []
+        # Cancel callbacks as well as the TCP task. Threaded TLS setup absorbs
+        # cancellation until the thread exits; the exchange remains owned meanwhile.
+        for task in exchange.hooks:
+            if not task.done():
+                task.cancel()
+        if io is not None and io.handler is not None:
+            self.close_connection(connection)
+            results = await asyncio.gather(io.handler, return_exceptions=True)
+        # A native task cancelled before its first step never enters its finally.
+        await self._release_connection(connection)
+        for result in results:
+            if isinstance(result, Exception) and not isinstance(result, OSError):
+                raise result
+
     async def server_event(self, event):
         await super().server_event(event)
         if isinstance(event, events.HookCompleted) and isinstance(
@@ -362,6 +390,11 @@ class _Pool(OwnedHandler, server.ConnectionHandler):
         for exchange in self.exchanges.values():
             exchange.reason = exchange.reason or "transport_failed"
             exchange.finish()
+            if exchange.future is not None and not exchange.future.cancelled():
+                exchange.future.exception()
+            exchange.hooks.clear()
+            exchange.clear()
+        self.exchanges.clear()
         self.layer.connections.clear()
         self.layer.streams.clear()
         self.layer.command_sources.clear()
@@ -495,11 +528,33 @@ class MitmproxyEngine:
                 raise asyncio.CancelledError
 
     async def _release_exchange(self, pool: _Pool, exchange: Exchange) -> None:
+        exchange.closing = True
+        connection = exchange.connection
+        establishing = (
+            connection is not None
+            and pool.connecting.get(connection) is exchange
+            and connection not in pool.parsers
+        )
         if exchange.flow is not None:
-            await pool.abort(exchange)
-            # Join callbacks advancing this exact stream before erasing private state.
-            while pending := [task for task in exchange.hooks if not task.done()]:
-                await asyncio.gather(*pending, return_exceptions=True)
+            try:
+                await pool.abort(exchange)
+            finally:
+                try:
+                    if establishing:
+                        await pool.stop_establishment(connection, exchange)
+                finally:
+                    # Even a failed socket close must join threaded TLS work
+                    # before returning failure; retain handles for cleanup retry.
+                    while pending := [task for task in exchange.hooks if not task.done()]:
+                        await asyncio.gather(*pending, return_exceptions=True)
+            # Cancellation of a blocking hook cannot deliver HookCompleted. Its
+            # paused native stream/routes must be retired after the callbacks join.
+            pool.layer.streams.pop(exchange.stream_id, None)
+            for command, source in tuple(pool.layer.command_sources.items()):
+                if getattr(source, "flow", None) is exchange.flow or (
+                    establishing and source.context.server is connection
+                ):
+                    pool.layer.command_sources.pop(command, None)
             self.flows.pop(exchange.flow.id, None)
         parser = pool.parsers.get(exchange.connection)
         if isinstance(parser, BoundedHttp2Client):

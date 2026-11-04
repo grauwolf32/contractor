@@ -18,6 +18,21 @@ from mitmproxy.proxy.layers.http._events import ErrorCode, ResponseProtocolError
 from contractor_runtime.adapters.bridge.mitmproxy.framing import BoundedHttp1Body
 from contractor_runtime.core.http_limits import MAX_CONTROLLED_HEADER_BYTES, MAX_HEADERS
 
+_REQUEST_MESSAGES = (
+    native_http.RequestHeaders,
+    native_http.RequestData,
+    native_http.RequestTrailers,
+    native_http.RequestEndOfMessage,
+)
+
+
+def _admitted_exchange(pool, event):
+    exchange = pool.exchanges.get(event.stream_id)
+    if exchange is None or exchange.closing:
+        return None
+    exchange.boundary.require_time()
+    return exchange
+
 
 class Submit(events.DataReceived):
     def __init__(self, connection, exchange):
@@ -49,10 +64,16 @@ class BoundedHttp1Client(BoundedHttp1Body, _http1.Http1Client):
     header_bytes = 0
     header_count = 0
 
+    def __init__(self, context, pool):
+        super().__init__(context)
+        self.pool = pool
+
     def framing_budget(self):
         return MAX_CONTROLLED_HEADER_BYTES, self.header_bytes, self.header_count
 
     def send(self, event):
+        if isinstance(event, _REQUEST_MESSAGES) and _admitted_exchange(self.pool, event) is None:
+            return
         if isinstance(event, native_http.RequestHeaders):
             self.header_bytes = self.header_count = 0
         yield from super().send(event)
@@ -119,11 +140,8 @@ class BoundedHttp2Client(_http2.Http2Client):
             # can send it when a later SETTINGS/WINDOW update arrives.
             self.stream_queue.pop(event.stream_id, None)
             return
-        if isinstance(event, native_http.RequestHeaders):
-            exchange = self.pool.exchanges.get(event.stream_id)
-            if exchange is None:
-                return
-            exchange.boundary.require_time()
+        if isinstance(event, _REQUEST_MESSAGES) and _admitted_exchange(self.pool, event) is None:
+            return
         yield from super()._handle_event(event)
 
     def handle_h2_event(self, event):
@@ -166,7 +184,7 @@ class NativeClient(native_http.HttpClient):
             parser = (
                 BoundedHttp2Client(self.context, self.pool)
                 if self.context.server.alpn == b"h2"
-                else BoundedHttp1Client(self.context)
+                else BoundedHttp1Client(self.context, self.pool)
             )
             self.pool.parsers[self.context.server] = parser
             self.child_layer = parser
@@ -186,10 +204,22 @@ class Child:
 
     def handle_event(self, event):
         for command in self.inner.handle_event(event):
-            if isinstance(command, native_http.SendHttp):
-                exchange = self.pool.exchanges.get(command.event.stream_id)
-                if exchange is not None and isinstance(command.event, native_http.RequestHeaders):
-                    exchange.boundary.require_time()
+            if isinstance(command, commands.OpenConnection):
+                exchange = self.pool.connecting.get(command.connection)
+                if (
+                    exchange is None
+                    or exchange.closing
+                    or self.pool.exchanges.get(exchange.stream_id) is not exchange
+                ):
+                    continue
+                exchange.boundary.require_time()
+            if isinstance(command, native_http.SendHttp) and isinstance(
+                command.event, _REQUEST_MESSAGES
+            ):
+                exchange = _admitted_exchange(self.pool, command.event)
+                if exchange is None:
+                    continue
+                if isinstance(command.event, native_http.RequestHeaders):
                     exchange.connection = command.connection
                     # Set before entering the encoder/write. A queued H2 send
                     # is conservatively possibly sent, never automatically replayed.
@@ -232,7 +262,10 @@ class RoutedHttpLayer(native_http.HttpLayer):
 
     def get_connection(self, event, *, reuse=True):
         source = self.command_sources[event]
-        exchange = self.pool.engine.flows[source.flow.id]
+        exchange = self.pool.engine.flows.get(source.flow.id)
+        if exchange is None or exchange.closing:
+            self.command_sources.pop(event, None)
+            return
         exchange.boundary.require_time()
         address = str(exchange.addresses[0])
         event.address = (address, self.pool.port)
@@ -261,6 +294,9 @@ class RoutedHttpLayer(native_http.HttpLayer):
             tls=event.tls,
             alpn_offers=(b"h2", b"http/1.1") if event.tls else (),
         )
+        # Establishment belongs to the request before either TCP or a native
+        # callback task can start, including cancellation before first execution.
+        exchange.connection = context.server
         stack = tunnel.LayerStack()
         if event.tls:
             stack /= layers.ServerTLSLayer(context)

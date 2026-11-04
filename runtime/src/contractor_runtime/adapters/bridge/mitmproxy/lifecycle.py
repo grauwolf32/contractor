@@ -6,14 +6,17 @@ from contractor_runtime.core.async_tasks import join_owned_task
 
 
 class OwnedHandler:
+    def exchange_for_hook(self, hook):
+        data = hook.args()[0]
+        flows = getattr(getattr(self, "engine", None), "flows", {})
+        return flows.get(getattr(data, "id", None))
+
     def hook_task(self, hook):
         # Called synchronously when the native dispatcher creates its callback.
         # Register now, including callbacks that have not begun executing yet.
         task = asyncio.create_task(super().hook_task(hook), name="http-engine-callback")
         self.hooks.add(task)
-        data = hook.args()[0]
-        flows = getattr(getattr(self, "engine", None), "flows", {})
-        exchange = flows.get(getattr(data, "id", None))
+        exchange = self.exchange_for_hook(hook)
         if exchange is not None:
             exchange.hooks.add(task)
 
