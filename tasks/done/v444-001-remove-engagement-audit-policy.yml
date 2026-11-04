@@ -6,7 +6,7 @@ epic: audits
 kind: chore
 introduced_by: V411-002
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V411-002, V64-002, V411-011, V444-004]
 languages: [go, python, json, yaml, typescript]
 goal: >-
@@ -114,30 +114,32 @@ test_prerequisites:
   - Use disposable PostgreSQL; a configured unreachable database, zero selected tests or unexpected mandatory process skips fail.
   - Tests use testdata rather than live configs; no live Gateway or demo writes are authorized by this task.
 
-progress:
-  boundary_patch: >-
-    Core removal is implemented, including the V411-011 Project Findings source-mode
-    consumer. Exact input retention, ordinary Audit limits/resume, shared strict
-    documents and private allocation projections are updated. Task remains in_progress.
-  verification_before_main_integration: >-
-    Full touched Go packages passed on isolated UTF-8 PostgreSQL; Eval program suite,
-    wire/public API gates, UI typecheck and make lint passed. HTTP conformance passed
-    41 process, 2 accounting and 92 Runtime cases with no selected skips. The updated
-    Findings regression passes its full package and fails when the former source-mode
-    predicate is restored through a temporary Go overlay.
-  runtime_pending: >-
-    Initial full Runtime: 5711 passed, 135 expected platform/environment skips and
-    one large-package Nuclei worker/replay failure. That case passed isolated and
-    in the shared-fixture gate. A second whole run was interrupted for integration
-    with newly merged native HTTP transport; no full Runtime success is claimed.
+verification:
+  date: "2026-11-05"
+  result: >-
+    All declared checks pass. Full touched Go packages passed on isolated UTF-8
+    PostgreSQL; the full findingintake package passed again after strengthening
+    the reduced-engagement reader regression. Eval program tests, shared wire
+    fixtures, public API and make lint passed. Integrated native HTTP conformance
+    passed 41 process, 2 accounting and 157 Runtime cases with zero selected skips.
+    Final sequential make test-runtime passed 5823 tests with 135 existing optional
+    platform/environment skips, accepted by verify-runtime. Ordinary Audit input
+    pinning/purge, profile limits, unlimited and finite Resume, exact credentials,
+    scope and allocation cleanup remain checked.
+  negative_control: >-
+    Restoring the former source-mode predicate through a temporary Go overlay
+    makes the real PostgreSQL reduced-engagement Findings regression fail before
+    disclosure; the complete unmodified package passes.
   integration: >-
-    Main gained the native mitmproxy HTTP implementation and Inbox changes during
-    verification. Merge current main, preserve the transport changes and repeat
-    relevant checks before closing this task. Runtime contracts/Audit/Findings code
-    does not overlap; shared paths are the UI specification and generated backlog.
-
-  integrated_gate_prerequisite: >-
-    Current main was merged as 0fcd63dfb. Native process conformance found two
-    obsolete one-TCP-connection-per-request assertions; request counts and denied
-    bytes were correct. V444-004 corrects these tests under existing HTP-R138,
-    separately from engagement implementation. V444-001 stays in_progress.
+    Current native mitmproxy main was merged as 0fcd63dfb without production-code
+    overlap. V444-004 corrected obsolete TCP-per-request assertions and V444-005
+    removed stale verifier-fixture membership. No HTTP transport implementation,
+    live model, deployment or business data was changed by this refactor.
+  earlier_runs: >-
+    A first pre-integration Runtime run had one large-package Nuclei failure; an
+    integrated parallel run had one SQLmap scanner-start timeout. Both cases passed
+    their isolated checks, and the final sequential full suite passed without
+    changing production or test timeout policy. A superseded run was interrupted
+    to integrate main. The first disposable SQL_ASCII database was replaced with
+    UTF-8 before accepting full PostgreSQL results.
+implementation_commit: 14ba75648123371037a026f1141ea0f94e4024d3

@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-76 open tasks: 11 in progress, 52 pending, 13 deferred. 1435 finished: 1417 completed, 18 archived.
+75 open tasks: 10 in progress, 52 pending, 13 deferred. 1436 finished: 1418 completed, 18 archived.
 
 ## In progress
 
@@ -21,7 +21,6 @@ the epics are in [epics.yml](epics.yml).
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V444-001](v444-001-remove-engagement-audit-policy.yml) | audits | chore | P1 | Remove material access modes and Audit budgets from engagement |
 
 ## Pending
 
@@ -49,7 +48,7 @@ the epics are in [epics.yml](epics.yml).
 | [V410-009](v410-009-sitemap-browser-collection.yml) | feature | P2 | V410-007, V412-001 | Collect managed Playwright network observations into the sitemap |
 | [V412-001](v412-001-managed-pentest-browser.yml) | feature | P2 | V444-003 | Add allocation-owned browser investigation with explicit network authority |
 | [V412-004](v412-004-trusted-pentest-callback-proof.yml) | feature | P2 | V411-015, V411-016, V444-003 | Use existing Interactsh tools as bounded HTTP investigation evidence |
-| [V444-002](v444-002-simplify-engagement-network-contract.yml) | chore | P1 | V444-001 | Reduce engagement to network policy limits and identities |
+| [V444-002](v444-002-simplify-engagement-network-contract.yml) | chore | P1 | — | Reduce engagement to network policy limits and identities |
 
 ### Scanner tool Workers and scan planning (`scan-tools`)
 
@@ -179,7 +178,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 1 | 17 | 10 | 10 | 16 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 21 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 36 | 39 | 16 | 66 |
-| Audits (`audits`) | 14 | 68 | 94 | 40 | 149 |
+| Audits (`audits`) | 13 | 68 | 94 | 40 | 149 |
 | Evaluations (`evals`) | 6 | 21 | 40 | 16 | 49 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
 | Web UI (`ui`) | 2 | 47 | 71 | 26 | 72 |
