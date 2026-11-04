@@ -9,6 +9,13 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
+    User decision 2026-11-04 authorizes V444-001/002/003 after landing their tasks
+    on main: engagement owns only egress, traffic limits and identities. Remove
+    blackbox/source-assisted modes and nested materials/Audit budgets, preserve no
+    backward compatibility, derive execution capabilities from Workflows and keep
+    sandbox egress implementation and independent Run setup separate. This
+    assignment authorizes these three tasks, without assigning their other pending
+    HTTP/browser/sandbox/API/UI consumers.
     User request 2026-11-03 closes V64-014 after reconciling its required passing verification and
     restoring the immutable Eval archive bytes through V64-030. V64-002 and its common Task
     integration are already completed and merged. These status updates do not assign pending

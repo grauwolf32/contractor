@@ -1,0 +1,104 @@
+schema_version: "1.0"
+id: V444-001
+title: Remove material access modes and Audit budgets from engagement
+milestone: autonomous-http-pentest-2026-10
+epic: audits
+kind: chore
+introduced_by: V411-002
+priority: P1
+status: pending
+depends_on: [V411-002, V64-002]
+languages: [go, python, json, yaml, typescript]
+goal: >-
+  An HTTP Audit takes its materials and execution budgets from ordinary Audit
+  inputs and limits; engagement no longer decides source access or coordinates work.
+demonstration: >-
+  Real PostgreSQL and Server/Runtime HTTP execution accept a reduced engagement,
+  retain its exact revision and assigned credentials, and use the ordinary Audit
+  material inputs, deadline and execution limits. Source availability follows the
+  selected inputs and Workflow, without a blackbox/source-assisted switch.
+context:
+  authority:
+    - date: "2026-11-04"
+      decision: >-
+        User limits engagement responsibility to egress, traffic limits and identities.
+        Remove blackbox and source-assisted modes and their special checks: source
+        availability belongs to Audit inputs. Preserve no backward compatibility.
+        User requested concrete tasks on main and then authorized starting the work.
+  specification:
+    - docs/spec/audits/audits.md#AUD-R241
+    - docs/spec/audits/audits.md#AUD-R242
+    - docs/spec/audits/audits.md#AUD-R245
+    - docs/spec/audits/audits.md#AUD-R247
+    - docs/spec/audits/execution.md#AUX-R104
+    - docs/spec/tools/http-caido.md#HTP-R145
+    - docs/spec/platform/persistence.md
+    - docs/spec/platform/lifecycle.md
+  finding: >-
+    internal/contracts/engagementcontract/engagement.go:24 combines network authority
+    with accessMode, nested material descriptors and four Audit budgets.
+    internal/auditservice/engagement.go:176 implements blackbox closure checks;
+    service.go:176, common_start.go:201 and resume.go:97 override ordinary Audit limits.
+  boundary: >-
+    Audit owns material selection, exact retention and execution limits. Engagement
+    retains current network routes, identities and optional allocation-local HTTP
+    limits. Remove the source-mode guarantee rather than relocating or inferring it.
+    V444-002 finishes the network document and placement cleanup; this first slice
+    must itself build and run with a strict shared contract.
+  provenance: V411-002 introduced these fields; V422-002 retained four Audit budgets.
+scope:
+  in:
+    - Remove accessMode and inputs from the Go/Python engagement and allocation contracts and schemas.
+    - Remove activeSeconds, rounds, submittedRuns and evidenceBytes from engagement; leave optional HTTP limits intact.
+    - Delete blackbox closure/workspace/Skill restrictions and the obsolete public compatibility reason end to end.
+    - Use ordinary declared Audit inputs and retention; remove nested engagement input resolution and links.
+    - Remove engagement overrides of Audit size/deadline/resume limits; preserve the existing one-attempt HTTP safety rule.
+    - Update baseline writers/readers, shared vectors, both generated public clients and relevant normative requirements atomically.
+    - Reject removed fields on read and write; update active fixtures without adding legacy readers or deployment data operations.
+  out:
+    - Sandbox egress enforcement, global HTTP accounting and independent ordinary-Run engagement setup.
+    - A replacement source-access policy, implicit source classification or a new material resolver/store.
+    - Live model changes, demo deployment, business-data deletion and speculative old-record conversion.
+requirements:
+  - id: R1
+    text: Ordinary Audit inputs are the sole material selection path; source presence does not change network authority.
+  - id: R2
+    text: Missing optional HTTP limits remain unconfigured and each allocation retains fresh counters; no new quota defaults.
+  - id: R3
+    text: Exact engagement and credential retention, authorizer/time, scope enforcement and ordinary cancellation/release remain intact.
+failure_outcomes:
+  - operation: Validate and pin a reduced engagement at Audit admission and prepare
+    permanent: Removed/unknown fields, invalid exact refs and unauthorized credentials use existing classified failures before target I/O; no retry or format fallback.
+    retryable: Existing storage_transaction_conflict handling retries only the original bounded Audit/Run mutation.
+    ambiguous: Reconcile existing start/Run/Artifact identities and pins; never repeat target activity to recover an acknowledgement.
+    cancelled: Ordinary allocation ownership joins work before secret cleanup; Project/Audit/Run fences keep their owners.
+    timeout: Ordinary Audit, Run, prepare and HTTP deadlines remain distinct; no engagement clock.
+cardinality:
+  - collection: Declared Audit materials and engagement routes/identities
+    expected: A small input map, a few routes and anonymous/A/B identities.
+    bound: Existing Audit input, engagement byte/route/identity and Artifact batch limits; no new scan of Project materials.
+lifecycle:
+  - entity: Exact engagement and ordinary Audit inputs
+    delete: Existing Project/Audit/Run drain and purge rules.
+    retention: Existing exact Artifact links and credential holds; removal of nested descriptors creates no new lifetime or store.
+acceptance_criteria:
+  - id: A1
+    text: Go, Python and schemas reject removed mode/material/Audit-budget fields, with shared vectors including the former complete shape.
+  - id: A2
+    text: Real PostgreSQL admission/start/replay/resume use ordinary Audit inputs and limits; explicitly selected materials retain and release through ordinary ownership.
+  - id: A3
+    text: Existing real HTTP process scenarios preserve exact engagement/credential pins, denied-route behavior, optional local limits and joined cleanup.
+  - id: A4
+    text: No active source-mode restriction or obsolete public reason remains; generated clients, spec and fixtures agree and complete touched-package suites pass.
+tests:
+  - command: make require-database
+    covers: [A2, A3]
+  - command: go test -tags=integration -count=1 ./internal/contracts/... ./internal/auditbaseline ./internal/auditservice ./internal/auditstore/... ./internal/controlplane/... ./internal/httpapi/public ./internal/publicclient/... ./internal/archtest
+    covers: [A1, A2, A4]
+  - command: make test-runtime test-wire-cross-language test-engagement-http-process verify-public-api
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A4]
+test_prerequisites:
+  - Use disposable PostgreSQL; a configured unreachable database, zero selected tests or unexpected mandatory process skips fail.
+  - Tests use testdata rather than live configs; no live Gateway or demo writes are authorized by this task.
