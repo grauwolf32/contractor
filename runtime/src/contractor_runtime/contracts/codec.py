@@ -12,7 +12,7 @@ from pydantic import (
 )
 
 from contractor_runtime.contracts.base import API_VERSION, VersionedWireModel, WireModel
-from contractor_runtime.contracts.reports import AllocationFinalResponse
+from contractor_runtime.contracts.reports import AllocationFinalResponse, RuntimeReport
 from contractor_runtime.strict_json import DuplicateJSONKey, strict_json_loads
 
 
@@ -51,7 +51,7 @@ def decode_private[PrivateModelT: WireModel](
     try:
         # Keep Pydantic's strict JSON conversions (notably RFC 3339 strings to
         # aware datetimes) after the duplicate-key pre-scan above.
-        return model.model_validate_json(raw)
+        return model.model_validate_json(raw, context={"private_wire": True})
     except ValidationError as error:
         reason: Literal["schema", "invariant"] = "invariant"
         if any(item["type"] != "value_error" for item in error.errors(include_input=False)):
@@ -112,6 +112,10 @@ def _require_wire_names(annotation: Any, value: object) -> None:
         if value.keys() - fields.keys():
             raise _WireMemberError
         for name, child in value.items():
+            if annotation is RuntimeReport and name == "resources":
+                # The report owner discards malformed optional telemetry;
+                # it must run this check inside its existing isolation path.
+                continue
             _require_wire_names(fields[name], child)
     elif origin is dict and isinstance(value, dict):
         for child in value.values():
