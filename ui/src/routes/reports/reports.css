@@ -187,41 +187,6 @@
   min-width: 0;
 }
 
-/* The decision pinned under a report: a recorded decision, an expired request
-   or a notice lines up with the pane like the decision bar does. */
-.reports-decision-footer
-  .decisions-request
-  > :is(.decisions-record, p.ui-caption) {
-  margin: 0;
-  padding: var(--space-3-5) var(--ui-pad-end, 1.75rem) var(--space-3-5)
-    var(--ui-pad-start, 1.75rem);
-  border-top: 1px solid var(--line);
-}
-
-/* Right under "Decision recorded: …", which draws the divider. */
-.reports-decision-footer
-  .decisions-status:not(:empty)
-  + :is(.decisions-record, p.ui-caption) {
-  padding-top: 0;
-  border-top: 0;
-}
-
-.reports-decision-footer .decisions-request > .decisions-notice,
-.reports-decision-footer > .notice {
-  margin: var(--space-3) var(--ui-pad-end, 1.75rem) var(--space-3)
-    var(--ui-pad-start, 1.75rem);
-}
-
-/* Where the footer is pinned, the recorded decision is capped and draws the
-   divider above it (ui.css .ui-footer-record), so the record drops its own. */
-@media (min-width: 821px) and (min-height: 560px) {
-  .reports-decision-footer
-    .decisions-request.ui-footer-record
-    > .decisions-record {
-    border-top: 0;
-  }
-}
-
 /* Header meta of /reports/:auditId: "Check ID" and its chip on one line. */
 .reports-meta-id {
   display: inline-flex;

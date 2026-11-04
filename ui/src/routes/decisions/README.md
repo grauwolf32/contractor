@@ -1,17 +1,11 @@
 # Decision and finding components (`src/routes/decisions`)
 
-Shared by Inbox, Issues, Checks and Reports
+Shared by Inbox, Issues and Checks
 ([build contract](../../../../docs/design/ui/v3b-build-contract.md) §7).
 Import from the folder:
 
 ```tsx
-import {
-  ActionDecision,
-  DecisionRecord,
-  FindingDecision,
-  FindingSummary,
-  ReportDecision,
-} from "../decisions";
+import { FindingDecision, FindingSummary } from "../decisions";
 ```
 
 The components need the app's `QueryClientProvider` and `PublicAPIProvider`.
@@ -67,64 +61,15 @@ the approved issue workspace layout. Ctrl+Enter / ⌘+Enter submits a valid draf
 The component's editor is keyed by Finding identity, so changing the selected
 issue cannot carry a draft to another problem.
 
-## `ActionDecision` and `ReportDecision`
-
-```ts
-ActionDecision(props: {
-  auditId: string;
-  review: AuditReviewRequest;     // active-check-approval or requirement-applicability
-  onDecided?: (result: AuditActionDecisionResult) => void;
-  onRecording?: (recording: boolean) => void;
-})
-
-ReportDecision(props: {
-  auditId: string;
-  review: AuditReviewRequest;     // report-acceptance
-  report?: AuditReport;           // the report shown next to it; omitted, it is read
-  onDecided?: (result: AuditActionDecisionResult) => void;
-  onRecording?: (recording: boolean) => void;
-})
-```
-
-Approve / Reject / Not applicable, only those in `review.requestedActions`,
-with a required reason; `If-Match` the request revision and an
-`Idempotency-Key` (`audit-action-review-ui-…`), the same refresh, refusal
-and announcement rules (groups "Decision on active test approval",
-"Decision on requirement applicability", "Decision on report acceptance").
-A decided request shows its `DecisionRecord`, an expired one says so.
-`ReportDecision` decides a pending request only while the report is
-proposed and carries this request; otherwise it says the report no longer
-matches. A decision made here is the exception while it records: the
-refresh after it can show the report moved on before the refetched request
-arrives, and until then its bar stays ("Recording…"). A refused decision
-stays explained next to the notice that replaces the bar. Without `report`
-it reads the check's report (`queryKeys.audits.report`) and offers nothing
-while that read loads ("Loading the report…") or failed (an alert with "Try
-again" and the request details). The page still shows the report next to
-the decision. A proposed report is never presented as accepted.
-
 ## `onRecording`
 
-All three decision components take `onRecording(recording)`: `true` once a
-decision is sent, `false` once its refetched subject (finding or request)
-arrived, after a refused decision's refresh, or when the component unmounts
-before that. It is called only on changes. A page whose own reads can drop
-the subject meanwhile (a report that moved on no longer carries its
-request) uses it to keep the decision mounted, so its "Decision recorded"
-announcement and focus stay; other mutations of the page do not count.
-
-## `DecisionRecord`
-
-```ts
-DecisionRecord(props: { decision: AuditReviewDecision })
-```
-
-One recorded item or report approval for histories: outcome in the vocabulary,
-actor, relative time and reason (Markdown).
+`FindingDecision` calls `onRecording(true)` when it submits an edit, then
+`onRecording(false)` after the canonical subject is refreshed, the edit is
+refused or the component unmounts. A containing page can keep the editor
+mounted during refresh so its announcement and focus remain available.
 
 ## Copy
 
 Finding controls use “Confirm issue”, “Not an issue”, “Needs evidence”,
 “Mark as duplicate”, “Reopen”, “Record decision”, “Use issue summary” and
-“Assessment saved.” Item and report controls retain their request-specific
-approval wording and `DecisionRecord` history.
+“Assessment saved.” Reports display retained content without acceptance actions.

@@ -243,7 +243,7 @@ var forbiddenImports = []forbiddenImport{
 	{
 		from: "internal/auditservice/...", to: "internal/auditstore/claimstore",
 		reason: "the owner-facing Audit service must not hold the commands the Audit controller " +
-			"runs under its claim; it reaches Audits through the owner, review and query seams",
+			"runs under its claim; it reaches Audits through the owner and query seams",
 	},
 	{
 		from: "...", to: "internal/auditstore/auditstoretest",

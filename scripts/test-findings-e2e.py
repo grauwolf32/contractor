@@ -17,6 +17,7 @@ import release_test_reports as reports
 
 PACKAGE = "github.com/grauwolf32/contractor/tests/e2e"
 PROCESS_TESTS = (
+    "TestProjectFindingsReaderAcrossProcesses",
     "TestFindingsProducerAndReaderAcrossProcesses",
     "TestFindingsCollectionsRetainOrdinaryAndAuditReceipts",
     "TestFindingsReaderBoundariesAcrossProcesses",
@@ -26,7 +27,7 @@ REQUIRED_TESTS = frozenset(
     (
         *PROCESS_TESTS,
         *(
-            PROCESS_TESTS[1] + "/" + name
+            PROCESS_TESTS[2] + "/" + name
             for name in (
                 "shared-function-preserves-operations",
                 "ordinary-source-receipt",
@@ -36,7 +37,7 @@ REQUIRED_TESTS = frozenset(
             )
         ),
         *(
-            PROCESS_TESTS[2] + "/" + name
+            PROCESS_TESTS[3] + "/" + name
             for name in (
                 "inaccessible-input",
                 "empty-is-explicit-success",
@@ -56,6 +57,10 @@ PYTHON_FILES = (
     "tests/test_numbered_file_reads.py",
 )
 PYTHON_CASES = {
+    "test_shared_project_finding_collection_source_kinds": 1,
+    "test_project_finding_tools_use_exact_selection_and_transport_replay": 1,
+    "test_shared_project_finding_selection_requests": 1,
+    "test_shared_exact_hypothesis_context_reaches_reader_and_rejects_wrong_revision": 1,
     "test_shared_locations_match_go_contract": 32,
     "test_actual_provider_schema": 3,
     "test_code_call_normalizes_coordinates_and_keeps_retry_identity": 1,

@@ -9,7 +9,6 @@ import type {
   FindingSeverity,
   FindingState,
   AuditReport,
-  AuditReviewRequest,
   AuditState,
 } from "./audits";
 import { TestPublicAPI as PublicAPI } from "../test/shared-config";
@@ -20,7 +19,6 @@ import {
   useAllPossibleIssues,
   useAllReports,
   useInboxSummary,
-  usePendingDecisions,
   useProjectsIndex,
 } from "./cross-project";
 import type { Project } from "./projects";
@@ -75,18 +73,6 @@ function finding(
   return value;
 }
 
-function review(
-  auditId: string,
-  requestId: string,
-  kind: AuditReviewRequest["kind"],
-  createdAt = "2026-10-03T10:00:00Z",
-): AuditReviewRequest {
-  return build.review(auditId, requestId, kind, {
-    createdAt,
-    updatedAt: createdAt,
-  });
-}
-
 const report = (status: AuditReport["status"]): AuditReport =>
   build.report("audit_report", status);
 
@@ -94,7 +80,6 @@ interface ServerState {
   projects: Project[];
   audits: Record<string, Audit[]>;
   findings?: Record<string, ProjectFinding[]>;
-  reviews?: Record<string, AuditReviewRequest[]>;
   reports?: Record<string, AuditReport>;
   failures?: Record<string, boolean>;
   continuationFails?: string;
@@ -133,10 +118,6 @@ function setup(state: ServerState) {
     const wanted = (name: string, value: string) =>
       !url.searchParams.has(name) ||
       url.searchParams.get(name)!.split(",").includes(value);
-    const inScope = (auditId: string) =>
-      audits.some(
-        (a) => a.auditId === auditId && wanted("auditState", a.state),
-      );
     let items: unknown[];
     if (url.pathname === "/v1/projects") items = state.projects;
     else if (url.pathname === "/v1/audits")
@@ -153,10 +134,6 @@ function setup(state: ServerState) {
               wanted("severity", f.analystSeverity ?? "")),
         )
         .map(build.findingSummary);
-    else if (url.pathname === "/v1/reviews")
-      items = Object.values(state.reviews ?? {})
-        .flat()
-        .filter((r) => inScope(r.auditId) && wanted("state", r.state));
     else {
       const match = /^\/v1\/audits\/([^/]+)\/report$/.exec(url.pathname);
       const found = match === null ? undefined : state.reports?.[match[1]!];
@@ -423,46 +400,6 @@ describe("owner-wide lists", () => {
     expect(result.current.issues).toEqual([]);
     expect(server.count("/v1/findings")).toBe(0);
   });
-  it("reads all pending request pages and shares requests between kind filters", async () => {
-    const state = base();
-    state.reviews = {
-      audit_a: Array.from({ length: 201 }, (_, i) =>
-        review(
-          "audit_a",
-          `review_${i}`,
-          i % 2 ? "active-check-approval" : "report-acceptance",
-        ),
-      ),
-    };
-    const server = setup(state);
-    const { result } = renderHook(
-      () => ({
-        all: usePendingDecisions(),
-        approvals: usePendingDecisions({ kinds: ["active-check-approval"] }),
-      }),
-      { wrapper: server.wrapper },
-    );
-    await waitFor(() =>
-      expect(
-        result.current.all.isPending || result.current.approvals.isPending,
-      ).toBe(false),
-    );
-    expect(result.current.all.decisions).toHaveLength(201);
-    expect(result.current.approvals.decisions).toHaveLength(100);
-    expect(server.count("/v1/reviews")).toBe(2);
-  });
-  it("counts canonical unassessed Findings and independent item approvals in the Inbox", async () => {
-    const state = base();
-    state.findings = { audit_a: [finding("project_a", "one")] };
-    state.reviews = {
-      audit_a: [review("audit_a", "approval", "active-check-approval")],
-    };
-    const { result } = renderHook(() => useInboxSummary(), {
-      wrapper: setup(state).wrapper,
-    });
-    await waitFor(() => expect(result.current.needsDecision).toBe(2));
-    expect(result.current.otherDecisions).toBe(1);
-  });
   it("refreshes owner lists after decisions without reloading unchanged report payloads", async () => {
     const state = base();
     state.reports = { audit_b: report("ready") };
@@ -501,19 +438,5 @@ describe("owner-wide lists", () => {
     await settled(result);
     expect(result.current.reports).toHaveLength(1);
     expect(result.current.partial).toBe(true);
-  });
-  it("keeps disabled lists idle", async () => {
-    const server = setup(base());
-    const { result } = renderHook(
-      () => ({
-        checks: useAllChecks({ enabled: false }),
-        issues: useAllPossibleIssues({ enabled: false }),
-        decisions: usePendingDecisions({ enabled: false }),
-        reports: useAllReports({ enabled: false }),
-      }),
-      { wrapper: server.wrapper },
-    );
-    expect(result.current.checks.isPending).toBe(true);
-    expect(server.requests).toEqual([]);
   });
 });

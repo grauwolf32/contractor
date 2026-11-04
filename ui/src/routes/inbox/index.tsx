@@ -82,8 +82,6 @@ function overviewCounts(
 function listing(ref: InboxRef, data: InboxData): boolean {
   switch (ref.kind) {
     case "issue":
-    case "review":
-      return data.pending.decide;
     case "report":
       return data.checks.isPending || data.reports.pending;
     case "check":

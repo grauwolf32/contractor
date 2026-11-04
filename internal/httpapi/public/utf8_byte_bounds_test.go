@@ -45,7 +45,7 @@ var utf8ByteBoundOwners = map[string]int{
 	"LIM-RUN-10": maxCancellationReasonBytes,
 	"LIM-PRJ-3":  projectstore.MaxNameBytes,
 	"LIM-PRJ-5":  projectstore.MaxDescriptionBytes,
-	"LIM-REV-11": auditservice.MaxReviewRationale,
+	"LIM-REV-11": auditservice.MaxFindingRationale,
 	"LIM-FND-54": auditstore.MaxFindingActorBytes,
 	"LIM-RUN-5":  runlabels.MaxRunMetadataLabelValue,
 	"LIM-RUN-11": runlabels.MaxRunMetadataLabelKey + len("=") + runlabels.MaxRunMetadataLabelValue,

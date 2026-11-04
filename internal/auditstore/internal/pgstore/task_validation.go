@@ -5,6 +5,7 @@ import (
 	"errors"
 	"maps"
 
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -14,12 +15,14 @@ import (
 )
 
 type validatedTask struct {
-	Document    auditcontract.Task    `json:"document"`
-	Source      auditstore.TaskSource `json:"source"`
-	SourceKey   string                `json:"source_key"`
-	BatchDigest string                `json:"batch_digest"`
-	Ordinal     int                   `json:"ordinal"`
-	Iteration   int                   `json:"iteration"`
+	Attention   bool                      `json:"attention"`
+	Hypothesis  *auditcontract.Hypothesis `json:"hypothesis_snapshot,omitempty"`
+	Document    auditcontract.Task        `json:"document"`
+	Source      auditstore.TaskSource     `json:"source"`
+	SourceKey   string                    `json:"source_key"`
+	BatchDigest string                    `json:"batch_digest"`
+	Ordinal     int                       `json:"ordinal"`
+	Iteration   int                       `json:"iteration"`
 }
 
 func validTaskSource(source auditstore.TaskSource) bool {
@@ -105,7 +108,26 @@ func validateAcceptedTasks(params auditstore.AcceptTasksParams) ([]validatedTask
 		if err != nil {
 			return nil, err
 		}
-		row := validatedTask{Document: document, Source: source, SourceKey: sourceKey, BatchDigest: batch}
+		if accepted.Attention && source.Kind != "manual" {
+			return nil, auditstore.ErrInvalid
+		}
+		row := validatedTask{Attention: accepted.Attention, Hypothesis: accepted.Hypothesis, Document: document, Source: source, SourceKey: sourceKey, BatchDigest: batch}
+		if document.Hypothesis != nil {
+			if accepted.Hypothesis == nil || accepted.Hypothesis.ID != document.Hypothesis.ID || accepted.Hypothesis.Revision != document.Hypothesis.Revision {
+				return nil, auditstore.ErrInvalid
+			}
+			snapshot, err := strictjson.Canonical(accepted.Hypothesis)
+			if err != nil {
+				return nil, auditstore.ErrInvalid
+			}
+			frozen, err := auditcontract.DecodeHypothesis(snapshot)
+			if err != nil {
+				return nil, auditstore.ErrInvalid
+			}
+			row.Hypothesis = &frozen
+		} else if accepted.Hypothesis != nil {
+			return nil, auditstore.ErrInvalid
+		}
 		encoded, err := strictjson.Canonical(row)
 		used += len(encoded) + 1
 		if err != nil || used > auditcontract.MaxMutationBytes {
@@ -121,6 +143,15 @@ func validateTaskBinding(pinned auditprofile.PinnedProgram, document auditcontra
 	workflow, closureExists := pinned.Workflows[document.Workflow]
 	if !exists || !closureExists || !maps.Equal(binding.Parameters, document.Parameters) {
 		return auditstore.ErrInvalid
+	}
+	if document.Hypothesis != nil {
+		context := false
+		for _, m := range binding.Inputs {
+			context = context || m.Source == "task-context"
+		}
+		if !context || binding.Outputs["result"] == "" {
+			return auditstore.ErrInvalid
+		}
 	}
 	if err := auditprofile.ValidateTaskInputs(binding, workflow, document.Inputs); err != nil {
 		return err
@@ -145,13 +176,19 @@ func decodeAuditProgram(audit auditstore.Audit) (auditprofile.PinnedProgram, err
 	if audit.Profile.Name != pinned.Ref.Name || audit.Profile.Version != pinned.Ref.Version || audit.Profile.Digest != pinned.Ref.Digest || validateLimits(audit.Limits) != nil || audit.Limits.MaxRounds > limits.MaxIterations || audit.Limits.BatchSize > limits.BatchSize || audit.Limits.MaxItemsPerRound > limits.MaxTasksPerIteration || audit.Limits.MaxItemsTotal > limits.MaxTasks || audit.Limits.MaxSubmittedRuns > limits.MaxSubmittedRuns || audit.Limits.MaxItemRunAttempts > limits.MaxAttempts || audit.Limits.MaxEvidenceBytes > limits.MaxEvidenceBytes {
 		return auditprofile.PinnedProgram{}, errStoredTask
 	}
+	if len(audit.BaselineSnapshot) > 0 {
+		pinned.Program, err = auditdomain.ExecutionProgram(pinned.Program, audit.BaselineSnapshot)
+		if err != nil {
+			return auditprofile.PinnedProgram{}, err
+		}
+	}
 	return pinned, nil
 }
 
 func sameAcceptedTask(prior auditstore.Task, selected validatedTask) bool {
 	a, aErr := strictjson.Canonical(prior.Document)
 	b, bErr := strictjson.Canonical(selected.Document)
-	return aErr == nil && bErr == nil && bytes.Equal(a, b) && prior.SourceKey == selected.SourceKey && prior.BatchDigest == selected.BatchDigest
+	return aErr == nil && bErr == nil && bytes.Equal(a, b) && prior.SourceKey == selected.SourceKey && prior.BatchDigest == selected.BatchDigest && prior.Attention == selected.Attention
 }
 
 var errStoredTask = errors.New("stored Audit task is invalid")

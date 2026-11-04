@@ -1,5 +1,7 @@
 // Synthetic review data from the preserved, user-reviewed OpenDesign trial.
 // Test/browser fixtures only; production routes never import this module.
+// Synthetic review data from the preserved, user-reviewed OpenDesign trial.
+// Test/browser fixtures only; production routes never import this module.
 import examples from "../../../docs/design/ui/experiments/issues-review-opendesign-2026-11-01/examples.json" with { type: "json" };
 import type { components } from "../api/generated/public";
 import * as build from "./builders";
@@ -13,7 +15,6 @@ export function issueReviewFixtures() {
   const audits: Schemas["Audit"][] = [];
   const findings: Schemas["ProjectFinding"][] = [];
   const sources: Schemas["FindingProposalReceipt"][] = [];
-  const reviews: Schemas["AuditReviewRequest"][] = [];
   const evidence: {
     projectId: string;
     metadata: Schemas["ArtifactMetadata"];
@@ -127,5 +128,5 @@ export function issueReviewFixtures() {
       ),
     );
   }
-  return { projects, audits, findings, sources, reviews, evidence };
+  return { projects, audits, findings, sources, evidence };
 }

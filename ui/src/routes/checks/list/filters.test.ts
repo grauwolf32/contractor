@@ -13,7 +13,6 @@ import {
 const STATES: AuditState[] = [
   "draft",
   "active",
-  "waiting_review",
   "paused",
   "finalizing",
   "cancelling",
@@ -27,7 +26,6 @@ describe("Checks list filters", () => {
   it("names the filters with the check state vocabulary", () => {
     expect(CHECK_FILTERS.map((option) => option.label)).toEqual([
       "Running",
-      "Waiting for you",
       "Drafts",
       "Finished",
       "Stopped / failed",
@@ -51,7 +49,7 @@ describe("Checks list filters", () => {
   it("reads filter names and check states from the URL", () => {
     expect(parseCheckFilter(null)).toBe("all");
     expect(parseCheckFilter("drafts")).toBe("drafts");
-    expect(parseCheckFilter("waiting_review")).toBe("waiting");
+    expect(parseCheckFilter("waiting_review")).toBe("all");
     expect(parseCheckFilter("active")).toBe("running");
     expect(parseCheckFilter("cancelled")).toBe("stopped");
     expect(parseCheckFilter("completed")).toBe("finished");
@@ -67,7 +65,7 @@ describe("Checks list filters", () => {
       checksHref({ filter: "all", projectId: undefined, checkId: undefined }),
     ).toBe("/checks");
     expect(
-      checksHref({ filter: "waiting", projectId: "p 1", checkId: "audit_1" }),
-    ).toBe("/checks?state=waiting&project=p+1&check=audit_1");
+      checksHref({ filter: "running", projectId: "p 1", checkId: "audit_1" }),
+    ).toBe("/checks?state=running&project=p+1&check=audit_1");
   });
 });

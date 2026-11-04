@@ -6,7 +6,6 @@ import {
   auditFixture,
   projectFixture,
   renderShell,
-  reviewFixture,
 } from "../test/shell-harness";
 import { activeDestination } from "./destinations";
 
@@ -119,11 +118,7 @@ describe("application shell rail", () => {
 });
 
 describe("Inbox badge", () => {
-  const server = (
-    proposed: number,
-    otherDecisions = 0,
-    completedFindings = 0,
-  ) => ({
+  const server = (proposed: number, completedFindings = 0) => ({
     projects: [projectFixture("project_a")],
     audits: {
       project_a: [
@@ -135,26 +130,28 @@ describe("Inbox badge", () => {
       audit_running: proposed,
       audit_done: completedFindings,
     },
-    reviews: {
-      audit_running: Array.from({ length: otherDecisions }, (_, index) =>
-        reviewFixture(
-          "audit_running",
-          `request_${index}`,
-          "active-check-approval",
-        ),
-      ),
-    },
   });
 
   it("counts what needs a decision and says so to screen readers", async () => {
-    renderShell("/runs", { server: server(2, 1) });
+    renderShell("/runs", { server: server(2) });
     const inbox = await within(primaryNavigation()).findByRole("link", {
-      name: "Inbox (3 need your decision)",
+      name: "Inbox (2 need your decision)",
     });
     expect(inbox).toHaveAttribute("href", "/");
     const badge = inbox.querySelector(".shell-nav-badge");
-    expect(badge).toHaveTextContent(/^3$/);
+    expect(badge).toHaveTextContent(/^2$/);
     expect(badge?.closest("[aria-hidden='true']")).not.toBeNull();
+  });
+
+  it("shows no badge when nothing waits", async () => {
+    renderShell("/runs", { server: server(0) });
+    await waitFor(() =>
+      expect(
+        within(primaryNavigation())
+          .getByRole("link", { name: "Inbox" })
+          .querySelector(".shell-nav-badge"),
+      ).toBeNull(),
+    );
   });
 
   it("uses the singular for one decision", async () => {
@@ -175,24 +172,12 @@ describe("Inbox badge", () => {
   });
 
   it("includes canonical Findings from completed checks", async () => {
-    renderShell("/runs", { server: server(0, 0, 7) });
+    renderShell("/runs", { server: server(0, 7) });
     expect(
       await within(primaryNavigation()).findByRole("link", {
         name: "Inbox (7 need your decision)",
       }),
     ).toBeVisible();
-  });
-  it("shows no badge when nothing waits", async () => {
-    const { requests } = renderShell("/runs", { server: server(0) });
-    await waitFor(() =>
-      expect(requests.some((url) => url.pathname.endsWith("/reviews"))).toBe(
-        true,
-      ),
-    );
-    const inbox = within(primaryNavigation()).getByRole("link", {
-      name: "Inbox",
-    });
-    expect(inbox.querySelector(".shell-nav-badge")).toBeNull();
   });
 });
 

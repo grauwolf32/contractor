@@ -1,18 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { PublicAPIError } from "../../api/error";
 import {
-  decisionErrorMessage,
-  decisionOutcome,
   findingDecisionBody,
   findingDraftProblem,
   SEVERITY_OPTIONS,
 } from "./model";
-import { FINDING_ID, makeDecision } from "./test-support";
-
-function apiError(status: number, code: string) {
-  return new PublicAPIError({ status, code, message: `${code} message` });
-}
+import { FINDING_ID } from "./test-support";
 
 describe("finding decision drafts", () => {
   it("names what DecisionBar cannot check", () => {
@@ -110,72 +103,5 @@ describe("finding decision drafts", () => {
       "High",
       "Critical",
     ]);
-  });
-});
-
-describe("recorded decisions", () => {
-  it("reads outcomes in the shared vocabulary", () => {
-    expect(decisionOutcome(makeDecision())).toEqual({
-      label: "Approved",
-      tone: "success",
-    });
-    expect(decisionOutcome({ action: "reject" })).toEqual({
-      label: "Rejected",
-      tone: "neutral",
-    });
-    expect(decisionOutcome({ action: "not_applicable" })).toEqual({
-      label: "Not applicable",
-      tone: "neutral",
-    });
-  });
-});
-
-describe("refused decisions", () => {
-  it.each([
-    [
-      412,
-      "precondition_failed",
-      "finding",
-      "Not saved: this possible issue or its check changed first. The latest version is now shown. Check it, then record your decision again.",
-    ],
-    [
-      412,
-      "precondition_failed",
-      "request",
-      "Not saved: this request changed or expired first. The latest version is now shown. Check it, then decide again.",
-    ],
-    [
-      409,
-      "conflict",
-      "finding",
-      "Not saved: the decision conflicts with the current state, so nothing was retried. The latest version is now shown.",
-    ],
-    [
-      404,
-      "not_found",
-      "finding",
-      "Not saved: the review or the chosen possible issue no longer exists. The latest version is now shown.",
-    ],
-    [
-      0,
-      "network_error",
-      "request",
-      "The Server's answer did not arrive, so the decision may have been saved. Check the latest state before you record it again.",
-    ],
-    [400, "invalid_argument", "finding", "Not saved: invalid_argument message"],
-  ] as const)("explains %i %s for a %s", (status, code, subject, message) => {
-    expect(decisionErrorMessage(apiError(status, code), subject)).toBe(message);
-  });
-
-  it("explains errors raised before a request", () => {
-    expect(
-      decisionErrorMessage(
-        new Error("this review does not offer it"),
-        "finding",
-      ),
-    ).toBe("Not saved: this review does not offer it");
-    expect(decisionErrorMessage("unknown", "request")).toBe(
-      "Not saved: the request failed.",
-    );
   });
 });

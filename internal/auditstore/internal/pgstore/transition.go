@@ -12,8 +12,7 @@ import (
 )
 
 // Transition applies an owner pause or cancellation; validateTransition admits
-// no other owner target. Leaving waiting_review closes a pending report review
-// in the same revision step.
+// no other owner target.
 func (s *OwnerStore) Transition(
 	ctx context.Context,
 	params auditstore.TransitionParams,
@@ -125,58 +124,6 @@ func ownerMutationRefusal(ctx context.Context, tx pgx.Tx, ownerID, auditID strin
 		return err
 	}
 	return auditstore.ErrPrecondition
-}
-
-// transitionTrusted applies a service-authorized transition with the same
-// transition table, active-Project gate and state event as other transitions.
-func (s *ReviewStore) transitionTrusted(
-	ctx context.Context,
-	params auditstore.TrustedTransitionParams,
-) (auditstore.Audit, error) {
-	if err := validateTrustedTransition(params); err != nil {
-		return auditstore.Audit{}, err
-	}
-	var reasonCode, reasonMessage *string
-	if params.Reason != nil {
-		reasonCode, reasonMessage = &params.Reason.Code, &params.Reason.Message
-	}
-	audit, err := scanAudit(s.db.QueryRow(ctx, transitionTrustedSQL+prefixedAuditColumns("changed")+` FROM changed`,
-		params.AuditID, params.ExpectedRevision,
-		string(params.ExpectedState), string(params.TargetState), reasonCode, reasonMessage,
-	))
-	if err == nil {
-		return audit, nil
-	}
-	if persistencepostgres.Classify(err) == persistencepostgres.ClassDeleting {
-		return auditstore.Audit{}, auditstore.ErrProjectDeleting
-	}
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return auditstore.Audit{}, fmt.Errorf("transition trusted Audit: %w", err)
-	}
-	if _, getErr := s.getAuditTrusted(ctx, params.AuditID); getErr != nil {
-		return auditstore.Audit{}, getErr
-	}
-	return auditstore.Audit{}, auditstore.ErrPrecondition
-}
-
-// ActivateAfterItemReview returns a waiting_review Audit to active after an
-// item decision unless every unsettled item still awaits review, so an
-// approved item becomes dispatchable without waiting for its siblings.
-func (s *ReviewStore) ActivateAfterItemReview(
-	ctx context.Context, auditID string, expectedRevision uint64,
-) (auditstore.Audit, bool, error) {
-	onlyAwaiting, err := s.onlyAwaitingReview(ctx, auditID)
-	if err != nil || onlyAwaiting {
-		return auditstore.Audit{}, false, err
-	}
-	audit, err := s.transitionTrusted(ctx, auditstore.TrustedTransitionParams{
-		AuditID: auditID, ExpectedRevision: expectedRevision,
-		ExpectedState: auditstore.AuditWaitingReview, TargetState: auditstore.AuditActive,
-	})
-	if err != nil {
-		return auditstore.Audit{}, false, err
-	}
-	return audit, true, nil
 }
 
 func (s *store) getAuditTrusted(ctx context.Context, auditID string) (auditstore.Audit, error) {

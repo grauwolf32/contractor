@@ -193,8 +193,11 @@ export type PublicSchemaName =
   | "AuditCheckMethodMapping"
   | "AuditProfileWorkflow"
   | "AuditExecutionPolicy"
-  | "AuditInteractionPolicy"
   | "AuditCompatibilityReason"
+  | "AuditAssertionScope"
+  | "AuditAssertionSourceEntry"
+  | "AuditAssertionsSource"
+  | "AuditHypothesisDocument"
   | "AuditProgram"
   | "AuditProgramAttemptLimit"
   | "AuditProgramHypothesisSeed"
@@ -203,6 +206,7 @@ export type PublicSchemaName =
   | "AuditProgramInputMapping"
   | "AuditProgramLimits"
   | "AuditProgramPolicy"
+  | "AuditProgramSeedSource"
   | "AuditProgramSelector"
   | "AuditProgramWorkflow"
   | "AuditProfile"
@@ -242,6 +246,11 @@ export type PublicSchemaName =
   | "AuditTaskHypothesisRef"
   | "AuditTaskDocument"
   | "AuditTaskSelection"
+  | "AuditHypothesisContent"
+  | "AuditHypothesis"
+  | "AuditHypothesisAcceptance"
+  | "AuditCheckingWorkflows"
+  | "AuditHypothesisPage"
   | "AuditTaskState"
   | "AuditTaskCreationRequest"
   | "AuditTaskAcceptance"
@@ -270,7 +279,6 @@ export type PublicSchemaName =
   | "AuditCoverageDetails"
   | "AuditCoverageRow"
   | "AuditCoveragePage"
-  | "AuditItemApprovalKind"
   | "AuditReportSummaryArtifact"
   | "AuditReportStatus"
   | "AuditReport"
@@ -315,19 +323,9 @@ export type PublicSchemaName =
   | "FindingProposalPage"
   | "ImportFindingProposalRequest"
   | "ImportFindingProposalResponse"
-  | "AuditReviewAction"
-  | "AuditReviewRequestedAction"
-  | "AuditReviewSubjectKind"
-  | "AuditReviewState"
-  | "AuditReviewDecision"
-  | "AuditReviewRequest"
   | "AuditWorkspace"
   | "OwnerFindingPage"
-  | "OwnerReviewPage"
   | "AuditFindingPage"
-  | "AuditReviewPage"
-  | "DecideAuditReviewRequest"
-  | "AuditReviewDecisionResult"
   | "RuntimeInfrastructureId"
   | "RuntimeCredentialId"
   | "RuntimeConfigVersion"
@@ -1296,13 +1294,6 @@ export const RESPONSE_SCHEMAS = {
     "500": "Error",
     "503": "Error",
   },
-  "GET /v1/reviews": {
-    "200": "OwnerReviewPage",
-    "400": "Error",
-    "401": "Error",
-    "500": "Error",
-    "503": "Error",
-  },
   "GET /v1/audits/{auditId}": {
     "200": "Audit",
     "400": "Error",
@@ -1366,6 +1357,46 @@ export const RESPONSE_SCHEMAS = {
     "404": "Error",
     "409": "Error",
     "412": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "GET /v1/audits/{auditId}/hypotheses": {
+    "200": "AuditHypothesisPage",
+    "400": "Error",
+    "401": "Error",
+    "404": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "POST /v1/audits/{auditId}/hypotheses": {
+    "200": "AuditHypothesisAcceptance",
+    "400": "Error",
+    "401": "Error",
+    "403": "Error",
+    "404": "Error",
+    "409": "Error",
+    "412": "Error",
+    "413": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "GET /v1/audits/{auditId}/hypotheses/{hypothesisId}": {
+    "200": "AuditHypothesis",
+    "400": "Error",
+    "401": "Error",
+    "404": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "PATCH /v1/audits/{auditId}/hypotheses/{hypothesisId}": {
+    "200": "AuditHypothesisAcceptance",
+    "400": "Error",
+    "401": "Error",
+    "403": "Error",
+    "404": "Error",
+    "409": "Error",
+    "412": "Error",
+    "413": "Error",
     "500": "Error",
     "503": "Error",
   },
@@ -1480,14 +1511,6 @@ export const RESPONSE_SCHEMAS = {
     "500": "Error",
     "503": "Error",
   },
-  "GET /v1/audits/{auditId}/reviews/{requestId}": {
-    "200": "AuditReviewRequest",
-    "400": "Error",
-    "401": "Error",
-    "404": "Error",
-    "500": "Error",
-    "503": "Error",
-  },
   "GET /v1/audits/{auditId}/findings": {
     "200": "AuditFindingPage",
     "400": "Error",
@@ -1502,27 +1525,6 @@ export const RESPONSE_SCHEMAS = {
     "400": "Error",
     "401": "Error",
     "404": "Error",
-    "500": "Error",
-    "503": "Error",
-  },
-  "GET /v1/audits/{auditId}/reviews": {
-    "200": "AuditReviewPage",
-    "400": "Error",
-    "401": "Error",
-    "404": "Error",
-    "409": "Error",
-    "500": "Error",
-    "503": "Error",
-  },
-  "POST /v1/audits/{auditId}/reviews/{requestId}/decisions": {
-    "200": "AuditReviewDecisionResult",
-    "400": "Error",
-    "401": "Error",
-    "403": "Error",
-    "404": "Error",
-    "409": "Error",
-    "412": "Error",
-    "413": "Error",
     "500": "Error",
     "503": "Error",
   },
@@ -2193,14 +2195,13 @@ export const PUBLIC_PAGED_OPERATIONS: readonly string[] = [
   "GET /v1/projects/{projectId}/audits",
   "GET /v1/audits",
   "GET /v1/findings",
-  "GET /v1/reviews",
+  "GET /v1/audits/{auditId}/hypotheses",
   "GET /v1/audits/{auditId}/tasks",
   "GET /v1/audits/{auditId}/items",
   "GET /v1/audits/{auditId}/coverage",
   "GET /v1/audits/{auditId}/finding-proposals",
   "GET /v1/audits/{auditId}/events",
   "GET /v1/audits/{auditId}/findings",
-  "GET /v1/audits/{auditId}/reviews",
   "GET /v1/queue",
   "GET /v1/runs",
   "GET /v1/runs/{runId}/artifacts",
@@ -2354,6 +2355,14 @@ export const REQUEST_HEADER_SCHEMAS = {
     Origin: "OptionalOriginHeader",
     "X-CSRF-Token": "OptionalCSRFTokenHeader",
   },
+  "POST /v1/audits/{auditId}/hypotheses": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+    "If-Match": "RequiredIfMatchHeader",
+  },
+  "PATCH /v1/audits/{auditId}/hypotheses/{hypothesisId}": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+    "If-Match": "RequiredIfMatchHeader",
+  },
   "POST /v1/audits/{auditId}/tasks": {
     "Idempotency-Key": "IdempotencyKeyHeader",
     "If-Match": "RequiredIfMatchHeader",
@@ -2364,12 +2373,6 @@ export const REQUEST_HEADER_SCHEMAS = {
     "If-None-Match": "publishAuditMaterialIfNoneMatchHeader",
   },
   "POST /v1/audits/{auditId}/finding-proposal-imports": {
-    Origin: "OptionalOriginHeader",
-    "X-CSRF-Token": "OptionalCSRFTokenHeader",
-  },
-  "POST /v1/audits/{auditId}/reviews/{requestId}/decisions": {
-    "Idempotency-Key": "IdempotencyKeyHeader",
-    "If-Match": "RequiredIfMatchHeader",
     Origin: "OptionalOriginHeader",
     "X-CSRF-Token": "OptionalCSRFTokenHeader",
   },

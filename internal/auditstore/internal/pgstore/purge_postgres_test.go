@@ -1,7 +1,6 @@
 package pgstore
 
 import (
-	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -45,7 +44,7 @@ func TestPostgresPurgeCoversEveryAuditOwnedForeignKey(t *testing.T) {
 	duplicateProposal := testExact("audit-findings", "candidate-purge-duplicate", "proposal-r1")
 	duplicateProposal.MediaType, duplicateProposal.SizeBytes = "application/json", 128
 	duplicateID := insertAuditChildFinding(t, f, "receipt-purge-duplicate", duplicateProposal)
-	seedDecidedPurgeReviews(t, f, confirmedID, duplicateID)
+	seedPurgeFindingAssessments(t, f, confirmedID, duplicateID)
 
 	if _, err := f.pool.Exec(f.ctx, `INSERT INTO artifact_scopes(scope_kind,scope_id) VALUES('audit',$1) ON CONFLICT DO NOTHING`, f.audit.AuditID); err != nil {
 		t.Fatal(err)
@@ -213,49 +212,15 @@ func collectPurgeFinding(t *testing.T, f collectingAuditFixture, receiptID strin
 	return findingID
 }
 
-// seedDecidedPurgeReviews records the decided review ledger an owner leaves
-// behind for an approved item and rejected report. Independent canonical
-// Finding assessments survive that Audit and exercise the Project graph.
-func seedDecidedPurgeReviews(t *testing.T, f collectingAuditFixture, confirmedID, duplicateID string) {
+// seedPurgeFindingAssessments records independent canonical assessments that
+// survive their Audit and exercise the Project duplicate graph.
+func seedPurgeFindingAssessments(t *testing.T, f collectingAuditFixture, confirmedID, duplicateID string) {
 	t.Helper()
-	roundID := seedReviewRows(t, f.ctx, f.pool, f.audit.AuditID, f.itemID)
+	_ = seedItemRows(t, f.ctx, f.pool, f.audit.AuditID, f.itemID)
 	if _, err := f.pool.Exec(f.ctx, `UPDATE audit_items SET state='settled',final_disposition='excluded' WHERE audit_id=$1`, f.audit.AuditID); err != nil {
 		t.Fatal(err)
 	}
-	digest := testDigest("c")
-	link := func(key, name, media string) []byte {
-		artifact := testExact(f.audit.AuditID, name, "report-r1")
-		artifact.MediaType, artifact.SizeBytes = media, 16
-		encoded, err := json.Marshal(auditstore.ArtifactLink{Scope: "project", LogicalKey: key, Artifact: artifact,
-			SourceProvenance: json.RawMessage(`{"schema":"contractor.audit.report-provenance.v1"}`),
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		return encoded
-	}
-	machine := link(auditstore.ReportMachineLogicalKey, "report.json", "application/json")
-	summary := link(auditstore.ReportSummaryLogicalKey, "report.md", "text/markdown")
 	err := persistencepostgres.InTx(f.ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		for _, subject := range []struct{ id, kind, subject string }{
-			{"item", "audit-item-action", f.itemID}, {"report", "audit-report", f.audit.AuditID},
-		} {
-			kind, action := "active-check-approval", "approve"
-			if subject.id == "report" {
-				kind, action = "report-acceptance", "reject"
-			}
-			_, err := tx.Exec(f.ctx, `INSERT INTO audit_review_requests(request_id,audit_id,subject_kind,subject_id,kind,subject_revision,subject_digest,requested_actions,state,idempotency_key,request_digest,report_round_id,report_machine_link,report_summary_link)
-              VALUES($1,$2,$3,$4,$5,1,$6,'["approve","reject"]'::jsonb,'decided',$1,$6,
-              CASE WHEN $3='audit-report' THEN $7 END,CASE WHEN $3='audit-report' THEN $8::jsonb END,CASE WHEN $3='audit-report' THEN $9::jsonb END)`,
-				"review-purge-"+subject.id, f.audit.AuditID, subject.kind, subject.subject, kind, digest, roundID, machine, summary)
-			if err != nil {
-				return err
-			}
-			if _, err = tx.Exec(f.ctx, `INSERT INTO audit_review_decisions(decision_id,request_id,audit_id,actor_id,action,rationale,subject_revision,subject_digest,idempotency_key,request_digest)
-              VALUES($1,$2,$3,$4,$5,'Decided before deletion.',1,$6,$1,$6)`, "decision-purge-"+subject.id, "review-purge-"+subject.id, f.audit.AuditID, f.audit.OwnerID, action, digest); err != nil {
-				return err
-			}
-		}
 		severity := auditstore.SeverityHigh
 		if _, err := NewOwnerTxStore(tx, artifactpgtest.NewStorage()).AssessProjectFinding(f.ctx, auditstore.ProjectFindingEdit{OwnerID: f.audit.OwnerID, ProjectID: f.project.ProjectID, FindingID: confirmedID, ExpectedRevision: 1, Verdict: auditstore.VerdictTruePositive, Severity: &severity, Rationale: "Confirmed before Audit deletion."}); err != nil {
 			return err

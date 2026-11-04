@@ -2,7 +2,6 @@ package auditservice
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -56,17 +55,6 @@ func (s *Service) transition(
 	if err != nil {
 		return MutationResult{}, err
 	}
-	// A report awaiting exact owner acceptance is an immutable projection
-	// snapshot. Pausing it would make resume re-enter ordinary reconciliation
-	// with a candidate created from an older Audit revision. Cancellation and
-	// deletion remain available, while accept/reject uses the review endpoint.
-	if action == lifecyclePause && audit.State == auditstore.AuditWaitingReview {
-		if _, candidateErr := s.reads().GetReportCandidate(ctx, audit.AuditID); candidateErr == nil {
-			return MutationResult{}, auditstore.ErrPrecondition
-		} else if !errors.Is(candidateErr, auditstore.ErrNotFound) {
-			return MutationResult{}, candidateErr
-		}
-	}
 	target, reason, err := lifecycleTarget(action, audit.State)
 	if err != nil {
 		return MutationResult{}, err
@@ -84,11 +72,11 @@ func lifecycleTarget(
 ) (auditstore.AuditState, *auditstore.StopReason, error) {
 	switch action {
 	case lifecyclePause:
-		if state == auditstore.AuditActive || state == auditstore.AuditWaitingReview {
+		if state == auditstore.AuditActive {
 			return auditstore.AuditPaused, nil, nil
 		}
 	case lifecycleCancel:
-		if state == auditstore.AuditActive || state == auditstore.AuditWaitingReview ||
+		if state == auditstore.AuditActive ||
 			state == auditstore.AuditPaused || state == auditstore.AuditFinalizing {
 			return auditstore.AuditCancelling, &auditstore.StopReason{
 				Code: "cancel_requested", Message: "Audit cancellation was requested by its owner.",

@@ -331,5 +331,5 @@ func commonPausedSnapshot(t *testing.T) auditstore.ReconcileSnapshot {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return auditstore.ReconcileSnapshot{Audit: auditstore.Audit{AuditID: "audit-script", State: auditstore.AuditPaused, ProfileSnapshot: snapshot}}
+	return auditstore.ReconcileSnapshot{Audit: auditstore.Audit{AuditID: "audit-script", State: auditstore.AuditPaused, BaselineSnapshot: json.RawMessage(`{}`), ProfileSnapshot: snapshot}}
 }

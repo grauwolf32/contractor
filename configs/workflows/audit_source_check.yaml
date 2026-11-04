@@ -1,36 +1,30 @@
 apiVersion: contractor/v1alpha1
 kind: Workflow
-
 metadata:
   name: audit-source-check
-  version: "1"
-
+  version: '1'
 spec:
   parameters: {}
-
   inputs:
-    task:
-      required: true
-      mediaTypes: [application/zip]
-    execution_manifest:
-      required: true
-      mediaTypes: [application/json]
     source:
       required: true
-      mediaTypes: [application/zip]
-
+      mediaTypes:
+      - application/zip
+    context:
+      required: true
+      mediaTypes:
+      - application/json
   outputs:
     result:
       required: true
       primary: true
-      mediaTypes: [application/zip]
-
+      mediaTypes:
+      - application/json
   executionConfig:
     workers:
       llmGateway: local-litellm@1
       credential: development-worker
       modelPolicy: audit_completion_worker@1
-
   entryStage: check
   stages:
     check:
@@ -44,27 +38,26 @@ spec:
           namespace: audit-check
       context:
         artifacts:
-          task:
-            namespace: inputs
-            name: task
-            required: true
-          execution_manifest:
-            namespace: inputs
-            name: execution_manifest
-            required: true
           source:
             namespace: inputs
             name: source
+            required: true
+          context:
+            namespace: inputs
+            name: context
             required: true
       result:
         artifacts:
           result:
             required: true
-            mediaTypes: [application/zip]
-            from: {namespace: audit-check, name: result}
+            mediaTypes:
+            - application/json
+            from:
+              namespace: audit-check
+              name: result
       workflowOutputs:
         result: result
-      on:
+      'on':
         succeeded:
           succeed: {}
         failed:

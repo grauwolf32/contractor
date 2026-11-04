@@ -143,6 +143,18 @@ function SourceDetail({
           label="Original claim"
         />
       )}
+      {value.origin.audit?.hypothesisSnapshot === undefined ? null : (
+        <ExactArtifactLink
+          projectId={projectId}
+          artifact={value.origin.audit.hypothesisSnapshot}
+          projectReadable
+          label={
+            value.origin.audit.hypothesis === undefined
+              ? "Source assertion"
+              : `Source assertion · revision ${value.origin.audit.hypothesis.revision}`
+          }
+        />
+      )}
       <SourceEvidence source={value} />
       <SourceHistory projectId={projectId} receiptId={receiptId} />
     </div>

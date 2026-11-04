@@ -2,6 +2,14 @@ schema_version: '1.0'
 boundary: V64-001 validates contracts offline. Dependent tasks switch executable callers. No compatibility
   mode and no second execution pipeline.
 relations:
+- name: audit_hypotheses
+  action: preserve
+  owner: V64-012
+  facts: Audit-owned stable opaque identity and current revision pointer; no Project registry.
+- name: audit_hypothesis_revisions
+  action: preserve
+  owner: V64-012
+  facts: Immutable exact assertion revisions; bounded admission, lookup and owner purge.
 - name: audit_tasks
   action: preserve
   owner: V64-002
@@ -80,10 +88,11 @@ relations:
 - name: audit_review_decisions
   action: replace
   owner: V411-010
-  facts: Transfer useful analyst finding annotations with actor/time/history; discard control approvals.
-    V64-014 retains Finding annotations as historical facts and supplies the sole Project Finding commands.
-    V411-010 removes remaining obsolete control records. Historical decisions neither set current Project
-    assessment automatically nor grant future execution authority.
+  facts: Preserve old Audit decision facts and actor/time metadata only as opaque immutable ordinary
+    Project Artifacts under FND-R215, then remove remaining obsolete control records. Do not replay old
+    decisions into operational Findings, source contributions, analyst-edit history or executable approvals.
+    Current Project Finding edits and their history use the existing V64-014 owner. This follows the user
+    clarification on 2026-11-04; archived decisions grant no current assessment or execution authority.
 - name: audit_live_item_reviews
   action: delete
   owner: V411-010
@@ -162,8 +171,8 @@ paths:
 - prefix: ui/src/routes/projects/audits/
   action: replace
   owner: V64-009
-  facts: Keep goal/work/material/result/finding views and controls; remove approvals inbox and candidate
-    acceptance.
+  facts: Keep goal/work/material/result/finding views and controls. V411-010 removes approval inbox
+    rows and candidate acceptance with their callers; V64-009 completes the research workspace views.
 - prefix: ui/src/routes/catalog/audit-preset
   action: replace
   owner: V64-009
@@ -382,6 +391,26 @@ profiles:
   facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
     initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
 operations:
+- path: /v1/audits/{auditId}/hypotheses
+  method: post
+  action: preserve
+  owner: V64-012
+  facts: Manual content gets trusted identity and origin through existing Audit keyed mutations.
+- path: /v1/audits/{auditId}/hypotheses
+  method: get
+  action: preserve
+  owner: V64-012
+  facts: Bounded current assertion pages and fixed selected coverage denominator.
+- path: /v1/audits/{auditId}/hypotheses/{hypothesisId}
+  method: get
+  action: preserve
+  owner: V64-012
+  facts: Owner-authorized exact revision read without latest substitution.
+- path: /v1/audits/{auditId}/hypotheses/{hypothesisId}
+  method: patch
+  action: preserve
+  owner: V64-012
+  facts: CAS edit appends content and preserves origin and accepted Task pins.
 - path: /v1/audits/{auditId}/tasks
   method: post
   action: preserve

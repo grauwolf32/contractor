@@ -72,6 +72,7 @@ class FindingPublisher:
         caido_request_id: str | None = None,
         publish_problem: bool = False,
         item_key: str | None = None,
+        incidental: bool = False,
     ) -> dict[str, Any]:
         with RecordedToolCall(
             self.metrics, "finding", {}, secrets=self.secrets, bound_error=_bounded_finding_error
@@ -111,6 +112,7 @@ class FindingPublisher:
                 proposed_checks=checks,
                 publish_problem=publish_problem,
                 item_key=item_key,
+                incidental=incidental,
             )
             proposal = request["proposal"]
             if normalized:

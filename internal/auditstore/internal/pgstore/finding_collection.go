@@ -9,7 +9,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 )
 
-// CollectionReceiptIDs resolves findings of an owner's Audit, each at the
+// CollectionReceiptIDs resolves findings of an owned Audit or Project, each at the
 // exact revision the caller read, to every receipt that contributed to them
 // or first proposed them, sorted. It reads them in one statement that
 // returns at most one row per finding and auditdomain.MaximumCollectionEntries
@@ -19,8 +19,11 @@ import (
 // findings than that, ErrInvalid. No page or first proposal shortcut drops a
 // supporting receipt.
 func (s *QueryStore) CollectionReceiptIDs(
-	ctx context.Context, ownerID, auditID string, findings []auditstore.FindingRevision,
+	ctx context.Context, ownerID, sourceID string, findings []auditstore.FindingRevision, sourceKind string,
 ) ([]string, error) {
+	if sourceKind != "project" && sourceKind != "audit" {
+		return nil, auditstore.ErrInvalid
+	}
 	if len(findings) == 0 {
 		return []string{}, nil
 	}
@@ -32,7 +35,7 @@ func (s *QueryStore) CollectionReceiptIDs(
 		findingIDs[index] = finding.FindingID
 	}
 	rows, err := s.db.Query(ctx, readCollectionReceiptIDsSQL,
-		ownerID, auditID, findingIDs, auditdomain.MaximumCollectionEntries+1)
+		ownerID, sourceID, findingIDs, auditdomain.MaximumCollectionEntries+1, sourceKind)
 	if err != nil {
 		return nil, err
 	}

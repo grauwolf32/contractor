@@ -47,7 +47,7 @@ type ProjectSourceHistoryPage struct {
 }
 
 func (s *Service) GetProjectReceipt(ctx context.Context, ownerID, projectID, receiptID string) (Receipt, error) {
-	if !auditstore.ValidReviewIdentity(ownerID, 256) || contracts.ValidateResourceID("project", projectID) != nil ||
+	if !auditstore.ValidFindingIdentity(ownerID, 256) || contracts.ValidateResourceID("project", projectID) != nil ||
 		contracts.ValidateResourceID("receipt", receiptID) != nil {
 		return Receipt{}, ErrInvalid
 	}
@@ -69,7 +69,7 @@ func (s *Service) GetProjectReceipt(ctx context.Context, ownerID, projectID, rec
 // ListProjectSources traverses retained receipts even when the Project has
 // no Finding cards. Finding selection uses its own indexed source window.
 func (s *Service) ListProjectSources(ctx context.Context, ownerID, projectID, findingID string, query ProjectSourceQuery) (ProjectSourcePage, error) {
-	if !auditstore.ValidReviewIdentity(ownerID, 256) || contracts.ValidateResourceID("project", projectID) != nil ||
+	if !auditstore.ValidFindingIdentity(ownerID, 256) || contracts.ValidateResourceID("project", projectID) != nil ||
 		!validListQuery(query.ListQuery) || query.Limit > MaxProjectSourcePage+1 ||
 		(findingID != "" && contracts.ValidateResourceID("finding", findingID) != nil) {
 		return ProjectSourcePage{}, ErrInvalid
@@ -92,14 +92,14 @@ func (s *Service) ListProjectSources(ctx context.Context, ownerID, projectID, fi
 		var value ProjectSourcePreview
 		var proposal, configuration []byte
 		var auditID, executionID, taskID *string
-		var hypothesis []byte
+		var hypothesis, hypothesisSnapshot []byte
 		var deleted *time.Time
 		if err := rows.Scan(&value.ReceiptID, &value.ProposalID, &value.ProjectID, &value.FindingID,
 			&proposal, &value.EvidenceCount, &value.PublicationRequested, &value.CreatedAt,
 			&value.Origin.RunID, &value.Origin.StageExecutionID, &value.Origin.AllocationID,
 			&value.Origin.InvocationID, &value.Origin.LogicalAgentName, &value.Origin.Workflow.Name,
 			&value.Origin.Workflow.Version, &value.Origin.Workflow.SchemaVersion, &configuration, &value.Origin.Workflow.ClosureDigest,
-			&auditID, &executionID, &taskID, &hypothesis, &deleted); err != nil {
+			&auditID, &executionID, &taskID, &hypothesis, &hypothesisSnapshot, &deleted); err != nil {
 			return ProjectSourcePage{}, err
 		}
 		if strictjson.Decode(proposal, &value.Proposal) != nil || value.Proposal.Validate() != nil ||
@@ -118,6 +118,13 @@ func (s *Service) ListProjectSources(ctx context.Context, ownerID, projectID, fi
 					return ProjectSourcePage{}, ErrInvalid
 				}
 				value.Origin.Audit.Hypothesis = &ref
+				if hypothesisSnapshot != nil {
+					var exact ExactArtifact
+					if strictjson.Decode(hypothesisSnapshot, &exact) != nil || exact.Validate() != nil || !exact.HasMetadata() {
+						return ProjectSourcePage{}, ErrInvalid
+					}
+					value.Origin.Audit.HypothesisSnapshot = &exact
+				}
 			}
 
 		}
@@ -134,7 +141,7 @@ func (s *Service) ListProjectSources(ctx context.Context, ownerID, projectID, fi
 }
 
 func (s *Service) projectSourceRevision(ctx context.Context, ownerID, projectID, findingID string, expected *uint64) (uint64, error) {
-	if !auditstore.ValidReviewIdentity(ownerID, 256) || !contracts.ValidResourceID(projectID) || (expected != nil && (*expected < 1 || *expected > contracts.MaxExactInteger)) {
+	if !auditstore.ValidFindingIdentity(ownerID, 256) || !contracts.ValidResourceID(projectID) || (expected != nil && (*expected < 1 || *expected > contracts.MaxExactInteger)) {
 		return 0, ErrInvalid
 	}
 	var revision uint64

@@ -47,9 +47,9 @@ func TestSharedPostgresCommonTaskPagesAndPurgeAtCeiling(t *testing.T) {
 				state = "ready"
 				gap = nil
 			}
-			rows = append(rows, []any{entry.Document.TaskID, f.audit.AuditID, contentdigest.Bytes(source), source, document, batch, ordinal, (ordinal-1)/3125 + 1, state, gap})
+			rows = append(rows, []any{entry.Document.TaskID, f.audit.AuditID, contentdigest.Bytes(source), source, document, batch, ordinal, (ordinal-1)/3125 + 1, state, gap, ordinal == total})
 		}
-		if _, err := f.pool.CopyFrom(ctx, pgx.Identifier{"audit_tasks"}, []string{"task_id", "audit_id", "source_key", "source", "document", "batch_digest", "ordinal", "iteration", "state", "gap_code"}, pgx.CopyFromRows(rows)); err != nil {
+		if _, err := f.pool.CopyFrom(ctx, pgx.Identifier{"audit_tasks"}, []string{"task_id", "audit_id", "source_key", "source", "document", "batch_digest", "ordinal", "iteration", "state", "gap_code", "attention"}, pgx.CopyFromRows(rows)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -63,6 +63,25 @@ func TestSharedPostgresCommonTaskPagesAndPurgeAtCeiling(t *testing.T) {
 	page, err := f.reads.ListTasks(ctx, auditstore.ListTasksParams{OwnerID: "owner", AuditID: f.audit.AuditID, State: &ready, Limit: 10})
 	if err != nil || len(page.Tasks) != 3 || page.NextOrdinal != nil || page.Tasks[0].Ordinal != total-2 {
 		t.Fatalf("sparse ready selection: %+v %v", page, err)
+	}
+	readyRows, err := f.pool.Query(ctx, readyTasksSQL, f.audit.AuditID, []string{"inspect"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var selectedOrder []int
+	for readyRows.Next() {
+		task, err := scanTask(readyRows)
+		if err != nil {
+			t.Fatal(err)
+		}
+		selectedOrder = append(selectedOrder, task.Ordinal)
+	}
+	readyRows.Close()
+	if err := readyRows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if len(selectedOrder) != 3 || selectedOrder[0] != total || selectedOrder[1] != total-2 {
+		t.Fatalf("attention/source ordering=%v", selectedOrder)
 	}
 	for _, mode := range []explaintest.Mode{explaintest.Custom, explaintest.Generic} {
 		origin, _ := strictjson.Canonical(auditstore.TaskSource{Kind: "manual", Key: "task-100000"})

@@ -41,6 +41,17 @@ for (const width of [390, 1440]) {
               auditId: "audit_second",
               executionId: "execution_second",
               taskId: "task_second",
+              hypothesis: { id: "hypothesis_original", revision: 7 },
+              hypothesisSnapshot: {
+                ...first.projectProposal!,
+                ref: {
+                  namespace: "finding-materials",
+                  name: "source-assertion",
+                  revision: "assertion-r7",
+                },
+                mediaType: "application/json",
+                sizeBytes: 512,
+              },
             },
             workflow: { ...first.origin.workflow, name: "independent-check" },
           },
@@ -122,6 +133,15 @@ for (const width of [390, 1440]) {
       await expect(
         sources.getByText("Original check: audit_second", { exact: true }),
       ).toBeVisible();
+      const assertion = sources.getByRole("link", {
+        name: /^Source assertion · revision 7/,
+      });
+      await expect(assertion).toBeVisible();
+      await expect(assertion).toHaveAttribute(
+        "href",
+        /projects\/project_shared\/artifacts\/finding-materials\/source-assertion/,
+      );
+      await expect(assertion).toHaveAttribute("href", /revision=assertion-r7/);
       await expect(
         sources.getByRole("region", { name: "Your decision" }),
       ).toHaveCount(0);

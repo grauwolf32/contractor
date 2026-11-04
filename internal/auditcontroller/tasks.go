@@ -15,6 +15,11 @@ import (
 // remains an ordinary immutable execution/membership association.
 func (c *Controller) reconcileTasks(ctx context.Context, claim auditstore.ControllerClaim, snapshot auditstore.ReconcileSnapshot, pinned auditprofile.PinnedProgram) (bool, error) {
 	audit := snapshot.Audit
+	var programErr error
+	pinned.Program, programErr = auditdomain.ExecutionProgram(pinned.Program, audit.BaselineSnapshot)
+	if programErr != nil {
+		return false, programErr
+	}
 	if audit.State == auditstore.AuditActive && audit.DeadlineAt != nil && !c.now().Before(*audit.DeadlineAt) {
 		_, err := c.store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{Claim: claim, ExpectedRevision: audit.Revision, ExpectedState: auditstore.AuditActive, TargetState: auditstore.AuditPaused, Reason: &auditstore.StopReason{Code: "deadline_exhausted", Message: "The Audit time limit was reached. Existing Runs can finish; extend or disable the limit to continue."}})
 		return err == nil, err
@@ -43,7 +48,7 @@ func (c *Controller) reconcileTasks(ctx context.Context, claim auditstore.Contro
 			return c.createTaskRun(ctx, claim, execution)
 		}
 	}
-	if audit.InitialWorkOffset < len(pinned.Program.InitialWork) && auditstore.RemainingTaskCapacity(audit) > 0 {
+	if audit.InitialHypothesisOffset < len(pinned.Program.Hypotheses) || audit.InitialWorkOffset < len(pinned.Program.InitialWork) && auditstore.RemainingTaskCapacity(audit) > 0 {
 		if c.options.TaskIntake == nil {
 			return false, errors.New("Audit task intake is not configured")
 		}

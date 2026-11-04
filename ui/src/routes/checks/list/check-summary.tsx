@@ -3,10 +3,7 @@ import { Link } from "react-router";
 
 import { auditPollInterval, getAudit, type Audit } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
-import {
-  INBOX_CHECK_STATES,
-  type CrossProjectCheck,
-} from "../../../api/cross-project";
+import { type CrossProjectCheck } from "../../../api/cross-project";
 import { PublicAPIError } from "../../../api/error";
 import { getProject } from "../../../api/projects";
 import { queryKeys } from "../../../api/query-keys";
@@ -50,7 +47,6 @@ import {
 function Summary({
   audit,
   projectName,
-  listed,
   read,
 }: {
   audit: Audit;
@@ -59,7 +55,6 @@ function Summary({
    * The list holds the check, so it is within the bounds the Inbox reads
    * too (the first projects, their newest checks).
    */
-  listed: boolean;
   /** The check read on its own: only then may its controls act. */
   read: UseQueryResult<Audit>;
 }) {
@@ -68,16 +63,9 @@ function Summary({
   const type = auditProfileLabel(audit);
   const root = checkPath(audit.projectId, audit.auditId);
   const kind = checkItemKind(audit);
-  const pending = workspace.data?.pendingReviews ?? 0;
   const unreviewed = workspace.data?.unreviewedFindings ?? 0;
   const timeLimit = timeLimitText(audit);
   const coverage = sectionPath(audit.projectId, audit.auditId, "coverage");
-  // The Inbox shows the decisions of running and waiting checks it reads; a
-  // check beyond its bounds (a deep link) is decided on its own page.
-  const decisions =
-    listed && INBOX_CHECK_STATES.includes(audit.state)
-      ? "/"
-      : `${sectionPath(audit.projectId, audit.auditId, "reviews")}?state=pending`;
   return (
     <DetailPane
       header={
@@ -162,17 +150,8 @@ function Summary({
         </QueryView>
       )}
       <StopReasonBanner audit={audit} />
-      {pending > 0 || unreviewed > 0 ? (
-        <p className="checks-progress-waiting">
-          {pending > 0 ? (
-            <Link to={decisions}>
-              {plural(
-                pending,
-                "decision waiting for you",
-                "decisions waiting for you",
-              )}
-            </Link>
-          ) : null}
+      {unreviewed > 0 ? (
+        <p className="ui-caption">
           {unreviewed > 0 ? (
             <Link
               to={`/issues?${new URLSearchParams({ project: audit.projectId }).toString()}`}
@@ -294,7 +273,6 @@ export function CheckSummary({
     <Summary
       audit={current}
       projectName={listed?.project.name ?? project.data?.name}
-      listed={listed !== undefined}
       read={audit}
     />
   );

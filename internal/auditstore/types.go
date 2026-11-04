@@ -45,21 +45,20 @@ const (
 type AuditState string
 
 const (
-	AuditDraft         AuditState = "draft"
-	AuditActive        AuditState = "active"
-	AuditWaitingReview AuditState = "waiting_review"
-	AuditPaused        AuditState = "paused"
-	AuditFinalizing    AuditState = "finalizing"
-	AuditCancelling    AuditState = "cancelling"
-	AuditCompleted     AuditState = "completed"
-	AuditCancelled     AuditState = "cancelled"
-	AuditFailed        AuditState = "failed"
-	AuditDeleting      AuditState = "deleting"
+	AuditDraft      AuditState = "draft"
+	AuditActive     AuditState = "active"
+	AuditPaused     AuditState = "paused"
+	AuditFinalizing AuditState = "finalizing"
+	AuditCancelling AuditState = "cancelling"
+	AuditCompleted  AuditState = "completed"
+	AuditCancelled  AuditState = "cancelled"
+	AuditFailed     AuditState = "failed"
+	AuditDeleting   AuditState = "deleting"
 )
 
 func (s AuditState) Valid() bool {
 	switch s {
-	case AuditDraft, AuditActive, AuditWaitingReview, AuditPaused,
+	case AuditDraft, AuditActive, AuditPaused,
 		AuditFinalizing, AuditCancelling, AuditCompleted, AuditCancelled,
 		AuditFailed, AuditDeleting:
 		return true
@@ -105,16 +104,15 @@ func (s RoundState) Valid() bool {
 type ItemState string
 
 const (
-	ItemPending        ItemState = "pending"
-	ItemAwaitingReview ItemState = "awaiting_review"
-	ItemReady          ItemState = "ready"
-	ItemSubmitted      ItemState = "submitted"
-	ItemCollecting     ItemState = "collecting"
-	ItemSettled        ItemState = "settled"
+	ItemPending    ItemState = "pending"
+	ItemReady      ItemState = "ready"
+	ItemSubmitted  ItemState = "submitted"
+	ItemCollecting ItemState = "collecting"
+	ItemSettled    ItemState = "settled"
 )
 
 func (s ItemState) Valid() bool {
-	return s == ItemPending || s == ItemAwaitingReview || s == ItemReady ||
+	return s == ItemPending || s == ItemReady ||
 		s == ItemSubmitted || s == ItemCollecting || s == ItemSettled
 }
 
@@ -235,28 +233,29 @@ type StopReason struct {
 }
 
 type Audit struct {
-	AuditID            string
-	OwnerID            string
-	ProjectID          string
-	Profile            ProfileIdentity
-	ProfileSnapshot    json.RawMessage
-	InputSelection     json.RawMessage
-	BaselineSnapshot   json.RawMessage
-	State              AuditState
-	Phase              auditdomain.AuditPhase
-	Revision           uint64
-	CurrentRoundID     *string
-	Dispatch           DispatchState
-	Hold               HoldState
-	DeadlineAt         *time.Time
-	PausedAt           *time.Time
-	Limits             Limits
-	ReservedRunCount   int
-	SubmittedRunCount  int
-	TaskCount          int
-	TaskIteration      int
-	IterationTaskCount int
-	InitialWorkOffset  int
+	AuditID                 string
+	OwnerID                 string
+	ProjectID               string
+	Profile                 ProfileIdentity
+	ProfileSnapshot         json.RawMessage
+	InputSelection          json.RawMessage
+	BaselineSnapshot        json.RawMessage
+	State                   AuditState
+	Phase                   auditdomain.AuditPhase
+	Revision                uint64
+	CurrentRoundID          *string
+	Dispatch                DispatchState
+	Hold                    HoldState
+	DeadlineAt              *time.Time
+	PausedAt                *time.Time
+	Limits                  Limits
+	ReservedRunCount        int
+	SubmittedRunCount       int
+	TaskCount               int
+	TaskIteration           int
+	IterationTaskCount      int
+	InitialHypothesisOffset int
+	InitialWorkOffset       int
 	// OutstandingRunCount counts every child Run that holds a dispatch
 	// reservation; OutstandingToolRunCount is its `tool` class part
 	// (AUX-R3).
@@ -315,11 +314,12 @@ type ListItemsParams struct {
 type MutationOperation string
 
 const (
-	MutationCreate      MutationOperation = "audit.create"
-	MutationStart       MutationOperation = "audit.start"
-	MutationTransition  MutationOperation = "audit.transition"
-	MutationDelete      MutationOperation = "audit.delete"
-	MutationAcceptTasks MutationOperation = "audit.tasks.accept"
+	MutationCreate          MutationOperation = "audit.create"
+	MutationStart           MutationOperation = "audit.start"
+	MutationTransition      MutationOperation = "audit.transition"
+	MutationDelete          MutationOperation = "audit.delete"
+	MutationAcceptTasks     MutationOperation = "audit.tasks.accept"
+	MutationWriteHypotheses MutationOperation = "audit.hypotheses.write"
 )
 
 type TransitionParams struct {
@@ -354,16 +354,6 @@ type DeleteParams struct {
 
 type ClaimedTransitionParams struct {
 	Claim            ControllerClaim
-	ExpectedRevision uint64
-	ExpectedState    AuditState
-	TargetState      AuditState
-	Reason           *StopReason
-}
-
-// TrustedTransitionParams is a service-authorized transition applied inside
-// the caller's transaction. It carries neither owner idempotency nor a claim.
-type TrustedTransitionParams struct {
-	AuditID          string
 	ExpectedRevision uint64
 	ExpectedState    AuditState
 	TargetState      AuditState
@@ -416,26 +406,8 @@ type MaterializedItem struct {
 	Origin          ItemOrigin
 	WorkflowRole    string
 	InitialState    ItemState
-	ApprovalKind    ItemApprovalKind
-	ApprovalDigest  string
 	Coverage        Coverage
 	ProposalSources []ProposalItemSource
-}
-
-// ItemApprovalKind is the durable Server-side review gate attached to one
-// immutable Audit item. It is not model-authored authority: the exact digest
-// and accepted decision are checked again by CreateExecutionIntent.
-type ItemApprovalKind string
-
-const (
-	ItemApprovalNone          ItemApprovalKind = "none"
-	ItemApprovalActiveCheck   ItemApprovalKind = "active-check-approval"
-	ItemApprovalApplicability ItemApprovalKind = "requirement-applicability"
-)
-
-func (kind ItemApprovalKind) Valid() bool {
-	return kind == ItemApprovalNone || kind == ItemApprovalActiveCheck ||
-		kind == ItemApprovalApplicability
 }
 
 // ProposalItemSource is the exact consume-once cause of a later-round item.
@@ -496,8 +468,6 @@ type Item struct {
 	Origin              ItemOrigin
 	WorkflowRole        string
 	State               ItemState
-	ApprovalKind        ItemApprovalKind
-	ApprovalDigest      string
 	FinalDisposition    *FinalDisposition
 	AcceptedResult      *ExactArtifact
 	LastExecutionItemID *string
@@ -750,27 +720,6 @@ type CommitReportParams struct {
 	RequestDigest           string
 }
 
-// ReportDecisionParams identifies the exact frozen report candidate an owner
-// decided. The decision runs inside the review transaction, which already
-// holds the Audit and review request locks, so it carries no claim.
-type ReportDecisionParams struct {
-	AuditID               string
-	ExpectedAuditRevision uint64
-	RequestID             string
-	SubjectRevision       uint64
-	SubjectDigest         string
-}
-
-type ReportCandidate struct {
-	RequestID       string
-	RoundID         string
-	SubjectRevision uint64
-	SubjectDigest   string
-	Machine         ArtifactLink
-	Summary         ArtifactLink
-	CreatedAt       time.Time
-}
-
 type Event struct {
 	AuditID        string
 	Sequence       uint64
@@ -853,7 +802,7 @@ type ReconcileSnapshot struct {
 	Receipts       []CollectionReceiptSummary
 	RoleReceipts   []CollectionReceiptSummary
 	// ReadyItems are the current Round's dispatchable items, read directly so
-	// that items awaiting review ahead of them cannot starve dispatch. Each
+	// that earlier non-runnable items cannot starve dispatch. Each
 	// Workflow role contributes its first MaxReconcileRows items, so the lane
 	// class whose window is full cannot starve the other one; they are in item
 	// order.
@@ -861,9 +810,6 @@ type ReconcileSnapshot struct {
 	MoreItems      bool
 	MoreExecutions bool
 	MoreReceipts   bool
-	// OnlyAwaitingReview is counted over every non-settled item, independent
-	// of the bounded Items window.
-	OnlyAwaitingReview bool
 }
 
 // DispatchWindowOpen reports whether the Audit may reserve another child Run

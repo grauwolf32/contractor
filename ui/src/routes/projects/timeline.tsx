@@ -50,7 +50,7 @@ interface TimelineEvent {
 const CHECK_PHRASES: Readonly<Record<AuditState, string>> = {
   draft: "is a draft and has not started",
   active: "is running",
-  waiting_review: "is waiting for you",
+
   paused: "is paused",
   finalizing: "is finishing",
   cancelling: "is stopping",

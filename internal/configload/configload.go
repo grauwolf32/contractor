@@ -11,6 +11,8 @@
 package configload
 
 import (
+	"fmt"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"sync"
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
@@ -31,9 +33,10 @@ type Bundles struct {
 // the discovered plans are kept, so a load hands back what it validated rather
 // than its caller walking the root again; later reloads only validate.
 type bundleChecks struct {
-	mu        sync.Mutex
-	recording bool
-	bundles   Bundles
+	mu               sync.Mutex
+	recording        bool
+	bundles          Bundles
+	pendingStandards *auditstandards.SeedPlan
 }
 
 func newBundleChecks() *bundleChecks { return &bundleChecks{recording: true} }
@@ -48,9 +51,26 @@ func (c *bundleChecks) operatorRootChecks() []config.OperatorRootCheck {
 		{Subject: "bundled Audit standards", Check: func(root string) error {
 			plan, err := auditstandards.DiscoverBundled(root)
 			c.keep(func(bundles *Bundles) { bundles.Standards = plan })
+			c.mu.Lock()
+			c.pendingStandards = plan
+			c.mu.Unlock()
 			return err
-		}},
+		}, AfterLoad: c.validateStandardSelections},
 	}
+}
+
+func (c *bundleChecks) validateStandardSelections(snapshot *config.Snapshot) error {
+	c.mu.Lock()
+	plan := c.pendingStandards
+	c.pendingStandards = nil
+	c.mu.Unlock()
+	for _, profile := range snapshot.AuditProfiles() {
+		if err := validateStandardSelection(profile.Program, plan); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (c *bundleChecks) keep(set func(*Bundles)) {
@@ -102,4 +122,30 @@ func NewManager(options config.ManagerOptions) (*config.Manager, Bundles, error)
 		return nil, Bundles{}, err
 	}
 	return manager, checks.take(), nil
+}
+
+func validateStandardSelection(program auditcontract.Program, plan *auditstandards.SeedPlan) error {
+	source := program.SeedSource
+	if source == nil || source.Standard == nil {
+		return nil
+	}
+	pkg, err := plan.Resolve(auditstandards.Reference{Scheme: source.Standard.Scheme, Version: source.Standard.Version})
+	if err != nil {
+		return fmt.Errorf("Audit assertion standard selection is unavailable: %w", err)
+	}
+	_, err = auditstandards.SelectEntries(pkg, source.EntryIDs, auditcontract.MaxMutationRecords)
+	return err
+}
+
+// ValidateAuditProgram applies the real catalog and already discovered bundled
+// standard selections to an offline common program, without a second root walk.
+func ValidateAuditProgram(snapshot *config.Snapshot, bundles Bundles, data []byte) error {
+	if err := config.ValidateAuditProgram(snapshot, data); err != nil {
+		return err
+	}
+	program, err := auditcontract.DecodeProgram(data)
+	if err != nil {
+		return err
+	}
+	return validateStandardSelection(program, bundles.Standards)
 }

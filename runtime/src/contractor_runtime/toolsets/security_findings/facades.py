@@ -23,6 +23,13 @@ from contractor_runtime.toolsets.common.finding_locations import (
     StandardReference,
 )
 from contractor_runtime.toolsets.common.resources import ToolResources
+from contractor_runtime.toolsets.security_findings.project_reader import (
+    ListProjectFindingsTool,
+    ProjectFindingTools,
+    ReadFindingSelection,
+    ReadProjectFindingTool,
+    SelectProjectFindingsTool,
+)
 from contractor_runtime.toolsets.security_findings.publisher import FindingPublisher
 from contractor_runtime.toolsets.security_findings.reader import prepare_reader
 from contractor_runtime.workspace import AllocationWorkspace
@@ -67,6 +74,8 @@ class GeneralFindingTool(_FindingFacade):
             method. At most 512; these suggestions grant no execution authority.
         item_key: Assigned Audit member key from read_audit_task; required for a batch.
             Omit for an ordinary Run or a single assigned task.
+        incidental: An independent discovery that does not test the assigned hypothesis.
+            Its Audit/task origin is retained without a hypothesis association.
         publish_problem: Explicitly publish the described problem to the Project.
             Requires selected exact evidence. False keeps an ordinary proposal.
     """
@@ -85,6 +94,7 @@ class GeneralFindingTool(_FindingFacade):
         proposed_checks: list[ProposedCheck] | None = None,
         publish_problem: bool = False,
         item_key: str | None = None,
+        incidental: bool = False,
     ) -> dict[str, Any]:
         return await self._publisher.submit(
             title=title,
@@ -97,6 +107,7 @@ class GeneralFindingTool(_FindingFacade):
             proposed_checks=proposed_checks,
             publish_problem=publish_problem,
             item_key=item_key,
+            incidental=incidental,
             request_id=request_id,
             caido_request_id=caido_request_id,
         )
@@ -126,6 +137,8 @@ class CodeFindingTool(_FindingFacade):
             method. At most 512; these suggestions grant no execution authority.
         item_key: Assigned Audit member key from read_audit_task; required for a batch.
             Omit for an ordinary Run or a single assigned task.
+        incidental: An independent discovery that does not test the assigned hypothesis.
+            Its Audit/task origin is retained without a hypothesis association.
         publish_problem: Explicitly publish the described problem to the Project.
             Requires selected exact evidence. False keeps an ordinary proposal.
     """
@@ -144,6 +157,7 @@ class CodeFindingTool(_FindingFacade):
         proposed_checks: list[ProposedCheck] | None = None,
         publish_problem: bool = False,
         item_key: str | None = None,
+        incidental: bool = False,
     ) -> dict[str, Any]:
         location: dict[str, Any] = {"file": file}
         if line is not None:
@@ -161,6 +175,7 @@ class CodeFindingTool(_FindingFacade):
             proposed_checks=proposed_checks,
             publish_problem=publish_problem,
             item_key=item_key,
+            incidental=incidental,
         )
 
 
@@ -192,6 +207,8 @@ class HTTPFindingTool(_FindingFacade):
             method. At most 512; these suggestions grant no execution authority.
         item_key: Assigned Audit member key from read_audit_task; required for a batch.
             Omit for an ordinary Run or a single assigned task.
+        incidental: An independent discovery that does not test the assigned hypothesis.
+            Its Audit/task origin is retained without a hypothesis association.
         publish_problem: Explicitly publish the described problem to the Project.
             Requires selected exact evidence. False keeps an ordinary proposal.
     """
@@ -211,6 +228,7 @@ class HTTPFindingTool(_FindingFacade):
         proposed_checks: list[ProposedCheck] | None = None,
         publish_problem: bool = False,
         item_key: str | None = None,
+        incidental: bool = False,
     ) -> dict[str, Any]:
         return await self._publisher.submit(
             title=title,
@@ -223,6 +241,7 @@ class HTTPFindingTool(_FindingFacade):
             proposed_checks=proposed_checks,
             publish_problem=publish_problem,
             item_key=item_key,
+            incidental=incidental,
             request_id=request_id,
             caido_request_id=caido_request_id,
         )
@@ -230,7 +249,16 @@ class HTTPFindingTool(_FindingFacade):
 
 class GeneralFindingsToolsetFactory:
     ref = "security-findings@1"
-    exported_tools = frozenset({"finding", "list_findings"})
+    exported_tools = frozenset(
+        {
+            "finding",
+            "list_findings",
+            "list_project_findings",
+            "read_project_finding",
+            "select_project_findings",
+            "read_finding_selection",
+        }
+    )
     infrastructure_channels = MappingProxyType({})
     tool_class = GeneralFindingTool
 
@@ -253,7 +281,7 @@ class GeneralFindingsToolsetFactory:
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: Any = None,
     ) -> Mapping[str, Any]:
-        del run_id, namespace, workspace, adapter_handles, project_workspace
+        del run_id, workspace, adapter_handles, project_workspace
         require_selected_tools(
             selected, self.exported_tools, description="unknown selected finding tools"
         )
@@ -273,6 +301,18 @@ class GeneralFindingsToolsetFactory:
             result["list_findings"] = await prepare_reader(
                 client, metrics, runtime_secrets(runtime_settings)
             )
+        project = ProjectFindingTools(client, metrics, runtime_secrets(runtime_settings), namespace)
+        for tool_class in (
+            ListProjectFindingsTool,
+            ReadProjectFindingTool,
+            SelectProjectFindingsTool,
+        ):
+            if tool_class.name in selected:
+                result[tool_class.name] = tool_class(
+                    client, metrics, runtime_secrets(runtime_settings), namespace
+                )
+        if "read_finding_selection" in selected:
+            result["read_finding_selection"] = ReadFindingSelection(project)
         return result
 
 

@@ -27,7 +27,7 @@ func TestProjectActiveChecksStrictRequestsAndCAS(t *testing.T) {
 		fixture.handler.ServeHTTP(response, request)
 		return response
 	}
-	for _, value := range []string{`null`, `""`, `"enabled"`, `true`, `"Automatic"`} {
+	for _, value := range []string{`null`, `""`, `"enabled"`, `"approval-required"`, `true`, `"Automatic"`} {
 		if r := call(http.MethodPost, `{"kind":"project","name":"Policy","activeChecks":`+value+`}`, ""); r.Code != 400 {
 			t.Fatalf("create %s: %d %s", value, r.Code, r.Body.String())
 		}
@@ -37,20 +37,20 @@ func TestProjectActiveChecksStrictRequestsAndCAS(t *testing.T) {
 	if err := json.Unmarshal(created.Body.Bytes(), &project); err != nil || created.Code != 201 || project.ActiveChecks != contracts.ActiveChecksAutomatic {
 		t.Fatalf("default policy: %d %s %v", created.Code, created.Body.String(), err)
 	}
-	for _, value := range []string{`null`, `""`, `"enabled"`, `true`} {
+	for _, value := range []string{`null`, `""`, `"enabled"`, `"approval-required"`, `true`} {
 		if r := call(http.MethodPatch, `{"activeChecks":`+value+`}`, `"1"`); r.Code != 400 {
 			t.Fatalf("update %s: %d %s", value, r.Code, r.Body.String())
 		}
 	}
-	updated := call(http.MethodPatch, `{"activeChecks":"approval-required"}`, `"1"`)
-	if err := json.Unmarshal(updated.Body.Bytes(), &project); err != nil || updated.Code != 200 || project.ActiveChecks != contracts.ActiveChecksApprovalRequired {
+	updated := call(http.MethodPatch, `{"activeChecks":"prohibited"}`, `"1"`)
+	if err := json.Unmarshal(updated.Body.Bytes(), &project); err != nil || updated.Code != 200 || project.ActiveChecks != contracts.ActiveChecksProhibited {
 		t.Fatalf("update policy: %d %s %v", updated.Code, updated.Body.String(), err)
 	}
 	if r := call(http.MethodPatch, `{"activeChecks":"automatic"}`, `"1"`); r.Code != 412 {
 		t.Fatalf("stale policy: %d %s", r.Code, r.Body.String())
 	}
 	preserved := call(http.MethodPatch, `{"description":"Keep policy"}`, `"2"`)
-	if err := json.Unmarshal(preserved.Body.Bytes(), &project); err != nil || preserved.Code != 200 || project.ActiveChecks != contracts.ActiveChecksApprovalRequired {
+	if err := json.Unmarshal(preserved.Body.Bytes(), &project); err != nil || preserved.Code != 200 || project.ActiveChecks != contracts.ActiveChecksProhibited {
 		t.Fatalf("omitted policy lost: %s %v", preserved.Body.String(), err)
 	}
 }

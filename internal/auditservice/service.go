@@ -313,22 +313,6 @@ func (s *Service) GetReport(
 	machine, machineErr := s.reads().GetArtifactLink(ctx, auditID, auditstore.ReportMachineLogicalKey)
 	summary, summaryErr := s.reads().GetArtifactLink(ctx, auditID, auditstore.ReportSummaryLogicalKey)
 	status := ReportReady
-	var review *auditstore.ReviewRequest
-	if audit.State == auditstore.AuditWaitingReview &&
-		errors.Is(machineErr, auditstore.ErrNotFound) && errors.Is(summaryErr, auditstore.ErrNotFound) {
-		candidate, candidateErr := s.reads().GetReportCandidate(ctx, auditID)
-		if candidateErr == nil {
-			machine, summary = candidate.Machine, candidate.Summary
-			machineErr, summaryErr, status = nil, nil, ReportProposed
-			request, reviewErr := s.GetReview(ctx, ownerID, auditID, candidate.RequestID)
-			if reviewErr != nil {
-				return ReportProjection{}, reviewErr
-			}
-			review = &request
-		} else if !errors.Is(candidateErr, auditstore.ErrNotFound) {
-			return ReportProjection{}, candidateErr
-		}
-	}
 	if machineErr != nil && !errors.Is(machineErr, auditstore.ErrNotFound) {
 		return ReportProjection{}, machineErr
 	}
@@ -379,7 +363,7 @@ func (s *Service) GetReport(
 	}
 	machineArtifact, summaryArtifact := machine.Artifact, summary.Artifact
 	return ReportProjection{
-		Review: review, Status: status, MachineArtifact: &machineArtifact, SummaryArtifact: &summaryArtifact,
+		Status: status, MachineArtifact: &machineArtifact, SummaryArtifact: &summaryArtifact,
 		Machine: append(json.RawMessage(nil), machineRead.Payload.Data...), Summary: string(summaryRead.Payload.Data),
 	}, nil
 }

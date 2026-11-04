@@ -4,7 +4,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -44,15 +43,6 @@ func TestRequestDigestsArePinned(t *testing.T) {
 		{"audit resume limit", lifecycle("resume", timeLimit(3600)), "sha256:55de97d14069029d34332b1642373072a616e96c0b091f990effb512f881c443"},
 		{"audit cancel", lifecycle("cancel", nil), "sha256:80337beddf6f790375e0f8197a444e53d9c285f4c9b26332b2eae863e1098c0d"},
 		{"audit delete", lifecycle("delete", nil), "sha256:4f5fc567729e7acbdca9c3a8067ceec86d32044a4aad7bf57dbe1a3a03d42afb"},
-		{"review encoding", func() (string, error) {
-			return reviewRequestDigest("create", "audit-1", "finding-1", uint64(2), map[string]string{"note": "x"})
-		}, "sha256:292e2a42c275f051ceac32c485c3b09bafb12458adfb4379f97b2a5d075e14a4"},
-		{"action decision", func() (string, error) {
-			return DecideActionReviewRequestDigest(DecideActionReviewParams{
-				AuditID: "audit-1", RequestID: "review-1", ExpectedRequestRevision: 4, DecisionID: "decision-1",
-				Action: auditstore.ReviewApprove, Rationale: "ok",
-			})
-		}, "sha256:3f5ddedb79ff64c52bb8bc3b8803e32ced5cee3a14becac341d250d22916796c"},
 	} {
 		got, err := tc.got()
 		if err != nil || got != tc.want {

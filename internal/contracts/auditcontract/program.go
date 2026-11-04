@@ -5,6 +5,7 @@ import "github.com/grauwolf32/contractor/internal/helpers/strictjson"
 // Program is the authored common program. Its selected Workflow closures and
 // exact materials are pinned by the Audit owner; none is inferred from outputs.
 type Program struct {
+	SeedSource   *SeedSource                `json:"seed_source,omitempty" yaml:"seed_source,omitempty"`
 	Schema       string                     `json:"schema" yaml:"schema"`
 	Inputs       map[string]ProgramInput    `json:"inputs" yaml:"inputs"`
 	Workflows    map[string]ProgramWorkflow `json:"workflows" yaml:"workflows"`
@@ -90,4 +91,22 @@ func DecodeProgram(data []byte) (Program, error) {
 		return Program{}, errInvalid
 	}
 	return program, nil
+}
+
+// SeedSource selects one bounded deterministic assertion source. It grants no
+// execution authority: its checks still use the common accepted Task owner.
+type SeedSource struct {
+	Workflow string        `json:"workflow" yaml:"workflow"`
+	Input    string        `json:"input,omitempty" yaml:"input,omitempty"`
+	Standard *SeedStandard `json:"standard,omitempty" yaml:"standard,omitempty"`
+	EntryIDs []string      `json:"entry_ids,omitempty" yaml:"entry_ids,omitempty"`
+}
+type SeedStandard struct {
+	Scheme  string `json:"scheme" yaml:"scheme"`
+	Version string `json:"version" yaml:"version"`
+}
+type InitialAssertions struct {
+	Hypotheses map[string]HypothesisSeed `json:"hypotheses"`
+	Work       []InitialWork             `json:"work"`
+	Source     Material                  `json:"source"`
 }

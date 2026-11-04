@@ -31,15 +31,3 @@ export function useAnnouncement(): Announcement {
   const clear = useCallback(() => setMessage(null), []);
   return { text: message?.text ?? "", announce, clear };
 }
-
-/**
- * Moves focus to `container` when focus is inside it or was lost to the
- * page, e.g. after the control that recorded a decision went away. Focus the
- * user moved elsewhere stays there.
- */
-export function focusIfLost(container: HTMLElement | null): void {
-  if (container === null) return;
-  const active = document.activeElement;
-  if (active === null || active === document.body || container.contains(active))
-    container.focus();
-}

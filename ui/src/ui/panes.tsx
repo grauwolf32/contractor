@@ -223,8 +223,6 @@ interface DetailPaneProps {
   header?: ReactNode;
   /**
    * Pinned to the bottom of the pane on wide screens, e.g. a DecisionBar.
-   * Content with the `ui-footer-record` class (a recorded decision) is
-   * capped there and scrolls on its own.
    */
   footer?: ReactNode;
   children: ReactNode;

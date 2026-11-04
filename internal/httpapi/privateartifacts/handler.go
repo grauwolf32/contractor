@@ -36,6 +36,7 @@ type Dependencies struct {
 	Registry        AllocationRegistry
 	Artifacts       *artifacts.Service
 	Findings        FindingIntake
+	ProjectFindings *findingintake.CollectionPublisher
 	NewRequestID    func() (string, error)
 	Logger          *slog.Logger
 	Sitemap         *projectsitemap.Service
@@ -97,6 +98,9 @@ func (h *handler) routes() []httpx.Route {
 		{Method: http.MethodGet, Path: allocation + "/artifacts/{namespace}/{name}/access", Handler: h.getArtifactAccess},
 		{Method: http.MethodPut, Path: allocation + "/artifacts/{namespace}/{name}", Handler: h.putArtifact},
 		{Method: http.MethodPost, Path: allocation + "/finding-proposals", Handler: h.postFindingProposal},
+		{Method: http.MethodGet, Path: allocation + "/findings", Handler: h.listProjectFindings},
+		{Method: http.MethodGet, Path: allocation + "/findings/{findingID}", Handler: h.readProjectFinding},
+		{Method: http.MethodPost, Path: allocation + "/finding-selections", Handler: h.selectProjectFindings},
 		{Method: http.MethodPost, Path: allocation + "/sitemap/mutations", Handler: h.mutateSitemap},
 		{Method: http.MethodPost, Path: allocation + "/sitemap/snapshots", Handler: h.snapshotSitemap},
 		{Method: http.MethodPost, Path: allocation + "/sitemap/observations", Handler: h.collectSitemapObservations},

@@ -352,6 +352,7 @@ export function schemaLimit(
     | "minLength"
     | "maxLength"
     | "x-max-utf8-bytes"
+    | "x-max-document-bytes"
     | "minProperties"
     | "maxProperties",
   ...path: string[]

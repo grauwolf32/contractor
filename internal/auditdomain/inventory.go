@@ -9,7 +9,6 @@ type inventorySubject struct {
 	itemKey    string
 	kind       string
 	subjectKey string
-	approval   ApprovalRequirement
 
 	operation *OperationTask
 	scan      *ScanTask

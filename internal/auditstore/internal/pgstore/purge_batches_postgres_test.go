@@ -21,7 +21,7 @@ func TestPostgresAuditPurgeCommitsBoundedBatchesAndResumesAfterTakeover(t *testi
 	duplicateProposal := testExact("audit-findings", "candidate-batch-duplicate", "proposal-r1")
 	duplicateProposal.MediaType, duplicateProposal.SizeBytes = "application/json", 128
 	duplicateID := insertAuditChildFinding(t, f, "batch-duplicate", duplicateProposal)
-	seedDecidedPurgeReviews(t, f, confirmedID, duplicateID)
+	seedPurgeFindingAssessments(t, f, confirmedID, duplicateID)
 	namespace := auditdomain.ArtifactNamespace(f.audit.AuditID)
 	scope, _ := artifacts.ProjectScope(f.project.ProjectID)
 	service := artifacts.NewService(artifactpgtest.NewStorage().Repository(f.pool))

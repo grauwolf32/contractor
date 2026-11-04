@@ -7,7 +7,7 @@ import { getOperationsSnapshot } from "../../api/operations";
 import { queryKeys } from "../../api/query-keys";
 import { Icon } from "../../app/icon";
 import { RecordedTime } from "../../app/recorded-time";
-import { checkStateLabel, reviewKindLabel } from "../../app/vocabulary";
+import { checkStateLabel } from "../../app/vocabulary";
 import { useSession } from "../../auth/session";
 import {
   Button,
@@ -44,8 +44,6 @@ import {
   FAILED_RUNS_PATH,
   gapsTitle,
   primaryOutput,
-  reviewSubjectItem,
-  reviewTitle,
   SECTIONS,
   SUCCEEDED_RUNS_PATH,
 } from "./present";
@@ -94,25 +92,6 @@ function IssueRow({ row, selected, onChoose }: RowProps<"issue">) {
       meta={[
         <Project key="project" name={project.name} />,
         <RecordedTime key="time" value={finding.createdAt} />,
-      ]}
-    />
-  );
-}
-
-function ReviewRow({ row, selected, onChoose, data }: RowProps<"review">) {
-  const { project, audit, review } = row.decision;
-  const item = reviewSubjectItem(row.decision, data.items.byCheck);
-  return (
-    <ListRow
-      {...rowControl(row, selected, onChoose)}
-      glyph={<StatusGlyph tone="review" />}
-      title={reviewTitle(row.decision, item, reviewKindLabel(review.kind))}
-      meta={[
-        item === undefined ? undefined : (
-          <Project key="project" name={project.name} />
-        ),
-        checkTypeLabel(audit),
-        <RecordedTime key="time" value={review.createdAt} />,
       ]}
     />
   );
@@ -322,8 +301,6 @@ function InboxListRow({
   switch (row.type) {
     case "issue":
       return <IssueRow row={row} {...props} />;
-    case "review":
-      return <ReviewRow row={row} {...props} />;
     case "check":
       return <CheckRow row={row} {...props} />;
     case "report":
@@ -651,9 +628,7 @@ export function InboxList({
           </p>
         </div>
       ) : null}
-      {data.checks.truncated ||
-      data.issues.truncated ||
-      data.decisions.truncated ? (
+      {data.checks.truncated || data.issues.truncated ? (
         <p className="ui-caption inbox-list-note">
           There are more checks, possible issues or decisions than the Inbox can
           read at once, so it is incomplete.

@@ -19,6 +19,9 @@ import (
 )
 
 type AuditManagement interface {
+	WriteHypothesis(context.Context, auditservice.HypothesisMutationParams) (auditstore.HypothesisAcceptance, bool, error)
+	Hypotheses(context.Context, auditstore.ListHypothesesParams) (auditstore.HypothesisPage, error)
+	Hypothesis(context.Context, string, string, string, uint64) (auditstore.Hypothesis, error)
 	CreateTasks(context.Context, auditservice.TaskCreationParams) (auditservice.TaskCreationResult, error)
 	Tasks(context.Context, auditstore.ListTasksParams) (auditstore.TaskPage, error)
 	Task(context.Context, string, string, string) (auditstore.Task, error)
@@ -31,10 +34,8 @@ type AuditManagement interface {
 	CompareFindings(context.Context, auditservice.FindingComparisonParams) (auditservice.FindingComparisonPage, error)
 	ListEventsPage(context.Context, auditstore.EventListParams) (auditservice.EventPage, error)
 	ListOwnerFindings(context.Context, auditstore.OwnerFindingListParams) (auditstore.FindingWindow, error)
-	ListOwnerReviews(context.Context, auditstore.OwnerReviewListParams) ([]auditstore.ReviewRequest, error)
 	GetWorkspace(context.Context, string, string) (auditstore.WorkspaceSummary, error)
 	ListFindingsPage(context.Context, auditstore.FindingListParams) (auditservice.FindingPage, error)
-	ListReviewsPage(context.Context, auditstore.ReviewListParams) (auditservice.ReviewPage, error)
 	Profiles() []auditservice.ProfileProjection
 	Profile(auditservice.ProfileSelector) (auditservice.ProfileProjection, error)
 	Standards(context.Context, string) ([]auditstandards.PackageProjection, error)
@@ -55,8 +56,6 @@ type AuditManagement interface {
 	GetRound(context.Context, string, string, string) (auditstore.Round, error)
 	ListCoverage(context.Context, string, string, string, int, int, *uint64) (auditservice.CoveragePage, error)
 	GetReport(context.Context, string, string) (auditservice.ReportProjection, error)
-	DecideActionReview(context.Context, auditservice.DecideActionReviewParams) (auditservice.ActionReviewDecisionResult, error)
-	GetReview(context.Context, string, string, string) (auditstore.ReviewRequest, error)
 }
 
 // AuditDependencies serve AuditProfiles, AuditStandards, Audits, their
@@ -558,7 +557,7 @@ func (h *auditHandlers) getAuditReport(w http.ResponseWriter, r *http.Request) e
 		return err
 	}
 	writeJSON(w, http.StatusOK, auditReportResponse{
-		Status: projection.Status, Review: projection.Review, MachineArtifact: projection.MachineArtifact,
+		Status: projection.Status, MachineArtifact: projection.MachineArtifact,
 		SummaryArtifact: projection.SummaryArtifact, Machine: projection.Machine,
 		Summary: projection.Summary,
 	})

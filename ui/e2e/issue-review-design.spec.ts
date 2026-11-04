@@ -42,23 +42,6 @@ async function install(page: Page, data: Fixtures) {
     );
     if (finding !== undefined)
       return fulfillJSON(route, finding, 200, { ETag: '"1"' });
-    const check = data.audits.find(
-      (value) => path === `/v1/audits/${value.auditId}/reviews`,
-    );
-    if (check !== undefined) {
-      const items = data.reviews.filter(
-        (value) =>
-          value.auditId === check.auditId &&
-          (!url.searchParams.has("state") ||
-            value.state === url.searchParams.get("state")),
-      );
-      return fulfillJSON(route, {
-        ...listPage(items),
-        total: items.length,
-        auditRevision: check.revision,
-        asOf: check.updatedAt,
-      });
-    }
 
     const source = data.sources.find(
       (value) =>

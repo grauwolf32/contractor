@@ -28,7 +28,6 @@ func TestPostgresAuditStateSetsMatchSchema(t *testing.T) {
 	audits := declaredAuditValues(t, "AuditState", func(value string) bool { return auditstore.AuditState(value).Valid() })
 	items := declaredAuditValues(t, "ItemState", func(value string) bool { return auditstore.ItemState(value).Valid() })
 	executions := declaredAuditValues(t, "ExecutionState", func(value string) bool { return auditstore.ExecutionState(value).Valid() })
-	reviews := declaredAuditValues(t, "ReviewState", func(value string) bool { return auditstore.ReviewState(value).Valid() })
 	findings := declaredAuditValues(t, "FindingState", func(value string) bool { return auditstore.FindingState(value).Valid() })
 	without := func(values []string, excluded ...string) []string {
 		return slices.DeleteFunc(slices.Clone(values), func(value string) bool { return slices.Contains(excluded, value) })
@@ -67,16 +66,14 @@ func TestPostgresAuditStateSetsMatchSchema(t *testing.T) {
 			Columns: []statesettest.Column{{
 				Name: "state", Check: "audit_items_state_check", Values: items,
 				Subsets: map[string][]string{
-					"unsettled":       without(items, string(auditstore.ItemSettled)),
-					"awaiting_review": {string(auditstore.ItemAwaitingReview)},
-					"ready":           {string(auditstore.ItemReady)},
+					"unsettled": without(items, string(auditstore.ItemSettled)),
+					"ready":     {string(auditstore.ItemReady)},
 				},
 			}},
 			Indexes: map[string]map[string]string{
-				"audit_items_dispatch_idx":         {"state": "unsettled"},
-				"audit_items_pending_approval_idx": {"state": "awaiting_review"},
-				"audit_items_purge_pointer_idx":    nil,
-				"audit_items_ready_role_idx":       {"state": "ready"},
+				"audit_items_dispatch_idx":      {"state": "unsettled"},
+				"audit_items_purge_pointer_idx": nil,
+				"audit_items_ready_role_idx":    {"state": "ready"},
 			},
 		},
 		{
@@ -96,19 +93,7 @@ func TestPostgresAuditStateSetsMatchSchema(t *testing.T) {
 				"audit_executions_run_unique":              nil,
 			},
 		},
-		{
-			Name: "audit_review_requests",
-			Columns: []statesettest.Column{{
-				Name: "state", Check: "audit_review_requests_state_check", Values: reviews,
-				Subsets: map[string][]string{"pending": {string(auditstore.ReviewPending)}},
-			}},
-			Indexes: map[string]map[string]string{
-				"audit_review_requests_item_subject_idx":        nil,
-				"audit_review_requests_pending_subject_unique":  {"state": "pending"},
-				"audit_review_requests_report_candidate_unique": nil,
-				"audit_review_requests_report_round_idx":        nil,
-			},
-		},
+
 		{
 			// The pointer indexes serve foreign-key probes and purge: they
 			// select the rows that hold a pointer, whatever their state.

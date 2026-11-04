@@ -42,7 +42,7 @@ func runConfigCLI(args []string, logger *slog.Logger) error {
 	if managedRoot == "" {
 		managedRoot = defaultManagedConfigRoot(root)
 	}
-	snapshot, _, err := configload.LoadUnionReadOnly(root, managedRoot)
+	snapshot, bundles, err := configload.LoadUnionReadOnly(root, managedRoot)
 	if err != nil {
 		return fmt.Errorf("validate configuration: %w", err)
 	}
@@ -78,7 +78,7 @@ func runConfigCLI(args []string, logger *slog.Logger) error {
 				return err
 			}
 		} else if document["schema"] == "contractor.audit.program.v1" {
-			if err := contractorconfig.ValidateAuditProgram(snapshot, canonical); err != nil {
+			if err := configload.ValidateAuditProgram(snapshot, bundles, canonical); err != nil {
 				return err
 			}
 		} else if document["schema"] == "contractor.audit.proposals.v1" {
@@ -86,7 +86,7 @@ func runConfigCLI(args []string, logger *slog.Logger) error {
 			if err := strictjson.Decode(context, &trusted); err != nil {
 				return err
 			}
-			if err := contractorconfig.ValidateAuditProgram(snapshot, trusted["program"]); err != nil {
+			if err := configload.ValidateAuditProgram(snapshot, bundles, trusted["program"]); err != nil {
 				return err
 			}
 		}

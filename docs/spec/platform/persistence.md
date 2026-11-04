@@ -170,7 +170,7 @@ own the rules of particular state are indexed in the next section.
 | --- | --- |
 | `internal/agentprincipal` | `runtime_agent_principals` |
 | `internal/artifacts/postgres` | `artifact_binding_revisions`, `artifact_bindings`, `artifact_blobs`, `artifact_lineage`, `artifact_scopes`, `artifact_versions` |
-| `internal/auditstore/internal/pgstore` | `audit_artifact_links`, `audit_controller_claims`, `audit_events`, `audit_execution_items`, `audit_executions`, `audit_items`, `audit_tasks`, `audit_live_item_reviews` (view), `audit_report_pages`, `audit_review_decisions`, `audit_review_requests`, `audit_round_result_pages`, `audit_rounds`, `audits`, `finding_correlation_fences`, `project_findings`, `project_finding_sources`, `project_finding_audits` |
+| `internal/auditstore/internal/pgstore` | `audit_artifact_links`, `audit_controller_claims`, `audit_events`, `audit_execution_items`, `audit_executions`, `audit_items`, `audit_tasks`, `audit_hypotheses`, `audit_hypothesis_revisions`, `audit_report_pages`, `audit_round_result_pages`, `audit_rounds`, `audits`, `finding_correlation_fences`, `project_findings`, `project_finding_sources`, `project_finding_audits` |
 | `internal/credentials` | `credential_operations`, `git_ssh_keys`, `llm_credentials`, `runtime_credentials` |
 | `internal/evalstore` | `eval_collections`, `eval_commands`, `eval_controller_claims`, `eval_dataset_revisions`, `eval_evidence_refs`, `eval_execution_tombstones`, `eval_experiments`, `eval_frozen_plans`, `eval_member_projections`, `eval_members`, `eval_plan_resources`, `eval_progress_observations`, `eval_projection_queue`, `eval_records`, `eval_selections`, `eval_submissions`, `eval_suboperations`, `eval_view_charts`, `eval_view_pairs` |
 | `internal/findingintake` | `finding_proposal_audit_holds`, `finding_proposal_receipts` |
@@ -922,7 +922,7 @@ replayable after its experiment's purge
 ([LIFE-EVM-7](lifecycle.md)), and a Runtime management receipt is never
 deleted. A request whose key is a column of the row it creates (a Run, a
 Project, a RuntimeConfig version, a Runtime credential, an Audit execution,
-an Eval member or an Audit review request or decision) keeps the key on that
+an Eval member) keeps the key on that
 row, and an operation that journals an outbound call keeps its journal
 (`credential_operations`, `eval_suboperations`); neither is a keyed mutation
 here.
@@ -1020,7 +1020,7 @@ A non-current `proposed` Round stages at most one bounded stored page per phase.
 The caller supplies only its next ordinal; the transaction reads the trusted
 natural-key page once and revalidates original receipt/source and pinned route
 before staging. Private execution rows freeze the verified page's source, item
-identity, role, task, origin and approval authority. The accepted plan is stored
+identity, role, task, origin and pinned operation policy. The accepted plan is stored
 only inside that immutable execution projection; its object/schema, 64 KiB
 encoded-byte bound and owning Audit/item identity are enforced there, without a
 separate plan column. Ordinary items have no prepared projection or page/cost
@@ -1031,7 +1031,7 @@ match the published chain and atomically installs the existing SQL membership
 seal. Acceptance separately checks fixed-size generation, count and chain-digest
 parent fields and atomically publishes the Round and current pointer; it neither
 inserts nor rebuilds the complete item collection. Partial membership remains
-invisible to reads, review and dispatch. Deletion updates physical staging
+invisible to reads and dispatch. Deletion updates physical staging
 counters in the same transaction, so a withdrawn source cannot leave an
 acceptable stale seal. Dispatch preflights stored selected-row bytes and
 descriptor counts before hydrating only selected immutable execution entries.
@@ -1155,7 +1155,7 @@ Limits ([registry](limits.md)):
 - LIM-PER-14 to LIM-PER-21 — stored bounds that no domain requirement states
   (PER-R45): exact Artifact references and descriptors in Audit rows
   (LIM-PER-14), Audit text (LIM-PER-15), Audit snapshots (LIM-PER-16), Audit
-  item and execution JSON (LIM-PER-17), Audit links, review requests, events,
+  item and execution JSON (LIM-PER-17), Audit links, events,
   Round result progress and report pages (LIM-PER-18), credential journal and
   metadata (LIM-PER-19), keyed mutation receipts and failed output publications
   (LIM-PER-20), and Managed Eval JSON that is not a portable evaluation document

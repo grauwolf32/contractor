@@ -1412,6 +1412,13 @@ Neither user source changed during this Run. If requested after success,
 `openapi/payment-service-v2`; it is not copied back to
 `openapi/payment-service-current` automatically.
 
+**ART-R141.** Curated standard assertion sources may fork from their owner's
+User scope into an Audit input through the existing `audit-input` lineage.
+Artifact membership requires the same User, Audit and active Project owner;
+foreign User sources are rejected. The ordinary frozen Audit artifact retains
+exact bytes and metadata. Hypothesis source snapshots published with a Finding
+are Project-owned `finding-materials`, independent of Audit-local purge.
+
 ## Non-goals
 
 - ArtifactStore exposes no Worker subscription or event-stream contract.
@@ -1589,3 +1596,11 @@ Audit-owned output links by their persisted scope. An unknown scope is invalid;
 reads never probe another scope as a fallback. Staged unaccepted outputs are
 not public or publishable. Artifact material publication accepts the ordinary 1 MiB JSON bound
 for request metadata; the existing payload and transaction/history limits apply.
+
+
+**ART-R142.** Allocation-selected finding collections use ordinary frozen Run
+bindings and the existing collection publication receipt. Their exact references
+may be supplied through ordinary Workflow inputs, Audit retention and explicit
+Project publication. Merely listing or reading Project Finding metadata retains
+no Artifact or evidence. The Artifact plane neither interprets Finding semantics
+nor follows payload refs to grant foreign access (FND-R224 through FND-R229).

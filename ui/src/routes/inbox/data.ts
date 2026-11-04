@@ -24,35 +24,26 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
-  collectAuditPages,
-  type AuditCollection,
-} from "../../api/audit-collections";
-import {
   getAuditReport,
   getAuditWorkspace,
-  type AuditItem,
   type AuditReport,
-  type AuditReviewRequest,
   type AuditWorkspace,
 } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
 import {
   CROSS_PROJECT_LIMITS,
-  INBOX_CHECK_STATES,
   useAllChecks,
   useAllPossibleIssues,
   useInboxSummary,
-  usePendingDecisions,
   useProjectsIndex,
   type AllChecks,
   type AllPossibleIssues,
   type CrossProjectCheck,
   type CrossProjectReport,
   type InboxSummary,
-  type PendingDecisions,
 } from "../../api/cross-project";
 import { PublicAPIError } from "../../api/error";
-import { listAwaitingReviewItems } from "../../api/inbox";
+
 import { queryKeys } from "../../api/query-keys";
 import { getOwnerQueueControl, type OwnerQueueControl } from "../../api/queue";
 import {
@@ -83,13 +74,6 @@ import {
 } from "./model";
 
 const POLL_MS = CROSS_PROJECT_LIMITS.pollMs;
-
-/** Decisions beyond triaging a possible issue: the Inbox lists all three. */
-const DECISION_KINDS: readonly AuditReviewRequest["kind"][] = [
-  "active-check-approval",
-  "requirement-applicability",
-  "report-acceptance",
-];
 
 // Run lists and queue admission: polled while the page is visible, backing
 // off while reads fail.
@@ -239,7 +223,6 @@ export interface InboxData {
   model: InboxModel;
   summary: InboxSummary;
   issues: AllPossibleIssues;
-  decisions: PendingDecisions;
   checks: AllChecks;
   reports: ReadyReports;
   failedRuns: RunList;
@@ -255,9 +238,8 @@ export interface InboxData {
   workspaces: PerCheck<AuditWorkspace>;
   /**
    * Work items that wait for a decision, by check ID, for checks with
-   * pending approval or applicability requests.
+   * canonical Project Finding annotations.
    */
-  items: PerCheck<AuditCollection<AuditItem>>;
   queue: UseQueryResult<OwnerQueueControl>;
   /** A section's reads have not settled yet. */
   pending: Record<InboxSectionId, boolean>;
@@ -280,10 +262,6 @@ export function useInboxData(): InboxData {
   const summary = useInboxSummary();
   const issues = useAllPossibleIssues({
     needsReview: true,
-  });
-  const decisions = usePendingDecisions({
-    checkStates: INBOX_CHECK_STATES,
-    kinds: DECISION_KINDS,
   });
   // Several states: the per-project check pages every list above shares.
   const checks = useAllChecks({ states: LISTED_CHECK_STATES });
@@ -342,7 +320,7 @@ export function useInboxData(): InboxData {
     () =>
       finished.flatMap((check): CrossProjectReport[] => {
         const report = reportReads.byCheck.get(check.audit.auditId);
-        // A proposed report waits for acceptance: a decision, not a result.
+        // Only ready reports provide retained report content.
         return report === undefined ||
           report === null ||
           report.status !== "ready"
@@ -350,33 +328,6 @@ export function useInboxData(): InboxData {
           : [{ project: check.project, audit: check.audit, report }];
       }),
     [finished, reportReads.byCheck],
-  );
-
-  const itemChecks = useMemo(
-    () =>
-      uniqueBy(
-        decisions.decisions
-          .filter(
-            (decision) => decision.review.subjectKind === "audit-item-action",
-          )
-          .map(({ project, audit }) => ({ project, audit })),
-        (check) => check.audit.auditId,
-      ),
-    [decisions.decisions],
-  );
-  // Only the items under a pending request: one small page, however many
-  // items (an ASVS check has hundreds) the check has.
-  const loadItems = useCallback(
-    (auditId: string) =>
-      collectAuditPages((cursor) =>
-        listAwaitingReviewItems(api, auditId, cursor),
-      ),
-    [api],
-  );
-  const items = usePerCheckReads(
-    itemChecks,
-    queryKeys.inbox.awaitingItems,
-    loadItems,
   );
 
   const failed = useQuery({
@@ -507,7 +458,6 @@ export function useInboxData(): InboxData {
       buildInbox({
         now,
         issues: issues.issues,
-        decisions: decisions.decisions,
         checks: checks.checks,
         reports: readyReports,
         workspaces: workspaces.byCheck,
@@ -518,7 +468,6 @@ export function useInboxData(): InboxData {
       }),
     [
       checks.checks,
-      decisions.decisions,
       failedRecent,
       issues.issues,
       now,
@@ -532,7 +481,7 @@ export function useInboxData(): InboxData {
 
   const indexFailed = checks.error !== null;
   const pending: Record<InboxSectionId, boolean> = {
-    decide: issues.isPending || decisions.isPending,
+    decide: issues.isPending,
     unblock:
       checks.isPending ||
       failed.isPending ||
@@ -543,11 +492,7 @@ export function useInboxData(): InboxData {
     running: checks.isPending || active.isPending,
   };
   const unavailable: Record<InboxSectionId, boolean> = {
-    decide:
-      issues.partial ||
-      issues.error !== null ||
-      decisions.partial ||
-      decisions.error !== null,
+    decide: issues.partial || issues.error !== null,
     unblock:
       checks.partial ||
       indexFailed ||
@@ -564,7 +509,6 @@ export function useInboxData(): InboxData {
   const incomplete =
     summary.partial ||
     Object.values(unavailable).some(Boolean) ||
-    items.failed > 0 ||
     runStatuses.failed.size > 0 ||
     queue.isError;
 
@@ -596,7 +540,6 @@ export function useInboxData(): InboxData {
     model,
     summary,
     issues,
-    decisions,
     checks,
     reports: {
       reports: readyReports,
@@ -614,7 +557,6 @@ export function useInboxData(): InboxData {
     runStatuses,
     workflowOutputs,
     workspaces,
-    items,
     queue,
     pending,
     unavailable,

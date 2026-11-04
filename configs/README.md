@@ -45,6 +45,7 @@ The current user-facing Workflow set is:
 - `audit-openapi-operation-trace@1` for graph-backed analysis and finding proposals
   in `openapi-operation-trace@1`, plus `findings-review@2` for a supplied collection
   and `source-findings-review@1` for exact source-backed proposal review;
+  `project-findings-review@1` discovers current Project findings and retains an explicit exact selection;
 - `audit-openapi-nuclei-scan@1` and `audit-openapi-sqlmap-scan@1` for the
   `openapi-nuclei-scan@1` and `openapi-sqlmap-scan@1` AuditProfiles;
 - `artifact-copy@2` as the ordinary artifact smoke fixture;
@@ -105,10 +106,14 @@ The shipped Audit catalog contains six common programs:
 `openapi-operation-observe@1`, `openapi-operation-trace@1`,
 `openapi-sqlmap-scan@1`, `openapi-nuclei-scan@1`,
 `source-openapi-sqlmap-scan@1` and `web-scan@1`.
-The eight checklist/standard assertion profiles are temporarily absent. Their
-restoration and real execution coverage belong to
-[V64-012](../tasks/v64-012-audit-hypothesis-registry.yml); the immutable standard
-packages and their source/license checks remain available.
+Eight checklist/standard profiles execute fixed assertions through the common
+Task/Run/result path: `source-checklist`, Top 10 2025 source risk, ASVS 5.0 L1
+pilot/source review, and full/fast WSTG 4.2 source/active HTTP checks. Checklist
+inputs use `contractor.audit.assertions.v1`; standard selections pin the immutable
+curated package version. Start derives fixed seeds without a model and preserves
+the original requirement denominator. HTTP checks require an engagement and
+selected materials. Model completion emits scoped conclusions through
+`audit-check-results@1`, with optional evidenced problem Findings.
 
 A profile pins ordinary Workflows, exact input mappings, policy and budgets.
 OpenAPI preparation runs the existing deterministic Server operation and emits

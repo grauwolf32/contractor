@@ -96,7 +96,7 @@ document owns are:
   risks, evidence contracts and mappings.
 - **Evidence contract.** An independently versioned part of a standard package
   that defines allowed assessments, evidence kinds and counts, rationale and
-  human-review policy.
+  operation policy.
 - **Deterministic inventory.** An inventory generator that produces a finite
   subject and item list without network side effects.
 - **Phase.** An Audit's progress through `not-started`, `preparing`,
@@ -122,11 +122,11 @@ stable version 5.0.0 and version-qualified requirement identifiers.
 
 The figure follows one Audit end to end: the Project inputs and authorization
 it starts from, the ordinary WorkflowRuns it coordinates, the evidence and
-coverage it collects, and the human review that turns finding proposals into
+coverage it collects, and optional analyst edits of
 conclusions. It illustrates the requirements; where the two differ, the
 requirements apply.
 
-[![Audit orchestration: project inputs and authorization, coordinated WorkflowRuns, evidence, coverage, and human review](../../assets/audit-workflows.png)](../../assets/audit-workflows.png)
+[![Audit orchestration: project inputs and authorization, coordinated WorkflowRuns, evidence, coverage, and analyst edits](../../assets/audit-workflows.png)](../../assets/audit-workflows.png)
 
 ### Ownership boundaries
 
@@ -146,7 +146,7 @@ flowchart TD
 
 | Participant | Owns | Does not own |
 | --- | --- | --- |
-| Audit API | Owner authorization, commands, review decisions | Stage execution |
+| Audit API | Owner authorization, commands, direct Finding edits | Stage execution |
 | Audit Controller | Rounds, items, child Run intents, collection, coverage, Audit budgets | A2A dispatch or Runtime placement |
 | Trusted Run Service | Atomic creation of a pinned ordinary Run and its Audit association | Audit policy or Stage progression |
 | Workflow Scheduler | Run/Stage lifecycle, retry, escalation, output acceptance | ASVS, checklist, or finding semantics |
@@ -182,7 +182,7 @@ A `contractor.audit-standard.v1` document contains:
 - exact standard metadata and source/license attribution;
 - bounded `risk | requirement` entries with applicability and allowed methods;
 - independently versioned evidence contracts defining allowed assessments,
-  evidence kinds/counts, rationale, and human-review policy;
+  evidence kinds/counts, rationale, and operation policy;
 - deterministic mappings from one check key to exact entry IDs, one named
   Workflow role, an allowed method, and one exact evidence contract.
 
@@ -200,23 +200,19 @@ erDiagram
   AUDIT_EXECUTION o|--o| WORKFLOW_RUN : binds
   AUDIT_EXECUTION ||--o| AUDIT_COLLECTION_RECEIPT : collects
   AUDIT }o--o{ PROJECT_FINDING : references
-  AUDIT ||--o{ AUDIT_REVIEW_REQUEST : requests
-  AUDIT_REVIEW_REQUEST ||--o{ AUDIT_REVIEW_DECISION : records
 ```
 
 | Record | Minimum durable fields |
 | --- | --- |
 | `Audit` | id, owner_id, project_id, profile snapshot/digest, exact input/Skill sets, scope snapshot, runtime snapshots, state, revision, current_round_id, dispatch/hold state, optional deadline_at and paused_at, limits/counters, stop reason, optional deletion_requested_at, timestamps |
 | `AuditRound` | id, audit_id, ordinal, exact accepted manifest ref/digest, state, expected_count, revision |
-| `AuditItem` | id, round_id, item_key, ordinal, kind, subject_key, exact task package ref, workflow_role, immutable source origin (exact source ref/content digest, canonical inventory digest, checklist key/version), exact source proposal refs, state, approval kind and optional exact approval-subject digest, final disposition, optional accepted result ref, optional last_execution_item_id |
+| `AuditItem` | id, round_id, item_key, ordinal, kind, subject_key, exact task package ref, workflow_role, immutable source origin (exact source ref/content digest, canonical inventory digest, checklist key/version), exact source proposal refs, state, final disposition, optional accepted result ref, optional last_execution_item_id |
 | `AuditExecution` | id, audit_id, optional round_id, role kind, exact named workflow_role from the pinned profile, optional role_attempt, exact ordered execution manifest ref/digest, submission_key, optional run_id, safe Workflow closure provenance, optional run_deleted_at, state, optional terminal Run outcome/version |
 | `AuditExecutionItem` | execution_id, item_id, batch_ordinal, item_attempt, exact task/input refs, collection disposition, optional exact result ref |
 | `AuditCollectionReceipt` | id, execution_id, optional run_id, exact terminal observation, output disposition, optional source output ref/digest, retained refs/digests, bounded error code, timestamp |
 | `ProjectFinding` | canonical id, project_id, immutable first source, optional current analyst fields, duplicate target and revision; Audit membership carries no state |
 | `AuditProposalReceipt` | id, run_id, allocation_id, invocation_id, submission_id, payload digest, exact proposal ref, immutable trusted origin including Workflow identity/digest, optional admitted audit_id, source status |
 | `AuditArtifactLink` | audit_id, logical key, exact retained version, source provenance, display ref, timestamp |
-| `AuditReviewRequest` | id, audit_id, subject kind/id, review kind, exact subject revision/digest, requested actions, state, optional expiry |
-| `AuditReviewDecision` | id, request_id, actor_id, item/report action decision, exact subject revision/digest, bounded rationale, timestamp |
 | `AuditReportCandidate` | audit_id, request_id, round_id, exact pre-publication Audit revision/digest, frozen machine/summary artifact descriptors, timestamp |
 | `AuditEvent` | audit_id, dense sequence (AUD-R223), kind, entity id/revision, bounded safe summary |
 
@@ -250,20 +246,13 @@ check result sets (see [Examples](#examples)).
 stateDiagram-v2
   [*] --> draft
   draft --> active: start and pin baseline
-  active --> waiting_review: no approved runnable work
-  waiting_review --> active: accepted exact decision
   active --> paused: owner pause or time limit
-  waiting_review --> paused: owner pause or Audit time limit before report review
   paused --> active: resume
   active --> finalizing: close dispatch
-  finalizing --> waiting_review: report acceptance required
-  finalizing --> completed: commit report and coverage
-  waiting_review --> completed: accept exact report candidate
-  waiting_review --> failed: reject or expire report candidate
+  finalizing --> completed: settle work and retain results
   active --> cancelling: cancel or delete
-  waiting_review --> cancelling: cancel or delete
   paused --> cancelling: cancel or delete
-  finalizing --> cancelling: cancel or delete before report commit
+  finalizing --> cancelling: cancel or delete before closure
   cancelling --> cancelled: children terminal and released
   finalizing --> failed: structural finalization failure
   draft --> deleting: delete
@@ -279,7 +268,7 @@ stateDiagram-v2
 ```mermaid
 stateDiagram-v2
   [*] --> proposed
-  proposed --> accepted: complete validation and any required review
+  proposed --> accepted: complete validation
   accepted --> executing
   executing --> assessing: all check items settled
   assessing --> closed
@@ -290,12 +279,8 @@ stateDiagram-v2
 ```mermaid
 stateDiagram-v2
   [*] --> pending
-  pending --> awaiting_review: approval or applicability decision required
   pending --> ready
   pending --> settled: excluded or cancelled without dispatch
-  awaiting_review --> ready: accepted exact decision
-  awaiting_review --> settled: rejected (excluded with a visible coverage gap), or excluded or cancelled without dispatch
-  ready --> awaiting_review: approved request expired and renewed
   ready --> submitted
   ready --> settled: excluded or cancelled without dispatch
   submitted --> collecting
@@ -307,7 +292,7 @@ stateDiagram-v2
 The diagram draws the item lifecycle of AUD-R187. Exceptional Audit closure
 settles every undispatched item as excluded or cancelled (AUD-R186), and the
 renewal of an expired approved request returns a ready item to
-`awaiting_review` ([REV-R39](review-and-reports.md)).
+settled items.
 
 ## Requirements
 
@@ -659,12 +644,13 @@ of required Audit capabilities for presentation; start enforces that set
 against the same profile snapshot it pins. A stale UI projection cannot bypass
 the start check.
 
-**AUD-R79.** The Server supports deterministic inventory, bounded compatible
-check batches, bounded multiple rounds, pinned discovery and assessment
-Workflow roles, exact active-check and manual-item approval, direct Project Finding edits, human applicability decisions and exact report acceptance.
+**AUD-R79.** The Server supports deterministic inventory, bounded compatible check batches,
+bounded multiple rounds, pinned Workflow roles and direct Project Finding edits.
+Audit work uses pinned scope, tool and allowed/prohibited operation policy;
+no item or report approval lifecycle participates.
 
 **AUD-R80.** Automatic active checks are supported. An active-enabled profile
-uses the Project's approval policy (PRJ-R103 and PRJ-R104); a profile with
+uses the Project's operation policy (PRJ-R103 and PRJ-R104); a profile with
 `activeChecks: prohibited` cannot gain active tools through Project settings.
 The Project defaults to automatic execution.
 
@@ -676,29 +662,19 @@ intent and selected exact evidence; current analyst assessment belongs to Projec
 by the selected Toolsets and ordinary trusted intake, without a profile confirmation
 gate.
 
-**AUD-R83.** For the effective pinned `activeChecks: approval-required`, each item assigned to a
-Workflow role that exposes a classified active-check tool starts in
-`awaiting_review`. The trusted profile gate wins over a weaker
-inventory-authored policy.
+**AUD-R83.** Retired: formal Audit item/report approvals are removed (ACT-R9).
 
 **AUD-R227.** Start pins the effective `activeChecks` in the immutable baseline,
-without rewriting the retained profile or its digest. Initial inventory,
-prepared inventory and every proposed-check Round use that same policy.
-Automatic mode creates no active-check-approval requests; explicit manual and
-applicability reviews remain required. An idempotent start replay retains the
-original policy after Project changes. A policy change between staging and
-baseline commit rejects the stale start before work is executable.
+without rewriting the retained profile or its digest. Initial inventory, prepared
+inventory and every proposed-check Round use that same policy. An idempotent start
+replay retains the original policy after Project changes. A policy change between
+staging and baseline commit rejects the stale start before work is executable.
 
-**AUD-R84.** Manual checklist items also start in `awaiting_review`. No
-model-authored marker can make an active-check or manual item runnable.
+**AUD-R84.** Retired: formal Audit item/report approvals are removed (ACT-R9).
 
-**AUD-R85.** Report acceptance and item decisions use the shared exact-subject
-review ledger specified in [review and reports](review-and-reports.md).
+**AUD-R85.** Retired: formal Audit item/report approvals are removed (ACT-R9).
 
-**AUD-R86.** For standard-backed items, package-authored `human-review`
-applicability or a `required` evidence-contract review starts the item in
-`awaiting_review` and uses the same exact-subject applicability decision as
-manual checklist items.
+**AUD-R86.** Retired: formal Audit item/report approvals are removed (ACT-R9).
 
 **AUD-R87.** The executable mapping subset rejects standard-package policies it
 cannot enforce rather than silently weakening them.
@@ -720,7 +696,7 @@ immutable artifacts and are never parsed for execution.
 **AUD-R91.** `batching_unsupported` and other older closed reason values,
 including `preparation_unsupported`, remain reserved wire values for compatible
 clients. The Server does not produce them for preparation, bounded profile
-batch sizes, discovery, human review, report acceptance or multiple-round
+batch sizes, discovery, analyst annotations or multiple-round
 execution.
 
 **AUD-R92.** A successfully started Audit may still wait in the ordinary queue
@@ -874,7 +850,7 @@ identity or attempt history (FAIL-AUD-5).
 
 **AUD-R113.** Items with different pinned Workflow role or configuration,
 resolved Run inputs or parameters, baseline or workspace, credentials,
-active-check authority, or exact approval kind or subject digest cannot share
+active-check authority, or operation policy cannot share
 an execution.
 
 **AUD-R114.** Workspace reuse does not imply a conversation shared with another
@@ -983,8 +959,7 @@ reject it atomically (FAIL-AUD-7).
 **AUD-R133.** The normalized manifest and its Round and Items commit together
 (FAIL-AUD-7).
 
-**AUD-R134.** A model may request more approval, but cannot weaken the trusted
-profile requirement.
+**AUD-R134.** Model proposals cannot weaken pinned scope, tool or operation policy.
 
 **AUD-R135.** For proposal-driven work, acceptance also persists exact source
 proposal refs (receipt ID, artifact revision and digest) on each AuditItem.
@@ -1156,25 +1131,21 @@ remaining allowance independently of collection updates while paused.
 **AUD-R167.** The admission clock includes owner Queue waiting; an Audit pause
 freezes it.
 
-**AUD-R168.** Waiting for a frozen report decision uses that decision's own
-expiry rather than the Audit admission clock (FAIL-AUD-11).
+**AUD-R168.** Retired: formal Audit item/report approvals are removed (ACT-R9).
 
 **AUD-R169.** Only a `paused` Audit can resume, and Resume is its only way back
-to `active`: no plain owner transition bypasses Resume's checks and renewals.
+to `active`: no plain owner transition bypasses Resume's checks.
 
 **AUD-R170.** Terminal `completed`, `failed` and `cancelled` Audits remain
 final, including historical records whose stop reason is `deadline_exhausted`.
 
 **AUD-R171.** Resume requires an active Project, a pinned baseline and either a
-current Round or a persisted preparation or inventory phase, with no frozen
-report candidate (FAIL-AUD-10).
+current Round or a persisted preparation or inventory phase (FAIL-AUD-10).
 
 **AUD-R172.** Accepted items, receipts, evidence and baseline bytes never
 change; report links are not archived or rewritten by Resume.
 
-**AUD-R173.** Expired task approvals require fresh exact-subject requests;
-resuming never silently extends human authority. How requests are renewed is
-specified in [review and reports](review-and-reports.md).
+**AUD-R173.** Retired: formal Audit item/report approvals are removed (ACT-R9).
 
 **AUD-R174.** Successful resume clears `paused_at` and the stop reason and
 applies the selected deadline allowance.
@@ -1182,33 +1153,28 @@ applies the selected deadline allowance.
 **AUD-R175.** `completed` means the bounded Audit process closed, not that the
 application is secure.
 
-**AUD-R176.** Completion requires a durable collection receipt for every
-execution, every item settled, no mandatory open review, and retention of every
-accepted evidence revision.
+**AUD-R176.** Completion requires a durable collection receipt for every execution,
+every item settled and retention of every accepted evidence revision. Unresolved
+evidence and absent optional Project annotations do not block completion.
+An aggregate report is optional (REV-R201).
 
-**AUD-R177.** A profile that allows partial completion may close review work as
-deferred or excluded with a visible gap.
+**AUD-R177.** Incomplete evidence and excluded or unexecuted work remain visible
+as explicit gaps in ordinary retained Task results and progress.
 
-**AUD-R178.** `waiting_review` has two deliberately distinct uses. While
-immutable items are awaiting approval, accepting the final outstanding item
-returns the Audit to `active`; rejecting one settles it as excluded with a
-visible coverage gap.
+**AUD-R178.** Retired: formal Audit item/report approvals are removed (ACT-R9).
 
-**AUD-R179.** When a human report policy is selected, finalization instead
-freezes an exact machine/summary candidate and its acceptance request.
+**AUD-R179.** Retired: formal Audit item/report approvals are removed (ACT-R9).
 
-**AUD-R180.** During that report decision, new finding reviews, finding imports
-and pause/resume are fenced so the reviewed bytes cannot drift (FAIL-AUD-11).
+**AUD-R180.** Retired: formal Audit item/report approvals are removed (ACT-R9).
 
-**AUD-R220.** Accept publishes exactly those descriptors (FAIL-AUD-11).
+**AUD-R220.** Retired: formal Audit item/report approvals are removed (ACT-R9).
 
-**AUD-R221.** Reject or expiry fails the Audit (FAIL-AUD-11).
+**AUD-R221.** Retired: formal Audit item/report approvals are removed (ACT-R9).
 
-**AUD-R222.** Cancel and delete remain available during the report decision
-(FAIL-AUD-11).
+**AUD-R222.** Retired: formal Audit item/report approvals are removed (ACT-R9).
 
-**AUD-R181.** Once the report decision is complete, finding triage may continue
-without rewriting the historical accepted report.
+**AUD-R181.** Project Finding edits may continue after completion without rewriting
+any retained report or original source/result bytes (FND-R212).
 
 ### Rounds and items
 
@@ -1220,7 +1186,7 @@ assessing -> closed`.
 **AUD-R184.** Checks settle before one assessment execution.
 
 **AUD-R185.** A proposed next worklist becomes a new Round only after complete
-validation and any required review.
+validation against the pinned execution policy and available exact materials.
 
 **AUD-R186.** Exceptional Audit closure may move an accepted Round directly to
 `closed` after every undispatched item receives an explicit excluded or
@@ -1230,8 +1196,7 @@ normal Round path.
 When discovery and assessment roles run relative to these Round states is
 specified in [execution](execution.md).
 
-**AUD-R187.** Item lifecycle is `pending -> awaiting_review | ready ->
-submitted -> collecting -> ready | settled`.
+**AUD-R187.** Retired: formal Audit item/report approvals are removed (ACT-R9).
 
 **AUD-R188.** Only settled items participate in the round barrier.
 
@@ -1361,7 +1326,7 @@ data and request digests are omitted.
 **AUD-R214.** Events remain until Audit purge (LIFE-AUD-4).
 
 **AUD-R215.** The Audit revision advances for every projection-visible
-lifecycle, Round, item, execution, receipt, finding, review, provenance,
+lifecycle, Round, item, execution, receipt, finding, provenance,
 coverage, retained-artifact or budget-counter mutation.
 
 **AUD-R216.** Controller claim acquire, renew and release is internal lease
@@ -1383,7 +1348,7 @@ Run deletion advances the revision of every affected Audit, including a
 terminal one, as specified in
 [retention and deletion](../artifacts/retention-and-deletion.md) (DEL-R23);
 retained provenance then reports `runDeleted`. How Run deletion interacts with
-`updatedAt` while an Audit is `finalizing`, and with a pending report review,
+`updatedAt` while an Audit is `finalizing`, and with retained report links,
 is specified in [review and reports](review-and-reports.md).
 
 ## Interfaces
@@ -1407,7 +1372,7 @@ conventions are in [public API](../api/public-api.md).
 | `POST /v1/audits/{auditId}/cancel` | Close dispatch and bounded-cancel children |
 | `GET /v1/audits/{auditId}/items` | Paginated items filtered by round/state/subject |
 | `GET /v1/audits/{auditId}/coverage` | Requirement or operation matrix |
-| `GET /v1/audits/{auditId}/workspace` | Owner-scoped snapshot of current-round progress, gaps, findings and reviews |
+| `GET /v1/audits/{auditId}/workspace` | Owner-scoped snapshot of current-round progress, gaps and findings |
 | `GET /v1/audits/{auditId}/finding-proposals` | Paginated, oldest-first inbox of unconfirmed proposal receipts |
 | `POST /v1/audits/{auditId}/finding-proposal-imports` | Retain one exact ordinary-Run proposal and its evidence revisions in a compatible owned Audit; idempotent replay returns 200 |
 | `POST /v1/finding-collections` | Publish selected exact proposals as an ordinary finding collection (see [findings](../findings/findings.md)) |
@@ -1419,13 +1384,10 @@ conventions are in [public API](../api/public-api.md).
 | `GET /v1/projects/{projectId}/finding-sources?findingId={findingId}` | Bounded independent source previews |
 | `GET /v1/projects/{projectId}/finding-sources/{receiptId}` | Exact retained source detail |
 | `GET /v1/projects/{projectId}/finding-sources/{receiptId}/history` | Bounded ordinary immutable history metadata |
-| `GET /v1/audits/{auditId}/reviews` | Pending/completed item-action and report review requests |
-| `GET /v1/audits/{auditId}/reviews/{requestId}` | Exact owned review subject and revision with an ETag |
-| `POST /v1/audits/{auditId}/reviews/{requestId}/decisions` | Idempotent exact-subject item/report action |
 | `GET /v1/audits/{auditId}/report` | Pending, frozen proposed, exact accepted, or unavailable report projection |
 | `DELETE /v1/audits/{auditId}` | Begin/replay durable delete and return current deletion state |
 
-The behaviour behind the finding, review, report, proposal-import and delete
+The behaviour behind the finding, report, proposal-import and delete
 endpoints is specified in [review and reports](review-and-reports.md); the
 `workspace` snapshot semantics and the Audit pages that use it in
 [ui](../ui/ui.md); the events endpoint in AUD-R210 to
@@ -1649,7 +1611,6 @@ spec:
   interaction:
     activeChecks: prohibited
     notApplicable: profile-rule
-    reportAcceptance: automatic
 ```
 
 ### Audit package manifest
@@ -1701,7 +1662,6 @@ items:
     subject_key: op-stable-key
     workflow_role: trace
     task_package_id: task-017
-    approval_requirement: none
 ```
 
 ### Top 10 risk assessment
@@ -1785,7 +1745,7 @@ The compact execution entry pins the exact task package and carries no plan or
 dependency body. The accepted plan pins owner, Project, Audit, item, baseline and profile;
 the original and retained proposal, receipt, producer Run and ordinal; canonical
 plan bytes/digest; the selected mapping, role, binding, Workflow and Skills;
-and scope, active-check policy, limits and required approval. Accepted-plan
+and scope, active-check policy and limits. Accepted-plan
 metadata is at most 64 KiB (LIM-AUD-41). Every task with an accepted plan requires an explicit
 registered `profile_mode`; missing, null, empty or unknown modes fail both the
 Server factory/reader and Runtime reader. Its explicitly nullable `dependencies_digest` pins the
@@ -1800,9 +1760,9 @@ Worker of the chosen pinned Workflow, with at most 32 requirements and 128 uniqu
 tools per requirement. A requirement cannot combine tools from different
 Workers, items or incompatible routes. Configuration capability mismatch is
 permanent; a compatible Runtime being busy follows ordinary capacity waiting.
-A selected toolset or enabled capability never grants target or approval authority.
+A selected toolset or enabled capability never grants target authority.
 
-**AUD-R237.** Typed admission measures each candidate's own role, approval,
+**AUD-R237.** Typed admission measures each candidate's own role, operation policy,
 inputs, accepted plan and full dependency closure before accepting it. Paged
 Round construction publishes and charges one immutable prepared page chain and
 one compact root, accounting exact source/task bytes and that complete page/root
@@ -1814,12 +1774,7 @@ that exact generation and shape; it does not reconstruct a growing history map.
 Per-page and per-slice row/byte bounds and atomic membership remain owned by
 [Audit execution](execution.md) and [scan composition](scans.md).
 
-**AUD-R238.** An accepted plan records required approval policy, not a human
-approval decision. The existing review ledger owns the exact approval subject,
-revision, expiry and decision. These stay outside task bytes because the
-approval subject includes the final task digest. Dispatch rechecks that ledger
-and current lifecycle fences without rewriting the accepted plan or creating a
-new target attempt to recover bookkeeping.
+**AUD-R238.** Retired: formal Audit item/report approvals are removed (ACT-R9).
 
 **AUD-R239.** Without declared method mappings, current valid default and
 standard routes retain their existing inventory, coverage, retry and cancellation
@@ -1953,6 +1908,15 @@ execution and configured-session semantics belong to
 [HTP-R140–146](../tools/http-caido.md).
 The existing private protocol and allocation lifecycle own validation,
 cancellation and release ([CTL-R169](../execution/control-plane.md)).
+
+**AUD-R249.** Fixed checklist and curated-standard checking Programs use
+[ACT-R16](common-contract.md) and [ACT-R17](common-contract.md). Start validates
+and freezes the exact selected source before activation, retains its immutable
+source/license/version provenance and registers it through ordinary Audit artifact
+links. Foreign source scopes and changed exact metadata fail admission. Source
+interpretation belongs to `auditdomain` and `auditstandards`; Server owns
+identity, authorization, budgets, receipts and persistence. There is no second
+checklist coordinator or compatibility format reader.
 
 ## Non-goals
 

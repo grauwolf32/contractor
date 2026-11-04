@@ -342,3 +342,20 @@ func cloneMappings(source []Mapping) []Mapping {
 	}
 	return result
 }
+
+// Resolve returns one already validated immutable bundled package without
+// walking the operator root again or granting access to a runtime catalog.
+func (p *SeedPlan) Resolve(ref Reference) (Package, error) {
+	if p == nil {
+		return Package{}, ErrNotFound
+	}
+	index := sort.Search(len(p.packages), func(i int) bool { return referenceKey(p.packages[i].metadata.Reference) >= referenceKey(ref) })
+	if index == len(p.packages) || p.packages[index].metadata.Reference != ref {
+		return Package{}, ErrNotFound
+	}
+	pkg, err := Validate(p.packages[index].payload, ref)
+	if err != nil {
+		return Package{}, err
+	}
+	return *pkg, nil
+}

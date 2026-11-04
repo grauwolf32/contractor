@@ -65,11 +65,6 @@ audit_items_task_ref_check                                  LIM-PER-14
 audit_items_workflow_role_check                             LIM-PER-15
 audit_report_pages_content_check                            LIM-PER-18
 audit_report_pages_entries_check                            invariant: a report page has content exactly when it has entries
-audit_review_decisions_actor_id_check                       above:LIM-API-20
-audit_review_decisions_rationale_check                      LIM-REV-11
-audit_review_requests_report_machine_link_check             LIM-PER-18
-audit_review_requests_report_summary_link_check             LIM-PER-18
-audit_review_requests_requested_actions_check               LIM-PER-18
 audit_round_admission_checkpoint_shape                      LIM-ASC-27
 audit_round_result_pages_artifact_check                     LIM-PER-14
 audit_round_result_pages_check                              invariant: the stored content length equals the recorded content_bytes
@@ -169,3 +164,8 @@ audit_tasks_document_check                                 LIM-ACT-2
 audit_tasks_source_check                                   invariant: system-assigned intake provenance tuple of bounded IDs, exact source descriptor and entry key
 audit_tasks_result_check                                   invariant: exact result descriptor containing only bounded scope, ref, digest, media and size fields
 audit_tasks_gap_code_check                                 LIM-PER-15
+
+audit_hypotheses_source_key_check                         LIM-API-20
+audit_hypothesis_revisions_document_check                  LIM-ACT-1
+audit_tasks_hypothesis_snapshot_check                      LIM-ACT-1
+finding_proposal_receipts_hypothesis_snapshot_check         LIM-FND-51

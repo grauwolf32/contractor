@@ -607,7 +607,7 @@ export function Inspector({
           {node.type === "interaction" ? (
             <>
               {Object.entries({
-                activeChecks: ["prohibited", "automatic", "approval-required"],
+                activeChecks: ["prohibited", "automatic"],
                 notApplicable: ["human-required", "profile-rule"],
                 reportAcceptance: ["automatic", "human-required"],
               }).map(([key, options]) => (

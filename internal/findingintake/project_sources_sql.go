@@ -17,7 +17,7 @@ const projectSourcePreviewColumns = `receipt.receipt_id,receipt.proposal_id,rece
 receipt.project_proposal,jsonb_array_length(receipt.project_evidence),receipt.publication_requested,receipt.created_at,
 receipt.run_id,receipt.stage_execution_id,receipt.allocation_id,receipt.invocation_id,receipt.logical_agent_name,
 receipt.workflow_name,receipt.workflow_version,receipt.workflow_schema_version,receipt.workflow_configuration_ref,receipt.workflow_closure_digest,
-receipt.audit_id,receipt.audit_execution_id,receipt.audit_task_id,receipt.audit_hypothesis,receipt.source_run_deleted_at`
+receipt.audit_id,receipt.audit_execution_id,receipt.audit_task_id,receipt.audit_hypothesis,receipt.audit_hypothesis_snapshot,receipt.source_run_deleted_at`
 
 // listProjectSourcesSQL seeks retained historical materials without reading
 // proposal/evidence payloads or walking another Project's receipts.

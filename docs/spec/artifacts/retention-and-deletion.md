@@ -642,10 +642,10 @@ A deleting Project stays readable so that cleanup progress is visible
 
 **DEL-R66.** Unaccepted typed membership is private construction state. Audit
 finalization, cancellation and deletion first remove proposed item rows and
-their unpublished review requests in bounded passes. Each pass charges primary
-rows, staging counter updates, related review deletion and distinct dependency-hold counter releases
+their staged membership in bounded passes. Each pass charges primary
+rows, staging counter updates and distinct dependency-hold counter releases
 against the existing closure batch bound. It performs no child Run dispatch,
-review decision or public membership publication. Empty proposed metadata and
+public membership publication. Empty proposed metadata and
 all frozen selection/prepared material remain attributable until ordinary
 Audit purge. Pause keeps the checkpoint and its original deadline; resume
 continues the same generation or reports its finite validation timeout.

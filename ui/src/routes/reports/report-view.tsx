@@ -5,11 +5,11 @@ import { Link } from "react-router";
 import type { Audit, AuditReport, ExactArtifactRef } from "../../api/audits";
 import { PublicAPIError } from "../../api/error";
 import { writeConflict } from "../../app/conflict";
-import { ErrorNotice } from "../../app/error-notice";
+
 import { compactDigest, formatBytes } from "../../app/format";
 import { Icon } from "../../app/icon";
 import { QueryView } from "../../app/query-view";
-import { reportStatusLabel, reviewStateLabel } from "../../app/vocabulary";
+import { reportStatusLabel } from "../../app/vocabulary";
 import {
   Button,
   Facts,
@@ -18,11 +18,10 @@ import {
   TechnicalDetails,
   type StatusTone,
 } from "../../ui";
-import { ReportDecision } from "../decisions";
+
 import {
   downloadReportFile,
   summaryDisclaimsCertification,
-  type ReportAcceptance,
 } from "./report-data";
 
 import "./reports.css";
@@ -30,7 +29,7 @@ import { checkPath, sectionPath } from "../projects/audits/check-links";
 
 const ReportMarkdown = lazy(() => import("./report-markdown"));
 
-/** The report's status word and tone; a proposed report never reads as ready. */
+/** The report's status word and tone. */
 export function ReportStatusChip({
   status,
   size,
@@ -100,17 +99,8 @@ function StatusNotice({
           </ReportNotice>
         );
       return (
-        <ReportNotice tone="neutral" title="No accepted report is available.">
+        <ReportNotice tone="neutral" title="No report is available.">
           <p>Review the coverage of this check for explicit gaps.</p>
-        </ReportNotice>
-      );
-    case "proposed":
-      return (
-        <ReportNotice
-          tone="review"
-          title="This report is awaiting owner acceptance."
-        >
-          <p>Review the contents below before making a decision.</p>
         </ReportNotice>
       );
     case "ready":
@@ -195,23 +185,16 @@ function FileValue({ code, details }: { code: string; details: ReactNode }) {
   );
 }
 
-/** Exact retained files and the acceptance request, off the main path. */
+/** Exact retained files, off the main path. */
 function ReportFiles({ report }: { report: AuditReport }) {
   const files: ReportFile[] = [];
   if (report.machineArtifact !== undefined)
     files.push({ label: "Machine report", artifact: report.machineArtifact });
   if (report.summaryArtifact !== undefined)
     files.push({ label: "Summary report", artifact: report.summaryArtifact });
-  const review = report.review;
-  if (files.length === 0 && review === undefined) return null;
+  if (files.length === 0) return null;
   return (
-    <TechnicalDetails
-      description={
-        review === undefined
-          ? "The exact retained report files."
-          : "The exact retained report files and the acceptance request."
-      }
-    >
+    <TechnicalDetails description="The exact retained report files.">
       <Facts
         layout="list"
         size="sm"
@@ -231,15 +214,6 @@ function ReportFiles({ report }: { report: AuditReport }) {
               />
             ),
           })),
-          {
-            term: "Acceptance request",
-            value: review && (
-              <FileValue
-                code={review.requestId}
-                details={`${reviewStateLabel(review.state).label} · revision ${review.revision}`}
-              />
-            ),
-          },
         ]}
       />
     </TechnicalDetails>
@@ -261,19 +235,13 @@ interface ReportContentProps {
     UseQueryResult<AuditReport>,
     "data" | "error" | "isFetching" | "refetch"
   >;
-  acceptance: ReportAcceptance;
 }
 
 /**
  * A check's report: status messages, the summary as Markdown, downloads,
- * the certification notice and the exact files. The acceptance decision is
- * placed by the page (ReportAcceptanceDecision).
+ * the certification notice and the exact files.
  */
-export function ReportContent({
-  audit,
-  query,
-  acceptance,
-}: ReportContentProps) {
+export function ReportContent({ audit, query }: ReportContentProps) {
   return (
     <div className="reports-body">
       <QueryView
@@ -286,13 +254,7 @@ export function ReportContent({
         errorContext="Could not load the report"
         errorHint={loadErrorHint}
       >
-        {(report) => (
-          <LoadedReportContent
-            audit={audit}
-            report={report}
-            acceptance={acceptance}
-          />
-        )}
+        {(report) => <LoadedReportContent audit={audit} report={report} />}
       </QueryView>
     </div>
   );
@@ -301,25 +263,14 @@ export function ReportContent({
 function LoadedReportContent({
   audit,
   report,
-  acceptance,
 }: {
   audit: Audit;
   report: AuditReport;
-  acceptance: ReportAcceptance;
 }) {
   const summaryId = useId();
-  const readable = report.status === "proposed" || report.status === "ready";
+  const readable = report.status === "ready";
   return (
     <>
-      {acceptance.mismatch ? (
-        <ReportNotice
-          tone="warning"
-          role="status"
-          title="The requested report review is unavailable or no longer current."
-        >
-          <p>This report cannot be used to decide that review.</p>
-        </ReportNotice>
-      ) : null}
       <StatusNotice status={report.status} audit={audit} />
       <p className="reports-intro">
         {readable ? (
@@ -371,38 +322,5 @@ function LoadedReportContent({
       ) : null}
       <ReportFiles report={report} />
     </>
-  );
-}
-
-/**
- * ReportDecision for the report's acceptance request, when the page has one
- * to show; why the request cannot be read, when that read failed; null
- * otherwise (see showsAcceptance).
- */
-export function ReportAcceptanceDecision({
-  auditId,
-  acceptance,
-}: {
-  auditId: string;
-  acceptance: ReportAcceptance;
-}) {
-  if (acceptance.error !== null)
-    return (
-      <ErrorNotice
-        error={acceptance.error}
-        context="Could not load the acceptance request"
-        onRetry={acceptance.retry}
-        retryPending={acceptance.retrying}
-      />
-    );
-  if (acceptance.review === undefined) return null;
-  return (
-    <ReportDecision
-      auditId={auditId}
-      review={acceptance.review}
-      report={acceptance.report}
-      onDecided={acceptance.onDecided}
-      onRecording={acceptance.onRecording}
-    />
   );
 }

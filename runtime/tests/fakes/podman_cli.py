@@ -13,7 +13,9 @@ import time
 command = sys.argv[4]
 if command == "echo":
     print(json.dumps({"argv": sys.argv[1:], "env": dict(os.environ), "pid": os.getpid()}))
-elif command == "flood":
+elif command in {"flood", "slow-flood"}:
+    if command == "slow-flood":
+        time.sleep(0.25)
     for _ in range(512):
         os.write(1, b"x" * 8192)
         os.write(2, b"secret" * 1024)

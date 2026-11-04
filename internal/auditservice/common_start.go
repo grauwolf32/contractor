@@ -8,6 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditbaseline"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/ownerstore"
@@ -17,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -163,11 +165,27 @@ func (s *Service) Start(ctx context.Context, p StartParams) (StartedAudit, error
 			if err := contentdigest.CheckPinnedSelection(p.ExpectedSkillsSHA256, skills); err != nil {
 				return err
 			}
-			if err := contentdigest.CheckPinnedSelection(p.ExpectedStandardsSHA256, []auditstandards.ExactPackage{}); err != nil {
+
+			baseline := BaselineSnapshot{Schema: BaselineSchema, Labels: selection.Labels.Clone(), RequiredPlacementLabels: append([]string{}, selection.RequiredPlacementLabels...), Inputs: contracts.CloneExactArtifacts(selection.Inputs), Scope: selection.Scope, ActiveChecks: policy, RuntimeLabels: append([]string{}, selection.RuntimeLabels...), RuntimeConfig: runtimeSnapshot, Skills: append([]agentskills.RunSkillSnapshot{}, skills...), LLMCredentialIDs: mergeIDs(workflowIDs, runtimeSnapshot.LLMCredentialIDs), RuntimeCredentialIDs: mergeIDs(runtimeSnapshot.RuntimeCredentialIDs, targetIDs), ProjectHTTPTarget: target, Standards: []auditstandards.PinnedPackage{}}
+			if err := pinAssertionSource(ctx, art, audit, profile, &baseline); err != nil {
 				return err
 			}
-			baseline := BaselineSnapshot{Schema: BaselineSchema, Labels: selection.Labels.Clone(), RequiredPlacementLabels: append([]string{}, selection.RequiredPlacementLabels...), Inputs: contracts.CloneExactArtifacts(selection.Inputs), Scope: selection.Scope, ActiveChecks: policy, RuntimeLabels: append([]string{}, selection.RuntimeLabels...), RuntimeConfig: runtimeSnapshot, Skills: append([]agentskills.RunSkillSnapshot{}, skills...), LLMCredentialIDs: mergeIDs(workflowIDs, runtimeSnapshot.LLMCredentialIDs), RuntimeCredentialIDs: mergeIDs(runtimeSnapshot.RuntimeCredentialIDs, targetIDs), ProjectHTTPTarget: target, Standards: []auditstandards.PinnedPackage{}}
+			standardSelection := []auditstandards.ExactPackage{}
+			for _, standard := range baseline.Standards {
+				standardSelection = append(standardSelection, standard.Catalog)
+			}
+			if err := contentdigest.CheckPinnedSelection(p.ExpectedStandardsSHA256, standardSelection); err != nil {
+				return err
+			}
 			links := []auditstore.ArtifactLink{}
+			if baseline.InitialAssertions != nil {
+				source := baseline.InitialAssertions.Source
+				provenance, err := strictjson.Canonical(map[string]any{"source": source})
+				if err != nil {
+					return err
+				}
+				links = append(links, auditstore.ArtifactLink{Scope: artifacts.ScopeAudit, LogicalKey: "assertion-source", Artifact: contracts.ExactArtifact{Ref: source.Ref, Digest: source.Digest, MediaType: source.MediaType, SizeBytes: source.SizeBytes}, SourceProvenance: provenance})
+			}
 			seconds := profile.Program.Limits.DeadlineSeconds
 			if p.DeadlineSeconds != nil {
 				seconds = *p.DeadlineSeconds
@@ -179,13 +197,16 @@ func (s *Service) Start(ctx context.Context, p StartParams) (StartedAudit, error
 				}
 				baseline.Engagement = &auditbaseline.EngagementSnapshot{Schema: auditbaseline.EngagementSchema, Artifact: engagement.artifact, Document: engagement.document, PolicyDigest: digest, AuthorizedBy: p.OwnerID, AuthorizedAt: s.now().UTC()}
 				baseline.RuntimeCredentialIDs = mergeIDs(runtimeSnapshot.RuntimeCredentialIDs, engagement.credentialIDs)
-				links = engagement.inputs
+				links = append(links, engagement.inputs...)
 				if seconds == 0 || seconds > int(engagement.document.Budgets.ActiveSeconds) {
 					seconds = int(engagement.document.Budgets.ActiveSeconds)
 				}
 			}
 			encoded, err := EncodeBaseline(baseline)
 			if err != nil {
+				return err
+			}
+			if _, err := auditdomain.ExecutionProgram(profile.Program, encoded); err != nil {
 				return err
 			}
 			var deadline time.Time
@@ -215,7 +236,7 @@ func commonActiveCheckPolicy(profile auditprofile.PinnedProgram, policy contract
 	if !policy.Valid() {
 		return "", ErrInvalid
 	}
-	if profile.Program.Policy.ActiveOperations == "prohibited" || policy == contracts.ActiveChecksApprovalRequired {
+	if profile.Program.Policy.ActiveOperations == "prohibited" {
 		policy = contracts.ActiveChecksProhibited
 	}
 	if policy == contracts.ActiveChecksProhibited {

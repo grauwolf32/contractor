@@ -19,6 +19,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5"
@@ -167,6 +169,9 @@ func (s *Service) Submit(
 		}
 
 		origin, ownerID, projectID, err := verifyTrustedExecution(ctx, tx, grant, canonical.request.ItemKey, s.storage)
+		if canonical.request.Incidental && origin.Audit != nil {
+			origin.Audit.Hypothesis = nil
+		}
 		if err != nil {
 			return err
 		}
@@ -289,6 +294,29 @@ SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, grant.RunID).
 					return retainErr
 				}
 				projectProposal = &retained
+				if origin.Audit != nil && origin.Audit.Hypothesis != nil {
+					task, err := querystore.New(tx, s.storage).GetTask(ctx, ownerID, origin.Audit.AuditID, origin.Audit.TaskID)
+					if err != nil {
+						return err
+					}
+					if task.Hypothesis == nil || task.Hypothesis.ID != origin.Audit.Hypothesis.ID || task.Hypothesis.Revision != origin.Audit.Hypothesis.Revision {
+						return ErrInvalid
+					}
+					data, err := strictjson.Canonical(task.Hypothesis)
+					if err != nil {
+						return err
+					}
+					scope, err := artifacts.ProjectScope(*projectID)
+					if err != nil {
+						return err
+					}
+					written, err := artifactService.CreateFrozen(ctx, scope, contracts.ArtifactRef{Namespace: artifactpolicy.FindingMaterialsNamespace, Name: deterministicID("hypothesis", receiptID)}, artifacts.Payload{MediaType: "application/json", Data: data})
+					if err != nil {
+						return err
+					}
+					origin.Audit.HypothesisSnapshot = &ExactArtifact{Ref: written.Ref, Digest: contentdigest.Bytes(data), MediaType: written.MediaType, SizeBytes: written.Size}
+				}
+
 				projectEvidence = make([]ExactArtifact, 0, len(evidence))
 				for index, source := range evidence {
 					retained, retainErr := retainFindingArtifact(ctx, artifactService, grant.RunID, *projectID,
@@ -459,11 +487,14 @@ func insertReceipt(
 		projectEvidenceJSON, _ = json.Marshal(projectEvidence)
 	}
 	var auditExecutionID, auditID, auditTaskID *string
-	var hypothesis []byte
+	var hypothesis, hypothesisSnapshot []byte
 	if origin.Audit != nil {
 		auditExecutionID, auditID, auditTaskID = &origin.Audit.ExecutionID, &origin.Audit.AuditID, &origin.Audit.TaskID
 		if origin.Audit.Hypothesis != nil {
 			hypothesis, _ = json.Marshal(origin.Audit.Hypothesis)
+			if origin.Audit.HypothesisSnapshot != nil {
+				hypothesisSnapshot, _ = json.Marshal(origin.Audit.HypothesisSnapshot)
+			}
 		}
 	}
 	_, err := tx.Exec(ctx, insertReceiptSQL,
@@ -476,7 +507,7 @@ func insertReceipt(
 		proposalRef, proposal.Digest, proposal.MediaType, proposal.SizeBytes,
 		evidenceJSON, string(canonical.reportProjection), string(fingerprintJSON), string(canonical.anchorProjection),
 		string(canonical.checksProjection),
-		canonical.request.PublishProblem, publicationError, projectProposalJSON, projectEvidenceJSON, hypothesis,
+		canonical.request.PublishProblem, publicationError, projectProposalJSON, projectEvidenceJSON, hypothesis, hypothesisSnapshot,
 	)
 	if err != nil {
 		switch persistencepostgres.Classify(err) {

@@ -559,7 +559,7 @@ func TestProjectDeletionPurgesRetainedProjectFindingHistory(t *testing.T) {
 		t.Fatalf("claim deleting Audit = (%+v, %v)", claims, err)
 	}
 	if err := audits.PurgeClaimed(ctx, claims[0], auditdomain.ArtifactNamespace(audit.AuditID)); err != nil {
-		t.Fatalf("purge Audit with decided review and assessment: %v", err)
+		t.Fatalf("purge Audit with canonical assessment: %v", err)
 	}
 	for iteration := 0; iteration < 16; iteration++ {
 		if worked, err := controller.RunOnce(ctx); err != nil || !worked {
@@ -572,16 +572,15 @@ func TestProjectDeletionPurgesRetainedProjectFindingHistory(t *testing.T) {
 	if _, err := projects.Get(ctx, project.OwnerID, project.ProjectID); !errors.Is(err, projectstore.ErrNotFound) {
 		t.Fatalf("Project did not finish deletion: %v", err)
 	}
-	var decisions, assessments, receipts, fences int
+	var assessments, receipts, fences int
 	if err := pool.QueryRow(ctx, `
-SELECT (SELECT count(*) FROM audit_review_decisions),
-       (SELECT count(*) FROM project_findings WHERE project_id=$1),
+SELECT (SELECT count(*) FROM project_findings WHERE project_id=$1),
        (SELECT count(*) FROM finding_proposal_receipts WHERE project_id = $1),
        (SELECT count(*) FROM finding_correlation_fences WHERE project_id = $1)`, project.ProjectID,
-	).Scan(&decisions, &assessments, &receipts, &fences); err != nil ||
-		decisions != 0 || assessments != 0 || receipts != 0 || fences != 0 {
-		t.Fatalf("Audit decisions/Findings/receipts/fences after Project deletion = (%d, %d, %d, %d, %v)",
-			decisions, assessments, receipts, fences, err)
+	).Scan(&assessments, &receipts, &fences); err != nil ||
+		assessments != 0 || receipts != 0 || fences != 0 {
+		t.Fatalf("Audit Findings/receipts/fences after Project deletion = (%d, %d, %d, %v)",
+			assessments, receipts, fences, err)
 	}
 }
 

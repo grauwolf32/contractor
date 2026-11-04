@@ -509,10 +509,6 @@ func validateCoverage(value CoverageEnvelope) error {
 	return nil
 }
 
-func validApprovalRequirement(value ApprovalRequirement) bool {
-	return value == ApprovalNone || value == ApprovalActiveCheck || value == ApprovalHumanReview
-}
-
 func validAssessment(value string) bool {
 	switch value {
 	case "supported", "refuted", "inconclusive", "blocked", "satisfied", "violated", "not-tested", "not-applicable":

@@ -3,11 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { useState, type ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { DecisionBar, type DecisionOption } from "./decision-bar";
+import { DecisionBar } from "./decision-bar";
 
 type DecisionBarProps = ComponentProps<typeof DecisionBar>;
 
-const OPTIONS: DecisionOption[] = [
+const OPTIONS: DecisionBarProps["options"] = [
   { id: "confirm", label: "Confirm issue", shortcut: "c", tone: "primary" },
   { id: "reject", label: "Not an issue", shortcut: "r" },
   { id: "evidence", label: "Needs evidence", shortcut: "e" },

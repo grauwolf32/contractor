@@ -1,11 +1,10 @@
 import { PROJECT_ID_PATTERN } from "../../api/projects";
 
 /**
- * The list filter of /reports: reports waiting for acceptance, ready
- * reports, or all reports (both). Pending and unavailable reports are not
- * reports yet; their checks show them, and /reports/:auditId opens them.
+ * The list filter of /reports: ready reports. Pending and unavailable report
+ * statuses stay on their checks and are readable at /reports/:auditId.
  */
-export type ReportFilter = "proposed" | "ready" | "all";
+export type ReportFilter = "ready" | "all";
 
 export interface ReportFilters {
   status: ReportFilter;
@@ -17,14 +16,14 @@ export interface ReportFilters {
 export const STATUS_PARAM = "status";
 export const PROJECT_PARAM = "project";
 
-const STATUS_FILTERS: readonly ReportFilter[] = ["proposed", "ready", "all"];
+const STATUS_FILTERS: readonly ReportFilter[] = ["ready", "all"];
 
 function isReportFilter(value: string | null): value is ReportFilter {
   return STATUS_FILTERS.some((filter) => filter === value);
 }
 
 /**
- * Reads `?status=proposed|ready|all&project=<projectId>`. A missing or
+ * Reads `?status=ready|all&project=<projectId>`. A missing or
  * unknown status is "all"; an invalid project ID is no project filter.
  */
 export function readFilters(params: URLSearchParams): ReportFilters {

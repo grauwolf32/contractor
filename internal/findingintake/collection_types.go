@@ -64,7 +64,7 @@ func canonicalCollectionRequest(input PublishCollectionRequest) (PublishCollecti
 	result := PublishCollectionRequest{ClientKey: input.ClientKey, Sources: make([]CollectionSelection, len(input.Sources))}
 	selections := 0
 	for i, source := range input.Sources {
-		if !validIdentity(source.ID) || source.Kind != "run" && source.Kind != "audit" ||
+		if !validIdentity(source.ID) || source.Kind != "run" && source.Kind != "audit" && source.Kind != "project" ||
 			source.ReceiptIDs == nil || source.Findings == nil || source.Kind == "run" && len(source.Findings) != 0 {
 			return PublishCollectionRequest{}, "", ErrInvalid
 		}

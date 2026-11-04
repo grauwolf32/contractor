@@ -33,7 +33,7 @@ func ordinaryState(state string) string {
 		return "cancelled"
 	case "initializing", "draft":
 		return "accepted"
-	case "running", "active", "paused", "waiting_review", "finalizing", "cancelling":
+	case "running", "active", "paused", "finalizing", "cancelling":
 		return "running"
 	}
 	return "unknown"

@@ -236,7 +236,7 @@ may skip an incompatible item and form an ordered candidate batch.
 
 **AUX-R14.** Compatibility requires the same pinned named Workflow role and
 closure, resolved Run inputs and scalar parameters, baseline/workspace,
-credential/tool authority, and exact approval kind/subject digest. Grouping
+credential/tool authority and pinned operation policy. Grouping
 never unions permissions. The membership rules of a check execution, including
 how members verifying one finding share an execution, are specified in
 [AUD-R109](audits.md) to [AUD-R114](audits.md).
@@ -251,7 +251,7 @@ dispatched through the unwrapped single-item path. Package capacity is not
 `dispatch_contract_invalid` and does not consume an attempt for omitted items.
 
 **AUX-R17.** When it reserves the execution, the Store rechecks item state,
-next attempt, approval decision and expiry, common approval envelope, budget,
+next attempt, pinned operation policy, budget,
 deadline, current Round, dispatch fence and the derived outstanding-Run window
 atomically.
 
@@ -679,12 +679,8 @@ than one batched phase of it:
 
 1. obtains a short claim with expiry/epoch and reads its snapshot of the
    Audit and the Project fences (AUX-R95);
-2. applies review and time-limit state: expires a report review, pauses
-   dispatch at the Audit time limit or closes it for an exhausted budget, and
-   renews expired item reviews; item state already changed by the
-   authenticated review API arrives with the snapshot, while
-   execution-intent creation independently rechecks the accepted, unexpired
-   exact decision in its own transaction;
+2. applies the Audit time limit or exhausted execution budget, pausing or
+   closing dispatch under the existing lifecycle fences;
 3. records new exact terminal observations of associated Runs from the
    authoritative Run states in the snapshot, at most LIM-AUX-14 of them,
    without settling an item;
@@ -761,7 +757,7 @@ closed by AUX-R99, so they write only values the Store accepts:
   (AUD-R186), appends its closure gap only while the item's gap array stays
   within its stored bound of 1 MiB of JSON text (LIM-PER-17), and otherwise records the
   closure through the item's final disposition and rationale alone;
-- the other drain writes (review expiry, terminal observation, intent
+- the other drain writes (terminal observation, intent
   failure, child Run cancellation and deletion, hold release and purge)
   carry only the claim, values read from the snapshot and fixed values.
 
@@ -946,15 +942,25 @@ a new item, target action or budget reservation.
 
 **AUX-R103.** Typed admission and dispatch validate the exact pinned profile,
 baseline scope, effective active-check policy, binding/capability closure and
-current exact item approval. An eligible candidate is deferred with
+pinned operation policy. An eligible candidate is deferred with
 `submission_budget_exhausted` before selection when all cumulative child Run
 reservations are spent; it cannot create a new accepted Round just to close
 at dispatch. The effective Project policy remains the
 start-time policy under PRJ-R104; editing Project policy applies to new
 Audits and does not reinterpret the accepted authorization of an existing
-Audit. Live owner/Project lifecycle fences and expiring approvals still
+Audit. Live owner/Project lifecycle fences and operation policy still
 apply. Missing configured capability is a permanent configuration/admission
 failure; temporary Runtime capacity remains an ordinary scheduling wait.
+
+**AUX-R111.** Compatible ready Tasks are selected by explicit human attention
+first and original source ordinal second, through the ready index. Attention is
+owner-authored scheduling intent and grants no truth, scope or operation authority.
+Prerequisites are the binding's required exact available materials and accepted
+prior results at ordinary admission; no future dependency graph is inferred.
+Current lane, Project, control, deadline, Task/iteration/attempt/Run and evidence
+budgets still bound selection. Settled history is not rescanned to rank work.
+Fixed seeds are admitted independently of remaining Task capacity, so a limited
+check budget does not silently remove selected source requirements.
 
 ## Interfaces
 

@@ -134,15 +134,8 @@ describe("ui.css", () => {
     ).toBe("progress");
   });
 
-  it("caps a recorded decision where the pane footer is pinned", () => {
+  it("pins the pane footer on wide screens", () => {
     const footer = mediaRule(PINNED, ".ui-detail-pane-footer");
     expect(footer.position).toBe("sticky");
-    const record = mediaRule(
-      PINNED,
-      ".ui-detail-pane-footer .ui-footer-record",
-    );
-    expect(record.maxHeight).toBe("min(45vh, 24rem)");
-    expect(record.overflowY).toBe("auto");
-    expect(record.borderTop).toMatch(/^1px solid/);
   });
 });

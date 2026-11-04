@@ -1,8 +1,8 @@
 // Package pgstore is the PostgreSQL implementation of the Audit store. It
 // keeps one store type per seam, so a caller holds only the commands and reads
 // of the seam it works in: the claim-bound Controller commands (ClaimStore),
-// the owner's lifecycle and start commands (OwnerStore), the review journal
-// (ReviewStore), the reads (QueryStore), and the narrow entry points other
+// the owner's lifecycle and start commands (OwnerStore), the reads
+// (QueryStore), and the narrow entry points other
 // contexts use (FindingEvents, RunDeletion, ProjectDeletion, CredentialHolds,
 // AuditCreations). A step whose row locks must last until the caller commits
 // exists only on a seam's transaction-bound type (PER-R18). The package is
@@ -65,26 +65,6 @@ type OwnerTxStore struct {
 
 func NewOwnerTxStore(tx pgx.Tx, storage *artifactpostgres.Storage) *OwnerTxStore {
 	return &OwnerTxStore{OwnerStore: NewOwnerStore(tx, storage), tx: tx}
-}
-
-// ReviewStore holds the review journal: finding triage requests and
-// decisions, item action decisions, report candidate decisions and the
-// review events they record.
-type ReviewStore struct{ store }
-
-func NewReviewStore(db persistencepostgres.DBTX, storage *artifactpostgres.Storage) *ReviewStore {
-	return &ReviewStore{store{db: db, storage: storage}}
-}
-
-// ReviewTxStore is a ReviewStore bound to the caller's transaction, with the
-// review steps whose row locks must last until the caller commits.
-type ReviewTxStore struct {
-	*ReviewStore
-	tx pgx.Tx
-}
-
-func NewReviewTxStore(tx pgx.Tx, storage *artifactpostgres.Storage) *ReviewTxStore {
-	return &ReviewTxStore{ReviewStore: NewReviewStore(tx, storage), tx: tx}
 }
 
 // QueryStore holds the Audit reads: Audits, Rounds, items and their
@@ -171,10 +151,4 @@ func (s *QueryStore) GetRound(ctx context.Context, auditID, roundID string) (aud
 		return auditstore.Round{}, auditstore.ErrNotFound
 	}
 	return round, err
-}
-
-// GetReportCandidate reads the frozen report candidate of an Audit's
-// pending report review.
-func (s *QueryStore) GetReportCandidate(ctx context.Context, auditID string) (auditstore.ReportCandidate, error) {
-	return s.getReportCandidate(ctx, auditID)
 }

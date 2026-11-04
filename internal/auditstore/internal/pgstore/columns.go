@@ -21,7 +21,7 @@ var auditColumnList = []string{
 	"retained_evidence_bytes",
 	"next_event_sequence - 1", "stop_reason_code", "stop_reason_message",
 	"created_at", "updated_at", "started_at", "finished_at", "deletion_requested_at", "paused_at", "phase",
-	"task_count", "task_iteration", "iteration_task_count", "initial_work_offset",
+	"task_count", "task_iteration", "iteration_task_count", "initial_work_offset", "initial_hypothesis_offset",
 }
 
 // executionColumnList is the ScanExecution order.
@@ -43,7 +43,6 @@ var roundColumnList = []string{
 var itemColumnList = []string{
 	"item_id", "audit_id", "round_id", "item_key", "ordinal", "kind", "subject_key",
 	"task_ref", "task_digest", "origin", "workflow_role", "state",
-	"approval_kind", "approval_subject_digest",
 	"final_disposition", "accepted_result_ref", "accepted_result_digest",
 	"last_execution_item_id", "created_at", "updated_at", "retained_dependencies",
 }

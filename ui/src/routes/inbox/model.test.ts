@@ -75,7 +75,6 @@ function input(overrides: Partial<InboxInput> = {}): InboxInput {
   return {
     now: NOW,
     issues: [],
-    decisions: [],
     checks: [],
     reports: [],
     workspaces: new Map(),
@@ -91,7 +90,7 @@ describe("Inbox selection keys", () => {
   it("round-trips every kind, also with colons in IDs", () => {
     const refs = [
       { kind: "issue", projectId: "project:1", findingId: "finding_1" },
-      { kind: "review", auditId: "audit_1", requestId: "req.2" },
+
       { kind: "run", runId: "run-1" },
       { kind: "check", auditId: "audit_1" },
       { kind: "report", auditId: "audit_1" },
@@ -229,7 +228,7 @@ describe("Inbox sections", () => {
         NOW,
       ),
     ).toBe(false);
-    for (const state of ["failed", "cancelled", "waiting_review"] as const)
+    for (const state of ["failed", "cancelled", "paused"] as const)
       expect(
         finishedRecently(check("c", state, { finishedAt: ago(30) }), NOW),
       ).toBe(false);

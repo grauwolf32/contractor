@@ -1,5 +1,5 @@
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
-import { Link, useSearchParams } from "react-router";
+import { Link } from "react-router";
 
 import { AUDIT_ID_PATTERN, type Audit } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
@@ -16,16 +16,8 @@ import {
   IdChip,
 } from "../../ui";
 import { auditProfileLabel } from "../projects/audits/labels";
-import {
-  showsAcceptance,
-  useAuditReport,
-  useReportAcceptance,
-} from "./report-data";
-import {
-  ReportAcceptanceDecision,
-  ReportContent,
-  ReportStatusChip,
-} from "./report-view";
+import { useAuditReport } from "./report-data";
+import { ReportContent, ReportStatusChip } from "./report-view";
 
 import "./reports.css";
 import { checkPath } from "../projects/audits/check-links";
@@ -35,10 +27,7 @@ export function NoReportSelected() {
   return (
     <DetailPane>
       <EmptyState title="Choose a report">
-        <p>
-          Pick a report to read its summary, download it, or decide whether to
-          accept it.
-        </p>
+        <p>Pick a report to read its summary or download it.</p>
       </EmptyState>
     </DetailPane>
   );
@@ -46,14 +35,7 @@ export function NoReportSelected() {
 
 function LoadedReport({ audit }: { audit: Audit }) {
   const api = usePublicAPI();
-  const [params] = useSearchParams();
   const query = useAuditReport(audit, api);
-  const acceptance = useReportAcceptance(
-    api,
-    audit.auditId,
-    query.data,
-    params.get("review"),
-  );
   const project = useQuery({
     queryKey: queryKeys.projects.detail(audit.projectId),
     queryFn: () => getProject(api, audit.projectId),
@@ -91,26 +73,15 @@ function LoadedReport({ audit }: { audit: Audit }) {
           }
         />
       }
-      footer={
-        showsAcceptance(acceptance) ? (
-          <div className="reports-decision-footer">
-            <ReportAcceptanceDecision
-              auditId={audit.auditId}
-              acceptance={acceptance}
-            />
-          </div>
-        ) : undefined
-      }
     >
-      <ReportContent audit={audit} query={query} acceptance={acceptance} />
+      <ReportContent audit={audit} query={query} />
     </DetailPane>
   );
 }
 
 /**
- * /reports/:auditId: the check's report with its header, downloads and,
- * while the report waits for acceptance, the decision. `check` is the
- * check's read (useReportCheck), shared with the page title.
+ * /reports/:auditId: the check's retained report with its header and downloads.
+ * `check` is the check's read (useReportCheck), shared with the page title.
  */
 export function ReportDetail({
   auditId,

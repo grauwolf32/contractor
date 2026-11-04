@@ -15,13 +15,13 @@ import (
 // GetWorkspace reads the workspace summary of an owner's Audit in one
 // statement.
 func (s *QueryStore) GetWorkspace(ctx context.Context, ownerID, auditID string) (auditstore.WorkspaceSummary, error) {
-	if !auditstore.ValidReviewIdentity(ownerID, 256) || !auditstore.ValidReviewIdentity(auditID, 256) {
+	if !auditstore.ValidFindingIdentity(ownerID, 256) || !auditstore.ValidFindingIdentity(auditID, 256) {
 		return auditstore.WorkspaceSummary{}, auditstore.ErrInvalid
 	}
 	var result auditstore.WorkspaceSummary
 	err := s.db.QueryRow(ctx, getWorkspaceSQL, workspaceArgs(ownerID, auditID)...).Scan(
 		&result.AuditID, &result.AuditRevision, &result.AsOf, &result.RoundID, &result.ExecutionState, &result.OutstandingRuns,
-		&result.TotalChecks, &result.CompletedChecks, &result.Issues, &result.Gaps, &result.Unchecked, &result.Findings, &result.UnreviewedFindings, &result.PendingReviews)
+		&result.TotalChecks, &result.CompletedChecks, &result.Issues, &result.Gaps, &result.Unchecked, &result.Findings, &result.UnreviewedFindings)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return auditstore.WorkspaceSummary{}, auditstore.ErrNotFound
 	}
@@ -45,7 +45,7 @@ func workspaceArgs(ownerID, auditID string) []any {
 func (s *QueryStore) ListEventsPage(
 	ctx context.Context, p auditstore.EventListParams,
 ) (uint64, []auditstore.Event, error) {
-	if !auditstore.ValidReviewIdentity(p.OwnerID, 256) || !auditstore.ValidReviewIdentity(p.AuditID, 256) ||
+	if !auditstore.ValidFindingIdentity(p.OwnerID, 256) || !auditstore.ValidFindingIdentity(p.AuditID, 256) ||
 		!pagelimit.ValidFetch(p.Limit) ||
 		(p.ThroughSequence == nil) != (p.BeforeSequence == nil) ||
 		(p.ThroughSequence != nil && (*p.ThroughSequence > math.MaxInt64 ||

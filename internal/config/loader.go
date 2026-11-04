@@ -56,8 +56,9 @@ type manifestFile struct {
 // this package never learns their formats. Production loads go through
 // configload; calling the loaders here directly skips those checks.
 type OperatorRootCheck struct {
-	Subject string
-	Check   func(operatorRoot string) error
+	AfterLoad func(*Snapshot) error
+	Subject   string
+	Check     func(operatorRoot string) error
 }
 
 // loadOptions selects how strictly one load treats the filesystem.
@@ -141,10 +142,18 @@ func loadConfigurationRoots(roots []configurationRoot, options loadOptions) (*Sn
 	if err := current.loadAuditProfiles(); err != nil {
 		return nil, err
 	}
-	return newSnapshot(
+	snapshot := newSnapshot(
 		current.workflows, current.templates, current.policies, current.gateways,
 		current.auditProfiles, current.instructions, current.sources,
-	), nil
+	)
+	for _, check := range options.operatorRootChecks {
+		if check.AfterLoad != nil {
+			if err := check.AfterLoad(snapshot); err != nil {
+				return nil, fmt.Errorf("%s: %w", check.Subject, err)
+			}
+		}
+	}
+	return snapshot, nil
 }
 
 func resolveRoot(root string) (string, error) {

@@ -291,3 +291,15 @@ The Runtime verifies the digest of canonical `{limits,version}` and freezes
 that snapshot before preparation and registration (CTL-R171, RTA-R126).
 `make shared-config-generate` derives the golden fixture, Runtime test defaults
 and Artifact schema/SQL ceilings from the Server-owned Go definition.
+
+
+Allocation Project finding reads use the existing private Artifact transport:
+`GET /allocations/{allocationID}/findings?limit=20&cursor=...`,
+`GET /allocations/{allocationID}/findings/{findingID}?revision=N`, and
+`POST /allocations/{allocationID}/finding-selections`. Requests never select a
+Project ID. The selection body has `clientKey`, `findings` (explicit `findingId`
+and exact `revision`) and `receiptIds`; arrays are required, with at most 128
+selectors total. Live pages return `items`, `projectRevision`, `nextCursor`;
+selection returns the existing exact collection publication descriptor.
+FND-R224 through FND-R229 own bounds, authority, source mode, replay and failures.
+The shared findings collection fixture pins Project source kinds in both languages.

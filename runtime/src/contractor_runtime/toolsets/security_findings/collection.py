@@ -13,8 +13,10 @@ from dataclasses import dataclass
 from typing import Any
 
 import jcs
+from jsonschema import ValidationError as SchemaValidationError
 
 from contractor_runtime.contracts import MEDIA_TYPE_PATTERN, ArtifactRef
+from contractor_runtime.contracts.audit_documents import decode_audit_document
 from contractor_runtime.contracts.base import MAX_EXACT_INTEGER, RESOURCE_ID_PATTERN, is_blank
 from contractor_runtime.digests import sha256_digest
 from contractor_runtime.strict_json import unique_json_object
@@ -174,6 +176,20 @@ def decode_collection(payload: bytes) -> FindingCollection:
                 == [link["evidence_id"] for link in entry["evidence"]],
                 "findings_reference_invalid",
             )
+            origin = entry.get("audit_origin", {})
+            context_id = origin.get("hypothesis_snapshot_document_id")
+            if context_id is not None:
+                try:
+                    hypothesis = decode_audit_document(
+                        contents[context_id], schema="contractor.audit.hypothesis.v1"
+                    )
+                except (ValueError, SchemaValidationError) as error:
+                    raise FindingsError("findings_reference_invalid") from error
+                require(
+                    hypothesis["id"] == origin["hypothesis"]["id"]
+                    and hypothesis["revision"] == origin["hypothesis"]["revision"],
+                    "findings_reference_invalid",
+                )
         return FindingCollection(metadata, contents, proposals, sha256_digest(payload))
     except FindingsError:
         raise
@@ -243,7 +259,7 @@ def _validate_metadata(value: dict[str, Any]) -> None:
     source_keys = []
     for source in array(value["sources"], 64, 1):
         object_fields(source, "kind id")
-        require(source["kind"] in {"run", "audit"} and identifier(source["id"]))
+        require(source["kind"] in {"run", "audit", "project"} and identifier(source["id"]))
         source_keys.append((source["kind"], source["id"]))
     require(source_keys == sorted(set(source_keys)))
     sources = set(source_keys)
@@ -308,7 +324,11 @@ def _validate_metadata(value: dict[str, Any]) -> None:
         require(selected_keys == sorted(set(selected_keys)))
         if "audit_origin" in entry:
             origin = entry["audit_origin"]
-            object_fields(origin, "audit_id execution_id task_id", "hypothesis")
+            object_fields(
+                origin,
+                "audit_id execution_id task_id",
+                "hypothesis hypothesis_snapshot_document_id",
+            )
             require(
                 all(
                     isinstance(origin[key], str)
@@ -327,6 +347,16 @@ def _validate_metadata(value: dict[str, Any]) -> None:
                     type(hypothesis["revision"]) is int
                     and 1 <= hypothesis["revision"] <= MAX_EXACT_INTEGER
                 )
+            if "hypothesis_snapshot_document_id" in origin:
+                selected = documents.get(origin["hypothesis_snapshot_document_id"])
+                require(
+                    "hypothesis" in origin
+                    and selected is not None
+                    and selected["media_type"] == "application/json"
+                    and 0 < selected["size_bytes"] <= 32 * 1024,
+                    "findings_reference_invalid",
+                )
+                used.add(selected["id"])
         if "audit_holds" in entry:
             holds = array(entry["audit_holds"], 64, 1)
             require(all(identifier(hold) for hold in holds) and holds == sorted(set(holds)))

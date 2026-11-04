@@ -27,7 +27,7 @@ func (f ProjectFinding) Validate() error {
 		return nil
 	}
 	if !f.State.Valid() || f.AnalystVerdict == nil || !f.AnalystVerdict.Valid() || f.Rationale == nil || !validFindingText(*f.Rationale, 65536) ||
-		f.ActorID == nil || !ValidReviewIdentity(*f.ActorID, MaxFindingActorBytes) || f.AssessedAt == nil || f.AssessedAt.IsZero() {
+		f.ActorID == nil || !ValidFindingIdentity(*f.ActorID, MaxFindingActorBytes) || f.AssessedAt == nil || f.AssessedAt.IsZero() {
 		return ErrInvalid
 	}
 	if f.AnalystSeverity != nil && !f.AnalystSeverity.Valid() {

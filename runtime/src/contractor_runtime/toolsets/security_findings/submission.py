@@ -35,7 +35,10 @@ def build_submission(
     proposed_checks: list[dict[str, str]] | None = None,
     publish_problem: bool = False,
     item_key: str | None = None,
+    incidental: bool = False,
 ) -> dict[str, object]:
+    if type(incidental) is not bool:
+        raise ToolInputError("incidental must be a boolean")
     if type(publish_problem) is not bool:
         raise ToolInputError("publish_problem must be a boolean")
     _identifier("client_key", client_key)
@@ -108,6 +111,8 @@ def build_submission(
         "proposal": proposal,
         "evidenceRefs": refs,
     }
+    if incidental:
+        request["incidental"] = True
     if item_key is not None:
         _identifier("item_key", item_key)
         request["itemKey"] = item_key

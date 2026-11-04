@@ -54,6 +54,7 @@ func cloneReservation(source Reservation) Reservation {
 func cloneAllocationGrant(source AllocationGrant) AllocationGrant {
 	result := source
 	result.SitemapPolicy = source.SitemapPolicy.Clone()
+	result.FindingTools = append([]string(nil), source.FindingTools...)
 	result.SitemapTools = append([]string(nil), source.SitemapTools...)
 	result.ProjectArtifactReads = append([]ProjectArtifactReadTarget(nil), source.ProjectArtifactReads...)
 	for i := range result.ProjectArtifactReads {

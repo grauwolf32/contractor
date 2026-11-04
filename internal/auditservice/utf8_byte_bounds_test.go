@@ -14,7 +14,7 @@ import (
 func TestSharedAuditTextBoundsCountUTF8Bytes(t *testing.T) {
 	t.Parallel()
 	characters, fields := contractstest.ReadUTF8ByteBoundCases(t)
-	bounds := map[string]int{"LIM-AUD-29": maximumScopeValue, "LIM-REV-11": MaxReviewRationale}
+	bounds := map[string]int{"LIM-AUD-29": maximumScopeValue, "LIM-REV-11": MaxFindingRationale}
 	checked := map[string]bool{}
 	for _, field := range fields {
 		bound, owned := bounds[field.Rule]

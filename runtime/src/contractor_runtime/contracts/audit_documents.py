@@ -18,6 +18,8 @@ def decode_audit_document(data: bytes, *, schema: str) -> dict:
     """Validate bounded JSON without fetching external schemas or granting authority."""
     if not isinstance(data, bytes) or not 0 < len(data) <= MAX_DOCUMENT_BYTES:
         raise ValueError("Audit document bytes")
+    if schema == "contractor.audit.hypothesis.v1" and len(data) > 32768:
+        raise ValueError("Audit hypothesis bytes")
     value = strict_json_loads(data.decode("utf-8"))
     nodes = 0
 
