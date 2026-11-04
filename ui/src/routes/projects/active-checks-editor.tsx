@@ -15,7 +15,6 @@ import { Button } from "../../ui";
 
 const MODES: Record<ActiveChecksPolicy, string> = {
   automatic: "Automatically",
-  "approval-required": "Ask before each active check",
   prohibited: "Disabled",
 };
 

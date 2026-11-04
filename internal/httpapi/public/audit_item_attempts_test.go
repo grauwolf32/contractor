@@ -46,7 +46,7 @@ func auditItemAttemptsFixture() (*fakeAuditManagement, auditstore.Item, auditsto
 				SourceMediaType: task.MediaType, CanonicalInventoryDigest: auditHandlerDigest("inventory"),
 				EntryKey: "check-" + id,
 			},
-			WorkflowRole: "check", State: auditstore.ItemReady, ApprovalKind: auditstore.ItemApprovalNone,
+			WorkflowRole: "check", State: auditstore.ItemReady,
 			CreatedAt: now, UpdatedAt: now,
 		}
 	}

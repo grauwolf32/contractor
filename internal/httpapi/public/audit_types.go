@@ -136,8 +136,6 @@ type auditItemResponse struct {
 	Origin              auditstore.ItemOrigin        `json:"origin"`
 	WorkflowRole        string                       `json:"workflowRole"`
 	State               auditstore.ItemState         `json:"state"`
-	ApprovalKind        auditstore.ItemApprovalKind  `json:"approvalKind"`
-	ApprovalDigest      string                       `json:"approvalDigest,omitempty"`
 	FinalDisposition    *auditstore.FinalDisposition `json:"finalDisposition,omitempty"`
 	AcceptedResult      *auditstore.ExactArtifact    `json:"acceptedResult,omitempty"`
 	LastExecutionItemID *string                      `json:"lastExecutionItemId,omitempty"`
@@ -172,7 +170,6 @@ type auditCoveragePageResponse struct {
 
 type auditReportResponse struct {
 	Status          auditservice.ReportStatus `json:"status"`
-	Review          *auditstore.ReviewRequest `json:"review,omitempty"`
 	MachineArtifact *auditstore.ExactArtifact `json:"machineArtifact,omitempty"`
 	SummaryArtifact *auditstore.ExactArtifact `json:"summaryArtifact,omitempty"`
 	Machine         json.RawMessage           `json:"machine,omitempty"`

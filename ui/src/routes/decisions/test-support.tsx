@@ -1,12 +1,9 @@
 // Fixtures for the decision component tests, built on the shared,
 // schema-checked builders in src/test.
-import type {
-  ProjectFinding,
-  AuditReport,
-  AuditReviewRequest,
-} from "../../api/audits";
+// Fixtures for the decision component tests, built on the shared,
+// schema-checked builders in src/test.
+import type { ProjectFinding } from "../../api/audits";
 import * as build from "../../test/builders";
-import type { AuditReviewDecision } from "./model";
 
 export const AUDIT_ID = "audit_1";
 export const FINDING_ID = "finding_1";
@@ -23,29 +20,4 @@ export function makeFinding(
     { revision: 3, ...overrides },
     document,
   );
-}
-
-/** A pending active test approval for item_1. */
-export function makeActionReview(
-  overrides: Partial<AuditReviewRequest> = {},
-): AuditReviewRequest {
-  return build.review(AUDIT_ID, "review_action", "active-check-approval", {
-    subjectId: "item_1",
-    revision: 2,
-    ...overrides,
-  });
-}
-
-/** A true-positive, high-severity decision on the triage request. */
-export function makeDecision(
-  overrides: Partial<AuditReviewDecision> = {},
-): AuditReviewDecision {
-  return build.decision(makeActionReview(), {
-    action: "approve",
-    ...overrides,
-  });
-}
-
-export function proposedReport(review: AuditReviewRequest): AuditReport {
-  return build.report(AUDIT_ID, "proposed", { review, summary: "# Report" });
 }

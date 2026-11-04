@@ -28,7 +28,7 @@ it.each([false, true])(
             : json(
                 {
                   ...project,
-                  activeChecks: "approval-required",
+                  activeChecks: "prohibited",
                   revision: "5",
                 },
                 200,
@@ -58,7 +58,7 @@ it.each([false, true])(
     );
     await user.selectOptions(
       screen.getByRole("combobox", { name: "Active checks" }),
-      "approval-required",
+      "prohibited",
     );
     view.rerender(editor({ ...project, revision: "6" }));
     await user.click(
@@ -67,11 +67,11 @@ it.each([false, true])(
     await waitFor(() => expect(server.requests).toHaveLength(1));
     expect(server.requests[0]?.headers.get("If-Match")).toBe('"4"');
     await expect(server.requests[0]?.clone().json()).resolves.toEqual({
-      activeChecks: "approval-required",
+      activeChecks: "prohibited",
     });
     if (conflict)
       await waitFor(() =>
-        expect(screen.getByRole("combobox")).toHaveValue("approval-required"),
+        expect(screen.getByRole("combobox")).toHaveValue("prohibited"),
       );
     else await waitFor(() => expect(screen.queryByRole("combobox")).toBeNull());
   },

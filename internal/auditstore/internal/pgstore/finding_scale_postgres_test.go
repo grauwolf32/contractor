@@ -7,15 +7,14 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // TestPostgresAuditReadsAtFindingScale reads the workspace, the finding and
-// review pages and the uncollected-execution probe of an Audit with 4,001
-// findings, 4,000 pending reviews and 20,001 collected executions among
+// finding pages and the uncollected-execution probe of an Audit with 4,001
+// findings and 20,001 collected executions among
 // background Audits of the same owner, in the custom and the generic plan.
 // Changed statements have budgets that their original form exceeds: the
 // workspace counts the Audit's findings in one pass where it took two (8,002
@@ -23,28 +22,24 @@ import (
 // generic plan read every finding of the owner (12,001), and the uncollected
 // probe reads only uncollected executions where it read every collected one
 // (20,001). Kept statements have their measured budgets: an exact count reads
-// each row it counts, and a review page reads one fetch. Every result equals
+// each row it counts, and a finding page reads one fetch. Every result equals
 // an independent read of the fixture, which has a database of its own, so
 // the budgets count live rows only. Each budget adds planningEntries.
 func TestPostgresAuditReadsAtFindingScale(t *testing.T) {
 	f := newFindingScaleFixture(t)
 	owner, auditID := f.audit.OwnerID, f.audit.AuditID
-	var findings, unreviewed, proposed, reviews, unexpired, collected int64
+	var findings, unreviewed, proposed, collected int64
 	if err := f.pool.QueryRow(f.ctx, `
 SELECT (SELECT count(*) FROM project_finding_audits WHERE audit_id = $1),
        (SELECT count(*) FROM project_findings JOIN project_finding_audits USING(project_id,finding_id) WHERE audit_id = $1 AND analyst_verdict IS NULL),
        (SELECT count(*) FROM project_findings JOIN project_finding_audits USING(project_id,finding_id) WHERE audit_id = $1 AND state IS NULL),
-       (SELECT count(*) FROM audit_review_requests WHERE audit_id = $1),
-       (SELECT count(*) FROM audit_review_requests
-         WHERE audit_id = $1 AND state = 'pending' AND expires_at > clock_timestamp()),
        (SELECT count(*) FROM audit_executions WHERE audit_id = $1 AND state = 'collected')`, auditID).
-		Scan(&findings, &unreviewed, &proposed, &reviews, &unexpired, &collected); err != nil {
+		Scan(&findings, &unreviewed, &proposed, &collected); err != nil {
 		t.Fatal(err)
 	}
-	if findings != findingScaleFindings+1 || reviews != findingScaleFindings || unexpired != findingScaleFindings/2 ||
+	if findings != findingScaleFindings+1 ||
 		collected != findingScaleExecutions+1 {
-		t.Fatalf("fixture holds %d findings, %d reviews (%d unexpired) and %d collected executions",
-			findings, reviews, unexpired, collected)
+		t.Fatalf("fixture holds %d findings and %d collected executions", findings, collected)
 	}
 	conn, err := f.pool.Acquire(f.ctx)
 	if err != nil {
@@ -52,7 +47,6 @@ SELECT (SELECT count(*) FROM project_finding_audits WHERE audit_id = $1),
 	}
 	defer conn.Release()
 	store := NewQueryStore(conn, artifactpgtest.NewStorage())
-	fetch := pagelimit.FetchRows(pagelimit.MaxRows)
 	// inModes runs read under each plan cache mode on the store's
 	// connection, so its prepared statements run as custom and as generic
 	// plans.
@@ -84,35 +78,14 @@ SELECT (SELECT count(*) FROM project_finding_audits WHERE audit_id = $1),
 		inModes(t, func(t *testing.T, mode explaintest.Mode) {
 			summary, err := store.GetWorkspace(f.ctx, owner, auditID)
 			if err != nil || int64(summary.Findings) != findings || int64(summary.UnreviewedFindings) != unreviewed ||
-				int64(summary.PendingReviews) != unexpired || summary.AsOf.IsZero() {
+				summary.AsOf.IsZero() {
 				t.Fatalf("%s: workspace = %+v, %v", mode, summary, err)
 			}
 			// One pass over the Audit's findings and one over its review
 			// requests, each row once.
 			within(t, mode, getWorkspaceSQL, workspaceArgs(owner, auditID), map[string]int64{
-				"project_findings": findings, "project_finding_audits": findings, "audit_review_requests": reviews, "audit_executions": 0,
+				"project_findings": findings, "project_finding_audits": findings, "audit_executions": 0,
 			})
-		})
-	})
-
-	t.Run("review pages", func(t *testing.T) {
-		pending := auditstore.ReviewPending
-		params := auditstore.ReviewListParams{OwnerID: owner, AuditID: auditID, State: &pending, Limit: fetch}
-		inModes(t, func(t *testing.T, mode explaintest.Mode) {
-			basis, err := store.ReviewPageBasis(f.ctx, params)
-			if err != nil || int64(basis.Total) != reviews {
-				t.Fatalf("%s: review total = %d, %v; want %d", mode, basis.Total, err, reviews)
-			}
-			page, err := store.ListReviews(f.ctx, params)
-			if err != nil || len(page) != fetch {
-				t.Fatalf("%s: review page = %d, %v", mode, len(page), err)
-			}
-			// Kept: the count reads the Audit's requests once through
-			// audit_review_requests_list_idx, and the page one fetch.
-			within(t, mode, reviewPageBasisSQL, []any{owner, auditID, string(pending)},
-				map[string]int64{"audit_review_requests": reviews})
-			within(t, mode, listReviewsSQL, []any{owner, auditID, string(pending), nil, "", fetch},
-				map[string]int64{"audit_review_requests": int64(fetch)})
 		})
 	})
 

@@ -20,7 +20,7 @@ import (
 )
 
 // TestSharedPostgresEvalAuditWithDecidedHistoryPurges drains an Eval-managed Audit
-// that holds an item approval and a collected check result through the
+// that holds a collected check result through the
 // ordinary purge, which must also record the Eval execution tombstone.
 func TestSharedPostgresEvalAuditWithDecidedHistoryPurges(t *testing.T) {
 	h := newHarness(t)
@@ -51,15 +51,14 @@ func TestSharedPostgresEvalAuditWithDecidedHistoryPurges(t *testing.T) {
 	}
 	tick(t, c)
 	e = h.get(t, e.ID)
-	if e.State != "cancelled" || e.Outstanding != 0 || count(t, h.pool, "audits") != 0 ||
-		count(t, h.pool, "audit_review_decisions") != 0 || count(t, h.pool, "audit_execution_items") != 0 ||
+	if e.State != "cancelled" || e.Outstanding != 0 || count(t, h.pool, "audits") != 0 || count(t, h.pool, "audit_execution_items") != 0 ||
 		count(t, h.pool, "eval_execution_tombstones") != 1 {
 		t.Fatal("Eval-managed Audit with decided history failed to drain", e.State)
 	}
 }
 
 // seedEvalAuditDecidedHistory records the rows an Audit keeps after its child
-// Run is deleted: a collected check attempt and the owner's item approval.
+// Run is deleted: a collected check attempt.
 // Project Finding state is independent of the execution rows being purged.
 func seedEvalAuditDecidedHistory(t *testing.T, pool *pgxpool.Pool, audit auditstore.Audit) {
 	t.Helper()
@@ -138,21 +137,6 @@ UPDATE audit_items
        accepted_result_ref = $2::jsonb, accepted_result_digest = $3,
        last_execution_item_id = 'execution-item-decided'
  WHERE audit_id = $1 AND item_id = 'item-decided'`, []any{audit.AuditID, resultRef, digest}},
-		{`
-INSERT INTO audit_review_requests (
-    request_id, audit_id, subject_kind, subject_id, kind,
-    subject_revision, subject_digest, requested_actions, state,
-    idempotency_key, request_digest
-) VALUES ('review-decided', $1, 'audit-item-action', 'item-decided',
-          'active-check-approval', 1, $2, '["approve","reject"]'::jsonb, 'decided',
-          'review-decided', $2)`, []any{audit.AuditID, digest}},
-		{`
-INSERT INTO audit_review_decisions (
-    decision_id, request_id, audit_id, actor_id, action,
-    rationale, subject_revision, subject_digest, idempotency_key, request_digest
-) VALUES ('decision-decided', 'review-decided', $1, $2, 'approve',
-          'Approve the exact check.', 1, $3, 'decision-decided', $3)`,
-			[]any{audit.AuditID, audit.OwnerID, digest}},
 	}
 	err = pg.InTx(t.Context(), pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		for _, statement := range statements {

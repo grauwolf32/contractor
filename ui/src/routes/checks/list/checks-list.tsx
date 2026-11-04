@@ -151,16 +151,14 @@ export function ChecksListPane({
   onProject: (projectId: string | undefined) => void;
 }) {
   const running = counts.running;
-  const waiting = counts.waiting;
   const parts = [
     running === 0 ? "" : `${formatNumber(running)} running`,
-    waiting === 0 ? "" : `${formatNumber(waiting)} waiting for you`,
   ].filter((part) => part !== "");
   const subtitle =
     checks.isPending && checks.checks.length === 0
       ? undefined
       : parts.length === 0
-        ? "Nothing is running or waiting for you."
+        ? "Nothing is running."
         : `${parts.join(", ")}.`;
   let state: ReactNode = null;
   if (checks.error !== null)

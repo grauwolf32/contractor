@@ -125,8 +125,7 @@ SELECT ` + receiptProjection + `
 // importIntoAuditWithTxSQL locks owner $1's retained proposal receipt for Run
 // $3 and exact proposal ref $4, with its retention state. Destination Audit
 // $2, which the caller holds locked, must be in the Run's Project and one of
-// states $5, require human finding confirmation and have no pending report
-// review. Returns the receipt's proposal and evidence data.
+// states $5. Returns the receipt's proposal and evidence data.
 // Used by Service.importIntoAuditWithTx.
 var importIntoAuditWithTxSQL = `
 SELECT receipt.receipt_id, audit.project_id, receipt.proposal_ref, receipt.evidence,
@@ -141,10 +140,4 @@ SELECT receipt.receipt_id, audit.project_id, receipt.proposal_ref, receipt.evide
    AND run.owner_id = $1 AND run.project_id = audit.project_id
    AND audit.owner_id = $1
    AND audit.state = ANY($5::text[])
-   AND NOT EXISTS (
-       SELECT 1
-         FROM audit_review_requests AS review
-        WHERE review.audit_id = audit.audit_id AND review.subject_kind = 'audit-report'
-          AND review.state = 'pending'
-   )
  FOR UPDATE OF receipt`

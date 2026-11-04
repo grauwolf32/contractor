@@ -1,9 +1,10 @@
 package auditdomain
 
 import (
-	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"maps"
 	"sort"
+
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 )
 
 // InitialHypothesis assigns a stable opaque identity to an authored seed. The

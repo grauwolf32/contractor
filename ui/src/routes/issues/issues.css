@@ -980,25 +980,10 @@ code.issues-attempt-request {
   border-color: var(--warning-line);
   background: var(--warning-bg);
 }
-.issues-recorded-review .decisions-record {
-  padding: 0;
-  background: transparent;
-  border: 0;
-}
-.issues-recorded-review .decisions-record-head {
-  justify-content: space-between;
-  margin: 0;
-}
-.issues-recorded-review .decisions-record-reason {
-  margin-block-start: var(--space-2);
-}
 .issues-recorded-review .decisions-markdown .markdown-artifact-preview {
   font-size: var(--text-sm);
   line-height: 1.5;
   max-width: none;
-}
-.issues-recorded-review .decisions-record-label {
-  font-size: var(--text-2xs);
 }
 .issues-evidence-workbench {
   display: flex;

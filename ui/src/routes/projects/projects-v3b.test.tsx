@@ -337,97 +337,6 @@ const projectB = projectFixture("project_b", { name: "Project B" });
 const projectC = projectFixture("project_c", { name: "Project C" });
 
 describe("Projects list pane", () => {
-  it("says in one line what each project needs or did last", async () => {
-    const deleting = projectFixture("project_d", {
-      name: "Project D",
-      lifecycle: "deleting",
-      revision: "2",
-      deletion: { phase: "draining", requestedAt: RECENT },
-    });
-    const quiet = projectFixture("project_e", { name: "Project E" });
-    const ending = projectFixture("project_f", { name: "Project F" });
-    const finished = projectFixture("project_g", { name: "Project G" });
-    renderAt(
-      {
-        projects: [
-          projectA,
-          projectB,
-          projectC,
-          deleting,
-          quiet,
-          ending,
-          finished,
-        ],
-        audits: {
-          project_a: [
-            check("project_a", "audit_running", "active"),
-            check("project_a", "audit_done", "completed"),
-          ],
-          project_b: [
-            check("project_b", "audit_finished", "completed", undefined, {
-              finishedAt: RECENT,
-            }),
-          ],
-          project_c: [check("project_c", "audit_waiting", "waiting_review")],
-          project_f: [
-            check("project_f", "audit_stopping", "cancelling"),
-            check("project_f", "audit_finishing", "finalizing"),
-          ],
-          project_g: [
-            check("project_g", "audit_old", "completed", undefined, {
-              finishedAt: RECENT,
-            }),
-          ],
-        },
-        findings: {
-          audit_running: [
-            finding("project_a", "finding_1", "First"),
-            finding("project_a", "finding_2", "Second"),
-          ],
-          // Finished checks' possible issues count too, as on the overview.
-          audit_done: [finding("project_a", "finding_3", "Third")],
-          audit_waiting: [finding("project_c", "finding_4", "Fourth")],
-          audit_old: [finding("project_g", "finding_5", "Fifth")],
-        },
-      },
-      "/projects",
-    );
-    const row = async (name: string) =>
-      (await screen.findByRole("link", { name })).closest("li")!;
-    expect(
-      await screen.findByRole("heading", { name: "Projects" }),
-    ).toBeVisible();
-    await waitFor(async () =>
-      expect(await row("Project A")).toHaveTextContent(
-        "Check running·3 possible issues to review",
-      ),
-    );
-    await waitFor(async () =>
-      expect(await row("Project B")).toHaveTextContent(/Check finished/),
-    );
-    await waitFor(async () =>
-      expect(await row("Project C")).toHaveTextContent(
-        "Check waiting for you·1 possible issue to review",
-      ),
-    );
-    // A stopped check is not running: each state says so in its own words.
-    await waitFor(async () =>
-      expect(await row("Project F")).toHaveTextContent(
-        "Check finishing·Check stopping",
-      ),
-    );
-    expect(await row("Project F")).not.toHaveTextContent(/running/);
-    // Unreviewed possible issues of a finished check still need the user.
-    await waitFor(async () =>
-      expect(await row("Project G")).toHaveTextContent(
-        "1 possible issue to review",
-      ),
-    );
-    expect(await row("Project D")).toHaveTextContent(/Deleting·requested/);
-    expect(await row("Project E")).toHaveTextContent(/Updated/);
-    expect(screen.getByText("7 projects, newest first")).toBeVisible();
-  });
-
   it("counts a project's possible issues as its overview does", async () => {
     const { router } = renderAt(
       {
@@ -809,7 +718,7 @@ describe("Project overview", () => {
     audits: {
       project_a: [
         check("project_a", "audit_running", "active"),
-        check("project_a", "audit_wait", "waiting_review", "source-checklist"),
+        check("project_a", "audit_wait", "paused", "source-checklist"),
         check(
           "project_a",
           "audit_done",
@@ -880,7 +789,7 @@ describe("Project overview", () => {
     expect(
       within(glance).getByRole("link", { name: "1 running" }),
     ).toHaveAttribute("href", "/projects/project_a/audits");
-    expect(within(glance).getByText("1 waiting for you")).toBeVisible();
+    expect(within(glance).queryByText(/waiting for you/)).toBeNull();
     expect(
       await within(glance).findByRole("link", { name: "2 materials" }),
     ).toHaveAttribute("href", "/projects/project_a/artifacts");
@@ -892,7 +801,9 @@ describe("Project overview", () => {
     renderAt({ ...overviewServer, moreAudits: true }, "/projects/project_a");
     const glance = await screen.findByRole("region", { name: "At a glance" });
     await within(glance).findByRole("link", { name: "3 to review" });
-    expect(within(glance).getByText("In the 50 newest checks")).toBeVisible();
+    expect(
+      within(glance).getAllByText("In the 50 newest checks")[0]!,
+    ).toBeVisible();
   });
 
   it("starts a check with the objective and offers check types whose formats match", async () => {
@@ -938,20 +849,6 @@ describe("Project overview", () => {
       "Can one customer read another's orders?",
     );
     expect(requests.every((request) => request.method === "GET")).toBe(true);
-  });
-
-  it("lists checks waiting for a decision with a way to review them", async () => {
-    renderAt(overviewServer, "/projects/project_a");
-    const attention = await screen.findByRole("region", {
-      name: "Needs your attention",
-    });
-    expect(within(attention).getByText("Source checklist")).toBeVisible();
-    expect(
-      within(attention).getByRole("link", { name: "Review decisions" }),
-    ).toHaveAttribute(
-      "href",
-      "/projects/project_a/audits/audit_wait/reviews?state=pending",
-    );
   });
 
   it("mixes checks, possible issues, Runs and materials in the timeline and filters it in the URL", async () => {

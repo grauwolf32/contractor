@@ -88,10 +88,11 @@ relations:
 - name: audit_review_decisions
   action: replace
   owner: V411-010
-  facts: Transfer useful analyst finding annotations with actor/time/history; discard control approvals.
-    V64-014 retains Finding annotations as historical facts and supplies the sole Project Finding commands.
-    V411-010 removes remaining obsolete control records. Historical decisions neither set current Project
-    assessment automatically nor grant future execution authority.
+  facts: Preserve old Audit decision facts and actor/time metadata only as opaque immutable ordinary
+    Project Artifacts under FND-R215, then remove remaining obsolete control records. Do not replay old
+    decisions into operational Findings, source contributions, analyst-edit history or executable approvals.
+    Current Project Finding edits and their history use the existing V64-014 owner. This follows the user
+    clarification on 2026-11-04; archived decisions grant no current assessment or execution authority.
 - name: audit_live_item_reviews
   action: delete
   owner: V411-010
@@ -170,8 +171,8 @@ paths:
 - prefix: ui/src/routes/projects/audits/
   action: replace
   owner: V64-009
-  facts: Keep goal/work/material/result/finding views and controls; remove approvals inbox and candidate
-    acceptance.
+  facts: Keep goal/work/material/result/finding views and controls. V411-010 removes approval inbox
+    rows and candidate acceptance with their callers; V64-009 completes the research workspace views.
 - prefix: ui/src/routes/catalog/audit-preset
   action: replace
   owner: V64-009

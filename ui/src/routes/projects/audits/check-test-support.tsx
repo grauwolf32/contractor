@@ -3,11 +3,22 @@
 
 // Fixtures and a fake Server for the Checks area tests (the Checks list, the
 // check page and the project's Checks tab). Not imported by the application.
+// Fixtures and a fake Server for the Checks area tests (the Checks list, the
+// check page and the project's Checks tab). Not imported by the application.
+// Fixtures and a fake Server for the Checks area tests (the Checks list, the
+// check page and the project's Checks tab). Not imported by the application.
+// Fixtures and a fake Server for the Checks area tests (the Checks list, the
+// check page and the project's Checks tab). Not imported by the application.
+// Fixtures and a fake Server for the Checks area tests (the Checks list, the
+// check page and the project's Checks tab). Not imported by the application.
+// Fixtures and a fake Server for the Checks area tests (the Checks list, the
+// check page and the project's Checks tab). Not imported by the application.
+// Fixtures and a fake Server for the Checks area tests (the Checks list, the
+// check page and the project's Checks tab). Not imported by the application.
 import type {
   Audit,
   ProjectFinding,
   AuditItem,
-  AuditReviewRequest,
   AuditState,
 } from "../../../api/audits";
 import type { components as AuditWireComponents } from "../../../api/generated/public";
@@ -209,19 +220,6 @@ export function makeFinding(
     },
   );
   return finding;
-}
-
-export function makeReview(
-  auditId: string,
-  requestId: string,
-  overrides: Partial<AuditReviewRequest> = {},
-): AuditReviewRequest {
-  return build.review(auditId, requestId, "active-check-approval", {
-    subjectId: "item_1",
-    createdAt: "2026-10-05T10:30:00Z",
-    updatedAt: "2026-10-05T10:30:00Z",
-    ...overrides,
-  });
 }
 
 /** The check workspace summary of `audit`. */

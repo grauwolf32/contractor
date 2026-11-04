@@ -12,7 +12,7 @@ interface AuditCollectionPage<T> {
   page: { hasMore: boolean; nextCursor?: string };
 }
 
-export interface AuditCollection<T> {
+interface AuditCollection<T> {
   items: T[];
   /** More pages exist beyond the page cap; continue from `nextCursor`. */
   truncated: boolean;

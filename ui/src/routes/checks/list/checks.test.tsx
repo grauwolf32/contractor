@@ -32,7 +32,7 @@ function fixture() {
       updatedAt: "2026-10-05T10:50:00Z",
       deadlineAt: "2026-10-06T10:00:00Z",
     }),
-    b_waiting: makeAudit("b_waiting", "project_b", "waiting_review", {
+    b_waiting: makeAudit("b_waiting", "project_b", "active", {
       profileName: "owasp-top10-2025-source-risk",
       revision: 5,
       updatedAt: "2026-10-05T10:40:00Z",
@@ -151,7 +151,6 @@ function serve(
               unchecked: completed ? 0 : 1,
               findings: 2,
               unreviewedFindings: audit.auditId === "b_waiting" ? 2 : 0,
-              pendingReviews: audit.state === "waiting_review" ? 1 : 0,
             }),
           );
         }),
@@ -182,10 +181,8 @@ describe("Checks list", () => {
     // Newest first, with project and state.
     expect(rows()[0]).toHaveTextContent("crapi-workshop");
     expect(rows()[0]).toHaveTextContent("Running");
-    expect(rows()[1]).toHaveTextContent("Waiting for you");
-    expect(
-      within(list).getByText("1 running, 1 waiting for you."),
-    ).toBeVisible();
+    expect(rows()[1]).toHaveTextContent("Running");
+    expect(within(list).getByText("2 running.")).toBeVisible();
     // A progress line where the Server's counts are read.
     expect(
       await within(rows()[0]!).findByRole("img", {
@@ -213,22 +210,11 @@ describe("Checks list", () => {
     expect(router.state.location.search).toBe("?project=project_a");
     expect(rows()).toHaveLength(2);
     expect(
-      within(filters).getByRole("button", { name: "Waiting for you 0" }),
+      within(filters).getByRole("button", { name: "Running 1" }),
     ).toBeVisible();
     expect(
       within(list).getByRole("link", { name: "Start a check" }),
     ).toHaveAttribute("href", "/checks/new?project=project_a");
-  });
-
-  it("takes a check state as the state filter", async () => {
-    const { api } = serve(fixture());
-    renderApplication("/checks?state=waiting_review", { api });
-    const filters = await screen.findByRole("group", {
-      name: "Filter checks by state",
-    });
-    expect(
-      within(filters).getByRole("button", { name: /^Waiting for you/u }),
-    ).toHaveAttribute("aria-pressed", "true");
   });
 
   it("shows the selected check with progress, what waits for the user and the way in", async () => {
@@ -248,7 +234,7 @@ describe("Checks list", () => {
         name: "OWASP Top 10 · Source risks",
       }),
     ).toBeVisible();
-    expect(within(detail).getByText("Waiting for you")).toBeVisible();
+    expect(within(detail).getByText("Running")).toBeVisible();
     expect(
       within(detail).getByRole("link", { name: "Payment service" }),
     ).toHaveAttribute("href", "/projects/project_b");
@@ -261,8 +247,8 @@ describe("Checks list", () => {
     expect(await within(detail).findByText("1 of 3 done")).toBeVisible();
     // Waiting checks send decisions to the Inbox; possible issues to Issues.
     expect(
-      within(detail).getByRole("link", { name: "1 decision waiting for you" }),
-    ).toHaveAttribute("href", "/");
+      within(detail).queryByRole("link", { name: /decision waiting/ }),
+    ).toBeNull();
     expect(
       within(detail).getByRole("link", { name: "2 possible issues to review" }),
     ).toHaveAttribute("href", "/issues?project=project_b");
@@ -453,26 +439,6 @@ describe("Checks list", () => {
     expect(
       await screen.findByText("This check no longer exists"),
     ).toBeVisible();
-  });
-
-  it("sends the decisions of a check beyond the list to its own Decisions", async () => {
-    // Not among the checks the list (and the Inbox) reads.
-    const extra = makeAudit("old_wait", "project_a", "waiting_review", {
-      updatedAt: "2026-09-01T10:00:00Z",
-    });
-    const { api } = serve(fixture(), { extra: { old_wait: extra } });
-    renderApplication("/checks?check=old_wait", { api });
-    const detail = await screen.findByRole("region", {
-      name: "Selected check",
-    });
-    expect(
-      await within(detail).findByRole("link", {
-        name: "1 decision waiting for you",
-      }),
-    ).toHaveAttribute(
-      "href",
-      "/projects/project_a/audits/old_wait/reviews?state=pending",
-    );
   });
 
   it("says the list is incomplete when the owner has more pages than the cap", async () => {

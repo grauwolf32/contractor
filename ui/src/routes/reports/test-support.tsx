@@ -1,16 +1,10 @@
 // Fixtures and a fake Server for the Reports tests.
 import type { RouteObject } from "react-router";
 
-import type {
-  Audit,
-  AuditReport,
-  AuditReviewAction,
-  AuditReviewRequest,
-  AuditState,
-} from "../../api/audits";
+import type { Audit, AuditReport, AuditState } from "../../api/audits";
 import type { Project } from "../../api/projects";
 import * as build from "../../test/builders";
-import { fakeServer, type FakeCall, type Route } from "../../test/fake-server";
+import { fakeServer, type Route } from "../../test/fake-server";
 import { failure, json, page } from "../../test/responses";
 import { ownerListRoutes } from "../../test/owner-lists";
 import { renderWithAPI } from "../../test/render";
@@ -42,29 +36,15 @@ export function audit(
   });
 }
 
-export function acceptanceReview(
-  auditId: string,
-  overrides: Partial<AuditReviewRequest> = {},
-): AuditReviewRequest {
-  return build.review(auditId, `review_${auditId}`, "report-acceptance", {
-    subjectRevision: 4,
-    ...overrides,
-  });
-}
-
 /**
- * A proposed or ready report with both files, a proposed one carrying
- * acceptanceReview; others carry only a status.
+ * A ready report has both exact files; other responses carry only a status.
  */
 export function report(
   auditId: string,
   status: AuditReport["status"],
-  options: { summary?: string | undefined; review?: AuditReviewRequest } = {},
+  options: { summary?: string | undefined } = {},
 ): AuditReport {
-  return build.report(auditId, status, {
-    summary: options.summary,
-    review: options.review ?? acceptanceReview(auditId),
-  });
+  return build.report(auditId, status, options);
 }
 
 export interface ServerState {
@@ -73,27 +53,14 @@ export interface ServerState {
   /** By check; a function answers per request (e.g. to fail a refetch). */
   reports: Record<string, AuditReport | (() => Response)>;
   failingProjects?: string[];
-  indexFails?: boolean;
-  /**
-   * Answers reads of review requests instead of the stored request (e.g. to
-   * fail them); answering undefined falls back to the stored request.
-   */
-  reviewRead?:
-    (() => Response | undefined | Promise<Response | undefined>) | undefined;
-  /** Requests whose path matches wait for `until` before they are answered. */
+  indexFails?: boolean; /** Requests whose path matches wait for `until` before they are answered. */
   hold?: { path: RegExp; until: Promise<void> } | undefined;
 }
 
 /**
- * A Server with projects, checks and reports. Deciding a report acceptance
- * request finishes the check: approve makes the report ready, reject makes
- * it unavailable, and the report no longer carries the request.
+ * A Server with projects, checks and exact retained reports.
  */
 export function reportsServer(state: ServerState) {
-  const reviews = new Map<string, AuditReviewRequest>();
-  for (const value of Object.values(state.reports))
-    if (typeof value !== "function" && value.review !== undefined)
-      reviews.set(value.review.requestId, value.review);
   const auditOf = (auditId: string | undefined) =>
     state.audits.find((candidate) => candidate.auditId === auditId);
   /** Requests matching `state.hold` wait for it before they are answered. */
@@ -109,7 +76,6 @@ export function reportsServer(state: ServerState) {
       projects: state.projects,
       audits: state.audits,
       findings: [],
-      reviews: [...reviews.values()],
     })),
     "GET /v1/projects": held(() =>
       state.indexFails === true
@@ -138,55 +104,6 @@ export function reportsServer(state: ServerState) {
         ),
       );
     }),
-    "POST /v1/audits/{auditId}/reviews/{requestId}/decisions": held(
-      async ({ params, request }: FakeCall) => {
-        const review = reviews.get(params.requestId ?? "");
-        const target = auditOf(params.auditId);
-        if (review === undefined || target === undefined)
-          return failure(404, "not_found", "not found");
-        const body = (await request.clone().json()) as {
-          action: AuditReviewAction;
-          rationale: string;
-        };
-        const decision = build.decision(review, {
-          decisionId: "decision_1",
-          action: body.action,
-          actorId: "user_owner",
-          rationale: body.rationale,
-        });
-        const decided: AuditReviewRequest = {
-          ...review,
-          state: "decided",
-          revision: review.revision + 1,
-          decision,
-        };
-        reviews.set(review.requestId, decided);
-        const finished: Audit = {
-          ...target,
-          state: body.action === "approve" ? "completed" : "failed",
-          revision: target.revision + 1,
-        };
-        state.audits = state.audits.map((candidate) =>
-          candidate.auditId === finished.auditId ? finished : candidate,
-        );
-        state.reports[finished.auditId] =
-          body.action === "approve"
-            ? report(finished.auditId, "ready", {
-                summary: (state.reports[finished.auditId] as AuditReport)
-                  .summary,
-              })
-            : { status: "unavailable" };
-        return json({ request: decided, decision, replayed: false });
-      },
-    ),
-    "GET /v1/audits/{auditId}/reviews/{requestId}": held(async ({ params }) => {
-      const answer = await state.reviewRead?.();
-      if (answer !== undefined) return answer;
-      const review = reviews.get(params.requestId ?? "");
-      return review === undefined
-        ? failure(404, "not_found", "not found")
-        : json(review, 200, { ETag: `"${review.revision}"` });
-    }),
     "GET /v1/audits/{auditId}": held(({ params }) => {
       const found = auditOf(params.auditId);
       return found === undefined
@@ -202,7 +119,7 @@ export function reportsServer(state: ServerState) {
       return typeof value === "function" ? value() : json(value);
     }),
   });
-  return { ...server, state, reviews };
+  return { ...server, state };
 }
 
 export type ReportsServer = ReturnType<typeof reportsServer>;

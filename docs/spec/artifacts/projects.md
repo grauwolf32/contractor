@@ -495,20 +495,20 @@ Run-create API.
 
 ### Active checks
 
-**PRJ-R103.** Project `activeChecks` is `automatic`, `approval-required` or
-`prohibited`, defaulting to `automatic` at creation. Public reads always return
-the value. Creation and revision-CAS update reject null and invalid values;
-omitting it from an update preserves it. A no-op update preserves the revision. The existing deleting-Project fence
+**PRJ-R103.** Project `activeChecks` is `automatic` or `prohibited`, defaulting to
+`automatic` at creation. Public reads always return the value. Creation and
+revision-CAS update reject null and invalid values; omitting it from an update
+preserves it. A no-op update preserves the revision. The deleting-Project fence
 also protects this setting.
 
-**PRJ-R104.** For active-enabled Audit profiles, the Project setting owns
-execution approval: automatic admits active items without individual reviews,
-approval-required requires exact item review, and prohibited rejects active
-capabilities before dispatch. A profile prohibition remains authoritative.
-Audit start pins the effective value under the shared Project admission lock;
-later Project edits apply only to newly started Audits. The Settings page
-exposes all three choices and explains this start boundary. Scope, selected
-tools, explicit manual reviews and finding triage remain independent.
+**PRJ-R104.** For active-enabled Audit programs, `automatic` permits classified
+active tools within the pinned scope; `prohibited` rejects active capabilities
+before dispatch. A program prohibition remains authoritative. Audit start pins
+the effective policy under the shared Project admission lock; later Project edits
+apply only to newly started Audits. Settings exposes these two choices. Scope,
+selected tools and optional Project Finding edits remain independent. Removing the
+obsolete approval-required value preserves its previous effective restriction as
+`prohibited`; allowing operations requires an explicit owner edit.
 
 ### HTTP target
 

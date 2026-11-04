@@ -95,7 +95,7 @@ func BuildPreparedOpenAPIWork(ctx context.Context, input PreparedOpenAPIInput) (
 		if input.Settings == nil || !validPreparedSource(*input.Settings, input.SettingsData) || input.Settings.ScopeID != input.Source.ScopeID || input.Settings.MediaType != JSONMediaType {
 			return PreparedOpenAPIWork{}, invalid(CodeInventoryInvalid, "prepared.settings")
 		}
-		basis, subjects, err = openAPIScanSubjects(input.Data, input.Source.MediaType, input.SettingsData, ExactInput{Name: "settings", Ref: input.Settings.Ref, Digest: input.Settings.Digest}, InventoryOptions{SourceInputName: "openapi", SourceRef: input.Source.Ref, ApprovalRequirement: ApprovalNone}, input.Options.MaxItems)
+		basis, subjects, err = openAPIScanSubjects(input.Data, input.Source.MediaType, input.SettingsData, ExactInput{Name: "settings", Ref: input.Settings.Ref, Digest: input.Settings.Digest}, InventoryOptions{SourceInputName: "openapi", SourceRef: input.Source.Ref}, input.Options.MaxItems)
 	default:
 		return PreparedOpenAPIWork{}, invalid(CodeInventoryInvalid, "prepared.selection")
 	}

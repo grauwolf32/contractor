@@ -116,15 +116,6 @@
       "rule": "LIM-AUD-29"
     },
     {
-      "schema": "AuditReviewDecision",
-      "path": [
-        "properties",
-        "rationale"
-      ],
-      "maxBytes": 65536,
-      "rule": "LIM-REV-11"
-    },
-    {
       "schema": "RunMetadataLabels",
       "path": [
         "additionalProperties"

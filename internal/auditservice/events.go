@@ -58,7 +58,7 @@ func safeEventSummary(raw json.RawMessage) map[string]any {
 	}
 	for key, value := range source {
 		switch key {
-		case "round", "items", "reviews", "members", "count":
+		case "round", "items", "members", "count":
 			var number int64
 			if json.Unmarshal(value, &number) == nil && number >= 0 && number <= math.MaxInt32 {
 				result[key] = number
@@ -88,14 +88,8 @@ func eventSummaryEnum(key, value string) bool {
 		return auditstore.TerminalOutcome(value).Valid()
 	case "disposition":
 		return auditstore.CollectionDisposition(value).Valid()
-	case "subjectKind":
-		return auditstore.ReviewSubjectKind(value).Valid()
-	case "kind":
-		return value == auditstore.ReportAcceptanceReviewKind || auditstore.ItemApprovalKind(value).Valid()
 	case "verdict":
 		return auditstore.AnalystVerdict(value).Valid()
-	case "action":
-		return auditstore.ReviewAction(value).Valid()
 	}
 	return false
 }

@@ -23,11 +23,9 @@ import {
   type FindingSeverity,
   type FindingState,
   type AuditReport,
-  type AuditReviewRequest,
   type AuditState,
   getAuditReport,
   listOwnerFindings,
-  listOwnerReviews,
   listOwnerAudits,
 } from "./audits";
 import type { PublicAPI } from "./client";
@@ -36,17 +34,11 @@ import { PublicAPIError } from "./error";
 import type { components, operations } from "./generated/public";
 import { listProjects, type Project } from "./projects";
 import { queryKeys } from "./query-keys";
-import {
-  INBOX_AUDIT_STATES,
-  OPEN_AUDIT_STATES,
-  REPORT_AUDIT_STATES,
-} from "./states";
+import { REPORT_AUDIT_STATES } from "./states";
 import { loadAllPages, type LoadedPages } from "./pages";
 
 /** Page size is enforced by the Server; collections have no fixed cap. */
 export const CROSS_PROJECT_LIMITS = { pollMs: 20_000 } as const;
-
-type AuditReviewKind = AuditReviewRequest["kind"];
 type AuditReportStatus = components["schemas"]["AuditReportStatus"];
 
 /** Analyst verdict filter values the findings endpoint accepts. */
@@ -64,11 +56,6 @@ export interface CrossProjectCheck {
 export interface CrossProjectIssue {
   project: Project;
   finding: ProjectFindingSummary;
-}
-
-/** A pending review request with its check and project. */
-export interface CrossProjectDecision extends CrossProjectCheck {
-  review: AuditReviewRequest;
 }
 
 /** A check's report with the check and project. */
@@ -120,41 +107,14 @@ const POLLED = {
   refetchOnWindowFocus: false,
   retry: false,
 } as const;
-
-// Every check that ran can hold possible issues.
-// Running and waiting checks can ask for decisions.
-const DECISION_CHECK_STATES = OPEN_AUDIT_STATES;
 // Finishing and ended checks can have a report.
 const REPORT_CHECK_STATES = REPORT_AUDIT_STATES;
-
-/**
- * The checks the Inbox reads: running ones and those waiting for the user
- * (docs/design/ui/v3b-implementation.md, "API gaps"). useInboxSummary counts
- * only these. The Inbox page passes them as `checkStates` so its lists match
- * the badge and share its reads; possible issues of other checks stay on the
- * Issues page and the check's own page.
- */
-export const INBOX_CHECK_STATES: readonly AuditState[] = INBOX_AUDIT_STATES;
-
-/** Review kinds that need the user beyond triaging a possible issue. */
-const OTHER_DECISIONS: Readonly<Record<AuditReviewKind, boolean>> = {
-  // Counted through its possible issue.
-  "active-check-approval": true,
-  "requirement-applicability": true,
-  "report-acceptance": true,
-};
-const OTHER_DECISION_KINDS = (
-  Object.keys(OTHER_DECISIONS) as AuditReviewKind[]
-).filter((kind) => OTHER_DECISIONS[kind]);
 
 // Possible issues that need a review: never decided, reopened, or assessed
 // again since the last decision. Every other state carries a decision or
 // waits for evidence.
 
-const DEFAULT_REPORT_STATUSES: readonly AuditReportStatus[] = [
-  "proposed",
-  "ready",
-];
+const DEFAULT_REPORT_STATUSES: readonly AuditReportStatus[] = ["ready"];
 
 /** A stable cache key for a filter list: sorted, unique, comma-joined. */
 function filterKey(values: readonly string[] | undefined): string {
@@ -199,17 +159,6 @@ function newerIssue(left: CrossProjectIssue, right: CrossProjectIssue) {
     newestFirst(left.finding.updatedAt, right.finding.updatedAt) ||
     byText(left.project.projectId, right.project.projectId) ||
     byText(left.finding.findingId, right.finding.findingId)
-  );
-}
-
-function newerDecision(
-  left: CrossProjectDecision,
-  right: CrossProjectDecision,
-) {
-  return (
-    newestFirst(left.review.createdAt, right.review.createdAt) ||
-    byText(left.project.projectId, right.project.projectId) ||
-    byText(left.review.requestId, right.review.requestId)
   );
 }
 
@@ -376,36 +325,6 @@ export function useAllChecks(options: AllChecksOptions = {}): AllChecks {
       refetch: index.refetch,
     };
   }, [index, query.data, query.error, query.isPending]);
-}
-
-const NO_CHECKS: CrossProjectCheck[] = [];
-
-/**
- * Listed checks in the `wanted` states that can have a per-check read
- * (`applicable`); every applicable state when `wanted` is omitted or empty.
- * When no wanted state is applicable, no check is listed; the shared check
- * pages are still read, so the status matches every other list.
- */
-function useScopedChecks(
-  wanted: readonly AuditState[] | undefined,
-  applicable: readonly AuditState[],
-  enabled: boolean,
-): AllChecks {
-  const wantedKey = filterKey(wanted);
-  const scope = useMemo(() => {
-    const states = filterValues<AuditState>(wantedKey);
-    return states.length === 0
-      ? applicable
-      : applicable.filter((state) => states.includes(state));
-  }, [applicable, wantedKey]);
-  const checks = useAllChecks({
-    states: scope.length === 0 ? applicable : scope,
-    enabled,
-  });
-  return useMemo(
-    () => (scope.length === 0 ? { ...checks, checks: NO_CHECKS } : checks),
-    [checks, scope],
-  );
 }
 
 /** One read about one check, keyed by the check's revision. */
@@ -700,103 +619,6 @@ export function useAllPossibleIssues(
   }, [checks, findings]);
 }
 
-interface PendingDecisionsOptions {
-  /**
-   * Only checks in these states; omit (or pass none) for every check that
-   * can ask for a decision (running, waiting, paused or finishing). The
-   * Inbox passes INBOX_CHECK_STATES. Filtered like AllChecksOptions.states.
-   */
-  checkStates?: readonly AuditState[];
-  /**
-   * Only these kinds of review request; omit (or pass none) for every kind.
-   * Filtered on the client, so every kind shares one read per check.
-   */
-  kinds?: readonly AuditReviewKind[];
-  /** False keeps every read idle (and `isPending` true). */
-  enabled?: boolean;
-}
-
-export interface PendingDecisions extends CrossProjectStatus {
-  /** All matching pending requests, newest first. */
-  decisions: CrossProjectDecision[];
-}
-
-/**
- * All pending requests across owned Projects that can still be decided;
- * kinds share one read. The Server's pending filter judges expiry at its
- * database clock and leaves out a request past its expiry before anything
- * has expired it, so the list and its counts never offer one.
- */
-export function usePendingDecisions(
-  options: PendingDecisionsOptions = {},
-): PendingDecisions {
-  const enabled = options.enabled ?? true;
-  const kindKey = filterKey(options.kinds);
-  const auditStateKey = filterKey(
-    options.checkStates?.length ? options.checkStates : DECISION_CHECK_STATES,
-  );
-  const api = usePublicAPI();
-  const checks = useScopedChecks(
-    options.checkStates,
-    DECISION_CHECK_STATES,
-    enabled,
-  );
-  const query = useQuery({
-    queryKey: queryKeys.crossProject.ownerReviews(auditStateKey),
-    queryFn: ({ signal }) =>
-      loadAllPages(
-        (cursor) =>
-          listOwnerReviews(
-            api,
-            {
-              state: "pending",
-              auditState: auditStateKey,
-              ...(cursor === undefined ? {} : { cursor }),
-            },
-            signal,
-          ),
-        { signal },
-      ),
-    enabled,
-    ...POLLED,
-  });
-  return useMemo(() => {
-    const byAudit = new Map(
-      checks.checks.map((check) => [check.audit.auditId, check]),
-    );
-    const kinds = kindKey === "" ? undefined : new Set(kindKey.split(","));
-    const seen = new Set<string>();
-    const decisions: CrossProjectDecision[] = [];
-    for (const review of query.data?.items ?? []) {
-      const check = byAudit.get(review.auditId);
-      const key = `${review.auditId}/${review.requestId}`;
-      if (
-        check === undefined ||
-        review.state !== "pending" ||
-        seen.has(key) ||
-        (kinds !== undefined && !kinds.has(review.kind))
-      )
-        continue;
-      seen.add(key);
-      decisions.push({ ...check, review });
-    }
-    decisions.sort(newerDecision);
-    const failure = query.error ?? query.data?.error ?? null;
-    const reads = {
-      merged: decisions,
-      errors:
-        failure === null
-          ? NO_ERRORS
-          : [{ scope: "list" as const, error: failure }],
-      pending: query.isPending,
-    };
-    return {
-      ...statusOf(checks, reads, query.data?.truncated ?? false),
-      decisions,
-    };
-  }, [checks, kindKey, query.data, query.error, query.isPending]);
-}
-
 interface AllReportsOptions {
   /**
    * Report statuses to list. Omitted: the reports that exist (proposed and
@@ -869,8 +691,7 @@ export function useAllReports(options: AllReportsOptions = {}): AllReports {
 
 export interface InboxSummary {
   /**
-   * Everything that waits for the user: `possibleIssues` plus
-   * `otherDecisions`. Undefined until both are known.
+   * Optional Project Finding annotations. Undefined until the count is known.
    */
   needsDecision: number | undefined;
   /**
@@ -878,46 +699,25 @@ export interface InboxSummary {
    * Their historical Audits may already be complete or deleted.
    */
   possibleIssues: number | undefined;
-  /** Pending item approvals and report acceptance requests of Inbox checks. */
-  otherDecisions: number | undefined;
   /** Some read failed: the counts are lower bounds. */
   partial: boolean;
   /** Some bounded read was capped: the counts are lower bounds. */
   truncated: boolean;
 }
 
-/**
- * Counts for the Inbox badge and header. Findings belong to Projects;
- * item/report approvals still belong to running or waiting checks.
- */
+/** Optional analyst annotations are the Inbox actions; Audit execution never waits for them. */
 export function useInboxSummary(): InboxSummary {
-  const { checks, findings } = usePossibleIssueReads({
-    needsReview: true,
-  });
-  const decisions = usePendingDecisions({
-    checkStates: INBOX_CHECK_STATES,
-    kinds: OTHER_DECISION_KINDS,
-  });
+  const { checks, findings } = usePossibleIssueReads({ needsReview: true });
   return useMemo(() => {
     const possibleIssues =
       checks.isPending || findings.pending || checks.error !== null
         ? undefined
         : findings.merged.total;
-    const otherDecisions =
-      decisions.isPending || decisions.error !== null
-        ? undefined
-        : decisions.decisions.length;
     return {
-      needsDecision:
-        possibleIssues === undefined || otherDecisions === undefined
-          ? undefined
-          : possibleIssues + otherDecisions,
+      needsDecision: possibleIssues,
       possibleIssues,
-      otherDecisions,
-      partial:
-        checks.partial || findings.errors.length > 0 || decisions.partial,
-      // A check's possible-issue count is exact beyond its first page.
-      truncated: checks.truncated || decisions.truncated,
+      partial: checks.partial || findings.errors.length > 0,
+      truncated: checks.truncated,
     };
-  }, [checks, decisions, findings]);
+  }, [checks, findings]);
 }

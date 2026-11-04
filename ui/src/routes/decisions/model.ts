@@ -7,20 +7,13 @@ import {
   AUDIT_ID_PATTERN,
   type FindingVerdict,
   type FindingSeverity,
-  type AuditReviewAction,
   type EditProjectFindingRequest,
 } from "../../api/audits";
 import { schemaLimit } from "../../api/contract";
-import { PublicAPIError } from "../../api/error";
-import type { components } from "../../api/generated/public";
-import { writeConflict } from "../../app/conflict";
-import {
-  reviewActionLabel,
-  SEVERITY_LABELS,
-  type VocabularyLabel,
-} from "../../app/vocabulary";
 
-export type AuditReviewDecision = components["schemas"]["AuditReviewDecision"];
+import type { components } from "../../api/generated/public";
+
+import { SEVERITY_LABELS } from "../../app/vocabulary";
 export type ProjectFindingEditResult =
   components["schemas"]["EditProjectFindingResult"];
 
@@ -30,9 +23,6 @@ export const MAX_RATIONALE_BYTES = schemaLimit(
   "x-max-utf8-bytes",
 );
 
-/** Required-reason helper text (contract §3). */
-export const RATIONALE_HELP = "Required. Saved with the decision.";
-
 /** Button labels of the five finding decisions (contract §3). */
 export const VERDICT_ACTIONS: Readonly<Record<FindingVerdict, string>> = {
   true_positive: "Confirm issue",
@@ -41,16 +31,6 @@ export const VERDICT_ACTIONS: Readonly<Record<FindingVerdict, string>> = {
   duplicate: "Duplicate…",
   reopen: "Reopen",
 };
-
-/** Button labels of the approval decisions, in display order. */
-export const REVIEW_ACTIONS: readonly {
-  action: AuditReviewAction;
-  label: string;
-}[] = [
-  { action: "approve", label: "Approve" },
-  { action: "reject", label: "Reject" },
-  { action: "not_applicable", label: "Not applicable" },
-];
 
 export const SEVERITY_OPTIONS: readonly {
   value: FindingSeverity;
@@ -68,7 +48,7 @@ interface FindingDecisionDraft {
   rationale: string;
 }
 
-export function utf8Length(text: string): number {
+function utf8Length(text: string): number {
   return new TextEncoder().encode(text).length;
 }
 
@@ -117,46 +97,4 @@ export function findingDecisionBody(
     default:
       return { verdict: draft.verdict, rationale };
   }
-}
-
-/** "Confirmed · High", "Not an issue", "Approved", … */
-export function decisionOutcome(
-  decision: Pick<AuditReviewDecision, "action">,
-): VocabularyLabel {
-  return reviewActionLabel(decision.action);
-}
-
-/** What a refused decision was about, for the explanation. */
-type DecisionSubject = "finding" | "request";
-
-/**
- * Why a decision was not saved and what the page did about it. Every failed
- * decision refetches the current state; nothing is retried automatically.
- */
-export function decisionErrorMessage(
-  error: unknown,
-  subject: DecisionSubject,
-): string {
-  if (!(error instanceof PublicAPIError)) {
-    return error instanceof Error
-      ? `Not saved: ${error.message}`
-      : "Not saved: the request failed.";
-  }
-  const conflict = writeConflict(error);
-  if (conflict === "stale")
-    return subject === "finding"
-      ? "Not saved: this possible issue or its check changed first. The latest version is now shown. Check it, then record your decision again."
-      : "Not saved: this request changed or expired first. The latest version is now shown. Check it, then decide again.";
-  if (conflict === "conflict")
-    return "Not saved: the decision conflicts with the current state, so nothing was retried. The latest version is now shown.";
-  if (error.status === 404)
-    return subject === "finding"
-      ? "Not saved: the review or the chosen possible issue no longer exists. The latest version is now shown."
-      : "Not saved: this request no longer exists. The latest version is now shown.";
-  if (
-    error.status === 0 &&
-    (error.code === "network_error" || error.code === "invalid_api_response")
-  )
-    return "The Server's answer did not arrive, so the decision may have been saved. Check the latest state before you record it again.";
-  return `Not saved: ${error.message}`;
 }

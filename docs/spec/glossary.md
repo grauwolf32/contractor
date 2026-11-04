@@ -348,8 +348,6 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Evidence contract** — An independently versioned part of a standard package that defines allowed assessments, evidence kinds and counts, rationale and human-review policy. Owner: [Audits](audits/audits.md).
 
-**Exact-subject review ledger** — The shared mechanism for human decisions on Audit items, findings and reports, in which a review request pins an immutable subject revision/digest and a decision is accepted only through the owner-authenticated Audit API with CAS and idempotency. Owner: [Review and reports](audits/review-and-reports.md).
-
 **`execution`** — The AgentTemplate block of a tool Worker that names the tool, its argument bindings, its report binding and its deadline. Owner: [Scanners](tools/scanners.md).
 
 **Execution core** — The generic machinery in which the Workflow Scheduler manages Run and Stage lifecycles without branching on security-check types. Owner: [System overview](overview.md).
@@ -418,8 +416,6 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Frozen contract artifact** — The Audit artifact created on acceptance of a direct verification that freezes the ResolvedWorkflow snapshot, its closure digest, the selected output declaration, the result schema and the identity/evidence binding rule. Owner: [Review and reports](audits/review-and-reports.md).
 
-**Frozen report candidate** — The exact machine/summary report candidate that finalization freezes, with its acceptance request, when a human report policy is selected. Owner: [Review and reports](audits/review-and-reports.md).
-
 ## G
 
 **Gateway policy** — The immutable key policy (gatewayPolicy: ModelPolicyRefs, budget and rate limits) sent to LiteLLM when an LLM credential is created. Owner: [Runtime configuration, labels, credentials and Gateways](configuration/runtime-config.md).
@@ -485,8 +481,6 @@ Terms used across the specification. Each entry names the document that owns the
 **Item origin** — The immutable record on an AuditItem of the exact source it was generated from: source ref and content digest, canonical inventory digest, entry key and optional entry version. Owner: [Audits](audits/audits.md).
 
 **Item revision** — The invocation-local positive revision of one accepted item, starting at 1. Owner: [Audit Worker completion](audits/worker-completion.md).
-
-**Item-action subject** — The subject of an item review, a hash over the Audit and item identities, the pinned profile digest, the Workflow role and the exact task artifact. Owner: [Review and reports](audits/review-and-reports.md).
 
 ## J
 
@@ -882,11 +876,7 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Retryable classification** — Whether another attempt may succeed after the failure a code reports: for Memory codes a retry without changing the input, for a Worker or Stage failure a fresh StageExecution. Owner: [Error and stop codes](platform/errors.md).
 
-**Review kind** — The purpose of a review request: active-check-approval, requirement-applicability or report-acceptance. Owner: [Review and reports](audits/review-and-reports.md).
-
 **Review observation** — The captured Audit review state of one finding at one revision, recorded in a collection entry as provenance rather than as a dereference capability. Owner: [Findings](findings/findings.md).
-
-**Review renewal** — The single procedure that Resume and the Controller use to replace an expired item request with a fresh exact-subject request. Owner: [Review and reports](audits/review-and-reports.md).
 
 **Reviewed form readiness** — The Run-draft layer meaning the user explicitly chose, uploaded or confirmed one exact ArtifactRef for every populated slot. Owner: [Projects](artifacts/projects.md).
 

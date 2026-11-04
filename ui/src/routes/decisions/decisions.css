@@ -5,10 +5,6 @@
  * to the DecisionBar use the same --ui-pad-start / --ui-pad-end insets.
  */
 
-/* ---------- Shared text ---------- */
-
-/* ---------- Markdown ---------- */
-
 .decisions-markdown {
   min-width: 0;
 }
@@ -61,16 +57,7 @@
   max-width: 100%;
 }
 
-/* ---------- Finding summary ---------- */
-
-/* Facts (ui-facts, row layout) a little below the title. */
-
-/* Location and evidence rows: monospace references between hairlines. */
-
-/* ---------- Decision footer blocks ---------- */
-
-.decisions-finding,
-.decisions-request {
+.decisions-finding {
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -79,142 +66,3 @@
 .decisions-finding:focus {
   outline: none;
 }
-
-/* A recorded decision that scrolls on its own is a tab stop (review
-   requests): its ring sits inside, where the pane cannot clip it. */
-.decisions-request[tabindex="0"]:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: -2px;
-}
-
-/* Live region for "Decision recorded"; empty most of the time. */
-.decisions-status {
-  margin: 0;
-  padding-inline: var(--ui-pad-start, 1.75rem) var(--ui-pad-end, 1.75rem);
-  color: var(--text);
-  font-size: var(--text-md);
-  font-weight: 700;
-}
-
-.decisions-status:not(:empty) {
-  padding-block: var(--space-3-5);
-  border-top: 1px solid var(--line);
-}
-
-/* Where the pane footer is pinned, a component that shows a recorded
-   decision (ui-footer-record) is capped and draws the divider above it
-   (ui.css), so its first block drops its own. */
-@media (min-width: 821px) and (min-height: 560px) {
-  .ui-detail-pane-footer .ui-footer-record > .decisions-status:not(:empty) {
-    border-top: 0;
-  }
-
-  /* Change decision and Next stay at the bottom of a capped current decision
-     while a long reason scrolls under them. The row takes over the space
-     around it as padding (the section gives up its gap and bottom padding),
-     so it covers what scrolls under it, and nothing moves when all fits. */
-}
-
-/* Key hints only where keys exist and the row has room, as in DecisionBar. */
-
-.decisions-record {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1-5);
-  min-width: 0;
-}
-
-.decisions-record-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1-5) var(--space-2-5);
-  margin: 0;
-  font-size: var(--text-sm);
-}
-
-.decisions-record-reason {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-0-5);
-  min-width: 0;
-}
-
-.decisions-record-label {
-  color: var(--muted);
-  font-size: var(--text-xs);
-  font-weight: 800;
-}
-
-.decisions-record .markdown-artifact-preview {
-  font-size: var(--text-md);
-  line-height: 1.55;
-}
-
-.decisions-notice {
-  margin: 0;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--warning-line);
-  border-radius: var(--radius-md);
-  background: var(--warning-bg);
-  color: var(--text);
-  font-size: var(--text-sm);
-}
-
-.decisions-notice > p {
-  margin: 0;
-}
-
-/* A notice that lines up with the decision bar's insets. */
-.decisions-inset {
-  margin: var(--space-3) var(--ui-pad-end, 1.75rem) 0
-    var(--ui-pad-start, 1.75rem);
-}
-
-/* "Request details" of a refused or failed request, as in ErrorNotice. */
-.decisions-error-details {
-  min-width: 0;
-  color: var(--muted);
-  font-size: var(--text-xs);
-}
-
-.decisions-notice > .decisions-error-details {
-  margin-top: var(--space-1-5);
-}
-
-.decisions-error-details > summary {
-  width: fit-content;
-  border-radius: var(--radius-xs);
-  cursor: pointer;
-  font-weight: 700;
-}
-
-.decisions-error-details > summary:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}
-
-.decisions-error-details > small {
-  display: block;
-  margin-top: var(--space-1);
-  font-family: var(--font-mono);
-  font-size: inherit;
-  overflow-wrap: anywhere;
-}
-
-/* Right under the decision bar's error, inside the bar's insets. */
-.decisions-under-bar {
-  margin: 0 var(--ui-pad-end, 1.75rem) var(--space-3)
-    var(--ui-pad-start, 1.75rem);
-}
-
-/* The row right above the reason: "Use AI summary" as a quiet action at the
-   end. The reason's helper text is DecisionBar's rationale hint. */
-
-/* ---------- More decisions ---------- */
-
-/* ---------- Duplicate picker ---------- */
-
-/* ---------- Inside a card instead of a pane ---------- */
-
-/* The bar sits in the card's own decision box: no pane insets or divider. */

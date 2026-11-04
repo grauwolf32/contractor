@@ -149,13 +149,11 @@ type ReportStatus string
 
 const (
 	ReportPending     ReportStatus = "pending"
-	ReportProposed    ReportStatus = "proposed"
 	ReportReady       ReportStatus = "ready"
 	ReportUnavailable ReportStatus = "unavailable"
 )
 
 type ReportProjection struct {
-	Review          *auditstore.ReviewRequest `json:"review,omitempty"`
 	Status          ReportStatus              `json:"status"`
 	MachineArtifact *auditstore.ExactArtifact `json:"machineArtifact,omitempty"`
 	SummaryArtifact *auditstore.ExactArtifact `json:"summaryArtifact,omitempty"`

@@ -30,57 +30,7 @@ WITH candidates AS (
                           AND execution.state IN ('submitted', 'collecting')
                    )
                )
-               OR (
-                   audit.state = 'waiting_review'
-                   AND (
-                       (
-                           audit.deadline_at <= clock_timestamp()
-                           AND NOT EXISTS (
-                               SELECT 1 FROM audit_review_requests AS report
-                                WHERE report.audit_id = audit.audit_id
-                                  AND report.subject_kind = 'audit-report'
-                           )
-                       )
-                       OR EXISTS (
-                           SELECT 1
-                             FROM audit_review_requests AS review
-                            WHERE review.audit_id = audit.audit_id
-                              AND review.subject_kind = 'audit-report'
-                              AND (
-                                  review.state = 'expired'
-                                  OR (review.state = 'pending' AND review.expires_at <= clock_timestamp())
-                              )
-                       )
-                       OR EXISTS (
-                           SELECT 1
-                             FROM audit_items AS item
-                             JOIN audit_review_requests AS review
-                               ON review.audit_id=item.audit_id
-                              AND review.subject_kind='audit-item-action'
-                              AND review.subject_id=item.item_id
-                              AND review.kind=item.approval_kind
-                              AND review.subject_revision=1
-                              AND review.subject_digest=item.approval_subject_digest
-                            WHERE item.audit_id=audit.audit_id
-                              AND item.state IN ('ready','awaiting_review')
-                              AND item.approval_kind <> 'none'
-                              AND (review.state='expired' OR (
-                                  review.state IN ('pending','decided')
-                                  AND review.expires_at <= clock_timestamp()
-                              ))
-                              AND (review.state <> 'decided' OR EXISTS (
-                                  SELECT 1 FROM audit_review_decisions AS decision
-                                   WHERE decision.request_id=review.request_id
-                                     AND decision.action='approve'
-                              ))
-                              AND NOT EXISTS (
-                                  SELECT 1 FROM audit_live_item_reviews AS live
-                                   WHERE live.audit_id=item.audit_id AND live.item_id=item.item_id
-                                  OFFSET 0
-                              )
-                       )
-                   )
-               )
+
            )
        AND ` + auditClaims.AvailableCondition("claim") + `
      ORDER BY claim.epoch, audit.updated_at, audit.audit_id
@@ -108,7 +58,7 @@ type claimScaleGroup struct {
 // claimScaleGroups are the Audits of the claim-scale fixture's first
 // measurement besides its collecting Audit: a few hundred in the states of
 // audits_reconcile_idx, with free, expired and live claims and with paused
-// and waiting_review Audits on both sides of their conditions, and a history
+// Audits on both sides of their conditions, and a history
 // of drafts and 16,200 terminal Audits. The history is large enough that the
 // shared lease step fetches the leased claims by their tuple identifiers in
 // every plan measured here: while the claim table is a few thousand rows, the
@@ -124,8 +74,6 @@ var claimScaleGroups = []claimScaleGroup{
 	{name: "deleting", state: auditstore.AuditDeleting, count: 10, claim: "free", candidate: true},
 	{name: "paused-busy", state: auditstore.AuditPaused, count: 30, claim: "free", busy: true, candidate: true},
 	{name: "paused-idle", state: auditstore.AuditPaused, count: 30, claim: "free"},
-	{name: "waiting-due", state: auditstore.AuditWaitingReview, count: 20, claim: "free", deadline: "-1 hour", candidate: true},
-	{name: "waiting-open", state: auditstore.AuditWaitingReview, count: 20, claim: "free", deadline: "1 hour"},
 	{name: "draft", state: auditstore.AuditDraft, count: 101, claim: "free"},
 	{name: "completed", state: auditstore.AuditCompleted, count: 16_000, claim: "free"},
 	{name: "cancelled", state: auditstore.AuditCancelled, count: 100, claim: "free"},

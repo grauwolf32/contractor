@@ -13,9 +13,6 @@ func TestFindingPageValidatorsAllowOnlyOneCursorSentinel(t *testing.T) {
 		"findings": func(limit int) error {
 			return validateFindingList(auditstore.FindingListParams{OwnerID: "owner", AuditID: "audit", Limit: limit})
 		},
-		"reviews": func(limit int) error {
-			return validateReviewList(auditstore.ReviewListParams{OwnerID: "owner", AuditID: "audit", Limit: limit})
-		},
 	}
 	for name, validate := range validators {
 		for _, limit := range []int{0, 1, 199, 200, 201, 202} {

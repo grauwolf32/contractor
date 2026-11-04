@@ -28,8 +28,7 @@ const (
 )
 
 // findingScaleFixture is a collected Audit with findingScaleFindings + 1
-// unreviewed findings, findingScaleFindings pending triage reviews of which
-// half are past their expiry without anything having stored it,
+// unreviewed Findings,
 // findingScaleExecutions + 1 collected executions, and background and empty
 // Audits of the same owner, in a database of its own and vacuumed, so its
 // reads visit no superseded version of what the store wrote. The copies are
@@ -47,7 +46,7 @@ func newFindingScaleFixture(t *testing.T) findingScaleFixture {
 	t.Cleanup(cancel)
 	f.ctx = ctx
 	findingID := collectPurgeFinding(t, f, "receipt-finding-scale")
-	seedReviewRows(t, f.ctx, f.pool, f.audit.AuditID, f.itemID)
+	seedItemRows(t, f.ctx, f.pool, f.audit.AuditID, f.itemID)
 	type copySet struct {
 		audit, prefix        string
 		findings, executions int
@@ -100,13 +99,7 @@ func newFindingScaleFixture(t *testing.T) findingScaleFixture {
 			})
 		}
 
-		// Item approvals remain independent of canonical Finding assessment.
-		if _, err := setup.Exec(f.ctx, `INSERT INTO audit_review_requests(request_id,audit_id,subject_kind,subject_id,kind,subject_revision,subject_digest,requested_actions,state,expires_at,idempotency_key,request_digest)
- SELECT 'review-'||finding_id,$1,'audit-item-action',finding_id,'active-check-approval',1,$2,'["approve","reject"]'::jsonb,'pending',
- clock_timestamp()+CASE WHEN right(finding_id,1)::integer%2=1 THEN interval '-1 hour' ELSE interval '1 hour' END,
- 'review-'||finding_id,$2 FROM project_findings WHERE finding_id LIKE $3`, copy.audit, testDigest("d"), copy.prefix+"-finding-%"); err != nil {
-			t.Fatal(err)
-		}
+		// Execution item state remains independent of canonical Finding assessment.
 
 		cloneRows(t, f.ctx, setup, "audit_executions", "execution_id", f.execution.ExecutionID, copy.executions, map[string]string{
 			"execution_id": `'` + copy.prefix + `-execution-' || n`, "audit_id": audit,
@@ -126,7 +119,7 @@ func newFindingScaleFixture(t *testing.T) findingScaleFixture {
 	if err := setup.Commit(f.ctx); err != nil {
 		t.Fatal(err)
 	}
-	for _, table := range []string{"project_findings", "project_finding_audits", "audit_review_requests", "audit_executions", "audits", "finding_proposal_receipts"} {
+	for _, table := range []string{"project_findings", "project_finding_audits", "audit_executions", "audits", "finding_proposal_receipts"} {
 		if _, err := f.pool.Exec(f.ctx, `VACUUM (INDEX_CLEANUP ON, ANALYZE) `+pgx.Identifier{table}.Sanitize()); err != nil {
 			t.Fatal(err)
 		}

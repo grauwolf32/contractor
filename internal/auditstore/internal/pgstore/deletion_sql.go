@@ -29,14 +29,13 @@ func deletionRequestEvents(source auditDeletionSource) auditEventBatch {
 	}
 	return auditEvents(
 		auditEvent("'audit.delete_requested'", "audit.audit_id", "audit.revision", summary),
-		reportReviewExpiryEvents,
 	)
 }
 
 // deletionRequestCTEs records a deletion request for the Audit that the
 // statement's preceding candidate CTE locks with every audits column. Active
 // work first enters cancelling; drafts and terminal Audits enter deleting
-// directly, and leaving waiting_review closes the pending report review. An
+// directly. An
 // Audit that is already deleting is not changed, leaving changed empty.
 func deletionRequestCTEs(source auditDeletionSource) string {
 	stopReason := `stop_reason_code = 'delete_requested',
@@ -46,7 +45,7 @@ func deletionRequestCTEs(source auditDeletionSource) string {
            stop_reason_message = 'The owning Project is being deleted.'`
 	}
 	events := deletionRequestEvents(source)
-	return reportReviewSelectionCTE("candidate") + `, changed AS (
+	return `changed AS (
     UPDATE audits AS audit
        SET state = CASE
                WHEN candidate.state IN ('draft', 'completed', 'cancelled', 'failed') THEN 'deleting'
@@ -60,5 +59,5 @@ func deletionRequestCTEs(source auditDeletionSource) string {
       FROM candidate
      WHERE audit.audit_id = candidate.audit_id AND candidate.state <> 'deleting'
     RETURNING audit.*, ` + events.appended() + `
-), ` + reportReviewClosureCTE
+ )`
 }

@@ -29,7 +29,7 @@ export {
   EmptyState,
   type ActivityEntry,
 } from "./content";
-export { DecisionBar, type DecisionOption } from "./decision-bar";
+export { DecisionBar } from "./decision-bar";
 export {
   useShortcuts,
   useListNavigation,

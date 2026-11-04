@@ -41,7 +41,7 @@ func TestPostgresProjectActiveChecksPolicyCASAndDeletion(t *testing.T) {
 	if err != nil || p.ActiveChecks != contracts.ActiveChecksAutomatic {
 		t.Fatalf("default=%+v, %v", p, err)
 	}
-	for _, policy := range []contracts.ActiveChecksPolicy{contracts.ActiveChecksApprovalRequired, contracts.ActiveChecksProhibited, contracts.ActiveChecksAutomatic} {
+	for _, policy := range []contracts.ActiveChecksPolicy{contracts.ActiveChecksProhibited, contracts.ActiveChecksAutomatic} {
 		updated, err := store.Update(ctx, UpdateParams{ProjectID: p.ProjectID, OwnerID: p.OwnerID, ExpectedRevision: p.Revision, Name: p.Name, ActiveChecks: &policy})
 		if err != nil || updated.ActiveChecks != policy || updated.Revision != p.Revision+1 {
 			t.Fatalf("update=%+v, %v", updated, err)

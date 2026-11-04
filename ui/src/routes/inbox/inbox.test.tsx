@@ -1,14 +1,12 @@
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, onTestFinished } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import type {
   Audit,
   ProjectFinding,
   AuditItem,
   AuditReport,
-  AuditReviewAction,
-  AuditReviewRequest,
   AuditWorkspace,
 } from "../../api/audits";
 import type { Project } from "../../api/projects";
@@ -61,22 +59,6 @@ function finding(
     { revision: 3, createdAt: ago(minutes), updatedAt: ago(minutes) },
     { title, ...document },
   );
-}
-
-/** A pending request made `minutes` ago, about work item item_1 by default. */
-function review(
-  auditId: string,
-  requestId: string,
-  kind: AuditReviewRequest["kind"],
-  minutes: number,
-  overrides: Partial<AuditReviewRequest> = {},
-): AuditReviewRequest {
-  return build.review(auditId, requestId, kind, {
-    ...(kind === "report-acceptance" ? {} : { subjectId: "item_1" }),
-    createdAt: ago(minutes),
-    updatedAt: ago(minutes),
-    ...overrides,
-  });
 }
 
 /** Workspace counters of `check`: five items, one done, unless given. */
@@ -148,8 +130,6 @@ interface InboxServer {
   audits: Record<string, Audit[]>;
   /** Possible issues in state `proposed`, by check. */
   findings: Record<string, ProjectFinding[]>;
-  /** Pending review requests, by check. */
-  reviews: Record<string, AuditReviewRequest[]>;
   reports: Record<string, AuditReport>;
   workspaces: Record<string, AuditWorkspace>;
   items: Record<string, AuditItem[]>;
@@ -185,7 +165,6 @@ function emptyServer(): InboxServer {
     projects: [],
     audits: {},
     findings: {},
-    reviews: {},
     reports: {},
     workspaces: {},
     items: {},
@@ -209,7 +188,7 @@ function busyServer(): InboxServer {
   const trace = audit("project_shop", "audit_trace", "active", {
     revision: 3,
   });
-  const wait = audit("project_shop", "audit_wait", "waiting_review");
+  const wait = audit("project_shop", "audit_wait", "completed");
   const paused = audit("project_shop", "audit_paused", "paused", {
     pausedAt: ago(40),
     stopReason: {
@@ -220,12 +199,6 @@ function busyServer(): InboxServer {
   const done = audit("project_identity", "audit_done", "completed", {
     finishedAt: ago(60),
   });
-  const acceptance = review(
-    "audit_wait",
-    "review_report",
-    "report-acceptance",
-    15,
-  );
   return {
     ...emptyServer(),
     projects: [
@@ -269,15 +242,8 @@ function busyServer(): InboxServer {
         ),
       ],
     },
-    reviews: {
-      audit_wait: [acceptance],
-      audit_trace: [
-        review("audit_trace", "review_approval", "active-check-approval", 25),
-      ],
-    },
     reports: {
-      audit_wait: build.report("audit_wait", "proposed", {
-        review: acceptance,
+      audit_wait: build.report("audit_wait", "ready", {
         summary: "# Report\n\nThree endpoints were traced.",
       }),
       audit_done: build.report("audit_done", "ready", {
@@ -295,8 +261,7 @@ function busyServer(): InboxServer {
         build.auditItem("item_1", 0, "standard-mapping", {
           itemKey: "WSTG-ATHN-01",
           subjectKey: "WSTG-ATHN-01",
-          state: "awaiting_review",
-          approvalKind: "active-check-approval",
+          state: "ready",
           createdAt: ago(30),
           updatedAt: ago(25),
         }),
@@ -341,53 +306,6 @@ const TERMINAL = new Set(["succeeded", "failed", "cancelled"]);
 /** The header of a per-check page: the revision it was read at. */
 const CHECK_PAGE = { auditRevision: 1, asOf: ago(1) };
 
-/** A decision the Server records, by action or verdict. */
-interface DecisionBody {
-  action: AuditReviewAction;
-  rationale: string;
-}
-
-/** Records the decision on `requestId` and answers as the Server does. */
-async function decide(
-  server: InboxServer,
-  auditId: string,
-  requestId: string,
-  body: DecisionBody,
-): Promise<Response> {
-  // The decision leaves the list and advances the check's revision.
-  advance(server, auditId);
-  const decided = (request: AuditReviewRequest) => {
-    const decision = build.decision(request, {
-      decisionId: "decision_1",
-      actorId: "user_local",
-      action: body.action,
-      rationale: body.rationale,
-      createdAt: ago(0),
-    });
-    return {
-      decision,
-      request: {
-        ...request,
-        state: "decided" as const,
-        revision: request.revision + 1,
-        decision,
-        updatedAt: ago(0),
-      },
-    };
-  };
-  const pending = server.reviews[auditId]?.find(
-    (candidate) => candidate.requestId === requestId,
-  );
-  if (pending !== undefined) {
-    // An approval, applicability or report acceptance request.
-    server.reviews[auditId] = server.reviews[auditId]!.filter(
-      (candidate) => candidate !== pending,
-    );
-    return json({ ...decided(pending), replayed: false });
-  }
-  return failure(404);
-}
-
 /** `found`, or the Server's 404 for a resource that is not there. */
 function found<T>(value: T | undefined, headers?: Record<string, string>) {
   return value === undefined ? failure(404) : json(value, 200, headers);
@@ -400,7 +318,6 @@ function inboxRoutes(server: InboxServer): Routes {
       projects: server.projects,
       audits: Object.values(server.audits).flat(),
       findings: Object.values(server.findings).flat(),
-      reviews: Object.values(server.reviews).flat(),
     })),
     "GET /v1/auth/session": () => json(testSession(["user", "operations"])),
     "GET /v1/queue/control": () =>
@@ -495,24 +412,6 @@ function inboxRoutes(server: InboxServer): Routes {
         ETag: `"${next.revision}"`,
       });
     },
-    "GET /v1/audits/{auditId}/reviews": ({ params, url }) => {
-      const items = (server.reviews[params.auditId!] ?? []).filter(
-        (candidate) =>
-          url.searchParams.get("state") === null ||
-          candidate.state === url.searchParams.get("state"),
-      );
-      return json({ ...CHECK_PAGE, total: items.length, ...page(items) });
-    },
-    "POST /v1/audits/{auditId}/reviews/{requestId}/decisions": async ({
-      params,
-      request,
-    }) =>
-      decide(
-        server,
-        params.auditId!,
-        params.requestId!,
-        (await request.json()) as DecisionBody,
-      ),
     "GET /v1/audits/{auditId}/report": ({ params }) =>
       found(server.reports[params.auditId!]),
     "GET /v1/audits/{auditId}/workspace": ({ params }) =>
@@ -612,47 +511,11 @@ async function findSection(name: string): Promise<HTMLElement> {
   return container;
 }
 
-/** The value of a fact (`<dt>` term, `<dd>` value) in the detail pane. */
-function fact(container: HTMLElement, term: string): HTMLElement {
-  const value = within(container).getByText(term, {
-    selector: "dt",
-  }).nextElementSibling;
-  if (!(value instanceof HTMLElement)) throw new Error(`No fact ${term}`);
-  return value;
-}
-
 /** The detail bar's "where": section and kind of the item shown. */
 function detailWhere(): HTMLElement {
   const where = document.querySelector<HTMLElement>(".inbox-detail-where");
   if (where === null) throw new Error("The detail bar is missing");
   return where;
-}
-
-/**
- * Where focus is when `find` first returns an element. It is read in the
- * MutationObserver callback of the DOM change that showed the element, so
- * before any later task (a passive effect, a timer, the next poll of a
- * findBy query) could move focus.
- */
-function focusWhenShown(find: () => Element | null | undefined): {
-  element?: Element;
-  focused?: Element | null;
-} {
-  const seen: { element?: Element; focused?: Element | null } = {};
-  const observer = new MutationObserver(() => {
-    const element = find();
-    if (element === null || element === undefined) return;
-    seen.element = element;
-    seen.focused = document.activeElement;
-    observer.disconnect();
-  });
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true,
-    characterData: true,
-  });
-  onTestFinished(() => observer.disconnect());
-  return seen;
 }
 
 type User = ReturnType<typeof userEvent.setup>;
@@ -679,168 +542,6 @@ const FIRST_DECIDED =
   "Decision recorded on “Any user can read any report”: Not an issue.";
 
 describe("Inbox", () => {
-  it("lists decisions, blocked work, finished results and running checks", async () => {
-    const { sent } = renderApplication("/", {
-      server: inboxServer(busyServer()),
-    });
-
-    expect(
-      await screen.findByRole("heading", { name: "Inbox", level: 1 }),
-    ).toBeVisible();
-    const decide = await findSection("Decide");
-    expect(
-      await within(decide).findByRole("link", {
-        name: "Any user can read any report",
-      }),
-    ).toHaveAttribute("href", "/?item=issue:project_shop:finding_idor");
-    expect(
-      within(decide).getByRole("link", { name: "Order search builds raw SQL" }),
-    ).toBeInTheDocument();
-    expect(
-      await within(decide).findByRole("link", {
-        name: "Report acceptance: crapi-workshop",
-      }),
-    ).toHaveAttribute("href", "/?item=review:audit_wait:review_report");
-    expect(
-      await within(decide).findByRole("link", {
-        name: "Active test approval: WSTG-ATHN-01",
-      }),
-    ).toBeInTheDocument();
-    expect(
-      within(decide).getAllByText("crapi-workshop").length,
-    ).toBeGreaterThan(0);
-
-    const unblock = await findSection("Unblock");
-    expect(
-      await within(unblock).findByText(
-        "The model gateway refused the connection.",
-      ),
-    ).toBeInTheDocument();
-    expect(
-      within(unblock).getByRole("link", { name: "review@2" }),
-    ).toHaveAttribute("href", "/?item=run:run_failed");
-    expect(
-      within(unblock).queryByRole("link", { name: /run_old_failure/ }),
-    ).not.toBeInTheDocument();
-    expect(
-      within(unblock).getByRole("link", { name: "See all failed Runs" }),
-    ).toHaveAttribute("href", "/runs?view=completed&state=failed");
-    expect(
-      await within(unblock).findByRole("link", { name: "triage@3" }),
-    ).toHaveAttribute("href", "/?item=run:run_waiting");
-    expect(
-      within(unblock).getByText("Needs a model retry"),
-    ).toBeInTheDocument();
-    expect(within(unblock).getByText("Time limit reached")).toBeInTheDocument();
-    expect(
-      await within(unblock).findByRole("link", {
-        name: "2 endpoints couldn't be fully checked",
-      }),
-    ).toHaveAttribute("href", "/?item=check:audit_trace");
-    expect(
-      within(unblock).getByRole("link", {
-        name: "crapi-identity: OpenAPI · Operation trace",
-      }),
-    ).toHaveAttribute("href", "/?item=check:audit_failed");
-
-    const ready = await findSection("Ready");
-    expect(
-      await within(ready).findByRole("link", {
-        name: "crapi-identity report is ready",
-      }),
-    ).toHaveAttribute("href", "/?item=report:audit_done");
-    expect(
-      within(ready).getByRole("link", {
-        name: "crapi-identity check finished",
-      }),
-    ).toHaveAttribute("href", "/?item=check:audit_finished");
-    expect(
-      await within(ready).findByText("Primary result: report"),
-    ).toBeInTheDocument();
-    expect(
-      within(ready).getByRole("link", { name: "See all finished Runs" }),
-    ).toHaveAttribute("href", "/runs?view=completed&state=succeeded");
-
-    const running = await findSection("Running");
-    expect(
-      within(running).getByRole("link", {
-        name: "crapi-workshop: OpenAPI · Operation trace",
-      }),
-    ).toHaveAttribute("href", "/?item=check:audit_trace");
-    expect(
-      await within(running).findByRole("img", {
-        name: "1 of 5 endpoints done: 2 need follow-up, 2 not checked yet",
-      }),
-    ).toBeInTheDocument();
-    expect(
-      within(running).getByRole("link", { name: "2 Runs in progress" }),
-    ).toHaveAttribute("href", "/runs");
-    // One running check and the active Runs row.
-    expect(running.querySelector(".ui-list-section-count")).toHaveTextContent(
-      /^2$/,
-    );
-
-    // Reports are read for checks that finished in the last 7 days only.
-    expect(sent("GET", "/v1/audits/audit_done/report")).toHaveLength(1);
-    for (const auditId of ["audit_failed", "audit_wait", "audit_paused"])
-      expect(sent("GET", `/v1/audits/${auditId}/report`)).toHaveLength(0);
-    // A request's subject comes from the items that wait for a decision.
-    const items = sent("GET", "/v1/audits/audit_trace/items");
-    expect(items.length).toBeGreaterThan(0);
-    for (const request of items)
-      expect(new URL(request.url).searchParams.get("state")).toBe(
-        "awaiting_review",
-      );
-
-    // The subtitle counts what needs a decision as the rail badge does.
-    expect(
-      await screen.findByText(
-        "4 need you, 5 are stuck, 3 are ready, 1 check is running.",
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "Inbox (4 need your decision)" }),
-    ).toHaveAttribute("aria-current", "page");
-  });
-
-  it("lists and counts only decisions that can still be made", async () => {
-    const server = busyServer();
-    // Stored as pending, but past its expiry: the Server's pending list
-    // leaves it out before anything has expired it.
-    server.reviews.audit_trace!.push(
-      review("audit_trace", "review_expired", "requirement-applicability", 5, {
-        subjectId: "item_2",
-        expiresAt: ago(1),
-      }),
-      review("audit_trace", "review_open", "requirement-applicability", 4, {
-        subjectId: "item_3",
-        expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-      }),
-    );
-    const { sent } = renderApplication("/", { server: inboxServer(server) });
-
-    const decide = await findSection("Decide");
-    await waitFor(() =>
-      expect(
-        decide.querySelector('a[href="/?item=review:audit_trace:review_open"]'),
-      ).not.toBeNull(),
-    );
-    expect(
-      decide.querySelector(
-        'a[href="/?item=review:audit_trace:review_expired"]',
-      ),
-    ).toBeNull();
-    // The badge counts the same decisions: two possible issues, the report,
-    // the approval and the open applicability request.
-    expect(
-      await screen.findByRole("link", { name: "Inbox (5 need your decision)" }),
-    ).toBeInTheDocument();
-    const reads = sent("GET", "/v1/reviews");
-    expect(reads.length).toBeGreaterThan(0);
-    for (const request of reads)
-      expect(new URL(request.url).searchParams.get("state")).toBe("pending");
-  });
-
   it("says plainly when a section is empty", async () => {
     renderApplication("/", { server: inboxServer(emptyServer()) });
 
@@ -946,68 +647,6 @@ describe("Inbox", () => {
     );
   });
 
-  it("records a decision, announces it and moves to the next decision", async () => {
-    const { router, sent } = renderApplication(
-      "/?item=issue:project_shop:finding_idor",
-      { server: inboxServer(busyServer()) },
-    );
-    const user = userEvent.setup();
-    const pane = await findDetail();
-    expect(
-      await within(pane).findByText("Possible issue 1 of 2"),
-    ).toBeInTheDocument();
-    const reject = await within(pane).findByRole("button", {
-      name: "Not an issue",
-    });
-    await waitFor(() => expect(reject).toBeEnabled());
-
-    // R chooses "Not an issue" and moves to the reason; Ctrl+Enter records.
-    await user.keyboard("r");
-    const reason = within(pane).getByRole("textbox", { name: "Why" });
-    await waitFor(() => expect(reason).toHaveFocus());
-    expect(reject).toHaveAttribute("aria-pressed", "true");
-    await user.keyboard("Only administrators reach this view.");
-    const nextShown = focusWhenShown(() => {
-      const detail = document.querySelector(".ui-panes-detail");
-      return detail?.textContent?.includes("Order search builds raw SQL")
-        ? detail.querySelector(".inbox-detail-where")
-        : undefined;
-    });
-    await user.keyboard("{Control>}{Enter}{/Control}");
-
-    await waitFor(() =>
-      expect(router.state.location.search).toBe(
-        "?item=issue:project_shop:finding_sqli",
-      ),
-    );
-    await waitFor(() =>
-      expect(pageStatus()).toHaveTextContent(
-        "Decision recorded: Not an issue.",
-      ),
-    );
-    // Focus follows to the next item, so the keyboard flow continues there,
-    // from the change that shows it on.
-    await waitFor(() =>
-      expect(document.activeElement).toHaveClass("inbox-detail-where"),
-    );
-    expect(nextShown.element).toBeDefined();
-    expect(nextShown.focused).toBe(nextShown.element);
-    expect(sent("POST", "/findings/finding_idor/reviews")).toHaveLength(0);
-    const decisions = sent("PATCH", "/findings/finding_idor");
-    expect(decisions).toHaveLength(1);
-    expect(await decisions[0]!.json()).toEqual({
-      verdict: "false_positive",
-      rationale: "Only administrators reach this view.",
-    });
-    // The decided possible issue leaves the list once the Server says so.
-    expect(
-      await within(await findDetail()).findByText("Possible issue 1 of 1"),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("link", { name: "Any user can read any report" }),
-    ).not.toBeInTheDocument();
-  });
-
   it("moves focus once after a decision and drops the message when the user moves on", async () => {
     const { router } = renderApplication(
       "/?item=issue:project_shop:finding_idor",
@@ -1028,9 +667,9 @@ describe("Inbox", () => {
 
     // The URL changes without the list (a link elsewhere, then Back): the
     // message ends, and coming back neither shows it nor moves focus again.
-    await act(() => router.navigate("/?item=review:audit_wait:review_report"));
+    await act(() => router.navigate("/?item=run:run_ok"));
     await waitFor(() =>
-      expect(detailWhere()).toHaveTextContent("Decide Report acceptance"),
+      expect(detailWhere()).toHaveTextContent("Ready Finished Run"),
     );
     expect(pageStatus().textContent).toBe("");
     act(() => {
@@ -1048,13 +687,11 @@ describe("Inbox", () => {
 
     // A row the user opens leaves focus in the list.
     const report = screen.getByRole("link", {
-      name: "Report acceptance: crapi-workshop",
+      name: "generate@1",
     });
     await user.click(report);
     await waitFor(() =>
-      expect(router.state.location.search).toBe(
-        "?item=review:audit_wait:review_report",
-      ),
+      expect(router.state.location.search).toBe("?item=run:run_ok"),
     );
     expect(report).toHaveFocus();
 
@@ -1072,144 +709,6 @@ describe("Inbox", () => {
       await within(await findDetail()).findByText("Possible issue 1 of 1"),
     ).toBeInTheDocument();
     expect(sqli).toHaveFocus();
-  });
-
-  it("decides an approval in place and moves to the next decision", async () => {
-    const { router, sent } = renderApplication(
-      "/?item=review:audit_trace:review_approval",
-      { server: inboxServer(busyServer()) },
-    );
-    const user = userEvent.setup();
-    const pane = await findDetail();
-
-    expect(
-      await within(pane).findByRole("heading", {
-        name: "Active test approval: WSTG-ATHN-01",
-        level: 2,
-      }),
-    ).toBeInTheDocument();
-    expect(detailWhere()).toHaveTextContent("Decide Active test approval");
-    expect(
-      within(fact(pane, "Check")).getByRole("link", {
-        name: "OpenAPI · Operation trace",
-      }),
-    ).toHaveAttribute("href", "/projects/project_shop/audits/audit_trace");
-    expect(
-      within(fact(pane, "Project")).getByRole("link", {
-        name: "crapi-workshop",
-      }),
-    ).toHaveAttribute("href", "/projects/project_shop");
-    expect(fact(pane, "Subject")).toHaveTextContent("WSTG-ATHN-01");
-    expect(
-      within(pane).getByRole("link", { name: "Open in check" }),
-    ).toHaveAttribute(
-      "href",
-      "/projects/project_shop/audits/audit_trace/reviews?state=pending",
-    );
-
-    await user.click(within(pane).getByRole("button", { name: "Approve" }));
-    await user.type(
-      within(pane).getByRole("textbox", { name: "Why" }),
-      "The test account is disposable.",
-    );
-    await user.click(
-      within(pane).getByRole("button", { name: "Record decision" }),
-    );
-
-    // The approval was the last decision: the one before it is next.
-    await waitFor(() =>
-      expect(router.state.location.search).toBe(
-        "?item=review:audit_wait:review_report",
-      ),
-    );
-    await waitFor(() =>
-      expect(pageStatus()).toHaveTextContent("Decision recorded: Approved."),
-    );
-    await waitFor(() => expect(detailWhere()).toHaveFocus());
-    const decisions = sent("POST", "/reviews/review_approval/decisions");
-    expect(decisions).toHaveLength(1);
-    expect(await decisions[0]!.json()).toEqual({
-      action: "approve",
-      rationale: "The test account is disposable.",
-    });
-    await waitFor(() =>
-      expect(
-        screen.queryByRole("link", {
-          name: "Active test approval: WSTG-ATHN-01",
-        }),
-      ).not.toBeInTheDocument(),
-    );
-  });
-
-  it("shows a proposed report next to its acceptance request", async () => {
-    renderApplication("/?item=review:audit_wait:review_report", {
-      server: inboxServer(busyServer()),
-    });
-    const pane = await findDetail();
-
-    expect(
-      await within(pane).findByRole("heading", {
-        name: "Report acceptance: crapi-workshop",
-        level: 2,
-      }),
-    ).toBeInTheDocument();
-    expect(fact(pane, "Subject")).toHaveTextContent(
-      "The check's proposed report",
-    );
-    expect(
-      within(fact(pane, "Check")).getByRole("link", {
-        name: "OpenAPI · Operation trace",
-      }),
-    ).toHaveAttribute("href", "/projects/project_shop/audits/audit_wait");
-    expect(
-      within(fact(pane, "Project")).getByRole("link", {
-        name: "crapi-workshop",
-      }),
-    ).toHaveAttribute("href", "/projects/project_shop");
-    expect(
-      await within(pane).findByText("Three endpoints were traced."),
-    ).toBeInTheDocument();
-    // A proposed report never reads as accepted.
-    expect(
-      within(pane).getByText(/This report is proposed and not accepted yet\./),
-    ).toHaveTextContent(
-      "A report is not a security or compliance certification.",
-    );
-    const links = within(pane).getAllByRole("link", { name: "Open report" });
-    expect(links.length).toBeGreaterThan(0);
-    for (const link of links)
-      expect(link).toHaveAttribute("href", "/reports/audit_wait");
-    expect(
-      within(pane).getByText(/Approving accepts this report/),
-    ).toBeInTheDocument();
-    expect(
-      await within(pane).findByRole("button", { name: "Approve" }),
-    ).toBeEnabled();
-  });
-
-  it("says once when a proposed report cannot be read", async () => {
-    const server = busyServer();
-    server.override = (url) =>
-      url.pathname === "/v1/audits/audit_wait/report"
-        ? failure(500)
-        : undefined;
-    renderApplication("/?item=review:audit_wait:review_report", {
-      server: inboxServer(server),
-    });
-    const pane = await findDetail();
-
-    expect(
-      await within(pane).findByText(
-        /The report could not be loaded, so this request cannot be decided here yet\./,
-      ),
-    ).toBeInTheDocument();
-    expect(within(pane).getAllByRole("alert")).toHaveLength(1);
-    expect(
-      within(pane).queryByRole("heading", { name: "Proposed report" }),
-    ).not.toBeInTheDocument();
-    expect(
-      within(pane).queryByRole("button", { name: "Approve" }),
-    ).not.toBeInTheDocument();
   });
 
   it("keeps the row the user clicked when a decision is answered later", async () => {
@@ -1230,12 +729,12 @@ describe("Inbox", () => {
     );
 
     const approval = screen.getByRole("link", {
-      name: "Active test approval: WSTG-ATHN-01",
+      name: "Order search builds raw SQL",
     });
     await user.click(approval);
     await waitFor(() =>
       expect(router.state.location.search).toBe(
-        "?item=review:audit_trace:review_approval",
+        "?item=issue:project_shop:finding_sqli",
       ),
     );
     answer.resolve();
@@ -1243,7 +742,7 @@ describe("Inbox", () => {
     // The decision is announced by name, and the user stays where they are.
     await waitFor(() => expect(pageStatus()).toHaveTextContent(FIRST_DECIDED));
     expect(router.state.location.search).toBe(
-      "?item=review:audit_trace:review_approval",
+      "?item=issue:project_shop:finding_sqli",
     );
     expect(approval).toHaveFocus();
     await waitFor(() =>
@@ -1252,7 +751,7 @@ describe("Inbox", () => {
       ).not.toBeInTheDocument(),
     );
     expect(router.state.location.search).toBe(
-      "?item=review:audit_trace:review_approval",
+      "?item=issue:project_shop:finding_sqli",
     );
   });
 
@@ -1283,17 +782,11 @@ describe("Inbox", () => {
         "?item=issue:project_shop:finding_sqli",
       ),
     );
-    await user.keyboard("j");
-    await waitFor(() =>
-      expect(router.state.location.search).toBe(
-        "?item=review:audit_wait:review_report",
-      ),
-    );
     answer.resolve();
 
     await waitFor(() => expect(pageStatus()).toHaveTextContent(FIRST_DECIDED));
     expect(router.state.location.search).toBe(
-      "?item=review:audit_wait:review_report",
+      "?item=issue:project_shop:finding_sqli",
     );
     expect(detailWhere()).not.toHaveFocus();
   });
@@ -1415,7 +908,7 @@ describe("Inbox", () => {
     // Not the top of the list: the item that followed the decided one.
     await waitFor(() =>
       expect(router.state.location.search).toBe(
-        "?item=review:audit_wait:review_report",
+        "?item=issue:project_shop:finding_idor",
       ),
     );
     await waitFor(() =>

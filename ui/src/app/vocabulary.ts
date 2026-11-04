@@ -13,8 +13,6 @@ import type {
   Audit,
   AuditItem,
   AuditProfile,
-  AuditReviewAction,
-  AuditReviewRequest,
   AuditState,
   FindingSeverity,
   FindingState,
@@ -25,8 +23,6 @@ import type { RunStatus, WorkflowRunState } from "../api/runs";
 import { formatNumber } from "./format";
 import type { StatusTone } from "./status-tone";
 type AuditReportStatus = components["schemas"]["AuditReportStatus"];
-type AuditReviewState = components["schemas"]["AuditReviewState"];
-type AuditReviewKind = AuditReviewRequest["kind"];
 
 /** A status word and the tone its glyph, chip or segment uses. */
 export interface VocabularyLabel {
@@ -72,7 +68,7 @@ export const CHECK_STATE_LABELS: Readonly<Record<AuditState, VocabularyLabel>> =
   {
     draft: { label: "Draft", tone: "idle" },
     active: { label: "Running", tone: "progress" },
-    waiting_review: { label: "Waiting for you", tone: "review" },
+
     paused: { label: "Paused", tone: "warning" },
     finalizing: { label: "Finishing", tone: "progress" },
     cancelling: { label: "Stopping", tone: "warning" },
@@ -104,35 +100,13 @@ export const VERDICT_LABELS: Readonly<Record<VerdictValue, VocabularyLabel>> = {
   unreviewed: { label: "Not reviewed", tone: "idle" },
 };
 
-const REVIEW_ACTION_LABELS: Readonly<
-  Record<AuditReviewAction, VocabularyLabel>
-> = {
-  approve: { label: "Approved", tone: "success" },
-  reject: { label: "Rejected", tone: "neutral" },
-  not_applicable: { label: "Not applicable", tone: "neutral" },
-};
-
-const REVIEW_STATE_LABELS: Readonly<Record<AuditReviewState, VocabularyLabel>> =
-  {
-    pending: { label: "Waiting for you", tone: "review" },
-    decided: { label: "Decided", tone: "done" },
-    expired: { label: "Expired", tone: "neutral" },
-  };
-
-// A proposed report never reads as accepted (contract §3).
+// Only ready reports provide retained report content.
 const REPORT_STATUS_LABELS: Readonly<
   Record<AuditReportStatus, VocabularyLabel>
 > = {
   pending: { label: "Not ready yet", tone: "idle" },
-  proposed: { label: "Waiting for acceptance", tone: "review" },
   ready: { label: "Ready", tone: "done" },
   unavailable: { label: "Not available", tone: "neutral" },
-};
-
-const REVIEW_KIND_LABELS: Readonly<Record<AuditReviewKind, string>> = {
-  "active-check-approval": "Active test approval",
-  "requirement-applicability": "Requirement applicability",
-  "report-acceptance": "Report acceptance",
 };
 
 export const SEVERITY_LABELS: Readonly<Record<FindingSeverity, string>> = {
@@ -185,24 +159,9 @@ export function verdictLabel(
   return labelOf(VERDICT_LABELS, verdict ?? "unreviewed");
 }
 
-/** Decision on an active test, requirement applicability or report. */
-export function reviewActionLabel(action: AuditReviewAction): VocabularyLabel {
-  return labelOf(REVIEW_ACTION_LABELS, action);
-}
-
-/** State of a review request: pending, decided or expired. */
-export function reviewStateLabel(state: AuditReviewState): VocabularyLabel {
-  return labelOf(REVIEW_STATE_LABELS, state);
-}
-
-/** Report status; "proposed" waits for acceptance and never reads as ready. */
+/** Availability of the retained report. */
 export function reportStatusLabel(status: AuditReportStatus): VocabularyLabel {
   return labelOf(REPORT_STATUS_LABELS, status);
-}
-
-/** What a review request asks the user to decide on. */
-export function reviewKindLabel(kind: AuditReviewKind): string {
-  return wordOf(REVIEW_KIND_LABELS, kind);
 }
 
 /**

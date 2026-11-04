@@ -47,23 +47,6 @@ func auditEvent(kind, entityID, entityRevision, summary string) auditEventSource
 	}
 }
 
-// auditEventsFrom is one event per row of relation, ordered by order. Count
-// and events read the same relation, so they cannot disagree.
-func auditEventsFrom(relation, order, kind, entityID, entityRevision, summary string) auditEventSource {
-	return auditEventSource{
-		count: "(SELECT count(*) FROM " + relation + ")",
-		events: "COALESCE((SELECT jsonb_agg(" +
-			auditEventObject(kind, entityID, entityRevision, summary) +
-			" ORDER BY " + order + ") FROM " + relation + "), '[]'::jsonb)",
-	}
-}
-
-// auditEventArray takes events already encoded as a jsonb array of event
-// objects.
-func auditEventArray(array string) auditEventSource {
-	return auditEventSource{count: "jsonb_array_length(" + array + ")", events: array}
-}
-
 func auditEventObject(kind, entityID, entityRevision, summary string) string {
 	return "jsonb_build_object('kind', " + kind + ", 'entityId', " + entityID +
 		", 'entityRevision', " + entityRevision + ", 'summary', " + summary + ")"

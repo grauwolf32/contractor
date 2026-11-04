@@ -44,17 +44,6 @@ export function useProjectChecks(projectId: string) {
   });
 }
 
-/** Checks waiting for the user's decision: three, newest first. */
-export function useWaitingChecks(projectId: string) {
-  const api = usePublicAPI();
-  return useQuery({
-    queryKey: [...queryKeys.projects.audits.all(projectId), "waiting-review"],
-    queryFn: () =>
-      listProjectAudits(api, { projectId, state: "waiting_review", limit: 3 }),
-    refetchInterval: overviewPoll,
-  });
-}
-
 export type PossibleIssuesToReview = ReturnType<
   typeof usePossibleIssuesToReview
 >;

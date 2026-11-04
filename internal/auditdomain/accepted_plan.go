@@ -58,15 +58,14 @@ type AcceptedPlanRoute struct {
 }
 
 type AcceptedPlanAuthorization struct {
-	ScopeDigest         string                       `json:"scope_digest"`
-	ActiveChecks        contracts.ActiveChecksPolicy `json:"active_checks"`
-	ApprovalRequirement ApprovalRequirement          `json:"approval_requirement"`
-	LimitsDigest        string                       `json:"limits_digest"`
+	ScopeDigest  string                       `json:"scope_digest"`
+	ActiveChecks contracts.ActiveChecksPolicy `json:"active_checks"`
+	LimitsDigest string                       `json:"limits_digest"`
 }
 
 // AcceptedPlan is immutable Server-authored provenance. Validation checks the
 // full exact shape and dependency binding; admission still proves authority
-// against the retained source, profile, baseline and review ledger.
+// against the retained source, profile, baseline and pinned operation policy.
 type AcceptedPlan struct {
 	Schema             string                    `json:"schema"`
 	OwnerID            string                    `json:"owner_id"`
@@ -104,7 +103,7 @@ func ValidateAcceptedPlan(value AcceptedPlan, deps *RetainedDependencyManifest) 
 	if err != nil || DigestBytes(planBytes) != value.PlanDigest {
 		return invalid(CodeInvalid, "accepted_plan.plan_digest")
 	}
-	if validateText(value.Route.MappingID, "accepted_plan.mapping", true) != nil || validateText(value.Route.WorkflowRole, "accepted_plan.role", true) != nil || resolved.ValidateMapKey("accepted_plan.mapping", value.Route.MappingID) != nil || resolved.ValidateMapKey("accepted_plan.role", value.Route.WorkflowRole) != nil || len(value.Route.MappingID) > 128 || len(value.Route.WorkflowRole) > 128 || validatePlanCapabilities(value.Route.RequiredCapabilities) != nil || !value.Authorization.ActiveChecks.Valid() || !validApprovalRequirement(value.Authorization.ApprovalRequirement) {
+	if validateText(value.Route.MappingID, "accepted_plan.mapping", true) != nil || validateText(value.Route.WorkflowRole, "accepted_plan.role", true) != nil || resolved.ValidateMapKey("accepted_plan.mapping", value.Route.MappingID) != nil || resolved.ValidateMapKey("accepted_plan.role", value.Route.WorkflowRole) != nil || len(value.Route.MappingID) > 128 || len(value.Route.WorkflowRole) > 128 || validatePlanCapabilities(value.Route.RequiredCapabilities) != nil || !value.Authorization.ActiveChecks.Valid() {
 		return invalid(CodeInvalid, "accepted_plan.route")
 	}
 	if deps == nil {

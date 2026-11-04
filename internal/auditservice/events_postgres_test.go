@@ -51,10 +51,10 @@ func TestAuditEventPagesReadOnlyTheirEvents(t *testing.T) {
 	}
 	const events = 250
 	for index := 2; index <= events; index++ {
-		if err := store.AppendReviewEvent(ctx, auditstore.ReviewEventParams{
-			AuditID: "audit-events", Kind: "review.decided", EntityID: fmt.Sprintf("decision-%d", index),
-			Summary: map[string]any{"action": "approve"},
-		}); err != nil {
+		if _, err := pool.Exec(ctx, `WITH changed AS (UPDATE audits SET revision=revision+1,next_event_sequence=next_event_sequence+1
+WHERE audit_id='audit-events' RETURNING audit_id,next_event_sequence-1 AS sequence)
+INSERT INTO audit_events(audit_id,sequence_number,kind,entity_id,summary)
+SELECT audit_id,sequence,'task.accepted',$1,'{"count":1,"message":"secret-must-not-appear"}' FROM changed`, fmt.Sprintf("event-%d", index)); err != nil {
 			t.Fatal(err)
 		}
 	}

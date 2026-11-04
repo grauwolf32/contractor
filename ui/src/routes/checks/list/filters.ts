@@ -13,8 +13,7 @@ import {
  * the user (running, paused, finishing, stopping); deleting checks are
  * listed under All only.
  */
-export type CheckFilter =
-  "running" | "waiting" | "drafts" | "finished" | "stopped" | "all";
+export type CheckFilter = "running" | "drafts" | "finished" | "stopped" | "all";
 
 interface CheckFilterOption {
   value: CheckFilter;
@@ -29,11 +28,7 @@ export const CHECK_FILTERS: readonly CheckFilterOption[] = [
     label: CHECK_STATE_LABELS.active.label,
     states: IN_PROGRESS_AUDIT_STATES,
   },
-  {
-    value: "waiting",
-    label: CHECK_STATE_LABELS.waiting_review.label,
-    states: ["waiting_review"],
-  },
+
   { value: "drafts", label: "Drafts", states: ["draft"] },
   {
     value: "finished",
