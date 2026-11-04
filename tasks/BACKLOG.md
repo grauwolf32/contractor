@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-74 open tasks: 10 in progress, 51 pending, 13 deferred. 1437 finished: 1419 completed, 18 archived.
+74 open tasks: 11 in progress, 50 pending, 13 deferred. 1437 finished: 1419 completed, 18 archived.
 
 ## In progress
 
@@ -21,6 +21,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V444-003](v444-003-verify-engagement-boundary.yml) | quality | chore | P1 | Verify the reduced engagement boundary across existing HTTP execution |
 
 ## Pending
 
@@ -138,7 +139,6 @@ the epics are in [epics.yml](epics.yml).
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-006, V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
 | [V425-014](v425-014-runtime-tests-fail-on-macos.yml) | chore | P3 | — | Make the Runtime process-liveness assertions able to fail on macOS |
 | [V433-005](v433-005-runtime-resource-bounds-gate.yml) | chore | P3 | — | Verify the Runtime resource-bound fixes and reconcile the review dispositions |
-| [V444-003](v444-003-verify-engagement-boundary.yml) | chore | P1 | — | Verify the reduced engagement boundary across existing HTTP execution |
 
 ## Deferred
 

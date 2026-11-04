@@ -6,7 +6,7 @@ epic: quality
 kind: chore
 introduced_by: V411-002
 priority: P1
-status: pending
+status: in_progress
 depends_on: [V444-002]
 languages: [go, python, yaml, markdown]
 goal: Prove that existing HTTP execution preserves network authority after engagement loses unrelated Audit responsibilities.
@@ -25,6 +25,12 @@ context:
     - docs/spec/tools/scanners.md
     - docs/testing/engagement-http-conformance.md
     - docs/testing/README.md
+  verified_code: 1b4b6fd94ec5033fd827fd20a944db09a8f5cd65
+  evidence_reuse: >-
+    V444-002 executed the complete real-process/store/shared/public/config matrices
+    and full Runtime suite against the final implementation. This task changes
+    only documentation and future-task wording, so it retains those passing reports
+    and reruns lint/spec/task checks instead of repeating identical target traffic.
   boundary: >-
     Reuse test-engagement-http-process and existing HTTP/Nuclei/identity tests.
     This task accepts the refactor, not the complete pentest product or live-model
@@ -33,7 +39,7 @@ context:
 scope:
   in:
     - Run the existing real-process and real-store matrices with the final reduced engagement.
-    - Verify ordinary material inputs/deadlines, exact policy pins, HTTP/Nuclei shared local limits, explicit credentials and joined cancellation/release.
+    - Verify ordinary material inputs/deadlines, exact engagement pins, HTTP/Nuclei shared local limits, explicit credentials and joined cancellation/release.
     - Replace obsolete source-mode cases with ordinary input access cases; extend only uncovered real boundary cases, without implementation-mirroring tests.
     - Verify dependent HTTP/API/UI/report/browser/sandbox task scopes use the reduced document and do not promise new egress or global counters.
     - Record actual commands, selected case counts, platform skips and remaining product limitations.
@@ -54,3 +60,58 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A3]
+verification:
+  date: "2026-11-05"
+  result: >-
+    The reduced strict engagement preserves real HTTP/Nuclei scope, explicit
+    identities, optional allocation-local limits and joined cleanup. Ordinary
+    Audit inputs, exact retained revisions, deadlines and source access remain
+    under their existing owners. No compatibility reader or transport framework
+    was introduced.
+  code_commit: 1b4b6fd94ec5033fd827fd20a944db09a8f5cd65
+  inherited_results:
+    - make require-database; dedicated disposable UTF8 PostgreSQL, no demo writes.
+    - Complete V444-002 Go package suites passed with the real database configured, including AuditService/store, placement/preparation, Findings reader, public API and Eval fixtures.
+    - make test-engagement-http-process; 41 process, 2 accounting and 157 Runtime cases passed with zero selected skips.
+    - make test-nuclei-engagement; actual installed engine process and 41 Runtime bridge/transport cases passed.
+    - make test-wire-cross-language; 371 fixtures, 405 Go and 258 Python shared tests; 1429 selected pytest cases passed.
+    - make verify-public-api and make verify-public-api-postgres passed; the PostgreSQL public API cases ran with race instrumentation.
+    - make test-config passed; shipped catalog validated.
+    - make test-runtime passed with warnings as errors; 5825 passed, 135 existing platform/environment skips; release report verification passed.
+  fresh_checks:
+    - make require-database passed.
+    - make lint passed after the documentation and task wording updates.
+    - Spec and task checks passed; no active scope/acceptance reintroduces removed source modes, capability wrappers or engagement-owned Audit inputs/budgets.
+  process_report: reports/engagement-http/run-6q0geqsj/result.json
+  matrix_digest: sha256:b099ca4fb23e8ac235f15f4992b7fa3bda21650eab8b035d52673d831795377d
+  plan_review:
+    - V411-007
+    - V411-013
+    - V411-014
+    - V411-015
+    - V411-016
+    - V411-017
+    - V411-018
+    - V411-019
+    - V411-020
+    - V411-021
+    - V412-001
+    - V412-003
+    - V412-004
+    - V412-005
+    - V64-018
+  scope_result: >-
+    Clarified ordinary material authority in V411-015 and separate engagement
+    Artifact/Audit setup in V411-018. Proposal 0033 labels its obsolete design as
+    historical and records the current cleanup. V411-020 remains the product
+    release exit; sandbox/browser/non-HTTP egress, global quotas and independent
+    ordinary-Run authoring remain separate work.
+  delivery:
+    branch: codex/engagement-verification
+    merged_into_main: false
+    tested_main_base: e9edd3bc46a4a1d65e39a946207686f145ebf644
+    later_main_review: >-
+      Read-only comparison through bd27df571 found overlap only in generated
+      BACKLOG.md and audit-workflow-dependencies.html. Native HTTP is integrated
+      in the tested base; later credential/test-optimization changes were not
+      merged or claimed as a combined verification run.
