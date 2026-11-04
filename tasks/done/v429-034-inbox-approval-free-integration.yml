@@ -5,7 +5,8 @@ milestone: ui-journey-usability
 epic: ui
 kind: feature
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: bbb1c08a86ed76055a02612b4d7a709afa628da2
 depends_on: [V429-033, V411-010, V411-011]
 languages: [typescript, css, javascript]
 goal: The working Inbox uses the reviewed OpenDesign layout, complete Issue and Report readers and useful initial selection with the current approval-free Audit model.
@@ -74,3 +75,13 @@ tests:
     covers: [A1, A2, A3]
   - command: git diff --check
     covers: [A1, A2, A3]
+verification:
+  results:
+    - make ui-verify passed generated-contract checks, lint, typechecks, 2415 tests plus one expected-failure case, static-server tests and production build.
+    - make lint passed shared/generated contract, UI dead-code/building-block, Go vet/staticcheck/export, script/deployment fixture, task/spec and Runtime lint/layer checks.
+    - Production preview verification passed 81 layout/state checks and four paired Issues/Reports content/font comparisons; exact report downloads, mobile Back/resize, queue J/K and local annotation refusal passed without browser errors or live API calls.
+    - The built production browser gate passed all 12 decision-focus and owner-list cases at desktop/mobile widths with no skips.
+    - All 118 original experiment artifact hashes matched; OpenDesign native data and prior experiments remain unchanged. The current production preview was opened directly and visually reviewed.
+    - Latest main planning changes were retained; only task files changed after the verified code baseline. Merge 982702244b56a261974492ed56faf2622f1a20f3 integrated the branch into main with no fast-forward.
+  artifact: docs/design/ui/experiments/inbox-production-2026-11-04/verification.json
+  delivery: Merged into local main as 982702244b56a261974492ed56faf2622f1a20f3; UI release 0.11.10. No live demo deployment, database migration, remote push or new model call.
