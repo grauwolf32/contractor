@@ -12,6 +12,7 @@ from mitmproxy.proxy.layers import http as native_http
 from mitmproxy.proxy.layers.http import _http1, _http2
 from mitmproxy.proxy.mode_specs import ProxyMode
 
+from contractor_runtime.adapters.bridge.mitmproxy.framing import BoundedHttp1Body
 from contractor_runtime.adapters.bridge.mitmproxy.lifecycle import OwnedHandler
 from contractor_runtime.adapters.bridge.mitmproxy.messages import (
     end_to_end,
@@ -26,12 +27,18 @@ from contractor_runtime.shared_config import get_shared_config
 from contractor_runtime.threads import to_thread_until_done
 
 
-class IngressHttp1(_http1.Http1Server):
+class IngressHttp1(BoundedHttp1Body, _http1.Http1Server):
+    header_bytes = 0
+
+    def framing_budget(self):
+        return request_header_max_bytes(), self.header_bytes, len(self.request.headers.fields)
+
     def read_headers(self, event):
         if isinstance(event, events.DataReceived):
             buffered = bytes(self.buf)
             end = buffered.find(b"\r\n\r\n")
             size = len(buffered) if end < 0 else end + 4
+            self.header_bytes = size
             if size > request_header_max_bytes() or (
                 end >= 0
                 and (
@@ -40,7 +47,7 @@ class IngressHttp1(_http1.Http1Server):
                 )
             ):
                 yield commands.CloseConnection(self.conn)
-                self.state = self.done
+                self.stop_input()
                 return
         # Native absolute-form parsing uses urlparse, which erases a trailing '?'.
         # Restore only the exact target path after its normal syntax validation.

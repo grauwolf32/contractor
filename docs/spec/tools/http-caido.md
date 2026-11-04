@@ -1345,7 +1345,12 @@ re-encode bodies: native messages carry raw bytes and preserve Content-Encoding.
 Native target equality uses exact path/query components (including an empty `?`)
 and bracketed IPv6 authority; it must not depend on lossy library URL rendering.
 Scanner response framing preserves HEAD/304 Content-Length metadata, omits a
-204 body/Content-Length, and otherwise measures the raw transmitted bytes.
+204 body/Content-Length, and otherwise measures the raw transmitted bytes. HTTP/1.1 chunk size/extension
+lines and incomplete trailers have bounded parser retention (the common header
+byte bound plus one native input chunk), independently of returned body bytes.
+Trailer metadata shares the message header count/byte budget and is validated
+by the native parser, then discarded; it cannot become initial headers, cookies
+or evidence. Both target responses and scanner ingress apply these bounds.
 Each next origin must satisfy scope and assigned credential origins. Strip manual
 Cookie/Authorization on origin change. 303 and POST 301/302 change the method to
 GET and drop body/content headers. No request settlement or journal RPC occurs.

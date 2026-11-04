@@ -15,6 +15,7 @@ from mitmproxy.proxy.layers.http import _http1, _http2
 from mitmproxy.proxy.layers.http._base import HttpConnection, ReceiveHttp
 from mitmproxy.proxy.layers.http._events import ErrorCode, ResponseProtocolError
 
+from contractor_runtime.adapters.bridge.mitmproxy.framing import BoundedHttp1Body
 from contractor_runtime.core.http_limits import MAX_CONTROLLED_HEADER_BYTES, MAX_HEADERS
 
 
@@ -42,11 +43,14 @@ class VirtualClient(HttpConnection):
             yield ReceiveHttp(native_http.RequestEndOfMessage(stream))
 
 
-class BoundedHttp1Client(_http1.Http1Client):
+class BoundedHttp1Client(BoundedHttp1Body, _http1.Http1Client):
     """Use the native parser; charge every informational and final header block."""
 
     header_bytes = 0
     header_count = 0
+
+    def framing_budget(self):
+        return MAX_CONTROLLED_HEADER_BYTES, self.header_bytes, self.header_count
 
     def send(self, event):
         if isinstance(event, native_http.RequestHeaders):
@@ -90,6 +94,7 @@ class BoundedHttp1Client(_http1.Http1Client):
                 yield from self.state(event)
                 return
         except ValueError:
+            self.stop_input()
             yield commands.CloseConnection(self.conn)
             yield ReceiveHttp(
                 ResponseProtocolError(
