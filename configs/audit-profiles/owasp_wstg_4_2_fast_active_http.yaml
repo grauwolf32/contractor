@@ -14,7 +14,7 @@ spec:
     engagement:
       required: true
       media_types:
-      - application/json
+      - application/vnd.contractor.engagement+json
   workflows:
     check:
       ref: audit-wstg-active-http@1

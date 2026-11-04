@@ -14,7 +14,7 @@ spec:
     engagement:
       required: true
       mediaTypes:
-      - application/json
+      - application/vnd.contractor.engagement+json
     context:
       required: true
       mediaTypes:

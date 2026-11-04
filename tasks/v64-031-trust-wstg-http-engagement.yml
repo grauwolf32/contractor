@@ -1,0 +1,53 @@
+schema_version: '1.0'
+id: V64-031
+title: Connect WSTG HTTP programs to trusted engagement policy
+milestone: audit-check-prioritization
+epic: audits
+kind: defect
+introduced_by: V64-012
+priority: P1
+status: in_progress
+depends_on: [V64-012]
+languages: [go, yaml]
+goal: Starting either WSTG HTTP check pins the selected engagement routes, identities and finite budgets as trusted authority.
+context:
+  authority: User review 2026-11-04 of commit 1b1112575 requests this P1 correction.
+  specification: docs/spec/audits/audits.md#AUD-R241
+  finding: >-
+    configs/audit-profiles/owasp_wstg_4_2_active_http.yaml:17 and
+    owasp_wstg_4_2_fast_active_http.yaml:17 and configs/workflows/audit_wstg_active_http.yaml:18
+    accept application/json, preventing selection of typed engagement and allowing Start without baseline.Engagement.
+  siblings: >-
+    Both standard variants share the same Workflow. Existing Server engagement selection and controlled
+    HTTP projection already require application/vnd.contractor.engagement+json and remain the authority.
+  boundary: >-
+    Correct authored input contracts in place under CAT-R74. Reuse ordinary Start pinning and Artifact
+    validation; add no JSON fallback, profile-specific Server interpretation or policy mechanism.
+  verification: >-
+    Both shipped profiles fail the new regression before the media-type correction. After the fix,
+    the full tests/eval/audit_programs and internal/auditservice suites pass with
+    CONTRACTOR_TEST_DATABASE_URL set to a disposable local PostgreSQL database. Actual shipped
+    profiles reject generic JSON, Start pins the exact engagement document and finite limits,
+    and replay preserves authority without target requests. make test-config and make lint pass.
+    Rebuilt the generated dependency graph with make docs-dependencies. No Server or Runtime
+    policy implementation changed. The branch remains unmerged.
+scope:
+  in:
+  - Require the existing typed media type in both profiles and the shared Workflow.
+  - Exercise trusted policy pinning on real PostgreSQL and guard actual shipped catalog contracts.
+  out:
+  - New HTTP capabilities, policy schema changes, live target requests or legacy profile support.
+acceptance_criteria:
+- id: A1
+  text: Both shipped profiles and their Workflow accept only the typed engagement input and reject ordinary JSON.
+- id: A2
+  text: Start retains exact engagement authority including routes, identities and request budgets and applies finite execution limits.
+- id: A3
+  text: Regression coverage exercises actual shipped declarations and real PostgreSQL Start without target calls.
+tests:
+- command: go test -count=1 ./tests/eval/audit_programs ./internal/auditservice
+  covers: [A1, A2, A3]
+- command: make test-config
+  covers: [A1]
+- command: make lint
+  covers: [A1, A2, A3]
