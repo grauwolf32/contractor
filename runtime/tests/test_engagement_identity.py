@@ -9,20 +9,13 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
+from fakes.engagement_engine import reply
+from fakes.engagement_engine import transport as HTTPTransport
 from fakes.engagement_socket import SocketTarget, socket_spec
-from test_engagement_target import Network, policy_config
+from test_engagement_target import Results, policy_config
 
-from contractor_runtime.adapters.http_transport import HTTPTransport
 from contractor_runtime.contracts import AllocationSpec
 from contractor_runtime.contracts.engagement import HTTPLimits
-
-
-def wire_response(status=200, headers=()):
-    return (
-        f"HTTP/1.1 {status} Result\r\nContent-Length: 0\r\n".encode()
-        + b"".join((f"{key}: {value}\r\n".encode() for key, value in headers))
-        + b"\r\n"
-    )
 
 
 def test_cookie_identity_jars_are_distinct_even_when_initial_credential_is_shared():
@@ -63,9 +56,8 @@ def test_cookie_identity_jars_are_distinct_even_when_initial_credential_is_share
 def test_supplied_cookie_limit_covers_all_origins_before_request():
     from types import SimpleNamespace
 
-    from test_engagement_target import Network, policy_config
-
-    from contractor_runtime.adapters.http_transport import HTTPTransport
+    from fakes.engagement_engine import transport as HTTPTransport
+    from test_engagement_target import Results, policy_config
 
     target = SimpleNamespace(origin="http://target.example", address="10.20.0.8")
     spec = identity_spec(
@@ -78,12 +70,12 @@ def test_supplied_cookie_limit_covers_all_origins_before_request():
     identity = spec.engagement.http.identities[2]
     identity.origins.append("http://other.example")
     materials = list(spec.runtime_settings.http_identities.values())
-    network, _ = (Network([], []), None)
+    results = Results()
     with pytest.raises(ValueError, match="cookies exceed bound"):
-        HTTPTransport(spec, resolver=policy_config().resolver, backend=network)
+        HTTPTransport(spec, resolver=policy_config().resolver, engine=results)
     assert spec.runtime_settings.http_identities is None
     assert all(material.fields == {} for material in materials)
-    assert not network.streams and (not network.streams)
+    assert not results.attempts
 
 
 @pytest.mark.parametrize(
@@ -165,7 +157,7 @@ def test_private_material_binding_and_repr_are_strict():
     asyncio.run(scenario())
 
 
-def owner_for(*, responses=None, **network_options):
+def owner_for(*, responses=None, **results_options):
     spec = identity_spec(
         SimpleNamespace(origin="http://target.example", address="10.20.0.8"),
         [
@@ -173,18 +165,17 @@ def owner_for(*, responses=None, **network_options):
             ("account-b", "bearer", {"token": "private-token"}, None),
         ],
     )
-    events = []
-    _, network = (None, Network(events, responses, **network_options))
+    results = Results(responses, **results_options)
     spec.engagement.http.limits = HTTPLimits(requestBodyBytes=65536)
-    owner = HTTPTransport(spec, resolver=policy_config().resolver, backend=network)
+    owner = HTTPTransport(spec, resolver=policy_config().resolver, engine=results)
     owner.configure(authority_deadline=lambda: time.monotonic() + 60)
-    return (owner, None, network)
+    return (owner, None, results)
 
 
 def test_catalog_and_value_read_are_passive_and_audit_scoped():
 
     async def scenario():
-        owner, _, network = owner_for()
+        owner, _, results = owner_for()
         assert [c["credential_id"] for c in owner.credentials()] == [
             "credential-account-a",
             "credential-account-b",
@@ -196,7 +187,7 @@ def test_catalog_and_value_read_are_passive_and_audit_scoped():
         for credential in ("foreign", "", None):
             with pytest.raises(ValueError):
                 owner.read_credential(credential)
-        assert network.streams == network.streams == []
+        assert not results.attempts
         await owner.close()
 
     asyncio.run(scenario())
@@ -206,24 +197,25 @@ def test_catalog_and_value_read_are_passive_and_audit_scoped():
     "credential,expected",
     [
         (None, None),
-        ("credential-account-a", b"Cookie: session=private-cookie"),
-        ("credential-account-b", b"Authorization: Bearer private-token"),
+        ("credential-account-a", (b"Cookie", b"session=private-cookie")),
+        ("credential-account-b", (b"Authorization", b"Bearer private-token")),
     ],
+    ids=["anonymous", "cookies", "bearer"],
 )
 def test_only_explicit_selected_credential_is_sent(credential, expected):
 
     async def scenario():
-        owner, _, network = owner_for()
+        owner, _, results = owner_for()
         try:
             outcome, response = await owner.request(
                 "http://target.example/model-chosen?x=1", credential_id=credential
             )
             assert outcome.kind == "completed" and response.body == b"ok"
-            wire = bytes(network.streams[0].written)
+            headers = dict(results.attempts[0].request.headers)
             if expected is None:
-                assert b"Authorization:" not in wire and b"Cookie:" not in wire
+                assert b"Authorization" not in headers and b"Cookie" not in headers
             else:
-                assert expected in wire
+                assert headers[expected[0]] == expected[1]
         finally:
             await owner.close()
 
@@ -242,10 +234,10 @@ def test_only_explicit_selected_credential_is_sent(credential, expected):
 def test_invalid_credential_or_body_emits_no_target_action(options):
 
     async def scenario():
-        owner, _, network = owner_for()
+        owner, _, results = owner_for()
         with pytest.raises(ValueError):
             await owner.request("http://target.example/", **options)
-        assert network.streams == network.streams == []
+        assert not results.attempts
         await owner.close()
 
     asyncio.run(scenario())
@@ -254,16 +246,16 @@ def test_invalid_credential_or_body_emits_no_target_action(options):
 def test_repeated_http_statuses_remain_responses_with_no_retry_or_auth_inference():
 
     async def scenario():
-        owner, _, network = owner_for(
-            responses=[wire_response(code) for code in [401, 403, 403, 503]]
-        )
+        owner, _, results = owner_for(responses=[reply(code) for code in [401, 403, 403, 503]])
         for index, code in enumerate([401, 403, 403, 503]):
             outcome, response = await owner.request(
                 "http://target.example/path" + str(index), credential_id="credential-account-a"
             )
             assert outcome.kind == "completed" and response.status == code
-        assert len(network.streams) == len(network.streams) == 4
-        assert all(b"Cookie: session=private-cookie" in s.written for s in network.streams)
+        assert len(results.attempts) == 4
+        assert all(
+            (b"Cookie", b"session=private-cookie") in s.request.headers for s in results.attempts
+        )
         await owner.close()
 
     asyncio.run(scenario())
@@ -272,10 +264,10 @@ def test_repeated_http_statuses_remain_responses_with_no_retry_or_auth_inference
 def test_expired_learned_cookies_are_removed_before_next_request():
 
     async def scenario():
-        owner, _, network = owner_for(
+        owner, _, results = owner_for(
             responses=[
-                wire_response(headers=[("Set-Cookie", "learned=temporary; Max-Age=1; Path=/")]),
-                wire_response(),
+                reply(headers=[("Set-Cookie", "learned=temporary; Max-Age=1; Path=/")]),
+                reply(),
             ]
         )
         now = [1000.0]
@@ -285,8 +277,8 @@ def test_expired_learned_cookies_are_removed_before_next_request():
             await owner.request(
                 "http://target.example/second", credential_id="credential-account-a"
             )
-        assert b"learned=" not in network.streams[1].written
-        assert b"Cookie: session=private-cookie" in network.streams[1].written
+        assert not any(b"learned=" in v for _, v in results.attempts[1].request.headers)
+        assert (b"Cookie", b"session=private-cookie") in results.attempts[1].request.headers
         await owner.close()
 
     asyncio.run(scenario())
@@ -295,10 +287,10 @@ def test_expired_learned_cookies_are_removed_before_next_request():
 def test_deleted_cookie_blocks_selected_credential_without_affecting_anonymous():
 
     async def scenario():
-        owner, _, network = owner_for(
+        owner, _, results = owner_for(
             responses=[
-                wire_response(headers=[("Set-Cookie", "session=; Max-Age=0; Path=/")]),
-                wire_response(),
+                reply(headers=[("Set-Cookie", "session=; Max-Age=0; Path=/")]),
+                reply(),
             ]
         )
         first, _ = await owner.request(
@@ -310,8 +302,8 @@ def test_deleted_cookie_blocks_selected_credential_without_affecting_anonymous()
         )
         assert denied.kind == "denied"
         completed, _ = await owner.request("http://target.example/third")
-        assert completed.kind == "completed" and len(network.streams) == 2
-        assert b"Cookie:" not in network.streams[-1].written
+        assert completed.kind == "completed" and len(results.attempts) == 2
+        assert not any(k.lower() == b"cookie" for k, _ in results.attempts[-1].request.headers)
         await owner.close()
 
     asyncio.run(scenario())
@@ -320,16 +312,16 @@ def test_deleted_cookie_blocks_selected_credential_without_affecting_anonymous()
 def test_stop_joins_simultaneous_explicit_credentials_and_erases_material():
 
     async def scenario():
-        owner, _, network = owner_for(hang=True)
+        owner, _, results = owner_for(hold=True)
         tasks = [
             asyncio.create_task(owner.request("http://target.example/", credential_id=c))
             for c in (None, "credential-account-a")
         ]
-        while len(network.streams) < 2:
+        while len(results.attempts) < 2:
             await asyncio.sleep(0)
-        await asyncio.gather(*(s.entered_read.wait() for s in network.streams))
+        await asyncio.gather(*(s.entered.wait() for s in results.attempts))
         await owner.close()
         assert all(t.done() and t.cancelled() for t in tasks)
-        assert all(s.closed for s in network.streams) and (not owner._sessions)
+        assert all(s.finished for s in results.attempts) and (not owner._sessions)
 
     asyncio.run(scenario())

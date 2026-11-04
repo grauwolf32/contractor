@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-75 open tasks: 11 in progress, 51 pending, 13 deferred. 1416 finished: 1398 completed, 18 archived.
+76 open tasks: 11 in progress, 52 pending, 13 deferred. 1433 finished: 1415 completed, 18 archived.
 
 ## In progress
 
@@ -56,6 +56,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
+| [V410-026](v410-026-sitemap-source-comparison.yml) | chore | P2 | — | Compare transport observations and scanner report projections for sitemap |
 | [V412-005](v412-005-controlled-scanner-pentest-integration.yml) | feature | P2 | V444-003 | Run ffuf through the existing allocation-local engagement authority |
 
 ### Findings tools and collections (`findings`)
@@ -173,15 +174,15 @@ tasks in `introduced_by`.
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 15 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
-| HTTP and Caido tools (`http-tools`) | 5 | 22 | 27 | 10 | 27 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 2 | 17 | 10 | 9 | 20 |
+| HTTP and Caido tools (`http-tools`) | 5 | 23 | 32 | 15 | 34 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 3 | 17 | 10 | 10 | 20 |
 | Findings tools and collections (`findings`) | 1 | 17 | 10 | 10 | 15 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 21 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 36 | 39 | 16 | 66 |
 | Audits (`audits`) | 14 | 68 | 94 | 40 | 149 |
 | Evaluations (`evals`) | 6 | 21 | 40 | 16 | 49 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
-| Web UI (`ui`) | 2 | 42 | 70 | 26 | 71 |
+| Web UI (`ui`) | 2 | 47 | 71 | 26 | 72 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 46 | 9 | 22 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 39 | 29 | 20 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 27 | 47 | 17 |

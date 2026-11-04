@@ -257,7 +257,7 @@ DetailPane(props: {
 
 ```tsx
 <DetailPane header={<DetailHeader title={finding.title} />} footer={<DecisionBar … />}>
-  <FindingSummary finding={finding} />
+  <p>{summary}</p>
 </DetailPane>
 ```
 

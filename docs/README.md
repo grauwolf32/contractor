@@ -59,6 +59,17 @@ and compare them through ordinary Runs and Evals. It is a separate future
 capability, with no implementation tasks; the direction alone guides the current
 execution-configuration refactoring.
 
+[Sitemap transport and report comparison](proposals/0052-sitemap-transport-and-report-comparison.md)
+plans a local comparison of actual HTTP observations and scanner-selected results,
+including wildcard `200` responses and soft-404. It keeps ffuf, Katana and Nuclei
+under existing scan tools, does not require one allocation, and defers production
+source removal until comparative evidence exists.
+
+[mitmproxy for Runtime HTTP and sandbox](proposals/0053-mitmproxy-runtime-and-sandbox.md)
+records the embedding experiment branch, lifecycle reuse, useful addons, memory
+observations, optional Caido chains and transparent sandbox HTTP/HTTPS routing.
+The production engine and sandbox network integration remain open choices.
+
 Accepted contracts belong in the specification; implementation status belongs
 in [task files](../tasks/) governed by [tasks/index.yml](../tasks/index.yml).
 The following are non-normative, and a historical report does not establish

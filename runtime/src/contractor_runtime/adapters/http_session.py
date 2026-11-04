@@ -11,6 +11,7 @@ import httpx
 from contractor_runtime.contracts.engagement import Identity
 from contractor_runtime.contracts.fields import is_field_value
 from contractor_runtime.contracts.settings import HTTPIdentityMaterial
+from contractor_runtime.core.http_limits import MAX_CONTROLLED_HEADER_BYTES
 from contractor_runtime.core.http_session import (
     MAX_COOKIE_SESSION_BYTES,
     MAX_COOKIES,
@@ -135,7 +136,10 @@ class IdentitySession:
         request.headers = [
             (name.encode("ascii"), value.encode("ascii")) for name, value in headers.values()
         ]
-        if sum(len(name) + len(value) + 4 for name, value in request.headers) > 32768:
+        if (
+            sum(len(name) + len(value) + 4 for name, value in request.headers)
+            > MAX_CONTROLLED_HEADER_BYTES
+        ):
             raise ValueError("engagement expanded headers exceed bound")
         return request
 

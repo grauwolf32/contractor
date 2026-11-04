@@ -25,6 +25,13 @@ if TYPE_CHECKING:
 
 
 def _install_dependency_warning_filters() -> None:
+    for symbol, replacement in (("tagMap", "TAG_MAP"), ("typeMap", "TYPE_MAP")):
+        warnings.filterwarnings(
+            "ignore",
+            message=rf"{symbol} is deprecated\. Please use {replacement} instead\.",
+            category=DeprecationWarning,
+            module=r"ldap3\.utils\.asn1",
+        )
     warnings.filterwarnings(
         "ignore",
         message=r"BaseAgentConfig is deprecated and will be removed.*",

@@ -1,0 +1,67 @@
+schema_version: '1.0'
+id: V410-028
+title: Profile Runtime and minimal mitmproxy memory with comparable controls
+milestone: project-sitemap-2026-10
+epic: http-tools
+kind: chore
+priority: P2
+status: completed
+implementation_commit: 544e8bab96ab3e91c02799e7515a5eba0c5f631a
+depends_on: [V410-027]
+languages: [python, markdown]
+goal: Identify measured memory optimization opportunities in Runtime and a possible embedded proxy without changing production behavior.
+context:
+  authority: >-
+    User request on 2026-11-03 asks to investigate memory optimization, explicitly including mitmproxy.
+    The user pointed out that Runtime/allocation and the test workload consume memory without mitmproxy.
+    This authorizes bounded local profiling with controls and recommendations, not a production migration
+    or claims that import-only measurements represent a full live allocation.
+  proposal: docs/proposals/0053-mitmproxy-runtime-and-sandbox.md
+  assessment: tasks/evidence/v410-027-mitmproxy-embedding.md
+scope:
+  in:
+  - Add an opt-in exact-version profiling harness with fresh-process repetitions and current/peak RSS.
+  - Measure Runtime import boundaries and minimal versus console proxy imports.
+  - Compare identical bounded HTTP workloads directly, through a buffering engine and through a streaming engine.
+  - Record retained response bytes, complete cleanup and optimization recommendations with scope limits.
+  out:
+  - Production source/dependency changes, SDK forks, new public configuration or selecting a migration.
+  - Live models, a registered Server/Runtime allocation, remote targets, Podman routing or full release gates.
+acceptance_criteria:
+- id: A1
+  text: A saved executable harness records exact versions, its source hash and three fresh-process repetitions for each declared scenario without changing production dependencies.
+- id: A2
+  text: Direct, buffered and streamed cases transfer the same bounded bytes with identical client/target fixtures, distinguish import/start/load/cleanup stages and record actual retained response bytes.
+- id: A3
+  text: The assessment separates observed import/workload differences from unmeasured full-allocation savings and identifies concrete Runtime and engine memory owners.
+tests:
+- command: uv run --script scripts/experiments/runtime_proxy_memory.py --output tasks/evidence/v410-028-runtime-proxy-memory.json
+  covers: [A1, A2]
+- command: cd runtime && uv run ruff check ../scripts/experiments/runtime_proxy_memory.py
+  covers: [A1, A2]
+- command: cd runtime && uv run ruff format --check ../scripts/experiments/runtime_proxy_memory.py
+  covers: [A1, A2]
+- command: python3 scripts/check_spec.py
+  covers: [A3]
+- command: cd runtime && uv run python ../scripts/check_tasks.py
+  covers: [A1, A3]
+cardinality:
+- collection: Fresh measurement processes
+  expected: Three repetitions of seven import cases and three HTTP workload cases
+  bound: Thirty sequential child processes; three rounds of four 8 MiB responses per HTTP child, finite per-child timeout and ephemeral loopback listeners.
+failure_outcomes:
+- operation: Execute bounded local measurements
+  permanent: Missing packages, incomplete transfers or inconsistent scenario setup fail the harness; RSS differences are observations with no machine-specific pass threshold.
+  retryable: No automatic child or request replay; reruns are explicit experiments.
+  ambiguous: Preserve observed request/byte counters without reconstructing a missing measurement through repeated requests.
+  cancelled: Terminate/join the measurement child and close owned listener, HTTP clients and proxy tasks.
+  timeout: Bounded child and socket waits fail the scenario and retain available diagnostics without claiming a complete result.
+lifecycle:
+- entity: Profiling child process and ephemeral fixture resources
+  delete: Close clients/listeners/engine connections and remove temporary proxy CA after joined shutdown; parent joins every child.
+  retention: Commit only code, dependency versions and sanitized memory/count evidence; no credentials, private certificates or bodies.
+verification:
+  date: '2026-11-03'
+  experiment: Thirty fresh-process scenarios passed with identical transferred bytes per HTTP case; weak references report zero live proxy flows after joined cleanup. The saved source hash matches the executable harness.
+  checks: Ruff check/format, specification validation, task validation, local Markdown links and diff whitespace passed.
+  full_lint: make lint stops at shared-config-check because go is absent from PATH; no full lint pass or live allocation result is claimed.

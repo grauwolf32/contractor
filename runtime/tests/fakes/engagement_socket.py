@@ -1,7 +1,7 @@
 """Real local socket observers for controlled preflight conformance.
 
 Only DNS and protocol replies are fixtures. Request bytes are read from actual
-TCP/TLS sockets; the production policy, httpcore and network backend stay live.
+TCP/TLS sockets; the production policy and native HTTP engine stay live.
 """
 
 from __future__ import annotations
@@ -84,24 +84,41 @@ class SocketTarget:
         self.writers.add(writer)
         self.all_closed.clear()
         try:
-            async with asyncio.timeout(10):
-                while b"\r\n\r\n" not in observed:
-                    data = await reader.read(8192)
-                    if not data:
-                        return
-                    observed.extend(data)
-                    self.first_byte.set()
-                    if len(observed) > 64 << 10:
-                        raise AssertionError("fixture received an unbounded request")
-                self.requests.append(bytes(observed))
-                self.request_received.set()
-                if self.responder is None:
-                    writer.write(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")
-                    await writer.drain()
-                else:
-                    await self.responder(self, reader, writer, bytes(observed))
-                await reader.read()
-        except (ConnectionResetError, BrokenPipeError):
+            async with asyncio.timeout(30):
+                pending = bytearray()
+                while True:
+                    while b"\r\n\r\n" not in pending:
+                        data = await reader.read(8192)
+                        if not data:
+                            return
+                        observed.extend(data)
+                        pending.extend(data)
+                        self.first_byte.set()
+                        if len(pending) > 64 << 10:
+                            raise AssertionError("fixture received an unbounded request")
+                    end = pending.index(b"\r\n\r\n") + 4
+                    head = bytes(pending[:end])
+                    del pending[:end]
+                    lengths = [
+                        line.split(b":", 1)[1].strip()
+                        for line in head.split(b"\r\n")
+                        if line.lower().startswith(b"content-length:")
+                    ]
+                    length = int(lengths[0]) if lengths else 0
+                    if len(pending) < length:
+                        data = await reader.readexactly(length - len(pending))
+                        observed.extend(data)
+                        pending.extend(data)
+                    message = head + bytes(pending[:length])
+                    del pending[:length]
+                    self.requests.append(message)
+                    self.request_received.set()
+                    if self.responder is None:
+                        writer.write(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")
+                        await writer.drain()
+                    else:
+                        await self.responder(self, reader, writer, message)
+        except (ConnectionResetError, BrokenPipeError, asyncio.IncompleteReadError):
             pass
         finally:
             writer.close()
@@ -193,6 +210,7 @@ def tls_contexts(directory):
         .serial_number(x509.random_serial_number())
         .not_valid_before(now - timedelta(minutes=1))
         .not_valid_after(now + timedelta(days=1))
+        .add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)
         .add_extension(
             x509.SubjectAlternativeName([x509.DNSName("target.example")]), critical=False
         )

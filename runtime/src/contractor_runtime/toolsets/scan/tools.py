@@ -19,8 +19,8 @@ from urllib.parse import urlsplit
 
 from contractor_runtime import threads
 from contractor_runtime.adapters import AdapterHandles
+from contractor_runtime.adapters.bridge import HTTPProxyBridge
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
-from contractor_runtime.adapters.http_proxy_bridge import HTTPProxyBridge
 from contractor_runtime.adapters.http_transport import HTTPTransport, HTTPTransportError
 from contractor_runtime.artifacts import ArtifactAPIError
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
@@ -259,7 +259,6 @@ class _ScanSession:
                 async with asyncio.timeout_at(deadline):
                     async with HTTPProxyBridge(
                         self.controlled_http,
-                        directory,
                         credential_id=credential_id,
                         deadline=deadline,
                     ) as bridge:

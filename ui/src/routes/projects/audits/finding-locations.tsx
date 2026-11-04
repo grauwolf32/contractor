@@ -11,7 +11,6 @@ import {
 
 import "../../issues/issues.css";
 
-type Proposal = components["schemas"]["FindingProposalDocument"];
 type FindingLocation = components["schemas"]["FindingLocation"];
 type HTTPExchange = components["schemas"]["FindingHTTPExchange"];
 type HTTPHeader = components["schemas"]["FindingHTTPHeader"];
@@ -207,31 +206,5 @@ export function CapturedExchange({
       <summary>{`Captured HTTP evidence · request ${exchange.request_id}`}</summary>
       {attempts}
     </details>
-  );
-}
-
-/**
- * Where the possible issue was found: authored source and web locations,
- * then the captured HTTP exchange, if any. Renders nothing without either.
- */
-export function FindingLocations({
-  document,
-  exchangeOpen = false,
-}: {
-  document: Pick<Proposal, "locations" | "http_exchange">;
-  /** Start with the captured HTTP evidence expanded. Default false. */
-  exchangeOpen?: boolean | undefined;
-}) {
-  const locations = document.locations ?? [];
-  const exchange = document.http_exchange;
-  if (locations.length === 0 && !exchange) return null;
-
-  return (
-    <section aria-label="Finding locations" className="issues-locations">
-      {locations.length > 0 ? <LocationList locations={locations} /> : null}
-      {exchange ? (
-        <CapturedExchange exchange={exchange} open={exchangeOpen} />
-      ) : null}
-    </section>
   );
 }

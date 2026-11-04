@@ -4,7 +4,7 @@ import { CheckDetail } from "./detail-check";
 import { IssueDetail, ReportDetail } from "./detail-decisions";
 import { Overview, type DetailContext } from "./detail-parts";
 import { RunDetail } from "./detail-run";
-import type { InboxRef, InboxRow, InboxSectionId } from "./model";
+import type { InboxRef, InboxRow } from "./model";
 import { issuePath, reportPath, runPath } from "./present";
 
 // ---------- Nothing selected, or not listed ----------
@@ -65,7 +65,6 @@ export function InboxDetail({
   row,
   loading,
   context,
-  counts,
 }: {
   selected: InboxRef | undefined;
   /** The selected item's first row in the list, when it is listed. */
@@ -73,10 +72,26 @@ export function InboxDetail({
   /** The lists that could hold the selected item are still loading. */
   loading: boolean;
   context: DetailContext;
-  counts: Record<InboxSectionId, string>;
 }) {
-  if (selected === undefined)
-    return <Overview context={context} counts={counts} />;
+  if (selected === undefined) return <Overview context={context} />;
+  if (selected.kind === "report") {
+    const check =
+      row?.type === "report"
+        ? row.report
+        : context.data.checks.checks.find(
+            (candidate) => candidate.audit.auditId === selected.auditId,
+          );
+    if (check !== undefined)
+      return (
+        <ReportDetail
+          key={selected.auditId}
+          audit={check.audit}
+          project={check.project}
+          row={row?.type === "report" ? row : undefined}
+          context={context}
+        />
+      );
+  }
   if (selected.kind === "run")
     return (
       <RunDetail
@@ -105,7 +120,5 @@ export function InboxDetail({
   }
   if (row?.type === "issue")
     return <IssueDetail key={row.key} row={row} context={context} />;
-  if (row?.type === "report")
-    return <ReportDetail key={row.key} row={row} context={context} />;
   return <NotListed selected={selected} loading={loading} />;
 }
