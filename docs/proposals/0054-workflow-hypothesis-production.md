@@ -3,13 +3,14 @@
 Current normative owner: [Workflow hypothesis production](../spec/audits/hypotheses.md).
 This proposal retains the design discussion; runtime contracts live with their owners.
 
-Дата: 2026-11-05. Статус: целевая спецификация для корректировки реализации;
-новое поведение ещё не реализовано. Документ уточняет
+Дата: 2026-11-05. Статус: реализовано в V64-033/V64-034, границы материалов
+исправлены в [V64-035](../../tasks/done/v64-035-accepted-material-set-boundary.yml).
+Ветка реализации не влита в main. Документ сохраняет обсуждение и уточняет
 [общую модель Audit](0050-audit-common-hypothesis-model.md), а не заменяет её.
 
 [Инструкция по реализации](../plans/2026-11-05-hypothesis-workflow-correction.md) ·
 [Передача набора материалов](../../tasks/done/v64-033-workflow-material-sets.yml) ·
-[Производство гипотез](../../tasks/v64-034-workflow-hypothesis-production.yml)
+[Производство гипотез](../../tasks/done/v64-034-workflow-hypothesis-production.yml)
 
 ## Основание и границы решения
 

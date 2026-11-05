@@ -6,7 +6,7 @@ epic: audits
 kind: feature
 introduced_by: V64-013
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V64-033, V64-012, V64-013, V411-011, V64-020]
 languages: [go, python, json, yaml, markdown, sql]
 goal: >-
@@ -65,12 +65,13 @@ context:
     review's migration 000008 collision must be resolved against current main
     before integration without changing an already applied main migration.
   implementation_gate: >-
-    Implementation is committed and reviewable at 76356bb3c. Go/PostgreSQL,
-    lint/public API, UI, wire and all 12 mandatory process cases passed.
-    The required full Runtime gate remains unproven: repeated final runs fail
-    different existing scanner/allocation timing cases. Do not close this task
-    until that listed command passes or the user changes the acceptance.
-    No demo or live-model changes; the branch is not merged into main.
+    Completed after all required feature checks passed, with V443-004 repairing
+    the Runtime gate separately and V64-035 correcting accepted material-set
+    retention, identity and exact metadata. Final clean process proof has all
+    12 mandatory cases and no selected skips. Full Runtime: 5896 passed with
+    135 existing optional environment/platform skips. No demo or live-model
+    changes; the branch is not merged into main.
+
 scope:
   in:
     - Replace remaining source_01 through source_16 configuration/service contracts with the V64-033 common input path.
@@ -209,8 +210,8 @@ tests:
   - command: make lint
     covers: [A6]
 test_prerequisites:
-  - Actual checks, passing process proof and unresolved full Runtime results are recorded in context.verification_evidence.
+  - Actual checks, passing process proof and prior failed attempts are recorded in context.verification_evidence.
   - Disposable real PostgreSQL is mandatory; missing database or zero matching mandatory cases is not a pass.
   - Extend existing process case inventories and release reports. Unit/integration tests use testdata fixtures, not live configs.
   - Run all touched package suites and consuming selectors. Live model quality remains outside deterministic acceptance.
-implementation_commit: null
+implementation_commit: 76356bb3cc0bb1774ecd2bc181d01b43b66db361
