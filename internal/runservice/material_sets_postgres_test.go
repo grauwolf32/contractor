@@ -63,7 +63,7 @@ func TestPostgresMaterialSetsUseOrdinaryRunCreationAndAtomicRejection(t *testing
 	}
 	lostResponse := false
 	transaction := postgresPublicTransaction(pool)
-	options := Options{Runs: runs, Workflows: manager, LLMCredentials: emptyCredentialLookup{}, CredentialGuard: openCredentialGuard{}, RuntimeCredentials: acceptRuntimeCredentials{}, Projects: projectstore.NewPostgresStore(pool), PublicTransaction: func(ctx context.Context, fn func(PublicRunWriter, *artifacts.Service) error) error {
+	options := Options{Runs: runs, Workflows: manager, LLMCredentials: emptyCredentialLookup{}, CredentialGuard: openCredentialGuard{}, RuntimeCredentials: acceptRuntimeCredentials{}, Projects: projectstore.NewPostgresStore(pool), PublicTransaction: func(ctx context.Context, fn func(PublicRunWriter, *artifacts.Service, RuntimeCredentialValidator) error) error {
 		err := transaction(ctx, fn)
 		if err == nil && lostResponse {
 			lostResponse = false

@@ -255,6 +255,53 @@ Run is standalone, and Server creates no default Project for it
 `POST /v1/projects/{project_id}/runs` with the ordinary create-Run body and
 idempotency header ([PRJ-R22, PRJ-R97](../artifacts/projects.md)).
 
+### Engagement input
+
+**RUN-R112.** An ordinary projectless or Project Run may select one engagement
+through the existing `artifacts` input map. Its Workflow declares exactly one
+ordinary input (without `materialSet`) whose sole accepted media type is
+`application/vnd.contractor.engagement+json`; the slot name has no special
+meaning. Multiple policy slots, a mixed-media policy slot or a policy bound to
+an implicit wildcard slot are invalid. Required and optional binding rules and
+source scopes remain RUN-R3. An absent optional binding grants no engagement
+assignment. The public request adds no separate engagement field.
+
+**RUN-R113.** Inside the existing credential lifecycle barrier and Run-creation
+transaction, Server checks the selected exact Artifact metadata before reading
+its bounded bytes, validates the common engagement document and each credential's
+creator/Operations authority and exact kind (RCF-R184). All credential lookups
+use the caller's transaction. Server rejects selected Workflows with uncontrolled
+network capabilities. An engagement suppresses the Project default HTTP target
+and credentials. Invalid admission rolls back the Run and its forks; replay of a
+committed create key resolves before these mutable reads (RUN-R17).
+
+**RUN-R114.** The original `input_fork` revision is the ordinary Run's policy
+authority. Allocation preparation verifies Run/Stage ownership, the immutable
+Workflow's explicit policy declaration, exact fork metadata and its bounded
+credential dependency set. The Run owner and creation timestamp supply trusted
+authorization attribution. Source advancement, working-copy input edits and
+model-produced policy documents cannot change the selected authority. Required
+missing or invalid original policy data fails preparation before secret delivery.
+No duplicate policy document or engagement-specific input store is persisted.
+The private projection and material lifetime follow CTL-R168.
+
+**RUN-R115.** RunStore records the selected policy's sorted unique non-secret
+credential IDs in immutable `workflow_runs.engagement_credential_ids`, bounded
+by the existing engagement identity limit (LIM-AUD-32). Existing credential usage
+checks include active Runs through their partial index and any unreleased
+allocation through its owning Run, including allocations of terminal Runs.
+A draft policy Artifact alone holds no credential. Terminal state plus completed
+allocation release ends this hold; ordinary Run deletion removes its row-owned
+references and Artifact purge retains its existing input rules. A later manual
+continuation uses the original policy and cannot materialize a deleted credential.
+
+Rationale: existing exact inputs provide policy versioning, idempotency,
+provenance and retention. A separate top-level execution binding would duplicate
+selection without a current caller that needs it. Revisit this boundary when an
+actual launch must apply a policy without a Workflow input declaration. Audit
+Start keeps its existing baseline authorization under AUD-R247–248; the two
+sources share allocation projection and credential materialization.
+
 ### Placement requirements
 
 **RUN-R107.** Ordinary `labels` select placement through the reserved keys

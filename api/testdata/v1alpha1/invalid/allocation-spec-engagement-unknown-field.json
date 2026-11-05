@@ -129,7 +129,6 @@
   },
   "engagement": {
     "schema": "contractor.engagement.allocation.v1",
-    "auditId": "audit-engagement",
     "engagement": {
       "namespace": "engagements",
       "name": "target",

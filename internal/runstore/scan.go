@@ -20,7 +20,7 @@ publication_mode, audit_execution_id, audit_submission_key, audit_completion,
 state, state_reason_code, state_reason_message,
 cancellation_schema_version, run_cancellation,
 scheduler_claim_id, scheduler_claimed_at, scheduler_claim_expires_at, scheduler_lane_class,
-created_at, updated_at, started_at, finished_at, metadata_labels, required_placement_labels`
+created_at, updated_at, started_at, finished_at, metadata_labels, required_placement_labels, engagement_credential_ids`
 
 type rowScanner interface {
 	Scan(...any) error
@@ -49,9 +49,12 @@ func scanWorkflowRun(row rowScanner) (WorkflowRun, error) {
 		&result.CancellationSchemaVersion, &cancellation,
 		&claimID, &claimedAt, &claimExpiresAt, &result.SchedulerLaneClass,
 		&result.CreatedAt, &result.UpdatedAt, &result.StartedAt, &result.FinishedAt, &metadataLabels,
-		&result.RequiredPlacementLabels,
+		&result.RequiredPlacementLabels, &result.EngagementCredentialIDs,
 	); err != nil {
 		return WorkflowRun{}, err
+	}
+	if result.EngagementCredentialIDs == nil || validateEngagementCredentialIDs(result.EngagementCredentialIDs) != nil {
+		return WorkflowRun{}, fmt.Errorf("invalid stored engagement credential dependencies")
 	}
 	if auditCompletion != nil {
 		if err := strictjson.Decode(auditCompletion, &result.AuditCompletion); err != nil {

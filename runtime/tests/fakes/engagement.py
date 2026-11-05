@@ -9,7 +9,6 @@ from fakes.spec import allocation_spec
 
 _PROJECTION = {
     "schema": "contractor.engagement.allocation.v1",
-    "auditId": "audit-1",
     "engagement": {"namespace": "engagements", "name": "target", "revision": "r1"},
     "engagementDigest": "sha256:" + "a" * 64,
     "authorizedBy": "owner-1",
@@ -23,7 +22,6 @@ def preflight_spec(*, body_limit=262144):
         name: _PROJECTION[name]
         for name in (
             "schema",
-            "auditId",
             "engagement",
             "engagementDigest",
             "authorizedBy",

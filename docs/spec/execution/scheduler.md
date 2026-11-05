@@ -380,8 +380,8 @@ StageResult.
 initialization failure, timeout or incompatible Agent Card makes Control Plane
 drain and release the whole batch, including Runtime Agents that became ready
 ([Control Plane](control-plane.md)). Workflow Scheduler receives no partial map
-and moves the StageExecution through `aborting` with a retryable `interrupted`
-StageTermination whose code identifies the infrastructure error. When the batch
+and moves the StageExecution through `aborting` with an `interrupted`
+StageTermination whose code and cause-specific retryability follow SCH-R184. When the batch
 is cleared or the abort deadline expires, the execution becomes terminal and
 Workflow policy decides whether to create a new attempt (FAIL-SCH-2).
 
@@ -1042,6 +1042,14 @@ StageTermination with one of these codes:
   resolved; retryable only for a transient cause (an ended context or an
   unavailable database), non-retryable for a missing, invalid or unreadable
   credential or another unavailable configuration;
+- `allocation_preparation_failed` — a required allocation failed preparation;
+  a missing, invalid or unreadable pinned credential is non-retryable, including
+  an engagement credential deleted before manual continuation. Private
+  materialization retains the error identity behind a static secret-free
+  message. Joining a temporary cleanup error does not make that permanent
+  credential failure retryable. Context and transient storage errors remain
+  retryable; otherwise the Runtime API retryability flag applies when present,
+  with opaque infrastructure failures retryable;
 - `model_route_binding_failed` — the model recovery routes of the Stage's
   placed allocations could not be bound; retryable;
 - `control_plane_state_lost` — Control Plane no longer holds the active

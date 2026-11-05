@@ -353,6 +353,7 @@ ORDER BY conname`)
 		"workflow_runs_workflow_credentials_idx":           declared["active"],
 		"workflow_runs_runtime_credentials_idx":            declared["active"],
 		"workflow_runs_project_http_target_credential_idx": declared["active"],
+		"workflow_runs_engagement_credentials_idx":         declared["active"],
 		"workflow_runs_owner_idempotency_key":              nil,
 		"workflow_runs_owner_project_created_idx":          nil,
 	}

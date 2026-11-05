@@ -156,6 +156,7 @@ var layers = []layerSpec{
 		packages: []string{
 			// The Runtime Agent principal registry; a client of runtimeconfig labels.
 			"internal/agentprincipal",
+			"internal/engagement",
 			"internal/controlplane",
 			// Committed Registry reservations for other packages' tests.
 			"internal/controlplane/controlplanetest",

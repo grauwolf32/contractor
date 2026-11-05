@@ -11,7 +11,7 @@ import (
 // Test embeddings compose the same explicit service boundary as the app.
 type RunWriter = runservice.PublicRunWriter
 type UnitOfWork interface {
-	Do(context.Context, func(RunWriter, *artifacts.Service) error) error
+	Do(context.Context, func(RunWriter, *artifacts.Service, runservice.RuntimeCredentialValidator) error) error
 }
 
 func newTestRunCreator(t *testing.T, services testServices, runs runservice.RunReader, transaction UnitOfWork, skillsAvailable bool) *runservice.Service {

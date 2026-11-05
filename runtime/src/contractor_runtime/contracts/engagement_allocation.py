@@ -85,7 +85,6 @@ class EngagementAllocationProjection(StrictWireModel):
     model_config = ConfigDict(populate_by_name=False, validate_by_name=False)
 
     schema_: Literal["contractor.engagement.allocation.v1"] = Field(alias="schema")
-    audit_id: str
     engagement: ArtifactRef
     engagement_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     authorized_by: str
@@ -103,7 +102,6 @@ class EngagementAllocationProjection(StrictWireModel):
 
     @model_validator(mode="after")
     def validate_authority(self) -> Self:
-        _require_text("auditId", self.audit_id)
         _require_text("authorizedBy", self.authorized_by)
         _require_aware_datetime("authorizedAt", self.authorized_at)
         self.engagement.require_exact()

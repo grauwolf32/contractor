@@ -1,4 +1,4 @@
-// Package engagementadapter composes Audit-owned engagement data into allocation
+// Package engagementadapter composes authorized engagement inputs into allocation
 // preparation. The Control Plane core depends only on its synchronous port.
 package engagementadapter
 
@@ -16,6 +16,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/engagement"
+	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -23,7 +25,7 @@ type identityMaterialResolver interface {
 	UsePlaintext(context.Context, string, []runtimesettings.RuntimeCredentialKind, func(runtimesettings.RuntimeCredentialKind, []byte) error) error
 }
 
-// Adapter owns the Audit integration, never Registry state or domain persistence.
+// Adapter owns Run and Audit integration, never Registry state or domain persistence.
 // Its lookups finish outside Registry locks and never perform target I/O.
 type Adapter struct {
 	pool       *pgxpool.Pool
@@ -39,24 +41,52 @@ func New(pool *pgxpool.Pool, identities identityMaterialResolver, storage *artif
 	return &Adapter{
 		pool: pool, storage: storage,
 		projection: func(ctx context.Context, reservation controlplane.Reservation, settings runtimesettings.RuntimeSettings, usesHTTP bool) (*engagementcontract.AllocationProjection, error) {
-			return auditservice.ResolveAllocationEngagement(ctx, pool, reservation.Grant.RunID, reservation.Grant.StageExecutionID, usesHTTP, func(ctx context.Context) ([]engagementcontract.ProtectedDestination, error) {
+			pin, ordinary, err := runservice.ReadAllocationEngagement(ctx, pool, reservation.Grant.RunID, reservation.Grant.StageExecutionID, storage)
+			if err != nil {
+				return nil, err
+			}
+			protected := func(ctx context.Context) ([]engagementcontract.ProtectedDestination, error) {
 				return resolveProtectedDestinations(ctx, reservation, settings)
-			}, storage)
+			}
+			if !ordinary {
+				return auditservice.ResolveAllocationEngagement(ctx, pool, reservation.Grant.RunID, reservation.Grant.StageExecutionID, usesHTTP, protected, storage)
+			}
+			if pin == nil {
+				return nil, nil
+			}
+			var destinations []engagementcontract.ProtectedDestination
+			if usesHTTP {
+				destinations, err = protected(ctx)
+				if err != nil {
+					return nil, err
+				}
+			}
+			return engagement.Project(*pin, usesHTTP, destinations)
 		},
 		materials: func(ctx context.Context, projection *engagementcontract.AllocationProjection) (map[string]runtimesettings.HTTPIdentityMaterial, error) {
-			return auditservice.MaterializeHTTPIdentities(ctx, identities, projection)
+			return engagement.MaterializeHTTPIdentities(ctx, identities, projection)
 		},
 	}, nil
 }
 
-// RequiredRuntimeAdapters derives requirements from selected tools and the immutable Audit
-// binding before placement, keeping them separate from RuntimeConfig provenance.
+// RequiredRuntimeAdapters derives requirements from selected tools and the immutable Run
+// authority before placement, keeping them separate from RuntimeConfig provenance.
 func (a *Adapter) RequiredRuntimeAdapters(ctx context.Context, runID, stageID string, bindings []controlplane.BindingRequirement) ([]runtimesettings.RuntimeAdapterRef, error) {
 	usesHTTP := false
 	for _, binding := range bindings {
 		usesHTTP = usesHTTP || resolved.TemplateUsesControlledHTTP(binding.AgentTemplate)
 	}
-	return auditservice.AllocationEngagementAdapterRequirements(ctx, a.pool, runID, stageID, usesHTTP, a.storage)
+	pin, ordinary, err := runservice.ReadAllocationEngagement(ctx, a.pool, runID, stageID, a.storage)
+	if err != nil {
+		return nil, err
+	}
+	if !ordinary {
+		return auditservice.AllocationEngagementAdapterRequirements(ctx, a.pool, runID, stageID, usesHTTP, a.storage)
+	}
+	if pin != nil && usesHTTP {
+		return []runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterHTTPTarget}, nil
+	}
+	return nil, nil
 }
 
 func (a *Adapter) WithPreparedSpec(ctx context.Context, reservation controlplane.Reservation, spec control.AllocationSpec, dispatch func(control.AllocationSpec) (contracts.WorkerHandle, error)) (contracts.WorkerHandle, error) {

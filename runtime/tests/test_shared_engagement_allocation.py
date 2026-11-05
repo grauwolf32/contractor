@@ -71,7 +71,7 @@ def test_shared_engagement_prepare_reads_metadata_and_rejects_target_transport(
         assert await service.prepare(spec) == first
         changed = spec.model_copy(deep=True)
         assert changed.engagement is not None
-        changed.engagement.audit_id = "foreign-audit"
+        changed.engagement.engagement_digest = "sha256:" + "f" * 64
         with pytest.raises(AllocationError, match="differs from the active allocation"):
             await service.prepare(changed)
         await service.finalize(

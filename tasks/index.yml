@@ -33,6 +33,9 @@ execution_policy:
     replaces numbered source slots/continuation assumptions. The dated assignment starts V64-033/034 only;
     dependent V64-008/010/011 gates and demo deployment remain unassigned.
     Preserve V64-013 completion history; it does not prove the new contract.
+    User decision 2026-11-05 authorizes V449-001: ordinary Runs select engagement
+    through an explicitly typed Workflow input, reusing exact input forks and
+    allocation preparation with credential authorization and lifecycle accounting.
     User decision 2026-11-04 authorizes V444-001/002/003 after landing their tasks
     on main: engagement owns only egress, traffic limits and identities. Remove
     blackbox/source-assisted modes and nested materials/Audit budgets, preserve no
@@ -214,6 +217,9 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
+  - id: standalone-run-engagement
+    exit_task: V449-001
+    outcome: Ordinary projectless and Project Runs apply a pinned typed engagement input with validated credentials and controlled allocation-local HTTP execution, verified through real PostgreSQL and Server/Runtime traffic.
   - id: contracts-review-2026-11
     exit_task: V447-004
     outcome: Private contracts reject malformed endpoint ports, explicit zero limits and alternate wire names consistently; large Audit contexts share the same structural budget, with lean shared decoders and domain ownership.

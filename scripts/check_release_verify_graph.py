@@ -33,6 +33,7 @@ EXPECTED_PROCESS_TESTS = {
     "TestEngagementHTTPLifecycleAcrossProcesses",
     "TestEngagementIdentitySessionsAcrossProcesses",
     "TestEngagementIdentityLifecycleAcrossProcesses",
+    "TestEngagementOrdinaryRunAcrossProcesses",
     "TestNucleiWebWithDeterministicScannerAcrossProcesses",
     "TestAgentSkillsMVPProcesses",
     "TestArtifactHistoryAcrossProductionProcesses",

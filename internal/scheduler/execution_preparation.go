@@ -429,7 +429,7 @@ func resolvedCredentialError(token contracts.SecretString, err error) error {
 func (s *Scheduler) credentialFailure(
 	run runstore.WorkflowRun, execution runstore.StageExecution, code, message string, err error,
 ) planner.Failure {
-	retryable, cause := classifyCredentialError(err)
+	retryable, cause, _ := classifyCredentialError(err)
 	s.options.Logger.Warn(
 		message,
 		"run_id", run.RunID, "stage_execution_id", execution.StageExecutionID,
@@ -438,22 +438,26 @@ func (s *Scheduler) credentialFailure(
 	return planner.Failure{Code: code, Message: message, Retryable: retryable}
 }
 
-func classifyCredentialError(err error) (bool, string) {
+// classifyCredentialError also reports whether the cause belongs to its known
+// credential/context/storage classes. Other infrastructure failures keep their
+// caller-owned default instead of becoming permanent configuration failures.
+// A confirmed permanent credential cause wins over a joined cleanup timeout.
+func classifyCredentialError(err error) (bool, string, bool) {
 	switch {
-	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-		return true, "context_ended"
 	case errors.Is(err, credentials.ErrNotFound), errors.Is(err, credentials.ErrRuntimeCredentialNotFound):
-		return false, "credential_not_found"
+		return false, "credential_not_found", true
 	case errors.Is(err, credentials.ErrInvalid), errors.Is(err, credentials.ErrRuntimeCredentialInvalid),
 		errors.Is(err, errEmptyCredential):
-		return false, "credential_invalid"
+		return false, "credential_invalid", true
 	case errors.Is(err, credentials.ErrCrypto), errors.Is(err, credentials.ErrKeyUnavailable):
-		return false, "credential_unreadable"
+		return false, "credential_unreadable", true
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return true, "context_ended", true
 	}
 	if persistencepostgres.IsTransientFailure(err) {
-		return true, "storage_unavailable"
+		return true, "storage_unavailable", true
 	}
-	return false, "configuration_unavailable"
+	return false, "configuration_unavailable", false
 }
 
 // Credential lookup is a store operation, separate from the Runtime batch

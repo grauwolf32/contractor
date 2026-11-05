@@ -1373,8 +1373,8 @@ Cookie/Authorization on origin change. 303 and POST 301/302 change the method to
 GET and drop body/content headers. No request settlement or journal RPC occurs.
 
 **HTP-R140.** `http_request` has a separate optional `credential_id`. The exact
-ID selects one immutable credential assigned to this Audit. Omission applies
-no Audit credential and uses the anonymous cookie jar; no URL-based selection
+ID selects one immutable credential assigned to this allocation. Omission applies
+no assigned credential and uses the anonymous cookie jar; no URL-based selection
 or Project auth/checkpoint inheritance occurs. Selected credentials cannot be
 combined with manual Cookie/Authorization. Missing/foreign IDs fail before
 target bytes, without fallback. HTTP tools share the
@@ -1382,7 +1382,7 @@ allocation-owned controlled transport and isolate jars by credential and exact
 origin. Credential material arrives only via private prepare (CTL-R168).
 Supplied cookies start host-only; response Domain cannot authorize sibling
 origins. The common HTTP session core owns matching, encoding, validation,
-expiry and bounds; controlled Audit writes no cookie checkpoint.
+expiry and bounds; controlled HTTP writes no cookie checkpoint.
 
 **HTP-R141.** Configured material proves no observed principal. Role/tenant
 remain declarations. 401/403 and other received statuses are completed HTTP

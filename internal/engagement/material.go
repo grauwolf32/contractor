@@ -1,13 +1,13 @@
-package auditservice
+package engagement
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
 
 type engagementMaterialResolver interface {
@@ -15,7 +15,7 @@ type engagementMaterialResolver interface {
 }
 
 // MaterializeHTTPIdentities consumes only the trusted allocation projection
-// resolved from its Run binding and immutable held Audit baseline. Caller input
+// resolved from its Run binding and immutable held policy. Caller input
 // never supplies a credential ID at this boundary. The existing credential
 // lifecycle fence protects each synchronous decrypt/copy operation.
 func MaterializeHTTPIdentities(ctx context.Context, resolver engagementMaterialResolver, projection *engagementcontract.AllocationProjection) (map[string]runtimesettings.HTTPIdentityMaterial, error) {
@@ -23,7 +23,7 @@ func MaterializeHTTPIdentities(ctx context.Context, resolver engagementMaterialR
 		return nil, nil
 	}
 	result := map[string]runtimesettings.HTTPIdentityMaterial{}
-	fail := func() (map[string]runtimesettings.HTTPIdentityMaterial, error) {
+	fail := func(cause error) (map[string]runtimesettings.HTTPIdentityMaterial, error) {
 		for id, material := range result {
 			clear(material.Fields)
 			delete(result, id)
@@ -31,43 +31,43 @@ func MaterializeHTTPIdentities(ctx context.Context, resolver engagementMaterialR
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		return nil, fmt.Errorf("engagement private identity material is unavailable")
+		return nil, persistencepostgres.WrapError("engagement private identity material is unavailable", cause)
 	}
 	for _, identity := range projection.HTTP.Identities {
 		if identity.Credential == nil {
 			continue
 		}
 		if resolver == nil {
-			return fail()
+			return fail(nil)
 		}
 		ref := *identity.Credential
 		err := resolver.UsePlaintext(ctx, ref.CredentialID, []runtimesettings.RuntimeCredentialKind{ref.Kind}, func(kind runtimesettings.RuntimeCredentialKind, data []byte) error {
 			material := runtimesettings.HTTPIdentityMaterial{Credential: ref}
 			if kind != ref.Kind {
-				return ErrInvalid
+				return contracts.Invalidf("engagement identity material is invalid")
 			}
 			if kind == runtimesettings.RuntimeCredentialTargetCookies {
 				var body struct {
 					Cookies map[string]contracts.SecretString `json:"cookies" strictjson:"required"`
 				}
 				if strictjson.DecodeNonNull(data, &body) != nil {
-					return ErrInvalid
+					return contracts.Invalidf("engagement identity material is invalid")
 				}
 				material.Fields = body.Cookies
 			} else {
 				if strictjson.DecodeNonNull(data, &material.Fields) != nil {
-					return ErrInvalid
+					return contracts.Invalidf("engagement identity material is invalid")
 				}
 			}
 			if material.Validate() != nil {
 				clear(material.Fields)
-				return ErrInvalid
+				return contracts.Invalidf("engagement identity material is invalid")
 			}
 			result[identity.ID] = material
 			return nil
 		})
 		if err != nil {
-			return fail()
+			return fail(err)
 		}
 	}
 	if len(result) == 0 {

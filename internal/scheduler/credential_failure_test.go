@@ -31,6 +31,8 @@ func TestCredentialFailuresClassifyRetryabilityAndLogSafeCause(t *testing.T) {
 	}{
 		{"not found", credentials.ErrNotFound, false, "credential_not_found"},
 		{"runtime not found", fmt.Errorf("%w: %s", credentials.ErrRuntimeCredentialNotFound, secret), false, "credential_not_found"},
+		{"runtime missing with cleanup deadline", errors.Join(credentials.ErrRuntimeCredentialNotFound, context.DeadlineExceeded), false, "credential_not_found"},
+		{"runtime missing with cleanup cancellation", errors.Join(credentials.ErrRuntimeCredentialNotFound, context.Canceled), false, "credential_not_found"},
 		{"invalid", fmt.Errorf("%w: %s", credentials.ErrInvalid, secret), false, "credential_invalid"},
 		{"crypto", credentials.ErrCrypto, false, "credential_unreadable"},
 		{"deadline", context.DeadlineExceeded, true, "context_ended"},

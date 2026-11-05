@@ -1,0 +1,73 @@
+schema_version: "1.0"
+id: V449-003
+title: Integrate ordinary Run engagement with current main input preparation
+milestone: standalone-run-engagement
+epic: execution-core
+kind: chore
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go, python]
+goal: >-
+  Main contains the ordinary Run engagement feature and permanent credential
+  failure fix together with its current shared input preparation and Audit work.
+context:
+  authority: User request 2026-11-05 explicitly authorizes merging the engagement branch into main.
+  review: >-
+    Source c5bbf8e7db5b35c0c855ec452de01b9468b21076 and main
+    81d2d116013dcffb3aa12d292b6a10e4ecf33dc6 diverged after
+    7ee563eda667814a999018d03f1bc72e35c00c1a.
+  finding: >-
+    Main now owns shared checked input preparation, material-set inputs,
+    migrations 000009/000010 and independent V448-001/002 storage tasks.
+    The unmerged engagement branch uses the same task and migration numbers
+    and the earlier Run input fork loop.
+  specification:
+    - docs/spec/execution/runs.md#RUN-R112
+    - docs/spec/artifacts/artifact-store.md
+  boundary: >-
+    Retain ArtifactStore's shared checked preparation and exact fork ownership.
+    RunService supplies the exact authorized policy selection to that path;
+    the existing allocation and credential owners retain their responsibilities.
+scope:
+  in:
+    - Merge with main as first parent and preserve both sets of input behavior.
+    - Rename the unmerged engagement tasks to V449-001/002, preserving implementation hashes and recording old IDs.
+    - Allocate migration 000011 to the new engagement credential column and regenerate derived files.
+    - Verify the combined tree and fast-forward the clean main checkout to the reviewed merge and delivery records.
+  out:
+    - New policy behavior, backward compatibility, demo database migration or remote publication.
+acceptance_criteria:
+  - id: A1
+    text: Both source implementation commits and the previous main head are ancestors of main through an explicit no-fast-forward merge.
+  - id: A2
+    text: Engagement exact selection and rejection of undeclared policy inputs coexist with shared material-set preparation; task IDs and sequential migration numbers are unique.
+  - id: A3
+    text: Relevant real-PostgreSQL Go suites, public and wire contracts, engagement process gates, lint and architecture/configuration checks pass on the combined tree.
+  - id: A4
+    text: Delivery records report integration evidence and local-only main status; user changes are preserved and the owned disposable test database is dropped after testing.
+tests:
+  - command: go test -tags=integration -count=1 ./internal/engagement ./internal/scheduler ./internal/runservice ./internal/runstore ./internal/credentials ./internal/controlplane/... ./internal/auditservice ./internal/artifacts ./internal/contracts/... ./internal/app ./internal/httpapi/public ./internal/archtest ./internal/auditcontroller ./internal/evalservice
+    covers: [A2, A3]
+  - command: make test-wire-cross-language verify-public-api verify-public-api-postgres
+    covers: [A2, A3]
+  - command: make test-engagement-http-process test-nuclei-engagement
+    covers: [A2, A3]
+  - command: make lint test-config verify-architecture
+    covers: [A2, A3]
+  - command: git merge-base --is-ancestor 3bd8ee4ec5eca41c724b9c691cf0d2ae8639eba4 main
+    covers: [A1, A4]
+verification:
+  date: 2026-11-05
+  environment: Real disposable UTF-8 PostgreSQL over TCP, serial Go packages, canonical temporary paths; no demo migration.
+  passed:
+    - The complete listed Go integration package command passed, including deletion/resume and permanent Scheduler failure regressions.
+    - Combined Project and projectless Runs admit a full 32-member material set alongside the exact engagement policy and retain its credential authority; a material-set declaration cannot itself become the policy slot.
+    - make test-wire-cross-language; 376 fixtures, 413 Go and 264 Python shared tests, 1492 selected Runtime tests passed.
+    - make verify-public-api verify-public-api-postgres; public operations and PostgreSQL race checks passed.
+    - make test-engagement-http-process; 42 process, 2 accounting and 157 Runtime cases passed with zero selected skips.
+    - make test-nuclei-engagement; the real installed Nuclei process and 41 Runtime cases passed.
+    - make lint test-config verify-architecture; generators reproduced clients, dependency graph and the eleven-migration ERD.
+  process_report: reports/engagement-http/run-5_m000b9/result.json
+  optional_skips: Named disk-heavy fixtures remained disabled under repository policy; the shared-fixture gate reported one optional skip, which is not passing coverage.
+  not_run: Full release-verify, the entire Runtime suite and live-model checks were not run.

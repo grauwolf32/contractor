@@ -681,6 +681,11 @@
       "type": "AllocationSpec",
       "schema": "allocation.schema.json",
       "strict": true
+    },
+    "allocation-spec-engagement-removed-auditId.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
     }
   }
 }

@@ -32,7 +32,7 @@ func (p HTTPAssignment) Validate() error {
 	if p.Limits != nil && p.Limits.Validate() != nil {
 		return contracts.Invalidf("controlled HTTP limits are invalid")
 	}
-	if p.Adapter != runtimesettings.RuntimeAdapterHTTPTarget || len(p.Routes) < 1 || len(p.Routes) > 128 || p.Exclusions == nil || len(p.Exclusions) > 128 || len(p.Identities) < 1 || len(p.Identities) > 8 || len(p.ProtectedDestinations) < 1 || len(p.ProtectedDestinations) > 256 {
+	if p.Adapter != runtimesettings.RuntimeAdapterHTTPTarget || len(p.Routes) < 1 || len(p.Routes) > 128 || p.Exclusions == nil || len(p.Exclusions) > 128 || len(p.Identities) < 1 || len(p.Identities) > MaxIdentities || len(p.ProtectedDestinations) < 1 || len(p.ProtectedDestinations) > 256 {
 		return contracts.Invalidf("controlled HTTP assignment is invalid")
 	}
 	seen := map[string]bool{}

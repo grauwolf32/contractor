@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
 	"github.com/grauwolf32/contractor/internal/credentials"
+	"github.com/grauwolf32/contractor/internal/engagement"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -42,18 +43,12 @@ func readEngagement(ctx context.Context, service *artifacts.Service, projectID s
 	if err != nil {
 		return nil, err
 	}
-	// Check metadata before loading bytes; an oversized engagement is rejected
-	// even when selected by an earlier draft.
-	if selected.artifact.SizeBytes > engagementcontract.MaxDocumentBytes {
-		return nil, fmt.Errorf("%w: engagement exceeds its byte limit", ErrInvalid)
+	document, err := engagement.Read(ctx, store, selected.artifact)
+	if errors.Is(err, contracts.ErrValidation) {
+		return nil, fmt.Errorf("%w: engagement failed validation", ErrInvalid)
 	}
-	read, err := store.ReadExact(ctx, selected.artifact)
 	if err != nil {
 		return nil, err
-	}
-	document, err := engagementcontract.Decode(read.Payload.Data)
-	if err != nil {
-		return nil, fmt.Errorf("%w: engagement failed validation", ErrInvalid)
 	}
 	selected.document = document
 	for _, identity := range document.Identities {
@@ -108,21 +103,21 @@ func engagementCompatibility(profile auditprofile.PinnedProgram, activeChecks co
 }
 
 func validateEngagementBaseline(baseline BaselineSnapshot) error {
-	engagement := baseline.Engagement
-	if engagement == nil {
+	pin := baseline.Engagement
+	if pin == nil {
 		return nil
 	}
 	matched := false
 	for _, input := range baseline.Inputs {
-		matched = matched || (input.Verify(engagement.Artifact) == nil && input.MediaType == engagementcontract.MediaType)
+		matched = matched || (input.Verify(pin.Artifact) == nil && input.MediaType == engagementcontract.MediaType)
 	}
 	if !matched {
 		return fmt.Errorf("%w: engagement is not an exact baseline input", ErrInvalid)
 	}
-	if engagement.Schema != auditbaseline.EngagementSchema || engagement.Artifact.Validate() != nil || !engagement.Artifact.HasMetadata() || engagement.Artifact.MediaType != engagementcontract.MediaType || engagement.Document.Validate() != nil || engagement.AuthorizedBy == "" || engagement.AuthorizedAt.IsZero() {
+	if pin.Schema != auditbaseline.EngagementSchema || pin.Artifact.Validate() != nil || !pin.Artifact.HasMetadata() || pin.Artifact.MediaType != engagementcontract.MediaType || pin.Document.Validate() != nil || pin.AuthorizedBy == "" || pin.AuthorizedAt.IsZero() {
 		return fmt.Errorf("%w: engagement baseline is invalid", ErrInvalid)
 	}
-	for _, identity := range engagement.Document.Identities {
+	for _, identity := range pin.Document.Identities {
 		if identity.Credential != nil && !slices.Contains(baseline.RuntimeCredentialIDs, identity.Credential.CredentialID) {
 			return fmt.Errorf("%w: engagement credential is not held", ErrInvalid)
 		}
