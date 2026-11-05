@@ -9,6 +9,11 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
+    User request 2026-11-05 delivered on 2026-11-06: V449-003 integrates ordinary
+    Run engagement (V449-001) and permanent missing-credential preparation failure
+    (V449-002) into main through a no-fast-forward merge. Exact policy inputs use
+    shared Artifact preparation alongside material sets; local real-store, wire,
+    API and process verification passed. Optional disk-heavy fixtures stayed disabled.
     User request 2026-11-05 authorizes --no-ff integration of the completed
     hypothesis implementation branch into main. This merge records that delivery;
     deployment and dependent implementation remain unassigned. Compatibility

@@ -5,7 +5,7 @@ milestone: standalone-run-engagement
 epic: execution-core
 kind: chore
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [go, python]
 goal: >-
@@ -71,3 +71,15 @@ verification:
   process_report: reports/engagement-http/run-5_m000b9/result.json
   optional_skips: Named disk-heavy fixtures remained disabled under repository policy; the shared-fixture gate reported one optional skip, which is not passing coverage.
   not_run: Full release-verify, the entire Runtime suite and live-model checks were not run.
+delivery:
+  date: 2026-11-06
+  branch: codex/engagement-run-main-integration
+  merged_into_main: true
+  merge_commit: dfd806fa489e6ae40226e9ebf3c2e3528a9d1a4f
+  previous_main: 81d2d116013dcffb3aa12d292b6a10e4ecf33dc6
+  source_head: 270254685a36538e7185528c6bf1e3bab37b80b4
+  ancestry: Previous main and both primary engagement implementation commits were verified as ancestors of main; the merge has main as its first parent.
+  cleanup: The owned disposable PostgreSQL database had no remaining connections, was dropped and verified absent; its private cluster was stopped.
+  worktrees: The primary main checkout was clean before and after fast-forwarding to the prepared no-fast-forward merge.
+  pushed: false
+implementation_commit: dfd806fa489e6ae40226e9ebf3c2e3528a9d1a4f

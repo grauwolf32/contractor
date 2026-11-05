@@ -134,7 +134,7 @@ verification:
     - make verify-public-api verify-public-api-postgres; public contract and real PostgreSQL race checks passed.
     - make test-engagement-http-process; 42 process, 2 accounting and 157 Runtime cases passed with zero selected skips.
     - make test-nuclei-engagement; real Nuclei process and 41 Runtime bridge/transport cases passed.
-    - make lint test-config verify-architecture; generated clients, dependency graph and nine-migration ERD are current.
+    - make lint test-config verify-architecture; generated clients, dependency graph and nine-migration ERD were current on the source branch; integration regenerated the eleven-migration ERD.
     - Runtime contract modules and metadata prepare tests passed; Ruff checks and formatting passed.
   process_report: reports/engagement-http/run-6gfo0vik/result.json
   real_store_evidence: >-
@@ -147,6 +147,8 @@ verification:
   not_run: Full release-verify and the entire Runtime suite were not run for this scoped change.
 delivery:
   branch: codex/engagement-run-input
-  merged_into_main: false
+  merged_into_main: true
+  merge_commit: dfd806fa489e6ae40226e9ebf3c2e3528a9d1a4f
+  integration_task: tasks/done/v449-003-integrate-run-engagement-main.yml
   pushed: false
 implementation_commit: 02f42fc3dbc7a544048516b947f3004369a539ab
