@@ -1,0 +1,121 @@
+schema_version: "1.0"
+id: V448-001
+title: Apply an explicitly selected engagement input to ordinary Runs
+milestone: standalone-run-engagement
+epic: execution-core
+kind: feature
+priority: P1
+status: in_progress
+depends_on: [V444-003]
+languages: [go, python]
+goal: >-
+  An owner starts an ordinary projectless or Project Run with an engagement
+  material and its egress, HTTP limits and identities govern controlled HTTP
+  allocations without creating an Audit.
+demonstration: >-
+  Create a typed engagement Artifact and start an ordinary HTTP Workflow with
+  that input through the public API. Real Server and Runtime traffic obeys the
+  selected route and local limit; changing the source or editable input cannot
+  broaden the accepted policy. PostgreSQL usage checks protect its credentials.
+context:
+  authority: >-
+    User decision 2026-11-05 accepts engagement as a typed Workflow input Artifact,
+    pinned through existing Run input binding, with Server credential validation
+    and private allocation projection. User requests implementation. No backward
+    compatibility. Earlier decision 2026-11-04 limits engagement to egress, HTTP
+    traffic limits and identities.
+  specification:
+    - docs/spec/execution/runs.md#RUN-R3
+    - docs/spec/tools/http-caido.md#HTP-R137
+    - docs/spec/configuration/runtime-config.md
+    - docs/spec/artifacts/artifact-store.md#ART-R133
+  boundary: >-
+    ArtifactStore owns revision, fork lineage and payload integrity; RunService
+    owns selecting and authorizing an explicitly typed input at creation;
+    RunStore owns immutable non-secret credential dependency IDs; existing
+    credential usage checks own deletion fences; Control Plane preparation owns
+    private projection and secret injection; Runtime owns controlled HTTP.
+    Audit retains its existing Start baseline authority and credential holds;
+    both producers use the same projection and materialization rules.
+  alternatives: >-
+    A new top-level Run engagement field and duplicate policy snapshot were
+    rejected in favor of existing input binding. Reopen only if a concrete
+    requirement needs policy selection without a Workflow input declaration.
+scope:
+  in:
+    - Recognize at most one explicitly engagement-only Workflow input, independent of slot name.
+    - Validate bounded exact policy bytes and credential ownership/kind before atomic Run acceptance.
+    - Resolve allocation policy from the original Run input fork, never the editable current binding.
+    - Include policy credential references in active Run and unreleased allocation usage checks.
+    - Share allocation projection/materialization with Audit and remove the unused mandatory private auditId field.
+    - Update specifications, shared wire fixtures and real-store/process verification.
+  out:
+    - Sandbox/VPN/browser enforcement, shared cross-allocation quotas and new UI setup journeys.
+    - Replacing Audit Start authorization, task mapping or its baseline retention mechanism.
+    - A new public request field, feature-specific store, receipt or generic dependency injection framework.
+requirements:
+  - id: R1
+    text: >-
+      The existing artifacts map selects the input in UserScope for projectless
+      Runs and ProjectScope for Project Runs. Source metadata is checked before
+      loading at most MaxDocumentBytes. Ambiguous or mixed-media engagement slots,
+      invalid documents and uncontrolled network capabilities fail before commit.
+  - id: R2
+    text: >-
+      Existing create idempotency remains replay-first. Validation, credential
+      references and exact input forks commit atomically under the existing
+      credential lifecycle barrier; transaction callbacks use transaction-bound
+      credential lookups, including with MaxConns=1.
+  - id: R3
+    text: >-
+      Allocation resolution verifies Run/Stage ownership, immutable Workflow
+      declaration, original input revision/digest and its credential dependency
+      set. Source edits, input working-copy edits and produced policy documents
+      do not change authority. Project default credentials add no identity.
+  - id: R4
+    text: >-
+      Credentials remain protected while the Run is active or any allocation is
+      unreleased. A stored draft Artifact alone holds no credentials. Policy
+      bytes are not duplicated in a Run snapshot; secrets exist only in existing
+      encrypted storage and private allocation memory.
+failure_outcomes:
+  - operation: Create or prepare a policy-governed ordinary Run
+    permanent: Invalid input is invalid_request (400); inaccessible credentials use the existing safe not-found outcome; no Run/forks survive rejected creation.
+    retryable: Existing storage_transaction_conflict (503) and credential recovery outcomes retain their bounded retry policy.
+    ambiguous: Replay the existing owner/idempotency key and digest; never create another Run or fork.
+    cancelled: Creation rolls back; private preparation clears copied secrets and existing allocation cleanup joins Runtime work.
+    timeout: Existing request, transaction, private preparation and HTTP deadlines remain separately owned.
+cardinality:
+  - collection: Selected engagement and nested credential dependencies
+    expected: One policy with one anonymous and a few authenticated identities.
+    maximum: One typed slot, 4 MiB policy, 128 routes, 128 exclusions and eight identities under existing contract limits.
+    bound: Only declared input metadata and one exact payload are read; credential usage uses indexed bounded queries rather than scanning Artifact payloads or Run history.
+lifecycle:
+  - entity: Original Run input and non-secret credential references
+    delete: Existing owner Run deletion and Artifact purge rules; credential deletion is blocked by active Runs or unreleased allocations.
+    cascade: Ordinary Run purge removes its forks and row-owned references.
+    retention: Exact policy follows input fork retention; credential holds end when Run is terminal and allocations are released.
+acceptance_criteria:
+  - id: A1
+    given: A projectless or Project Run with an explicitly typed policy input.
+    when: The owner starts and executes its HTTP Workflow.
+    then: The same existing public API creates the Run and real controlled HTTP enforces selected egress and local limits without Audit authority.
+  - id: A2
+    given: Invalid policy, ambiguous declaration, foreign/missing/wrong-kind credential or concurrent credential deletion.
+    when: Creation runs through real PostgreSQL including a single-connection pool.
+    then: Rejection is safe and atomic; accepted references block deletion, with bounded reads and unchanged replay semantics.
+  - id: A3
+    given: An accepted policy and changed source/current input, or a mismatched Stage.
+    when: An allocation is prepared or re-prepared.
+    then: Only the original selected revision and held credentials are authorized; invalid ownership/integrity fails before secret delivery.
+  - id: A4
+    given: Existing Audit and ordinary Run allocation contracts.
+    when: Shared Go/Python fixtures and process suites run.
+    then: Audit authority remains enforced, auditId is strictly rejected as removed, and existing cancellation/material cleanup remains verified.
+tests:
+  - command: go test ./internal/runservice ./internal/runstore ./internal/credentials ./internal/controlplane/... ./internal/auditservice ./internal/engagement ./internal/contracts/... ./internal/app ./internal/httpapi/public ./internal/archtest
+    covers: [A1, A2, A3, A4]
+  - command: make test-wire-cross-language verify-public-api verify-public-api-postgres test-engagement-http-process test-nuclei-engagement
+    covers: [A1, A3, A4]
+  - command: make lint test-config verify-architecture
+    covers: [A1, A2, A3, A4]
