@@ -353,13 +353,17 @@ def test_publication_failure_preserves_primary_process_error(tmp_path, monkeypat
 def test_binary_version_probe_only_disables_unsupported_katana(
     tmp_path, monkeypatch, version, exit_code, accepted, stream
 ):
-    executable(
-        tmp_path,
-        "katana",
-        f"import sys; print('Current version: v{version}', file=sys.{stream}); "
-        f"raise SystemExit({exit_code})",
-    )
-    executable(tmp_path, "naabu", "print('fixture')")
+    # Fixed-output probes exercise version acceptance, not interpreter startup.
+    for binary, command in {
+        "katana": (
+            f"printf '%s\\n' 'Current version: v{version}' >&"
+            f"{1 if stream == 'stdout' else 2}; exit {exit_code}"
+        ),
+        "naabu": "printf '%s\\n' 'fixture'",
+    }.items():
+        path = tmp_path / binary
+        path.write_text(f"#!/bin/sh\n{command}\n")
+        path.chmod(0o700)
     monkeypatch.setenv("PATH", str(tmp_path))
     available = asyncio.run(scan.ScanToolsetFactory().probe())
     assert available == ({"scan_naabu", "scan_katana"} if accepted else {"scan_naabu"})
