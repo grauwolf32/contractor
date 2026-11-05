@@ -1,0 +1,138 @@
+{
+  "task": "V64-034",
+  "date": "2026-11-05",
+  "status": "in_progress",
+  "implementation_ready_for_review": true,
+  "implementation_commits": [
+    "4836d63a3d0b6fe5e28b0cae981c72d56922a7b3",
+    "76356bb3cc0bb1774ecd2bc181d01b43b66db361"
+  ],
+  "branch": "codex/audit-hypothesis-generation",
+  "merged_to_main": false,
+  "integrated_main": "7ee563eda667814a999018d03f1bc72e35c00c1a",
+  "document_commit": "7cb43ae863c958f565f6a80f276a4fc688452f79",
+  "outcome": "Workflow-selected native materials, exact retained grounds, in-Run selections and configured roles replace source_XX/pre-Run Task-slice context. Existing successful-Run receipt and lifecycle paths remain authoritative.",
+  "remaining": "Required full Runtime gate has no passing final run. Current failures are intermittent pre-existing allocation/scanner test timeouts/capability-probe losses; a separate gate reliability correction needs scope direction. V64-034 is not closed.",
+  "migration_ledger": "Disposable contractor_v64034 loaded all ten migrations. Main 000008 unchanged; 000009 retains the cursor and 000010 indexes settled external sources. ERD rebuilt: 73 tables, 95 foreign keys.",
+  "checks": [
+    {
+      "command": "go test -p 2 -tags=integration -count=1 ./internal/auditdomain ./internal/auditstore/... ./internal/auditservice ./internal/auditcontroller ./internal/auditimport ./internal/runservice/... ./internal/artifacts/... ./internal/findingintake/... ./internal/contracts/... ./internal/config/... ./internal/configload/... ./internal/persistence/postgres",
+      "status": "passed",
+      "result": "Complete selected package suites passed with real disposable PostgreSQL. Both SQL plan modes remain bounded on 100000 Tasks; the 33-result tail is preserved.",
+      "log": "/tmp/v64034-go-full3.log",
+      "log_digest": "sha256:e0bdc949cb73f6d88485ed422085b1059f0ce84980c76462f9d33887335e36ef"
+    },
+    {
+      "command": "go test -p 2 -tags=integration -count=1 ./internal/auditcontroller ./internal/auditservice",
+      "status": "passed",
+      "result": "Final owners passed in full: exact grounds, full source ceiling and alias dedup, manual edit retention, actual producer Run deletion, fresh-store receipt replay, complete Audit purge and surviving Project publication.",
+      "log": "/tmp/v64034-owners-final.log",
+      "log_digest": "sha256:2ca039abcfaa71673fdb7b5758d6fb3a9415f440c3a5bc690dde9073b9b283f1"
+    },
+    {
+      "command": "make lint verify-public-api verify-public-api-postgres",
+      "status": "passed",
+      "result": "Whole lint and both public API gates passed. The final namespace-only correction also passed Ruff and the complete namespace ownership module.",
+      "log": "/tmp/v64034-quality2.log",
+      "log_digest": "sha256:b7790428d2d9b80ee877f8ce1bc0ca394949824f9c9be2ac70e49c3dedf6ad39"
+    },
+    {
+      "command": "make test-wire-cross-language",
+      "status": "passed",
+      "result": "389 Runtime wire tests; 375 fixtures, 411 Go and 264 Python shared tests; 1491 selected Python cases passed.",
+      "log": "/tmp/v64034-wire-final.log",
+      "log_digest": "sha256:7f6f082faef0c3409f15eecb2ce6f79ca866f25cf561b85d26d50ee774f21401"
+    },
+    {
+      "command": "make test-audit-basic-e2e",
+      "status": "passed",
+      "result": "All 12 mandatory process cases, no selected skips, on clean 76356bb3c. The extended case consumes a 17-member set, reads architecture and an exact negative check, selects a Project Finding during Run, proposes two hypotheses and one checking Task, then settles an empty continuation. Renamed Workflow/context/output use the same path.",
+      "log": "/tmp/v64034-audit-gate-final.log",
+      "log_digest": "sha256:2cace153e617952e31e164d95fee70dd34ef97b063a1e95b6b9093a1320fef22"
+    },
+    {
+      "command": "cd ui && corepack pnpm exec vitest run --maxWorkers=2",
+      "status": "passed",
+      "result": "211 files, 2423 passed and one expected negative case. Generation check, lint, typecheck, 17 server tests and build also passed.",
+      "log": "/tmp/v64034-ui-tests.log",
+      "log_digest": "sha256:51dc4be0b78aeee42a17d74c4918afec84ad3846567226ca0c203334deb22655"
+    },
+    {
+      "command": "go run ./cmd/contractor server config validate --root ./configs",
+      "status": "passed",
+      "result": "27 Workflows, 29 AgentTemplates, 15 AuditProfiles and 41 instructions validated.",
+      "log": "/tmp/v64034-config.log",
+      "log_digest": "sha256:abab3bf6c26dabfbebd63bb45446888a400dcd9b3709985faa6a3c6247a5b7b6"
+    },
+    {
+      "command": "make test-runtime",
+      "status": "failed",
+      "result": "5895 passed, 135 skipped, one new namespace ownership guard failure; fixed in 76356bb3c.",
+      "log": "/tmp/v64034-runtime-full2.log",
+      "log_digest": "sha256:61443f4e7a2478be6fb70d45c22839a072c85ddb5eba09d8208657e3141c7c2a"
+    },
+    {
+      "command": "make test-runtime",
+      "status": "failed",
+      "result": "5895 passed, 135 skipped, existing SQLMap cancellation test exceeded its three-second marker wait.",
+      "log": "/tmp/v64034-runtime-full3.log",
+      "log_digest": "sha256:94c7875cb3600dfbad18a1bbabfa53a7e28dceac13829b1a816834660aa8e401"
+    },
+    {
+      "command": "make test-runtime",
+      "status": "failed",
+      "result": "5895 passed, 135 skipped, existing allocation resource preparation timeout.",
+      "log": "/tmp/v64034-runtime-full4.log",
+      "log_digest": "sha256:554f93ea65b087c4912763e99f82e6c175718d7b0ec67233a22fd53276d21ae5"
+    },
+    {
+      "command": "make test-runtime",
+      "status": "failed",
+      "result": "5894 passed, 135 skipped, two Katana version-test cases lost the expected Naabu capability. The /bin/sh fixture did not remove this intermittent probe failure.",
+      "log": "/tmp/v64034-runtime-full5.log",
+      "log_digest": "sha256:9543783374cbb7d81a70287e92868717a9f8985b25adb7919f13db9cb23560d4"
+    },
+    {
+      "command": "uv run --project runtime pytest runtime/tests/test_scan_katana.py::test_binary_version_probe_only_disables_unsupported_katana runtime/tests/test_scan_sqlmap_request.py::test_stopping_prepared_request_cleans_files_processes_and_metrics runtime/tests/test_allocation.py::test_release_retains_no_adapter_secret_or_session_credential -q",
+      "status": "passed",
+      "result": "All 33 selected cases pass in isolation; this does not replace the failed required full-suite result.",
+      "log": "/tmp/v64034-existing-timing-isolated.log",
+      "log_digest": "sha256:cb27fd7f42b6d224dfa05db3fc71777af0a383bcb32d6cfe1be44ebfcab22739"
+    }
+  ],
+  "process_gate": {
+    "status": "passed",
+    "case_set": "core",
+    "source": {
+      "revision": "76356bb3cc0bb1774ecd2bc181d01b43b66db361",
+      "dirty": false
+    },
+    "matrix": {
+      "path": "scripts/audit-basic-matrix.json",
+      "digest": "sha256:cc6c09a9ebc9196c3946c31fd2832a925a3c8fc7b24b9ab8b6246d72ccae811a"
+    },
+    "go": [
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditBasicExactHandoffAcrossProductionProcesses",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditBasicExactHandoffAcrossProductionProcesses/finding_false",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditBasicExactHandoffAcrossProductionProcesses/finding_true",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditCommonObservationProfilesAcrossProductionProcesses",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditCommonObservationProfilesAcrossProductionProcesses/observe",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditCommonObservationProfilesAcrossProductionProcesses/trace",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditCommonPrepared256PauseRestartAndCancelAcrossProcesses",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditFixedHypothesesAcrossProductionProcesses",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditHypothesisContinuationAcrossProductionProcesses",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditHypothesisContinuationAcrossProductionProcesses/initial=false",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditHypothesisContinuationAcrossProductionProcesses/initial=true",
+      "github.com/grauwolf32/contractor/tests/e2e/TestWorkflowMaterialSetsAcrossProductionProcesses"
+    ],
+    "reports": {
+      "go.jsonl": "sha256:1d1900359752ead05415c7272dd671d5f0a5dc803e1d0a4c2fca19fa56fc23bb"
+    }
+  },
+  "scope": [
+    "No new controller, receipt, store, live reader or model selection.",
+    "No demo deployment or main merge.",
+    "No source_XX compatibility path.",
+    "No scanner/allocation production code or deadline changed for V64-034."
+  ]
+}

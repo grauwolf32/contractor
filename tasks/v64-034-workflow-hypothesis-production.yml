@@ -21,6 +21,7 @@ demonstration: >-
   them after successful Run completion; the next Run receives its exact hypothesis.
   A later empty continuation settles without another generator invocation.
 context:
+  verification_evidence: tasks/evidence/v64-034-2026-11-05.json
   authority: >-
     User assignment 2026-11-05: continue on codex/audit-hypothesis-generation,
     integrate document commit 7cb43ae86 and current main, implement V64-033
@@ -32,8 +33,9 @@ context:
     The user requested a detailed spec and correction instructions, preserving
     the goal of reducing Audit complexity. Engineering decisions in proposal
     0054 retain after-success publication, explicit optional grounds, existing
-    receipts/readers and bounded continuation. Implementation is not assigned
-    by this planning update; no new immediate-write or Project-registry contract.
+    receipts/readers and bounded continuation. The earlier planning update alone
+    did not assign implementation; the explicit user assignment above does.
+    No immediate-write or Project-registry contract is added.
   proposal: docs/proposals/0054-workflow-hypothesis-production.md
   design: docs/plans/2026-11-05-hypothesis-workflow-correction.md
   specification:
@@ -62,7 +64,13 @@ context:
     error classification; paused/cancelling/deleting owner fences. The earlier
     review's migration 000008 collision must be resolved against current main
     before integration without changing an already applied main migration.
-  implementation_gate: Assigned 2026-11-05; V64-033 and all dependencies are complete. Implementation started after its passing real-process and Runtime proof. No demo or live-model changes.
+  implementation_gate: >-
+    Implementation is committed and reviewable at 76356bb3c. Go/PostgreSQL,
+    lint/public API, UI, wire and all 12 mandatory process cases passed.
+    The required full Runtime gate remains unproven: repeated final runs fail
+    different existing scanner/allocation timing cases. Do not close this task
+    until that listed command passes or the user changes the acceptance.
+    No demo or live-model changes; the branch is not merged into main.
 scope:
   in:
     - Replace remaining source_01 through source_16 configuration/service contracts with the V64-033 common input path.
@@ -201,7 +209,7 @@ tests:
   - command: make lint
     covers: [A6]
 test_prerequisites:
-  - Commands are future implementation acceptance, not results of this planning change.
+  - Actual checks, passing process proof and unresolved full Runtime results are recorded in context.verification_evidence.
   - Disposable real PostgreSQL is mandatory; missing database or zero matching mandatory cases is not a pass.
   - Extend existing process case inventories and release reports. Unit/integration tests use testdata fixtures, not live configs.
   - Run all touched package suites and consuming selectors. Live model quality remains outside deterministic acceptance.
