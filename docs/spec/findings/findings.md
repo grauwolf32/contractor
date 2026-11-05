@@ -1987,17 +1987,13 @@ and immutable bytes apply. These artifacts can be selected as ordinary exact
 Workflow inputs, retained in Audit or explicitly published to Project by their
 existing owners. A selection has no independent lifecycle or recursive transfer.
 
-**FND-R227.** Automatic blackbox reads require the source receipt's same-owner,
-same-Project Audit to pin explicit blackbox provenance. Unknown, removed or
-source-assisted provenance grants no blackbox disclosure. A live page containing
-restricted sources fails before exposure; a retained selection containing any
-restricted source fails atomically. First-source provenance governs the canonical
-claim preview; every selected independent receipt is checked before its bytes are
-captured. Explicit owner-selected ordinary collection inputs retain their declared
-input authority. File extensions, provider labels and JSON refs never grant access.
-Reopen provenance storage only if a concrete consumer needs automatic blackbox
-reads after its source Audit is purged; the current conservative denial is enforced
-by the source checks.
+**FND-R227.** Live Project Finding reads and explicit selections use the
+allocation's owner, Project, selected operations and existing lifecycle fences.
+Source Audit mode does not filter Project knowledge: no blackbox/source-assisted
+classification or provenance-based disclosure restriction exists. Reads grant
+no arbitrary Artifact access; only explicit exact selection captures bytes
+through the existing receipt/Artifact mechanism. Every selected source remains
+subject to the ordinary owner and Project authorization checks.
 
 **FND-R228.** `read_finding_selection` accepts one exact current-Run collection ref,
 then reuses ordinary reader preparation and bounded pages. All embedded documents

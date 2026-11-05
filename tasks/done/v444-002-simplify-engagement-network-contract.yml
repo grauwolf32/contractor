@@ -6,7 +6,7 @@ epic: http-tools
 kind: chore
 introduced_by: V411-002
 priority: P1
-status: pending
+status: completed
 depends_on: [V444-001, V439-003, V422-003]
 languages: [go, python, json, yaml, typescript]
 goal: Engagement describes allowed network use and identities while Workflow selection determines required execution capabilities.
@@ -36,6 +36,11 @@ context:
     required adapters; capability declarations cannot grant network authority.
     The egress block retains the current HTTP routes/exclusions semantics. Future
     sandbox/browser/non-HTTP enforcement extends its concrete owner separately.
+  placement_boundary: >-
+    Derive the existing stage-wide adapter union from actual bounded bindings with
+    one immutable baseline lookup. Prepare HTTP assignment per selected Worker.
+    Preserve this grain instead of introducing a per-binding placement framework;
+    reopen only for a concrete mixed Stage needing heterogeneous Runtime capacity.
   decision: >-
     Use one strict network document instead of retaining a broad passport with
     unused optional fields. Keep exact engagement digest and trusted authorization
@@ -89,5 +94,44 @@ tests:
     covers: [A1, A2, A4]
   - command: make test-runtime test-wire-cross-language test-engagement-http-process verify-public-api
     covers: [A1, A2, A3, A4]
+  - command: make test-nuclei-engagement
+    covers: [A2, A3]
   - command: make test-config lint
     covers: [A1, A2, A4]
+implementation_commit: 1b4b6fd94ec5033fd827fd20a944db09a8f5cd65
+verification:
+  date: "2026-11-05"
+  result: >-
+    The strict document is schema/egress/identities/optional limits. Selected HTTP
+    tools, identity/session operations and controlled Nuclei derive the HTTP owner;
+    offline preparation has no HTTP assignment. Exact Artifact/owner/time pins,
+    private credential holds, protected destinations and local limits are retained.
+  commands:
+    - command: make require-database
+      outcome: Passed against the dedicated disposable UTF8 PostgreSQL cluster.
+    - command: go test -tags=integration -count=1 ./internal/contracts/... ./internal/config/... ./internal/auditservice ./internal/controlplane/... ./internal/app ./internal/httpapi/public ./internal/publicclient/... ./internal/archtest ./internal/auditstore/... ./internal/findingintake ./tests/eval/audit_programs
+      outcome: All selected complete packages passed with the real test database configured.
+    - command: make test-wire-cross-language verify-public-api
+      outcome: Passed; 371 fixtures, 405 Go and 258 Python shared tests, with 1429 shared pytest cases passing.
+    - command: make test-engagement-http-process verify-public-api-postgres
+      outcome: Passed; 41 process, 2 PostgreSQL accounting and 157 Runtime cases, zero selected skips; public PostgreSQL API cases also passed under race instrumentation.
+    - command: make test-nuclei-engagement
+      outcome: Real Nuclei process passed and its 41 bridge/transport Runtime cases passed.
+    - command: go test -count=1 ./tests/e2e
+      outcome: Complete ordinary e2e verifier package passed.
+    - command: make test-runtime
+      outcome: Final full suite passed with warnings as errors; 5825 passed, 135 existing platform/environment skips; verify-runtime accepted the report.
+    - command: make test-config
+      outcome: Package suites and shipped catalog validation passed.
+    - command: make lint
+      outcome: Passed, including generated clients, spec/tasks, layers, test-only exports and release graph.
+    - command: make verify-architecture
+      outcome: LikeC4 validation passed.
+  earlier_attempts: >-
+    The first full Runtime run had 36 failures in one redirect diagnostic expectation
+    after correcting a duplicated word; all other 5789 tests passed. All 53 redirect
+    tests and the subsequent complete Runtime run passed after updating that expectation.
+    Earlier lint attempts found import spacing and a stale generated dependency graph;
+    both were corrected before the passing lint run. No URL admission or retry rule
+    was weakened.
+  public_boundary: No public API shape changed in this task; both generated clients remain current.

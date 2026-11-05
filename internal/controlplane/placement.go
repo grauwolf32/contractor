@@ -33,7 +33,7 @@ type PlacementRuntimeCredentialLookup interface {
 
 type PlacementAllocatorOptions struct {
 	Storage                       *artifactpostgres.Storage
-	AdditionalAdapterRequirements func(context.Context, string, string) ([]runtimesettings.RuntimeAdapterRef, error)
+	AdditionalAdapterRequirements func(context.Context, string, string, []BindingRequirement) ([]runtimesettings.RuntimeAdapterRef, error)
 	Pool                          *pgxpool.Pool
 	Registry                      *InMemoryRegistry
 	Gateways                      PlacementGatewayLookup
@@ -49,7 +49,7 @@ type PlacementAllocatorOptions struct {
 // Registry mutex; only compact compatibility edges cross that boundary.
 type PlacementAllocator struct {
 	storage                       *artifactpostgres.Storage
-	additionalAdapterRequirements func(context.Context, string, string) ([]runtimesettings.RuntimeAdapterRef, error)
+	additionalAdapterRequirements func(context.Context, string, string, []BindingRequirement) ([]runtimesettings.RuntimeAdapterRef, error)
 	pool                          *pgxpool.Pool
 	registry                      *InMemoryRegistry
 	gateways                      PlacementGatewayLookup
@@ -86,7 +86,7 @@ func (a *PlacementAllocator) ReserveAllContext(
 	// This read is outside Registry locks and pinning transactions. The owning
 	// baseline is immutable, so the same requirement survives placement retries.
 	if a.additionalAdapterRequirements != nil {
-		required, err := a.additionalAdapterRequirements(ctx, request.RunID, request.StageExecutionID)
+		required, err := a.additionalAdapterRequirements(ctx, request.RunID, request.StageExecutionID, request.Bindings)
 		if err != nil {
 			return nil, err
 		}

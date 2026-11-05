@@ -50,9 +50,9 @@ func TestNucleiEngagementAcrossProductionProcesses(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 	f := newEngagementIdentityAudit(t, h, []string{target.server.URL}, nil)
-	f.document.Scope.Routes = []engagementcontract.Route{engagementRoute(target.server.URL, "/allowed")}
+	f.document.Egress.Routes = []engagementcontract.Route{engagementRoute(target.server.URL, "/allowed")}
 	requests := uint32(2)
-	f.document.Budgets.TargetRequests = &requests
+	f.document.Limits.TargetRequests = &requests
 	f.addIdentity(t, "scanner", "bearer", credential)
 	draft := f.draft(t)
 	stage := engagementRequestStage(nil)

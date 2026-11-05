@@ -83,16 +83,14 @@ func (p *CollectionPublisher) publishCollection(ctx context.Context, params Publ
 		}
 		service := artifacts.NewService(p.storage.Repository(tx))
 		user, err := service.User(params.OwnerID)
-		blackbox := false
 		if allocation != nil {
-			owner, project, restricted, accessErr := p.allocationReaderContext(ctx, tx, *allocation, "select_project_findings")
+			owner, project, accessErr := p.allocationReaderContext(ctx, tx, *allocation, "select_project_findings")
 			if accessErr != nil {
 				return accessErr
 			}
 			if owner != params.OwnerID || len(request.Sources) != 1 || request.Sources[0].Kind != "project" || request.Sources[0].ID != project {
 				return ErrAccessDenied
 			}
-			blackbox = restricted
 			user, err = service.Run(allocation.RunID)
 		}
 		if err != nil {
@@ -106,7 +104,7 @@ func (p *CollectionPublisher) publishCollection(ctx context.Context, params Publ
 		if err := tx.QueryRow(ctx, `SELECT transaction_timestamp()`).Scan(&captured); err != nil {
 			return err
 		}
-		value, contents, err := p.captureCollection(ctx, tx, params.OwnerID, request, captured, nil, blackbox)
+		value, contents, err := p.captureCollection(ctx, tx, params.OwnerID, request, captured, nil)
 		if err != nil {
 			return err
 		}
@@ -230,7 +228,7 @@ func readCollectionReplay(ctx context.Context, user artifacts.ScopedStore, key, 
 // an Audit source's selected findings, FND-R159), then the selected
 // receipts, their holds, the Audits of those holds and the source Runs in one
 // statement each, and the documents in exact-read batches.
-func (p *CollectionPublisher) captureCollection(ctx context.Context, tx pgx.Tx, ownerID string, request PublishCollectionRequest, captured time.Time, observe collectionObserver, blackbox bool) (auditdomain.FindingCollection, map[string][]byte, error) {
+func (p *CollectionPublisher) captureCollection(ctx context.Context, tx pgx.Tx, ownerID string, request PublishCollectionRequest, captured time.Time, observe collectionObserver) (auditdomain.FindingCollection, map[string][]byte, error) {
 	value := auditdomain.FindingCollection{
 		Schema: auditdomain.FindingCollectionSchema, SnapshotAt: captured.UTC().Format(time.RFC3339Nano),
 		Sources: []auditdomain.FindingCollectionSource{}, Entries: []auditdomain.FindingCollectionEntry{}, Documents: []auditdomain.FindingCollectionDocument{},
@@ -294,11 +292,6 @@ func (p *CollectionPublisher) captureCollection(ctx context.Context, tx pgx.Tx, 
 		ids = append(ids, id)
 	}
 	sort.Strings(ids)
-	if blackbox {
-		if err := checkBlackboxReceipts(ctx, tx, ownerID, ids); err != nil {
-			return fail(err)
-		}
-	}
 	reviews := map[string]*auditdomain.FindingCollectionFinding{}
 	if observe == nil {
 		reviews, err = p.reviews.ReadCollectionFindings(ctx, tx, ownerID, ids)

@@ -28,9 +28,6 @@ func (s AllocationSpec) validateEngagement() error {
 		if err := s.Engagement.Validate(); err != nil {
 			return err
 		}
-		if s.Engagement.AccessMode == "blackbox" && s.Workspace != nil && (len(s.Workspace.Sources) != 0 || s.Workspace.State != nil) {
-			return contracts.Invalidf("blackbox engagement allocation forbids repository workspace hydration")
-		}
 	}
 	return nil
 }

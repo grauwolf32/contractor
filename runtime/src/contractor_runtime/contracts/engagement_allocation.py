@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import hashlib
 import ipaddress
 import json
 from datetime import datetime
 from typing import Literal, Self
 from urllib.parse import urlsplit
 
-import jcs
 from pydantic import (
     ConfigDict,
     Field,
@@ -28,7 +26,6 @@ from contractor_runtime.contracts.base import (
 from contractor_runtime.contracts.engagement import (
     HTTPLimits,
     Identity,
-    Policy,
     Route,
     canonical_url,
 )
@@ -91,11 +88,8 @@ class EngagementAllocationProjection(StrictWireModel):
     audit_id: str
     engagement: ArtifactRef
     engagement_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
-    policy_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     authorized_by: str
     authorized_at: datetime
-    access_mode: Literal["blackbox", "source-assisted"]
-    policy: Policy
     http: HTTPAssignment | None = None
 
     @field_validator("authorized_at", mode="before")
@@ -113,18 +107,4 @@ class EngagementAllocationProjection(StrictWireModel):
         _require_text("authorizedBy", self.authorized_by)
         _require_aware_datetime("authorizedAt", self.authorized_at)
         self.engagement.require_exact()
-        digest = (
-            "sha256:"
-            + hashlib.sha256(
-                jcs.canonicalize(self.policy.model_dump(by_alias=True, exclude_none=True))
-            ).hexdigest()
-        )
-        if self.policy_digest != digest:
-            raise ValueError("engagement allocation policy digest differs")
-        allowed = {"engagement@1", "http-target@1"}
-        if any(capability not in allowed for capability in self.policy.required_capabilities):
-            raise ValueError("engagement execution capability is unavailable")
-        assigned = "http-target@1" in self.policy.required_capabilities
-        if assigned != (self.http is not None):
-            raise ValueError("engagement capability and assignment differ")
         return self

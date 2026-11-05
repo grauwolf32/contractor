@@ -6,8 +6,8 @@ epic: audits
 kind: chore
 introduced_by: V411-002
 priority: P1
-status: pending
-depends_on: [V411-002, V64-002]
+status: completed
+depends_on: [V411-002, V64-002, V411-011, V444-004]
 languages: [go, python, json, yaml, typescript]
 goal: >-
   An HTTP Audit takes its materials and execution budgets from ordinary Audit
@@ -32,6 +32,7 @@ context:
     - docs/spec/audits/audits.md#AUD-R247
     - docs/spec/audits/execution.md#AUX-R104
     - docs/spec/tools/http-caido.md#HTP-R145
+    - docs/spec/findings/findings.md#FND-R227
     - docs/spec/platform/persistence.md
     - docs/spec/platform/lifecycle.md
   finding: >-
@@ -45,11 +46,15 @@ context:
     limits. Remove the source-mode guarantee rather than relocating or inferring it.
     V444-002 finishes the network document and placement cleanup; this first slice
     must itself build and run with a strict shared contract.
-  provenance: V411-002 introduced these fields; V422-002 retained four Audit budgets.
+  provenance: >-
+    V411-002 introduced these fields; V422-002 retained four Audit budgets.
+    V411-011 added source-mode filtering to the Project Findings reader, another
+    direct consumer removed under the same user decision.
 scope:
   in:
     - Remove accessMode and inputs from the Go/Python engagement and allocation contracts and schemas.
     - Remove activeSeconds, rounds, submittedRuns and evidenceBytes from engagement; leave optional HTTP limits intact.
+    - Remove Project Findings source-mode discovery and selection filters; preserve owner/Project/tool/lifecycle authorization.
     - Delete blackbox closure/workspace/Skill restrictions and the obsolete public compatibility reason end to end.
     - Use ordinary declared Audit inputs and retention; remove nested engagement input resolution and links.
     - Remove engagement overrides of Audit size/deadline/resume limits; preserve the existing one-attempt HTTP safety rule.
@@ -93,12 +98,48 @@ acceptance_criteria:
 tests:
   - command: make require-database
     covers: [A2, A3]
-  - command: go test -tags=integration -count=1 ./internal/contracts/... ./internal/auditbaseline ./internal/auditservice ./internal/auditstore/... ./internal/controlplane/... ./internal/httpapi/public ./internal/publicclient/... ./internal/archtest
+  - command: go test -tags=integration -count=1 -p=2 ./internal/contracts/... ./internal/auditbaseline ./internal/findingintake ./internal/auditservice ./internal/auditstore/... ./internal/controlplane/... ./internal/httpapi/public ./internal/publicclient/... ./internal/archtest
     covers: [A1, A2, A4]
-  - command: make test-runtime test-wire-cross-language test-engagement-http-process verify-public-api
-    covers: [A1, A2, A3, A4]
+  - command: go test -tags=integration -count=1 ./tests/eval/audit_programs
+    covers: [A2, A4]
+  - command: make test-runtime
+    covers: [A1, A4]
+  - command: make test-wire-cross-language verify-public-api
+    covers: [A1, A4]
+  - command: make test-engagement-http-process
+    covers: [A2, A3]
   - command: make lint
     covers: [A1, A2, A4]
 test_prerequisites:
   - Use disposable PostgreSQL; a configured unreachable database, zero selected tests or unexpected mandatory process skips fail.
   - Tests use testdata rather than live configs; no live Gateway or demo writes are authorized by this task.
+
+verification:
+  date: "2026-11-05"
+  result: >-
+    All declared checks pass. Full touched Go packages passed on isolated UTF-8
+    PostgreSQL; the full findingintake package passed again after strengthening
+    the reduced-engagement reader regression. Eval program tests, shared wire
+    fixtures, public API and make lint passed. Integrated native HTTP conformance
+    passed 41 process, 2 accounting and 157 Runtime cases with zero selected skips.
+    Final sequential make test-runtime passed 5823 tests with 135 existing optional
+    platform/environment skips, accepted by verify-runtime. Ordinary Audit input
+    pinning/purge, profile limits, unlimited and finite Resume, exact credentials,
+    scope and allocation cleanup remain checked.
+  negative_control: >-
+    Restoring the former source-mode predicate through a temporary Go overlay
+    makes the real PostgreSQL reduced-engagement Findings regression fail before
+    disclosure; the complete unmodified package passes.
+  integration: >-
+    Current native mitmproxy main was merged as 0fcd63dfb without production-code
+    overlap. V444-004 corrected obsolete TCP-per-request assertions and V444-005
+    removed stale verifier-fixture membership. No HTTP transport implementation,
+    live model, deployment or business data was changed by this refactor.
+  earlier_runs: >-
+    A first pre-integration Runtime run had one large-package Nuclei failure; an
+    integrated parallel run had one SQLmap scanner-start timeout. Both cases passed
+    their isolated checks, and the final sequential full suite passed without
+    changing production or test timeout policy. A superseded run was interrupted
+    to integrate main. The first disposable SQL_ASCII database was replaced with
+    UTF-8 before accepting full PostgreSQL results.
+implementation_commit: 14ba75648123371037a026f1141ea0f94e4024d3

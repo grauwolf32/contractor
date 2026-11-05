@@ -7,21 +7,27 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
-func TestEngagementPlacementRequiresSelectedCapabilityWithoutChangingConfig(t *testing.T) {
+func TestEngagementPlacementRequiresSelectedToolsWithoutChangingConfig(t *testing.T) {
 	ctx := t.Context()
 	pool := isolatedPlacementPool(t, ctx)
 	fixture := newPlacementFixture(t, ctx, pool, nil)
+	fixture.template.Toolsets = []contracts.ToolsetSelection{{Ref: contracts.ToolsetRef{ToolsetID: "http-tools", Version: "1"}, Tools: []string{"http_request"}}}
 	without := fixture.registerCandidate(t, ctx, "metadata-only", "1", nil)
 	with := fixture.registerCandidate(t, ctx, "controlled", "2", []runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterHTTPTarget})
 	calls := 0
-	fixture.allocator.additionalAdapterRequirements = func(_ context.Context, runID, stageID string) ([]runtimesettings.RuntimeAdapterRef, error) {
+	fixture.allocator.additionalAdapterRequirements = func(_ context.Context, runID, stageID string, bindings []BindingRequirement) ([]runtimesettings.RuntimeAdapterRef, error) {
 		calls++
 		if runID != fixture.request().RunID || stageID != fixture.stageExecutionID {
 			t.Fatal("placement used foreign binding")
+		}
+		if len(bindings) != 1 || !resolved.TemplateUsesControlledHTTP(bindings[0].AgentTemplate) {
+			t.Fatal("placement lost selected HTTP tools")
 		}
 		return []runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterHTTPTarget}, nil
 	}
@@ -41,7 +47,7 @@ func TestEngagementPlacementFailsClosedOnRequirementRead(t *testing.T) {
 			pool := isolatedPlacementPool(t, ctx)
 			fixture := newPlacementFixture(t, ctx, pool, nil)
 			fixture.registerCandidate(t, ctx, "metadata-only", "1", nil)
-			fixture.allocator.additionalAdapterRequirements = func(context.Context, string, string) ([]runtimesettings.RuntimeAdapterRef, error) {
+			fixture.allocator.additionalAdapterRequirements = func(context.Context, string, string, []BindingRequirement) ([]runtimesettings.RuntimeAdapterRef, error) {
 				if unavailable {
 					return nil, context.DeadlineExceeded
 				}
@@ -74,7 +80,7 @@ func TestEngagementPlacementCombinesConfiguredAndAuditAdapters(t *testing.T) {
 			pool := isolatedPlacementPool(t, ctx)
 			fixture := newPlacementFixture(t, ctx, pool, []string{"debug"})
 			fixture.registerCandidate(t, ctx, "controlled-telemetry", "1", test.adapters)
-			fixture.allocator.additionalAdapterRequirements = func(context.Context, string, string) ([]runtimesettings.RuntimeAdapterRef, error) {
+			fixture.allocator.additionalAdapterRequirements = func(context.Context, string, string, []BindingRequirement) ([]runtimesettings.RuntimeAdapterRef, error) {
 				return []runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterHTTPTarget}, nil
 			}
 			reservations, err := fixture.allocator.ReserveAllContext(ctx, fixture.request())

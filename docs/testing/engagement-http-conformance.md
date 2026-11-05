@@ -7,6 +7,13 @@ The locked Runtime environment and an active RFC1918 interface are required.
 several are available. Missing prerequisites fail setup. Target loopback is denied;
 private Server/Runtime endpoints retain ordinary mTLS loopback connections.
 
+The strict engagement document contains `schema`, `egress.routes/exclusions`,
+`identities` and optional `limits` ([AUD-R241–248](../spec/audits/audits.md#AUD-R241)).
+Workflow tools determine the required HTTP owner; they cannot widen its authority.
+Offline Workers have no HTTP assignment. Audit owns material inputs, exact retained
+Artifact/credential pins, execution budgets and Start/Resume deadlines. There is no
+source mode or engagement-owned material registry.
+
 The exact mandatory cases live in
 [`scripts/engagement-http-matrix.json`](../../scripts/engagement-http-matrix.json).
 Go JSON and Runtime JUnit reports must contain every registered parent, subcase
@@ -23,6 +30,16 @@ when all cases pass and includes matrix/report digests.
 | Lifecycle | Stalled connections close and work joins on cancellation, lease loss and process replacement. Fresh allocations have fresh sessions and counters. There is no journal, acknowledgement or transport-stop proof. |
 | Credentials | Real target bytes verify explicit Basic/Bearer/cookie selection, anonymous isolation and origin separation. Invalid selection fails before target traffic. Cancellation clears private state. |
 | Framing | Exact and overflowing URL/header/body cases include informational headers, bounded streamed bodies, five redirects and truncation metadata. |
+
+Connection reuse follows HTP-R138. Assertions check actual request paths, counts,
+headers, bodies and forbidden-target bytes; they do not require one TCP connection
+per request. Keep-alive and HTTP/2 retain per-attempt scope and destination checks.
+
+The complete AuditService suite separately verifies ordinary material-input holds,
+replay, purge and Start/Resume deadlines. Shared Go/Python/schema cases reject the
+removed document wrappers and private policy fields. `make test-nuclei-engagement`
+is the separate real-engine gate for Nuclei sharing the allocation HTTP owner,
+credentials and optional request allowance.
 
 The private process proxy rejects any use of the removed per-request Server API.
 Its observations do not authorize requests or implement a replacement journal.

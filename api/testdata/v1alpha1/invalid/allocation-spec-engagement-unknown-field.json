@@ -136,18 +136,8 @@
       "revision": "engagement-r1"
     },
     "engagementDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    "policyDigest": "sha256:17374828a1708644ddfdc781ec08b2713bfac279fa43507bcdee9aee579f0fa6",
     "authorizedBy": "owner-engagement",
     "authorizedAt": "2026-10-28T12:00:00Z",
-    "accessMode": "blackbox",
-    "policy": {
-      "version": "1",
-      "activeChecks": "automatic",
-      "requiredCapabilities": [
-        "engagement@1"
-      ],
-      "optionalCapabilities": []
-    },
     "authorized": true
   }
 }

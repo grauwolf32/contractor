@@ -108,7 +108,7 @@ func TestEngagementHTTPBoundsAcrossProcesses(t *testing.T) {
 		})
 	}
 	paths := target.requests()
-	if len(paths) != 13 || target.connections.Load() != 13 || paths[0] != strings.TrimPrefix(maxURL, target.server.URL) {
+	if len(paths) != 13 || paths[0] != strings.TrimPrefix(maxURL, target.server.URL) {
 		t.Fatalf("physical paths count=%d want13; max URL preserved=%t", len(paths), len(paths) > 0 && paths[0] == strings.TrimPrefix(maxURL, target.server.URL))
 	}
 	if badTLS.tlsRequests.Load() != 0 {

@@ -10,21 +10,28 @@ import (
 )
 
 func TestFindingsGateRejectsFalseGreenProcessReports(t *testing.T) {
-	required := []string{
-		"TestFindingLocationsAcrossProcesses",
-		"TestFindingsProducerAndReaderAcrossProcesses",
-		"TestFindingsCollectionsRetainOrdinaryAndAuditReceipts",
-		"TestFindingsCollectionsRetainOrdinaryAndAuditReceipts/shared-function-preserves-operations",
-		"TestFindingsCollectionsRetainOrdinaryAndAuditReceipts/ordinary-source-receipt",
-		"TestFindingsCollectionsRetainOrdinaryAndAuditReceipts/snapshot-survives-source-deletion",
-		"TestFindingsCollectionsRetainOrdinaryAndAuditReceipts/changed-selection-conflicts",
-		"TestFindingsCollectionsRetainOrdinaryAndAuditReceipts/pagination-and-exact-evidence",
-		"TestFindingsReaderBoundariesAcrossProcesses",
-		"TestFindingsReaderBoundariesAcrossProcesses/inaccessible-input",
-		"TestFindingsReaderBoundariesAcrossProcesses/empty-is-explicit-success",
-		"TestFindingsReaderBoundariesAcrossProcesses/interrupted-preparation-reuses-exact-ref",
-		"TestFindingsReaderBoundariesAcrossProcesses/conflicting-document-fails",
-		"TestFindingsReaderBoundariesAcrossProcesses/invalid-zip-fails",
+	// The verifier owns case membership. Keep these report mutations focused
+	// on verification behavior instead of maintaining a second case list.
+	output, err := exec.Command("python3", "-c", `import json, runpy, sys
+sys.path.insert(0, "../../scripts")
+registry = runpy.run_path("../../scripts/test-findings-e2e.py")
+print(json.dumps(sorted(registry["REQUIRED_TESTS"])))`).CombinedOutput()
+	if err != nil {
+		t.Fatalf("read Findings case registry: %v: %s", err, output)
+	}
+	var required []string
+	if err := json.Unmarshal(output, &required); err != nil || len(required) == 0 {
+		t.Fatalf("invalid Findings case registry: %v", err)
+	}
+	child := ""
+	for _, name := range required {
+		if strings.Contains(name, "/") {
+			child = name
+			break
+		}
+	}
+	if child == "" {
+		t.Fatal("Findings registry must include mandatory subcases")
 	}
 	event := func(action, test string) string {
 		data, _ := json.Marshal(map[string]any{"Package": "github.com/grauwolf32/contractor/tests/e2e", "Action": action, "Test": test})
@@ -43,8 +50,8 @@ func TestFindingsGateRejectsFalseGreenProcessReports(t *testing.T) {
 		passed     bool
 	}{
 		{"complete", valid, true}, {"empty", "", false}, {"no-matching-tests", event("pass", ""), false},
-		{"missing-case", strings.ReplaceAll(valid, event("pass", required[4]), ""), false},
-		{"skip-under-passing-parent", strings.ReplaceAll(valid, event("pass", required[4]), event("skip", required[4])), false},
+		{"missing-case", strings.ReplaceAll(valid, event("pass", child), ""), false},
+		{"skip-under-passing-parent", strings.ReplaceAll(valid, event("pass", child), event("skip", child)), false},
 		{"never-ran", strings.ReplaceAll(valid, event("run", required[0]), ""), false},
 		{"failed", valid + event("fail", required[0]), false}, {"malformed", "not JSON", false},
 	} {

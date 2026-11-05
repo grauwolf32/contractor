@@ -1,4 +1,4 @@
-"""Closed non-secret engagement engagement and canonical route policy (proposal 0033)."""
+"""Closed non-secret engagement and canonical route policy (proposal 0033)."""
 
 from __future__ import annotations
 
@@ -9,16 +9,13 @@ from urllib.parse import unquote, urlsplit
 
 from pydantic import ConfigDict, Field, model_validator
 
-from contractor_runtime.contracts.artifacts import ArtifactRef, validate_media_type
-from contractor_runtime.contracts.base import DIGEST_PATTERN, WireModel
+from contractor_runtime.contracts.base import WireModel
 from contractor_runtime.contracts.settings import RuntimeCredentialRef
 
 ENGAGEMENT_SCHEMA = "contractor.engagement.v1"
-ENGAGEMENT_CAPABILITY = "engagement@1"
 MAX_ENGAGEMENT_BYTES = 4 * 1024 * 1024
 MAX_URL_BYTES = 8192
 _ID = re.compile(r"[a-z][a-z0-9-]{0,63}\Z")
-_CAP = re.compile(r"[a-z][a-z0-9_-]*@[A-Za-z0-9][A-Za-z0-9._+-]*\Z")
 _METHODS = {"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "TRACE", "CONNECT"}
 _PATH_SAFE = frozenset(
     b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789/-._~!$&'()*+,;=:@"
@@ -26,7 +23,7 @@ _PATH_SAFE = frozenset(
 
 
 def _bad() -> ValueError:
-    return ValueError("engagement engagement is invalid")
+    return ValueError("engagement is invalid")
 
 
 def _unique(values: list[str], low: int, high: int) -> bool:
@@ -189,21 +186,6 @@ class _EngagementModel(WireModel):
     model_config = ConfigDict(populate_by_name=False, validate_by_name=False)
 
 
-class Deployment(_EngagementModel):
-    marker: str
-
-    @model_validator(mode="after")
-    def validate_marker(self) -> Self:
-        if not _text(self.marker, 256):
-            raise _bad()
-        return self
-
-
-class Target(_EngagementModel):
-    origins: list[str]
-    deployment: Deployment | None = None
-
-
 class Route(_EngagementModel):
     origin: str
     path_prefixes: list[str]
@@ -247,25 +229,9 @@ class Route(_EngagementModel):
         )
 
 
-class Scope(_EngagementModel):
+class Egress(_EngagementModel):
     routes: list[Route]
     exclusions: list[Route]
-
-
-class ExactArtifact(_EngagementModel):
-    ref: ArtifactRef
-    digest: str = Field(pattern=DIGEST_PATTERN.pattern)
-    media_type: str | None = None
-    size_bytes: int | None = Field(default=None, ge=0)
-
-    @model_validator(mode="after")
-    def validate_exact(self) -> Self:
-        self.ref.require_exact()
-        if (self.media_type is None) != (self.size_bytes is None):
-            raise _bad()
-        if self.media_type is not None:
-            validate_media_type(self.media_type)
-        return self
 
 
 class Identity(_EngagementModel):
@@ -316,41 +282,6 @@ class Identity(_EngagementModel):
         return self
 
 
-class EngagementInput(_EngagementModel):
-    id: str
-    role: Literal["source", "openapi", "request-examples", "documentation"]
-    artifact: ArtifactRef
-    content_digest: str = Field(pattern=DIGEST_PATTERN.pattern)
-
-    @model_validator(mode="after")
-    def validate_input(self) -> Self:
-        if _ID.fullmatch(self.id) is None:
-            raise _bad()
-        self.artifact.require_exact()
-        return self
-
-
-class Policy(_EngagementModel):
-    version: Literal["1"]
-    active_checks: Literal["automatic"]
-    required_capabilities: list[str]
-    optional_capabilities: list[str]
-
-    @model_validator(mode="after")
-    def validate_policy(self) -> Self:
-        if (
-            not _unique(self.required_capabilities, 0, 128)
-            or not _unique(self.optional_capabilities, 0, 128)
-            or set(self.required_capabilities) & set(self.optional_capabilities)
-            or any(
-                len(x) > 256 or _CAP.fullmatch(x) is None
-                for x in self.required_capabilities + self.optional_capabilities
-            )
-        ):
-            raise _bad()
-        return self
-
-
 class HTTPLimits(_EngagementModel):
     target_requests: Annotated[int, Field(ge=1, le=4294967295)] | None = None
     requests_per_second: Annotated[int, Field(ge=1, le=4294967295)] | None = None
@@ -359,43 +290,31 @@ class HTTPLimits(_EngagementModel):
     response_body_bytes: Annotated[int, Field(ge=1, le=4294967295)] | None = None
 
 
-class Budgets(HTTPLimits):
-    active_seconds: Annotated[int, Field(ge=1, le=86400)]
-    rounds: Annotated[int, Field(ge=1, le=8)]
-    submitted_runs: Annotated[int, Field(ge=1, le=512)]
-    evidence_bytes: Annotated[int, Field(ge=1, le=67108864)]
-
-
 class Engagement(_EngagementModel):
     schema_: Literal[ENGAGEMENT_SCHEMA] = Field(alias="schema")
-    access_mode: Literal["blackbox", "source-assisted"]
-    target: Target
-    scope: Scope
+    egress: Egress
     identities: list[Identity]
-    inputs: list[EngagementInput]
-    budgets: Budgets
-    policy: Policy
+    limits: HTTPLimits | None = None
 
     @model_validator(mode="after")
     def validate_engagement(self) -> Self:
         if (
-            not _unique(self.target.origins, 1, 16)
-            or not all(_origin(x) for x in self.target.origins)
-            or not 1 <= len(self.scope.routes) <= 128
-            or not 0 <= len(self.scope.exclusions) <= 128
+            not 1 <= len(self.egress.routes) <= 128
+            or not 0 <= len(self.egress.exclusions) <= 128
             or not 1 <= len(self.identities) <= 8
-            or len(self.inputs) > 128
         ):
             raise _bad()
-        caps = set(self.policy.required_capabilities + self.policy.optional_capabilities)
-        for route in self.scope.routes + self.scope.exclusions:
-            if route.origin not in self.target.origins:
+        origins = {route.origin for route in self.egress.routes}
+        if len(origins) > 16:
+            raise _bad()
+        for route in self.egress.exclusions:
+            if route.origin not in origins:
                 raise _bad()
         ids: set[str] = set()
         credential_ids: set[str] = set()
         anonymous = 0
         for identity in self.identities:
-            if identity.id in ids or not set(identity.origins) <= set(self.target.origins):
+            if identity.id in ids or not set(identity.origins) <= origins:
                 raise _bad()
             ids.add(identity.id)
             if identity.credential is not None:
@@ -403,17 +322,7 @@ class Engagement(_EngagementModel):
                     raise _bad()
                 credential_ids.add(identity.credential.credential_id)
             anonymous += identity.kind == "anonymous"
-            if identity.kind == "browser-login" and "browser@1" not in caps:
-                raise _bad()
         if anonymous != 1:
-            raise _bad()
-        inputs = [value.id for value in self.inputs]
-        sources = sum(value.role == "source" for value in self.inputs)
-        if (
-            len(set(inputs)) != len(inputs)
-            or (self.access_mode == "blackbox" and sources)
-            or (self.access_mode == "source-assisted" and not sources)
-        ):
             raise _bad()
         if (
             len(self.model_dump_json(by_alias=True, exclude_none=True).encode())
@@ -428,6 +337,6 @@ class Engagement(_EngagementModel):
         except ValueError:
             return False
         origin = parsed.scheme + "://" + parsed.netloc
-        if any(r.matches(origin, parsed.path, method) for r in self.scope.exclusions):
+        if any(r.matches(origin, parsed.path, method) for r in self.egress.exclusions):
             return False
-        return any(r.matches(origin, parsed.path, method) for r in self.scope.routes)
+        return any(r.matches(origin, parsed.path, method) for r in self.egress.routes)

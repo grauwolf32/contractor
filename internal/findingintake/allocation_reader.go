@@ -44,24 +44,21 @@ type readerDB interface {
 }
 
 // allocationReaderContext checks both the live grant and its durable allocation,
-// and derives ownership and source restrictions without accepting caller IDs.
-func (p *CollectionPublisher) allocationReaderContext(ctx context.Context, db readerDB, grant controlplane.AllocationGrant, tool string) (string, string, bool, error) {
+// and derives ownership without accepting caller IDs.
+func (p *CollectionPublisher) allocationReaderContext(ctx context.Context, db readerDB, grant controlplane.AllocationGrant, tool string) (string, string, error) {
 	if grant.Lost || grant.WriteFenced || grant.ReadPolicy != controlplane.ReadCurrentRun || !slices.Contains(grant.FindingTools, tool) {
-		return "", "", false, ErrAccessDenied
+		return "", "", ErrAccessDenied
 	}
-	var owner, project, mode string
+	var owner, project string
 	err := db.QueryRow(ctx, allocationFindingContextSQL, grant.AllocationID, grant.StageExecutionID, grant.RunID,
-		grant.LogicalAgentName, grant.Namespace, grant.RuntimeAgentID, grant.RuntimeInstanceID).Scan(&owner, &project, &mode)
+		grant.LogicalAgentName, grant.Namespace, grant.RuntimeAgentID, grant.RuntimeInstanceID).Scan(&owner, &project)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return "", "", false, ErrAccessDenied
+		return "", "", ErrAccessDenied
 	}
 	if err != nil {
-		return "", "", false, err
+		return "", "", err
 	}
-	if mode != "" && mode != "blackbox" && mode != "source-assisted" {
-		return "", "", false, ErrAccessDenied
-	}
-	return owner, project, mode == "blackbox", nil
+	return owner, project, nil
 }
 
 func (p *CollectionPublisher) ListAllocationFindings(ctx context.Context, grant controlplane.AllocationGrant, limit int, cursor string) (AllocationFindingPage, error) {
@@ -71,7 +68,7 @@ func (p *CollectionPublisher) ListAllocationFindings(ctx context.Context, grant 
 	}
 	err := postgres.InTxWithRetry(ctx, p.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
 		result = AllocationFindingPage{Items: []auditstore.ProjectFindingSummary{}}
-		owner, project, blackbox, err := p.allocationReaderContext(ctx, tx, grant, "list_project_findings")
+		owner, project, err := p.allocationReaderContext(ctx, tx, grant, "list_project_findings")
 		if err != nil {
 			return err
 		}
@@ -104,15 +101,6 @@ func (p *CollectionPublisher) ListAllocationFindings(ctx context.Context, grant 
 		} else if window.ContinueBefore != nil {
 			next = window.ContinueBefore
 		}
-		if blackbox {
-			ids := make([]string, len(items))
-			for i, item := range items {
-				ids[i] = item.FindingID
-			}
-			if err := checkBlackboxFindings(ctx, tx, owner, project, ids); err != nil {
-				return err
-			}
-		}
 		if next != nil {
 			data, err := json.Marshal(findingCursor{project, next.CreatedAt, next.FindingID, fence.ProjectRevision})
 			if err != nil {
@@ -138,14 +126,9 @@ func (p *CollectionPublisher) ReadAllocationFinding(ctx context.Context, grant c
 		return result, ErrInvalid
 	}
 	err := postgres.InTxWithRetry(ctx, p.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
-		owner, project, blackbox, err := p.allocationReaderContext(ctx, tx, grant, "read_project_finding")
+		owner, project, err := p.allocationReaderContext(ctx, tx, grant, "read_project_finding")
 		if err != nil {
 			return err
-		}
-		if blackbox {
-			if err := checkBlackboxFindings(ctx, tx, owner, project, []string{findingID}); err != nil {
-				return err
-			}
 		}
 		result, err = querystore.New(tx, p.storage).GetProjectFinding(ctx, owner, project, findingID)
 		if err != nil {
@@ -171,7 +154,7 @@ func (p *CollectionPublisher) SelectAllocationFindings(ctx context.Context, gran
 	if artifactpolicy.IsModelHiddenBinding(grant.Namespace, input.ClientKey) || artifactpolicy.IsModelHiddenBinding(CollectionNamespace, input.ClientKey) {
 		return PublishedCollection{}, ErrAccessDenied
 	}
-	owner, project, _, err := p.allocationReaderContext(ctx, p.pool, grant, "select_project_findings")
+	owner, project, err := p.allocationReaderContext(ctx, p.pool, grant, "select_project_findings")
 	if err != nil {
 		return PublishedCollection{}, err
 	}
@@ -188,27 +171,6 @@ func collectionStoreError(err error) error {
 		return ErrConflict
 	}
 	return err
-}
-
-func checkBlackboxFindings(ctx context.Context, tx pgx.Tx, owner, project string, ids []string) error {
-	var allowed bool
-	if err := tx.QueryRow(ctx, blackboxFindingsSQL, owner, project, ids).Scan(&allowed); err != nil {
-		return err
-	}
-	if !allowed {
-		return ErrAccessDenied
-	}
-	return nil
-}
-func checkBlackboxReceipts(ctx context.Context, tx pgx.Tx, owner string, ids []string) error {
-	var allowed bool
-	if err := tx.QueryRow(ctx, blackboxReceiptsSQL, owner, ids).Scan(&allowed); err != nil {
-		return err
-	}
-	if !allowed {
-		return ErrAccessDenied
-	}
-	return nil
 }
 
 func readerResponseBound(value any) error {

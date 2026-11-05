@@ -28,7 +28,7 @@ type identityMaterialResolver interface {
 type Adapter struct {
 	pool       *pgxpool.Pool
 	storage    *artifactpostgres.Storage
-	projection func(context.Context, controlplane.Reservation, runtimesettings.RuntimeSettings) (*engagementcontract.AllocationProjection, error)
+	projection func(context.Context, controlplane.Reservation, runtimesettings.RuntimeSettings, bool) (*engagementcontract.AllocationProjection, error)
 	materials  func(context.Context, *engagementcontract.AllocationProjection) (map[string]runtimesettings.HTTPIdentityMaterial, error)
 }
 
@@ -38,8 +38,8 @@ func New(pool *pgxpool.Pool, identities identityMaterialResolver, storage *artif
 	}
 	return &Adapter{
 		pool: pool, storage: storage,
-		projection: func(ctx context.Context, reservation controlplane.Reservation, settings runtimesettings.RuntimeSettings) (*engagementcontract.AllocationProjection, error) {
-			return auditservice.ResolveAllocationEngagement(ctx, pool, reservation.Grant.RunID, reservation.Grant.StageExecutionID, func(ctx context.Context) ([]engagementcontract.ProtectedDestination, error) {
+		projection: func(ctx context.Context, reservation controlplane.Reservation, settings runtimesettings.RuntimeSettings, usesHTTP bool) (*engagementcontract.AllocationProjection, error) {
+			return auditservice.ResolveAllocationEngagement(ctx, pool, reservation.Grant.RunID, reservation.Grant.StageExecutionID, usesHTTP, func(ctx context.Context) ([]engagementcontract.ProtectedDestination, error) {
 				return resolveProtectedDestinations(ctx, reservation, settings)
 			}, storage)
 		},
@@ -49,14 +49,18 @@ func New(pool *pgxpool.Pool, identities identityMaterialResolver, storage *artif
 	}, nil
 }
 
-// RequiredRuntimeAdapters reads requirements from the immutable trusted Audit
+// RequiredRuntimeAdapters derives requirements from selected tools and the immutable Audit
 // binding before placement, keeping them separate from RuntimeConfig provenance.
-func (a *Adapter) RequiredRuntimeAdapters(ctx context.Context, runID, stageID string) ([]runtimesettings.RuntimeAdapterRef, error) {
-	return auditservice.AllocationEngagementAdapterRequirements(ctx, a.pool, runID, stageID, a.storage)
+func (a *Adapter) RequiredRuntimeAdapters(ctx context.Context, runID, stageID string, bindings []controlplane.BindingRequirement) ([]runtimesettings.RuntimeAdapterRef, error) {
+	usesHTTP := false
+	for _, binding := range bindings {
+		usesHTTP = usesHTTP || resolved.TemplateUsesControlledHTTP(binding.AgentTemplate)
+	}
+	return auditservice.AllocationEngagementAdapterRequirements(ctx, a.pool, runID, stageID, usesHTTP, a.storage)
 }
 
 func (a *Adapter) WithPreparedSpec(ctx context.Context, reservation controlplane.Reservation, spec control.AllocationSpec, dispatch func(control.AllocationSpec) (contracts.WorkerHandle, error)) (contracts.WorkerHandle, error) {
-	projection, err := a.projection(ctx, reservation, spec.RuntimeSettings)
+	projection, err := a.projection(ctx, reservation, spec.RuntimeSettings, resolved.TemplateUsesControlledHTTP(spec.AgentTemplate))
 	if err != nil {
 		return contracts.WorkerHandle{}, err
 	}

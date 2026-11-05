@@ -19,9 +19,8 @@ var (
 type CompatibilityReason string
 
 const (
-	ReasonEngagementCapabilityUnsupported    CompatibilityReason = "engagement_capability_unsupported"
-	ReasonEngagementSourceClosureUnsupported CompatibilityReason = "engagement_source_closure_unsupported"
-	ReasonEngagementActiveChecksUnsupported  CompatibilityReason = "engagement_active_checks_unsupported"
+	ReasonEngagementCapabilityUnsupported   CompatibilityReason = "engagement_capability_unsupported"
+	ReasonEngagementActiveChecksUnsupported CompatibilityReason = "engagement_active_checks_unsupported"
 )
 
 type UnsupportedError struct {

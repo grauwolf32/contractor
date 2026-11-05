@@ -1,0 +1,59 @@
+schema_version: "1.0"
+id: V444-004
+title: Check HTTP exchanges independently of pooled TCP connection count
+milestone: autonomous-http-pentest-2026-10
+epic: quality
+kind: chore
+introduced_by: V410-030
+priority: P1
+status: completed
+depends_on: [V410-030, V444-005]
+languages: [go]
+goal: Existing HTTP conformance accepts supported connection reuse while still proving exact requests, limits and denied-target bytes.
+context:
+  authority:
+    - date: "2026-11-05"
+      decision: >-
+        Agent-proposed test-only prerequisite discovered while integrating current
+        main for user-authorized V444-001. HTP-R138 and completed V410-030 already
+        permit HTTP/1.1 keepalive and HTTP/2 multiplexing. This task changes no
+        transport behavior and adds no engagement scope or compatibility path.
+  specification:
+    - docs/spec/tools/http-caido.md#HTP-R138
+    - docs/testing/engagement-http-conformance.md
+  finding: >-
+    tests/e2e/engagement_http_bounds_test.go:111 and engagement_http_routes_test.go:58
+    require one accepted TCP connection per HTTP request. Native conformance observed
+    the exact 13 and 14 expected requests, preserved the maximum URL, and zero foreign
+    or loopback request bytes, but failed because healthy target connections were reused.
+  boundary: Connection-pool isolation/reuse remains covered by the native engine owner; these process cases verify HTTP authority and exchanges.
+scope:
+  in:
+    - Remove only the two successful-target connection-count equalities.
+    - Preserve exact request/path ordering, body/header/redirect/retry bounds, TLS peer checks and zero prohibited application bytes.
+    - Run the existing nonempty real-process gate without modifying its manifest or accepting mandatory skips.
+  out:
+    - Production changes, new proxy/pool behavior, weaker scope or identity checks and rewritten native engine coverage.
+acceptance_criteria:
+  - id: A1
+    text: Allowed exchanges satisfy their original exact request/path/body bounds with any supported healthy connection reuse.
+  - id: A2
+    text: Denied targets still receive zero application bytes and credential/lifecycle cases keep their existing assertions.
+  - id: A3
+    text: The unchanged process matrix executes all required cases with no unexpected skips; ordinary e2e package tests and lint pass.
+tests:
+  - command: go test -count=1 ./tests/e2e
+    covers: [A3]
+  - command: make test-engagement-http-process
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A3]
+
+verification:
+  date: "2026-11-05"
+  result: >-
+    The ordinary full e2e package and make lint pass after V444-005. The unchanged
+    real HTTP manifest passes 41 process cases, 2 PostgreSQL accounting cases and
+    157 Runtime cases with zero selected skips. Exact allowed paths/HTTP counts,
+    limits, identity isolation, TLS and zero prohibited bytes remain checked.
+implementation_commit: 9e44a86507558a8de0637c9972d9d82f0ad8336d

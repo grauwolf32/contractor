@@ -1,156 +1,5 @@
 {
   "$defs": {
-    "ArtifactRef": {
-      "additionalProperties": false,
-      "properties": {
-        "namespace": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
-        },
-        "name": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
-        },
-        "revision": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [
-        "namespace",
-        "name",
-        "revision"
-      ],
-      "type": "object"
-    },
-    "Budgets": {
-      "additionalProperties": false,
-      "properties": {
-        "activeSeconds": {
-          "maximum": 86400,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "rounds": {
-          "maximum": 8,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "submittedRuns": {
-          "maximum": 512,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "evidenceBytes": {
-          "maximum": 67108864,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "targetRequests": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 4294967295
-        },
-        "requestsPerSecond": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 4294967295
-        },
-        "concurrentRequests": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 4294967295
-        },
-        "requestBodyBytes": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 4294967295
-        },
-        "responseBodyBytes": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 4294967295
-        }
-      },
-      "required": [
-        "activeSeconds",
-        "rounds",
-        "submittedRuns",
-        "evidenceBytes"
-      ],
-      "type": "object"
-    },
-    "Deployment": {
-      "additionalProperties": false,
-      "properties": {
-        "marker": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 256,
-          "x-maxBytes": 256
-        }
-      },
-      "required": [
-        "marker"
-      ],
-      "type": "object"
-    },
-    "EngagementInput": {
-      "additionalProperties": false,
-      "properties": {
-        "id": {
-          "type": "string",
-          "pattern": "^[a-z][a-z0-9-]{0,63}$"
-        },
-        "role": {
-          "enum": [
-            "source",
-            "openapi",
-            "request-examples",
-            "documentation"
-          ],
-          "type": "string"
-        },
-        "artifact": {
-          "$ref": "#/$defs/ArtifactRef"
-        },
-        "contentDigest": {
-          "pattern": "^sha256:[0-9a-f]{64}$",
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "role",
-        "artifact",
-        "contentDigest"
-      ],
-      "type": "object"
-    },
-    "ExactArtifact": {
-      "additionalProperties": false,
-      "properties": {
-        "ref": {
-          "$ref": "#/$defs/ArtifactRef"
-        },
-        "digest": {
-          "pattern": "^sha256:[0-9a-f]{64}$",
-          "type": "string"
-        },
-        "mediaType": {
-          "type": "string"
-        },
-        "sizeBytes": {
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "ref",
-        "digest"
-      ],
-      "type": "object"
-    },
     "Identity": {
       "additionalProperties": false,
       "properties": {
@@ -199,48 +48,6 @@
         "id",
         "kind",
         "origins"
-      ],
-      "type": "object"
-    },
-    "Policy": {
-      "additionalProperties": false,
-      "properties": {
-        "version": {
-          "const": "1",
-          "type": "string"
-        },
-        "activeChecks": {
-          "const": "automatic",
-          "type": "string"
-        },
-        "requiredCapabilities": {
-          "items": {
-            "type": "string",
-            "maxLength": 256,
-            "pattern": "^[a-z][a-z0-9_-]*@[A-Za-z0-9][A-Za-z0-9._+-]*$"
-          },
-          "type": "array",
-          "minItems": 0,
-          "maxItems": 128,
-          "uniqueItems": true
-        },
-        "optionalCapabilities": {
-          "items": {
-            "type": "string",
-            "maxLength": 256,
-            "pattern": "^[a-z][a-z0-9_-]*@[A-Za-z0-9][A-Za-z0-9._+-]*$"
-          },
-          "type": "array",
-          "minItems": 0,
-          "maxItems": 128,
-          "uniqueItems": true
-        }
-      },
-      "required": [
-        "version",
-        "activeChecks",
-        "requiredCapabilities",
-        "optionalCapabilities"
       ],
       "type": "object"
     },
@@ -334,56 +141,6 @@
       ],
       "type": "object"
     },
-    "Scope": {
-      "additionalProperties": false,
-      "properties": {
-        "routes": {
-          "items": {
-            "$ref": "#/$defs/Route"
-          },
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 128
-        },
-        "exclusions": {
-          "items": {
-            "$ref": "#/$defs/Route"
-          },
-          "type": "array",
-          "minItems": 0,
-          "maxItems": 128
-        }
-      },
-      "required": [
-        "routes",
-        "exclusions"
-      ],
-      "type": "object"
-    },
-    "Target": {
-      "additionalProperties": false,
-      "properties": {
-        "origins": {
-          "items": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 8192,
-            "x-maxBytes": 8192
-          },
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 16,
-          "uniqueItems": true
-        },
-        "deployment": {
-          "$ref": "#/$defs/Deployment"
-        }
-      },
-      "required": [
-        "origins"
-      ],
-      "type": "object"
-    },
     "HTTPLimits": {
       "type": "object",
       "additionalProperties": false,
@@ -414,6 +171,32 @@
           "maximum": 4294967295
         }
       }
+    },
+    "Egress": {
+      "additionalProperties": false,
+      "properties": {
+        "routes": {
+          "items": {
+            "$ref": "#/$defs/Route"
+          },
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 128
+        },
+        "exclusions": {
+          "items": {
+            "$ref": "#/$defs/Route"
+          },
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 128
+        }
+      },
+      "required": [
+        "routes",
+        "exclusions"
+      ],
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -421,19 +204,6 @@
     "schema": {
       "const": "contractor.engagement.v1",
       "type": "string"
-    },
-    "accessMode": {
-      "enum": [
-        "blackbox",
-        "source-assisted"
-      ],
-      "type": "string"
-    },
-    "target": {
-      "$ref": "#/$defs/Target"
-    },
-    "scope": {
-      "$ref": "#/$defs/Scope"
     },
     "identities": {
       "items": {
@@ -443,33 +213,20 @@
       "minItems": 1,
       "maxItems": 8
     },
-    "inputs": {
-      "items": {
-        "$ref": "#/$defs/EngagementInput"
-      },
-      "type": "array",
-      "minItems": 0,
-      "maxItems": 128
+    "egress": {
+      "$ref": "#/$defs/Egress"
     },
-    "budgets": {
-      "$ref": "#/$defs/Budgets"
-    },
-    "policy": {
-      "$ref": "#/$defs/Policy"
+    "limits": {
+      "$ref": "#/$defs/HTTPLimits"
     }
   },
   "required": [
     "schema",
-    "accessMode",
-    "target",
-    "scope",
-    "identities",
-    "inputs",
-    "budgets",
-    "policy"
+    "egress",
+    "identities"
   ],
   "type": "object",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://contractor.local/schema/v1alpha1/engagement.schema.json",
-  "description": "Closed non-secret engagement engagement. Runtime and Server additionally check canonical URL/path/CIDR grammar, seed authorization, identity references and source-mode constraints using shared fixtures."
+  "description": "Closed non-secret network policy. Shared validators additionally enforce canonical URL/path/CIDR grammar and identity origins against allowed egress route origins."
 }
