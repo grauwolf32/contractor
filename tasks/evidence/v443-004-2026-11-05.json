@@ -1,0 +1,40 @@
+{
+  "task": "V443-004",
+  "date": "2026-11-05",
+  "status": "completed",
+  "branch": "codex/audit-hypothesis-generation",
+  "merged_to_main": false,
+  "implementation_commit": "f4aa58d5a877b09eeab6776f8f04c33f07637954",
+  "outcome": "Mocked allocations use a deterministic resolver; real scanner readiness precedes controlled timeout/cancellation checks. Production deadlines and scanner behavior are unchanged.",
+  "checks": [
+    {
+      "command": "Owning seven Runtime modules under pytest -W error",
+      "result": "398 passed",
+      "log": "/tmp/v443004-modules-final.log",
+      "log_digest": "sha256:5f7cc059348edf5c5845d307ee8f053157e690f607a85b3fa9ac521a610cb3d4"
+    },
+    {
+      "command": "make test-runtime",
+      "result": "5896 passed, 135 existing optional environment/platform skips; report verifier passed",
+      "log": "/tmp/v443004-runtime-final.log",
+      "log_digest": "sha256:2f1d00b564fbbac32bd70b33855f9534bd996c21f5e3eaadef83c3f60627c244",
+      "report_digest": "sha256:ca38650a798f6e33475bec30b8e89e96368e072fbb0105de69b82db699eb597d"
+    },
+    {
+      "command": "make lint",
+      "result": "passed",
+      "log": "/tmp/v64035-lint-committed.log",
+      "log_digest": "sha256:792331c572cd6549744dda8cabb4681fd1c41077a74c8dd11b98341b52c1db5f"
+    }
+  ],
+  "regression": {
+    "setup": "Remove only the injected fixture resolver through a temporary pytest plugin, preserving the host-DNS prohibition assertion.",
+    "result": "The old setup fails deterministically at forbidden DNS; the corrected allocation passes.",
+    "log": "/tmp/v443004-regression-before.log",
+    "log_digest": "sha256:27d555bfebef53a68fc2347a0a74ac6b1320a835e30d461b3258dede817e171b"
+  },
+  "prior_failed_run": {
+    "log": "/tmp/v443004-runtime.log",
+    "result": "5894 passed, 135 skipped, two Nuclei fixture failures; sibling correction included before the passing complete gate."
+  }
+}

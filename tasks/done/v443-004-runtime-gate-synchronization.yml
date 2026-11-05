@@ -6,11 +6,12 @@ epic: quality
 kind: chore
 introduced_by: V443-003
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [python]
 goal: Make the complete Runtime gate reliably test scanner and allocation contracts while retaining real subprocess cleanup and deadline coverage.
 context:
+  verification_evidence: tasks/evidence/v443-004-2026-11-05.json
   authority: >-
     User decision 2026-11-05: fix the unstable Runtime gate in a separate task
     before closing V64-034. No deployment or model change is assigned.
@@ -44,8 +45,10 @@ context:
     matrices use a test-owned readiness budget. The independent hung probe and
     SQLMap timeout cases advance the existing injectable loop clock only after
     child output is read, preserving real process cleanup and timeout behavior.
-    No production code or deadline changes. Owning modules: 311 passed in
-    /tmp/v443004-modules.log; complete gate verification remains pending.
+    No production code or deadline changes. The initial owning modules passed
+    311 tests in /tmp/v443004-modules.log. Final verification passed 398 tests
+    across all seven owning modules, the complete Runtime gate (5896 passed,
+    135 existing optional skips) and make lint; see verification_evidence.
     The first complete run then exposed the same fixture race in two Nuclei
     package/receipt cases (5894 passed, 135 existing skips, two failures;
     /tmp/v443004-runtime.log). Their fixed Python version probe also has a
@@ -78,3 +81,4 @@ tests:
     covers: [A1, A2, A3, A4]
   - command: make lint
     covers: [A4]
+implementation_commit: f4aa58d5a877b09eeab6776f8f04c33f07637954
