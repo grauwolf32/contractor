@@ -725,7 +725,7 @@ func (f *fakeArtifactRepository) ListVersions(
 	return result, nil
 }
 
-func (f *fakeArtifactRepository) DescribeForkSources(_ context.Context, scope artifacts.Scope, namespace string, names []string, kind string) ([]artifacts.LineageEdge, error) {
+func (f *fakeArtifactRepository) DescribeForkSources(_ context.Context, scope artifacts.Scope, namespace string, names []string, kind string, allowMissing bool) ([]artifacts.LineageEdge, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.queryReads++
@@ -741,6 +741,9 @@ func (f *fakeArtifactRepository) DescribeForkSources(_ context.Context, scope ar
 				count++
 				found = recorded.edge
 			}
+		}
+		if count == 0 && allowMissing {
+			continue
 		}
 		if count != 1 {
 			return nil, blob.ErrIntegrity

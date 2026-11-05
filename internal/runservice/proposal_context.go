@@ -33,7 +33,17 @@ func materializeProposalContext(ctx context.Context, service *artifacts.Service,
 	for _, m := range originals {
 		origins[contracts.MaterialHandle(m)] = m
 	}
-	for _, slot := range sortedInputSlots(p.Inputs) {
+	inputSlots := sortedInputSlots(p.Inputs)
+	physical := make([]contracts.MaterialDescriptor, 0, len(inputSlots))
+	for _, slot := range inputSlots {
+		m := p.Inputs[slot]
+		physical = append(physical, contracts.MaterialDescriptor{ScopeKind: "audit", ScopeID: intent.Execution.AuditID, Ref: m.Ref, Digest: m.Digest, MediaType: m.MediaType, SizeBytes: m.SizeBytes})
+	}
+	originalInputs, err := service.OriginalMaterials(ctx, physical)
+	if err != nil {
+		return err
+	}
+	for index, slot := range inputSlots {
 		mapping := binding.Inputs[slot]
 		if mapping.Source == "task-context" || mapping.Source == "prior-results" {
 			continue
@@ -67,8 +77,7 @@ func materializeProposalContext(ctx context.Context, service *artifacts.Service,
 			if err != nil {
 				return err
 			}
-			input := p.Inputs[slot]
-			original := auditcontract.Material{ScopeKind: "audit", ScopeID: intent.Execution.AuditID, Ref: input.Ref, Digest: input.Digest, MediaType: input.MediaType, SizeBytes: input.SizeBytes}
+			original := originalInputs[index]
 			handle := contracts.MaterialHandle(original)
 			if _, exists := value.Materials[handle]; exists {
 				continue

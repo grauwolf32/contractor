@@ -39,7 +39,7 @@ func (r *Repository) DescribeForkRevisions(ctx context.Context, scope artifacts.
 	return r.DescribeExact(ctx, scope, refs)
 }
 
-func (r *Repository) DescribeForkSources(ctx context.Context, scope artifacts.Scope, namespace string, names []string, kind string) ([]artifacts.LineageEdge, error) {
+func (r *Repository) DescribeForkSources(ctx context.Context, scope artifacts.Scope, namespace string, names []string, kind string, allowMissing bool) ([]artifacts.LineageEdge, error) {
 	if err := artifacts.ValidateForkRevisionSelection(scope, namespace, names, kind); err != nil {
 		return nil, err
 	}
@@ -59,6 +59,9 @@ func (r *Repository) DescribeForkSources(ctx context.Context, scope artifacts.Sc
 		var createdAt *time.Time
 		if err := rows.Scan(&name, &targetRevision, &sourceKind, &sourceID, &sourceNamespace, &sourceName, &sourceRevision, &createdAt); err != nil {
 			return nil, fmt.Errorf("scan fork source revision: %w", err)
+		}
+		if targetRevision == nil && allowMissing {
+			continue
 		}
 		if seen[name] || targetRevision == nil || sourceKind == nil || sourceID == nil || sourceNamespace == nil || sourceName == nil || sourceRevision == nil || createdAt == nil {
 			return nil, fmt.Errorf("%w: binding %s/%s requires exactly one %s fork", blob.ErrIntegrity, namespace, name, kind)

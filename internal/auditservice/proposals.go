@@ -171,7 +171,11 @@ func (s *Service) AcceptProposals(ctx context.Context, claim auditstore.Controll
 	for _, item := range proposed.Work {
 		inputs := map[string]auditcontract.Material{}
 		for slot, key := range item.Inputs {
-			inputs[slot] = contextValue.Materials[key]
+			material := contextValue.Materials[key]
+			if original, found := originalByLocal[material.Ref.Key()]; found {
+				material = original
+			}
+			inputs[slot] = material
 		}
 		if err := auditprofile.ValidateTaskInputs(pinned.Program.Workflows[item.Workflow], pinned.Workflows[item.Workflow], inputs); err != nil {
 			return auditstore.TaskIntakeResult{}, err
@@ -192,7 +196,11 @@ func (s *Service) AcceptProposals(ctx context.Context, claim auditstore.Controll
 		h := auditcontract.Hypothesis{Schema: auditcontract.HypothesisSchema, ID: auditdomain.DeterministicID("hypothesis", audit.AuditID, execution.ExecutionID, alias), Revision: 1, Statement: seed.Statement, Scope: seed.Scope, Grounds: seed.Grounds, Origin: auditcontract.HypothesisOrigin{Kind: "run", AuditID: audit.AuditID, TaskID: members[0].Document.TaskID, RunID: *execution.RunID, Source: &source}}
 		grounds := &contracts.MaterialBudget{}
 		for _, handle := range seed.Sources {
-			if err := grounds.Add(contextValue.Materials[handle]); err != nil {
+			material := contextValue.Materials[handle]
+			if original, found := originalByLocal[material.Ref.Key()]; found {
+				material = original
+			}
+			if err := grounds.Add(material); err != nil {
 				return auditstore.TaskIntakeResult{}, err
 			}
 		}

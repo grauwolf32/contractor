@@ -24,8 +24,9 @@ import (
 )
 
 func TestSharedCommonInitialAndPreparedTaskIntake(t *testing.T) {
-	for _, cancelAfterFirstSlice := range []bool{false, true} {
-		t.Run(fmt.Sprint("cancel=", cancelAfterFirstSlice), func(t *testing.T) {
+	for _, scenario := range []struct{ cancel, native bool }{{false, false}, {true, false}, {true, true}} {
+		cancelAfterFirstSlice, native := scenario.cancel, scenario.native
+		t.Run(fmt.Sprint("cancel=", cancelAfterFirstSlice, "/material-set=", native), func(t *testing.T) {
 			f := newCommonTaskServiceFixture(t, func(program *auditcontract.Program) {
 				producer := program.Workflows["inspect"]
 				producer.Ref = "audit-contract-check@1"
@@ -33,6 +34,14 @@ func TestSharedCommonInitialAndPreparedTaskIntake(t *testing.T) {
 				producer.Outputs = map[string]string{"work": "result"}
 				program.Workflows["inspect"] = producer
 				program.Workflows["check"] = auditcontract.ProgramWorkflow{Ref: "audit-prepared-check@1", Inputs: map[string]auditcontract.InputMapping{"operation": {Source: "task-input"}, "openapi": {Source: "task-input"}, "settings": {Source: "task-input"}}, Parameters: map[string]string{}, Outputs: map[string]string{"material": "result"}}
+			}, func(workflow *resolved.ResolvedWorkflow) {
+				if native {
+					if slot, found := workflow.Inputs["operation"]; found {
+						slot.MaterialSet = true
+						slot.MediaTypes = []string{"text/plain"}
+						workflow.Inputs["operation"] = slot
+					}
+				}
 			})
 			ctx := t.Context()
 			store := auditstoretest.NewStore(f.pool, artifactpgtest.NewStorage())
@@ -134,7 +143,11 @@ func TestSharedCommonInitialAndPreparedTaskIntake(t *testing.T) {
 			openapi := write("openapi", []byte(`{"openapi":"3.1.0","paths":{}}`))
 			work := auditcontract.PreparedWork{Schema: auditcontract.PreparedWorkSchema, Work: []auditcontract.PreparedSelection{}, Gaps: []string{}}
 			for index := range 256 {
-				operation := write(fmt.Sprintf("operation-%03d", index), []byte(fmt.Sprintf(`{"operation":%d}`, index)))
+				operationBytes := []byte(fmt.Sprintf(`{"operation":%d}`, index))
+				if native {
+					operationBytes, _ = json.Marshal(contracts.MaterialSet{Schema: contracts.MaterialSetSchema, Materials: []contracts.MaterialDescriptor{{ScopeKind: "project", ScopeID: f.audit.ProjectID, Ref: f.metadata.Ref, Digest: f.metadata.Digest, MediaType: f.metadata.MediaType, SizeBytes: f.metadata.Size}}})
+				}
+				operation := write(fmt.Sprintf("operation-%03d", index), operationBytes)
 				work.Work = append(work.Work, auditcontract.PreparedSelection{Key: fmt.Sprint("operation-", index), Workflow: "check", Objective: "Check selected operation", Inputs: map[string]auditcontract.Material{"operation": operation, "openapi": openapi}})
 			}
 			data, _ := json.Marshal(work)

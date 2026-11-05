@@ -5,6 +5,7 @@ import (
 	"maps"
 	"sort"
 
+	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
@@ -173,8 +174,13 @@ func (s *Service) acceptCommonWork(ctx context.Context, audit auditstore.Audit, 
 			return TaskCreationResult{}, ErrInvalid
 		}
 	}
+	preparedExecution := ""
+	if params.PreparedProgress != nil {
+		preparedExecution = params.PreparedProgress.ExecutionID
+	}
 	selected := make([]auditstore.AcceptedTask, 0, len(work))
 	materials := map[string]auditcontract.Material{}
+	setMembers := map[string]auditcontract.Material{}
 	seen := map[string]bool{}
 	used := 1
 	for _, item := range work {
@@ -212,6 +218,66 @@ func (s *Service) acceptCommonWork(ctx context.Context, audit auditstore.Audit, 
 		}
 		if err := auditprofile.ValidateTaskInputs(binding, workflow, inputs); err != nil {
 			return TaskCreationResult{}, err
+		}
+		// Retain the contents of declared sets as well as their JSON input.
+		// Membership is bounded per Workflow; the whole intake is bounded by
+		// MaxMutationRecords inputs, each selecting MaxSelectedMaterials.
+		artifactService := artifacts.NewService(s.storage.Repository(s.pool))
+		budget := &contracts.MaterialBudget{}
+		hasSets := false
+		for slot, material := range inputs {
+			contract := workflow.Inputs[slot]
+			if !contract.MaterialSet {
+				continue
+			}
+			hasSets = true
+			var scope artifacts.Scope
+			var err error
+			switch material.ScopeKind {
+			case "project":
+				scope, err = artifacts.ProjectScope(material.ScopeID)
+			case "audit":
+				scope, err = artifacts.AuditScope(material.ScopeID)
+			case "run":
+				// Keep the existing producer-Run authority check and retention fence.
+				// The common material owner validates its retained Audit JSON view.
+				material, err = s.retainTaskInput(ctx, audit, params.Claim, params.ExpectedRevision, material, preparedExecution)
+				if err != nil {
+					return TaskCreationResult{}, err
+				}
+				inputs[slot] = material
+				scope, err = artifacts.AuditScope(material.ScopeID)
+			default:
+				return TaskCreationResult{}, ErrInvalid
+			}
+			if err != nil {
+				return TaskCreationResult{}, err
+			}
+			members, err := artifactService.InputSetMaterials(ctx, artifacts.MaterialSetInput{Authority: artifacts.MaterialAuthority{OwnerID: audit.OwnerID, ProjectID: audit.ProjectID, AuditID: audit.AuditID}, Source: scope, Ref: material.Ref, MediaTypes: contract.MediaTypes, Required: contract.Required, Budget: budget})
+			if err != nil {
+				return TaskCreationResult{}, err
+			}
+			for _, m := range members {
+				setMembers[contracts.MaterialKey(m)] = m
+			}
+		}
+		if hasSets {
+			singletons := []contracts.MaterialDescriptor{}
+			for slot, material := range inputs {
+				if workflow.Inputs[slot].MaterialSet || binding.Inputs[slot].Source == "task-context" || binding.Inputs[slot].Source == "prior-results" {
+					continue
+				}
+				singletons = append(singletons, material)
+			}
+			originals, err := artifactService.OriginalMaterials(ctx, singletons)
+			if err != nil {
+				return TaskCreationResult{}, err
+			}
+			for _, material := range originals {
+				if err := budget.Add(material); err != nil {
+					return TaskCreationResult{}, err
+				}
+			}
 		}
 		for slot, contract := range workflow.Inputs {
 			mapping := binding.Inputs[slot]
@@ -301,9 +367,15 @@ func (s *Service) acceptCommonWork(ctx context.Context, audit auditstore.Audit, 
 	}
 	sort.Strings(keys)
 	retained := map[string]auditcontract.Material{}
-	preparedExecution := ""
-	if params.PreparedProgress != nil {
-		preparedExecution = params.PreparedProgress.ExecutionID
+	memberKeys := make([]string, 0, len(setMembers))
+	for key := range setMembers {
+		memberKeys = append(memberKeys, key)
+	}
+	sort.Strings(memberKeys)
+	for _, key := range memberKeys {
+		if _, err := s.retainTaskInput(ctx, audit, params.Claim, params.ExpectedRevision, setMembers[key], preparedExecution); err != nil {
+			return TaskCreationResult{}, err
+		}
 	}
 	for _, key := range keys {
 		material, err := s.retainTaskInput(ctx, audit, params.Claim, params.ExpectedRevision, materials[key], preparedExecution)

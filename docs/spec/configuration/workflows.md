@@ -1120,3 +1120,6 @@ readable local bindings through ART-R143. A required set is nonempty; an
 optional set may be absent or explicitly empty. A manifest grants no access.
 Singleton inputs retain their own roles and normal semantics. No recursive
 reference expansion, numbered slot adapter or new Run execution type is used.
+The rewritten local JSON has its own exact digest and size. Trusted context
+describes that local revision; result collection verifies its ordinary input
+lineage before translating evidence back to the accepted source.

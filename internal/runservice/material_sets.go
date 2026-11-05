@@ -27,6 +27,7 @@ func preflightMaterialSets(ctx context.Context, s *artifacts.Service, workflow r
 	if !workflowHasMaterialSets(workflow) {
 		return nil
 	}
+	singletons := []contracts.MaterialDescriptor{}
 	for _, slot := range sortedInputSlots(inputs) {
 		scope, err := source(slot)
 		if err != nil {
@@ -49,8 +50,17 @@ func preflightMaterialSets(ctx context.Context, s *artifacts.Service, workflow r
 		if !contract.AcceptsInputMediaType(m.MediaType) {
 			return ErrInvalid
 		}
-		if err := budget.Add(contracts.MaterialDescriptor{ScopeKind: string(scope.Kind()), ScopeID: scope.ID(), Ref: m.Ref, Digest: m.Digest, MediaType: m.MediaType, SizeBytes: m.Size}); err != nil {
+		singletons = append(singletons, contracts.MaterialDescriptor{ScopeKind: string(scope.Kind()), ScopeID: scope.ID(), Ref: m.Ref, Digest: m.Digest, MediaType: m.MediaType, SizeBytes: m.Size})
+	}
+	for start := 0; start < len(singletons); start += contracts.MaxSelectedMaterials {
+		originals, err := s.OriginalMaterials(ctx, singletons[start:min(start+contracts.MaxSelectedMaterials, len(singletons))])
+		if err != nil {
 			return err
+		}
+		for _, m := range originals {
+			if err := budget.Add(m); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

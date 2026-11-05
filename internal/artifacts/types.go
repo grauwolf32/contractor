@@ -251,8 +251,10 @@ type Repository interface {
 	// revisions of selected lineage edges without payload I/O, omitting absent names.
 	DescribeForkRevisions(context.Context, Scope, string, []string, string) ([]contracts.ExactArtifact, error)
 	// DescribeForkSources returns creation lineage for selected existing bindings.
-	// A binding without exactly one selected fork is an integrity failure.
-	DescribeForkSources(context.Context, Scope, string, []string, string) ([]LineageEdge, error)
+	// A binding without exactly one selected fork is an integrity failure unless
+	// allowMissing is true; native bindings without a fork are then omitted.
+	// Ambiguous provenance is always an integrity failure.
+	DescribeForkSources(context.Context, Scope, string, []string, string, bool) ([]LineageEdge, error)
 	ListRefs(context.Context, Scope, RefPageQuery) (RefPage, error)
 	ListMetadata(context.Context, Scope, BindingPageQuery) ([]Metadata, error)
 	ListVersions(context.Context, Scope, ArtifactRef, VersionPageQuery) ([]Metadata, error)

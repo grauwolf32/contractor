@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -26,8 +28,33 @@ func generationBinding() auditcontract.ProgramWorkflow {
 }
 
 func TestPostgresContinuationKeepsExactSourcesPauseResumeAndEmptySettlement(t *testing.T) {
-	h := newCommonControllerHarness(t, func(p *auditcontract.Program) {
-		p.Workflows["generate"] = generationBinding()
+	var nativeMembers []contracts.MaterialDescriptor
+	var unheld contracts.ExactArtifact
+	h := newCommonControllerHarnessWithInputs(t, func(project artifacts.ScopedStore) map[string]auditstore.ExactArtifact {
+		for i := range 17 {
+			raw := []byte(fmt.Sprint("exact architecture ", i))
+			written, err := project.Write(t.Context(), contracts.ArtifactRef{Namespace: "architecture", Name: fmt.Sprint("native-", i)}, artifacts.Payload{MediaType: "text/plain", Data: raw}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			nativeMembers = append(nativeMembers, contracts.MaterialDescriptor{ScopeKind: "project", ScopeID: "common-project", Ref: written.Ref, Digest: contentdigest.Bytes(raw), MediaType: "text/plain", SizeBytes: int64(len(raw))})
+		}
+		written, err := project.Write(t.Context(), contracts.ArtifactRef{Namespace: "architecture", Name: "unselected"}, artifacts.Payload{MediaType: "text/plain", Data: []byte("unheld")}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		unheld = contracts.ExactContent(written.Ref, "text/plain", []byte("unheld"))
+		raw, _ := json.Marshal(contracts.MaterialSet{Schema: contracts.MaterialSetSchema, Materials: nativeMembers})
+		set, err := project.Write(t.Context(), contracts.ArtifactRef{Namespace: "selections", Name: "native"}, artifacts.Payload{MediaType: "application/json", Data: raw}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return map[string]auditstore.ExactArtifact{"materials": contracts.ExactContent(set.Ref, "application/json", raw)}
+	}, func(p *auditcontract.Program) {
+		p.Inputs["materials"] = auditcontract.ProgramInput{Required: true, MediaTypes: []string{"application/json"}}
+		binding := generationBinding()
+		binding.Inputs["materials"] = auditcontract.InputMapping{Source: "audit-input", Name: "materials"}
+		p.Workflows["generate"] = binding
 		p.Workflows["check"] = auditcontract.ProgramWorkflow{Ref: "audit-contract-check@1", Inputs: map[string]auditcontract.InputMapping{"source": {Source: "audit-input", Name: "source"}, "context": {Source: "task-context"}}, Parameters: map[string]string{}, Outputs: map[string]string{"result": "result"}}
 		p.Hypotheses = map[string]auditcontract.HypothesisSeed{"initial": {Statement: "A selected actor can access another record", Scope: map[string]string{"actor": "selected reader"}, Grounds: "Explicit initial suspicion"}}
 		p.InitialWork = []auditcontract.InitialWork{{Key: "first", Workflow: "check", Objective: "Check the initial scope", Hypothesis: "initial"}}
@@ -87,6 +114,29 @@ func TestPostgresContinuationKeepsExactSourcesPauseResumeAndEmptySettlement(t *t
 	if len(executions()) != 1 {
 		t.Fatal("Pause submitted generator")
 	}
+	// Force real history maintenance while the accepted continuation has no Run.
+	history, err := artifactpostgres.NewHistoryPolicy(3, 1<<30)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gc := artifacts.NewService(artifactpgtest.NewConfigured(artifactpgtest.NewRuntime(), history).Repository(h.pool))
+	project, _ := gc.Project(audit.ProjectID)
+	for _, source := range append([]contracts.MaterialDescriptor{nativeMembers[0]}, contracts.MaterialDescriptor{ScopeKind: "project", ScopeID: audit.ProjectID, Ref: unheld.Ref, Digest: unheld.Digest, MediaType: unheld.MediaType, SizeBytes: unheld.SizeBytes}) {
+		current := source.Ref
+		for i := range 8 {
+			next, err := project.Write(ctx, contracts.ArtifactRef{Namespace: current.Namespace, Name: current.Name}, artifacts.Payload{MediaType: "text/plain", Data: []byte(fmt.Sprint("later ", i))}, current.Revision)
+			if err != nil {
+				t.Fatal(err)
+			}
+			current = next.Ref
+		}
+	}
+	if _, err := project.Read(ctx, unheld.Ref); !artifacts.IsExactReferenceRejection(err) {
+		t.Fatalf("history did not evict the unheld control: %v", err)
+	}
+	if _, err := project.Read(ctx, nativeMembers[0].Ref); err != nil {
+		t.Fatalf("accepted set member was lost while paused: %v", err)
+	}
 	_, _, err = h.audits.Resume(ctx, auditstore.ResumeParams{OwnerID: "owner", AuditID: audit.AuditID, ExpectedRevision: paused.Audit.Revision, IdempotencyKey: "resume-generator", RequestDigest: contentdigest.Bytes([]byte("resume-generator"))})
 	if err != nil {
 		t.Fatal(err)
@@ -100,12 +150,32 @@ func TestPostgresContinuationKeepsExactSourcesPauseResumeAndEmptySettlement(t *t
 	}
 	var taskContext struct {
 		Items []struct {
-			TaskID    string `json:"task_id"`
-			Objective string `json:"objective"`
+			TaskID    string                   `json:"task_id"`
+			Objective string                   `json:"objective"`
+			Evidence  []auditcontract.Material `json:"evidence"`
 		}
 	}
 	if json.Unmarshal(assignment.Payload.Data, &taskContext) != nil || len(taskContext.Items) != 1 || taskContext.Items[0].TaskID != decision.Document.TaskID || taskContext.Items[0].Objective != decision.Document.Objective {
 		t.Fatal("generator lost its trusted ordinary task assignment")
+	}
+	for _, material := range taskContext.Items[0].Evidence {
+		actual, err := run.ReadExact(ctx, material.Exact())
+		if err != nil || material.Exact().Verify(actual.Exact()) != nil {
+			t.Fatalf("context is not exact: %+v actual=%+v err=%v", material, actual, err)
+		}
+	}
+	localSet, err := run.Read(ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "materials"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	preparedSet, err := contracts.DecodeMaterialSet(localSet.Payload.Data)
+	if err != nil || len(preparedSet.Materials) != 17 {
+		t.Fatal(preparedSet, err)
+	}
+	for _, m := range preparedSet.Materials {
+		if _, err := run.ReadExact(ctx, m.Exact()); err != nil {
+			t.Fatalf("Resume lost a selected material: %v", err)
+		}
 	}
 	contextRead, err := run.Read(ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "analysis"})
 	if err != nil {

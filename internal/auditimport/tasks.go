@@ -424,6 +424,31 @@ func (i *Importer) normalizeTaskResult(ctx context.Context, ownerID string, exec
 		return invalid()
 	}
 	translations := map[string]auditcontract.Material{}
+	inputRefs := map[string]contracts.ArtifactRef{}
+	for _, member := range members {
+		for _, raw := range member.(map[string]any)["evidence"].([]any) {
+			data, err := strictjson.Canonical(raw)
+			if err != nil {
+				return nil, err
+			}
+			var m auditcontract.Material
+			if strictjson.Decode(data, &m) != nil || m.ScopeKind != "run" || m.ScopeID != *execution.RunID || m.Ref.Namespace != "inputs" {
+				return invalid()
+			}
+			if prior, exists := inputRefs[m.Ref.Name]; exists && !prior.SameExact(m.Ref) {
+				return invalid()
+			}
+			inputRefs[m.Ref.Name] = m.Ref
+		}
+	}
+	refs := make([]contracts.ArtifactRef, 0, len(inputRefs))
+	for _, ref := range inputRefs {
+		refs = append(refs, ref)
+	}
+	inputDescriptions, err := i.artifacts.DescribeRunInputs(ctx, *execution.RunID, refs)
+	if err != nil {
+		return nil, err
+	}
 	for index, member := range members {
 		item := member.(map[string]any)
 		task := tasks[index].Document
@@ -440,7 +465,11 @@ func (i *Importer) normalizeTaskResult(ctx context.Context, ownerID string, exec
 				return invalid()
 			}
 			original, exists := task.Inputs[material.Ref.Name]
-			if !exists || original.Digest != material.Digest || original.MediaType != material.MediaType || original.SizeBytes != material.SizeBytes {
+			description, found := inputDescriptions[material.Ref.Name]
+			if !exists || !found || material.Exact().Verify(description.Local) != nil || contracts.MaterialKey(original) != contracts.MaterialKey(description.Source) {
+				return invalid()
+			}
+			if !pinned.Workflows[execution.WorkflowRole].Inputs[material.Ref.Name].MaterialSet && (original.Digest != material.Digest || original.MediaType != material.MediaType || original.SizeBytes != material.SizeBytes) {
 				return invalid()
 			}
 			translations[string(data)] = original

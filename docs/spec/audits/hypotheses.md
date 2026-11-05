@@ -100,6 +100,10 @@ mutations independently obey LIM-ACT-1/2; system context obeys LIM-ACT-3. Source
 payloads remain ordinary artifacts, without repackaging or recursive expansion.
 Accepted grounds use existing Audit artifact links and evidence-byte accounting;
 shared retained revisions are charged once.
+Project-to-Audit retention preserves original scoped exact identity through
+ordinary Artifact lineage. A source selected both in a set and as a singleton
+uses that same identity for continuation planning, Run preparation and proposal
+input sources; independent sources with equal content remain distinct.
 
 **HG-R12.** A hypothesis is not a Finding. A checking result records its scoped
 verdict, tested conditions, limitations and exact hypothesis revision. Refuted
@@ -135,6 +139,9 @@ Audit owner fence, while allowing ordinary output collection. Accepted grounds
 are held by ordinary frozen Audit bindings and survive producer Run deletion.
 Audit purge removes its registry and holds. Explicit Project publications and
 Project Finding evidence keep their existing independent retention.
+Common Task admission retains every exact selected set member before accepting
+the Task, as well as its JSON descriptor. Run creation is not the first hold:
+source history maintenance during Pause must preserve the accepted selection.
 
 **HG-R16.** Projections distinguish saved proposal, accepted hypothesis, planned
 check, scoped result and Finding. Accepted hypotheses expose origin, grounds and

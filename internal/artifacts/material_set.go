@@ -33,7 +33,7 @@ func (s *Service) MaterializeInputSet(ctx context.Context, p MaterialSetInput) (
 	if p.Budget == nil || p.Authority.OwnerID == "" || p.Ref.ValidateExact() != nil || contracts.ValidateArtifactName(p.Slot) != nil {
 		return contracts.ExactArtifact{}, ErrInvalidName
 	}
-	set, scopes, err := s.prepareInputSet(ctx, p)
+	set, scopes, originals, err := s.prepareInputSet(ctx, p)
 	if err != nil {
 		return contracts.ExactArtifact{}, err
 	}
@@ -43,11 +43,38 @@ func (s *Service) MaterializeInputSet(ctx context.Context, p MaterialSetInput) (
 	}
 	local := contracts.MaterialSet{Schema: contracts.MaterialSetSchema, Materials: make([]contracts.MaterialDescriptor, 0, len(set.Materials))}
 	for i, m := range set.Materials {
+		// Retention aliases share the canonical source, also across two sets.
+		// Its lineage hold keeps the exact source revision available here.
+		if original := originals[i]; contracts.MaterialKey(original) != contracts.MaterialKey(m) {
+			switch {
+			case original.ScopeKind == "project" && original.ScopeID == p.Authority.ProjectID:
+				scopes[i], err = ProjectScope(original.ScopeID)
+			case original.ScopeKind == "user" && original.ScopeID == p.Authority.OwnerID && p.Authority.ProjectID == "":
+				scopes[i], err = UserScope(original.ScopeID)
+			default:
+				return contracts.ExactArtifact{}, ErrInvalidScope
+			}
+			if err != nil {
+				return contracts.ExactArtifact{}, err
+			}
+			store, err := s.Scoped(scopes[i])
+			if err != nil {
+				return contracts.ExactArtifact{}, err
+			}
+			meta, err := store.Metadata(ctx, original.Ref)
+			if err != nil {
+				return contracts.ExactArtifact{}, err
+			}
+			if err := original.Exact().Verify(meta.Exact()); err != nil {
+				return contracts.ExactArtifact{}, err
+			}
+			m = original
+		}
 		kind := LineageInputFork
 		if scopes[i].Kind() == ScopeAudit {
 			kind = LineageAuditInput
 		}
-		fork, e := s.Fork(ctx, Fork{Kind: kind, Source: scopes[i], SourceRef: m.Ref, Target: run, TargetRef: contracts.ArtifactRef{Namespace: "material-inputs", Name: contracts.MaterialHandle(m)}, Frozen: true, Replay: true})
+		fork, e := s.Fork(ctx, Fork{Kind: kind, Source: scopes[i], SourceRef: m.Ref, Target: run, TargetRef: contracts.ArtifactRef{Namespace: "material-inputs", Name: contracts.MaterialHandle(originals[i])}, Frozen: true, Replay: true})
 		if e != nil {
 			return contracts.ExactArtifact{}, e
 		}
@@ -78,43 +105,51 @@ func (s *Service) MaterializeInputSet(ctx context.Context, p MaterialSetInput) (
 // ValidateInputSet checks a selected set without creating bindings. Run creation
 // preflights every set and singleton against one cumulative budget before writes.
 func (s *Service) ValidateInputSet(ctx context.Context, p MaterialSetInput) error {
-	_, _, err := s.prepareInputSet(ctx, p)
+	_, _, _, err := s.prepareInputSet(ctx, p)
 	return err
 }
-func (s *Service) prepareInputSet(ctx context.Context, p MaterialSetInput) (contracts.MaterialSet, []Scope, error) {
+
+// InputSetMaterials validates one explicit selection and returns its exact
+// physical sources for admission-time retention through ordinary Artifact forks.
+func (s *Service) InputSetMaterials(ctx context.Context, p MaterialSetInput) ([]contracts.MaterialDescriptor, error) {
+	set, _, _, err := s.prepareInputSet(ctx, p)
+	return set.Materials, err
+}
+
+func (s *Service) prepareInputSet(ctx context.Context, p MaterialSetInput) (contracts.MaterialSet, []Scope, []contracts.MaterialDescriptor, error) {
 	if p.Budget == nil || p.Authority.OwnerID == "" || p.Ref.ValidateExact() != nil {
-		return contracts.MaterialSet{}, nil, ErrInvalidName
+		return contracts.MaterialSet{}, nil, nil, ErrInvalidName
 	}
 	if !(p.Source.Kind() == ScopeUser && p.Source.ID() == p.Authority.OwnerID && p.Authority.ProjectID == "" || p.Source.Kind() == ScopeProject && p.Source.ID() == p.Authority.ProjectID || p.Source.Kind() == ScopeAudit && p.Source.ID() == p.Authority.AuditID) {
-		return contracts.MaterialSet{}, nil, ErrInvalidScope
+		return contracts.MaterialSet{}, nil, nil, ErrInvalidScope
 	}
 	source, err := s.Scoped(p.Source)
 	if err != nil {
-		return contracts.MaterialSet{}, nil, err
+		return contracts.MaterialSet{}, nil, nil, err
 	}
 	meta, err := source.Metadata(ctx, p.Ref)
 	if err != nil {
-		return contracts.MaterialSet{}, nil, err
+		return contracts.MaterialSet{}, nil, nil, err
 	}
 	if meta.Size > contracts.MaxMaterialDescriptorBytes {
-		return contracts.MaterialSet{}, nil, contracts.Invalidf("material descriptor bytes exceeded")
+		return contracts.MaterialSet{}, nil, nil, contracts.Invalidf("material descriptor bytes exceeded")
 	}
 	if meta.MediaType != "application/json" {
-		return contracts.MaterialSet{}, nil, fmt.Errorf("%w: material set descriptor", ErrInvalidMediaType)
+		return contracts.MaterialSet{}, nil, nil, fmt.Errorf("%w: material set descriptor", ErrInvalidMediaType)
 	}
 	if err := p.Budget.AddSetDocument(contracts.MaterialDescriptor{ScopeKind: string(p.Source.Kind()), ScopeID: p.Source.ID(), Ref: meta.Ref, Digest: meta.Digest, MediaType: meta.MediaType, SizeBytes: meta.Size}, meta.Size); err != nil {
-		return contracts.MaterialSet{}, nil, err
+		return contracts.MaterialSet{}, nil, nil, err
 	}
 	raw, err := source.Read(ctx, p.Ref)
 	if err != nil {
-		return contracts.MaterialSet{}, nil, err
+		return contracts.MaterialSet{}, nil, nil, err
 	}
 	set, err := contracts.DecodeMaterialSet(raw.Payload.Data)
 	if err != nil {
-		return contracts.MaterialSet{}, nil, err
+		return contracts.MaterialSet{}, nil, nil, err
 	}
 	if p.Required && len(set.Materials) == 0 {
-		return contracts.MaterialSet{}, nil, fmt.Errorf("%w: required material set is empty", ErrInvalidName)
+		return contracts.MaterialSet{}, nil, nil, fmt.Errorf("%w: required material set is empty", ErrInvalidName)
 	}
 	scopes := make([]Scope, len(set.Materials))
 	groups := map[Scope][]contracts.ArtifactRef{}
@@ -122,7 +157,7 @@ func (s *Service) prepareInputSet(ctx context.Context, p MaterialSetInput) (cont
 	seen := map[Scope]map[string]bool{}
 	for i, m := range set.Materials {
 		if artifactpolicy.IsModelHiddenBinding(m.Ref.Namespace, m.Ref.Name) || !contracts.AcceptsMediaType(p.MediaTypes, m.MediaType) {
-			return contracts.MaterialSet{}, nil, ErrInvalidMediaType
+			return contracts.MaterialSet{}, nil, nil, ErrInvalidMediaType
 		}
 		switch {
 		case m.ScopeKind == "project" && m.ScopeID == p.Authority.ProjectID:
@@ -132,10 +167,10 @@ func (s *Service) prepareInputSet(ctx context.Context, p MaterialSetInput) (cont
 		case m.ScopeKind == "audit" && m.ScopeID == p.Authority.AuditID:
 			scopes[i], err = AuditScope(m.ScopeID)
 		default:
-			return contracts.MaterialSet{}, nil, ErrInvalidScope
+			return contracts.MaterialSet{}, nil, nil, ErrInvalidScope
 		}
 		if err != nil {
-			return contracts.MaterialSet{}, nil, err
+			return contracts.MaterialSet{}, nil, nil, err
 		}
 		if seen[scopes[i]] == nil {
 			seen[scopes[i]] = map[string]bool{}
@@ -145,20 +180,17 @@ func (s *Service) prepareInputSet(ctx context.Context, p MaterialSetInput) (cont
 			groups[scopes[i]] = append(groups[scopes[i]], m.Ref)
 			seen[scopes[i]][m.Ref.Key()] = true
 		}
-		if e := p.Budget.Add(m); e != nil {
-			return contracts.MaterialSet{}, nil, e
-		}
 
 	}
 	actual := map[Scope]map[string]contracts.ExactArtifact{}
 	for _, scope := range groupOrder {
 		store, e := s.Scoped(scope)
 		if e != nil {
-			return contracts.MaterialSet{}, nil, e
+			return contracts.MaterialSet{}, nil, nil, e
 		}
 		found, e := store.DescribeExact(ctx, groups[scope])
 		if e != nil {
-			return contracts.MaterialSet{}, nil, e
+			return contracts.MaterialSet{}, nil, nil, e
 		}
 		actual[scope] = map[string]contracts.ExactArtifact{}
 		for _, m := range found {
@@ -167,8 +199,17 @@ func (s *Service) prepareInputSet(ctx context.Context, p MaterialSetInput) (cont
 	}
 	for i, m := range set.Materials {
 		if e := m.Exact().Verify(actual[scopes[i]][m.Ref.Key()]); e != nil {
-			return contracts.MaterialSet{}, nil, e
+			return contracts.MaterialSet{}, nil, nil, e
 		}
 	}
-	return set, scopes, nil
+	originals, err := s.OriginalMaterials(ctx, set.Materials)
+	if err != nil {
+		return contracts.MaterialSet{}, nil, nil, err
+	}
+	for _, m := range originals {
+		if err := p.Budget.Add(m); err != nil {
+			return contracts.MaterialSet{}, nil, nil, err
+		}
+	}
+	return set, scopes, originals, nil
 }

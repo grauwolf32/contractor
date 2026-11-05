@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -199,6 +200,74 @@ func TestPostgresMaterialSetsUseOrdinaryRunCreationAndAtomicRejection(t *testing
 			var versions int
 			if e := pool.QueryRow(ctx, "SELECT count(*) FROM artifact_versions WHERE media_type='text/plain'").Scan(&versions); e != nil || versions != 33 {
 				t.Fatalf("material fork duplicated content versions: versions=%d err=%v", versions, e)
+			}
+		})
+	}
+}
+
+func TestSharedPostgresRetainedSingletonSharesOriginalMaterialSetBudget(t *testing.T) {
+	f := newCommonTaskRunFixture(t, false)
+	ctx := t.Context()
+	art := artifacts.NewService(artifactpgtest.NewStorage().Repository(f.pool))
+	project, _ := art.Project("task-run-project")
+	members := []contracts.MaterialDescriptor{{ScopeKind: "project", ScopeID: "task-run-project", Ref: f.source.Ref, Digest: f.source.Digest, MediaType: f.source.MediaType, SizeBytes: f.source.SizeBytes}}
+	for i := 1; i < 33; i++ {
+		// Identical bytes must still count once for each independent source.
+		m := writeExact(t, ctx, project, "reports", fmt.Sprint("independent-", i), "text/plain", []byte("exact selected bytes"))
+		members = append(members, contracts.MaterialDescriptor{ScopeKind: "project", ScopeID: "task-run-project", Ref: m.Ref, Digest: m.Digest, MediaType: m.MediaType, SizeBytes: m.SizeBytes})
+	}
+	data, _ := json.Marshal(contracts.MaterialSet{Schema: contracts.MaterialSetSchema, Materials: members[:32]})
+	set := writeExact(t, ctx, project, "selections", "ceiling", "application/json", data)
+	projectScope, _ := artifacts.ProjectScope("task-run-project")
+	auditScope, _ := artifacts.AuditScope(f.audit.AuditID)
+	retained, err := art.Fork(ctx, artifacts.Fork{Kind: artifacts.LineageAuditInput, Source: projectScope, SourceRef: set.Ref, Target: auditScope, TargetRef: contracts.ArtifactRef{Namespace: "inputs", Name: "set"}, Frozen: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := resolved.ResolvedWorkflow{Inputs: map[string]resolved.ArtifactSlot{"materials": {MaterialSet: true, Required: true, MediaTypes: []string{"text/plain"}}, "singleton": {MediaTypes: []string{"text/plain"}}}}
+	authority := artifacts.MaterialAuthority{OwnerID: "owner", ProjectID: "task-run-project", AuditID: f.audit.AuditID}
+	for _, overflow := range []bool{false, true} {
+		t.Run(fmt.Sprint("overflow=", overflow), func(t *testing.T) {
+			singleton := contracts.ArtifactRef{Namespace: "inputs", Name: "selected"}
+			owned, _ := art.Scoped(auditScope)
+			meta, err := owned.Metadata(ctx, singleton)
+			if err != nil {
+				t.Fatal(err)
+			}
+			singleton = meta.Ref
+			if overflow {
+				fork, err := art.Fork(ctx, artifacts.Fork{Kind: artifacts.LineageAuditInput, Source: projectScope, SourceRef: members[32].Ref, Target: auditScope, TargetRef: contracts.ArtifactRef{Namespace: "inputs", Name: "extra"}, Frozen: true})
+				if err != nil {
+					t.Fatal(err)
+				}
+				singleton = fork.TargetRef
+			}
+			budget := &contracts.MaterialBudget{}
+			err = preflightMaterialSets(ctx, art, workflow, map[string]contracts.ArtifactRef{"materials": retained.TargetRef, "singleton": singleton}, authority, func(string) (artifacts.Scope, error) { return auditScope, nil }, nil, budget)
+			if overflow {
+				if err == nil {
+					t.Fatal("33 independent equal-byte sources were merged")
+				}
+				return
+			}
+			if err != nil || len(budget.Materials()) != 32 {
+				t.Fatalf("retained alias changed original count: %d %v", len(budget.Materials()), err)
+			}
+
+			created, err := f.service.CreateAudit(ctx, f.params)
+			if err != nil {
+				t.Fatal(err)
+			}
+			alias := contracts.MaterialDescriptor{ScopeKind: "audit", ScopeID: f.audit.AuditID, Ref: meta.Ref, Digest: meta.Digest, MediaType: meta.MediaType, SizeBytes: meta.Size}
+			aliasData, _ := json.Marshal(contracts.MaterialSet{Schema: contracts.MaterialSetSchema, Materials: []contracts.MaterialDescriptor{alias}})
+			second, err := art.CreateFrozen(ctx, auditScope, contracts.ArtifactRef{Namespace: "selections", Name: "retained-alias"}, artifacts.Payload{MediaType: "application/json", Data: aliasData})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for slot, ref := range map[string]contracts.ArtifactRef{"set-first": retained.TargetRef, "set-alias": second.Ref} {
+				if _, err := art.MaterializeInputSet(ctx, artifacts.MaterialSetInput{Authority: authority, Source: auditScope, Ref: ref, RunID: created.Run.RunID, Slot: slot, MediaTypes: []string{"text/plain"}, Required: true, Budget: budget}); err != nil {
+					t.Fatalf("same original in different retained sets: %v", err)
+				}
 			}
 		})
 	}

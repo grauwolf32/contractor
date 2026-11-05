@@ -13,6 +13,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -383,4 +384,85 @@ func TestPostgresContinuationKeepsDistinctHypothesesForSharedBatchResult(t *test
 	if err != nil || current.State != auditstore.AuditCompleted || current.ReservedRunCount != 2 {
 		t.Fatalf("shared result settlement: state=%s Runs=%d error=%v", current.State, current.ReservedRunCount, err)
 	}
+}
+
+func TestPostgresNativeSetAndSingletonKeepOriginalSourceBudget(t *testing.T) {
+	ctx := t.Context()
+	var sources []contracts.MaterialDescriptor
+	h := newCommonControllerHarnessWithInputs(t, func(project artifacts.ScopedStore) map[string]auditstore.ExactArtifact {
+		// Equal bytes are intentionally independent sources. Only the explicit
+		// singleton alias of source zero may be deduplicated.
+		for i := range 32 {
+			raw := []byte("equal independent bytes")
+			written, err := project.Write(ctx, contracts.ArtifactRef{Namespace: "architecture", Name: fmt.Sprint("alias-", i)}, artifacts.Payload{MediaType: "text/plain", Data: raw}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			sources = append(sources, contracts.MaterialDescriptor{ScopeKind: "project", ScopeID: "common-project", Ref: written.Ref, Digest: contentdigest.Bytes(raw), MediaType: "text/plain", SizeBytes: int64(len(raw))})
+		}
+		raw, _ := json.Marshal(contracts.MaterialSet{Schema: contracts.MaterialSetSchema, Materials: sources})
+		set, err := project.Write(ctx, contracts.ArtifactRef{Namespace: "selections", Name: "ceiling"}, artifacts.Payload{MediaType: "application/json", Data: raw}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return map[string]auditstore.ExactArtifact{"source": sources[0].Exact(), "materials": contracts.ExactContent(set.Ref, "application/json", raw)}
+	}, func(p *auditcontract.Program) {
+		p.Inputs["materials"] = auditcontract.ProgramInput{Required: true, MediaTypes: []string{"application/json"}}
+		binding := generationBinding()
+		binding.Inputs["materials"] = auditcontract.InputMapping{Source: "audit-input", Name: "materials"}
+		p.Workflows["generate"] = binding
+		p.InitialWork = []auditcontract.InitialWork{{Key: "generate-first", Workflow: "generate", Objective: "Research 32 exact independent sources"}}
+	})
+	c := h.commonController(t)
+	for range 3 {
+		if _, err := c.RunOnce(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	executions, err := h.audits.ListExecutions(ctx, h.started.Audit.AuditID)
+	if err != nil || len(executions) != 1 || executions[0].RunID == nil {
+		t.Fatalf("32 sources plus their alias did not dispatch: %+v %v", executions, err)
+	}
+	run, _ := h.artifacts.Run(*executions[0].RunID)
+	raw, err := run.Read(ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "analysis"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var value auditcontract.ProposalContext
+	if err := json.Unmarshal(raw.Payload.Data, &value); err != nil || len(value.Materials) != 32 || len(value.InputSources) != 32 {
+		t.Fatalf("source budget changed across Task retention: %+v %v", value, err)
+	}
+	for _, m := range sources {
+		key := contracts.MaterialHandle(m)
+		if contracts.MaterialKey(value.InputSources[key]) != contracts.MaterialKey(m) {
+			t.Fatalf("original source changed: %+v", value.InputSources[key])
+		}
+		if _, err := run.ReadExact(ctx, value.Materials[key].Exact()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	output, _ := json.Marshal(auditcontract.Proposals{Schema: auditcontract.ProposalsSchema, Hypotheses: map[string]auditcontract.ProposedHypothesis{"grounded": {Statement: "A selected source suggests an access boundary", Scope: map[string]string{}, Grounds: "The exact selected architecture was inspected", Sources: []string{contracts.MaterialHandle(sources[0])}}}, Work: []auditcontract.InitialWork{{Key: "check-origin", Workflow: "check", Objective: "Check the selected original source", Hypothesis: "grounded", Inputs: map[string]string{"source": contracts.MaterialHandle(sources[0])}}}})
+	finishGenerationTestOutput(t, h, *executions[0].RunID, "proposals", output)
+	for range 2 {
+		if _, err := c.RunOnce(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	page, err := h.service.Hypotheses(ctx, auditstore.ListHypothesesParams{OwnerID: "owner", AuditID: h.started.Audit.AuditID, Limit: 10})
+	if err != nil || len(page.Items) != 1 || len(page.Items[0].Document.Sources) != 1 {
+		t.Fatalf("ceiling inputs did not reach proposal admission: %+v %v", page, err)
+	}
+	tasks, err := h.service.Tasks(ctx, auditstore.ListTasksParams{OwnerID: "owner", AuditID: h.started.Audit.AuditID, Limit: 10})
+	if err != nil || len(tasks.Tasks) != 2 {
+		t.Fatal(tasks, err)
+	}
+	expected, err := auditdomain.MaterialArtifactName(sources[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := tasks.Tasks[1].Document.Inputs["source"]
+	if input.Ref.Name != expected || !input.Ref.SameExact(page.Items[0].Document.Sources[0].Ref) {
+		t.Fatalf("proposal acceptance lost the original input identity: %+v", input)
+	}
+
 }

@@ -112,6 +112,7 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 				}
 			}
 			forks := make(map[string]contracts.ArtifactRef, len(normalized.Inputs))
+			localInputs := make(map[string]contracts.ExactArtifact, len(normalized.Inputs))
 			materialBudget := &contracts.MaterialBudget{}
 			selected := map[string]contracts.ArtifactRef{}
 			excluded := map[string]bool{}
@@ -149,6 +150,7 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 						return err
 					}
 					forks[slot] = exact.Ref
+					localInputs[slot] = exact
 					continue
 				}
 				targetScope, _ := artifacts.RunScope(runID)
@@ -159,11 +161,14 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 					return forkErr
 				}
 				forks[slot] = fork.TargetRef
+				exact := metadata.Exact()
+				exact.Ref = fork.TargetRef
+				localInputs[slot] = exact
 				if !contracts.AcceptsMediaType(normalized.Workflow.Inputs[slot].MediaTypes, fork.MediaType) {
 					return fmt.Errorf("%w: Audit input %q has unsupported media type", ErrInvalid, slot)
 				}
 			}
-			if err := materializeTaskRunContext(ctx, artifactService, intent, normalized, runID, forks, materialBudget.Materials()); err != nil {
+			if err := materializeTaskRunContext(ctx, artifactService, intent, normalized, runID, forks, localInputs, materialBudget.Materials()); err != nil {
 				return err
 			}
 			if completion != nil {

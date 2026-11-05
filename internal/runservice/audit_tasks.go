@@ -144,7 +144,7 @@ func validateTaskRunIntent(intent auditstore.RunCreationIntent, p auditRunCreate
 
 // Context is authored after the real Run ID and input forks exist, in the same
 // creation transaction. Its evidence grants access only to those local inputs.
-func materializeTaskRunContext(ctx context.Context, service *artifacts.Service, intent auditstore.RunCreationIntent, p auditRunCreate, runID string, forks map[string]contracts.ArtifactRef, originalMaterials []contracts.MaterialDescriptor) error {
+func materializeTaskRunContext(ctx context.Context, service *artifacts.Service, intent auditstore.RunCreationIntent, p auditRunCreate, runID string, forks map[string]contracts.ArtifactRef, localInputs map[string]contracts.ExactArtifact, originalMaterials []contracts.MaterialDescriptor) error {
 	pinned, err := auditprofile.DecodePinnedProgram(intent.ProgramSnapshot)
 	if err != nil {
 		return err
@@ -162,8 +162,8 @@ func materializeTaskRunContext(ctx context.Context, service *artifacts.Service, 
 	for i, task := range intent.Tasks {
 		evidence := make([]auditcontract.Material, 0, len(task.Document.Inputs))
 		for _, slot := range sortedInputSlots(p.Inputs) {
-			input := task.Document.Inputs[slot]
-			input.ScopeKind, input.ScopeID, input.Ref = "run", runID, forks[slot]
+			local := localInputs[slot]
+			input := auditcontract.Material{ScopeKind: "run", ScopeID: runID, Ref: local.Ref, Digest: local.Digest, MediaType: local.MediaType, SizeBytes: local.SizeBytes}
 			evidence = append(evidence, input)
 		}
 		item := map[string]any{"item_key": auditcontract.ExecutionItemKey(i), "task_id": task.Document.TaskID, "objective": task.Document.Objective, "evidence": evidence}
