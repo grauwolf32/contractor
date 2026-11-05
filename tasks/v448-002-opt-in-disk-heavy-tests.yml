@@ -43,6 +43,7 @@ scope:
     - "Explicit opt-in for ten identified large Audit, Artifact, sitemap and finding-intake fixtures."
     - "Allow only the declared disabled-heavy skips in release, sitemap, Audit and shared-fixture gates."
     - "Document local default skips, opt-in execution and remaining Go build-cache costs."
+    - "Reconcile the pending V410-007 and V64-011 release gates with the dated optional-heavy decision."
   out:
     - "Remote provisioning, blanket PostgreSQL skips, test deletion and unrelated coverage reduction."
     - "Gating metadata-only logical-size tests or small Runtime filesystem fixtures."
@@ -83,7 +84,7 @@ verification:
     - "All ten actual guarded tests skipped with flag 0 and an unreachable configured database; with flag 1 all ten reached the database and failed. This proves resource-free default skipping and a functioning opt-in without running the heavy fixtures."
     - "The seven policy checks cover registry/guard agreement, strict flag values, no implicit Make enabling, default-off CI, optional skip versus pass evidence, missing/failing/undeclared cases and opted-in skip rejection."
     - "Canonical report, shared-fixture and iterative-gate suites passed; pinned actionlint v1.7.7 accepted the new manual CI input."
-    - "The first make lint passed, including the full script suite, Go/UI analysis, deployments, release graph, tasks/spec and Runtime layers. Final lint is rerun after the evidence regression check."
+    - "Final make lint passed, including 210 script tests (four unrelated optional backend skips), Go/UI analysis, deployments, release graph, tasks/spec and Runtime layers."
   limits:
     - "Heavy fixtures were intentionally not executed against a real database, and no complete release gate or hosted CI run is claimed."
     - "An initial concurrent package pass using a default SQL_ASCII disposable cluster failed four unchanged query-budget tests. The complete serial UTF8 pass above succeeded; the effects of encoding and concurrency were not separated, and no query budget or fixture was weakened."

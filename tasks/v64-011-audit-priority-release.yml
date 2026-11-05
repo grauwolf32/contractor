@@ -36,7 +36,11 @@ context:
     The user accepted the common execution skeleton and requested concrete tasks; implementation is a
     subsequent step, not part of this task-formation request. User decision on 2026-11-02 adds
     the V64-026 Server-operation preparation prerequisite through V64-002, preserving separate
-    OpenAPI operation tasks and compatible batching; web-scan remains one task per target.'
+    OpenAPI operation tasks and compatible batching; web-scan remains one task per target.
+    User decision on 2026-11-05 makes the exact disk-heavy cases registered by V448-002
+    optional even in full gates unless CONTRACTOR_TEST_HEAVY_IO=1 is explicitly supplied.
+    Disabled-heavy skips are recorded separately and never count as passing coverage;
+    other required scenarios and rejection of missing/failed cases remain unchanged.'
   implementation_gate: Task formation only, requested on 2026-10-31 after acceptance of the common execution
     skeleton. Keep pending until implementation is requested and dependencies are complete. Do not start
     code, migrations, live Runs or deployment in this planning turn. Resolve the explicitly labelled remaining
