@@ -1,0 +1,55 @@
+schema_version: '1.0'
+id: V449-004
+title: Register the Run engagement credential trigger in the schema verification inventory
+milestone: standalone-run-engagement
+epic: execution-core
+kind: chore
+introduced_by: V449-001
+priority: P2
+status: in_progress
+depends_on: [V449-001]
+languages: [go]
+goal: The real PostgreSQL trigger inventory verifies the complete shipped Run schema.
+context:
+  finding: >-
+    V64-008 verification found TestRowTriggerInventory failing on current main.
+    Migration 000011_run_engagement_credentials.sql adds the column-scoped
+    workflow_runs_protect_engagement_credentials trigger, but
+    internal/persistence/postgres/row_trigger_scope_postgres_test.go omits it.
+  siblings: >-
+    Compare all migrated workflow_runs triggers through the existing inventory
+    test; the other triggers already match. No production SQL changes are required.
+scope:
+  in:
+  - Register the exact existing trigger definition in the real-store inventory.
+  out:
+  - Changes to Run credential authorization, persistence or runtime behavior.
+acceptance_criteria:
+- id: A1
+  text: TestRowTriggerInventory passes against the complete migrated PostgreSQL schema and still rejects unregistered triggers.
+- id: A2
+  text: The whole persistence/postgres package and lint pass; production behavior is unchanged.
+tests:
+- command: go test -count=1 ./internal/persistence/postgres
+  covers: [A1, A2]
+- command: make lint
+  covers: [A2]
+verification:
+  date: '2026-11-06'
+  before_fix: TestRowTriggerInventory rejected the unregistered existing engagement trigger.
+  passed:
+  - go test -count=1 ./internal/persistence/postgres
+  - make lint
+  evidence: >-
+    The exact existing trigger is registered without changing production SQL.
+    The whole PostgreSQL package also passes in V64-008's integration-tagged run.
+  transient_failure: >-
+    One additional whole-package run failed in the unchanged
+    TestPostgresMigrationLeaderIsScopedToTargetSchema because the 500 ms lock
+    deadline surfaced as a TCP I/O timeout instead of context.DeadlineExceeded.
+    A complete package rerun passed; no assertions or deadlines were changed.
+delivery:
+  branch: codex/audit-api-cli
+  merged_into_main: false
+  pushed: false
+implementation_commit: null
