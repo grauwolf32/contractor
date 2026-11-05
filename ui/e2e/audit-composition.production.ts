@@ -171,7 +171,7 @@ test("common preparation and retained scanner result survive Run deletion", asyn
     card.getByText(/contractor.scan.operation-report.v1/),
   ).toBeVisible();
   await expect(
-    card.getByRole("button", { name: "Download saved result" }),
+    card.getByRole("button", { name: "Download complete Run result" }),
   ).toBeVisible();
   await page.screenshot({
     path: path.join(directory, "common-retained-after-run-deletion.png"),
