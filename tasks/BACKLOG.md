@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-75 open tasks: 12 in progress, 50 pending, 13 deferred. 1457 finished: 1439 completed, 18 archived.
+74 open tasks: 11 in progress, 50 pending, 13 deferred. 1458 finished: 1440 completed, 18 archived.
 
 ## In progress
 
@@ -22,7 +22,6 @@ the epics are in [epics.yml](epics.yml).
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V449-004](v449-004-register-engagement-trigger-inventory.yml) | execution-core | chore | P2 | Register the Run engagement credential trigger in the schema verification inventory |
 
 ## Pending
 
@@ -166,7 +165,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 3 | 48 | 67 | 37 | 103 |
+| Run execution core (`execution-core`) | 2 | 48 | 67 | 37 | 103 |
 | Planners and the Worker model boundary (`planner-worker`) | 9 | 35 | 53 | 32 | 80 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 15 | 5 | 47 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 3 | 14 |

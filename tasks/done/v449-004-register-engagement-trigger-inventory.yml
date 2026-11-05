@@ -6,7 +6,7 @@ epic: execution-core
 kind: chore
 introduced_by: V449-001
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V449-001]
 languages: [go]
 goal: The real PostgreSQL trigger inventory verifies the complete shipped Run schema.
@@ -52,4 +52,4 @@ delivery:
   branch: codex/audit-api-cli
   merged_into_main: false
   pushed: false
-implementation_commit: null
+implementation_commit: 235a5cb52e75b59eb693c235f0f4077b420d4e31
