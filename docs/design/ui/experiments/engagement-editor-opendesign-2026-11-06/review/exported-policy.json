@@ -1,0 +1,46 @@
+{
+  "schema": "contractor.engagement.v1",
+  "egress": {
+    "routes": [
+      {
+        "origin": "https://shop.example.test",
+        "pathPrefixes": [
+          "/api"
+        ],
+        "methods": [
+          "GET",
+          "HEAD"
+        ],
+        "addressRanges": [
+          "203.0.113.0/24"
+        ]
+      }
+    ],
+    "exclusions": []
+  },
+  "identities": [
+    {
+      "id": "anonymous",
+      "kind": "anonymous",
+      "origins": [
+        "https://shop.example.test"
+      ]
+    },
+    {
+      "id": "member",
+      "kind": "basic",
+      "origins": [
+        "https://shop.example.test"
+      ],
+      "role": "member",
+      "tenant": "demo-shop",
+      "credential": {
+        "credentialId": "shop-operator",
+        "kind": "target-basic@1"
+      }
+    }
+  ],
+  "limits": {
+    "concurrentRequests": 2
+  }
+}

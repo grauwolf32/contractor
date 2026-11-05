@@ -1,0 +1,6 @@
+/* Host QA: keep mobile section titles readable beside their add action. */
+.engagement-editor .eg-errors a { color: var(--danger); }
+@media (max-width: 480px) {
+  .engagement-editor .eg-section-heading { display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: start; }
+  .engagement-editor .eg-section-heading > .eg-btn { grid-column: 2; justify-self: start; margin-left: 0; }
+}
