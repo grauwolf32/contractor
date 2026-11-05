@@ -57,6 +57,17 @@ ui-gates:
 tasks-backlog:
 	cd runtime && uv run python ../scripts/check_tasks.py --write-backlog
 
+# Explicit developer maintenance; never run database deletion from a test gate.
+.PHONY: test-storage-report test-cache-prune test-podman-storage-report
+test-storage-report:
+	python3 scripts/test_storage.py report
+
+test-cache-prune:
+	python3 scripts/test_storage.py prune-cache $(if $(filter 1,$(APPLY)),--apply,)
+
+test-podman-storage-report:
+	python3 scripts/test_storage.py podman-report
+
 # The Go public client used by the CLI is generated from the committed OpenAPI
 # document. oapi-codegen is pinned in its own tool modfile, so it builds offline
 # from the module cache with the dependency versions it was released with and

@@ -476,6 +476,15 @@ Notes:
   are never part of the deterministic gate.
 - Report results as they are: name the commands you ran and their outcome. A
   skipped database test is not a pass.
+- Reuse one disposable test database per lane; after its processes and pools
+  stop, explicitly drop the database you created. Do not leave a database per
+  command or infer that another lane's disconnected database is abandoned.
+  `make test-storage-report` inventories storage; `make test-cache-prune`
+  previews cold Go cache pruning (`APPLY=1` applies it). See the local test
+  storage section of `docs/testing/README.md` for database and explicit Podman
+  cleanup; `make test-podman-storage-report` inventories the selected engine.
+  Remove owned test containers, volumes and networks when their lane finishes;
+  never use global Podman prune/reset against a shared development engine.
 
 ## 6. Component conventions
 

@@ -56,6 +56,91 @@ ICU `en-US` databases to exercise the installed validator under both collations.
 It requires `CREATEDB` and a PostgreSQL build with ICU support; configured but
 missing prerequisites fail the test.
 
+## Local test storage
+
+Use one disposable database per concurrent lane, reuse it for the lane's commands,
+and drop it explicitly after the lane's processes and pools have stopped. Repeated
+schema creation and deletion can leave PostgreSQL system catalogs much larger than
+the fixture tables. Ordinary VACUUM makes that space reusable inside the database;
+dropping an obsolete disposable database also returns its files to the filesystem.
+Do not replace the independent databases required by read-budget tests with schemas.
+
+Inspect storage with `make test-storage-report`. PostgreSQL inspection uses only
+`CONTRACTOR_TEST_DATABASE_URL`; an unset URL skips that inventory, and a configured
+connection failure fails the command. The report shows logical cache bytes, database
+sizes and current connection counts. A test-like name and zero connections are not
+proof that another lane has finished using a database.
+
+`make test-cache-prune` previews pruning the shared Go build cache toward 20 GiB.
+`make test-cache-prune APPLY=1` applies it. The command retains entries used within
+24 hours plus Go's one-hour last-use timestamp margin, removes the oldest first,
+and rechecks files changed since the inventory. Run maintenance between builds;
+the target is best effort, and recent or concurrently changed entries can keep the
+cache above it. For another target, use
+`python3 scripts/test_storage.py prune-cache --max-gib 30 --apply`.
+Module downloads, fuzz corpora, unknown files and symlinks are excluded.
+Go's own cache trim uses an age threshold rather than a size ceiling; heavy use
+across worktrees can grow it substantially before entries expire. See
+[Go's cache implementation](https://go.dev/src/cmd/go/internal/cache/cache.go).
+
+Database deletion always needs an explicit list and defaults to a preview. Point
+the URL at an administrative database on the intended **test** server, such as
+`postgres`, rather than the database being removed, then run:
+
+```shell
+python3 scripts/test_storage.py drop-databases contractor_test_my_finished_lane
+python3 scripts/test_storage.py drop-databases contractor_test_my_finished_lane --apply
+```
+
+Only explicit `contractor_test*`, task-lane `contractor_v<digit>*` and known generated
+fixture names are accepted; demo, system, template and current databases are protected.
+The command rejects connected databases and rechecks their OID and sessions before
+each DROP. It never terminates sessions or uses FORCE. A new connection makes DROP
+fail. A failure or timeout may leave part of a batch completed: inspect a fresh report
+before choosing what to retry. Inventory is bounded at 1000 databases, selection at
+100 names and cache enumeration at 500000 entries. No automatic deletion
+or background task is installed.
+
+`make test-podman-storage-report` shows engine usage, container states, volumes,
+networks and dangling leaf images. Image rows share layers, so their sizes must not
+be added together; `system df` reclaimable is also only an estimate. On macOS inspect
+`podman machine list`, guest `df` and host disk allocation separately. A 100-GiB VM
+capacity is not a measurement of used image storage. Rootless and rootful Podman
+stores are separate; this command inspects the currently selected connection only.
+Use `podman system connection list` to identify them and, for example,
+`podman machine ssh podman-machine-default sudo podman system df`
+to inspect the rootful store inside the VM when its remote socket is unavailable.
+An explicitly configured engine connection also works through Podman's standard
+`CONTAINER_CONNECTION` environment variable. Running test-labelled services may still
+hold large writable layers or volumes; their age does not authorize stopping them.
+
+Podman cleanup also requires explicit selections and defaults to a preview:
+
+```shell
+python3 scripts/test_storage.py podman-clean container contractor-litellm-contract-db-12345
+python3 scripts/test_storage.py podman-clean container contractor-litellm-contract-db-12345 --apply
+python3 scripts/test_storage.py podman-clean volume contractor-litellm-contract-data-12345 --apply
+python3 scripts/test_storage.py podman-clean network contractor-litellm-contract-12345 --apply
+python3 scripts/test_storage.py podman-clean image <full-dangling-image-id> --apply
+```
+
+Containers must have known test names and be stopped or only created. Removal uses
+the rechecked exact ID and removes their anonymous volumes; named test volumes need
+a separate selection after all attached containers have been removed. Service volumes
+and Runtime sandbox containers are protected. Images must be dangling leaves, have no
+container references and be selected by their full ID; parent images are retained.
+Every removal uses the engine's ordinary reference checks without FORCE, so new use
+can fail a partially completed batch. No global prune, reset, service stop, machine
+removal or VM disk compaction runs. Inventories are limited to 1000 resources per kind
+and selections to 100. See [Podman container removal](https://docs.podman.io/en/latest/markdown/podman-rm.1.html)
+and [volume removal](https://docs.podman.io/en/latest/markdown/podman-volume-rm.1.html).
+
+The real-engine maintenance test is opt-in: set
+`CONTRACTOR_TEST_STORAGE_PODMAN_IMAGE` to a preinstalled Alpine image and run
+`python3 -m unittest discover -s scripts -p 'test_test_storage.py'`. It never pulls
+an image, owns randomly named fixtures, proves active-container and mounted-volume
+protection, and removes its own resources.
+
 ## Temporary directory on macOS
 
 Go's `t.TempDir()` uses `TMPDIR` as given. The default macOS `TMPDIR` lies
