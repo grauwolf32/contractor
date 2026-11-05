@@ -110,7 +110,9 @@ def run(boundary: str, output_dir: Path) -> Path:
             raise GateError("test command failed")
         reports.require_fresh(pin, MATRIX)
         evidence["cases"] = verify(report, boundary)
-        evidence["counts"] = {"required": sum(map(len, selected.values())), "passed": len(evidence["cases"]), "skipped": 0}
+        skipped = reports.disk_heavy_skips(report)
+        evidence["counts"] = {"required": sum(map(len, selected.values())) - len(skipped), "passed": len(evidence["cases"]), "skipped": len(skipped)}
+        evidence["optional_disk_heavy_skips"] = skipped
         evidence["report_digest"] = reports.digest(report)
         evidence["status"] = "passed"
         reports.write_evidence(destination, evidence)

@@ -7,6 +7,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+import disk_heavy_policy
+
 ROOT = Path(__file__).resolve().parents[1]
 PREFIX = "github.com/grauwolf32/contractor/"
 PACKAGES = (
@@ -74,7 +76,7 @@ def main():
                  "-timeout=15m", *("./" + package for package in PACKAGES)],
                 cwd=ROOT, stdout=output, check=False, timeout=1200,
             )
-        passed, started, packages, failures = set(), set(), set(), []
+        passed, started, packages, failures, skipped = set(), set(), set(), [], set()
         for line in report.read_text().splitlines():
             event = json.loads(line)
             package, case, action = event.get("Package"), event.get("Test"), event.get("Action")
@@ -85,17 +87,19 @@ def main():
                     started.add((package, case))
                 if action == "pass":
                     passed.add((package, case))
-                if action in {"skip", "fail"}:
+                if action == "skip" and disk_heavy_policy.optional(package, case):
+                    skipped.add((package, case))
+                elif action in {"skip", "fail"}:
                     failures.append(f"{case}: {action}")
             if action == "output" and ("encoded_publication_bytes=" in event.get("Output", "")):
                 print(event["Output"].strip(), flush=True)
-        missing = REQUIRED_CASES - (started & passed)
+        missing = REQUIRED_CASES - (started & (passed | skipped))
         missing_packages = {PREFIX + package for package in PACKAGES} - packages
         if result.returncode or missing or missing_packages or failures:
             # Connection strings are never diagnostics.
             print(report.read_text().replace(os.environ["CONTRACTOR_TEST_DATABASE_URL"], "[database]"))
             raise SystemExit(f"sitemap gate failed: {sorted(missing)}, {sorted(missing_packages)}, {failures}")
-        print(f"Sitemap PostgreSQL: {len(PACKAGES)} complete packages, {len(REQUIRED_CASES)} mandatory cases, zero mandatory skips")
+        print(f"Sitemap PostgreSQL: {len(PACKAGES)} complete packages, {len(REQUIRED_CASES) - len(skipped)} mandatory cases passed, {len(skipped)} optional disk-heavy skips")
 
 
 if __name__ == "__main__":

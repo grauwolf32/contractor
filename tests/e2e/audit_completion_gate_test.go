@@ -163,7 +163,7 @@ func TestAuditCompletionGateRequiresPrerequisites(t *testing.T) {
 				if err := os.Mkdir(filepath.Join(root, "scripts"), 0700); err != nil {
 					t.Fatal(err)
 				}
-				for _, name := range []string{"test-audit-completion-e2e.py", "release_test_reports.py", "audit-completion-matrix.json"} {
+				for _, name := range []string{"test-audit-completion-e2e.py", "release_test_reports.py", "disk_heavy_policy.py", "audit-completion-matrix.json"} {
 					data, err := os.ReadFile(filepath.Join("../../scripts", name))
 					if err != nil {
 						t.Fatal(err)

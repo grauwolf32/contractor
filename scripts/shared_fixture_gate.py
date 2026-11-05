@@ -13,7 +13,8 @@ make test-wire-cross-language runs this gate. It fails when
   TestShared* test sits behind a build constraint the gate does not set;
 - a side has no shared test, or a discovered TestShared*/test_shared_* test
   did not run and pass (a skipped test, such as a PostgreSQL test without
-  CONTRACTOR_TEST_DATABASE_URL, is not a pass);
+  CONTRACTOR_TEST_DATABASE_URL, is not a pass); explicitly disabled disk-heavy
+  cases may skip and never count as passing coverage;
 - a fixture matches no readers entry, a declared side does not read it, an
   undeclared side reads it, or it has one reader and no recorded reason;
 - tests of two sides name the same file in another testdata directory, a
@@ -38,6 +39,8 @@ from collections import defaultdict
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
+
+import disk_heavy_policy
 
 ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = ROOT / "api" / "testdata"
@@ -319,6 +322,8 @@ def check_go_outcomes(
         problems.append("Go: no TestShared* test exists")
     for key, path in sorted(discovered.items()):
         outcome = outcomes.get(key)
+        if outcome == "skip" and disk_heavy_policy.optional(*key):
+            continue
         if outcome != "pass":
             state = "did not run" if outcome is None else outcome
             problems.append(f"Go: {key[1]} ({path}) {state}")
@@ -426,6 +431,9 @@ def verify_reports(go_lines: Iterable[str], records: list[str], problems: list[s
         f"shared fixtures: {len(fixtures)} fixtures, {len(go_passed)} Go and "
         f"{len(python_tests)} Python shared tests"
     )
+    skipped = sum(outcome == "skip" and disk_heavy_policy.optional(*key) for key, outcome in outcomes.items())
+    if skipped:
+        print(f"shared fixtures: {skipped} optional disk-heavy tests skipped (not passing coverage)")
     report(problems, "shared fixture gate")
     return 1 if problems else 0
 

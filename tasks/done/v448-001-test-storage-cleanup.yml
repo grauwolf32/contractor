@@ -1,0 +1,101 @@
+schema_version: "1.0"
+id: V448-001
+title: "Report and explicitly reclaim local test storage"
+milestone: test-gate-cost-2026-10
+epic: quality
+kind: chore
+priority: P3
+status: completed
+implementation_commit: 04ea7f9e41d5ec68356155e772fdac5fde0729d1
+depends_on: []
+languages: [python]
+goal: >-
+  Developers can inspect Go, disposable PostgreSQL and Podman storage, prune cold
+  cache entries and explicitly remove selected idle test resources.
+context:
+  authority:
+    - "2026-11-05: The user requested addressing Go cache growth and accumulated copies of test databases."
+    - "2026-11-05: The user extended the same maintenance request to leftover Podman resources."
+  finding: >-
+    Local inspection found 142 GiB in the shared Go build cache and 110 Contractor
+    databases occupying about 98 GiB on local PostgreSQL port 5432. A 6.2-GiB test
+    database held only about 10 MiB of fixture tables; most space was PostgreSQL
+    system-catalog bloat after repeated schema creation/deletion. Concurrent external
+    cache cleanup reduced its size during inspection; this task does not claim that work.
+    Podman also held three stopped/created test containers, a test volume/network
+    and three dangling images. Its VM disk occupied 83 GiB on the host while images
+    used about 8 GB; two unrelated open-design-review services were running.
+    The separate rootful store held 31.49 GB of images, 36.19 GB of container
+    writable data and 13.13 GB of volumes, with eight running containers. This is
+    real guest usage, rather than merely untrimmed free space in a sparse VM disk.
+  decision: >-
+    Provide explicit commands with a dry-run default. Keep recently used cache entries;
+    a size target is best effort, never a promise to evict active work. Database deletion
+    requires exact test names, rechecks identity/connections and uses DROP without FORCE.
+    Names and lack of connections alone do not prove abandonment. The simpler alternative
+    is go clean -cache plus manual DROP DATABASE, which loses the warm cache and gives
+    less reviewable selection. No automatic database deletion or scheduled service is added.
+  boundary: >-
+    This is developer tooling using Go's existing disk cache and PostgreSQL's catalogs.
+    Test fixture isolation, Server persistence, demo data and release-gate behavior stay
+    with their existing owners. Dedicated databases remain necessary for read budgets.
+scope:
+  in:
+    - "Bounded storage inventory, cold-cache pruning and explicit test-database deletion."
+    - "Podman inventory and explicit non-forced removal of selected test resources and dangling images."
+    - "Behavioral filesystem and real-PostgreSQL tests, Make entry points and developer instructions."
+  out:
+    - "Automatic or blanket database deletion, session termination and demo database maintenance."
+    - "Changing Go cache keys, test isolation, test selection or runtime persistence."
+    - "Reactivating archived V408 cache-classification tasks or introducing a scheduler."
+    - "Podman system prune/reset, deleting machines, running services or named service volumes."
+acceptance_criteria:
+  - id: A1
+    text: >-
+      Reporting reads the configured Go cache and at most 1000 database catalog rows,
+      shows sizes and connections without credentials, and fails on configured connection errors.
+  - id: A2
+    text: >-
+      Cache pruning defaults to preview, targets 20 GiB, retains entries used within
+      24 hours plus Go's one-hour timestamp margin, rechecks changed files and never
+      follows symlinks or touches module downloads, fuzz corpora or unknown cache files.
+  - id: A3
+    text: >-
+      Database deletion defaults to preview, requires exact eligible test names, refuses
+      protected/current/template/active databases and changed catalog identities, never
+      terminates sessions, and reports any failed mutation without retrying it blindly.
+  - id: A4
+    text: >-
+      Filesystem and real-store regressions cover previews, pruning order, retained files,
+      selected idle database deletion and active/protected database preservation. Documentation
+      requires one disposable database per lane with explicit end-of-lane cleanup. Repository lint passes.
+  - id: A5
+    text: >-
+      Podman reporting distinguishes shared image accounting and VM capacity from used
+      space. Cleanup defaults to preview, uses exact test container/volume/network names
+      or full dangling image IDs, refuses active containers and tagged/in-use images,
+      and never uses FORCE, broad prune, reset or machine removal. An opt-in real-engine
+      test proves selected test resources are removed and active resources are retained.
+tests:
+  - command: "python3 -m unittest discover -s scripts -p 'test_test_storage.py'"
+    covers: [A1, A2, A3, A4]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=postgresql:///postgres python3 -m unittest discover -s scripts -p 'test_test_storage.py'"
+    covers: [A1, A3, A4]
+  - command: "make lint"
+    covers: [A4]
+  - command: "CONTRACTOR_TEST_STORAGE_PODMAN_IMAGE=docker.io/library/alpine:latest python3 -m unittest discover -s scripts -p 'test_test_storage.py'"
+    covers: [A5]
+verification:
+  date: "2026-11-05"
+  passed:
+    - "All 11 focused checks passed together against real PostgreSQL 17 and the selected real Podman engine, with no skips."
+    - "The separately listed PostgreSQL and Podman commands passed; only the other unconfigured optional backend was skipped in each command. The unconfigured command passed with its three explicitly optional backend skips."
+    - "make lint passed, including 203 script tests (four optional backend skips, covered separately above), generated contracts, Go analysis, UI gates, deployment tests, release graph, tasks/spec checks and Runtime layers."
+    - "Focused checks passed again after bounding unknown cache entries and executable-directory enumeration; Ruff checks/format and git diff --check passed."
+  limits:
+    - "No rootful service was stopped and no named lane database was removed. The user was asked which four old running test services have finished."
+    - "No hard cache-size ceiling, automatic retention service or VM disk shrink was introduced."
+  maintenance:
+    - "Removed 55 generated fixture databases older than one day with no sessions, reclaiming about 0.74 GiB; exact plan is retained locally under .local/test-storage/database-plan.json. Named lane databases were retained."
+    - "Removed three stopped/created rootless test containers, two volumes (one anonymous and one named), one test network and three explicitly selected dangling leaf images. Running services and the rootful store were retained. Parent image layers were deliberately retained, so image row sizes are not claimed as reclaimed bytes."
+    - "The Go cache was reduced by concurrent external maintenance during investigation; the new command preview found no cold entries eligible for further pruning."

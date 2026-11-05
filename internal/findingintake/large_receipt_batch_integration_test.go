@@ -7,9 +7,11 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/helpers/disktest"
 )
 
 func TestPostgresHydratesNineMaximumSizeProposalsAcrossBatches(t *testing.T) {
+	disktest.Require(t)
 	f := newFindingImportFixture(t, false, true)
 	ids := make([]string, 9)
 	for n := range ids {

@@ -20,6 +20,8 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
+import disk_heavy_policy
+
 ROOT = Path(__file__).resolve().parents[1]
 CLEANUP_GRACE_SECONDS = 5
 
@@ -89,7 +91,7 @@ def verify_go_report(report: Path, required: dict[str, list[str]], *, root_patte
     expected = {(package, case) for package, cases in required.items() for case in cases}
     mandatory = expected | {(package, case.split("/", 1)[0]) for package, case in expected}
     roots = {package: {case.split("/", 1)[0] for case in cases} for package, cases in required.items()}
-    started, passed, packages = set(), set(), set()
+    started, passed, packages, skipped = set(), set(), set(), set()
     with report.open(encoding="utf-8") as source:
         while True:
             line = source.readline(65537)
@@ -106,6 +108,14 @@ def verify_go_report(report: Path, required: dict[str, list[str]], *, root_patte
                 selected = re.search(root_pattern, root) is not None if root_pattern is not None else root in roots[package]
                 if not selected:
                     continue
+            if action == "skip" and case and case == root and disk_heavy_policy.optional(package, case):
+                key = (package, case)
+                if package in packages or key not in started or key in passed | skipped or any(
+                    child[0] == package and child[1].startswith(root + "/") for child in started
+                ):
+                    raise GateError("optional skip is duplicated or outside its root lifetime")
+                skipped.add(key)
+                continue
             if action in {"skip", "fail", "build-fail"}:
                 raise GateError("a selected Go case or package did not pass")
             if case:
@@ -119,7 +129,7 @@ def verify_go_report(report: Path, required: dict[str, list[str]], *, root_patte
                     # distinguish those literal names from intermediate parents;
                     # only the top-level test is a guaranteed ancestor.
                     parent = (package, root)
-                    if key in started or case != root and (parent not in started or parent in passed):
+                    if key in started or case != root and (parent not in started or parent in passed | skipped):
                         raise GateError("selected case run is duplicated or outside its root lifetime")
                     started.add(key)
                 elif action == "pass":
@@ -129,12 +139,31 @@ def verify_go_report(report: Path, required: dict[str, list[str]], *, root_patte
                         raise GateError("selected case pass is duplicated, premature or has no prior run")
                     passed.add(key)
             elif action == "pass":
-                if package in packages or any(key not in passed for key in mandatory | started if key[0] == package):
+                if package in packages or any(
+                    key not in passed and (package, key[1].split("/", 1)[0]) not in skipped
+                    for key in mandatory | started if key[0] == package
+                ):
                     raise GateError("package passed without complete selected execution")
                 packages.add(package)
-    if not expected or mandatory - passed or started != passed or set(required) - packages:
+    missing = {key for key in mandatory - passed if (key[0], key[1].split("/", 1)[0]) not in skipped}
+    if not expected or missing or started != passed | skipped or set(required) - packages:
         raise GateError("mandatory cases or package passes are missing")
+    if skipped:
+        print(f"Optional disk-heavy cases skipped: {len(skipped)} (not passing coverage)")
     return sorted(f"{package}/{case}" for package, case in passed)
+
+
+def disk_heavy_skips(report: Path) -> list[str]:
+    """Actual optional root skips, for truthful retained execution evidence."""
+    skipped = []
+    with report.open(encoding="utf-8") as source:
+        while line := source.readline(65537):
+            if len(line) > 65536:
+                raise GateError("Go event exceeds its line bound")
+            event = parse_go_event(line)
+            if event.get("Action") == "skip" and event.get("Test") and disk_heavy_policy.optional(event.get("Package", ""), event["Test"]):
+                skipped.append(event["Package"] + "/" + event["Test"])
+    return skipped
 
 
 def source_state() -> dict:

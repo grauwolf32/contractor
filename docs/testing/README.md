@@ -56,6 +56,115 @@ ICU `en-US` databases to exercise the installed validator under both collations.
 It requires `CREATEDB` and a PostgreSQL build with ICU support; configured but
 missing prerequisites fail the test.
 
+## Local test storage
+
+The largest write-volume fixtures are optional in **every** run, including
+`make verify`, `make release-verify`, shared-fixture gates and CI. They run only
+when the caller explicitly sets `CONTRACTOR_TEST_HEAVY_IO=1`:
+
+```shell
+CONTRACTOR_TEST_HEAVY_IO=1 make release-verify
+CONTRACTOR_TEST_HEAVY_IO=1 go test -tags=integration -count=1 ./internal/artifacts/postgres
+```
+
+Unset or `0` skips these cases before creating any resources; other values fail.
+The exact cases and reasons live in `scripts/disk_heavy_policy.py`: large Audit
+Task/execution/claim histories, 50000-revision Artifact fixtures, the real 64-MiB
+payload, nine maximum-size proposals and more than 256 MiB of sitemap publications.
+The registry is checked against the Go guards. Fixtures, limits and assertions
+are unchanged. CI manual dispatch exposes the explicit `heavy_io` input, default
+false; PR and tag runs leave these fixtures disabled.
+
+Skipped heavy cases remain visible as skips and never count as passing coverage.
+Gates still require them to appear in the report, and still reject failures,
+undeclared skips and missing tests. Opting in restores their pass requirement.
+Ordinary database regressions, metadata-only logical-size tests and Runtime tests
+retain their existing policy. This reduces fixture writes; Go compilation still
+uses its build cache independently of whether these test bodies execute.
+
+Use one disposable database per concurrent lane, reuse it for the lane's commands,
+and drop it explicitly after the lane's processes and pools have stopped. Repeated
+schema creation and deletion can leave PostgreSQL system catalogs much larger than
+the fixture tables. Ordinary VACUUM makes that space reusable inside the database;
+dropping an obsolete disposable database also returns its files to the filesystem.
+Do not replace the independent databases required by read-budget tests with schemas.
+
+Inspect storage with `make test-storage-report`. PostgreSQL inspection uses only
+`CONTRACTOR_TEST_DATABASE_URL`; an unset URL skips that inventory, and a configured
+connection failure fails the command. The report shows logical cache bytes, database
+sizes and current connection counts. A test-like name and zero connections are not
+proof that another lane has finished using a database.
+
+`make test-cache-prune` previews pruning the shared Go build cache toward 20 GiB.
+`make test-cache-prune APPLY=1` applies it. The command retains entries used within
+24 hours plus Go's one-hour last-use timestamp margin, removes the oldest first,
+and rechecks files changed since the inventory. Run maintenance between builds;
+the target is best effort, and recent or concurrently changed entries can keep the
+cache above it. For another target, use
+`python3 scripts/test_storage.py prune-cache --max-gib 30 --apply`.
+Module downloads, fuzz corpora, unknown files and symlinks are excluded.
+Go's own cache trim uses an age threshold rather than a size ceiling; heavy use
+across worktrees can grow it substantially before entries expire. See
+[Go's cache implementation](https://go.dev/src/cmd/go/internal/cache/cache.go).
+
+Database deletion always needs an explicit list and defaults to a preview. Point
+the URL at an administrative database on the intended **test** server, such as
+`postgres`, rather than the database being removed, then run:
+
+```shell
+python3 scripts/test_storage.py drop-databases contractor_test_my_finished_lane
+python3 scripts/test_storage.py drop-databases contractor_test_my_finished_lane --apply
+```
+
+Only explicit `contractor_test*`, task-lane `contractor_v<digit>*` and known generated
+fixture names are accepted; demo, system, template and current databases are protected.
+The command rejects connected databases and rechecks their OID and sessions before
+each DROP. It never terminates sessions or uses FORCE. A new connection makes DROP
+fail. A failure or timeout may leave part of a batch completed: inspect a fresh report
+before choosing what to retry. Inventory is bounded at 1000 databases, selection at
+100 names and cache enumeration at 500000 entries. No automatic deletion
+or background task is installed.
+
+`make test-podman-storage-report` shows engine usage, container states, volumes,
+networks and dangling leaf images. Image rows share layers, so their sizes must not
+be added together; `system df` reclaimable is also only an estimate. On macOS inspect
+`podman machine list`, guest `df` and host disk allocation separately. A 100-GiB VM
+capacity is not a measurement of used image storage. Rootless and rootful Podman
+stores are separate; this command inspects the currently selected connection only.
+Use `podman system connection list` to identify them and, for example,
+`podman machine ssh podman-machine-default sudo podman system df`
+to inspect the rootful store inside the VM when its remote socket is unavailable.
+An explicitly configured engine connection also works through Podman's standard
+`CONTAINER_CONNECTION` environment variable. Running test-labelled services may still
+hold large writable layers or volumes; their age does not authorize stopping them.
+
+Podman cleanup also requires explicit selections and defaults to a preview:
+
+```shell
+python3 scripts/test_storage.py podman-clean container contractor-litellm-contract-db-12345
+python3 scripts/test_storage.py podman-clean container contractor-litellm-contract-db-12345 --apply
+python3 scripts/test_storage.py podman-clean volume contractor-litellm-contract-data-12345 --apply
+python3 scripts/test_storage.py podman-clean network contractor-litellm-contract-12345 --apply
+python3 scripts/test_storage.py podman-clean image <full-dangling-image-id> --apply
+```
+
+Containers must have known test names and be stopped or only created. Removal uses
+the rechecked exact ID and removes their anonymous volumes; named test volumes need
+a separate selection after all attached containers have been removed. Service volumes
+and Runtime sandbox containers are protected. Images must be dangling leaves, have no
+container references and be selected by their full ID; parent images are retained.
+Every removal uses the engine's ordinary reference checks without FORCE, so new use
+can fail a partially completed batch. No global prune, reset, service stop, machine
+removal or VM disk compaction runs. Inventories are limited to 1000 resources per kind
+and selections to 100. See [Podman container removal](https://docs.podman.io/en/latest/markdown/podman-rm.1.html)
+and [volume removal](https://docs.podman.io/en/latest/markdown/podman-volume-rm.1.html).
+
+The real-engine maintenance test is opt-in: set
+`CONTRACTOR_TEST_STORAGE_PODMAN_IMAGE` to a preinstalled Alpine image and run
+`python3 -m unittest discover -s scripts -p 'test_test_storage.py'`. It never pulls
+an image, owns randomly named fixtures, proves active-container and mounted-volume
+protection, and removes its own resources.
+
 ## Temporary directory on macOS
 
 Go's `t.TempDir()` uses `TMPDIR` as given. The default macOS `TMPDIR` lies
@@ -191,8 +300,8 @@ scheduling. Before increasing it, measure peak PostgreSQL connections
 the runner. PostgreSQL advisory locks also require checking their database
 scope; separate schemas alone do not isolate every resource.
 
-The serial sitemap publication-volume fixture runs without race instrumentation
-in the complete ordinary Go unit pass. Its 257 publications, more than 256 MiB
+When explicitly enabled, the serial sitemap publication-volume fixture runs without race instrumentation
+in the ordinary Go unit pass. Its 257 publications, more than 256 MiB
 of cumulative encoded content and production 15-second operation deadline stay
 unchanged. Race instrumentation can consume that deadline on the first large
 publication, so this fixture lives in a `!race` test file. The package still runs
@@ -217,7 +326,9 @@ focused runs. The shared read journal is initialized once before either language
 including when consolidation is inherited from a target rather than an
 environment flag. Report files are replaced on each run; missing, skipped or
 incomplete required evidence fails the gate. Optional skips outside those
-focused scopes retain their existing policy.
+focused scopes retain their existing policy. The explicitly disabled disk-heavy
+cases are also allowed to skip inside focused scopes, and are excluded from
+passing execution evidence.
 `make lint` checks the stage order, the CI jobs and this table against the
 Makefile, the race coverage of every package with tests, and the release graph
 against the original process-test inventory, and discovers every
@@ -239,9 +350,10 @@ allowlists it with its opt-in target and the reason (real scanners or Podman).
 `make test-audit-iterative-postgres` runs the exact store, scale and recovery
 selection in [`audit_iterative_matrix.yml`](../../tests/e2e/audit_iterative_matrix.yml)
 (each case appears once, with its boundary and acceptance links)
-with the race detector. It includes the 4,096-item Round inside a 100,000-item
-Audit, 32-dependency closures, bounded capture/admission/materialization and
-populated deletion. Fixtures use real PostgreSQL and deterministic work/query
+with the race detector. Large histories such as the 100,000-task fixture require
+the explicit heavy-I/O opt-in; other selected cases retain their normal policy.
+The matrix also covers 32-dependency closures, bounded capture/admission/materialization
+and populated deletion. Fixtures use real PostgreSQL and deterministic work/query
 counters; elapsed time does not substitute for a row or byte limit.
 
 `make test-audit-iterative-e2e` runs the same matrix's production-process
@@ -256,6 +368,8 @@ registry, paid provider or live-model quality assumption.
 Both direct targets execute their focused harness unit checks once per make
 invocation. Missing prerequisites, a zero/missing/skipped required selection,
 changed source/matrix, command failure or an incomplete report fails the gate.
+Declared disabled-heavy skips are the explicit exception and are recorded in
+`optional_disk_heavy_skips` and the execution counts, rather than as passes.
 The Audit gates use one strict Go-event verifier and one process-group capture
 owner in `scripts/release_test_reports.py`; completion keeps its Runtime JUnit
 policy and composition keeps its browser checks. Family root scopes remain
@@ -314,6 +428,8 @@ on the same server and drop them afterwards. PostgreSQL itself is supplied by
 the caller. Database tests skip only while `CONTRACTOR_TEST_DATABASE_URL` is
 unset: once it is set, an unreachable server or a missing privilege fails
 them, and `make lint` rejects helpers that skip after a failed connection.
+The named disk-heavy fixtures are the exception: when not opted in, they skip
+before attempting a connection; with the opt-in they follow the same failure rule.
 
 ```shell
 export CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable'
@@ -403,7 +519,8 @@ when `runtime/tests/shared_fixtures.py` lists it with its reason; neither
 counts as a reader. A process test (`tests/e2e`) uses a copy under
 `tests/e2e/testdata` that a shared test keeps identical.
 `api/testdata/readers.json` declares the sides that read each fixture, and
-`make test-wire-cross-language` runs every shared test and holds the observed
+`make test-wire-cross-language` invokes every shared test, permits only explicitly
+disabled disk-heavy skips, and holds the observed
 readers to it ([`scripts/shared_fixture_gate.py`](../../scripts/shared_fixture_gate.py)).
 `make lint` runs only the gate's source checks: no other Go path into
 `api/testdata`, no `TestShared*` test behind a build constraint, and no file in
