@@ -8,6 +8,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/helpers/disktest"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -49,6 +50,7 @@ type purgeScaleReads struct {
 // executions, so a probe for the purged Audit's own rows reads about two
 // thirds of an index at most, and a whole read nearly all of it.
 func TestPostgresAuditPurgeAtScaleProbesForeignKeysThroughIndexes(t *testing.T) {
+	disktest.Require(t)
 	f := newCollectingAuditFixture(t, "purge-scale", 1<<20)
 	// The test measures reads, not time: copying 150,000 rows takes as long as
 	// the machine needs, and go test -timeout is the safety net.

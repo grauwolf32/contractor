@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+	"github.com/grauwolf32/contractor/internal/helpers/disktest"
 
 	. "github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/jackc/pgx/v5"
@@ -32,6 +33,7 @@ func (c *historyQueryCapture) Query(_ context.Context, sql string, args ...any) 
 }
 
 func TestPostgresArtifactSelectiveQueryPlans(t *testing.T) {
+	disktest.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)

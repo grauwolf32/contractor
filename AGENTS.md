@@ -226,6 +226,10 @@ reviews hit every unplanned combination (V205, V236, V278, V279, V285).
 - No wall-clock assertions; use injected clocks and deterministic budgets.
 - A database test skips only while `CONTRACTOR_TEST_DATABASE_URL` is unset.
   Once it is set, an unreachable database must fail the test.
+  User decision 2026-11-05: the named disk-heavy fixtures are an explicit
+  exception. They skip before resource creation unless the caller supplies
+  `CONTRACTOR_TEST_HEAVY_IO=1`, including full verification and CI. Never enable
+  this flag implicitly or count their disabled skips as passing coverage.
 - A gate or `-run` selection that matches zero tests is a failure.
 - If you rename a test, change a catalog entry, a config default, a Gateway
   error class or a UI selector, run every gate that consumes it. In the V60
@@ -476,6 +480,19 @@ Notes:
   are never part of the deterministic gate.
 - Report results as they are: name the commands you ran and their outcome. A
   skipped database test is not a pass.
+- Large disk-write fixtures are optional even in full runs. Explicitly use
+  `CONTRACTOR_TEST_HEAVY_IO=1` to include them; the CI manual dispatch input is
+  `heavy_io` (default false). See `scripts/disk_heavy_policy.py` and
+  `docs/testing/README.md`; ordinary database regressions remain required.
+- Reuse one disposable test database per lane; after its processes and pools
+  stop, explicitly drop the database you created. Do not leave a database per
+  command or infer that another lane's disconnected database is abandoned.
+  `make test-storage-report` inventories storage; `make test-cache-prune`
+  previews cold Go cache pruning (`APPLY=1` applies it). See the local test
+  storage section of `docs/testing/README.md` for database and explicit Podman
+  cleanup; `make test-podman-storage-report` inventories the selected engine.
+  Remove owned test containers, volumes and networks when their lane finishes;
+  never use global Podman prune/reset against a shared development engine.
 
 ## 6. Component conventions
 

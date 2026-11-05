@@ -33,7 +33,10 @@ context:
     shared metadata for every permitted reader and snapshot-only original-file retention. On 2026-10-31
     the user requested sitemap work in parallel with the Audit redesign and explicitly asked to rewrite
     the tasks. Standalone Workflows and their release gate are V410-006/007; V410-025 owns the Audit-dependent
-    integration. This update changes planning, not implementation.
+    integration. This update changes planning, not implementation. User decision on 2026-11-05
+    makes the exact disk-heavy cases registered by V448-002 optional even in full gates;
+    only explicit CONTRACTOR_TEST_HEAVY_IO=1 enables them. Their skips are reported as
+    unproven scale evidence, never as successful publication-volume verification.
   proposal: docs/proposals/0042-live-project-sitemap.md
   proposal_sections: 'Sections 10-12: measured publication amplification, limits, required cases and first
     useful delivery.'
@@ -208,9 +211,12 @@ acceptance_criteria:
 - id: A5
   given: The exact tested revision and case manifest
   when: Release registration and full affected regressions run
-  then: The evidence names commands, counts, zero skips, actual cost and residual limitations; a failed
-    scaling claim leaves the task unfinished. Evidence proves the removed per-Run publication caps are
-    absent, generic RunScope revision semantics remain unchanged, and common/domain work bounds hold.
+  then: The evidence names commands, counts, zero mandatory skips, separately identified optional
+    disk-heavy skips, actual cost and residual limitations; a failed executed scaling claim leaves
+    the task unfinished. The publication-volume proof runs only with explicit heavy-I/O opt-in;
+    without it that claim is reported as unproven. Enabled evidence proves the removed per-Run
+    publication caps are absent. Generic RunScope revision semantics and the remaining common/domain
+    work-bound cases retain their requirements.
     Inadequate useful workload needs an implemented reviewed representation/coalescing remedy and fresh
     evidence; changing numeric policy requires explicit user approval, not an automatic implementation
     change.

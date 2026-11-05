@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+	"github.com/grauwolf32/contractor/internal/helpers/disktest"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
@@ -26,6 +27,7 @@ import (
 // an independent read of the fixture, which has a database of its own, so
 // the budgets count live rows only. Each budget adds planningEntries.
 func TestPostgresAuditReadsAtFindingScale(t *testing.T) {
+	disktest.Require(t)
 	f := newFindingScaleFixture(t)
 	owner, auditID := f.audit.OwnerID, f.audit.AuditID
 	var findings, unreviewed, proposed, collected int64

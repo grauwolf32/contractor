@@ -10,6 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/disktest"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
 	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -17,6 +18,7 @@ import (
 )
 
 func TestSharedPostgresCommonTaskPagesAndPurgeAtCeiling(t *testing.T) {
+	disktest.Require(t)
 	f := newCommonTaskFixture(t, 1)
 	ctx := t.Context()
 	base := f.acceptance(1, "seed").Tasks[0]
