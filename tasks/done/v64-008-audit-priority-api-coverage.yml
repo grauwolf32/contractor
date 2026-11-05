@@ -5,7 +5,7 @@ milestone: audit-check-prioritization
 epic: audits
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V64-012
 - V64-013
@@ -237,7 +237,7 @@ delivery:
   base_commit: b84f7f672626eaf538605824f79668d4fb68c316
   merged_into_main: false
   pushed: false
-implementation_commit: null
+implementation_commit: be6a94128df40f3edf56648b9b12eacc79e12231
 replanning:
   date: '2026-10-31'
   previous_title: Expose paginated research state and separate coverage through the public API
