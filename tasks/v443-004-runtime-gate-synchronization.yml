@@ -46,6 +46,14 @@ context:
     child output is read, preserving real process cleanup and timeout behavior.
     No production code or deadline changes. Owning modules: 311 passed in
     /tmp/v443004-modules.log; complete gate verification remains pending.
+    The first complete run then exposed the same fixture race in two Nuclei
+    package/receipt cases (5894 passed, 135 existing skips, two failures;
+    /tmp/v443004-runtime.log). Their fixed Python version probe also has a
+    two-second subdeadline, and timeout cases could expire before publishing
+    the manifest. Give that synthetic version subprocess its own setup budget
+    and expire scan timers after real child output. Apply the identical
+    SQLMap phase synchronization to its ffuf sibling. Both complete scanner
+    modules pass 233 tests in /tmp/v443004-siblings.log.
 scope:
   in:
     - Diagnose the scanner probe, SQLMap preparation and allocation readiness failures and inspect sibling tests.
@@ -64,7 +72,7 @@ acceptance_criteria:
   - id: A4
     text: A deterministic delayed-readiness or controlled-deadline regression proves the correction; all owning modules, make test-runtime and make lint pass without added skips or production deadline changes.
 tests:
-  - command: cd runtime && uv run pytest -W error tests/test_scan_katana.py tests/test_scan_toolset.py tests/test_scan_sqlmap_request.py tests/test_allocation.py tests/test_tool_process.py tests/test_http_caido_process_e2e.py
+  - command: cd runtime && uv run pytest -W error tests/test_scan_katana.py tests/test_scan_toolset.py tests/test_scan_sqlmap_request.py tests/test_scan_ffuf.py tests/test_allocation.py tests/test_tool_process.py tests/test_http_caido_process_e2e.py
     covers: [A1, A2, A3, A4]
   - command: make test-runtime
     covers: [A1, A2, A3, A4]

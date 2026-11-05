@@ -7,6 +7,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
+from fakes.clock import advance_clock, run_with_advanceable_clock
 from fakes.worker_state import WorkerState
 from target_policy_fixtures import SCAN_TEST_POLICY
 from test_scan_toolset import executable
@@ -546,13 +547,23 @@ def test_stopping_ffuf_cleans_files_processes_and_metrics(tmp_path, monkeypatch,
     async def scenario():
         transport = WordlistTransport(b"payload-canary\n", block=phase == "artifact-read")
         tool, state = await make_ffuf(tmp_path, transport)
-        task = asyncio.create_task(
-            tool(TARGET, WORDLIST_REF, timeout_seconds=1 if stop == "timeout" else 30)
-        )
+        output_read = asyncio.Event()
+        original_read = asyncio.StreamReader.read
+
+        async def observed_read(self, n=-1):
+            data = await original_read(self, n)
+            if b"payload-canary" in data:
+                output_read.set()
+            return data
+
+        monkeypatch.setattr(asyncio.StreamReader, "read", observed_read)
+        scan_budget = 60
+        task = asyncio.create_task(tool(TARGET, WORDLIST_REF, timeout_seconds=scan_budget))
         try:
-            async with asyncio.timeout(3):
+            async with asyncio.timeout(30):
                 await transport.started.wait()
                 if phase == "scanner":
+                    await output_read.wait()
                     while not marker.exists():
                         await asyncio.sleep(0.01)
                     process = json.loads(marker.read_text())
@@ -561,7 +572,9 @@ def test_stopping_ffuf_cleans_files_processes_and_metrics(tmp_path, monkeypatch,
                     assert not list((tmp_path / "workspace").rglob("wordlist.txt"))
 
             if stop == "timeout":
-                result = await asyncio.wait_for(task, 3)
+                assert not task.done()
+                advance_clock(scan_budget)
+                result = await asyncio.wait_for(task, 30)
                 assert result["status"] == "failed"
                 assert result["errorCode"] == "scan_timeout"
                 assert result["scanComplete"] is False
@@ -573,9 +586,9 @@ def test_stopping_ffuf_cleans_files_processes_and_metrics(tmp_path, monkeypatch,
                 if stop == "cancel":
                     task.cancel()
                 else:
-                    await asyncio.wait_for(tool.close(), 3)
+                    await asyncio.wait_for(tool.close(), 30)
                 with pytest.raises(asyncio.CancelledError):
-                    await asyncio.wait_for(task, 3)
+                    await asyncio.wait_for(task, 30)
 
             if phase == "artifact-read":
                 assert transport.cancelled.is_set()
@@ -584,7 +597,7 @@ def test_stopping_ffuf_cleans_files_processes_and_metrics(tmp_path, monkeypatch,
                 assert not Path(process["wordlist"]).exists()
                 assert not Path(f"/proc/{process['parent']}").exists()
                 child = Path(f"/proc/{process['child']}/stat")
-                async with asyncio.timeout(3):
+                async with asyncio.timeout(30):
                     while child.exists() and child.read_text().split()[2] != "Z":
                         await asyncio.sleep(0.01)
             assert_private_metrics_and_cleanup(state, tmp_path)
@@ -593,4 +606,4 @@ def test_stopping_ffuf_cleans_files_processes_and_metrics(tmp_path, monkeypatch,
             await asyncio.gather(task, return_exceptions=True)
             await tool.close()
 
-    asyncio.run(scenario())
+    run_with_advanceable_clock(scenario())
