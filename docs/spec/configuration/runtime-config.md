@@ -258,7 +258,10 @@ AgentTemplate contains reusable behavior without model selections.
 the only accepted protocol is `openai-compatible@1`.
 
 **RCF-R13.** URL userinfo, query and fragment components are invalid in the
-Gateway `url`. Credentials never travel inside the URL or the Gateway manifest.
+Gateway `url`. Gateway and Runtime endpoints share the bounded HTTP(S) endpoint
+grammar: an explicit port is nonempty and in 1..65535; omission uses the scheme
+default. Configuration admission and allocation decoding apply the same rule.
+Credentials never travel inside the URL or the Gateway manifest.
 
 **RCF-R14.** A modeled consumer selects an optional credential independently
 beside `llmGateway` in executionConfig, for that exact Gateway. Omitting it

@@ -48,13 +48,13 @@ func (source *AcceptedPlanSource) UnmarshalJSON(data []byte) error {
 }
 
 type AcceptedPlanRoute struct {
-	MappingID            string                                 `json:"mapping_id"`
-	MappingDigest        string                                 `json:"mapping_digest"`
-	WorkflowRole         string                                 `json:"workflow_role"`
-	BindingDigest        string                                 `json:"binding_digest"`
-	WorkflowDigest       string                                 `json:"workflow_digest"`
-	SkillsDigest         string                                 `json:"skills_digest"`
-	RequiredCapabilities []contracts.CheckCapabilityRequirement `json:"required_capabilities" strictjson:"required"`
+	MappingID            string                       `json:"mapping_id"`
+	MappingDigest        string                       `json:"mapping_digest"`
+	WorkflowRole         string                       `json:"workflow_role"`
+	BindingDigest        string                       `json:"binding_digest"`
+	WorkflowDigest       string                       `json:"workflow_digest"`
+	SkillsDigest         string                       `json:"skills_digest"`
+	RequiredCapabilities []CheckCapabilityRequirement `json:"required_capabilities" strictjson:"required"`
 }
 
 type AcceptedPlanAuthorization struct {
@@ -138,14 +138,14 @@ func validateAcceptedPlanSource(source AcceptedPlanSource, auditID string) error
 	}
 	return nil
 }
-func validatePlanCapabilities(values []contracts.CheckCapabilityRequirement) error {
-	if values == nil || len(values) > contracts.MaximumCheckCapabilities {
+func validatePlanCapabilities(values []CheckCapabilityRequirement) error {
+	if values == nil || len(values) > MaximumCheckCapabilities {
 		return invalid(CodeInvalid, "accepted_plan.capabilities")
 	}
 	previous := ""
 	for _, value := range values {
 		key := value.Stage + "\x00" + value.Agent + "\x00" + value.Ref.ToolsetID + "@" + value.Ref.Version
-		if key <= previous || resolved.ValidateWorkflowName("stage", value.Stage) != nil || resolved.ValidateWorkflowName("agent", value.Agent) != nil || contracts.ValidateSelector("toolset", value.Ref.ToolsetID+"@"+value.Ref.Version) != nil || len(value.Tools) == 0 || len(value.Tools) > contracts.MaximumCheckCapabilityTools || !sort.StringsAreSorted(value.Tools) {
+		if key <= previous || resolved.ValidateWorkflowName("stage", value.Stage) != nil || resolved.ValidateWorkflowName("agent", value.Agent) != nil || contracts.ValidateSelector("toolset", value.Ref.ToolsetID+"@"+value.Ref.Version) != nil || len(value.Tools) == 0 || len(value.Tools) > MaximumCheckCapabilityTools || !sort.StringsAreSorted(value.Tools) {
 			return invalid(CodeInvalid, "accepted_plan.capabilities")
 		}
 		previous = key

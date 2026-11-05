@@ -72,6 +72,31 @@ type ResolvedModelPolicy struct {
 	Temperature         *float64       `json:"temperature,omitempty"`
 }
 
+// UnmarshalJSON retains the distinction between omitted optional limits and
+// present zeroes. Resolved in-process policies still use zero for omission.
+func (p *ResolvedModelPolicy) UnmarshalJSON(data []byte) error {
+	type wire ResolvedModelPolicy
+	var value wire
+	fields, err := DecodeStrictObject(data, &value)
+	if err != nil {
+		return err
+	}
+	for name, number := range map[string]int{
+		"contextWindowTokens": value.ContextWindowTokens,
+		"maxOutputTokens":     value.MaxOutputTokens,
+		"maxModelCalls":       value.MaxModelCalls,
+		"maxToolCalls":        value.MaxToolCalls,
+		"maxWorkerCalls":      value.MaxWorkerCalls,
+		"maxTotalTokens":      value.MaxTotalTokens,
+	} {
+		if fields[name] != nil && number == 0 {
+			return Invalidf("modelPolicy %s must be positive when present", name)
+		}
+	}
+	*p = ResolvedModelPolicy(value)
+	return nil
+}
+
 func (p ResolvedModelPolicy) Validate() error { return validateModelPolicy(p) }
 
 // Clone returns a copy that does not share the Temperature pointer.

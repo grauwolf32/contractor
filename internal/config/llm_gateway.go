@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 )
 
@@ -119,7 +120,7 @@ func failureSignaturesDocument(signatures llmgateway.GatewayFailureSignatures) m
 }
 
 func normalizeInferenceGatewayURL(raw string) (string, error) {
-	parsed, err := parseConfiguredGatewayURL(raw)
+	parsed, err := contracts.ParseRuntimeEndpoint("Gateway URL", raw)
 	if err != nil {
 		return "", fmt.Errorf("spec.url must be an absolute HTTP(S) URL without userinfo, query, or fragment")
 	}
@@ -130,7 +131,7 @@ func normalizeInferenceGatewayURL(raw string) (string, error) {
 }
 
 func normalizeManagementGatewayURL(raw string) (string, error) {
-	parsed, err := parseConfiguredGatewayURL(raw)
+	parsed, err := contracts.ParseRuntimeEndpoint("Gateway URL", raw)
 	if err != nil || parsed.Path != "" && parsed.Path != "/" {
 		return "", fmt.Errorf("spec.credentialManager.managementUrl must be an HTTP(S) origin with a root path")
 	}
@@ -141,17 +142,4 @@ func normalizeManagementGatewayURL(raw string) (string, error) {
 		}
 	}
 	return (&url.URL{Scheme: parsed.Scheme, Host: parsed.Host}).String(), nil
-}
-
-func parseConfiguredGatewayURL(raw string) (*url.URL, error) {
-	if raw == "" || raw != strings.TrimSpace(raw) || strings.Contains(raw, "#") {
-		return nil, fmt.Errorf("Gateway URL is invalid")
-	}
-	parsed, err := url.Parse(raw)
-	if err != nil || !parsed.IsAbs() || parsed.Opaque != "" || parsed.Host == "" ||
-		parsed.Hostname() == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.ForceQuery ||
-		(parsed.Scheme != "http" && parsed.Scheme != "https") {
-		return nil, fmt.Errorf("Gateway URL is invalid")
-	}
-	return parsed, nil
 }

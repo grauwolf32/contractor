@@ -11,6 +11,7 @@ from pydantic import (
     ModelWrapValidatorHandler,
     PrivateAttr,
     ValidationError,
+    ValidationInfo,
     field_validator,
     model_validator,
 )
@@ -353,6 +354,18 @@ class RuntimeReport(WireModel):
         if isinstance(value, dict) and "resources" in value and value["resources"] is None:
             result._resources_error = "invalid_report"
         return result
+
+    @field_validator("resources", mode="before")
+    @classmethod
+    def validate_resource_members(cls, value: Any, info: ValidationInfo) -> Any:
+        if isinstance(value, dict) and (
+            info.mode == "json"
+            or (isinstance(info.context, dict) and info.context.get("private_wire"))
+        ):
+            names = {field.alias or name for name, field in RuntimeResources.model_fields.items()}
+            if value.keys() - names:
+                raise ValueError("resources contain an unknown member")
+        return value
 
     @field_validator("stop_reason")
     @classmethod

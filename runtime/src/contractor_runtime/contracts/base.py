@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import math
 import re
@@ -349,23 +350,35 @@ def _require_sorted_unique(field: str, values: list[str], *, maximum: int) -> No
 
 
 def _require_runtime_endpoint(field: str, value: str) -> str:
-    parsed = urlsplit(value)
+    problem = f"{field} must be a bounded HTTP(S) endpoint without userinfo, query or fragment"
+    try:
+        parsed = urlsplit(value)
+        host = parsed.hostname or ""
+        port = parsed.port
+    except ValueError:
+        raise ValueError(problem) from None
     if (
         value != trim_whitespace(value)
         or not 1 <= len(value.encode("utf-8")) <= 2048
         or parsed.scheme not in {"http", "https"}
         or not parsed.netloc
-        or parsed.hostname is None
+        or not host
         or parsed.username is not None
         or parsed.password is not None
-        or parsed.query
-        or parsed.fragment
         or "?" in value
         or "#" in value
+        or parsed.netloc.endswith(":")
+        or port == 0
+        or any(char in host for char in "%<>\\^|`{}")
+        or any(char in WHITESPACE for char in host)
     ):
-        raise ValueError(
-            f"{field} must be a bounded absolute HTTP(S) URL without userinfo, query, or fragment"
-        )
+        raise ValueError(problem)
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        last = host.removesuffix(".").rsplit(".", 1)[-1]
+        if ":" in host or not last or all("0" <= char <= "9" for char in last):
+            raise ValueError(problem) from None
     return value
 
 

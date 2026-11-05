@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"sort"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
@@ -97,7 +96,7 @@ func BuildFindingChecksProjection(finalBytes []byte, validatedDoc FindingProposa
 				ordinal := len(result.Checks)
 				check := validatedDoc.ProposedChecks[ordinal]
 				entry := FindingCheckProjection{Ordinal: ordinal, Fragment: projectionFragment(raw, decoder.InputOffset()), SourceMethod: check.Method, Status: "unsupported"}
-				if _, known := contracts.LookupCheckPlanMethod(contracts.FindingCheckPlanSchema, check.Method); known {
+				if _, known := LookupCheckPlanMethod(FindingCheckPlanSchema, check.Method); known {
 					plan, planErr := BuildFindingCheckPlan(validatedDoc, ordinal)
 					if planErr != nil {
 						return result, planErr
@@ -173,7 +172,7 @@ func ValidateFindingChecksProjection(value FindingChecksProjection) error {
 			}
 			previousEnd = entry.Fragment.Offset + entry.Fragment.Length
 			fragments = append(fragments, entry.Fragment)
-			key, known := contracts.LookupCheckPlanMethod(contracts.FindingCheckPlanSchema, entry.SourceMethod)
+			key, known := LookupCheckPlanMethod(FindingCheckPlanSchema, entry.SourceMethod)
 			if entry.Status == "unsupported" {
 				if known || entry.PlanSchema != "" || entry.Phase != "" || entry.PlanDigest != "" || entry.PlanBytes != 0 {
 					return invalid(CodeInvalid, "checks_projection.status")

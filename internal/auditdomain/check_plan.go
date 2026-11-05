@@ -1,7 +1,5 @@
 package auditdomain
 
-import "github.com/grauwolf32/contractor/internal/contracts"
-
 const MaximumAcceptedPlanBytes = 64 << 10
 
 type CheckPlan struct {
@@ -18,7 +16,7 @@ func BuildFindingCheckPlan(document FindingProposal, ordinal int) (CheckPlan, er
 		return CheckPlan{}, invalid(CodeInvalid, "plan.ordinal")
 	}
 	check := document.ProposedChecks[ordinal]
-	key, ok := contracts.LookupCheckPlanMethod(contracts.FindingCheckPlanSchema, check.Method)
+	key, ok := LookupCheckPlanMethod(FindingCheckPlanSchema, check.Method)
 	if !ok {
 		return CheckPlan{}, invalid(CodeInvalid, "plan.method")
 	}
@@ -27,7 +25,7 @@ func BuildFindingCheckPlan(document FindingProposal, ordinal int) (CheckPlan, er
 }
 
 func ValidateCheckPlan(plan CheckPlan) error {
-	key, ok := contracts.LookupCheckPlanMethod(plan.Schema, plan.Method)
+	key, ok := LookupCheckPlanMethod(plan.Schema, plan.Method)
 	if !ok || key.Phase != plan.Phase || validateText(plan.Objective, "plan.objective", true) != nil {
 		return invalid(CodeInvalid, "plan")
 	}

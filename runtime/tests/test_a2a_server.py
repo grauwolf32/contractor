@@ -32,6 +32,7 @@ from contractor_runtime.a2a_server import (
     MAX_A2A_REQUEST_BYTES,
     ContractorAgentExecutor,
     _result_message,
+    _stage_request,
 )
 from contractor_runtime.allocation import AllocationService
 from contractor_runtime.capabilities import CapabilitySnapshot
@@ -535,3 +536,15 @@ def test_result_message_carries_the_largest_exact_integer_unchanged() -> None:
     ):
         with pytest.raises(ValidationError):
             WorkerCompletion.model_validate({**completion, **over})
+
+
+@pytest.mark.parametrize("shadow", [False, True])
+def test_a2a_stage_request_rejects_python_field_aliases(shadow: bool) -> None:
+    context = executor_context("alias")
+    payload = MessageToDict(context.message.parts[0].data)
+    payload["subtask_id"] = payload["subtaskId"]
+    if not shadow:
+        del payload["subtaskId"]
+    context.message.parts[0].data.CopyFrom(ParseDict(payload, Value()))
+    with pytest.raises(ValueError):
+        _stage_request(context)

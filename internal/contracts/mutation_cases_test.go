@@ -7,6 +7,7 @@ import (
 	"flag"
 	"os"
 	"reflect"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/santhosh-tekuri/jsonschema/v6/kind"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
@@ -48,6 +50,8 @@ type mutationCases struct {
 }
 
 type fixtureMutationCases struct {
+	Zero          []string           `json:"zero"`
+	MemberAliases []string           `json:"memberAliases"`
 	Enum          []string           `json:"enum"`
 	MaxLength     []lengthMutation   `json:"maxLength"`
 	MaxBytes      []byteSizeMutation `json:"maxBytes"`
@@ -148,6 +152,14 @@ func TestSharedMutationCasesAreRejected(t *testing.T) {
 				t.Errorf("%s %s %s was accepted", name, caseKind, pointer)
 			}
 		}
+		for _, pointer := range cases.Zero {
+			check("zero", pointer, applyMutation(t, raw, "zero", pointer, 0))
+		}
+		for _, pointer := range cases.MemberAliases {
+			for _, mutation := range []string{"memberAlias", "shadowAlias"} {
+				check(mutation, pointer, applyMutation(t, raw, mutation, pointer, 0))
+			}
+		}
 		for _, pointer := range cases.Enum {
 			check("enum", pointer, applyMutation(t, raw, "enum", pointer, 0))
 		}
@@ -173,20 +185,46 @@ func discoverMutations(t *testing.T, schema *jsonschema.Schema, raw []byte) fixt
 	t.Helper()
 	cases := fixtureMutationCases{
 		Enum: []string{}, MaxLength: []lengthMutation{}, MaxBytes: []byteSizeMutation{},
-		UnknownMember: []string{}, DuplicateKey: []string{},
+		UnknownMember: []string{}, DuplicateKey: []string{}, Zero: []string{}, MemberAliases: []string{},
 	}
 	rejects := func(document []byte) bool { return schema.Validate(decodeNumbers(t, document)) != nil }
 	for _, site := range valueSites(decodeNumbers(t, raw), "") {
 		switch value := site.value.(type) {
 		case map[string]any:
+			if ref, ok := value["ref"].(map[string]any); ok && ref["policyId"] != nil && value["model"] != nil {
+				// Probe optional integer fields even when the golden policy omits
+				// them: a zero must not silently become the absent value.
+				typ := reflect.TypeFor[contracts.ResolvedModelPolicy]()
+				for i := 0; i < typ.NumField(); i++ {
+					field := typ.Field(i)
+					if field.Type.Kind() != reflect.Int {
+						continue
+					}
+					name, _, _ := strings.Cut(field.Tag.Get("json"), ",")
+					if _, exists := value[name]; !exists {
+						pointer := site.pointer + "/" + escapePointer(name)
+						if rejects(withValue(t, raw, pointer, 0)) {
+							cases.Zero = append(cases.Zero, pointer)
+						}
+					}
+				}
+			}
 			if len(value) > 0 {
 				cases.DuplicateKey = append(cases.DuplicateKey, site.pointer)
 			}
 			probe := applyMutation(t, raw, "unknownMember", site.pointer, 0)
 			if forbidsUnknownMember(schema, decodeNumbers(t, probe), site.pointer) && rejects(probe) {
 				cases.UnknownMember = append(cases.UnknownMember, site.pointer)
+				for name := range value {
+					if snakeCase(name) != name {
+						cases.MemberAliases = append(cases.MemberAliases, site.pointer+"/"+escapePointer(name))
+					}
+				}
 			}
 		case string, json.Number:
+			if _, numeric := value.(json.Number); numeric && rejects(withValue(t, raw, site.pointer, 0)) {
+				cases.Zero = append(cases.Zero, site.pointer)
+			}
 			if site.pointer == "" {
 				continue
 			}
@@ -206,6 +244,8 @@ func discoverMutations(t *testing.T, schema *jsonschema.Schema, raw []byte) fixt
 			}
 		}
 	}
+	sort.Strings(cases.Zero)
+	sort.Strings(cases.MemberAliases)
 	sort.Strings(cases.Enum)
 	sort.Strings(cases.UnknownMember)
 	sort.Strings(cases.DuplicateKey)
@@ -361,6 +401,22 @@ func normalizeSentinels(values map[string]any) map[string]string {
 func applyMutation(t *testing.T, raw []byte, mutation, pointer string, bound int) []byte {
 	t.Helper()
 	switch mutation {
+	case "zero":
+		return withValue(t, raw, pointer, 0)
+	case "memberAlias", "shadowAlias":
+		document := decodeNumbers(t, raw)
+		tokens := pointerTokens(pointer)
+		name := tokens[len(tokens)-1]
+		parentPointer := ""
+		if len(tokens) > 1 {
+			parentPointer = "/" + strings.Join(escapeTokens(tokens[:len(tokens)-1]), "/")
+		}
+		parent := valueAt(t, document, parentPointer).(map[string]any)
+		parent[snakeCase(name)] = parent[name]
+		if mutation == "memberAlias" {
+			delete(parent, name)
+		}
+		return encodeMutation(t, document, noDuplicate)
 	case "enum":
 		document := decodeNumbers(t, raw)
 		sentinel := mutationEnumSentinels["string"]
@@ -497,4 +553,10 @@ func encodeMutation(t *testing.T, document any, duplicate string) []byte {
 	}
 	write(document, "")
 	return buffer.Bytes()
+}
+
+var camelCaseBoundary = regexp.MustCompile(`([a-z0-9])([A-Z])`)
+
+func snakeCase(name string) string {
+	return strings.ToLower(camelCaseBoundary.ReplaceAllString(name, "${1}_${2}"))
 }

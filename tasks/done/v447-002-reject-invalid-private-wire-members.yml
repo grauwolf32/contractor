@@ -1,0 +1,43 @@
+schema_version: "1.0"
+milestone: contracts-review-2026-11
+epic: api-contracts
+priority: P2
+status: completed
+implementation_commit: 74735b3f9c74cdd606bd75f6fc5f813c9237e1cb
+id: V447-002
+title: Reject explicit zero ModelPolicy limits and non-wire member aliases
+kind: defect
+introduced_by: MVP-002
+languages: [go, python]
+depends_on: []
+goal: Private wire readers agree on exact member names and positive optional ModelPolicy limits without changing internal resolved values.
+context:
+  authority:
+    - date: '2026-11-05'
+      decision: The user authorized implementing the confirmed contracts defects and common regressions.
+  specification:
+    - docs/spec/execution/control-plane.md#CTL-R149
+    - docs/spec/execution/control-plane.md#CTL-R153
+  severity: medium
+  finding: internal/contracts/agent_template.go:296 reads present zero limits as omitted values; runtime/src/contractor_runtime/contracts/base.py:486 accepts snake_case names on private input.
+  siblings: Cover every optional numeric ModelPolicy limit, all nested private WireModel readers, ordinary Artifact list/write responses and A2A StageContentRequest decoding. Internal Python constructors may use Python field names; incoming JSON and A2A must use wire names. Preserve isolated Runtime telemetry handling.
+  provenance: Optional scalar fields originate in MVP-002 and V3 consumer-policy work; Python populate_by_name was preserved by the later Runtime component reorganization.
+  decision: Validate field presence at Go JSON decoding and exact names at Python wire decoding, reusing existing strict codecs and model validation. Changing every internal scalar to a pointer or every Python constructor to wire spelling adds unrelated churn. The pinned Pydantic 2.13 loses strict JSON datetime conversions under model before/wrap validators and silently ignores some disabled optional aliases. Exact-name checks therefore reuse model field metadata in the existing JSON codec and A2A DataPart entry point, before ordinary Pydantic validation. Reopen when resolved in-process values themselves need presence semantics.
+scope:
+  in:
+    - Reject every explicit zero optional limit and alternative wire spelling, with shared mutation cases and real A2A regressions.
+  out:
+    - Wire shape changes, legacy readers, new result fields or model budget defaults.
+acceptance_criteria:
+  - {id: A1, text: Optional limits accept omission and positive valid values while rejecting explicit zero in every policy position.}
+  - {id: A2, text: Private JSON and A2A reject renamed or shadowing aliases at every nested model boundary; Python constructors still work.}
+  - {id: A3, text: Shared and process-boundary regressions fail before the fix; complete affected suites and lint pass.}
+tests:
+  - {command: 'go test ./internal/contracts/... ./internal/config/... ./internal/configload/... ./internal/controlplane/...', covers: [A1, A2, A3]}
+  - {command: 'cd runtime && uv run pytest tests/test_contracts.py tests/test_allocation_contracts.py tests/test_shared_mutation_cases.py tests/test_a2a_server.py tests/test_artifacts.py', covers: [A1, A2, A3]}
+  - {command: make test-wire-cross-language, covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}
+verification:
+  date: '2026-11-05'
+  result: >-
+    Generated regressions found 27 accepted zero-limit mutations and 1569 accepted alias mutations before the fix. A2A rename and all six Artifact list/write reader cases failed before their fixes. Complete affected Go packages passed with PostgreSQL; 426 Runtime contract/A2A/Artifact tests passed. The shared-wire gate passed: 372 fixtures, 409 Go and 261 Python readers; lint passed.

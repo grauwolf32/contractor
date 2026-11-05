@@ -1,4 +1,6 @@
-package contracts
+package auditdomain
+
+import "github.com/grauwolf32/contractor/internal/contracts"
 
 const (
 	FindingCheckPlanSchema      = "contractor.audit.finding-check-plan.v1"
@@ -34,8 +36,8 @@ func LookupCheckPlanMethod(schema, method string) (CheckPlanKey, bool) {
 // CheckCapabilityRequirement names tools of one exact Worker in a route's
 // pinned Workflow. Tools of another Worker or another item cannot satisfy it.
 type CheckCapabilityRequirement struct {
-	Stage string     `json:"stage"`
-	Agent string     `json:"agent"`
-	Ref   ToolsetRef `json:"ref"`
-	Tools []string   `json:"tools"`
+	Stage string               `json:"stage"`
+	Agent string               `json:"agent"`
+	Ref   contracts.ToolsetRef `json:"ref"`
+	Tools []string             `json:"tools"`
 }

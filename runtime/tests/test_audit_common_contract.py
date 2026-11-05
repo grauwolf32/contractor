@@ -375,3 +375,39 @@ def test_shared_production_completion_contexts_and_owner_bounds():
     assert bounds["evidence_per_item"] == contracts.MAX_EVIDENCE
     assert bounds["coverage_values"] == contracts.MAX_VALUES
     assert bounds["document_bytes"] == contracts.MAX_DOCUMENT_BYTES
+
+
+def test_shared_production_audit_context_structural_budget():
+    from copy import deepcopy
+
+    from contractor_runtime.contracts.audit_documents import decode_audit_document
+    from contractor_runtime.toolsets.audit_results.encoding import CanonicalAuditResultEncoder
+
+    fixture = json.loads((ROOT / "api/testdata/audit-common/structural-bounds.json").read_text())
+    context = fixture["context"]
+    evidence = []
+    for index in range(fixture["evidencePerMember"]):
+        item = deepcopy(fixture["evidence"])
+        item["ref"]["name"] = f"evidence-{index:03d}"
+        evidence.append(item)
+    context["items"] = [
+        {
+            "item_key": f"item-{index:02d}",
+            "task_id": f"task-{index:02d}",
+            "objective": "Review the admitted evidence.",
+            "evidence": evidence,
+        }
+        for index in range(fixture["members"])
+    ]
+    data = json.dumps(context, separators=(",", ":")).encode()
+    records = CanonicalAuditResultEncoder().context_records(data)
+    assert len(records.items) == fixture["members"]
+    context["over_budget"] = [0] * fixture["valueLimit"]
+    with pytest.raises(ValueError, match="structure"):
+        decode_audit_document(json.dumps(context).encode(), schema=context["schema"])
+    del context["over_budget"]
+    for invalid_name in ("bad\x00name", "x" * 65537):
+        context[invalid_name] = "value"
+        with pytest.raises(ValueError, match="string"):
+            decode_audit_document(json.dumps(context).encode(), schema=context["schema"])
+        del context[invalid_name]

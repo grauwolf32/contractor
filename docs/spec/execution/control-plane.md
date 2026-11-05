@@ -363,7 +363,10 @@ isolated parts of a `RuntimeReport`: malformed adapter metrics
 ([OBS-R36](../platform/observability.md)) and a malformed resources block
 (CTL-R136) are discarded as incomplete telemetry instead of failing the report.
 Like the Runtime codec, the decoder classifies a missing or wrong `apiVersion`
-as a version error before any member error.
+as a version error before any member error. Runtime private JSON and A2A
+readers enforce exact wire names in nested models too; Python field-name
+aliases are not alternate protocol members. Optional positive ModelPolicy
+limits reject an explicit zero instead of reading it as omission.
 
 **CTL-R152.** A private wire text field that must not be blank, such as the
 `StageContentRequest` objective or an error message, is blank when it is empty

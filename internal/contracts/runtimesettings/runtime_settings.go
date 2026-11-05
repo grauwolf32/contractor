@@ -56,7 +56,7 @@ func (s TelemetrySettings) Validate() error {
 	if s.Adapter != RuntimeAdapterOTLPHTTP {
 		return contracts.Invalidf("telemetry adapter must be otlp-http@1")
 	}
-	if err := validateRuntimeEndpoint("telemetry.endpoint", s.Endpoint); err != nil {
+	if _, err := contracts.ParseRuntimeEndpoint("telemetry.endpoint", s.Endpoint); err != nil {
 		return err
 	}
 	if s.Headers == nil || len(s.Headers) > 32 {
@@ -124,7 +124,7 @@ func (s CaidoSettings) Validate() error {
 	if s.Adapter != RuntimeAdapterCaidoGraphQL {
 		return contracts.Invalidf("Caido adapter must be caido-graphql@1")
 	}
-	if err := validateRuntimeEndpoint("caido.endpoint", s.Endpoint); err != nil {
+	if _, err := contracts.ParseRuntimeEndpoint("caido.endpoint", s.Endpoint); err != nil {
 		return err
 	}
 	if s.BearerToken != nil && !validFieldValue(s.BearerToken.Reveal(), maxBearerTokenBytes) {
@@ -156,7 +156,7 @@ func (s InteractshSettings) Validate() error {
 	if s.Adapter != RuntimeAdapterInteractshHTTP {
 		return contracts.Invalidf("Interactsh adapter must be interactsh-http@1")
 	}
-	if err := validateRuntimeEndpoint("interactsh.endpoint", s.Endpoint); err != nil {
+	if _, err := contracts.ParseRuntimeEndpoint("interactsh.endpoint", s.Endpoint); err != nil {
 		return err
 	}
 	parsed, _ := url.Parse(s.Endpoint)
@@ -187,7 +187,7 @@ func (s HTTPProxySettings) Validate() error {
 	if s.Adapter != RuntimeAdapterHTTPProxy {
 		return contracts.Invalidf("HTTP proxy adapter must be http-proxy@1")
 	}
-	if err := validateRuntimeEndpoint("httpProxy.proxyUrl", s.ProxyURL); err != nil {
+	if _, err := contracts.ParseRuntimeEndpoint("httpProxy.proxyUrl", s.ProxyURL); err != nil {
 		return err
 	}
 	if s.BasicAuth != nil && s.BearerToken != nil {
@@ -306,7 +306,7 @@ func (s RuntimeSettings) Validate() error {
 		}
 	}
 	if s.LLMGatewayURL != "" {
-		if err := validateRuntimeEndpoint("runtimeSettings.llmGatewayUrl", s.LLMGatewayURL); err != nil {
+		if _, err := contracts.ParseRuntimeEndpoint("runtimeSettings.llmGatewayUrl", s.LLMGatewayURL); err != nil {
 			return err
 		}
 	} else if s.LLMGatewayToken != nil || s.LLMGatewayFailureSignatures != nil {
@@ -391,7 +391,7 @@ func (t *HTTPOriginTargetRef) Clone() *HTTPOriginTargetRef {
 }
 
 func (t HTTPOriginTargetRef) Validate() error {
-	if err := validateRuntimeEndpoint("httpOriginTarget.url", t.URL); err != nil {
+	if _, err := contracts.ParseRuntimeEndpoint("httpOriginTarget.url", t.URL); err != nil {
 		return err
 	}
 	if t.Credential == nil {
@@ -415,7 +415,7 @@ type HTTPOriginTargetSettings struct {
 }
 
 func (s HTTPOriginTargetSettings) Validate() error {
-	if err := validateRuntimeEndpoint("httpOriginTarget.url", s.URL); err != nil {
+	if _, err := contracts.ParseRuntimeEndpoint("httpOriginTarget.url", s.URL); err != nil {
 		return err
 	}
 	if s.BasicAuth != nil && s.BearerToken != nil {
