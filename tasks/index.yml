@@ -9,6 +9,14 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
+    User direction 2026-11-05 makes hypothesis generation an ordinary Workflow
+    capability over configured inputs/readers and selected exact artifacts.
+    Proposal 0054 and its implementation plan govern the correction of V64-013:
+    V64-033 first delivers common bounded material sets with a real initial
+    generator caller; V64-034 admits exact grounds and in-Run selections and
+    replaces numbered source slots/continuation assumptions. These pending tasks
+    and dependent V64-008/010/011 gates do not start implementation or deployment.
+    Preserve V64-013 completion history; it does not prove the new contract.
     User request 2026-11-03 closes V64-014 after reconciling its required passing verification and
     restoring the immutable Eval archive bytes through V64-030. V64-002 and its common Task
     integration are already completed and merged. These status updates do not assign pending

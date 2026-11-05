@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-71 open tasks: 10 in progress, 48 pending, 13 deferred. 1417 finished: 1399 completed, 18 archived.
+73 open tasks: 10 in progress, 50 pending, 13 deferred. 1417 finished: 1399 completed, 18 archived.
 
 ## In progress
 
@@ -73,18 +73,25 @@ the epics are in [epics.yml](epics.yml).
 | [V412-003](v412-003-browser-pentest-profiles-and-gate.yml) | feature | P2 | V412-001, V410-009, V411-020 | Compose optional browser investigation with truthful availability and results |
 | [V425-043](v425-043-resolve-historical-run-model-policy-snapshots.yml) | defect | P2 | — | Resolve historical Run snapshots after Workflow-owned model selection |
 
+### Projects, artifacts and lifecycle controls (`projects-artifacts`)
+
+| Task | Kind | Priority | Waiting for | Title |
+| --- | --- | --- | --- | --- |
+| [V64-033](v64-033-workflow-material-sets.yml) | feature | P1 | — | Pass bounded exact material sets through ordinary Workflow inputs |
+
 ### Audits (`audits`)
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V64-005](v64-005-independent-priority-verdicts.yml) | feature | P2 | — | Optionally rank the common Audit ready-task shortlist |
-| [V64-008](v64-008-audit-priority-api-coverage.yml) | feature | P1 | — | Expose Audit tasks check results findings and selected materials |
-| [V64-010](v64-010-audit-priority-profile.yml) | feature | P1 | — | Verify shipped Audit programs and retire the remaining old pipeline |
-| [V64-011](v64-011-audit-priority-release.yml) | feature | P1 | V64-009, V64-010, V411-015, V425-017 | Gate the basic Audit research scenario and complexity reduction |
+| [V64-005](v64-005-independent-priority-verdicts.yml) | feature | P2 | V64-034 | Optionally rank the common Audit ready-task shortlist |
+| [V64-008](v64-008-audit-priority-api-coverage.yml) | feature | P1 | V64-034 | Expose Audit tasks check results findings and selected materials |
+| [V64-010](v64-010-audit-priority-profile.yml) | feature | P1 | V64-034 | Verify shipped Audit programs and retire the remaining old pipeline |
+| [V64-011](v64-011-audit-priority-release.yml) | feature | P1 | V64-009, V64-010, V64-034, V411-015, V425-017 | Gate the basic Audit research scenario and complexity reduction |
 | [V64-015](v64-015-audit-research-frontier.yml) | feature | P2 | V64-011 | Measure whether a larger Audit frontier needs incremental indexing |
 | [V64-016](v64-016-audit-research-ranking-evaluation.yml) | chore | P2 | V64-005, V64-011 | Evaluate optional Audit ranking against the deterministic baseline |
 | [V64-017](v64-017-audit-attack-tree-projection.yml) | feature | P2 | V64-011 | Project optional attack trees over retained research conclusions |
 | [V64-018](v64-018-audit-research-pentest-integration.yml) | feature | P2 | V64-011, V411-020 | Compose optional hypothesis generation with ordinary HTTP Audit tasks |
+| [V64-034](v64-034-workflow-hypothesis-production.yml) | feature | P1 | V64-033 | Produce attributed hypotheses from Workflow-selected materials |
 | [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-015, V411-014, V64-008 | Show HTTP engagement context and gaps in ordinary retained Audit reports |
 | [V417-005](v417-005-audit-worker-context-compaction.yml) | feature | P1 | V417-003, V417-004 | Admit compaction without bypassing trusted Audit completion |
 | [V425-017](v425-017-machine-report-ceiling-test.yml) | chore | P3 | V64-010, V64-008 | Drive the cumulative 64 MiB machine report check to its rejection in a test |
@@ -173,8 +180,8 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 17 | 10 | 9 | 20 |
 | Findings tools and collections (`findings`) | 1 | 17 | 10 | 10 | 15 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 21 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 36 | 39 | 16 | 66 |
-| Audits (`audits`) | 12 | 68 | 94 | 39 | 146 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 37 | 39 | 16 | 66 |
+| Audits (`audits`) | 13 | 69 | 94 | 39 | 147 |
 | Evaluations (`evals`) | 6 | 21 | 40 | 16 | 49 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
 | Web UI (`ui`) | 2 | 42 | 70 | 26 | 71 |

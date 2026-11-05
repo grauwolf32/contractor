@@ -9,6 +9,7 @@ status: pending
 depends_on:
 - V64-009
 - V64-010
+- V64-034
 - V411-015
 - V425-017
 - V64-023
@@ -24,7 +25,11 @@ demonstration: One deterministic real Server/Runtime/PostgreSQL/browser matrix e
   hypotheses, generates a hypothesis from prior results, checks fixed/generated assertions and preserves
   all evidence through replay/pause/purge.
 context:
-  authority: 'User decisions and task-formation request on 2026-10-31: Audit durably coordinates ordinary
+  authority: 'User direction on 2026-11-05: the base gate requires proposal 0054 and completed V64-033/034,
+    including in-Run Finding selection as grounds, initial generation without prior Tasks,
+    bounded material sets and no self-trigger. Historical V64-013 passing tests are insufficient.
+    This update starts no implementation.
+    User decisions and task-formation request on 2026-10-31: Audit durably coordinates ordinary
     tasks/Runs for investigation, checking, supporting work and generation. There is no mandatory discovery-finding-generator
     sequence. Assertion checks use common hypotheses; exploratory work may have none. Check results retain
     support/refutation/inconclusive with tested conditions; AppSec findings record evidenced problems
@@ -42,6 +47,7 @@ context:
     code, migrations, live Runs or deployment in this planning turn. Resolve the explicitly labelled remaining
     contract proposals in V64-001 before dependent implementation.
   design:
+  - docs/proposals/0054-workflow-hypothesis-production.md
   - docs/proposals/0050-audit-common-hypothesis-model.md
   - docs/plans/2026-10-31-audit-redesign.md
   specification:
@@ -137,11 +143,14 @@ acceptance_criteria:
   then: all required scenarios and failure cases run with exact source attribution, truthful completeness,
     negative/inconclusive check history separate from findings, and continuation driven by selected negative
     results; initial manual/checklist checks, material-only generation and no-finding/no-generator completion
-    all use the same task/Run path
+    all use the same task/Run path; one ordinary Workflow consumes 17 materials through one set,
+    selects a Finding during Run, publishes two hypotheses with exact grounds and proposes one check
 - id: A2
   given: lost acknowledgements, claims, pause/deadline/cancel, source cleanup and bounded large history
   when: process/store cases run
-  then: one logical effect, joined cleanup and retained exact data are proven without a second controller
+  then: one logical effect, joined cleanup and retained exact data are proven without a second controller;
+    empty or renamed producer output never triggers itself, permanent continuation errors settle once,
+    and 1000-Task history plus a 33-result tail proves bounded traversal without silently lost sources
 - id: A3
   given: old and new source inventories
   when: the complexity evidence is reviewed

@@ -19,7 +19,10 @@ goal: Users understand the goal, current work, hypotheses, findings, evidence an
 demonstration: The production browser journey starts exploratory work, opens a finding and its origin,
   follows the generated hypothesis and later result, then publishes a useful material to Project.
 context:
-  authority: 'User decisions and task-formation request on 2026-10-31: Audit durably coordinates ordinary
+  authority: 'User direction on 2026-11-05: UI follows proposal 0054 through V64-008/010; show exact hypothesis
+    grounds and distinguish saved proposals, accepted hypotheses and optional checks. A producer
+    tool call does not mean a registered hypothesis exists. This update starts no implementation.
+    User decisions and task-formation request on 2026-10-31: Audit durably coordinates ordinary
     tasks/Runs for investigation, checking, supporting work and generation. There is no mandatory discovery-finding-generator
     sequence. Assertion checks use common hypotheses; exploratory work may have none. Check results retain
     support/refutation/inconclusive with tested conditions; AppSec findings record evidenced problems
@@ -35,6 +38,7 @@ context:
     code, migrations, live Runs or deployment in this planning turn. Resolve the explicitly labelled remaining
     contract proposals in V64-001 before dependent implementation.
   design:
+  - docs/proposals/0054-workflow-hypothesis-production.md
   - docs/proposals/0050-audit-common-hypothesis-model.md
   - docs/plans/2026-10-31-audit-redesign.md
   - docs/design/ui/README.md
@@ -114,7 +118,9 @@ acceptance_criteria:
 - id: A1
   given: real base-scenario APIs
   when: a browser completes exploration, hypothesis check and material publication
-  then: automatic chain, evidence, progress and controls are understandable without approval gates
+  then: automatic chain, evidence, progress and controls are understandable without approval gates;
+    selected material sets need no numbered-source form, hypothesis grounds link to exact materials,
+    and a saved proposal is not presented as a registered hypothesis or an automatically scheduled check
 - id: A2
   given: stale drafts, failed reads, cancellation, refuted bug claims, inconclusive checks, negative rechecks
     and source cleanup
