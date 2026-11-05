@@ -1,0 +1,147 @@
+{
+  "apiVersion": "contractor/v1alpha1",
+  "kind": "Workflow",
+  "metadata": {
+    "name": "audit-hypothesis-generation",
+    "version": "1"
+  },
+  "spec": {
+    "parameters": {},
+    "inputs": {
+      "material": {
+        "required": false,
+        "mediaTypes": [
+          "text/plain",
+          "application/json",
+          "application/zip"
+        ]
+      },
+      "findings": {
+        "required": false,
+        "mediaTypes": [
+          "application/vnd.contractor.findings-collection+zip"
+        ]
+      },
+      "context": {
+        "required": true,
+        "mediaTypes": [
+          "application/json"
+        ]
+      },
+      "materials": {
+        "required": false,
+        "materialSet": true,
+        "mediaTypes": [
+          "*/*"
+        ]
+      },
+      "analysis": {
+        "required": true,
+        "mediaTypes": [
+          "application/json"
+        ]
+      },
+      "results": {
+        "required": false,
+        "materialSet": true,
+        "mediaTypes": [
+          "*/*"
+        ]
+      }
+    },
+    "outputs": {
+      "proposals": {
+        "required": true,
+        "primary": true,
+        "mediaTypes": [
+          "application/json"
+        ]
+      }
+    },
+    "executionConfig": {
+      "workers": {
+        "llmGateway": "local-litellm@1",
+        "credential": "development-worker",
+        "modelPolicy": "worker@2"
+      }
+    },
+    "entryStage": "generate",
+    "stages": {
+      "generate": {
+        "objective": "Propose scoped observable assertions and allowed next checks from selected exact materials and ordinary results",
+        "instructions": {
+          "ref": "instructions/audit-hypothesis-generator.md"
+        },
+        "planner": "passthrough@1",
+        "agents": {
+          "generator": {
+            "template": "audit_hypothesis_generator@1",
+            "namespace": "generator"
+          }
+        },
+        "context": {
+          "artifacts": {
+            "material": {
+              "namespace": "inputs",
+              "name": "material",
+              "required": false
+            },
+            "findings": {
+              "namespace": "inputs",
+              "name": "findings",
+              "required": false
+            },
+            "context": {
+              "namespace": "inputs",
+              "name": "context",
+              "required": true
+            },
+            "materials": {
+              "namespace": "inputs",
+              "name": "materials",
+              "required": false
+            },
+            "analysis": {
+              "namespace": "inputs",
+              "name": "analysis",
+              "required": true
+            },
+            "results": {
+              "namespace": "inputs",
+              "name": "results",
+              "required": false
+            }
+          }
+        },
+        "result": {
+          "artifacts": {
+            "proposals": {
+              "required": true,
+              "mediaTypes": [
+                "application/json"
+              ],
+              "from": {
+                "namespace": "generator",
+                "name": "proposals"
+              }
+            }
+          }
+        },
+        "workflowOutputs": {
+          "proposals": "proposals"
+        },
+        "on": {
+          "succeeded": {
+            "succeed": {}
+          },
+          "failed": {
+            "fail": {}
+          },
+          "interrupted": {
+            "fail": {}
+          }
+        }
+      }
+    }
+  }
+}

@@ -934,6 +934,13 @@ key. Two locks keep their own keys: the advisory lease of the active Server
 (PER-R2), whose fixed key every Server version shares, and the migration
 lock, which is scoped to the schema being migrated.
 
+Optional Audit continuation uses these same Task receipts and the existing
+execution output cursor. An accepted generator Task retains its consumed source
+boundary; `audit_tasks_continuation_cursor` selects the last continuation
+without reading unrelated initial/manual producers, and
+`audit_tasks_workflow_ordinal` bounds per-Workflow source seeks. No additional receipt/lease relation is used
+(ACT-R7, AUX-R112).
+
 **PER-R25.** A controller that leases the subjects it reconciles, the Audit
 controller ([AUX-R74](../audits/execution.md)) and the Eval coordinator
 ([EVM-R108](../evals/managed-evals.md)), keeps one claim row per subject in

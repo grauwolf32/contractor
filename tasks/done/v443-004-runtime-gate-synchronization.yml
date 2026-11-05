@@ -1,0 +1,84 @@
+schema_version: '1.0'
+id: V443-004
+title: Separate Runtime fixture readiness from deadline assertions
+milestone: test-gate-cost-2026-10
+epic: quality
+kind: chore
+introduced_by: V443-003
+priority: P2
+status: completed
+depends_on: []
+languages: [python]
+goal: Make the complete Runtime gate reliably test scanner and allocation contracts while retaining real subprocess cleanup and deadline coverage.
+context:
+  verification_evidence: tasks/evidence/v443-004-2026-11-05.json
+  authority: >-
+    User decision 2026-11-05: fix the unstable Runtime gate in a separate task
+    before closing V64-034. No deployment or model change is assigned.
+  finding: >-
+    Full Runtime runs on the final V64-034 implementation fail at different
+    readiness/deadline boundaries: test_scan_sqlmap_request.py:290 waits only
+    three seconds for a real Python scanner; test_allocation.py:2083 uses ten
+    seconds for preparation in a secret-retention test; test_scan_katana.py:368
+    couples its version matrix to the two-second real binary probe. The latter
+    still fails with V443-003 shell fixtures. Isolated affected cases pass.
+    Logs: /tmp/v64034-runtime-full3.log, /tmp/v64034-runtime-full4.log,
+    /tmp/v64034-runtime-full5.log, /tmp/v64034-existing-timing-isolated.log.
+  provenance: >-
+    V443-003 is the incomplete gate correction being followed up. Original
+    cases came from V55-004 (716c51f0fd7c861125288f579f102487381cd435),
+    V414-013 (456727448b697c98efda05b23a7968f84e54f8d2), and
+    V392-001 (94505618c2673f86dfbd2c3c76b8552a59bb6910).
+  decision: >-
+    Diagnose the actual elapsed operation before changing its fixture. Separate
+    readiness from the contract under test using controlled synchronization
+    and test-owned budgets. Retain independent deadline and cancellation
+    checks. Do not change production deadlines or skip failing cases to pass.
+  diagnosis: >-
+    Allocation HTTP and Caido tool creation each builds TargetPolicy with the
+    system resolver despite mocked adapters: unresolved .example service names
+    can consume two protected-resolution budgets inside a ten-second tools
+    preparation deadline. Use the existing deterministic fixture policy and
+    forbid host DNS in the secret-retention regression; apply the policy to the
+    sibling mocked HTTP/Caido allocation scenarios too. Real shell probes still
+    have variable startup (24-sample diagnostic: 196-1146 ms), so compatibility
+    matrices use a test-owned readiness budget. The independent hung probe and
+    SQLMap timeout cases advance the existing injectable loop clock only after
+    child output is read, preserving real process cleanup and timeout behavior.
+    No production code or deadline changes. The initial owning modules passed
+    311 tests in /tmp/v443004-modules.log. Final verification passed 398 tests
+    across all seven owning modules, the complete Runtime gate (5896 passed,
+    135 existing optional skips) and make lint; see verification_evidence.
+    The first complete run then exposed the same fixture race in two Nuclei
+    package/receipt cases (5894 passed, 135 existing skips, two failures;
+    /tmp/v443004-runtime.log). Their fixed Python version probe also has a
+    two-second subdeadline, and timeout cases could expire before publishing
+    the manifest. Give that synthetic version subprocess its own setup budget
+    and expire scan timers after real child output. Apply the identical
+    SQLMap phase synchronization to its ffuf sibling. Both complete scanner
+    modules pass 233 tests in /tmp/v443004-siblings.log.
+scope:
+  in:
+    - Diagnose the scanner probe, SQLMap preparation and allocation readiness failures and inspect sibling tests.
+    - Correct affected fixtures and add a regression that fails for the identified race independently of host speed.
+    - Verify whole owning modules, the complete Runtime gate and lint; record exact results.
+  out:
+    - Hypothesis production behavior, production scanner versions, deadlines and allocation lifecycle changes.
+    - Automatic reruns, deselection or platform skips added to hide a failure.
+acceptance_criteria:
+  - id: A1
+    text: Version acceptance and binary independence retain all version, output-stream and exit-code cases without relying on a cold child finishing inside a short compatibility-test deadline.
+  - id: A2
+    text: Prepared SQLMap request tests establish the targeted phase before cancellation, close or controlled timeout; real child-group and file cleanup and private metrics remain asserted.
+  - id: A3
+    text: Allocation secret-retention proof retains all adapter and Worker assertions with fixture preparation independent of the deadline contract; dedicated deadline tests remain effective.
+  - id: A4
+    text: A deterministic delayed-readiness or controlled-deadline regression proves the correction; all owning modules, make test-runtime and make lint pass without added skips or production deadline changes.
+tests:
+  - command: cd runtime && uv run pytest -W error tests/test_scan_katana.py tests/test_scan_toolset.py tests/test_scan_sqlmap_request.py tests/test_scan_ffuf.py tests/test_allocation.py tests/test_tool_process.py tests/test_http_caido_process_e2e.py
+    covers: [A1, A2, A3, A4]
+  - command: make test-runtime
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A4]
+implementation_commit: f4aa58d5a877b09eeab6776f8f04c33f07637954

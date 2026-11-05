@@ -22,36 +22,43 @@ NAMES = {
     "key": "AuditCommonKey", "text": "AuditCommonText", "digest": "AuditCommonDigest",
     "resource_id": "AuditCommonResourceId", "ref": "AuditCommonExactRef",
 }
-SHARED = {"key", "text", "digest", "resource_id", "ref", "artifact"}
+SHARED = {"key", "text", "digest", "resource_id", "ref"}
 
 
 def generated():
     schema = json.loads((ROOT / "api/audit/v1/contract.schema.json").read_text())
     common=json.loads((ROOT / "api/v1alpha1/common.schema.json").read_text())
+    material=json.loads((ROOT / "api/v1alpha1/material-set.schema.json").read_text())
     selected = {}
 
-    def copy(value):
+    def copy(value, owner="audit"):
         if isinstance(value, list):
-            return [copy(item) for item in value]
+            return [copy(item, owner) for item in value]
         if not isinstance(value, dict):
             return value
         result = {}
         for key, child in value.items():
             if key == "$ref":
-                if child.startswith("#/$defs/"):
+                if "material-set.schema.json" in child or owner == "material" and child.startswith("#/"):
+                    name=child.rsplit("/",1)[-1]
+                    target="WorkflowMaterialDescriptor"
+                    if target not in selected:
+                        selected[target]=None
+                        selected[target]=copy(material["$defs"][name], "material")
+                elif child.startswith("#/$defs/"):
                     name = child.removeprefix("#/$defs/")
                     target = NAMES[name]
                     if name not in SHARED and target not in selected:
                         selected[target] = None
                         selected[target] = copy(schema["$defs"][name])
                 else:
-                    if not child.startswith(common["$id"]+"#/$defs/"):
+                    if "common.schema.json#/$defs/" not in child:
                         raise ValueError("unexpected external Program schema reference")
                     name=child.rsplit("/",1)[-1]
-                    target={"name":"AuditCommonKey","mediaType":"MediaType","selector":"AuditProgramSelector", "version":"ConfigVersion"}[name]
-                    if name=="selector":selected[target]=copy(common["$defs"][name])
+                    target={"name":"AuditCommonKey","mediaType":"MediaType","selector":"AuditProgramSelector", "version":"ConfigVersion", "opaqueId":"AuditMaterialScopeId", "exactArtifactRef":"AuditCommonExactRef", "digest":"AuditCommonDigest"}[name]
+                    if name in {"selector", "opaqueId"}:selected[target]=copy(common["$defs"][name])
                 child = "#/components/schemas/" + target
-            result[key] = copy(child)
+            result[key] = copy(child, owner)
         # Public schemas spell out scalar types for strict client validators.
         values = [result["const"]] if "const" in result else result.get("enum", [])
         if values and "type" not in result and all(isinstance(v, str) for v in values):

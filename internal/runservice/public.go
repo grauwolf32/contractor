@@ -163,22 +163,30 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 						return err
 					}
 				}
-				for _, slot := range sortedInputSlots(normalized.Inputs) {
-					sourceScope, scopeErr := inputSourceScope(normalized.OwnerID, normalized.ProjectID, workflow.Inputs[slot].SourceScope)
-					if scopeErr != nil {
-						return scopeErr
-					}
-					fork, forkErr := forkInput(ctx, artifactService, sourceScope, normalized.Inputs[slot], runID, slot)
-					if forkErr != nil {
-						return forkErr
-					}
-					if !contracts.AcceptsMediaType(workflow.Inputs[slot].MediaTypes, fork.MediaType) {
-						return fmt.Errorf("%w: input %q has unsupported media type", ErrInvalid, slot)
-					}
-					if workflow.Inputs[slot].SourceScope == "user" && !scan.ValidNucleiRulepackMetadata(fork.MediaType, fork.Size) {
+				projectID := ""
+				if normalized.ProjectID != nil {
+					projectID = *normalized.ProjectID
+				}
+				var budget *contracts.MaterialBudget
+				if workflowHasMaterialSets(workflow) {
+					budget = &contracts.MaterialBudget{}
+				}
+				checked, err := checkWorkflowInputs(ctx, artifactService, workflow, normalized.Inputs, artifacts.MaterialAuthority{OwnerID: normalized.OwnerID, ProjectID: projectID}, func(slot string) (artifacts.Scope, error) {
+					return inputSourceScope(normalized.OwnerID, normalized.ProjectID, workflow.Inputs[slot].SourceScope)
+				}, nil, nil, budget)
+				if err != nil {
+					return err
+				}
+				prepared, err := artifactService.MaterializeInputs(ctx, runID, checked)
+				if err != nil {
+					return err
+				}
+				for slot, input := range prepared.Inputs {
+					if workflow.Inputs[slot].SourceScope == "user" && !scan.ValidNucleiRulepackMetadata(input.MediaType, input.SizeBytes) {
 						return fmt.Errorf("%w: rulepack input exceeds its byte limit", ErrInvalid)
 					}
 				}
+
 				if len(selectedSkills) == 0 {
 					stored, err = runs.TransitionRun(
 						ctx, runID, runstore.RunInitializing, runstore.RunPending,
@@ -305,29 +313,6 @@ func validateWorkflowInputs(
 		}
 	}
 	return nil
-}
-
-// forkInput forks the Workflow input source, an exact revision or the current
-// one, from the source scope the caller authorized into inputs/<slot> of runID,
-// with input_fork lineage and without copying bytes (ART-R75 to ART-R77).
-// Only these forks create inputs/<slot>; a Project source must belong to the
-// Run's Project.
-func forkInput(
-	ctx context.Context,
-	service *artifacts.Service,
-	sourceScope artifacts.Scope,
-	source contracts.ArtifactRef,
-	runID string,
-	slot string,
-) (artifacts.ForkResult, error) {
-	run, err := artifacts.RunScope(runID)
-	if err != nil {
-		return artifacts.ForkResult{}, err
-	}
-	return service.Fork(ctx, artifacts.Fork{
-		Kind: artifacts.LineageInputFork, Source: sourceScope, SourceRef: source,
-		Target: run, TargetRef: contracts.ArtifactRef{Namespace: "inputs", Name: slot},
-	})
 }
 
 // inputSourceScope derives scope from authenticated owner and validated catalog

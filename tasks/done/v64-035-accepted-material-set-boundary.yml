@@ -1,0 +1,76 @@
+schema_version: '1.0'
+id: V64-035
+title: Preserve exact material-set inputs across accepted Audit Tasks
+milestone: audit-check-prioritization
+epic: audits
+kind: defect
+introduced_by: V64-033
+priority: P1
+status: completed
+depends_on: [V64-033]
+languages: [go]
+goal: Accepted Audit work survives Pause and source history cleanup, counts one original source once, and exposes truthful exact Run-local evidence.
+context:
+  verification_evidence: tasks/evidence/v64-035-2026-11-05.json
+  authority: >-
+    User review 2026-11-05 of 76356bb3cc0bb1774ecd2bc181d01b43b66db361
+    requests correction of three accepted-Task/Run preparation boundaries.
+    V64-034 remains in progress while this separately tracked correction and
+    the already assigned V443-004 gate repair are verified.
+  specification:
+    - docs/spec/configuration/workflows.md#WFL-R96
+    - docs/spec/audits/hypotheses.md#HG-R11
+    - docs/spec/audits/hypotheses.md#HG-R15
+  finding: >-
+    auditservice/tasks.go:309 retains a selected set JSON but not its exact
+    members before dispatch. Source history cleanup during Pause can evict a
+    member. runservice/material_sets.go:45 counts an Audit-retained singleton
+    separately from the same original Project descriptor in a set, rejecting
+    an otherwise valid 32-source selection. runservice/audit.go:146 discards
+    rewritten set metadata and audit_tasks.go:164 substitutes only its ref,
+    emitting the original digest/size for different Run-local bytes. Importer
+    tasks.go compares these stale values to the Task instead of verifying the
+    actual local descriptor and its explicit source mapping.
+  siblings: >-
+    Initial, manual, prepared and continuation Tasks share acceptCommonWork.
+    Ordinary public Run creation, Audit Run preparation, proposal input_sources
+    and intake must share original exact identity. Artifact history/purge and
+    receipt replay must keep their existing ownership and mechanisms. Do not
+    deduplicate independent sources merely because their bytes match.
+  decision: >-
+    Keep exact source descriptors in accepted sets and retain their members at
+    admission with ordinary frozen Audit bindings and lineage holds. Resolve
+    the original identity of retained Project inputs from existing Artifact
+    lineage, without a second registry or digest-based identity. Build trusted
+    context from actual local metadata and explicitly verify its source
+    translation during result collection.
+scope:
+  in:
+    - Retain selected set members at common Task admission under existing owner fences.
+    - Use one original scoped exact identity for set/singleton budget, handles and proposal intake after retention.
+    - Verify local exact context metadata and source translation for transformed set inputs.
+    - Add real PostgreSQL regressions for history cleanup during Pause, 32-source aliases, independent equal-byte sources, context and result collection.
+  out:
+    - New controller, receipt, material registry, recursive manifest expansion or compatibility reader.
+    - Changes to model choice, publication policy, numeric production limits or deployment.
+acceptance_criteria:
+  - id: A1
+    text: Accept continuation, Pause before Run creation, reclaim original history, Resume and read the same selected exact members; replay preserves Task identity and no duplicate bindings.
+  - id: A2
+    text: A set of 32 sources plus a singleton alias of one source succeeds through common Task acceptance, Run preparation and proposal input_sources; 33 independent sources fail, including equal-byte distinct sources.
+  - id: A3
+    text: Every task-context evidence descriptor matches actual ArtifactStore ref, digest, media type and size; a result using the transformed set evidence collects with the intended retained source association.
+  - id: A4
+    text: Regressions fail on the reviewed implementation; all touched owner package suites, process proof, lint and contract checks pass with bounded reads and existing lifecycle fences.
+tests:
+  - command: make require-database
+    covers: [A1, A2, A3, A4]
+  - command: go test -p 2 -tags=integration -count=1 ./internal/artifacts/... ./internal/auditservice ./internal/auditimport ./internal/runservice/... ./internal/auditcontroller ./internal/httpapi/public
+    covers: [A1, A2, A3, A4]
+  - command: make test-audit-basic-e2e
+    covers: [A1, A2, A3, A4]
+  - command: make test-wire-cross-language
+    covers: [A2, A3, A4]
+  - command: make lint
+    covers: [A4]
+implementation_commit: 0d94f89432bf2400462c5bda9937a0d0386de25e

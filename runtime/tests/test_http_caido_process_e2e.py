@@ -18,6 +18,7 @@ import httpx
 import pytest
 from fakes.model import scripted_model, text_result, tool_call
 from fakes.spec import allocation_spec
+from target_policy_fixtures import SCAN_TEST_POLICY
 from test_text_artifacts_toolset import MemoryArtifactClient
 
 from contractor_runtime.adapters import AdapterHandles
@@ -119,6 +120,7 @@ def test_http_caido_allocation_tools_finalize_release_and_reuse(tmp_path: Path) 
             artifact_client_factory=lambda *_: artifacts,
             model_factory=lambda _: worker_model(),
             enabled_runtime_adapters=[],
+            target_policy=SCAN_TEST_POLICY,
         )
         http_factory = MockHTTPProxyAdapterFactory(http_handler)
         caido_factory = MockCaidoAdapterFactory(caido_handler)
@@ -393,12 +395,14 @@ def test_cookie_login_survives_finalized_allocation_replacement(
             artifact_client_factory=lambda *_: artifacts,
             model_factory=lambda _: scripted_model([text_result("ready")]),
             enabled_runtime_adapters=[],
+            target_policy=SCAN_TEST_POLICY,
         )
         from contractor_runtime.toolsets.http.tools import HTTPToolsetFactory
 
         base.toolsets["http-tools@1"] = HTTPToolsetFactory(
             lambda: httpx.AsyncClient(transport=httpx.MockTransport(target), trust_env=False),
             artifact_client_factory=lambda *_: artifacts,
+            target_policy=SCAN_TEST_POLICY,
         )
         adapter = MockHTTPProxyAdapterFactory(target)
         factories = FactoryRegistry(

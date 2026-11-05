@@ -7,3 +7,8 @@ import _ "embed"
 //
 //go:embed common.schema.json
 var Common []byte
+
+// MaterialSet contains the common exact material descriptor and flat set schema.
+//
+//go:embed material-set.schema.json
+var MaterialSet []byte

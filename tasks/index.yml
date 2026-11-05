@@ -9,6 +9,30 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
+    User request 2026-11-05 authorizes --no-ff integration of the completed
+    hypothesis implementation branch into main. This merge records that delivery;
+    deployment and dependent implementation remain unassigned. Compatibility
+    checks on the reconciled branch passed; optional disk-heavy fixtures stayed
+    disabled and their skips are not passing coverage.
+    User decision 2026-11-05 completed V64-036 after V64-035 on the same
+    implementation branch. Shared Artifact-owned checking, prepared exact
+    handoff and persisted input/source verification replace duplicate consumer
+    reconstruction, preserving fences, receipts, limits and regressions.
+    Required gates passed; the completed implementation is integrated into main.
+    User assignment 2026-11-05 completed V64-033/V64-034 and the V64-035
+    accepted material-set correction on codex/audit-hypothesis-generation after
+    integrating proposal 0054 and current main. Common materials replace
+    numbered context slots; ordinary execution, receipts and lifecycle remain.
+    V443-004 separately repaired the complete Runtime verification gate.
+    Deployment is not assigned.
+    User direction 2026-11-05 makes hypothesis generation an ordinary Workflow
+    capability over configured inputs/readers and selected exact artifacts.
+    Proposal 0054 and its implementation plan govern the correction of V64-013:
+    V64-033 first delivers common bounded material sets with a real initial
+    generator caller; V64-034 admits exact grounds and in-Run selections and
+    replaces numbered source slots/continuation assumptions. The dated assignment starts V64-033/034 only;
+    dependent V64-008/010/011 gates and demo deployment remain unassigned.
+    Preserve V64-013 completion history; it does not prove the new contract.
     User decision 2026-11-04 authorizes V444-001/002/003 after landing their tasks
     on main: engagement owns only egress, traffic limits and identities. Remove
     blackbox/source-assisted modes and nested materials/Audit budgets, preserve no

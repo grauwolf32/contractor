@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-74 open tasks: 10 in progress, 51 pending, 13 deferred. 1447 finished: 1429 completed, 18 archived.
+73 open tasks: 10 in progress, 50 pending, 13 deferred. 1454 finished: 1436 completed, 18 archived.
 
 ## In progress
 
@@ -79,11 +79,10 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V64-005](v64-005-independent-priority-verdicts.yml) | feature | P2 | V64-013 | Optionally rank the common Audit ready-task shortlist |
-| [V64-008](v64-008-audit-priority-api-coverage.yml) | feature | P1 | V64-013 | Expose Audit tasks check results findings and selected materials |
-| [V64-010](v64-010-audit-priority-profile.yml) | feature | P1 | V64-013 | Verify shipped Audit programs and retire the remaining old pipeline |
+| [V64-005](v64-005-independent-priority-verdicts.yml) | feature | P2 | — | Optionally rank the common Audit ready-task shortlist |
+| [V64-008](v64-008-audit-priority-api-coverage.yml) | feature | P1 | — | Expose Audit tasks check results findings and selected materials |
+| [V64-010](v64-010-audit-priority-profile.yml) | feature | P1 | — | Verify shipped Audit programs and retire the remaining old pipeline |
 | [V64-011](v64-011-audit-priority-release.yml) | feature | P1 | V64-009, V64-010, V411-015, V425-017 | Gate the basic Audit research scenario and complexity reduction |
-| [V64-013](v64-013-audit-hypothesis-generation.yml) | feature | P1 | — | Generate scoped hypotheses from selected materials and check results |
 | [V64-015](v64-015-audit-research-frontier.yml) | feature | P2 | V64-011 | Measure whether a larger Audit frontier needs incremental indexing |
 | [V64-016](v64-016-audit-research-ranking-evaluation.yml) | chore | P2 | V64-005, V64-011 | Evaluate optional Audit ranking against the deterministic baseline |
 | [V64-017](v64-017-audit-attack-tree-projection.yml) | feature | P2 | V64-011 | Project optional attack trees over retained research conclusions |
@@ -173,15 +172,15 @@ tasks in `introduced_by`.
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 15 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 5 | 24 | 32 | 15 | 35 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 3 | 17 | 10 | 10 | 20 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 3 | 17 | 10 | 10 | 21 |
 | Findings tools and collections (`findings`) | 1 | 17 | 10 | 10 | 16 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 21 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 36 | 39 | 16 | 66 |
-| Audits (`audits`) | 13 | 68 | 94 | 40 | 150 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 39 | 17 | 67 |
+| Audits (`audits`) | 12 | 69 | 95 | 40 | 152 |
 | Evaluations (`evals`) | 6 | 21 | 40 | 16 | 49 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
 | Web UI (`ui`) | 2 | 47 | 71 | 26 | 72 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 46 | 9 | 22 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 42 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 47 | 18 |
-| Quality, CI and process (`quality`) | 11 | 1 | 29 | 130 | 27 |
+| Quality, CI and process (`quality`) | 11 | 1 | 29 | 132 | 28 |

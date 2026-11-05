@@ -272,3 +272,18 @@ func (c WorkerContextManagement) validateCompaction() error {
 	}
 	return nil
 }
+
+// SelectsHypothesisProposals reports the explicit proposal tool capability.
+// Its context/output roles are pinned separately by the Run owner.
+func (t ResolvedAgentTemplate) SelectsHypothesisProposals() bool {
+	for _, selected := range t.Toolsets {
+		if selected.Ref.ToolsetID == "audit-proposals" && selected.Ref.Version == "1" {
+			for _, tool := range selected.Tools {
+				if tool == "submit_hypothesis_proposals" {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}

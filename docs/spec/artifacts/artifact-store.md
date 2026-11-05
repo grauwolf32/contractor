@@ -1604,3 +1604,49 @@ may be supplied through ordinary Workflow inputs, Audit retention and explicit
 Project publication. Merely listing or reading Project Finding metadata retains
 no Artifact or evidence. The Artifact plane neither interprets Finding semantics
 nor follows payload refs to grant foreign access (FND-R224 through FND-R229).
+
+### Workflow material sets
+
+**ART-R143.** The ArtifactStore materializer prepares the flat explicit set of
+WFL-R96 in the existing Run-creation transaction, before dispatch. It checks
+exact immutable metadata, scope membership, model visibility and member media
+types before any selected-member binding is created. The Run owner supplies
+trusted authority; refs in JSON supply none. A User Run selects its owner's
+UserScope, a Project Run its current ProjectScope, and an Audit Run its current
+Audit/Project scopes. A set does not broaden the special UserScope rulepack
+exception of WFL-R88. Foreign, hidden, missing, changed,
+incompatible or oversized selections reject the entire operation with existing
+input/Artifact errors. Transaction conflicts retain their existing retry policy.
+
+Canonical duplicate full descriptors collapse; different revisions and source
+identities stay distinct. Across sets and singleton research inputs of one Run,
+LIM-ART-14 applies. System-owned context is excluded from research count and keeps
+its own document limit. Handles use the full SHA-256 of the canonical source
+descriptor; input order cannot create a new identity. Each member is a frozen
+ordinary `material-inputs/<handle>` Run binding with existing input fork lineage;
+no source payload is repackaged or copied to another blob. The declared
+`inputs/<slot>` working copy carries a small local `contractor.material-set.v1`
+view with exact Run refs. Its original selection fork remains the repeat source.
+
+One Artifact-owned checking operation handles declared flat sets and singleton
+inputs, exact metadata, original retention lineage and the shared budget.
+Callers supply declarations and research exclusions; the Artifact owner does
+not interpret Workflow roles, Tasks or continuation. Admission and Run creation
+check at their own boundaries. Materialization consumes the checked selection
+and returns actual local descriptors with verified source correspondence in a
+temporary in-memory result. Context assembly consumes that result directly,
+without rereading prepared payloads or reconstructing source identity/budgets.
+
+Technical input/source mapping after restart uses saved original input forks,
+exact local bytes and selected member lineage. An ordinary input must still be
+the original fork revision. A declared set view may replace only its original
+members with corresponding exact native Run bindings; full metadata and fork
+correspondence must match. Neither a matching name, equal bytes nor an unrelated
+lineage edge establishes that transformation. Domain consumers separately check
+that the mapped source belongs to the particular Task and execution.
+
+Existing Run identities/receipts reconcile response loss before preparation.
+Initialization, cancel and deletion keep their existing transaction fences.
+Lineage/current binding holds retain exact member versions; reading/listing
+alone does not. Run purge releases these ordinary bindings and references via
+the normal reference-aware cleanup, without a material registry or new lease.

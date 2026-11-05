@@ -248,7 +248,7 @@ func (i *Importer) collectTasks(ctx context.Context, claim auditstore.Controller
 		if output.logical != "result" || *execution.TerminalOutcome != auditstore.TerminalSucceeded {
 			continue
 		}
-		data, err := i.normalizeTaskResult(ctx, snapshot.Audit.OwnerID, execution, pinned, tasks, *output)
+		data, err := i.normalizeTaskResult(ctx, snapshot.Audit, execution, pinned, tasks, *output)
 		if errors.Is(err, ErrPermanent) {
 			params.Disposition = auditstore.CollectionInvalidResult
 			params.SourceOutput = sourceOutput
@@ -280,7 +280,7 @@ func (i *Importer) collectTasks(ctx context.Context, claim auditstore.Controller
 	}
 	if *execution.TerminalOutcome == auditstore.TerminalSucceeded {
 		for _, output := range outputs {
-			if output.logical != "work" {
+			if output.logical != "work" && output.logical != "proposals" {
 				continue
 			}
 			if i.intake == nil || output.source.MediaType != "application/json" || output.source.SizeBytes > auditcontract.MaxPreparedWorkBytes {
@@ -293,10 +293,13 @@ func (i *Importer) collectTasks(ctx context.Context, claim auditstore.Controller
 				return false, err
 			}
 			source := auditcontract.Material{ScopeKind: "run", ScopeID: *execution.RunID, Ref: output.source.Ref, Digest: output.source.Digest, MediaType: output.source.MediaType, SizeBytes: output.source.SizeBytes}
-			intake, err := i.intake.AcceptPreparedWork(ctx, claim, snapshot, execution, source, data)
+			accept := i.intake.AcceptPreparedWork
+			if output.logical == "proposals" {
+				accept = i.intake.AcceptProposals
+			}
+			intake, err := accept(ctx, claim, snapshot, execution, source, data)
 			if err != nil {
-				var classified apierror.Classified
-				invalid := errors.Is(err, auditstore.ErrInvalid) || errors.Is(err, auditstore.ErrConflict) || artifacts.IsExactReferenceRejection(err) || artifactpostgres.IsExactRevisionMissing(err) || errors.As(err, &classified) && classified.ErrorKind() == apierror.AuditDocumentInvalid
+				invalid := permanentTaskCollectionError(err) || errors.Is(err, auditstore.ErrConflict)
 				if !invalid {
 					return false, err
 				}
@@ -363,7 +366,7 @@ func permanentTaskCollectionError(err error) bool {
 	return errors.Is(err, auditstore.ErrInvalid) || errors.Is(err, blob.ErrIntegrity) || errors.Is(err, blob.ErrMissing) || artifacts.IsExactReferenceRejection(err) || artifactpostgres.IsExactRevisionMissing(err) || errors.As(err, &classified) && (classified.ErrorKind() == apierror.InvalidRequest || classified.ErrorKind() == apierror.AuditDocumentInvalid)
 }
 
-func (i *Importer) normalizeTaskResult(ctx context.Context, ownerID string, execution auditstore.Execution, pinned auditprofile.PinnedProgram, tasks []auditstore.Task, output taskOutput) ([]byte, error) {
+func (i *Importer) normalizeTaskResult(ctx context.Context, audit auditstore.Audit, execution auditstore.Execution, pinned auditprofile.PinnedProgram, tasks []auditstore.Task, output taskOutput) ([]byte, error) {
 	invalid := func() ([]byte, error) { return nil, fmt.Errorf("%w: invalid common Task result", ErrPermanent) }
 	if output.source.MediaType != "application/json" || output.source.SizeBytes > auditcontract.MaximumDocumentBytes {
 		return invalid()
@@ -397,7 +400,7 @@ func (i *Importer) normalizeTaskResult(ctx context.Context, ownerID string, exec
 	if err != nil {
 		return nil, err
 	}
-	trusted, raw, err = i.taskFindingContext(ctx, ownerID, execution, trusted, raw)
+	trusted, raw, err = i.taskFindingContext(ctx, audit.OwnerID, execution, trusted, raw)
 	if err != nil {
 		return nil, err
 	}
@@ -421,6 +424,33 @@ func (i *Importer) normalizeTaskResult(ctx context.Context, ownerID string, exec
 		return invalid()
 	}
 	translations := map[string]auditcontract.Material{}
+	inputMaterials := map[string]auditcontract.Material{}
+	for _, member := range members {
+		for _, raw := range member.(map[string]any)["evidence"].([]any) {
+			data, err := strictjson.Canonical(raw)
+			if err != nil {
+				return nil, err
+			}
+			var m auditcontract.Material
+			if strictjson.Decode(data, &m) != nil || m.ScopeKind != "run" || m.ScopeID != *execution.RunID || m.Ref.Namespace != "inputs" {
+				return invalid()
+			}
+			if prior, exists := inputMaterials[m.Ref.Name]; exists && contracts.MaterialKey(prior) != contracts.MaterialKey(m) {
+				return invalid()
+			}
+			inputMaterials[m.Ref.Name] = m
+		}
+	}
+	definitions := make([]artifacts.MaterialInput, 0, len(inputMaterials))
+	for name, material := range inputMaterials {
+		exact := material.Exact()
+		slot := pinned.Workflows[execution.WorkflowRole].Inputs[name]
+		definitions = append(definitions, artifacts.MaterialInput{Name: name, Ref: material.Ref, Expected: &exact, MediaTypes: slot.MediaTypes, Set: slot.MaterialSet, Required: slot.Required})
+	}
+	inputDescriptions, err := i.artifacts.DescribeRunInputs(ctx, *execution.RunID, artifacts.MaterialAuthority{OwnerID: audit.OwnerID, ProjectID: audit.ProjectID, AuditID: audit.AuditID}, definitions)
+	if err != nil {
+		return nil, err
+	}
 	for index, member := range members {
 		item := member.(map[string]any)
 		task := tasks[index].Document
@@ -437,9 +467,11 @@ func (i *Importer) normalizeTaskResult(ctx context.Context, ownerID string, exec
 				return invalid()
 			}
 			original, exists := task.Inputs[material.Ref.Name]
-			if !exists || original.Digest != material.Digest || original.MediaType != material.MediaType || original.SizeBytes != material.SizeBytes {
+			description, found := inputDescriptions[material.Ref.Name]
+			if !exists || !found || contracts.MaterialKey(original) != contracts.MaterialKey(description.Source) {
 				return invalid()
 			}
+
 			translations[string(data)] = original
 		}
 	}

@@ -5,13 +5,15 @@ milestone: audit-check-prioritization
 epic: audits
 kind: feature
 priority: P1
-status: pending
+status: completed
 depends_on:
 - V64-012
 - V64-004
 - V411-011
 - V64-020
 languages:
+- sql
+- typescript
 - go
 - python
 - json
@@ -24,7 +26,33 @@ demonstration: After an exploratory discovery and a negative or inconclusive che
   reads pinned selected context, proposes one attributed hypothesis/task, and a later check retains its
   result and optional finding.
 context:
-  authority: 'User decisions and task-formation request on 2026-10-31: Audit durably coordinates ordinary
+  superseded_design: >-
+    User clarification and specification request 2026-11-05 supersede the
+    source_01 through source_16 input convention and Task-slice-only view of
+    research context. Read docs/proposals/0054-workflow-hypothesis-production.md
+    and docs/plans/2026-11-05-hypothesis-workflow-correction.md. Pending V64-033
+    and V64-034 deliver the replacement. Preserve this task's completion evidence
+    and implementation commit as historical facts; they do not establish the new
+    behavior or close the later review findings. No implementation starts here.
+  verification_evidence: tasks/evidence/v64-013-2026-11-05.json
+  completion: >-
+    2026-11-05: Configured continuation now settles before Audit completion through
+    the existing coordinator and Task/Run intake. Clean Server/Runtime/PostgreSQL
+    process proof covers initial generation and refutation -> generation -> check
+    -> retained result -> empty decision, with pause/restart/Resume and replay.
+    Bounded exact context, whole-batch validation, trusted IDs/provenance and
+    existing receipts are implemented. Scope remains the assigned V64-013 slice;
+    live model quality and demo deployment are not part of deterministic proof.
+  execution_authority: >-
+    User assigned implementation on a separate branch on 2026-11-04. The same-day
+    clarification confirms that ACT-R7 continuation before Audit completion,
+    pause/Resume, empty-result settlement and stable receipt reconciliation are
+    the existing scope. Implement the saved results -> exact context -> producer
+    Run -> common hypothesis/task intake -> checking Run -> retained result path.
+    Work starts from main 0d6bf1d03 on codex/audit-hypothesis-generation.
+  authority: 'User clarification on 2026-11-05: Workflow-configured materials/readers and ordinary hypothesis
+    production replace the numbered-source context convention under proposal 0054, implemented by pending
+    V64-033/034; retain this completed implementation history. User decisions and task-formation request on 2026-10-31: Audit durably coordinates ordinary
     tasks/Runs for investigation, checking, supporting work and generation. There is no mandatory discovery-finding-generator
     sequence. Assertion checks use common hypotheses; exploratory work may have none. Check results retain
     support/refutation/inconclusive with tested conditions; AppSec findings record evidenced problems
@@ -36,21 +64,28 @@ context:
     The user accepted the common execution skeleton and requested concrete tasks; implementation is a
     subsequent step, not part of this task-formation request. User decision on 2026-11-02 keeps
     deterministic OpenAPI preparation with V64-026 and its common task intake with V64-002;
-    neither depends on this optional semantic generator or introduces a second intake engine.'
+    neither depends on this optional semantic generator or introduces a second intake engine.
+    User instruction on 2026-11-04 assigns implementation on a separate branch and clarifies
+    that ACT-R7 continuation before Audit completion, Pause/Resume, empty-result settlement
+    and reuse of accepted identities/receipts belong to this existing task.'
+  implementation_decisions:
+  - '2026-11-04 agent implementation: selected ordinary results become exact source_01 through source_16 Run inputs. The existing proposal-context carries handles, per-source task identity, optional exact hypothesis snapshots and gaps. This reuses Artifact paging and retention; embedding payloads would impose a combined content bound and duplicate readers. The existing 8 MiB common-document context ceiling remains; mutation metadata stays bounded by 1 MiB.'
+  - '2026-11-04 agent implementation: the ordinary accepted continuation Task retains its consumed source boundary; indexed per-binding seeks exclude producer outputs and preserve unselected history. Manual/initial producers never reset that boundary. Hypothesis/task acceptance shares the existing keyed mutation and execution source cursor, including empty and hypothesis-only decisions.'
   deterministic_preparation_boundary: >-
     User decision 2026-11-02: OpenAPI operation selection is deterministic domain work executed by
     an ordinary Server-operation preparation Workflow (V64-026); V64-002 accepts its work-list through
     the common task operation. That explicit preparation path neither requires this generator nor
     creates an automatic semantic continuation loop. This task continues to own optional proposed
     hypotheses/next work and uses the same accepted-task/Run path without a second intake engine.
-  implementation_gate: Task formation only, requested on 2026-10-31 after acceptance of the common execution
-    skeleton. Keep pending until implementation is requested and dependencies are complete. Do not start
-    code, migrations, live Runs or deployment in this planning turn. Resolve the explicitly labelled remaining
-    contract proposals in V64-001 before dependent implementation.
+  implementation_gate: >-
+    Implementation assigned on 2026-11-04 after all dependencies completed.
+    Disposable verification is authorized; demo deployment is outside this task.
   design:
+  - docs/proposals/0054-workflow-hypothesis-production.md
   - docs/proposals/0050-audit-common-hypothesis-model.md
   - docs/plans/2026-10-31-audit-redesign.md
   specification:
+  - docs/spec/audits/common-contract.md#ACT-R7
   - docs/spec/audits/audits.md
   - docs/spec/audits/execution.md
   - docs/spec/audits/review-and-reports.md
@@ -88,8 +123,7 @@ scope:
   out:
   - A generator service/controller, special research admission, whole-Project context dump, implicit latest
     inputs or mandatory model ranking.
-  - Implementation during this planning-only update; changing user model configuration or deploying/migrating
-    the demo.
+  - Changing user model configuration or deploying/migrating the demo.
 requirements:
 - id: R1
   text: A producer proposal is untrusted content; Runtime assembles typed output and Server validates
@@ -122,7 +156,7 @@ failure_outcomes:
     timeouts remain with their owners. No post-deadline semantic work to repair persistence.
 cardinality:
 - collection: Accept one ordinary producer result and its bounded continuation
-  expected: 'Base fixture: 2 ordinary Runs, 2 seeded hypotheses, 1 generated hypothesis and several conclusions.'
+  expected: 'Continuation fixture: 4 ordinary Runs, 1 seeded and 1 generated hypothesis; initial-generation fixture: 3 ordinary Runs and 1 generated hypothesis. Each ends in an explicit empty proposal decision.'
   maximum: Keep applicable published LIM-AUD/LIM-FND ceilings unless proposal 0050 explicitly identifies
     a reviewed change; no new full-pool work.
   bound: At most 128 admitted primary records / 1 MiB metadata per mutation slice; lists use existing
@@ -136,6 +170,10 @@ lifecycle:
   retention: Accepted exact references and original provenance survive pause/restart and permitted source
     deletion until their owner releases them. Reading alone creates no hold.
 acceptance_criteria:
+- id: A5
+  given: a configured continuation and a drained accepted-work queue, including a pause before dispatch
+  when: the coordinator considers completion and later resumes
+  then: continuation settles before completion; Pause submits no generator Run and Resume retains the same accepted identity
 - id: A1
   given: selected Audit/Project artifacts either alone as initial context or with selected findings and
     ordinary check results
@@ -158,28 +196,31 @@ acceptance_criteria:
   then: the bounded declared batch fails explicitly without partial authoritative membership
 tests:
 - command: make require-database
-- command: go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditstore/... ./internal/auditservice
-    ./internal/auditcontroller ./internal/runservice
+- command: go test -p 2 -tags=integration -count=1 ./internal/auditdomain ./internal/auditstore/... ./internal/auditservice
+    ./internal/auditcontroller ./internal/runservice ./internal/auditimport ./internal/config/... ./internal/configload/...
+    ./internal/contracts/... ./internal/publicclient/...
   covers:
   - A1
   - A2
   - A3
   - A4
+  - A5
 - command: make test-runtime test-wire-cross-language test-audit-basic-e2e
   covers:
   - A1
   - A2
   - A3
   - A4
+  - A5
 - command: make verify-public-api verify-public-api-postgres
   covers:
   - A1
   - A2
   - A3
   - A4
+  - A5
 - command: make lint
 test_prerequisites:
-- Commands below are future implementation acceptance, not results of this planning update.
 - Use disposable PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set; configured/unavailable DB or mandatory
   skips fail. A focused selector matching zero tests fails.
 - Use testdata catalogs and pseudo-Skills, not live configs in unit/integration tests. Run whole touched-package
@@ -193,7 +234,7 @@ verification_requirements:
   dependencies and strict reads/writes.
 - Delete the replaced vertical path and its exclusive schemas/states/tests as its callers migrate. Final
   V64-011 proves no parallel legacy pipeline remains.
-implementation_commit: null
+implementation_commit: 6696978451c09d90bfd1249096b2bedb804eb2dc
 replanning:
   date: '2026-10-31'
   previous_title: Generate cold hypotheses and accept bounded concrete experiment plans

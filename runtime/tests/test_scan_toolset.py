@@ -16,6 +16,7 @@ from types import SimpleNamespace
 from urllib.parse import urlsplit
 
 import pytest
+from fakes.clock import advance_clock, run_with_advanceable_clock
 from fakes.process_markers import atomic_marker_source
 from fakes.worker_runtime import StubADKWorkerRuntimeFactory
 from fakes.worker_state import WorkerState
@@ -48,7 +49,9 @@ def executable(tmp_path: Path, name: str, source: str) -> Path:
 
 
 @pytest.mark.parametrize("available_scanner", scan.SCANNERS, ids=lambda scanner: scanner.name)
-def test_capabilities_check_each_binary_independently(tmp_path, monkeypatch, available_scanner):
+def test_capabilities_check_each_binary_independently(
+    tmp_path, monkeypatch, scanner_probe_budget, available_scanner
+):
     failures = iter(["exit 5", "exit 2", "exit 3", "exit 4"])
     for scanner in scan.SCANNERS:
         # These probes test scanner independence, not Python interpreter startup time.
@@ -61,7 +64,6 @@ def test_capabilities_check_each_binary_independently(tmp_path, monkeypatch, ava
         path.write_text(f"#!/bin/sh\n{source}\n")
         path.chmod(0o700)
     monkeypatch.setenv("PATH", str(tmp_path))
-    # Fresh script launch on macOS can exceed 200 ms; keep the production probe budget.
 
     async def scenario():
         factory = scan.ScanToolsetFactory()
@@ -100,13 +102,15 @@ def test_capabilities_check_each_binary_independently(tmp_path, monkeypatch, ava
     asyncio.run(scenario())
 
 
-def test_hung_scanner_probe_does_not_hide_a_healthy_binary(tmp_path, monkeypatch):
-    # One real timeout retains process cleanup coverage. The identity matrix
-    # above exercises every selected scanner with immediately failing siblings.
+def test_hung_scanner_probe_does_not_hide_a_healthy_binary(
+    tmp_path, monkeypatch, scanner_probe_budget
+):
+    # Both children must start before the test expires the hung child's timer.
     marker = tmp_path / "hung.pid"
     hanging = tmp_path / "nuclei"
     hanging.write_text(
-        f"#!/bin/sh\nprintf '%s' $$ > {shlex.quote(str(marker))}\nexec /bin/sleep 60\n"
+        f"#!/bin/sh\nprintf '%s' $$ > {shlex.quote(str(marker))}\n"
+        "printf 'hung-ready\\n'\nexec /bin/sleep 120\n"
     )
     hanging.chmod(0o700)
     healthy = tmp_path / "katana"
@@ -115,12 +119,38 @@ def test_hung_scanner_probe_does_not_hide_a_healthy_binary(tmp_path, monkeypatch
     monkeypatch.setenv("PATH", str(tmp_path))
 
     async def scenario():
+        ready, healthy_finished = asyncio.Event(), asyncio.Event()
+        original_read = asyncio.StreamReader.read
+        original_run = scan.run_process
+
+        async def observed_read(self, n=-1):
+            data = await original_read(self, n)
+            if b"hung-ready" in data:
+                ready.set()
+            return data
+
+        async def observed_run(command, *args):
+            result = await original_run(command, *args)
+            if Path(command[0]).name == "katana":
+                healthy_finished.set()
+            return result
+
+        monkeypatch.setattr(asyncio.StreamReader, "read", observed_read)
+        monkeypatch.setattr(scan, "run_process", observed_run)
         factory = scan.ScanToolsetFactory()
-        assert await factory.probe() == frozenset({"scan_katana"})
+        running = asyncio.create_task(factory.probe())
+        try:
+            await asyncio.wait_for(asyncio.gather(ready.wait(), healthy_finished.wait()), 30)
+            assert not running.done()
+            advance_clock(scanner_probe_budget)
+            assert await asyncio.wait_for(running, 30) == frozenset({"scan_katana"})
+        finally:
+            running.cancel()
+            await asyncio.gather(running, return_exceptions=True)
         with pytest.raises(ProcessLookupError):
             os.kill(int(marker.read_text()), 0)
 
-    asyncio.run(scenario())
+    run_with_advanceable_clock(scenario())
 
 
 async def make_tools(tmp_path, *, selected=None, proxy=False, scanners=scan.SCANNERS):
@@ -775,7 +805,7 @@ def package_pin(source, destination):
     return snapshot_package(source, destination, time.monotonic() + 30).digest
 
 
-def install_pin_scanner(tmp_path, monkeypatch, *, mode="completed", mutate=False):
+def install_pin_scanner(tmp_path, monkeypatch, *, mode="completed", mutate=False, ready=None):
     marker = tmp_path / "scans"
     pid = tmp_path / "scan.pid"
     source = (
@@ -798,12 +828,33 @@ def install_pin_scanner(tmp_path, monkeypatch, *, mode="completed", mutate=False
             ".write_text('mutated installed bytes')\n"
         )
     if mode == "timeout":
-        source += "    time.sleep(60)\n"
+        source += "    print('scanner-ready', flush=True)\n    time.sleep(120)\n"
     elif mode == "failed":
         source += "    sys.exit(2)\n"
     else:
         source += "    print(json.dumps({'privateBytes': next(root.glob('*.yaml')).read_text()}))\n"
-    executable(tmp_path, "nuclei", source)
+    binary = executable(tmp_path, "nuclei", source)
+    # This fixture's fixed version response is setup for package/receipt tests.
+    # Its new Python interpreter must not consume the production two-second
+    # version budget before the behavior under test can start.
+    original_command = scan.run_command
+
+    async def fixture_command(command, **kwargs):
+        if command == [str(binary), "-version"]:
+            kwargs["timeout"] = 60
+        return await original_command(command, **kwargs)
+
+    monkeypatch.setattr(scan, "run_command", fixture_command)
+    if ready is not None:
+        original_read = asyncio.StreamReader.read
+
+        async def observed_read(self, n=-1):
+            data = await original_read(self, n)
+            if b"scanner-ready" in data:
+                ready.set()
+            return data
+
+        monkeypatch.setattr(asyncio.StreamReader, "read", observed_read)
     monkeypatch.setenv("PATH", str(tmp_path))
     return marker, pid
 
@@ -855,7 +906,8 @@ def test_shared_nuclei_pinned_worker_manifest_receipt_and_private_bytes(
     from contractor_runtime.contracts.tool_execution import ToolArgumentBinding
     from contractor_runtime.digests import _agent_template_digest
 
-    marker, pid = install_pin_scanner(tmp_path, monkeypatch, mode=outcome, mutate=True)
+    ready = asyncio.Event()
+    marker, pid = install_pin_scanner(tmp_path, monkeypatch, mode=outcome, mutate=True, ready=ready)
 
     async def scenario():
         tools, _ = await make_tools(tmp_path, selected=["scan_nuclei"])
@@ -870,7 +922,7 @@ def test_shared_nuclei_pinned_worker_manifest_receipt_and_private_bytes(
         (source / ".git/metadata.yaml").write_text("Git metadata must not reach the scanner")
         for name, value in {
             "templates_digest": digest,
-            "timeout_seconds": 1 if outcome == "timeout" else 15,
+            "timeout_seconds": 60,
         }.items():
             spec.agent_template.execution.arguments[name] = ToolArgumentBinding(
                 source="literal", value=value
@@ -879,7 +931,16 @@ def test_shared_nuclei_pinned_worker_manifest_receipt_and_private_bytes(
         value = request(spec, target="http://target.invalid/")
         runtime = await worker(tmp_path, store, tool, spec=spec)
         store.fail_terminal = outcome == "unknown"
-        completion = await runtime.invoke(value)
+        invocation = asyncio.create_task(runtime.invoke(value))
+        try:
+            if outcome == "timeout":
+                await asyncio.wait_for(ready.wait(), 30)
+                assert not invocation.done()
+                advance_clock(60)
+            completion = await asyncio.wait_for(invocation, 30)
+        finally:
+            invocation.cancel()
+            await asyncio.gather(invocation, return_exceptions=True)
         expected = {
             "failed": "tool_execution_failed",
             "timeout": "tool_execution_failed",
@@ -920,7 +981,7 @@ def test_shared_nuclei_pinned_worker_manifest_receipt_and_private_bytes(
 
             os.kill(int(pid.read_text()), 0)
 
-    asyncio.run(scenario())
+    run_with_advanceable_clock(scenario())
 
 
 def test_shared_nuclei_large_package_manifest_survives_worker_and_replay(tmp_path, monkeypatch):
@@ -1390,7 +1451,8 @@ def test_rulepack_adapter_uses_only_exact_pack_without_installed_rules(
                     self.pack_reads.append((kind, parse_qs(parsed.query).get("revision")))
             return await super().request(method, path, **kwargs)
 
-    marker, _ = install_pin_scanner(tmp_path, monkeypatch, mode=case)
+    ready = asyncio.Event()
+    marker, _ = install_pin_scanner(tmp_path, monkeypatch, mode=case, ready=ready)
 
     async def scenario():
         tools, _ = await make_tools(tmp_path, selected=["scan_nuclei"])
@@ -1411,12 +1473,27 @@ def test_rulepack_adapter_uses_only_exact_pack_without_installed_rules(
             store.values.clear()
         tool = tools["scan_nuclei"]
         tool._session.artifact_client = ArtifactClient("allocation", store)
-        result = await tool(
-            "http://target.invalid/",
-            templates_digest="sha256:" + "f" * 64,
-            rulepack_ref={"namespace": "inputs", "name": "rulepack", "revision": "revision-pack"},
-            timeout_seconds=1 if case == "timeout" else 30,
+        invocation = asyncio.create_task(
+            tool(
+                "http://target.invalid/",
+                templates_digest="sha256:" + "f" * 64,
+                rulepack_ref={
+                    "namespace": "inputs",
+                    "name": "rulepack",
+                    "revision": "revision-pack",
+                },
+                timeout_seconds=60,
+            )
         )
+        try:
+            if case == "timeout":
+                await asyncio.wait_for(ready.wait(), 30)
+                assert not invocation.done()
+                advance_clock(60)
+            result = await asyncio.wait_for(invocation, 30)
+        finally:
+            invocation.cancel()
+            await asyncio.gather(invocation, return_exceptions=True)
         # The pack is resolved and read only at its exact revision, never the latest.
         assert store.pack_reads[0] == ("metadata", ["revision-pack"])
         assert all(revisions == ["revision-pack"] for _, revisions in store.pack_reads)
@@ -1447,7 +1524,7 @@ def test_rulepack_adapter_uses_only_exact_pack_without_installed_rules(
         await tool.close()
         assert not list((tmp_path / "workspace").iterdir())
 
-    asyncio.run(scenario())
+    run_with_advanceable_clock(scenario())
 
 
 # Off-loop scanner work. These are structural checks, not event-loop gap

@@ -42,7 +42,9 @@ that ID and no second Project hypothesis registry.
 | `task` | Accepted Audit/task identity, selected Workflow alias, exact input descriptors/parameters and optional hypothesis pin |
 | `context` | Trusted Audit/Run, exact Workflow identity/digest, bounded item-key/task membership and objective, optional exact readable hypothesis snapshot and admitted evidence descriptors |
 | `proposal-context` | Server-local pinned program and exact selected material handles used to validate producer choices; not a model-authored program or second execution state |
-| `proposals` | Bounded model-proposed named seeds/work using allowed bindings; no persisted IDs, scope permission or automatic admission |
+| `proposals` | [Local hypotheses, exact grounds and optional work](hypotheses.md#HG-R6); no persisted IDs or automatic admission |
+| `proposal_context` | Frozen Run-local research handles, original input identities, allowed Program and explicitly selected observations |
+| `proposal_binding` | Frozen configured context/output refs for the current producer Run, owned by its trusted materializer |
 | `prepared-work` | Deterministic work selections and exact ordinary inputs; no assigned Task identity or permission |
 | `prepared-work-context` | Server-local pinned program, trusted producer Run and admitted exact material descriptors |
 | `conclusions` | Model-authored per-item content, conditions, evidence and limitations; no provenance fields |
@@ -118,24 +120,17 @@ qualified deduplication and independent source contributions. A negative recheck
 remains a linked ordinary result; it does not erase or automatically resolve a
 historical problem. A generation input can include these results and gaps.
 
-**ACT-R7.** Continuation is an optional ordinary allowed Workflow. Its accepted
-source set is a frozen selection of new ordinary results/materials, findings and
-hypotheses. One source set/producer decision has one durable identity, reconciled
-through existing receipts. A continuation response does not itself trigger
-another invocation: another call requires new accepted sources or an explicit
-new decision, within pinned budgets. No model call occurs on every controller tick. A proposals document is an
-ordinary output carrying named seeds and work only; its combined record count
-obeys the mutation slice bound. Explicitly empty `hypotheses` and `work`
-collections are a successful no-new-proposals output. Generation is optional;
-the consumer settles this decision without creating hypotheses/tasks or
-calling the generator again for the same sources. Missing or malformed output
-is invalid, and hypothesis statements remain nonblank. Validation against the pinned program rejects
-unknown Workflow/hypothesis aliases, collisions and authored system identities.
-Optional work input selections name only available material handles from the
-trusted frozen source set. They cannot overwrite task-context/prior-results
-inputs or select foreign/incompatible artifacts. Initial selections name only
-already selected Audit input slots. The owner resolves accepted choices to exact
-ordinary Task input descriptors, without a graph of future output dependencies.
+**ACT-R7.** Continuation is an optional ordinary allowed Workflow, evaluated at
+the drained Task barrier before normal Audit completion. Accepted decision,
+source boundary and exact inputs retain their identities through existing
+Task/Run receipts and claims. New accepted work or an explicit owner decision
+can trigger a later call; unchanged ticks and valid empty output cannot.
+[Hypothesis production](hypotheses.md#HG-R13) owns bounded source selection,
+origin-based self-trigger protection, configured research inputs and limits.
+[The proposal contract](hypotheses.md#HG-R8) owns successful-Run publication,
+hypotheses-only/work-only/empty decisions, source validation and atomic intake.
+Pause preserves accepted continuation without dispatch; Resume uses the same
+work. Cancellation/deletion permits collection without semantic admission.
 
 **ACT-R8.** The control contract is soft pause/drain, Resume of accepted work,
 and terminal Cancel. Admission and Run/HTTP/model timeouts retain separate owners.
@@ -260,7 +255,7 @@ The reconcile snapshot probes no more than 64 ready index keys per allowed
 Workflow (at most 16 Workflows), then hydrates no more than 64 Tasks and 1 MiB
 of Task metadata. Closed lane windows exclude their aliases before selection,
 so a full model lane cannot hide ready tool work. A sparse queue does not read
-settled Task history. An active Audit completes only after its initial work is
+settled Task history. An active Audit completes only after any eligible configured continuation is settled or explicitly limited, its initial work is
 accepted or explicitly limited, its Tasks settle and its execution window
 drains; completion uses the same Audit revision/control fence as acceptance.
 An empty paused Audit never completes automatically. Successful supporting

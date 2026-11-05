@@ -69,7 +69,7 @@ V64-001 остаётся завершённой историей; исправл
 | 4 | [V64-012](../../tasks/done/v64-012-audit-hypothesis-registry.yml) | Fixed/manual hypotheses, automatic exact association и checklist coverage; переписывание YAML восьми checklist/standard программ вместе с их проверяющими consumers |
 | 4 | [V411-010](../../tasks/done/v411-010-pentest-program-availability.yml) | Удаление оставшихся item/report approvals и Audit control policy; использование готовых Project Finding-команд |
 | 4 | [V411-011](../../tasks/done/v411-011-project-findings-reader.yml) | Реальный обычный consumer выбранных Project findings и exact snapshots/evidence |
-| 5 | [V64-013](../../tasks/v64-013-audit-hypothesis-generation.yml) | Обычный Workflow генерации по материалам, findings и результатам, включая опровержения/пробелы; следующая итерация тем же путём |
+| 5 | [V64-013](../../tasks/done/v64-013-audit-hypothesis-generation.yml) | Обычный Workflow генерации по материалам, findings и результатам, включая опровержения/пробелы; следующая итерация тем же путём |
 | 6 | [V64-008](../../tasks/v64-008-audit-priority-api-coverage.yml) | API/CLI чтение цепочки исследования, управление и публикация материалов |
 | 6 | [V64-010](../../tasks/v64-010-audit-priority-profile.yml) | Итоговая проверка уже перенесённых shipped программ и удаление оставшихся ZIP/round/admission/review механизмов |
 | 7 | [V64-009](../../tasks/v64-009-audit-priority-ui.yml) | Общий UI-путь исследования, без approval inbox и ручного ввода системных связей |

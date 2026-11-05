@@ -3,7 +3,6 @@ package auditprofile
 import (
 	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 )
 
@@ -22,7 +21,7 @@ func ValidateTaskInputs(binding auditcontract.ProgramWorkflow, workflow resolved
 	for name, selected := range inputs {
 		mapping, declared := binding.Inputs[name]
 		slot, exists := workflow.Inputs[name]
-		if !declared || !exists || mapping.Source != "task-input" && mapping.Source != "audit-input" || !contracts.AcceptsMediaType(slot.MediaTypes, selected.MediaType) {
+		if !declared || !exists || mapping.Source != "task-input" && mapping.Source != "audit-input" && mapping.Source != "task-results" || !slot.AcceptsInputMediaType(selected.MediaType) {
 			return apierror.New(apierror.AuditDocumentInvalid, "audit_document_invalid: incompatible task material")
 		}
 	}

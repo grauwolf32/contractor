@@ -142,6 +142,9 @@ func builtInDescriptors() descriptorTable {
 					"exec_command": {channelSandboxExecution},
 				},
 			},
+			"audit-proposals@1": {
+				Tools: []string{"submit_hypothesis_proposals"},
+			},
 			AuditResultsToolsetID + "@" + AuditResultsToolsetVersion: {
 				Tools: []string{ReadAuditTaskTool, SubmitCheckResultTool},
 			},

@@ -36,7 +36,7 @@ type commonTaskServiceFixture struct {
 	pinned   auditprofile.PinnedProgram
 }
 
-func newCommonTaskServiceFixture(t *testing.T, configure func(*auditcontract.Program)) commonTaskServiceFixture {
+func newCommonTaskServiceFixture(t *testing.T, configure func(*auditcontract.Program), workflowChanges ...func(*resolved.ResolvedWorkflow)) commonTaskServiceFixture {
 	t.Helper()
 	ctx := t.Context()
 	pool := postgrestest.NewPool(t, ctx, "", postgrestest.Options{Configure: func(config *pgxpool.Config) { config.MaxConns = 1 }})
@@ -66,7 +66,15 @@ func newCommonTaskServiceFixture(t *testing.T, configure func(*auditcontract.Pro
 		configure(&program)
 	}
 	data, _ := json.Marshal(program)
-	pinned, err := auditprofile.PinProgram(resolved.Selector{ID: "common", Version: "1"}, data, catalog.Workflow)
+	pinned, err := auditprofile.PinProgram(resolved.Selector{ID: "common", Version: "1"}, data, func(ref string) (resolved.ResolvedWorkflow, error) {
+		workflow, err := catalog.Workflow(ref)
+		if err == nil {
+			for _, change := range workflowChanges {
+				change(&workflow)
+			}
+		}
+		return workflow, err
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +104,7 @@ func newCommonTaskServiceFixture(t *testing.T, configure func(*auditcontract.Pro
 	if _, err := pool.Exec(ctx, `UPDATE audits SET state='paused',phase='rounds',started_at=clock_timestamp(),paused_at=clock_timestamp(),baseline_snapshot=$2,dispatch_state='closed' WHERE audit_id=$1`, audit.AuditID, baseline); err != nil {
 		t.Fatal(err)
 	}
-	service := &Service{pool: pool}
+	service := &Service{pool: pool, storage: artifactpgtest.NewStorage()}
 	audit, err = service.Get(ctx, "owner", audit.AuditID)
 	if err != nil {
 		t.Fatal(err)

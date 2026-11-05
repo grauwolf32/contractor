@@ -8,7 +8,11 @@
       "TestAuditCommonObservationProfilesAcrossProductionProcesses",
       "TestAuditCommonObservationProfilesAcrossProductionProcesses/observe",
       "TestAuditCommonObservationProfilesAcrossProductionProcesses/trace",
-      "TestAuditFixedHypothesesAcrossProductionProcesses"
+      "TestAuditFixedHypothesesAcrossProductionProcesses",
+      "TestAuditHypothesisContinuationAcrossProductionProcesses",
+      "TestAuditHypothesisContinuationAcrossProductionProcesses/initial=false",
+      "TestAuditHypothesisContinuationAcrossProductionProcesses/initial=true",
+      "TestWorkflowMaterialSetsAcrossProductionProcesses"
     ]
   },
   "programs": {

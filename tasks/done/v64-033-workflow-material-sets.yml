@@ -1,0 +1,182 @@
+schema_version: "1.0"
+id: V64-033
+title: Pass bounded exact material sets through ordinary Workflow inputs
+milestone: audit-check-prioritization
+epic: projects-artifacts
+kind: feature
+priority: P1
+status: completed
+depends_on: [V64-004, V64-013]
+languages: [go, python, typescript, json, yaml, markdown]
+goal: >-
+  A configured ordinary Workflow receives a variable-sized explicit selection of
+  exact Audit/Project materials without manually declaring source_01 through
+  source_16. ArtifactStore retains the selected versions and existing tools read
+  the Run-local bindings without copying payload blobs.
+demonstration: >-
+  Start the shipped hypothesis Workflow from existing Project materials, with
+  no previous Audit result. Pass 17 exact artifacts through one declared set,
+  read two through real Runtime Artifact tools and accept an ordinary existing
+  proposal output. Prove the same common input path with an ordinary Run consumer
+  outside Audit, using a testdata catalog and real Server/Runtime/PostgreSQL.
+context:
+  verification_evidence: tasks/evidence/v64-033-2026-11-05.json
+  completion: >-
+    2026-11-05: Shared exact sets are materialized directly as ordinary Run
+    bindings and a local descriptor. The real 17-material initial generator
+    and a non-Audit Run pass through Server/Runtime/PostgreSQL; cumulative
+    count/byte/media/authority bounds, response-loss recovery and source purge
+    races pass. V64-034 still owns the final continuation conversion, dynamic
+    selections and hypothesis sources. The working numbered continuation is
+    intentionally not claimed as replaced by this prerequisite.
+  verification_prerequisite: >-
+    V443-003 repairs an independently reproduced fixed-output scanner fixture
+    timeout. Process evidence is pinned to its clean commit after V64-033;
+    only that test fixture and its task metadata differ from the implementation.
+  authority: >-
+    User assignment 2026-11-05: continue on codex/audit-hypothesis-generation,
+    integrate document commit 7cb43ae86 and current main, implement V64-033
+    then V64-034 with the old context mechanism removed, preserving the common
+    execution/intake/receipts/lifecycle skeleton. No demo deployment is assigned.
+    User decision 2026-11-05: hypothesis generation uses available artifacts,
+    Findings and checked hypotheses; Workflow configuration defines its inputs
+    and reading capabilities. The user requested a detailed specification and
+    implementation instructions while keeping Audit complexity controlled.
+    This planning task does not assign implementation. Engineering proposal:
+    one flat bounded material set through common Run/Artifact owners, with the
+    existing 32-handle ceiling initially reused as described in proposal 0054.
+  proposal: docs/proposals/0054-workflow-hypothesis-production.md
+  design: docs/plans/2026-11-05-hypothesis-workflow-correction.md
+  specification:
+    - docs/spec/configuration/workflows.md#WFL-R2
+    - docs/spec/artifacts/artifact-store.md
+    - docs/spec/artifacts/retention-and-deletion.md
+    - docs/spec/audits/common-contract.md#ACT-R2
+    - docs/spec/audits/common-contract.md#ACT-R11
+    - docs/spec/platform/persistence.md
+  baseline: >-
+    Base reviewed implementation is codex/audit-hypothesis-generation at
+    737ff0319d40658a17155edc73f4d782234dbccd; V64-013 implementation is
+    6696978451c09d90bfd1249096b2bedb804eb2dc. Check actual current branch/main and
+    migration numbering before integration. Do not edit the user's other checkout.
+  implementation_decisions:
+    - >-
+      2026-11-05: A Workflow input declares materialSet true; its ordinary exact
+      input ref selects a contractor.material-set.v1 JSON list. The shared
+      Artifact owner checks every member against authenticated Run authority and
+      member media types, forks exact bytes into normal frozen Run bindings and
+      writes a small local descriptor to the declared input. No public Run body
+      union, new registry or numbered slot adapter is needed. The simpler
+      manifest-only alternative would not grant readable retained members and
+      is rejected. Existing input lineage retains the original selection for
+      ordinary repeat/replay; the descriptor is an ordinary input working copy.
+      Revisit only for a concrete caller needing a different selection boundary.
+  boundary: >-
+    HG-R3 through HG-R5 and HG-R13 define the common capability. Input contract
+    belongs to Workflow/Run, exact binding/retention to ArtifactStore, concrete
+    selection to the caller. No Audit-specific list reader or manifest authority.
+    Final wire field names are a routine implementation choice, defined once in
+    the common schema with shared fixtures; illustrative proposal fields are not
+    already valid API. Every new export has the real initial generator caller.
+  implementation_gate: >-
+    Implementation assigned 2026-11-05; dependencies are complete. V64-034 owns dynamic selections, hypothesis grounds and the
+    full continuation conversion. Do not absorb them into this prerequisite.
+scope:
+  in:
+    - Declare and validate a flat explicit material-set input in the ordinary Workflow/Run contract.
+    - Materialize checked exact members as ordinary Run bindings and a small descriptor view through existing owners.
+    - Preserve role-specific singleton inputs, authority, media compatibility, requiredness, deterministic handles and replay.
+    - Wire the real shipped initial hypothesis Workflow/program to the new input capability and existing proposal intake.
+    - Register shared bounds and update owning spec, schema/fixtures and generated clients if public input shape changes.
+  out:
+    - Recursive report dependencies, ZIP packaging, universal selector DSL, live Project artifact search or another store.
+    - New hypothesis semantics, dynamic Finding selection admission, ranking, immediate registry writes or final continuation conversion.
+    - A new UI picker; its user-facing coverage remains V64-009. No hidden widening of existing UI/API permissions.
+    - Model changes, demo deployment or compatibility support for an obsolete numbered-source contract.
+requirements:
+  - id: R1
+    text: >-
+      The reusable Workflow declares the set contract, caller selects exact
+      refs, and Server checks actual rights and immutable metadata. A manifest
+      reference alone never grants access to its members. Reuse common input
+      validation and Run creation; Audit only supplies trusted selections.
+  - id: R2
+    text: >-
+      Use ordinary Artifact bindings, versions, lineage and retention. Store no
+      second material registry and copy no payload just to bind a source into a
+      Run. Canonical duplicate exact descriptors collapse; different revisions
+      and independent Finding sources remain distinct. Required sets are nonempty.
+  - id: R3
+    text: >-
+      One producer selection is bounded by 32 exact research materials and
+      1 MiB descriptor metadata across sets/singletons; common document/payload
+      bounds still apply. Move the shared definition to its common owner, with
+      Audit references rather than duplicate constants. Reject overflow, never
+      silently truncate. Define count/byte accounting in cross-language fixtures.
+  - id: R4
+    text: >-
+      The initial generator caller works without prior Tasks, Findings or a
+      special generation execution type. Partial input preparation cannot
+      dispatch. The later V64-034 removes all remaining continuation source_XX
+      paths; do not claim full replacement in this intermediate task.
+failure_outcomes:
+  - operation: Validate and materialize an exact set during ordinary Run preparation
+    permanent: >-
+      Unknown input, incompatible media/requiredness, invalid/foreign/hidden or
+      missing exact member and over-bound selection are existing classified
+      input/artifact errors. Keep owning API 4xx semantics, no partial bindings
+      visible to execution and no blind retries; specify any new code in OpenAPI.
+    retryable: Existing storage_transaction_conflict 503 with the same operation key and owning bounded retry/deadline.
+    ambiguous: Reconcile original Run/input preparation receipt before creating any replacement identity or bindings.
+    cancelled: Existing Run/Audit/Project fence prevents dispatch; join in-flight work before deletion or allocation release.
+    timeout: Owning Run creation/Artifact operation deadline; no model restart to repair material preparation.
+cardinality:
+  - collection: Selected research materials across one producer Run
+    expected: 1-17 materials, including independent exact versions of ordinary text/JSON outputs.
+    maximum: 32 exact members and 1 MiB descriptors; existing payload/evidence/common-document limits also apply.
+    bound: Validate total rows/bytes before writing; bounded transaction and existing paged tool reads; no recursive expansion.
+lifecycle:
+  - entity: Exact source versions exposed through ordinary Run bindings
+    delete: Existing Run/Project/Audit deletion owners and fences; source deletion cannot leave a successfully pinned input dangling.
+    cascade: Remove local bindings with their owner; normal reference-aware GC handles unreferenced versions/blobs.
+    retention: Input fork retains selected bytes; explicit Project publication is independent; listing text creates no hold.
+acceptance_criteria:
+  - id: A1
+    given: A real program starts generation with 17 existing Project artifacts and no prior Task result.
+    when: Server prepares the Run and real Runtime reads selected members through ordinary Artifact tools.
+    then: >-
+      One declared set supplies exact readable inputs, no numbered source slots
+      or copied payload blobs are required, and existing proposal intake accepts
+      an output. A non-Audit ordinary Run proves common-owner reuse.
+  - id: A2
+    given: Empty optional/required sets, duplicate descriptors, 1/17/32/33 members, excessive metadata and incompatible/foreign/hidden refs.
+    when: The same catalog, Run preparation and Runtime contracts validate them.
+    then: >-
+      Requiredness, dedup/count/byte/media and authority outcomes match shared
+      fixtures; every rejection precedes dispatch without a partial set or
+      a misleading generic retry. Unit tests use testdata, not live configs.
+  - id: A3
+    given: Real PostgreSQL with source deletion races, lost response after input creation and restart.
+    when: The original request is reconciled and retained materials are read.
+    then: Same exact versions/Run identity survive replay; a deletion race either preserves readable forks or fails before dispatch.
+  - id: A4
+    given: The shipped generator caller and an ordinary consumer of the common capability.
+    when: Catalog validation and existing end-to-end gate case inventory execute.
+    then: New behavior has a production caller and named mandatory process cases; old passing source-slot fixtures alone do not satisfy acceptance.
+tests:
+  - command: make require-database
+    covers: [A1, A2, A3]
+  - command: go test -p 2 -tags=integration -count=1 ./internal/artifacts/... ./internal/runservice/... ./internal/config/... ./internal/configload/... ./internal/contracts/... ./internal/auditservice ./internal/auditstore/...
+    covers: [A1, A2, A3]
+  - command: make test-runtime test-wire-cross-language test-audit-basic-e2e
+    covers: [A1, A2, A3, A4]
+  - command: make verify-public-api verify-public-api-postgres
+    covers: [A2, A4]
+  - command: go run ./cmd/contractor server config validate --root ./configs
+    covers: [A1, A4]
+  - command: make lint
+    covers: [A2, A4]
+test_prerequisites:
+  - Use disposable PostgreSQL; missing required database coverage or a zero-match selector is not success.
+  - Extend existing gate case inventories and run entire touched packages, including consuming selectors.
+implementation_commit: a4940f78a1e56c4d21a98e85601cb390f8e14113

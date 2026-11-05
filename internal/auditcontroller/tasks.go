@@ -71,7 +71,7 @@ func (c *Controller) reconcileTasks(ctx context.Context, claim auditstore.Contro
 		first := snapshot.ReadyTasks[0]
 		batch := 1
 		for _, mapping := range pinned.Program.Workflows[first.Document.Workflow].Inputs {
-			if mapping.Source == "task-context" {
+			if mapping.Source == "task-context" && pinned.Program.Workflows[first.Document.Workflow].Outputs["proposals"] == "" {
 				batch = audit.Limits.BatchSize
 				break
 			}
@@ -101,6 +101,24 @@ func (c *Controller) reconcileTasks(ctx context.Context, claim auditstore.Contro
 	}
 	if audit.InitialWorkOffset < len(pinned.Program.InitialWork) {
 		return c.closeActiveAudit(ctx, claim, audit, &auditstore.StopReason{Code: "task_budget_exhausted", Message: "The Audit task budget was exhausted before all initial work was accepted."})
+	}
+	if pinned.Program.Continuation != nil {
+		if c.options.TaskIntake == nil {
+			return false, errors.New("Audit continuation intake is not configured")
+		}
+		result, err := c.options.TaskIntake.AcceptContinuation(ctx, claim, snapshot)
+		if errors.Is(err, auditstore.ErrPrecondition) {
+			return false, nil
+		}
+		if permanentSubmissionError(err) {
+			return c.closeActiveAudit(ctx, claim, audit, &auditstore.StopReason{Code: "continuation-invalid", Message: "The pinned continuation cannot be accepted."})
+		}
+		if err != nil || result.Changed {
+			return result.Changed, err
+		}
+		if result.GapCode != "" {
+			return c.closeActiveAudit(ctx, claim, audit, &auditstore.StopReason{Code: result.GapCode, Message: "The continuation budget was exhausted."})
+		}
 	}
 	return c.closeActiveAudit(ctx, claim, audit, nil)
 }

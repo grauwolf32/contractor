@@ -20,6 +20,15 @@ type ArtifactAccess interface {
 	WithClaim(auditstore.ControllerClaim) ArtifactAccess
 	ReadRunExact(context.Context, string, contracts.ArtifactRef) (auditstore.ExactArtifact, []byte, error)
 	RetainRunExact(context.Context, string, string, []RunRetention) ([]auditstore.ExactArtifact, error)
+	DescribeRunInputs(context.Context, string, artifacts.MaterialAuthority, []artifacts.MaterialInput) (map[string]RunInputDescription, error)
+}
+
+// RunInputDescription distinguishes the exact local working revision from the
+// accepted source, recovered from the original ordinary Audit input fork.
+type RunInputDescription = artifacts.InputMapping
+
+func (a *ServiceArtifactAccess) DescribeRunInputs(ctx context.Context, runID string, authority artifacts.MaterialAuthority, inputs []artifacts.MaterialInput) (map[string]RunInputDescription, error) {
+	return a.service.DescribeInputMaterials(ctx, runID, authority, inputs)
 }
 
 func (a *ServiceArtifactAccess) DescribeRunBinding(ctx context.Context, runID string, ref contracts.ArtifactRef) (auditstore.ExactArtifact, bool, error) {

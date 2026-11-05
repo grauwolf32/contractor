@@ -17,6 +17,9 @@ func (s *ArtifactSlot) UnmarshalJSON(data []byte) error {
 	if fields["sourceScope"] != nil && value.SourceScope != "user" {
 		return fmt.Errorf("sourceScope must select user")
 	}
+	if fields["materialSet"] != nil && !value.MaterialSet {
+		return fmt.Errorf("materialSet must be true when present")
+	}
 	*s = ArtifactSlot(value)
 	return nil
 }
@@ -25,18 +28,30 @@ func (s *ArtifactSlot) UnmarshalJSON(data []byte) error {
 // authored and retained Workflow boundary. Runtime never receives UserScope authority.
 func validateRulepackSourceScopes(workflow ResolvedWorkflow) error {
 	for _, slot := range workflow.Outputs {
-		if slot.SourceScope != "" {
+		if slot.SourceScope != "" || slot.MaterialSet {
 			return fmt.Errorf("outputs cannot select sourceScope")
 		}
 	}
 	for _, stage := range workflow.Stages {
 		for _, slot := range stage.Result.Artifacts {
-			if slot.SourceScope != "" {
+			if slot.SourceScope != "" || slot.MaterialSet {
 				return fmt.Errorf("results cannot select sourceScope")
 			}
 		}
 	}
+	sets := 0
+	for _, slot := range workflow.Inputs {
+		if slot.MaterialSet {
+			sets++
+		}
+	}
+	if sets > contracts.MaxSelectedMaterials {
+		return fmt.Errorf("too many material-set input slots")
+	}
 	for name, slot := range workflow.Inputs {
+		if slot.MaterialSet && slot.SourceScope != "" {
+			return fmt.Errorf("material sets cannot select sourceScope")
+		}
 		if slot.SourceScope == "" {
 			continue
 		}

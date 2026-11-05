@@ -42,6 +42,7 @@ func (s *Service) WriteHypothesis(ctx context.Context, p HypothesisMutationParam
 		h.ID = prior.Document.ID
 		h.Revision = prior.Document.Revision + 1
 		h.Origin = prior.Document.Origin
+		h.Sources = prior.Document.Sources
 		source = prior.SourceKey
 		fixed = prior.Fixed
 	}

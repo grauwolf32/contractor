@@ -96,6 +96,7 @@ type Clock interface {
 }
 
 type TaskIntake interface {
+	AcceptContinuation(context.Context, auditstore.ControllerClaim, auditstore.ReconcileSnapshot) (auditstore.TaskIntakeResult, error)
 	AcceptInitialTasks(context.Context, auditstore.ControllerClaim, auditstore.ReconcileSnapshot) (auditstore.TaskIntakeResult, error)
 }
 

@@ -1,0 +1,121 @@
+{
+  "limits": {
+    "materials": 32,
+    "descriptorBytes": 1048576
+  },
+  "base": {
+    "scope_kind": "project",
+    "scope_id": "project-1",
+    "ref": {
+      "namespace": "reports",
+      "name": "report",
+      "revision": "rev-1"
+    },
+    "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "media_type": "text/plain",
+    "size_bytes": 8
+  },
+  "cases": [
+    {
+      "name": "empty",
+      "count": 0,
+      "valid": true
+    },
+    {
+      "name": "one",
+      "count": 1,
+      "valid": true
+    },
+    {
+      "name": "seventeen",
+      "count": 17,
+      "valid": true
+    },
+    {
+      "name": "ceiling",
+      "count": 32,
+      "valid": true
+    },
+    {
+      "name": "overflow",
+      "count": 33,
+      "valid": false
+    },
+    {
+      "name": "duplicates",
+      "count": 33,
+      "valid": true
+    },
+    {
+      "name": "scope-kind",
+      "count": 1,
+      "valid": false,
+      "change": {
+        "scope_kind": "foreign"
+      }
+    },
+    {
+      "name": "missing-scope",
+      "count": 1,
+      "valid": false,
+      "change": {
+        "scope_id": ""
+      }
+    },
+    {
+      "name": "nul-scope",
+      "count": 1,
+      "valid": false,
+      "change": {
+        "scope_id": "a\u0000b"
+      }
+    },
+    {
+      "name": "digest",
+      "count": 1,
+      "valid": false,
+      "change": {
+        "digest": "bad"
+      }
+    },
+    {
+      "name": "media",
+      "count": 1,
+      "valid": false,
+      "change": {
+        "media_type": "Text/Plain"
+      }
+    },
+    {
+      "name": "size",
+      "count": 1,
+      "valid": false,
+      "change": {
+        "size_bytes": -1
+      }
+    },
+    {
+      "name": "unknown-field",
+      "count": 1,
+      "valid": false,
+      "change": {
+        "origin": "untrusted"
+      }
+    },
+    {
+      "name": "missing-revision",
+      "count": 1,
+      "valid": false
+    },
+    {
+      "name": "null-members",
+      "count": 0,
+      "valid": false
+    },
+    {
+      "name": "raw-byte-overflow",
+      "count": 1,
+      "valid": false
+    }
+  ]
+}

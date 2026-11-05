@@ -13721,6 +13721,12 @@ components:
           type: string
         scope:
           $ref: '#/components/schemas/AuditAssertionScope'
+        sources:
+          items:
+            $ref: '#/components/schemas/AuditTaskMaterial'
+          maxItems: 32
+          type: array
+          uniqueItems: true
         statement:
           $ref: '#/components/schemas/AuditCommonText'
       required:
@@ -13733,6 +13739,10 @@ components:
       - origin
       type: object
       x-maxEncodedBytes: 32768
+    AuditMaterialScopeId:
+      minLength: 1
+      pattern: \S
+      type: string
     AuditProgram:
       additionalProperties: false
       allOf:
@@ -13882,6 +13892,7 @@ components:
             - task-context
             - prior-results
             - task-input
+            - task-results
             type: string
         required:
         - source
@@ -14002,6 +14013,12 @@ components:
       type: string
     AuditProgramWorkflow:
       additionalProperties: false
+      not:
+        properties:
+          outputs:
+            required:
+            - work
+            - proposals
       properties:
         inputs:
           additionalProperties:
@@ -14036,6 +14053,51 @@ components:
       - inputs
       - parameters
       - outputs
+      type: object
+    AuditTaskMaterial:
+      allOf:
+      - $ref: '#/components/schemas/WorkflowMaterialDescriptor'
+      - properties:
+          scope_id:
+            $ref: '#/components/schemas/AuditCommonResourceId'
+          scope_kind:
+            enum:
+            - audit
+            - project
+            - run
+            type: string
+    WorkflowMaterialDescriptor:
+      additionalProperties: false
+      properties:
+        digest:
+          $ref: '#/components/schemas/AuditCommonDigest'
+        media_type:
+          $ref: '#/components/schemas/MediaType'
+        ref:
+          $ref: '#/components/schemas/AuditCommonExactRef'
+        scope_id:
+          allOf:
+          - $ref: '#/components/schemas/AuditMaterialScopeId'
+          - not:
+              pattern: "\0"
+        scope_kind:
+          enum:
+          - user
+          - project
+          - audit
+          - run
+          type: string
+        size_bytes:
+          maximum: 67108864
+          minimum: 0
+          type: integer
+      required:
+      - scope_kind
+      - scope_id
+      - ref
+      - digest
+      - media_type
+      - size_bytes
       type: object
     # END GENERATED COMMON AUDIT PROGRAM
     AuditProfile:
@@ -14439,39 +14501,6 @@ components:
           type: string
           minLength: 1
           pattern: \S
-    AuditTaskMaterial:
-      type: object
-      properties:
-        scope_kind:
-          enum:
-          - audit
-          - project
-          - run
-          type: string
-        scope_id:
-          $ref: '#/components/schemas/AuditCommonResourceId'
-        ref:
-          $ref: '#/components/schemas/AuditCommonExactRef'
-        digest:
-          $ref: '#/components/schemas/AuditCommonDigest'
-        media_type:
-          type: string
-          maxLength: 255
-          pattern: ^[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*$
-          not:
-            pattern: '[^a-z0-9!#$&^_.+/-]'
-        size_bytes:
-          type: integer
-          minimum: 0
-          maximum: 67108864
-      required:
-      - scope_kind
-      - scope_id
-      - ref
-      - digest
-      - media_type
-      - size_bytes
-      additionalProperties: false
     AuditTaskHypothesisRef:
       type: object
       properties:
@@ -14696,8 +14725,20 @@ components:
           - initial
           - manual
           - prepared
+          - continuation
         key:
           $ref: '#/components/schemas/AuditCommonKey'
+        observation_task_ids:
+          type: array
+          maxItems: 32
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/ResourceId'}
+          description: Exact source Tasks pinned by the continuation decision; system provenance only.
+        through_ordinal:
+          type: integer
+          minimum: 1
+          maximum: 100000
+          description: Last source Task ordinal consumed by this exact continuation decision.
         execution_id:
           $ref: '#/components/schemas/ResourceId'
         output:
@@ -17156,6 +17197,7 @@ components:
       required: [required, mediaTypes]
       properties:
         sourceScope: {type: string, enum: [user], description: Owner UserScope for the optional Nuclei rulepack input only.}
+        materialSet: {type: boolean, const: true, description: A checked flat set of exact materials. mediaTypes constrains its members; the input binding carries contractor.material-set.v1 JSON.}
         required: {type: boolean}
         mediaTypes: {type: array, minItems: 1, maxItems: 32, uniqueItems: true, items: {$ref: '#/components/schemas/MediaType'}}
     WorkflowOutputArtifactSlot:

@@ -18,6 +18,8 @@ def decode_audit_document(data: bytes, *, schema: str) -> dict:
     """Validate bounded JSON without fetching external schemas or granting authority."""
     if not isinstance(data, bytes) or not 0 < len(data) <= MAX_DOCUMENT_BYTES:
         raise ValueError("Audit document bytes")
+    if schema == "contractor.audit.proposals.v1" and len(data) > 1 << 20:
+        raise ValueError("Audit proposal bytes")
     if schema == "contractor.audit.hypothesis.v1" and len(data) > 32768:
         raise ValueError("Audit hypothesis bytes")
     value = strict_json_loads(data.decode("utf-8"))
@@ -66,4 +68,77 @@ def decode_audit_document(data: bytes, *, schema: str) -> dict:
             values = [item[field] for item in value["items"]]
             if len(values) != len(set(values)):
                 raise ValueError("Audit context membership")
+    if schema in {"contractor.audit.program.v1", "contractor.audit.proposals.v1"} and any(
+        len(jcs.canonicalize(seed)) > 32768 for seed in value["hypotheses"].values()
+    ):
+        raise ValueError("Audit seed bytes")
+    if schema == "contractor.audit.proposals.v1" and len(jcs.canonicalize(value)) > 1 << 20:
+        raise ValueError("Audit canonical proposal bytes")
+    if schema == "contractor.audit.program.v1":
+        _validate_program(value)
+    if schema == "contractor.audit.proposal-context.v1":
+        originals = value["input_sources"]
+        if set(originals) != set(value["materials"]):
+            raise ValueError("Audit material membership")
+        distinct = {jcs.canonicalize(m) for m in originals.values()}
+        if len(distinct) > 32 or sum(map(len, distinct)) > 1 << 20:
+            raise ValueError("Audit cumulative materials")
+        if any(
+            m["scope_kind"] != "run" or m["scope_id"] != value["run_id"]
+            for m in value["materials"].values()
+        ):
+            raise ValueError("Audit local material authority")
+        tasks = set()
+        for item in value.get("observations", []):
+            if item["task_id"] in tasks:
+                raise ValueError("Audit observation membership")
+            tasks.add(item["task_id"])
+            if item["key"] not in value["materials"] and "gap" not in item:
+                raise ValueError("Audit observation source")
+        decode_audit_document(
+            jcs.canonicalize(value["program"]), schema="contractor.audit.program.v1"
+        )
     return value
+
+
+def _validate_program(program):
+    limits = program["limits"]
+    if not (limits["batch_size"] <= limits["max_tasks_per_iteration"] <= limits["max_tasks"]):
+        raise ValueError("Audit work budget")
+    if (
+        limits["max_submitted_runs"]
+        < (limits["max_tasks"] + limits["batch_size"] - 1) // limits["batch_size"]
+        or limits["max_hypothesis_revisions"] < limits["max_hypotheses"]
+        or len(program["hypotheses"]) > limits["max_hypotheses"]
+        or len(program["initial_work"]) > limits["max_tasks_per_iteration"]
+        or len(jcs.canonicalize(program)) > 4 << 20
+    ):
+        raise ValueError("Audit program bounds")
+    bindings = program["workflows"]
+    for binding in bindings.values():
+        if binding.get("max_attempts", limits["max_attempts"]) > limits["max_attempts"]:
+            raise ValueError("Audit binding attempt budget")
+        for source in binding["inputs"].values():
+            if source["source"] == "audit-input" and source["name"] not in program["inputs"]:
+                raise ValueError("Audit input alias")
+    seen = set()
+    for item in program["initial_work"]:
+        if item["key"] in seen or item["workflow"] not in bindings:
+            raise ValueError("Audit initial work alias")
+        seen.add(item["key"])
+        binding = bindings[item["workflow"]]
+        if "hypothesis" in item and (
+            item["hypothesis"] not in program["hypotheses"]
+            or "result" not in binding["outputs"]
+            or not any(source["source"] == "task-context" for source in binding["inputs"].values())
+        ):
+            raise ValueError("Audit initial assertion binding")
+        for slot, handle in item.get("inputs", {}).items():
+            source = binding["inputs"].get(slot, {})
+            if (
+                source.get("source") not in {"audit-input", "task-input"}
+                or handle not in program["inputs"]
+            ):
+                raise ValueError("Audit initial material selection")
+    if "continuation" in program and program["continuation"]["workflow"] not in bindings:
+        raise ValueError("Audit continuation binding")

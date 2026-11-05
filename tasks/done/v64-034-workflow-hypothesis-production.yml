@@ -1,0 +1,217 @@
+schema_version: "1.0"
+id: V64-034
+title: Produce attributed hypotheses from Workflow-selected materials
+milestone: audit-check-prioritization
+epic: audits
+kind: feature
+introduced_by: V64-013
+priority: P1
+status: completed
+depends_on: [V64-033, V64-012, V64-013, V411-011, V64-020]
+languages: [go, python, json, yaml, markdown, sql]
+goal: >-
+  Any ordinary configured Audit Workflow can propose hypotheses using its
+  permitted exact materials, including Findings selected during the Run and
+  previous check results. Each accepted hypothesis retains exact grounds and
+  automatic origin, while optional checks use the existing Task/Run path.
+demonstration: >-
+  A real Workflow consumes an architecture report and a refuted/inconclusive
+  check, selects a Project Finding through the existing reader, proposes two
+  hypotheses with exact sources and one checking Task. Server atomically accepts
+  them after successful Run completion; the next Run receives its exact hypothesis.
+  A later empty continuation settles without another generator invocation.
+context:
+  verification_evidence: tasks/evidence/v64-034-2026-11-05.json
+  authority: >-
+    User assignment 2026-11-05: continue on codex/audit-hypothesis-generation,
+    integrate document commit 7cb43ae86 and current main, implement V64-033
+    then V64-034 with the old context mechanism removed, preserving the common
+    execution/intake/receipts/lifecycle skeleton. No demo deployment is assigned.
+    User direction 2026-11-05 makes available artifacts and configured Workflow
+    capabilities the basis of hypothesis generation, including Findings and
+    checked hypotheses, and requires creation of hypotheses inside a Workflow.
+    The user requested a detailed spec and correction instructions, preserving
+    the goal of reducing Audit complexity. Engineering decisions in proposal
+    0054 retain after-success publication, explicit optional grounds, existing
+    receipts/readers and bounded continuation. The earlier planning update alone
+    did not assign implementation; the explicit user assignment above does.
+    No immediate-write or Project-registry contract is added.
+  proposal: docs/proposals/0054-workflow-hypothesis-production.md
+  design: docs/plans/2026-11-05-hypothesis-workflow-correction.md
+  specification:
+    - docs/spec/audits/hypotheses.md#HG-R1
+    - docs/spec/audits/hypotheses.md#HG-R15
+    - docs/spec/audits/common-contract.md#ACT-R7
+    - docs/spec/audits/common-contract.md#ACT-R16
+    - docs/spec/audits/execution.md#AUX-R112
+    - docs/spec/artifacts/artifact-store.md
+    - docs/spec/findings/findings.md
+    - docs/spec/platform/failure-model.md
+    - docs/spec/platform/persistence.md
+  finding: >-
+    Reviewed V64-013 head 737ff0319d40658a17155edc73f4d782234dbccd hardcodes
+    source_%02d in internal/auditservice/continuation.go:74, limits context to
+    a Task slice and freezes allowed material handles before Run. Its
+    continuation.go:40 excludes sources by logical proposals output name, so
+    mapping material to the same output can let a continuation consume itself.
+    controller.go:387 does not classify service ErrInvalid as permanent and
+    can retry it indefinitely. The implementation is
+    6696978451c09d90bfd1249096b2bedb804eb2dc.
+  siblings: >-
+    Check manual/initial/continuation producer paths; all output aliases;
+    pre-Run and in-Run source choices; proposed next-work inputs; common
+    Go/Python decoders and fixtures; Runtime tool/CAS; dispatch and collection
+    error classification; paused/cancelling/deleting owner fences. The earlier
+    review's migration 000008 collision must be resolved against current main
+    before integration without changing an already applied main migration.
+  implementation_gate: >-
+    Completed after all required feature checks passed, with V443-004 repairing
+    the Runtime gate separately and V64-035 correcting accepted material-set
+    retention, identity and exact metadata. Final clean process proof has all
+    12 mandatory cases and no selected skips. Full Runtime: 5896 passed with
+    135 existing optional environment/platform skips. No demo or live-model
+    changes; the branch is not merged into main.
+
+scope:
+  in:
+    - Replace remaining source_01 through source_16 configuration/service contracts with the V64-033 common input path.
+    - Extend the existing typed proposal tool and intake to accept explicit exact grounds and allowed producer Run selection artifacts.
+    - Reuse existing Project Findings reader/selection and exact check-result/hypothesis snapshots; keep domain owners authoritative.
+    - Resolve system proposal context/output roles from configuration and pin them, without magic slot names or a new generator execution type.
+    - Preserve optional initial/manual/continuation generation, cursor correctness, stable receipts and automatic IDs/revisions/provenance.
+    - Fix permanent-error retry and source-alias self-trigger paths as part of replacing that implementation.
+    - Fold production rules into docs/spec/audits/hypotheses.md and update current ACT-R7, AUX-R112, limits and shared schemas/fixtures together.
+  out:
+    - Immediate registry writes during Worker execution; semantic deduplication/ranking of hypotheses; Project hypothesis ownership.
+    - A universal live artifact/hypothesis reader, selector DSL, recursive import, material/assessment registry or new controller/receipt/lease.
+    - Watching all Project changes, automatically checking every new hypothesis or using empty output as another trigger.
+    - Backward compatibility for numbered source slots, historical approvals, model changes or demo deployment.
+requirements:
+  - id: R1
+    text: >-
+      HG-R1 through HG-R16 are the target semantics; reuse V64-033 for material
+      sets. Workflow declares needed inputs/tools; initial or later caller binds
+      available materials. No previous Task or Finding is required for initial
+      generation. Audit controller does not interpret source content or define
+      all research context as the next N results.
+  - id: R2
+    text: >-
+      Typed proposal content optionally selects exact grounds by trusted handles
+      or allowed producer Run refs. Server validates authority/visibility and
+      exact versions, derives origin and retains grounds using ordinary Audit
+      bindings before they become authoritative. Input sources and explicit
+      in-Run Findings selections use one accepting path; arbitrary JSON refs do
+      not grant access. Model never supplies persisted IDs/revisions/origin.
+  - id: R3
+    text: >-
+      Publish only after a successful producer Run through the current atomic
+      hypothesis/Task receipt. Support hypotheses-only, allowed work-only and
+      empty outputs. Optional checking work references producer-local aliases;
+      Server binds the full exact hypothesis automatically. Correct repeated
+      local outputs with existing CAS; no second direct-write tool.
+  - id: R4
+    text: >-
+      Continuation remains one ordinary Task at the idle barrier. Reconcile the
+      existing decision before mutable reads, preserve unconsumed source tails,
+      and exclude producer self-trigger by trusted Task/decision provenance
+      regardless of output alias. No Project change watcher or model call on
+      unchanged ticks. Valid empty output settles successfully.
+  - id: R5
+    text: >-
+      Apply existing owner limits cumulatively to all selected materials and
+      mutations. Pause drains and retains accepted work; Cancel/deletion bars
+      new semantic intake under the owner fence. Runtime output retained after
+      cancellation does not imply a published hypothesis. Deterministic invalid
+      inputs/output/admission are permanent on every sibling path.
+failure_outcomes:
+  - operation: Select exact grounds and accept successful producer output
+    permanent: >-
+      Invalid/foreign/hidden/missing/incompatible or over-bound source/proposal
+      has the owning classified input/document outcome; no partial authoritative
+      membership. Terminal collection exposes a gap. Revision conflicts remain
+      explicit conflicts, never implicit latest. Record any new public code in
+      OpenAPI/error registry; own service ErrInvalid must terminate, not loop.
+    retryable: Existing storage_transaction_conflict 503 and bounded owner retries with the same identity.
+    ambiguous: Replay existing producer/output acceptance receipt before rereading changing reader state; preserve original IDs.
+    cancelled: Serialize against Audit/Project cancellation/deletion; allow ordinary output collection but no new hypotheses/Tasks.
+    timeout: Preserve existing operation/Run/model deadline ownership; no regeneration to repair storage acknowledgement.
+cardinality:
+  - collection: Selected source descriptors including explicit in-Run selections
+    expected: Initial and continuation examples with 17 sources, one Finding selection and negative/inconclusive check results.
+    maximum: Shared V64-033 32-material/1 MiB descriptor ceiling plus existing common document, evidence and Run budgets.
+    bound: Count cumulatively across calls and inputs; no silent truncation or limit bypass by repeated small selections.
+  - collection: Hypothesis and optional Task batch
+    expected: Two hypotheses and one checking Task, plus empty and hypotheses-only decisions.
+    maximum: Existing LIM-ACT-1 and LIM-ACT-2 including 128 records/1 MiB mutation and 32 KiB complete hypothesis document.
+    bound: Validate source/seed/complete-document/registry budgets before atomic acceptance; shared cross-language fixtures.
+  - collection: Source Task history and continuation decisions
+    expected: Small ongoing Audit and a real-store fixture of at least 1000 settled Tasks.
+    maximum: Existing pinned Audit task and Run ceilings; do not hydrate the whole containing collection per tick.
+    bound: Indexed bounded reads, stable cursor, explicit exhaustion; 33 eligible results split without losing the unconsumed tail.
+lifecycle:
+  - entity: Proposal output, accepted hypothesis revision and exact grounds
+    delete: Existing Run/Audit/Project deletion owners; no new semantic writes after Cancel/deletion fence.
+    cascade: Run-local drafts follow Run retention; Audit owns its registry/grounds holds, without a second live Project registry.
+    retention: Accepted grounds survive producer Run deletion; explicit Project publications and Finding evidence survive Audit deletion.
+acceptance_criteria:
+  - id: A1
+    given: Configured initial and ordinary exploratory Workflows with selected materials, including exact prior hypothesis/result snapshots.
+    when: Real Server/Runtime/PostgreSQL execute generation from Project inputs and from a reader selection made during Run.
+    then: >-
+      Both ordinary Workflows emit hypotheses without a generator entity or
+      numbered input slots. The reader selection is a retained exact ground;
+      source authorization is checked again at intake and foreign/hidden refs fail.
+  - id: A2
+    given: Two proposed hypotheses and one next checking Task, or hypothesis-only/work-only/empty outputs.
+    when: Successful Run output is accepted and the selected check executes.
+    then: >-
+      IDs/revisions/origin and exact task association are automatic; grounds are
+      distinct from origin. Refuted/inconclusive results remain readable without
+      creating or resolving Findings. Failed Run or rejected batch publishes none.
+  - id: A3
+    given: Lost acknowledgement after commit, restart, paused Audit and cancellation/deletion racing a successful output.
+    when: Existing claims/receipts reconcile the same decision and Run.
+    then: >-
+      No duplicate hypotheses/Tasks or model/target re-execution; pause drains
+      and resumes original work, cancel/deletion allows collection only, and
+      accepted grounds survive producer Run deletion through real Artifact retention.
+  - id: A4
+    given: Renamed logical producer output/Workflow alias, a permanently invalid continuation binding and an empty valid result.
+    when: Several coordinator ticks and restart run against real PostgreSQL.
+    then: >-
+      Own output never causes a fresh automatic decision; compatible config is
+      resolved before Start, runtime permanent errors settle once with a gap/stop
+      reason, and empty output causes no additional generator Run.
+  - id: A5
+    given: At least 1000 settled Tasks, 33 eligible new results, a full context budget and repeated in-Run selections.
+    when: Bounded selection, continuation and admission run through actual owners.
+    then: >-
+      Counters/SQL evidence show bounded rows/bytes and no full-history scan;
+      remaining results are preserved across decisions. Full budget is explicit,
+      no silent omission or endless retry, and cumulative selection limits hold.
+  - id: A6
+    given: New implementation, shipped configs, public/wire schemas and current main migrations.
+    when: Existing mandatory gates, migration loading and contract validators execute.
+    then: >-
+      No live source_XX path or compatibility reader remains; all new cases are
+      mandatory, migration versions are unique, and the proposal is folded into
+      owning specs with a linked hypotheses entry point and no duplicate rules.
+tests:
+  - command: make require-database
+    covers: [A1, A2, A3, A4, A5]
+  - command: go test -p 2 -tags=integration -count=1 ./internal/auditdomain ./internal/auditstore/... ./internal/auditservice ./internal/auditcontroller ./internal/auditimport ./internal/runservice/... ./internal/artifacts/... ./internal/findingintake/... ./internal/contracts/... ./internal/config/... ./internal/configload/... ./internal/persistence/postgres
+    covers: [A1, A2, A3, A4, A5, A6]
+  - command: make test-runtime test-wire-cross-language test-audit-basic-e2e
+    covers: [A1, A2, A3, A4, A5, A6]
+  - command: make verify-public-api verify-public-api-postgres
+    covers: [A2, A6]
+  - command: go run ./cmd/contractor server config validate --root ./configs
+    covers: [A1, A6]
+  - command: make lint
+    covers: [A6]
+test_prerequisites:
+  - Actual checks, passing process proof and prior failed attempts are recorded in context.verification_evidence.
+  - Disposable real PostgreSQL is mandatory; missing database or zero matching mandatory cases is not a pass.
+  - Extend existing process case inventories and release reports. Unit/integration tests use testdata fixtures, not live configs.
+  - Run all touched package suites and consuming selectors. Live model quality remains outside deterministic acceptance.
+implementation_commit: 76356bb3cc0bb1774ecd2bc181d01b43b66db361

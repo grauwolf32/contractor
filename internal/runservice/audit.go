@@ -10,6 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/clone"
@@ -110,37 +111,31 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 					return err
 				}
 			}
-			forks := make(map[string]contracts.ArtifactRef, len(normalized.Inputs))
-			for _, slot := range sortedInputSlots(normalized.Inputs) {
-				descriptor := normalized.Inputs[slot]
-				sourceScope, _ := artifacts.AuditScope(intent.Execution.AuditID)
-				kind := artifacts.LineageAuditInput
-				store, scopeErr := artifactService.Scoped(sourceScope)
-				if scopeErr != nil {
-					return scopeErr
-				}
-				metadata, metadataErr := store.Metadata(ctx, descriptor.Ref)
-				if metadataErr != nil {
-					return metadataErr
-				}
-				if descriptor.Verify(metadata.Exact()) != nil {
-					return ErrInvalid
-				}
-				targetScope, _ := artifacts.RunScope(runID)
-				fork, forkErr := artifactService.Fork(ctx, artifacts.Fork{Kind: kind,
-					Source: sourceScope, SourceRef: descriptor.Ref, Target: targetScope,
-					TargetRef: contracts.ArtifactRef{Namespace: "inputs", Name: slot}})
-				if forkErr != nil {
-					return forkErr
-				}
-				forks[slot] = fork.TargetRef
-				if !contracts.AcceptsMediaType(normalized.Workflow.Inputs[slot].MediaTypes, fork.MediaType) {
-					return fmt.Errorf("%w: Audit input %q has unsupported media type", ErrInvalid, slot)
-				}
+			selected := map[string]contracts.ArtifactRef{}
+			excluded := map[string]bool{}
+			pin, e := auditprofile.DecodePinnedProgram(intent.ProgramSnapshot)
+			if e != nil {
+				return e
 			}
-			if err := materializeTaskRunContext(ctx, artifactService, intent, normalized, runID, forks); err != nil {
+			for slot, m := range normalized.Inputs {
+				selected[slot] = m.Ref
+				mapping := pin.Program.Workflows[intent.Execution.WorkflowRole].Inputs[slot]
+				excluded[slot] = mapping.Source == "task-context" || mapping.Source == "prior-results"
+			}
+			budget := &contracts.MaterialBudget{}
+			checked, e := checkWorkflowInputs(ctx, artifactService, normalized.Workflow, selected, artifacts.MaterialAuthority{OwnerID: intent.OwnerID, ProjectID: intent.ProjectID, AuditID: intent.Execution.AuditID}, func(string) (artifacts.Scope, error) { return artifacts.AuditScope(intent.Execution.AuditID) }, excluded, normalized.Inputs, budget)
+			if e != nil {
+				return e
+			}
+			prepared, e := artifactService.MaterializeInputs(ctx, runID, checked)
+			if e != nil {
+				return e
+			}
+			if err := materializeTaskRunContext(ctx, artifactService, intent, normalized, runID, &prepared); err != nil {
 				return err
 			}
+			forks := prepared.Refs()
+
 			if completion != nil {
 				completion.Contract.Context = forks[completion.Contract.Context.Name]
 				if err := runs.SetAuditCompletion(ctx, runID, *completion); err != nil {

@@ -652,6 +652,32 @@ func (f *fakeArtifactRepository) Metadata(
 	return f.metadataLocked(scope, ref)
 }
 
+func (f *fakeArtifactRepository) DescribeExact(_ context.Context, scope artifacts.Scope, refs []artifacts.ArtifactRef) ([]contracts.ExactArtifact, error) {
+	if err := artifacts.ValidateScope(scope); err != nil {
+		return nil, err
+	}
+	if len(refs) > artifacts.MaxExactReadBatchSize {
+		return nil, blob.ErrTooLarge
+	}
+	for _, ref := range refs {
+		if err := ref.ValidateExact(); err != nil {
+			return nil, err
+		}
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.queryReads++
+	result := make([]contracts.ExactArtifact, 0, len(refs))
+	for _, ref := range refs {
+		metadata, err := f.metadataLocked(scope, ref)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, metadata.Exact())
+	}
+	return result, nil
+}
+
 func (f *fakeArtifactRepository) ListMetadata(
 	_ context.Context, scope artifacts.Scope, query artifacts.BindingPageQuery,
 ) ([]artifacts.Metadata, error) {
@@ -725,7 +751,7 @@ func (f *fakeArtifactRepository) ListVersions(
 	return result, nil
 }
 
-func (f *fakeArtifactRepository) DescribeForkSources(_ context.Context, scope artifacts.Scope, namespace string, names []string, kind string) ([]artifacts.LineageEdge, error) {
+func (f *fakeArtifactRepository) DescribeForkSources(_ context.Context, scope artifacts.Scope, namespace string, names []string, kind string, allowMissing bool) ([]artifacts.LineageEdge, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.queryReads++
@@ -741,6 +767,9 @@ func (f *fakeArtifactRepository) DescribeForkSources(_ context.Context, scope ar
 				count++
 				found = recorded.edge
 			}
+		}
+		if count == 0 && allowMissing {
+			continue
 		}
 		if count != 1 {
 			return nil, blob.ErrIntegrity

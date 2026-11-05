@@ -33,7 +33,7 @@ func (s ScopedStore) DescribeForkSources(ctx context.Context, namespace string, 
 	if len(names) == 0 {
 		return []LineageEdge{}, nil
 	}
-	return s.service.repository.DescribeForkSources(ctx, s.scope, namespace, names, kind)
+	return s.service.repository.DescribeForkSources(ctx, s.scope, namespace, names, kind, false)
 }
 
 func ValidateForkRevisionSelection(scope Scope, namespace string, names []string, kind string) error {

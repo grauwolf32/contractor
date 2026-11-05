@@ -48,11 +48,21 @@ type ArtifactBinding struct {
 // observations to a result name without asking the Worker model to serialize
 // Contractor transport data.
 type ArtifactSlot struct {
+	MaterialSet bool             `json:"materialSet,omitempty"`
 	SourceScope string           `json:"sourceScope,omitempty"`
 	Required    bool             `json:"required"`
 	MediaTypes  []string         `json:"mediaTypes"`
 	From        *ArtifactBinding `json:"from,omitempty"`
 	Primary     bool             `json:"primary,omitempty"`
+}
+
+// AcceptsInputMediaType checks the bytes bound to an input slot. A material
+// set binds a JSON descriptor; its MediaTypes independently constrain members.
+func (s ArtifactSlot) AcceptsInputMediaType(media string) bool {
+	if s.MaterialSet {
+		return media == "application/json"
+	}
+	return contracts.AcceptsMediaType(s.MediaTypes, media)
 }
 
 // ContextArtifact identifies a logical RunScope binding to pin for a Stage.

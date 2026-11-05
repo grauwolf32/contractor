@@ -74,26 +74,29 @@ type AcceptedTask struct {
 // TaskSource distinguishes explicit work from one exact accepted producer
 // output. Its producer-local key has no authority outside this source.
 type TaskSource struct {
-	Kind        string                  `json:"kind"`
-	Key         string                  `json:"key"`
-	ExecutionID string                  `json:"execution_id,omitempty"`
-	Output      *auditcontract.Material `json:"output,omitempty"`
+	ObservationTaskIDs []string                `json:"observation_task_ids,omitempty"`
+	ThroughOrdinal     int                     `json:"through_ordinal,omitempty"`
+	Kind               string                  `json:"kind"`
+	Key                string                  `json:"key"`
+	ExecutionID        string                  `json:"execution_id,omitempty"`
+	Output             *auditcontract.Material `json:"output,omitempty"`
 }
 
 type AcceptTasksParams struct {
-	HypothesisWrites   []HypothesisWrite
-	AssertionSnapshots map[string]auditcontract.Hypothesis
-	Attention          []string
-	Hypotheses         map[string]string
-	OwnerID            string
-	AuditID            string
-	ExpectedRevision   uint64
-	Claim              *ControllerClaim
-	IdempotencyKey     string
-	RequestDigest      string
-	Tasks              []AcceptedTask
-	InitialProgress    *InitialWorkProgress
-	PreparedProgress   *PreparedWorkProgress
+	ContinuationRevision uint64
+	HypothesisWrites     []HypothesisWrite
+	AssertionSnapshots   map[string]auditcontract.Hypothesis
+	Attention            []string
+	Hypotheses           map[string]string
+	OwnerID              string
+	AuditID              string
+	ExpectedRevision     uint64
+	Claim                *ControllerClaim
+	IdempotencyKey       string
+	RequestDigest        string
+	Tasks                []AcceptedTask
+	InitialProgress      *InitialWorkProgress
+	PreparedProgress     *PreparedWorkProgress
 }
 
 type TaskAcceptance struct {
@@ -152,4 +155,14 @@ type TaskIntakeResult struct {
 func RemainingTaskCapacity(audit Audit) int {
 	return max(0, min(audit.Limits.MaxItemsTotal-audit.TaskCount,
 		(audit.Limits.MaxRounds-audit.TaskIteration)*audit.Limits.MaxItemsPerRound+audit.Limits.MaxItemsPerRound-audit.IterationTaskCount))
+}
+
+// ContinuationSource is the bounded read projection of one settled Task.
+// Payloads remain exact ordinary Artifacts; this is not another result store.
+type ContinuationSource struct {
+	TaskID     string
+	Ordinal    int
+	Hypothesis *auditcontract.Hypothesis
+	Result     *auditcontract.Material
+	GapCode    *string
 }
