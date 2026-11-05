@@ -6,7 +6,6 @@
   "additionalProperties": false,
   "required": [
     "schema",
-    "auditId",
     "engagement",
     "engagementDigest",
     "authorizedBy",
@@ -15,9 +14,6 @@
   "properties": {
     "schema": {
       "const": "contractor.engagement.allocation.v1"
-    },
-    "auditId": {
-      "$ref": "common.schema.json#/$defs/opaqueId"
     },
     "engagement": {
       "allOf": [

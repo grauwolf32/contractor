@@ -51,7 +51,9 @@ type AuditExecutionWriter interface {
 	BindRun(context.Context, auditstore.BindRunParams) (auditstore.Execution, error)
 }
 
-type PublicTransaction func(context.Context, func(PublicRunWriter, *artifacts.Service) error) error
+// PublicTransaction supplies stores and credential validation bound to the
+// same transaction; callers already hold the shared credential lifecycle guard.
+type PublicTransaction func(context.Context, func(PublicRunWriter, *artifacts.Service, RuntimeCredentialValidator) error) error
 type AuditTransaction func(context.Context, func(AuditRunWriter, *artifacts.Service, AuditExecutionWriter) error) error
 
 type WorkflowResolver interface {

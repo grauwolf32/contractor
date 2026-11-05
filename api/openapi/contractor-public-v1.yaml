@@ -17115,6 +17115,11 @@ components:
           type: [object, 'null']
           additionalProperties: {type: string}
         artifacts:
+          description: >-
+            Bind the Workflow's declared inputs. A single engagement-only typed
+            input selects an exact network policy for this Run (RUN-R112 to
+            RUN-R115), with credential authorization and immutable original-input
+            pinning. The input name is defined by the Workflow.
           type: [object, 'null']
           additionalProperties: {$ref: '#/components/schemas/ArtifactRef'}
 

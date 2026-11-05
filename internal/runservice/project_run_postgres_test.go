@@ -73,7 +73,7 @@ func TestPostgresProjectRunForAMissingProjectIsNotFound(t *testing.T) {
 	}
 	transactions := 0
 	committed := postgresPublicTransaction(pool)
-	transaction := func(ctx context.Context, fn func(PublicRunWriter, *artifacts.Service) error) error {
+	transaction := func(ctx context.Context, fn func(PublicRunWriter, *artifacts.Service, RuntimeCredentialValidator) error) error {
 		transactions++
 		return committed(ctx, fn)
 	}

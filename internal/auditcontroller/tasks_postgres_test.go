@@ -172,7 +172,7 @@ func newCommonControllerHarness(t *testing.T, configure ...func(*auditcontract.P
 	}
 	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	runService, err := runservice.New(runservice.Options{Runs: runs, Workflows: catalog, LLMCredentials: controllerCredentialLookup{}, CredentialGuard: controllerCredentialGuard{}, RuntimeCredentials: controllerRuntimeCredentials{}, Projects: projects, SkillInitializationAvailable: true,
-		PublicTransaction: func(context.Context, func(runservice.PublicRunWriter, *artifacts.Service) error) error {
+		PublicTransaction: func(context.Context, func(runservice.PublicRunWriter, *artifacts.Service, runservice.RuntimeCredentialValidator) error) error {
 			return errors.New("public Run creation is outside this component fixture")
 		},
 		AuditTransaction: func(ctx context.Context, fn func(runservice.AuditRunWriter, *artifacts.Service, runservice.AuditExecutionWriter) error) error {

@@ -27,9 +27,9 @@ const (
 )
 
 type usageHistoryRun struct {
-	id                string
-	active            bool
-	runtime, httpCred string
+	id                                string
+	active                            bool
+	runtime, httpCred, engagementCred string
 }
 
 func usageHistoryEntry(i int) usageHistoryRun {
@@ -39,6 +39,9 @@ func usageHistoryEntry(i int) usageHistoryRun {
 	}
 	if i%3 == 0 {
 		run.httpCred = fmt.Sprintf("runtime-%d", (i+10)%usageHistoryKeys)
+	}
+	if i%5 == 0 {
+		run.engagementCred = fmt.Sprintf("runtime-%d", (i+20)%usageHistoryKeys)
 	}
 	return run
 }
@@ -51,7 +54,7 @@ const populateUsageHistorySQL = `
 INSERT INTO workflow_runs (
     run_id, owner_id, project_id, workflow_name, workflow_version, workflow_schema_version,
     workflow_snapshot, parameters, runtime_labels, runtime_config_snapshot,
-    project_http_target_snapshot, scheduler_lane_class, state, state_reason_code,
+    project_http_target_snapshot, engagement_credential_ids, scheduler_lane_class, state, state_reason_code,
     created_at, updated_at, started_at, finished_at
 )
 SELECT 'run-usage-' || lpad(i::text, 5, '0'), 'owner-' || (i % $2),
@@ -61,7 +64,7 @@ SELECT 'run-usage-' || lpad(i::text, 5, '0'), 'owner-' || (i % $2),
        CASE WHEN i % 3 = 0 THEN jsonb_build_object(
            'url', 'https://target.example.test/',
            'credential', jsonb_build_object('kind', 'http-origin-bearer@1', 'credentialId', 'runtime-' || ((i + 10) % $3))
-       ) END, 'model',
+       ) END, CASE WHEN i % 5 = 0 THEN ARRAY['runtime-' || ((i + 20) % $3)] ELSE '{}'::text[] END, 'model',
        run.state, 'history', run.created_at, run.created_at,
        CASE WHEN run.state NOT IN ('initializing', 'pending') THEN run.created_at END,
        CASE WHEN run.state IN ('succeeded', 'failed') THEN run.created_at + interval '1 minute' END
@@ -170,11 +173,14 @@ func TestPostgresRuntimeCredentialRunUsageUsesActiveStateIndexes(t *testing.T) {
 
 	const credentialID = "runtime-10"
 	var want []string
-	viaRuntime, viaTarget := 0, 0
+	viaRuntime, viaTarget, viaEngagement := 0, 0, 0
 	for i := 1; i <= usageHistorySize; i++ {
 		run := usageHistoryEntry(i)
-		if !run.active || (run.runtime != credentialID && run.httpCred != credentialID) {
+		if !run.active || (run.runtime != credentialID && run.httpCred != credentialID && run.engagementCred != credentialID) {
 			continue
+		}
+		if run.engagementCred == credentialID {
+			viaEngagement++
 		}
 		want = append(want, run.id)
 		if run.runtime == credentialID {
@@ -184,7 +190,7 @@ func TestPostgresRuntimeCredentialRunUsageUsesActiveStateIndexes(t *testing.T) {
 			viaTarget++
 		}
 	}
-	if viaRuntime < 4 || viaTarget < 4 || len(want) > maximumRuntimeCredentialReferences {
+	if viaRuntime < 4 || viaTarget < 4 || viaEngagement < 3 || len(want) > maximumRuntimeCredentialReferences {
 		t.Fatalf("history pins %s in %d RuntimeConfig and %d HTTP target Runs", credentialID, viaRuntime, viaTarget)
 	}
 	usage, err := NewRuntimeCredentialRepository(pool).InspectRuntimeCredentialUsage(
@@ -201,7 +207,7 @@ func TestPostgresRuntimeCredentialRunUsageUsesActiveStateIndexes(t *testing.T) {
 		plan := explainUsagePlan(t, ctx, pool, runtimeCredentialRunUsageSQL,
 			[]any{credentialID, maximumRuntimeCredentialReferences}, generic)
 		for _, index := range []string{
-			"workflow_runs_runtime_credentials_idx", "workflow_runs_project_http_target_credential_idx",
+			"workflow_runs_runtime_credentials_idx", "workflow_runs_project_http_target_credential_idx", "workflow_runs_engagement_credentials_idx",
 		} {
 			if !strings.Contains(plan, index) {
 				t.Errorf("Runtime credential Runs (generic plan %v) do not use %s:\n%s", generic, index, plan)

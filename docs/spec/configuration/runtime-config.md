@@ -80,7 +80,7 @@ following ones.
 | ResolvedRuntimeConfig | The merged, non-secret, exact configuration and provenance for one consumer/allocation |
 | RuntimeSettings | The secret-bearing wire snapshot created for one allocation after placement |
 | Runtime adapter | Versioned Runtime-owned code that consumes one typed settings block, for example `otlp-http@1` |
-| Runtime credential | An encrypted secret of a versioned adapter-owned credential kind, such as `otlp-headers@1`, referenced by ID from a RuntimeConfig |
+| Runtime credential | An encrypted secret of a versioned adapter-owned credential kind, such as `otlp-headers@1`, referenced by ID from a RuntimeConfig or an explicitly selected engagement policy |
 | Merge unit | A leaf or atomic block that a higher precedence layer replaces as a whole |
 
 `runtimeLabels` on a Run is a sorted unique array of names that selects and
@@ -999,7 +999,9 @@ private allocation settings (CTL-R168). Basic fields retain their UTF-8 secret
 grammar, Bearer uses the HTTP field-value grammar, and cookie fields retain the
 same cookie grammar on this wire. The private consumer checks the exact selected
 kind and preserves immutable credential references independently of RuntimeConfig
-labels. Audit start validates credential metadata without decrypting it. Within an assigned Audit, the explicit
+labels. Audit Start and ordinary Run creation validate credential metadata
+without decrypting it. Ordinary Run dependency accounting follows RUN-R115;
+policy Artifact storage alone does not hold credentials. Within an assigned allocation, the explicit
 model tool may return credential values under HTP-R143; public credential reads
 remain metadata-only. Memory-only session handling
 belongs to [HTP-R140–146](../tools/http-caido.md). Existing automatic-login

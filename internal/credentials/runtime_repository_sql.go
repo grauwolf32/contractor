@@ -37,9 +37,10 @@ const projectTargetCredentialPath = `{` + runtimesettings.CredentialMember + `,`
 
 // runtimeCredentialRunUsageSQL lists active Runs (up to $2, oldest first)
 // whose immutable snapshots pin credential $1: the RuntimeConfig snapshot's
-// runtimeCredentialIds or the Project HTTP target credential. The redundant
+// runtimeCredentialIds, the Project HTTP target credential, or the explicit
+// engagement input's credential dependency IDs. The redundant
 // "? 'credential'" test lets the planner prove the predicate of
-// workflow_runs_project_http_target_credential_idx, so both arms are index
+// workflow_runs_project_http_target_credential_idx, so all arms are index
 // scans over active Runs instead of a scan of the Run history.
 // Used by RuntimeCredentialRepository.InspectRuntimeCredentialUsage.
 var runtimeCredentialRunUsageSQL = `
@@ -48,6 +49,7 @@ FROM workflow_runs
 WHERE state IN ('initializing', 'pending', 'running', 'waiting', 'cancelling')
   AND (
       (runtime_config_snapshot->'` + runtimeconfig.RuntimeCredentialIDsMember + `') ? $1
+      OR engagement_credential_ids @> ARRAY[$1::text]
       OR (
           project_http_target_snapshot ? '` + runtimesettings.CredentialMember + `'
           AND project_http_target_snapshot#>>'` + projectTargetCredentialPath + `' = $1
@@ -59,7 +61,7 @@ LIMIT $2`
 // runtimeCredentialAllocationUsageSQL lists unreleased stage allocations (up
 // to $2, oldest first) that reference credential $1, either in the provenance
 // runtimeCredentialRefs of their runtime configuration or through the HTTP
-// target credential snapshotted on the owning workflow run.
+// target or engagement credentials pinned on the owning workflow run.
 // Used by RuntimeCredentialRepository.InspectRuntimeCredentialUsage.
 var runtimeCredentialAllocationUsageSQL = `
 SELECT a.allocation_id
@@ -72,6 +74,7 @@ WHERE a.release_completed_at IS NULL
 	runtimesettings.RuntimeCredentialRefsMember + `'
           @> jsonb_build_array(jsonb_build_object('` + runtimesettings.CredentialIDMember + `', $1::text))
       OR r.project_http_target_snapshot#>>'` + projectTargetCredentialPath + `' = $1
+      OR r.engagement_credential_ids @> ARRAY[$1::text]
   )
 ORDER BY a.created_at, a.allocation_id
 LIMIT $2`

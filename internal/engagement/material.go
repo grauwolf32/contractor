@@ -1,4 +1,4 @@
-package auditservice
+package engagement
 
 import (
 	"context"
@@ -15,7 +15,7 @@ type engagementMaterialResolver interface {
 }
 
 // MaterializeHTTPIdentities consumes only the trusted allocation projection
-// resolved from its Run binding and immutable held Audit baseline. Caller input
+// resolved from its Run binding and immutable held policy. Caller input
 // never supplies a credential ID at this boundary. The existing credential
 // lifecycle fence protects each synchronous decrypt/copy operation.
 func MaterializeHTTPIdentities(ctx context.Context, resolver engagementMaterialResolver, projection *engagementcontract.AllocationProjection) (map[string]runtimesettings.HTTPIdentityMaterial, error) {
@@ -44,24 +44,24 @@ func MaterializeHTTPIdentities(ctx context.Context, resolver engagementMaterialR
 		err := resolver.UsePlaintext(ctx, ref.CredentialID, []runtimesettings.RuntimeCredentialKind{ref.Kind}, func(kind runtimesettings.RuntimeCredentialKind, data []byte) error {
 			material := runtimesettings.HTTPIdentityMaterial{Credential: ref}
 			if kind != ref.Kind {
-				return ErrInvalid
+				return contracts.Invalidf("engagement identity material is invalid")
 			}
 			if kind == runtimesettings.RuntimeCredentialTargetCookies {
 				var body struct {
 					Cookies map[string]contracts.SecretString `json:"cookies" strictjson:"required"`
 				}
 				if strictjson.DecodeNonNull(data, &body) != nil {
-					return ErrInvalid
+					return contracts.Invalidf("engagement identity material is invalid")
 				}
 				material.Fields = body.Cookies
 			} else {
 				if strictjson.DecodeNonNull(data, &material.Fields) != nil {
-					return ErrInvalid
+					return contracts.Invalidf("engagement identity material is invalid")
 				}
 			}
 			if material.Validate() != nil {
 				clear(material.Fields)
-				return ErrInvalid
+				return contracts.Invalidf("engagement identity material is invalid")
 			}
 			result[identity.ID] = material
 			return nil

@@ -21,7 +21,7 @@ import (
 func TestCrossLanguageMTLSEngagementMetadataPrepare(t *testing.T) {
 	revision := "engagement-r1"
 	metadata := &engagementcontract.AllocationProjection{
-		Schema: "contractor.engagement.allocation.v1", AuditID: "audit-native",
+		Schema:           "contractor.engagement.allocation.v1",
 		Engagement:       contracts.ArtifactRef{Namespace: "engagements", Name: "native", Revision: &revision},
 		EngagementDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		AuthorizedBy:     "owner-native", AuthorizedAt: time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC),

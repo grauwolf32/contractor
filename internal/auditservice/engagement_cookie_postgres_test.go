@@ -8,6 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
+	"github.com/grauwolf32/contractor/internal/engagement"
 )
 
 func TestEngagementCookieAdmissionPinsHeldPrivateMaterial(t *testing.T) {
@@ -38,7 +39,7 @@ func TestEngagementCookieAdmissionPinsHeldPrivateMaterial(t *testing.T) {
 		t.Fatal("baseline contains private cookie material")
 	}
 	projection := &engagementcontract.AllocationProjection{HTTP: &engagementcontract.HTTPAssignment{Identities: baseline.Engagement.Document.Identities}}
-	private, err := MaterializeHTTPIdentities(f.ctx, f.credentials, projection)
+	private, err := engagement.MaterializeHTTPIdentities(f.ctx, f.credentials, projection)
 	if err != nil || private["account-a"].Fields["session"].Reveal() != "private-cookie-canary" {
 		t.Fatalf("private cookie consumer failed: %v", err)
 	}

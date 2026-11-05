@@ -10,9 +10,11 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/contracts/scan"
 	"github.com/grauwolf32/contractor/internal/credentials"
+	"github.com/grauwolf32/contractor/internal/engagement"
 	"github.com/grauwolf32/contractor/internal/helpers/clone"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -68,6 +70,11 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 			if validationErr := validateWorkflowInputs(workflow, normalized.Parameters, normalized.Inputs); validationErr != nil {
 				return validationErr
 			}
+			engagementSlot, slotErr := engagement.InputSlot(workflow.Inputs)
+			if slotErr != nil {
+				return fmt.Errorf("%w: engagement input declaration is invalid", ErrInvalid)
+			}
+			_, hasEngagement := normalized.Inputs[engagementSlot]
 			skillRefs, resolveErr := resolved.WorkflowSkillRefs(workflow)
 			if resolveErr != nil {
 				return fmt.Errorf("%w: invalid Workflow Skill selection: %v", ErrInvalid, resolveErr)
@@ -95,7 +102,9 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 				if project.Lifecycle == projectstore.LifecycleDeleting {
 					return projectstore.ErrDeleting
 				}
-				projectTarget = project.HTTPTarget.Clone()
+				if !hasEngagement {
+					projectTarget = project.HTTPTarget.Clone()
+				}
 				if projectTarget != nil && projectTarget.Credential != nil {
 					// The target was authorized when it was attached; pinning it
 					// re-checks that the requesting owner may still use it.
@@ -110,7 +119,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 				}
 			}
 
-			return s.publicTransaction(ctx, func(runs PublicRunWriter, artifactService *artifacts.Service) error {
+			return s.publicTransaction(ctx, func(runs PublicRunWriter, artifactService *artifacts.Service, credentialValidator RuntimeCredentialValidator) error {
 				// The PostgreSQL unit of work may replay this entire database-only
 				// callback with a fresh snapshot after a definite transaction abort.
 				stored, created, err = runstore.WorkflowRun{}, false, nil
@@ -140,6 +149,14 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 				if err := contentdigest.CheckPinnedSelection(normalized.ExpectedSkillsSHA256, selectedSkills); err != nil {
 					return err
 				}
+				policy, policyErr := selectRunEngagement(ctx, artifactService, credentialValidator, workflow, normalized, engagementSlot)
+				if policyErr != nil {
+					return policyErr
+				}
+				credentialIDs := []string{}
+				if policy != nil {
+					credentialIDs = engagement.CredentialIDs(policy.Document)
+				}
 				stored, created, err = runs.CreateRunIdempotent(ctx, runstore.CreateRunIdempotentParams{
 					CreateRunParams: runstore.CreateRunParams{
 						RequiredPlacementLabels: append([]string{}, normalized.requiredPlacementLabels...),
@@ -148,7 +165,8 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 						WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: workflowSnapshot,
 						Parameters: clone.Map(normalized.Parameters), MetadataLabels: normalized.MetadataLabels,
 						RuntimeConfig: runtimeSnapshot, ProjectHTTPTarget: projectTarget,
-						LaneClass: resolved.EntryLaneClass(workflow),
+						EngagementCredentialIDs: credentialIDs,
+						LaneClass:               resolved.EntryLaneClass(workflow),
 					},
 					IdempotencyKey: normalized.IdempotencyKey, RequestDigest: normalized.RequestDigest,
 				})
@@ -168,9 +186,16 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 					if scopeErr != nil {
 						return scopeErr
 					}
-					fork, forkErr := forkInput(ctx, artifactService, sourceScope, normalized.Inputs[slot], runID, slot)
+					source := normalized.Inputs[slot]
+					if policy != nil && slot == engagementSlot {
+						source = policy.Artifact.Ref
+					}
+					fork, forkErr := forkInput(ctx, artifactService, sourceScope, source, runID, slot)
 					if forkErr != nil {
 						return forkErr
+					}
+					if fork.MediaType == engagementcontract.MediaType && slot != engagementSlot {
+						return fmt.Errorf("%w: engagement requires an explicit typed input slot", ErrInvalid)
 					}
 					if !contracts.AcceptsMediaType(workflow.Inputs[slot].MediaTypes, fork.MediaType) {
 						return fmt.Errorf("%w: input %q has unsupported media type", ErrInvalid, slot)

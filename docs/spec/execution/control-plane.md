@@ -299,15 +299,16 @@ original model names, with one schema and fixture catalog
 (CTL-R8).
 
 **CTL-R168.** An optional engagement projection on AllocationSpec is
-resolved by the composition-owned Audit reader from the trusted Run/Stage
-reservation, outside Registry locks. The product-layer
+resolved from the trusted Run/Stage reservation, outside Registry locks.
+Ordinary Runs use the original typed input fork under RUN-R112–115; Audit-managed
+Runs use the immutable Start baseline under AUD-R247–248. The product-layer
 `internal/controlplane/engagementadapter` implements the core's synchronous
-allocation-preparation port. It owns Audit integration, infrastructure denyset
+allocation-preparation port. It composes Run/Audit authority, infrastructure denyset
 assembly and private identity material lifetime around the prepare call;
 AuditService retains baseline interpretation and credential-reference authority.
 The Runtime protocol client validates the completed AllocationSpec, rechecks its
 grant immediately before dispatch and checks the returned Agent Card. It does
-not resolve Audit data or interpret engagement network policy. Composition
+not resolve policy Artifacts or Audit data, or interpret engagement network policy. Composition
 connects the adapter; the core package never imports it. It follows [AUD-R248](../audits/audits.md):
 exact immutable attribution, no secret material, and only task-assigned routes
 and identities. Offline preparation omits the typed `http`
@@ -317,7 +318,8 @@ is independent of RuntimeConfig adapter provenance. Both wire validators and
 Runtime prepare reject an execution assignment whose enforcement is absent.
 The assignment requires `identities`; non-anonymous entries select exact held
 Basic, Bearer or supplied-cookie credentials.
-After placement and trusted baseline resolution, composition decrypts only the
+The private projection carries no Audit ID; Run/Stage ownership already belongs
+to AllocationSpec. After placement and trusted policy resolution, composition decrypts only the
 exact held references through the existing synchronous credential consumer,
 with its independent LIM-CTL-19 lookup deadline. It sends a secret-typed
 `runtimeSettings.httpIdentities` map keyed by assigned identity, separate

@@ -7773,6 +7773,7 @@ type CreateProjectRequest struct {
 
 // CreateRunRequest defines model for CreateRunRequest.
 type CreateRunRequest struct {
+	// Artifacts Bind the Workflow's declared inputs. A single engagement-only typed input selects an exact network policy for this Run (RUN-R112 to RUN-R115), with credential authorization and immutable original-input pinning. The input name is defined by the Workflow.
 	Artifacts nullable.Nullable[map[string]ArtifactRef] `json:"artifacts,omitempty"`
 
 	// Labels Immutable ordinary key/value labels. cloud and local derive Runtime placement; an empty value selects the namespace and a non-empty value selects its provider/site child path. Other keys are descriptive.

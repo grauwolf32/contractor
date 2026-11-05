@@ -5979,6 +5979,7 @@ export interface components {
             parameters?: {
                 [key: string]: string;
             } | null;
+            /** @description Bind the Workflow's declared inputs. A single engagement-only typed input selects an exact network policy for this Run (RUN-R112 to RUN-R115), with credential authorization and immutable original-input pinning. The input name is defined by the Workflow. */
             artifacts?: {
                 [key: string]: components["schemas"]["ArtifactRef"];
             } | null;

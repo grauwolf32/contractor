@@ -25,7 +25,7 @@ context:
     compatibility. Earlier decision 2026-11-04 limits engagement to egress, HTTP
     traffic limits and identities.
   specification:
-    - docs/spec/execution/runs.md#RUN-R3
+    - docs/spec/execution/runs.md#RUN-R112
     - docs/spec/tools/http-caido.md#HTP-R137
     - docs/spec/configuration/runtime-config.md
     - docs/spec/artifacts/artifact-store.md#ART-R133
@@ -113,9 +113,37 @@ acceptance_criteria:
     when: Shared Go/Python fixtures and process suites run.
     then: Audit authority remains enforced, auditId is strictly rejected as removed, and existing cancellation/material cleanup remains verified.
 tests:
-  - command: go test ./internal/runservice ./internal/runstore ./internal/credentials ./internal/controlplane/... ./internal/auditservice ./internal/engagement ./internal/contracts/... ./internal/app ./internal/httpapi/public ./internal/archtest
+  - command: go test ./internal/runservice ./internal/runstore ./internal/credentials ./internal/controlplane/... ./internal/auditservice ./internal/engagement ./internal/contracts/... ./internal/app ./internal/httpapi/public ./internal/archtest ./internal/auditcontroller ./internal/evalservice
     covers: [A1, A2, A3, A4]
   - command: make test-wire-cross-language verify-public-api verify-public-api-postgres test-engagement-http-process test-nuclei-engagement
     covers: [A1, A3, A4]
   - command: make lint test-config verify-architecture
     covers: [A1, A2, A3, A4]
+verification:
+  date: 2026-11-05
+  result: >-
+    Ordinary Runs accept an explicitly typed engagement through the existing
+    artifacts map. Real Server/Runtime traffic enforces routes, the selected
+    bearer identity and the allocation-local request limit without an Audit.
+    Source and working-copy edits do not change original policy authority.
+  passed:
+    - All listed Go packages passed in a final serialized run with real disposable UTF-8 PostgreSQL and canonical temporary directories.
+    - make test-wire-cross-language; 375 fixtures, 410 Go and 261 Python shared tests; 1433 selected Runtime tests passed.
+    - make verify-public-api verify-public-api-postgres; public contract and real PostgreSQL race checks passed.
+    - make test-engagement-http-process; 42 process, 2 accounting and 157 Runtime cases passed with zero selected skips.
+    - make test-nuclei-engagement; real Nuclei process and 41 Runtime bridge/transport cases passed.
+    - make lint test-config verify-architecture; generated clients, dependency graph and nine-migration ERD are current.
+    - Runtime contract modules and metadata prepare tests passed; Ruff checks and formatting passed.
+  process_report: reports/engagement-http/run-6gfo0vik/result.json
+  real_store_evidence: >-
+    Single-connection Project/projectless creation, versionless source pinning,
+    replay, foreign/wrong-kind/missing credentials, oversize/invalid policy,
+    ambiguous/implicit slots, concurrent deletion and post-terminal allocation
+    holds pass. The 5000-Run usage history uses all three active-state indexes
+    under custom and generic plans. Immutable dependency bounds are enforced
+    by Go and PostgreSQL.
+  remaining_verification: Full release-verify and the entire Runtime suite were not run for this scoped change.
+delivery:
+  branch: codex/engagement-run-input
+  merged_into_main: false
+  pushed: false

@@ -47,7 +47,7 @@ func (acceptRuntimeCredentials) ValidateRuntimeCredentialUse(
 }
 
 func postgresPublicTransaction(pool *pgxpool.Pool) PublicTransaction {
-	return func(ctx context.Context, fn func(PublicRunWriter, *artifacts.Service) error) error {
+	return func(ctx context.Context, fn func(PublicRunWriter, *artifacts.Service, RuntimeCredentialValidator) error) error {
 		return persistencepostgres.InTx(ctx, pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
 			lookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(
 				tx,
@@ -61,6 +61,7 @@ func postgresPublicTransaction(pool *pgxpool.Pool) PublicTransaction {
 			return fn(
 				runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx), artifactpgtest.NewStorage()),
 				artifacts.NewService(artifactpgtest.NewStorage().Repository(tx)),
+				credentials.NewRuntimeCredentialRepository(tx),
 			)
 		})
 	}

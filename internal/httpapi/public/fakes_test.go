@@ -18,12 +18,15 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts/blob"
 	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/helpers/clone"
 	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
+	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
@@ -1218,6 +1221,18 @@ func (f *fakeRunStore) ListRunQueue(
 }
 
 func (f *fakeRunStore) CreateRun(_ context.Context, params runstore.CreateRunParams) (runstore.WorkflowRun, error) {
+	if len(params.EngagementCredentialIDs) > engagementcontract.MaxIdentities {
+		return runstore.WorkflowRun{}, runstore.ErrInvalid
+	}
+	previous := ""
+	for _, id := range params.EngagementCredentialIDs {
+		ref := runtimesettings.RuntimeCredentialRef{CredentialID: id, Kind: runtimesettings.RuntimeCredentialTargetBearer}
+		if ref.Validate() != nil || id <= previous {
+			return runstore.WorkflowRun{}, runstore.ErrInvalid
+		}
+		previous = id
+	}
+
 	if contracts.ValidatePlacementLabels(params.RequiredPlacementLabels) != nil {
 		return runstore.WorkflowRun{}, runstore.ErrInvalid
 	}
@@ -1237,6 +1252,7 @@ func (f *fakeRunStore) CreateRun(_ context.Context, params runstore.CreateRunPar
 		RuntimeLabels:  params.RuntimeConfig.ExplicitLabels(), RuntimeConfig: params.RuntimeConfig,
 		RequiredPlacementLabels: append([]string{}, params.RequiredPlacementLabels...),
 		ProjectHTTPTarget:       params.ProjectHTTPTarget.Clone(),
+		EngagementCredentialIDs: append([]string{}, params.EngagementCredentialIDs...),
 		State:                   runstore.RunInitializing, CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	}
 	f.runs[params.RunID] = cloneFakeWorkflowRun(run)
@@ -1310,6 +1326,7 @@ func (f *fakeRunStore) GetRun(_ context.Context, runID string) (runstore.Workflo
 }
 
 func cloneFakeWorkflowRun(run runstore.WorkflowRun) runstore.WorkflowRun {
+	run.EngagementCredentialIDs = append([]string{}, run.EngagementCredentialIDs...)
 	if run.ProjectID != nil {
 		projectID := *run.ProjectID
 		run.ProjectID = &projectID
@@ -1428,9 +1445,9 @@ type fakeUnitOfWork struct {
 	calls     int
 }
 
-func (f *fakeUnitOfWork) Do(ctx context.Context, fn func(RunWriter, *artifacts.Service) error) error {
+func (f *fakeUnitOfWork) Do(ctx context.Context, fn func(RunWriter, *artifacts.Service, runservice.RuntimeCredentialValidator) error) error {
 	f.calls++
-	return fn(f.runs, f.artifacts)
+	return fn(f.runs, f.artifacts, &fakeRuntimeCredentialManagement{})
 }
 
 var _ artifacts.Repository = (*fakeArtifactRepository)(nil)

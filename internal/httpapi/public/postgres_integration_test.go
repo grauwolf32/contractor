@@ -431,7 +431,7 @@ type integrationUnitOfWork struct {
 	wrapArtifacts func(artifacts.Repository) artifacts.Repository
 }
 
-func (u integrationUnitOfWork) Do(ctx context.Context, fn func(RunWriter, *artifacts.Service) error) error {
+func (u integrationUnitOfWork) Do(ctx context.Context, fn func(RunWriter, *artifacts.Service, runservice.RuntimeCredentialValidator) error) error {
 	return persistencepostgres.InTx(ctx, u.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		lookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(
 			tx,
@@ -449,6 +449,7 @@ func (u integrationUnitOfWork) Do(ctx context.Context, fn func(RunWriter, *artif
 		return fn(
 			runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx), artifactpgtest.NewStorage()),
 			artifacts.NewService(repository),
+			credentials.NewRuntimeCredentialRepository(tx),
 		)
 	})
 }

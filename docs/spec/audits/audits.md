@@ -1879,7 +1879,7 @@ removal fences new starts, cancellation closes dispatch, and Audit purge
 releases its retained artifacts under the ordinary lifecycle (LIFE-AUD-6).
 No additional receipt, baseline store or credential service is introduced.
 
-**AUD-R248.** Private allocation preparation resolves engagement metadata only
+**AUD-R248.** For an Audit-managed Run, private allocation preparation resolves engagement metadata only
 from the durable Audit execution bound to the trusted Run/Stage reservation.
 It reads outside the Runtime Registry lock and rechecks allocation authority
 before dispatch. The immutable baseline lookup does not require an active

@@ -106,6 +106,7 @@ type WorkflowRun struct {
 	RuntimeLabels             []string
 	RuntimeConfig             runtimeconfig.RunSnapshot
 	ProjectHTTPTarget         *runtimesettings.HTTPOriginTargetRef
+	EngagementCredentialIDs   []string
 	SkillSnapshot             []agentskills.RunSkillSnapshot
 	PublicationMode           OutputPublicationMode
 	AuditExecutionID          *string
@@ -226,6 +227,7 @@ type CreateRunParams struct {
 	MetadataLabels          RunMetadataLabels
 	RuntimeConfig           runtimeconfig.RunSnapshot
 	ProjectHTTPTarget       *runtimesettings.HTTPOriginTargetRef
+	EngagementCredentialIDs []string
 	// LaneClass is the lane class of the Workflow's entry Stage
 	// (resolved.EntryLaneClass), which the Run carries until the Scheduler
 	// creates its first StageExecution (SCH-R175).

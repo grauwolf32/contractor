@@ -38,7 +38,6 @@
     "strategy": "none"
   },
   "engagement": {
-    "auditId": "audit-engagement",
     "authorizedAt": "2026-10-28T12:00:00Z",
     "authorizedBy": "owner-engagement",
     "engagement": {

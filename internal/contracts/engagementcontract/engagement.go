@@ -1,5 +1,5 @@
 // Package engagementcontract owns the closed, non-secret engagement contract shared by
-// Audit admission and the private allocation projection. It performs no I/O.
+// Run/Audit admission and the private allocation projection. It performs no I/O.
 package engagementcontract
 
 import (
@@ -15,6 +15,7 @@ const (
 	Schema           = "contractor.engagement.v1"
 	MediaType        = "application/vnd.contractor.engagement+json"
 	MaxDocumentBytes = 4 * 1024 * 1024
+	MaxIdentities    = 8
 )
 
 type Document struct {
@@ -79,7 +80,7 @@ func (d Document) Validate() error {
 	if d.Schema != Schema || (d.Limits != nil && d.Limits.Validate() != nil) {
 		return invalid()
 	}
-	if d.Egress.Routes == nil || len(d.Egress.Routes) < 1 || len(d.Egress.Routes) > 128 || d.Egress.Exclusions == nil || len(d.Egress.Exclusions) > 128 || d.Identities == nil || len(d.Identities) < 1 || len(d.Identities) > 8 {
+	if d.Egress.Routes == nil || len(d.Egress.Routes) < 1 || len(d.Egress.Routes) > 128 || d.Egress.Exclusions == nil || len(d.Egress.Exclusions) > 128 || d.Identities == nil || len(d.Identities) < 1 || len(d.Identities) > MaxIdentities {
 		return invalid()
 	}
 	origins := map[string]bool{}

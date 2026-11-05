@@ -77,13 +77,13 @@ func newEvalAPIHarness(t *testing.T) *evalAPIHarness {
 		d.Audits = audits
 		d.Projects = projectstore.NewPostgresStore(pool)
 		d.Artifacts = artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
-		runs, err := runservice.New(runservice.Options{Runs: runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), Workflows: catalog, LLMCredentials: credentialLookup, CredentialGuard: credentialLookup, RuntimeCredentials: d.RuntimeCredentials, Projects: d.Projects, SkillInitializationAvailable: true, PublicTransaction: func(ctx context.Context, fn func(runservice.PublicRunWriter, *artifacts.Service) error) error {
+		runs, err := runservice.New(runservice.Options{Runs: runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()), Workflows: catalog, LLMCredentials: credentialLookup, CredentialGuard: credentialLookup, RuntimeCredentials: d.RuntimeCredentials, Projects: d.Projects, SkillInitializationAvailable: true, PublicTransaction: func(ctx context.Context, fn func(runservice.PublicRunWriter, *artifacts.Service, runservice.RuntimeCredentialValidator) error) error {
 			return pg.InTx(ctx, pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
 				lookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(tx, transactionLLMCredentials)
 				if err != nil {
 					return err
 				}
-				return fn(runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx), artifactpgtest.NewStorage()), artifacts.NewService(artifactpgtest.NewStorage().Repository(tx)))
+				return fn(runstore.NewRunCreationPostgresStore(tx, lookup, credentials.NewRuntimeCredentialRepository(tx), artifactpgtest.NewStorage()), artifacts.NewService(artifactpgtest.NewStorage().Repository(tx)), credentials.NewRuntimeCredentialRepository(tx))
 			})
 		}})
 		if err != nil {

@@ -8,6 +8,7 @@ These examples use the current Memory-enabled versions in the
 root; the HTTP examples also need `curl`, `jq` and Git.
 
 - [Reusable Project workspace](#project-workspace-walkthrough)
+- [Engagement for an ordinary Run](#engagement-policy-for-an-ordinary-run)
 - [OpenAPI from source](#openapi-from-a-standalone-run-workspace)
 - [Runtime prerequisites](#runtime-workspace-requirements)
 - [LikeC4 from source](#likec4-from-a-standalone-run-workspace)
@@ -50,6 +51,51 @@ in PostgreSQL, and resolved into allocation-private settings only when the
 selected AgentTemplate actually exposes `http_request`. It is never a Project
 artifact and is not sent to Planner, unrelated Workers, model requests or UI
 query state.
+
+## Engagement policy for an ordinary Run
+
+A custom HTTP Workflow can declare one engagement-only input. Its name is
+arbitrary; the following example uses `network_policy`:
+
+```yaml
+spec:
+  inputs:
+    network_policy:
+      required: true
+      mediaTypes: [application/vnd.contractor.engagement+json]
+```
+
+Upload a valid `contractor.engagement.v1` document with that media type, then
+bind its ArtifactRef through the ordinary create request:
+
+```json
+{
+  "workflow": "my-http-check@1",
+  "artifacts": {
+    "network_policy": {
+      "namespace": "policies",
+      "name": "test-environment",
+      "revision": "<uploaded-revision>"
+    }
+  }
+}
+```
+
+Use `POST /v1/runs` with a UserScope source or
+`POST /v1/projects/{project_id}/runs` with a source in that Project. No Audit
+is required. The Workflow chooses its HTTP tools; Server validates the policy
+and any supplied identity credentials, pins the exact input and prepares the
+controlled allocation. The slot need not appear in Stage context for this
+policy to apply. Workflows with uncontrolled network tools are rejected when
+an engagement is selected.
+
+Changing the source or editable Run input after creation does not change the
+accepted policy. HTTP limits apply independently to each allocation. Target
+credentials must be chosen explicitly through `credential_id`; Project default
+authentication does not add identities to an engagement. A policy document alone
+does not hold its credentials: active Runs and unreleased allocations do.
+See [RUN-R112–115](../spec/execution/runs.md#RUN-R112) and the
+[engagement document contract](../spec/audits/audits.md#AUD-R241).
 
 ## OpenAPI from a standalone Run workspace
 

@@ -12,6 +12,7 @@ import (
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
@@ -175,6 +176,7 @@ FROM inserted_run`,
 		record.idempotencyKey, record.requestDigest,
 		string(publicationMode), record.auditExecutionID, record.auditSubmissionKey, string(record.LaneClass),
 		append([]string{}, record.RequiredPlacementLabels...),
+		append([]string{}, record.EngagementCredentialIDs...),
 	))
 	if err == nil {
 		return result, true, nil
@@ -623,6 +625,9 @@ func validateCreateRun(params CreateRunParams) error {
 	if err := params.RuntimeConfig.Validate(); err != nil {
 		return invalidf("RuntimeConfig snapshot is invalid: %v", err)
 	}
+	if err := validateEngagementCredentialIDs(params.EngagementCredentialIDs); err != nil {
+		return err
+	}
 	if params.ProjectHTTPTarget != nil {
 		if params.ProjectID == nil {
 			return invalidf("Project HTTP target requires Project membership")
@@ -702,6 +707,22 @@ var runLifecycle = map[[2]WorkflowRunState]runTransitionOperation{
 func ValidateRunTransition(expected, next WorkflowRunState) error {
 	if runLifecycle[[2]WorkflowRunState{expected, next}] != transitionByTransitionRun {
 		return invalidf("illegal WorkflowRun transition %s -> %s", expected, next)
+	}
+	return nil
+}
+
+// validateEngagementCredentialIDs matches the bounded database dependency set.
+func validateEngagementCredentialIDs(ids []string) error {
+	if len(ids) > engagementcontract.MaxIdentities {
+		return invalidf("engagement credential set exceeds identity limit")
+	}
+	previous := ""
+	for _, id := range ids {
+		ref := runtimesettings.RuntimeCredentialRef{CredentialID: id, Kind: runtimesettings.RuntimeCredentialTargetBearer}
+		if ref.Validate() != nil || id <= previous {
+			return invalidf("engagement credential set is invalid")
+		}
+		previous = id
 	}
 	return nil
 }

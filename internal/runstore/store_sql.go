@@ -71,9 +71,9 @@ INSERT INTO workflow_runs (
     runtime_labels, runtime_config_snapshot, project_http_target_snapshot, metadata_labels,
     request_idempotency_key, request_digest,
     publication_mode, audit_execution_id, audit_submission_key, scheduler_lane_class,
-    state, state_reason_code, state_reason_message, required_placement_labels
+    state, state_reason_code, state_reason_message, required_placement_labels, engagement_credential_ids
 ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10::jsonb, $11::jsonb, $12::jsonb,
-          $13, $14, $15, $16, $17, $18, 'initializing', 'created', '', $19)
+          $13, $14, $15, $16, $17, $18, 'initializing', 'created', '', $19, $20)
 ON CONFLICT DO NOTHING
 RETURNING *
 )

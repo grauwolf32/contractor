@@ -41,7 +41,8 @@
       "TestEngagementIdentitySessionsAcrossProcesses/private_canaries_and_physical_requests",
       "TestEngagementIdentityLifecycleAcrossProcesses",
       "TestEngagementIdentityLifecycleAcrossProcesses/cancel_cookie_request_joins_and_next_allocation_is_fresh",
-      "TestEngagementIdentityLifecycleAcrossProcesses/credential_kind_mismatch_is_rejected_before_target_traffic"
+      "TestEngagementIdentityLifecycleAcrossProcesses/credential_kind_mismatch_is_rejected_before_target_traffic",
+      "TestEngagementOrdinaryRunAcrossProcesses"
     ]
   },
   "accounting": {

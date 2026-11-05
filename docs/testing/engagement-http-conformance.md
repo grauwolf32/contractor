@@ -12,7 +12,10 @@ The strict engagement document contains `schema`, `egress.routes/exclusions`,
 Workflow tools determine the required HTTP owner; they cannot widen its authority.
 Offline Workers have no HTTP assignment. Audit owns material inputs, exact retained
 Artifact/credential pins, execution budgets and Start/Resume deadlines. There is no
-source mode or engagement-owned material registry.
+source mode or engagement-owned material registry. Ordinary projectless and
+Project Runs select an explicitly typed policy input under
+[RUN-R112–115](../spec/execution/runs.md#RUN-R112); its original input fork
+provides policy authority without an Audit or duplicate policy snapshot.
 
 The exact mandatory cases live in
 [`scripts/engagement-http-matrix.json`](../../scripts/engagement-http-matrix.json).
@@ -23,6 +26,7 @@ when all cases pass and includes matrix/report digests.
 
 | Boundary | Independent evidence |
 | --- | --- |
+| Ordinary Run | A public projectless Run uses its typed policy input, explicit bearer identity, route denial and local request cap through the production Server/Runtime preparation path. The credential is protected during execution and deletable after joined release while the policy Artifact remains. |
 | Scope and destinations | Server-pinned allocation plus actual RFC1918 target listeners verify origins, path segments, methods, exclusions, canonical redirects, DNS rebinding and protected aliases. Forbidden requests emit no application bytes. |
 | Peer and TLS | Production socket transport verifies numeric peer, Host, SNI and certificate trust. A forbidden DNS answer rejects the entire set; environment proxy traps see no traffic. |
 | Optional allocation limits | Runtime tests use injected clocks to verify request count and rate, body bounds and fresh independent allocation counters. PostgreSQL tests verify the selected artifact's limits are pinned and projected without defaults. |

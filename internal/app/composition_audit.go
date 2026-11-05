@@ -138,10 +138,10 @@ type postgresPublicUnitOfWork struct {
 
 func (u postgresPublicUnitOfWork) Do(
 	ctx context.Context,
-	fn func(runservice.PublicRunWriter, *artifacts.Service) error,
+	fn func(runservice.PublicRunWriter, *artifacts.Service, runservice.RuntimeCredentialValidator) error,
 ) error {
-	return u.do(ctx, func(_ pgx.Tx, writer runservice.PublicRunWriter, service *artifacts.Service) error {
-		return fn(writer, service)
+	return u.do(ctx, func(tx pgx.Tx, writer runservice.PublicRunWriter, service *artifacts.Service) error {
+		return fn(writer, service, credentials.NewRuntimeCredentialRepository(tx))
 	})
 }
 
