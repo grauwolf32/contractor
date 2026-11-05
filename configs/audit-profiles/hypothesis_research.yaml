@@ -26,6 +26,12 @@
         "media_types": [
           "application/vnd.contractor.findings-collection+zip"
         ]
+      },
+      "materials": {
+        "required": false,
+        "media_types": [
+          "application/json"
+        ]
       }
     },
     "workflows": {
@@ -93,6 +99,10 @@
           },
           "context": {
             "source": "task-context"
+          },
+          "materials": {
+            "source": "audit-input",
+            "name": "materials"
           }
         },
         "parameters": {},

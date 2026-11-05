@@ -129,6 +129,13 @@
         "mediaTypes": [
           "application/json"
         ]
+      },
+      "materials": {
+        "required": false,
+        "materialSet": true,
+        "mediaTypes": [
+          "*/*"
+        ]
       }
     },
     "outputs": {
@@ -262,6 +269,11 @@
               "namespace": "inputs",
               "name": "context",
               "required": true
+            },
+            "materials": {
+              "namespace": "inputs",
+              "name": "materials",
+              "required": false
             }
           }
         },

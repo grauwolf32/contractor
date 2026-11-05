@@ -209,12 +209,15 @@ func resolveArtifactSlotMap(
 			}
 			from = &resolved.ArtifactBinding{Namespace: slot.From.Namespace, Name: slot.From.Name}
 		}
+		if slot.MaterialSet.Kind != 0 && (field != "spec.inputs" || slot.MaterialSet.Kind != yaml.ScalarNode || slot.MaterialSet.Tag != "!!bool" || slot.MaterialSet.Value != "true" || scope != "") {
+			return nil, fmt.Errorf("materialSet true is allowed only on ordinary Workflow inputs")
+		}
 		primary := false
 		if slot.Primary != nil {
 			primary = *slot.Primary
 		}
 		result[name] = resolved.ArtifactSlot{
-			Required: *slot.Required, MediaTypes: mediaTypes, From: from, Primary: primary, SourceScope: scope,
+			Required: *slot.Required, MediaTypes: mediaTypes, From: from, Primary: primary, SourceScope: scope, MaterialSet: slot.MaterialSet.Kind != 0,
 		}
 	}
 	return result, nil

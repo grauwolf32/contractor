@@ -20,8 +20,9 @@ from contractor_runtime.strict_json import strict_json_loads
 ROOT = Path(__file__).resolve().parents[2]
 SCHEMA = json.loads((ROOT / "api/audit/v1/contract.schema.json").read_text())
 COMMON = json.loads((ROOT / "api/v1alpha1/common.schema.json").read_text())
+MATERIAL = json.loads((ROOT / "api/v1alpha1/material-set.schema.json").read_text())
 REGISTRY = Registry().with_resources(
-    (doc["$id"], Resource.from_contents(doc)) for doc in (SCHEMA, COMMON)
+    (doc["$id"], Resource.from_contents(doc)) for doc in (SCHEMA, COMMON, MATERIAL)
 )
 VALIDATOR = jsonschema.Draft202012Validator(SCHEMA, registry=REGISTRY)
 

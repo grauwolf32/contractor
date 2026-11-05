@@ -9,6 +9,10 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
+    User assignment 2026-11-05 starts V64-033 and then V64-034 on the existing
+    hypothesis implementation branch after integrating proposal 0054 and current
+    main. Replace numbered context slots with the common material mechanism;
+    preserve ordinary execution, receipts and lifecycle. Deployment is not assigned.
     User direction 2026-11-05 makes hypothesis generation an ordinary Workflow
     capability over configured inputs/readers and selected exact artifacts.
     Proposal 0054 and its implementation plan govern the correction of V64-013:

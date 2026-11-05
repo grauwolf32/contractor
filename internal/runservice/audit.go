@@ -10,6 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/clone"
@@ -111,6 +112,22 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 				}
 			}
 			forks := make(map[string]contracts.ArtifactRef, len(normalized.Inputs))
+			materialBudget := &contracts.MaterialBudget{}
+			selected := map[string]contracts.ArtifactRef{}
+			excluded := map[string]bool{}
+			pin, e := auditprofile.DecodePinnedProgram(intent.ProgramSnapshot)
+			if e != nil {
+				return e
+			}
+			for slot, m := range normalized.Inputs {
+				selected[slot] = m.Ref
+				mapping := pin.Program.Workflows[intent.Execution.WorkflowRole].Inputs[slot]
+				excluded[slot] = mapping.Source == "task-context" || mapping.Source == "prior-results"
+			}
+			if e := preflightMaterialSets(ctx, artifactService, normalized.Workflow, selected, artifacts.MaterialAuthority{OwnerID: intent.OwnerID, ProjectID: intent.ProjectID, AuditID: intent.Execution.AuditID}, func(string) (artifacts.Scope, error) { return artifacts.AuditScope(intent.Execution.AuditID) }, excluded, materialBudget); e != nil {
+				return e
+			}
+
 			for _, slot := range sortedInputSlots(normalized.Inputs) {
 				descriptor := normalized.Inputs[slot]
 				sourceScope, _ := artifacts.AuditScope(intent.Execution.AuditID)
@@ -125,6 +142,14 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 				}
 				if descriptor.Verify(metadata.Exact()) != nil {
 					return ErrInvalid
+				}
+				if contract := normalized.Workflow.Inputs[slot]; contract.MaterialSet {
+					exact, err := artifactService.MaterializeInputSet(ctx, artifacts.MaterialSetInput{Authority: artifacts.MaterialAuthority{OwnerID: intent.OwnerID, ProjectID: intent.ProjectID, AuditID: intent.Execution.AuditID}, Source: sourceScope, Ref: descriptor.Ref, RunID: runID, Slot: slot, MediaTypes: contract.MediaTypes, Required: contract.Required, Budget: materialBudget})
+					if err != nil {
+						return err
+					}
+					forks[slot] = exact.Ref
+					continue
 				}
 				targetScope, _ := artifacts.RunScope(runID)
 				fork, forkErr := artifactService.Fork(ctx, artifacts.Fork{Kind: kind,

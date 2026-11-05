@@ -15,14 +15,7 @@ const (
 
 // Material selects ordinary exact bytes. A descriptor grants no access: the
 // caller supplies its admitted source set after checking Artifact ownership.
-type Material struct {
-	ScopeKind string                `json:"scope_kind"`
-	ScopeID   string                `json:"scope_id"`
-	Ref       contracts.ArtifactRef `json:"ref"`
-	Digest    string                `json:"digest"`
-	MediaType string                `json:"media_type"`
-	SizeBytes int64                 `json:"size_bytes"`
-}
+type Material = contracts.MaterialDescriptor
 
 type PreparedSelection struct {
 	Key       string              `json:"key"`

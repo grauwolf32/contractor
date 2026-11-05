@@ -122,6 +122,9 @@ func TestSharedPublicAuditTaskSchemasMatchCommonContract(t *testing.T) {
 		switch v := value.(type) {
 		case map[string]any:
 			if ref, ok := v["$ref"].(string); ok {
+				if strings.Contains(ref, "material-set.schema.json#/$defs/material") {
+					return map[string]any{"$ref": "#/components/schemas/WorkflowMaterialDescriptor"}
+				}
 				key := ref[strings.LastIndex(ref, "/")+1:]
 				if external || !strings.HasPrefix(ref, "#/") {
 					selected := wire.Defs[key]

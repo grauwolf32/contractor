@@ -23,3 +23,8 @@ choices; system inputs and persisted IDs/provenance belong to the accepting owne
 If the context suggests no useful allowed next work, submit empty hypotheses and
 work. Never fabricate a task to keep the Audit running. Generation itself gives
 no permission to contact a target or create Runs.
+
+When the optional materials input is present, read its contractor.material-set.v1
+descriptor. Each member is an exact Run-local ArtifactRef: use the ordinary
+Artifact tools to read relevant members. The descriptor does not inline their
+payloads. Do not assume numbered source slots describe the selected material set.

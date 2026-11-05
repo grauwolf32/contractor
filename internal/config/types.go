@@ -168,6 +168,7 @@ type parameterSlotSource struct {
 }
 
 type artifactSlotSource struct {
+	MaterialSet yaml.Node              `yaml:"materialSet,omitempty"`
 	SourceScope yaml.Node              `yaml:"sourceScope,omitempty"`
 	Required    *bool                  `yaml:"required"`
 	MediaTypes  []string               `yaml:"mediaTypes"`

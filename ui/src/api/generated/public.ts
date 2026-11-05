@@ -4074,6 +4074,7 @@ export interface components {
             scope: components["schemas"]["AuditAssertionScope"];
             statement: components["schemas"]["AuditCommonText"];
         };
+        AuditMaterialScopeId: string;
         AuditProgram: {
             continuation?: {
                 workflow: components["schemas"]["AuditCommonKey"];
@@ -4163,6 +4164,20 @@ export interface components {
                 [key: string]: string;
             };
             ref: components["schemas"]["AuditProgramSelector"];
+        };
+        AuditTaskMaterial: components["schemas"]["WorkflowMaterialDescriptor"] & {
+            scope_id?: components["schemas"]["AuditCommonResourceId"];
+            /** @enum {string} */
+            scope_kind?: "audit" | "project" | "run";
+        };
+        WorkflowMaterialDescriptor: {
+            digest: components["schemas"]["AuditCommonDigest"];
+            media_type: components["schemas"]["MediaType"];
+            ref: components["schemas"]["AuditCommonExactRef"];
+            scope_id: components["schemas"]["AuditMaterialScopeId"] & unknown;
+            /** @enum {string} */
+            scope_kind: "user" | "project" | "audit" | "run";
+            size_bytes: number;
         };
         AuditProfile: {
             ref: components["schemas"]["AuditProfileRef"];
@@ -4427,15 +4442,6 @@ export interface components {
             namespace: string;
             name: string;
             revision: string;
-        };
-        AuditTaskMaterial: {
-            /** @enum {string} */
-            scope_kind: "audit" | "project" | "run";
-            scope_id: components["schemas"]["AuditCommonResourceId"];
-            ref: components["schemas"]["AuditCommonExactRef"];
-            digest: components["schemas"]["AuditCommonDigest"];
-            media_type: string;
-            size_bytes: number;
         };
         AuditTaskHypothesisRef: {
             id: components["schemas"]["AuditCommonResourceId"];
@@ -6012,6 +6018,11 @@ export interface components {
              * @enum {string}
              */
             sourceScope?: "user";
+            /**
+             * @description A checked flat set of exact materials. mediaTypes constrains its members; the input binding carries contractor.material-set.v1 JSON.
+             * @constant
+             */
+            materialSet?: true;
             required: boolean;
             mediaTypes: components["schemas"]["MediaType"][];
         };

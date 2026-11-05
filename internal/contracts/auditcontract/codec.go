@@ -50,6 +50,13 @@ func auditSchemaCompiler() (*jsonschema.Compiler, error) {
 	if err := c.AddResource("https://contractor.local/schema/v1alpha1/common.schema.json", common); err != nil {
 		return nil, err
 	}
+	var material any
+	if err := strictjson.Decode(wireschema.MaterialSet, &material); err != nil {
+		return nil, err
+	}
+	if err := c.AddResource("https://contractor.local/schema/v1alpha1/material-set.schema.json", material); err != nil {
+		return nil, err
+	}
 	var document any
 	if err := strictjson.Decode(auditschema.Document, &document); err != nil {
 		return nil, err

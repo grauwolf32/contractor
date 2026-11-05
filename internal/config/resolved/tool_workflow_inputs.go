@@ -25,7 +25,7 @@ func validateToolWorkflowInputs(workflow ResolvedWorkflow, toolsets map[string]t
 						continue
 					}
 					input, declared := workflow.Inputs[requirement.Input]
-					if !declared || !input.Required || !slices.Contains(input.MediaTypes, requirement.MediaType) {
+					if !declared || !input.Required || input.MaterialSet || !slices.Contains(input.MediaTypes, requirement.MediaType) {
 						return fmt.Errorf(
 							"Stage %q Agent %q %s %s requires the required Workflow input %s with media type %s",
 							stageName, agentName, selector, tool, requirement.Input, requirement.MediaType,

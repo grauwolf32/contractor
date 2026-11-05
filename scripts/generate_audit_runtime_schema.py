@@ -12,6 +12,8 @@ OUTPUT = ROOT / "runtime/src/contractor_runtime/contracts/audit_documents.schema
 def generated():
     audit = json.loads((ROOT / "api/audit/v1/contract.schema.json").read_text())
     common = json.loads((ROOT / "api/v1alpha1/common.schema.json").read_text())
+    material = json.loads((ROOT / "api/v1alpha1/material-set.schema.json").read_text())
+    owners = {"audit": audit, "common": common, "material": material}
     selected = {}
 
     def copy(value, owner="audit"):
@@ -23,14 +25,13 @@ def generated():
         for key, child in value.items():
             if key == "$ref":
                 name = child.rsplit("/", 1)[-1]
-                external = owner == "common" or not child.startswith("#/")
-                identity = "common_" + name if external else name
+                target_owner = owner
+                if not child.startswith("#/"):
+                    target_owner = "material" if "material-set.schema.json" in child else "common"
+                identity = ("" if target_owner == "audit" else target_owner + "_") + name
                 if identity not in selected:
                     selected[identity] = None
-                    selected[identity] = copy(
-                        (common if external else audit)["$defs"][name],
-                        "common" if external else "audit",
-                    )
+                    selected[identity] = copy(owners[target_owner]["$defs"][name], target_owner)
                 child = "#/$defs/" + identity
             result[key] = copy(child, owner)
         return result

@@ -682,9 +682,10 @@ type ([ART-R64](../artifacts/artifact-store.md)) exactly, except that the
 single value `*/*` explicitly accepts any media type. Other wildcards are
 invalid, and `*/*` cannot be combined with specific values.
 
-**WFL-R57.** `v1alpha1` has no artifact cardinality, size,
-filename-extension or structured payload schema in a slot contract. One slot
-binds at most one ArtifactRef (LIM-WFL-7).
+**WFL-R57.** An ordinary slot binds at most one ArtifactRef (LIM-WFL-7).
+The explicit `materialSet: true` input of WFL-R96 instead binds one checked
+flat-set descriptor; its members follow ART-R143. Other cardinality, payload
+schema, size or filename-extension constraints are not inferred.
 
 **WFL-R58.** For a required Workflow input, the Run request must supply
 a binding; an optional input may be absent.
@@ -1105,3 +1106,17 @@ spec:
   ([SCH-R83](../execution/scheduler.md)).
 - Workflow-declared Runtime labels
   ([Runtime configuration](runtime-config.md)).
+
+### Exact material-set inputs
+
+**WFL-R96.** Only a Workflow input may declare `materialSet: true`; false,
+null, output/Stage-result use and combination with `sourceScope` are invalid.
+Its `mediaTypes` constrain every selected member. The ordinary exact Run input
+ref names `application/json` bytes of `contractor.material-set.v1`, whose
+`materials` array carries full scoped exact descriptors (scope kind/ID, ref,
+digest, media type and size). The common Run preparation checks the entire
+selection against actual authenticated owner/Project/Audit authority and creates
+readable local bindings through ART-R143. A required set is nonempty; an
+optional set may be absent or explicitly empty. A manifest grants no access.
+Singleton inputs retain their own roles and normal semantics. No recursive
+reference expansion, numbered slot adapter or new Run execution type is used.

@@ -5498,6 +5498,11 @@
       "type": "object",
       "x-maxEncodedBytes": 32768
     },
+    "AuditMaterialScopeId": {
+      "minLength": 1,
+      "pattern": "\\S",
+      "type": "string"
+    },
     "AuditProgram": {
       "additionalProperties": false,
       "allOf": [
@@ -5845,6 +5850,60 @@
         }
       },
       "required": ["ref", "inputs", "parameters", "outputs"],
+      "type": "object"
+    },
+    "AuditTaskMaterial": {
+      "allOf": [
+        {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/WorkflowMaterialDescriptor"
+        },
+        {
+          "properties": {
+            "scope_id": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCommonResourceId"
+            },
+            "scope_kind": {
+              "enum": ["audit", "project", "run"],
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "WorkflowMaterialDescriptor": {
+      "additionalProperties": false,
+      "properties": {
+        "digest": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCommonDigest"
+        },
+        "media_type": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/MediaType"
+        },
+        "ref": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCommonExactRef"
+        },
+        "scope_id": {
+          "allOf": [
+            {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditMaterialScopeId"
+            },
+            { "not": { "pattern": "\u0000" } }
+          ]
+        },
+        "scope_kind": {
+          "enum": ["user", "project", "audit", "run"],
+          "type": "string"
+        },
+        "size_bytes": { "maximum": 67108864, "minimum": 0, "type": "integer" }
+      },
+      "required": [
+        "scope_kind",
+        "scope_id",
+        "ref",
+        "digest",
+        "media_type",
+        "size_bytes"
+      ],
       "type": "object"
     },
     "AuditProfile": {
@@ -6628,37 +6687,6 @@
         },
         "revision": { "type": "string", "minLength": 1, "pattern": "\\S" }
       }
-    },
-    "AuditTaskMaterial": {
-      "type": "object",
-      "properties": {
-        "scope_kind": { "enum": ["audit", "project", "run"], "type": "string" },
-        "scope_id": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCommonResourceId"
-        },
-        "ref": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCommonExactRef"
-        },
-        "digest": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCommonDigest"
-        },
-        "media_type": {
-          "type": "string",
-          "maxLength": 255,
-          "pattern": "^[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*$",
-          "not": { "pattern": "[^a-z0-9!#$&^_.+/-]" }
-        },
-        "size_bytes": { "type": "integer", "minimum": 0, "maximum": 67108864 }
-      },
-      "required": [
-        "scope_kind",
-        "scope_id",
-        "ref",
-        "digest",
-        "media_type",
-        "size_bytes"
-      ],
-      "additionalProperties": false
     },
     "AuditTaskHypothesisRef": {
       "type": "object",
@@ -11483,6 +11511,7 @@
       "required": ["required", "mediaTypes"],
       "properties": {
         "sourceScope": { "type": "string", "enum": ["user"] },
+        "materialSet": { "type": "boolean", "const": true },
         "required": { "type": "boolean" },
         "mediaTypes": {
           "type": "array",

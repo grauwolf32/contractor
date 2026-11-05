@@ -106,7 +106,7 @@ func validateAuditMaterialInput(slot resolved.ArtifactSlot, input auditcontract.
 		return apierror.New(apierror.AuditDocumentInvalid, "audit_document_invalid: required Workflow input uses optional material")
 	}
 	for _, media := range input.MediaTypes {
-		if !contracts.AcceptsMediaType(slot.MediaTypes, media) {
+		if !slot.AcceptsInputMediaType(media) {
 			return apierror.New(apierror.AuditDocumentInvalid, "audit_document_invalid: incompatible input media type")
 		}
 	}

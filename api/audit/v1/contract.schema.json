@@ -50,7 +50,7 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 65536,
-      "pattern": "[^\t\n\u000b\f\r \u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000]",
+      "pattern": "[^\t\n\u000b\f\r                  　]",
       "x-maxUtf8Bytes": 65536
     },
     "digest": {
@@ -78,42 +78,25 @@
       "$ref": "https://contractor.local/schema/v1alpha1/common.schema.json#/$defs/exactArtifactRef"
     },
     "artifact": {
-      "type": "object",
-      "properties": {
-        "scope_kind": {
-          "enum": [
-            "audit",
-            "project",
-            "run"
-          ]
+      "allOf": [
+        {
+          "$ref": "https://contractor.local/schema/v1alpha1/material-set.schema.json#/$defs/material"
         },
-        "scope_id": {
-          "$ref": "#/$defs/resource_id"
-        },
-        "ref": {
-          "$ref": "#/$defs/ref"
-        },
-        "digest": {
-          "$ref": "#/$defs/digest"
-        },
-        "media_type": {
-          "$ref": "https://contractor.local/schema/v1alpha1/common.schema.json#/$defs/mediaType"
-        },
-        "size_bytes": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 67108864
+        {
+          "properties": {
+            "scope_kind": {
+              "enum": [
+                "audit",
+                "project",
+                "run"
+              ]
+            },
+            "scope_id": {
+              "$ref": "#/$defs/resource_id"
+            }
+          }
         }
-      },
-      "required": [
-        "scope_kind",
-        "scope_id",
-        "ref",
-        "digest",
-        "media_type",
-        "size_bytes"
-      ],
-      "additionalProperties": false
+      ]
     },
     "seed": {
       "type": "object",
@@ -774,7 +757,7 @@
             "minLength": 1,
             "maxLength": 512,
             "x-maxUtf8Bytes": 512,
-            "pattern": "[^\t\n\u000b\f\r \u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000]"
+            "pattern": "[^\t\n\u000b\f\r                  　]"
           },
           "maxItems": 512,
           "uniqueItems": true
@@ -828,7 +811,7 @@
             "minLength": 1,
             "maxLength": 512,
             "x-maxUtf8Bytes": 512,
-            "pattern": "[^\t\n\u000b\f\r \u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000]"
+            "pattern": "[^\t\n\u000b\f\r                  　]"
           },
           "maxItems": 512,
           "uniqueItems": true

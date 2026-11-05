@@ -163,10 +163,32 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 						return err
 					}
 				}
+				materialBudget := &contracts.MaterialBudget{}
+				projectID := ""
+				if normalized.ProjectID != nil {
+					projectID = *normalized.ProjectID
+				}
+				if err := preflightMaterialSets(ctx, artifactService, workflow, normalized.Inputs, artifacts.MaterialAuthority{OwnerID: normalized.OwnerID, ProjectID: projectID}, func(slot string) (artifacts.Scope, error) {
+					return inputSourceScope(normalized.OwnerID, normalized.ProjectID, workflow.Inputs[slot].SourceScope)
+				}, nil, materialBudget); err != nil {
+					return err
+				}
+
 				for _, slot := range sortedInputSlots(normalized.Inputs) {
 					sourceScope, scopeErr := inputSourceScope(normalized.OwnerID, normalized.ProjectID, workflow.Inputs[slot].SourceScope)
 					if scopeErr != nil {
 						return scopeErr
+					}
+					if contract := workflow.Inputs[slot]; contract.MaterialSet {
+						projectID := ""
+						if normalized.ProjectID != nil {
+							projectID = *normalized.ProjectID
+						}
+						_, err := artifactService.MaterializeInputSet(ctx, artifacts.MaterialSetInput{Authority: artifacts.MaterialAuthority{OwnerID: normalized.OwnerID, ProjectID: projectID}, Source: sourceScope, Ref: normalized.Inputs[slot], RunID: runID, Slot: slot, MediaTypes: contract.MediaTypes, Required: contract.Required, Budget: materialBudget})
+						if err != nil {
+							return err
+						}
+						continue
 					}
 					fork, forkErr := forkInput(ctx, artifactService, sourceScope, normalized.Inputs[slot], runID, slot)
 					if forkErr != nil {

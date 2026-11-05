@@ -403,6 +403,21 @@ func (e ArtifactLineageEdgeTargetScope) Valid() bool {
 	}
 }
 
+// Defines values for ArtifactSlotMaterialSet.
+const (
+	ArtifactSlotMaterialSetTrue ArtifactSlotMaterialSet = true
+)
+
+// Valid indicates whether the value is a known member of the ArtifactSlotMaterialSet enum.
+func (e ArtifactSlotMaterialSet) Valid() bool {
+	switch e {
+	case ArtifactSlotMaterialSetTrue:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ArtifactSlotSourceScope.
 const (
 	ArtifactSlotSourceScopeUser ArtifactSlotSourceScope = "user"
@@ -5629,6 +5644,30 @@ func (e WorkflowFailTransitionKind) Valid() bool {
 	}
 }
 
+// Defines values for WorkflowMaterialDescriptorScopeKind.
+const (
+	WorkflowMaterialDescriptorScopeKindAudit   WorkflowMaterialDescriptorScopeKind = "audit"
+	WorkflowMaterialDescriptorScopeKindProject WorkflowMaterialDescriptorScopeKind = "project"
+	WorkflowMaterialDescriptorScopeKindRun     WorkflowMaterialDescriptorScopeKind = "run"
+	WorkflowMaterialDescriptorScopeKindUser    WorkflowMaterialDescriptorScopeKind = "user"
+)
+
+// Valid indicates whether the value is a known member of the WorkflowMaterialDescriptorScopeKind enum.
+func (e WorkflowMaterialDescriptorScopeKind) Valid() bool {
+	switch e {
+	case WorkflowMaterialDescriptorScopeKindAudit:
+		return true
+	case WorkflowMaterialDescriptorScopeKindProject:
+		return true
+	case WorkflowMaterialDescriptorScopeKindRun:
+		return true
+	case WorkflowMaterialDescriptorScopeKindUser:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for WorkflowNextTransitionKind.
 const (
 	WorkflowNextTransitionKindNext WorkflowNextTransitionKind = "next"
@@ -6561,12 +6600,17 @@ type ArtifactRef struct {
 
 // ArtifactSlot defines model for ArtifactSlot.
 type ArtifactSlot struct {
-	MediaTypes []MediaType `json:"mediaTypes"`
-	Required   bool        `json:"required"`
+	// MaterialSet A checked flat set of exact materials. mediaTypes constrains its members; the input binding carries contractor.material-set.v1 JSON.
+	MaterialSet *ArtifactSlotMaterialSet `json:"materialSet,omitempty"`
+	MediaTypes  []MediaType              `json:"mediaTypes"`
+	Required    bool                     `json:"required"`
 
 	// SourceScope Owner UserScope for the optional Nuclei rulepack input only.
 	SourceScope *ArtifactSlotSourceScope `json:"sourceScope,omitempty"`
 }
+
+// ArtifactSlotMaterialSet A checked flat set of exact materials. mediaTypes constrains its members; the input binding carries contractor.material-set.v1 JSON.
+type ArtifactSlotMaterialSet bool
 
 // ArtifactSlotSourceScope Owner UserScope for the optional Nuclei rulepack input only.
 type ArtifactSlotSourceScope string
@@ -7035,6 +7079,9 @@ type AuditMaterialPublicationRequest struct {
 		Namespace ArtifactName `json:"namespace"`
 	} `json:"target"`
 }
+
+// AuditMaterialScopeId defines model for AuditMaterialScopeId.
+type AuditMaterialScopeId = string
 
 // AuditPage defines model for AuditPage.
 type AuditPage struct {
@@ -7551,7 +7598,7 @@ type AuditTaskHypothesisRef struct {
 // AuditTaskMaterial defines model for AuditTaskMaterial.
 type AuditTaskMaterial struct {
 	Digest    AuditCommonDigest          `json:"digest"`
-	MediaType string                     `json:"media_type"`
+	MediaType MediaType                  `json:"media_type"`
 	Ref       AuditCommonExactRef        `json:"ref"`
 	ScopeId   AuditCommonResourceId      `json:"scope_id"`
 	ScopeKind AuditTaskMaterialScopeKind `json:"scope_kind"`
@@ -11843,6 +11890,19 @@ type WorkflowFailTransitionKind string
 type WorkflowFailureTransition struct {
 	union json.RawMessage
 }
+
+// WorkflowMaterialDescriptor defines model for WorkflowMaterialDescriptor.
+type WorkflowMaterialDescriptor struct {
+	Digest    AuditCommonDigest                   `json:"digest"`
+	MediaType MediaType                           `json:"media_type"`
+	Ref       AuditCommonExactRef                 `json:"ref"`
+	ScopeId   string                              `json:"scope_id"`
+	ScopeKind WorkflowMaterialDescriptorScopeKind `json:"scope_kind"`
+	SizeBytes int                                 `json:"size_bytes"`
+}
+
+// WorkflowMaterialDescriptorScopeKind defines model for WorkflowMaterialDescriptor.ScopeKind.
+type WorkflowMaterialDescriptorScopeKind string
 
 // WorkflowNextOrFailTransition defines model for WorkflowNextOrFailTransition.
 type WorkflowNextOrFailTransition struct {
