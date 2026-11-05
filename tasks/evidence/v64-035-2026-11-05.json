@@ -1,0 +1,93 @@
+{
+  "task": "V64-035",
+  "date": "2026-11-05",
+  "status": "completed",
+  "branch": "codex/audit-hypothesis-generation",
+  "merged_to_main": false,
+  "implementation_commit": "0d94f89432bf2400462c5bda9937a0d0386de25e",
+  "outcome": [
+    "Selected flat-set members and JSON are retained before Task admission and survive Pause and real history reclamation.",
+    "Original scoped identity is shared across retained singleton/set aliases, Run context and proposal acceptance. Independent equal-byte sources remain distinct.",
+    "Task context describes actual local bytes; result collection verifies original input lineage and metadata before translating evidence."
+  ],
+  "checks": [
+    {
+      "command": "make require-database; go test -p 2 -tags=integration -count=1 ./internal/artifacts/... ./internal/auditservice ./internal/auditimport ./internal/runservice/... ./internal/auditcontroller ./internal/httpapi/public",
+      "status": "passed",
+      "result": "All selected packages passed with real disposable PostgreSQL; no database skips.",
+      "log": "/tmp/v64035-owners-committed.log",
+      "log_digest": "sha256:051c9c1a031b99c59620cfdbb30fefcf7f656ea22318266bd9fc9507b5dbc8a6"
+    },
+    {
+      "command": "make lint",
+      "status": "passed",
+      "result": "Passed complete lint, generated checks, Go/Runtime layers and import contracts.",
+      "log": "/tmp/v64035-lint-committed.log",
+      "log_digest": "sha256:792331c572cd6549744dda8cabb4681fd1c41077a74c8dd11b98341b52c1db5f"
+    },
+    {
+      "command": "make test-wire-cross-language",
+      "status": "passed",
+      "result": "389 wire tests; 375 fixtures, 412 Go and 264 Python shared tests; 1491 selected Runtime cases passed.",
+      "log": "/tmp/v64035-wire-committed.log",
+      "log_digest": "sha256:005c0f6ad4ae9111c360b6deca9b6cfa983b781388f085c803fe513cbcc34f81"
+    },
+    {
+      "command": "make test-audit-basic-e2e",
+      "status": "passed",
+      "result": "12 mandatory cases passed; zero selected skips; clean committed source.",
+      "log": "/tmp/v64035-process.log",
+      "log_digest": "sha256:fbc0a3c58eef6d94755f24a603b51dd9b630d6daa4ecdcea044d10ecfebf5aab"
+    }
+  ],
+  "regressions": [
+    {
+      "setup": "Overlay the pre-V64-035 production Go sources while preserving the new PostgreSQL tests.",
+      "result": "All three review findings reproduced: selected material lost during Pause, valid source ceiling rejected, wrong context digest/size. The 32-source full dispatch also failed.",
+      "log": "/tmp/v64035-regression-before.log",
+      "log_digest": "sha256:7a0d7784fec8988163f822a237c1579a871532b09588b206d221a4a725cec37d"
+    },
+    {
+      "setup": "Overlay only the old importer with corrected Run preparation.",
+      "result": "The exact local context passed its read check, but collection settled the valid transformed result as invalid, proving both boundary fixes are needed.",
+      "log": "/tmp/v64035-importer-regression-before.log",
+      "log_digest": "sha256:ea7a397db187a3f5613b1d977a736f48c18ab39cd424423d0f32990a7ec39df1"
+    }
+  ],
+  "additional_cases": [
+    "Native JSON selected inside a prepared producer Run retains the descriptor and exact members under the existing producer permission/fence.",
+    "Same source through a second set and a retained singleton shares canonical identity; 33 independent equal-byte sources fail.",
+    "Each task-context evidence ref is read with the full exact descriptor."
+  ],
+  "process_evidence": {
+    "status": "passed",
+    "case_set": "core",
+    "source": {
+      "revision": "0d94f89432bf2400462c5bda9937a0d0386de25e",
+      "dirty": false
+    },
+    "matrix": {
+      "path": "scripts/audit-basic-matrix.json",
+      "digest": "sha256:cc6c09a9ebc9196c3946c31fd2832a925a3c8fc7b24b9ab8b6246d72ccae811a"
+    },
+    "go": [
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditBasicExactHandoffAcrossProductionProcesses",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditBasicExactHandoffAcrossProductionProcesses/finding_false",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditBasicExactHandoffAcrossProductionProcesses/finding_true",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditCommonObservationProfilesAcrossProductionProcesses",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditCommonObservationProfilesAcrossProductionProcesses/observe",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditCommonObservationProfilesAcrossProductionProcesses/trace",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditCommonPrepared256PauseRestartAndCancelAcrossProcesses",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditFixedHypothesesAcrossProductionProcesses",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditHypothesisContinuationAcrossProductionProcesses",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditHypothesisContinuationAcrossProductionProcesses/initial=false",
+      "github.com/grauwolf32/contractor/tests/e2e/TestAuditHypothesisContinuationAcrossProductionProcesses/initial=true",
+      "github.com/grauwolf32/contractor/tests/e2e/TestWorkflowMaterialSetsAcrossProductionProcesses"
+    ],
+    "reports": {
+      "go.jsonl": "sha256:e11984859a9e227d77363823dd4c94aef66680403019ad9e32a3ac90c1e40975"
+    }
+  },
+  "process_path": ".local/audit-basic-gate/run-sppqvqfs/executed.json",
+  "follow_up": "The user separately assigned a behavior-preserving material handoff simplification after this correction; it does not replace these regressions."
+}

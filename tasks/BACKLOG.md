@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-75 open tasks: 12 in progress, 50 pending, 13 deferred. 1449 finished: 1431 completed, 18 archived.
+74 open tasks: 11 in progress, 50 pending, 13 deferred. 1450 finished: 1432 completed, 18 archived.
 
 ## In progress
 
@@ -13,7 +13,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V64-034](v64-034-workflow-hypothesis-production.yml) | audits | feature | P1 | Produce attributed hypotheses from Workflow-selected materials |
-| [V64-035](v64-035-accepted-material-set-boundary.yml) | audits | defect | P1 | Preserve exact material-set inputs across accepted Audit Tasks |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | quality | chore | P3 | Make the Runtime suite pass on macOS: declare the Linux-only Podman tests, make the other tests portable and file the macOS defects |
@@ -178,7 +177,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 1 | 17 | 10 | 10 | 16 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 21 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 39 | 16 | 67 |
-| Audits (`audits`) | 14 | 69 | 95 | 40 | 151 |
+| Audits (`audits`) | 13 | 69 | 95 | 40 | 151 |
 | Evaluations (`evals`) | 6 | 21 | 40 | 16 | 49 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
 | Web UI (`ui`) | 2 | 47 | 71 | 26 | 72 |

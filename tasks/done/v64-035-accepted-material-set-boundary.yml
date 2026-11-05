@@ -6,11 +6,12 @@ epic: audits
 kind: defect
 introduced_by: V64-033
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V64-033]
 languages: [go]
 goal: Accepted Audit work survives Pause and source history cleanup, counts one original source once, and exposes truthful exact Run-local evidence.
 context:
+  verification_evidence: tasks/evidence/v64-035-2026-11-05.json
   authority: >-
     User review 2026-11-05 of 76356bb3cc0bb1774ecd2bc181d01b43b66db361
     requests correction of three accepted-Task/Run preparation boundaries.
@@ -72,3 +73,4 @@ tests:
     covers: [A2, A3, A4]
   - command: make lint
     covers: [A4]
+implementation_commit: 0d94f89432bf2400462c5bda9937a0d0386de25e
