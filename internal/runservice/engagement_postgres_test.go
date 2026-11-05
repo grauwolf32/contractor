@@ -23,6 +23,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
+	"github.com/grauwolf32/contractor/internal/engagement"
 	"github.com/grauwolf32/contractor/internal/persistence/leasetest"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -424,5 +425,26 @@ func TestPostgresRunEngagementHoldsCredentialUntilAllocationRelease(t *testing.T
 	}
 	if _, err := f.credentials.Delete(f.ctx, "held-account", "policy-owner"); err != nil {
 		t.Fatalf("released credential: %v", err)
+	}
+	resumed, err := runs.ResumeFailedRun(f.ctx, "policy-owner", created.Run.RunID, stageID, "resumed-stage")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pin, ordinary, err := ReadAllocationEngagement(f.ctx, f.pool, created.Run.RunID, resumed.StageExecutionID, artifactpgtest.NewStorage())
+	if err != nil || !ordinary || pin == nil {
+		t.Fatalf("resumed policy: %v", err)
+	}
+	projection, err := engagement.Project(*pin, true, []engagementcontract.ProtectedDestination{
+		{Hostname: "server.example", Addresses: []string{"10.30.0.1"}, Port: 443},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	material, err := engagement.MaterializeHTTPIdentities(f.ctx, f.credentials, projection)
+	if !errors.Is(err, credentials.ErrRuntimeCredentialNotFound) || len(material) != 0 {
+		t.Fatalf("deleted credential on resume lost its permanent class: %v", err)
+	}
+	if strings.Contains(err.Error(), "run-policy-private-canary") {
+		t.Fatal("private credential was rendered")
 	}
 }

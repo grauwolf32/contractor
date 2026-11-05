@@ -302,9 +302,14 @@ func (s *Scheduler) loggedCause(cause error) string {
 }
 
 func infrastructureFailure(code, message string, cause error) planner.Failure {
-	retryable := true
+	retryable, _, classified := classifyCredentialError(cause)
+	if !classified {
+		retryable = true
+	}
+	// Failed-prepare cleanup may add a transient Runtime error to a permanent
+	// missing/invalid/unreadable credential; it cannot restore that authority.
 	var apiError *controlplane.RuntimeAPIError
-	if errors.As(cause, &apiError) {
+	if retryable && errors.As(cause, &apiError) {
 		retryable = apiError.Retryable
 	}
 	return planner.Failure{Code: code, Message: message, Retryable: retryable}

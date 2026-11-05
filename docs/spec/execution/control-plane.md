@@ -326,7 +326,9 @@ with its independent LIM-CTL-19 lookup deadline. It sends a secret-typed
 from non-secret engagement attribution. Every entry's exact credential ID/kind
 must match its assignment; missing, extra or mismatched entries/fields fail
 prepare before target I/O. The grant is checked again after resolution and
-materialization. Plaintext buffers are wiped on every exit, and copied material
+materialization. Materialization failures retain credential, context and storage
+error identity behind static safe messages, so Scheduler can apply SCH-R184;
+raw provider text is never rendered. Plaintext buffers are wiped on every exit, and copied material
 is dropped immediately after checking the prepare response's Agent Card,
 before any later target tool call. The Runtime keeps only allocation-local private state
 under [HTP-R140](../tools/http-caido.md); explicit model credential tools follow HTP-R143.
@@ -1145,8 +1147,8 @@ Scheduler receives no partial `WorkerHandle` map and no partial Planner
 subagent set.
 
 **CTL-R147.** After a failed preparation the Workflow Scheduler moves the
-StageExecution through `aborting` with a retryable interrupted StageTermination
-whose code identifies the infrastructure error. When the batch is cleared or
+StageExecution through `aborting` with an interrupted StageTermination whose
+code and cause-specific retryability follow SCH-R184. When the batch is cleared or
 the abort deadline expires, the execution becomes terminal and Workflow policy
 decides whether to create a new attempt (FAIL-CTL-3).
 

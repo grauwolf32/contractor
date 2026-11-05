@@ -2,12 +2,12 @@ package engagement
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
 
 type engagementMaterialResolver interface {
@@ -23,7 +23,7 @@ func MaterializeHTTPIdentities(ctx context.Context, resolver engagementMaterialR
 		return nil, nil
 	}
 	result := map[string]runtimesettings.HTTPIdentityMaterial{}
-	fail := func() (map[string]runtimesettings.HTTPIdentityMaterial, error) {
+	fail := func(cause error) (map[string]runtimesettings.HTTPIdentityMaterial, error) {
 		for id, material := range result {
 			clear(material.Fields)
 			delete(result, id)
@@ -31,14 +31,14 @@ func MaterializeHTTPIdentities(ctx context.Context, resolver engagementMaterialR
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		return nil, fmt.Errorf("engagement private identity material is unavailable")
+		return nil, persistencepostgres.WrapError("engagement private identity material is unavailable", cause)
 	}
 	for _, identity := range projection.HTTP.Identities {
 		if identity.Credential == nil {
 			continue
 		}
 		if resolver == nil {
-			return fail()
+			return fail(nil)
 		}
 		ref := *identity.Credential
 		err := resolver.UsePlaintext(ctx, ref.CredentialID, []runtimesettings.RuntimeCredentialKind{ref.Kind}, func(kind runtimesettings.RuntimeCredentialKind, data []byte) error {
@@ -67,7 +67,7 @@ func MaterializeHTTPIdentities(ctx context.Context, resolver engagementMaterialR
 			return nil
 		})
 		if err != nil {
-			return fail()
+			return fail(err)
 		}
 	}
 	if len(result) == 0 {
