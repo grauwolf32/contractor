@@ -8,6 +8,7 @@ from jsonschema.exceptions import ValidationError
 from contractor_runtime import threads
 from contractor_runtime.artifacts import ArtifactAPIError
 from contractor_runtime.contracts import ArtifactRef
+from contractor_runtime.contracts.artifacts import AUDIT_CONTEXT_NAMESPACE
 from contractor_runtime.contracts.audit_documents import decode_audit_document
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.redaction import runtime_secrets
@@ -47,7 +48,7 @@ class SubmitHypothesisProposalsTool(ArtifactTool):
     ) -> dict:
         with self._recorded({"expected_revision": expected_revision}) as call:
             roles_value = await self._client.read_artifact(
-                ArtifactRef(namespace="audit-context", name="hypothesis-proposals"),
+                ArtifactRef(namespace=AUDIT_CONTEXT_NAMESPACE, name="hypothesis-proposals"),
                 max_bytes=8192,
             )
             try:
@@ -100,7 +101,7 @@ class SubmitHypothesisProposalsTool(ArtifactTool):
                     ref.require_exact()
                     require_model_visible_binding(ref.namespace, ref.name)
                     if (
-                        ref.namespace == "audit-context"
+                        ref.namespace == AUDIT_CONTEXT_NAMESPACE
                         or (ref.namespace == "inputs" and ref.name == roles["context"]["name"])
                         or (ref.namespace == target.namespace and ref.name == target.name)
                     ):
