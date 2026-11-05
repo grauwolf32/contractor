@@ -243,7 +243,7 @@ func TestSharedPostgresRetainedSingletonSharesOriginalMaterialSetBudget(t *testi
 				singleton = fork.TargetRef
 			}
 			budget := &contracts.MaterialBudget{}
-			err = preflightMaterialSets(ctx, art, workflow, map[string]contracts.ArtifactRef{"materials": retained.TargetRef, "singleton": singleton}, authority, func(string) (artifacts.Scope, error) { return auditScope, nil }, nil, budget)
+			_, err = checkWorkflowInputs(ctx, art, workflow, map[string]contracts.ArtifactRef{"materials": retained.TargetRef, "singleton": singleton}, authority, func(string) (artifacts.Scope, error) { return auditScope, nil }, nil, nil, budget)
 			if overflow {
 				if err == nil {
 					t.Fatal("33 independent equal-byte sources were merged")
@@ -265,7 +265,11 @@ func TestSharedPostgresRetainedSingletonSharesOriginalMaterialSetBudget(t *testi
 				t.Fatal(err)
 			}
 			for slot, ref := range map[string]contracts.ArtifactRef{"set-first": retained.TargetRef, "set-alias": second.Ref} {
-				if _, err := art.MaterializeInputSet(ctx, artifacts.MaterialSetInput{Authority: authority, Source: auditScope, Ref: ref, RunID: created.Run.RunID, Slot: slot, MediaTypes: []string{"text/plain"}, Required: true, Budget: budget}); err != nil {
+				checked, err := art.CheckInputMaterials(ctx, authority, []artifacts.MaterialInput{{Name: slot, Source: auditScope, Ref: ref, Set: true, Required: true, Research: true, MediaTypes: []string{"text/plain"}}}, budget)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := art.MaterializeInputs(ctx, created.Run.RunID, checked); err != nil {
 					t.Fatalf("same original in different retained sets: %v", err)
 				}
 			}

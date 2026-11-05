@@ -17,7 +17,7 @@ import (
 // Proposal context is assembled only after ordinary inputs have real bindings.
 // The native material-set owner supplies original identities for accounting;
 // models see exact local refs, never new access from a descriptor's text.
-func materializeProposalContext(ctx context.Context, service *artifacts.Service, intent auditstore.RunCreationIntent, p auditRunCreate, pinned auditprofile.PinnedProgram, runID string, forks map[string]contracts.ArtifactRef, originals []contracts.MaterialDescriptor) error {
+func materializeProposalContext(ctx context.Context, service *artifacts.Service, intent auditstore.RunCreationIntent, p auditRunCreate, pinned auditprofile.PinnedProgram, runID string, prepared *artifacts.PreparedInputs) error {
 	binding := pinned.Program.Workflows[intent.Execution.WorkflowRole]
 	target, err := auditprofile.ResolveProposalTarget(p.Workflow, binding)
 	if err != nil {
@@ -27,71 +27,12 @@ func materializeProposalContext(ctx context.Context, service *artifacts.Service,
 		return nil
 	}
 	scope, _ := artifacts.RunScope(runID)
-	run, _ := service.Scoped(scope)
 	value := auditcontract.ProposalContext{Schema: auditcontract.ProposalContextSchema, RunID: runID, Program: pinned.Program, Materials: map[string]auditcontract.Material{}, InputSources: map[string]auditcontract.Material{}}
-	origins := map[string]contracts.MaterialDescriptor{}
-	for _, m := range originals {
-		origins[contracts.MaterialHandle(m)] = m
+	for handle, material := range prepared.Materials {
+		value.Materials[handle] = material.Local
+		value.InputSources[handle] = material.Source
 	}
-	inputSlots := sortedInputSlots(p.Inputs)
-	physical := make([]contracts.MaterialDescriptor, 0, len(inputSlots))
-	for _, slot := range inputSlots {
-		m := p.Inputs[slot]
-		physical = append(physical, contracts.MaterialDescriptor{ScopeKind: "audit", ScopeID: intent.Execution.AuditID, Ref: m.Ref, Digest: m.Digest, MediaType: m.MediaType, SizeBytes: m.SizeBytes})
-	}
-	originalInputs, err := service.OriginalMaterials(ctx, physical)
-	if err != nil {
-		return err
-	}
-	for index, slot := range inputSlots {
-		mapping := binding.Inputs[slot]
-		if mapping.Source == "task-context" || mapping.Source == "prior-results" {
-			continue
-		}
-		local, exists := forks[slot]
-		if !exists {
-			return ErrInvalid
-		}
-		if p.Workflow.Inputs[slot].MaterialSet {
-			raw, err := run.Read(ctx, local)
-			if err != nil {
-				return err
-			}
-			set, err := contracts.DecodeMaterialSet(raw.Payload.Data)
-			if err != nil {
-				return err
-			}
-			for _, m := range set.Materials {
-				original, found := origins[m.Ref.Name]
-				if !found || m.ScopeKind != "run" || m.ScopeID != runID {
-					return ErrInvalid
-				}
-				if _, exists := value.Materials[m.Ref.Name]; exists {
-					continue
-				}
-				value.Materials[m.Ref.Name] = m
-				value.InputSources[m.Ref.Name] = original
-			}
-		} else {
-			metadata, err := run.Metadata(ctx, local)
-			if err != nil {
-				return err
-			}
-			original := originalInputs[index]
-			handle := contracts.MaterialHandle(original)
-			if _, exists := value.Materials[handle]; exists {
-				continue
-			}
-			value.Materials[handle] = auditcontract.Material{ScopeKind: "run", ScopeID: runID, Ref: metadata.Ref, Digest: metadata.Digest, MediaType: metadata.MediaType, SizeBytes: metadata.Size}
-			value.InputSources[handle] = original
-		}
-	}
-	budget := &contracts.MaterialBudget{}
-	for _, m := range value.InputSources {
-		if err := budget.Add(m); err != nil {
-			return err
-		}
-	}
+
 	for _, source := range intent.Observations {
 		key := "observation-" + strings.TrimPrefix(contentdigest.Bytes([]byte(source.TaskID)), "sha256:")
 		if source.Result != nil {
@@ -118,7 +59,7 @@ func materializeProposalContext(ctx context.Context, service *artifacts.Service,
 	if err != nil {
 		return err
 	}
-	forks[target.ContextSlot] = written.Ref
+	prepared.Inputs[target.ContextSlot] = contracts.ExactContent(written.Ref, written.MediaType, data)
 	roles := auditcontract.ProposalBinding{Schema: auditcontract.ProposalBindingSchema, RunID: runID, Context: written.Ref, Result: target.Result}
 	data, err = strictjson.Canonical(roles)
 	if err != nil {

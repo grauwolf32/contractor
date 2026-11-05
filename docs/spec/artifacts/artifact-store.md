@@ -1628,6 +1628,23 @@ no source payload is repackaged or copied to another blob. The declared
 `inputs/<slot>` working copy carries a small local `contractor.material-set.v1`
 view with exact Run refs. Its original selection fork remains the repeat source.
 
+One Artifact-owned checking operation handles declared flat sets and singleton
+inputs, exact metadata, original retention lineage and the shared budget.
+Callers supply declarations and research exclusions; the Artifact owner does
+not interpret Workflow roles, Tasks or continuation. Admission and Run creation
+check at their own boundaries. Materialization consumes the checked selection
+and returns actual local descriptors with verified source correspondence in a
+temporary in-memory result. Context assembly consumes that result directly,
+without rereading prepared payloads or reconstructing source identity/budgets.
+
+Technical input/source mapping after restart uses saved original input forks,
+exact local bytes and selected member lineage. An ordinary input must still be
+the original fork revision. A declared set view may replace only its original
+members with corresponding exact native Run bindings; full metadata and fork
+correspondence must match. Neither a matching name, equal bytes nor an unrelated
+lineage edge establishes that transformation. Domain consumers separately check
+that the mapped source belongs to the particular Task and execution.
+
 Existing Run identities/receipts reconcile response loss before preparation.
 Initialization, cancel and deletion keep their existing transaction fences.
 Lineage/current binding holds retain exact member versions; reading/listing

@@ -20,55 +20,15 @@ type ArtifactAccess interface {
 	WithClaim(auditstore.ControllerClaim) ArtifactAccess
 	ReadRunExact(context.Context, string, contracts.ArtifactRef) (auditstore.ExactArtifact, []byte, error)
 	RetainRunExact(context.Context, string, string, []RunRetention) ([]auditstore.ExactArtifact, error)
-	DescribeRunInputs(context.Context, string, []contracts.ArtifactRef) (map[string]RunInputDescription, error)
+	DescribeRunInputs(context.Context, string, artifacts.MaterialAuthority, []artifacts.MaterialInput) (map[string]RunInputDescription, error)
 }
 
 // RunInputDescription distinguishes the exact local working revision from the
 // accepted source, recovered from the original ordinary Audit input fork.
-type RunInputDescription struct {
-	Local  contracts.ExactArtifact
-	Source contracts.MaterialDescriptor
-}
+type RunInputDescription = artifacts.InputMapping
 
-func (a *ServiceArtifactAccess) DescribeRunInputs(ctx context.Context, runID string, refs []contracts.ArtifactRef) (map[string]RunInputDescription, error) {
-	run, err := a.service.Run(runID)
-	if err != nil {
-		return nil, err
-	}
-	names := make([]string, 0, len(refs))
-	for _, ref := range refs {
-		if ref.Namespace != "inputs" || ref.ValidateExact() != nil {
-			return nil, artifacts.ErrInvalidName
-		}
-		names = append(names, ref.Name)
-	}
-	local, err := run.DescribeExact(ctx, refs)
-	if err != nil {
-		return nil, err
-	}
-	edges, err := run.DescribeForkSources(ctx, "inputs", names, artifacts.LineageAuditInput)
-	if err != nil {
-		return nil, err
-	}
-	originalRefs := make([]contracts.ArtifactRef, 0, len(edges))
-	for _, edge := range edges {
-		originalRefs = append(originalRefs, edge.Target)
-	}
-	originals, err := run.DescribeExact(ctx, originalRefs)
-	if err != nil {
-		return nil, err
-	}
-	result := map[string]RunInputDescription{}
-	for i, edge := range edges {
-		for _, m := range local {
-			if m.Ref.Name != edge.Target.Name {
-				continue
-			}
-			original := originals[i]
-			result[m.Ref.Name] = RunInputDescription{Local: m, Source: contracts.MaterialDescriptor{ScopeKind: string(edge.SourceScope), ScopeID: edge.SourceScopeID, Ref: edge.Source, Digest: original.Digest, MediaType: original.MediaType, SizeBytes: original.SizeBytes}}
-		}
-	}
-	return result, nil
+func (a *ServiceArtifactAccess) DescribeRunInputs(ctx context.Context, runID string, authority artifacts.MaterialAuthority, inputs []artifacts.MaterialInput) (map[string]RunInputDescription, error) {
+	return a.service.DescribeInputMaterials(ctx, runID, authority, inputs)
 }
 
 func (a *ServiceArtifactAccess) DescribeRunBinding(ctx context.Context, runID string, ref contracts.ArtifactRef) (auditstore.ExactArtifact, bool, error) {

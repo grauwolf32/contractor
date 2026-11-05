@@ -15,53 +15,21 @@ func workflowHasMaterialSets(workflow resolved.ResolvedWorkflow) bool {
 	}
 	return false
 }
-func artifactServiceMetadata(ctx context.Context, s *artifacts.Service, scope artifacts.Scope, ref contracts.ArtifactRef) (artifacts.Metadata, error) {
-	store, e := s.Scoped(scope)
-	if e != nil {
-		return artifacts.Metadata{}, e
-	}
-	return store.Metadata(ctx, ref)
-}
 
-func preflightMaterialSets(ctx context.Context, s *artifacts.Service, workflow resolved.ResolvedWorkflow, inputs map[string]contracts.ArtifactRef, authority artifacts.MaterialAuthority, source func(string) (artifacts.Scope, error), excluded map[string]bool, budget *contracts.MaterialBudget) error {
-	if !workflowHasMaterialSets(workflow) {
-		return nil
-	}
-	singletons := []contracts.MaterialDescriptor{}
+// Only this adapter interprets Workflow input declarations and system exclusions.
+func checkWorkflowInputs(ctx context.Context, s *artifacts.Service, workflow resolved.ResolvedWorkflow, inputs map[string]contracts.ArtifactRef, authority artifacts.MaterialAuthority, source func(string) (artifacts.Scope, error), excluded map[string]bool, expected map[string]contracts.ExactArtifact, budget *contracts.MaterialBudget) (*artifacts.CheckedInputs, error) {
+	selected := make([]artifacts.MaterialInput, 0, len(inputs))
 	for _, slot := range sortedInputSlots(inputs) {
 		scope, err := source(slot)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		contract := workflow.Inputs[slot]
-		if contract.MaterialSet {
-			if err := s.ValidateInputSet(ctx, artifacts.MaterialSetInput{Authority: authority, Source: scope, Ref: inputs[slot], MediaTypes: contract.MediaTypes, Required: contract.Required, Budget: budget}); err != nil {
-				return err
-			}
-			continue
+		input := artifacts.MaterialInput{Name: slot, Source: scope, Ref: inputs[slot], MediaTypes: contract.MediaTypes, Set: contract.MaterialSet, Required: contract.Required, Research: !excluded[slot]}
+		if exact, found := expected[slot]; found {
+			input.Expected = &exact
 		}
-		if excluded[slot] {
-			continue
-		}
-		m, err := artifactServiceMetadata(ctx, s, scope, inputs[slot])
-		if err != nil {
-			return err
-		}
-		if !contract.AcceptsInputMediaType(m.MediaType) {
-			return ErrInvalid
-		}
-		singletons = append(singletons, contracts.MaterialDescriptor{ScopeKind: string(scope.Kind()), ScopeID: scope.ID(), Ref: m.Ref, Digest: m.Digest, MediaType: m.MediaType, SizeBytes: m.Size})
+		selected = append(selected, input)
 	}
-	for start := 0; start < len(singletons); start += contracts.MaxSelectedMaterials {
-		originals, err := s.OriginalMaterials(ctx, singletons[start:min(start+contracts.MaxSelectedMaterials, len(singletons))])
-		if err != nil {
-			return err
-		}
-		for _, m := range originals {
-			if err := budget.Add(m); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
+	return s.CheckInputMaterials(ctx, authority, selected, budget)
 }

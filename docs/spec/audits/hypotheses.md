@@ -104,6 +104,10 @@ Project-to-Audit retention preserves original scoped exact identity through
 ordinary Artifact lineage. A source selected both in a set and as a singleton
 uses that same identity for continuation planning, Run preparation and proposal
 input sources; independent sources with equal content remain distinct.
+The shared Artifact operation checks initial and additional own-Run selections
+against that budget. Context builders add domain fields to its prepared exact
+descriptors; they do not re-read sets, infer origins from local names or rebuild
+the selected-material budget.
 
 **HG-R12.** A hypothesis is not a Finding. A checking result records its scoped
 verdict, tested conditions, limitations and exact hypothesis revision. Refuted

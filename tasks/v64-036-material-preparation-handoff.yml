@@ -1,0 +1,78 @@
+schema_version: '1.0'
+id: V64-036
+title: Share checked material preparation and exact input mappings
+milestone: audit-check-prioritization
+epic: projects-artifacts
+kind: chore
+introduced_by: V64-035
+priority: P2
+status: in_progress
+depends_on: [V64-035]
+languages: [go, markdown]
+goal: Artifact preparation preserves original identity and returns verified local descriptors so Audit contexts and collection consume them without reconstructing material rules.
+context:
+  authority: >-
+    User decision 2026-11-05 explicitly assigns this behavior-preserving
+    simplification after completed V64-035, in the same implementation branch.
+    Preserve its fixes and regressions, existing behavior and numeric limits.
+    Unify checking at the existing Artifact owner, hand consumers the checked
+    result, and remove replaced traversals. No new state, registry, protocol,
+    receipt, recursive resolver or deployment is assigned.
+  specification:
+    - docs/spec/artifacts/artifact-store.md#ART-R143
+    - docs/spec/configuration/workflows.md#WFL-R96
+    - docs/spec/audits/hypotheses.md#HG-R11
+    - docs/spec/audits/hypotheses.md#HG-R15
+  finding: >-
+    V64-035 correctly retains accepted sets, restores original identity and
+    describes actual local bytes, but auditservice/tasks.go and
+    runservice/material_sets.go repeat set/singleton traversal and budget
+    assembly. audit.go carries parallel forks/localInputs/originalMaterials;
+    proposal_context.go rereads prepared sets and singleton metadata and
+    restores sources again. auditimport/artifacts.go reconstructs local,
+    original and lineage metadata outside the owning Artifact mechanism.
+  boundaries: >-
+    Callers interpret Workflow inputs, media constraints and system exclusions.
+    ArtifactStore checks exact data, expands only explicitly declared flat
+    sets, restores original scoped identity through existing lineage and owns
+    cumulative budgets and technical source mappings. Common Task admission
+    retains JSON and members through existing fenced bindings. Context owners
+    add only Task/Program/hypothesis/observation fields. Importer checks the
+    material belongs to that Task and execution. Preparation results live only
+    in memory; recovery uses existing saved artifacts and links.
+scope:
+  in:
+    - Share exact set/singleton checking and budget rules between ordinary Runs, common Task admission and Audit Run preparation.
+    - Return a small preparation result containing actual local descriptors and checked original-source correspondence, replacing parallel argument collections.
+    - Assemble task-context and proposal context directly from that result without payload rereads, metadata lookups, source restoration, local-name inference or rebuilt budgets.
+    - Keep checking new own-Run selections and account them with original inputs through the common rules.
+    - Move technical persisted Run-input/source reconstruction to ArtifactStore; make the importer adapter delegate and preserve domain membership checks.
+    - Verify allowed flat-set transformation against saved source and local content; reject changed ordinary input revisions presented as the original source.
+    - Delete replaced paths and extend real PostgreSQL regressions and bounded-read proofs.
+  out:
+    - New material states, tables, receipts, retention registry, origin graph, recursive expansion, wire/public protocol or model choice.
+    - New mandatory persisted original/accepted/local triple, digest-only source merging or numeric limit changes.
+acceptance_criteria:
+  - id: A1
+    text: Existing V64-035 Pause/history cleanup/Resume, receipt/identity, 32-source alias, independent equal-byte overflow, exact context and result collection regressions stay green.
+  - id: A2
+    text: Shared Artifact-owned rules check ordinary, generation and checking inputs at each boundary; callers supply Workflow meaning and system exclusions and no longer implement their own set/singleton budget traversals.
+  - id: A3
+    text: Context assembly reads ready local descriptors and source mappings without rereading prepared JSON, querying singleton metadata, restoring sources by local names or reassembling the material budget.
+  - id: A4
+    text: The importer adapter delegates persisted technical mapping to ArtifactStore; modified ordinary inputs and invalid set rewrites cannot claim original provenance while valid set transformations collect after fresh PostgreSQL rereads without an in-memory preparation object.
+  - id: A5
+    text: New own-Run selections share the initial source budget; source identity retains independent equal-byte sources, reads are bounded by selected inputs and use no history scans, and superseded paths are deleted.
+  - id: A6
+    text: Complete touched owner suites with real PostgreSQL, all mandatory process cases, wire/shared fixtures and lint pass; specifications describe the final ownership and the report identifies removed duplicate computations.
+tests:
+  - command: make require-database
+    covers: [A1, A2, A4, A5, A6]
+  - command: go test -p 2 -tags=integration -count=1 ./internal/artifacts/... ./internal/auditservice ./internal/auditimport ./internal/runservice/... ./internal/auditcontroller ./internal/httpapi/public
+    covers: [A1, A2, A3, A4, A5, A6]
+  - command: make test-audit-basic-e2e
+    covers: [A1, A2, A3, A4, A5, A6]
+  - command: make test-wire-cross-language
+    covers: [A1, A2, A4, A5, A6]
+  - command: make lint
+    covers: [A2, A3, A4, A5, A6]

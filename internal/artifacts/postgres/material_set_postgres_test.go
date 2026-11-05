@@ -50,7 +50,8 @@ func TestPostgresMaterialSetSourcePurgeRacePreservesForksOrRejectsPreparation(t 
 				t.Fatal(e)
 			}
 			scope, _ := ProjectScope(projectID)
-			params := MaterialSetInput{Authority: MaterialAuthority{OwnerID: "user-1", ProjectID: projectID}, Source: scope, Ref: selected.Ref, RunID: "material-run", Slot: "materials", MediaTypes: []string{"text/plain"}, Required: true, Budget: &contracts.MaterialBudget{}}
+			authority := MaterialAuthority{OwnerID: "user-1", ProjectID: projectID}
+			inputs := []MaterialInput{{Name: "materials", Source: scope, Ref: selected.Ref, MediaTypes: []string{"text/plain"}, Set: true, Required: true, Research: true}}
 			purge, e := pool.Begin(ctx)
 			if e != nil {
 				t.Fatal(e)
@@ -76,7 +77,7 @@ func TestPostgresMaterialSetSourcePurgeRacePreservesForksOrRejectsPreparation(t 
 				if e := purgeSource(); e != nil {
 					t.Fatal(e)
 				}
-				if _, e := service.MaterializeInputSet(ctx, params); !IsExactReferenceRejection(e) {
+				if _, e := service.CheckInputMaterials(ctx, authority, inputs, &contracts.MaterialBudget{}); !IsExactReferenceRejection(e) {
 					t.Fatalf("deleted source accepted or not permanent: %v", e)
 				}
 				run, _ := service.Run("material-run")
@@ -90,7 +91,12 @@ func TestPostgresMaterialSetSourcePurgeRacePreservesForksOrRejectsPreparation(t 
 				t.Fatal(e)
 			}
 			defer fork.Rollback(context.Background())
-			prepared, e := NewService(storage.Repository(fork)).MaterializeInputSet(ctx, params)
+			bound := NewService(storage.Repository(fork))
+			checked, e := bound.CheckInputMaterials(ctx, authority, inputs, &contracts.MaterialBudget{})
+			if e != nil {
+				t.Fatal(e)
+			}
+			prepared, e := bound.MaterializeInputs(ctx, "material-run", checked)
 			if e != nil {
 				t.Fatal(e)
 			}
@@ -104,7 +110,7 @@ func TestPostgresMaterialSetSourcePurgeRacePreservesForksOrRejectsPreparation(t 
 				t.Fatal(e)
 			}
 			run, _ := service.Run("material-run")
-			view, e := run.Read(ctx, prepared.Ref)
+			view, e := run.Read(ctx, prepared.Inputs["materials"].Ref)
 			if e != nil {
 				t.Fatal(e)
 			}

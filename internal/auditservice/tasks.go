@@ -181,6 +181,7 @@ func (s *Service) acceptCommonWork(ctx context.Context, audit auditstore.Audit, 
 	selected := make([]auditstore.AcceptedTask, 0, len(work))
 	materials := map[string]auditcontract.Material{}
 	setMembers := map[string]auditcontract.Material{}
+	runRetentions := map[string]auditcontract.Material{}
 	seen := map[string]bool{}
 	used := 1
 	for _, item := range work {
@@ -219,33 +220,37 @@ func (s *Service) acceptCommonWork(ctx context.Context, audit auditstore.Audit, 
 		if err := auditprofile.ValidateTaskInputs(binding, workflow, inputs); err != nil {
 			return TaskCreationResult{}, err
 		}
-		// Retain the contents of declared sets as well as their JSON input.
-		// Membership is bounded per Workflow; the whole intake is bounded by
-		// MaxMutationRecords inputs, each selecting MaxSelectedMaterials.
 		artifactService := artifacts.NewService(s.storage.Repository(s.pool))
-		budget := &contracts.MaterialBudget{}
-		hasSets := false
-		for slot, material := range inputs {
-			contract := workflow.Inputs[slot]
-			if !contract.MaterialSet {
-				continue
+		definitions := make([]artifacts.MaterialInput, 0, len(inputs))
+		var budget *contracts.MaterialBudget
+		for slot := range inputs {
+			if workflow.Inputs[slot].MaterialSet {
+				budget = &contracts.MaterialBudget{}
+				break
 			}
-			hasSets = true
+		}
+		for slot, material := range inputs {
+			// Runtime provenance/permission and the owner fence remain in Audit.
+			if material.ScopeKind == "run" {
+				key := contracts.MaterialKey(material)
+				retained, found := runRetentions[key]
+				if !found {
+					var err error
+					retained, err = s.retainTaskInput(ctx, audit, params.Claim, params.ExpectedRevision, material, preparedExecution)
+					if err != nil {
+						return TaskCreationResult{}, err
+					}
+					runRetentions[key] = retained
+				}
+				material = retained
+				inputs[slot] = material
+			}
 			var scope artifacts.Scope
 			var err error
-			switch material.ScopeKind {
-			case "project":
+			switch {
+			case material.ScopeKind == "project" && material.ScopeID == audit.ProjectID:
 				scope, err = artifacts.ProjectScope(material.ScopeID)
-			case "audit":
-				scope, err = artifacts.AuditScope(material.ScopeID)
-			case "run":
-				// Keep the existing producer-Run authority check and retention fence.
-				// The common material owner validates its retained Audit JSON view.
-				material, err = s.retainTaskInput(ctx, audit, params.Claim, params.ExpectedRevision, material, preparedExecution)
-				if err != nil {
-					return TaskCreationResult{}, err
-				}
-				inputs[slot] = material
+			case material.ScopeKind == "audit" && material.ScopeID == audit.AuditID:
 				scope, err = artifacts.AuditScope(material.ScopeID)
 			default:
 				return TaskCreationResult{}, ErrInvalid
@@ -253,32 +258,19 @@ func (s *Service) acceptCommonWork(ctx context.Context, audit auditstore.Audit, 
 			if err != nil {
 				return TaskCreationResult{}, err
 			}
-			members, err := artifactService.InputSetMaterials(ctx, artifacts.MaterialSetInput{Authority: artifacts.MaterialAuthority{OwnerID: audit.OwnerID, ProjectID: audit.ProjectID, AuditID: audit.AuditID}, Source: scope, Ref: material.Ref, MediaTypes: contract.MediaTypes, Required: contract.Required, Budget: budget})
-			if err != nil {
-				return TaskCreationResult{}, err
-			}
-			for _, m := range members {
-				setMembers[contracts.MaterialKey(m)] = m
-			}
+			contract := workflow.Inputs[slot]
+			exact := material.Exact()
+			mapping := binding.Inputs[slot]
+			definitions = append(definitions, artifacts.MaterialInput{Name: slot, Source: scope, Ref: material.Ref, Expected: &exact, MediaTypes: contract.MediaTypes, Set: contract.MaterialSet, Required: contract.Required, Research: mapping.Source != "task-context" && mapping.Source != "prior-results"})
 		}
-		if hasSets {
-			singletons := []contracts.MaterialDescriptor{}
-			for slot, material := range inputs {
-				if workflow.Inputs[slot].MaterialSet || binding.Inputs[slot].Source == "task-context" || binding.Inputs[slot].Source == "prior-results" {
-					continue
-				}
-				singletons = append(singletons, material)
-			}
-			originals, err := artifactService.OriginalMaterials(ctx, singletons)
-			if err != nil {
-				return TaskCreationResult{}, err
-			}
-			for _, material := range originals {
-				if err := budget.Add(material); err != nil {
-					return TaskCreationResult{}, err
-				}
-			}
+		checked, err := artifactService.CheckInputMaterials(ctx, artifacts.MaterialAuthority{OwnerID: audit.OwnerID, ProjectID: audit.ProjectID, AuditID: audit.AuditID}, definitions, budget)
+		if err != nil {
+			return TaskCreationResult{}, err
 		}
+		for _, m := range checked.SetMembers() {
+			setMembers[contracts.MaterialKey(m)] = m
+		}
+
 		for slot, contract := range workflow.Inputs {
 			mapping := binding.Inputs[slot]
 			if contract.Required && (mapping.Source == "audit-input" || mapping.Source == "task-input") {

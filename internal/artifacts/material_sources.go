@@ -7,12 +7,12 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
-// OriginalMaterials resolves one ordinary Project/User-to-Audit retention hop.
+// originalMaterials resolves one ordinary Project/User-to-Audit retention hop.
 // Callers validate the selected exact metadata and authority before using it.
 // Native Audit materials keep their own identity; content digests never merge
 // independent sources. At most one material budget is read, with bounded
 // indexed fork lookups, without scanning lineage or interpreting payloads.
-func (s *Service) OriginalMaterials(ctx context.Context, materials []contracts.MaterialDescriptor) ([]contracts.MaterialDescriptor, error) {
+func (s *Service) originalMaterials(ctx context.Context, materials []contracts.MaterialDescriptor) ([]contracts.MaterialDescriptor, error) {
 	if len(materials) > contracts.MaxSelectedMaterials {
 		return nil, ErrInvalidName
 	}

@@ -3,6 +3,7 @@ package auditservice
 import (
 	"context"
 	"errors"
+	"fmt"
 	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"maps"
@@ -51,7 +52,9 @@ func (s *Service) AcceptProposals(ctx context.Context, claim auditstore.Controll
 	if len(members) != 1 {
 		return auditstore.TaskIntakeResult{}, ErrInvalid
 	}
-	run, err := artifacts.NewService(s.storage.Repository(s.pool)).Run(*execution.RunID)
+	artifactService := artifacts.NewService(s.storage.Repository(s.pool))
+	scope, _ := artifacts.RunScope(*execution.RunID)
+	run, err := artifactService.Run(*execution.RunID)
 	if err != nil {
 		return auditstore.TaskIntakeResult{}, err
 	}
@@ -112,57 +115,53 @@ func (s *Service) AcceptProposals(ctx context.Context, claim auditstore.Controll
 	}
 	// Resolve explicit own-Run refs through the ordinary metadata owner. JSON
 	// carries no scope authority; original input identities share one budget.
-	budget := &contracts.MaterialBudget{}
 	originalByLocal := map[string]auditcontract.Material{}
-	for handle, m := range contextValue.Materials {
+	definitions := []artifacts.MaterialInput{}
+	for index, handle := range slices.Sorted(maps.Keys(contextValue.Materials)) {
+		m := contextValue.Materials[handle]
 		original := contextValue.InputSources[handle]
-		if err := budget.Add(original); err != nil {
-			return auditstore.TaskIntakeResult{}, err
-		}
 		originalByLocal[m.Ref.Key()] = original
+		exact := m.Exact()
+		definitions = append(definitions, artifacts.MaterialInput{Name: fmt.Sprintf("initial-%02d", index), Source: scope, Ref: m.Ref, Expected: &exact, Original: &original, Research: true})
 	}
-	refs := []contracts.ArtifactRef{}
-	selectedRefs := map[string]bool{}
-	for _, handle := range slices.Sorted(maps.Keys(proposed.SelectedMaterials)) {
+	selectedNames := map[string]string{}
+	for index, handle := range slices.Sorted(maps.Keys(proposed.SelectedMaterials)) {
 		ref := proposed.SelectedMaterials[handle]
 		if ref.ValidateExact() != nil || artifactpolicy.IsModelHiddenBinding(ref.Namespace, ref.Name) || ref.Namespace == artifactpolicy.AuditContextNamespace || ref.Namespace == "inputs" && ref.Name == target.ContextSlot || ref.Key() == source.Ref.Key() || ref.Namespace == target.Result.Namespace && ref.Name == target.Result.Name {
 			return auditstore.TaskIntakeResult{}, ErrInvalid
 		}
-		if ref.Namespace == "inputs" {
-			if _, known := originalByLocal[ref.Key()]; !known {
-				return auditstore.TaskIntakeResult{}, ErrInvalid
-			}
-		}
-		if !selectedRefs[ref.Key()] {
-			refs = append(refs, ref)
-			selectedRefs[ref.Key()] = true
-		}
-	}
-	selectedMetadata := map[string]contracts.ExactArtifact{}
-	if len(refs) > 0 {
-		metadata, err := run.DescribeExact(ctx, refs)
-		if err != nil {
-			return auditstore.TaskIntakeResult{}, err
-		}
-		for _, m := range metadata {
-			selectedMetadata[m.Ref.Key()] = m
-		}
-	}
-	for _, handle := range slices.Sorted(maps.Keys(proposed.SelectedMaterials)) {
-		metadata, found := selectedMetadata[proposed.SelectedMaterials[handle].Key()]
-		if !found {
+		original, known := originalByLocal[ref.Key()]
+		if ref.Namespace == "inputs" && !known {
 			return auditstore.TaskIntakeResult{}, ErrInvalid
 		}
-		m := auditcontract.Material{ScopeKind: "run", ScopeID: *execution.RunID, Ref: metadata.Ref, Digest: metadata.Digest, MediaType: metadata.MediaType, SizeBytes: metadata.SizeBytes}
-		original, found := originalByLocal[m.Ref.Key()]
-		if !found {
-			original = m
+		name := fmt.Sprintf("selected-%02d", index)
+		selectedNames[handle] = name
+		definition := artifacts.MaterialInput{Name: name, Source: scope, Ref: ref, Research: true}
+		if known {
+			// Both sides come from the frozen context; new refs supply neither.
+			definition.Original = &original
+			for _, m := range contextValue.Materials {
+				if m.Ref.SameExact(ref) {
+					exact := m.Exact()
+					definition.Expected = &exact
+					break
+				}
+			}
 		}
-		if err := budget.Add(original); err != nil {
-			return auditstore.TaskIntakeResult{}, err
-		}
-		contextValue.Materials[handle] = m
+		definitions = append(definitions, definition)
 	}
+	checked, err := artifactService.CheckInputMaterials(ctx, artifacts.MaterialAuthority{OwnerID: audit.OwnerID, ProjectID: audit.ProjectID, AuditID: audit.AuditID}, definitions, &contracts.MaterialBudget{})
+	if err != nil {
+		return auditstore.TaskIntakeResult{}, err
+	}
+	mappings := checked.MaterialMappings()
+	for _, m := range mappings {
+		originalByLocal[m.Local.Ref.Key()] = m.Source
+	}
+	for handle, name := range selectedNames {
+		contextValue.Materials[handle] = mappings[name].Local
+	}
+
 	baseline, err := DecodeBaseline(audit.BaselineSnapshot)
 	if err != nil {
 		return auditstore.TaskIntakeResult{}, err

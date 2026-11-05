@@ -248,7 +248,7 @@ func (i *Importer) collectTasks(ctx context.Context, claim auditstore.Controller
 		if output.logical != "result" || *execution.TerminalOutcome != auditstore.TerminalSucceeded {
 			continue
 		}
-		data, err := i.normalizeTaskResult(ctx, snapshot.Audit.OwnerID, execution, pinned, tasks, *output)
+		data, err := i.normalizeTaskResult(ctx, snapshot.Audit, execution, pinned, tasks, *output)
 		if errors.Is(err, ErrPermanent) {
 			params.Disposition = auditstore.CollectionInvalidResult
 			params.SourceOutput = sourceOutput
@@ -366,7 +366,7 @@ func permanentTaskCollectionError(err error) bool {
 	return errors.Is(err, auditstore.ErrInvalid) || errors.Is(err, blob.ErrIntegrity) || errors.Is(err, blob.ErrMissing) || artifacts.IsExactReferenceRejection(err) || artifactpostgres.IsExactRevisionMissing(err) || errors.As(err, &classified) && (classified.ErrorKind() == apierror.InvalidRequest || classified.ErrorKind() == apierror.AuditDocumentInvalid)
 }
 
-func (i *Importer) normalizeTaskResult(ctx context.Context, ownerID string, execution auditstore.Execution, pinned auditprofile.PinnedProgram, tasks []auditstore.Task, output taskOutput) ([]byte, error) {
+func (i *Importer) normalizeTaskResult(ctx context.Context, audit auditstore.Audit, execution auditstore.Execution, pinned auditprofile.PinnedProgram, tasks []auditstore.Task, output taskOutput) ([]byte, error) {
 	invalid := func() ([]byte, error) { return nil, fmt.Errorf("%w: invalid common Task result", ErrPermanent) }
 	if output.source.MediaType != "application/json" || output.source.SizeBytes > auditcontract.MaximumDocumentBytes {
 		return invalid()
@@ -400,7 +400,7 @@ func (i *Importer) normalizeTaskResult(ctx context.Context, ownerID string, exec
 	if err != nil {
 		return nil, err
 	}
-	trusted, raw, err = i.taskFindingContext(ctx, ownerID, execution, trusted, raw)
+	trusted, raw, err = i.taskFindingContext(ctx, audit.OwnerID, execution, trusted, raw)
 	if err != nil {
 		return nil, err
 	}
@@ -424,7 +424,7 @@ func (i *Importer) normalizeTaskResult(ctx context.Context, ownerID string, exec
 		return invalid()
 	}
 	translations := map[string]auditcontract.Material{}
-	inputRefs := map[string]contracts.ArtifactRef{}
+	inputMaterials := map[string]auditcontract.Material{}
 	for _, member := range members {
 		for _, raw := range member.(map[string]any)["evidence"].([]any) {
 			data, err := strictjson.Canonical(raw)
@@ -435,17 +435,19 @@ func (i *Importer) normalizeTaskResult(ctx context.Context, ownerID string, exec
 			if strictjson.Decode(data, &m) != nil || m.ScopeKind != "run" || m.ScopeID != *execution.RunID || m.Ref.Namespace != "inputs" {
 				return invalid()
 			}
-			if prior, exists := inputRefs[m.Ref.Name]; exists && !prior.SameExact(m.Ref) {
+			if prior, exists := inputMaterials[m.Ref.Name]; exists && contracts.MaterialKey(prior) != contracts.MaterialKey(m) {
 				return invalid()
 			}
-			inputRefs[m.Ref.Name] = m.Ref
+			inputMaterials[m.Ref.Name] = m
 		}
 	}
-	refs := make([]contracts.ArtifactRef, 0, len(inputRefs))
-	for _, ref := range inputRefs {
-		refs = append(refs, ref)
+	definitions := make([]artifacts.MaterialInput, 0, len(inputMaterials))
+	for name, material := range inputMaterials {
+		exact := material.Exact()
+		slot := pinned.Workflows[execution.WorkflowRole].Inputs[name]
+		definitions = append(definitions, artifacts.MaterialInput{Name: name, Ref: material.Ref, Expected: &exact, MediaTypes: slot.MediaTypes, Set: slot.MaterialSet, Required: slot.Required})
 	}
-	inputDescriptions, err := i.artifacts.DescribeRunInputs(ctx, *execution.RunID, refs)
+	inputDescriptions, err := i.artifacts.DescribeRunInputs(ctx, *execution.RunID, artifacts.MaterialAuthority{OwnerID: audit.OwnerID, ProjectID: audit.ProjectID, AuditID: audit.AuditID}, definitions)
 	if err != nil {
 		return nil, err
 	}
@@ -466,12 +468,10 @@ func (i *Importer) normalizeTaskResult(ctx context.Context, ownerID string, exec
 			}
 			original, exists := task.Inputs[material.Ref.Name]
 			description, found := inputDescriptions[material.Ref.Name]
-			if !exists || !found || material.Exact().Verify(description.Local) != nil || contracts.MaterialKey(original) != contracts.MaterialKey(description.Source) {
+			if !exists || !found || contracts.MaterialKey(original) != contracts.MaterialKey(description.Source) {
 				return invalid()
 			}
-			if !pinned.Workflows[execution.WorkflowRole].Inputs[material.Ref.Name].MaterialSet && (original.Digest != material.Digest || original.MediaType != material.MediaType || original.SizeBytes != material.SizeBytes) {
-				return invalid()
-			}
+
 			translations[string(data)] = original
 		}
 	}

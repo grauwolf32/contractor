@@ -65,6 +65,7 @@ func (s *Service) AcceptContinuation(ctx context.Context, claim auditstore.Contr
 	inputs := map[string]auditcontract.Material{}
 	budget := &contracts.MaterialBudget{}
 	service := artifacts.NewService(s.storage.Repository(s.pool))
+	definitions := []artifacts.MaterialInput{}
 	wantsResults := false
 	for slot, mapping := range binding.Inputs {
 		wantsResults = wantsResults || mapping.Source == "task-results"
@@ -78,15 +79,14 @@ func (s *Service) AcceptContinuation(ctx context.Context, claim auditstore.Contr
 		material := auditcontract.Material{ScopeKind: "project", ScopeID: audit.ProjectID, Ref: selected.Ref, Digest: selected.Digest, MediaType: selected.MediaType, SizeBytes: selected.SizeBytes}
 		inputs[slot] = material
 		contract := workflow.Inputs[slot]
-		if contract.MaterialSet {
-			scope, _ := artifacts.ProjectScope(audit.ProjectID)
-			if err := service.ValidateInputSet(ctx, artifacts.MaterialSetInput{Authority: artifacts.MaterialAuthority{OwnerID: audit.OwnerID, ProjectID: audit.ProjectID, AuditID: audit.AuditID}, Source: scope, Ref: selected.Ref, MediaTypes: contract.MediaTypes, Required: contract.Required, Budget: budget}); err != nil {
-				return auditstore.TaskIntakeResult{}, err
-			}
-		} else if err := budget.Add(material); err != nil {
-			return auditstore.TaskIntakeResult{}, err
-		}
+		scope, _ := artifacts.ProjectScope(audit.ProjectID)
+		exact := material.Exact()
+		definitions = append(definitions, artifacts.MaterialInput{Name: slot, Source: scope, Ref: material.Ref, Expected: &exact, MediaTypes: contract.MediaTypes, Set: contract.MaterialSet, Required: contract.Required, Research: true})
 	}
+	if _, err := service.CheckInputMaterials(ctx, artifacts.MaterialAuthority{OwnerID: audit.OwnerID, ProjectID: audit.ProjectID, AuditID: audit.AuditID}, definitions, budget); err != nil {
+		return auditstore.TaskIntakeResult{}, err
+	}
+
 	if wantsResults {
 		empty, err := strictjson.Canonical(contracts.MaterialSet{Schema: contracts.MaterialSetSchema, Materials: []contracts.MaterialDescriptor{}})
 		if err != nil {
