@@ -21,7 +21,7 @@ func TestWorkflowMaterialSetsAcrossProductionProcesses(t *testing.T) {
 	ordinary := domainGatewayStage{name: "ordinary-material-set", tools: []string{"read_artifact", "write_artifact"}}
 	ordinary.steps = materialSetReadSteps()
 	ordinary.steps = append(ordinary.steps, toolGatewayStep("write_artifact", fixedArguments(map[string]any{"namespace": "reader", "name": "report", "media_type": "text/plain", "data_base64": base64.StdEncoding.EncodeToString([]byte("Read exact members from one ordinary set"))})), finalGatewayStep("Materials read", map[string]domainArtifactBinding{"report": {namespace: "reader", name: "report"}}))
-	generator := domainGatewayStage{name: "initial-material-set", tools: []string{"read_artifact", "read_text_artifact", "read_finding_selection", "submit_hypothesis_proposals"}}
+	generator := domainGatewayStage{name: "initial-material-set", tools: []string{"read_artifact", "read_text_artifact", "list_project_findings", "read_project_finding", "select_project_findings", "read_finding_selection", "submit_hypothesis_proposals"}}
 	generator.steps = materialSetReadSteps()
 	generator.steps = append(generator.steps, toolGatewayStep("submit_hypothesis_proposals", fixedArguments(map[string]any{"hypotheses_json": `{"next":{"statement":"An alternate actor can access the selected record","scope":{"actor":"alternate reader"},"grounds":"The selected architecture materials leave this actor untested"}}`, "work_json": "[]"})), finalGatewayStep("Hypothesis proposal retained", map[string]domainArtifactBinding{"proposals": {namespace: "generator", name: "proposals"}}))
 	h := startConfiguredFindingsHarness(t, []domainGatewayStage{ordinary, generator}, func(root string) { installMaterialSetProgram(t, root) })
@@ -91,7 +91,7 @@ func installMaterialSetProgram(t *testing.T, root string) {
 	}
 	p := profile.Spec
 	p.Inputs = map[string]auditcontract.ProgramInput{"materials": {Required: true, MediaTypes: []string{"application/json"}}}
-	p.Workflows = map[string]auditcontract.ProgramWorkflow{"generate": {Ref: "audit-hypothesis-generation@1", Inputs: map[string]auditcontract.InputMapping{"materials": {Source: "audit-input", Name: "materials"}, "context": {Source: "task-context"}, "generation_context": {Source: "prior-results"}}, Parameters: map[string]string{}, Outputs: map[string]string{"proposals": "proposals"}}}
+	p.Workflows = map[string]auditcontract.ProgramWorkflow{"generate": {Ref: "audit-hypothesis-generation@1", Inputs: map[string]auditcontract.InputMapping{"materials": {Source: "audit-input", Name: "materials"}, "context": {Source: "task-context"}, "analysis": {Source: "prior-results"}, "results": {Source: "task-results"}}, Parameters: map[string]string{}, Outputs: map[string]string{"proposals": "proposals"}}}
 	p.Continuation = nil
 	value := map[string]any{"apiVersion": "contractor/v1alpha1", "kind": "AuditProfile", "metadata": map[string]string{"name": "material-set-process", "version": "1"}, "spec": p}
 	if e = os.WriteFile(filepath.Join(root, "audit-profiles/basic_process.yaml"), mustBasicJSON(t, value), 0600); e != nil {

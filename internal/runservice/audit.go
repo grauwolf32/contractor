@@ -163,7 +163,7 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 					return fmt.Errorf("%w: Audit input %q has unsupported media type", ErrInvalid, slot)
 				}
 			}
-			if err := materializeTaskRunContext(ctx, artifactService, intent, normalized, runID, forks); err != nil {
+			if err := materializeTaskRunContext(ctx, artifactService, intent, normalized, runID, forks, materialBudget.Materials()); err != nil {
 				return err
 			}
 			if completion != nil {

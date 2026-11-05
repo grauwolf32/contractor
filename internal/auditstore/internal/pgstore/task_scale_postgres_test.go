@@ -92,11 +92,11 @@ func TestSharedPostgresCommonTaskPagesAndPurgeAtCeiling(t *testing.T) {
 		if n := sources.Reads.Of("audit_tasks"); n > 16 || int(sources.Plan.Rows) != 1 {
 			t.Fatalf("%s admission source read %d tasks:\n%s", mode, n, sources.Plan)
 		}
-		continuation, err := explaintest.ExplainPrepared(ctx, f.pool, mode, continuationTasksSQL, f.audit.AuditID, total-100, []string{"inspect"})
+		continuation, err := explaintest.ExplainPrepared(ctx, f.pool, mode, continuationTasksSQL, f.audit.AuditID, total-100, []string{"inspect"}, 32)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if n := continuation.Reads.Of("audit_tasks"); n > 64 || int(continuation.Plan.Rows) != 16 {
+		if n := continuation.Reads.Of("audit_tasks"); n > 66 || int(continuation.Plan.Rows) != 32 {
 			t.Fatalf("%s continuation read %d tasks:\n%s", mode, n, continuation.Plan)
 		}
 		latest, err := explaintest.ExplainPrepared(ctx, f.pool, mode, lastProducerTaskSQL, f.audit.AuditID, "inspect")

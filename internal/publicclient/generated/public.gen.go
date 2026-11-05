@@ -885,6 +885,7 @@ const (
 	PriorResults AuditProgramInputMapping1Source = "prior-results"
 	TaskContext  AuditProgramInputMapping1Source = "task-context"
 	TaskInput    AuditProgramInputMapping1Source = "task-input"
+	TaskResults  AuditProgramInputMapping1Source = "task-results"
 )
 
 // Valid indicates whether the value is a known member of the AuditProgramInputMapping1Source enum.
@@ -895,6 +896,8 @@ func (e AuditProgramInputMapping1Source) Valid() bool {
 	case TaskContext:
 		return true
 	case TaskInput:
+		return true
+	case TaskResults:
 		return true
 	default:
 		return false
@@ -6939,6 +6942,7 @@ type AuditHypothesisDocument struct {
 	Revision  int                            `json:"revision"`
 	Schema    AuditHypothesisDocumentSchema  `json:"schema"`
 	Scope     AuditAssertionScope            `json:"scope"`
+	Sources   *[]AuditTaskMaterial           `json:"sources,omitempty"`
 	Statement AuditCommonText                `json:"statement"`
 }
 
@@ -7627,7 +7631,10 @@ type AuditTaskSource struct {
 	ExecutionId *ResourceId         `json:"execution_id,omitempty"`
 	Key         AuditCommonKey      `json:"key"`
 	Kind        AuditTaskSourceKind `json:"kind"`
-	Output      *AuditTaskMaterial  `json:"output,omitempty"`
+
+	// ObservationTaskIds Exact source Tasks pinned by the continuation decision; system provenance only.
+	ObservationTaskIds *[]ResourceId      `json:"observation_task_ids,omitempty"`
+	Output             *AuditTaskMaterial `json:"output,omitempty"`
 
 	// ThroughOrdinal Last source Task ordinal consumed by this exact continuation decision.
 	ThroughOrdinal *int `json:"through_ordinal,omitempty"`

@@ -10,6 +10,7 @@ const HypothesisSchema = "contractor.audit.hypothesis.v1"
 // Hypothesis is an exact assertion with identity and provenance assigned by its
 // accepting owner. Editing content never changes an earlier revision.
 type Hypothesis struct {
+	Sources   []Material        `json:"sources,omitempty"`
 	Schema    string            `json:"schema"`
 	ID        string            `json:"id"`
 	Revision  uint64            `json:"revision"`

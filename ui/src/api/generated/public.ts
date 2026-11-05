@@ -4072,6 +4072,7 @@ export interface components {
             /** @constant */
             schema: "contractor.audit.hypothesis.v1";
             scope: components["schemas"]["AuditAssertionScope"];
+            sources?: components["schemas"]["AuditTaskMaterial"][];
             statement: components["schemas"]["AuditCommonText"];
         };
         AuditMaterialScopeId: string;
@@ -4123,7 +4124,7 @@ export interface components {
             source: "audit-input";
         } | {
             /** @enum {string} */
-            source: "task-context" | "prior-results" | "task-input";
+            source: "task-context" | "prior-results" | "task-input" | "task-results";
         };
         AuditProgramLimits: {
             batch_size: number;
@@ -4515,6 +4516,8 @@ export interface components {
             /** @enum {string} */
             kind: "initial" | "manual" | "prepared" | "continuation";
             key: components["schemas"]["AuditCommonKey"];
+            /** @description Exact source Tasks pinned by the continuation decision; system provenance only. */
+            observation_task_ids?: components["schemas"]["ResourceId"][];
             /** @description Last source Task ordinal consumed by this exact continuation decision. */
             through_ordinal?: number;
             execution_id?: components["schemas"]["ResourceId"];

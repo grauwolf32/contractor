@@ -74,11 +74,12 @@ type AcceptedTask struct {
 // TaskSource distinguishes explicit work from one exact accepted producer
 // output. Its producer-local key has no authority outside this source.
 type TaskSource struct {
-	ThroughOrdinal int                     `json:"through_ordinal,omitempty"`
-	Kind           string                  `json:"kind"`
-	Key            string                  `json:"key"`
-	ExecutionID    string                  `json:"execution_id,omitempty"`
-	Output         *auditcontract.Material `json:"output,omitempty"`
+	ObservationTaskIDs []string                `json:"observation_task_ids,omitempty"`
+	ThroughOrdinal     int                     `json:"through_ordinal,omitempty"`
+	Kind               string                  `json:"kind"`
+	Key                string                  `json:"key"`
+	ExecutionID        string                  `json:"execution_id,omitempty"`
+	Output             *auditcontract.Material `json:"output,omitempty"`
 }
 
 type AcceptTasksParams struct {

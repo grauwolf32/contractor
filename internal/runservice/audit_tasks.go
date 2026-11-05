@@ -144,7 +144,7 @@ func validateTaskRunIntent(intent auditstore.RunCreationIntent, p auditRunCreate
 
 // Context is authored after the real Run ID and input forks exist, in the same
 // creation transaction. Its evidence grants access only to those local inputs.
-func materializeTaskRunContext(ctx context.Context, service *artifacts.Service, intent auditstore.RunCreationIntent, p auditRunCreate, runID string, forks map[string]contracts.ArtifactRef) error {
+func materializeTaskRunContext(ctx context.Context, service *artifacts.Service, intent auditstore.RunCreationIntent, p auditRunCreate, runID string, forks map[string]contracts.ArtifactRef, originalMaterials []contracts.MaterialDescriptor) error {
 	pinned, err := auditprofile.DecodePinnedProgram(intent.ProgramSnapshot)
 	if err != nil {
 		return err
@@ -176,7 +176,7 @@ func materializeTaskRunContext(ctx context.Context, service *artifacts.Service, 
 		items = append(items, item)
 	}
 	for slot, mapping := range binding.Inputs {
-		if mapping.Source == "audit-input" || mapping.Source == "task-input" || mapping.Source == "prior-results" {
+		if mapping.Source == "audit-input" || mapping.Source == "task-input" || mapping.Source == "task-results" || mapping.Source == "prior-results" {
 			continue
 		}
 		if mapping.Source != "task-context" {
@@ -195,6 +195,9 @@ func materializeTaskRunContext(ctx context.Context, service *artifacts.Service, 
 			return err
 		}
 		forks[slot] = written.Ref
+	}
+	if err := materializeProposalContext(ctx, service, intent, p, pinned, runID, forks, originalMaterials); err != nil {
+		return err
 	}
 	return validateWorkflowInputs(p.Workflow, p.Parameters, forks)
 }

@@ -16,7 +16,7 @@ import (
 )
 
 func TestControllerClassifiesExactInputInitializationFailures(t *testing.T) {
-	permanent := []error{apierror.New(apierror.AuditDocumentInvalid, "invalid common producer context"), artifacts.ErrInvalidScope, artifacts.ErrInvalidName, artifacts.ErrExactRevisionRequired,
+	permanent := []error{apierror.New(apierror.InvalidRequest, "invalid continuation service input"), apierror.New(apierror.AuditDocumentInvalid, "invalid common producer context"), artifacts.ErrInvalidScope, artifacts.ErrInvalidName, artifacts.ErrExactRevisionRequired,
 		artifacts.ErrArtifactNotFound, blob.ErrIntegrity, artifacts.ErrArtifactConflict, artifacts.ErrArtifactFrozen,
 		artifacts.ErrHistoryProtected, artifacts.ErrReservedNamespace, artifacts.ErrRunRevisionLimit, artifacts.ErrInvalidMediaType,
 		blob.ErrTooLarge, artifacts.ErrVersionedWriteTarget, contracts.ErrValidation, contracts.ErrExactArtifactMismatch,

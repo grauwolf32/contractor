@@ -6,7 +6,7 @@ epic: audits
 kind: feature
 introduced_by: V64-013
 priority: P1
-status: pending
+status: in_progress
 depends_on: [V64-033, V64-012, V64-013, V411-011, V64-020]
 languages: [go, python, json, yaml, markdown, sql]
 goal: >-
@@ -37,6 +37,8 @@ context:
   proposal: docs/proposals/0054-workflow-hypothesis-production.md
   design: docs/plans/2026-11-05-hypothesis-workflow-correction.md
   specification:
+    - docs/spec/audits/hypotheses.md#HG-R1
+    - docs/spec/audits/hypotheses.md#HG-R15
     - docs/spec/audits/common-contract.md#ACT-R7
     - docs/spec/audits/common-contract.md#ACT-R16
     - docs/spec/audits/execution.md#AUX-R112
@@ -60,7 +62,7 @@ context:
     error classification; paused/cancelling/deleting owner fences. The earlier
     review's migration 000008 collision must be resolved against current main
     before integration without changing an already applied main migration.
-  implementation_gate: Assigned 2026-11-05; start after V64-033 and other dependencies complete. No demo or live-model changes.
+  implementation_gate: Assigned 2026-11-05; V64-033 and all dependencies are complete. Implementation started after its passing real-process and Runtime proof. No demo or live-model changes.
 scope:
   in:
     - Replace remaining source_01 through source_16 configuration/service contracts with the V64-033 common input path.

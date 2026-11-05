@@ -141,7 +141,7 @@ func Decode(data, context []byte) ([]byte, error) {
 			return nil, errInvalid
 		}
 		program := trusted["program"].(map[string]any)
-		if !validProposals(value, program, trusted["materials"].(map[string]any)) {
+		if !validProposalMaterialCount(value, trusted) || !validProposals(value, program, trusted["materials"].(map[string]any)) {
 			return nil, errInvalid
 		}
 	case "contractor.audit.context.v1":
@@ -167,7 +167,7 @@ func documentLimit(kind string) int {
 		return MaxPreparedWorkBytes
 	case "contractor.audit.hypothesis.v1":
 		return 32768
-	case "contractor.audit.mutation.v1":
+	case "contractor.audit.mutation.v1", ProposalsSchema:
 		return MaxMutationBytes
 	case "contractor.audit.program.v1":
 		return 4 << 20
@@ -228,6 +228,14 @@ func validHypothesisSizes(value map[string]any) bool {
 		for _, seed := range value["hypotheses"].(map[string]any) {
 			if !withinHypothesisByteLimit(seed) {
 				return false
+			}
+		}
+	case ProposalContextSchema:
+		if observations, ok := value["observations"].([]any); ok {
+			for _, raw := range observations {
+				if h, found := raw.(map[string]any)["hypothesis"]; found && !withinHypothesisByteLimit(h) {
+					return false
+				}
 			}
 		}
 	case "contractor.audit.context.v1":
@@ -384,15 +392,32 @@ func validProgram(v map[string]any) bool {
 }
 
 func validProposalContext(value map[string]any) bool {
-	keys, tasks := map[string]bool{}, map[string]bool{}
+	materials := value["materials"].(map[string]any)
+	originals := value["input_sources"].(map[string]any)
+	if len(materials) != len(originals) {
+		return false
+	}
+	budget := &contracts.MaterialBudget{}
+	for key, raw := range originals {
+		local, exists := materials[key].(map[string]any)
+		if !exists || local["scope_kind"] != "run" || local["scope_id"] != value["run_id"] {
+			return false
+		}
+		data, err := strictjson.Canonical(raw)
+		var m contracts.MaterialDescriptor
+		if err != nil || strictjson.Decode(data, &m) != nil || budget.Add(m) != nil {
+			return false
+		}
+	}
+	tasks := map[string]bool{}
 	if observations, ok := value["observations"].([]any); ok {
 		for _, raw := range observations {
 			item := raw.(map[string]any)
 			key, task := item["key"].(string), item["task_id"].(string)
-			if keys[key] || tasks[task] {
+			if tasks[task] {
 				return false
 			}
-			keys[key], tasks[task] = true, true
+			tasks[task] = true
 			if _, found := value["materials"].(map[string]any)[key]; !found {
 				if _, gap := item["gap"]; !gap {
 					return false
@@ -443,8 +468,8 @@ func validInputSelections(task, binding, inputs, materials map[string]any) bool 
 		if !ok {
 			return false
 		}
-		if mapping["source"] == "task-input" {
-			continue
+		if mapping["source"] == "task-input" || material["media_type"] == "" {
+			continue // Actual selected-ref media is enforced at intake.
 		}
 		declaration := inputs[mapping["name"].(string)].(map[string]any)
 		allowed := []string{}
@@ -456,6 +481,31 @@ func validInputSelections(task, binding, inputs, materials map[string]any) bool 
 		}
 	}
 	return true
+}
+
+// Exact local aliases deduplicate against their trusted original input identity.
+// Metadata/descriptor-byte accounting for new Run selections belongs to intake.
+func validProposalMaterialCount(value, context map[string]any) bool {
+	selected := map[string]bool{}
+	local := map[string]string{}
+	for key, original := range context["input_sources"].(map[string]any) {
+		data, _ := strictjson.Canonical(original)
+		identity := string(data)
+		selected[identity] = true
+		ref, _ := strictjson.Canonical(context["materials"].(map[string]any)[key].(map[string]any)["ref"])
+		local[string(ref)] = identity
+	}
+	if refs, ok := value["selected_materials"].(map[string]any); ok {
+		for _, ref := range refs {
+			data, _ := strictjson.Canonical(ref)
+			identity, exists := local[string(data)]
+			if !exists {
+				identity = "selected:" + string(data)
+			}
+			selected[identity] = true
+		}
+	}
+	return len(selected) <= contracts.MaxSelectedMaterials
 }
 
 func validProposals(v, program, materials map[string]any) bool {
@@ -474,6 +524,28 @@ func validProposals(v, program, materials map[string]any) bool {
 		}
 		aliases[key] = true
 	}
+	available := map[string]any{}
+	for key, raw := range materials {
+		available[key] = raw
+	}
+	if selected, ok := v["selected_materials"].(map[string]any); ok {
+		for key := range selected {
+			if _, collision := available[key]; collision {
+				return false
+			}
+			// Metadata and authority are resolved by the accepting owner.
+			available[key] = map[string]any{"media_type": ""}
+		}
+	}
+	for _, raw := range seeds {
+		if sources, ok := raw.(map[string]any)["sources"].([]any); ok {
+			for _, key := range sources {
+				if _, found := available[key.(string)]; !found {
+					return false
+				}
+			}
+		}
+	}
 	seen := map[string]bool{}
 	for _, raw := range work {
 		task := raw.(map[string]any)
@@ -488,7 +560,7 @@ func validProposals(v, program, materials map[string]any) bool {
 		if _, producer := program["workflows"].(map[string]any)[task["workflow"].(string)].(map[string]any)["outputs"].(map[string]any)["proposals"]; producer {
 			return false
 		}
-		if !validInputSelections(task, program["workflows"].(map[string]any)[task["workflow"].(string)].(map[string]any), program["inputs"].(map[string]any), materials) {
+		if !validInputSelections(task, program["workflows"].(map[string]any)[task["workflow"].(string)].(map[string]any), program["inputs"].(map[string]any), available) {
 			return false
 		}
 		if key, ok := task["hypothesis"].(string); ok {

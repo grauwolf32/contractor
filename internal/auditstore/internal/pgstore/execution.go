@@ -135,6 +135,12 @@ SELECT audit.state, audit.dispatch_state, audit.deadline_at, audit.owner_id, aud
 		if err != nil {
 			return auditstore.RunCreationIntent{}, err
 		}
+		if len(result.Tasks) == 1 {
+			result.Observations, err = readTaskObservations(ctx, s.db, execution.AuditID, result.Tasks[0].Source.ObservationTaskIDs)
+			if err != nil {
+				return auditstore.RunCreationIntent{}, err
+			}
+		}
 		return result, nil
 	}
 	result.Items, err = s.listExecutionItems(ctx, executionID)

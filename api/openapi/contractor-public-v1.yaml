@@ -13721,6 +13721,12 @@ components:
           type: string
         scope:
           $ref: '#/components/schemas/AuditAssertionScope'
+        sources:
+          items:
+            $ref: '#/components/schemas/AuditTaskMaterial'
+          maxItems: 32
+          type: array
+          uniqueItems: true
         statement:
           $ref: '#/components/schemas/AuditCommonText'
       required:
@@ -13886,6 +13892,7 @@ components:
             - task-context
             - prior-results
             - task-input
+            - task-results
             type: string
         required:
         - source
@@ -14721,6 +14728,12 @@ components:
           - continuation
         key:
           $ref: '#/components/schemas/AuditCommonKey'
+        observation_task_ids:
+          type: array
+          maxItems: 32
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/ResourceId'}
+          description: Exact source Tasks pinned by the continuation decision; system provenance only.
         through_ordinal:
           type: integer
           minimum: 1

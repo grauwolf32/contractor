@@ -27,6 +27,9 @@
       {
         "ref": "security-findings@1",
         "tools": [
+          "list_project_findings",
+          "read_project_finding",
+          "select_project_findings",
           "read_finding_selection"
         ]
       },

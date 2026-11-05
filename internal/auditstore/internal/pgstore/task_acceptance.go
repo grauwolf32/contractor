@@ -154,6 +154,9 @@ func acceptTasksInTransaction(ctx context.Context, tx pgx.Tx, p auditstore.Accep
 		return auditstore.TaskAcceptance{}, err
 	}
 	if len(p.HypothesisWrites) > 0 {
+		if err := persistHypothesisSources(ctx, tx, audit, p.HypothesisWrites, storage); err != nil {
+			return auditstore.TaskAcceptance{}, err
+		}
 		if err := persistHypotheses(ctx, tx, audit, pinned, p.HypothesisWrites, p.PreparedProgress != nil); err != nil {
 			return auditstore.TaskAcceptance{}, err
 		}

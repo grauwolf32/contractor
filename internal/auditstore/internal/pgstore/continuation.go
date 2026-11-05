@@ -9,13 +9,17 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
 
 // ContinuationTasks seeks beyond the last consumed source without hydrating
-// unrelated Task inputs and parameters. Sixteen bounded hypothesis/material
-// envelopes fit the ordinary 1 MiB metadata ceiling even for large Tasks.
-func (s *QueryStore) ContinuationTasks(ctx context.Context, ownerID, auditID, alias string, sources []string) ([]auditstore.ContinuationSource, error) {
+// unrelated Task inputs and parameters. At most 32 exact source projections
+// fit the common 8 MiB document ceiling even for large Tasks.
+func (s *QueryStore) ContinuationTasks(ctx context.Context, ownerID, auditID, alias string, sources []string, limit int) ([]auditstore.ContinuationSource, error) {
+	if limit < 1 || limit > contracts.MaxSelectedMaterials {
+		return nil, auditstore.ErrInvalid
+	}
 	audit, err := s.get(ctx, ownerID, auditID)
 	if err != nil {
 		return nil, err
@@ -32,11 +36,15 @@ func (s *QueryStore) ContinuationTasks(ctx context.Context, ownerID, auditID, al
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
 	}
-	rows, err := s.db.Query(ctx, continuationTasksSQL, auditID, after, sources)
+	rows, err := s.db.Query(ctx, continuationTasksSQL, auditID, after, sources, limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
+	return scanContinuationSources(rows, auditID, audit.TaskCount)
+}
+
+func scanContinuationSources(rows pgx.Rows, auditID string, taskCount int) ([]auditstore.ContinuationSource, error) {
 	selected := []auditstore.ContinuationSource{}
 	for rows.Next() {
 		var source auditstore.ContinuationSource
@@ -44,7 +52,7 @@ func (s *QueryStore) ContinuationTasks(ctx context.Context, ownerID, auditID, al
 		if err := rows.Scan(&source.TaskID, &source.Ordinal, &hypothesis, &result, &source.GapCode); err != nil {
 			return nil, err
 		}
-		if !contracts.ValidResourceID(source.TaskID) || source.Ordinal < 1 || source.Ordinal > audit.TaskCount || source.Ordinal > auditprofile.MaxAuditItemsTotal || source.GapCode != nil && validateText("source gap", *source.GapCode, 128, true) != nil || result == nil && source.GapCode == nil {
+		if !contracts.ValidResourceID(source.TaskID) || source.Ordinal < 1 || source.Ordinal > taskCount || source.Ordinal > auditprofile.MaxAuditItemsTotal || source.GapCode != nil && validateText("source gap", *source.GapCode, 128, true) != nil || result == nil && source.GapCode == nil {
 			return nil, errStoredTask
 		}
 		if hypothesis != nil {
@@ -68,4 +76,28 @@ func (s *QueryStore) ContinuationTasks(ctx context.Context, ownerID, auditID, al
 		selected = append(selected, source)
 	}
 	return selected, rows.Err()
+}
+
+// Exact observation IDs belong to the accepted continuation source. This is a
+// point lookup of at most 32 immutable Task snapshots, never a history rescan.
+func readTaskObservations(ctx context.Context, db persistencepostgres.DBTX, auditID string, ids []string) ([]auditstore.ContinuationSource, error) {
+	if len(ids) == 0 {
+		return []auditstore.ContinuationSource{}, nil
+	}
+	if len(ids) > contracts.MaxSelectedMaterials {
+		return nil, auditstore.ErrInvalid
+	}
+	rows, err := db.Query(ctx, taskObservationsSQL, auditID, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	selected, err := scanContinuationSources(rows, auditID, auditprofile.MaxAuditItemsTotal)
+	if err != nil {
+		return nil, err
+	}
+	if len(selected) != len(ids) {
+		return nil, errStoredTask
+	}
+	return selected, nil
 }

@@ -12,56 +12,132 @@ from contractor_runtime.contracts.audit_documents import decode_audit_document
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.redaction import runtime_secrets
 from contractor_runtime.strict_json import strict_json_loads
+from contractor_runtime.toolsets.common.artifact_visibility import require_model_visible_binding
 from contractor_runtime.toolsets.common.factory import require_selected_tools
 from contractor_runtime.toolsets.common.tool_base import ArtifactTool
 
 
 class SubmitHypothesisProposalsTool(ArtifactTool):
     name = "submit_hypothesis_proposals"
-    description = """Record named hypotheses and next work from the selected generation context.
+    description = """Save proposed hypotheses and optional checks as an ordinary Run output.
 
-    Read inputs/generation_context and its explicitly selected material inputs first.
-    hypotheses_json is an object of local names to statement/scope/grounds objects.
-    work_json is an array of key/workflow/objective objects, with optional hypothesis
-    local name and inputs mapping checking slots to selected material handles.
-    Choose allowed Workflow aliases only. Never supply persisted IDs or provenance.
-    Empty hypotheses and work are a successful decision to propose no more work.
-    Returns the saved proposal output metadata. Use expected_revision to correct it.
+    Read the configured proposal context and relevant exact materials first.
+    hypotheses_json maps local names to statement/scope/grounds, with optional
+    sources listing material handles. work_json lists key/workflow/objective,
+    optional hypothesis alias and inputs mapping checking slots to handles.
+    selected_materials_json optionally maps new handles to exact own-Run refs,
+    such as snapshots selected with the Project Findings reader. Scope and
+    persisted IDs/revisions/origin are assigned by the Server. Repeated calls
+    keep prior selected materials and require expected_revision for correction.
+    Empty hypotheses and work express a successful decision to stop.
+    Returns saved proposal metadata; hypotheses are published after Run success.
     """
 
-    def __init__(self, client, metrics, secrets, namespace):
+    def __init__(self, client, metrics, secrets, namespace, run_id):
         super().__init__(client, metrics, secrets)
         self._namespace = namespace
+        self._run_id = run_id
 
     async def __call__(
-        self, hypotheses_json: str, work_json: str, expected_revision: str | None = None
+        self,
+        hypotheses_json: str,
+        work_json: str,
+        expected_revision: str | None = None,
+        selected_materials_json: str = "{}",
     ) -> dict:
         with self._recorded({"expected_revision": expected_revision}) as call:
-            context = await self._client.read_artifact(
-                ArtifactRef(namespace="inputs", name="generation_context"), max_bytes=8 << 20
+            roles_value = await self._client.read_artifact(
+                ArtifactRef(namespace="audit-context", name="hypothesis-proposals"),
+                max_bytes=8192,
             )
             try:
-                data = await threads.to_thread_until_done(
-                    lambda: assemble_proposals(hypotheses_json, work_json, context.data),
-                    name="audit-proposal-assembly",
+                roles = decode_audit_document(
+                    roles_value.data, schema="contractor.audit.proposal-binding.v1"
                 )
-            except (ValueError, TypeError, KeyError, UnicodeError, ValidationError):
-                raise ToolInputError("Invalid proposal content or selected binding.") from None
-            target = ArtifactRef(namespace=self._namespace, name="proposals")
+                target = ArtifactRef.model_validate(roles["result"])
+                if (
+                    roles["run_id"] != self._run_id
+                    or target.namespace != self._namespace
+                    or target.revision is not None
+                    or roles["context"]["namespace"] != "inputs"
+                ):
+                    raise ValueError("proposal role")
+            except (ValueError, TypeError, KeyError, ValidationError):
+                raise ToolInputError("Invalid configured proposal role.") from None
+            context = await self._client.read_artifact(
+                ArtifactRef.model_validate(roles["context"]), max_bytes=8 << 20
+            )
+            prior = None
             try:
                 prior = await self._client.read_artifact(target, max_bytes=1 << 20)
             except ArtifactAPIError as error:
                 if error.status_code != 404:
                     raise
-            else:
-                if prior.data == data:
-                    result = {
-                        "artifact": prior.artifact.model_dump(by_alias=True),
-                        "mediaType": prior.media_type,
-                        "size": len(data),
+            try:
+                if len(selected_materials_json.encode()) > 1 << 20:
+                    raise ValueError("selection bytes")
+                selected = strict_json_loads(selected_materials_json)
+                if not isinstance(selected, dict) or len(selected) > 32:
+                    raise ValueError("selection shape")
+                if prior is not None:
+                    saved = strict_json_loads(prior.data.decode())
+                    previous = saved.get("selected_materials", {})
+                    if any(k in selected and selected[k] != v for k, v in previous.items()):
+                        raise ValueError("selection handle changed")
+                    selected = previous | selected
+                if len(selected) > 32:
+                    raise ValueError("selection bound")
+                trusted = await threads.to_thread_until_done(
+                    lambda: decode_audit_document(
+                        context.data, schema="contractor.audit.proposal-context.v1"
+                    ),
+                    name="audit-proposal-context",
+                )
+                known_inputs = {jcs.canonicalize(m["ref"]) for m in trusted["materials"].values()}
+                metadata = {}
+                for handle, value in selected.items():
+                    ref = ArtifactRef.model_validate(value)
+                    ref.require_exact()
+                    require_model_visible_binding(ref.namespace, ref.name)
+                    if (
+                        ref.namespace == "audit-context"
+                        or (ref.namespace == "inputs" and ref.name == roles["context"]["name"])
+                        or (ref.namespace == target.namespace and ref.name == target.name)
+                    ):
+                        raise ValueError("system or cyclic selection")
+                    if ref.namespace == "inputs" and jcs.canonicalize(value) not in known_inputs:
+                        raise ValueError("unselected system input")
+                    exact = await self._client.read_artifact_metadata(ref)
+                    metadata[handle] = {
+                        "scope_kind": "run",
+                        "scope_id": self._run_id,
+                        "ref": exact.artifact.model_dump(by_alias=True, exclude_none=True),
+                        # The private API deliberately hides digest; its fixed width
+                        # suffices for the early byte bound. Server derives identity.
+                        "digest": "sha256:" + "0" * 64,
+                        "media_type": exact.media_type,
+                        "size_bytes": exact.size,
                     }
-                    call.succeed(result)
-                    return result
+                data = await threads.to_thread_until_done(
+                    lambda: assemble_proposals(
+                        hypotheses_json,
+                        work_json,
+                        context.data,
+                        selected_materials_json=jcs.canonicalize(selected).decode(),
+                        selected_metadata=metadata,
+                    ),
+                    name="audit-proposal-assembly",
+                )
+            except (ValueError, TypeError, KeyError, UnicodeError, ValidationError):
+                raise ToolInputError("Invalid proposal content or selected binding.") from None
+            if prior is not None and prior.data == data:
+                result = {
+                    "artifact": prior.artifact.model_dump(by_alias=True),
+                    "mediaType": prior.media_type,
+                    "size": len(data),
+                }
+                call.succeed(result)
+                return result
             saved = await self._client.write_artifact(
                 target,
                 data=data,
@@ -73,15 +149,41 @@ class SubmitHypothesisProposalsTool(ArtifactTool):
             return result
 
 
-def assemble_proposals(hypotheses_json: str, work_json: str, context: bytes) -> bytes:
+def assemble_proposals(
+    hypotheses_json: str,
+    work_json: str,
+    context: bytes,
+    *,
+    selected_materials_json: str = "{}",
+    selected_metadata: dict | None = None,
+) -> bytes:
     if len(hypotheses_json.encode()) + len(work_json.encode()) > 1 << 20:
         raise ValueError("proposal bytes")
     trusted = decode_audit_document(context, schema="contractor.audit.proposal-context.v1")
     seeds, work = strict_json_loads(hypotheses_json), strict_json_loads(work_json)
-    data = jcs.canonicalize(
-        {"schema": "contractor.audit.proposals.v1", "hypotheses": seeds, "work": work}
-    )
+    selected = strict_json_loads(selected_materials_json)
+    value = {"schema": "contractor.audit.proposals.v1", "hypotheses": seeds, "work": work}
+    if selected:
+        value["selected_materials"] = selected
+    data = jcs.canonicalize(value)
     proposed = decode_audit_document(data, schema="contractor.audit.proposals.v1")
+    materials = dict(trusted["materials"])
+    original_by_local = {
+        jcs.canonicalize(m["ref"]): trusted["input_sources"][key] for key, m in materials.items()
+    }
+    distinct = {jcs.canonicalize(m) for m in trusted["input_sources"].values()}
+    for key, ref in proposed.get("selected_materials", {}).items():
+        if key in materials or selected_metadata is None or key not in selected_metadata:
+            raise ValueError("unknown or colliding selected material")
+        material = selected_metadata[key]
+        original = original_by_local.get(jcs.canonicalize(ref), material)
+        distinct.add(jcs.canonicalize(original))
+        materials[key] = material
+    if len(distinct) > 32 or sum(map(len, distinct)) > 1 << 20:
+        raise ValueError("cumulative material limit")
+    for seed in seeds.values():
+        if any(handle not in materials for handle in seed.get("sources", [])):
+            raise ValueError("unknown grounds")
     program = trusted["program"]
     if (
         len(data) > 1 << 20
@@ -108,11 +210,11 @@ def assemble_proposals(hypotheses_json: str, work_json: str, context: bytes) -> 
         for slot, handle in item.get("inputs", {}).items():
             if binding["inputs"][slot]["source"] not in {"audit-input", "task-input"}:
                 raise ValueError("system input")
-            if handle not in trusted["materials"]:
+            if handle not in materials:
                 raise ValueError("foreign material")
             mapping = binding["inputs"][slot]
             if mapping["source"] == "audit-input":
-                media = trusted["materials"][handle]["media_type"]
+                media = materials[handle]["media_type"]
                 allowed = program["inputs"][mapping["name"]]["media_types"]
                 if (
                     media not in allowed
@@ -144,5 +246,6 @@ class AuditProposalsToolsetFactory:
                 resources.metrics,
                 runtime_secrets(runtime_settings),
                 namespace,
+                kwargs["run_id"],
             )
         }

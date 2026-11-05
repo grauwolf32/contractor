@@ -5482,6 +5482,14 @@
         "scope": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditAssertionScope"
         },
+        "sources": {
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditTaskMaterial"
+          },
+          "maxItems": 32,
+          "type": "array",
+          "uniqueItems": true
+        },
         "statement": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCommonText"
         }
@@ -5676,7 +5684,12 @@
           "additionalProperties": false,
           "properties": {
             "source": {
-              "enum": ["task-context", "prior-results", "task-input"],
+              "enum": [
+                "task-context",
+                "prior-results",
+                "task-input",
+                "task-results"
+              ],
               "type": "string"
             }
           },
@@ -6957,6 +6970,14 @@
         },
         "key": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCommonKey"
+        },
+        "observation_task_ids": {
+          "type": "array",
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+          }
         },
         "through_ordinal": {
           "type": "integer",

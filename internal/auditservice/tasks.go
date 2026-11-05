@@ -110,6 +110,7 @@ func (s *Service) CreateTasks(ctx context.Context, p TaskCreationParams) (TaskCr
 			h.ID = prior.Document.ID
 			h.Revision = prior.Document.Revision + 1
 			h.Origin = prior.Document.Origin
+			h.Sources = prior.Document.Sources
 			fixed = prior.Fixed
 		}
 		data, err := strictjson.Canonical(h)
@@ -199,13 +200,13 @@ func (s *Service) acceptCommonWork(ctx context.Context, audit auditstore.Audit, 
 			inputs[slot] = material
 		}
 		for slot, mapping := range binding.Inputs {
-			if mapping.Source == "prior-results" {
+			if mapping.Source == "task-results" {
 				if _, exists := inputs[slot]; !exists {
-					selectedContext, err := s.generationContext(ctx, audit, params.Claim, pinned, baseline, nil, inputs)
+					empty, err := s.retainResultSet(ctx, audit, params.Claim, nil)
 					if err != nil {
 						return TaskCreationResult{}, err
 					}
-					inputs[slot] = selectedContext
+					inputs[slot] = empty
 				}
 			}
 		}
@@ -277,6 +278,23 @@ func (s *Service) acceptCommonWork(ctx context.Context, audit auditstore.Audit, 
 		}
 		selected = append(selected, accepted)
 	}
+	for _, write := range params.HypothesisWrites {
+		data, err := strictjson.Canonical(write.Document)
+		used += len(data) + 1
+		if err != nil || used > auditcontract.MaxMutationBytes {
+			return TaskCreationResult{}, ErrInvalid
+		}
+		for _, material := range write.Document.Sources {
+			key, err := contentdigest.CanonicalJSON(material)
+			if err != nil {
+				return TaskCreationResult{}, err
+			}
+			materials[key] = material
+		}
+	}
+	if len(materials) > auditcontract.MaxMutationRecords {
+		return TaskCreationResult{}, ErrInvalid
+	}
 	keys := make([]string, 0, len(materials))
 	for key := range materials {
 		keys = append(keys, key)
@@ -301,6 +319,34 @@ func (s *Service) acceptCommonWork(ctx context.Context, audit auditstore.Audit, 
 				return TaskCreationResult{}, err
 			}
 			selected[index].Document.Inputs[slot] = retained[key]
+		}
+	}
+	retainedHypotheses := map[string]auditcontract.Hypothesis{}
+	for i := range params.HypothesisWrites {
+		h := params.HypothesisWrites[i].Document
+		for j, m := range h.Sources {
+			key, err := contentdigest.CanonicalJSON(m)
+			if err != nil {
+				return TaskCreationResult{}, err
+			}
+			h.Sources[j] = retained[key]
+		}
+		data, err := strictjson.Canonical(h)
+		if err != nil {
+			return TaskCreationResult{}, err
+		}
+		h, err = auditcontract.DecodeHypothesis(data)
+		if err != nil {
+			return TaskCreationResult{}, err
+		}
+		params.HypothesisWrites[i].Document = h
+		retainedHypotheses[h.ID] = h
+	}
+	for i := range selected {
+		if h := selected[i].Hypothesis; h != nil {
+			if retained, exists := retainedHypotheses[h.ID]; exists {
+				selected[i].Hypothesis = &retained
+			}
 		}
 	}
 	params.Tasks = selected

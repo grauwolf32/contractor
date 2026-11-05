@@ -10,7 +10,7 @@
       "activeCheckTools": [],
       "sandboxActiveCheckTools": {},
       "findingProposalTools": [],
-      "requiredWorkflowInputs": {"submit_hypothesis_proposals": {"input": "generation_context", "mediaType": "application/json"}}
+      "requiredWorkflowInputs": {}
     },
     "audit-results@2": {
       "tools": ["read_audit_task", "submit_check_result"],

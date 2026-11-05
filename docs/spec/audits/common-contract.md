@@ -42,7 +42,9 @@ that ID and no second Project hypothesis registry.
 | `task` | Accepted Audit/task identity, selected Workflow alias, exact input descriptors/parameters and optional hypothesis pin |
 | `context` | Trusted Audit/Run, exact Workflow identity/digest, bounded item-key/task membership and objective, optional exact readable hypothesis snapshot and admitted evidence descriptors |
 | `proposal-context` | Server-local pinned program and exact selected material handles used to validate producer choices; not a model-authored program or second execution state |
-| `proposals` | Bounded model-proposed named seeds/work using allowed bindings; no persisted IDs, scope permission or automatic admission |
+| `proposals` | [Local hypotheses, exact grounds and optional work](hypotheses.md#HG-R6); no persisted IDs or automatic admission |
+| `proposal_context` | Frozen Run-local research handles, original input identities, allowed Program and explicitly selected observations |
+| `proposal_binding` | Frozen configured context/output refs for the current producer Run, owned by its trusted materializer |
 | `prepared-work` | Deterministic work selections and exact ordinary inputs; no assigned Task identity or permission |
 | `prepared-work-context` | Server-local pinned program, trusted producer Run and admitted exact material descriptors |
 | `conclusions` | Model-authored per-item content, conditions, evidence and limitations; no provenance fields |
@@ -118,57 +120,17 @@ qualified deduplication and independent source contributions. A negative recheck
 remains a linked ordinary result; it does not erase or automatically resolve a
 historical problem. A generation input can include these results and gaps.
 
-**ACT-R7.** Continuation is an optional ordinary allowed Workflow. Its accepted
-source set is a frozen selection of new ordinary results/materials, findings and
-hypotheses. One source set/producer decision has one durable identity, reconciled
-through existing receipts. A continuation response does not itself trigger
-another invocation: another call requires new accepted sources or an explicit
-new decision, within pinned budgets. No model call occurs on every controller tick. A proposals document is an
-ordinary output carrying named seeds and work only; its combined record count
-obeys the mutation slice bound. Explicitly empty `hypotheses` and `work`
-collections are a successful no-new-proposals output. Generation is optional;
-the consumer settles this decision without creating hypotheses/tasks or
-calling the generator again for the same sources. Missing or malformed output
-is invalid, and hypothesis statements remain nonblank. Validation against the pinned program rejects
-unknown Workflow/hypothesis aliases, collisions and authored system identities.
-Optional work input selections name only available material handles from the
-trusted frozen source set. They cannot overwrite task-context/prior-results
-inputs or select foreign/incompatible artifacts. Initial selections name only
-already selected Audit input slots. The owner resolves accepted choices to exact
-ordinary Task input descriptors, without a graph of future output dependencies.
-
-The ordinary idle barrier checks continuation before completing an active Audit.
-Its source cursor is retained on the accepted Task, independently of that Task's
-ordinal: a bounded decision does not consume unselected history. Up to 16 earlier
-Tasks contribute exact ordinary input forks named `source_01` through `source_16`;
-`generation_context` is the system-owned `prior-results` input. The ordinary
-`context` input supplies the current accepted Task/objective and Run membership;
-a producer executes one assigned Task per Run. Its immutable
-proposal-context names selected material handles and observations (source handle,
-exact hypothesis snapshot when present, technical gap when present). Material
-bytes remain ordinary explicit inputs, including supported/refuted/inconclusive
-results; no embedded reference grants additional reads. LIM-ACT-7 bounds this work.
-
-`audit-proposals@1` exposes `submit_hypothesis_proposals`. The Runtime validates
-named content against that selected context and assembles the declared logical
-`proposals` output. A binding selects at most one intake output (`proposals`
-or `work`); competing declarations are invalid before admission because the
-existing execution owns one exact source/cursor. The Server revalidates the exact output/context and commits
-generated hypotheses and checking Tasks in one existing Task mutation, including
-a hypothesis-only or empty decision. Producer-local aliases are namespaced by
-that producer. Origin Audit/task/Run and source are system-derived. A proposal
-cannot select another producer binding: a producer response does not authorize
-its own continuation. A later generator requires distinct accepted sources or
-an explicit owner decision.
-
-Pause retains accepted continuation Tasks and reserved identities but submits no
-new generator Run. Resume dispatches that same accepted work. An empty decision
-settles successfully; producer outputs are excluded from new source selection.
-Ordinary execution source/cursor and Task receipts reconcile response loss and
-restart before mutable source reads. Cancellation/deletion may collect the
-producer output without admitting new hypotheses or Tasks. Definite invalid or
-foreign/over-bound proposal batches retain an explicit technical collection gap
-with no partial authoritative hypothesis/task membership.
+**ACT-R7.** Continuation is an optional ordinary allowed Workflow, evaluated at
+the drained Task barrier before normal Audit completion. Accepted decision,
+source boundary and exact inputs retain their identities through existing
+Task/Run receipts and claims. New accepted work or an explicit owner decision
+can trigger a later call; unchanged ticks and valid empty output cannot.
+[Hypothesis production](hypotheses.md#HG-R13) owns bounded source selection,
+origin-based self-trigger protection, configured research inputs and limits.
+[The proposal contract](hypotheses.md#HG-R8) owns successful-Run publication,
+hypotheses-only/work-only/empty decisions, source validation and atomic intake.
+Pause preserves accepted continuation without dispatch; Resume uses the same
+work. Cancellation/deletion permits collection without semantic admission.
 
 **ACT-R8.** The control contract is soft pause/drain, Resume of accepted work,
 and terminal Cancel. Admission and Run/HTTP/model timeouts retain separate owners.

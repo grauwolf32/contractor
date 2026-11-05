@@ -384,7 +384,7 @@ func permanentSubmissionError(err error) bool {
 	classified, classifiedError := apierror.Of(err)
 	var skill *agentskills.RunSkillError
 	var document *auditdomain.ValidationError
-	return classifiedError && classified.ErrorKind() == apierror.AuditDocumentInvalid || errors.Is(err, runservice.ErrInvalid) || errors.Is(err, runstore.ErrInvalid) ||
+	return classifiedError && (classified.ErrorKind() == apierror.AuditDocumentInvalid || classified.ErrorKind() == apierror.InvalidRequest) || errors.Is(err, runservice.ErrInvalid) || errors.Is(err, runstore.ErrInvalid) ||
 		errors.Is(err, auditstore.ErrInvalid) || errors.Is(err, auditstore.ErrConflict) ||
 		artifacts.IsExactReferenceRejection(err) || artifactpostgres.IsExactRevisionMissing(err) ||
 		errors.Is(err, artifacts.ErrHistoryProtected) || errors.Is(err, artifacts.ErrArtifactConflict) ||

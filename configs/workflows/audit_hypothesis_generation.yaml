@@ -8,12 +8,6 @@
   "spec": {
     "parameters": {},
     "inputs": {
-      "generation_context": {
-        "required": true,
-        "mediaTypes": [
-          "application/json"
-        ]
-      },
       "material": {
         "required": false,
         "mediaTypes": [
@@ -28,102 +22,6 @@
           "application/vnd.contractor.findings-collection+zip"
         ]
       },
-      "source_01": {
-        "required": false,
-        "mediaTypes": [
-          "*/*"
-        ]
-      },
-      "source_02": {
-        "required": false,
-        "mediaTypes": [
-          "*/*"
-        ]
-      },
-      "source_03": {
-        "required": false,
-        "mediaTypes": [
-          "*/*"
-        ]
-      },
-      "source_04": {
-        "required": false,
-        "mediaTypes": [
-          "*/*"
-        ]
-      },
-      "source_05": {
-        "required": false,
-        "mediaTypes": [
-          "*/*"
-        ]
-      },
-      "source_06": {
-        "required": false,
-        "mediaTypes": [
-          "*/*"
-        ]
-      },
-      "source_07": {
-        "required": false,
-        "mediaTypes": [
-          "*/*"
-        ]
-      },
-      "source_08": {
-        "required": false,
-        "mediaTypes": [
-          "*/*"
-        ]
-      },
-      "source_09": {
-        "required": false,
-        "mediaTypes": [
-          "*/*"
-        ]
-      },
-      "source_10": {
-        "required": false,
-        "mediaTypes": [
-          "*/*"
-        ]
-      },
-      "source_11": {
-        "required": false,
-        "mediaTypes": [
-          "*/*"
-        ]
-      },
-      "source_12": {
-        "required": false,
-        "mediaTypes": [
-          "*/*"
-        ]
-      },
-      "source_13": {
-        "required": false,
-        "mediaTypes": [
-          "*/*"
-        ]
-      },
-      "source_14": {
-        "required": false,
-        "mediaTypes": [
-          "*/*"
-        ]
-      },
-      "source_15": {
-        "required": false,
-        "mediaTypes": [
-          "*/*"
-        ]
-      },
-      "source_16": {
-        "required": false,
-        "mediaTypes": [
-          "*/*"
-        ]
-      },
       "context": {
         "required": true,
         "mediaTypes": [
@@ -131,6 +29,19 @@
         ]
       },
       "materials": {
+        "required": false,
+        "materialSet": true,
+        "mediaTypes": [
+          "*/*"
+        ]
+      },
+      "analysis": {
+        "required": true,
+        "mediaTypes": [
+          "application/json"
+        ]
+      },
+      "results": {
         "required": false,
         "materialSet": true,
         "mediaTypes": [
@@ -170,11 +81,6 @@
         },
         "context": {
           "artifacts": {
-            "generation_context": {
-              "namespace": "inputs",
-              "name": "generation_context",
-              "required": true
-            },
             "material": {
               "namespace": "inputs",
               "name": "material",
@@ -185,86 +91,6 @@
               "name": "findings",
               "required": false
             },
-            "source_01": {
-              "namespace": "inputs",
-              "name": "source_01",
-              "required": false
-            },
-            "source_02": {
-              "namespace": "inputs",
-              "name": "source_02",
-              "required": false
-            },
-            "source_03": {
-              "namespace": "inputs",
-              "name": "source_03",
-              "required": false
-            },
-            "source_04": {
-              "namespace": "inputs",
-              "name": "source_04",
-              "required": false
-            },
-            "source_05": {
-              "namespace": "inputs",
-              "name": "source_05",
-              "required": false
-            },
-            "source_06": {
-              "namespace": "inputs",
-              "name": "source_06",
-              "required": false
-            },
-            "source_07": {
-              "namespace": "inputs",
-              "name": "source_07",
-              "required": false
-            },
-            "source_08": {
-              "namespace": "inputs",
-              "name": "source_08",
-              "required": false
-            },
-            "source_09": {
-              "namespace": "inputs",
-              "name": "source_09",
-              "required": false
-            },
-            "source_10": {
-              "namespace": "inputs",
-              "name": "source_10",
-              "required": false
-            },
-            "source_11": {
-              "namespace": "inputs",
-              "name": "source_11",
-              "required": false
-            },
-            "source_12": {
-              "namespace": "inputs",
-              "name": "source_12",
-              "required": false
-            },
-            "source_13": {
-              "namespace": "inputs",
-              "name": "source_13",
-              "required": false
-            },
-            "source_14": {
-              "namespace": "inputs",
-              "name": "source_14",
-              "required": false
-            },
-            "source_15": {
-              "namespace": "inputs",
-              "name": "source_15",
-              "required": false
-            },
-            "source_16": {
-              "namespace": "inputs",
-              "name": "source_16",
-              "required": false
-            },
             "context": {
               "namespace": "inputs",
               "name": "context",
@@ -273,6 +99,16 @@
             "materials": {
               "namespace": "inputs",
               "name": "materials",
+              "required": false
+            },
+            "analysis": {
+              "namespace": "inputs",
+              "name": "analysis",
+              "required": true
+            },
+            "results": {
+              "namespace": "inputs",
+              "name": "results",
               "required": false
             }
           }

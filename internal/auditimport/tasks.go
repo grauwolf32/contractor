@@ -299,8 +299,7 @@ func (i *Importer) collectTasks(ctx context.Context, claim auditstore.Controller
 			}
 			intake, err := accept(ctx, claim, snapshot, execution, source, data)
 			if err != nil {
-				var classified apierror.Classified
-				invalid := errors.Is(err, auditstore.ErrInvalid) || errors.Is(err, auditstore.ErrConflict) || artifacts.IsExactReferenceRejection(err) || artifactpostgres.IsExactRevisionMissing(err) || errors.As(err, &classified) && classified.ErrorKind() == apierror.AuditDocumentInvalid
+				invalid := permanentTaskCollectionError(err) || errors.Is(err, auditstore.ErrConflict)
 				if !invalid {
 					return false, err
 				}

@@ -2,8 +2,6 @@ package auditservice
 
 import (
 	"context"
-
-	"fmt"
 	"slices"
 	"strings"
 
@@ -12,7 +10,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/ownerstore"
-	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
@@ -21,8 +18,8 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// AcceptContinuation runs at the ordinary idle barrier, before completion.
-// Acceptance creates a ready Task, so Pause and Resume use the same dispatch fence.
+// AcceptContinuation records one ordinary Task at the idle barrier. The source
+// cursor accounts for new work; Workflow inputs determine research materials.
 func (s *Service) AcceptContinuation(ctx context.Context, claim auditstore.ControllerClaim, snapshot auditstore.ReconcileSnapshot) (auditstore.TaskIntakeResult, error) {
 	audit := snapshot.Audit
 	if audit.AuditID != claim.AuditID || audit.State != auditstore.AuditActive {
@@ -37,13 +34,19 @@ func (s *Service) AcceptContinuation(ctx context.Context, claim auditstore.Contr
 	}
 	alias := pinned.Program.Continuation.Workflow
 	sourceAliases := []string{}
-	for key, binding := range pinned.Program.Workflows {
-		if binding.Outputs["proposals"] == "" {
-			sourceAliases = append(sourceAliases, key)
+	for name, binding := range pinned.Program.Workflows {
+		producer := binding.Outputs["proposals"] != ""
+		for _, stage := range pinned.Workflows[name].Stages {
+			for _, agent := range stage.Agents {
+				producer = producer || agent.Template.SelectsHypothesisProposals()
+			}
+		}
+		if !producer {
+			sourceAliases = append(sourceAliases, name)
 		}
 	}
 	slices.Sort(sourceAliases)
-	tasks, err := s.reads().ContinuationTasks(ctx, audit.OwnerID, audit.AuditID, alias, sourceAliases)
+	tasks, err := s.reads().ContinuationTasks(ctx, audit.OwnerID, audit.AuditID, alias, sourceAliases, contracts.MaxSelectedMaterials)
 	if err != nil {
 		return auditstore.TaskIntakeResult{}, err
 	}
@@ -57,78 +60,115 @@ func (s *Service) AcceptContinuation(ctx context.Context, claim auditstore.Contr
 	if err != nil {
 		return auditstore.TaskIntakeResult{}, err
 	}
+	binding := pinned.Program.Workflows[alias]
+	workflow := pinned.Workflows[alias]
 	inputs := map[string]auditcontract.Material{}
-	for slot, mapping := range pinned.Program.Workflows[alias].Inputs {
-		if mapping.Source == "audit-input" {
-			if source, ok := baseline.Inputs[mapping.Name]; ok {
-				inputs[slot] = auditcontract.Material{ScopeKind: "project", ScopeID: audit.ProjectID, Ref: source.Ref, Digest: source.Digest, MediaType: source.MediaType, SizeBytes: source.SizeBytes}
+	budget := &contracts.MaterialBudget{}
+	service := artifacts.NewService(s.storage.Repository(s.pool))
+	wantsResults := false
+	for slot, mapping := range binding.Inputs {
+		wantsResults = wantsResults || mapping.Source == "task-results"
+		if mapping.Source != "audit-input" {
+			continue
+		}
+		selected, found := baseline.Inputs[mapping.Name]
+		if !found {
+			continue
+		}
+		material := auditcontract.Material{ScopeKind: "project", ScopeID: audit.ProjectID, Ref: selected.Ref, Digest: selected.Digest, MediaType: selected.MediaType, SizeBytes: selected.SizeBytes}
+		inputs[slot] = material
+		contract := workflow.Inputs[slot]
+		if contract.MaterialSet {
+			scope, _ := artifacts.ProjectScope(audit.ProjectID)
+			if err := service.ValidateInputSet(ctx, artifacts.MaterialSetInput{Authority: artifacts.MaterialAuthority{OwnerID: audit.OwnerID, ProjectID: audit.ProjectID, AuditID: audit.AuditID}, Source: scope, Ref: selected.Ref, MediaTypes: contract.MediaTypes, Required: contract.Required, Budget: budget}); err != nil {
+				return auditstore.TaskIntakeResult{}, err
+			}
+		} else if err := budget.Add(material); err != nil {
+			return auditstore.TaskIntakeResult{}, err
+		}
+	}
+	if wantsResults {
+		empty, err := strictjson.Canonical(contracts.MaterialSet{Schema: contracts.MaterialSetSchema, Materials: []contracts.MaterialDescriptor{}})
+		if err != nil {
+			return auditstore.TaskIntakeResult{}, err
+		}
+		if budget.CheckSetDocumentBytes(int64(len(empty))) != nil {
+			return auditstore.TaskIntakeResult{Complete: true, GapCode: "material-budget-exhausted"}, nil
+		}
+	}
+	chosen := []auditstore.ContinuationSource{}
+	results := []auditcontract.Material{}
+	resultKeys := map[string]bool{}
+	for _, source := range tasks {
+		if wantsResults && source.Result != nil && !resultKeys[contracts.MaterialKey(*source.Result)] {
+			preview, err := strictjson.Canonical(contracts.MaterialSet{Schema: contracts.MaterialSetSchema, Materials: append(results, *source.Result)})
+			if err != nil {
+				return auditstore.TaskIntakeResult{}, err
+			}
+			if budget.CheckSetDocumentBytes(int64(len(preview))) != nil {
+				break
+			}
+			if err := budget.Add(*source.Result); err != nil {
+				break
+			}
+			results = append(results, *source.Result)
+			resultKeys[contracts.MaterialKey(*source.Result)] = true
+		}
+		chosen = append(chosen, source)
+	}
+	if len(chosen) == 0 {
+		return auditstore.TaskIntakeResult{Complete: true, GapCode: "material-budget-exhausted"}, nil
+	}
+	if wantsResults {
+		selected, err := s.retainResultSet(ctx, audit, &claim, results)
+		if err != nil {
+			return auditstore.TaskIntakeResult{}, err
+		}
+		for slot, mapping := range binding.Inputs {
+			if mapping.Source == "task-results" {
+				inputs[slot] = selected
 			}
 		}
 	}
-	for index, task := range tasks {
-		if task.Result != nil {
-			slot := fmt.Sprintf("source_%02d", index+1)
-			if pinned.Program.Workflows[alias].Inputs[slot].Source != "task-input" {
-				return auditstore.TaskIntakeResult{}, ErrInvalid
-			}
-			inputs[slot] = *task.Result
-		}
+	ids := make([]string, 0, len(chosen))
+	for _, source := range chosen {
+		ids = append(ids, source.TaskID)
 	}
-	material, err := s.generationContext(ctx, audit, &claim, pinned, baseline, tasks, inputs)
+	through := chosen[len(chosen)-1].Ordinal
+	digest, err := contentdigest.CanonicalJSON(map[string]any{"workflow": alias, "through": through, "tasks": ids, "inputs": inputs})
 	if err != nil {
 		return auditstore.TaskIntakeResult{}, err
 	}
-	for slot, mapping := range pinned.Program.Workflows[alias].Inputs {
-		if mapping.Source == "prior-results" {
-			inputs[slot] = material
-		}
-	}
-	key := "continuation-" + strings.TrimPrefix(material.Digest, "sha256:")[:48]
-	work := []auditcontract.PreparedSelection{{Key: key, Workflow: alias, Objective: "Propose bounded next hypotheses and checks from the selected exact context, or explicitly return no new work.", Inputs: inputs}}
-	through := tasks[len(tasks)-1].Ordinal
-	params := auditstore.AcceptTasksParams{OwnerID: audit.OwnerID, AuditID: audit.AuditID, Claim: &claim, ContinuationRevision: audit.Revision, IdempotencyKey: key, RequestDigest: material.Digest}
+	key := "continuation-" + strings.TrimPrefix(digest, "sha256:")[:48]
+	work := []auditcontract.PreparedSelection{{Key: key, Workflow: alias, Objective: "Use the configured materials and tools to propose bounded next hypotheses/checks, or explicitly return no new work.", Inputs: inputs}}
+	params := auditstore.AcceptTasksParams{OwnerID: audit.OwnerID, AuditID: audit.AuditID, Claim: &claim, ContinuationRevision: audit.Revision, IdempotencyKey: key, RequestDigest: digest}
 	accepted, err := s.acceptCommonWork(ctx, audit, pinned, baseline, work, params, func(auditcontract.PreparedSelection) auditstore.TaskSource {
-		return auditstore.TaskSource{Kind: "continuation", Key: key, ThroughOrdinal: through}
+		observed := []string(nil)
+		if wantsResults {
+			observed = ids
+		}
+		return auditstore.TaskSource{Kind: "continuation", Key: key, ThroughOrdinal: through, ObservationTaskIDs: observed}
 	})
 	return auditstore.TaskIntakeResult{Changed: err == nil && !accepted.Replayed}, err
 }
 
-// generationContext pins only selected inputs and the next finite slice of
-// retained results. It uses ordinary Artifact writes under Project/claim/Audit
-// fences; model output cannot supply or replace this system input.
-func (s *Service) generationContext(ctx context.Context, audit auditstore.Audit, claim *auditstore.ControllerClaim, pinned auditprofile.PinnedProgram, baseline BaselineSnapshot, tasks []auditstore.ContinuationSource, inputs map[string]auditcontract.Material) (auditcontract.Material, error) {
-	selected := auditcontract.ProposalContext{Schema: auditcontract.ProposalContextSchema, Program: pinned.Program, Materials: map[string]auditcontract.Material{}}
-	// Only inputs selected by the producing binding are included. A continuation
-	// additionally carries the ordinary results chosen by the indexed source slice.
-	for key, material := range inputs {
-		selected.Materials[key] = material
-	}
-	if inputs == nil && pinned.Program.Continuation != nil {
-		for slot, mapping := range pinned.Program.Workflows[pinned.Program.Continuation.Workflow].Inputs {
-			if mapping.Source == "audit-input" {
-				if source, ok := baseline.Inputs[mapping.Name]; ok {
-					selected.Materials[slot] = auditcontract.Material{ScopeKind: "project", ScopeID: audit.ProjectID, Ref: source.Ref, Digest: source.Digest, MediaType: source.MediaType, SizeBytes: source.SizeBytes}
-				}
-			}
-		}
-	}
-	for index, task := range tasks {
-		observation := auditcontract.ProposalObservation{Key: fmt.Sprintf("source_%02d", index+1), TaskID: task.TaskID, Hypothesis: task.Hypothesis}
-		if task.GapCode != nil {
-			observation.Gap = *task.GapCode
-		}
-		selected.Observations = append(selected.Observations, observation)
-	}
-
+// retainResultSet uses the common Artifact material-set shape. It contains no
+// copied reports or invented input slots; normal Run preparation binds members.
+func (s *Service) retainResultSet(ctx context.Context, audit auditstore.Audit, claim *auditstore.ControllerClaim, materials []auditcontract.Material) (auditcontract.Material, error) {
+	selected := contracts.MaterialSet{Schema: contracts.MaterialSetSchema, Materials: append([]contracts.MaterialDescriptor{}, materials...)}
 	data, err := strictjson.Canonical(selected)
-	if err != nil || len(data) > auditcontract.MaximumDocumentBytes {
-		return auditcontract.Material{}, ErrInvalid
-	}
-	data, err = auditcontract.Decode(data, nil)
 	if err != nil {
 		return auditcontract.Material{}, err
 	}
-	var material auditcontract.Material
+	normalized, err := contracts.DecodeMaterialSet(data)
+	if err != nil {
+		return auditcontract.Material{}, err
+	}
+	data, err = strictjson.Canonical(normalized)
+	if err != nil {
+		return auditcontract.Material{}, err
+	}
+	var retained auditcontract.Material
 	err = postgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		current, err := ownerstore.NewTx(tx, s.storage).LockTaskInputs(ctx, audit.OwnerID, audit.AuditID, claim)
 		if err != nil {
@@ -139,12 +179,12 @@ func (s *Service) generationContext(ctx context.Context, audit auditstore.Audit,
 		}
 		write := func(service *artifacts.Service) error {
 			scope, _ := artifacts.AuditScope(audit.AuditID)
-			target := contracts.ArtifactRef{Namespace: auditdomain.ArtifactNamespace(audit.AuditID), Name: "generation-" + strings.TrimPrefix(contentdigest.Bytes(data), "sha256:")}
+			target := contracts.ArtifactRef{Namespace: auditdomain.ArtifactNamespace(audit.AuditID), Name: "materials-" + strings.TrimPrefix(contentdigest.Bytes(data), "sha256:")}
 			written, err := service.CreateFrozen(ctx, scope, target, artifacts.Payload{MediaType: "application/json", Data: data})
 			if err != nil {
 				return err
 			}
-			material = auditcontract.Material{ScopeKind: "audit", ScopeID: audit.AuditID, Ref: written.Ref, Digest: contentdigest.Bytes(data), MediaType: "application/json", SizeBytes: int64(len(data))}
+			retained = auditcontract.Material{ScopeKind: "audit", ScopeID: audit.AuditID, Ref: written.Ref, Digest: contentdigest.Bytes(data), MediaType: "application/json", SizeBytes: int64(len(data))}
 			return nil
 		}
 		if claim != nil {
@@ -152,5 +192,5 @@ func (s *Service) generationContext(ctx context.Context, audit auditstore.Audit,
 		}
 		return write(artifacts.NewService(s.storage.TxRepository(tx)))
 	})
-	return material, err
+	return retained, err
 }

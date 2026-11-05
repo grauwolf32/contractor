@@ -51,6 +51,12 @@ func ResolveProgramWorkflows(program auditcontract.Program, lookup func(string) 
 			if source.Source == "task-input" {
 				continue
 			}
+			if source.Source == "task-results" {
+				if !slot.MaterialSet || slot.Required {
+					return nil, apierror.New(apierror.AuditDocumentInvalid, "audit_document_invalid: prior result materials require an optional set input")
+				}
+				continue
+			}
 			if source.Source != "audit-input" {
 				if !contracts.AcceptsMediaType(slot.MediaTypes, "application/json") {
 					return nil, apierror.New(apierror.AuditDocumentInvalid, "audit_document_invalid: context input must accept JSON")
@@ -78,6 +84,9 @@ func ResolveProgramWorkflows(program auditcontract.Program, lookup func(string) 
 			if !ok || !slot.Required || (logical == "result" || logical == "work" || logical == "proposals") && !contracts.AcceptsMediaType(slot.MediaTypes, "application/json") {
 				return nil, apierror.New(apierror.AuditDocumentInvalid, "audit_document_invalid: output must name a required Workflow output")
 			}
+		}
+		if _, err := ResolveProposalTarget(workflow, binding); err != nil {
+			return nil, apierror.New(apierror.AuditDocumentInvalid, "audit_document_invalid: incompatible proposal roles")
 		}
 		if _, err := ResolveCompletionTarget(workflow, binding); err != nil {
 			return nil, err

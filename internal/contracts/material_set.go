@@ -104,11 +104,20 @@ func (b *MaterialBudget) AddSetDocument(m MaterialDescriptor, bytes int64) error
 	if b.documents[key] {
 		return nil
 	}
-	if bytes < 0 || b.documentBytes+bytes > MaxMaterialDescriptorBytes {
-		return Invalidf("material descriptor document bytes exceeded")
+	if err := b.CheckSetDocumentBytes(bytes); err != nil {
+		return err
 	}
 	b.documents[key] = true
 	b.documentBytes += bytes
+	return nil
+}
+
+// CheckSetDocumentBytes lets a bounded caller choose a prefix before creating
+// its ordinary selection Artifact. AddSetDocument remains the charging owner.
+func (b *MaterialBudget) CheckSetDocumentBytes(bytes int64) error {
+	if bytes < 0 || b.documentBytes+bytes > MaxMaterialDescriptorBytes {
+		return Invalidf("material descriptor document bytes exceeded")
+	}
 	return nil
 }
 

@@ -321,6 +321,14 @@
         "scope": {
           "$ref": "#/$defs/assertion_scope"
         },
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/artifact"
+          },
+          "maxItems": 32,
+          "type": "array",
+          "uniqueItems": true
+        },
         "statement": {
           "$ref": "#/$defs/text"
         }
@@ -424,7 +432,8 @@
               "enum": [
                 "task-context",
                 "prior-results",
-                "task-input"
+                "task-input",
+                "task-results"
               ]
             }
           },
@@ -707,9 +716,43 @@
       "type": "object",
       "x-maxEncodedBytes": 4194304
     },
+    "proposal_binding": {
+      "additionalProperties": false,
+      "properties": {
+        "context": {
+          "$ref": "#/$defs/ref"
+        },
+        "result": {
+          "$ref": "#/$defs/common_artifactRef"
+        },
+        "run_id": {
+          "$ref": "#/$defs/resource_id"
+        },
+        "schema": {
+          "const": "contractor.audit.proposal-binding.v1"
+        }
+      },
+      "required": [
+        "schema",
+        "run_id",
+        "context",
+        "result"
+      ],
+      "type": "object"
+    },
     "proposal_context": {
       "additionalProperties": false,
       "properties": {
+        "input_sources": {
+          "additionalProperties": {
+            "$ref": "#/$defs/artifact"
+          },
+          "maxProperties": 32,
+          "propertyNames": {
+            "$ref": "#/$defs/key"
+          },
+          "type": "object"
+        },
         "materials": {
           "additionalProperties": {
             "$ref": "#/$defs/artifact"
@@ -744,11 +787,14 @@
             ],
             "type": "object"
           },
-          "maxItems": 16,
+          "maxItems": 32,
           "type": "array"
         },
         "program": {
           "$ref": "#/$defs/program"
+        },
+        "run_id": {
+          "$ref": "#/$defs/resource_id"
         },
         "schema": {
           "const": "contractor.audit.proposal-context.v1"
@@ -757,7 +803,9 @@
       "required": [
         "schema",
         "program",
-        "materials"
+        "materials",
+        "run_id",
+        "input_sources"
       ],
       "type": "object"
     },
@@ -766,7 +814,7 @@
       "properties": {
         "hypotheses": {
           "additionalProperties": {
-            "$ref": "#/$defs/seed"
+            "$ref": "#/$defs/proposed_hypothesis"
           },
           "maxProperties": 128,
           "propertyNames": {
@@ -776,6 +824,16 @@
         },
         "schema": {
           "const": "contractor.audit.proposals.v1"
+        },
+        "selected_materials": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ref"
+          },
+          "maxProperties": 32,
+          "propertyNames": {
+            "$ref": "#/$defs/key"
+          },
+          "type": "object"
         },
         "work": {
           "items": {
@@ -790,7 +848,42 @@
         "hypotheses",
         "work"
       ],
-      "type": "object"
+      "type": "object",
+      "x-maxCanonicalBytes": 1048576,
+      "x-maxRawBytes": 1048576
+    },
+    "proposed_hypothesis": {
+      "additionalProperties": false,
+      "description": "The complete seed's RFC 8785 canonical UTF-8 encoding must fit 32768 bytes. This early content bound does not replace the complete hypothesis document bound after trusted identity, revision and origin are assigned.",
+      "properties": {
+        "grounds": {
+          "$ref": "#/$defs/text"
+        },
+        "scope": {
+          "$ref": "#/$defs/assertion_scope"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/key"
+          },
+          "maxItems": 32,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "statement": {
+          "$ref": "#/$defs/text"
+        }
+      },
+      "required": [
+        "statement",
+        "scope",
+        "grounds"
+      ],
+      "type": "object",
+      "x-maxCanonicalBytes": 32768
+    },
+    "ref": {
+      "$ref": "#/$defs/common_exactArtifactRef"
     },
     "resource_id": {
       "$ref": "#/$defs/common_resourceId"
@@ -970,6 +1063,9 @@
     },
     {
       "$ref": "#/$defs/proposal_context"
+    },
+    {
+      "$ref": "#/$defs/proposal_binding"
     },
     {
       "$ref": "#/$defs/proposals"

@@ -40,6 +40,9 @@
     },
     {
       "$ref": "#/$defs/assertion_source"
+    },
+    {
+      "$ref": "#/$defs/proposal_binding"
     }
   ],
   "$defs": {
@@ -174,7 +177,8 @@
               "enum": [
                 "task-context",
                 "prior-results",
-                "task-input"
+                "task-input",
+                "task-results"
               ]
             }
           },
@@ -548,6 +552,14 @@
               }
             }
           ]
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/artifact"
+          },
+          "maxItems": 32,
+          "uniqueItems": true
         }
       },
       "required": [
@@ -1138,7 +1150,7 @@
             "$ref": "#/$defs/key"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/seed"
+            "$ref": "#/$defs/proposed_hypothesis"
           },
           "maxProperties": 128
         },
@@ -1148,8 +1160,20 @@
             "$ref": "#/$defs/initial"
           },
           "maxItems": 128
+        },
+        "selected_materials": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/key"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/ref"
+          },
+          "maxProperties": 32
         }
-      }
+      },
+      "x-maxCanonicalBytes": 1048576,
+      "x-maxRawBytes": 1048576
     },
     "proposal_context": {
       "type": "object",
@@ -1157,7 +1181,9 @@
       "required": [
         "schema",
         "program",
-        "materials"
+        "materials",
+        "run_id",
+        "input_sources"
       ],
       "properties": {
         "schema": {
@@ -1178,7 +1204,7 @@
         },
         "observations": {
           "type": "array",
-          "maxItems": 16,
+          "maxItems": 32,
           "items": {
             "type": "object",
             "additionalProperties": false,
@@ -1202,6 +1228,19 @@
               }
             }
           }
+        },
+        "run_id": {
+          "$ref": "#/$defs/resource_id"
+        },
+        "input_sources": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/key"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/artifact"
+          },
+          "maxProperties": 32
         }
       }
     },
@@ -1458,6 +1497,60 @@
         "$ref": "#/$defs/text"
       },
       "maxProperties": 64
+    },
+    "proposed_hypothesis": {
+      "type": "object",
+      "description": "The complete seed's RFC 8785 canonical UTF-8 encoding must fit 32768 bytes. This early content bound does not replace the complete hypothesis document bound after trusted identity, revision and origin are assigned.",
+      "x-maxCanonicalBytes": 32768,
+      "properties": {
+        "statement": {
+          "$ref": "#/$defs/text"
+        },
+        "scope": {
+          "$ref": "#/$defs/assertion_scope"
+        },
+        "grounds": {
+          "$ref": "#/$defs/text"
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/key"
+          },
+          "maxItems": 32,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "statement",
+        "scope",
+        "grounds"
+      ],
+      "additionalProperties": false
+    },
+    "proposal_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "run_id",
+        "context",
+        "result"
+      ],
+      "properties": {
+        "schema": {
+          "const": "contractor.audit.proposal-binding.v1"
+        },
+        "run_id": {
+          "$ref": "#/$defs/resource_id"
+        },
+        "context": {
+          "$ref": "#/$defs/ref"
+        },
+        "result": {
+          "$ref": "https://contractor.local/schema/v1alpha1/common.schema.json#/$defs/artifactRef"
+        }
+      }
     }
   },
   "x-maxEncodedBytes": 8388608

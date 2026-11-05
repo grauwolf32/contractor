@@ -263,6 +263,9 @@ func (s *OwnerStore) WriteHypotheses(ctx context.Context, p auditstore.WriteHypo
 					return postgres.Receipt{}, err
 				}
 			}
+			if err := persistHypothesisSources(ctx, tx, audit, p.Writes, s.storage); err != nil {
+				return postgres.Receipt{}, err
+			}
 			if err := persistHypotheses(ctx, tx, audit, pinned, p.Writes, p.InitialProgress != nil); err != nil {
 				return postgres.Receipt{}, err
 			}

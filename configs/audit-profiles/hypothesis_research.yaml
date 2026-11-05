@@ -38,60 +38,9 @@
       "generate": {
         "ref": "audit-hypothesis-generation@1",
         "inputs": {
-          "generation_context": {
-            "source": "prior-results"
-          },
           "material": {
             "source": "audit-input",
             "name": "material"
-          },
-          "source_01": {
-            "source": "task-input"
-          },
-          "source_02": {
-            "source": "task-input"
-          },
-          "source_03": {
-            "source": "task-input"
-          },
-          "source_04": {
-            "source": "task-input"
-          },
-          "source_05": {
-            "source": "task-input"
-          },
-          "source_06": {
-            "source": "task-input"
-          },
-          "source_07": {
-            "source": "task-input"
-          },
-          "source_08": {
-            "source": "task-input"
-          },
-          "source_09": {
-            "source": "task-input"
-          },
-          "source_10": {
-            "source": "task-input"
-          },
-          "source_11": {
-            "source": "task-input"
-          },
-          "source_12": {
-            "source": "task-input"
-          },
-          "source_13": {
-            "source": "task-input"
-          },
-          "source_14": {
-            "source": "task-input"
-          },
-          "source_15": {
-            "source": "task-input"
-          },
-          "source_16": {
-            "source": "task-input"
           },
           "findings": {
             "source": "audit-input",
@@ -103,6 +52,12 @@
           "materials": {
             "source": "audit-input",
             "name": "materials"
+          },
+          "analysis": {
+            "source": "prior-results"
+          },
+          "results": {
+            "source": "task-results"
           }
         },
         "parameters": {},

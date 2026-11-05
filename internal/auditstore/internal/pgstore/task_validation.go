@@ -29,6 +29,16 @@ func validTaskSource(source auditstore.TaskSource) bool {
 	if !contracts.ValidName(source.Key) {
 		return false
 	}
+	if len(source.ObservationTaskIDs) > contracts.MaxSelectedMaterials || source.Kind != "continuation" && len(source.ObservationTaskIDs) > 0 {
+		return false
+	}
+	seen := map[string]bool{}
+	for _, id := range source.ObservationTaskIDs {
+		if !contracts.ValidResourceID(id) || seen[id] {
+			return false
+		}
+		seen[id] = true
+	}
 	switch source.Kind {
 	case "manual", "initial":
 		return source.ExecutionID == "" && source.Output == nil && source.ThroughOrdinal == 0

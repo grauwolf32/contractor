@@ -6,399 +6,8 @@
     "version": "1"
   },
   "spec": {
-    "parameters": {
-      "note_000": {
-        "required": false
-      },
-      "note_001": {
-        "required": false
-      },
-      "note_002": {
-        "required": false
-      },
-      "note_003": {
-        "required": false
-      },
-      "note_004": {
-        "required": false
-      },
-      "note_005": {
-        "required": false
-      },
-      "note_006": {
-        "required": false
-      },
-      "note_007": {
-        "required": false
-      },
-      "note_008": {
-        "required": false
-      },
-      "note_009": {
-        "required": false
-      },
-      "note_010": {
-        "required": false
-      },
-      "note_011": {
-        "required": false
-      },
-      "note_012": {
-        "required": false
-      },
-      "note_013": {
-        "required": false
-      },
-      "note_014": {
-        "required": false
-      },
-      "note_015": {
-        "required": false
-      },
-      "note_016": {
-        "required": false
-      },
-      "note_017": {
-        "required": false
-      },
-      "note_018": {
-        "required": false
-      },
-      "note_019": {
-        "required": false
-      },
-      "note_020": {
-        "required": false
-      },
-      "note_021": {
-        "required": false
-      },
-      "note_022": {
-        "required": false
-      },
-      "note_023": {
-        "required": false
-      },
-      "note_024": {
-        "required": false
-      },
-      "note_025": {
-        "required": false
-      },
-      "note_026": {
-        "required": false
-      },
-      "note_027": {
-        "required": false
-      },
-      "note_028": {
-        "required": false
-      },
-      "note_029": {
-        "required": false
-      },
-      "note_030": {
-        "required": false
-      },
-      "note_031": {
-        "required": false
-      },
-      "note_032": {
-        "required": false
-      },
-      "note_033": {
-        "required": false
-      },
-      "note_034": {
-        "required": false
-      },
-      "note_035": {
-        "required": false
-      },
-      "note_036": {
-        "required": false
-      },
-      "note_037": {
-        "required": false
-      },
-      "note_038": {
-        "required": false
-      },
-      "note_039": {
-        "required": false
-      },
-      "note_040": {
-        "required": false
-      },
-      "note_041": {
-        "required": false
-      },
-      "note_042": {
-        "required": false
-      },
-      "note_043": {
-        "required": false
-      },
-      "note_044": {
-        "required": false
-      },
-      "note_045": {
-        "required": false
-      },
-      "note_046": {
-        "required": false
-      },
-      "note_047": {
-        "required": false
-      },
-      "note_048": {
-        "required": false
-      },
-      "note_049": {
-        "required": false
-      },
-      "note_050": {
-        "required": false
-      },
-      "note_051": {
-        "required": false
-      },
-      "note_052": {
-        "required": false
-      },
-      "note_053": {
-        "required": false
-      },
-      "note_054": {
-        "required": false
-      },
-      "note_055": {
-        "required": false
-      },
-      "note_056": {
-        "required": false
-      },
-      "note_057": {
-        "required": false
-      },
-      "note_058": {
-        "required": false
-      },
-      "note_059": {
-        "required": false
-      },
-      "note_060": {
-        "required": false
-      },
-      "note_061": {
-        "required": false
-      },
-      "note_062": {
-        "required": false
-      },
-      "note_063": {
-        "required": false
-      },
-      "note_064": {
-        "required": false
-      },
-      "note_065": {
-        "required": false
-      },
-      "note_066": {
-        "required": false
-      },
-      "note_067": {
-        "required": false
-      },
-      "note_068": {
-        "required": false
-      },
-      "note_069": {
-        "required": false
-      },
-      "note_070": {
-        "required": false
-      },
-      "note_071": {
-        "required": false
-      },
-      "note_072": {
-        "required": false
-      },
-      "note_073": {
-        "required": false
-      },
-      "note_074": {
-        "required": false
-      },
-      "note_075": {
-        "required": false
-      },
-      "note_076": {
-        "required": false
-      },
-      "note_077": {
-        "required": false
-      },
-      "note_078": {
-        "required": false
-      },
-      "note_079": {
-        "required": false
-      },
-      "note_080": {
-        "required": false
-      },
-      "note_081": {
-        "required": false
-      },
-      "note_082": {
-        "required": false
-      },
-      "note_083": {
-        "required": false
-      },
-      "note_084": {
-        "required": false
-      },
-      "note_085": {
-        "required": false
-      },
-      "note_086": {
-        "required": false
-      },
-      "note_087": {
-        "required": false
-      },
-      "note_088": {
-        "required": false
-      },
-      "note_089": {
-        "required": false
-      },
-      "note_090": {
-        "required": false
-      },
-      "note_091": {
-        "required": false
-      },
-      "note_092": {
-        "required": false
-      },
-      "note_093": {
-        "required": false
-      },
-      "note_094": {
-        "required": false
-      },
-      "note_095": {
-        "required": false
-      },
-      "note_096": {
-        "required": false
-      },
-      "note_097": {
-        "required": false
-      },
-      "note_098": {
-        "required": false
-      },
-      "note_099": {
-        "required": false
-      },
-      "note_100": {
-        "required": false
-      },
-      "note_101": {
-        "required": false
-      },
-      "note_102": {
-        "required": false
-      },
-      "note_103": {
-        "required": false
-      },
-      "note_104": {
-        "required": false
-      },
-      "note_105": {
-        "required": false
-      },
-      "note_106": {
-        "required": false
-      },
-      "note_107": {
-        "required": false
-      },
-      "note_108": {
-        "required": false
-      },
-      "note_109": {
-        "required": false
-      },
-      "note_110": {
-        "required": false
-      },
-      "note_111": {
-        "required": false
-      },
-      "note_112": {
-        "required": false
-      },
-      "note_113": {
-        "required": false
-      },
-      "note_114": {
-        "required": false
-      },
-      "note_115": {
-        "required": false
-      },
-      "note_116": {
-        "required": false
-      },
-      "note_117": {
-        "required": false
-      },
-      "note_118": {
-        "required": false
-      },
-      "note_119": {
-        "required": false
-      },
-      "note_120": {
-        "required": false
-      },
-      "note_121": {
-        "required": false
-      },
-      "note_122": {
-        "required": false
-      },
-      "note_123": {
-        "required": false
-      },
-      "note_124": {
-        "required": false
-      },
-      "note_125": {
-        "required": false
-      },
-      "note_126": {
-        "required": false
-      },
-      "note_127": {
-        "required": false
-      }
-    },
+    "parameters": {},
     "inputs": {
-      "generation_context": {
-        "required": true,
-        "mediaTypes": [
-          "application/json"
-        ]
-      },
       "material": {
         "required": false,
         "mediaTypes": [
@@ -413,106 +22,30 @@
           "application/vnd.contractor.findings-collection+zip"
         ]
       },
-      "source_01": {
-        "required": false,
-        "mediaTypes": [
-          "*/*"
-        ]
-      },
-      "source_02": {
-        "required": false,
-        "mediaTypes": [
-          "*/*"
-        ]
-      },
-      "source_03": {
-        "required": false,
-        "mediaTypes": [
-          "*/*"
-        ]
-      },
-      "source_04": {
-        "required": false,
-        "mediaTypes": [
-          "*/*"
-        ]
-      },
-      "source_05": {
-        "required": false,
-        "mediaTypes": [
-          "*/*"
-        ]
-      },
-      "source_06": {
-        "required": false,
-        "mediaTypes": [
-          "*/*"
-        ]
-      },
-      "source_07": {
-        "required": false,
-        "mediaTypes": [
-          "*/*"
-        ]
-      },
-      "source_08": {
-        "required": false,
-        "mediaTypes": [
-          "*/*"
-        ]
-      },
-      "source_09": {
-        "required": false,
-        "mediaTypes": [
-          "*/*"
-        ]
-      },
-      "source_10": {
-        "required": false,
-        "mediaTypes": [
-          "*/*"
-        ]
-      },
-      "source_11": {
-        "required": false,
-        "mediaTypes": [
-          "*/*"
-        ]
-      },
-      "source_12": {
-        "required": false,
-        "mediaTypes": [
-          "*/*"
-        ]
-      },
-      "source_13": {
-        "required": false,
-        "mediaTypes": [
-          "*/*"
-        ]
-      },
-      "source_14": {
-        "required": false,
-        "mediaTypes": [
-          "*/*"
-        ]
-      },
-      "source_15": {
-        "required": false,
-        "mediaTypes": [
-          "*/*"
-        ]
-      },
-      "source_16": {
-        "required": false,
-        "mediaTypes": [
-          "*/*"
-        ]
-      },
       "context": {
         "required": true,
         "mediaTypes": [
           "application/json"
+        ]
+      },
+      "analysis": {
+        "required": true,
+        "mediaTypes": [
+          "application/json"
+        ]
+      },
+      "results": {
+        "required": false,
+        "materialSet": true,
+        "mediaTypes": [
+          "*/*"
+        ]
+      },
+      "materials": {
+        "required": false,
+        "materialSet": true,
+        "mediaTypes": [
+          "*/*"
         ]
       }
     },
@@ -547,11 +80,6 @@
         },
         "context": {
           "artifacts": {
-            "generation_context": {
-              "namespace": "inputs",
-              "name": "generation_context",
-              "required": true
-            },
             "material": {
               "namespace": "inputs",
               "name": "material",
@@ -562,90 +90,25 @@
               "name": "findings",
               "required": false
             },
-            "source_01": {
-              "namespace": "inputs",
-              "name": "source_01",
-              "required": false
-            },
-            "source_02": {
-              "namespace": "inputs",
-              "name": "source_02",
-              "required": false
-            },
-            "source_03": {
-              "namespace": "inputs",
-              "name": "source_03",
-              "required": false
-            },
-            "source_04": {
-              "namespace": "inputs",
-              "name": "source_04",
-              "required": false
-            },
-            "source_05": {
-              "namespace": "inputs",
-              "name": "source_05",
-              "required": false
-            },
-            "source_06": {
-              "namespace": "inputs",
-              "name": "source_06",
-              "required": false
-            },
-            "source_07": {
-              "namespace": "inputs",
-              "name": "source_07",
-              "required": false
-            },
-            "source_08": {
-              "namespace": "inputs",
-              "name": "source_08",
-              "required": false
-            },
-            "source_09": {
-              "namespace": "inputs",
-              "name": "source_09",
-              "required": false
-            },
-            "source_10": {
-              "namespace": "inputs",
-              "name": "source_10",
-              "required": false
-            },
-            "source_11": {
-              "namespace": "inputs",
-              "name": "source_11",
-              "required": false
-            },
-            "source_12": {
-              "namespace": "inputs",
-              "name": "source_12",
-              "required": false
-            },
-            "source_13": {
-              "namespace": "inputs",
-              "name": "source_13",
-              "required": false
-            },
-            "source_14": {
-              "namespace": "inputs",
-              "name": "source_14",
-              "required": false
-            },
-            "source_15": {
-              "namespace": "inputs",
-              "name": "source_15",
-              "required": false
-            },
-            "source_16": {
-              "namespace": "inputs",
-              "name": "source_16",
-              "required": false
-            },
             "context": {
               "namespace": "inputs",
               "name": "context",
               "required": true
+            },
+            "analysis": {
+              "namespace": "inputs",
+              "name": "analysis",
+              "required": true
+            },
+            "results": {
+              "namespace": "inputs",
+              "name": "results",
+              "required": false
+            },
+            "materials": {
+              "namespace": "inputs",
+              "name": "materials",
+              "required": false
             }
           }
         },

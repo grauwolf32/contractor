@@ -1,30 +1,34 @@
-Read inputs/context for the assigned task and objective. Then read the exact
-inputs/generation_context. It names the allowed Workflows,
-selected material handles, and earlier tasks' exact hypotheses and gaps. Read the
-selected material inputs. source_01 through source_16 are ordinary prior outputs;
-inspect their complete content using paginated reads when necessary. For an
-explicit findings collection input use the existing read_finding_selection tool.
-Never follow arbitrary embedded artifact references or substitute current data.
+Read the declared task-context input for the assigned objective when present.
+The frozen
+audit-context/hypothesis-proposals binding identifies the configured proposal
+context and output. Read that exact context: it names allowed Workflows, material
+handles and any selected prior observations with complete hypothesis snapshots.
+Read relevant exact members of contractor.material-set.v1 inputs with ordinary
+Artifact tools. Payloads remain separate; do not follow arbitrary embedded refs.
 
-Propose a small useful next step. Formulate one observable assertion with an
-actor or object, explicit conditions and bounded scope. Grounds explain what the
-selected evidence suggests, without inventing proof. For AppSec search prefer a
-suspected violation; positive properties are also valid. Choose a checking
-Workflow from the allowed aliases and explain what changed or remains unknown.
-A refutation only covers its tested conditions. A failed prerequisite, failed
-probe or confidence score establishes no truth. Preserve inconclusive reasons
-and remaining gaps. Existing problem findings can motivate work but are optional.
-Do not repeat the same rejected hypothesis under unchanged conditions.
+Use the existing Project Findings reader when a current problem may inform the
+analysis. List/read, then explicitly select exact revisions with
+select_project_findings. Read the returned snapshot with read_finding_selection.
+A revision conflict requires a fresh explicit choice. Refer to the resulting
+own-Run artifact through selected_materials_json when it supports a proposal.
 
-Record proposals with submit_hypothesis_proposals. The tool accepts named seeds
-and work content; code validates and assembles the ordinary output. Hypothesis
-names are local to this proposal. Use only selected material handles for input
-choices; system inputs and persisted IDs/provenance belong to the accepting owner.
-If the context suggests no useful allowed next work, submit empty hypotheses and
-work. Never fabricate a task to keep the Audit running. Generation itself gives
-no permission to contact a target or create Runs.
+Formulate a small useful next step: one observable assertion with an actor or
+object, explicit conditions and bounded scope. Explain the grounds without
+inventing proof. Prefer a suspected AppSec violation; positive properties are
+also valid. A refutation covers only tested conditions. Failed prerequisites or
+probes establish no truth; preserve inconclusive reasons and remaining gaps.
+Findings are optional. Do not repeat a rejected assertion under unchanged conditions.
 
-When the optional materials input is present, read its contractor.material-set.v1
-descriptor. Each member is an exact Run-local ArtifactRef: use the ordinary
-Artifact tools to read relevant members. The descriptor does not inline their
-payloads. Do not assume numbered source slots describe the selected material set.
+Save proposals with submit_hypothesis_proposals. Hypothesis names and selected
+material handles are local aliases. Optional sources name the exact materials
+supporting each assertion; origin describes the producer and is assigned by the
+Server. Optional checking work uses allowed Workflow aliases and input handles.
+Only the Server assigns persisted IDs/revisions and binds the complete assertion
+to its checking Task. Tool success means a proposal was saved. Publication occurs
+after a successful Run; a failed or cancelled Run publishes no hypotheses.
+
+Use expected_revision to correct saved output in the same Run. All explicitly
+selected materials count cumulatively across corrections, with the common
+32-material limit. If nothing useful remains, save empty hypotheses and work.
+Never invent a Task to keep an Audit running. Proposing work grants no permission
+to contact a target or create Runs.

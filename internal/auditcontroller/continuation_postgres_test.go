@@ -21,10 +21,7 @@ import (
 )
 
 func generationBinding() auditcontract.ProgramWorkflow {
-	inputs := map[string]auditcontract.InputMapping{"context": {Source: "task-context"}, "generation_context": {Source: "prior-results"}, "material": {Source: "audit-input", Name: "source"}}
-	for i := 1; i <= 16; i++ {
-		inputs[fmt.Sprintf("source_%02d", i)] = auditcontract.InputMapping{Source: "task-input"}
-	}
+	inputs := map[string]auditcontract.InputMapping{"context": {Source: "task-context"}, "analysis": {Source: "prior-results"}, "results": {Source: "task-results"}, "material": {Source: "audit-input", Name: "source"}}
 	return auditcontract.ProgramWorkflow{Ref: "audit-hypothesis-generation@1", Inputs: inputs, Parameters: map[string]string{}, Outputs: map[string]string{"proposals": "proposals"}}
 }
 
@@ -76,7 +73,7 @@ func TestPostgresContinuationKeepsExactSourcesPauseResumeAndEmptySettlement(t *t
 		t.Fatal(page, err)
 	}
 	decision := page.Tasks[1]
-	if decision.State != auditstore.TaskReady || decision.Source.Kind != "continuation" || decision.Document.Inputs["source_01"].Digest != page.Tasks[0].Result.Digest {
+	if decision.State != auditstore.TaskReady || decision.Source.Kind != "continuation" || len(decision.Source.ObservationTaskIDs) != 1 || decision.Source.ObservationTaskIDs[0] != page.Tasks[0].Document.TaskID {
 		t.Fatal("continuation lost accepted exact context", decision)
 	}
 	paused, err := h.service.Pause(ctx, auditservice.MutationParams{OwnerID: "owner", AuditID: audit.AuditID, ExpectedRevision: audit.Revision, IdempotencyKey: "pause-before-generation", RequestDigest: contentdigest.Bytes([]byte("pause-before-generation"))})
@@ -110,15 +107,15 @@ func TestPostgresContinuationKeepsExactSourcesPauseResumeAndEmptySettlement(t *t
 	if json.Unmarshal(assignment.Payload.Data, &taskContext) != nil || len(taskContext.Items) != 1 || taskContext.Items[0].TaskID != decision.Document.TaskID || taskContext.Items[0].Objective != decision.Document.Objective {
 		t.Fatal("generator lost its trusted ordinary task assignment")
 	}
-	contextRead, err := run.Read(ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "generation_context"})
+	contextRead, err := run.Read(ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "analysis"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	var selected auditcontract.ProposalContext
-	if json.Unmarshal(contextRead.Payload.Data, &selected) != nil || len(selected.Observations) != 1 || selected.Materials["source_01"].Digest != page.Tasks[0].Result.Digest {
+	if json.Unmarshal(contextRead.Payload.Data, &selected) != nil || len(selected.Observations) != 1 || selected.Materials[contracts.MaterialHandle(*page.Tasks[0].Result)].Digest != page.Tasks[0].Result.Digest {
 		t.Fatal("generator context changed")
 	}
-	prior, err := run.Read(ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "source_01"})
+	prior, err := run.Read(ctx, selected.Materials[contracts.MaterialHandle(*page.Tasks[0].Result)].Ref)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,7 +181,7 @@ func finishGenerationTestCheck(t *testing.T, h *postgresControllerHarness, execu
 	finishGenerationTestOutput(t, h, *execution.RunID, "result", data)
 }
 
-func finishGenerationTestOutput(t *testing.T, h *postgresControllerHarness, runID, slot string, data []byte) {
+func finishGenerationTestOutput(t *testing.T, h *postgresControllerHarness, runID, slot string, data []byte, outcome ...runstore.WorkflowRunState) {
 	t.Helper()
 	ctx := context.Background()
 	run, _ := h.artifacts.Run(runID)
@@ -198,7 +195,11 @@ func finishGenerationTestOutput(t *testing.T, h *postgresControllerHarness, runI
 	if err = artifactstest.FreezeOutputs(ctx, h.artifacts, runID); err != nil {
 		t.Fatal(err)
 	}
-	for _, pair := range [][2]runstore.WorkflowRunState{{runstore.RunPending, runstore.RunRunning}, {runstore.RunRunning, runstore.RunSucceeded}} {
+	terminal := runstore.RunSucceeded
+	if len(outcome) > 0 {
+		terminal = outcome[0]
+	}
+	for _, pair := range [][2]runstore.WorkflowRunState{{runstore.RunPending, runstore.RunRunning}, {runstore.RunRunning, terminal}} {
 		if _, err = h.runs.TransitionRun(ctx, runID, pair[0], pair[1], runstore.Reason{Code: "fixture"}); err != nil {
 			t.Fatal(err)
 		}
@@ -206,7 +207,7 @@ func finishGenerationTestOutput(t *testing.T, h *postgresControllerHarness, runI
 }
 
 func TestPostgresProducerRejectsWholeInvalidBatchAndCollectsDuringCancellation(t *testing.T) {
-	for _, scenario := range []string{"hypothesis-only", "foreign-material", "unsupported-workflow", "oversized-seed", "cancelled", "producer-self-loop", "task-budget"} {
+	for _, scenario := range []string{"hypothesis-only", "foreign-material", "unsupported-workflow", "oversized-seed", "cancelled", "producer-self-loop", "task-budget", "selected-hidden", "selected-system", "selected-foreign", "selected-over-bound", "failed-run"} {
 		t.Run(scenario, func(t *testing.T) {
 			h := newCommonControllerHarness(t, func(p *auditcontract.Program) {
 				p.Workflows["generate"] = generationBinding()
@@ -260,8 +261,39 @@ func TestPostgresProducerRejectsWholeInvalidBatchAndCollectsDuringCancellation(t
 					t.Fatal(err)
 				}
 			}
-			data, _ := json.Marshal(auditcontract.Proposals{Schema: auditcontract.ProposalsSchema, Hypotheses: map[string]auditcontract.HypothesisSeed{"candidate": seed}, Work: work})
-			finishGenerationTestOutput(t, h, *producer.RunID, "proposals", data)
+			selected := map[string]contracts.ArtifactRef{}
+			run, _ := h.artifacts.Run(*producer.RunID)
+			switch scenario {
+			case "selected-hidden":
+				selected["forbidden"] = contracts.ArtifactRef{Namespace: "skills", Name: "private", Revision: func() *string { s := "r1"; return &s }()}
+			case "selected-system":
+				m, err := run.Metadata(ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "analysis"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				selected["forbidden"] = m.Ref
+			case "selected-foreign":
+				project, _ := h.artifacts.Project(h.started.Audit.ProjectID)
+				m, err := project.Write(ctx, contracts.ArtifactRef{Namespace: "foreign", Name: "selected"}, artifacts.Payload{MediaType: "text/plain", Data: []byte("Project content is not an own-Run selection")}, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				selected["forbidden"] = m.Ref
+			case "selected-over-bound":
+				for i := range 32 {
+					m, err := run.Write(ctx, contracts.ArtifactRef{Namespace: "generator", Name: fmt.Sprint("selection-", i)}, artifacts.Payload{MediaType: "text/plain", Data: []byte("selected content")}, nil)
+					if err != nil {
+						t.Fatal(err)
+					}
+					selected[fmt.Sprint("choice-", i)] = m.Ref
+				}
+			}
+			data, _ := json.Marshal(auditcontract.Proposals{Schema: auditcontract.ProposalsSchema, SelectedMaterials: selected, Hypotheses: map[string]auditcontract.ProposedHypothesis{"candidate": {Statement: seed.Statement, Scope: seed.Scope, Grounds: seed.Grounds}}, Work: work})
+			if scenario == "failed-run" {
+				finishGenerationTestOutput(t, h, *producer.RunID, "proposals", data, runstore.RunFailed)
+			} else {
+				finishGenerationTestOutput(t, h, *producer.RunID, "proposals", data)
+			}
 			for range 2 {
 				if changed, err := c.RunOnce(ctx); err != nil || !changed {
 					t.Fatal(changed, err)
@@ -318,12 +350,12 @@ func TestPostgresContinuationConsumesOnlyItsBoundedSelectedSources(t *testing.T)
 		p.Workflows["generate"] = generationBinding()
 		p.Continuation = &auditcontract.Continuation{Workflow: "generate"}
 		p.InitialWork = nil
-		for i := 1; i <= 20; i++ {
+		for i := 1; i <= 33; i++ {
 			p.InitialWork = append(p.InitialWork, auditcontract.InitialWork{Key: fmt.Sprintf("source-%02d", i), Workflow: "inspect", Objective: "Retain one selected ordinary observation"})
 		}
-		p.Limits.MaxTasks = 32
-		p.Limits.MaxTasksPerIteration = 32
-		p.Limits.MaxSubmittedRuns = 32
+		p.Limits.MaxTasks = 64
+		p.Limits.MaxTasksPerIteration = 64
+		p.Limits.MaxSubmittedRuns = 64
 		p.Limits.BatchSize = 1
 	})
 	ctx := t.Context()
@@ -336,7 +368,7 @@ func TestPostgresContinuationConsumesOnlyItsBoundedSelectedSources(t *testing.T)
 		}
 	}
 	step() // initial intake may need another byte-bounded slice
-	for i := 1; i <= 20; i++ {
+	for i := 1; i <= 33; i++ {
 		var rows []auditstore.Execution
 		for budget := 0; budget < 8; budget++ {
 			var err error
@@ -356,16 +388,16 @@ func TestPostgresContinuationConsumesOnlyItsBoundedSelectedSources(t *testing.T)
 		step()
 		step()
 	}
-	for decision, count := range []int{16, 4} {
+	for decision, count := range []int{31, 2} {
 		step() // accept a distinct source slice
 		page, err := h.service.Tasks(ctx, auditstore.ListTasksParams{OwnerID: "owner", AuditID: h.started.Audit.AuditID, Limit: 100})
 		if err != nil {
 			t.Fatal(err)
 		}
 		task := page.Tasks[len(page.Tasks)-1]
-		expected := 16
+		expected := 31
 		if decision == 1 {
-			expected = 20
+			expected = 33
 		}
 		if task.Source.ThroughOrdinal != expected {
 			t.Fatalf("decision consumed unselected history: through=%d", task.Source.ThroughOrdinal)
@@ -376,8 +408,11 @@ func TestPostgresContinuationConsumesOnlyItsBoundedSelectedSources(t *testing.T)
 			t.Fatal(err)
 		}
 		generator := rows[len(rows)-1]
+		if generator.RunID == nil {
+			t.Fatalf("generator rejected: %+v", generator)
+		}
 		run, _ := h.artifacts.Run(*generator.RunID)
-		value, err := run.Read(ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "generation_context"})
+		value, err := run.Read(ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "analysis"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -401,6 +436,9 @@ func TestPostgresContinuationConsumesOnlyItsBoundedSelectedSources(t *testing.T)
 func TestPostgresContinuationProjectsLargeAcceptedTaskMetadata(t *testing.T) {
 	h := newCommonControllerHarness(t, func(p *auditcontract.Program) {
 		inspect := generationBinding()
+		inspect.Ref = "large-observation@1"
+		delete(inspect.Inputs, "analysis")
+		delete(inspect.Inputs, "results")
 		inspect.Outputs = map[string]string{"material": "proposals"}
 		for i := 0; i < 128; i++ {
 			inspect.Parameters[fmt.Sprintf("note_%03d", i)] = strings.Repeat("x", 4096)
@@ -437,7 +475,7 @@ func TestPostgresContinuationProjectsLargeAcceptedTaskMetadata(t *testing.T) {
 	if err != nil || len(page.Tasks) != 2 {
 		t.Fatalf("large source was dropped: count=%d error=%v", len(page.Tasks), err)
 	}
-	if page.Tasks[1].Source.ThroughOrdinal != 1 || page.Tasks[1].Document.Inputs["source_01"].Digest != page.Tasks[0].Result.Digest {
+	if page.Tasks[1].Source.ThroughOrdinal != 1 || len(page.Tasks[1].Source.ObservationTaskIDs) != 1 || page.Tasks[1].Source.ObservationTaskIDs[0] != page.Tasks[0].Document.TaskID {
 		t.Fatal("source projection lost the exact large Task result")
 	}
 }

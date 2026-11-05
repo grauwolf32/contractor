@@ -18,6 +18,8 @@ def decode_audit_document(data: bytes, *, schema: str) -> dict:
     """Validate bounded JSON without fetching external schemas or granting authority."""
     if not isinstance(data, bytes) or not 0 < len(data) <= MAX_DOCUMENT_BYTES:
         raise ValueError("Audit document bytes")
+    if schema == "contractor.audit.proposals.v1" and len(data) > 1 << 20:
+        raise ValueError("Audit proposal bytes")
     if schema == "contractor.audit.hypothesis.v1" and len(data) > 32768:
         raise ValueError("Audit hypothesis bytes")
     value = strict_json_loads(data.decode("utf-8"))
@@ -70,14 +72,26 @@ def decode_audit_document(data: bytes, *, schema: str) -> dict:
         len(jcs.canonicalize(seed)) > 32768 for seed in value["hypotheses"].values()
     ):
         raise ValueError("Audit seed bytes")
+    if schema == "contractor.audit.proposals.v1" and len(jcs.canonicalize(value)) > 1 << 20:
+        raise ValueError("Audit canonical proposal bytes")
     if schema == "contractor.audit.program.v1":
         _validate_program(value)
     if schema == "contractor.audit.proposal-context.v1":
-        keys, tasks = set(), set()
+        originals = value["input_sources"]
+        if set(originals) != set(value["materials"]):
+            raise ValueError("Audit material membership")
+        distinct = {jcs.canonicalize(m) for m in originals.values()}
+        if len(distinct) > 32 or sum(map(len, distinct)) > 1 << 20:
+            raise ValueError("Audit cumulative materials")
+        if any(
+            m["scope_kind"] != "run" or m["scope_id"] != value["run_id"]
+            for m in value["materials"].values()
+        ):
+            raise ValueError("Audit local material authority")
+        tasks = set()
         for item in value.get("observations", []):
-            if item["key"] in keys or item["task_id"] in tasks:
+            if item["task_id"] in tasks:
                 raise ValueError("Audit observation membership")
-            keys.add(item["key"])
             tasks.add(item["task_id"])
             if item["key"] not in value["materials"] and "gap" not in item:
                 raise ValueError("Audit observation source")

@@ -1222,11 +1222,11 @@ Artifacts, with trusted common results normalized only for a declared `result`.
 A material without Findings remains a useful completed outcome.
 
 
-**AUX-R112.** At the ordinary drained Task barrier the coordinator asks the Audit
-owner to accept configured continuation before closing the Audit (ACT-R7). One
-bounded frozen source selection creates one ordinary ready Task with a durable
-consumed source boundary. Existing RunService, claims, mutation and collection
-receipts own dispatch, intake and reconciliation. A producer's own result is not
-a continuation source. Pause preserves the Task; cancellation/deletion drain
-outputs without admitting more semantic work. No other controller or intake
-engine exists.
+**AUX-R112.** At the ordinary drained Task barrier the coordinator asks the
+Audit owner to accept configured continuation before closing the Audit (ACT-R7).
+[HG-R13](hypotheses.md#HG-R13) owns its source selection and consumed boundary;
+[HG-R14](hypotheses.md#HG-R14) owns permanent rejection and receipt reconciliation.
+RunService materializes declared native materials and Run-local configured roles;
+existing claims, mutation and collection receipts own dispatch/intake. A cursor
+accounts for new work without defining all Workflow research inputs. No other
+controller or intake engine exists.

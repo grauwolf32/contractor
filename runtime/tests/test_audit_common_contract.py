@@ -63,6 +63,10 @@ def _decode(data: str):
                 bytes_and_depth(item, depth + 1)
 
     bytes_and_depth(value)
+    if value["schema"] == "contractor.audit.proposals.v1" and (
+        len(data.encode()) > 1 << 20 or len(jcs.canonicalize(value)) > 1 << 20
+    ):
+        raise ValueError("proposal bytes")
     if value["schema"] in {"contractor.audit.program.v1", "contractor.audit.proposals.v1"} and any(
         len(jcs.canonicalize(seed)) > 32768 for seed in value["hypotheses"].values()
     ):
@@ -72,6 +76,12 @@ def _decode(data: str):
         "contractor.audit.prepared-work-context.v1",
     }:
         _decode(jcs.canonicalize(value["program"]).decode())
+    if value["schema"] == "contractor.audit.proposal-context.v1" and any(
+        len(jcs.canonicalize(member["hypothesis"])) > 32768
+        for member in value.get("observations", [])
+        if "hypothesis" in member
+    ):
+        raise ValueError("observation hypothesis bytes")
     if value["schema"] == "contractor.audit.context.v1" and any(
         len(jcs.canonicalize(member["hypothesis"])) > 32768
         for member in value["items"]
@@ -205,11 +215,20 @@ def _validate_case(case):
             raise ValueError("unknown continuation")
         return
     if value["schema"] == "contractor.audit.proposal-context.v1":
-        keys, tasks = set(), set()
+        if set(value["input_sources"]) != set(value["materials"]):
+            raise ValueError("material membership")
+        distinct = {jcs.canonicalize(m) for m in value["input_sources"].values()}
+        if len(distinct) > 32 or sum(map(len, distinct)) > 1 << 20:
+            raise ValueError("cumulative materials")
+        if any(
+            m["scope_kind"] != "run" or m["scope_id"] != value["run_id"]
+            for m in value["materials"].values()
+        ):
+            raise ValueError("local material authority")
+        tasks = set()
         for item in value.get("observations", []):
-            if item["key"] in keys or item["task_id"] in tasks:
+            if item["task_id"] in tasks:
                 raise ValueError("observation membership")
-            keys.add(item["key"])
             tasks.add(item["task_id"])
             if item["key"] not in value["materials"] and "gap" not in item:
                 raise ValueError("missing selected source")
@@ -229,6 +248,22 @@ def _validate_case(case):
         if trusted["schema"] != "contractor.audit.proposal-context.v1":
             raise ValueError("proposal context required")
         _validate_case({"document": json.dumps(trusted["program"])})
+        materials = dict(trusted["materials"])
+        distinct = {jcs.canonicalize(m) for m in trusted["input_sources"].values()}
+        local = {
+            jcs.canonicalize(m["ref"]): jcs.canonicalize(trusted["input_sources"][key])
+            for key, m in materials.items()
+        }
+        for key, ref in value.get("selected_materials", {}).items():
+            if key in materials:
+                raise ValueError("handle collision")
+            distinct.add(local.get(jcs.canonicalize(ref), b"selected:" + jcs.canonicalize(ref)))
+            materials[key] = case.get("selected_metadata", {}).get(key, {"media_type": ""})
+        if len(distinct) > 32:
+            raise ValueError("cumulative materials")
+        for seed in value["hypotheses"].values():
+            if any(key not in materials for key in seed.get("sources", [])):
+                raise ValueError("unknown grounds")
         program = trusted["program"]
         seeds = set(program["hypotheses"]) | set(value["hypotheses"])
         if set(program["hypotheses"]) & set(value["hypotheses"]):
@@ -247,7 +282,7 @@ def _validate_case(case):
                 if (
                     slot not in binding["inputs"]
                     or binding["inputs"][slot]["source"] not in {"audit-input", "task-input"}
-                    or name not in trusted["materials"]
+                    or name not in materials
                 ):
                     raise ValueError("proposal material selection")
                 if binding["inputs"][slot]["source"] == "task-input":
@@ -255,7 +290,7 @@ def _validate_case(case):
                 declaration = program["inputs"][binding["inputs"][slot]["name"]]
                 if (
                     "*/*" not in declaration["media_types"]
-                    and trusted["materials"][name]["media_type"] not in declaration["media_types"]
+                    and materials[name]["media_type"] not in declaration["media_types"]
                 ):
                     raise ValueError("selected media type")
             if "hypothesis" in task:

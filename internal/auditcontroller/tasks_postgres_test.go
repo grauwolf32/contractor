@@ -92,6 +92,10 @@ func (controllerRuntimeCredentials) ValidateRuntimeCredentialUse(
 }
 
 func newCommonControllerHarness(t *testing.T, configure ...func(*auditcontract.Program)) *postgresControllerHarness {
+	return newCommonControllerHarnessWithInputs(t, nil, configure...)
+}
+
+func newCommonControllerHarnessWithInputs(t *testing.T, prepare func(artifacts.ScopedStore) map[string]auditstore.ExactArtifact, configure ...func(*auditcontract.Program)) *postgresControllerHarness {
 	t.Helper()
 	ctx := t.Context()
 	pool := postgrestest.NewPool(t, ctx, "", postgrestest.Options{Configure: func(c *pgxpool.Config) { c.MaxConns = 1 }})
@@ -159,7 +163,13 @@ func newCommonControllerHarness(t *testing.T, configure ...func(*auditcontract.P
 	if err != nil {
 		t.Fatal(err)
 	}
-	baseline, err := auditservice.EncodeBaseline(auditservice.BaselineSnapshot{Schema: auditservice.BaselineSchema, Labels: map[string]string{}, RequiredPlacementLabels: []string{}, Inputs: map[string]auditstore.ExactArtifact{"source": metadata.Exact(), "openapi": apiMetadata.Exact()}, ActiveChecks: contracts.ActiveChecksProhibited, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(), RuntimeLabels: []string{}, Skills: []agentskills.RunSkillSnapshot{}, LLMCredentialIDs: []string{}, RuntimeCredentialIDs: []string{}, Standards: []auditstandards.PinnedPackage{}})
+	inputs := map[string]auditstore.ExactArtifact{"source": metadata.Exact(), "openapi": apiMetadata.Exact()}
+	if prepare != nil {
+		for name, input := range prepare(projectArtifacts) {
+			inputs[name] = input
+		}
+	}
+	baseline, err := auditservice.EncodeBaseline(auditservice.BaselineSnapshot{Schema: auditservice.BaselineSchema, Labels: map[string]string{}, RequiredPlacementLabels: []string{}, Inputs: inputs, ActiveChecks: contracts.ActiveChecksProhibited, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(), RuntimeLabels: []string{}, Skills: []agentskills.RunSkillSnapshot{}, LLMCredentialIDs: []string{}, RuntimeCredentialIDs: []string{}, Standards: []auditstandards.PinnedPackage{}})
 	if err != nil {
 		t.Fatal(err)
 	}

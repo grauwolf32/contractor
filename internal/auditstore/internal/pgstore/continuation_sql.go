@@ -13,11 +13,19 @@ WITH candidates AS MATERIALIZED (
  CROSS JOIN LATERAL (
   SELECT task_id,ordinal FROM audit_tasks
    WHERE audit_id=$1 AND workflow_alias=allowed.alias AND ordinal>$2
-   ORDER BY ordinal LIMIT 16
+     AND state='settled' AND source->>'kind'<>'continuation'
+   ORDER BY ordinal LIMIT $4
  ) candidate
 ), selected AS MATERIALIZED (
- SELECT * FROM candidates ORDER BY ordinal LIMIT 16
+ SELECT * FROM candidates ORDER BY ordinal LIMIT $4
 )
-SELECT task_id,ordinal,hypothesis_snapshot,result,gap_code
- FROM audit_tasks JOIN selected USING(task_id,ordinal)
- WHERE state='settled' ORDER BY ordinal`
+SELECT source.* FROM selected CROSS JOIN LATERAL (
+ SELECT task_id,ordinal,hypothesis_snapshot,result,gap_code FROM audit_tasks
+ WHERE task_id=selected.task_id AND ordinal=selected.ordinal AND state='settled'
+ LIMIT 1
+) AS source ORDER BY source.ordinal`
+
+// GetRunCreationIntent resolves only IDs durably selected on its accepted Task.
+const taskObservationsSQL = `SELECT task_id,ordinal,hypothesis_snapshot,result,gap_code
+ FROM audit_tasks WHERE audit_id=$1 AND task_id=ANY($2::text[])
+ AND state='settled' AND source->>'kind'<>'continuation' ORDER BY ordinal`

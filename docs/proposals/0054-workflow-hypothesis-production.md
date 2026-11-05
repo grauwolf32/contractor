@@ -1,5 +1,8 @@
 # Гипотезы как результат обычного Workflow
 
+Current normative owner: [Workflow hypothesis production](../spec/audits/hypotheses.md).
+This proposal retains the design discussion; runtime contracts live with their owners.
+
 Дата: 2026-11-05. Статус: целевая спецификация для корректировки реализации;
 новое поведение ещё не реализовано. Документ уточняет
 [общую модель Audit](0050-audit-common-hypothesis-model.md), а не заменяет её.

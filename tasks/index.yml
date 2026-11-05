@@ -18,8 +18,8 @@ execution_policy:
     Proposal 0054 and its implementation plan govern the correction of V64-013:
     V64-033 first delivers common bounded material sets with a real initial
     generator caller; V64-034 admits exact grounds and in-Run selections and
-    replaces numbered source slots/continuation assumptions. These pending tasks
-    and dependent V64-008/010/011 gates do not start implementation or deployment.
+    replaces numbered source slots/continuation assumptions. The dated assignment starts V64-033/034 only;
+    dependent V64-008/010/011 gates and demo deployment remain unassigned.
     Preserve V64-013 completion history; it does not prove the new contract.
     User decision 2026-11-04 authorizes V444-001/002/003 after landing their tasks
     on main: engagement owns only egress, traffic limits and identities. Remove
