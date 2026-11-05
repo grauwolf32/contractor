@@ -6,11 +6,18 @@ epic: quality
 kind: chore
 introduced_by: V55-010
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [python]
 goal: Verify scanner version acceptance and independence through real subprocesses without measuring a cold Python interpreter.
 context:
+  verification: >-
+    2026-11-05: Both owning scanner modules pass all 202 tests. Full Runtime
+    passes 5884 tests with 135 existing optional platform/environment skips;
+    its report verifier passes. Full make lint passes. Logs:
+    /tmp/v443003-modules.log, /tmp/v443003-lint.log,
+    /tmp/v64033-runtime-third.log. The first post-fix full run hit independent
+    allocation/sqlmap test timeouts; a complete unchanged rerun passed.
   authority: >-
     Agent-proposed test-only verification prerequisite discovered 2026-11-05
     while carrying out assigned V64-033/V64-034. The correction plan requires
@@ -59,4 +66,4 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A3]
-implementation_commit: null
+implementation_commit: 1ea07f316303eb595546f6ef87ecb36ab9558c7e
