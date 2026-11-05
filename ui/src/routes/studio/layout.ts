@@ -1,4 +1,4 @@
-import { at, record, textValue, type Draft } from "./document";
+import { record, textValue, type Draft } from "./document";
 import type { StudioGraph, StudioNode } from "./graph";
 
 export const NODE_WIDTH = 218;
@@ -69,17 +69,7 @@ export function layoutGraph(graph: StudioGraph, draft: Draft): StudioGraph {
   );
   const minimum = (node: StudioNode): number => {
     if (node.type === "stage" || node.type === "agent") return 1;
-    if (node.type === "inventory") return 2;
-    if (node.type === "role") {
-      const kind = textValue(record(at(draft.value, node.path)).kind);
-      return kind === "assessment"
-        ? 4
-        : kind === "check"
-          ? 3
-          : kind === "discovery"
-            ? 2
-            : 1;
-    }
+    if (node.type === "role") return 1;
     return 0;
   };
   const ranks = new Map<number, number>();

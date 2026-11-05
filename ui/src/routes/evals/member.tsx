@@ -147,10 +147,11 @@ export function MemberExecutions({
                 return (
                   <li key={entry.intentId ?? ref?.id ?? index}>
                     <span className="ui-caption">
-                      {entry.role ?? "Parent"}
-                      {entry.round === null
+                      {entry.workflow ?? "Parent"}
+                      {entry.iteration === null
                         ? ""
-                        : ` · round ${entry.round}`} · {entry.state}
+                        : ` · iteration ${entry.iteration}`}{" "}
+                      · {entry.state}
                     </span>{" "}
                     {href && ref ? (
                       <ContextLink returnLabel="Evaluation evidence" to={href}>

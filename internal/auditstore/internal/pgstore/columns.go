@@ -14,37 +14,22 @@ import (
 var auditColumnList = []string{
 	"audit_id", "owner_id", "project_id",
 	"profile_name", "profile_version", "profile_digest", "profile_snapshot", "input_selection",
-	"baseline_snapshot", "state", "revision", "current_round_id", "dispatch_state", "hold_state",
+	"baseline_snapshot", "state", "revision", "dispatch_state", "hold_state",
 	"deadline_at", "max_rounds", "batch_size", "max_items_per_round", "max_items_total",
 	"max_submitted_runs", "max_item_run_attempts", "max_evidence_bytes",
 	"reserved_run_count", "submitted_run_count", "outstanding_run_count", "outstanding_tool_run_count",
 	"retained_evidence_bytes",
 	"next_event_sequence - 1", "stop_reason_code", "stop_reason_message",
-	"created_at", "updated_at", "started_at", "finished_at", "deletion_requested_at", "paused_at", "phase",
+	"created_at", "updated_at", "started_at", "finished_at", "deletion_requested_at", "paused_at",
 	"task_count", "task_iteration", "iteration_task_count", "initial_work_offset", "initial_hypothesis_offset",
 }
 
 // executionColumnList is the ScanExecution order.
 var executionColumnList = []string{
-	"execution_id", "audit_id", "round_id", "role", "workflow_role", "role_attempt",
-	"manifest_ref", "manifest_digest", "submission_key", "request_digest", "run_id",
+	"execution_id", "audit_id", "workflow_role",
+	"submission_key", "request_digest", "run_id",
 	"state", "terminal_outcome", "terminal_run_generation", "terminal_run_sequence",
 	"terminal_observed_at", "run_provenance", "run_deleted_at", "created_at", "updated_at",
-	"preparation_snapshot", "preparation_outputs",
-}
-
-// roundColumnList is the scanRound order.
-var roundColumnList = []string{
-	"round_id", "audit_id", "ordinal", "manifest_ref", "manifest_digest",
-	"state", "expected_item_count", "revision", "created_at", "updated_at",
-}
-
-// itemColumnList is the scanItem order.
-var itemColumnList = []string{
-	"item_id", "audit_id", "round_id", "item_key", "ordinal", "kind", "subject_key",
-	"task_ref", "task_digest", "origin", "workflow_role", "state",
-	"final_disposition", "accepted_result_ref", "accepted_result_digest",
-	"last_execution_item_id", "created_at", "updated_at", "retained_dependencies",
 }
 
 // receiptColumn is one column of a collection receipt: the AuditExecution
@@ -96,14 +81,6 @@ func prefixedAuditColumns(prefix string) string {
 // prefix in the order ScanExecution reads them.
 func ExecutionColumns(prefix string) string {
 	return qualifiedColumns(prefix, executionColumnList)
-}
-
-func prefixedRoundColumns(prefix string) string {
-	return qualifiedColumns(prefix, roundColumnList)
-}
-
-func prefixedItemColumns(prefix string) string {
-	return qualifiedColumns(prefix, itemColumnList)
 }
 
 // prefixedReceiptColumns selects receipt-named columns, such as those

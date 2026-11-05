@@ -58,12 +58,12 @@ func safeEventSummary(raw json.RawMessage) map[string]any {
 	}
 	for key, value := range source {
 		switch key {
-		case "round", "items", "members", "count":
+		case "taskCount", "iteration", "members", "count", "createdCount", "workCount":
 			var number int64
 			if json.Unmarshal(value, &number) == nil && number >= 0 && number <= math.MaxInt32 {
 				result[key] = number
 			}
-		case "runId", "subjectId", "findingId", "workflowRole":
+		case "runId", "subjectId", "findingId", "workflow":
 			var text string
 			if json.Unmarshal(value, &text) == nil && contracts.ValidResourceID(text) {
 				result[key] = text
@@ -81,9 +81,7 @@ func safeEventSummary(raw json.RawMessage) map[string]any {
 func eventSummaryEnum(key, value string) bool {
 	switch key {
 	case "state", "from", "to":
-		return auditstore.AuditState(value).Valid() || auditstore.RoundState(value).Valid()
-	case "role":
-		return auditstore.ExecutionRole(value).Valid()
+		return auditstore.AuditState(value).Valid()
 	case "outcome":
 		return auditstore.TerminalOutcome(value).Valid()
 	case "disposition":

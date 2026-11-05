@@ -1205,44 +1205,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/audits/{auditId}/items": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                auditId: components["parameters"]["AuditId"];
-            };
-            cookie?: never;
-        };
-        /** List immutable Audit items and their current settlement state */
-        get: operations["listAuditItems"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/audits/{auditId}/coverage": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                auditId: components["parameters"]["AuditId"];
-            };
-            cookie?: never;
-        };
-        /** List truthful coverage rows for one exact or current Round */
-        get: operations["listAuditCoverage"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/projects/{projectId}/audit-material-publications": {
         parameters: {
             query?: never;
@@ -1378,7 +1340,7 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** Read consistent current-round progress and whole-Audit decision counts */
+        /** Read consistent Task progress and whole-Audit Finding counts */
         get: operations["getAuditWorkspace"];
         put?: never;
         post?: never;
@@ -3353,8 +3315,8 @@ export interface components {
         EvalInventoryEntry: {
             execution: components["schemas"]["EvalExecutionRef"] | null;
             parent: components["schemas"]["EvalExecutionRef"] | null;
-            role: components["schemas"]["EvalId"] | null;
-            round: number | null;
+            workflow: components["schemas"]["EvalId"] | null;
+            iteration: number | null;
             /** @enum {string} */
             state: "not_submitted" | "accepted" | "running" | "succeeded" | "failed" | "cancelled" | "unknown";
             available: boolean;
@@ -3804,8 +3766,6 @@ export interface components {
             name: components["schemas"]["ConfigurationName"];
             version: components["schemas"]["ConfigVersion"];
         };
-        /** @enum {string} */
-        AuditProfileMode: "risk-assessment" | "requirements-verification" | "custom-checklist" | "operation-tracing" | "finding-verification";
         AuditStandardRef: {
             scheme: string;
             version: string;
@@ -3906,10 +3866,6 @@ export interface components {
             catalog: components["schemas"]["AuditStandardExactPackage"];
             retained: components["schemas"]["AuditStandardExactPackage"];
         };
-        AuditProfileInput: {
-            required: boolean;
-            mediaTypes: components["schemas"]["MediaType"][];
-        };
         AuditWebTarget: {
             /** @constant */
             schema: "contractor.audit.web-target.v1";
@@ -3924,113 +3880,6 @@ export interface components {
             rateLimit: number;
         };
         NucleiRuleFilter: string;
-        AuditInventory: {
-            /** @enum {string} */
-            implementation: "checklist@1" | "openapi-operations@1" | "openapi-scans@1" | "web-scans@1" | "finding-candidates@1" | "standard-mappings@1";
-            source?: components["schemas"]["AuditInventoryArtifact"];
-            settings?: components["schemas"]["AuditInventoryArtifact"];
-            itemWorkflowRole: components["schemas"]["ArtifactName"];
-            standardSelection?: components["schemas"]["AuditStandardSelection"];
-        } & ({
-            /** @constant */
-            implementation?: "standard-mappings@1";
-        } | {
-            /** @enum {string} */
-            implementation?: "openapi-scans@1" | "web-scans@1";
-        } | {
-            /** @enum {string} */
-            implementation?: "checklist@1" | "openapi-operations@1" | "finding-candidates@1";
-        });
-        AuditInventoryArtifact: {
-            /** @enum {string} */
-            source: "audit-input" | "prepare-output";
-            name: components["schemas"]["ArtifactName"];
-            role?: components["schemas"]["ArtifactName"];
-        } & ({
-            /** @constant */
-            source?: "audit-input";
-        } | {
-            /** @constant */
-            source?: "prepare-output";
-        });
-        AuditStandardSelection: {
-            scope: string;
-            levels: string[];
-            entryIds: string[];
-        };
-        AuditWorkflowInputMapping: {
-            /** @enum {string} */
-            source: "audit-input" | "item-package" | "execution-manifest" | "retained-output" | "prepare-output" | "round-results" | "retained-dependency";
-            name?: components["schemas"]["ArtifactName"];
-            role?: components["schemas"]["ArtifactName"];
-        } & ({
-            /** @enum {string} */
-            source?: "audit-input" | "retained-dependency";
-        } | {
-            /** @enum {string} */
-            source?: "item-package" | "execution-manifest" | "round-results";
-        } | {
-            /** @enum {string} */
-            source?: "retained-output" | "prepare-output";
-        });
-        AuditWorkflowParameterMapping: {
-            /** @enum {string} */
-            source: "literal" | "item-field" | "scope-field";
-            name?: components["schemas"]["ArtifactName"];
-            value?: string;
-        };
-        AuditCheckCapabilityRequirement: {
-            stage: components["schemas"]["ConfigId"];
-            agent: components["schemas"]["ConfigId"];
-            ref: {
-                toolsetId: components["schemas"]["ConfigId"];
-                version: components["schemas"]["ConfigVersion"];
-            };
-            tools: string[];
-        };
-        AuditCheckMethodMapping: {
-            /** @constant */
-            planSchema: "contractor.audit.finding-check-plan.v1";
-            /** @enum {string} */
-            method: "verify" | "replay" | "applicability" | "alternative" | "static-trace" | "http-probe";
-            workflowRole: string;
-            requiredCapabilities: components["schemas"]["AuditCheckCapabilityRequirement"][];
-        };
-        AuditProfileWorkflow: {
-            /** @enum {string} */
-            kind: "prepare" | "check" | "discovery" | "assessment";
-            maxRunAttempts?: number;
-            workflow: components["schemas"]["WorkflowRef"];
-            inputs: {
-                [key: string]: components["schemas"]["AuditWorkflowInputMapping"];
-            };
-            parameters: {
-                [key: string]: components["schemas"]["AuditWorkflowParameterMapping"];
-            };
-            outputs: {
-                [key: string]: components["schemas"]["ArtifactName"];
-            };
-        } & ({
-            /** @constant */
-            kind?: "prepare";
-        } | {
-            /** @enum {string} */
-            kind?: "check" | "discovery" | "assessment";
-        });
-        AuditExecutionPolicy: {
-            /** @constant */
-            roundMode: "fixed-barrier";
-            maxRounds: number;
-            batchSize: number;
-            maxItemsPerRound: number;
-            maxItemsTotal: number;
-            maxSubmittedRuns: number;
-            maxItemRunAttempts: number;
-            deadlineSeconds: number;
-            maxEvidenceBytes: number;
-            /** @enum {string} */
-            incompleteRound: "assess-with-gaps" | "fail";
-        };
         /** @enum {string} */
         AuditCompatibilityReason: "preparation_unsupported" | "discovery_unsupported" | "assessment_unsupported" | "multiple_rounds_unsupported" | "batching_unsupported" | "automatic_active_checks_unsupported" | "project_active_checks_prohibited" | "manual_item_unsupported" | "engagement_capability_unsupported" | "engagement_active_checks_unsupported";
         AuditAssertionScope: {
@@ -4236,13 +4085,6 @@ export interface components {
             sourceDigest: components["schemas"]["Digest"];
             sourceSize: number;
         };
-        AuditBaselineInventory: {
-            sourceContentDigest: components["schemas"]["Digest"];
-            canonicalInventoryDigest: components["schemas"]["Digest"];
-            standardSelection?: components["schemas"]["AuditStandardSelection"];
-            gaps: string[];
-            worklist: components["schemas"]["AuditExactArtifact"];
-        };
         AuditBaseline: {
             labels?: components["schemas"]["AuditLabels"];
             requiredPlacementLabels?: components["schemas"]["PlacementLabels"];
@@ -4257,59 +4099,6 @@ export interface components {
             skills: components["schemas"]["AuditSkill"][];
             standards: components["schemas"]["AuditPinnedStandard"][];
             projectHttpTarget?: components["schemas"]["ProjectHTTPTarget"];
-            inventory?: components["schemas"]["AuditBaselineInventory"];
-        };
-        AuditGeneratedInventory: {
-            snapshot: components["schemas"]["AuditExactArtifact"];
-            sources: {
-                source: components["schemas"]["AuditExactArtifact"];
-                settings?: components["schemas"]["AuditExactArtifact"];
-            };
-            sourceContentDigest: components["schemas"]["Digest"];
-            canonicalInventoryDigest: components["schemas"]["Digest"];
-            worklist: components["schemas"]["AuditExactArtifact"];
-            itemCount: number;
-            gaps: string[];
-        };
-        /** @enum {string} */
-        AuditPhase: "not-started" | "preparing" | "inventory" | "rounds";
-        AuditPreparationOutput: {
-            artifact: components["schemas"]["AuditExactArtifact"] & unknown;
-            executionId: components["schemas"]["ResourceId"];
-            runId: components["schemas"]["ResourceId"];
-            workflowOutput: components["schemas"]["ArtifactName"];
-        };
-        AuditPreparationRole: {
-            /** @enum {string} */
-            status: "pending" | "running" | "accepted" | "failed";
-            attempts: number;
-            maxAttempts: number;
-            executionId?: components["schemas"]["ResourceId"];
-            runId?: components["schemas"]["ResourceId"];
-            outputs: {
-                [key: string]: components["schemas"]["AuditPreparationOutput"];
-            };
-        } & ({
-            /** @constant */
-            status?: "pending";
-            /** @constant */
-            attempts?: 0;
-            outputs?: unknown;
-        } | {
-            /** @enum {string} */
-            status?: "running" | "failed";
-            attempts?: unknown;
-            outputs?: unknown;
-        } | {
-            /** @constant */
-            status?: "accepted";
-            attempts?: unknown;
-            outputs?: unknown;
-        });
-        AuditPreparation: {
-            roles: {
-                [key: string]: components["schemas"]["AuditPreparationRole"];
-            };
         };
         /** @enum {string} */
         AuditState: "draft" | "active" | "paused" | "finalizing" | "cancelling" | "completed" | "cancelled" | "failed" | "deleting";
@@ -4383,7 +4172,6 @@ export interface components {
             state?: string;
             from?: string;
             to?: string;
-            role?: components["schemas"]["AuditExecutionRole"];
             outcome?: components["schemas"]["AuditTerminalOutcome"];
             disposition?: components["schemas"]["AuditCollectionDisposition"];
             /** @enum {string} */
@@ -4391,13 +4179,11 @@ export interface components {
             runId?: components["schemas"]["ResourceId"];
             subjectId?: components["schemas"]["ResourceId"];
             findingId?: components["schemas"]["ResourceId"];
-            workflowRole?: components["schemas"]["ResourceId"];
-            round?: number;
-            items?: number;
             members?: number;
             count?: number;
             createdCount?: number;
             workCount?: number;
+            iteration?: number;
             taskCount?: number;
             workflow?: components["schemas"]["AuditCommonKey"];
         };
@@ -4420,20 +4206,6 @@ export interface components {
         AuditPage: {
             items: components["schemas"]["Audit"][];
             page: components["schemas"]["PageInfo"];
-        };
-        /** @enum {string} */
-        AuditRoundState: "proposed" | "accepted" | "executing" | "assessing" | "closed";
-        AuditRound: {
-            roundId: components["schemas"]["ResourceId"];
-            ordinal: number;
-            manifest: components["schemas"]["AuditExactArtifact"];
-            state: components["schemas"]["AuditRoundState"];
-            expectedItemCount: number;
-            revision: number;
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            updatedAt: string;
         };
         AuditCommonKey: string;
         AuditCommonText: string;
@@ -4545,12 +4317,6 @@ export interface components {
             page: components["schemas"]["PageInfo"];
         };
         /** @enum {string} */
-        AuditItemState: "pending" | "ready" | "submitted" | "collecting" | "settled";
-        /** @enum {string} */
-        AuditFinalDisposition: "accepted-result" | "missing-output" | "invalid-result" | "execution-failed" | "execution-cancelled" | "excluded" | "not-applicable";
-        /** @enum {string} */
-        AuditExecutionRole: "prepare" | "discovery" | "check" | "assessment";
-        /** @enum {string} */
         AuditExecutionItemState: "submitted" | "collecting" | "settled";
         /** @enum {string} */
         AuditTerminalOutcome: "succeeded" | "failed" | "cancelled" | "submission-failed";
@@ -4569,84 +4335,8 @@ export interface components {
             runId: components["schemas"]["ResourceId"];
             workflow: components["schemas"]["AuditWorkflowProvenance"];
         };
-        AuditItemAttempt: {
-            executionItemId: components["schemas"]["ResourceId"];
-            executionId: components["schemas"]["ResourceId"];
-            itemId: components["schemas"]["ResourceId"];
-            itemAttempt: number;
-            role: components["schemas"]["AuditExecutionRole"];
-            state: components["schemas"]["AuditExecutionItemState"];
-            collectionDisposition?: components["schemas"]["AuditCollectionDisposition"];
-            result?: components["schemas"]["AuditExactArtifact"];
-            terminalOutcome?: components["schemas"]["AuditTerminalOutcome"];
-            runId?: components["schemas"]["ResourceId"];
-            runDeleted: boolean;
-            runProvenance?: components["schemas"]["AuditRunProvenance"];
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            collectedAt?: string;
-        };
-        AuditItemOrigin: {
-            /** @constant */
-            schema: "contractor.audit.item-origin.v1";
-            sourceRef: components["schemas"]["ArtifactRef"];
-            sourceContentDigest: components["schemas"]["Digest"];
-            sourceMediaType: string;
-            canonicalInventoryDigest: components["schemas"]["Digest"];
-            entryKey: string;
-            entryVersion?: string;
-            standard?: components["schemas"]["AuditStandardItemOrigin"];
-        };
-        AuditStandardEvidenceOrigin: {
-            id: string;
-            version: string;
-        };
-        AuditStandardItemOrigin: {
-            scheme: string;
-            version: string;
-            mappingKey: string;
-            entryIds: string[];
-            evidenceContract: components["schemas"]["AuditStandardEvidenceOrigin"];
-        };
         /** @description The logical key of one committed Audit receipt link, at most 512 UTF-8 bytes (LIM-AUD-39). */
         AuditArtifactKey: string;
-        /** @description The subject key of an Audit item, at most 512 UTF-8 bytes (LIM-AUD-40). */
-        AuditSubjectKey: string;
-        AuditItem: {
-            itemId: components["schemas"]["ResourceId"];
-            roundId: components["schemas"]["ResourceId"];
-            itemKey: string;
-            ordinal: number;
-            kind: string;
-            subjectKey: components["schemas"]["AuditSubjectKey"];
-            task: components["schemas"]["AuditExactArtifact"];
-            origin: components["schemas"]["AuditItemOrigin"];
-            workflowRole: components["schemas"]["ArtifactName"];
-            state: components["schemas"]["AuditItemState"];
-            finalDisposition?: components["schemas"]["AuditFinalDisposition"];
-            acceptedResult?: components["schemas"]["AuditExactArtifact"];
-            lastExecutionItemId?: components["schemas"]["ResourceId"];
-            attempts: components["schemas"]["AuditItemAttempt"][];
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            updatedAt: string;
-            findingIds: components["schemas"]["ResourceId"][];
-        };
-        AuditItemPage: {
-            items: components["schemas"]["AuditItem"][];
-            page: components["schemas"]["PageInfo"];
-        };
-        /** @enum {string} */
-        AuditCoverageStatus: "not-tested" | "inconclusive" | "satisfied" | "violated" | "not-applicable" | "blocked" | "excluded" | "traced-complete" | "traced-partial" | "unmapped";
-        AuditCoverage: {
-            status: components["schemas"]["AuditCoverageStatus"];
-            requested: string[];
-            completed: string[];
-            gaps: string[];
-            rationale?: string;
-        };
         AuditScanProvenance: {
             /** @enum {string} */
             scanner: "sqlmap" | "nuclei";
@@ -4659,46 +4349,6 @@ export interface components {
             runnable: boolean;
             testParameters: string[];
             gaps: string[];
-        };
-        AuditCoverageDetails: {
-            scan?: components["schemas"]["AuditScanProvenance"];
-            objective: string;
-            methods: string[];
-            /** @description Exact retained item-task document given to the worker, independent of the selected checklist or profile. */
-            taskDocument: {
-                [key: string]: unknown;
-            };
-            resultSummary?: string;
-            evidence: {
-                id: string;
-                kind: string;
-                summary: string;
-                contentMemberId?: string;
-                /** Format: date-time */
-                observedAt?: string;
-                deploymentMarker?: string;
-                httpRequestId?: string;
-                httpRequestTag?: string;
-            }[];
-        };
-        AuditCoverageRow: {
-            roundId: components["schemas"]["ResourceId"];
-            itemId: components["schemas"]["ResourceId"];
-            ordinal: number;
-            itemKey: string;
-            subjectKey: components["schemas"]["AuditSubjectKey"];
-            coverage: components["schemas"]["AuditCoverage"];
-            details?: components["schemas"]["AuditCoverageDetails"];
-            result?: components["schemas"]["AuditExactArtifact"];
-            /** Format: date-time */
-            updatedAt: string;
-            findingIds: components["schemas"]["ResourceId"][];
-        };
-        AuditCoveragePage: {
-            items: components["schemas"]["AuditCoverageRow"][];
-            page: components["schemas"]["PageInfo"];
-            /** @description The Audit revision every row of this page was read at. */
-            auditRevision: number;
         };
         /** @description Exact retained Markdown summary; historical text/plain summaries are unsupported. */
         AuditReportSummaryArtifact: {
@@ -5039,14 +4689,13 @@ export interface components {
             auditRevision: number;
             /** Format: date-time */
             asOf: string;
-            roundId?: components["schemas"]["ResourceId"];
+            iteration: number;
             executionState: components["schemas"]["AuditState"];
             outstandingRuns: number;
-            totalChecks: number;
-            completedChecks: number;
-            issues: number;
+            totalTasks: number;
+            completedTasks: number;
             gaps: number;
-            unchecked: number;
+            pendingTasks: number;
             findings: number;
             unreviewedFindings: number;
         };
@@ -10999,77 +10648,6 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-            503: components["responses"]["StorageTransactionConflict"];
-        };
-    };
-    listAuditItems: {
-        parameters: {
-            query?: {
-                limit?: components["parameters"]["Limit"];
-                cursor?: components["parameters"]["Cursor"];
-                round?: components["schemas"]["ResourceId"];
-                state?: components["schemas"]["AuditItemState"];
-                subject?: components["schemas"]["AuditSubjectKey"];
-            };
-            header?: never;
-            path: {
-                auditId: components["parameters"]["AuditId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Stable item page after filters */
-            200: {
-                headers: {
-                    "X-Request-ID": components["headers"]["RequestId"];
-                    "Cache-Control": components["headers"]["NoStore"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AuditItemPage"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-            503: components["responses"]["StorageTransactionConflict"];
-        };
-    };
-    listAuditCoverage: {
-        parameters: {
-            query?: {
-                limit?: components["parameters"]["Limit"];
-                cursor?: components["parameters"]["Cursor"];
-                round?: components["schemas"]["ResourceId"];
-                /** @description Pin this page, and the current Round it defaults to, to one Audit revision. Every page is read at one revision; continuations bind the Round and revision; a stale revision returns 409. */
-                auditRevision?: number;
-            };
-            header?: never;
-            path: {
-                auditId: components["parameters"]["AuditId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Stable coverage page */
-            200: {
-                headers: {
-                    "X-Request-ID": components["headers"]["RequestId"];
-                    "Cache-Control": components["headers"]["NoStore"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AuditCoveragePage"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["StorageTransactionConflict"];
         };

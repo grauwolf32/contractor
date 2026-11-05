@@ -155,14 +155,12 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 				run.SkillSnapshot = agentskills.CloneRunSkills(normalized.Skills)
 				run.StateReason = runstore.Reason{Code: runstore.SkillInitializationPendingReason}
 			}
-			if intent.Execution.Role == auditstore.ExecutionTask {
-				final, err := audits.GetRunCreationIntent(ctx, normalized.Claim, normalized.ExecutionID)
-				if err != nil {
-					return err
-				}
-				if !final.CanDispatch {
-					return auditstore.ErrPrecondition
-				}
+			final, err := audits.GetRunCreationIntent(ctx, normalized.Claim, normalized.ExecutionID)
+			if err != nil {
+				return err
+			}
+			if !final.CanDispatch {
+				return auditstore.ErrPrecondition
 			}
 			result = CreateResult{Run: run, Created: true}
 			return nil
@@ -177,7 +175,7 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 func auditRunLabels(intent auditstore.RunCreationIntent) (runstore.RunMetadataLabels, error) {
 	labels := runstore.RunMetadataLabels(intent.Labels).Clone()
 	labels["audit.id"] = intent.Execution.AuditID
-	labels["audit.role"] = string(intent.Execution.Role)
+	labels["audit.role"] = "task"
 	if len(intent.Tasks) == 1 {
 		labels["audit.task"] = intent.Tasks[0].Document.TaskID
 	}

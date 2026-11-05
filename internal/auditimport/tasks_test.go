@@ -50,7 +50,7 @@ func commonFailedCollection() (*Importer, *collectionScript, auditstore.Reconcil
 	outcome := auditstore.TerminalFailed
 	s := &collectionScript{run: runstore.WorkflowRun{RunID: id, OwnerID: "owner", ProjectID: &project, PublicationMode: runstore.PublicationAuditManaged, AuditExecutionID: &execution, AuditSubmissionKey: &key, State: runstore.RunFailed, StateReason: runstore.Reason{Code: runstore.AuditInputInitializationFailedReason}}}
 	i := &Importer{store: s, reads: s, runs: s, artifacts: s}
-	return i, s, auditstore.ReconcileSnapshot{Audit: auditstore.Audit{AuditID: "audit-1", OwnerID: "owner", ProjectID: project}}, auditstore.Execution{AuditID: "audit-1", ExecutionID: execution, RunID: &id, SubmissionKey: key, Role: auditstore.ExecutionTask, State: auditstore.ExecutionCollecting, TerminalOutcome: &outcome}
+	return i, s, auditstore.ReconcileSnapshot{Audit: auditstore.Audit{AuditID: "audit-1", OwnerID: "owner", ProjectID: project}}, auditstore.Execution{AuditID: "audit-1", ExecutionID: execution, RunID: &id, SubmissionKey: key, State: auditstore.ExecutionCollecting, TerminalOutcome: &outcome}
 }
 func TestCommonImporterPermanentInputFailureAndReplayBeforeSourceReads(t *testing.T) {
 	for _, state := range []auditstore.AuditState{auditstore.AuditActive, auditstore.AuditPaused, auditstore.AuditCancelling} {

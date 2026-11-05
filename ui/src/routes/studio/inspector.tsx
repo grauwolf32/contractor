@@ -21,7 +21,6 @@ import {
   StageExecutionForm,
 } from "./execution-form";
 import { ToolExecutionForm } from "./tool-execution-form";
-import { CheckMethodsForm } from "./check-methods-form";
 import type { FormEditor } from "./form-editor";
 
 export function Inspector({
@@ -463,7 +462,10 @@ export function Inspector({
               {node.type === "output"
                 ? check("Primary output", [...p, "primary"])
                 : null}
-              {media([...p, "mediaTypes"])}
+              {media([
+                ...p,
+                draft.kind === "AuditProfile" ? "media_types" : "mediaTypes",
+              ])}
             </>
           ) : null}
           {node.type === "parameter"
@@ -477,144 +479,42 @@ export function Inspector({
           ) : null}
           {node.type === "role" ? (
             <>
-              {select(
-                "Role kind",
-                [...p, "kind"],
-                ["prepare", "discovery", "check", "assessment"],
-              )}
               {catalogField("Workflow", [...p, "ref"], "workflows")}
               {field(
                 "Maximum run attempts",
-                [...p, "maxRunAttempts"],
+                [...p, "max_attempts"],
                 false,
                 true,
               )}
-              <h3>Input bindings</h3>
-              {Object.entries(record(value.inputs)).map(([name, input]) => (
-                <div className="studio-group" key={name}>
-                  <strong>{name}</strong>
-                  <Field label="Source" className="studio-field">
-                    {(control) => (
-                      <select
-                        {...control}
-                        value={textValue(record(input).source)}
-                        onChange={(event) => {
-                          const path = [...p, "inputs", name],
-                            source = event.target.value;
-                          const document = draft.document.clone();
-                          document.setIn([...path, "source"], source);
-                          if (
-                            [
-                              "item-package",
-                              "execution-manifest",
-                              "round-results",
-                            ].includes(source)
-                          )
-                            document.deleteIn([...path, "name"]);
-                          if (
-                            !["prepare-output", "retained-output"].includes(
-                              source,
-                            )
-                          )
-                            document.deleteIn([...path, "role"]);
-                          onReplace({ ...draft, source: document.toString() });
-                        }}
-                      >
-                        {[
-                          "audit-input",
-                          "item-package",
-                          "execution-manifest",
-                          "prepare-output",
-                          "retained-output",
-                          "round-results",
-                          "retained-dependency",
-                        ].map((source) => (
-                          <option key={source}>{source}</option>
-                        ))}
-                      </select>
-                    )}
-                  </Field>
-                  {[
-                    "audit-input",
-                    "prepare-output",
-                    "retained-output",
-                    "retained-dependency",
-                  ].includes(textValue(record(input).source))
-                    ? field("Source name", [...p, "inputs", name, "name"])
-                    : null}
-                  {["prepare-output", "retained-output"].includes(
-                    textValue(record(input).source),
-                  )
-                    ? select(
-                        "Producer role",
-                        [...p, "inputs", name, "role"],
-                        Object.keys(record(record(draft.value.spec).workflows)),
-                      )
-                    : null}
-                  {remove([...p, "inputs", name], `binding ${name}`)}
-                </div>
-              ))}
-              <Button
-                onClick={() => {
-                  const name = uniqueName(value.inputs, "input");
-                  onPatch([...p, "inputs", name], {
-                    source: "audit-input",
-                    name:
-                      Object.keys(record(record(draft.value.spec).inputs))[0] ??
-                      "source",
-                  });
-                }}
-              >
-                Add input binding
-              </Button>
               <p>
-                Edit input sources, output names, parameters and worker
-                completion in block YAML.
+                Edit input mappings, output names and parameters in block YAML.
               </p>
-            </>
-          ) : null}
-          {node.type === "inventory" ? (
-            <>
-              {field("Implementation", [...p, "implementation"])}
-              {select(
-                "Item workflow role",
-                [...p, "itemWorkflowRole"],
-                Object.keys(record(record(draft.value.spec).workflows)),
-              )}
-              {field("Source input", [...p, "source", "name"])}
-              <CheckMethodsForm editor={editor} />
             </>
           ) : null}
           {node.type === "execution" ? (
             <>
               {[
-                "maxRounds",
-                "batchSize",
-                "maxItemsPerRound",
-                "maxItemsTotal",
-                "maxSubmittedRuns",
-                "maxItemRunAttempts",
-                "deadlineSeconds",
-                "maxEvidenceBytes",
+                "max_tasks",
+                "max_iterations",
+                "max_tasks_per_iteration",
+                "batch_size",
+                "max_submitted_runs",
+                "max_attempts",
+                "deadline_seconds",
+                "max_evidence_bytes",
+                "max_hypotheses",
+                "max_hypothesis_revisions",
+                "max_hypothesis_bytes",
               ].map((key) => field(key, [...p, key], false, true))}
-              {select(
-                "Incomplete round",
-                [...p, "incompleteRound"],
-                ["assess-with-gaps", "fail"],
-              )}
             </>
           ) : null}
-          {node.type === "interaction" ? (
-            <>
-              {Object.entries({
-                activeChecks: ["prohibited", "automatic"],
-                notApplicable: ["human-required", "profile-rule"],
-                reportAcceptance: ["automatic", "human-required"],
-              }).map(([key, options]) => (
-                <div key={key}>{select(key, [...p, key], options)}</div>
-              ))}
-            </>
-          ) : null}
+          {node.type === "interaction"
+            ? select(
+                "Active operations",
+                [...p, "active_operations"],
+                ["prohibited", "automatic"],
+              )
+            : null}
           {node.type === "agent" ? (
             <>
               {field("Name", ["metadata", "name"])}

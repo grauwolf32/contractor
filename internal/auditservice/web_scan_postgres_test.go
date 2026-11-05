@@ -69,7 +69,7 @@ func TestWebScanAuditPinsOneProjectWithoutModelOrOpenAPI(t *testing.T) {
 			}
 			params := StartParams{OwnerID: project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision, IdempotencyKey: "start-" + mode, RequestDigest: serviceTestDigest("start-" + mode)}
 			started, err := service.Start(ctx, params)
-			if err != nil || started.Audit.State != auditstore.AuditActive || len(started.Items) != 0 {
+			if err != nil || started.Audit.State != auditstore.AuditActive {
 				t.Fatalf("start: %v", err)
 			}
 			baseline, err := DecodeBaseline(started.Audit.BaselineSnapshot)
@@ -78,9 +78,6 @@ func TestWebScanAuditPinsOneProjectWithoutModelOrOpenAPI(t *testing.T) {
 			}
 			if len(baseline.Inputs) != len(inputs) {
 				t.Fatal("exact rule/source inputs lost")
-			}
-			if started.Audit.CurrentRoundID != nil {
-				t.Fatal("ordinary start invented a Round")
 			}
 			replay, err := service.Start(ctx, params)
 			if err != nil || !replay.Replayed || replay.Audit.AuditID != started.Audit.AuditID {

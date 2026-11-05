@@ -32,7 +32,7 @@ type taskOutput struct {
 // receipt. A successful supporting Run creates no semantic verdict. Logical
 // result outputs alone pass through the common trusted-context normalizer.
 func (i *Importer) collectTasks(ctx context.Context, claim auditstore.ControllerClaim, snapshot auditstore.ReconcileSnapshot, execution auditstore.Execution) (changed bool, err error) {
-	if execution.Role != auditstore.ExecutionTask || execution.AuditID != claim.AuditID || execution.AuditID != snapshot.Audit.AuditID || execution.State != auditstore.ExecutionCollecting || execution.TerminalOutcome == nil {
+	if execution.AuditID != claim.AuditID || execution.AuditID != snapshot.Audit.AuditID || execution.State != auditstore.ExecutionCollecting || execution.TerminalOutcome == nil {
 		return false, fmt.Errorf("%w: invalid Task collection observation", ErrPermanent)
 	}
 	digest, err := contentdigest.CanonicalJSON(map[string]any{"schema": "contractor.audit.task-collection.v1", "audit_id": execution.AuditID, "execution_id": execution.ExecutionID, "run_id": execution.RunID, "outcome": execution.TerminalOutcome, "generation": execution.TerminalRunGeneration, "sequence": execution.TerminalRunSequence})

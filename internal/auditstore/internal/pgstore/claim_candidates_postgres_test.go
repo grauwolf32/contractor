@@ -98,7 +98,7 @@ UPDATE audit_controller_claims
  WHERE audit_id = $1`, f.audit.AuditID); err != nil {
 		t.Fatal(err)
 	}
-	_ = seedItemRows(t, f.ctx, f.pool, f.audit.AuditID, f.itemID)
+
 	setup, err := f.pool.Begin(f.ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -112,13 +112,13 @@ UPDATE audit_controller_claims
 		condition, id := audit.condition, quote(audit.id)
 		updated := fmt.Sprintf(`timestamptz '2026-09-01 00:00:00+00' + interval '%d minutes'`, audit.minute)
 		overrides := map[string]string{
-			"audit_id": id, "state": quote(string(condition.state)), "current_round_id": `NULL`,
+			"audit_id": id, "state": quote(string(condition.state)),
 			"next_event_sequence": `1`, "created_at": updated, "updated_at": updated,
 			"deadline_at": `clock_timestamp() + interval '1 hour'`,
 		}
 		switch {
 		case condition.state == auditstore.AuditDraft:
-			overrides["baseline_snapshot"], overrides["started_at"], overrides["phase"] = `NULL`, `NULL`, `'not-started'`
+			overrides["baseline_snapshot"], overrides["started_at"] = `NULL`, `NULL`
 			overrides["hold_state"], overrides["dispatch_state"], overrides["deadline_at"] = `'pending'`, `'open'`, `NULL`
 		case condition.state.Terminal():
 			overrides["finished_at"] = `src.started_at + interval '1 hour'`
@@ -140,7 +140,6 @@ VALUES ($1, $2, `+holder+`)`, audit.id, int64(audit.epoch)); err != nil {
 		if condition.execution != "" {
 			execution := map[string]string{
 				"execution_id": quote(audit.id + "-execution"), "audit_id": id, "state": quote(condition.execution),
-				"round_id": `NULL`, "role": `'task'`, "role_attempt": `NULL`,
 				"submission_key": quote(audit.id + "-submission"), "run_id": quote(audit.id + "-run"),
 				"run_provenance": `jsonb_set(src.run_provenance, '{runId}', to_jsonb(` + quote(audit.id+"-run") + `::text))`,
 			}
@@ -162,8 +161,7 @@ VALUES ($1, $2, `+holder+`)`, audit.id, int64(audit.epoch)); err != nil {
 	if err := setup.Commit(f.ctx); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.pool.Exec(f.ctx, `ANALYZE audits, audit_controller_claims, audit_executions, audit_rounds,
-       audit_items`); err != nil {
+	if _, err := f.pool.Exec(f.ctx, `ANALYZE audits, audit_controller_claims, audit_executions, audit_tasks`); err != nil {
 		t.Fatal(err)
 	}
 	return f

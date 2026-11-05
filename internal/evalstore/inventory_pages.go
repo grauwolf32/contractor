@@ -69,7 +69,7 @@ func (s *Store) InventoryPage(ctx context.Context, owner, id, member, after stri
 	for rows.Next() {
 		var child InventoryEntry
 		var run, state, outcome *string
-		if err = rows.Scan(&child.IntentID, &run, &child.Role, &child.Round, &state, &child.Available, &outcome); err != nil {
+		if err = rows.Scan(&child.IntentID, &run, &child.Workflow, &child.Iteration, &state, &child.Available, &outcome); err != nil {
 			return out, err
 		}
 		if len(out.Items) == limit {

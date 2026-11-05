@@ -195,8 +195,6 @@ func TestPostgresPublicPagedListsAcceptTheLargestPage(t *testing.T) {
 		"listProjectAudits":                 "/v1/projects/" + projectID + "/audits",
 		"listOwnerAudits":                   "/v1/audits",
 		"listOwnerFindings":                 "/v1/findings",
-		"listAuditItems":                    "/v1/audits/" + auditID + "/items",
-		"listAuditCoverage":                 "/v1/audits/" + auditID + "/coverage?round=round-pages",
 		"listAuditFindingProposals":         "/v1/audits/" + auditID + "/finding-proposals",
 		"listAuditEvents":                   "/v1/audits/" + auditID + "/events",
 		"listAuditFindings":                 "/v1/audits/" + auditID + "/findings",

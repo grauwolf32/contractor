@@ -1,48 +1,58 @@
-apiVersion: contractor/v1alpha1
-kind: AuditProfile
-
-metadata:
-  name: openapi-operation-trace
-  version: "1"
-
-spec:
-  mode: operation-tracing
-  standards: []
-  inputs:
-    source:
-      required: true
-      mediaTypes: [application/zip]
-    openapi:
-      required: true
-      mediaTypes: [application/json, application/yaml, application/zip]
-  inventory:
-    implementation: openapi-operations@1
-    source: {source: audit-input, name: openapi}
-    itemWorkflowRole: trace
-  workflows:
-    trace:
-      kind: check
-      ref: audit-openapi-operation-trace@1
-      workerCompletion: {kind: audit-check-results@1, stage: check, agent: checker}
-      inputs:
-        task: {source: item-package}
-        execution_manifest: {source: execution-manifest}
-        source: {source: audit-input, name: source}
-      parameters: {}
-      outputs:
-        result: result
-  execution:
-    roundMode: fixed-barrier
-    maxRounds: 1
-    batchSize: 1
-    maxItemsPerRound: 256
-    maxItemsTotal: 256
-    maxSubmittedRuns: 768
-    maxItemRunAttempts: 3
-    deadlineSeconds: 86400
-    maxEvidenceBytes: 67108864
-    incompleteRound: assess-with-gaps
-  interaction:
-    activeChecks: prohibited
-    notApplicable: profile-rule
-    reportAcceptance: automatic
+{
+  "apiVersion": "contractor/v1alpha1",
+  "kind": "AuditProfile",
+  "metadata": {
+    "name": "common-tasks",
+    "version": "1"
+  },
+  "spec": {
+    "schema": "contractor.audit.program.v1",
+    "inputs": {
+      "source": {
+        "required": true,
+        "media_types": [
+          "text/plain"
+        ]
+      }
+    },
+    "workflows": {
+      "trace": {
+        "ref": "audit-openapi-operation-trace@1",
+        "inputs": {
+          "source": {
+            "source": "audit-input",
+            "name": "source"
+          }
+        },
+        "parameters": {},
+        "outputs": {
+          "material": "result"
+        }
+      }
+    },
+    "hypotheses": {},
+    "initial_work": [
+      {
+        "key": "inspect-1",
+        "workflow": "trace",
+        "objective": "Inspect selected source"
+      }
+    ],
+    "limits": {
+      "max_tasks": 100000,
+      "max_iterations": 32,
+      "max_tasks_per_iteration": 10000,
+      "batch_size": 64,
+      "max_submitted_runs": 1000000,
+      "max_attempts": 10,
+      "deadline_seconds": 31536000,
+      "max_evidence_bytes": 1073741824,
+      "max_hypotheses": 10000,
+      "max_hypothesis_revisions": 50000,
+      "max_hypothesis_bytes": 268435456
+    },
+    "policy": {
+      "active_operations": "prohibited"
+    }
+  }
+}

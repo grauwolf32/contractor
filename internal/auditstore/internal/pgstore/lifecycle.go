@@ -120,20 +120,6 @@ func purgeClaimedAudit(
 	}
 	remaining := persistencepostgres.CleanupBatchRows
 	for _, statement := range purgeAuditDomainSQL {
-		if statement == purgeAuditItemsSQL {
-			var work int
-			if err := tx.QueryRow(ctx, statement, claim.AuditID, remaining).Scan(&work); err != nil {
-				return persistencepostgres.WrapError("purge Audit dependency holders", err)
-			}
-			if work < 0 || work > remaining {
-				return invalidf("Audit dependency holder purge exceeded its row bound")
-			}
-			remaining -= work
-			if remaining == 0 {
-				return nil
-			}
-			continue
-		}
 		limit := remaining
 		tag, err := tx.Exec(ctx, statement, claim.AuditID, limit)
 		if err != nil {

@@ -1,7 +1,6 @@
 package public
 
 import (
-	"fmt"
 	"net/url"
 	"testing"
 
@@ -9,7 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/evalstore"
 )
 
-func TestSharedEvalPostgresAuditInventoryIncludesNonItemRolesAndDeletedChildren(t *testing.T) {
+func TestSharedEvalPostgresAuditInventoryIncludesTaskWorkflowsAndDeletedChildren(t *testing.T) {
 	h := newEvalAPIHarness(t)
 	draft, _ := h.dataset(t, "audit")
 	created := apiDecode[struct {
@@ -27,23 +26,25 @@ func TestSharedEvalPostgresAuditInventoryIncludesNonItemRolesAndDeletedChildren(
 	digest := evaldomain.Digest([]byte("inventory fixture"))
 	// Seed retained association facts, including a deleted Run tombstone. These
 	// are read-model fixtures; Run/Audit admission itself is tested separately.
-	for i := 1; i <= 2; i++ {
-		_, err := h.pool.Exec(t.Context(), `INSERT INTO audit_rounds(round_id,audit_id,ordinal,manifest_ref,manifest_digest,state,expected_item_count) SELECT $1,$2,COALESCE(max(ordinal),0)+1,'{}'::jsonb,$3,'closed',0 FROM audit_rounds WHERE audit_id=$2`, fmt.Sprintf("inventory-round-%d", i), audit, digest)
+	for i, workflow := range []string{"observe", "generate", "verify"} {
+		id := "inventory-" + workflow
+		var err error
+		if workflow == "verify" {
+			_, err = h.pool.Exec(t.Context(), `INSERT INTO audit_executions(lane_class,execution_id,audit_id,workflow_role,submission_key,request_digest,run_id,state,terminal_outcome,terminal_run_generation,terminal_run_sequence,terminal_observed_at,run_provenance,run_deleted_at)
+VALUES('model',$1,$2,$3,$1,$4,'deleted-child','collected','failed','generation',1,clock_timestamp(),'{"schema":"contractor.audit.run-provenance.v1","runId":"deleted-child"}',clock_timestamp())`, id, audit, workflow, digest)
+		} else {
+			_, err = h.pool.Exec(t.Context(), `INSERT INTO audit_executions(lane_class,execution_id,audit_id,workflow_role,submission_key,request_digest) VALUES('model',$1,$2,$3,$1,$4)`, id, audit, workflow, digest)
+		}
 		if err != nil {
 			t.Fatal(err)
 		}
-	}
-	for i, role := range []string{"discovery", "assessment"} {
-		_, err := h.pool.Exec(t.Context(), `INSERT INTO audit_executions(lane_class,execution_id,audit_id,round_id,role,workflow_role,role_attempt,manifest_ref,manifest_digest,submission_key,request_digest) VALUES('model',$1,$2,$3,$4,$4,$5,'{}'::jsonb,$6,$1,$6)`, "inventory-"+role, audit, fmt.Sprintf("inventory-round-%d", i+1), role, i+1, digest)
-		if err != nil {
+		if _, err = h.pool.Exec(t.Context(), `INSERT INTO audit_tasks(task_id,audit_id,source_key,source,document,batch_digest,ordinal,iteration)
+VALUES($1,$2,'sha256:'||encode(sha256(convert_to($1,'UTF8')),'hex'),'{}',json_build_object('schema','contractor.audit.task.v1','task_id',$1::text,'audit_id',$2::text,'workflow',$3::text),$4,$5,$5)`, id, audit, workflow, digest, i+1); err != nil {
 			t.Fatal(err)
 		}
-	}
-	_, err := h.pool.Exec(t.Context(), `
-INSERT INTO audit_executions(lane_class,execution_id,audit_id,round_id,role,workflow_role,manifest_ref,manifest_digest,submission_key,request_digest,run_id,state,terminal_outcome,terminal_run_generation,terminal_run_sequence,terminal_observed_at,run_provenance,run_deleted_at)
-VALUES('model','inventory-deleted',$1,'inventory-round-1','check','check','{}'::jsonb,$2,'inventory-deleted',$2,'deleted-child','collected','failed','generation',1,clock_timestamp(),'{"schema":"contractor.audit.run-provenance.v1","runId":"deleted-child"}'::jsonb,clock_timestamp())`, audit, digest)
-	if err != nil {
-		t.Fatal(err)
+		if _, err = h.pool.Exec(t.Context(), `INSERT INTO audit_execution_items(execution_item_id,execution_id,audit_id,task_id,batch_ordinal,item_attempt) VALUES($1,$1,$2,$1,0,1)`, id, audit); err != nil {
+			t.Fatal(err)
+		}
 	}
 	base := "/v1/eval-experiments/" + created.ID + "/members/" + member + "/executions?limit=1"
 	type inventoryPage struct {
@@ -65,16 +66,16 @@ VALUES('model','inventory-deleted',$1,'inventory-round-1','check','check','{}'::
 			t.Fatal("inventory pagination changed context")
 		}
 		entry := page.Items[0]
-		if entry.Role == nil || entry.Round == nil || entry.Parent == nil || entry.Parent.ID != audit {
+		if entry.Workflow == nil || entry.Iteration == nil || entry.Parent == nil || entry.Parent.ID != audit {
 			t.Fatal("association fields missing", entry)
 		}
-		roles[*entry.Role] = entry
+		roles[*entry.Workflow] = entry
 		next = page.Page.NextCursor
 	}
-	if len(roles) != 3 || roles["check"].Available || roles["check"].Execution == nil || roles["check"].Execution.ID != "deleted-child" || roles["discovery"].Execution != nil {
-		t.Fatal("non-item/unresolved/deleted children lost", roles)
+	if len(roles) != 3 || roles["verify"].Available || roles["verify"].Execution == nil || roles["verify"].Execution.ID != "deleted-child" || roles["observe"].Execution != nil {
+		t.Fatal("common-workflow/unresolved/deleted children lost", roles)
 	}
-	_, err = h.pool.Exec(t.Context(), `INSERT INTO audit_executions(lane_class,execution_id,audit_id,role,workflow_role,role_attempt,manifest_ref,manifest_digest,submission_key,request_digest) VALUES('model','inventory-retry',$1,'discovery','discovery',2,'{}'::jsonb,$2,'inventory-retry',$2)`, audit, digest)
+	_, err := h.pool.Exec(t.Context(), `INSERT INTO audit_executions(lane_class,execution_id,audit_id,workflow_role,submission_key,request_digest) VALUES('model','inventory-retry',$1,'observe','inventory-retry',$2)`, audit, digest)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -42,7 +42,7 @@ function RowProgress({ workspace }: { workspace: AuditWorkspace }) {
   const counts = workCounts(workspace);
   if (counts.total === 0) return null;
   const legend = countLegend(counts).filter((entry) => entry.count > 0);
-  const done = doneSummary(workspace.completedChecks, counts.total);
+  const done = doneSummary(workspace.completedTasks, counts.total);
   return (
     <div className="checks-row-progress">
       <ProgressSegments

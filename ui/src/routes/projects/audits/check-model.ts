@@ -1,9 +1,3 @@
-/**
- * The check page's view of its work items: coverage rows joined with the
- * item collection (kind, execution state, attempts) and the check's possible
- * issues. Pure functions, so the list, the item view and the progress header
- * read the same model.
- */
 import type { AuditWorkspace } from "../../../api/audits";
 import { formatNumber } from "../../../app/format";
 import type { StatusTone } from "../../../app/status-tone";
@@ -29,44 +23,32 @@ export function legendSentence(entries: readonly LegendEntry[]): string {
 interface WorkCounts {
   total: number;
   done: number;
-  issues: number;
   followUp: number;
   unchecked: number;
 }
 
 export function workCounts(workspace: AuditWorkspace): WorkCounts {
   return {
-    total: workspace.totalChecks,
-    done: Math.max(0, workspace.completedChecks - workspace.issues),
-    issues: workspace.issues,
+    total: workspace.totalTasks,
+    done: workspace.completedTasks,
     followUp: workspace.gaps,
-    unchecked: workspace.unchecked,
+    unchecked: workspace.pendingTasks,
   };
 }
 
-/**
- * Legend of a check whose items are not listed: concluded work (met, traced,
- * not applicable), issues found, work that needs follow-up (including
- * excluded items) and unchecked work.
- */
+/** Technical Task progress. Findings and hypothesis verdicts are separate. */
 export function countLegend(counts: WorkCounts): LegendEntry[] {
   return [
     // Done also holds not applicable work: no one filter.
     { label: "Done", tone: "done", group: "all", count: counts.done },
     {
-      label: "Issues found",
-      tone: "blocked",
-      group: "issues",
-      count: counts.issues,
-    },
-    {
-      label: "Need follow-up",
+      label: "Gaps",
       tone: "partial",
       group: "uncertain",
       count: counts.followUp,
     },
     {
-      label: "Not checked yet",
+      label: "Pending",
       tone: "idle",
       group: "not-tested",
       count: counts.unchecked,

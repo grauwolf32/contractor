@@ -73,6 +73,23 @@ func (localSchemas) Load(string) (any, error) { return nil, errors.New("schema i
 
 var errInvalid = apierror.New(apierror.AuditDocumentInvalid, "audit_document_invalid")
 
+// ValidateResultShape checks the bounded structure of a retained result for
+// native Eval json-schema checks. It neither authenticates provenance nor
+// evaluates assertions. Acceptance and assembly still require Decode's trusted context.
+func ValidateResultShape(kind string, data []byte) error {
+	if kind != "contractor.audit.result.v1" && kind != "contractor.audit.conclusions.v1" {
+		return errInvalid
+	}
+	value, err := decode(data)
+	if err != nil {
+		return err
+	}
+	if value["schema"] != kind {
+		return errInvalid
+	}
+	return nil
+}
+
 // Decode validates a strict, bounded document. For conclusions/results, context
 // must be the caller's exact trusted context, never a field of model output.
 // Conclusions receive system-derived provenance; results must match it exactly.

@@ -455,42 +455,16 @@ describe("Authored advanced contracts", () => {
   });
 });
 
-describe("typed check method controls", () => {
-  it("adds, edits and removes a declared route through the actual inspector", async () => {
+describe("common Audit program controls", () => {
+  it("edits ordinary workflow attempts through the inspector", async () => {
     const user = userEvent.setup(),
-      current = mount(starter("AuditProfile"), "inventory");
-    await user.click(screen.getByRole("button", { name: "Add method route" }));
-    expect(at(current().value, ["spec", "methods", "method_1", "method"])).toBe(
-      "verify",
-    );
+      current = mount(starter("AuditProfile"), "role");
+    await user.type(screen.getByLabelText("Maximum run attempts"), "2");
+    await user.tab();
     expect(
-      at(current().value, ["spec", "methods", "method_1", "phase"]),
-    ).toBeUndefined();
-    await user.selectOptions(screen.getByLabelText("Method"), "replay");
-    expect(at(current().value, ["spec", "methods", "method_1", "method"])).toBe(
-      "replay",
-    );
-    expect(
-      at(current().value, ["spec", "methods", "method_1", "phase"]),
-    ).toBeUndefined();
-    await user.click(
-      screen.getByRole("button", { name: "Add required tools" }),
-    );
-    expect(
-      at(current().value, [
-        "spec",
-        "methods",
-        "method_1",
-        "requiredCapabilities",
-      ]),
-    ).toHaveLength(1);
-    await user.click(
-      screen.getByRole("button", { name: "Remove required tools" }),
-    );
+      at(current().value, ["spec", "workflows", "check", "max_attempts"]),
+    ).toBe(2);
     expect(validateDraft(current())).toEqual([]);
-    await user.click(screen.getByRole("button", { name: "Remove method" }));
-    expect(
-      at(current().value, ["spec", "methods", "method_1"]),
-    ).toBeUndefined();
+    expect(screen.queryByLabelText("Role kind")).not.toBeInTheDocument();
   });
 });

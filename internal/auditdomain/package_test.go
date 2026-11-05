@@ -13,11 +13,11 @@ func TestAuditPackageRoundTripIsCanonicalAndDefensive(t *testing.T) {
 		{ID: "second", Path: "data/z.json", MediaType: "application/json", Data: []byte(`{"z":true}`)},
 		{ID: "first", Path: "data/a.txt", MediaType: "text/plain", Data: []byte("alpha")},
 	}
-	first, validated, err := BuildPackage("example-1", PackageKindEvidence, "", inputs)
+	first, validated, err := BuildPackage("example-1", PackageKindFindingCollection, "", inputs)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, again, err := BuildPackage("example-1", PackageKindEvidence, "", []PackageInput{inputs[1], inputs[0]})
+	second, again, err := BuildPackage("example-1", PackageKindFindingCollection, "", []PackageInput{inputs[1], inputs[0]})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func TestAuditPackageRoundTripIsCanonicalAndDefensive(t *testing.T) {
 
 func TestAuditPackageRejectsUnsafeOrInconsistentArchives(t *testing.T) {
 	validManifest := PackageManifest{
-		Schema: PackageSchema, PackageID: "test", Kind: PackageKindEvidence,
+		Schema: PackageSchema, PackageID: "test", Kind: PackageKindFindingCollection,
 		Members: []PackageMemberManifest{{
 			ID: "body", Path: "body.txt", MediaType: "text/plain", Size: 4, Digest: DigestBytes([]byte("body")),
 		}},
@@ -105,7 +105,7 @@ func TestAuditPackageRejectsUnsafeOrInconsistentArchives(t *testing.T) {
 func TestAuditPackageManifestIsStrictAndCanonical(t *testing.T) {
 	member := []byte("body")
 	manifest := PackageManifest{
-		Schema: PackageSchema, PackageID: "test", Kind: PackageKindEvidence,
+		Schema: PackageSchema, PackageID: "test", Kind: PackageKindFindingCollection,
 		Members: []PackageMemberManifest{{ID: "body", Path: "body.txt", MediaType: "text/plain", Size: 4, Digest: DigestBytes(member)}},
 	}
 	canonical, err := canonicalJSON(manifest)
@@ -162,7 +162,7 @@ func makeRawZIP(t *testing.T, method uint16, entries []rawZIPEntry) []byte {
 }
 
 func FuzzAuditPackage(f *testing.F) {
-	payload, _, err := BuildPackage("seed", PackageKindEvidence, "", []PackageInput{{
+	payload, _, err := BuildPackage("seed", PackageKindFindingCollection, "", []PackageInput{{
 		ID: "body", Path: "body.txt", MediaType: "text/plain", Data: []byte("seed"),
 	}})
 	if err != nil {

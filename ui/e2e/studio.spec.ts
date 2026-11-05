@@ -2,8 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse } from "yaml";
 import { expect, test } from "@playwright/test";
-import { presetFixture } from "../src/test/audit-presets-fixture";
-import { audit as auditBuilder, auditItem } from "../src/test/builders";
+import { audit as auditBuilder } from "../src/test/builders";
 import {
   authSession,
   fulfillEmptyPageOrNotFound,
@@ -113,11 +112,8 @@ for (const width of [1440, 390, 320]) {
     await page
       .getByRole("button", { name: "Use local-litellm@1", exact: true })
       .click();
-    expected.spec.executionConfig.stages = {
-      dependency_discovery: {
-        agents: { analyst: { llmGateway: "local-litellm@1" } },
-      },
-    };
+    expected.spec.executionConfig.stages.dependency_discovery.agents.analyst.llmGateway =
+      "local-litellm@1";
     await select("Execution defaults");
     await page
       .getByLabel("Default workers model policy", { exact: true })
@@ -204,11 +200,6 @@ for (const width of [1440, 390, 320]) {
               runtime: "adk@1",
               instructions: {
                 ref: "instructions/source-graph-analyst.md",
-                digest: `sha256:${"a".repeat(64)}`,
-              },
-              modelPolicy: {
-                policyId: "worker",
-                version: "3",
                 digest: `sha256:${"a".repeat(64)}`,
               },
               sandboxProfile: "local-workdir@1",
@@ -483,18 +474,15 @@ for (const width of [1440, 390, 320]) {
       } else {
         await page
           .locator(".studio-node-select")
-          .filter({ hasText: "Model policy" })
+          .filter({ hasText: "Instructions" })
           .click();
         await page
-          .getByRole("button", {
-            name: "Choose model policy from catalog",
-            exact: true,
-          })
-          .click();
+          .getByLabel("Instructions file", { exact: true })
+          .fill("instructions/updated-builder.md");
         await page
-          .getByRole("button", { name: "Use worker@3", exact: true })
-          .click();
-        expected.spec.modelPolicy = "worker@3";
+          .getByLabel("Instructions file", { exact: true })
+          .press("Tab");
+        expected.spec.instructions.ref = "instructions/updated-builder.md";
       }
       await page.getByRole("button", { name: "Validate", exact: true }).click();
       await expect(
@@ -532,173 +520,38 @@ for (const width of [1440, 390, 320]) {
   });
 }
 
-test("studio live fences revisions, preserves paged items on errors and keeps its design draft", async ({
+test("studio live links to common Tasks and keeps its local design draft", async ({
   page,
 }) => {
-  const date = "2026-10-07T10:00:00Z",
-    revision = 7;
   const audit = auditBuilder("project_studio", "audit_studio", "completed", {
-    profile: { ...presetFixture.ref },
-    revision,
-    eventSequence: revision,
-    holdState: "released",
-    limits: {
-      maxRounds: 1,
-      batchSize: 1,
-      maxItemsPerRound: 64,
-      maxItemsTotal: 64,
-      maxSubmittedRuns: 64,
-      maxItemRunAttempts: 2,
-      maxEvidenceBytes: 1048576,
-    },
-    createdAt: date,
-    updatedAt: date,
+    taskCount: 2,
   });
-  const items = Array.from({ length: 51 }, (_, i) =>
-    auditItem(`item_${i}`, i + 1, "operation", {
-      roundId: `round_${"a".repeat(64)}`,
-      itemKey: `Operation ${i + 1}`,
-      state: "settled",
-      finalDisposition: i === 0 ? "execution-failed" : "accepted-result",
-    }),
-  );
-  let failItems = true,
-    wrongRevision = false;
-  const mutations: string[] = [],
-    errors: string[] = [];
-  page.on("pageerror", (error) => errors.push(error.message));
+  const mutations: string[] = [];
   await mockAPI(
     page,
     async (route, request, url) => {
       if (request.method() !== "GET") mutations.push(request.method());
-      // Findings and reviews pages carry the Audit revision they were read at.
-      let json: unknown = /^\/v1\/audits\/[^/]+\/(findings|reviews)$/.test(
-        url.pathname,
-      )
-        ? {
-            items: [],
-            page: { hasMore: false },
-            total: 0,
-            auditRevision: revision,
-            asOf: date,
-          }
-        : { items: [], page: { hasMore: false } };
-      let etag = `"${revision}"`;
-      if (url.pathname === "/v1/audits")
-        json = { items: [audit], page: { hasMore: false } };
-      else if (url.pathname === "/v1/audits/audit_studio") json = audit;
-      else if (url.pathname.endsWith("/workspace"))
-        json = {
-          auditId: audit.auditId,
-          auditRevision: wrongRevision ? revision + 1 : revision,
-          asOf: date,
-          roundId: `round_${"a".repeat(64)}`,
-          executionState: "completed",
-          outstandingRuns: 0,
-          totalChecks: 51,
-          completedChecks: 51,
-          issues: 0,
-          gaps: 1,
-          unchecked: 0,
-          findings: 0,
-          unreviewedFindings: 0,
-          pendingReviews: 0,
-        };
-      else if (url.pathname.startsWith("/v1/audit-profiles/")) {
-        json = presetFixture;
-        etag = `"${presetFixture.ref.digest}"`;
-      } else if (url.pathname.endsWith("/events"))
-        json = {
-          items: [
-            {
-              auditId: audit.auditId,
-              sequence: 1,
-              kind: "audit.created",
-              entityId: audit.auditId,
-              summary: {},
-              createdAt: date,
-            },
-          ],
-          total: 1,
-          throughSequence: 1,
-          page: { hasMore: false },
-        };
-      else if (url.pathname.endsWith("/items")) {
-        if (url.searchParams.has("cursor") && failItems) {
-          await fulfillError(route, 500, "internal_error", "Unavailable");
-          return;
-        }
-        json = {
-          items: url.searchParams.has("cursor")
-            ? items.slice(50)
-            : items.slice(0, 50),
-          page: url.searchParams.has("cursor")
-            ? { hasMore: false }
-            : { hasMore: true, nextCursor: "older" },
-        };
-      }
-      await fulfillJSON(route, json, 200, { ETag: etag });
+      if (url.pathname === "/v1/audits/audit_studio")
+        return fulfillJSON(route, audit, 200, { ETag: `"${audit.revision}"` });
+      return fulfillEmptyPageOrNotFound(route);
     },
     { session: authSession("owner", ["user"]) },
   );
   await page.goto("/catalog/studio?audit=audit_studio");
-  await expect(page.locator(".studio-matrix a")).toHaveCount(50);
   await expect(
-    page.locator('.studio-matrix a[data-attention="true"]'),
-  ).toHaveCount(1);
-  await page.getByRole("button", { name: "Load more items" }).click();
-  await expect(page.getByRole("alert")).toContainText(
-    "More items could not be loaded",
-  );
-  await expect(page.locator(".studio-matrix a")).toHaveCount(50);
-  failItems = false;
-  await page.getByRole("button", { name: "Try again" }).click();
-  await expect(page.locator(".studio-matrix a")).toHaveCount(51);
-  // A refresh that fails keeps the last loaded view under the shared
-  // stale-data warning.
-  const stale = page
-    .getByRole("status")
-    .filter({ hasText: "Could not refresh; showing the last loaded data." });
-  wrongRevision = true;
-  await page.getByRole("button", { name: "Refresh live view" }).click();
-  await expect(stale).toContainText("check changed");
-  await expect(page.locator(".studio-matrix a")).toHaveCount(51);
-  wrongRevision = false;
-  await page.getByRole("button", { name: "Refresh live view" }).click();
-  await expect(stale).toHaveCount(0);
-  audit.profile.digest = `sha256:${"f".repeat(64)}`;
-  await page.getByRole("button", { name: "Refresh live view" }).click();
-  // A pinned profile digest the catalog does not hold is an error, not
-  // stale data.
-  await expect(page.getByRole("alert")).toContainText(
-    "catalog profile has a different digest",
-  );
-  await expect(page.locator(".studio-matrix a")).toHaveCount(51);
-  await expect(page.getByText("source-check@3", { exact: false })).toHaveCount(
-    0,
-  );
-  audit.profile.digest = presetFixture.ref.digest;
-  await page.getByRole("button", { name: "Refresh live view" }).click();
-  await expect(page.getByRole("alert")).toHaveCount(0);
+    page.getByRole("link", { name: "Open tasks and saved results" }),
+  ).toHaveAttribute("href", "/projects/project_studio/audits/audit_studio");
+  await expect(page.getByText("completed", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Design", exact: true }).click();
   await page.getByLabel("Objective").fill("Keep this local objective");
   await page.getByLabel("Objective").press("Tab");
   await page.getByRole("button", { name: "Live", exact: true }).click();
-  await expect(page.locator(".studio-matrix a")).toHaveCount(51);
-  for (const width of [1440, 390, 320]) {
-    await page.setViewportSize({ width, height: 900 });
-    expect(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth <= innerWidth,
-      ),
-    ).toBe(true);
-  }
+  await expect(
+    page.getByRole("link", { name: "Open tasks and saved results" }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Design", exact: true }).click();
-  if (page.viewportSize()!.width <= 800)
-    await page.getByRole("button", { name: "Properties", exact: true }).click();
   await expect(page.getByLabel("Objective")).toHaveValue(
     "Keep this local objective",
   );
   expect(mutations).toEqual([]);
-  expect(errors).toEqual([]);
 });

@@ -201,7 +201,7 @@ export function StudioRoute() {
       : draft.kind === "AuditProfile"
         ? [
             ["input", "Input"],
-            ["role", "Workflow role"],
+            ["role", "Workflow"],
           ]
         : [
             ["toolset", "Toolset"],

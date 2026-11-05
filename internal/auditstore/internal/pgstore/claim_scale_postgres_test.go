@@ -139,7 +139,7 @@ func addClaimScaleAudits(t *testing.T, f collectingAuditFixture, groups ...claim
 		id := `'claim-scale-` + group.name + `-' || lpad(n::text, 5, '0')`
 		overrides := map[string]string{
 			"audit_id": id, "state": `'` + string(group.state) + `'`,
-			"current_round_id": `NULL`, "next_event_sequence": `1`,
+			"next_event_sequence": `1`,
 			// Fixed eligibility rows need no retained input payload. Avoid
 			// 64,000 unrelated Artifact hold mutations in this read fixture.
 			"baseline_snapshot": `jsonb_set(src.baseline_snapshot,'{inputs}','{}'::jsonb)`,
@@ -148,7 +148,7 @@ func addClaimScaleAudits(t *testing.T, f collectingAuditFixture, groups ...claim
 		}
 		switch {
 		case group.state == auditstore.AuditDraft:
-			overrides["baseline_snapshot"], overrides["started_at"], overrides["phase"] = `NULL`, `NULL`, `'not-started'`
+			overrides["baseline_snapshot"], overrides["started_at"] = `NULL`, `NULL`
 			overrides["hold_state"], overrides["dispatch_state"], overrides["deadline_at"] = `'pending'`, `'open'`, `NULL`
 		case group.state.Terminal():
 			overrides["finished_at"] = `src.started_at + interval '1 hour'`

@@ -90,8 +90,8 @@ func TestDeploymentModelSelectionAuditDraftStartsWithCapturedProfile(t *testing.
 		IdempotencyKey: "start-model-one", RequestDigest: contentdigest.Bytes([]byte("start-model-one")),
 	}
 	started, err := service.Start(ctx, params)
-	if err != nil || started.Audit.State != auditstore.AuditActive || len(started.Items) != 0 {
-		t.Fatalf("start retained draft: state=%s items=%d err=%v", started.Audit.State, len(started.Items), err)
+	if err != nil || started.Audit.State != auditstore.AuditActive {
+		t.Fatalf("start retained draft: state=%s tasks=%d err=%v", started.Audit.State, started.Audit.TaskCount, err)
 	}
 	profile, err := auditprofile.DecodePinnedProgram(started.Audit.ProfileSnapshot)
 	if err != nil || profile.Ref.Digest != stored.Profile.Digest ||

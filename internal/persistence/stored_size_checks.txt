@@ -36,41 +36,13 @@ audit_artifact_links_source_provenance_check                LIM-PER-18
 audit_controller_claims_holder_id_check                     invariant: a Server-generated randomid identity, its prefix and 32 hexadecimal digits
 audit_events_entity_id_check                                LIM-API-19
 audit_events_summary_check                                  LIM-PER-18
-audit_execution_items_input_refs_check                      LIM-PER-17
 audit_execution_items_result_ref_check                      LIM-PER-14
-audit_execution_items_task_ref_check                        LIM-PER-14
 audit_executions_collection_error_code_check                LIM-PER-15
 audit_executions_collection_retained_refs_check             LIM-PER-17
 audit_executions_collection_source_output_ref_check         LIM-PER-14
-audit_executions_manifest_ref_check                         LIM-PER-14
-audit_executions_preparation_outputs_shape                  LIM-PER-17
-audit_executions_preparation_shape                          LIM-PER-17
 audit_executions_run_provenance_shape                       LIM-PER-17
 audit_executions_terminal_run_generation_check              LIM-API-19
 audit_executions_workflow_role_shape                        LIM-PER-15
-audit_item_prepared_plan_shape                              LIM-AUD-41
-audit_items_accepted_result_ref_check                       LIM-PER-14
-audit_items_coverage_completed_check                        LIM-PER-17
-audit_items_coverage_gaps_check                             LIM-PER-17
-audit_items_coverage_rationale_check                        LIM-PER-15
-audit_items_coverage_requested_check                        LIM-PER-17
-audit_items_coverage_result_shape                           LIM-PER-14
-audit_items_item_key_check                                  LIM-PER-15
-audit_items_kind_check                                      LIM-PER-15
-audit_items_origin_shape                                    LIM-PER-17 above:LIM-ART-2
-audit_items_proposal_ref_check                              LIM-PER-14
-audit_items_retained_dependencies_check                     LIM-ASC-23
-audit_items_subject_key_check                               LIM-AUD-40
-audit_items_task_ref_check                                  LIM-PER-14
-audit_items_workflow_role_check                             LIM-PER-15
-audit_report_pages_content_check                            LIM-PER-18
-audit_report_pages_entries_check                            invariant: a report page has content exactly when it has entries
-audit_round_admission_checkpoint_shape                      LIM-ASC-27
-audit_round_result_pages_artifact_check                     LIM-PER-14
-audit_round_result_pages_check                              invariant: the stored content length equals the recorded content_bytes
-audit_rounds_manifest_ref_check                             LIM-PER-14
-audit_rounds_results_manifest_check                         LIM-PER-14
-audit_rounds_results_published_pages_check                  LIM-PER-18
 audits_baseline_snapshot_check                              LIM-PER-16
 audits_input_selection_check                                LIM-PER-16
 audits_owner_id_check                                       above:LIM-API-20
@@ -149,7 +121,6 @@ workflow_run_output_publications_check1                     LIM-PER-20
 workflow_run_output_publications_output_name_check          LIM-ART-1
 workflow_runs_project_http_target_shape                     LIM-PRJ-6
 
-audit_execution_items_finding_sources_check                 above:LIM-PER-17
 finding_project_material_shape                             above:LIM-PER-17
 project_findings_first_proposal_ref_check                   LIM-FND-54
 project_findings_actor_id_check                             LIM-FND-54

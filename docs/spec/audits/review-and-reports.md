@@ -243,13 +243,12 @@ separate count.
 
 **REV-R23.** A zero denominator is `N/A`, never 100%.
 
-**REV-R193.** Every coverage state is in exactly one progress bucket:
-completed (`satisfied`, `violated`, `traced-complete`, `not-applicable`), gap
-(`inconclusive`, `blocked`, `traced-partial`, `unmapped`, `excluded`) or
-unchecked (`not-tested`). An item the owner rejected is `excluded`, so it is a
-gap and never completed work (AUD-R178). A selected item outside the completed
-bucket makes the report conclude `completed-with-gaps`, and the Audit
-workspace counts the current round by the same buckets (UI-R144).
+**REV-R193.** Technical Task progress uses the common ready/selected/settled
+states. A settled Task with a technical gap is counted separately from one
+without a gap. Semantic verdicts and evidence limitations remain in exact Task
+results; neither settlement nor `supported`/`refuted` implies a vulnerability.
+Workspace counts follow UI-R144. The retired coverage-status buckets and
+current-Round coverage endpoint are not part of the executable contract.
 
 When a limit prevents more hypotheses or executions, the retention of counts,
 omission reasons and coverage gaps is specified in [execution](execution.md)

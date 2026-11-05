@@ -64,10 +64,10 @@ function run(
 /** Counters of an active check: four items, one done, `gaps` uncertain. */
 function workspace(auditId: string, gaps: number): AuditWorkspace {
   return build.workspace(build.audit("project_a", auditId, "active"), {
-    totalChecks: 4,
-    completedChecks: 1,
+    totalTasks: 4,
+    completedTasks: 1,
     gaps,
-    unchecked: 3 - gaps,
+    pendingTasks: 3 - gaps,
   });
 }
 
@@ -312,21 +312,21 @@ describe("Inbox words", () => {
     const progress = checkProgress(
       {
         ...workspace("a", 1),
-        totalChecks: 6,
-        completedChecks: 3,
-        issues: 1,
-        unchecked: 2,
+        totalTasks: 6,
+        completedTasks: 3,
+        findings: 1,
+        pendingTasks: 2,
       },
       "requirement",
     );
     expect(progress.summary).toBe("3 of 6 requirements done");
     expect(progress.label).toBe(
-      "3 of 6 requirements done: 1 with an issue found, 1 needs follow-up, 2 not checked yet",
+      "3 of 6 requirements done: 1 with gaps, 2 pending",
     );
     expect(progress.segments.map((segment) => segment.tone)).toEqual([
       "done",
       "done",
-      "blocked",
+      "done",
       "partial",
       "idle",
       "idle",

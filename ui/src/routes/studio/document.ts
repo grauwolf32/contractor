@@ -182,45 +182,39 @@ export function renameBlock(draft: Draft, path: Path, name: string): Draft {
         renameKey([...p, "workflowOutputs"], old, name);
     }
   } else if (draft.kind === "AuditProfile") {
-    const inventory = record(spec.inventory);
-    if (section === "workflows" && inventory.itemWorkflowRole === old)
-      document.setIn(["spec", "inventory", "itemWorkflowRole"], name);
-    if (section === "workflows")
-      for (const [method, mapping] of Object.entries(record(spec.methods))) {
-        if (record(mapping).workflowRole === old)
-          document.setIn(["spec", "methods", method, "workflowRole"], name);
-      }
-    for (const key of ["source", "settings"]) {
-      const row = record(inventory[key]);
-      if (section === "workflows" && row.role === old)
-        document.setIn(["spec", "inventory", key, "role"], name);
-      if (
-        section === "inputs" &&
-        row.source === "audit-input" &&
-        row.name === old
-      )
-        document.setIn(["spec", "inventory", key, "name"], name);
+    for (const key of ["seed_source", "continuation"]) {
+      if (section === "workflows" && record(spec[key]).workflow === old)
+        document.setIn(["spec", key, "workflow"], name);
     }
-    for (const [role, value] of Object.entries(record(spec.workflows))) {
-      const p: Path = [
-        "spec",
-        "workflows",
-        section === "workflows" && role === old ? name : role,
-      ];
-      for (const [binding, bindingValue] of Object.entries(
-        record(record(value).inputs),
-      )) {
-        const row = record(bindingValue);
-        if (section === "workflows" && row.role === old)
-          document.setIn([...p, "inputs", binding, "role"], name);
-        if (
-          section === "inputs" &&
-          row.source === "audit-input" &&
-          row.name === old
-        )
-          document.setIn([...p, "inputs", binding, "name"], name);
-      }
-    }
+    if (section === "inputs" && record(spec.seed_source).input === old)
+      document.setIn(["spec", "seed_source", "input"], name);
+    if (Array.isArray(spec.initial_work))
+      spec.initial_work.forEach((work, index) => {
+        if (section === "workflows" && record(work).workflow === old)
+          document.setIn(["spec", "initial_work", index, "workflow"], name);
+        if (section === "inputs")
+          for (const [binding, input] of Object.entries(
+            record(record(work).inputs),
+          ))
+            if (input === old)
+              document.setIn(
+                ["spec", "initial_work", index, "inputs", binding],
+                name,
+              );
+      });
+    if (section === "inputs")
+      for (const [workflow, value] of Object.entries(record(spec.workflows)))
+        for (const [binding, input] of Object.entries(
+          record(record(value).inputs),
+        ))
+          if (
+            record(input).source === "audit-input" &&
+            record(input).name === old
+          )
+            document.setIn(
+              ["spec", "workflows", workflow, "inputs", binding, "name"],
+              name,
+            );
   }
   return readDraft(document.toString());
 }
@@ -267,46 +261,38 @@ export function starter(kind: Kind): Draft {
             toolsets: [],
           }
         : {
-            mode: "operation-tracing",
-            standards: [],
-            inputs: {
-              source: { required: true, mediaTypes: ["application/zip"] },
-              openapi: { required: true, mediaTypes: ["application/yaml"] },
-            },
-            inventory: {
-              implementation: "openapi-operations@1",
-              source: { source: "audit-input", name: "openapi" },
-              itemWorkflowRole: "check",
-            },
+            schema: "contractor.audit.program.v1",
+            inputs: { source: { required: true, media_types: ["text/plain"] } },
             workflows: {
               check: {
-                kind: "check",
                 ref: "check@1",
-                inputs: {
-                  task: { source: "item-package" },
-                  source: { source: "audit-input", name: "source" },
-                },
+                inputs: { source: { source: "audit-input", name: "source" } },
                 parameters: {},
                 outputs: { result: "result" },
               },
             },
-            execution: {
-              roundMode: "fixed-barrier",
-              maxRounds: 1,
-              batchSize: 1,
-              maxItemsPerRound: 256,
-              maxItemsTotal: 256,
-              maxSubmittedRuns: 768,
-              maxItemRunAttempts: 3,
-              deadlineSeconds: 86400,
-              maxEvidenceBytes: 67108864,
-              incompleteRound: "assess-with-gaps",
+            hypotheses: {},
+            initial_work: [
+              {
+                key: "check-source",
+                workflow: "check",
+                objective: "Inspect selected source",
+              },
+            ],
+            limits: {
+              max_tasks: 256,
+              max_iterations: 1,
+              max_tasks_per_iteration: 256,
+              batch_size: 1,
+              max_submitted_runs: 768,
+              max_attempts: 3,
+              deadline_seconds: 86400,
+              max_evidence_bytes: 67108864,
+              max_hypotheses: 256,
+              max_hypothesis_revisions: 768,
+              max_hypothesis_bytes: 16777216,
             },
-            interaction: {
-              activeChecks: "prohibited",
-              notApplicable: "profile-rule",
-              reportAcceptance: "automatic",
-            },
+            policy: { active_operations: "prohibited" },
           },
   );
   document.commentBefore =
@@ -344,7 +330,6 @@ export function addBlock(
         ? { required: false }
         : type === "role"
           ? {
-              kind: "check",
               ref: "check@1",
               inputs: {},
               parameters: {},
@@ -354,7 +339,12 @@ export function addBlock(
             ? { ref: "toolset@1", tools: [] }
             : type === "skill"
               ? { namespace: "skills", name: `skill_${key}` }
-              : { required: true, mediaTypes: ["application/yaml"] };
+              : {
+                  required: true,
+                  [draft.kind === "AuditProfile"
+                    ? "media_types"
+                    : "mediaTypes"]: ["application/yaml"],
+                };
   return { draft: patchDraft(draft, path, value), path };
 }
 

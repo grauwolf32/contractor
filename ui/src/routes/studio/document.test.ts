@@ -120,79 +120,71 @@ describe("workflow graph rules", () => {
     draft = renameBlock(draft, ["spec", "stages", "start"], "entry");
     expect(at(draft.value, ["spec", "entryStage"])).toBe("entry");
   });
-  it("renames check role and inventory/input references together", () => {
-    let draft = starter("AuditProfile");
+  it("renames common workflow and material references together", () => {
+    let draft = patchDraft(
+      starter("AuditProfile"),
+      ["spec", "initial_work", 0, "inputs"],
+      { source: "source" },
+    );
+    draft = patchDraft(draft, ["spec", "continuation"], { workflow: "check" });
     draft = renameBlock(draft, ["spec", "workflows", "check"], "trace");
-    expect(at(draft.value, ["spec", "inventory", "itemWorkflowRole"])).toBe(
+    expect(at(draft.value, ["spec", "initial_work", 0, "workflow"])).toBe(
       "trace",
     );
-    draft = renameBlock(draft, ["spec", "inputs", "openapi"], "definition");
-    expect(at(draft.value, ["spec", "inventory", "source", "name"])).toBe(
-      "definition",
-    );
+    expect(at(draft.value, ["spec", "continuation", "workflow"])).toBe("trace");
+    draft = renameBlock(draft, ["spec", "inputs", "source"], "definition");
+    expect(
+      at(draft.value, ["spec", "initial_work", 0, "inputs", "source"]),
+    ).toBe("definition");
+    expect(
+      at(draft.value, [
+        "spec",
+        "workflows",
+        "trace",
+        "inputs",
+        "source",
+        "name",
+      ]),
+    ).toBe("definition");
     expect(validateDraft(draft)).toEqual([]);
   });
-  it("validates named retained dependency inputs on check roles", () => {
-    const base = starter("AuditProfile");
-    const path = ["spec", "workflows", "check", "inputs", "source"];
-    const dependency = patchDraft(base, path, {
-      source: "retained-dependency",
-      name: "baseline.source",
-    });
-    expect(validateDraft(dependency)).toEqual([]);
-    for (const mapping of [
-      { source: "retained-dependency" },
-      { source: "retained-dependency", name: "source", role: "check" },
-      { source: "retained-dependency", name: "bad/name" },
-    ]) {
+  it("uses the common program contract and rejects retired inputs and authorities", () => {
+    const draft = starter("AuditProfile");
+    expect(validateDraft(draft)).toEqual([]);
+    for (const source of [
+      "item-package",
+      "round-results",
+      "prepare-output",
+      "retained-dependency",
+    ])
       expect(
-        validateDraft(patchDraft(base, path, mapping)).length,
+        validateDraft(
+          patchDraft(
+            draft,
+            ["spec", "workflows", "check", "inputs", "source"],
+            { source },
+          ),
+        ).length,
       ).toBeGreaterThan(0);
-    }
-    const assessment = patchDraft(base, ["spec", "workflows", "assess"], {
-      kind: "assessment",
-      ref: "assess@1",
-      inputs: { source: { source: "retained-dependency", name: "source" } },
-      parameters: {},
-      outputs: { result: "report" },
-    });
-    expect(validateDraft(assessment).length).toBeGreaterThan(0);
-  });
-  it("validates settled result inputs by consumer kind", () => {
-    const base = starter("AuditProfile");
+    for (const field of [
+      "mode",
+      "inventory",
+      "methods",
+      "execution",
+      "interaction",
+    ])
+      expect(
+        validateDraft(patchDraft(draft, ["spec", field], {})).length,
+      ).toBeGreaterThan(0);
     expect(
-      validateDraft(
-        patchDraft(base, ["spec", "workflows", "check", "inputs", "source"], {
-          source: "round-results",
-        }),
-      ).length,
+      validateDraft(patchDraft(draft, ["spec", "limits", "max_tasks"], 100001))
+        .length,
     ).toBeGreaterThan(0);
-    const assessment = patchDraft(base, ["spec", "workflows", "assess"], {
-      kind: "assessment",
-      ref: "assess@1",
-      inputs: { context: { source: "round-results" } },
-      parameters: {},
-      outputs: { result: "report" },
-    });
-    expect(validateDraft(assessment)).toEqual([]);
-    expect(
-      validateDraft(
-        patchDraft(
-          assessment,
-          ["spec", "workflows", "assess", "inputs", "other"],
-          { source: "round-results" },
-        ),
-      ).length,
-    ).toBeGreaterThan(0);
-    expect(
-      validateDraft(
-        patchDraft(
-          assessment,
-          ["spec", "workflows", "assess", "inputs", "context", "name"],
-          "forbidden",
-        ),
-      ).length,
-    ).toBeGreaterThan(0);
+    const added = addBlock(draft, "input");
+    expect(at(added.draft.value, [...added.path, "media_types"])).toEqual([
+      "application/yaml",
+    ]);
+    expect(validateDraft(added.draft)).toEqual([]);
   });
   it("distinguishes attempt retry from next cycles and unreachable drafts", () => {
     let draft = starter("Workflow");

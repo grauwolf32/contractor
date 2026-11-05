@@ -453,28 +453,28 @@ func (e AttemptDiagnosticParticipant) Valid() bool {
 
 // Defines values for AuditCollectionDisposition.
 const (
-	AuditCollectionDispositionAcceptedResult            AuditCollectionDisposition = "accepted-result"
-	AuditCollectionDispositionCollectionContractInvalid AuditCollectionDisposition = "collection-contract-invalid"
-	AuditCollectionDispositionExecutionCancelled        AuditCollectionDisposition = "execution-cancelled"
-	AuditCollectionDispositionExecutionFailed           AuditCollectionDisposition = "execution-failed"
-	AuditCollectionDispositionInvalidResult             AuditCollectionDisposition = "invalid-result"
-	AuditCollectionDispositionMissingOutput             AuditCollectionDisposition = "missing-output"
+	AcceptedResult            AuditCollectionDisposition = "accepted-result"
+	CollectionContractInvalid AuditCollectionDisposition = "collection-contract-invalid"
+	ExecutionCancelled        AuditCollectionDisposition = "execution-cancelled"
+	ExecutionFailed           AuditCollectionDisposition = "execution-failed"
+	InvalidResult             AuditCollectionDisposition = "invalid-result"
+	MissingOutput             AuditCollectionDisposition = "missing-output"
 )
 
 // Valid indicates whether the value is a known member of the AuditCollectionDisposition enum.
 func (e AuditCollectionDisposition) Valid() bool {
 	switch e {
-	case AuditCollectionDispositionAcceptedResult:
+	case AcceptedResult:
 		return true
-	case AuditCollectionDispositionCollectionContractInvalid:
+	case CollectionContractInvalid:
 		return true
-	case AuditCollectionDispositionExecutionCancelled:
+	case ExecutionCancelled:
 		return true
-	case AuditCollectionDispositionExecutionFailed:
+	case ExecutionFailed:
 		return true
-	case AuditCollectionDispositionInvalidResult:
+	case InvalidResult:
 		return true
-	case AuditCollectionDispositionMissingOutput:
+	case MissingOutput:
 		return true
 	default:
 		return false
@@ -523,48 +523,6 @@ func (e AuditCompatibilityReason) Valid() bool {
 	}
 }
 
-// Defines values for AuditCoverageStatus.
-const (
-	AuditCoverageStatusBlocked        AuditCoverageStatus = "blocked"
-	AuditCoverageStatusExcluded       AuditCoverageStatus = "excluded"
-	AuditCoverageStatusInconclusive   AuditCoverageStatus = "inconclusive"
-	AuditCoverageStatusNotApplicable  AuditCoverageStatus = "not-applicable"
-	AuditCoverageStatusNotTested      AuditCoverageStatus = "not-tested"
-	AuditCoverageStatusSatisfied      AuditCoverageStatus = "satisfied"
-	AuditCoverageStatusTracedComplete AuditCoverageStatus = "traced-complete"
-	AuditCoverageStatusTracedPartial  AuditCoverageStatus = "traced-partial"
-	AuditCoverageStatusUnmapped       AuditCoverageStatus = "unmapped"
-	AuditCoverageStatusViolated       AuditCoverageStatus = "violated"
-)
-
-// Valid indicates whether the value is a known member of the AuditCoverageStatus enum.
-func (e AuditCoverageStatus) Valid() bool {
-	switch e {
-	case AuditCoverageStatusBlocked:
-		return true
-	case AuditCoverageStatusExcluded:
-		return true
-	case AuditCoverageStatusInconclusive:
-		return true
-	case AuditCoverageStatusNotApplicable:
-		return true
-	case AuditCoverageStatusNotTested:
-		return true
-	case AuditCoverageStatusSatisfied:
-		return true
-	case AuditCoverageStatusTracedComplete:
-		return true
-	case AuditCoverageStatusTracedPartial:
-		return true
-	case AuditCoverageStatusUnmapped:
-		return true
-	case AuditCoverageStatusViolated:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for AuditDispatchState.
 const (
 	Closed AuditDispatchState = "closed"
@@ -604,84 +562,6 @@ func (e AuditEventSummaryVerdict) Valid() bool {
 	case AuditEventSummaryVerdictReopen:
 		return true
 	case AuditEventSummaryVerdictTruePositive:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AuditExecutionItemState.
-const (
-	AuditExecutionItemStateCollecting AuditExecutionItemState = "collecting"
-	AuditExecutionItemStateSettled    AuditExecutionItemState = "settled"
-	AuditExecutionItemStateSubmitted  AuditExecutionItemState = "submitted"
-)
-
-// Valid indicates whether the value is a known member of the AuditExecutionItemState enum.
-func (e AuditExecutionItemState) Valid() bool {
-	switch e {
-	case AuditExecutionItemStateCollecting:
-		return true
-	case AuditExecutionItemStateSettled:
-		return true
-	case AuditExecutionItemStateSubmitted:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AuditExecutionRole.
-const (
-	Assessment AuditExecutionRole = "assessment"
-	Check      AuditExecutionRole = "check"
-	Discovery  AuditExecutionRole = "discovery"
-	Prepare    AuditExecutionRole = "prepare"
-)
-
-// Valid indicates whether the value is a known member of the AuditExecutionRole enum.
-func (e AuditExecutionRole) Valid() bool {
-	switch e {
-	case Assessment:
-		return true
-	case Check:
-		return true
-	case Discovery:
-		return true
-	case Prepare:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AuditFinalDisposition.
-const (
-	AuditFinalDispositionAcceptedResult     AuditFinalDisposition = "accepted-result"
-	AuditFinalDispositionExcluded           AuditFinalDisposition = "excluded"
-	AuditFinalDispositionExecutionCancelled AuditFinalDisposition = "execution-cancelled"
-	AuditFinalDispositionExecutionFailed    AuditFinalDisposition = "execution-failed"
-	AuditFinalDispositionInvalidResult      AuditFinalDisposition = "invalid-result"
-	AuditFinalDispositionMissingOutput      AuditFinalDisposition = "missing-output"
-	AuditFinalDispositionNotApplicable      AuditFinalDisposition = "not-applicable"
-)
-
-// Valid indicates whether the value is a known member of the AuditFinalDisposition enum.
-func (e AuditFinalDisposition) Valid() bool {
-	switch e {
-	case AuditFinalDispositionAcceptedResult:
-		return true
-	case AuditFinalDispositionExcluded:
-		return true
-	case AuditFinalDispositionExecutionCancelled:
-		return true
-	case AuditFinalDispositionExecutionFailed:
-		return true
-	case AuditFinalDispositionInvalidResult:
-		return true
-	case AuditFinalDispositionMissingOutput:
-		return true
-	case AuditFinalDispositionNotApplicable:
 		return true
 	default:
 		return false
@@ -772,48 +652,6 @@ const (
 func (e AuditHypothesisDocumentSchema) Valid() bool {
 	switch e {
 	case ContractorAuditHypothesisV1:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AuditItemOriginSchema.
-const (
-	ContractorAuditItemOriginV1 AuditItemOriginSchema = "contractor.audit.item-origin.v1"
-)
-
-// Valid indicates whether the value is a known member of the AuditItemOriginSchema enum.
-func (e AuditItemOriginSchema) Valid() bool {
-	switch e {
-	case ContractorAuditItemOriginV1:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AuditItemState.
-const (
-	AuditItemStateCollecting AuditItemState = "collecting"
-	AuditItemStatePending    AuditItemState = "pending"
-	AuditItemStateReady      AuditItemState = "ready"
-	AuditItemStateSettled    AuditItemState = "settled"
-	AuditItemStateSubmitted  AuditItemState = "submitted"
-)
-
-// Valid indicates whether the value is a known member of the AuditItemState enum.
-func (e AuditItemState) Valid() bool {
-	switch e {
-	case AuditItemStateCollecting:
-		return true
-	case AuditItemStatePending:
-		return true
-	case AuditItemStateReady:
-		return true
-	case AuditItemStateSettled:
-		return true
-	case AuditItemStateSubmitted:
 		return true
 	default:
 		return false
@@ -958,39 +796,6 @@ func (e AuditReportSummaryArtifactMediaType) Valid() bool {
 	}
 }
 
-// Defines values for AuditRunProvenanceSchema.
-const (
-	ContractorAuditRunProvenanceV1 AuditRunProvenanceSchema = "contractor.audit.run-provenance.v1"
-)
-
-// Valid indicates whether the value is a known member of the AuditRunProvenanceSchema enum.
-func (e AuditRunProvenanceSchema) Valid() bool {
-	switch e {
-	case ContractorAuditRunProvenanceV1:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AuditScanProvenanceScanner.
-const (
-	Nuclei AuditScanProvenanceScanner = "nuclei"
-	Sqlmap AuditScanProvenanceScanner = "sqlmap"
-)
-
-// Valid indicates whether the value is a known member of the AuditScanProvenanceScanner enum.
-func (e AuditScanProvenanceScanner) Valid() bool {
-	switch e {
-	case Nuclei:
-		return true
-	case Sqlmap:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for AuditStandardApplicabilityMode.
 const (
 	Always      AuditStandardApplicabilityMode = "always"
@@ -1059,34 +864,34 @@ func (e AuditStandardEntryKind) Valid() bool {
 
 // Defines values for AuditStandardEvidenceContractAssessments.
 const (
-	AuditStandardEvidenceContractAssessmentsBlocked       AuditStandardEvidenceContractAssessments = "blocked"
-	AuditStandardEvidenceContractAssessmentsInconclusive  AuditStandardEvidenceContractAssessments = "inconclusive"
-	AuditStandardEvidenceContractAssessmentsNotApplicable AuditStandardEvidenceContractAssessments = "not-applicable"
-	AuditStandardEvidenceContractAssessmentsNotTested     AuditStandardEvidenceContractAssessments = "not-tested"
-	AuditStandardEvidenceContractAssessmentsRefuted       AuditStandardEvidenceContractAssessments = "refuted"
-	AuditStandardEvidenceContractAssessmentsSatisfied     AuditStandardEvidenceContractAssessments = "satisfied"
-	AuditStandardEvidenceContractAssessmentsSupported     AuditStandardEvidenceContractAssessments = "supported"
-	AuditStandardEvidenceContractAssessmentsViolated      AuditStandardEvidenceContractAssessments = "violated"
+	Blocked       AuditStandardEvidenceContractAssessments = "blocked"
+	Inconclusive  AuditStandardEvidenceContractAssessments = "inconclusive"
+	NotApplicable AuditStandardEvidenceContractAssessments = "not-applicable"
+	NotTested     AuditStandardEvidenceContractAssessments = "not-tested"
+	Refuted       AuditStandardEvidenceContractAssessments = "refuted"
+	Satisfied     AuditStandardEvidenceContractAssessments = "satisfied"
+	Supported     AuditStandardEvidenceContractAssessments = "supported"
+	Violated      AuditStandardEvidenceContractAssessments = "violated"
 )
 
 // Valid indicates whether the value is a known member of the AuditStandardEvidenceContractAssessments enum.
 func (e AuditStandardEvidenceContractAssessments) Valid() bool {
 	switch e {
-	case AuditStandardEvidenceContractAssessmentsBlocked:
+	case Blocked:
 		return true
-	case AuditStandardEvidenceContractAssessmentsInconclusive:
+	case Inconclusive:
 		return true
-	case AuditStandardEvidenceContractAssessmentsNotApplicable:
+	case NotApplicable:
 		return true
-	case AuditStandardEvidenceContractAssessmentsNotTested:
+	case NotTested:
 		return true
-	case AuditStandardEvidenceContractAssessmentsRefuted:
+	case Refuted:
 		return true
-	case AuditStandardEvidenceContractAssessmentsSatisfied:
+	case Satisfied:
 		return true
-	case AuditStandardEvidenceContractAssessmentsSupported:
+	case Supported:
 		return true
-	case AuditStandardEvidenceContractAssessmentsViolated:
+	case Violated:
 		return true
 	default:
 		return false
@@ -6724,7 +6529,6 @@ type AuditBaseline struct {
 	// ActiveChecks Project operation policy, pinned at Audit start. A profile prohibition always remains prohibited.
 	ActiveChecks ActiveChecksPolicy            `json:"activeChecks"`
 	Inputs       map[string]AuditExactArtifact `json:"inputs"`
-	Inventory    *AuditBaselineInventory       `json:"inventory,omitempty"`
 
 	// Labels Ordinary labels pinned at Audit start and inherited by every child Run. cloud or local with an empty value selects the whole namespace; cloud=aws selects cloud/aws. Four entries are reserved for child-specific audit.* provenance.
 	Labels            *AuditLabels       `json:"labels,omitempty"`
@@ -6739,15 +6543,6 @@ type AuditBaseline struct {
 	Scope         AuditScope                `json:"scope"`
 	Skills        []AuditSkill              `json:"skills"`
 	Standards     []AuditPinnedStandard     `json:"standards"`
-}
-
-// AuditBaselineInventory defines model for AuditBaselineInventory.
-type AuditBaselineInventory struct {
-	CanonicalInventoryDigest Digest                  `json:"canonicalInventoryDigest"`
-	Gaps                     []string                `json:"gaps"`
-	SourceContentDigest      Digest                  `json:"sourceContentDigest"`
-	StandardSelection        *AuditStandardSelection `json:"standardSelection,omitempty"`
-	Worklist                 AuditExactArtifact      `json:"worklist"`
 }
 
 // AuditCheckingWorkflows defines model for AuditCheckingWorkflows.
@@ -6778,63 +6573,6 @@ type AuditCommonText = string
 // AuditCompatibilityReason defines model for AuditCompatibilityReason.
 type AuditCompatibilityReason string
 
-// AuditCoverage defines model for AuditCoverage.
-type AuditCoverage struct {
-	Completed []string            `json:"completed"`
-	Gaps      []string            `json:"gaps"`
-	Rationale *string             `json:"rationale,omitempty"`
-	Requested []string            `json:"requested"`
-	Status    AuditCoverageStatus `json:"status"`
-}
-
-// AuditCoverageDetails defines model for AuditCoverageDetails.
-type AuditCoverageDetails struct {
-	Evidence []struct {
-		ContentMemberId  *string    `json:"contentMemberId,omitempty"`
-		DeploymentMarker *string    `json:"deploymentMarker,omitempty"`
-		HttpRequestId    *string    `json:"httpRequestId,omitempty"`
-		HttpRequestTag   *string    `json:"httpRequestTag,omitempty"`
-		Id               string     `json:"id"`
-		Kind             string     `json:"kind"`
-		ObservedAt       *time.Time `json:"observedAt,omitempty"`
-		Summary          string     `json:"summary"`
-	} `json:"evidence"`
-	Methods       []string             `json:"methods"`
-	Objective     string               `json:"objective"`
-	ResultSummary *string              `json:"resultSummary,omitempty"`
-	Scan          *AuditScanProvenance `json:"scan,omitempty"`
-
-	// TaskDocument Exact retained item-task document given to the worker, independent of the selected checklist or profile.
-	TaskDocument map[string]interface{} `json:"taskDocument"`
-}
-
-// AuditCoveragePage defines model for AuditCoveragePage.
-type AuditCoveragePage struct {
-	// AuditRevision The Audit revision every row of this page was read at.
-	AuditRevision int                `json:"auditRevision"`
-	Items         []AuditCoverageRow `json:"items"`
-	Page          PageInfo           `json:"page"`
-}
-
-// AuditCoverageRow defines model for AuditCoverageRow.
-type AuditCoverageRow struct {
-	Coverage   AuditCoverage         `json:"coverage"`
-	Details    *AuditCoverageDetails `json:"details,omitempty"`
-	FindingIds []ResourceId          `json:"findingIds"`
-	ItemId     ResourceId            `json:"itemId"`
-	ItemKey    string                `json:"itemKey"`
-	Ordinal    int                   `json:"ordinal"`
-	Result     *AuditExactArtifact   `json:"result,omitempty"`
-	RoundId    ResourceId            `json:"roundId"`
-
-	// SubjectKey The subject key of an Audit item, at most 512 UTF-8 bytes (LIM-AUD-40).
-	SubjectKey AuditSubjectKey `json:"subjectKey"`
-	UpdatedAt  time.Time       `json:"updatedAt"`
-}
-
-// AuditCoverageStatus defines model for AuditCoverageStatus.
-type AuditCoverageStatus string
-
 // AuditDispatchState defines model for AuditDispatchState.
 type AuditDispatchState string
 
@@ -6864,11 +6602,9 @@ type AuditEventSummary struct {
 	Disposition  *AuditCollectionDisposition `json:"disposition,omitempty"`
 	FindingId    *ResourceId                 `json:"findingId,omitempty"`
 	From         *string                     `json:"from,omitempty"`
-	Items        *int                        `json:"items,omitempty"`
+	Iteration    *int                        `json:"iteration,omitempty"`
 	Members      *int                        `json:"members,omitempty"`
 	Outcome      *AuditTerminalOutcome       `json:"outcome,omitempty"`
-	Role         *AuditExecutionRole         `json:"role,omitempty"`
-	Round        *int                        `json:"round,omitempty"`
 	RunId        *ResourceId                 `json:"runId,omitempty"`
 	State        *string                     `json:"state,omitempty"`
 	SubjectId    *ResourceId                 `json:"subjectId,omitempty"`
@@ -6877,7 +6613,6 @@ type AuditEventSummary struct {
 	Verdict      *AuditEventSummaryVerdict   `json:"verdict,omitempty"`
 	WorkCount    *int                        `json:"workCount,omitempty"`
 	Workflow     *AuditCommonKey             `json:"workflow,omitempty"`
-	WorkflowRole *ResourceId                 `json:"workflowRole,omitempty"`
 }
 
 // AuditEventSummaryVerdict defines model for AuditEventSummary.Verdict.
@@ -6890,15 +6625,6 @@ type AuditExactArtifact struct {
 	Ref       ExactArtifactRef `json:"ref"`
 	SizeBytes *int             `json:"sizeBytes,omitempty"`
 }
-
-// AuditExecutionItemState defines model for AuditExecutionItemState.
-type AuditExecutionItemState string
-
-// AuditExecutionRole defines model for AuditExecutionRole.
-type AuditExecutionRole string
-
-// AuditFinalDisposition defines model for AuditFinalDisposition.
-type AuditFinalDisposition string
 
 // AuditFindingPage defines model for AuditFindingPage.
 type AuditFindingPage struct {
@@ -6986,71 +6712,6 @@ type AuditHypothesisPage struct {
 	Page              PageInfo               `json:"page"`
 	PendingFixedCount int                    `json:"pending_fixed_count"`
 }
-
-// AuditItem defines model for AuditItem.
-type AuditItem struct {
-	AcceptedResult      *AuditExactArtifact    `json:"acceptedResult,omitempty"`
-	Attempts            []AuditItemAttempt     `json:"attempts"`
-	CreatedAt           time.Time              `json:"createdAt"`
-	FinalDisposition    *AuditFinalDisposition `json:"finalDisposition,omitempty"`
-	FindingIds          []ResourceId           `json:"findingIds"`
-	ItemId              ResourceId             `json:"itemId"`
-	ItemKey             string                 `json:"itemKey"`
-	Kind                string                 `json:"kind"`
-	LastExecutionItemId *ResourceId            `json:"lastExecutionItemId,omitempty"`
-	Ordinal             int                    `json:"ordinal"`
-	Origin              AuditItemOrigin        `json:"origin"`
-	RoundId             ResourceId             `json:"roundId"`
-	State               AuditItemState         `json:"state"`
-
-	// SubjectKey The subject key of an Audit item, at most 512 UTF-8 bytes (LIM-AUD-40).
-	SubjectKey   AuditSubjectKey    `json:"subjectKey"`
-	Task         AuditExactArtifact `json:"task"`
-	UpdatedAt    time.Time          `json:"updatedAt"`
-	WorkflowRole ArtifactName       `json:"workflowRole"`
-}
-
-// AuditItemAttempt defines model for AuditItemAttempt.
-type AuditItemAttempt struct {
-	CollectedAt           *time.Time                  `json:"collectedAt,omitempty"`
-	CollectionDisposition *AuditCollectionDisposition `json:"collectionDisposition,omitempty"`
-	CreatedAt             time.Time                   `json:"createdAt"`
-	ExecutionId           ResourceId                  `json:"executionId"`
-	ExecutionItemId       ResourceId                  `json:"executionItemId"`
-	ItemAttempt           int                         `json:"itemAttempt"`
-	ItemId                ResourceId                  `json:"itemId"`
-	Result                *AuditExactArtifact         `json:"result,omitempty"`
-	Role                  AuditExecutionRole          `json:"role"`
-	RunDeleted            bool                        `json:"runDeleted"`
-	RunId                 *ResourceId                 `json:"runId,omitempty"`
-	RunProvenance         *AuditRunProvenance         `json:"runProvenance,omitempty"`
-	State                 AuditExecutionItemState     `json:"state"`
-	TerminalOutcome       *AuditTerminalOutcome       `json:"terminalOutcome,omitempty"`
-}
-
-// AuditItemOrigin defines model for AuditItemOrigin.
-type AuditItemOrigin struct {
-	CanonicalInventoryDigest Digest                   `json:"canonicalInventoryDigest"`
-	EntryKey                 string                   `json:"entryKey"`
-	EntryVersion             *string                  `json:"entryVersion,omitempty"`
-	Schema                   AuditItemOriginSchema    `json:"schema"`
-	SourceContentDigest      Digest                   `json:"sourceContentDigest"`
-	SourceMediaType          string                   `json:"sourceMediaType"`
-	SourceRef                ArtifactRef              `json:"sourceRef"`
-	Standard                 *AuditStandardItemOrigin `json:"standard,omitempty"`
-}
-
-// AuditItemOriginSchema defines model for AuditItemOrigin.Schema.
-type AuditItemOriginSchema string
-
-// AuditItemPage defines model for AuditItemPage.
-type AuditItemPage struct {
-	Items []AuditItem `json:"items"`
-	Page  PageInfo    `json:"page"`
-}
-
-// AuditItemState defines model for AuditItemState.
-type AuditItemState string
 
 // AuditLabels Ordinary labels pinned at Audit start and inherited by every child Run. cloud or local with an empty value selects the whole namespace; cloud=aws selects cloud/aws. Four entries are reserved for child-specific audit.* provenance.
 type AuditLabels map[string]string
@@ -7318,38 +6979,11 @@ type AuditReportSummaryArtifact struct {
 // AuditReportSummaryArtifactMediaType defines model for AuditReportSummaryArtifact.MediaType.
 type AuditReportSummaryArtifactMediaType string
 
-// AuditRunProvenance defines model for AuditRunProvenance.
-type AuditRunProvenance struct {
-	RunId    ResourceId               `json:"runId"`
-	Schema   AuditRunProvenanceSchema `json:"schema"`
-	Workflow AuditWorkflowProvenance  `json:"workflow"`
-}
-
-// AuditRunProvenanceSchema defines model for AuditRunProvenance.Schema.
-type AuditRunProvenanceSchema string
-
 // AuditRuntimeSnapshot defines model for AuditRuntimeSnapshot.
 type AuditRuntimeSnapshot struct {
 	Default AuditPinnedRuntimeLabel   `json:"default"`
 	Labels  []AuditPinnedRuntimeLabel `json:"labels"`
 }
-
-// AuditScanProvenance defines model for AuditScanProvenance.
-type AuditScanProvenance struct {
-	Gaps              []string                   `json:"gaps"`
-	Operation         string                     `json:"operation"`
-	PreparationDigest Digest                     `json:"preparationDigest"`
-	RequestDigest     *Digest                    `json:"requestDigest,omitempty"`
-	Runnable          bool                       `json:"runnable"`
-	Scanner           AuditScanProvenanceScanner `json:"scanner"`
-	Settings          AuditExactArtifact         `json:"settings"`
-	Source            AuditExactArtifact         `json:"source"`
-	TargetUrl         *string                    `json:"targetUrl,omitempty"`
-	TestParameters    []string                   `json:"testParameters"`
-}
-
-// AuditScanProvenanceScanner defines model for AuditScanProvenance.Scanner.
-type AuditScanProvenanceScanner string
 
 // AuditScope defines model for AuditScope.
 type AuditScope struct {
@@ -7420,12 +7054,6 @@ type AuditStandardEvidenceContractRef struct {
 	Version string `json:"version"`
 }
 
-// AuditStandardEvidenceOrigin defines model for AuditStandardEvidenceOrigin.
-type AuditStandardEvidenceOrigin struct {
-	Id      string `json:"id"`
-	Version string `json:"version"`
-}
-
 // AuditStandardExactPackage defines model for AuditStandardExactPackage.
 type AuditStandardExactPackage struct {
 	Artifact  ExactArtifactRef                   `json:"artifact"`
@@ -7436,15 +7064,6 @@ type AuditStandardExactPackage struct {
 
 // AuditStandardExactPackageMediaType defines model for AuditStandardExactPackage.MediaType.
 type AuditStandardExactPackageMediaType string
-
-// AuditStandardItemOrigin defines model for AuditStandardItemOrigin.
-type AuditStandardItemOrigin struct {
-	EntryIds         []string                    `json:"entryIds"`
-	EvidenceContract AuditStandardEvidenceOrigin `json:"evidenceContract"`
-	MappingKey       string                      `json:"mappingKey"`
-	Scheme           string                      `json:"scheme"`
-	Version          string                      `json:"version"`
-}
 
 // AuditStandardLicense defines model for AuditStandardLicense.
 type AuditStandardLicense struct {
@@ -7515,13 +7134,6 @@ type AuditStandardRef struct {
 	Version string `json:"version"`
 }
 
-// AuditStandardSelection defines model for AuditStandardSelection.
-type AuditStandardSelection struct {
-	EntryIds []string `json:"entryIds"`
-	Levels   []string `json:"levels"`
-	Scope    string   `json:"scope"`
-}
-
 // AuditStandardSource defines model for AuditStandardSource.
 type AuditStandardSource struct {
 	Name     string  `json:"name"`
@@ -7542,9 +7154,6 @@ type AuditStopReason struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 }
-
-// AuditSubjectKey The subject key of an Audit item, at most 512 UTF-8 bytes (LIM-AUD-40).
-type AuditSubjectKey = string
 
 // AuditTask defines model for AuditTask.
 type AuditTask struct {
@@ -7655,30 +7264,20 @@ type AuditTimeLimitRequest struct {
 	DeadlineSeconds *int `json:"deadlineSeconds,omitempty"`
 }
 
-// AuditWorkflowProvenance defines model for AuditWorkflowProvenance.
-type AuditWorkflowProvenance struct {
-	ClosureDigest    Digest            `json:"closureDigest"`
-	ConfigurationRef WorkflowRef       `json:"configurationRef"`
-	Name             ConfigurationName `json:"name"`
-	SchemaVersion    string            `json:"schemaVersion"`
-	Version          ConfigVersion     `json:"version"`
-}
-
 // AuditWorkspace defines model for AuditWorkspace.
 type AuditWorkspace struct {
-	AsOf               time.Time   `json:"asOf"`
-	AuditId            ResourceId  `json:"auditId"`
-	AuditRevision      int         `json:"auditRevision"`
-	CompletedChecks    int         `json:"completedChecks"`
-	ExecutionState     AuditState  `json:"executionState"`
-	Findings           int         `json:"findings"`
-	Gaps               int         `json:"gaps"`
-	Issues             int         `json:"issues"`
-	OutstandingRuns    int         `json:"outstandingRuns"`
-	RoundId            *ResourceId `json:"roundId,omitempty"`
-	TotalChecks        int         `json:"totalChecks"`
-	Unchecked          int         `json:"unchecked"`
-	UnreviewedFindings int         `json:"unreviewedFindings"`
+	AsOf               time.Time  `json:"asOf"`
+	AuditId            ResourceId `json:"auditId"`
+	AuditRevision      int        `json:"auditRevision"`
+	CompletedTasks     int        `json:"completedTasks"`
+	ExecutionState     AuditState `json:"executionState"`
+	Findings           int        `json:"findings"`
+	Gaps               int        `json:"gaps"`
+	Iteration          int        `json:"iteration"`
+	OutstandingRuns    int        `json:"outstandingRuns"`
+	PendingTasks       int        `json:"pendingTasks"`
+	TotalTasks         int        `json:"totalTasks"`
+	UnreviewedFindings int        `json:"unreviewedFindings"`
 }
 
 // AuthPrincipal defines model for AuthPrincipal.
@@ -8746,11 +8345,11 @@ type EvalInventoryEntry struct {
 	Available bool                                `json:"available"`
 	Execution nullable.Nullable[EvalExecutionRef] `json:"execution"`
 	IntentId  *EvalOpaque                         `json:"intentId,omitempty"`
+	Iteration nullable.Nullable[int]              `json:"iteration"`
 	Parent    nullable.Nullable[EvalExecutionRef] `json:"parent"`
 	ProjectId *EvalOpaque                         `json:"projectId,omitempty"`
-	Role      nullable.Nullable[EvalId]           `json:"role"`
-	Round     nullable.Nullable[int]              `json:"round"`
 	State     EvalInventoryEntryState             `json:"state"`
+	Workflow  nullable.Nullable[EvalId]           `json:"workflow"`
 }
 
 // EvalInventoryEntryState defines model for EvalInventoryEntry.State.
@@ -12432,16 +12031,6 @@ type CancelAuditParams struct {
 	XCSRFToken *OptionalCSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
-// ListAuditCoverageParams defines parameters for ListAuditCoverage.
-type ListAuditCoverageParams struct {
-	Limit  *Limit      `form:"limit,omitempty" json:"limit,omitempty"`
-	Cursor *Cursor     `form:"cursor,omitempty" json:"cursor,omitempty"`
-	Round  *ResourceId `form:"round,omitempty" json:"round,omitempty"`
-
-	// AuditRevision Pin this page, and the current Round it defaults to, to one Audit revision. Every page is read at one revision; continuations bind the Round and revision; a stale revision returns 409.
-	AuditRevision *int `form:"auditRevision,omitempty" json:"auditRevision,omitempty"`
-}
-
 // ListAuditEventsParams defines parameters for ListAuditEvents.
 type ListAuditEventsParams struct {
 	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
@@ -12525,15 +12114,6 @@ type EditAuditHypothesisParams struct {
 	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey  `json:"Idempotency-Key"`
 	IfMatch        RequiredIfMatch `json:"If-Match"`
-}
-
-// ListAuditItemsParams defines parameters for ListAuditItems.
-type ListAuditItemsParams struct {
-	Limit   *Limit           `form:"limit,omitempty" json:"limit,omitempty"`
-	Cursor  *Cursor          `form:"cursor,omitempty" json:"cursor,omitempty"`
-	Round   *ResourceId      `form:"round,omitempty" json:"round,omitempty"`
-	State   *AuditItemState  `form:"state,omitempty" json:"state,omitempty"`
-	Subject *AuditSubjectKey `form:"subject,omitempty" json:"subject,omitempty"`
 }
 
 // PauseAuditParams defines parameters for PauseAudit.
@@ -17984,11 +17564,6 @@ type ClientInterface interface {
 	// Corresponds with POST /v1/audits/{auditId}/cancel (the `CancelAudit` operationId).
 	CancelAudit(ctx context.Context, auditId AuditId, params *CancelAuditParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListAuditCoverage List truthful coverage rows for one exact or current Round
-	//
-	// Corresponds with GET /v1/audits/{auditId}/coverage (the `ListAuditCoverage` operationId).
-	ListAuditCoverage(ctx context.Context, auditId AuditId, params *ListAuditCoverageParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// ListAuditEvents Read the immutable event history of an owned Audit
 	//
 	// Newest sequence first, independent of timestamps. The first page freezes
@@ -18150,11 +17725,6 @@ type ClientInterface interface {
 	// Corresponds with PATCH /v1/audits/{auditId}/hypotheses/{hypothesisId} (the `EditAuditHypothesis` operationId).
 	EditAuditHypothesis(ctx context.Context, auditId AuditId, hypothesisId ResourceId, params *EditAuditHypothesisParams, body EditAuditHypothesisJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListAuditItems List immutable Audit items and their current settlement state
-	//
-	// Corresponds with GET /v1/audits/{auditId}/items (the `ListAuditItems` operationId).
-	ListAuditItems(ctx context.Context, auditId AuditId, params *ListAuditItemsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// PauseAudit Pause admission of new child Runs while existing work drains
 	//
 	// Corresponds with POST /v1/audits/{auditId}/pause (the `PauseAudit` operationId).
@@ -18221,7 +17791,7 @@ type ClientInterface interface {
 	// Corresponds with GET /v1/audits/{auditId}/tasks/{taskId} (the `GetAuditTask` operationId).
 	GetAuditTask(ctx context.Context, auditId AuditId, taskId ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetAuditWorkspace Read consistent current-round progress and whole-Audit decision counts
+	// GetAuditWorkspace Read consistent Task progress and whole-Audit Finding counts
 	//
 	// Corresponds with GET /v1/audits/{auditId}/workspace (the `GetAuditWorkspace` operationId).
 	GetAuditWorkspace(ctx context.Context, auditId AuditId, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -19544,21 +19114,6 @@ func (c *Client) CancelAudit(ctx context.Context, auditId AuditId, params *Cance
 	return c.Client.Do(req)
 }
 
-// ListAuditCoverage List truthful coverage rows for one exact or current Round
-//
-// Corresponds with GET /v1/audits/{auditId}/coverage (the `ListAuditCoverage` operationId).
-func (c *Client) ListAuditCoverage(ctx context.Context, auditId AuditId, params *ListAuditCoverageParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListAuditCoverageRequest(c.Server, auditId, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 // ListAuditEvents Read the immutable event history of an owned Audit
 //
 // Newest sequence first, independent of timestamps. The first page freezes
@@ -19900,21 +19455,6 @@ func (c *Client) EditAuditHypothesis(ctx context.Context, auditId AuditId, hypot
 	return c.Client.Do(req)
 }
 
-// ListAuditItems List immutable Audit items and their current settlement state
-//
-// Corresponds with GET /v1/audits/{auditId}/items (the `ListAuditItems` operationId).
-func (c *Client) ListAuditItems(ctx context.Context, auditId AuditId, params *ListAuditItemsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListAuditItemsRequest(c.Server, auditId, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 // PauseAudit Pause admission of new child Runs while existing work drains
 //
 // Corresponds with POST /v1/audits/{auditId}/pause (the `PauseAudit` operationId).
@@ -20081,7 +19621,7 @@ func (c *Client) GetAuditTask(ctx context.Context, auditId AuditId, taskId Resou
 	return c.Client.Do(req)
 }
 
-// GetAuditWorkspace Read consistent current-round progress and whole-Audit decision counts
+// GetAuditWorkspace Read consistent Task progress and whole-Audit Finding counts
 //
 // Corresponds with GET /v1/audits/{auditId}/workspace (the `GetAuditWorkspace` operationId).
 func (c *Client) GetAuditWorkspace(ctx context.Context, auditId AuditId, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -23856,103 +23396,6 @@ func NewCancelAuditRequest(server string, auditId AuditId, params *CancelAuditPa
 	return req, nil
 }
 
-// NewListAuditCoverageRequest constructs an http.Request for the ListAuditCoverage method
-func NewListAuditCoverageRequest(server string, auditId AuditId, params *ListAuditCoverageParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "auditId", auditId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/v1/audits/%s/coverage", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		// queryValues collects non-styled parameters (passthrough, JSON)
-		// that are safe to round-trip through url.Values.Encode().
-		queryValues := queryURL.Query()
-		// rawQueryFragments collects pre-encoded query fragments from
-		// styled parameters, preserving literal commas as delimiters
-		// per the OpenAPI spec (e.g. "color=blue,black,brown").
-		var rawQueryFragments []string
-
-		if params.Limit != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.Cursor != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.Round != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "round", *params.Round, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.AuditRevision != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "auditRevision", *params.AuditRevision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if encoded := queryValues.Encode(); encoded != "" {
-			rawQueryFragments = append(rawQueryFragments, encoded)
-		}
-		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
 // NewListAuditEventsRequest constructs an http.Request for the ListAuditEvents method
 func NewListAuditEventsRequest(server string, auditId AuditId, params *ListAuditEventsParams) (*http.Request, error) {
 	var err error
@@ -24935,115 +24378,6 @@ func NewEditAuditHypothesisRequestWithBody(server string, auditId AuditId, hypot
 
 		req.Header.Set("If-Match", headerParam1)
 
-	}
-
-	return req, nil
-}
-
-// NewListAuditItemsRequest constructs an http.Request for the ListAuditItems method
-func NewListAuditItemsRequest(server string, auditId AuditId, params *ListAuditItemsParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "auditId", auditId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/v1/audits/%s/items", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		// queryValues collects non-styled parameters (passthrough, JSON)
-		// that are safe to round-trip through url.Values.Encode().
-		queryValues := queryURL.Query()
-		// rawQueryFragments collects pre-encoded query fragments from
-		// styled parameters, preserving literal commas as delimiters
-		// per the OpenAPI spec (e.g. "color=blue,black,brown").
-		var rawQueryFragments []string
-
-		if params.Limit != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.Cursor != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.Round != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "round", *params.Round, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.State != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "state", *params.State, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.Subject != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "subject", *params.Subject, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if encoded := queryValues.Encode(); encoded != "" {
-			rawQueryFragments = append(rawQueryFragments, encoded)
-		}
-		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
 	}
 
 	return req, nil
@@ -34000,13 +33334,6 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /v1/audits/{auditId}/cancel (the `CancelAudit` operationId).
 	CancelAuditWithResponse(ctx context.Context, auditId AuditId, params *CancelAuditParams, reqEditors ...RequestEditorFn) (*CancelAuditResponse, error)
 
-	// ListAuditCoverageWithResponse List truthful coverage rows for one exact or current Round
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with GET /v1/audits/{auditId}/coverage (the `ListAuditCoverage` operationId).
-	ListAuditCoverageWithResponse(ctx context.Context, auditId AuditId, params *ListAuditCoverageParams, reqEditors ...RequestEditorFn) (*ListAuditCoverageResponse, error)
-
 	// ListAuditEventsWithResponse Read the immutable event history of an owned Audit
 	//
 	// Newest sequence first, independent of timestamps. The first page freezes
@@ -34188,13 +33515,6 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with PATCH /v1/audits/{auditId}/hypotheses/{hypothesisId} (the `EditAuditHypothesis` operationId).
 	EditAuditHypothesisWithResponse(ctx context.Context, auditId AuditId, hypothesisId ResourceId, params *EditAuditHypothesisParams, body EditAuditHypothesisJSONRequestBody, reqEditors ...RequestEditorFn) (*EditAuditHypothesisResponse, error)
 
-	// ListAuditItemsWithResponse List immutable Audit items and their current settlement state
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with GET /v1/audits/{auditId}/items (the `ListAuditItems` operationId).
-	ListAuditItemsWithResponse(ctx context.Context, auditId AuditId, params *ListAuditItemsParams, reqEditors ...RequestEditorFn) (*ListAuditItemsResponse, error)
-
 	// PauseAuditWithResponse Pause admission of new child Runs while existing work drains
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -34269,7 +33589,7 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /v1/audits/{auditId}/tasks/{taskId} (the `GetAuditTask` operationId).
 	GetAuditTaskWithResponse(ctx context.Context, auditId AuditId, taskId ResourceId, reqEditors ...RequestEditorFn) (*GetAuditTaskResponse, error)
 
-	// GetAuditWorkspaceWithResponse Read consistent current-round progress and whole-Audit decision counts
+	// GetAuditWorkspaceWithResponse Read consistent Task progress and whole-Audit Finding counts
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -37840,141 +37160,6 @@ func (r CancelAuditResponse) ContentType() string {
 	return ""
 }
 
-// ListAuditCoverageResponse200Headers the declared response headers of an HTTP 200 response for ListAuditCoverage
-type ListAuditCoverageResponse200Headers struct {
-	CacheControl string
-	XRequestID   RequestId
-}
-
-// ListAuditCoverageResponse400Headers the declared response headers of an HTTP 400 response for ListAuditCoverage
-type ListAuditCoverageResponse400Headers struct {
-	XRequestID RequestId
-}
-
-// ListAuditCoverageResponse401Headers the declared response headers of an HTTP 401 response for ListAuditCoverage
-type ListAuditCoverageResponse401Headers struct {
-	WWWAuthenticate       *string
-	XContractorAPIVersion string
-	XRequestID            RequestId
-}
-
-// ListAuditCoverageResponse404Headers the declared response headers of an HTTP 404 response for ListAuditCoverage
-type ListAuditCoverageResponse404Headers struct {
-	XRequestID RequestId
-}
-
-// ListAuditCoverageResponse409Headers the declared response headers of an HTTP 409 response for ListAuditCoverage
-type ListAuditCoverageResponse409Headers struct {
-	XRequestID RequestId
-}
-
-// ListAuditCoverageResponse500Headers the declared response headers of an HTTP 500 response for ListAuditCoverage
-type ListAuditCoverageResponse500Headers struct {
-	XRequestID RequestId
-}
-
-// ListAuditCoverageResponse503Headers the declared response headers of an HTTP 503 response for ListAuditCoverage
-type ListAuditCoverageResponse503Headers struct {
-	XRequestID RequestId
-}
-
-type ListAuditCoverageResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *AuditCoveragePage
-	// JSON400 the response for an HTTP 400 `application/json` response
-	JSON400 *BadRequest
-	// JSON401 the response for an HTTP 401 `application/json` response
-	JSON401 *Unauthorized
-	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *NotFound
-	// JSON409 the response for an HTTP 409 `application/json` response
-	JSON409 *Conflict
-	// JSON500 the response for an HTTP 500 `application/json` response
-	JSON500 *InternalError
-	// JSON503 the response for an HTTP 503 `application/json` response
-	JSON503 *StorageTransactionConflict
-	// Headers200 the parsed response headers for an HTTP 200 response
-	Headers200 *ListAuditCoverageResponse200Headers
-	// Headers400 the parsed response headers for an HTTP 400 response
-	Headers400 *ListAuditCoverageResponse400Headers
-	// Headers401 the parsed response headers for an HTTP 401 response
-	Headers401 *ListAuditCoverageResponse401Headers
-	// Headers404 the parsed response headers for an HTTP 404 response
-	Headers404 *ListAuditCoverageResponse404Headers
-	// Headers409 the parsed response headers for an HTTP 409 response
-	Headers409 *ListAuditCoverageResponse409Headers
-	// Headers500 the parsed response headers for an HTTP 500 response
-	Headers500 *ListAuditCoverageResponse500Headers
-	// Headers503 the parsed response headers for an HTTP 503 response
-	Headers503 *ListAuditCoverageResponse503Headers
-}
-
-// GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r ListAuditCoverageResponse) GetJSON200() *AuditCoveragePage {
-	return r.JSON200
-}
-
-// GetJSON400 returns the response for an HTTP 400 `application/json` response
-func (r ListAuditCoverageResponse) GetJSON400() *BadRequest {
-	return r.JSON400
-}
-
-// GetJSON401 returns the response for an HTTP 401 `application/json` response
-func (r ListAuditCoverageResponse) GetJSON401() *Unauthorized {
-	return r.JSON401
-}
-
-// GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r ListAuditCoverageResponse) GetJSON404() *NotFound {
-	return r.JSON404
-}
-
-// GetJSON409 returns the response for an HTTP 409 `application/json` response
-func (r ListAuditCoverageResponse) GetJSON409() *Conflict {
-	return r.JSON409
-}
-
-// GetJSON500 returns the response for an HTTP 500 `application/json` response
-func (r ListAuditCoverageResponse) GetJSON500() *InternalError {
-	return r.JSON500
-}
-
-// GetJSON503 returns the response for an HTTP 503 `application/json` response
-func (r ListAuditCoverageResponse) GetJSON503() *StorageTransactionConflict {
-	return r.JSON503
-}
-
-// GetBody returns the raw response body bytes
-func (r ListAuditCoverageResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r ListAuditCoverageResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListAuditCoverageResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r ListAuditCoverageResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
 // ListAuditEventsResponse200Headers the declared response headers of an HTTP 200 response for ListAuditEvents
 type ListAuditEventsResponse200Headers struct {
 	CacheControl string
@@ -39982,127 +39167,6 @@ func (r EditAuditHypothesisResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r EditAuditHypothesisResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-// ListAuditItemsResponse200Headers the declared response headers of an HTTP 200 response for ListAuditItems
-type ListAuditItemsResponse200Headers struct {
-	CacheControl string
-	XRequestID   RequestId
-}
-
-// ListAuditItemsResponse400Headers the declared response headers of an HTTP 400 response for ListAuditItems
-type ListAuditItemsResponse400Headers struct {
-	XRequestID RequestId
-}
-
-// ListAuditItemsResponse401Headers the declared response headers of an HTTP 401 response for ListAuditItems
-type ListAuditItemsResponse401Headers struct {
-	WWWAuthenticate       *string
-	XContractorAPIVersion string
-	XRequestID            RequestId
-}
-
-// ListAuditItemsResponse404Headers the declared response headers of an HTTP 404 response for ListAuditItems
-type ListAuditItemsResponse404Headers struct {
-	XRequestID RequestId
-}
-
-// ListAuditItemsResponse500Headers the declared response headers of an HTTP 500 response for ListAuditItems
-type ListAuditItemsResponse500Headers struct {
-	XRequestID RequestId
-}
-
-// ListAuditItemsResponse503Headers the declared response headers of an HTTP 503 response for ListAuditItems
-type ListAuditItemsResponse503Headers struct {
-	XRequestID RequestId
-}
-
-type ListAuditItemsResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *AuditItemPage
-	// JSON400 the response for an HTTP 400 `application/json` response
-	JSON400 *BadRequest
-	// JSON401 the response for an HTTP 401 `application/json` response
-	JSON401 *Unauthorized
-	// JSON404 the response for an HTTP 404 `application/json` response
-	JSON404 *NotFound
-	// JSON500 the response for an HTTP 500 `application/json` response
-	JSON500 *InternalError
-	// JSON503 the response for an HTTP 503 `application/json` response
-	JSON503 *StorageTransactionConflict
-	// Headers200 the parsed response headers for an HTTP 200 response
-	Headers200 *ListAuditItemsResponse200Headers
-	// Headers400 the parsed response headers for an HTTP 400 response
-	Headers400 *ListAuditItemsResponse400Headers
-	// Headers401 the parsed response headers for an HTTP 401 response
-	Headers401 *ListAuditItemsResponse401Headers
-	// Headers404 the parsed response headers for an HTTP 404 response
-	Headers404 *ListAuditItemsResponse404Headers
-	// Headers500 the parsed response headers for an HTTP 500 response
-	Headers500 *ListAuditItemsResponse500Headers
-	// Headers503 the parsed response headers for an HTTP 503 response
-	Headers503 *ListAuditItemsResponse503Headers
-}
-
-// GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r ListAuditItemsResponse) GetJSON200() *AuditItemPage {
-	return r.JSON200
-}
-
-// GetJSON400 returns the response for an HTTP 400 `application/json` response
-func (r ListAuditItemsResponse) GetJSON400() *BadRequest {
-	return r.JSON400
-}
-
-// GetJSON401 returns the response for an HTTP 401 `application/json` response
-func (r ListAuditItemsResponse) GetJSON401() *Unauthorized {
-	return r.JSON401
-}
-
-// GetJSON404 returns the response for an HTTP 404 `application/json` response
-func (r ListAuditItemsResponse) GetJSON404() *NotFound {
-	return r.JSON404
-}
-
-// GetJSON500 returns the response for an HTTP 500 `application/json` response
-func (r ListAuditItemsResponse) GetJSON500() *InternalError {
-	return r.JSON500
-}
-
-// GetJSON503 returns the response for an HTTP 503 `application/json` response
-func (r ListAuditItemsResponse) GetJSON503() *StorageTransactionConflict {
-	return r.JSON503
-}
-
-// GetBody returns the raw response body bytes
-func (r ListAuditItemsResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r ListAuditItemsResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListAuditItemsResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r ListAuditItemsResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -58398,19 +57462,6 @@ func (c *ClientWithResponses) CancelAuditWithResponse(ctx context.Context, audit
 	return ParseCancelAuditResponse(rsp)
 }
 
-// ListAuditCoverageWithResponse List truthful coverage rows for one exact or current Round
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with GET /v1/audits/{auditId}/coverage (the `ListAuditCoverage` operationId).
-func (c *ClientWithResponses) ListAuditCoverageWithResponse(ctx context.Context, auditId AuditId, params *ListAuditCoverageParams, reqEditors ...RequestEditorFn) (*ListAuditCoverageResponse, error) {
-	rsp, err := c.ListAuditCoverage(ctx, auditId, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListAuditCoverageResponse(rsp)
-}
-
 // ListAuditEventsWithResponse Read the immutable event history of an owned Audit
 //
 // Newest sequence first, independent of timestamps. The first page freezes
@@ -58700,19 +57751,6 @@ func (c *ClientWithResponses) EditAuditHypothesisWithResponse(ctx context.Contex
 	return ParseEditAuditHypothesisResponse(rsp)
 }
 
-// ListAuditItemsWithResponse List immutable Audit items and their current settlement state
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with GET /v1/audits/{auditId}/items (the `ListAuditItems` operationId).
-func (c *ClientWithResponses) ListAuditItemsWithResponse(ctx context.Context, auditId AuditId, params *ListAuditItemsParams, reqEditors ...RequestEditorFn) (*ListAuditItemsResponse, error) {
-	rsp, err := c.ListAuditItems(ctx, auditId, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListAuditItemsResponse(rsp)
-}
-
 // PauseAuditWithResponse Pause admission of new child Runs while existing work drains
 //
 // Returns a wrapper object for the known response body format(s).
@@ -58847,7 +57885,7 @@ func (c *ClientWithResponses) GetAuditTaskWithResponse(ctx context.Context, audi
 	return ParseGetAuditTaskResponse(rsp)
 }
 
-// GetAuditWorkspaceWithResponse Read consistent current-round progress and whole-Audit decision counts
+// GetAuditWorkspaceWithResponse Read consistent Task progress and whole-Audit Finding counts
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -63848,168 +62886,6 @@ func ParseCancelAuditResponse(rsp *http.Response) (*CancelAuditResponse, error) 
 	return response, nil
 }
 
-// ParseListAuditCoverageResponse parses an HTTP response from a ListAuditCoverageWithResponse call
-func ParseListAuditCoverageResponse(rsp *http.Response) (*ListAuditCoverageResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListAuditCoverageResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AuditCoveragePage
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest StorageTransactionConflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON503 = &dest
-
-	}
-
-	switch {
-	case rsp.StatusCode == 200:
-		var headers ListAuditCoverageResponse200Headers
-		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
-			var value string
-			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			}
-			headers.CacheControl = value
-		}
-		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
-			var value RequestId
-			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			}
-			headers.XRequestID = value
-		}
-		response.Headers200 = &headers
-	case rsp.StatusCode == 400:
-		var headers ListAuditCoverageResponse400Headers
-		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
-			var value RequestId
-			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			}
-			headers.XRequestID = value
-		}
-		response.Headers400 = &headers
-	case rsp.StatusCode == 401:
-		var headers ListAuditCoverageResponse401Headers
-		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
-			var value string
-			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			}
-			headers.WWWAuthenticate = &value
-		}
-		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
-			var value string
-			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			}
-			headers.XContractorAPIVersion = value
-		}
-		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
-			var value RequestId
-			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			}
-			headers.XRequestID = value
-		}
-		response.Headers401 = &headers
-	case rsp.StatusCode == 404:
-		var headers ListAuditCoverageResponse404Headers
-		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
-			var value RequestId
-			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			}
-			headers.XRequestID = value
-		}
-		response.Headers404 = &headers
-	case rsp.StatusCode == 409:
-		var headers ListAuditCoverageResponse409Headers
-		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
-			var value RequestId
-			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			}
-			headers.XRequestID = value
-		}
-		response.Headers409 = &headers
-	case rsp.StatusCode == 500:
-		var headers ListAuditCoverageResponse500Headers
-		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
-			var value RequestId
-			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			}
-			headers.XRequestID = value
-		}
-		response.Headers500 = &headers
-	case rsp.StatusCode == 503:
-		var headers ListAuditCoverageResponse503Headers
-		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
-			var value RequestId
-			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			}
-			headers.XRequestID = value
-		}
-		response.Headers503 = &headers
-	}
-
-	return response, nil
-}
-
 // ParseListAuditEventsResponse parses an HTTP response from a ListAuditEventsWithResponse call
 func ParseListAuditEventsResponse(rsp *http.Response) (*ListAuditEventsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -66523,151 +65399,6 @@ func ParseEditAuditHypothesisResponse(rsp *http.Response) (*EditAuditHypothesisR
 		response.Headers500 = &headers
 	case rsp.StatusCode == 503:
 		var headers EditAuditHypothesisResponse503Headers
-		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
-			var value RequestId
-			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			}
-			headers.XRequestID = value
-		}
-		response.Headers503 = &headers
-	}
-
-	return response, nil
-}
-
-// ParseListAuditItemsResponse parses an HTTP response from a ListAuditItemsWithResponse call
-func ParseListAuditItemsResponse(rsp *http.Response) (*ListAuditItemsResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListAuditItemsResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AuditItemPage
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest BadRequest
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest NotFound
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest StorageTransactionConflict
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON503 = &dest
-
-	}
-
-	switch {
-	case rsp.StatusCode == 200:
-		var headers ListAuditItemsResponse200Headers
-		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
-			var value string
-			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			}
-			headers.CacheControl = value
-		}
-		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
-			var value RequestId
-			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			}
-			headers.XRequestID = value
-		}
-		response.Headers200 = &headers
-	case rsp.StatusCode == 400:
-		var headers ListAuditItemsResponse400Headers
-		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
-			var value RequestId
-			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			}
-			headers.XRequestID = value
-		}
-		response.Headers400 = &headers
-	case rsp.StatusCode == 401:
-		var headers ListAuditItemsResponse401Headers
-		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
-			var value string
-			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			}
-			headers.WWWAuthenticate = &value
-		}
-		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
-			var value string
-			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			}
-			headers.XContractorAPIVersion = value
-		}
-		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
-			var value RequestId
-			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			}
-			headers.XRequestID = value
-		}
-		response.Headers401 = &headers
-	case rsp.StatusCode == 404:
-		var headers ListAuditItemsResponse404Headers
-		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
-			var value RequestId
-			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			}
-			headers.XRequestID = value
-		}
-		response.Headers404 = &headers
-	case rsp.StatusCode == 500:
-		var headers ListAuditItemsResponse500Headers
-		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
-			var value RequestId
-			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			}
-			headers.XRequestID = value
-		}
-		response.Headers500 = &headers
-	case rsp.StatusCode == 503:
-		var headers ListAuditItemsResponse503Headers
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
 			var value RequestId
 			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {

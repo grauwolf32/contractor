@@ -7,82 +7,12 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
-	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/jackc/pgx/v5"
 )
-
-func (s *store) getRound(ctx context.Context, auditID, roundID string) (auditstore.Round, error) {
-	if err := validateID("auditID", auditID); err != nil {
-		return auditstore.Round{}, err
-	}
-	if err := validateID("roundID", roundID); err != nil {
-		return auditstore.Round{}, err
-	}
-	result, err := scanRound(s.db.QueryRow(ctx, `
-SELECT `+prefixedRoundColumns("audit_rounds")+` FROM audit_rounds
- WHERE audit_id = $1 AND round_id = $2`, auditID, roundID))
-	if errors.Is(err, pgx.ErrNoRows) {
-		return auditstore.Round{}, auditstore.ErrNotFound
-	}
-	if err != nil {
-		return auditstore.Round{}, fmt.Errorf("read Audit round: %w", err)
-	}
-	return result, nil
-}
-
-// ListItemsPage is the owner-safe, filter-before-keyset projection used by the
-// public API. Controller reconciliation deliberately keeps its separate
-// bounded non-settled scan below.
-func (s *QueryStore) ListItemsPage(
-	ctx context.Context, params auditstore.ListItemsParams,
-) ([]auditstore.Item, error) {
-	if err := validateListItems(params); err != nil {
-		return nil, err
-	}
-	statement, args := itemPageQuery(params)
-	rows, err := s.db.Query(ctx, statement, args...)
-	if err != nil {
-		return nil, fmt.Errorf("list owner Audit items: %w", err)
-	}
-	result, err := pgx.AppendRows(make([]auditstore.Item, 0, params.Limit), rows, func(row pgx.CollectableRow) (auditstore.Item, error) {
-		return scanItem(row)
-	})
-	if err != nil {
-		return nil, fmt.Errorf("iterate owner Audit items: %w", err)
-	}
-	if len(result) == 0 {
-		if _, err := s.get(ctx, params.OwnerID, params.AuditID); err != nil {
-			return nil, err
-		}
-	}
-	return result, nil
-}
-
-// itemPageQuery returns the statement and arguments of one validated item
-// page: an unsettled state reads through the dispatch index
-// (listItemsStatePageSQL), every other filter through each round's items in
-// ordinal order (listItemsPageSQL).
-func itemPageQuery(params auditstore.ListItemsParams) (string, []any) {
-	statement := listItemsPageSQL
-	var state *string
-	if params.State != nil {
-		value := string(*params.State)
-		state = &value
-		if *params.State != auditstore.ItemSettled {
-			statement = listItemsStatePageSQL
-		}
-	}
-	return statement, []any{
-		params.OwnerID, params.AuditID, params.RoundID, state, params.SubjectKey,
-		params.AfterRoundOrdinal, params.AfterItemOrdinal, params.AfterItemID, params.Limit,
-	}
-}
 
 // listWindowExecutions reads the reconcile window of unsettled executions,
 // one more than MaxReconcileRows so the caller can detect more, together with
@@ -123,192 +53,6 @@ SELECT `+ExecutionColumns("execution")+`, run.state
 		return nil, nil, fmt.Errorf("iterate Audit executions: %w", err)
 	}
 	return executions, states, nil
-}
-
-func (s *store) listExecutionItems(ctx context.Context, executionID string) ([]auditstore.ExecutionItem, error) {
-	if err := validateID("executionID", executionID); err != nil {
-		return nil, err
-	}
-	rows, err := s.db.Query(ctx, `
-SELECT execution_item_id, execution_id, audit_id, round_id, item_id,
-       batch_ordinal, item_attempt, task_ref, task_digest, input_refs,
-       state, collection_disposition, result_ref, result_digest,
-       created_at, collected_at
-  FROM audit_execution_items
- WHERE execution_id = $1 ORDER BY batch_ordinal`, executionID)
-	if err != nil {
-		return nil, fmt.Errorf("list Audit execution items: %w", err)
-	}
-	defer rows.Close()
-	result := make([]auditstore.ExecutionItem, 0)
-	for rows.Next() {
-		item, scanErr := scanExecutionItem(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("scan Audit execution item: %w", scanErr)
-		}
-		result = append(result, item)
-	}
-	return result, rows.Err()
-}
-
-// ListItemAttempts returns bounded tombstone-safe attempt history for one
-// already owner-authorized Audit page. Filters are applied in SQL before the
-// result is grouped, so unrelated Audit data is never loaded for projection.
-func (s *QueryStore) ListItemAttempts(
-	ctx context.Context, ownerID, auditID string, itemIDs []string,
-) (map[string][]auditstore.ItemAttempt, error) {
-	if err := validateText("ownerID", ownerID, 256, true); err != nil {
-		return nil, err
-	}
-	if err := validateID("auditID", auditID); err != nil {
-		return nil, err
-	}
-	if len(itemIDs) == 0 || len(itemIDs) > pagelimit.MaxRows {
-		return nil, invalidf("Audit attempt item selection is invalid")
-	}
-	seen := make(map[string]struct{}, len(itemIDs))
-	for _, itemID := range itemIDs {
-		if err := validateID("itemID", itemID); err != nil {
-			return nil, err
-		}
-		if _, exists := seen[itemID]; exists {
-			return nil, invalidf("Audit attempt item selection contains duplicates")
-		}
-		seen[itemID] = struct{}{}
-	}
-	rows, err := s.db.Query(ctx, listItemAttemptsSQL, ownerID, auditID, itemIDs, auditstore.MaxAttemptProjection+1)
-	if err != nil {
-		return nil, fmt.Errorf("list Audit item attempts: %w", err)
-	}
-	defer rows.Close()
-	result := make(map[string][]auditstore.ItemAttempt, len(itemIDs))
-	count := 0
-	for rows.Next() {
-		count++
-		if count > auditstore.MaxAttemptProjection {
-			return nil, errors.New("stored Audit attempt projection exceeds its bound")
-		}
-		var attempt auditstore.ItemAttempt
-		var role, state string
-		var disposition, outcome *string
-		var resultRef, provenance []byte
-		var resultDigest *string
-		if err := rows.Scan(
-			&attempt.ExecutionItemID, &attempt.ExecutionID, &attempt.ItemID,
-			&attempt.ItemAttempt, &role, &state, &disposition, &resultRef, &resultDigest,
-			&outcome, &attempt.RunID, &provenance, &attempt.RunDeleted,
-			&attempt.CreatedAt, &attempt.CollectedAt,
-		); err != nil {
-			return nil, fmt.Errorf("scan Audit item attempt: %w", err)
-		}
-		attempt.Role, attempt.State = auditstore.ExecutionRole(role), auditstore.ItemState(state)
-		if !attempt.Role.Valid() || !attempt.State.Valid() || attempt.ItemAttempt < 1 {
-			return nil, errors.New("stored Audit item attempt is invalid")
-		}
-		if disposition != nil {
-			value := auditstore.CollectionDisposition(*disposition)
-			if !value.Valid() {
-				return nil, errors.New("stored Audit item attempt disposition is invalid")
-			}
-			attempt.CollectionDisposition = &value
-		}
-		if outcome != nil {
-			value := auditstore.TerminalOutcome(*outcome)
-			if !value.Valid() {
-				return nil, errors.New("stored Audit item attempt outcome is invalid")
-			}
-			attempt.TerminalOutcome = &value
-		}
-		if resultRef != nil {
-			if resultDigest == nil {
-				return nil, errors.New("stored Audit item attempt result is invalid")
-			}
-			attempt.Result = &auditstore.ExactArtifact{Digest: *resultDigest}
-			if json.Unmarshal(resultRef, &attempt.Result.Ref) != nil || attempt.Result.Ref.ValidateExact() != nil ||
-				validateDigest("stored Audit item attempt result", *resultDigest) != nil {
-				return nil, errors.New("stored Audit item attempt result is invalid")
-			}
-		} else if resultDigest != nil {
-			return nil, errors.New("stored Audit item attempt result is invalid")
-		}
-		if err := decodeRunProvenance(provenance, attempt.RunID, &attempt.RunProvenance); err != nil {
-			return nil, err
-		}
-		result[attempt.ItemID] = append(result[attempt.ItemID], attempt)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate Audit item attempts: %w", err)
-	}
-	if count == 0 {
-		if _, err := s.get(ctx, ownerID, auditID); err != nil {
-			return nil, err
-		}
-	}
-	for _, itemID := range itemIDs {
-		if result[itemID] == nil {
-			result[itemID] = []auditstore.ItemAttempt{}
-		}
-	}
-	return result, nil
-}
-
-func (s *QueryStore) ListCoverage(
-	ctx context.Context, auditID, roundID string, afterOrdinal int, limit int,
-) ([]auditstore.CoverageRow, error) {
-	if err := validateID("auditID", auditID); err != nil {
-		return nil, err
-	}
-	if err := validateID("roundID", roundID); err != nil {
-		return nil, err
-	}
-	if afterOrdinal < -1 || !pagelimit.ValidFetch(limit) {
-		return nil, invalidf("coverage page is invalid")
-	}
-	rows, err := s.db.Query(ctx, listCoverageSQL, auditID, roundID, afterOrdinal, limit)
-	if err != nil {
-		return nil, fmt.Errorf("list Audit coverage: %w", err)
-	}
-	defer rows.Close()
-	result := make([]auditstore.CoverageRow, 0, limit)
-	for rows.Next() {
-		var row auditstore.CoverageRow
-		var status string
-		var requested, completed, gaps, resultRef, taskRef []byte
-		var resultDigest *string
-		if err := rows.Scan(
-			&row.AuditID, &row.RoundID, &row.ItemID, &row.Ordinal, &row.ItemKey,
-			&row.SubjectKey, &status, &requested, &completed, &gaps,
-			&row.Coverage.Rationale, &resultRef, &resultDigest, &row.UpdatedAt,
-			&taskRef, &row.Task.Digest,
-		); err != nil {
-			return nil, fmt.Errorf("scan Audit coverage: %w", err)
-		}
-		row.Coverage.Status = auditstore.CoverageStatus(status)
-		if json.Unmarshal(taskRef, &row.Task.Ref) != nil || row.Task.Ref.ValidateExact() != nil ||
-			validateDigest("stored coverage task digest", row.Task.Digest) != nil {
-			return nil, errors.New("stored Audit coverage task is invalid")
-		}
-		if !row.Coverage.Status.Valid() ||
-			json.Unmarshal(requested, &row.Coverage.Requested) != nil ||
-			json.Unmarshal(completed, &row.Coverage.Completed) != nil ||
-			json.Unmarshal(gaps, &row.Coverage.Gaps) != nil {
-			return nil, errors.New("stored Audit coverage is invalid")
-		}
-		if resultRef != nil || resultDigest != nil {
-			if resultRef == nil || resultDigest == nil {
-				return nil, errors.New("stored Audit coverage result shape is invalid")
-			}
-			if validateDigest("stored coverage result digest", *resultDigest) != nil {
-				return nil, errors.New("stored Audit coverage result digest is invalid")
-			}
-			row.Result = &auditstore.ExactArtifact{Digest: *resultDigest}
-			if json.Unmarshal(resultRef, &row.Result.Ref) != nil || row.Result.Ref.ValidateExact() != nil {
-				return nil, errors.New("stored Audit coverage result ref is invalid")
-			}
-		}
-		result = append(result, row)
-	}
-	return result, rows.Err()
 }
 
 func (s *QueryStore) GetArtifactLink(
@@ -404,90 +148,6 @@ SELECT `+prefixedAuditColumns("audit")+`
 	return s.readTaskReconcileSnapshot(ctx, result)
 }
 
-func scanRound(row scanner) (auditstore.Round, error) {
-	var result auditstore.Round
-	var encodedRef []byte
-	var state string
-	var revision int64
-	if err := row.Scan(
-		&result.RoundID, &result.AuditID, &result.Ordinal, &encodedRef,
-		&result.Manifest.Digest, &state, &result.ExpectedItemCount,
-		&revision, &result.CreatedAt, &result.UpdatedAt,
-	); err != nil {
-		return auditstore.Round{}, err
-	}
-	if err := json.Unmarshal(encodedRef, &result.Manifest.Ref); err != nil || result.Manifest.Ref.ValidateExact() != nil {
-		return auditstore.Round{}, errors.New("stored Audit round manifest ref is invalid")
-	}
-	if validateDigest("stored round manifest digest", result.Manifest.Digest) != nil {
-		return auditstore.Round{}, errors.New("stored Audit round manifest digest is invalid")
-	}
-	result.State = auditstore.RoundState(state)
-	if revision <= 0 || !result.State.Valid() {
-		return auditstore.Round{}, errors.New("stored Audit round state is invalid")
-	}
-	result.Revision = uint64(revision)
-	return result, nil
-}
-
-func scanItem(row scanner) (auditstore.Item, error) {
-	var result auditstore.Item
-	var taskRef, origin, acceptedRef, dependencies []byte
-	var state string
-	var final *string
-	var acceptedDigest *string
-	if err := row.Scan(
-		&result.ItemID, &result.AuditID, &result.RoundID, &result.ItemKey,
-		&result.Ordinal, &result.Kind, &result.SubjectKey, &taskRef,
-		&result.Task.Digest, &origin, &result.WorkflowRole, &state,
-		&final,
-		&acceptedRef, &acceptedDigest, &result.LastExecutionItemID,
-		&result.CreatedAt, &result.UpdatedAt, &dependencies,
-	); err != nil {
-		return auditstore.Item{}, err
-	}
-	if err := json.Unmarshal(taskRef, &result.Task.Ref); err != nil || result.Task.Ref.ValidateExact() != nil {
-		return auditstore.Item{}, errors.New("stored Audit item task ref is invalid")
-	}
-	if validateDigest("stored item task digest", result.Task.Digest) != nil {
-		return auditstore.Item{}, errors.New("stored Audit item task digest is invalid")
-	}
-	if err := decodeStoredProvenance(origin, &result.Origin); err != nil ||
-		validateItemOrigin(result.Origin, result.ItemKey) != nil {
-		return auditstore.Item{}, errors.New("stored Audit item origin is invalid")
-	}
-	if dependencies != nil {
-		value, err := auditdomain.DecodeRetainedDependencies(dependencies)
-		if err != nil || value.AuditID != result.AuditID || value.ItemKey != result.ItemKey {
-			return auditstore.Item{}, errors.New("stored Audit retained dependencies are invalid")
-		}
-		result.Dependencies = &value
-	}
-	result.State = auditstore.ItemState(state)
-	if !result.State.Valid() {
-		return auditstore.Item{}, errors.New("stored Audit item state is invalid")
-	}
-	if final != nil {
-		value := auditstore.FinalDisposition(*final)
-		if !value.Valid() {
-			return auditstore.Item{}, errors.New("stored Audit item disposition is invalid")
-		}
-		result.FinalDisposition = &value
-	}
-	if acceptedRef != nil {
-		if acceptedDigest == nil {
-			return auditstore.Item{}, errors.New("stored Audit item result shape is invalid")
-		}
-		result.AcceptedResult = &auditstore.ExactArtifact{Digest: *acceptedDigest}
-		if err := json.Unmarshal(acceptedRef, &result.AcceptedResult.Ref); err != nil || result.AcceptedResult.Ref.ValidateExact() != nil {
-			return auditstore.Item{}, errors.New("stored Audit item result ref is invalid")
-		}
-	} else if acceptedDigest != nil {
-		return auditstore.Item{}, errors.New("stored Audit item result shape is invalid")
-	}
-	return result, nil
-}
-
 // ScanExecution reads one execution that ExecutionColumns selected and
 // rejects a stored value that the store would not write: an inexact manifest
 // ref or an invalid digest, an unknown role, state or terminal outcome, a
@@ -495,38 +155,24 @@ func scanItem(row scanner) (auditstore.Item, error) {
 // that does not decode strictly.
 func ScanExecution(row scanner) (auditstore.Execution, error) {
 	var result auditstore.Execution
-	var encodedRef []byte
-	var manifestDigest *string
-	var role, state string
-	var roleAttempt *int
+	var state string
 	var outcome *string
 	var terminalSequence *int64
 	var encodedProvenance []byte
-	var preparation, outputs []byte
 	if err := row.Scan(
-		&result.ExecutionID, &result.AuditID, &result.RoundID, &role, &result.WorkflowRole, &roleAttempt,
-		&encodedRef, &manifestDigest, &result.SubmissionKey, &result.RequestDigest,
+		&result.ExecutionID, &result.AuditID, &result.WorkflowRole,
+		&result.SubmissionKey, &result.RequestDigest,
 		&result.RunID, &state, &outcome, &result.TerminalRunGeneration,
 		&terminalSequence, &result.TerminalObservedAt, &encodedProvenance, &result.RunDeletedAt,
-		&result.CreatedAt, &result.UpdatedAt, &preparation, &outputs,
+		&result.CreatedAt, &result.UpdatedAt,
 	); err != nil {
 		return auditstore.Execution{}, err
-	}
-	if role == string(auditstore.ExecutionTask) {
-		if encodedRef != nil || manifestDigest != nil || result.RoundID != nil || roleAttempt != nil {
-			return auditstore.Execution{}, errors.New("stored common Task execution contains retired manifest authority")
-		}
-	} else {
-		if err := strictjson.Decode(encodedRef, &result.Manifest.Ref); err != nil || result.Manifest.Ref.ValidateExact() != nil || manifestDigest == nil || validateDigest("stored execution manifest digest", *manifestDigest) != nil {
-			return auditstore.Execution{}, errors.New("stored Audit execution manifest ref is invalid")
-		}
-		result.Manifest.Digest = *manifestDigest
 	}
 	if validateDigest("stored execution request digest", result.RequestDigest) != nil {
 		return auditstore.Execution{}, errors.New("stored Audit execution digest is invalid")
 	}
-	result.Role, result.State, result.RoleAttempt = auditstore.ExecutionRole(role), auditstore.ExecutionState(state), roleAttempt
-	if !result.Role.Valid() || !result.State.Valid() ||
+	result.State = auditstore.ExecutionState(state)
+	if !result.State.Valid() ||
 		validateText("stored execution Workflow role", result.WorkflowRole, 128, true) != nil {
 		return auditstore.Execution{}, errors.New("stored Audit execution state is invalid")
 	}
@@ -545,9 +191,6 @@ func ScanExecution(row scanner) (auditstore.Execution, error) {
 		result.TerminalRunSequence = &value
 	}
 	if err := decodeRunProvenance(encodedProvenance, result.RunID, &result.RunProvenance); err != nil {
-		return auditstore.Execution{}, err
-	}
-	if err := decodePreparation(&result, preparation, outputs); err != nil {
 		return auditstore.Execution{}, err
 	}
 	return result, nil
@@ -588,58 +231,6 @@ func decodeRunProvenance(encoded []byte, runID *string, target **auditstore.RunP
 	}
 	*target = &value
 	return nil
-}
-
-func scanExecutionItem(row scanner) (auditstore.ExecutionItem, error) {
-	var result auditstore.ExecutionItem
-	var taskRef, encodedInputs, resultRef []byte
-	var state string
-	var disposition *string
-	var resultDigest *string
-	if err := row.Scan(
-		&result.ExecutionItemID, &result.ExecutionID, &result.AuditID,
-		&result.RoundID, &result.ItemID, &result.BatchOrdinal, &result.ItemAttempt,
-		&taskRef, &result.Task.Digest, &encodedInputs, &state, &disposition,
-		&resultRef, &resultDigest, &result.CreatedAt, &result.CollectedAt,
-	); err != nil {
-		return auditstore.ExecutionItem{}, err
-	}
-	if err := json.Unmarshal(taskRef, &result.Task.Ref); err != nil || result.Task.Ref.ValidateExact() != nil ||
-		json.Unmarshal(encodedInputs, &result.Inputs) != nil {
-		return auditstore.ExecutionItem{}, errors.New("stored Audit execution item inputs are invalid")
-	}
-	if validateDigest("stored execution task digest", result.Task.Digest) != nil {
-		return auditstore.ExecutionItem{}, errors.New("stored Audit execution item task digest is invalid")
-	}
-	for _, input := range result.Inputs {
-		if validateExactArtifact("stored execution input", input, false) != nil {
-			return auditstore.ExecutionItem{}, errors.New("stored Audit execution input is invalid")
-		}
-	}
-	result.State = auditstore.ItemState(state)
-	if !result.State.Valid() {
-		return auditstore.ExecutionItem{}, errors.New("stored Audit execution item state is invalid")
-	}
-	if disposition != nil {
-		value := auditstore.CollectionDisposition(*disposition)
-		if !value.Valid() {
-			return auditstore.ExecutionItem{}, errors.New("stored Audit execution item disposition is invalid")
-		}
-		result.CollectionDisposition = &value
-	}
-	if resultRef != nil || resultDigest != nil {
-		if resultRef == nil || resultDigest == nil {
-			return auditstore.ExecutionItem{}, errors.New("stored Audit execution item result shape is invalid")
-		}
-		if validateDigest("stored execution item result digest", *resultDigest) != nil {
-			return auditstore.ExecutionItem{}, errors.New("stored Audit execution item result digest is invalid")
-		}
-		result.Result = &auditstore.ExactArtifact{Digest: *resultDigest}
-		if err := json.Unmarshal(resultRef, &result.Result.Ref); err != nil || result.Result.Ref.ValidateExact() != nil {
-			return auditstore.ExecutionItem{}, errors.New("stored Audit execution item result ref is invalid")
-		}
-	}
-	return result, nil
 }
 
 func scanReceipt(row scanner) (auditstore.CollectionReceipt, error) {

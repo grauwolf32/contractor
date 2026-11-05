@@ -36,21 +36,9 @@ var foreignKeyProbeAllowances = map[string]probeAllowance{
 	"artifact_bindings_scope_kind_scope_id_namespace_name_curre_fkey": {
 		prefixIndex: "artifact_bindings_pkey", reason: "the binding identity is unique",
 	},
-	"audit_execution_items_execution_fkey": {
-		prefixIndex: "audit_execution_items_execution_member", reason: "the items of one execution, at most one batch",
-	},
-	"audit_execution_items_item_fkey": {
-		prefixIndex: "audit_execution_items_item_attempt", reason: "the attempts of one item, at most MaxItemRunAttempts",
-	},
 
-	"audit_items_last_execution_item_fkey": {
-		prefixIndex: "audit_items_pkey", reason: "item_id is unique",
-	},
-	"audit_items_round_fkey": {
-		prefixIndex: "audit_items_round_key", reason: "the items of one Round, which its deletion cascades to",
-	},
-	"audits_current_round_fkey": {
-		prefixIndex: "audits_pkey", reason: "audit_id is unique",
+	"audit_execution_items_common_execution_fk": {
+		prefixIndex: "audit_execution_items_execution_ordinal", reason: "one execution has at most one bounded batch of 64 common Tasks; reopen if that ceiling changes",
 	},
 	"audits_project_owner_fkey": {
 		prefixIndex: "audits_project_state_idx", reason: "the Audits of one Project, probed once per Project deletion",

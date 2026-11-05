@@ -15,14 +15,7 @@
 // check page and the project's Checks tab). Not imported by the application.
 // Fixtures and a fake Server for the Checks area tests (the Checks list, the
 // check page and the project's Checks tab). Not imported by the application.
-import type {
-  Audit,
-  ProjectFinding,
-  AuditItem,
-  AuditState,
-} from "../../../api/audits";
-import type { components as AuditWireComponents } from "../../../api/generated/public";
-type AuditCoverageRow = AuditWireComponents["schemas"]["AuditCoverageRow"];
+import type { Audit, ProjectFinding, AuditState } from "../../../api/audits";
 
 import type { PublicAPI } from "../../../api/client";
 import type { Project } from "../../../api/projects";
@@ -81,116 +74,6 @@ export function makeAudit(
     updatedAt: BASE_TIME,
     ...(draft ? {} : { startedAt: "2026-10-05T10:01:00Z" }),
     ...rest,
-  });
-}
-
-export function endpointRow(
-  itemId: string,
-  ordinal: number,
-  method: string,
-  path: string,
-  status: AuditCoverageRow["coverage"]["status"],
-  overrides: Partial<AuditCoverageRow["coverage"]> & {
-    resultSummary?: string;
-    evidence?: { id: string; kind: string; summary: string }[];
-    findingIds?: string[];
-  } = {},
-): AuditCoverageRow {
-  const { resultSummary, evidence, findingIds = [], ...coverage } = overrides;
-  return build.conforming("AuditCoverageRow", {
-    findingIds,
-    roundId: "round_1",
-    itemId,
-    ordinal,
-    itemKey: `op-${"a".repeat(16)}${ordinal}`,
-    subjectKey: `op-${"a".repeat(16)}${ordinal}`,
-    coverage: {
-      status,
-      requested: ["operation-resolution"],
-      completed: status === "not-tested" ? [] : ["operation-resolution"],
-      gaps: [],
-      ...coverage,
-    },
-    details: {
-      objective: `${method} ${path}\n\nReads ${path}.`,
-      methods: ["source-analysis"],
-      taskDocument: {
-        schema: "contractor.audit.item-task.v1",
-        operation: { method: method.toLowerCase(), path },
-      },
-      ...(resultSummary === undefined ? {} : { resultSummary }),
-      evidence: evidence ?? [],
-    },
-    updatedAt: "2026-10-05T10:20:00Z",
-  });
-}
-
-export function requirementRow(
-  itemId: string,
-  ordinal: number,
-  key: string,
-  statement: string,
-  status: AuditCoverageRow["coverage"]["status"],
-  overrides: Partial<AuditCoverageRow["coverage"]> & {
-    resultSummary?: string;
-    findingIds?: string[];
-  } = {},
-): AuditCoverageRow {
-  const { resultSummary, findingIds = [], ...coverage } = overrides;
-  return build.conforming("AuditCoverageRow", {
-    findingIds,
-    roundId: "round_1",
-    itemId,
-    ordinal,
-    itemKey: key,
-    subjectKey: key,
-    coverage: {
-      status,
-      requested: ["source-analysis"],
-      completed: status === "not-tested" ? [] : ["source-analysis"],
-      gaps: [],
-      ...coverage,
-    },
-    details: {
-      objective: statement,
-      methods: ["source-analysis"],
-      taskDocument: {
-        schema: "contractor.audit.item-task.v1",
-        checklist: { statement },
-      },
-      ...(resultSummary === undefined ? {} : { resultSummary }),
-      evidence: [],
-    },
-    updatedAt: "2026-10-05T10:20:00Z",
-  });
-}
-
-type Attempt = AuditItem["attempts"][number];
-
-/**
- * One attempt, settled with an accepted result unless overridden. An
- * override of `undefined` removes the field (an attempt still running has
- * no outcome, disposition or collection time).
- */
-export function makeAttempt(
-  itemId: string,
-  n: number,
-  overrides: { [K in keyof Attempt]?: Attempt[K] | undefined } = {},
-): Attempt {
-  return build.itemAttempt(itemId, n, overrides);
-}
-
-export function makeItem(
-  itemId: string,
-  ordinal: number,
-  kind: string,
-  overrides: Partial<AuditItem> = {},
-): AuditItem {
-  return build.auditItem(itemId, ordinal, kind, {
-    task: source,
-    createdAt: BASE_TIME,
-    updatedAt: BASE_TIME,
-    ...overrides,
   });
 }
 

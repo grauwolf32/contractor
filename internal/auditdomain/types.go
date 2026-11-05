@@ -5,15 +5,10 @@ import (
 )
 
 const (
-	PackageSchema = "contractor.audit.package.v1"
-
-	TaskSchema                = "contractor.audit.item-task.v1"
-	ExecutionManifestSchema   = "contractor.audit.execution-manifest.v1"
-	CheckResultsSchema        = "contractor.audit.check-results.v1"
+	PackageSchema             = "contractor.audit.package.v1"
+	JSONMediaType             = "application/json"
 	DirectVerificationsSchema = "contractor.audit.direct-verifications.v1"
 	FindingProposalSchema     = "contractor.audit.finding-proposal.v1"
-	EvidenceSchema            = "contractor.audit.evidence.v1"
-	CoverageSchema            = "contractor.audit.coverage.v1"
 	InventoryBasisSchema      = "contractor.audit.inventory-basis.v1"
 )
 
@@ -25,15 +20,7 @@ const DirectVerificationsMediaType = "application/vnd.contractor.audit.direct-ve
 type PackageKind string
 
 const (
-	PackageKindWorklist        PackageKind = "worklist"
-	PackageKindTask            PackageKind = "item-task"
-	PackageKindTaskSet         PackageKind = "item-task-set"
-	PackageKindExecution       PackageKind = "execution-manifest"
-	PackageKindCheckResults    PackageKind = "check-results"
-	PackageKindFindingProposal PackageKind = "finding-proposal"
-	PackageKindEvidence        PackageKind = "evidence"
-	PackageKindCoverage        PackageKind = "coverage"
-	PackageKindOpenAPISource   PackageKind = "openapi-source"
+	PackageKindOpenAPISource PackageKind = "openapi-source"
 )
 
 type PackageManifest struct {
@@ -90,71 +77,6 @@ func (p *Package) MemberByID(id string) (Member, bool) {
 	return Member{}, false
 }
 
-type ItemTask struct {
-	AcceptedPlan             *AcceptedPlan               `json:"accepted_plan,omitempty"`
-	Dependencies             *RetainedDependencyManifest `json:"dependencies,omitempty"`
-	Schema                   string                      `json:"schema"`
-	ProfileMode              string                      `json:"profile_mode,omitempty"`
-	ItemKey                  string                      `json:"item_key"`
-	Kind                     string                      `json:"kind"`
-	SubjectKey               string                      `json:"subject_key"`
-	WorkflowRole             string                      `json:"workflow_role"`
-	SourceContentDigest      string                      `json:"source_content_digest"`
-	SourceMediaType          string                      `json:"source_media_type"`
-	SourceRef                contracts.ArtifactRef       `json:"source_ref"`
-	CanonicalInventoryDigest string                      `json:"canonical_inventory_digest"`
-	Scope                    map[string]string           `json:"scope,omitempty"`
-	Checklist                *ChecklistTask              `json:"checklist,omitempty"`
-	Standard                 *StandardMappingTask        `json:"standard,omitempty"`
-	Operation                *OperationTask              `json:"operation,omitempty"`
-	Scan                     *ScanTask                   `json:"scan,omitempty"`
-	Finding                  *FindingTask                `json:"finding,omitempty"`
-}
-
-// StandardMappingTask is the immutable, Worker-visible authority copied from
-// one exact retained standard package mapping. It supplements ChecklistTask;
-// the model can reference this identity but cannot create or alter it.
-type StandardMappingTask struct {
-	Scheme           string                   `json:"scheme"`
-	Version          string                   `json:"version"`
-	MappingKey       string                   `json:"mapping_key"`
-	EntryIDs         []string                 `json:"entry_ids"`
-	EvidenceContract StandardEvidenceContract `json:"evidence_contract"`
-}
-
-type StandardEvidenceContract struct {
-	ID                string   `json:"id"`
-	Version           string   `json:"version"`
-	Assessments       []string `json:"assessments"`
-	EvidenceKinds     []string `json:"evidence_kinds"`
-	MinimumEvidence   int      `json:"minimum_evidence"`
-	MaximumEvidence   int      `json:"maximum_evidence"`
-	HumanReview       string   `json:"human_review"`
-	RationaleRequired bool     `json:"rationale_required"`
-}
-
-// FindingTask binds one later-round check to an exact admitted proposal and
-// one immutable proposed-check ordinal. The proposal text is not copied into
-// mutable Scheduler state; Workers receive it through this exact task package.
-type FindingTask struct {
-	ReceiptID            string                `json:"receipt_id"`
-	ProposalRef          contracts.ArtifactRef `json:"proposal_ref"`
-	ProposalDigest       string                `json:"proposal_digest"`
-	ProposedCheckOrdinal int                   `json:"proposed_check_ordinal"`
-	Objective            string                `json:"objective"`
-	Method               string                `json:"method"`
-	Limitations          []string              `json:"limitations"`
-}
-
-type ChecklistTask struct {
-	Version          string   `json:"version"`
-	Statement        string   `json:"statement"`
-	Applicability    string   `json:"applicability"`
-	AllowedMethods   []string `json:"allowed_methods"`
-	RequiredEvidence []string `json:"required_evidence"`
-	ReviewPolicy     string   `json:"review_policy"`
-}
-
 type OperationTask struct {
 	Path        string         `json:"path"`
 	Method      string         `json:"method"`
@@ -163,49 +85,11 @@ type OperationTask struct {
 	Gaps        []string       `json:"gaps"`
 }
 
-type ExecutionManifest struct {
-	Schema string          `json:"schema"`
-	Items  []ExecutionItem `json:"items"`
-}
-
-type ExecutionItem struct {
-	ItemKey           string                 `json:"item_key"`
-	Ordinal           int                    `json:"ordinal"`
-	SubjectKey        string                 `json:"subject_key"`
-	TaskPackageID     string                 `json:"task_package_id"`
-	TaskPackageDigest string                 `json:"task_package_digest"`
-	TaskRef           *contracts.ArtifactRef `json:"task_ref,omitempty"`
-	Inputs            []ExactInput           `json:"inputs"`
-}
-
-// ExactInput pins one named Workflow input of an execution manifest to an
-// exact revision and digest. The manifest carries no media type or size, so
-// Exact returns a digest-only shared descriptor.
+// ExactInput pins scan settings selected by deterministic preparation.
 type ExactInput struct {
 	Name   string                `json:"name"`
 	Ref    contracts.ArtifactRef `json:"ref"`
 	Digest string                `json:"digest"`
-}
-
-// Exact returns the pin as the shared exact-content descriptor.
-func (i ExactInput) Exact() contracts.ExactArtifact {
-	return contracts.ExactArtifact{Ref: i.Ref.Clone(), Digest: i.Digest}
-}
-
-type CheckResultSet struct {
-	Schema                  string        `json:"schema"`
-	ExecutionManifestDigest string        `json:"execution_manifest_digest"`
-	Results                 []CheckResult `json:"results"`
-}
-
-type CheckResult struct {
-	ItemKey     string              `json:"item_key"`
-	SubjectKey  string              `json:"subject_key"`
-	Assessment  string              `json:"assessment"`
-	Summary     string              `json:"summary"`
-	EvidenceIDs []string            `json:"evidence_ids"`
-	Coverage    ResultCoverage      `json:"coverage"`
-	Proposals   []ProposalSelection `json:"proposals"`
 }
 
 // DirectVerificationSet describes findings that were both discovered and
@@ -223,20 +107,6 @@ type DirectVerificationResult struct {
 	Assessment   string   `json:"assessment"`
 	Summary      string   `json:"summary"`
 	EvidenceIDs  []string `json:"evidence_ids"`
-}
-
-// ProposalSelection is emitted by trusted Runtime tooling. The model chooses
-// only the client key; Runtime injects the current invocation identity so the
-// importer never guesses a receipt from shared Run, subject, or batch state.
-type ProposalSelection struct {
-	InvocationID string `json:"invocation_id"`
-	ClientKey    string `json:"client_key"`
-}
-
-type ResultCoverage struct {
-	Requested []string `json:"requested"`
-	Completed []string `json:"completed"`
-	Gaps      []string `json:"gaps"`
 }
 
 type FindingProposal struct {
@@ -272,61 +142,14 @@ type ProposedCheck struct {
 	Method    string `json:"method"`
 }
 
-type EvidenceEnvelope struct {
-	Schema   string     `json:"schema"`
-	Evidence []Evidence `json:"evidence"`
-}
-
-type Evidence struct {
-	ID               string                 `json:"id"`
-	Kind             string                 `json:"kind"`
-	Summary          string                 `json:"summary"`
-	Artifact         *contracts.ArtifactRef `json:"artifact,omitempty"`
-	ContentMemberID  string                 `json:"content_member_id,omitempty"`
-	ObservedAt       string                 `json:"observed_at,omitempty"`
-	DeploymentMarker string                 `json:"deployment_marker,omitempty"`
-	HTTPRequestID    string                 `json:"http_request_id,omitempty"`
-	HTTPRequestTag   string                 `json:"http_request_tag,omitempty"`
-}
-
-type CoverageEnvelope struct {
-	Schema string        `json:"schema"`
-	Rows   []CoverageRow `json:"rows"`
-}
-
-type CoverageRow struct {
-	ItemKey    string   `json:"item_key"`
-	SubjectKey string   `json:"subject_key"`
-	Status     string   `json:"status"`
-	Requested  []string `json:"requested"`
-	Completed  []string `json:"completed"`
-	Gaps       []string `json:"gaps"`
-	Rationale  string   `json:"rationale,omitempty"`
-}
-
 type InventoryOptions struct {
-	Round             int
-	ProfileMode       string
-	WorkflowRole      string
-	SourceInputName   string
-	SourceRef         contracts.ArtifactRef
-	Scope             map[string]string
-	StandardSelection *StandardSelection
-}
-
-// StandardSelection is the already-normalized exact denominator selected by
-// an immutable AuditProfile. EntryIDs carry authority; Scope and Levels are
-// retained descriptive constraints checked against the pinned package.
-type StandardSelection struct {
-	Scope    string   `json:"scope"`
-	Levels   []string `json:"levels"`
-	EntryIDs []string `json:"entry_ids"`
+	SourceInputName string
+	SourceRef       contracts.ArtifactRef
 }
 
 type inventoryBasis struct {
-	Schema    string             `json:"schema"`
-	Kind      string             `json:"kind"`
-	Selection *StandardSelection `json:"selection,omitempty"`
-	Subjects  []map[string]any   `json:"subjects"`
-	Gaps      []string           `json:"gaps"`
+	Schema   string           `json:"schema"`
+	Kind     string           `json:"kind"`
+	Subjects []map[string]any `json:"subjects"`
+	Gaps     []string         `json:"gaps"`
 }

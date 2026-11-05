@@ -26,9 +26,9 @@ const audit = auditBuilder("project_history", "audit_history", "completed", {
 const events = Array.from({ length: 51 }, (_, i) => ({
   auditId: audit.auditId,
   sequence: 51 - i,
-  kind: i === 50 ? "audit.created" : "review.decided",
-  entityId: i === 50 ? audit.auditId : `decision_${i}`,
-  summary: i === 50 ? {} : { action: "approve" },
+  kind: i === 50 ? "audit.created" : "task.settled",
+  entityId: i === 50 ? audit.auditId : `task_${i}`,
+  summary: i === 50 ? {} : { taskCount: 1 },
   createdAt: date,
 }));
 
@@ -44,47 +44,10 @@ for (const width of [1440, 390, 320]) {
     await mockAPI(
       page,
       async (route, _request, url) => {
-        // Owner lists and Audit pages are empty; review pages carry their count.
-        let value: unknown = /^\/v1\/audits\/[^/]+\/reviews$/.test(url.pathname)
-          ? {
-              items: [],
-              page: { hasMore: false },
-              total: 0,
-              auditRevision: 51,
-              asOf: date,
-            }
-          : { items: [], page: { hasMore: false } };
-        if (url.pathname === "/v1/audits/audit_history/findings")
-          value = {
-            items: [],
-            page: { hasMore: false },
-            auditRevision: 51,
-            projectRevision: 1,
-            asOf: date,
-          };
+        let value: unknown = { items: [], page: { hasMore: false } };
         if (url.pathname === "/v1/projects/project_history")
           value = project("project_history", { name: "History project" });
         else if (url.pathname === "/v1/audits/audit_history") value = audit;
-        else if (url.pathname.endsWith("/workspace"))
-          value = {
-            auditId: audit.auditId,
-            auditRevision: 51,
-            asOf: date,
-            executionState: "completed",
-            outstandingRuns: 0,
-            totalChecks: 0,
-            completedChecks: 0,
-            issues: 0,
-            gaps: 0,
-            unchecked: 0,
-            findings: 0,
-            unreviewedFindings: 0,
-            pendingReviews: 0,
-          };
-        else if (url.pathname.endsWith("/report"))
-          value = { status: "unavailable" };
-        else if (url.pathname.endsWith("/coverage"))
-          value = { items: [], page: { hasMore: false }, auditRevision: 51 };
         else if (url.pathname.endsWith("/events")) {
           const cursor = url.searchParams.get("cursor");
           cursors.push(cursor ?? "head");
@@ -110,25 +73,27 @@ for (const width of [1440, 390, 320]) {
       { session: authSession("owner", ["user"]) },
     );
     await page.goto("/projects/project_history/audits/audit_history");
-    const activity = page.getByRole("list", { name: "Activity on this check" });
+    await page
+      .getByRole("button", { name: "Show activity", exact: true })
+      .click();
+    const activity = page.getByRole("main").getByRole("list");
     await expect(activity.getByRole("listitem")).toHaveCount(50);
     await expect(page.getByRole("alert")).toHaveCount(0);
-    await page.getByRole("button", { name: "Load older activity" }).click();
-    await expect(page.getByRole("alert")).toContainText(
-      "Older activity could not be loaded.",
-    );
-    await expect(activity.getByRole("listitem")).toHaveCount(50);
+    const pages = page.getByRole("navigation", { name: "Activity pages" });
+    await pages.getByRole("button", { name: "Next", exact: true }).click();
+    await expect(page.getByRole("alert")).toContainText("Unavailable");
     fail = false;
     await page.getByRole("button", { name: "Try again" }).click();
-    await expect(activity.getByRole("listitem")).toHaveCount(51);
-    await expect(activity.getByText("Check created.")).toBeVisible();
+    await expect(activity.getByRole("listitem")).toHaveCount(1);
     await expect(
-      page.getByText("Showing 51 of 51 recorded events."),
+      activity.getByText("audit.created", { exact: true }),
     ).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Load older activity" }),
-    ).toHaveCount(0);
-    expect(cursors).toEqual(["head", "older", "older"]);
+      pages.getByRole("button", { name: "Next", exact: true }),
+    ).toBeDisabled();
+    await pages.getByRole("button", { name: "Previous", exact: true }).click();
+    await expect(activity.getByRole("listitem")).toHaveCount(50);
+    expect(cursors.slice(0, 3)).toEqual(["head", "older", "older"]);
     expect(errors).toEqual([]);
     expect(
       await page.evaluate(

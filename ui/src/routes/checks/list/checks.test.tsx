@@ -144,11 +144,10 @@ function serve(
           const completed = audit.state === "completed";
           return json(
             workspaceOf(audit, {
-              totalChecks: 3,
-              completedChecks: completed ? 3 : 1,
-              issues: completed ? 1 : 0,
+              totalTasks: 3,
+              completedTasks: completed ? 3 : 1,
               gaps: completed ? 0 : 1,
-              unchecked: completed ? 0 : 1,
+              pendingTasks: completed ? 0 : 1,
               findings: 2,
               unreviewedFindings: audit.auditId === "b_waiting" ? 2 : 0,
             }),
@@ -186,7 +185,7 @@ describe("Checks list", () => {
     // A progress line where the Server's counts are read.
     expect(
       await within(rows()[0]!).findByRole("img", {
-        name: "1 of 3 done: 1 done, 1 need follow-up, 1 not checked yet",
+        name: "1 of 3 done: 1 done, 1 gaps, 1 pending",
       }),
     ).toBeVisible();
     const filters = within(list).getByRole("group", {
@@ -253,11 +252,8 @@ describe("Checks list", () => {
       within(detail).getByRole("link", { name: "2 possible issues to review" }),
     ).toHaveAttribute("href", "/issues?project=project_b");
     expect(
-      within(detail).getByRole("link", { name: "Need follow-up: 1" }),
-    ).toHaveAttribute(
-      "href",
-      "/projects/project_b/audits/b_waiting/coverage?result=uncertain&auditRevision=5",
-    );
+      within(detail).getByRole("link", { name: "Gaps: 1" }),
+    ).toHaveAttribute("href", "/projects/project_b/audits/b_waiting");
     await user.click(
       within(list).getByRole("link", {
         name: "WSTG 4.2 · Source review · crapi-workshop",

@@ -143,12 +143,3 @@ func NewAuditCreations(db persistencepostgres.DBTX, storage *artifactpostgres.St
 func (s *QueryStore) Get(ctx context.Context, ownerID, auditID string) (auditstore.Audit, error) {
 	return s.get(ctx, ownerID, auditID)
 }
-
-// GetRound reads one Round of an Audit.
-func (s *QueryStore) GetRound(ctx context.Context, auditID, roundID string) (auditstore.Round, error) {
-	round, err := s.getRound(ctx, auditID, roundID)
-	if err == nil && round.State == auditstore.RoundProposed {
-		return auditstore.Round{}, auditstore.ErrNotFound
-	}
-	return round, err
-}

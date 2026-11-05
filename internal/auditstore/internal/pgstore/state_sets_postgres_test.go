@@ -26,7 +26,7 @@ func TestPostgresAuditStateSetsMatchSchema(t *testing.T) {
 	pool := isolatedAuditPool(t, ctx, databaseURL)
 
 	audits := declaredAuditValues(t, "AuditState", func(value string) bool { return auditstore.AuditState(value).Valid() })
-	items := declaredAuditValues(t, "ItemState", func(value string) bool { return auditstore.ItemState(value).Valid() })
+	tasks := statesettest.DeclaredValues(t, "internal/auditstore", "TaskState")
 	executions := declaredAuditValues(t, "ExecutionState", func(value string) bool { return auditstore.ExecutionState(value).Valid() })
 	findings := declaredAuditValues(t, "FindingState", func(value string) bool { return auditstore.FindingState(value).Valid() })
 	without := func(values []string, excluded ...string) []string {
@@ -62,19 +62,10 @@ func TestPostgresAuditStateSetsMatchSchema(t *testing.T) {
 			},
 		},
 		{
-			Name: "audit_items",
-			Columns: []statesettest.Column{{
-				Name: "state", Check: "audit_items_state_check", Values: items,
-				Subsets: map[string][]string{
-					"unsettled": without(items, string(auditstore.ItemSettled)),
-					"ready":     {string(auditstore.ItemReady)},
-				},
-			}},
-			Indexes: map[string]map[string]string{
-				"audit_items_dispatch_idx":      {"state": "unsettled"},
-				"audit_items_purge_pointer_idx": nil,
-				"audit_items_ready_role_idx":    {"state": "ready"},
-			},
+			Name: "audit_tasks",
+			Columns: []statesettest.Column{{Name: "state", Check: "audit_tasks_state_check", Values: tasks,
+				Subsets: map[string][]string{"ready": {string(auditstore.TaskReady)}, "settled": {string(auditstore.TaskSettled)}}}},
+			Indexes: map[string]map[string]string{"audit_tasks_ready_workflow_idx": {"state": "ready"}, "audit_tasks_last_execution_idx": nil, "audit_tasks_continuation_cursor": nil, "audit_tasks_hypothesis_idx": nil, "audit_tasks_workflow_external_ordinal": {"state": "settled"}},
 		},
 		{
 			Name: "audit_executions",
@@ -85,12 +76,9 @@ func TestPostgresAuditStateSetsMatchSchema(t *testing.T) {
 				},
 			}},
 			Indexes: map[string]map[string]string{
-				"audit_executions_audit_run_cleanup_idx":   nil,
-				"audit_executions_prepare_accepted_unique": nil,
-				"audit_executions_prepare_attempt_unique":  nil,
-				"audit_executions_reconcile_idx":           {"state": "uncollected"},
-				"audit_executions_role_attempt_unique":     nil,
-				"audit_executions_run_unique":              nil,
+				"audit_executions_audit_run_cleanup_idx": nil,
+				"audit_executions_reconcile_idx":         {"state": "uncollected"},
+				"audit_executions_run_unique":            nil,
 			},
 		},
 

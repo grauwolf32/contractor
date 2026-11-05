@@ -151,7 +151,6 @@ export function CheckDetail({
                   size="sm"
                   items={[
                     { term: PROGRESS_LABELS.done, value: shown.done },
-                    { term: PROGRESS_LABELS.issue, value: shown.issues },
                     { term: PROGRESS_LABELS.followUp, value: shown.gaps },
                     { term: PROGRESS_LABELS.unchecked, value: shown.unchecked },
                     {

@@ -9,8 +9,8 @@ import (
 type InventoryEntry struct {
 	Execution *evaldomain.ExecutionRef `json:"execution"`
 	Parent    *evaldomain.ExecutionRef `json:"parent"`
-	Role      *string                  `json:"role"`
-	Round     *int                     `json:"round"`
+	Workflow  *string                  `json:"workflow"`
+	Iteration *int                     `json:"iteration"`
 	State     string                   `json:"state"`
 	Available bool                     `json:"available"`
 	IntentID  string                   `json:"intentId,omitempty"`
@@ -79,7 +79,7 @@ func (s *Store) Inventory(ctx context.Context, owner, id, member string) (Invent
 		var child InventoryEntry
 		var runID, terminal, runState *string
 		var phase string
-		if err = rows.Scan(&child.IntentID, &runID, &child.Role, &child.Round, &phase, &terminal, &runState, &child.Available, &child.ProjectID); err != nil {
+		if err = rows.Scan(&child.IntentID, &runID, &child.Workflow, &child.Iteration, &phase, &terminal, &runState, &child.Available, &child.ProjectID); err != nil {
 			return out, err
 		}
 		child.Parent = &parent

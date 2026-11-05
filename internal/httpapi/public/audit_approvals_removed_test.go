@@ -11,6 +11,8 @@ func TestAuditApprovalRoutesAreRemoved(t *testing.T) {
 	fixture := newHandlerFixture(t)
 	for _, test := range []struct{ method, path string }{
 		{http.MethodGet, "/v1/reviews"},
+		{http.MethodGet, "/v1/audits/audit-one/items"},
+		{http.MethodGet, "/v1/audits/audit-one/coverage"},
 		{http.MethodGet, "/v1/audits/audit-one/reviews"},
 		{http.MethodGet, "/v1/audits/audit-one/reviews/request-one"},
 		{http.MethodPost, "/v1/audits/audit-one/reviews/request-one/decisions"},
@@ -23,7 +25,7 @@ func TestAuditApprovalRoutesAreRemoved(t *testing.T) {
 			response := httptest.NewRecorder()
 			fixture.handler.ServeHTTP(response, request)
 			if response.Code != http.StatusNotFound {
-				t.Fatalf("obsolete approval route returned %d: %s", response.Code, response.Body.String())
+				t.Fatalf("retired Audit route returned %d: %s", response.Code, response.Body.String())
 			}
 		})
 	}

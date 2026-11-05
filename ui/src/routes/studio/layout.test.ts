@@ -121,62 +121,29 @@ describe("Studio dependency layout", () => {
       block(result, "stages", "start").x,
     );
   });
-  it("orders prepare roles, inventory, checks and assessment, including inventory settings", () => {
+  it("links common initial work and materials to ordinary workflows", () => {
     const result = graph("AuditProfile", {
-      inputs: { source: {} },
-      inventory: {
-        source: {
-          source: "prepare-output",
-          role: "prepare",
-          name: "inventory",
-        },
-        settings: {
-          source: "prepare-output",
-          role: "prepare",
-          name: "settings",
-        },
-        itemWorkflowRole: "check",
-      },
+      inputs: { source: { media_types: ["text/plain"] } },
+      initial_work: [{ key: "inspect", workflow: "check" }],
       workflows: {
-        assess: {
-          kind: "assessment",
-          inputs: {
-            evidence: {
-              source: "retained-output",
-              role: "discover",
-              name: "evidence",
-            },
-          },
-        },
-        check: { kind: "check" },
-        prepare: {
-          kind: "prepare",
+        check: {
+          ref: "inspect@1",
           inputs: { source: { source: "audit-input", name: "source" } },
-        },
-        discover: {
-          kind: "discovery",
-          inputs: {
-            prepared: {
-              source: "prepare-output",
-              role: "prepare",
-              name: "result",
-            },
-          },
         },
       },
     });
-    expect(block(result, "inventory").x).toBeGreaterThan(
-      block(result, "workflows", "prepare").x,
+    expect(block(result, "workflows", "check").x).toBeGreaterThan(
+      block(result, "inputs", "source").x,
     );
     expect(block(result, "workflows", "check").x).toBeGreaterThan(
-      block(result, "inventory").x,
-    );
-    expect(block(result, "workflows", "assess").x).toBeGreaterThan(
-      block(result, "workflows", "discover").x,
+      block(result, "initial_work").x,
     );
     expect(
-      result.edges.filter((edge) => edge.to === pathID(["spec", "inventory"])),
+      result.edges.filter(
+        (edge) => edge.to === pathID(["spec", "workflows", "check"]),
+      ),
     ).toHaveLength(2);
+    expect(result.nodes.some((node) => node.type === "inventory")).toBe(false);
   });
   it("packs Agent components without overlaps and retains every toolset and skill", () => {
     const result = graph("AgentTemplate", {

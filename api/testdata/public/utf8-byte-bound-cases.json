@@ -315,12 +315,6 @@
       "rule": "LIM-AUD-39"
     },
     {
-      "schema": "AuditSubjectKey",
-      "path": [],
-      "maxBytes": 512,
-      "rule": "LIM-AUD-40"
-    },
-    {
       "schema": "SitemapMutation",
       "path": [
         "properties",

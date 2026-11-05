@@ -102,9 +102,6 @@ func TestSharedFindingCollectionConformanceAndConsumerTargets(t *testing.T) {
 	if err != nil || changedPackage.Digest == pkg.Digest {
 		t.Fatalf("different snapshot reused package digest: %v", err)
 	}
-	if _, err := DecodeCheckResultPackage(payload); testDomainErrorCode(err) != CodePackageInvalid {
-		t.Fatalf("collection was accepted as check results: %v", err)
-	}
 }
 
 func TestSharedFindingCollectionEmptySelectionAndOptionalReviews(t *testing.T) {
@@ -320,11 +317,13 @@ func TestSharedFindingCollectionDecoderChecksArchiveAgainstMetadata(t *testing.T
 				inputs = append(inputs, PackageInput{ID: doc.ID, Path: "documents/" + doc.ID, MediaType: doc.MediaType, Data: contents[doc.ID]})
 			}
 			kind := PackageKindFindingCollection
+			entryPoint := ""
 			switch mode {
 			case "package ID":
 				packageID = "collection-forged"
 			case "kind":
-				kind = PackageKindEvidence
+				kind = PackageKindOpenAPISource
+				entryPoint = inputs[0].Path
 			case "collection path":
 				inputs[0].Path = "other.json"
 			case "missing document":
@@ -338,7 +337,7 @@ func TestSharedFindingCollectionDecoderChecksArchiveAgainstMetadata(t *testing.T
 			case "document MIME":
 				inputs[1].MediaType = "application/octet-stream"
 			}
-			payload, _, err := BuildPackage(packageID, kind, "", inputs)
+			payload, _, err := BuildPackage(packageID, kind, entryPoint, inputs)
 			if err != nil {
 				t.Fatal(err)
 			}

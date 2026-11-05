@@ -91,18 +91,6 @@ func TestPublicListFakesRejectReadsBeyondThePageFetchBound(t *testing.T) {
 			_, err := audits.ListEventsPage(ctx, auditstore.EventListParams{Limit: rows})
 			return err
 		}},
-		{"audit items", pagelimit.MaxFetchRows, auditstore.ErrInvalid, func(rows int) error {
-			_, err := audits.ListItems(ctx, auditstore.ListItemsParams{Limit: rows})
-			return err
-		}},
-		{"audit item attempts", pagelimit.MaxRows, auditstore.ErrInvalid, func(rows int) error {
-			_, err := audits.ListItemAttempts(ctx, "user-1", "audit-1", ids(rows))
-			return err
-		}},
-		{"audit coverage", pagelimit.MaxFetchRows, auditstore.ErrInvalid, func(rows int) error {
-			_, err := audits.ListCoverage(ctx, "user-1", "audit-1", "round-1", -1, rows, nil)
-			return err
-		}},
 		{"audit findings", pagelimit.MaxFetchRows, auditstore.ErrInvalid, func(rows int) error {
 			_, err := audits.ListFindingsPage(ctx, auditstore.FindingListParams{Limit: rows})
 			return err

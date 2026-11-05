@@ -46,7 +46,7 @@ func TestCommonAuditDraftStartAndOriginalReplay(t *testing.T) {
 	project, draft := createStartStagingDraft(t, ctx, pool, service, "common-start", 1)
 	params := StartParams{OwnerID: project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision, IdempotencyKey: "start", RequestDigest: serviceTestDigest("start")}
 	started, err := service.Start(ctx, params)
-	if err != nil || started.Audit.State != auditstore.AuditActive || started.Audit.CurrentRoundID != nil || len(started.Items) != 0 {
+	if err != nil || started.Audit.State != auditstore.AuditActive {
 		t.Fatalf("ordinary start=%+v error=%v", started, err)
 	}
 	pin, err := auditprofile.DecodePinnedProgram(started.Audit.ProfileSnapshot)
@@ -148,7 +148,7 @@ func TestAuditStartUsesOwningTransactionWithSaturatedPool(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start Audit with one LISTEN connection and one transaction: %v", err)
 	}
-	if started.Audit.State != auditstore.AuditActive || len(started.Items) != 0 {
+	if started.Audit.State != auditstore.AuditActive {
 		t.Fatalf("started saturated Audit = %+v", started)
 	}
 }

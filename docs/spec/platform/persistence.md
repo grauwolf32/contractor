@@ -170,7 +170,7 @@ own the rules of particular state are indexed in the next section.
 | --- | --- |
 | `internal/agentprincipal` | `runtime_agent_principals` |
 | `internal/artifacts/postgres` | `artifact_binding_revisions`, `artifact_bindings`, `artifact_blobs`, `artifact_lineage`, `artifact_scopes`, `artifact_versions` |
-| `internal/auditstore/internal/pgstore` | `audit_artifact_links`, `audit_controller_claims`, `audit_events`, `audit_execution_items`, `audit_executions`, `audit_items`, `audit_tasks`, `audit_hypotheses`, `audit_hypothesis_revisions`, `audit_report_pages`, `audit_round_result_pages`, `audit_rounds`, `audits`, `finding_correlation_fences`, `project_findings`, `project_finding_sources`, `project_finding_audits` |
+| `internal/auditstore/internal/pgstore` | `audit_artifact_links`, `audit_controller_claims`, `audit_events`, `audit_execution_items`, `audit_executions`, `audit_tasks`, `audit_hypotheses`, `audit_hypothesis_revisions`, `audits`, `finding_correlation_fences`, `project_findings`, `project_finding_sources`, `project_finding_audits` |
 | `internal/credentials` | `credential_operations`, `git_ssh_keys`, `llm_credentials`, `runtime_credentials` |
 | `internal/evalstore` | `eval_collections`, `eval_commands`, `eval_controller_claims`, `eval_dataset_revisions`, `eval_evidence_refs`, `eval_execution_tombstones`, `eval_experiments`, `eval_frozen_plans`, `eval_member_projections`, `eval_members`, `eval_plan_resources`, `eval_progress_observations`, `eval_projection_queue`, `eval_records`, `eval_selections`, `eval_submissions`, `eval_suboperations`, `eval_view_charts`, `eval_view_pairs` |
 | `internal/findingintake` | `finding_proposal_audit_holds`, `finding_proposal_receipts` |
@@ -1324,11 +1324,9 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     concerns and each guarded column changed alone is rejected; test
     `TestPostgresStageAllocationUpdatesFireOnlyTheTriggersTheyConcern` in
     [`internal/runstore/allocation_triggers_postgres_test.go`](../../../internal/runstore/allocation_triggers_postgres_test.go).
-    An Audit event append calls no preparation guard and probes no
-    AuditExecution, and each AuditExecution write from intent to collection
+    The retired preparation guards are removed. Each AuditExecution write from intent to collection
     calls only the triggers it concerns while a changed Run association or
     receipt column is still rejected; tests
-    `TestPostgresAuditUpdatesSkipThePreparationProbe` and
     `TestPostgresAuditExecutionWritesFireOnlyTheTriggersTheyConcern` in
     [`internal/auditstore/internal/pgstore/trigger_scope_postgres_test.go`](../../../internal/auditstore/internal/pgstore/trigger_scope_postgres_test.go).
     Each artifact write calls only the `artifact_bindings` triggers it

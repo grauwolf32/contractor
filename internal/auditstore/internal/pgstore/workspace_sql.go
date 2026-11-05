@@ -2,39 +2,31 @@ package pgstore
 
 // SQL statements for workspace.go.
 
-// getWorkspaceSQL reads the workspace summary of owner $1's Audit $2:
-// revision, statement time, current round, state, outstanding Runs,
-// current-round coverage counts (total, then the completed $3, issue $4, gap
-// $5 and unchecked $6 coverage statuses of auditdomain's one bucket table, in
-// one pass over the round's items), finding and unreviewed-finding counts (in
-// one pass over the Audit's findings). The statement time is reported as
-// asOf. Every count is exact, so each pass reads the
-// rows it counts. Used by QueryStore.GetWorkspace.
+// getWorkspaceSQL reads one owner-authorized snapshot. The Task aggregate is
+// bounded by the Audit's max_items_total (at most 100000); Findings use the
+// existing indexed Audit membership. Technical settlement is not a verdict.
 var getWorkspaceSQL = `
-SELECT audit.audit_id, audit.revision, statement_timestamp(), audit.current_round_id,
+SELECT audit.audit_id, audit.revision, statement_timestamp(), audit.task_iteration,
        audit.state, audit.outstanding_run_count,
-       coverage.total, coverage.completed, coverage.issues, coverage.gaps, coverage.unchecked,
+       tasks.total, tasks.completed, tasks.gaps, tasks.pending,
        findings.total, findings.unreviewed
   FROM audits AS audit
  CROSS JOIN LATERAL (
        SELECT count(*) AS total,
-              count(*) FILTER (WHERE item.coverage_status = ANY($3::text[])) AS completed,
-              count(*) FILTER (WHERE item.coverage_status = ANY($4::text[])) AS issues,
-              count(*) FILTER (WHERE item.coverage_status = ANY($5::text[])) AS gaps,
-              count(*) FILTER (WHERE item.coverage_status = ANY($6::text[])) AS unchecked
-         FROM audit_items AS item
-        WHERE item.audit_id = audit.audit_id AND item.round_id = audit.current_round_id
-          AND ` + acceptedItemSQL("item") + `
-       ) AS coverage
+              count(*) FILTER (WHERE task.state='settled' AND task.gap_code IS NULL) AS completed,
+              count(*) FILTER (WHERE task.state='settled' AND task.gap_code IS NOT NULL) AS gaps,
+              count(*) FILTER (WHERE task.state<>'settled') AS pending
+         FROM audit_tasks AS task WHERE task.audit_id=audit.audit_id
+       ) AS tasks
  CROSS JOIN LATERAL (
        SELECT count(*) AS total,
               count(*) FILTER (WHERE finding.analyst_verdict IS NULL) AS unreviewed
          FROM project_finding_audits AS membership
          JOIN LATERAL (SELECT analyst_verdict FROM project_findings AS current
               WHERE current.project_id=membership.project_id AND current.finding_id=membership.finding_id OFFSET 0) AS finding ON true
-        WHERE membership.audit_id = audit.audit_id
+        WHERE membership.audit_id=audit.audit_id
        ) AS findings
- WHERE audit.owner_id = $1 AND audit.audit_id = $2`
+ WHERE audit.owner_id=$1 AND audit.audit_id=$2`
 
 // listEventsBeforeSQL reads up to $4 events of Audit $1 numbered at most $2
 // and, when $3 is set, below $3, newest first.

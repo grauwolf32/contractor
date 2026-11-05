@@ -82,7 +82,7 @@ func drainFixture(total int, state runstore.WorkflowRunState) (*Controller, *dra
 	snapshot := auditstore.ReconcileSnapshot{Audit: auditstore.Audit{OwnerID: "owner"}, RunStates: map[string]runstore.WorkflowRunState{}}
 	for i := range total {
 		id := fmt.Sprintf("run-%d", i)
-		snapshot.Executions = append(snapshot.Executions, auditstore.Execution{ExecutionID: fmt.Sprintf("execution-%d", i), Role: auditstore.ExecutionTask, State: auditstore.ExecutionSubmitted, RunID: &id})
+		snapshot.Executions = append(snapshot.Executions, auditstore.Execution{ExecutionID: fmt.Sprintf("execution-%d", i), State: auditstore.ExecutionSubmitted, RunID: &id})
 		snapshot.RunStates[id] = state
 	}
 	return c, s, snapshot

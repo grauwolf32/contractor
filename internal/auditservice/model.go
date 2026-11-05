@@ -12,7 +12,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
@@ -69,14 +68,7 @@ func DecodeBaseline(data []byte) (BaselineSnapshot, error) {
 	if result.RuntimeConfig.RuntimeCredentialIDs == nil {
 		result.RuntimeConfig.RuntimeCredentialIDs = []string{}
 	}
-	if result.Inventory != nil {
-		for index := range result.Inventory.ExecutionManifest.Items {
-			item := &result.Inventory.ExecutionManifest.Items[index]
-			if len(item.Inputs) == 0 {
-				item.Inputs = nil
-			}
-		}
-	}
+
 	return result, nil
 }
 
@@ -156,38 +148,8 @@ func ValidateBaseline(value BaselineSnapshot) error {
 			return fmt.Errorf("%w: Audit baseline HTTP target is invalid", ErrInvalid)
 		}
 	}
-	if value.Inventory == nil {
-		return nil
-	}
-	if value.Inventory.ExecutionManifest.Items == nil || validateExactArtifact(value.Inventory.Worklist, true) != nil ||
-		!contentdigest.Valid(value.Inventory.SourceContentDigest) ||
-		!contentdigest.Valid(value.Inventory.CanonicalInventoryDigest) ||
-		value.Inventory.Gaps == nil || !sort.StringsAreSorted(value.Inventory.Gaps) ||
-		auditdomain.ValidateDispatchExecutionManifest(value.Inventory.ExecutionManifest) != nil {
-		return fmt.Errorf("%w: Audit baseline inventory is invalid", ErrInvalid)
-	}
-	if selection := value.Inventory.StandardSelection; selection != nil {
-		if selection.Scope == "" || !utf8.ValidString(selection.Scope) || len([]byte(selection.Scope)) > 512 ||
-			strings.TrimSpace(selection.Scope) != selection.Scope || strings.ContainsRune(selection.Scope, 0) ||
-			len(selection.Levels) == 0 || len(selection.Levels) > auditprofile.MaxAuditStandardLevels ||
-			len(selection.EntryIDs) == 0 || len(selection.EntryIDs) > auditprofile.MaxAuditStandardEntries ||
-			!strictSortedAuditValues(selection.Levels) || !strictSortedAuditValues(selection.EntryIDs) {
-			return fmt.Errorf("%w: Audit baseline standard selection is invalid", ErrInvalid)
-		}
-	}
-	return nil
-}
 
-func strictSortedAuditValues(values []string) bool {
-	previous := ""
-	for _, value := range values {
-		if !utf8.ValidString(value) || value == "" || value <= previous ||
-			len([]byte(value)) > 128 || strings.TrimSpace(value) != value || strings.ContainsRune(value, 0) {
-			return false
-		}
-		previous = value
-	}
-	return true
+	return nil
 }
 
 func normalizeScope(value Scope) (Scope, error) {

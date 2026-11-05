@@ -71,13 +71,9 @@ audit_controller_claims              internal/auditstore/internal/pgstore audits
 audit_events                         internal/auditstore/internal/pgstore audits
 audit_execution_items                internal/auditstore/internal/pgstore audits
 audit_executions                     internal/auditstore/internal/pgstore audits
-audit_items                          internal/auditstore/internal/pgstore audits
 audit_tasks                          internal/auditstore/internal/pgstore audits
 audit_hypotheses                     internal/auditstore/internal/pgstore audits
 audit_hypothesis_revisions           internal/auditstore/internal/pgstore audits
-audit_report_pages                   internal/auditstore/internal/pgstore audits
-audit_round_result_pages             internal/auditstore/internal/pgstore audits
-audit_rounds                         internal/auditstore/internal/pgstore audits
 audits                               internal/auditstore/internal/pgstore audits
 
 project_findings                     internal/auditstore/internal/pgstore findings
@@ -138,7 +134,7 @@ internal/artifacts/postgres           workflow_runs                  Output free
 
 internal/auditstore/auditstoretest audit_executions          Tests inspect every execution of an Audit, which production reads
     only through bounded windows, roles and selections.
-internal/auditstore/internal/pgstore finding_proposal_audit_holds   Round acceptance carries proposal holds into the next round;
+internal/auditstore/internal/pgstore finding_proposal_audit_holds   Task acceptance retains finding proposal sources;
     Run deletion finds the Audits that hold a Run's proposals.
 internal/auditstore/internal/pgstore finding_proposal_receipts      Reports read each finding's first receipt; Run deletion finds
     the Audits that a Run's receipts name.
@@ -160,8 +156,9 @@ internal/credentials         workflow_runs                  Runtime credential u
 internal/evalstore           audit_artifact_links           Evidence authorization and Audit outputs resolve the Audit's
     accepted output links.
 internal/evalstore           audit_executions               Inventories, evidence and observed usage read the child
+internal/evalstore           audit_tasks                    Inventory projects the common Task iteration.
+internal/evalstore           audit_execution_items          Inventory joins the first common Task of each execution.
     executions of a submitted Audit.
-internal/evalstore           audit_rounds                   Inventories show the round of each child execution.
 internal/evalstore           audits                         Inventories, execution views, evidence, usage and settlement
     read the submitted Audits.
 internal/evalstore           projects                       Experiments check their evaluation and workspace Projects and
@@ -262,7 +259,7 @@ internal/artifacts/postgres           contractor_eval_dirty                     
 internal/artifacts/postgres           contractor_eval_dirty                      write   eval_projection_queue        Eval projection: the same change
     queues the member's experiment for projection.
 
-internal/auditstore/internal/pgstore contractor_artifact_hold_apply     write   artifact_binding_revisions   Audits and their items hold
+internal/auditstore/internal/pgstore contractor_artifact_hold_apply     write   artifact_binding_revisions   Audits and their tasks hold
     the Artifact binding revisions they reference, so history retention keeps them until they are released.
 internal/auditstore/internal/pgstore contractor_eval_dirty              write   eval_member_projections      Eval projection: a change of
     an Eval member's Audit, its executions or its output links marks the member for projection.

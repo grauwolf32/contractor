@@ -70,18 +70,12 @@ func inventoryScaleFixture(t *testing.T) (context.Context, *pgxpool.Pool, string
 		}); err != nil {
 			t.Fatal(err)
 		}
-		// Read-model fixtures, as in the public inventory test: a closed
-		// round and collected executions whose Runs are deleted.
+		// Collected common executions whose Runs are deleted.
 		if _, err := pool.Exec(ctx, `
-INSERT INTO audit_rounds (round_id, audit_id, ordinal, manifest_ref, manifest_digest, state, expected_item_count)
-VALUES ($1 || '-round', $1, 1, '{}'::jsonb, $2, 'closed', 0)`, auditID, digest); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := pool.Exec(ctx, `
-INSERT INTO audit_executions (lane_class, execution_id, audit_id, round_id, role, workflow_role,
-       manifest_ref, manifest_digest, submission_key, request_digest, run_id, state, terminal_outcome,
+INSERT INTO audit_executions (lane_class, execution_id, audit_id, workflow_role,
+       submission_key, request_digest, run_id, state, terminal_outcome,
        terminal_run_generation, terminal_run_sequence, terminal_observed_at, run_provenance, run_deleted_at)
-SELECT 'model', key.id, $1, $1 || '-round', 'check', 'check', '{}'::jsonb, $2, key.id, $2,
+SELECT 'model', key.id, $1, 'observe', key.id, $2,
        'run-' || key.id, 'collected', 'failed', 'generation', 1, clock_timestamp(),
        jsonb_build_object('schema', 'contractor.audit.run-provenance.v1', 'runId', 'run-' || key.id),
        clock_timestamp()
@@ -91,8 +85,20 @@ SELECT 'model', key.id, $1, $1 || '-round', 'check', 'check', '{}'::jsonb, $2, k
 			auditID, digest, count, string(rune('a'+index))); err != nil {
 			t.Fatal(err)
 		}
+		if _, err := pool.Exec(ctx, `INSERT INTO audit_tasks(task_id,audit_id,source_key,source,document,batch_digest,ordinal,iteration,state,gap_code)
+SELECT x.execution_id,x.audit_id,'sha256:'||md5(x.execution_id)||md5(x.execution_id),'{"kind":"initial","key":"work"}',
+ jsonb_build_object('schema','contractor.audit.task.v1','task_id',x.execution_id,'audit_id',x.audit_id,'workflow','observe','objective','Observe','inputs','{}'::jsonb,'parameters','{}'::jsonb),
+ $2,row_number() OVER(ORDER BY x.execution_id),1,'settled','run-failed'
+FROM audit_executions x WHERE x.audit_id=$1`, auditID, digest); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(ctx, `INSERT INTO audit_execution_items(execution_item_id,execution_id,audit_id,task_id,batch_ordinal,item_attempt,state,collection_disposition,collected_at)
+SELECT execution_id,execution_id,audit_id,execution_id,0,1,'settled','execution-failed',clock_timestamp() FROM audit_executions WHERE audit_id=$1`, auditID); err != nil {
+			t.Fatal(err)
+		}
+
 	}
-	if _, err := pool.Exec(ctx, `ANALYZE audit_executions; ANALYZE audits; ANALYZE audit_rounds`); err != nil {
+	if _, err := pool.Exec(ctx, `ANALYZE audit_executions; ANALYZE audits; ANALYZE audit_tasks; ANALYZE audit_execution_items`); err != nil {
 		t.Fatal(err)
 	}
 	return ctx, pool, "audit-inventory-scale"
@@ -117,6 +123,12 @@ SELECT x.execution_id FROM audit_executions AS x
 // order, as the original comparison selected, and another owner reads none.
 func TestPostgresInventoryChildPagesProbeTheExecutionIDRange(t *testing.T) {
 	ctx, pool, auditID := inventoryScaleFixture(t)
+	// The same common Tasks feed the user-facing workspace. Its aggregate must
+	// stay within this Audit despite 45,000 interleaved background Tasks.
+	workspace, err := auditstoretest.NewStore(pool, artifactpgtest.NewStorage()).GetWorkspace(ctx, inventoryScaleOwner, auditID)
+	if err != nil || workspace.TotalTasks != inventoryScaleExecutions || workspace.Gaps != inventoryScaleExecutions || workspace.CompletedTasks != 0 || workspace.PendingTasks != 0 || workspace.Findings != 0 {
+		t.Fatalf("workspace at common Task scale = %+v, %v", workspace, err)
+	}
 	rows, err := pool.Query(ctx, `SELECT execution_id FROM audit_executions WHERE audit_id = $1 ORDER BY execution_id`, auditID)
 	if err != nil {
 		t.Fatal(err)

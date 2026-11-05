@@ -166,7 +166,6 @@ export type PublicSchemaName =
   | "ProjectPage"
   | "AuditProfileRef"
   | "AuditProfileSelector"
-  | "AuditProfileMode"
   | "AuditStandardRef"
   | "AuditStandardSource"
   | "AuditStandardLicense"
@@ -180,19 +179,9 @@ export type PublicSchemaName =
   | "AuditStandardPackageResponse"
   | "AuditStandardExactPackage"
   | "AuditPinnedStandard"
-  | "AuditProfileInput"
   | "AuditWebTarget"
   | "AuditWebScanSettings"
   | "NucleiRuleFilter"
-  | "AuditInventory"
-  | "AuditInventoryArtifact"
-  | "AuditStandardSelection"
-  | "AuditWorkflowInputMapping"
-  | "AuditWorkflowParameterMapping"
-  | "AuditCheckCapabilityRequirement"
-  | "AuditCheckMethodMapping"
-  | "AuditProfileWorkflow"
-  | "AuditExecutionPolicy"
   | "AuditCompatibilityReason"
   | "AuditAssertionScope"
   | "AuditAssertionSourceEntry"
@@ -221,13 +210,7 @@ export type PublicSchemaName =
   | "AuditPinnedRuntimeLabel"
   | "AuditRuntimeSnapshot"
   | "AuditSkill"
-  | "AuditBaselineInventory"
   | "AuditBaseline"
-  | "AuditGeneratedInventory"
-  | "AuditPhase"
-  | "AuditPreparationOutput"
-  | "AuditPreparationRole"
-  | "AuditPreparation"
   | "AuditState"
   | "AuditDispatchState"
   | "AuditHoldState"
@@ -238,8 +221,6 @@ export type PublicSchemaName =
   | "AuditEvent"
   | "AuditEventPage"
   | "AuditPage"
-  | "AuditRoundState"
-  | "AuditRound"
   | "AuditCommonKey"
   | "AuditCommonText"
   | "AuditCommonDigest"
@@ -259,28 +240,13 @@ export type PublicSchemaName =
   | "AuditTaskSource"
   | "AuditTask"
   | "AuditTaskPage"
-  | "AuditItemState"
-  | "AuditFinalDisposition"
-  | "AuditExecutionRole"
   | "AuditExecutionItemState"
   | "AuditTerminalOutcome"
   | "AuditCollectionDisposition"
   | "AuditWorkflowProvenance"
   | "AuditRunProvenance"
-  | "AuditItemAttempt"
-  | "AuditItemOrigin"
-  | "AuditStandardEvidenceOrigin"
-  | "AuditStandardItemOrigin"
   | "AuditArtifactKey"
-  | "AuditSubjectKey"
-  | "AuditItem"
-  | "AuditItemPage"
-  | "AuditCoverageStatus"
-  | "AuditCoverage"
   | "AuditScanProvenance"
-  | "AuditCoverageDetails"
-  | "AuditCoverageRow"
-  | "AuditCoveragePage"
   | "AuditReportSummaryArtifact"
   | "AuditReportStatus"
   | "AuditReport"
@@ -1430,23 +1396,6 @@ export const RESPONSE_SCHEMAS = {
     "500": "Error",
     "503": "Error",
   },
-  "GET /v1/audits/{auditId}/items": {
-    "200": "AuditItemPage",
-    "400": "Error",
-    "401": "Error",
-    "404": "Error",
-    "500": "Error",
-    "503": "Error",
-  },
-  "GET /v1/audits/{auditId}/coverage": {
-    "200": "AuditCoveragePage",
-    "400": "Error",
-    "401": "Error",
-    "404": "Error",
-    "409": "Error",
-    "500": "Error",
-    "503": "Error",
-  },
   "POST /v1/projects/{projectId}/audit-material-publications": {
     "200": "AuditMaterialPublication",
     "201": "AuditMaterialPublication",
@@ -2199,8 +2148,6 @@ export const PUBLIC_PAGED_OPERATIONS: readonly string[] = [
   "GET /v1/findings",
   "GET /v1/audits/{auditId}/hypotheses",
   "GET /v1/audits/{auditId}/tasks",
-  "GET /v1/audits/{auditId}/items",
-  "GET /v1/audits/{auditId}/coverage",
   "GET /v1/audits/{auditId}/finding-proposals",
   "GET /v1/audits/{auditId}/events",
   "GET /v1/audits/{auditId}/findings",

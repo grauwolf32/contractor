@@ -2383,7 +2383,7 @@
             }
           ]
         },
-        "role": {
+        "workflow": {
           "anyOf": [
             {
               "$ref": "#/$defs/Id"
@@ -2393,7 +2393,7 @@
             }
           ]
         },
-        "round": {
+        "iteration": {
           "anyOf": [
             {
               "type": "integer",
@@ -2428,8 +2428,8 @@
       "required": [
         "execution",
         "parent",
-        "role",
-        "round",
+        "workflow",
+        "iteration",
         "state",
         "available"
       ],

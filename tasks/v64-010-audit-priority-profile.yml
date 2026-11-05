@@ -5,7 +5,7 @@ milestone: audit-check-prioritization
 epic: audits
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V64-012
 - V64-013
@@ -24,7 +24,11 @@ goal: Verify the shipped programs already rewritten by V64-002 and V64-012 toget
 demonstration: The shipped source/API/target/checklist/verification programs resolve and pass real deterministic
   journeys through the same task/Run path with the expected retained findings and coverage.
 context:
-  authority: 'User direction on 2026-11-05: validate the integrated V64-033/034 contract from proposal 0054;
+  authority: 'User assignment on 2026-11-06: implement V64-010 from current main
+    (b84f7f672626eaf538605824f79668d4fb68c316), on codex/audit-pipeline-retirement.
+    The existing basic and composition gates together cover the common-programs cases;
+    do not add a redundant common-programs gate. Deployment remains outside scope.
+    User direction on 2026-11-05: validate the integrated V64-033/034 contract from proposal 0054;
     remove source_01 through source_16 and do not treat old V64-013 evidence as proof of
     replacement. This update starts no implementation.
     User decisions and task-formation request on 2026-10-31: Audit durably coordinates ordinary
@@ -48,8 +52,8 @@ context:
     task-acceptance integration in V64-002. Preserve those domain algorithms/callers while removing
     their replaced inventory/Round/ZIP wrappers; do not recreate a generic inventory engine here.
     This is a planning amendment only.'
-  implementation_gate: V64-001 decisions are settled. Keep pending until implementation is assigned and
-    dependencies are complete; this task amendment starts no code, migrations, live Runs or deployment.
+  implementation_gate: User assigned implementation on 2026-11-06; all declared dependencies are completed
+    on the selected main baseline. This assignment does not include demo deployment.
   design:
   - docs/proposals/0054-workflow-hypothesis-production.md
   - docs/proposals/0050-audit-common-hypothesis-model.md
@@ -90,8 +94,7 @@ scope:
   out:
   - Removing external exports, source archives or Skills merely because they use ZIP; compatibility readers;
     changing configured live models; demo deployment.
-  - Implementation during this planning-only update; changing user model configuration or deploying/migrating
-    the demo.
+  - Changing user model configuration or deploying/migrating the demo.
   - Removing or redesigning Managed Evals, its datasets or scorer truth; changing model selections.
 requirements:
 - id: R1
@@ -182,9 +185,17 @@ tests:
   covers:
   - A1
   - A3
+- command: go test -tags=integration -count=1 ./internal/persistence/... ./internal/contracts/auditcontract
+  covers:
+  - A2
+  - A3
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A2
 - command: make lint
 test_prerequisites:
-- Commands below are future implementation acceptance, not results of this planning update.
+- Commands below are required implementation acceptance; record actual results at completion.
 - Use disposable PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set; configured/unavailable DB or mandatory
   skips fail. A focused selector matching zero tests fails.
 - Use testdata catalogs and pseudo-Skills, not live configs in unit/integration tests. Run whole touched-package

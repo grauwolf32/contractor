@@ -51,7 +51,6 @@ var utf8ByteBoundOwners = map[string]int{
 	"LIM-RUN-11": runlabels.MaxRunMetadataLabelKey + len("=") + runlabels.MaxRunMetadataLabelValue,
 	"LIM-AUD-29": -1,
 	"LIM-AUD-39": auditstore.MaxArtifactLogicalKeyBytes,
-	"LIM-AUD-40": auditstore.MaxSubjectKeyBytes,
 	"LIM-GIT-3":  credentials.MaximumGitKeyBytes,
 	"LIM-GIT-22": gitimport.MaximumRefBytes,
 	"LIM-GIT-23": gitimport.MaximumRemoteURLBytes,

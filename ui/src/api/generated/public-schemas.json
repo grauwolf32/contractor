@@ -2987,7 +2987,7 @@
             { "type": "null" }
           ]
         },
-        "role": {
+        "workflow": {
           "anyOf": [
             {
               "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/EvalId"
@@ -2995,7 +2995,7 @@
             { "type": "null" }
           ]
         },
-        "round": {
+        "iteration": {
           "anyOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }]
         },
         "state": {
@@ -3021,8 +3021,8 @@
       "required": [
         "execution",
         "parent",
-        "role",
-        "round",
+        "workflow",
+        "iteration",
         "state",
         "available"
       ],
@@ -4521,16 +4521,6 @@
         }
       }
     },
-    "AuditProfileMode": {
-      "type": "string",
-      "enum": [
-        "risk-assessment",
-        "requirements-verification",
-        "custom-checklist",
-        "operation-tracing",
-        "finding-verification"
-      ]
-    },
     "AuditStandardRef": {
       "type": "object",
       "additionalProperties": false,
@@ -4892,23 +4882,6 @@
         }
       }
     },
-    "AuditProfileInput": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["required", "mediaTypes"],
-      "properties": {
-        "required": { "type": "boolean" },
-        "mediaTypes": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 32,
-          "uniqueItems": true,
-          "items": {
-            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/MediaType"
-          }
-        }
-      }
-    },
     "AuditWebTarget": {
       "type": "object",
       "additionalProperties": false,
@@ -4953,375 +4926,6 @@
       "type": "string",
       "maxLength": 2048,
       "pattern": "^([A-Za-z0-9_*][A-Za-z0-9_.*-]*(,[A-Za-z0-9_*][A-Za-z0-9_.*-]*)*)?$"
-    },
-    "AuditInventory": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["implementation", "itemWorkflowRole"],
-      "properties": {
-        "implementation": {
-          "type": "string",
-          "enum": [
-            "checklist@1",
-            "openapi-operations@1",
-            "openapi-scans@1",
-            "web-scans@1",
-            "finding-candidates@1",
-            "standard-mappings@1"
-          ]
-        },
-        "source": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditInventoryArtifact"
-        },
-        "settings": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditInventoryArtifact"
-        },
-        "itemWorkflowRole": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArtifactName"
-        },
-        "standardSelection": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditStandardSelection"
-        }
-      },
-      "oneOf": [
-        {
-          "properties": {
-            "implementation": {
-              "type": "string",
-              "const": "standard-mappings@1"
-            }
-          },
-          "not": {
-            "anyOf": [{ "required": ["source"] }, { "required": ["settings"] }]
-          }
-        },
-        {
-          "properties": {
-            "implementation": {
-              "type": "string",
-              "enum": ["openapi-scans@1", "web-scans@1"]
-            }
-          },
-          "required": ["source", "settings"],
-          "not": { "required": ["standardSelection"] }
-        },
-        {
-          "properties": {
-            "implementation": {
-              "type": "string",
-              "enum": [
-                "checklist@1",
-                "openapi-operations@1",
-                "finding-candidates@1"
-              ]
-            }
-          },
-          "required": ["source"],
-          "not": {
-            "anyOf": [
-              { "required": ["settings"] },
-              { "required": ["standardSelection"] }
-            ]
-          }
-        }
-      ]
-    },
-    "AuditInventoryArtifact": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["source", "name"],
-      "properties": {
-        "source": {
-          "type": "string",
-          "enum": ["audit-input", "prepare-output"]
-        },
-        "name": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArtifactName"
-        },
-        "role": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArtifactName"
-        }
-      },
-      "oneOf": [
-        {
-          "properties": {
-            "source": { "type": "string", "const": "audit-input" }
-          },
-          "not": { "required": ["role"] }
-        },
-        {
-          "properties": {
-            "source": { "type": "string", "const": "prepare-output" }
-          },
-          "required": ["role"]
-        }
-      ]
-    },
-    "AuditStandardSelection": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["scope", "levels", "entryIds"],
-      "properties": {
-        "scope": { "type": "string", "minLength": 1, "maxLength": 512 },
-        "levels": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 16,
-          "uniqueItems": true,
-          "items": { "type": "string", "minLength": 1, "maxLength": 128 }
-        },
-        "entryIds": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 4096,
-          "uniqueItems": true,
-          "items": { "type": "string", "minLength": 1, "maxLength": 128 }
-        }
-      }
-    },
-    "AuditWorkflowInputMapping": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["source"],
-      "properties": {
-        "source": {
-          "type": "string",
-          "enum": [
-            "audit-input",
-            "item-package",
-            "execution-manifest",
-            "retained-output",
-            "prepare-output",
-            "round-results",
-            "retained-dependency"
-          ]
-        },
-        "name": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArtifactName"
-        },
-        "role": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArtifactName"
-        }
-      },
-      "oneOf": [
-        {
-          "properties": {
-            "source": {
-              "type": "string",
-              "enum": ["audit-input", "retained-dependency"]
-            }
-          },
-          "required": ["name"],
-          "not": { "required": ["role"] }
-        },
-        {
-          "properties": {
-            "source": {
-              "type": "string",
-              "enum": ["item-package", "execution-manifest", "round-results"]
-            }
-          },
-          "not": {
-            "anyOf": [{ "required": ["name"] }, { "required": ["role"] }]
-          }
-        },
-        {
-          "properties": {
-            "source": {
-              "type": "string",
-              "enum": ["retained-output", "prepare-output"]
-            }
-          },
-          "required": ["name", "role"]
-        }
-      ]
-    },
-    "AuditWorkflowParameterMapping": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["source"],
-      "properties": {
-        "source": {
-          "type": "string",
-          "enum": ["literal", "item-field", "scope-field"]
-        },
-        "name": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArtifactName"
-        },
-        "value": { "type": "string", "maxLength": 4096 }
-      }
-    },
-    "AuditCheckCapabilityRequirement": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["stage", "agent", "ref", "tools"],
-      "properties": {
-        "stage": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ConfigId"
-        },
-        "agent": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ConfigId"
-        },
-        "ref": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["toolsetId", "version"],
-          "properties": {
-            "toolsetId": {
-              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ConfigId"
-            },
-            "version": {
-              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ConfigVersion"
-            }
-          }
-        },
-        "tools": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 128,
-          "uniqueItems": true,
-          "items": { "type": "string", "minLength": 1 }
-        }
-      }
-    },
-    "AuditCheckMethodMapping": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "planSchema",
-        "method",
-        "workflowRole",
-        "requiredCapabilities"
-      ],
-      "properties": {
-        "planSchema": {
-          "type": "string",
-          "const": "contractor.audit.finding-check-plan.v1"
-        },
-        "method": {
-          "type": "string",
-          "enum": [
-            "verify",
-            "replay",
-            "applicability",
-            "alternative",
-            "static-trace",
-            "http-probe"
-          ]
-        },
-        "workflowRole": { "type": "string", "minLength": 1, "maxLength": 128 },
-        "requiredCapabilities": {
-          "type": "array",
-          "maxItems": 32,
-          "uniqueItems": true,
-          "items": {
-            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCheckCapabilityRequirement"
-          }
-        }
-      }
-    },
-    "AuditProfileWorkflow": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["kind", "workflow", "inputs", "parameters", "outputs"],
-      "properties": {
-        "kind": {
-          "type": "string",
-          "enum": ["prepare", "check", "discovery", "assessment"]
-        },
-        "maxRunAttempts": { "type": "integer", "minimum": 1, "maximum": 10 },
-        "workflow": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/WorkflowRef"
-        },
-        "inputs": {
-          "type": "object",
-          "maxProperties": 128,
-          "additionalProperties": {
-            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditWorkflowInputMapping"
-          }
-        },
-        "parameters": {
-          "type": "object",
-          "maxProperties": 128,
-          "additionalProperties": {
-            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditWorkflowParameterMapping"
-          }
-        },
-        "outputs": {
-          "type": "object",
-          "minProperties": 1,
-          "maxProperties": 128,
-          "additionalProperties": {
-            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArtifactName"
-          }
-        }
-      },
-      "oneOf": [
-        {
-          "properties": { "kind": { "type": "string", "const": "prepare" } },
-          "required": ["maxRunAttempts"]
-        },
-        {
-          "properties": {
-            "kind": {
-              "type": "string",
-              "enum": ["check", "discovery", "assessment"]
-            }
-          },
-          "not": { "required": ["maxRunAttempts"] }
-        }
-      ]
-    },
-    "AuditExecutionPolicy": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "roundMode",
-        "maxRounds",
-        "batchSize",
-        "maxItemsPerRound",
-        "maxItemsTotal",
-        "maxSubmittedRuns",
-        "maxItemRunAttempts",
-        "deadlineSeconds",
-        "maxEvidenceBytes",
-        "incompleteRound"
-      ],
-      "properties": {
-        "roundMode": { "type": "string", "const": "fixed-barrier" },
-        "maxRounds": { "type": "integer", "minimum": 1, "maximum": 32 },
-        "batchSize": { "type": "integer", "minimum": 1, "maximum": 64 },
-        "maxItemsPerRound": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 10000
-        },
-        "maxItemsTotal": { "type": "integer", "minimum": 1, "maximum": 100000 },
-        "maxSubmittedRuns": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 1000000
-        },
-        "maxItemRunAttempts": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 10
-        },
-        "deadlineSeconds": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 31536000
-        },
-        "maxEvidenceBytes": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 1073741824
-        },
-        "incompleteRound": {
-          "type": "string",
-          "enum": ["assess-with-gaps", "fail"]
-        }
-      }
     },
     "AuditCompatibilityReason": {
       "type": "string",
@@ -6097,35 +5701,6 @@
         "sourceSize": { "type": "integer", "minimum": 1, "maximum": 16777216 }
       }
     },
-    "AuditBaselineInventory": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "sourceContentDigest",
-        "canonicalInventoryDigest",
-        "gaps",
-        "worklist"
-      ],
-      "properties": {
-        "sourceContentDigest": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Digest"
-        },
-        "canonicalInventoryDigest": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Digest"
-        },
-        "standardSelection": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditStandardSelection"
-        },
-        "gaps": {
-          "type": "array",
-          "maxItems": 1024,
-          "items": { "type": "string", "minLength": 1, "maxLength": 512 }
-        },
-        "worklist": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExactArtifact"
-        }
-      }
-    },
     "AuditBaseline": {
       "type": "object",
       "additionalProperties": false,
@@ -6185,155 +5760,6 @@
         },
         "projectHttpTarget": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ProjectHTTPTarget"
-        },
-        "inventory": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditBaselineInventory"
-        }
-      }
-    },
-    "AuditGeneratedInventory": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "snapshot",
-        "sources",
-        "sourceContentDigest",
-        "canonicalInventoryDigest",
-        "worklist",
-        "itemCount",
-        "gaps"
-      ],
-      "properties": {
-        "snapshot": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExactArtifact"
-        },
-        "sources": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["source"],
-          "properties": {
-            "source": {
-              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExactArtifact"
-            },
-            "settings": {
-              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExactArtifact"
-            }
-          }
-        },
-        "sourceContentDigest": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Digest"
-        },
-        "canonicalInventoryDigest": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Digest"
-        },
-        "worklist": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExactArtifact"
-        },
-        "itemCount": { "type": "integer", "minimum": 1, "maximum": 10000 },
-        "gaps": {
-          "type": "array",
-          "maxItems": 1024,
-          "items": { "type": "string", "maxLength": 512 }
-        }
-      }
-    },
-    "AuditPhase": {
-      "type": "string",
-      "enum": ["not-started", "preparing", "inventory", "rounds"]
-    },
-    "AuditPreparationOutput": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["artifact", "executionId", "runId", "workflowOutput"],
-      "properties": {
-        "artifact": {
-          "allOf": [
-            {
-              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExactArtifact"
-            },
-            { "required": ["mediaType", "sizeBytes"] }
-          ]
-        },
-        "executionId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "runId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "workflowOutput": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArtifactName"
-        }
-      }
-    },
-    "AuditPreparationRole": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["status", "attempts", "maxAttempts", "outputs"],
-      "properties": {
-        "status": {
-          "type": "string",
-          "enum": ["pending", "running", "accepted", "failed"]
-        },
-        "attempts": { "type": "integer", "minimum": 0, "maximum": 10 },
-        "maxAttempts": { "type": "integer", "minimum": 1, "maximum": 10 },
-        "executionId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "runId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "outputs": {
-          "type": "object",
-          "maxProperties": 128,
-          "additionalProperties": {
-            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditPreparationOutput"
-          }
-        }
-      },
-      "oneOf": [
-        {
-          "properties": {
-            "status": { "type": "string", "const": "pending" },
-            "attempts": { "type": "integer", "const": 0 },
-            "outputs": { "maxProperties": 0 }
-          },
-          "not": {
-            "anyOf": [
-              { "required": ["executionId"] },
-              { "required": ["runId"] }
-            ]
-          }
-        },
-        {
-          "properties": {
-            "status": { "type": "string", "enum": ["running", "failed"] },
-            "attempts": { "minimum": 1 },
-            "outputs": { "maxProperties": 0 }
-          },
-          "required": ["executionId"]
-        },
-        {
-          "properties": {
-            "status": { "type": "string", "const": "accepted" },
-            "attempts": { "minimum": 1 },
-            "outputs": { "minProperties": 1 }
-          },
-          "required": ["executionId", "runId"]
-        }
-      ]
-    },
-    "AuditPreparation": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["roles"],
-      "properties": {
-        "roles": {
-          "type": "object",
-          "minProperties": 1,
-          "maxProperties": 16,
-          "additionalProperties": {
-            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditPreparationRole"
-          }
         }
       }
     },
@@ -6506,9 +5932,6 @@
         "state": { "type": "string", "maxLength": 32 },
         "from": { "type": "string", "maxLength": 32 },
         "to": { "type": "string", "maxLength": 32 },
-        "role": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExecutionRole"
-        },
         "outcome": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditTerminalOutcome"
         },
@@ -6534,15 +5957,11 @@
         "findingId": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
         },
-        "workflowRole": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "round": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
-        "items": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
         "members": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
         "count": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
         "createdCount": { "type": "integer", "minimum": 0, "maximum": 128 },
         "workCount": { "type": "integer", "minimum": 0, "maximum": 256 },
+        "iteration": { "type": "integer", "minimum": 1, "maximum": 32 },
         "taskCount": { "type": "integer", "minimum": 0, "maximum": 64 },
         "workflow": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCommonKey"
@@ -6614,44 +6033,6 @@
         "page": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PageInfo"
         }
-      }
-    },
-    "AuditRoundState": {
-      "type": "string",
-      "enum": ["proposed", "accepted", "executing", "assessing", "closed"]
-    },
-    "AuditRound": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "roundId",
-        "ordinal",
-        "manifest",
-        "state",
-        "expectedItemCount",
-        "revision",
-        "createdAt",
-        "updatedAt"
-      ],
-      "properties": {
-        "roundId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "ordinal": { "type": "integer", "minimum": 1, "maximum": 32 },
-        "manifest": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExactArtifact"
-        },
-        "state": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditRoundState"
-        },
-        "expectedItemCount": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 10000
-        },
-        "revision": { "type": "integer", "minimum": 1 },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
       }
     },
     "AuditCommonKey": {
@@ -7051,26 +6432,6 @@
         }
       }
     },
-    "AuditItemState": {
-      "type": "string",
-      "enum": ["pending", "ready", "submitted", "collecting", "settled"]
-    },
-    "AuditFinalDisposition": {
-      "type": "string",
-      "enum": [
-        "accepted-result",
-        "missing-output",
-        "invalid-result",
-        "execution-failed",
-        "execution-cancelled",
-        "excluded",
-        "not-applicable"
-      ]
-    },
-    "AuditExecutionRole": {
-      "type": "string",
-      "enum": ["prepare", "discovery", "check", "assessment"]
-    },
     "AuditExecutionItemState": {
       "type": "string",
       "enum": ["submitted", "collecting", "settled"]
@@ -7133,270 +6494,11 @@
         }
       }
     },
-    "AuditItemAttempt": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "executionItemId",
-        "executionId",
-        "itemId",
-        "itemAttempt",
-        "role",
-        "state",
-        "runDeleted",
-        "createdAt"
-      ],
-      "properties": {
-        "executionItemId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "executionId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "itemId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "itemAttempt": { "type": "integer", "minimum": 1, "maximum": 10 },
-        "role": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExecutionRole"
-        },
-        "state": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExecutionItemState"
-        },
-        "collectionDisposition": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCollectionDisposition"
-        },
-        "result": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExactArtifact"
-        },
-        "terminalOutcome": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditTerminalOutcome"
-        },
-        "runId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "runDeleted": { "type": "boolean" },
-        "runProvenance": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditRunProvenance"
-        },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "collectedAt": { "type": "string", "format": "date-time" }
-      }
-    },
-    "AuditItemOrigin": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "schema",
-        "sourceRef",
-        "sourceContentDigest",
-        "sourceMediaType",
-        "canonicalInventoryDigest",
-        "entryKey"
-      ],
-      "properties": {
-        "schema": {
-          "type": "string",
-          "const": "contractor.audit.item-origin.v1"
-        },
-        "sourceRef": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArtifactRef"
-        },
-        "sourceContentDigest": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Digest"
-        },
-        "sourceMediaType": {
-          "type": "string",
-          "minLength": 3,
-          "maxLength": 255,
-          "pattern": "^[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*$"
-        },
-        "canonicalInventoryDigest": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Digest"
-        },
-        "entryKey": { "type": "string", "minLength": 1, "maxLength": 256 },
-        "entryVersion": { "type": "string", "minLength": 1, "maxLength": 256 },
-        "standard": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditStandardItemOrigin"
-        }
-      }
-    },
-    "AuditStandardEvidenceOrigin": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["id", "version"],
-      "properties": {
-        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
-        "version": { "type": "string", "minLength": 1, "maxLength": 128 }
-      }
-    },
-    "AuditStandardItemOrigin": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "scheme",
-        "version",
-        "mappingKey",
-        "entryIds",
-        "evidenceContract"
-      ],
-      "properties": {
-        "scheme": { "type": "string", "minLength": 1, "maxLength": 128 },
-        "version": { "type": "string", "minLength": 1, "maxLength": 128 },
-        "mappingKey": { "type": "string", "minLength": 1, "maxLength": 128 },
-        "entryIds": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 64,
-          "uniqueItems": true,
-          "items": { "type": "string", "minLength": 1, "maxLength": 128 }
-        },
-        "evidenceContract": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditStandardEvidenceOrigin"
-        }
-      }
-    },
     "AuditArtifactKey": {
       "type": "string",
       "minLength": 1,
       "maxLength": 512,
       "x-max-utf8-bytes": 512
-    },
-    "AuditSubjectKey": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 512,
-      "x-max-utf8-bytes": 512
-    },
-    "AuditItem": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "itemId",
-        "roundId",
-        "itemKey",
-        "ordinal",
-        "kind",
-        "subjectKey",
-        "task",
-        "origin",
-        "workflowRole",
-        "state",
-        "attempts",
-        "createdAt",
-        "updatedAt",
-        "findingIds"
-      ],
-      "properties": {
-        "itemId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "roundId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "itemKey": { "type": "string", "minLength": 1, "maxLength": 256 },
-        "ordinal": { "type": "integer", "minimum": 0, "maximum": 9999 },
-        "kind": { "type": "string", "minLength": 1, "maxLength": 128 },
-        "subjectKey": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditSubjectKey"
-        },
-        "task": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExactArtifact"
-        },
-        "origin": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditItemOrigin"
-        },
-        "workflowRole": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArtifactName"
-        },
-        "state": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditItemState"
-        },
-        "finalDisposition": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditFinalDisposition"
-        },
-        "acceptedResult": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExactArtifact"
-        },
-        "lastExecutionItemId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "attempts": {
-          "type": "array",
-          "maxItems": 10,
-          "items": {
-            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditItemAttempt"
-          }
-        },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" },
-        "findingIds": {
-          "type": "array",
-          "maxItems": 130,
-          "uniqueItems": true,
-          "items": {
-            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-          }
-        }
-      }
-    },
-    "AuditItemPage": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["items", "page"],
-      "properties": {
-        "items": {
-          "type": "array",
-          "maxItems": 200,
-          "items": {
-            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditItem"
-          }
-        },
-        "page": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PageInfo"
-        }
-      }
-    },
-    "AuditCoverageStatus": {
-      "type": "string",
-      "enum": [
-        "not-tested",
-        "inconclusive",
-        "satisfied",
-        "violated",
-        "not-applicable",
-        "blocked",
-        "excluded",
-        "traced-complete",
-        "traced-partial",
-        "unmapped"
-      ]
-    },
-    "AuditCoverage": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["status", "requested", "completed", "gaps"],
-      "properties": {
-        "status": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCoverageStatus"
-        },
-        "requested": {
-          "type": "array",
-          "maxItems": 1024,
-          "items": { "type": "string", "maxLength": 512 }
-        },
-        "completed": {
-          "type": "array",
-          "maxItems": 1024,
-          "items": { "type": "string", "maxLength": 512 }
-        },
-        "gaps": {
-          "type": "array",
-          "maxItems": 1024,
-          "items": { "type": "string", "maxLength": 512 }
-        },
-        "rationale": { "type": "string", "maxLength": 4096 }
-      }
     },
     "AuditScanProvenance": {
       "type": "object",
@@ -7439,116 +6541,6 @@
           "maxItems": 1024,
           "items": { "type": "string", "maxLength": 512 }
         }
-      }
-    },
-    "AuditCoverageDetails": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["objective", "methods", "taskDocument", "evidence"],
-      "properties": {
-        "scan": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditScanProvenance"
-        },
-        "objective": { "type": "string" },
-        "methods": { "type": "array", "items": { "type": "string" } },
-        "taskDocument": { "type": "object", "additionalProperties": true },
-        "resultSummary": { "type": "string" },
-        "evidence": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["id", "kind", "summary"],
-            "properties": {
-              "id": { "type": "string" },
-              "kind": { "type": "string" },
-              "summary": { "type": "string" },
-              "contentMemberId": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 128
-              },
-              "observedAt": { "type": "string", "format": "date-time" },
-              "deploymentMarker": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 256
-              },
-              "httpRequestId": {
-                "type": "string",
-                "pattern": "^[1-9][0-9]{0,15}$"
-              },
-              "httpRequestTag": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 160
-              }
-            }
-          }
-        }
-      }
-    },
-    "AuditCoverageRow": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "roundId",
-        "itemId",
-        "ordinal",
-        "itemKey",
-        "subjectKey",
-        "coverage",
-        "updatedAt",
-        "findingIds"
-      ],
-      "properties": {
-        "roundId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "itemId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "ordinal": { "type": "integer", "minimum": 0, "maximum": 9999 },
-        "itemKey": { "type": "string", "minLength": 1, "maxLength": 256 },
-        "subjectKey": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditSubjectKey"
-        },
-        "coverage": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCoverage"
-        },
-        "details": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCoverageDetails"
-        },
-        "result": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExactArtifact"
-        },
-        "updatedAt": { "type": "string", "format": "date-time" },
-        "findingIds": {
-          "type": "array",
-          "maxItems": 130,
-          "uniqueItems": true,
-          "items": {
-            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-          }
-        }
-      }
-    },
-    "AuditCoveragePage": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["items", "page", "auditRevision"],
-      "properties": {
-        "items": {
-          "type": "array",
-          "maxItems": 200,
-          "items": {
-            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCoverageRow"
-          }
-        },
-        "page": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PageInfo"
-        },
-        "auditRevision": { "type": "integer", "minimum": 1 }
       }
     },
     "AuditReportSummaryArtifact": {
@@ -8584,13 +7576,13 @@
         "auditId",
         "auditRevision",
         "asOf",
+        "iteration",
         "executionState",
         "outstandingRuns",
-        "totalChecks",
-        "completedChecks",
-        "issues",
+        "totalTasks",
+        "completedTasks",
         "gaps",
-        "unchecked",
+        "pendingTasks",
         "findings",
         "unreviewedFindings"
       ],
@@ -8600,18 +7592,15 @@
         },
         "auditRevision": { "type": "integer", "minimum": 1 },
         "asOf": { "type": "string", "format": "date-time" },
-        "roundId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
+        "iteration": { "type": "integer", "minimum": 1, "maximum": 32 },
         "executionState": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditState"
         },
         "outstandingRuns": { "type": "integer", "minimum": 0 },
-        "totalChecks": { "type": "integer", "minimum": 0 },
-        "completedChecks": { "type": "integer", "minimum": 0 },
-        "issues": { "type": "integer", "minimum": 0 },
+        "totalTasks": { "type": "integer", "minimum": 0 },
+        "completedTasks": { "type": "integer", "minimum": 0 },
         "gaps": { "type": "integer", "minimum": 0 },
-        "unchecked": { "type": "integer", "minimum": 0 },
+        "pendingTasks": { "type": "integer", "minimum": 0 },
         "findings": { "type": "integer", "minimum": 0 },
         "unreviewedFindings": { "type": "integer", "minimum": 0 }
       }

@@ -8,8 +8,8 @@ import (
 
 func TestEventSummaryPublicProjection(t *testing.T) {
 	result := safeEventSummary(json.RawMessage(`{
- "from":"paused","to":"active","round":2,"items":50,"reviews":3,"members":4,"count":5,
- "role":"check","workflowRole":"check","outcome":"failed","disposition":"missing-output",
+ "from":"paused","to":"active","iteration":2,"taskCount":50,"reviews":3,"members":4,"count":5,
+ "role":"check","workflow":"check","outcome":"failed","disposition":"missing-output",
  "subjectKind":"audit-item-action","subjectId":"item-1","findingId":"finding-1","runId":"run-1",
  "kind":"active-check-approval","action":"approve","verdict":"needs_evidence",
  "message":"secret","rationale":"private","requestDigest":"digest",
@@ -20,7 +20,7 @@ func TestEventSummaryPublicProjection(t *testing.T) {
 			t.Fatalf("unsafe summary member %q exposed", key)
 		}
 	}
-	if len(result) != 14 || result["items"] != int64(50) {
+	if len(result) != 13 || result["taskCount"] != int64(50) {
 		t.Fatalf("structured summary = %#v", result)
 	}
 	for _, raw := range []string{`null`, `{`, `[]`, `{"items":-1,"count":2147483648,"runId":"https://secret","kind":"unknown","to":"arbitrary text","action":"execute","verdict":"unsupported","role":"unknown"}`} {

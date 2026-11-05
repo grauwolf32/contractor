@@ -26,7 +26,6 @@ type auditProgramAudit struct {
 	ProjectID         string `json:"projectId"`
 	State             string `json:"state"`
 	Revision          uint64 `json:"revision"`
-	CurrentRoundID    string `json:"currentRoundId,omitempty"`
 	SubmittedRunCount int    `json:"submittedRunCount"`
 	OutstandingRuns   int    `json:"outstandingRunCount"`
 	Baseline          *struct {
@@ -50,13 +49,6 @@ type auditProgramAudit struct {
 			Catalog  auditProgramExactPackage `json:"catalog"`
 			Retained auditProgramExactPackage `json:"retained"`
 		} `json:"standards"`
-		Inventory struct {
-			StandardSelection *struct {
-				Scope    string   `json:"scope"`
-				Levels   []string `json:"levels"`
-				EntryIDs []string `json:"entryIds"`
-			} `json:"standardSelection,omitempty"`
-		} `json:"inventory"`
 	} `json:"baseline,omitempty"`
 }
 

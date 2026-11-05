@@ -30,7 +30,7 @@ func TestSharedPostgresCommonTaskSelectionReservesOneStableAttempt(t *testing.T)
 	if err != nil || !created {
 		t.Fatalf("select: %+v %v %v", execution, created, err)
 	}
-	if execution.Role != auditstore.ExecutionTask || execution.RoundID != nil || execution.Manifest.Ref.Revision != nil || execution.RunID != nil || execution.State != auditstore.ExecutionIntent {
+	if execution.RunID != nil || execution.State != auditstore.ExecutionIntent {
 		t.Fatalf("execution contains old authoring authority: %+v", execution)
 	}
 	replay, created, err := claims.SelectTasks(ctx, params)

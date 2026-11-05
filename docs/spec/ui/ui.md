@@ -961,20 +961,22 @@ and links back to the Audit; an Audit does not create a second Runtime queue.
 with the exact ID and a copy action.
 
 **UI-R143.** `GET /v1/audits/{auditId}/workspace` returns one owner-scoped SQL
-snapshot (`auditRevision`, `asOf`): current-round completed and total checks,
-issues, gaps and unchecked work, plus whole-Audit unassessed Findings. It carries
-no pending approval count.
+snapshot (`auditRevision`, `asOf`): current iteration, whole-Audit `totalTasks`,
+`completedTasks`, `gaps`, `pendingTasks`, and separate `findings` and
+`unreviewedFindings`. It carries no Round, issue bucket or approval count.
 
-**UI-R144.** Completed, gaps and unchecked partition the current round by the
-coverage buckets used by retained results (REV-R193). Issues are its violated
-part; excluded or incomplete work remains a gap. No count implies an analyst
-assessment or a successful security evaluation.
+**UI-R144.** Completed Tasks (settled without a technical gap), gaps (settled
+with a gap), and pending Tasks (ready or selected) partition all accepted Tasks.
+The aggregate is bounded by the Audit's Task ceiling. A completed Task can
+retain inconclusive or refuted conclusions; technical progress does not imply
+an analyst assessment, a vulnerability or a successful security evaluation.
 
-**UI-R145.** Audit Overview begins with current-round progress, retained results
-and optional Project Finding annotation links.
+**UI-R145.** Audit Overview begins with Task progress, retained results and
+optional Project Finding annotation links.
 
-**UI-R146.** Overview counts link to the same result groups used by Coverage
-and to the corresponding canonical Finding filters.
+**UI-R146.** Overview progress links to common Tasks, and Finding counts to
+the corresponding canonical Finding filters. Task and Finding totals are not
+added together.
 
 **UI-R147.** Unavailable counts remain unknown; refresh errors identify
 retained snapshot counts (FAIL-UI-6).

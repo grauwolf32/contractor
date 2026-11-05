@@ -1066,7 +1066,7 @@ func TestSharedPostgresPinnedSelectionsRejectBeforeOrdinaryEffects(t *testing.T)
 				for n := 0; n < 3; n++ {
 					tick(t, c)
 				}
-				if count(t, h.pool, "workflow_runs") != 0 || count(t, h.pool, "audit_items") != 0 {
+				if count(t, h.pool, "workflow_runs") != 0 || count(t, h.pool, "audit_tasks") != 0 {
 					t.Fatal("pin guard admitted ordinary execution effects")
 				}
 				var rejected int
