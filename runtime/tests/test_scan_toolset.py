@@ -16,6 +16,7 @@ from types import SimpleNamespace
 from urllib.parse import urlsplit
 
 import pytest
+from fakes.clock import advance_clock, run_with_advanceable_clock
 from fakes.process_markers import atomic_marker_source
 from fakes.worker_runtime import StubADKWorkerRuntimeFactory
 from fakes.worker_state import WorkerState
@@ -48,7 +49,9 @@ def executable(tmp_path: Path, name: str, source: str) -> Path:
 
 
 @pytest.mark.parametrize("available_scanner", scan.SCANNERS, ids=lambda scanner: scanner.name)
-def test_capabilities_check_each_binary_independently(tmp_path, monkeypatch, available_scanner):
+def test_capabilities_check_each_binary_independently(
+    tmp_path, monkeypatch, scanner_probe_budget, available_scanner
+):
     failures = iter(["exit 5", "exit 2", "exit 3", "exit 4"])
     for scanner in scan.SCANNERS:
         # These probes test scanner independence, not Python interpreter startup time.
@@ -61,7 +64,6 @@ def test_capabilities_check_each_binary_independently(tmp_path, monkeypatch, ava
         path.write_text(f"#!/bin/sh\n{source}\n")
         path.chmod(0o700)
     monkeypatch.setenv("PATH", str(tmp_path))
-    # Fresh script launch on macOS can exceed 200 ms; keep the production probe budget.
 
     async def scenario():
         factory = scan.ScanToolsetFactory()
@@ -100,13 +102,15 @@ def test_capabilities_check_each_binary_independently(tmp_path, monkeypatch, ava
     asyncio.run(scenario())
 
 
-def test_hung_scanner_probe_does_not_hide_a_healthy_binary(tmp_path, monkeypatch):
-    # One real timeout retains process cleanup coverage. The identity matrix
-    # above exercises every selected scanner with immediately failing siblings.
+def test_hung_scanner_probe_does_not_hide_a_healthy_binary(
+    tmp_path, monkeypatch, scanner_probe_budget
+):
+    # Both children must start before the test expires the hung child's timer.
     marker = tmp_path / "hung.pid"
     hanging = tmp_path / "nuclei"
     hanging.write_text(
-        f"#!/bin/sh\nprintf '%s' $$ > {shlex.quote(str(marker))}\nexec /bin/sleep 60\n"
+        f"#!/bin/sh\nprintf '%s' $$ > {shlex.quote(str(marker))}\n"
+        "printf 'hung-ready\\n'\nexec /bin/sleep 120\n"
     )
     hanging.chmod(0o700)
     healthy = tmp_path / "katana"
@@ -115,12 +119,38 @@ def test_hung_scanner_probe_does_not_hide_a_healthy_binary(tmp_path, monkeypatch
     monkeypatch.setenv("PATH", str(tmp_path))
 
     async def scenario():
+        ready, healthy_finished = asyncio.Event(), asyncio.Event()
+        original_read = asyncio.StreamReader.read
+        original_run = scan.run_process
+
+        async def observed_read(self, n=-1):
+            data = await original_read(self, n)
+            if b"hung-ready" in data:
+                ready.set()
+            return data
+
+        async def observed_run(command, *args):
+            result = await original_run(command, *args)
+            if Path(command[0]).name == "katana":
+                healthy_finished.set()
+            return result
+
+        monkeypatch.setattr(asyncio.StreamReader, "read", observed_read)
+        monkeypatch.setattr(scan, "run_process", observed_run)
         factory = scan.ScanToolsetFactory()
-        assert await factory.probe() == frozenset({"scan_katana"})
+        running = asyncio.create_task(factory.probe())
+        try:
+            await asyncio.wait_for(asyncio.gather(ready.wait(), healthy_finished.wait()), 30)
+            assert not running.done()
+            advance_clock(scanner_probe_budget)
+            assert await asyncio.wait_for(running, 30) == frozenset({"scan_katana"})
+        finally:
+            running.cancel()
+            await asyncio.gather(running, return_exceptions=True)
         with pytest.raises(ProcessLookupError):
             os.kill(int(marker.read_text()), 0)
 
-    asyncio.run(scenario())
+    run_with_advanceable_clock(scenario())
 
 
 async def make_tools(tmp_path, *, selected=None, proxy=False, scanners=scan.SCANNERS):

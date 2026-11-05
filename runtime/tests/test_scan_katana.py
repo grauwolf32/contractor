@@ -351,9 +351,10 @@ def test_publication_failure_preserves_primary_process_error(tmp_path, monkeypat
     ],
 )
 def test_binary_version_probe_only_disables_unsupported_katana(
-    tmp_path, monkeypatch, version, exit_code, accepted, stream
+    tmp_path, monkeypatch, scanner_probe_budget, version, exit_code, accepted, stream
 ):
-    # Fixed-output probes exercise version acceptance, not interpreter startup.
+    # Compatibility is independent of host scheduling; the hung-probe test
+    # expires the same real subprocess path explicitly after child readiness.
     for binary, command in {
         "katana": (
             f"printf '%s\\n' 'Current version: v{version}' >&"

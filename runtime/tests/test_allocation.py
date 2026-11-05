@@ -20,6 +20,7 @@ from fakes.private_codec import encode_private
 from fakes.spec import allocation_spec, runtime_provenance
 from fakes.worker_runtime import StubADKWorkerRuntimeFactory, StubWorkerRuntime
 from google.adk.tools import FunctionTool
+from target_policy_fixtures import SCAN_TEST_POLICY
 from test_adk_runtime import CapturingScriptedLlm, FakeArtifactClient
 from test_adk_runtime import stage_request as adk_stage_request
 from test_http_caido_process_e2e import MockCaidoAdapterFactory, MockHTTPProxyAdapterFactory
@@ -61,6 +62,7 @@ from contractor_runtime.contracts import (
     WorkerSessionMode,
     decode_private,
 )
+from contractor_runtime.core import target_policy as target_policy_module
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.digests import (
     _agent_template_digest,
@@ -1963,6 +1965,11 @@ def test_release_retains_no_adapter_secret_or_session_credential(
     """HTTP, Caido and Interactsh tools leave no secret reachable after release."""
 
     monkeypatch.setattr(worker_state_module, "MetricsState", TrackedMetricsState)
+
+    async def forbidden_dns(*_args):
+        pytest.fail("mock adapter allocation must not use host DNS")
+
+    monkeypatch.setattr(target_policy_module, "system_resolver", forbidden_dns)
     marker = uuid.uuid4().hex
     http_paths: list[str] = []
     caido_operations: list[str] = []
@@ -2012,6 +2019,7 @@ def test_release_retains_no_adapter_secret_or_session_credential(
             artifact_client_factory=lambda *_: artifacts,
             model_factory=model,
             enabled_runtime_adapters=[],
+            target_policy=SCAN_TEST_POLICY,
         )
         proxy = MockHTTPProxyAdapterFactory(target)
         caido_adapter = MockCaidoAdapterFactory(caido)

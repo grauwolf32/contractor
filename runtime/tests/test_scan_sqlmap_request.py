@@ -7,6 +7,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
+from fakes.clock import advance_clock, run_with_advanceable_clock
 from fakes.worker_state import WorkerState
 from target_policy_fixtures import SCAN_TEST_POLICY
 from test_scan_http_request import request_document
@@ -283,13 +284,25 @@ def test_stopping_prepared_request_cleans_files_processes_and_metrics(
     async def scenario():
         transport = RequestTransport(block=phase == "artifact-read")
         tool, state = await make_sqlmap(tmp_path, transport)
-        task = asyncio.create_task(
-            tool(request_ref=REQUEST_REF, timeout_seconds=1 if stop == "timeout" else 30)
-        )
+        output_read = asyncio.Event()
+        original_read = asyncio.StreamReader.read
+
+        async def observed_read(self, n=-1):
+            data = await original_read(self, n)
+            if b"body-canary" in data:
+                output_read.set()
+            return data
+
+        monkeypatch.setattr(asyncio.StreamReader, "read", observed_read)
+        # A one-second deadline can expire before the Python fixture starts.
+        # Expire a generous test-owned deadline only in the established phase.
+        scan_budget = 60
+        task = asyncio.create_task(tool(request_ref=REQUEST_REF, timeout_seconds=scan_budget))
         try:
-            async with asyncio.timeout(3):
+            async with asyncio.timeout(30):
                 await transport.started.wait()
                 if phase == "scanner":
+                    await output_read.wait()
                     while not marker.exists():
                         await asyncio.sleep(0.01)
                     process = json.loads(marker.read_text())
@@ -298,7 +311,9 @@ def test_stopping_prepared_request_cleans_files_processes_and_metrics(
                     assert not list((tmp_path / "workspace").rglob("request.http"))
 
             if stop == "timeout":
-                result = await asyncio.wait_for(task, 3)
+                assert not task.done()
+                advance_clock(scan_budget)
+                result = await asyncio.wait_for(task, 30)
                 assert result["status"] == "failed"
                 assert result["errorCode"] == "scan_timeout"
                 assert result["requestArtifact"] == REQUEST_REF
@@ -309,9 +324,9 @@ def test_stopping_prepared_request_cleans_files_processes_and_metrics(
                 if stop == "cancel":
                     task.cancel()
                 else:
-                    await asyncio.wait_for(tool.close(), 3)
+                    await asyncio.wait_for(tool.close(), 30)
                 with pytest.raises(asyncio.CancelledError):
-                    await asyncio.wait_for(task, 3)
+                    await asyncio.wait_for(task, 30)
 
             if phase == "artifact-read":
                 assert transport.cancelled.is_set()
@@ -321,7 +336,7 @@ def test_stopping_prepared_request_cleans_files_processes_and_metrics(
                 assert not Path(f"/proc/{process['parent']}").exists()
                 child = Path(f"/proc/{process['child']}/stat")
                 # A killed orphan may remain a zombie until the host's init reaps it.
-                async with asyncio.timeout(3):
+                async with asyncio.timeout(30):
                     while child.exists() and child.read_text().split()[2] != "Z":
                         await asyncio.sleep(0.01)
             assert_failed_call_is_private(state, tmp_path)
@@ -330,4 +345,4 @@ def test_stopping_prepared_request_cleans_files_processes_and_metrics(
             await asyncio.gather(task, return_exceptions=True)
             await tool.close()
 
-    asyncio.run(scenario())
+    run_with_advanceable_clock(scenario())

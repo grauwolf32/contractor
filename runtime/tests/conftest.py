@@ -74,6 +74,16 @@ def ignore_pinned_dependency_runtime_warnings() -> Iterator[None]:
 
 
 @pytest.fixture
+def scanner_probe_budget(monkeypatch: pytest.MonkeyPatch) -> float:
+    """Give real fixture binaries time to start; deadline tests advance the clock."""
+    import contractor_runtime.toolsets.scan.tools as scan
+
+    seconds = 60.0
+    monkeypatch.setattr(scan, "PROBE_TIMEOUT_SECONDS", seconds)
+    return seconds
+
+
+@pytest.fixture
 def runtime_capabilities(tmp_path: Path) -> CapabilitySnapshot:
     """Full declared inventory for tests that are not exercising probes."""
 
