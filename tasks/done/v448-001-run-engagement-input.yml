@@ -5,7 +5,7 @@ milestone: standalone-run-engagement
 epic: execution-core
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V444-003]
 languages: [go, python]
 goal: >-
@@ -142,8 +142,9 @@ verification:
     holds pass. The 5000-Run usage history uses all three active-state indexes
     under custom and generic plans. Immutable dependency bounds are enforced
     by Go and PostgreSQL.
-  remaining_verification: Full release-verify and the entire Runtime suite were not run for this scoped change.
+  not_run: Full release-verify and the entire Runtime suite were not run for this scoped change.
 delivery:
   branch: codex/engagement-run-input
   merged_into_main: false
   pushed: false
+implementation_commit: 02f42fc3dbc7a544048516b947f3004369a539ab
