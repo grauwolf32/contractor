@@ -102,7 +102,7 @@ func TestFindingsGateRequiresRuntimePrerequisite(t *testing.T) {
 	if err := os.Mkdir(filepath.Join(root, "scripts"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"test-findings-e2e.py", "release_test_reports.py"} {
+	for _, name := range []string{"test-findings-e2e.py", "release_test_reports.py", "disk_heavy_policy.py"} {
 		script, err := os.ReadFile(filepath.Join("../../scripts", name))
 		if err != nil {
 			t.Fatal(err)

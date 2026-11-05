@@ -11,14 +11,17 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+	"github.com/grauwolf32/contractor/internal/helpers/disktest"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 )
 
 // This serial volume proof keeps the production operation deadline. The complete
-// normal release unit pass runs it; concurrency and lifecycle tests stay raced.
+// normal release unit pass runs it only with the explicit heavy-I/O opt-in;
+// concurrency and lifecycle tests stay raced.
 func TestPostgresSitemapSingleRunExceedsRemovedPublicationCaps(t *testing.T) {
+	disktest.Require(t)
 	artifactRuntime := artifactpgtest.NewRuntime()
 	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
 	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)

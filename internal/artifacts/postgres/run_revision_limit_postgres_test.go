@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+	"github.com/grauwolf32/contractor/internal/helpers/disktest"
 
 	. "github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
@@ -39,6 +40,7 @@ const sharedInputs = 100
 // unlink of a batched purge is covered by
 // TestPostgresIntegrationProjectScopePurgeCommitsBoundedBatches.
 func TestPostgresRunRevisionLimitAndBoundedPurge(t *testing.T) {
+	disktest.Require(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
@@ -167,6 +169,7 @@ SELECT (SELECT count(*) FROM artifact_scopes WHERE scope_id = 'limit-run')
 // two revisions, and that refused write removes nothing. UserScope writes
 // made alongside never charge the Run, and outputs keep their exception.
 func TestPostgresRunRevisionLimitIsNotRefundedByHistoryRetention(t *testing.T) {
+	disktest.Require(t)
 	artifactRuntime := artifactpgtest.NewRuntime()
 	artifactHistory := artifactpostgres.DefaultHistoryPolicy()
 	artifactStorage := artifactpgtest.NewConfigured(artifactRuntime, artifactHistory)

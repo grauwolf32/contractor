@@ -5,6 +5,11 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      heavy_io:
+        description: Run optional disk-heavy test fixtures
+        type: boolean
+        default: false
 
 # A pull request keeps only its newest selected run. Tags and manual runs each
 # keep their own full-gate verdict.
@@ -52,6 +57,7 @@ jobs:
           --health-timeout 5s
           --health-retries 12
     env:
+      CONTRACTOR_TEST_HEAVY_IO: ${{ github.event_name == 'workflow_dispatch' && inputs.heavy_io && '1' || '0' }}
       CONTRACTOR_TEST_DATABASE_URL: postgres://postgres:contractor@127.0.0.1:5432/contractor?sslmode=disable
       CONTRACTOR_UI_EVIDENCE_DIR: ${{ github.workspace }}/reports/ui-stack
     steps:

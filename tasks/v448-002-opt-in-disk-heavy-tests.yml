@@ -1,0 +1,89 @@
+schema_version: "1.0"
+id: V448-002
+title: "Require explicit opt-in for disk-heavy test fixtures"
+milestone: test-gate-cost-2026-10
+epic: quality
+kind: chore
+priority: P3
+status: in_progress
+depends_on: []
+languages: [go, python]
+goal: >-
+  Package tests and full gates skip the largest database/write-volume fixtures
+  before creating resources unless the caller explicitly enables them.
+context:
+  authority:
+    - "2026-11-05: The user requested disabling tests that write heavily to disk after investigating Mac cache and test-database growth."
+    - "2026-11-05: The user clarified that the cases are optional even in full runs and CI; only an explicitly supplied flag enables them. This supersedes automatic full-gate enabling."
+  finding: >-
+    Ordinary package tests include 100000 Task rows, 150000 Audit executions,
+    50000 Artifact revision histories, a real 64-MiB payload and more than
+    256 MiB of serial sitemap publications. These fixtures run during routine
+    package verification whenever a test database is configured.
+  decision: >-
+    Add one explicit test-only opt-in, CONTRACTOR_TEST_HEAVY_IO=1, before the
+    selected fixtures allocate resources. Keep their data, assertions and names
+    unchanged. No gate enables the flag automatically; disabled cases must emit
+    an explicit skip, remain absent from passing evidence, and not fail a full gate.
+    A simpler alternative is relying on -short, but plain go test would still run
+    expensive fixtures. This is a new execution-policy decision, not a defect in
+    the existing scale assertions or reactivation of archived V408 work.
+  boundary: >-
+    The test helper owns opt-in validation. Domain limits, production persistence,
+    fixture algorithms and release-required case sets retain their current owners.
+    No fixture size or production deadline is reduced to make the checks cheaper.
+  accepted_risk: >-
+    Maintainers deliberately leave maximum-history/write-volume guarantees unproven
+    in default full runs. The exact optional cases remain registered, skips stay
+    visible, and opt-in restores their strict pass requirement. Reconsider the case
+    list after a scale regression or availability of suitable remote test capacity;
+    no automatic mandatory run is introduced.
+scope:
+  in:
+    - "Explicit opt-in for ten identified large Audit, Artifact, sitemap and finding-intake fixtures."
+    - "Allow only the declared disabled-heavy skips in release, sitemap, Audit and shared-fixture gates."
+    - "Document local default skips, opt-in execution and remaining Go build-cache costs."
+  out:
+    - "Remote provisioning, blanket PostgreSQL skips, test deletion and unrelated coverage reduction."
+    - "Gating metadata-only logical-size tests or small Runtime filesystem fixtures."
+acceptance_criteria:
+  - id: A1
+    text: >-
+      The ten identified tests skip before connecting or creating schemas/databases
+      without the opt-in. 1 enables them, empty/0 disables them and other values fail.
+      Disabled heavyweight tests are reported as skips, never as passing coverage.
+  - id: A2
+    text: >-
+      No full or focused gate implicitly enables the flag. Declared disabled skips
+      are accepted; missing tests, failures and undeclared skips still fail. Explicit
+      opt-in requires the original heavy cases to pass. Fixture cardinalities stay unchanged.
+  - id: A3
+    text: >-
+      Behavioral helper tests cover disabled/enabled/invalid modes; real owner-package
+      invocations prove disabled cases do not attempt an unreachable configured database,
+      while enabled cases fail on that database rather than silently skipping it.
+  - id: A4
+    text: >-
+      Full touched owner packages pass with a disposable PostgreSQL database and the
+      local heavy-fixture policy; all expected heavy skips are recorded. Lint and
+      release-graph policy checks pass. No full heavy-fixture execution is claimed.
+tests:
+  - command: "go test -count=1 ./internal/helpers/disktest"
+    covers: [A1, A3]
+  - command: "python3 -m unittest discover -s scripts -p 'test_disk_heavy_policy.py'"
+    covers: [A1, A2, A3]
+  - command: "go test -p=1 -tags=integration -count=1 ./internal/auditstore/internal/pgstore ./internal/artifacts/postgres ./internal/projectsitemap ./internal/findingintake ./internal/archtest ./tests/e2e"
+    covers: [A1, A4]
+  - command: "make lint"
+    covers: [A2, A4]
+verification:
+  date: "2026-11-05"
+  passed:
+    - "All six touched owner packages passed whole with integration tags, serial package scheduling and a private PostgreSQL 17 UTF8 cluster: 295 top-level tests passed, exactly the ten declared heavy cases skipped, no other skips. The cluster was stopped and its entire data directory removed."
+    - "All ten actual guarded tests skipped with flag 0 and an unreachable configured database; with flag 1 all ten reached the database and failed. This proves resource-free default skipping and a functioning opt-in without running the heavy fixtures."
+    - "The seven policy checks cover registry/guard agreement, strict flag values, no implicit Make enabling, default-off CI, optional skip versus pass evidence, missing/failing/undeclared cases and opted-in skip rejection."
+    - "Canonical report, shared-fixture and iterative-gate suites passed; pinned actionlint v1.7.7 accepted the new manual CI input."
+    - "The first make lint passed, including the full script suite, Go/UI analysis, deployments, release graph, tasks/spec and Runtime layers. Final lint is rerun after the evidence regression check."
+  limits:
+    - "Heavy fixtures were intentionally not executed against a real database, and no complete release gate or hosted CI run is claimed."
+    - "An initial concurrent package pass using a default SQL_ASCII disposable cluster failed four unchanged query-budget tests. The complete serial UTF8 pass above succeeded; the effects of encoding and concurrency were not separated, and no query budget or fixture was weakened."

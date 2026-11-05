@@ -58,6 +58,30 @@ missing prerequisites fail the test.
 
 ## Local test storage
 
+The largest write-volume fixtures are optional in **every** run, including
+`make verify`, `make release-verify`, shared-fixture gates and CI. They run only
+when the caller explicitly sets `CONTRACTOR_TEST_HEAVY_IO=1`:
+
+```shell
+CONTRACTOR_TEST_HEAVY_IO=1 make release-verify
+CONTRACTOR_TEST_HEAVY_IO=1 go test -tags=integration -count=1 ./internal/artifacts/postgres
+```
+
+Unset or `0` skips these cases before creating any resources; other values fail.
+The exact cases and reasons live in `scripts/disk_heavy_policy.py`: large Audit
+Task/execution/claim histories, 50000-revision Artifact fixtures, the real 64-MiB
+payload, nine maximum-size proposals and more than 256 MiB of sitemap publications.
+The registry is checked against the Go guards. Fixtures, limits and assertions
+are unchanged. CI manual dispatch exposes the explicit `heavy_io` input, default
+false; PR and tag runs leave these fixtures disabled.
+
+Skipped heavy cases remain visible as skips and never count as passing coverage.
+Gates still require them to appear in the report, and still reject failures,
+undeclared skips and missing tests. Opting in restores their pass requirement.
+Ordinary database regressions, metadata-only logical-size tests and Runtime tests
+retain their existing policy. This reduces fixture writes; Go compilation still
+uses its build cache independently of whether these test bodies execute.
+
 Use one disposable database per concurrent lane, reuse it for the lane's commands,
 and drop it explicitly after the lane's processes and pools have stopped. Repeated
 schema creation and deletion can leave PostgreSQL system catalogs much larger than
@@ -276,8 +300,8 @@ scheduling. Before increasing it, measure peak PostgreSQL connections
 the runner. PostgreSQL advisory locks also require checking their database
 scope; separate schemas alone do not isolate every resource.
 
-The serial sitemap publication-volume fixture runs without race instrumentation
-in the complete ordinary Go unit pass. Its 257 publications, more than 256 MiB
+When explicitly enabled, the serial sitemap publication-volume fixture runs without race instrumentation
+in the ordinary Go unit pass. Its 257 publications, more than 256 MiB
 of cumulative encoded content and production 15-second operation deadline stay
 unchanged. Race instrumentation can consume that deadline on the first large
 publication, so this fixture lives in a `!race` test file. The package still runs
@@ -302,7 +326,9 @@ focused runs. The shared read journal is initialized once before either language
 including when consolidation is inherited from a target rather than an
 environment flag. Report files are replaced on each run; missing, skipped or
 incomplete required evidence fails the gate. Optional skips outside those
-focused scopes retain their existing policy.
+focused scopes retain their existing policy. The explicitly disabled disk-heavy
+cases are also allowed to skip inside focused scopes, and are excluded from
+passing execution evidence.
 `make lint` checks the stage order, the CI jobs and this table against the
 Makefile, the race coverage of every package with tests, and the release graph
 against the original process-test inventory, and discovers every
@@ -324,9 +350,10 @@ allowlists it with its opt-in target and the reason (real scanners or Podman).
 `make test-audit-iterative-postgres` runs the exact store, scale and recovery
 selection in [`audit_iterative_matrix.yml`](../../tests/e2e/audit_iterative_matrix.yml)
 (each case appears once, with its boundary and acceptance links)
-with the race detector. It includes the 4,096-item Round inside a 100,000-item
-Audit, 32-dependency closures, bounded capture/admission/materialization and
-populated deletion. Fixtures use real PostgreSQL and deterministic work/query
+with the race detector. Large histories such as the 100,000-task fixture require
+the explicit heavy-I/O opt-in; other selected cases retain their normal policy.
+The matrix also covers 32-dependency closures, bounded capture/admission/materialization
+and populated deletion. Fixtures use real PostgreSQL and deterministic work/query
 counters; elapsed time does not substitute for a row or byte limit.
 
 `make test-audit-iterative-e2e` runs the same matrix's production-process
@@ -341,6 +368,8 @@ registry, paid provider or live-model quality assumption.
 Both direct targets execute their focused harness unit checks once per make
 invocation. Missing prerequisites, a zero/missing/skipped required selection,
 changed source/matrix, command failure or an incomplete report fails the gate.
+Declared disabled-heavy skips are the explicit exception and are recorded in
+`optional_disk_heavy_skips` and the execution counts, rather than as passes.
 The Audit gates use one strict Go-event verifier and one process-group capture
 owner in `scripts/release_test_reports.py`; completion keeps its Runtime JUnit
 policy and composition keeps its browser checks. Family root scopes remain
@@ -399,6 +428,8 @@ on the same server and drop them afterwards. PostgreSQL itself is supplied by
 the caller. Database tests skip only while `CONTRACTOR_TEST_DATABASE_URL` is
 unset: once it is set, an unreachable server or a missing privilege fails
 them, and `make lint` rejects helpers that skip after a failed connection.
+The named disk-heavy fixtures are the exception: when not opted in, they skip
+before attempting a connection; with the opt-in they follow the same failure rule.
 
 ```shell
 export CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable'
@@ -488,7 +519,8 @@ when `runtime/tests/shared_fixtures.py` lists it with its reason; neither
 counts as a reader. A process test (`tests/e2e`) uses a copy under
 `tests/e2e/testdata` that a shared test keeps identical.
 `api/testdata/readers.json` declares the sides that read each fixture, and
-`make test-wire-cross-language` runs every shared test and holds the observed
+`make test-wire-cross-language` invokes every shared test, permits only explicitly
+disabled disk-heavy skips, and holds the observed
 readers to it ([`scripts/shared_fixture_gate.py`](../../scripts/shared_fixture_gate.py)).
 `make lint` runs only the gate's source checks: no other Go path into
 `api/testdata`, no `TestShared*` test behind a build constraint, and no file in
