@@ -11,7 +11,6 @@ import {
   ListPane,
   ListRow,
   ListSection,
-  ProgressSegments,
   StatusGlyph,
   type ListNavigationContainerProps,
   type StatusTone,
@@ -28,13 +27,11 @@ import {
   type InboxSectionId,
 } from "./model";
 import {
-  checkKind,
   checkName,
   checkProgress,
   checkTypeLabel,
   excerpt,
   FAILED_RUNS_PATH,
-  gapsTitle,
   primaryOutput,
   SECTIONS,
   SUCCEEDED_RUNS_PATH,
@@ -94,7 +91,6 @@ const CHECK_GLYPHS: Readonly<
 > = {
   paused: "warning",
   failed: "blocked",
-  gaps: "partial",
   running: "progress",
   finished: "done",
 };
@@ -102,7 +98,6 @@ const CHECK_GLYPHS: Readonly<
 function CheckRow({ row, selected, onChoose }: RowProps<"check">) {
   const { project, audit } = row.check;
   const glyph = <StatusGlyph tone={CHECK_GLYPHS[row.reason]} />;
-  const kind = checkKind(row.check);
   const state = checkStateLabel(audit.state).label;
   switch (row.reason) {
     case "paused":
@@ -135,24 +130,9 @@ function CheckRow({ row, selected, onChoose }: RowProps<"check">) {
         />
       );
     }
-    case "gaps":
-      return (
-        <ListRow
-          {...rowControl(row, selected, onChoose)}
-          glyph={glyph}
-          title={gapsTitle(row.workspace?.gaps ?? 0, kind)}
-          meta={[
-            <Project key="project" name={project.name} />,
-            checkTypeLabel(audit),
-            state,
-          ]}
-        />
-      );
     case "running": {
       const progress =
-        row.workspace === undefined
-          ? undefined
-          : checkProgress(row.workspace, kind);
+        row.workspace === undefined ? undefined : checkProgress(row.workspace);
       return (
         <ListRow
           {...rowControl(row, selected, onChoose)}
@@ -164,17 +144,7 @@ function CheckRow({ row, selected, onChoose }: RowProps<"check">) {
               ? state
               : undefined,
           ]}
-        >
-          {progress === undefined || progress.total === 0 ? null : (
-            <div className="inbox-row-progress">
-              <ProgressSegments
-                size="sm"
-                label={progress.label}
-                segments={progress.segments}
-              />
-            </div>
-          )}
-        </ListRow>
+        ></ListRow>
       );
     }
     case "finished":

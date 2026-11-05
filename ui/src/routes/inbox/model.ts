@@ -13,7 +13,6 @@ import type {
 } from "../../api/cross-project";
 import type { RunStatus, RunSummary } from "../../api/runs";
 import {
-  INBOX_AUDIT_STATES,
   INBOX_LISTED_AUDIT_STATES,
   OPEN_AUDIT_STATES,
   WORKING_AUDIT_STATES,
@@ -35,7 +34,7 @@ export type InboxRef =
   | { kind: "report"; auditId: string };
 
 /** Why a check is listed. */
-type CheckReason = "paused" | "failed" | "gaps" | "running" | "finished";
+type CheckReason = "paused" | "failed" | "running" | "finished";
 
 /** Why a Run is listed. */
 type RunReason = "model" | "failed" | "finished";
@@ -118,9 +117,6 @@ export interface InboxModel {
 /** Checks the Inbox lists in one of its sections. */
 export const LISTED_CHECK_STATES: readonly AuditState[] =
   INBOX_LISTED_AUDIT_STATES;
-
-/** Checks whose stopped items show in Unblock (the Inbox check states). */
-const GAP_CHECK_STATES: ReadonlySet<AuditState> = new Set(INBOX_AUDIT_STATES);
 
 /** Checks in Running: working or writing their report. */
 const RUNNING_CHECK_STATES: ReadonlySet<AuditState> = new Set(
@@ -335,13 +331,6 @@ export function buildInbox(input: InboxInput): InboxModel {
     ...checks
       .filter((check) => check.audit.state === "paused")
       .map((check) => checkRow("unblock", check, "paused", workspaces)),
-    ...checks
-      .filter(
-        (check) =>
-          GAP_CHECK_STATES.has(check.audit.state) &&
-          (workspaces.get(check.audit.auditId)?.gaps ?? 0) > 0,
-      )
-      .map((check) => checkRow("unblock", check, "gaps", workspaces)),
     ...checks
       .filter(
         (check) =>

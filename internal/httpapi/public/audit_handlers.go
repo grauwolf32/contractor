@@ -19,6 +19,8 @@ import (
 )
 
 type AuditManagement interface {
+	Materials(context.Context, auditstore.MaterialListParams) (auditstore.MaterialPage, error)
+	TaskAttempts(context.Context, auditstore.TaskAttemptListParams) (auditstore.TaskAttemptPage, error)
 	WriteHypothesis(context.Context, auditservice.HypothesisMutationParams) (auditstore.HypothesisAcceptance, bool, error)
 	Hypotheses(context.Context, auditstore.ListHypothesesParams) (auditstore.HypothesisPage, error)
 	Hypothesis(context.Context, string, string, string, uint64) (auditstore.Hypothesis, error)
@@ -49,12 +51,6 @@ type AuditManagement interface {
 	Get(context.Context, string, string) (auditstore.Audit, error)
 	ReadArtifact(context.Context, string, string, string, string) (artifacts.ReadResult, error)
 	List(context.Context, auditstore.ListParams) ([]auditstore.Audit, error)
-	ListItems(context.Context, auditstore.ListItemsParams) ([]auditstore.Item, error)
-	// ListItemAttempts answers every requested item: an item without
-	// attempts maps to an empty list, as the PostgreSQL store fills it.
-	ListItemAttempts(context.Context, string, string, []string) (map[string][]auditstore.ItemAttempt, error)
-	GetRound(context.Context, string, string, string) (auditstore.Round, error)
-	ListCoverage(context.Context, string, string, string, int, int, *uint64) (auditservice.CoveragePage, error)
 	GetReport(context.Context, string, string) (auditservice.ReportProjection, error)
 }
 
@@ -391,157 +387,6 @@ func (h *auditHandlers) mutateAudit(w http.ResponseWriter, r *http.Request, acti
 		return err
 	}
 	writeAuditJSON(w, status, response)
-	return nil
-}
-
-func (h *auditHandlers) listAuditItems(w http.ResponseWriter, r *http.Request) error {
-	w.Header().Set("Cache-Control", "no-store")
-	query, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "round", "state", "subject")
-	if err != nil {
-		return err
-	}
-	var roundID, subject *string
-	if values, ok := query["round"]; ok {
-		roundID = &values[0]
-	}
-	if values, ok := query["subject"]; ok {
-		subject = &values[0]
-	}
-	var state *auditstore.ItemState
-	if values, ok := query["state"]; ok {
-		candidate := auditstore.ItemState(values[0])
-		if !candidate.Valid() {
-			return errInvalidRequest
-		}
-		state = &candidate
-	}
-	auditID := r.PathValue("auditId")
-	cursorKind := "audit-items:" + auditID + ":" + pointerString(roundID) + ":" + pointerItemState(state) + ":" + pointerString(subject)
-	cursor, err := h.cursors.decodePageCursor(encodedCursor, cursorKind, 3)
-	if err != nil {
-		return err
-	}
-	params := auditstore.ListItemsParams{
-		OwnerID: principalUserID(r.Context()), AuditID: auditID, RoundID: roundID,
-		State: state, SubjectKey: subject, Limit: pagelimit.FetchRows(limit),
-	}
-	if len(cursor) != 0 {
-		roundOrdinal, roundErr := strconv.Atoi(cursor[0])
-		itemOrdinal, itemErr := strconv.Atoi(cursor[1])
-		if roundErr != nil || itemErr != nil {
-			return errInvalidRequest
-		}
-		params.AfterRoundOrdinal, params.AfterItemOrdinal, params.AfterItemID = &roundOrdinal, &itemOrdinal, cursor[2]
-	}
-	items, err := h.Audits.ListItems(r.Context(), params)
-	if err != nil {
-		return err
-	}
-	page := pageInfoResponse{}
-	if len(items) > limit {
-		items = items[:limit]
-		last := items[len(items)-1]
-		round, roundErr := h.Audits.GetRound(r.Context(), params.OwnerID, auditID, last.RoundID)
-		if roundErr != nil {
-			return roundErr
-		}
-		next, cursorErr := h.cursors.encodePageCursor(
-			cursorKind, strconv.Itoa(round.Ordinal), strconv.Itoa(last.Ordinal), last.ItemID,
-		)
-		if cursorErr != nil {
-			return cursorErr
-		}
-		page.HasMore, page.NextCursor = true, &next
-	}
-	attempts := map[string][]auditstore.ItemAttempt{}
-	if len(items) != 0 {
-		itemIDs := make([]string, len(items))
-		for index := range items {
-			itemIDs[index] = items[index].ItemID
-		}
-		attempts, err = h.Audits.ListItemAttempts(
-			r.Context(), params.OwnerID, auditID, itemIDs,
-		)
-		if err != nil {
-			return err
-		}
-	}
-	response := make([]auditItemResponse, len(items))
-	for index := range items {
-		response[index] = auditItemReadModel(items[index])
-		// The read model's empty list stays when an item has no entry, so the
-		// required attempts array is never rendered as null.
-		if itemAttempts := attempts[items[index].ItemID]; itemAttempts != nil {
-			response[index].Attempts = itemAttempts
-		}
-	}
-	writeJSON(w, http.StatusOK, auditItemPageResponse{Items: response, Page: page})
-	return nil
-}
-
-func (h *auditHandlers) listAuditCoverage(w http.ResponseWriter, r *http.Request) error {
-	w.Header().Set("Cache-Control", "no-store")
-	query, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "round", "auditRevision")
-	if err != nil {
-		return err
-	}
-	ownerID, auditID := principalUserID(r.Context()), r.PathValue("auditId")
-	audit, err := h.Audits.Get(r.Context(), ownerID, auditID)
-	if err != nil {
-		return err
-	}
-	roundID := ""
-	if values, ok := query["round"]; ok {
-		roundID = values[0]
-	} else if audit.CurrentRoundID != nil {
-		roundID = *audit.CurrentRoundID
-	}
-	cursorKind := "audit-coverage:" + auditID + ":" + roundID
-	cursor, revision, err := h.decodeAuditPageCursor(encodedCursor, cursorKind, query.Get("auditRevision"), 2)
-	if err != nil {
-		return err
-	}
-	// The page, and the current Round it was chosen from, belong to one
-	// revision: the pinned one, or the one just read.
-	if revision == nil {
-		revision = &audit.Revision
-	} else if *revision != audit.Revision {
-		return auditstore.ErrConflict
-	}
-	if roundID == "" {
-		writeJSON(w, http.StatusOK, auditCoveragePageResponse{
-			Items: []auditCoverageResponse{}, Page: pageInfoResponse{}, AuditRevision: audit.Revision,
-		})
-		return nil
-	}
-	after := -1
-	if len(cursor) != 0 {
-		after, err = strconv.Atoi(cursor[0])
-		if err != nil || after < 0 {
-			return errInvalidRequest
-		}
-	}
-	result, err := h.Audits.ListCoverage(
-		r.Context(), ownerID, auditID, roundID, after, pagelimit.FetchRows(limit), revision,
-	)
-	if err != nil {
-		return err
-	}
-	coverage, page, err := paginate(h.cursors, result.Rows, limit, cursorKind, func(last auditstore.CoverageRow) []string {
-		return []string{strconv.Itoa(last.Ordinal), strconv.FormatUint(result.AuditRevision, 10)}
-	})
-	if err != nil {
-		return err
-	}
-	items := make([]auditCoverageResponse, len(coverage))
-	for index, row := range coverage {
-		items[index] = auditCoverageResponse{
-			FindingIDs: append([]string{}, row.FindingIDs...), RoundID: row.RoundID, ItemID: row.ItemID, Ordinal: row.Ordinal,
-			ItemKey: row.ItemKey, SubjectKey: row.SubjectKey, Coverage: row.Coverage,
-			Result: row.Result, UpdatedAt: row.UpdatedAt, Details: row.Details,
-		}
-	}
-	writeJSON(w, http.StatusOK, auditCoveragePageResponse{Items: items, Page: page, AuditRevision: result.AuditRevision})
 	return nil
 }
 

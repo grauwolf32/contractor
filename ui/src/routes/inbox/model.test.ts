@@ -62,12 +62,10 @@ function run(
 }
 
 /** Counters of an active check: four items, one done, `gaps` uncertain. */
-function workspace(auditId: string, gaps: number): AuditWorkspace {
+function workspace(auditId: string): AuditWorkspace {
   return build.workspace(build.audit("project_a", auditId, "active"), {
-    totalChecks: 4,
-    completedChecks: 1,
-    gaps,
-    unchecked: 3 - gaps,
+    totalTasks: 4,
+    submittedRuns: 1,
   });
 }
 
@@ -121,27 +119,23 @@ describe("Inbox selection keys", () => {
 });
 
 describe("Inbox sections", () => {
-  it("lists a stuck running check in Unblock and Running and moves through both rows", () => {
+  it("does not infer blocked work from coordination counts", () => {
     const model = buildInbox(
       input({
         checks: [check("audit_run", "active"), check("audit_late", "paused")],
-        workspaces: new Map([["audit_run", workspace("audit_run", 2)]]),
+        workspaces: new Map([["audit_run", workspace("audit_run")]]),
       }),
     );
-    expect(model.unblock.map((row) => row.key)).toEqual([
-      "check:audit_late",
-      "check:audit_run",
-    ]);
+    expect(model.unblock.map((row) => row.key)).toEqual(["check:audit_late"]);
     expect(model.running.map((row) => row.key)).toEqual(["check:audit_run"]);
     // The keys follow the rows as shown.
     expect(model.order.map((row) => `${row.section} ${row.key}`)).toEqual([
       "unblock check:audit_late",
-      "unblock check:audit_run",
       "running check:audit_run",
     ]);
     // The URL names the item: its first row, or the row the user chose.
     expect(rowIndex(model.order, "check:audit_run")).toBe(1);
-    expect(rowIndex(model.order, "check:audit_run", "running")).toBe(2);
+    expect(rowIndex(model.order, "check:audit_run", "running")).toBe(1);
     expect(rowIndex(model.order, "check:audit_late", "running")).toBe(0);
     expect(rowIndex(model.order, "check:gone", "running")).toBe(-1);
   });
@@ -309,28 +303,13 @@ describe("Inbox words", () => {
   });
 
   it("builds a progress line from the workspace counts", () => {
-    const progress = checkProgress(
-      {
-        ...workspace("a", 1),
-        totalChecks: 6,
-        completedChecks: 3,
-        issues: 1,
-        unchecked: 2,
-      },
-      "requirement",
-    );
-    expect(progress.summary).toBe("3 of 6 requirements done");
-    expect(progress.label).toBe(
-      "3 of 6 requirements done: 1 with an issue found, 1 needs follow-up, 2 not checked yet",
-    );
-    expect(progress.segments.map((segment) => segment.tone)).toEqual([
-      "done",
-      "done",
-      "blocked",
-      "partial",
-      "idle",
-      "idle",
-    ]);
+    const progress = checkProgress({
+      ...workspace("a"),
+      totalTasks: 6,
+      submittedRuns: 3,
+    });
+    expect(progress.summary).toBe("6 tasks · 0 runs in progress");
+    expect(progress).not.toHaveProperty("done");
   });
 
   it("never picks a file when no primary output is declared", () => {

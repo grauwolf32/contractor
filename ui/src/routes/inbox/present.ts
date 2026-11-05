@@ -6,15 +6,7 @@
 import type { Audit, AuditWorkspace } from "../../api/audits";
 import type { CrossProjectCheck } from "../../api/cross-project";
 import type { RunStatus, RunSummary } from "../../api/runs";
-import { formatNumber, plural } from "../../app/format";
-import {
-  checkItemKind,
-  COVERAGE_STATUS_LABELS,
-  itemCount,
-  itemNoun,
-  type ItemKind,
-} from "../../app/vocabulary";
-import type { ProgressSegment } from "../../ui";
+import { coordinationSummary } from "../projects/audits/check-model";
 import { auditPresetLabel } from "../projects/audits/labels";
 import type { InboxRow, InboxSectionId } from "./model";
 import {
@@ -23,7 +15,7 @@ import {
   type OutputEntry,
   type WorkflowOutputSlot,
 } from "../runs/output-model";
-import { checkPath, sectionPath } from "../projects/audits/check-links";
+import { checkPath } from "../projects/audits/check-links";
 
 /** Section titles, asides and empty states (V3B home mockup). */
 export const SECTIONS: Readonly<
@@ -76,15 +68,6 @@ export function projectPath(projectId: string): string {
   return `/projects/${segment(projectId)}`;
 }
 
-/**
- * The check's coverage filtered to the work that needs follow-up: blocked,
- * inconclusive, partially traced, unmapped and excluded items, the statuses
- * the workspace counts as gaps.
- */
-export function followUpPath(projectId: string, auditId: string): string {
-  return `${sectionPath(projectId, auditId, "coverage")}?result=uncertain`;
-}
-
 export function issuePath(auditId: string, findingId: string): string {
   return `/issues/${segment(auditId)}/${segment(findingId)}`;
 }
@@ -117,100 +100,12 @@ export function rowPage(row: InboxRow): string {
   }
 }
 
-/** Progress of a check's current round from its workspace counters. */
-interface CheckProgress {
-  kind: ItemKind;
-  total: number;
-  /** Concluded items, including those with an issue found. */
-  done: number;
-  issues: number;
-  /** Blocked, inconclusive, partially traced, unmapped or excluded items. */
-  gaps: number;
-  unchecked: number;
-  segments: ProgressSegment[];
-  /** "3 of 5 endpoints done: 1 issue found, 1 needs follow-up, …". */
-  label: string;
-  /** "3 of 5 endpoints done". */
-  summary: string;
-}
-
-function count(value: number): number {
-  return Number.isSafeInteger(value) && value > 0 ? value : 0;
-}
-
-function repeat(entry: ProgressSegment, times: number): ProgressSegment[] {
-  return Array.from({ length: times }, () => entry);
-}
-
-export const PROGRESS_LABELS = {
-  done: "Done",
-  issue: COVERAGE_STATUS_LABELS.violated.label,
-  followUp: "Needs follow-up",
-  unchecked: COVERAGE_STATUS_LABELS["not-tested"].label,
-} as const;
-
-/**
- * One segment per item of the current round, grouped by outcome: done, issue
- * found, needs follow-up, not checked yet. The workspace has counts only, so
- * the line keeps their proportions, not the items' list order.
- */
-export function checkProgress(
-  workspace: AuditWorkspace,
-  kind: ItemKind,
-): CheckProgress {
-  const total = count(workspace.totalChecks);
-  const done = Math.min(count(workspace.completedChecks), total);
-  const issues = Math.min(count(workspace.issues), done);
-  const gaps = Math.min(count(workspace.gaps), total - done);
-  const unchecked = Math.max(0, total - done - gaps);
-  const segments = [
-    ...repeat({ tone: "done", label: PROGRESS_LABELS.done }, done - issues),
-    ...repeat(
-      {
-        tone: COVERAGE_STATUS_LABELS.violated.tone,
-        label: PROGRESS_LABELS.issue,
-      },
-      issues,
-    ),
-    ...repeat({ tone: "partial", label: PROGRESS_LABELS.followUp }, gaps),
-    ...repeat(
-      {
-        tone: COVERAGE_STATUS_LABELS["not-tested"].tone,
-        label: PROGRESS_LABELS.unchecked,
-      },
-      unchecked,
-    ),
-  ];
-  const summary =
-    total === 0
-      ? `No ${itemNoun(kind, 0)} listed yet`
-      : `${formatNumber(done)} of ${itemCount(kind, total)} done`;
-  const details = [
-    issues > 0 ? `${formatNumber(issues)} with an issue found` : "",
-    gaps > 0 ? `${plural(gaps, "needs", "need")} follow-up` : "",
-    unchecked > 0 ? `${formatNumber(unchecked)} not checked yet` : "",
-  ].filter((part) => part !== "");
+/** Coordination counts never infer check conclusions from Run outcomes. */
+export function checkProgress(workspace: AuditWorkspace) {
   return {
-    kind,
-    total,
-    done,
-    issues,
-    gaps,
-    unchecked,
-    segments,
-    summary,
-    label: details.length === 0 ? summary : `${summary}: ${details.join(", ")}`,
+    total: workspace.totalTasks,
+    summary: coordinationSummary(workspace),
   };
-}
-
-/** "2 endpoints couldn't be fully checked". */
-export function gapsTitle(gaps: number, kind: ItemKind): string {
-  return `${itemCount(kind, gaps)} couldn't be fully checked`;
-}
-
-/** What a check's work items are called. */
-export function checkKind(check: CrossProjectCheck): ItemKind {
-  return checkItemKind(check.audit);
 }
 
 type OutputArtifact = NonNullable<OutputEntry["artifact"]>;

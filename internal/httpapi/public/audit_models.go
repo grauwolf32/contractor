@@ -91,36 +91,9 @@ func auditReadModel(source auditstore.Audit) (auditResponse, error) {
 	return result, nil
 }
 
-func auditItemReadModel(source auditstore.Item) auditItemResponse {
-	return auditItemResponse{
-		FindingIDs: append([]string{}, source.FindingIDs...),
-		ItemID:     source.ItemID, RoundID: source.RoundID, ItemKey: source.ItemKey,
-		Ordinal: source.Ordinal, Kind: source.Kind, SubjectKey: source.SubjectKey,
-		Task: source.Task, Origin: source.Origin, WorkflowRole: source.WorkflowRole, State: source.State,
-		FinalDisposition: source.FinalDisposition, AcceptedResult: source.AcceptedResult,
-		LastExecutionItemID: source.LastExecutionItemID,
-		Attempts:            []auditstore.ItemAttempt{},
-		CreatedAt:           source.CreatedAt, UpdatedAt: source.UpdatedAt,
-	}
-}
-
 func writeAuditJSON(w http.ResponseWriter, status int, response auditResponse) {
 	w.Header().Set("ETag", strconv.Quote(strconv.FormatUint(response.Revision, 10)))
 	writeJSON(w, status, response)
-}
-
-func pointerString(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return *value
-}
-
-func pointerItemState(value *auditstore.ItemState) string {
-	if value == nil {
-		return ""
-	}
-	return string(*value)
 }
 
 // maximumAuditTimeLimitBodyBytes bounds the optional JSON body of Audit start

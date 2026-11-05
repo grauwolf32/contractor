@@ -55,15 +55,11 @@ describe("state lists", () => {
     const allAuditStates = contractEnum("AuditState");
     for (const subset of [
       states.WORKING_AUDIT_STATES,
-      states.INBOX_AUDIT_STATES,
       states.OPEN_AUDIT_STATES,
       states.REPORT_AUDIT_STATES,
     ]) {
       expect(allAuditStates).toEqual(expect.arrayContaining([...subset]));
     }
-    expect(states.OPEN_AUDIT_STATES).toEqual(
-      expect.arrayContaining([...states.INBOX_AUDIT_STATES]),
-    );
     expect(states.ENDED_AUDIT_STATES).toEqual(
       expect.arrayContaining([...states.STOPPED_AUDIT_STATES]),
     );

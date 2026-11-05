@@ -12,7 +12,7 @@ import (
 )
 
 // ListItems reads every item of one Audit in Round and item order, without
-// the owner fence of ListItemsPage, so a test can inspect all of them.
+// the owner fence, so a test can inspect historical fixtures.
 // Production reads items only by bounded page, selection or reconcile
 // window.
 func (s *QueryStore) ListItems(ctx context.Context, auditID string) ([]auditstore.Item, error) {

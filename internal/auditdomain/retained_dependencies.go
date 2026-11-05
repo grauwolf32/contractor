@@ -130,10 +130,6 @@ func (origin *RetainedDependencyOrigin) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func EncodeRetainedDependencies(value RetainedDependencyManifest) ([]byte, error) {
-	return encodeDocument(value, ValidateRetainedDependencies)
-}
-
 func DecodeRetainedDependencies(data []byte) (RetainedDependencyManifest, error) {
 	if len(data) > MaximumRetainedDependencyBytes {
 		return RetainedDependencyManifest{}, invalid(CodeLimitExceeded, "dependencies")
@@ -279,11 +275,4 @@ func validateRetainedDependencyClosure(dependencies []RetainedDependency, names 
 		}
 	}
 	return nil
-}
-
-func validateItemDependencies(itemKey string, dependencies *RetainedDependencyManifest) error {
-	if dependencies.ItemKey != itemKey {
-		return invalid(CodeInvalid, "dependencies.item_key")
-	}
-	return ValidateRetainedDependencies(*dependencies)
 }

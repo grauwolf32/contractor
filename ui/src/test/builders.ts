@@ -352,93 +352,13 @@ export function report(
   });
 }
 
-type Attempt = Schemas["AuditItemAttempt"];
-
-/**
- * One attempt of `itemId`, settled with an accepted result unless
- * overridden; an override of `undefined` removes the member (a running
- * attempt has no outcome, disposition or collection time).
- */
-export function itemAttempt(
-  itemId: string,
-  n: number,
-  overrides: Overrides<Attempt> = {},
-): Attempt {
-  return conforming(
-    "AuditItemAttempt",
-    merge<Attempt>(
-      {
-        executionItemId: `exec_${itemId}_${n}`,
-        executionId: "round_1",
-        itemId,
-        itemAttempt: n,
-        role: "check",
-        state: "settled",
-        terminalOutcome: "succeeded",
-        collectionDisposition: "accepted-result",
-        runId: `run_${itemId}_${n}`,
-        runDeleted: false,
-        createdAt: `2026-10-05T10:0${n + 1}:00Z`,
-        collectedAt: `2026-10-05T10:0${n + 2}:00Z`,
-      },
-      overrides,
-    ),
-  );
-}
-
-/** A work item of the first Round, settled without attempts. */
-export function auditItem(
-  itemId: string,
-  ordinal: number,
-  kind: string,
-  overrides: Overrides<Schemas["AuditItem"]> = {},
-): Schemas["AuditItem"] {
-  const task = auditInput();
-  return conforming(
-    "AuditItem",
-    merge<Schemas["AuditItem"]>(
-      {
-        itemId,
-        roundId: "round_1",
-        itemKey: `key_${itemId}`,
-        ordinal,
-        kind,
-        subjectKey: `subject_${itemId}`,
-        task,
-        origin: {
-          schema: "contractor.audit.item-origin.v1",
-          entryKey: `entry_${itemId}`,
-          sourceRef: task.ref,
-          sourceContentDigest: DIGEST,
-          sourceMediaType: "application/zip",
-          canonicalInventoryDigest: DIGEST,
-        },
-        workflowRole: "check",
-        state: "settled",
-
-        attempts: [],
-        findingIds: [],
-        createdAt: NOW,
-        updatedAt: NOW,
-      },
-      overrides,
-    ),
-  );
-}
-
 /** The workspace summary of `value`, with zero counts unless given. */
 export function workspace(
   value: Schemas["Audit"],
   counts: Partial<
     Pick<
       Schemas["AuditWorkspace"],
-      | "totalChecks"
-      | "completedChecks"
-      | "issues"
-      | "gaps"
-      | "unchecked"
-      | "findings"
-      | "unreviewedFindings"
+      "totalTasks" | "submittedRuns" | "outstandingRuns"
     >
   > = {},
 ): Schemas["AuditWorkspace"] {
@@ -449,14 +369,8 @@ export function workspace(
 
     executionState: value.state,
     outstandingRuns: value.outstandingRunCount,
-    totalChecks: 0,
-    completedChecks: 0,
-    issues: 0,
-    gaps: 0,
-    unchecked: 0,
-    findings: 0,
-    unreviewedFindings: 0,
-
+    totalTasks: value.taskCount,
+    submittedRuns: value.submittedRunCount,
     ...counts,
   });
 }

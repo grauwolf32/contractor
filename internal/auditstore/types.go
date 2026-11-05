@@ -11,7 +11,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
-	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
@@ -29,7 +28,6 @@ const (
 	MaxExecutionIntentBytes = 64 << 20
 	MaxCollectionBytes      = 16 << 20
 	MaxRetainedRefsBytes    = 8 << 20
-	MaxAttemptProjection    = pagelimit.MaxRows * 10
 
 	// MaxStopReasonMessageBytes bounds a stop reason message, as the
 	// audits_stop_reason_message_check constraint does.
@@ -297,18 +295,6 @@ type ListParams struct {
 	BeforeCreatedAt *time.Time
 	BeforeAuditID   string
 	Limit           int
-}
-
-type ListItemsParams struct {
-	OwnerID           string
-	AuditID           string
-	RoundID           *string
-	State             *ItemState
-	SubjectKey        *string
-	AfterRoundOrdinal *int
-	AfterItemOrdinal  *int
-	AfterItemID       string
-	Limit             int
 }
 
 type MutationOperation string
@@ -693,23 +679,6 @@ type CollectionReceiptSummary struct {
 	CreatedAt             time.Time
 }
 
-type ItemAttempt struct {
-	ExecutionItemID       string                 `json:"executionItemId"`
-	ExecutionID           string                 `json:"executionId"`
-	ItemID                string                 `json:"itemId"`
-	ItemAttempt           int                    `json:"itemAttempt"`
-	Role                  ExecutionRole          `json:"role"`
-	State                 ItemState              `json:"state"`
-	CollectionDisposition *CollectionDisposition `json:"collectionDisposition,omitempty"`
-	Result                *ExactArtifact         `json:"result,omitempty"`
-	TerminalOutcome       *TerminalOutcome       `json:"terminalOutcome,omitempty"`
-	RunID                 *string                `json:"runId,omitempty"`
-	RunDeleted            bool                   `json:"runDeleted"`
-	RunProvenance         *RunProvenance         `json:"runProvenance,omitempty"`
-	CreatedAt             time.Time              `json:"createdAt"`
-	CollectedAt           *time.Time             `json:"collectedAt,omitempty"`
-}
-
 type CommitReportParams struct {
 	ExpectedProjectRevision uint64
 	Claim                   ControllerClaim
@@ -729,57 +698,6 @@ type Event struct {
 	EntityRevision *uint64
 	Summary        json.RawMessage
 	CreatedAt      time.Time
-}
-
-type CoverageRow struct {
-	FindingIDs []string `json:"findingIds"`
-	AuditID    string
-	RoundID    string
-	ItemID     string
-	Ordinal    int
-	ItemKey    string
-	SubjectKey string
-	Coverage   Coverage
-	Result     *ExactArtifact
-	UpdatedAt  time.Time
-	Task       ExactArtifact
-	Details    *CoverageDetails
-}
-
-// CoverageDetails describes the exact retained task and its accepted result.
-// It is a read projection, never authority for assessment or execution.
-type CoverageDetails struct {
-	Scan          *ScanProvenance    `json:"scan,omitempty"`
-	Objective     string             `json:"objective"`
-	Methods       []string           `json:"methods"`
-	TaskDocument  json.RawMessage    `json:"taskDocument"`
-	ResultSummary string             `json:"resultSummary,omitempty"`
-	Evidence      []CoverageEvidence `json:"evidence"`
-}
-
-// ScanProvenance projects only the accepted task, never raw requests or credentials.
-type ScanProvenance struct {
-	Scanner           string        `json:"scanner"`
-	Operation         string        `json:"operation"`
-	Source            ExactArtifact `json:"source"`
-	Settings          ExactArtifact `json:"settings"`
-	PreparationDigest string        `json:"preparationDigest"`
-	RequestDigest     string        `json:"requestDigest,omitempty"`
-	TargetURL         string        `json:"targetUrl,omitempty"`
-	Runnable          bool          `json:"runnable"`
-	TestParameters    []string      `json:"testParameters"`
-	Gaps              []string      `json:"gaps"`
-}
-
-type CoverageEvidence struct {
-	ObservedAt       string `json:"observedAt,omitempty"`
-	DeploymentMarker string `json:"deploymentMarker,omitempty"`
-	HTTPRequestID    string `json:"httpRequestId,omitempty"`
-	HTTPRequestTag   string `json:"httpRequestTag,omitempty"`
-	ContentMemberID  string `json:"contentMemberId,omitempty"`
-	ID               string `json:"id"`
-	Kind             string `json:"kind"`
-	Summary          string `json:"summary"`
 }
 
 type ReconcileSnapshot struct {

@@ -9,7 +9,7 @@ import (
 )
 
 // TestSharedCoverageBucketsMatchSharedFixture holds the one coverage classification
-// to the fixture the UI result groups are tested against.
+// to the retained report fixture.
 func TestSharedCoverageBucketsMatchSharedFixture(t *testing.T) {
 	data := contractstest.ReadFile(t, "api", "testdata", "public", "audit-coverage-buckets.json")
 	var fixture struct {
@@ -30,18 +30,11 @@ func TestSharedCoverageBucketsMatchSharedFixture(t *testing.T) {
 		{CoverageBucketGap, fixture.Gap},
 		{CoverageBucketUnchecked, fixture.Unchecked},
 	} {
-		got := CoverageStatusesIn(test.bucket)
-		if !sameSet(got, test.want) {
-			t.Errorf("bucket %s = %v, fixture %v", test.bucket, got, test.want)
-		}
 		for _, status := range test.want {
 			if bucket, ok := CoverageStatusBucket(status); !ok || bucket != test.bucket {
 				t.Errorf("CoverageStatusBucket(%q) = (%q, %t), want %q", status, bucket, ok, test.bucket)
 			}
 		}
-	}
-	if got := CoverageIssueStatuses(); !sameSet(got, fixture.Issue) {
-		t.Errorf("issue statuses = %v, fixture %v", got, fixture.Issue)
 	}
 	for _, status := range fixture.Issue {
 		if bucket, _ := CoverageStatusBucket(status); bucket != CoverageBucketCompleted {
@@ -62,11 +55,4 @@ func TestSharedCoverageBucketsMatchSharedFixture(t *testing.T) {
 			t.Errorf("unknown status %q classified as (%q, %t)", unknown, bucket, ok)
 		}
 	}
-}
-
-func sameSet(left, right []string) bool {
-	a, b := slices.Clone(left), slices.Clone(right)
-	slices.Sort(a)
-	slices.Sort(b)
-	return slices.Equal(a, b) && len(slices.Compact(a)) == len(left)
 }

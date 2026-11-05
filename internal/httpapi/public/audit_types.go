@@ -124,50 +124,6 @@ type auditPageResponse struct {
 	Page  pageInfoResponse `json:"page"`
 }
 
-type auditItemResponse struct {
-	FindingIDs          []string                     `json:"findingIds"`
-	ItemID              string                       `json:"itemId"`
-	RoundID             string                       `json:"roundId"`
-	ItemKey             string                       `json:"itemKey"`
-	Ordinal             int                          `json:"ordinal"`
-	Kind                string                       `json:"kind"`
-	SubjectKey          string                       `json:"subjectKey"`
-	Task                auditstore.ExactArtifact     `json:"task"`
-	Origin              auditstore.ItemOrigin        `json:"origin"`
-	WorkflowRole        string                       `json:"workflowRole"`
-	State               auditstore.ItemState         `json:"state"`
-	FinalDisposition    *auditstore.FinalDisposition `json:"finalDisposition,omitempty"`
-	AcceptedResult      *auditstore.ExactArtifact    `json:"acceptedResult,omitempty"`
-	LastExecutionItemID *string                      `json:"lastExecutionItemId,omitempty"`
-	Attempts            []auditstore.ItemAttempt     `json:"attempts"`
-	CreatedAt           time.Time                    `json:"createdAt"`
-	UpdatedAt           time.Time                    `json:"updatedAt"`
-}
-
-type auditItemPageResponse struct {
-	Items []auditItemResponse `json:"items"`
-	Page  pageInfoResponse    `json:"page"`
-}
-
-type auditCoverageResponse struct {
-	FindingIDs []string                    `json:"findingIds"`
-	RoundID    string                      `json:"roundId"`
-	ItemID     string                      `json:"itemId"`
-	Ordinal    int                         `json:"ordinal"`
-	ItemKey    string                      `json:"itemKey"`
-	SubjectKey string                      `json:"subjectKey"`
-	Coverage   auditstore.Coverage         `json:"coverage"`
-	Result     *auditstore.ExactArtifact   `json:"result,omitempty"`
-	UpdatedAt  time.Time                   `json:"updatedAt"`
-	Details    *auditstore.CoverageDetails `json:"details,omitempty"`
-}
-
-type auditCoveragePageResponse struct {
-	Items         []auditCoverageResponse `json:"items"`
-	Page          pageInfoResponse        `json:"page"`
-	AuditRevision uint64                  `json:"auditRevision"`
-}
-
 type auditReportResponse struct {
 	Status          auditservice.ReportStatus `json:"status"`
 	MachineArtifact *auditstore.ExactArtifact `json:"machineArtifact,omitempty"`

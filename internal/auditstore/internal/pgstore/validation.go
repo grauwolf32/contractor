@@ -146,44 +146,6 @@ func validateList(params auditstore.ListParams) error {
 	return nil
 }
 
-func validateListItems(params auditstore.ListItemsParams) error {
-	if err := validateText("ownerID", params.OwnerID, 256, true); err != nil {
-		return err
-	}
-	if err := validateID("auditID", params.AuditID); err != nil {
-		return err
-	}
-	if params.RoundID != nil {
-		if err := validateID("roundID", *params.RoundID); err != nil {
-			return err
-		}
-	}
-	if params.State != nil && !params.State.Valid() {
-		return invalidf("Audit item state is invalid")
-	}
-	if params.SubjectKey != nil {
-		if err := validateText("subjectKey", *params.SubjectKey, auditstore.MaxSubjectKeyBytes, true); err != nil {
-			return err
-		}
-	}
-	if !pagelimit.ValidFetch(params.Limit) {
-		return invalidf("item page limit must be between 1 and %d", pagelimit.MaxFetchRows)
-	}
-	keysetPresent := params.AfterRoundOrdinal != nil || params.AfterItemOrdinal != nil || params.AfterItemID != ""
-	if keysetPresent && (params.AfterRoundOrdinal == nil || params.AfterItemOrdinal == nil || params.AfterItemID == "") {
-		return invalidf("item keyset is incomplete")
-	}
-	if keysetPresent {
-		if *params.AfterRoundOrdinal < 1 || *params.AfterItemOrdinal < 0 {
-			return invalidf("item keyset ordinal is invalid")
-		}
-		if err := validateID("afterItemID", params.AfterItemID); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func validateMutationReplay(
 	ownerID string, operation auditstore.MutationOperation, key, digest string,
 ) error {

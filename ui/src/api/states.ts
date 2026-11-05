@@ -35,11 +35,6 @@ export const WORKING_AUDIT_STATES = [
   "finalizing",
 ] as const satisfies readonly AuditState[];
 
-/** Audits running or waiting for the user: the Inbox's checks. */
-export const INBOX_AUDIT_STATES = [
-  "active",
-] as const satisfies readonly AuditState[];
-
 /** Audits the Inbox lists in one of its sections. */
 export const INBOX_LISTED_AUDIT_STATES = [
   "active",

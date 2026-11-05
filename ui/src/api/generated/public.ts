@@ -1205,7 +1205,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/audits/{auditId}/items": {
+    "/v1/audits/{auditId}/materials": {
         parameters: {
             query?: never;
             header?: never;
@@ -1214,8 +1214,11 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** List immutable Audit items and their current settlement state */
-        get: operations["listAuditItems"];
+        /**
+         * List accepted exact materials without reading payloads
+         * @description Bounded owner-authorized keyset pages pinned to one Audit revision. A concurrent change requires restarting traversal. Reads create no retention or execution effects.
+         */
+        get: operations["listAuditMaterials"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1224,17 +1227,21 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/audits/{auditId}/coverage": {
+    "/v1/audits/{auditId}/tasks/{taskId}/attempts": {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 auditId: components["parameters"]["AuditId"];
+                taskId: components["schemas"]["ResourceId"];
             };
             cookie?: never;
         };
-        /** List truthful coverage rows for one exact or current Round */
-        get: operations["listAuditCoverage"];
+        /**
+         * List ordinary Run attempts of one accepted Task
+         * @description Bounded owner-authorized keyset pages pinned to one Audit revision. A concurrent change requires restarting traversal. Reads create no retention or execution effects.
+         */
+        get: operations["listAuditTaskAttempts"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1378,7 +1385,7 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** Read consistent current-round progress and whole-Audit decision counts */
+        /** Read live Task and Run coordination counters */
         get: operations["getAuditWorkspace"];
         put?: never;
         post?: never;
@@ -4495,6 +4502,35 @@ export interface components {
             items: components["schemas"]["AuditHypothesis"][];
             page: components["schemas"]["PageInfo"];
         };
+        AuditMaterialEntry: {
+            key: components["schemas"]["AuditArtifactKey"];
+            material: components["schemas"]["AuditTaskMaterial"];
+            /** Format: date-time */
+            created_at: string;
+        };
+        AuditTaskAttempt: {
+            attempt: number;
+            execution_id: components["schemas"]["ResourceId"];
+            run_id?: components["schemas"]["ResourceId"];
+            run_deleted: boolean;
+            state: components["schemas"]["AuditExecutionItemState"];
+            outcome?: components["schemas"]["AuditTerminalOutcome"];
+            collection_disposition?: components["schemas"]["AuditCollectionDisposition"];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            collected_at?: string;
+        };
+        AuditMaterialPage: {
+            items: components["schemas"]["AuditMaterialEntry"][];
+            page: components["schemas"]["PageInfo"];
+            auditRevision: number;
+        };
+        AuditTaskAttemptPage: {
+            items: components["schemas"]["AuditTaskAttempt"][];
+            page: components["schemas"]["PageInfo"];
+            auditRevision: number;
+        };
         /** @enum {string} */
         AuditTaskState: "ready" | "selected" | "settled";
         AuditTaskCreationRequest: {
@@ -4545,8 +4581,6 @@ export interface components {
             page: components["schemas"]["PageInfo"];
         };
         /** @enum {string} */
-        AuditItemState: "pending" | "ready" | "submitted" | "collecting" | "settled";
-        /** @enum {string} */
         AuditFinalDisposition: "accepted-result" | "missing-output" | "invalid-result" | "execution-failed" | "execution-cancelled" | "excluded" | "not-applicable";
         /** @enum {string} */
         AuditExecutionRole: "prepare" | "discovery" | "check" | "assessment";
@@ -4556,150 +4590,8 @@ export interface components {
         AuditTerminalOutcome: "succeeded" | "failed" | "cancelled" | "submission-failed";
         /** @enum {string} */
         AuditCollectionDisposition: "accepted-result" | "missing-output" | "invalid-result" | "execution-failed" | "execution-cancelled" | "collection-contract-invalid";
-        AuditWorkflowProvenance: {
-            name: components["schemas"]["ConfigurationName"];
-            version: components["schemas"]["ConfigVersion"];
-            schemaVersion: string;
-            configurationRef: components["schemas"]["WorkflowRef"];
-            closureDigest: components["schemas"]["Digest"];
-        };
-        AuditRunProvenance: {
-            /** @constant */
-            schema: "contractor.audit.run-provenance.v1";
-            runId: components["schemas"]["ResourceId"];
-            workflow: components["schemas"]["AuditWorkflowProvenance"];
-        };
-        AuditItemAttempt: {
-            executionItemId: components["schemas"]["ResourceId"];
-            executionId: components["schemas"]["ResourceId"];
-            itemId: components["schemas"]["ResourceId"];
-            itemAttempt: number;
-            role: components["schemas"]["AuditExecutionRole"];
-            state: components["schemas"]["AuditExecutionItemState"];
-            collectionDisposition?: components["schemas"]["AuditCollectionDisposition"];
-            result?: components["schemas"]["AuditExactArtifact"];
-            terminalOutcome?: components["schemas"]["AuditTerminalOutcome"];
-            runId?: components["schemas"]["ResourceId"];
-            runDeleted: boolean;
-            runProvenance?: components["schemas"]["AuditRunProvenance"];
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            collectedAt?: string;
-        };
-        AuditItemOrigin: {
-            /** @constant */
-            schema: "contractor.audit.item-origin.v1";
-            sourceRef: components["schemas"]["ArtifactRef"];
-            sourceContentDigest: components["schemas"]["Digest"];
-            sourceMediaType: string;
-            canonicalInventoryDigest: components["schemas"]["Digest"];
-            entryKey: string;
-            entryVersion?: string;
-            standard?: components["schemas"]["AuditStandardItemOrigin"];
-        };
-        AuditStandardEvidenceOrigin: {
-            id: string;
-            version: string;
-        };
-        AuditStandardItemOrigin: {
-            scheme: string;
-            version: string;
-            mappingKey: string;
-            entryIds: string[];
-            evidenceContract: components["schemas"]["AuditStandardEvidenceOrigin"];
-        };
         /** @description The logical key of one committed Audit receipt link, at most 512 UTF-8 bytes (LIM-AUD-39). */
         AuditArtifactKey: string;
-        /** @description The subject key of an Audit item, at most 512 UTF-8 bytes (LIM-AUD-40). */
-        AuditSubjectKey: string;
-        AuditItem: {
-            itemId: components["schemas"]["ResourceId"];
-            roundId: components["schemas"]["ResourceId"];
-            itemKey: string;
-            ordinal: number;
-            kind: string;
-            subjectKey: components["schemas"]["AuditSubjectKey"];
-            task: components["schemas"]["AuditExactArtifact"];
-            origin: components["schemas"]["AuditItemOrigin"];
-            workflowRole: components["schemas"]["ArtifactName"];
-            state: components["schemas"]["AuditItemState"];
-            finalDisposition?: components["schemas"]["AuditFinalDisposition"];
-            acceptedResult?: components["schemas"]["AuditExactArtifact"];
-            lastExecutionItemId?: components["schemas"]["ResourceId"];
-            attempts: components["schemas"]["AuditItemAttempt"][];
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            updatedAt: string;
-            findingIds: components["schemas"]["ResourceId"][];
-        };
-        AuditItemPage: {
-            items: components["schemas"]["AuditItem"][];
-            page: components["schemas"]["PageInfo"];
-        };
-        /** @enum {string} */
-        AuditCoverageStatus: "not-tested" | "inconclusive" | "satisfied" | "violated" | "not-applicable" | "blocked" | "excluded" | "traced-complete" | "traced-partial" | "unmapped";
-        AuditCoverage: {
-            status: components["schemas"]["AuditCoverageStatus"];
-            requested: string[];
-            completed: string[];
-            gaps: string[];
-            rationale?: string;
-        };
-        AuditScanProvenance: {
-            /** @enum {string} */
-            scanner: "sqlmap" | "nuclei";
-            operation: string;
-            source: components["schemas"]["AuditExactArtifact"];
-            settings: components["schemas"]["AuditExactArtifact"];
-            preparationDigest: components["schemas"]["Digest"];
-            requestDigest?: components["schemas"]["Digest"];
-            targetUrl?: string;
-            runnable: boolean;
-            testParameters: string[];
-            gaps: string[];
-        };
-        AuditCoverageDetails: {
-            scan?: components["schemas"]["AuditScanProvenance"];
-            objective: string;
-            methods: string[];
-            /** @description Exact retained item-task document given to the worker, independent of the selected checklist or profile. */
-            taskDocument: {
-                [key: string]: unknown;
-            };
-            resultSummary?: string;
-            evidence: {
-                id: string;
-                kind: string;
-                summary: string;
-                contentMemberId?: string;
-                /** Format: date-time */
-                observedAt?: string;
-                deploymentMarker?: string;
-                httpRequestId?: string;
-                httpRequestTag?: string;
-            }[];
-        };
-        AuditCoverageRow: {
-            roundId: components["schemas"]["ResourceId"];
-            itemId: components["schemas"]["ResourceId"];
-            ordinal: number;
-            itemKey: string;
-            subjectKey: components["schemas"]["AuditSubjectKey"];
-            coverage: components["schemas"]["AuditCoverage"];
-            details?: components["schemas"]["AuditCoverageDetails"];
-            result?: components["schemas"]["AuditExactArtifact"];
-            /** Format: date-time */
-            updatedAt: string;
-            findingIds: components["schemas"]["ResourceId"][];
-        };
-        AuditCoveragePage: {
-            items: components["schemas"]["AuditCoverageRow"][];
-            page: components["schemas"]["PageInfo"];
-            /** @description The Audit revision every row of this page was read at. */
-            auditRevision: number;
-        };
         /** @description Exact retained Markdown summary; historical text/plain summaries are unsupported. */
         AuditReportSummaryArtifact: {
             ref: components["schemas"]["ExactArtifactRef"];
@@ -5034,21 +4926,16 @@ export interface components {
             hold: components["schemas"]["FindingAuditHold"];
             replayed: boolean;
         };
+        /** @description Live coordination counters. Task results and hypothesis coverage are read separately; Run completion does not imply a supported hypothesis. */
         AuditWorkspace: {
             auditId: components["schemas"]["ResourceId"];
             auditRevision: number;
             /** Format: date-time */
             asOf: string;
-            roundId?: components["schemas"]["ResourceId"];
             executionState: components["schemas"]["AuditState"];
             outstandingRuns: number;
-            totalChecks: number;
-            completedChecks: number;
-            issues: number;
-            gaps: number;
-            unchecked: number;
-            findings: number;
-            unreviewedFindings: number;
+            submittedRuns: number;
+            totalTasks: number;
         };
         OwnerFindingPage: {
             items: components["schemas"]["ProjectFindingSummary"][];
@@ -11003,48 +10890,11 @@ export interface operations {
             503: components["responses"]["StorageTransactionConflict"];
         };
     };
-    listAuditItems: {
+    listAuditMaterials: {
         parameters: {
             query?: {
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];
-                round?: components["schemas"]["ResourceId"];
-                state?: components["schemas"]["AuditItemState"];
-                subject?: components["schemas"]["AuditSubjectKey"];
-            };
-            header?: never;
-            path: {
-                auditId: components["parameters"]["AuditId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Stable item page after filters */
-            200: {
-                headers: {
-                    "X-Request-ID": components["headers"]["RequestId"];
-                    "Cache-Control": components["headers"]["NoStore"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AuditItemPage"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-            503: components["responses"]["StorageTransactionConflict"];
-        };
-    };
-    listAuditCoverage: {
-        parameters: {
-            query?: {
-                limit?: components["parameters"]["Limit"];
-                cursor?: components["parameters"]["Cursor"];
-                round?: components["schemas"]["ResourceId"];
-                /** @description Pin this page, and the current Round it defaults to, to one Audit revision. Every page is read at one revision; continuations bind the Round and revision; a stale revision returns 409. */
                 auditRevision?: number;
             };
             header?: never;
@@ -11055,7 +10905,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Stable coverage page */
+            /** @description One bounded page */
             200: {
                 headers: {
                     "X-Request-ID": components["headers"]["RequestId"];
@@ -11063,7 +10913,42 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AuditCoveragePage"];
+                    "application/json": components["schemas"]["AuditMaterialPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
+    listAuditTaskAttempts: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+                auditRevision?: number;
+            };
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+                taskId: components["schemas"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One bounded page */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditTaskAttemptPage"];
                 };
             };
             400: components["responses"]["BadRequest"];

@@ -17,7 +17,6 @@ export type Audit = components["schemas"]["Audit"];
 type AuditPage = components["schemas"]["AuditPage"];
 type AuditEventPage = components["schemas"]["AuditEventPage"];
 export type AuditState = components["schemas"]["AuditState"];
-export type AuditItem = components["schemas"]["AuditItem"];
 export type AuditReport = components["schemas"]["AuditReport"];
 type AuditStartResponse = components["schemas"]["AuditStartResponse"];
 export type CreateAuditRequest = components["schemas"]["CreateAuditRequest"];

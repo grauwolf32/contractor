@@ -102,9 +102,6 @@ func TestSharedFindingCollectionConformanceAndConsumerTargets(t *testing.T) {
 	if err != nil || changedPackage.Digest == pkg.Digest {
 		t.Fatalf("different snapshot reused package digest: %v", err)
 	}
-	if _, err := DecodeCheckResultPackage(payload); testDomainErrorCode(err) != CodePackageInvalid {
-		t.Fatalf("collection was accepted as check results: %v", err)
-	}
 }
 
 func TestSharedFindingCollectionEmptySelectionAndOptionalReviews(t *testing.T) {

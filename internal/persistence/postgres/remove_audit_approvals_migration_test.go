@@ -56,7 +56,7 @@ func TestPostgresRemoveAuditApprovalsPreservesOpaqueArtifactsAndRestrictsPolicy(
 	snapshot := func() string {
 		t.Helper()
 		var value string
-		if err := pool.QueryRow(ctx, `SELECT jsonb_build_object('versions',(SELECT jsonb_agg(to_jsonb(v) ORDER BY version_id) FROM artifact_versions v),'revisions',(SELECT jsonb_agg(to_jsonb(r) ORDER BY revision) FROM artifact_binding_revisions r),'blobs',(SELECT jsonb_agg(to_jsonb(b) ORDER BY sha256) FROM artifact_blobs b),'bindings',(SELECT jsonb_agg(to_jsonb(b) ORDER BY namespace,name) FROM artifact_bindings b),'links',(SELECT jsonb_agg(to_jsonb(l) ORDER BY audit_id,logical_key) FROM audit_artifact_links l))::text`).Scan(&value); err != nil {
+		if err := pool.QueryRow(ctx, `SELECT jsonb_build_object('versions',(SELECT jsonb_agg(to_jsonb(v) ORDER BY version_id) FROM artifact_versions v),'revisions',(SELECT jsonb_agg(to_jsonb(r) ORDER BY revision) FROM artifact_binding_revisions r),'blobs',(SELECT jsonb_agg(to_jsonb(b) ORDER BY sha256) FROM artifact_blobs b),'bindings',(SELECT jsonb_agg(to_jsonb(b) ORDER BY namespace,name) FROM artifact_bindings b),'links',(SELECT jsonb_agg(to_jsonb(l) - 'material_ordinal' ORDER BY audit_id,logical_key) FROM audit_artifact_links l))::text`).Scan(&value); err != nil {
 			t.Fatal(err)
 		}
 		return value

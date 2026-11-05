@@ -79,14 +79,13 @@ SELECT (SELECT count(*) FROM project_finding_audits WHERE audit_id = $1),
 	t.Run("workspace", func(t *testing.T) {
 		inModes(t, func(t *testing.T, mode explaintest.Mode) {
 			summary, err := store.GetWorkspace(f.ctx, owner, auditID)
-			if err != nil || int64(summary.Findings) != findings || int64(summary.UnreviewedFindings) != unreviewed ||
+			if err != nil || summary.TotalTasks != 0 ||
 				summary.AsOf.IsZero() {
 				t.Fatalf("%s: workspace = %+v, %v", mode, summary, err)
 			}
-			// One pass over the Audit's findings and one over its review
-			// requests, each row once.
-			within(t, mode, getWorkspaceSQL, workspaceArgs(owner, auditID), map[string]int64{
-				"project_findings": findings, "project_finding_audits": findings, "audit_executions": 0,
+			// Coordination reads do not visit findings or executions.
+			within(t, mode, getWorkspaceSQL, []any{owner, auditID}, map[string]int64{
+				"project_findings": 0, "project_finding_audits": 0, "audit_executions": 0,
 			})
 		})
 	})

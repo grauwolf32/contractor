@@ -5,9 +5,9 @@ import (
 )
 
 const (
+	JSONMediaType = "application/json"
 	PackageSchema = "contractor.audit.package.v1"
 
-	TaskSchema                = "contractor.audit.item-task.v1"
 	ExecutionManifestSchema   = "contractor.audit.execution-manifest.v1"
 	CheckResultsSchema        = "contractor.audit.check-results.v1"
 	DirectVerificationsSchema = "contractor.audit.direct-verifications.v1"
@@ -90,71 +90,6 @@ func (p *Package) MemberByID(id string) (Member, bool) {
 	return Member{}, false
 }
 
-type ItemTask struct {
-	AcceptedPlan             *AcceptedPlan               `json:"accepted_plan,omitempty"`
-	Dependencies             *RetainedDependencyManifest `json:"dependencies,omitempty"`
-	Schema                   string                      `json:"schema"`
-	ProfileMode              string                      `json:"profile_mode,omitempty"`
-	ItemKey                  string                      `json:"item_key"`
-	Kind                     string                      `json:"kind"`
-	SubjectKey               string                      `json:"subject_key"`
-	WorkflowRole             string                      `json:"workflow_role"`
-	SourceContentDigest      string                      `json:"source_content_digest"`
-	SourceMediaType          string                      `json:"source_media_type"`
-	SourceRef                contracts.ArtifactRef       `json:"source_ref"`
-	CanonicalInventoryDigest string                      `json:"canonical_inventory_digest"`
-	Scope                    map[string]string           `json:"scope,omitempty"`
-	Checklist                *ChecklistTask              `json:"checklist,omitempty"`
-	Standard                 *StandardMappingTask        `json:"standard,omitempty"`
-	Operation                *OperationTask              `json:"operation,omitempty"`
-	Scan                     *ScanTask                   `json:"scan,omitempty"`
-	Finding                  *FindingTask                `json:"finding,omitempty"`
-}
-
-// StandardMappingTask is the immutable, Worker-visible authority copied from
-// one exact retained standard package mapping. It supplements ChecklistTask;
-// the model can reference this identity but cannot create or alter it.
-type StandardMappingTask struct {
-	Scheme           string                   `json:"scheme"`
-	Version          string                   `json:"version"`
-	MappingKey       string                   `json:"mapping_key"`
-	EntryIDs         []string                 `json:"entry_ids"`
-	EvidenceContract StandardEvidenceContract `json:"evidence_contract"`
-}
-
-type StandardEvidenceContract struct {
-	ID                string   `json:"id"`
-	Version           string   `json:"version"`
-	Assessments       []string `json:"assessments"`
-	EvidenceKinds     []string `json:"evidence_kinds"`
-	MinimumEvidence   int      `json:"minimum_evidence"`
-	MaximumEvidence   int      `json:"maximum_evidence"`
-	HumanReview       string   `json:"human_review"`
-	RationaleRequired bool     `json:"rationale_required"`
-}
-
-// FindingTask binds one later-round check to an exact admitted proposal and
-// one immutable proposed-check ordinal. The proposal text is not copied into
-// mutable Scheduler state; Workers receive it through this exact task package.
-type FindingTask struct {
-	ReceiptID            string                `json:"receipt_id"`
-	ProposalRef          contracts.ArtifactRef `json:"proposal_ref"`
-	ProposalDigest       string                `json:"proposal_digest"`
-	ProposedCheckOrdinal int                   `json:"proposed_check_ordinal"`
-	Objective            string                `json:"objective"`
-	Method               string                `json:"method"`
-	Limitations          []string              `json:"limitations"`
-}
-
-type ChecklistTask struct {
-	Version          string   `json:"version"`
-	Statement        string   `json:"statement"`
-	Applicability    string   `json:"applicability"`
-	AllowedMethods   []string `json:"allowed_methods"`
-	RequiredEvidence []string `json:"required_evidence"`
-	ReviewPolicy     string   `json:"review_policy"`
-}
-
 type OperationTask struct {
 	Path        string         `json:"path"`
 	Method      string         `json:"method"`
@@ -179,17 +114,11 @@ type ExecutionItem struct {
 }
 
 // ExactInput pins one named Workflow input of an execution manifest to an
-// exact revision and digest. The manifest carries no media type or size, so
-// Exact returns a digest-only shared descriptor.
+// exact revision and digest. The manifest carries no media type or size.
 type ExactInput struct {
 	Name   string                `json:"name"`
 	Ref    contracts.ArtifactRef `json:"ref"`
 	Digest string                `json:"digest"`
-}
-
-// Exact returns the pin as the shared exact-content descriptor.
-func (i ExactInput) Exact() contracts.ExactArtifact {
-	return contracts.ExactArtifact{Ref: i.Ref.Clone(), Digest: i.Digest}
 }
 
 type CheckResultSet struct {

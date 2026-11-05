@@ -1280,9 +1280,9 @@ model defaults change. Selection drift and frozen execution content remain
 separate checks without changing the configured model or relaxing immutable
 reads.
 
-**AUD-R226.** A start response, first or replayed, carries the Audit, its
-current Round and only that Round's items, so it holds at most LIM-AUD-26
-items however many items earlier Rounds hold.
+**AUD-R226.** A start response, first or replayed, carries the committed Audit.
+It creates no Round and does not claim initial Task intake has occurred. Tasks
+are read through bounded common Task pages (ACT-R15).
 
 **AUD-R206.** `deadlineSeconds` must be an integer from zero through 31,536,000
 (LIM-AUD-23); explicit `null` is invalid. An absent body and `{}` both omit the
@@ -1368,9 +1368,11 @@ conventions are in [public API](../api/public-api.md).
 | `POST /v1/audits/{auditId}/pause` | Stop new Audit submissions; optionally gate admission |
 | `POST /v1/audits/{auditId}/resume` | Resume a paused Audit with an optional time-limit override |
 | `POST /v1/audits/{auditId}/cancel` | Close dispatch and bounded-cancel children |
-| `GET /v1/audits/{auditId}/items` | Paginated items filtered by round/state/subject |
-| `GET /v1/audits/{auditId}/coverage` | Requirement or operation matrix |
-| `GET /v1/audits/{auditId}/workspace` | Owner-scoped snapshot of current-round progress, gaps and findings |
+| `GET /v1/audits/{auditId}/tasks` | Bounded common Task list with hypothesis/state filters |
+| `GET /v1/audits/{auditId}/tasks/{taskId}/attempts` | Bounded attempts with retained Run provenance and technical outcomes |
+| `GET /v1/audits/{auditId}/hypotheses` | Bounded registered hypotheses, denominator and revision metadata |
+| `GET /v1/audits/{auditId}/materials` | Bounded accepted exact materials and logical keys |
+| `GET /v1/audits/{auditId}/workspace` | Owner-scoped Task/Run coordination counters |
 | `GET /v1/audits/{auditId}/finding-proposals` | Paginated, oldest-first inbox of unconfirmed proposal receipts |
 | `POST /v1/audits/{auditId}/finding-proposal-imports` | Retain one exact ordinary-Run proposal and its evidence revisions in a compatible owned Audit; idempotent replay returns 200 |
 | `POST /v1/finding-collections` | Publish selected exact proposals as an ordinary finding collection (see [findings](../findings/findings.md)) |

@@ -15,18 +15,11 @@ import (
 	publicapi "github.com/grauwolf32/contractor/internal/publicclient/generated"
 )
 
-func (c *CLI) runAudit(ctx context.Context, client *publicclient.Client, printer *Printer, args []string) error {
-	if len(args) < 2 || args[0] != "findings" {
-		return &UsageError{Message: "usage: contractor audit findings export|download"}
+func (c *CLI) runAuditFindingExport(ctx context.Context, client *publicclient.Client, printer *Printer, args []string) error {
+	if args[0] == "export" {
+		return c.exportAuditFindings(ctx, client, printer, args[1:])
 	}
-	switch args[1] {
-	case "export":
-		return c.exportAuditFindings(ctx, client, printer, args[2:])
-	case "download":
-		return c.downloadAuditFindings(ctx, client, args[2:])
-	default:
-		return &UsageError{Message: "audit findings requires export or download"}
-	}
+	return c.downloadAuditFindings(ctx, client, args[1:])
 }
 
 func (c *CLI) exportAuditFindings(ctx context.Context, client *publicclient.Client, printer *Printer, args []string) error {

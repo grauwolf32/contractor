@@ -248,8 +248,9 @@ completed (`satisfied`, `violated`, `traced-complete`, `not-applicable`), gap
 (`inconclusive`, `blocked`, `traced-partial`, `unmapped`, `excluded`) or
 unchecked (`not-tested`). An item the owner rejected is `excluded`, so it is a
 gap and never completed work (AUD-R178). A selected item outside the completed
-bucket makes the report conclude `completed-with-gaps`, and the Audit
-workspace counts the current round by the same buckets (UI-R144).
+bucket makes the retained Round report conclude `completed-with-gaps`. This
+historical report classification is not the common live workspace projection
+(ACT-R15, UI-R144).
 
 When a limit prevents more hypotheses or executions, the retention of counts,
 omission reasons and coverage gaps is specified in [execution](execution.md)
@@ -881,8 +882,8 @@ behaviour of the finding, provenance and report reads.
 **REV-R164.** Findings use bounded server pages.
 
 **REV-R165.** Finding pages return bounded candidate windows and no lifetime total;
-empty matching pages may still have a continuation. Workspace aggregate counts
-are separate reads.
+empty matching pages may still have a continuation. Coordination counts are
+separate reads and do not count Findings.
 
 **REV-R166.** Finding lists support filters for triage
 disposition, analyst verdict (including unreviewed) and analyst severity, and
@@ -914,13 +915,9 @@ revision pins.
 
 **REV-R190.** Refresh explicitly starts a new context.
 
-**REV-R172.** Coverage links also pin the summary revision. Every coverage
-page is read at one Audit revision and reports it as `auditRevision`; an
-optional `auditRevision` pins a page, and the current Round it defaults to, to
-that revision, and signed continuation cursors bind the Round and revision, so
-a page whose Audit changes returns 409 (FAIL-REV-12). The UI pins every page
-of a batch to the revision it read before the batch and rejects mixed
-revisions.
+**REV-R172.** The Round coverage page is retired. Common hypothesis coverage,
+Task history and exact retained results follow ACT-R15–ACT-R17. A live
+coordination summary is not a retained semantic assessment.
 
 **REV-R173.** Finding detail identifies its Project, canonical revision, immutable first-source claim,
 current analyst fields and duplicate target. Sources and result/history material use

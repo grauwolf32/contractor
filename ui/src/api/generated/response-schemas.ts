@@ -253,34 +253,22 @@ export type PublicSchemaName =
   | "AuditHypothesisAcceptance"
   | "AuditCheckingWorkflows"
   | "AuditHypothesisPage"
+  | "AuditMaterialEntry"
+  | "AuditTaskAttempt"
+  | "AuditMaterialPage"
+  | "AuditTaskAttemptPage"
   | "AuditTaskState"
   | "AuditTaskCreationRequest"
   | "AuditTaskAcceptance"
   | "AuditTaskSource"
   | "AuditTask"
   | "AuditTaskPage"
-  | "AuditItemState"
   | "AuditFinalDisposition"
   | "AuditExecutionRole"
   | "AuditExecutionItemState"
   | "AuditTerminalOutcome"
   | "AuditCollectionDisposition"
-  | "AuditWorkflowProvenance"
-  | "AuditRunProvenance"
-  | "AuditItemAttempt"
-  | "AuditItemOrigin"
-  | "AuditStandardEvidenceOrigin"
-  | "AuditStandardItemOrigin"
   | "AuditArtifactKey"
-  | "AuditSubjectKey"
-  | "AuditItem"
-  | "AuditItemPage"
-  | "AuditCoverageStatus"
-  | "AuditCoverage"
-  | "AuditScanProvenance"
-  | "AuditCoverageDetails"
-  | "AuditCoverageRow"
-  | "AuditCoveragePage"
   | "AuditReportSummaryArtifact"
   | "AuditReportStatus"
   | "AuditReport"
@@ -1430,16 +1418,17 @@ export const RESPONSE_SCHEMAS = {
     "500": "Error",
     "503": "Error",
   },
-  "GET /v1/audits/{auditId}/items": {
-    "200": "AuditItemPage",
+  "GET /v1/audits/{auditId}/materials": {
+    "200": "AuditMaterialPage",
     "400": "Error",
     "401": "Error",
     "404": "Error",
+    "409": "Error",
     "500": "Error",
     "503": "Error",
   },
-  "GET /v1/audits/{auditId}/coverage": {
-    "200": "AuditCoveragePage",
+  "GET /v1/audits/{auditId}/tasks/{taskId}/attempts": {
+    "200": "AuditTaskAttemptPage",
     "400": "Error",
     "401": "Error",
     "404": "Error",
@@ -2199,8 +2188,8 @@ export const PUBLIC_PAGED_OPERATIONS: readonly string[] = [
   "GET /v1/findings",
   "GET /v1/audits/{auditId}/hypotheses",
   "GET /v1/audits/{auditId}/tasks",
-  "GET /v1/audits/{auditId}/items",
-  "GET /v1/audits/{auditId}/coverage",
+  "GET /v1/audits/{auditId}/materials",
+  "GET /v1/audits/{auditId}/tasks/{taskId}/attempts",
   "GET /v1/audits/{auditId}/finding-proposals",
   "GET /v1/audits/{auditId}/events",
   "GET /v1/audits/{auditId}/findings",

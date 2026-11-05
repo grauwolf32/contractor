@@ -10,17 +10,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 )
 
-func DecodeItemTask(data []byte) (ItemTask, error) {
-	var result ItemTask
-	if _, err := decodeJSONWithBounds(data, &result, openAPIOutputBounds); err != nil {
-		return result, err
-	}
-	if result.Operation == nil {
-		return decodeDocument(data, validateItemTask)
-	}
-	return result, validateItemTask(result)
-}
-
 func DecodeCheckResultSet(data []byte) (CheckResultSet, error) {
 	return decodeDocument(data, validateCheckResultSet)
 }
@@ -66,10 +55,6 @@ func decodeDocument[T any](data []byte, validate func(T) error) (T, error) {
 		return result, err
 	}
 	switch any(result).(type) {
-	case ItemTask:
-		if err = rejectNullItemAuthority(raw); err != nil {
-			return result, err
-		}
 	case ExecutionManifest:
 		if object, ok := raw.(map[string]any); ok {
 			if items, ok := object["items"].([]any); ok {
@@ -96,173 +81,6 @@ func rejectNullItemAuthority(raw any) error {
 		}
 	}
 	return nil
-}
-
-func validateItemTask(value ItemTask) error {
-	if value.AcceptedPlan != nil {
-		if !validAuditProfileMode(value.ProfileMode) {
-			return invalid(CodeInvalid, "accepted_plan.profile_mode")
-		}
-		plan := value.AcceptedPlan
-		if ValidateAcceptedPlan(*plan, value.Dependencies) != nil || plan.ItemKey != value.ItemKey || plan.Route.WorkflowRole != value.WorkflowRole || value.Finding == nil || plan.Source.ReceiptID != value.Finding.ReceiptID || plan.Source.ProposedCheckOrdinal == nil || *plan.Source.ProposedCheckOrdinal != value.Finding.ProposedCheckOrdinal || !plan.Source.RetainedProposal.Ref.SameExact(value.Finding.ProposalRef) || plan.Source.RetainedProposal.Digest != value.Finding.ProposalDigest || plan.Plan.Objective != value.Finding.Objective || plan.Plan.Method != value.Finding.Method {
-			return invalid(CodeInvalid, "accepted_plan.task")
-		}
-	}
-
-	if value.Dependencies != nil {
-		if err := validateItemDependencies(value.ItemKey, value.Dependencies); err != nil {
-			return err
-		}
-	}
-	if value.Schema != TaskSchema {
-		return invalid(CodeSchemaUnsupported, "schema")
-	}
-	// Empty remains valid for exact task packages retained before profile mode
-	// became Worker-visible. New Server-built packages always pin this field.
-	if value.ProfileMode != "" && !validAuditProfileMode(value.ProfileMode) {
-		return invalid(CodeInvalid, "profile_mode")
-	}
-	for field, candidate := range map[string]string{
-		"item_key": value.ItemKey, "kind": value.Kind, "subject_key": value.SubjectKey,
-		"workflow_role": value.WorkflowRole,
-	} {
-		if err := validateIdentifier(candidate, field); err != nil {
-			return err
-		}
-	}
-	if !contentdigest.Valid(value.SourceContentDigest) || !contentdigest.Valid(value.CanonicalInventoryDigest) || !validMediaType(value.SourceMediaType) || value.SourceMediaType != normalizedMediaType(value.SourceMediaType) {
-		return invalid(CodeInvalid, "digest")
-	}
-	if err := value.SourceRef.ValidateExact(); err != nil {
-		return invalid(CodeReferenceInvalid, "source_ref")
-	}
-	if len(value.Scope) > 64 {
-		return invalid(CodeLimitExceeded, "scope")
-	}
-	for key, candidate := range value.Scope {
-		if validateIdentifier(key, "scope") != nil || validateText(candidate, "scope", false) != nil {
-			return invalid(CodeInvalid, "scope")
-		}
-	}
-	shapes := 0
-	if value.Checklist != nil {
-		shapes++
-	}
-	if value.Operation != nil {
-		shapes++
-	}
-	if value.Finding != nil {
-		shapes++
-	}
-	if value.Scan != nil {
-		shapes++
-	}
-	if shapes != 1 {
-		return invalid(CodeInvalid, "task")
-	}
-	if value.Checklist != nil {
-		if value.Standard == nil && value.Kind != "checklist" ||
-			value.Standard != nil && value.Kind != "standard-mapping" {
-			return invalid(CodeInvalid, "kind")
-		}
-		if err := validateChecklistTask(*value.Checklist); err != nil {
-			return err
-		}
-		if value.Standard != nil {
-			return validateStandardMappingTask(*value.Standard, value.ItemKey, *value.Checklist)
-		}
-		return nil
-	}
-	if value.Standard != nil {
-		return invalid(CodeInvalid, "standard")
-	}
-	if value.Operation != nil {
-		if value.Kind != "operation-trace" {
-			return invalid(CodeInvalid, "kind")
-		}
-		return validateOperationTask(*value.Operation)
-	}
-	if value.Scan != nil {
-		if value.Kind != "openapi-scan" && value.Kind != "web-scan" {
-			return invalid(CodeInvalid, "kind")
-		}
-		if value.Kind == "web-scan" && value.SourceMediaType != JSONMediaType {
-			return invalid(CodeInvalid, "source_media_type")
-		}
-		return validateScanTask(*value.Scan, value.Kind == "web-scan")
-	}
-	if value.Kind != "finding-verification" {
-		return invalid(CodeInvalid, "kind")
-	}
-	return validateFindingTask(*value.Finding)
-}
-
-func validateStandardMappingTask(
-	value StandardMappingTask, itemKey string, checklist ChecklistTask,
-) error {
-	if validateIdentifier(value.Scheme, "standard.scheme") != nil ||
-		validateText(value.Version, "standard.version", true) != nil ||
-		validateIdentifier(value.MappingKey, "standard.mapping_key") != nil ||
-		value.MappingKey != itemKey || len(value.EntryIDs) == 0 ||
-		validateSortedStrings(value.EntryIDs, MaximumCoverageValues, "standard.entry_ids", true) != nil {
-		return invalid(CodeInvalid, "standard")
-	}
-	contract := value.EvidenceContract
-	if validateIdentifier(contract.ID, "standard.evidence_contract.id") != nil ||
-		validateText(contract.Version, "standard.evidence_contract.version", true) != nil ||
-		contract.MinimumEvidence < 0 || contract.MaximumEvidence < contract.MinimumEvidence ||
-		contract.MaximumEvidence > MaximumEvidencePerItem ||
-		validateSortedStrings(contract.Assessments, MaximumCoverageValues, "standard.evidence_contract.assessments", true) != nil ||
-		validateSortedStrings(contract.EvidenceKinds, MaximumEvidencePerItem, "standard.evidence_contract.evidence_kinds", true) != nil ||
-		contract.HumanReview != "never" && contract.HumanReview != "required" {
-		return invalid(CodeInvalid, "standard.evidence_contract")
-	}
-	for _, assessment := range contract.Assessments {
-		if !validAssessment(assessment) {
-			return invalid(CodeInvalid, "standard.evidence_contract.assessments")
-		}
-	}
-	required := []string{}
-	if contract.MinimumEvidence > 0 {
-		required = contract.EvidenceKinds
-	}
-	if !equalStringSlices(checklist.RequiredEvidence, required) ||
-		contract.HumanReview == "required" && checklist.ReviewPolicy != "manual" {
-		return invalid(CodeInvalid, "standard.evidence_contract")
-	}
-	return nil
-}
-
-func validateFindingTask(value FindingTask) error {
-	if validateIdentifier(value.ReceiptID, "finding.receipt_id") != nil ||
-		value.ProposalRef.ValidateExact() != nil || !contentdigest.Valid(value.ProposalDigest) ||
-		value.ProposedCheckOrdinal < 0 || value.ProposedCheckOrdinal >= MaximumCoverageValues ||
-		validateText(value.Objective, "finding.objective", true) != nil ||
-		validateIdentifier(value.Method, "finding.method") != nil {
-		return invalid(CodeInvalid, "finding")
-	}
-	return validateSortedStrings(value.Limitations, MaximumCoverageValues, "finding.limitations", false)
-}
-
-func validateChecklistTask(value ChecklistTask) error {
-	if validateText(value.Version, "checklist.version", true) != nil ||
-		validateText(value.Statement, "checklist.statement", true) != nil ||
-		validateText(value.Applicability, "checklist.applicability", true) != nil ||
-		value.ReviewPolicy != "automatic" && value.ReviewPolicy != "manual" {
-		return invalid(CodeInvalid, "checklist")
-	}
-	if err := validateSortedStrings(value.AllowedMethods, MaximumCoverageValues, "checklist.allowed_methods", true); err != nil {
-		return err
-	}
-	return validateSortedStrings(value.RequiredEvidence, MaximumEvidencePerItem, "checklist.required_evidence", true)
-}
-
-func validateOperationTask(value OperationTask) error {
-	if !strings.HasPrefix(value.Path, "/") || validateOpenAPISourceText(value.Path, "operation.path", true) != nil || !validHTTPMethod(value.Method) ||
-		validateOpenAPISourceText(value.OperationID, "operation.operation_id", false) != nil || value.Resolved == nil {
-		return invalid(CodeInvalid, "operation")
-	}
-	return validateSortedStrings(value.Gaps, MaximumCoverageValues, "operation.gaps", false)
 }
 
 func validateExecutionManifest(value ExecutionManifest) error {
@@ -535,15 +353,6 @@ func validCoverageStatus(value string) bool {
 func validSeverity(value string) bool {
 	switch value {
 	case "", "informational", "low", "medium", "high", "critical":
-		return true
-	default:
-		return false
-	}
-}
-
-func validHTTPMethod(value string) bool {
-	switch value {
-	case "get", "put", "post", "delete", "options", "head", "patch", "trace":
 		return true
 	default:
 		return false

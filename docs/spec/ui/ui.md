@@ -961,20 +961,21 @@ and links back to the Audit; an Audit does not create a second Runtime queue.
 with the exact ID and a copy action.
 
 **UI-R143.** `GET /v1/audits/{auditId}/workspace` returns one owner-scoped SQL
-snapshot (`auditRevision`, `asOf`): current-round completed and total checks,
-issues, gaps and unchecked work, plus whole-Audit unassessed Findings. It carries
-no pending approval count.
+snapshot (`auditRevision`, `asOf`) of persisted coordination counters:
+`totalTasks`, `submittedRuns` and `outstandingRuns`, plus execution state.
+It reads one Audit row without scanning its Task, Run or Finding history.
 
-**UI-R144.** Completed, gaps and unchecked partition the current round by the
-coverage buckets used by retained results (REV-R193). Issues are its violated
-part; excluded or incomplete work remains a gap. No count implies an analyst
-assessment or a successful security evaluation.
+**UI-R144.** Coordination counters do not imply completed checks, supported
+hypotheses or problem findings. The Checks list and Inbox display Task and
+active Run counts without deriving progress percentages or gap rows from them.
+Semantic coverage uses common hypotheses and exact Task results (ACT-R15–ACT-R17).
 
-**UI-R145.** Audit Overview begins with current-round progress, retained results
+**UI-R145.** Audit Overview begins with common Task state, retained results
 and optional Project Finding annotation links.
 
-**UI-R146.** Overview counts link to the same result groups used by Coverage
-and to the corresponding canonical Finding filters.
+**UI-R146.** Result and finding navigation opens the corresponding bounded
+Task/hypothesis history or canonical Project Finding view; coordination counts
+never substitute for a semantic result filter.
 
 **UI-R147.** Unavailable counts remain unknown; refresh errors identify
 retained snapshot counts (FAIL-UI-6).
@@ -990,8 +991,8 @@ metrics.
 
 Finding pages use bounded candidate windows, revision pins and signed continuation
 cursors. A concurrent change conflicts, filter changes clear incompatible cursors,
-and refresh starts a new context. Coverage links pin the summary revision and
-reject mixed revisions (REV-R170 through REV-R172).
+and refresh starts a new context (REV-R170 through REV-R172). Common material
+and attempt pages bind their continuation to the Audit revision (ACT-R15).
 
 **UI-R153.** All activity reads 50 events at a time (LIM-UI-11), exposes Load
 older activity, keeps settled events visible on continuation errors and
@@ -1229,7 +1230,7 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
 - FAIL-UI-3 — Workflow version inventory load (UI-R70).
 - FAIL-UI-4 — Run creation from a Run draft (UI-R80, UI-R88).
 - FAIL-UI-5 — Scheduler settings save (UI-R166).
-- FAIL-UI-6 — Audit workspace, coverage and activity reads (UI-R147,
+- FAIL-UI-6 — Audit workspace, research and activity reads (UI-R147,
   UI-R153; mixed coverage revisions: REV-R172).
 - FAIL-UI-7 — label binding, Agent-label and RuntimeConfig publication
   mutations (UI-R161, UI-R162, UI-R163).

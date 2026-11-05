@@ -19,18 +19,11 @@ import {
   ListPane,
   ListRow,
   ListSection,
-  ProgressSegments,
   StatusChip,
   StatusGlyph,
   type ListNavigationContainerProps,
 } from "../../../ui";
-import {
-  countLegend,
-  countSegments,
-  doneSummary,
-  legendSentence,
-  workCounts,
-} from "../../projects/audits/check-model";
+import { coordinationSummary } from "../../projects/audits/check-model";
 import { auditProfileLabel } from "../../projects/audits/labels";
 import { CHECK_FILTERS, type CheckFilter } from "./filters";
 
@@ -39,19 +32,8 @@ const LIST_KEYS = "J K ArrowDown ArrowUp Home End Enter";
 
 /** A check's progress line in a list row, from its workspace counts. */
 function RowProgress({ workspace }: { workspace: AuditWorkspace }) {
-  const counts = workCounts(workspace);
-  if (counts.total === 0) return null;
-  const legend = countLegend(counts).filter((entry) => entry.count > 0);
-  const done = doneSummary(workspace.completedChecks, counts.total);
   return (
-    <div className="checks-row-progress">
-      <ProgressSegments
-        size="sm"
-        segments={countSegments(legend)}
-        label={`${done}: ${legendSentence(legend)}`}
-      />
-      <span>{done}</span>
-    </div>
+    <div className="checks-row-progress">{coordinationSummary(workspace)}</div>
   );
 }
 

@@ -5,7 +5,6 @@ import { describe, expect, it } from "vitest";
 import type {
   Audit,
   ProjectFinding,
-  AuditItem,
   AuditReport,
   AuditWorkspace,
 } from "../../api/audits";
@@ -67,9 +66,9 @@ function workspace(
   counts: Parameters<typeof build.workspace>[1] = {},
 ): AuditWorkspace {
   return build.workspace(check, {
-    totalChecks: 5,
-    completedChecks: 1,
-    unchecked: 4,
+    totalTasks: 5,
+    submittedRuns: 1,
+
     ...counts,
   });
 }
@@ -132,7 +131,6 @@ interface InboxServer {
   findings: Record<string, ProjectFinding[]>;
   reports: Record<string, AuditReport>;
   workspaces: Record<string, AuditWorkspace>;
-  items: Record<string, AuditItem[]>;
   runs: RunSummary[];
   statuses: Record<string, RunStatus>;
   /** Exact Workflow versions by "name@version". */
@@ -167,7 +165,6 @@ function emptyServer(): InboxServer {
     findings: {},
     reports: {},
     workspaces: {},
-    items: {},
     runs: [],
     statuses: {},
     workflows: {},
@@ -251,21 +248,10 @@ function busyServer(): InboxServer {
       }),
     },
     workspaces: {
-      audit_trace: workspace(trace, { gaps: 2, unchecked: 2 }),
-      audit_wait: workspace(wait, { completedChecks: 5, unchecked: 0 }),
-      audit_paused: workspace(paused, { completedChecks: 2, unchecked: 3 }),
-      audit_done: workspace(done, { completedChecks: 5, unchecked: 0 }),
-    },
-    items: {
-      audit_trace: [
-        build.auditItem("item_1", 0, "standard-mapping", {
-          itemKey: "WSTG-ATHN-01",
-          subjectKey: "WSTG-ATHN-01",
-          state: "ready",
-          createdAt: ago(30),
-          updatedAt: ago(25),
-        }),
-      ],
+      audit_trace: workspace(trace, {}),
+      audit_wait: workspace(wait, { submittedRuns: 5 }),
+      audit_paused: workspace(paused, { submittedRuns: 2 }),
+      audit_done: workspace(done, { submittedRuns: 5 }),
     },
     runs,
     statuses: {
@@ -416,16 +402,6 @@ function inboxRoutes(server: InboxServer): Routes {
       found(server.reports[params.auditId!]),
     "GET /v1/audits/{auditId}/workspace": ({ params }) =>
       found(server.workspaces[params.auditId!]),
-    "GET /v1/audits/{auditId}/items": ({ params, url }) => {
-      const state = url.searchParams.get("state");
-      return json(
-        page(
-          (server.items[params.auditId!] ?? []).filter(
-            (item) => state === null || item.state === state,
-          ),
-        ),
-      );
-    },
     "GET /v1/runs": ({ url }) => {
       const state = url.searchParams.get("state");
       const lifecycle = url.searchParams.get("lifecycle");
@@ -961,44 +937,23 @@ describe("Inbox", () => {
     );
   });
 
-  it("selects the row the user chose for a check listed twice", async () => {
-    const { router } = renderApplication("/?item=check:audit_trace", {
+  it("shows a running check once without inferred gap rows", async () => {
+    renderApplication("/?item=check:audit_trace", {
       server: inboxServer(busyServer()),
     });
-    const user = userEvent.setup();
-    const stuck = await within(await findSection("Unblock")).findByRole(
+    const running = await within(await findSection("Running")).findByRole(
       "link",
-      { name: "2 endpoints couldn't be fully checked" },
+      { name: "crapi-workshop: OpenAPI · Operation trace" },
     );
-    const running = within(await findSection("Running")).getByRole("link", {
-      name: "crapi-workshop: OpenAPI · Operation trace",
-    });
-    // A URL names the check: its first row is selected.
-    await waitFor(() => expect(stuck).toHaveAttribute("aria-current", "true"));
-    expect(running).not.toHaveAttribute("aria-current");
-    expect(detailWhere()).toHaveTextContent("Unblock Check");
-
-    await user.click(running);
     await waitFor(() =>
       expect(running).toHaveAttribute("aria-current", "true"),
     );
-    expect(stuck).not.toHaveAttribute("aria-current");
-    expect(router.state.location.search).toBe("?item=check:audit_trace");
+    expect(
+      within(await findSection("Unblock")).queryByRole("link", {
+        name: /couldn't be fully checked/,
+      }),
+    ).toBeNull();
     expect(detailWhere()).toHaveTextContent("Running Check");
-
-    // The arrow keys move from the row as shown: up into Ready.
-    await user.keyboard("{ArrowUp}");
-    await waitFor(() =>
-      expect(router.state.location.search).toBe("?item=run:run_ok"),
-    );
-    await waitFor(() =>
-      expect(
-        within(screen.getByRole("region", { name: "Inbox" })).getByRole(
-          "link",
-          { name: "generate@1" },
-        ),
-      ).toHaveFocus(),
-    );
   });
 
   it("keeps a check's progress shown while its new counts load", async () => {
@@ -1009,7 +964,7 @@ describe("Inbox", () => {
     const user = userEvent.setup();
     const pane = await findDetail();
     expect(
-      await within(pane).findByText("2 of 5 endpoints done"),
+      await within(pane).findByText("5 tasks · 0 runs in progress"),
     ).toBeInTheDocument();
 
     // The check moves on; its new counts take a while.
@@ -1021,7 +976,7 @@ describe("Inbox", () => {
     advance(server, "audit_paused");
     server.workspaces.audit_paused = workspace(
       auditOf(server, "audit_paused"),
-      { completedChecks: 3, unchecked: 2 },
+      { submittedRuns: 3, totalTasks: 6 },
     );
     const reads = sent("GET", "/v1/audits/audit_paused/workspace").length;
     await user.click(screen.getByRole("button", { name: "Refresh" }));
@@ -1033,24 +988,22 @@ describe("Inbox", () => {
     expect(
       within(pane).queryByText("Loading progress…"),
     ).not.toBeInTheDocument();
-    expect(within(pane).getByText("2 of 5 endpoints done")).toBeInTheDocument();
+    expect(
+      within(pane).getByText("5 tasks · 0 runs in progress"),
+    ).toBeInTheDocument();
 
     counts.resolve();
     expect(
-      await within(pane).findByText("3 of 5 endpoints done"),
+      await within(pane).findByText("6 tasks · 0 runs in progress"),
     ).toBeInTheDocument();
   });
 
-  it("shows a stopped check's progress, stop reason and follow-up", async () => {
+  it("shows a stopped check's coordination counts and stop reason", async () => {
     const server = busyServer();
     server.workspaces.audit_paused = workspace(
       auditOf(server, "audit_paused"),
       {
-        completedChecks: 2,
-        issues: 1,
-        gaps: 1,
-        unchecked: 2,
-        unreviewedFindings: 1,
+        submittedRuns: 2,
       },
     );
     renderApplication("/?item=check:audit_paused", {
@@ -1059,16 +1012,11 @@ describe("Inbox", () => {
 
     const pane = await findDetail();
     expect(
-      await within(pane).findByText("2 of 5 endpoints done"),
+      await within(pane).findByText("5 tasks · 0 runs in progress"),
     ).toBeInTheDocument();
     expect(within(pane).getByText("Time limit reached.")).toBeInTheDocument();
     expect(
       within(pane).getByText("The check used its time limit."),
-    ).toBeInTheDocument();
-    expect(
-      within(pane).getByRole("img", {
-        name: "2 of 5 endpoints done: 1 with an issue found, 1 needs follow-up, 2 not checked yet",
-      }),
     ).toBeInTheDocument();
     for (const link of within(pane).getAllByRole("link", {
       name: "Open check",
@@ -1077,14 +1025,6 @@ describe("Inbox", () => {
         "href",
         "/projects/project_shop/audits/audit_paused",
       );
-    expect(
-      within(pane).getByRole("link", {
-        name: "Show endpoints that need follow-up",
-      }),
-    ).toHaveAttribute(
-      "href",
-      "/projects/project_shop/audits/audit_paused/coverage?result=uncertain",
-    );
     expect(
       within(pane).getByText(
         "Continue, Stop and Delete are on the check page.",

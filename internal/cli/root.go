@@ -128,7 +128,7 @@ func transferCommand(command string, args []string) bool {
 	}
 	switch command {
 	case "audit":
-		return len(args) > 1 && args[0] == "findings" && (args[1] == "export" || args[1] == "download")
+		return len(args) > 1 && ((args[0] == "findings" && (args[1] == "export" || args[1] == "download")) || (args[0] == "materials" && args[1] == "get") || (args[0] == "tasks" && args[1] == "result"))
 	case "source":
 		return args[0] == "push"
 	case "artifact", "artifacts":
@@ -260,7 +260,7 @@ Commands:
   check       Verify connectivity, authentication, and API compatibility
   workflow    List and inspect published Workflows
   project     Manage Projects and Project-scoped resources
-  audit       Export and download Audit findings as SARIF
+  audit       Control Audits and inspect tasks, hypotheses, findings, and exact materials
   artifact    Manage User, Project, and Run Artifacts
   source      Package and upload a source directory
   run         Create, inspect, watch, cancel, and download Run outputs

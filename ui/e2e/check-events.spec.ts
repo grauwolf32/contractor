@@ -44,16 +44,7 @@ for (const width of [1440, 390, 320]) {
     await mockAPI(
       page,
       async (route, _request, url) => {
-        // Owner lists and Audit pages are empty; review pages carry their count.
-        let value: unknown = /^\/v1\/audits\/[^/]+\/reviews$/.test(url.pathname)
-          ? {
-              items: [],
-              page: { hasMore: false },
-              total: 0,
-              auditRevision: 51,
-              asOf: date,
-            }
-          : { items: [], page: { hasMore: false } };
+        let value: unknown = { items: [], page: { hasMore: false } };
         if (url.pathname === "/v1/audits/audit_history/findings")
           value = {
             items: [],
@@ -72,19 +63,11 @@ for (const width of [1440, 390, 320]) {
             asOf: date,
             executionState: "completed",
             outstandingRuns: 0,
-            totalChecks: 0,
-            completedChecks: 0,
-            issues: 0,
-            gaps: 0,
-            unchecked: 0,
-            findings: 0,
-            unreviewedFindings: 0,
-            pendingReviews: 0,
+            totalTasks: 0,
+            submittedRuns: 0,
           };
         else if (url.pathname.endsWith("/report"))
           value = { status: "unavailable" };
-        else if (url.pathname.endsWith("/coverage"))
-          value = { items: [], page: { hasMore: false }, auditRevision: 51 };
         else if (url.pathname.endsWith("/events")) {
           const cursor = url.searchParams.get("cursor");
           cursors.push(cursor ?? "head");

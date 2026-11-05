@@ -805,67 +805,6 @@
   color: inherit;
 }
 
-.ui-segments {
-  display: flex;
-  gap: 3px;
-  width: 100%;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.ui-segments[data-density="compact"] {
-  gap: 2px;
-}
-
-.ui-segment {
-  flex: 1 1 0;
-  min-width: 0;
-  height: 8px;
-  border-radius: 3px;
-  background: var(--m-idle);
-}
-
-.ui-segments[data-size="sm"] .ui-segment {
-  height: 4px;
-  border-radius: 2px;
-}
-
-/* Long lines: one bar per run of equal tones, sized by its item count (an
-   inline flex-grow). Neighbouring runs differ in tone, so no gaps; only the
-   line's ends are rounded. */
-.ui-segments[data-density="runs"] {
-  gap: 0;
-  border-radius: 3px;
-}
-
-.ui-segments[data-density="runs"][data-size="sm"] {
-  border-radius: 2px;
-}
-
-.ui-segments[data-density="runs"] .ui-segment {
-  border-radius: 0;
-}
-
-.ui-segment:is([data-tone="done"], [data-tone="success"]) {
-  background: var(--m-done);
-}
-
-.ui-segment:is(
-  [data-tone="partial"],
-  [data-tone="review"],
-  [data-tone="warning"]
-) {
-  background: var(--m-partial);
-}
-
-.ui-segment:is([data-tone="progress"], [data-tone="info"]) {
-  background: var(--m-progress);
-}
-
-.ui-segment[data-tone="blocked"] {
-  background: var(--m-blocked);
-}
-
 /* ---------- Method chip, key hint, identifier chip ---------- */
 
 .ui-method-chip {

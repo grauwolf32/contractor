@@ -104,25 +104,16 @@ type FindingRevision struct {
 	Revision  uint64
 }
 
-// WorkspaceSummary is one database statement's owner-scoped snapshot. Work is
-// scoped to the current round; findings span the entire Audit.
-// CompletedChecks, Gaps and Unchecked partition TotalChecks by the coverage
-// buckets of auditdomain, the classification the Audit report concludes
-// with; Issues is the part of CompletedChecks with an issue found.
+// WorkspaceSummary reads persisted coordination counters in constant work.
+// These counters make no claim about hypothesis outcomes or problem findings.
 type WorkspaceSummary struct {
-	AuditID            string    `json:"auditId"`
-	AuditRevision      uint64    `json:"auditRevision"`
-	AsOf               time.Time `json:"asOf"`
-	RoundID            *string   `json:"roundId,omitempty"`
-	ExecutionState     string    `json:"executionState"`
-	OutstandingRuns    int       `json:"outstandingRuns"`
-	TotalChecks        int       `json:"totalChecks"`
-	CompletedChecks    int       `json:"completedChecks"`
-	Issues             int       `json:"issues"`
-	Gaps               int       `json:"gaps"`
-	Unchecked          int       `json:"unchecked"`
-	Findings           int       `json:"findings"`
-	UnreviewedFindings int       `json:"unreviewedFindings"`
+	AuditID         string    `json:"auditId"`
+	AuditRevision   uint64    `json:"auditRevision"`
+	AsOf            time.Time `json:"asOf"`
+	ExecutionState  string    `json:"executionState"`
+	OutstandingRuns int       `json:"outstandingRuns"`
+	SubmittedRuns   int       `json:"submittedRuns"`
+	TotalTasks      int       `json:"totalTasks"`
 }
 
 type EventListParams struct {

@@ -136,6 +136,8 @@ internal/artifacts/postgres           workflow_runs                  Output free
     forks, context projections, output publication and Audit import check that the Run belongs to the Project.
     Accepted upward read PER-UR-1.
 
+internal/auditstore/auditstoretest audit_items               Tests inspect historical Round fixtures after retiring the public item projection.
+internal/auditstore/auditstoretest audit_rounds              Tests order historical items by their owning Round.
 internal/auditstore/auditstoretest audit_executions          Tests inspect every execution of an Audit, which production reads
     only through bounded windows, roles and selections.
 internal/auditstore/internal/pgstore finding_proposal_audit_holds   Round acceptance carries proposal holds into the next round;

@@ -11,7 +11,6 @@
  */
 import type {
   Audit,
-  AuditItem,
   AuditProfile,
   AuditState,
   FindingSeverity,
@@ -238,7 +237,7 @@ export function runRecoveryReason(code: RunRecoveryCode): string {
 }
 
 /** What one unit of work in a check is called. */
-export type ItemKind = "endpoint" | "requirement" | "scenario" | "item";
+type ItemKind = "endpoint" | "requirement" | "scenario" | "item";
 
 const ITEM_NOUNS: Readonly<
   Record<ItemKind, readonly [singular: string, plural: string]>
@@ -261,14 +260,6 @@ export function itemCount(kind: ItemKind, count: number): string {
 }
 
 // Work item kinds the Server's inventories create (internal/auditdomain).
-const WORK_ITEM_KINDS: Readonly<Record<string, ItemKind>> = {
-  "operation-trace": "endpoint",
-  "openapi-scan": "endpoint",
-  "web-scan": "endpoint",
-  "standard-mapping": "requirement",
-  checklist: "item",
-  "finding-verification": "item",
-};
 
 const WSTG = /\bwstg\b/i;
 
@@ -289,47 +280,17 @@ function checkTypeNameKind(name: string): ItemKind {
   return "item";
 }
 
-/** What the UI knows about a check: a work item, the check type or the check. */
+/** Presentation context: a check type or an Audit with its pinned baseline. */
 type CheckItemKindSource =
-  | Pick<AuditItem, "kind" | "origin">
-  | Pick<AuditProfile, "ref">
-  | Pick<Audit, "profile" | "baseline">;
+  Pick<AuditProfile, "ref"> | Pick<Audit, "profile" | "baseline">;
 
 /**
- * What the units of work of a check are called, from the most specific data
- * the caller has:
- *
- * 1. A work item (AuditItem): its kind. OpenAPI operation traces and scans
- *    are endpoints; a standard mapping is a scenario when its standard is
- *    WSTG and a requirement otherwise (OWASP Top 10, ASVS, any other
- *    standard); checklist and finding-verification items are items.
- * 2. A check type (AuditProfile): its inventory. `openapi-operations@1` and
- *    `openapi-scans@1` give endpoints; `standard-mappings@1` gives scenarios
- *    when every referenced standard is WSTG and requirements otherwise;
- *    checklists and finding candidates give items.
- * 3. A check (Audit): the standards pinned in its baseline decide as in 2
- *    (a standard selection without pinned standards means requirements).
- *    Before the baseline exists (a draft) or for a check type without
- *    standards, the check type's catalog name decides: `openapi-…` names are
- *    endpoints, names with `wstg` scenarios, names with `asvs` or `top10`
- *    requirements.
- *
- * Anything else is an item: the contract's word when the kind is unknown.
+ * Pinned standards determine the noun when available: WSTG uses scenarios,
+ * other standards use requirements. Before pinning, the profile family name
+ * supplies the label; unclassified work uses the general word "item".
  */
 export function checkItemKind(source: CheckItemKindSource): ItemKind {
   if ("ref" in source) return checkTypeNameKind(source.ref.name);
-  if ("origin" in source) {
-    const kind = Object.hasOwn(WORK_ITEM_KINDS, source.kind)
-      ? WORK_ITEM_KINDS[source.kind]
-      : undefined;
-    if (kind === "requirement") {
-      const scheme = source.origin.standard?.scheme;
-      return scheme === undefined
-        ? "requirement"
-        : (standardsKind([scheme]) ?? "requirement");
-    }
-    return kind ?? "item";
-  }
   const baseline = source.baseline;
   const pinned = standardsKind(
     baseline?.standards.map((standard) => standard.reference.scheme) ?? [],
@@ -339,23 +300,6 @@ export function checkItemKind(source: CheckItemKindSource): ItemKind {
     return "requirement";
   return checkTypeNameKind(source.profile.name);
 }
-
-export const COVERAGE_STATUS_LABELS: Readonly<
-  Record<AuditCoverageStatus, VocabularyLabel>
-> = {
-  "not-tested": { label: "Not checked yet", tone: "idle" },
-  inconclusive: { label: "Inconclusive", tone: "warning" },
-  satisfied: { label: "Met", tone: "done" },
-  violated: { label: "Issue found", tone: "blocked" },
-  "not-applicable": { label: "Not applicable", tone: "neutral" },
-  blocked: { label: "Blocked", tone: "blocked" },
-  excluded: { label: "Excluded", tone: "neutral" },
-  "traced-complete": { label: "Fully traced", tone: "done" },
-  "traced-partial": { label: "Partially traced", tone: "partial" },
-  unmapped: { label: "Unmapped", tone: "neutral" },
-};
-
-type AuditCoverageStatus = components["schemas"]["AuditCoverageStatus"];
 
 function wordOf<K extends string>(
   table: Readonly<Record<K, string>>,

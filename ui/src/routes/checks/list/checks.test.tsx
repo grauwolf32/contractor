@@ -144,13 +144,8 @@ function serve(
           const completed = audit.state === "completed";
           return json(
             workspaceOf(audit, {
-              totalChecks: 3,
-              completedChecks: completed ? 3 : 1,
-              issues: completed ? 1 : 0,
-              gaps: completed ? 0 : 1,
-              unchecked: completed ? 0 : 1,
-              findings: 2,
-              unreviewedFindings: audit.auditId === "b_waiting" ? 2 : 0,
+              totalTasks: 3,
+              submittedRuns: completed ? 3 : 1,
             }),
           );
         }),
@@ -183,11 +178,8 @@ describe("Checks list", () => {
     expect(rows()[0]).toHaveTextContent("Running");
     expect(rows()[1]).toHaveTextContent("Running");
     expect(within(list).getByText("2 running.")).toBeVisible();
-    // A progress line where the Server's counts are read.
     expect(
-      await within(rows()[0]!).findByRole("img", {
-        name: "1 of 3 done: 1 done, 1 need follow-up, 1 not checked yet",
-      }),
+      await within(rows()[0]!).findByText("3 tasks · 0 runs in progress"),
     ).toBeVisible();
     const filters = within(list).getByRole("group", {
       name: "Filter checks by state",
@@ -244,20 +236,12 @@ describe("Checks list", () => {
     expect(
       within(detail).getByRole("link", { name: "Open check" }),
     ).toHaveAttribute("href", "/projects/project_b/audits/b_waiting");
-    expect(await within(detail).findByText("1 of 3 done")).toBeVisible();
-    // Waiting checks send decisions to the Inbox; possible issues to Issues.
     expect(
-      within(detail).queryByRole("link", { name: /decision waiting/ }),
+      await within(detail).findByText("3 tasks · 0 runs in progress"),
+    ).toBeVisible();
+    expect(
+      within(detail).queryByRole("link", { name: /Need follow-up/ }),
     ).toBeNull();
-    expect(
-      within(detail).getByRole("link", { name: "2 possible issues to review" }),
-    ).toHaveAttribute("href", "/issues?project=project_b");
-    expect(
-      within(detail).getByRole("link", { name: "Need follow-up: 1" }),
-    ).toHaveAttribute(
-      "href",
-      "/projects/project_b/audits/b_waiting/coverage?result=uncertain&auditRevision=5",
-    );
     await user.click(
       within(list).getByRole("link", {
         name: "WSTG 4.2 · Source review · crapi-workshop",

@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -327,8 +326,6 @@ type fakeAuditManagement struct {
 	standards         []auditstandards.PackageProjection
 	audit             auditstore.Audit
 	started           auditservice.StartedAudit
-	attempts          map[string][]auditstore.ItemAttempt
-	coverage          auditservice.CoveragePage
 	artifactRead      artifacts.ReadResult
 	created           auditservice.CreateDraftParams
 	start             auditservice.StartParams
@@ -477,41 +474,6 @@ func (f *fakeAuditManagement) List(_ context.Context, p auditstore.ListParams) (
 		return nil, auditstore.ErrInvalid
 	}
 	return []auditstore.Audit{f.audit}, nil
-}
-
-func (f *fakeAuditManagement) ListItems(_ context.Context, params auditstore.ListItemsParams) ([]auditstore.Item, error) {
-	if err := fakePageFetch(params.Limit, auditstore.ErrInvalid); err != nil {
-		return nil, err
-	}
-	return append([]auditstore.Item(nil), f.started.Items...), f.err
-}
-
-func (f *fakeAuditManagement) ListItemAttempts(
-	_ context.Context, _, _ string, itemIDs []string,
-) (map[string][]auditstore.ItemAttempt, error) {
-	if len(itemIDs) == 0 || len(itemIDs) > pagelimit.MaxRows {
-		return nil, fmt.Errorf("%w: fake attempt selection of %d items", auditstore.ErrInvalid, len(itemIDs))
-	}
-	// Like the store, the result answers every requested item, with an empty
-	// list for an item without attempts.
-	attempts := make(map[string][]auditstore.ItemAttempt, len(itemIDs))
-	for _, itemID := range itemIDs {
-		attempts[itemID] = append([]auditstore.ItemAttempt{}, f.attempts[itemID]...)
-	}
-	return attempts, f.err
-}
-
-func (f *fakeAuditManagement) GetRound(context.Context, string, string, string) (auditstore.Round, error) {
-	return f.started.Round, f.err
-}
-
-func (f *fakeAuditManagement) ListCoverage(
-	_ context.Context, _, _, _ string, _ int, limit int, _ *uint64,
-) (auditservice.CoveragePage, error) {
-	if err := fakePageFetch(limit, auditstore.ErrInvalid); err != nil {
-		return auditservice.CoveragePage{}, err
-	}
-	return f.coverage, f.err
 }
 
 func (f *fakeAuditManagement) GetReport(
@@ -670,4 +632,11 @@ func (f *fakeFindingProposalManagement) ListProjectSourceHistory(ctx context.Con
 
 func (f *fakeAuditManagement) PublishMaterial(context.Context, string, string, string, auditservice.MaterialPublicationRequest, *string) (auditservice.MaterialPublication, error) {
 	return auditservice.MaterialPublication{}, auditstore.ErrNotFound
+}
+
+func (f *fakeAuditManagement) Materials(context.Context, auditstore.MaterialListParams) (auditstore.MaterialPage, error) {
+	return auditstore.MaterialPage{Items: []auditstore.MaterialEntry{}, AuditRevision: 1}, nil
+}
+func (f *fakeAuditManagement) TaskAttempts(context.Context, auditstore.TaskAttemptListParams) (auditstore.TaskAttemptPage, error) {
+	return auditstore.TaskAttemptPage{Items: []auditstore.TaskAttempt{}, AuditRevision: 1}, nil
 }

@@ -9,13 +9,12 @@ import { queryKeys } from "../../api/query-keys";
 import { formatTimestamp } from "../../app/format";
 import { QueryView } from "../../app/query-view";
 import { RecordedTime } from "../../app/recorded-time";
-import { checkStateLabel, itemNoun } from "../../app/vocabulary";
+import { checkStateLabel } from "../../app/vocabulary";
 import {
   ButtonLink,
   DetailPane,
   Facts,
   IdChip,
-  ProgressSegments,
   TechnicalDetails,
 } from "../../ui";
 import { checkPath } from "../projects/audits/check-links";
@@ -31,12 +30,9 @@ import {
 } from "./detail-parts";
 import { refKey, type InboxRowOf } from "./model";
 import {
-  checkKind,
   checkProgress,
   checkTypeLabel,
   excerpt,
-  followUpPath,
-  PROGRESS_LABELS,
   projectPath,
   sectionTitle,
 } from "./present";
@@ -76,11 +72,7 @@ export function CheckDetail({
     placeholderData: placeholder,
     ...pinned<AuditWorkspace>(),
   });
-  const kind = checkKind(check);
-  const progress =
-    workspace.data === undefined
-      ? undefined
-      : checkProgress(workspace.data, kind);
+
   const state = checkStateLabel(audit.state);
   const stop = describeStopReason(audit);
   const objective = audit.scope.objective?.trim() ?? "";
@@ -137,27 +129,16 @@ export function CheckDetail({
           loading={<p className="ui-caption">Loading progress…</p>}
         >
           {(counts) => {
-            const shown = checkProgress(counts, kind);
+            const shown = checkProgress(counts);
             return (
               <>
                 <p className="inbox-progress-summary">{shown.summary}</p>
-                {shown.total === 0 ? null : (
-                  <ProgressSegments
-                    label={shown.label}
-                    segments={shown.segments}
-                  />
-                )}
                 <Facts
                   size="sm"
                   items={[
-                    { term: PROGRESS_LABELS.done, value: shown.done },
-                    { term: PROGRESS_LABELS.issue, value: shown.issues },
-                    { term: PROGRESS_LABELS.followUp, value: shown.gaps },
-                    { term: PROGRESS_LABELS.unchecked, value: shown.unchecked },
-                    {
-                      term: "Possible issues to review",
-                      value: counts.unreviewedFindings,
-                    },
+                    { term: "Tasks", value: counts.totalTasks },
+                    { term: "Runs submitted", value: counts.submittedRuns },
+                    { term: "Runs in progress", value: counts.outstandingRuns },
                   ]}
                 />
               </>
@@ -174,15 +155,6 @@ export function CheckDetail({
         >
           Open check
         </ButtonLink>
-        {progress === undefined || progress.gaps === 0 ? null : (
-          <ButtonLink
-            returnLabel="Inbox"
-            to={followUpPath(project.projectId, audit.auditId)}
-            size="sm"
-          >
-            Show {itemNoun(kind, 2)} that need follow-up
-          </ButtonLink>
-        )}
       </div>
       {audit.state === "paused" ? (
         <p className="ui-caption">

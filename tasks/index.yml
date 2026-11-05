@@ -9,6 +9,8 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
+    User assignment 2026-11-06 authorizes V64-008 from current main, including common-contract.md
+    and hypotheses.md as normative inputs. Dependent tasks and demo deployment are not assigned.
     User request 2026-11-05 delivered on 2026-11-06: V449-003 integrates ordinary
     Run engagement (V449-001) and permanent missing-credential preparation failure
     (V449-002) into main through a no-fast-forward merge. Exact policy inputs use

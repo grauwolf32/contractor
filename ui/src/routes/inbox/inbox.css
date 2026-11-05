@@ -57,10 +57,6 @@
   font-weight: 600;
 }
 
-.inbox-row-progress {
-  max-width: 15rem;
-}
-
 /* A failure cause under the meta line, at most two lines. */
 .inbox-row-note {
   display: -webkit-box;
@@ -75,12 +71,9 @@
   line-clamp: 2;
 }
 
-/* Progress and notes hold no controls: a click there still opens the row. */
-.inbox-sections .ui-row-extra:has(> :is(.inbox-row-progress, .inbox-row-note)) {
-  pointer-events: none;
-}
-
+/* Notes hold no controls: a click there still opens the row. */
 .inbox-sections .ui-row-extra:has(> .inbox-row-note) {
+  pointer-events: none;
   margin-top: var(--space-1);
 }
 
@@ -300,10 +293,6 @@
   color: var(--text);
   font-size: var(--text-md);
   font-weight: 700;
-}
-
-.inbox-progress-summary + .ui-segments {
-  margin-bottom: var(--space-3);
 }
 
 .inbox-facts + .ui-caption {

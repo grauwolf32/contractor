@@ -421,6 +421,16 @@ operations:
   action: preserve
   owner: V64-002
   facts: Bounded Task pages with sparse state keysets; no Round or full-history projection.
+- path: /v1/audits/{auditId}/materials
+  method: get
+  action: preserve
+  owner: V64-008
+  facts: Bounded accepted exact material descriptors and logical keys; private staging is excluded.
+- path: /v1/audits/{auditId}/tasks/{taskId}/attempts
+  method: get
+  action: preserve
+  owner: V64-008
+  facts: Bounded common Task membership with retained Run identity, deletion marker and technical outcomes.
 - path: /v1/audits/{auditId}/tasks/{taskId}
   method: get
   action: preserve
@@ -554,14 +564,14 @@ operations:
 - path: /v1/audits/{auditId}/items
   method: get
   operation_id: listAuditItems
-  action: replace
+  action: delete
   owner: V64-008
   facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
     projections. Independent SARIF/export bytes and routes keep their own contracts.
 - path: /v1/audits/{auditId}/coverage
   method: get
   operation_id: listAuditCoverage
-  action: replace
+  action: delete
   owner: V64-008
   facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
     projections. Independent SARIF/export bytes and routes keep their own contracts.

@@ -7,7 +7,7 @@ import { type CrossProjectCheck } from "../../../api/cross-project";
 import { PublicAPIError } from "../../../api/error";
 import { getProject } from "../../../api/projects";
 import { queryKeys } from "../../../api/query-keys";
-import { formatTimestamp, plural } from "../../../app/format";
+import { formatTimestamp } from "../../../app/format";
 import { pollInterval } from "../../../app/polling";
 import { QueryView } from "../../../app/query-view";
 import { RecordedTime } from "../../../app/recorded-time";
@@ -23,26 +23,16 @@ import {
   EmptyState,
   Facts,
   IdChip,
-  ProgressSegments,
   StatusChip,
   TechnicalDetails,
 } from "../../../ui";
 import { useCheckWorkspace } from "../../projects/audits/check-data";
 import { timeLimitText } from "../../projects/audits/check-format";
-import { checkPath, sectionPath } from "../../projects/audits/check-links";
-import {
-  countLegend,
-  countSegments,
-  doneSummary,
-  legendSentence,
-  workCounts,
-} from "../../projects/audits/check-model";
+import { checkPath } from "../../projects/audits/check-links";
+import { coordinationSummary } from "../../projects/audits/check-model";
 import { AuditControls } from "../../projects/audits/controls";
 import { auditProfileLabel } from "../../projects/audits/labels";
-import {
-  ProgressLegend,
-  StopReasonBanner,
-} from "../../projects/audits/progress";
+import { StopReasonBanner } from "../../projects/audits/progress";
 
 function Summary({
   audit,
@@ -63,9 +53,7 @@ function Summary({
   const type = auditProfileLabel(audit);
   const root = checkPath(audit.projectId, audit.auditId);
   const kind = checkItemKind(audit);
-  const unreviewed = workspace.data?.unreviewedFindings ?? 0;
   const timeLimit = timeLimitText(audit);
-  const coverage = sectionPath(audit.projectId, audit.auditId, "coverage");
   return (
     <DetailPane
       header={
@@ -116,55 +104,14 @@ function Summary({
           }
           errorContext="The progress of this check could not be loaded."
         >
-          {(snapshot) => {
-            const counts = workCounts(snapshot);
-            const legend = countLegend(counts);
-            const done = doneSummary(snapshot.completedChecks, counts.total);
-            return (
-              <section
-                className="checks-summary-progress"
-                aria-label="Progress"
-              >
-                <p className="checks-progress-count">
-                  {counts.total === 0 ? `No ${itemNoun(kind, 2)} yet` : done}
-                </p>
-                {counts.total === 0 ? null : (
-                  <ProgressSegments
-                    segments={countSegments(legend)}
-                    label={`${done}: ${legendSentence(legend.filter((entry) => entry.count > 0))}`}
-                  />
-                )}
-                <ProgressLegend
-                  entries={counts.total === 0 ? [] : legend}
-                  // The counts pin the list they open to their revision (S19).
-                  linkFor={(group) =>
-                    `${coverage}?${new URLSearchParams({
-                      ...(group === "all" ? {} : { result: group }),
-                      auditRevision: String(snapshot.auditRevision),
-                    }).toString()}`
-                  }
-                />
-              </section>
-            );
-          }}
+          {(snapshot) => (
+            <p className="checks-progress-count">
+              {coordinationSummary(snapshot)}
+            </p>
+          )}
         </QueryView>
       )}
       <StopReasonBanner audit={audit} />
-      {unreviewed > 0 ? (
-        <p className="ui-caption">
-          {unreviewed > 0 ? (
-            <Link
-              to={`/issues?${new URLSearchParams({ project: audit.projectId }).toString()}`}
-            >
-              {plural(
-                unreviewed,
-                "possible issue to review",
-                "possible issues to review",
-              )}
-            </Link>
-          ) : null}
-        </p>
-      ) : null}
       {timeLimit === undefined ? null : (
         <p className="ui-caption">{timeLimit}</p>
       )}

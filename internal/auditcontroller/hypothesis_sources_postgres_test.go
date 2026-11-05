@@ -142,6 +142,44 @@ func TestPostgresHypothesisGroundsUseOrdinaryRetentionPublicationAndReplay(t *te
 	if err != nil || len(freshExecutions) != 1 || freshExecutions[0].RunDeletedAt == nil {
 		t.Fatal("producer deletion was not durable", err)
 	}
+	// Public read projections retain technical attempts and exact selected
+	// grounds after the producer's ordinary Run has been deleted.
+	taskPage, err := h.service.Tasks(ctx, auditstore.ListTasksParams{OwnerID: "owner", AuditID: audit.AuditID, Limit: 200})
+	if err != nil {
+		t.Fatal(err)
+	}
+	matched := false
+	for _, task := range taskPage.Tasks {
+		if task.LastExecution == nil || *task.LastExecution != producer.ExecutionID {
+			continue
+		}
+		attempts, err := h.service.TaskAttempts(ctx, auditstore.TaskAttemptListParams{OwnerID: "owner", AuditID: audit.AuditID, TaskID: task.Document.TaskID, Limit: 10})
+		if err != nil || len(attempts.Items) != 1 || attempts.Items[0].RunID == nil || *attempts.Items[0].RunID != *producer.RunID || !attempts.Items[0].RunDeleted {
+			t.Fatalf("retained attempts: %+v %v", attempts, err)
+		}
+		matched = true
+	}
+	if !matched {
+		t.Fatal("producer Task missing from retained history")
+	}
+	materialPage, err := h.service.Materials(ctx, auditstore.MaterialListParams{OwnerID: "owner", AuditID: audit.AuditID, Limit: 200})
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundGround := false
+	for _, entry := range materialPage.Items {
+		if !entry.Material.Ref.SameExact(retained.Ref) {
+			continue
+		}
+		read, err := h.service.ReadArtifact(ctx, "owner", audit.AuditID, entry.Key, *entry.Material.Ref.Revision)
+		if err != nil || string(read.Payload.Data) != "exact selected snapshot" {
+			t.Fatalf("retained public grounds: %v", err)
+		}
+		foundGround = true
+	}
+	if !foundGround {
+		t.Fatal("selected grounds absent from accepted material page")
+	}
 	if _, err = h.runs.GetRun(ctx, *producer.RunID); !errors.Is(err, runstore.ErrNotFound) {
 		t.Fatalf("producer Run still exists: %v", err)
 	}

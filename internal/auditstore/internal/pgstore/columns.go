@@ -33,12 +33,6 @@ var executionColumnList = []string{
 	"preparation_snapshot", "preparation_outputs",
 }
 
-// roundColumnList is the scanRound order.
-var roundColumnList = []string{
-	"round_id", "audit_id", "ordinal", "manifest_ref", "manifest_digest",
-	"state", "expected_item_count", "revision", "created_at", "updated_at",
-}
-
 // itemColumnList is the scanItem order.
 var itemColumnList = []string{
 	"item_id", "audit_id", "round_id", "item_key", "ordinal", "kind", "subject_key",
@@ -96,10 +90,6 @@ func prefixedAuditColumns(prefix string) string {
 // prefix in the order ScanExecution reads them.
 func ExecutionColumns(prefix string) string {
 	return qualifiedColumns(prefix, executionColumnList)
-}
-
-func prefixedRoundColumns(prefix string) string {
-	return qualifiedColumns(prefix, roundColumnList)
 }
 
 func prefixedItemColumns(prefix string) string {

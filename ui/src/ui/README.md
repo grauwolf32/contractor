@@ -336,35 +336,6 @@ StatusChip(props: { tone: StatusTone; children: ReactNode; glyph?: boolean /* tr
 <StatusChip tone="review">Possible issue, needs your review</StatusChip>
 ```
 
-### `ProgressSegments`
-
-```ts
-ProgressSegments(props: {
-  segments: readonly { tone: StatusTone; label: string }[];
-  label: string;              // accessible summary of the whole line
-  size?: "sm" | "md";         // 4 px or 8 px (default) bars
-})
-```
-
-One `role="img"` element named by `label`. Up to 60 items it shows
-equal-width bars, one per item in list order, 3 px apart (2 px above 40
-items). Above 60 items (an ASVS check has about 280 requirements) per-item
-bars would vanish in a list row, so consecutive items of one tone merge into
-one bar as wide as their share, without gaps. List order and proportions
-stay, and the bar's hover title names its labels with counts ("Met (12)").
-Colours: done/success `--m-done`, partial/review/warning `--m-partial`,
-progress/info `--m-progress`, blocked `--m-blocked`, idle/neutral `--m-idle`.
-
-```tsx
-<ProgressSegments
-  label="0 of 5 endpoints done: 1 partially traced, 1 blocked, 1 in progress, 2 not checked yet"
-  segments={items.map((item) => ({
-    tone: coverageTone(item),
-    label: coverageLabel(item),
-  }))}
-/>
-```
-
 ## Chips and hints
 
 ### `LabelsEditor`
