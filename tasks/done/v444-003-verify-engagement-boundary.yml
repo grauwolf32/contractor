@@ -107,12 +107,42 @@ verification:
     release exit; sandbox/browser/non-HTTP egress, global quotas and independent
     ordinary-Run authoring remain separate work.
   delivery:
-    branch: codex/engagement-verification
-    merged_into_main: false
-    tested_main_base: e9edd3bc46a4a1d65e39a946207686f145ebf644
-    later_main_review: >-
-      Read-only comparison through bd27df571 found overlap only in generated
-      BACKLOG.md and audit-workflow-dependencies.html. Native HTTP is integrated
-      in the tested base; later credential/test-optimization changes were not
-      merged or claimed as a combined verification run.
+    branch: main
+    merged_into_main: true
+    merge_commit: c66107a4583c87835c99f3449adef6f2284d867b
+    original_tested_main_base: e9edd3bc46a4a1d65e39a946207686f145ebf644
+    integration:
+      date: "2026-11-05"
+      authority: User explicitly requested merging the completed branch into main.
+      main_base: bf709d8e87d3fcaf393e9520fbd2135b60cf454f
+      resolutions: >-
+        Preserve main's extracted allocation validators and remove the retired
+        blackbox workspace guard from the extracted helper. Regenerate mutation
+        vectors, BACKLOG.md and the dependency graph; retain both control-plane
+        specification edits. No new behavior or test timeout changes.
+      passed:
+        - Complete selected Go integration suites with real disposable PostgreSQL; contracts, configuration, AuditService, Control Plane, app, public API/client, architecture, Findings reader and Audit Eval fixtures.
+        - make lint ui-verify test-config; all passed.
+        - make test-wire-cross-language; 374 fixtures, 410 Go and 261 Python shared tests.
+        - make verify-public-api verify-public-api-postgres; passed, including the PostgreSQL API race cases.
+        - make test-engagement-http-process; 41 process, 2 accounting and 157 Runtime cases, zero selected skips.
+        - make test-nuclei-engagement; real engine process and 41 Runtime cases passed.
+      full_runtime_status: not_green_due_to_intermittent_fixture_failures
+      full_runtime_runs:
+        - 3 failed, 5834 passed, 135 skipped in the first full integration run.
+        - 4 different failures, 5833 passed, 135 skipped in the serial repeat.
+      runtime_followup: >-
+        Failures were in unchanged scanner process/probe and validator cancellation
+        fixtures, including short marker/probe/subprocess deadlines. An isolated
+        179-case scanner-module run had two different probe failures. All nine cases
+        observed failing across these runs passed together on explicit recheck
+        (9 passed in 7.20s). The affected scanner/validator implementation and test
+        files are identical to the main base. Full Runtime success is not claimed
+        for this merge tree; no cases were skipped and no deadline was relaxed.
+      logs:
+        - /private/tmp/v444-merge-runtime.log
+        - /private/tmp/v444-merge-runtime-final.log
+        - /private/tmp/v444-merge-scanner-modules.log
+        - /private/tmp/v444-merge-recheck.log
+
 implementation_commit: e2efeeb8910c8e697015527df867c23f34f84671
