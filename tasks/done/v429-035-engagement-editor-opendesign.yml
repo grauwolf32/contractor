@@ -5,7 +5,8 @@ milestone: ui-journey-usability
 epic: ui
 kind: feature
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: f8604231fe60c6f5d5328cbe2568c0e444210d97
 depends_on: [V444-003, V449-003]
 languages: [html, css, javascript]
 goal: The user can review and try a coherent engagement editor for allowed egress, identity-to-credential references and optional allocation-local HTTP limits before production integration.
@@ -79,3 +80,14 @@ tests:
     covers: [A1, A2, A3]
   - command: git diff --check
     covers: [A1, A2, A3]
+verification:
+  results:
+    - Native OpenDesign generation succeeded under the existing configured model; original CSS and exact inputs are retained separately from host refinements.
+    - The browser verifier passed 78 layout/state and interaction checks across three themes and four widths, with no browser errors or forbidden requests; exported JSON matches the actual shared schema.
+    - The exported policy passed Engagement.model_validate_json in the existing Runtime contract. Optional-limit omission, matching credential references and truthful simulated failure states were verified.
+    - Task/spec validators and git diff --check passed. No production UI source, generated API client, public contract or package version changed.
+    - Recoverable pre/post native state archives passed SQLite integrity checks. Previous files and stable application/OpenCode history rows were preserved; only shared access metadata and append-only operational logs changed normally.
+    - The owned model relay stopped after 18 of 24 allowed requests and its upstream credential was removed. The preview sent no live API mutation or target traffic.
+    - The preview was opened directly and visually reviewed; the mobile heading/action wrap was corrected in a separate host stylesheet and all checks passed again.
+  artifact: docs/design/ui/experiments/engagement-editor-opendesign-2026-11-06/verification.json
+  delivery: Committed on codex/http-engagement-ui for design review; not merged into main. V411-017 and V411-018 remain pending with their integration dependencies unchanged.
