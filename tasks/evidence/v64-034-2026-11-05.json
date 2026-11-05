@@ -12,7 +12,7 @@
   "integrated_main": "7ee563eda667814a999018d03f1bc72e35c00c1a",
   "document_commit": "7cb43ae863c958f565f6a80f276a4fc688452f79",
   "outcome": "Workflow-selected native materials, exact retained grounds, in-Run selections and configured roles replace source_XX/pre-Run Task-slice context. Existing successful-Run receipt and lifecycle paths remain authoritative.",
-  "remaining": "Required feature verification is complete. The user separately assigned a material handoff simplification after V64-035; no deployment or main merge is assigned.",
+  "remaining": "Feature verification and the separately assigned V64-036 handoff simplification are complete. Main integration and deployment remain unassigned.",
   "migration_ledger": "Disposable contractor_v64034 loaded all ten migrations. Main 000008 unchanged; 000009 retains the cursor and 000010 indexes settled external sources. ERD rebuilt: 73 tables, 95 foreign keys.",
   "checks": [
     {
@@ -196,6 +196,7 @@
   },
   "correction_evidence": [
     "tasks/evidence/v443-004-2026-11-05.json",
-    "tasks/evidence/v64-035-2026-11-05.json"
+    "tasks/evidence/v64-035-2026-11-05.json",
+    "tasks/evidence/v64-036-2026-11-05.json"
   ]
 }

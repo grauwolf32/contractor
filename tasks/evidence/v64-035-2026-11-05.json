@@ -89,5 +89,5 @@
     }
   },
   "process_path": ".local/audit-basic-gate/run-sppqvqfs/executed.json",
-  "follow_up": "The user separately assigned a behavior-preserving material handoff simplification after this correction; it does not replace these regressions."
+  "follow_up": "Completed V64-036 shares checked material preparation and technical mappings; all V64-035 regressions remain passing. See tasks/evidence/v64-036-2026-11-05.json."
 }

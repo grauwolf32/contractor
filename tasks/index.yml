@@ -9,11 +9,11 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
-    User decision 2026-11-05 assigns V64-036 after completed V64-035 on the
-    same implementation branch: shared Artifact-owned material checking,
-    prepared exact handoff and persisted input/source verification replace
-    duplicate consumer reconstruction. Preserve fences, receipts, limits and
-    regressions; no new state/protocol, main merge or deployment is assigned.
+    User decision 2026-11-05 completed V64-036 after V64-035 on the same
+    implementation branch. Shared Artifact-owned checking, prepared exact
+    handoff and persisted input/source verification replace duplicate consumer
+    reconstruction, preserving fences, receipts, limits and regressions.
+    Required gates passed; main integration and deployment remain unassigned.
     User assignment 2026-11-05 completed V64-033/V64-034 and the V64-035
     accepted material-set correction on codex/audit-hypothesis-generation after
     integrating proposal 0054 and current main. Common materials replace

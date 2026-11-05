@@ -6,11 +6,12 @@ epic: projects-artifacts
 kind: chore
 introduced_by: V64-035
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V64-035]
 languages: [go, markdown]
 goal: Artifact preparation preserves original identity and returns verified local descriptors so Audit contexts and collection consume them without reconstructing material rules.
 context:
+  verification_evidence: tasks/evidence/v64-036-2026-11-05.json
   authority: >-
     User decision 2026-11-05 explicitly assigns this behavior-preserving
     simplification after completed V64-035, in the same implementation branch.
@@ -76,3 +77,4 @@ tests:
     covers: [A1, A2, A4, A5, A6]
   - command: make lint
     covers: [A2, A3, A4, A5, A6]
+implementation_commit: 8c4ae67ef076f01f8079727b33cfc5d7c4309d53
