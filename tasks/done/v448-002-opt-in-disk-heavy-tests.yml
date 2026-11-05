@@ -5,7 +5,8 @@ milestone: test-gate-cost-2026-10
 epic: quality
 kind: chore
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: b6be7611b2675ec0e274decdf39083f01e4e9c1a
 depends_on: []
 languages: [go, python]
 goal: >-
