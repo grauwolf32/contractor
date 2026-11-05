@@ -5,7 +5,7 @@ milestone: audit-check-prioritization
 epic: projects-artifacts
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V64-004, V64-013]
 languages: [go, python, typescript, json, yaml, markdown]
 goal: >-
@@ -20,6 +20,19 @@ demonstration: >-
   proposal output. Prove the same common input path with an ordinary Run consumer
   outside Audit, using a testdata catalog and real Server/Runtime/PostgreSQL.
 context:
+  verification_evidence: tasks/evidence/v64-033-2026-11-05.json
+  completion: >-
+    2026-11-05: Shared exact sets are materialized directly as ordinary Run
+    bindings and a local descriptor. The real 17-material initial generator
+    and a non-Audit Run pass through Server/Runtime/PostgreSQL; cumulative
+    count/byte/media/authority bounds, response-loss recovery and source purge
+    races pass. V64-034 still owns the final continuation conversion, dynamic
+    selections and hypothesis sources. The working numbered continuation is
+    intentionally not claimed as replaced by this prerequisite.
+  verification_prerequisite: >-
+    V443-003 repairs an independently reproduced fixed-output scanner fixture
+    timeout. Process evidence is pinned to its clean commit after V64-033;
+    only that test fixture and its task metadata differ from the implementation.
   authority: >-
     User assignment 2026-11-05: continue on codex/audit-hypothesis-generation,
     integrate document commit 7cb43ae86 and current main, implement V64-033
@@ -164,7 +177,6 @@ tests:
   - command: make lint
     covers: [A2, A4]
 test_prerequisites:
-  - Commands are future implementation acceptance, not results of this planning change.
   - Use disposable PostgreSQL; missing required database coverage or a zero-match selector is not success.
   - Extend existing gate case inventories and run entire touched packages, including consuming selectors.
-implementation_commit: null
+implementation_commit: a4940f78a1e56c4d21a98e85601cb390f8e14113

@@ -11,7 +11,7 @@
 
 ## Порядок
 
-1. [V64-033](../../tasks/v64-033-workflow-material-sets.yml): общий способ передать
+1. [V64-033](../../tasks/done/v64-033-workflow-material-sets.yml): общий способ передать
    ограниченный плоский набор exact материалов и реальный caller в начальном
    запуске hypothesis Workflow. Закрыть небольшой end-to-end путь первым.
 2. [V64-034](../../tasks/v64-034-workflow-hypothesis-production.yml): источники,

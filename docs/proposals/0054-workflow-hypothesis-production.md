@@ -5,7 +5,7 @@
 [общую модель Audit](0050-audit-common-hypothesis-model.md), а не заменяет её.
 
 [Инструкция по реализации](../plans/2026-11-05-hypothesis-workflow-correction.md) ·
-[Передача набора материалов](../../tasks/v64-033-workflow-material-sets.yml) ·
+[Передача набора материалов](../../tasks/done/v64-033-workflow-material-sets.yml) ·
 [Производство гипотез](../../tasks/v64-034-workflow-hypothesis-production.yml)
 
 ## Основание и границы решения
