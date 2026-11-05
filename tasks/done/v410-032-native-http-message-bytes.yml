@@ -1,0 +1,64 @@
+schema_version: '1.0'
+id: V410-032
+title: Preserve raw bodies and canonical targets at the native HTTP boundary
+milestone: project-sitemap-2026-10
+epic: http-tools
+kind: defect
+introduced_by: V410-030
+priority: P1
+status: completed
+depends_on: [V410-030]
+languages: [python, markdown]
+goal: Controlled HTTP and scanner IPC preserve authorized request targets and encoded body bytes without implicit recompression.
+context:
+  protocol_authority: User clarification 2026-11-04 — HTTP/1.1 is the minimum supported version; HTTP/1.0 is rejected. Native Http1 class names denote the implementation family, not enabled HTTP/1.0 support.
+  authority: User request 2026-11-04 supplies four reproduced native bridge regressions and asks to fix them before ownership/test-double refactoring.
+  review: User review of a5e21bc4, findings 1 and 4.
+  finding: >-
+    bridge/mitmproxy/engine.py:222 and ingress.py:235 use Request.make/Response.make,
+    whose content assignment re-encodes already encoded raw bytes. Request.make also
+    reparses canonical targets, losing an empty query delimiter; native URL rendering
+    omits IPv6 brackets and triggers false policy_denied at engine.py:451.
+  siblings: >-
+    Both request and synthetic scanner response creation; native HTTP/1.1 and HTTP/2;
+    scanner ingress target reconstruction; HEAD, 204 and 304 framing. Ordinary HTTPX
+    transports are not changed. The canonical equality guard stays authoritative.
+  specification:
+  - docs/spec/tools/http-caido.md#HTP-R137
+  - docs/spec/tools/http-caido.md#HTP-R139
+  - docs/spec/tools/http-caido.md#HTP-R148
+  boundary_decision: >-
+    Small native message helpers own conversion, exact request-target components and
+    framing-only header changes. Bodies enter through raw_content/direct data fields;
+    no decode/encode transform is allowed. URL equality compares preserved native
+    components using Contractor formatting rather than the library's lossy rendering.
+scope:
+  in:
+  - Centralize native request/response construction and end-to-end header handling.
+  - Preserve compressed POST and response bytes, empty queries, semicolon parameters and IPv6 authority formatting.
+  - Preserve HEAD/204/304 semantics without inventing payload or misleading Content-Length.
+  - Add real-socket and real-client regression cases that fail on the reviewed revision.
+  out:
+  - Chunk framing/trailer reader repair (V410-033), broad lifecycle refactoring, new protocol features or sandbox changes.
+acceptance_criteria:
+- id: A1
+  text: A precompressed POST arrives at a real target byte-for-byte unchanged, and a gzip target response reaches a scanner client correctly after one decompression.
+- id: A2
+  text: A canonical target ending in '?' is transmitted exactly on a real socket; IPv6 components and serialized authority retain brackets without weakening equality checks.
+- id: A3
+  text: HEAD, 204 and 304 preserve valid framing and raw response metadata; HTTP/1.1 and HTTP/2 request paths share the same conversion rules.
+- id: A4
+  text: Full affected HTTP/scanner suites, Ruff/import layers and spec/task checks pass; unrelated baseline gate failures are recorded without sandbox edits.
+tests:
+- command: cd runtime && uv run pytest -W error tests/test_bridge_messages.py tests/test_http_engine.py tests/test_http_proxy_bridge.py tests/test_engagement_socket_conformance.py tests/test_nuclei_engagement.py tests/test_engagement_target.py tests/test_engagement_identity.py tests/test_engagement_allocation.py tests/test_audit_http_credentials.py
+  covers: [A1, A2, A3, A4]
+- command: make lint
+  covers: [A4]
+- command: python3 scripts/check_spec.py
+  covers: [A4]
+- command: cd runtime && uv run python ../scripts/check_tasks.py
+  covers: [A4]
+implementation_commit: 4c5ea174e7c0d78ecf69683c418d37cea726d913
+verification:
+- 2026-11-04 — all eight original regression cases failed on the reviewed implementation; after repair all eleven expanded message cases passed, including real HTTP/1.1 and HTTP/2 target/scanner traffic.
+- 2026-11-04 — full affected HTTP/scanner suites passed (159 tests); make lint, check_spec.py and check_tasks.py passed. HTTP/1.0 rejection remains covered.

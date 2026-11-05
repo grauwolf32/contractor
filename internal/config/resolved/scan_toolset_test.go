@@ -54,3 +54,27 @@ func TestControlledHTTPSelectionKeepsOtherScannersUncontrolled(t *testing.T) {
 		}
 	}
 }
+
+func TestControlledHTTPSelectionIncludesIdentityAndSessionOperations(t *testing.T) {
+	for _, test := range []struct {
+		toolset, tool string
+		want          bool
+	}{
+		{"http-tools", "http_request", true},
+		{"http-tools", "http_credentials", true},
+		{"http-tools", "http_credential_read", true},
+		{"http-tools", "http_session_get", true},
+		{"http-tools", "http_session_set", true},
+		{"http-tools", "http_session_clear", true},
+		{"scan", "scan_nuclei", true},
+		{"scan", "scan_naabu", false},
+		{"run-artifacts", "read_artifact", false},
+	} {
+		t.Run(test.tool, func(t *testing.T) {
+			template := contracts.ResolvedAgentTemplate{Toolsets: []contracts.ToolsetSelection{{Ref: contracts.ToolsetRef{ToolsetID: test.toolset, Version: "1"}, Tools: []string{test.tool}}}}
+			if got := TemplateUsesControlledHTTP(template); got != test.want {
+				t.Fatalf("HTTP owner needed=%v want=%v", got, test.want)
+			}
+		})
+	}
+}

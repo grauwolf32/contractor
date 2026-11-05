@@ -25,7 +25,10 @@ context:
     shared metadata for every permitted reader and snapshot-only original-file retention. On 2026-10-31
     the user requested sitemap work in parallel with the Audit redesign and explicitly asked to rewrite
     the tasks. Standalone Workflows and their release gate are V410-006/007; V410-025 owns the Audit-dependent
-    integration. This update changes planning, not implementation.
+    integration. On 2026-11-03 the user chose shared scan tools for ffuf/Katana/Nuclei without a new
+    discovery toolset, requested a transport-versus-report sitemap experiment before removing sources,
+    and explicitly declined a required single/shared allocation guarantee. This update changes planning,
+    not implementation.
   proposal: docs/proposals/0042-live-project-sitemap.md
   proposal_sections: 'Sections 1-2, 5-6 and 12: independent HTTP/OpenAPI Workflows and exact artifacts.'
   specification:
@@ -43,6 +46,14 @@ context:
     ArtifactStore owns exact input/output publication and retention; ordinary Workflow/Run execution owns
     sequencing. The live Project map is research context, not coverage or proof. All prerequisites here
     are completed foundations; no pending Audit task is a prerequisite.
+  source_comparison_direction: >-
+    User decisions on 2026-11-03: combine ffuf, Katana and Nuclei through existing scan@1 tools without
+    a separate discovery toolset; HTTP limit values belong to engagement, but delivery need not guarantee
+    one particular/shared allocation or add aggregate accounting. Proposal 0052 and optional V410-026
+    compare transport observations with scanner-report filtering, including wildcard 200/soft-404,
+    before any source is removed. That experiment and missing scanner transport adapters are not new
+    prerequisites of this standalone catalog slice; keep current supported paths and truthful capability
+    closure. No existing Nuclei sitemap report importer is assumed.
   code:
   - configs/workflows
   - configs/agent-templates

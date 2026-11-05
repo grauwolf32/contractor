@@ -434,6 +434,24 @@ func RequiredRuntimeAdaptersForTemplate(
 	return result, nil
 }
 
+// TemplateUsesControlledHTTP identifies tools consuming the allocation HTTP owner,
+// including credential/session tools that perform no network call themselves.
+func TemplateUsesControlledHTTP(template contracts.ResolvedAgentTemplate) bool {
+	for _, selection := range template.Toolsets {
+		ref := selection.Ref.ToolsetID + "@" + selection.Ref.Version
+		if ref == "http-tools@1" && len(selection.Tools) > 0 {
+			return true
+		}
+		descriptor := registeredDescriptors().Toolsets[ref]
+		for _, tool := range selection.Tools {
+			if slices.Contains(descriptor.InfrastructureChannels[tool], channelRuntimeHTTPClient) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // TemplateRequiresNetwork conservatively identifies selections that can execute
 // externally addressed work. A local offline sandbox remains scratch-only; a
 // subprocess launcher is not assumed to enforce target scope.

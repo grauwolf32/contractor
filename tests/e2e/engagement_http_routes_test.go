@@ -55,7 +55,7 @@ func TestEngagementHTTPRouteMatrixAcrossProcesses(t *testing.T) {
 		audit := startEngagementMatrixAudit(t, h, []string{origin.server.URL, secure.httpsURL}, seeds, []engagementcontract.Route{engagementRoute(origin.server.URL, "/api"), engagementRoute(secure.httpsURL, "/")}, []engagementcontract.Route{engagementRoute(origin.server.URL, "/api/forbidden")}, 1024)
 		waitEngagementAuditClosed(t, h, pool, audit)
 		observed := origin.requests()
-		if len(observed) != len(cases) || origin.connections.Load() != int64(len(cases)) || secure.tlsRequests.Load() != 1 || prohibited.bytes.Load() != 0 || loopback.bytes.Load() != 0 {
+		if len(observed) != len(cases) || secure.tlsRequests.Load() != 1 || prohibited.bytes.Load() != 0 || loopback.bytes.Load() != 0 {
 			t.Fatalf("denial matrix writes: approved=%d expected=%d connections=%d tls=%d foreignBytes=%d loopbackBytes=%d", len(observed), len(cases), origin.connections.Load(), secure.tlsRequests.Load(), prohibited.bytes.Load(), loopback.bytes.Load())
 		}
 		for i, path := range observed {

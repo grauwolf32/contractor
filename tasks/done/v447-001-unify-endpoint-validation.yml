@@ -1,0 +1,42 @@
+schema_version: "1.0"
+milestone: contracts-review-2026-11
+epic: api-contracts
+priority: P2
+status: completed
+implementation_commit: d02263e82977ff0c99bbd803279480eb8243fa42
+id: V447-001
+title: Reject unusable Gateway and Runtime endpoints at every admission boundary
+kind: defect
+introduced_by: V3-005
+languages: [go, python]
+depends_on: []
+goal: Gateway publication, RuntimeConfig and allocation validation apply the same bounded HTTP endpoint grammar.
+context:
+  authority:
+    - date: '2026-11-05'
+      decision: The user authorized fixing the four contracts review defects and the reviewed local simplifications.
+  review: Contracts review and main recheck in this chat, 2026-11-02 and 2026-11-05.
+  specification:
+    - docs/spec/configuration/runtime-config.md#RCF-R13
+    - docs/spec/configuration/runtime-config.md#RCF-R16
+  severity: medium
+  finding: internal/contracts/llmgateway/llm_gateway.go:257 accepts ports 99999, zero and an empty port, which allocation settings then reject.
+  siblings: Cover configured and resolved Gateway URLs, management origins, RuntimeConfig admission, Go allocation endpoints and the Python endpoint validator. Generic Artifact API URLs retain their own contract.
+  decision: Reuse the existing Runtime endpoint grammar in the contracts kernel, with caller-specific path/origin checks and safe classified errors. A separate parser in each caller perpetuates the observed drift. Reopen only when a concrete endpoint requires a different transport grammar.
+scope:
+  in:
+    - Share endpoint parsing across the existing Go callers and align Python; add common port boundary cases and real admission regressions.
+  out:
+    - New endpoint kinds, network resolution, credentials, database schema changes or model selection.
+acceptance_criteria:
+  - {id: A1, text: Invalid ports fail before publication or allocation; absent ports and ports 1 and 65535 remain valid.}
+  - {id: A2, text: All sibling validators use the same cases and retain path/origin restrictions and input-free errors.}
+  - {id: A3, text: Regression tests fail before the fix and all affected package tests and lint pass.}
+tests:
+  - {command: 'go test ./internal/contracts/... ./internal/config/... ./internal/configload/... ./internal/runtimeconfig', covers: [A1, A2, A3]}
+  - {command: 'cd runtime && uv run pytest tests/test_contracts.py tests/test_allocation_contracts.py', covers: [A1, A2, A3]}
+  - {command: make lint, covers: [A1, A2, A3]}
+verification:
+  date: '2026-11-05'
+  result: >-
+    Common endpoint regressions failed on the original configured/resolved validators. Full contracts/config/configload/runtimeconfig suites passed with disposable PostgreSQL; 371 Runtime contract tests passed. make lint and the shared-wire gate passed.

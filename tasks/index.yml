@@ -17,6 +17,13 @@ execution_policy:
     replaces numbered source slots/continuation assumptions. These pending tasks
     and dependent V64-008/010/011 gates do not start implementation or deployment.
     Preserve V64-013 completion history; it does not prove the new contract.
+    User decision 2026-11-04 authorizes V444-001/002/003 after landing their tasks
+    on main: engagement owns only egress, traffic limits and identities. Remove
+    blackbox/source-assisted modes and nested materials/Audit budgets, preserve no
+    backward compatibility, derive execution capabilities from Workflows and keep
+    sandbox egress implementation and independent Run setup separate. This
+    assignment authorizes these three tasks, without assigning their other pending
+    HTTP/browser/sandbox/API/UI consumers.
     User request 2026-11-03 closes V64-014 after reconciling its required passing verification and
     restoring the immutable Eval archive bytes through V64-030. V64-002 and its common Task
     integration are already completed and merged. These status updates do not assign pending
@@ -191,6 +198,9 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
+  - id: contracts-review-2026-11
+    exit_task: V447-004
+    outcome: Private contracts reject malformed endpoint ports, explicit zero limits and alternate wire names consistently; large Audit contexts share the same structural budget, with lean shared decoders and domain ownership.
   - id: httpapi-review-cleanup-2026-11
     exit_task: V440-006
     outcome: Finding HTTP transfers have bounded socket and storage work; lean adapters call existing domain owners and page cached immutable catalog projections with verified public contracts.

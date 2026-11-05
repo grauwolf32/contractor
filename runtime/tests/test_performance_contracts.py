@@ -160,3 +160,17 @@ def test_shared_resource_isolation_preserves_original_final_report_size_limit() 
     report["report"]["runtime"]["resources"] = {"unknown": "x" * 1024 * 1024}
     with pytest.raises(PrivateProtocolDecodeError):
         decode_private(AllocationFinalResponse, json.dumps(report))
+
+
+def test_shared_resource_field_aliases_are_isolated():
+    report = json.loads(FINAL.read_text())
+    report["report"]["runtime"]["resources"] = {
+        "version": 1,
+        "scope": "runtime_process",
+        "status": "partial",
+        "rss_sample_count": 0,
+    }
+    final = decode_private(AllocationFinalResponse, json.dumps(report))
+    assert final.report.runtime.resources is None
+    assert final.report.runtime.resources_error == "invalid_report"
+    assert final.report.runtime.complete is True

@@ -60,6 +60,13 @@ export function RuntimeCredentialCreateForm({
   const api = usePublicAPI();
   const queryClient = useQueryClient();
   const nextHeaderID = useRef(2);
+  // Retain only the operation identity between submits. The Server's request
+  // MAC detects changed material; a draft keyring would retain the secret.
+  const creationAttempt = useRef<{
+    credentialId: string;
+    kind: CredentialKind;
+    key: string;
+  } | null>(null);
   const [credentialId, setCredentialId] = useState("");
   const [kind, setKind] = useState<CredentialKind>("otlp-headers@1");
   const [headers, setHeaders] = useState<HeaderDraft[]>([
@@ -156,11 +163,19 @@ export function RuntimeCredentialCreateForm({
     setError(null);
     setPending(true);
     try {
-      const result = await createRuntimeCredential(
-        api,
-        body,
-        createMutationIdempotencyKey("create-runtime-credential"),
-      );
+      const previous = creationAttempt.current;
+      const attempt =
+        previous?.credentialId === body.credentialId &&
+        previous.kind === body.kind
+          ? previous
+          : {
+              credentialId: body.credentialId,
+              kind: body.kind,
+              key: createMutationIdempotencyKey("create-runtime-credential"),
+            };
+      creationAttempt.current = attempt;
+      const result = await createRuntimeCredential(api, body, attempt.key);
+      creationAttempt.current = null;
       setCreated(result);
       setCredentialId("");
       await queryClient.invalidateQueries({
@@ -200,7 +215,8 @@ export function RuntimeCredentialCreateForm({
         />
         <p className="ops-dialog-note">
           Secret values are erased from the form immediately on submit and are
-          never readable through the API. A failed request requires re-entry.
+          never readable through the API. After a failed request, re-enter the
+          same values to retry this credential.
         </p>
         <div className="ops-form-grid">
           <Field label="Runtime credential ID">

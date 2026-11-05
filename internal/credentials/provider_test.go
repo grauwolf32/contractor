@@ -111,3 +111,28 @@ func testGatewayRef(id string) llmgateway.LLMGatewayConfigRef {
 		GatewayID: id, Version: "1", Digest: "sha256:" + strings.Repeat("a", 64),
 	}
 }
+
+func TestStaticProviderAppliesTheLLMTokenByteBound(t *testing.T) {
+	for _, size := range []int{MaximumTokenBytes, MaximumTokenBytes + 1} {
+		entry := StaticEntry{
+			Metadata: resolved.CredentialMetadata{
+				Ref: llmgateway.LLMCredentialRef{CredentialID: "development-worker"}, LLMGateway: testGatewayRef("local"),
+			},
+			Token: contracts.NewSecretString(strings.Repeat("x", size)),
+		}
+		provider, err := NewStaticProvider([]StaticEntry{entry})
+		if size > MaximumTokenBytes {
+			if err == nil || provider != nil {
+				t.Fatal("development provider accepted a token beyond the LLM byte bound")
+			}
+			continue
+		}
+		if err != nil {
+			t.Fatalf("development provider rejected the LLM byte boundary: %v", err)
+		}
+		token, err := provider.ResolveLLMCredential(t.Context(), entry.Metadata.Ref, entry.Metadata.LLMGateway)
+		if err != nil || token.Reveal() != entry.Token.Reveal() {
+			t.Fatal("development provider changed the token at the LLM byte boundary")
+		}
+	}
+}

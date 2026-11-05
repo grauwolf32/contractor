@@ -1,0 +1,26 @@
+{
+  "description": "LIM-ACT-3 counts JSON values, excluding member names. Both production codecs must admit the generated bounded context; Runtime completion preparation uses the same decoder.",
+  "context": {
+    "schema": "contractor.audit.context.v1",
+    "audit_id": "audit-1",
+    "run_id": "run-1",
+    "workflow_ref": "audit-contract-check@1",
+    "workflow_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "items": []
+  },
+  "evidence": {
+    "scope_kind": "audit",
+    "scope_id": "audit-1",
+    "ref": {
+      "namespace": "evidence",
+      "name": "observation",
+      "revision": "rev-1"
+    },
+    "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "media_type": "text/plain",
+    "size_bytes": 3
+  },
+  "members": 64,
+  "evidencePerMember": 210,
+  "valueLimit": 250000
+}

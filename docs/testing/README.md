@@ -51,6 +51,11 @@ Keep setup local when it is itself under test: production `OpenPool`, startup
 migration URLs and reconnecting or multiple pools sharing one schema.
 Database-wide query-budget isolation still belongs to `explaintest.Database`.
 
+The Runtime snapshot credential-order migration test creates separate `C` and
+ICU `en-US` databases to exercise the installed validator under both collations.
+It requires `CREATEDB` and a PostgreSQL build with ICU support; configured but
+missing prerequisites fail the test.
+
 ## Temporary directory on macOS
 
 Go's `t.TempDir()` uses `TMPDIR` as given. The default macOS `TMPDIR` lies

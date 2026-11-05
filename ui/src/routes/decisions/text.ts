@@ -132,13 +132,13 @@ export function splitImpact(markdown: string): DescriptionParts {
  * The first paragraph of Markdown for a short preview: headings are skipped,
  * a fenced code block stays whole.
  */
-export function firstParagraph(markdown: string): string {
+function firstParagraph(markdown: string): string {
   const first = blocks(markdown).find((block) => block.heading === undefined);
   return first === undefined ? "" : first.lines.join("\n").trim();
 }
 
 /** Markdown reduced to its words, for a summary in a plain text field. */
-export function plainText(markdown: string): string {
+function plainText(markdown: string): string {
   return markdown
     .replace(/^\s{0,3}(`{3,}|~{3,}).*$/gm, "")
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")

@@ -1,0 +1,148 @@
+schema_version: "1.0"
+id: V444-003
+title: Verify the reduced engagement boundary across existing HTTP execution
+milestone: autonomous-http-pentest-2026-10
+epic: quality
+kind: chore
+introduced_by: V411-002
+priority: P1
+status: completed
+depends_on: [V444-002]
+languages: [go, python, yaml, markdown]
+goal: Prove that existing HTTP execution preserves network authority after engagement loses unrelated Audit responsibilities.
+demonstration: Real Server/Runtime/PostgreSQL executes allowed anonymous and authenticated HTTP work, refuses denied work and releases all private state using the reduced document.
+context:
+  authority:
+    - date: "2026-11-04"
+      decision: >-
+        User requested the three-task engagement refactor, no blackbox or backward
+        compatibility, tasks on main and then implementation. Sandbox egress and
+        independent ordinary-Run setup remain separate scopes.
+  specification:
+    - docs/spec/audits/audits.md
+    - docs/spec/audits/execution.md
+    - docs/spec/tools/http-caido.md
+    - docs/spec/tools/scanners.md
+    - docs/testing/engagement-http-conformance.md
+    - docs/testing/README.md
+  verified_code: 1b4b6fd94ec5033fd827fd20a944db09a8f5cd65
+  evidence_reuse: >-
+    V444-002 executed the complete real-process/store/shared/public/config matrices
+    and full Runtime suite against the final implementation. This task changes
+    only documentation and future-task wording, so it retains those passing reports
+    and reruns lint/spec/task checks instead of repeating identical target traffic.
+  boundary: >-
+    Reuse test-engagement-http-process and existing HTTP/Nuclei/identity tests.
+    This task accepts the refactor, not the complete pentest product or live-model
+    quality. V411-020 remains the composed product exit task. Planning changes
+    already reconcile dependent tasks; this gate verifies they stayed aligned.
+scope:
+  in:
+    - Run the existing real-process and real-store matrices with the final reduced engagement.
+    - Verify ordinary material inputs/deadlines, exact engagement pins, HTTP/Nuclei shared local limits, explicit credentials and joined cancellation/release.
+    - Replace obsolete source-mode cases with ordinary input access cases; extend only uncovered real boundary cases, without implementation-mirroring tests.
+    - Verify dependent HTTP/API/UI/report/browser/sandbox task scopes use the reduced document and do not promise new egress or global counters.
+    - Record actual commands, selected case counts, platform skips and remaining product limitations.
+  out:
+    - Full pentest release, new capture/report/UI features, live-model runs and implementation of optional integrations.
+    - A new test framework, default quota, source-mode policy or old-record compatibility.
+acceptance_criteria:
+  - id: A1
+    text: The existing process gate executes nonzero real Server/Runtime/PostgreSQL scenarios with zero unexpected mandatory skips.
+  - id: A2
+    text: Denied scope/credentials, configured and omitted limits, fresh allocation counters and cancellation/release preserve existing behavior.
+  - id: A3
+    text: Shared contracts, public API, shipped configuration and task/spec checks pass; no active plan reintroduces source modes or engagement-owned Audit inputs/budgets.
+tests:
+  - command: make require-database
+    covers: [A1, A2]
+  - command: make test-engagement-http-process test-wire-cross-language verify-public-api verify-public-api-postgres test-config
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A3]
+verification:
+  date: "2026-11-05"
+  result: >-
+    The reduced strict engagement preserves real HTTP/Nuclei scope, explicit
+    identities, optional allocation-local limits and joined cleanup. Ordinary
+    Audit inputs, exact retained revisions, deadlines and source access remain
+    under their existing owners. No compatibility reader or transport framework
+    was introduced.
+  code_commit: 1b4b6fd94ec5033fd827fd20a944db09a8f5cd65
+  inherited_results:
+    - make require-database; dedicated disposable UTF8 PostgreSQL, no demo writes.
+    - Complete V444-002 Go package suites passed with the real database configured, including AuditService/store, placement/preparation, Findings reader, public API and Eval fixtures.
+    - make test-engagement-http-process; 41 process, 2 accounting and 157 Runtime cases passed with zero selected skips.
+    - make test-nuclei-engagement; actual installed engine process and 41 Runtime bridge/transport cases passed.
+    - make test-wire-cross-language; 371 fixtures, 405 Go and 258 Python shared tests; 1429 selected pytest cases passed.
+    - make verify-public-api and make verify-public-api-postgres passed; the PostgreSQL public API cases ran with race instrumentation.
+    - make test-config passed; shipped catalog validated.
+    - make test-runtime passed with warnings as errors; 5825 passed, 135 existing platform/environment skips; release report verification passed.
+  fresh_checks:
+    - make require-database passed.
+    - make lint passed after the documentation and task wording updates.
+    - Spec and task checks passed; no active scope/acceptance reintroduces removed source modes, capability wrappers or engagement-owned Audit inputs/budgets.
+  process_report: reports/engagement-http/run-6q0geqsj/result.json
+  matrix_digest: sha256:b099ca4fb23e8ac235f15f4992b7fa3bda21650eab8b035d52673d831795377d
+  plan_review:
+    - V411-007
+    - V411-013
+    - V411-014
+    - V411-015
+    - V411-016
+    - V411-017
+    - V411-018
+    - V411-019
+    - V411-020
+    - V411-021
+    - V412-001
+    - V412-003
+    - V412-004
+    - V412-005
+    - V64-018
+  scope_result: >-
+    Clarified ordinary material authority in V411-015 and separate engagement
+    Artifact/Audit setup in V411-018. Proposal 0033 labels its obsolete design as
+    historical and records the current cleanup. V411-020 remains the product
+    release exit; sandbox/browser/non-HTTP egress, global quotas and independent
+    ordinary-Run authoring remain separate work.
+  delivery:
+    branch: main
+    merged_into_main: true
+    merge_commit: c66107a4583c87835c99f3449adef6f2284d867b
+    original_tested_main_base: e9edd3bc46a4a1d65e39a946207686f145ebf644
+    integration:
+      date: "2026-11-05"
+      authority: User explicitly requested merging the completed branch into main.
+      main_base: bf709d8e87d3fcaf393e9520fbd2135b60cf454f
+      resolutions: >-
+        Preserve main's extracted allocation validators and remove the retired
+        blackbox workspace guard from the extracted helper. Regenerate mutation
+        vectors, BACKLOG.md and the dependency graph; retain both control-plane
+        specification edits. No new behavior or test timeout changes.
+      passed:
+        - Complete selected Go integration suites with real disposable PostgreSQL; contracts, configuration, AuditService, Control Plane, app, public API/client, architecture, Findings reader and Audit Eval fixtures.
+        - make lint ui-verify test-config; all passed.
+        - make test-wire-cross-language; 374 fixtures, 410 Go and 261 Python shared tests.
+        - make verify-public-api verify-public-api-postgres; passed, including the PostgreSQL API race cases.
+        - make test-engagement-http-process; 41 process, 2 accounting and 157 Runtime cases, zero selected skips.
+        - make test-nuclei-engagement; real engine process and 41 Runtime cases passed.
+      full_runtime_status: not_green_due_to_intermittent_fixture_failures
+      full_runtime_runs:
+        - 3 failed, 5834 passed, 135 skipped in the first full integration run.
+        - 4 different failures, 5833 passed, 135 skipped in the serial repeat.
+      runtime_followup: >-
+        Failures were in unchanged scanner process/probe and validator cancellation
+        fixtures, including short marker/probe/subprocess deadlines. An isolated
+        179-case scanner-module run had two different probe failures. All nine cases
+        observed failing across these runs passed together on explicit recheck
+        (9 passed in 7.20s). The affected scanner/validator implementation and test
+        files are identical to the main base. Full Runtime success is not claimed
+        for this merge tree; no cases were skipped and no deadline was relaxed.
+      logs:
+        - /private/tmp/v444-merge-runtime.log
+        - /private/tmp/v444-merge-runtime-final.log
+        - /private/tmp/v444-merge-scanner-modules.log
+        - /private/tmp/v444-merge-recheck.log
+
+implementation_commit: e2efeeb8910c8e697015527df867c23f34f84671

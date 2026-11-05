@@ -1296,9 +1296,7 @@ override.
 | `deadlineSeconds: 0` | Start without a deadline | Clear the deadline |
 | Override omitted | Use the pinned profile's default | Preserve no-limit mode or the positive remainder frozen at `paused_at`; otherwise renew the pinned profile's default |
 
-For a typed engagement engagement, the resulting Start or Resume allowance is
-additionally capped by its pinned `budgets.activeSeconds` (AUD-R242); zero
-cannot remove that cap.
+An engagement does not override the ordinary Audit deadline or Resume allowance.
 
 **AUD-R208.** The optional override participates in the mutation's request
 digest. Reusing an idempotency key with a changed override conflicts; omission
@@ -1791,12 +1789,12 @@ Workflow and Skill consumer pins keep their existing Server encoding and remain
 opaque to Runtime readers. A bare digest or configuration name/version is never
 substituted for source membership, exact consumer closure or authorization.
 
-## Typed engagement engagement
+## Network engagement
 
 **AUD-R241.** A profile selects at most one exact Project input with media type
 `application/vnd.contractor.engagement+json`. Its closed document uses
-`contractor.engagement.v1` and contains `schema`, `accessMode`, `target`,
-`scope`, `identities`, `inputs`, `budgets` and `policy`. Arrays are
+`contractor.engagement.v1` and contains `schema`, `egress`,
+`identities` and optional `limits`. Arrays are
 present even when empty; optional members are omitted, never null. Duplicate
 or unknown members, invalid Unicode, unsupported versions and non-integral,
 nonfinite or out-of-range numbers are rejected without echoing input bytes.
@@ -1804,8 +1802,8 @@ The shared Go/Python/schema fixtures define the same acceptance boundary.
 The document byte limit is LIM-AUD-31; tighter package and Audit input limits
 still apply.
 
-`target` contains exact `origins` and optional `deployment.marker`.
-`scope` contains `routes` and `exclusions`. Each route has an `origin`,
+`egress` contains `routes` and `exclusions`. Allowed route origins define the
+bounded origin set; exclusion and identity origins must belong to that set. Each route has an `origin`,
 `pathPrefixes`, `methods` and canonical network `addressRanges`. An identity has a unique
 `id`, `kind`, `origins`, optional `role`/`tenant`, and an exact non-secret
 `credential` reference for non-anonymous kinds. Exactly one identity is
@@ -1816,23 +1814,21 @@ selection is unambiguous. The immutable credential ID is its revision, never a
 secret digest.
 
 
-Input entries are `{id, role, artifact, contentDigest}` with exact ArtifactRefs
-and roles `source`, `openapi`, `request-examples` or `documentation`. The
-containing Project supplies scope. Nested cardinalities are bounded by
-LIM-AUD-32/33. Action classes and test-data descriptors return only when a
-production Workflow creates test objects and owns their cleanup.
+Materials are selected and pinned through ordinary Audit inputs. Engagement
+contains no material descriptors or source-access mode. Nested network-policy
+cardinalities remain bounded by LIM-AUD-32/33. Action classes and test-data
+descriptors return only when a production Workflow creates test objects and
+owns their cleanup.
 
-**AUD-R242.** The engagement's `budgets` retain `activeSeconds`, `rounds`,
-`submittedRuns` and `evidenceBytes` under LIM-AUD-34. The ordinary Audit
-limits and deadline own these bounds, with the tighter profile bound winning;
-Start and Resume follow AUD-R207. No separate cumulative active clock exists.
-The same artifact may optionally supply `targetRequests`, `requestsPerSecond`,
-`concurrentRequests`, `requestBodyBytes` and `responseBodyBytes`. These fields
+**AUD-R242.** Ordinary Audit limits and Start/Resume deadlines own execution
+budgets independently of engagement. The engagement's optional `limits` may supply
+optional `targetRequests`, `requestsPerSecond`, `concurrentRequests`,
+`requestBodyBytes` and `responseBodyBytes`. These fields
 are projected into `allocation.engagement.http.limits` and enforced
 locally by Runtime under HTP-R145. Each omitted limit is absent; process/env
 settings and implied defaults cannot supply it. Each allocation starts fresh.
 An engagement Audit has `maxItemRunAttempts: 1`, irrespective of a larger profile
-value. Capability selection and limits never authorize traffic outside scope.
+value. Tool selection and limits never authorize traffic outside egress scope.
 
 **AUD-R243.** Engagement URLs accept absolute HTTP(S) with ASCII DNS A-labels
 or canonical IPv4/IPv6, an optional query and no userinfo or fragment. Origins
@@ -1845,39 +1841,34 @@ backslashes and malformed escapes. Canonical paths are shared by validation,
 matching and future transmission: reject dot segments, repeated separators,
 encoded slash/backslash/NUL and nested escaping that could change a later
 decode. Query values are request data. A path prefix matches whole segments:
-`/api` matches `/api/items` but not `/api-admin`. Exclusions win, and every seed
-must be authorized for `GET`. URL/path bytes are bounded by
+`/api` matches `/api/items` but not `/api-admin`. Exclusions win. URL/path bytes are bounded by
 LIM-AUD-33. These checks do not resolve DNS or establish connected-address
 reachability.
 
-**AUD-R244.** Policy version `1` selects `activeChecks: automatic`,
-bounded required/optional capability selectors. Retry behavior belongs to the
-Runtime transport under HTP-R139; there are no selectable retry/replay policies.
-Capability selection never grants target or identity authority. The supported
-metadata contract is `engagement@1`; its presence does not advertise
-controlled HTTP, proof, login, browser or callback execution. Unsupported
-Server requirements fail closed with `audit_profile_unsupported`.
+**AUD-R244.** Execution requirements follow selected Workflow tools and their
+registered infrastructure channels. An HTTP-consuming tool needs the controlled
+HTTP owner (`http-target@1`) when an engagement is bound; this includes HTTP
+credential/session operations and controlled Nuclei. Offline work adds no HTTP
+requirement. Unintegrated network paths fail closed with
+`audit_profile_unsupported`; selecting tools cannot widen network authority.
+Engagement has no policy version, capability selectors, active-check switch or
+deployment marker. Ordinary Project/Program active-operation policy still applies.
+Retry behavior belongs to Runtime transport under HTP-R139.
 
-**AUD-R245.** `blackbox` rejects source inputs, repository hydration,
-source-analysis tools and unclassified source-bearing inherited inputs or
-Skills before they reach a child Run. `source-assisted` requires an exact
-source input. Public HTTP resources and a scratch workspace for scripts are
-not repository access. Until trusted Skill provenance can prove the absence
-of target source, selected Skills are refused in blackbox mode rather than
-classified from their name or instruction text. Reopen this restriction when
-such provenance has a production writer and a validated reader. Live Project
-sitemap/findings context never changes baseline authority. Shared sitemap
-metadata is available in either mode under SMT-R14 and grants no source-file
-access; Project findings context follows its separate access contract.
+**AUD-R245.** Source availability follows ordinary Audit inputs, selected
+Workflow toolsets, workspace bindings and Skills. There is no blackbox or
+source-assisted mode and no engagement-specific source restriction or inferred
+source-isolation guarantee. Ordinary Artifact, Project and operation authority
+still governs every read. Live sitemap/findings context does not widen network
+authority or grant arbitrary referenced Artifact bytes.
 
 **AUD-R247.** Start authoritatively validates the engagement, credentials and
 compatibility. Unsupported engagements return `audit_profile_unsupported` with
-`engagement_capability_unsupported`, `engagement_source_closure_unsupported` or
-`engagement_active_checks_unsupported` reasons. Start extends its immutable baseline
+`engagement_capability_unsupported` or `engagement_active_checks_unsupported` reasons. Start extends its immutable baseline
 with the versioned `contractor.audit.engagement-baseline.v1` engagement snapshot:
 the exact artifact,
-validated document, policy digest, trusted authorizing owner, authorization
-time. The snapshot contains no executable authentication recipes. Exact nested
+validated document, trusted authorizing owner, authorization
+time. The snapshot contains no executable authentication recipes. Ordinary Audit
 input refs and credential revisions are validated and held through existing
 Artifact links and credential dispatch holds in the start transaction.
 Profile, Workflow, Skill and RuntimeConfig
@@ -1894,11 +1885,16 @@ It reads outside the Runtime Registry lock and rechecks allocation authority
 before dispatch. The immutable baseline lookup does not require an active
 Audit: pause blocks new child admission while existing Runs drain; Run
 cancellation, Project deletion and the allocation grant retain their existing
-dispatch fences. The projection contains immutable engagement/policy attribution. Metadata-only allocations omit `http`. Explicitly requiring
-`http-target@1` supplies typed routes/exclusions, assigned identities
-optional per-allocation HTTP limits from the selected engagement and the trusted
-infrastructure denyset. The Server selects an advertising
-Runtime before placement. Preparation performs no target discovery or startup
+dispatch fences. The projection contains the exact engagement ref/digest and trusted author/time.
+Offline allocations omit `http`. Actual selected HTTP tools supply typed
+routes/exclusions, assigned identities and optional per-allocation limits from
+the engagement, with the trusted infrastructure denyset. The Server selects an
+advertising Runtime before placement. The placement preparation seam unions
+requirements once per Stage from its bounded selected bindings; HTTP assignment
+is narrowed per Worker template. This preserves the existing Stage placement
+grain and avoids one baseline lookup per binding. Revisit that grain only for a
+concrete mixed offline/HTTP Stage requiring heterogeneous Runtime capacity.
+Preparation performs no target discovery or startup
 request. The Worker chooses requests through HTTP tools with an optional explicit
 credential_id (HTP-R140). Neither mutable Project settings, physical labels nor
 Worker arguments widen this assignment. Raw credentials, private variables and

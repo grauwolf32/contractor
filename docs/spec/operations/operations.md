@@ -462,6 +462,13 @@ The REST resources behind these surfaces are defined in
 Idempotency keys, revision preconditions and stale-revision handling of binding
 and Agent-label dialogs are defined in [UI](../ui/ui.md).
 
+The runtime-credential create dialog clears secret fields on each submission.
+While open it retains only one credential ID, kind and idempotency key, so
+re-entering material for that identity after a failed response reuses the key
+under [RCF-R177](../configuration/runtime-config.md). Submitting another ID or
+kind starts a new attempt; confirmed success or closing the dialog clears it.
+Retry state contains no secret material or secret-derived fingerprint.
+
 #### Overview and Runtime Agent cards
 
 **OPS-R36.** Operations Overview leads with observed idle,

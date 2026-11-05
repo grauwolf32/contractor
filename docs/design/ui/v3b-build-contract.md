@@ -215,18 +215,16 @@ signatures in §11 "As built"; use those.
 - `src/app/vocabulary.ts`: labels and tones of §3; `itemNoun(kind, count)`;
   `checkItemKind(…)`.
 - `src/api/cross-project.ts`: owner-wide cursor lists (every page of projects,
-  checks, findings and reviews; polling 20 s; `refetchOnWindowFocus` off;
-  partial results retained when a continuation fails):
-  `useProjectsIndex`, `useAllChecks`, `usePendingDecisions`,
-  `useAllPossibleIssues`, `useAllReports`, `useInboxSummary`,
-  `invalidateCrossProject`.
-- `src/routes/decisions/`: `FindingSummary` (what the AI found, code lines,
-  impact, evidence, uncertainty), `FindingDecision` (opens a review request
-  when needed and records true positive + severity, false positive, needs
-  evidence, duplicate with target picker, reopen; rationale required),
-  `ActionDecision` (active-check approval and requirement applicability:
-  approve / reject / not applicable), `ReportDecision` (report acceptance).
-  Shared by Inbox, Issues, Checks and Reports.
+  checks and Project findings; polling 20 s; `refetchOnWindowFocus` off;
+  partial results retained when a continuation fails): `useProjectsIndex`,
+  `useAllChecks`, `useAllPossibleIssues`, `useAllReports`, `useInboxSummary`
+  and `invalidateCrossProject`.
+- `src/routes/issues/issue-detail.tsx` owns complete issue identity, Summary,
+  retained evidence/snippets and independent-source History. Inbox reuses it
+  with its own queue context. `FindingDecision` from `src/routes/decisions/` owns
+  direct revisioned Project annotations, never Audit approval requests.
+  Reports shares its complete reader/status/downloads with Inbox Ready and
+  has no acceptance controls.
 - Tokens added to `theme.css` for V3B parts that were missing (`--chrome`,
   `--chrome-2`, `--faint`, `--sel`, `--sel-bar`, `--sel-line`, `--code-bg`,
   `--code-hl`, `--badge-bg`, `--badge-ink`, `--m-idle`, `--m-partial`,
@@ -334,29 +332,26 @@ read it before using a primitive. Highlights:
 
 Tables keyed by the generated API enums (`CHECK_STATE_LABELS`,
 `COVERAGE_STATUS_LABELS`, `FINDING_STATE_LABELS`, `VERDICT_LABELS`,
-`REVIEW_ACTION_LABELS`, `REVIEW_STATE_LABELS`, `REPORT_STATUS_LABELS`,
-`REVIEW_KIND_LABELS`, `SEVERITY_LABELS`) and lookups returning
+`REPORT_STATUS_LABELS`, `SEVERITY_LABELS`) and lookups returning
 `{ label, tone }`; `TERMS` for shared nouns; `ItemKind`, `itemNoun`,
 `itemCount` and `checkItemKind(source)` (work item kind → profile inventory
 and standards → audit baseline standards → profile name → "item").
 
 ### Cross-project data (`ui/src/api/cross-project.ts`)
 
-- `CROSS_PROJECT_LIMITS = { pageSize: 200, pollMs: 20_000 }`.
-- `INBOX_CHECK_STATES = ["active", "waiting_review"]`: pass it as
-  `checkStates` on the Inbox so lists match the rail badge and share reads.
+- `CROSS_PROJECT_LIMITS = { pollMs: 20_000 }`; Server page limits and cursor
+  traversal own collection bounds.
 - Hooks return `CrossProjectStatus` (`truncated`, `partial`, `errors` keyed by
-  `scope: "index" | "list" | "project" | "check"`, `error`, `isPending`, `refetch`) plus:
+  scope, `error`, `isPending`, `refetch`) plus:
   `useProjectsIndex() → projects`; `useAllChecks({ states? }) → checks`;
-  `useAllPossibleIssues({ checkStates?, states?, verdicts?, severities? }) → issues, truncatedAuditIds, total`;
-  `usePendingDecisions({ checkStates?, kinds? }) → decisions, truncatedAuditIds`;
-  `useAllReports({ statuses? }) → reports` (default proposed and ready; 404 = no report);
-  `useInboxSummary() → { needsDecision, possibleIssues, otherDecisions, partial, truncated }`.
-- Checks, findings and reviews use `/v1/audits`, `/v1/findings` and
-  `/v1/reviews`. Collections follow every cursor sequentially and have no
-  fixed cap; report payloads remain pinned to each check revision.
-- `invalidateCrossProject(queryClient)` after every decision or lifecycle
-  mutation. Keys live in `queryKeys.crossProject`.
+  `useAllPossibleIssues({ needsReview?, states?, verdicts?, severities?, enabled? }) → issues, total`;
+  `useAllReports({ statuses? }) → reports` (default ready);
+  `useInboxSummary() → { needsDecision, possibleIssues, partial, truncated }`.
+- Checks and canonical Project Findings use `/v1/audits` and `/v1/findings`.
+  Collections follow every cursor sequentially; report payloads remain pinned
+  to their check revision. Completed checks can have no aggregate report.
+- `invalidateCrossProject(queryClient)` follows Project annotations and
+  lifecycle mutations. There is no pending-review read or approval badge.
 
 ### Shell (`ui/src/app/shell.tsx`, `destinations.ts`, `account-menu.tsx`, `command-palette.tsx`)
 
@@ -380,21 +375,16 @@ and standards → audit baseline standards → profile name → "item").
 
 ### Decisions (`ui/src/routes/decisions`, README.md there)
 
-- `FindingSummary({ auditId, finding, variant?: "full" | "compact", titleAs? })`
-  renders only sections backed by `AuditFinding` fields.
-- `FindingDecision({ auditId, finding, onDecided?, next?, autoFocus?, pendingReview?, shortcuts? = true })`
-  records Confirm issue (C, severity), Not an issue (R), Needs evidence (E),
-  Duplicate… and Reopen (More), creating the review request when needed
-  (If-Match + Idempotency-Key), refreshes the check, project lists and
-  cross-project queries, announces "Decision recorded" and calls
-  `onDecided`. Pass `shortcuts={false}` when several decisions share a page.
-- `ActionDecision({ auditId, review, onDecided?, onRecording? })` (approvals
-  and applicability) and `ReportDecision({ auditId, review, report?,
-  onDecided?, onRecording? })` (report acceptance) follow the same rules;
-  `DecisionRecord({ decision })` shows a recorded decision. While a decision
-  is being recorded, and until the refreshed request arrives, the bar is not
-  swapped for a "no longer matches" state; `onRecording(recording)` tells the
-  page.
+- `FindingDecision({ finding, onDecided?, next?, autoFocus?, shortcuts? = true,
+  presentation? })` records a direct canonical Project annotation with
+  If-Match and Idempotency-Key. It offers Confirm issue with severity,
+  Not an issue, Needs evidence, Mark as duplicate and Reopen, retaining a
+  conflicted draft until the user explicitly chooses the current revision.
+- The complete Issues reader owns identity, Summary, Evidence and History;
+  Inbox supplies its queue bar and return context. There is no compact
+  summary alternative, ActionDecision, ReportDecision or approval request.
+  `onRecording(recording)` keeps a pending annotation editor mounted while
+  its response and refreshed Finding arrive.
 - If your page unmounts the decision on success (for example it moves to the
   next item), announce the outcome yourself in a page-level status region and
   move focus to the next item.

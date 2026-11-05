@@ -351,6 +351,16 @@ canonical unassessed Project Findings through the owner-scoped Finding list.
 Annotations do not block execution or completion. There are no item approval or
 report acceptance requests (ACT-R9).
 
+After successful initial reads, desktop entry selects the first listed item
+once. Explicit item links, partial reads and returning to the queue keep the
+user's selection; mobile entry starts with the queue. Unselected content is a
+compact continuation, loading, partial-read or empty state rather than duplicate
+section counters. Selected Findings reuse the complete Issues reader and
+Project annotation owner; selected reports reuse the complete Reports reader,
+status, safe Markdown and downloads. A completed check without an aggregate
+report links to its ordinary task results. Inbox retains its queue navigation
+and return context, without a duplicate Run/capacity summary.
+
 **UI-R40.** An Audit page under `/projects/:projectId/audits/:auditId` marks
 Checks as current in the rail.
 
@@ -1619,6 +1629,6 @@ with exact-revision query keys, cancellation and no automatic retries/polling.
 Larger/unsupported content keeps an exact Material Preview link. Errors offer
 explicit retry without changing ordinary launch readiness. Engagement inputs
 explicitly declaring `application/vnd.contractor.engagement+json` move under
-Scope and project saved target/routes/exclusions/identities/budgets through the
+Scope and project saved target/routes/exclusions/identities/HTTP limits through the
 canonical schema. All declared inputs remain selectable; unsupported profiles
 remain blocked and Server validation/authorization remains authoritative.

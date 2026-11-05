@@ -258,7 +258,10 @@ AgentTemplate contains reusable behavior without model selections.
 the only accepted protocol is `openai-compatible@1`.
 
 **RCF-R13.** URL userinfo, query and fragment components are invalid in the
-Gateway `url`. Credentials never travel inside the URL or the Gateway manifest.
+Gateway `url`. Gateway and Runtime endpoints share the bounded HTTP(S) endpoint
+grammar: an explicit port is nonempty and in 1..65535; omission uses the scheme
+default. Configuration admission and allocation decoding apply the same rule.
+Credentials never travel inside the URL or the Gateway manifest.
 
 **RCF-R14.** A modeled consumer selects an optional credential independently
 beside `llmGateway` in executionConfig, for that exact Gateway. Omitting it
@@ -396,8 +399,8 @@ label and the typed Gateway policy of RCF-R63.
 UTF-8 bytes (LIM-RCF-3) that is a credential field value (RCF-R114) and a
 bounded stable non-secret remote key identifier. Server performs no trimming
 and rejects a missing, malformed or oversized response (FAIL-RCF-1). A
-development Gateway token configured at startup follows the same field-value
-rule, and startup refuses one that does not.
+development Gateway token configured at startup follows the same byte bound
+and field-value rule, and startup refuses one that does not.
 
 **RCF-R40.** Server encrypts the exact token bytes with AES-256-GCM using a
 fresh 96-bit cryptographically random nonce. The canonical schema version,
@@ -1126,6 +1129,11 @@ non-secret credential ref in the same transaction that stores the Run. The
 pinned default is a resolved dependency rather than caller input; Run
 idempotency and replay are owned by [Runs](../execution/runs.md). Rebinding
 `default` or a selected label affects only later Runs.
+
+The snapshot's `llmCredentialIds` and `runtimeCredentialIds` indexes are
+unique sets in strictly ascending ASCII byte order. Go and PostgreSQL validate
+the same order and ASCII identity grammar independently of database locale.
+For example, `a-1` precedes `a_2`.
 
 **RCF-R134.** Run creation locks the default and selected binding rows in
 lexical order in the same PostgreSQL transaction that stores the Run snapshot.

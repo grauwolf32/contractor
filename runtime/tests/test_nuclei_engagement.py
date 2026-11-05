@@ -7,7 +7,6 @@ import shutil
 import time
 from pathlib import Path
 
-import httpcore
 import pytest
 import yaml
 from fakes.engagement_socket import SocketTarget, resolver_for, socket_spec, tls_contexts
@@ -286,24 +285,26 @@ def test_real_nuclei_body_limits_cannot_be_bypassed(tmp_path, bound):
 
 
 @pytest.mark.parametrize("method,attempts", [("GET", 2), ("POST", 1)])
-def test_real_nuclei_leaves_retry_to_http_owner(tmp_path, method, attempts):
-    class FailedConnect(httpcore.AsyncNetworkBackend):
-        calls = 0
-
-        async def connect_tcp(self, *_, **__):
-            self.calls += 1
-            raise httpcore.ConnectError("fixture pre-send connection failure")
-
+def test_real_nuclei_leaves_retry_to_http_owner(tmp_path, method, attempts, monkeypatch):
     async def scenario():
         async with SocketTarget() as target:
             literal_origin(target)
             tool, owner, _ = await scanner(tmp_path, target, templates=[template(method=method)])
-            backend = FailedConnect()
-            owner._backend = backend
+            calls = 0
+            original = asyncio.open_connection
+
+            async def refuse(host, port, **options):
+                nonlocal calls
+                if host == target.address and port == target.port:
+                    calls += 1
+                    raise ConnectionRefusedError("fixture pre-send connection failure")
+                return await original(host, port, **options)
+
+            monkeypatch.setattr(asyncio, "open_connection", refuse)
             try:
                 result = await tool(target.origin + "/allowed", timeout_seconds=30)
                 assert result["status"] == "failed", result
-                assert owner._request_count == backend.calls == attempts
+                assert owner._request_count == calls == attempts
                 assert target.written == b""
             finally:
                 await tool.close()

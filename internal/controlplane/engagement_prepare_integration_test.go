@@ -19,18 +19,12 @@ import (
 // create no target/model work during prepare. The native harness uses real mTLS
 // and a separate Python Runtime process; its local tool factory records work.
 func TestCrossLanguageMTLSEngagementMetadataPrepare(t *testing.T) {
-	policy := engagementcontract.Policy{Version: "1", ActiveChecks: "automatic", RequiredCapabilities: []string{engagementcontract.Capability}, OptionalCapabilities: []string{}}
-	digest, err := policy.Digest()
-	if err != nil {
-		t.Fatal(err)
-	}
 	revision := "engagement-r1"
 	metadata := &engagementcontract.AllocationProjection{
 		Schema: "contractor.engagement.allocation.v1", AuditID: "audit-native",
 		Engagement:       contracts.ArtifactRef{Namespace: "engagements", Name: "native", Revision: &revision},
-		EngagementDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", PolicyDigest: digest,
-		AuthorizedBy: "owner-native", AuthorizedAt: time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC), AccessMode: "blackbox",
-		Policy: policy,
+		EngagementDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		AuthorizedBy:     "owner-native", AuthorizedAt: time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC),
 	}
 	h := startNativeHarness(t, "native_successful_release_replay", func(h *nativeHarness) {
 		h.client.preparation = allocationPreparationFunc(func(_ context.Context, _ Reservation, spec control.AllocationSpec, dispatch func(control.AllocationSpec) (contracts.WorkerHandle, error)) (contracts.WorkerHandle, error) {
@@ -58,7 +52,7 @@ func TestCrossLanguageMTLSEngagementMetadataPrepare(t *testing.T) {
 	projection.HTTP = &engagementcontract.HTTPAssignment{}
 	invalid.Engagement = &projection
 	var rejected control.PrepareAllocationResponse
-	err = h.client.postJSON(h.ctx, h.reservation.ControlURL, invalid.AllocationID, h.reservation.Grant.RuntimeAgentID, "prepare",
+	err := h.client.postJSON(h.ctx, h.reservation.ControlURL, invalid.AllocationID, h.reservation.Grant.RuntimeAgentID, "prepare",
 		control.PrepareAllocationRequest{APIVersion: contracts.APIVersion, Spec: invalid}, &rejected, true)
 	var apiError *RuntimeAPIError
 	if !errors.As(err, &apiError) || apiError.StatusCode != http.StatusUnprocessableEntity || apiError.Code != "invalid_request" || apiError.Retryable {

@@ -134,7 +134,7 @@ func (p *CollectionPublisher) PublishFindingExport(ctx context.Context, ownerID,
 			}
 			return snapshot.AddReceipt(value)
 		}
-		if _, _, err := p.captureCollection(ctx, tx, ownerID, PublishCollectionRequest{ClientKey: request.ClientKey, Sources: []CollectionSelection{{Kind: "audit", ID: auditID, ReceiptIDs: []string{}, Findings: selected}}}, at, observer, false); err != nil {
+		if _, _, err := p.captureCollection(ctx, tx, ownerID, PublishCollectionRequest{ClientKey: request.ClientKey, Sources: []CollectionSelection{{Kind: "audit", ID: auditID, ReceiptIDs: []string{}, Findings: selected}}}, at, observer); err != nil {
 			return err
 		}
 		for _, row := range rows {

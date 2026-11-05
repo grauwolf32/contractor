@@ -1,0 +1,47 @@
+{
+  "project": "contractor-inbox-design-20261104",
+  "conversation": "65cc1eb5-8a20-4730-9f5a-4108ff35af50",
+  "nativeURL": "http://127.0.0.1:17456/projects/contractor-inbox-design-20261104/conversations/65cc1eb5-8a20-4730-9f5a-4108ff35af50",
+  "model": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+  "modelUnchanged": true,
+  "nativeStatus": "succeeded",
+  "attempts": [
+    {
+      "runId": "7cee9289-edd8-4cbc-a25f-d41c6f0f90e7",
+      "status": "succeeded",
+      "childExited": true,
+      "output": "No CSS; response exhausted before a final answer."
+    },
+    {
+      "runId": "2191a7de-b856-458c-9fcc-7ff1be0cb467",
+      "status": "succeeded",
+      "childExited": true,
+      "output": "opendesign.css"
+    }
+  ],
+  "cssSha256": "a10fa9e67d1d2c8e10fa59a4919ebb7dcf8d00c14e68789e608e2c5f1d3d73a9",
+  "nativeCSSUnmodified": true,
+  "relay": {
+    "stopped": true,
+    "upstreamCredentialRemoved": true,
+    "requestsUsed": 8
+  },
+  "requestLimit": 24,
+  "hostOwned": [
+    "current-fixture.tsx",
+    "index.html",
+    "prepare.mjs",
+    "capture.mjs",
+    "verify.mjs",
+    "layout-fixes.css",
+    "build-fixes.mjs",
+    "layout-polish.css"
+  ],
+  "inputs": {
+    "brief.md": "212dbd3ded5f78884c8301f7abe5ca90254c47944105beb96f657110e50fc910",
+    "reference/inbox-reference.html": "bf73984cd73973461b9443d39fa7379a29d352064d9b3b67f654377c5e0eb7e6",
+    "prompt.txt": "bb102c10556aef7d8176b368b85f55d2e3c3c57d51c18502c912aea5de16f923",
+    "continuation-prompt.txt": "a53f0a7dc28dc1416cc0d61a08d144085b400c638bca0ffa93329eaab9c843c7"
+  },
+  "hostCompatibility": "Restores shared component layout after broad native decision/facts selectors, maps overview to actual nesting, and retains the project type scale. Exact native CSS is unchanged."
+}

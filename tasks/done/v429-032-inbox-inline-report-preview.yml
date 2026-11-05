@@ -1,0 +1,79 @@
+schema_version: "1.0"
+id: V429-032
+title: Read complete reports inside the Inbox preview
+milestone: ui-journey-usability
+epic: ui
+kind: feature
+priority: P2
+status: completed
+implementation_commit: 57c312351be5ad1bdc1651ee0c7c434ee65c6aab
+depends_on: [V429-031]
+languages: [typescript, javascript, css]
+goal: The user can read the complete report directly in Inbox Decide and Ready instead of leaving the queue after a short excerpt.
+demonstration: Reuse the actual Reports content, report-read and acceptance owners with a proposed report and a ready report, showing their complete Markdown, table, downloads and retained-file details while preserving Inbox navigation.
+context:
+  authority: User 2026-11-04 asks to load report content inline as well, following the full issue preview. Existing preview-first, shared typography and OpenDesign preservation requirements continue to apply.
+  specification: docs/spec/ui/ui.md#UI-R39
+  design: docs/design/ui/README.md
+  references:
+    - ui/src/routes/reports/report-view.tsx
+    - ui/src/routes/reports/report-data.ts
+  proposal: Read the complete report through the existing Reports owners and show it in both report-acceptance decisions and ready reports. Keep existing status/acceptance rules, safe Markdown, downloads and exact retained references; preserve previous previews and make no production change or native model call.
+  boundary: Reports owns report reads, content, status, downloads and acceptance eligibility. Inbox owns queue selection, context, focus and late decision navigation. No second renderer, report state machine or API is added.
+scope:
+  in:
+    - Proposed and ready report readers using shared ReportContent and existing report/acceptance hooks.
+    - Complete schema-valid synthetic reports with meaningful sections, table and bounded JSON/Markdown downloads.
+    - Explicit read failure, unavailable/pending and review-mismatch cases, queue navigation and paired Reports comparison.
+  out:
+    - Production transfer/main merge, new approval rules, real decisions, live project content or model calls.
+requirements:
+  - id: R1
+    text: Both Decide report reviews and Ready reports render complete content through ReportContent rather than an excerpt; downloadable files match the displayed response.
+  - id: R2
+    text: Proposed and ready statuses remain distinct, acceptance is offered only by the existing owner for the matching request, and missing/failed reads are never presented as successful or accepted reports.
+  - id: R3
+    text: Queue navigation, mobile Back, full-report destination, all themes and shared typography stay usable; the full Issues preview and previous artifacts remain intact.
+  - id: R4
+    text: Existing safe Markdown and report-read/polling ownership remain unchanged, exact retained-file facts stay available and every preview mutation is refused locally.
+failure_outcomes:
+  - operation: Report reads and review eligibility
+    permanent: Existing Reports error/unavailable UI is shown without an excerpt or acceptance action based on missing data.
+    retryable: Existing read/backoff and Retry controls refetch the fixed synthetic response.
+    ambiguous: Current report status and matching review identity remain authoritative; no accepted state is inferred.
+    cancelled: Existing audit/query keys isolate report switches and Inbox guards late decision navigation.
+    timeout: No new timeout, controller or network operation is introduced beyond the existing report owner.
+cardinality:
+  - collection: Preview reports
+    expected: One proposed and one ready report in the existing bounded Inbox fixture.
+    maximum: Twenty-four Inbox rows, two report examples, six explicit read/status scenarios and report documents below 16 KiB each.
+    bound: Fixed schema-valid synthetic responses, existing paged queue reads, shared report query keys and browser-generated downloads.
+lifecycle:
+  - entity: Inline report preview
+    delete: Preserve prior OpenDesign, issue and Inbox experiment data.
+    cascade: Only new experiment files and ignored preview modules are created.
+    retention: Keep component/source hashes, comparison results and review captures.
+acceptance_criteria:
+  - id: A1
+    text: Proposed and ready reports show all sections beyond the old excerpt, matching the actual Reports content, typography and downloaded JSON/Markdown.
+  - id: A2
+    text: Existing acceptance, status, failure/mismatch, queue/keyboard and mobile behavior work at 1440/1100/390/320px in light/dark/black without overflow, false decisions or browser errors.
+  - id: A3
+    text: The existing full issue reader and protected previous source/artifact hashes remain unchanged, no live API request occurs, and the new preview opens for the user.
+tests:
+  - command: node docs/design/ui/experiments/inbox-inline-report-2026-11-04/verify.mjs
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_tasks.py
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_spec.py
+    covers: [A1, A2]
+  - command: git diff --check
+    covers: [A1, A2, A3]
+verification:
+  results:
+    - Browser verification passed 52 layout/state checks and four paired Reports content/typography comparisons; Markdown/JSON downloads exactly matched both complete report responses.
+    - Matching-request acceptance, failed/pending/unavailable/mismatched reads, queue J/K, mobile Back and local mutation refusal passed with zero browser errors or live API requests.
+    - All 168 protected source and previous-artifact hashes matched; the complete source-code issue reader still worked.
+    - Task/spec consistency and whitespace checks passed; the preview was visibly opened in the in-app browser.
+  artifact: docs/design/ui/experiments/inbox-inline-report-2026-11-04/verification.json
+  delivery: Preview only on codex/inbox-design; production transfer and main merge remain outside this task.

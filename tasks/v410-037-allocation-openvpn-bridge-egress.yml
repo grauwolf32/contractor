@@ -1,0 +1,334 @@
+schema_version: '1.0'
+id: V410-037
+title: Route bridge egress through an allocation-owned OpenVPN tunnel
+milestone: project-sitemap-2026-10
+epic: http-tools
+kind: feature
+priority: P2
+status: pending
+depends_on: [V410-035, V410-036]
+languages: [python, yaml, markdown]
+goal: >-
+  Contractor может выполнять разрешённые HTTP-проверки HTB через предоставленный
+  оператором OpenVPN-профиль. HTTP tools, scanners и подключённый к controlled
+  bridge sandbox используют один VPN-выход своей allocation. Подъём туннеля,
+  маршрутизация и очистка автоматизированы; VPN не меняет engagement authority,
+  credentials и HTTP limits и не направляет Server/Gateway через лабораторную сеть.
+demonstration: >-
+  На поддерживаемом Linux локальный настоящий OpenVPN server предоставляет сеть
+  с HTTP/1.1 и HTTP/2 targets, недоступными обычным маршрутом. В одной allocation
+  HTTP tool и команда реального Podman sandbox обращаются через production bridge
+  к этим targets; VPN server фиксирует реальные соединения. Параллельный контрольный
+  Server/Gateway endpoint остаётся на обычной сети. Обрыв VPN блокирует новые и
+  активные target exchanges без прямого обхода. Finalize удаляет workload, bridge,
+  VPN client, принадлежащие allocation интерфейс/маршруты/правила и приватные файлы;
+  следующая allocation начинает с чистого состояния (A1-A7). Настоящий HTB smoke
+  остаётся отдельной ручной проверкой с пользовательским .ovpn, без HTB secrets в CI.
+context:
+  authority:
+  - >-
+    User decision 2026-11-04: тестировать Contractor на Hack The Box, автоматически
+    используя предоставляемый HTB .ovpn; настраивать VPN-выход именно для bridge,
+    через который также должен идти sandbox.
+  - >-
+    User decision 2026-11-04: туннель принадлежит allocation и подчищается после
+    окончания её работы, как mitmproxy. Отдельный HTTP-запрос или scanner invocation
+    не завершают общий туннель. Запрошена отдельная подробная задача, без запуска
+    реализации в этом разговоре.
+  specification:
+  - docs/spec/tools/http-caido.md#HTP-R137
+  - docs/spec/tools/http-caido.md#HTP-R138
+  - docs/spec/tools/http-caido.md#HTP-R145
+  - docs/spec/tools/http-caido.md#HTP-R146
+  - docs/spec/tools/http-caido.md#HTP-R148
+  - docs/spec/tools/http-caido.md#HTP-R149
+  - docs/spec/execution/control-plane.md#CTL-R169
+  - docs/spec/execution/runtime-agent.md#RTA-R24
+  - docs/spec/execution/runtime-agent.md#RTA-R25
+  - docs/spec/execution/runtime-agent.md#RTA-R27
+  - docs/spec/tools/code-execution.md#EXE-R24
+  - docs/spec/tools/code-execution.md#EXE-R124
+  - docs/spec/tools/code-execution.md#EXE-R125
+  - docs/spec/platform/security.md#SEC-R89
+  background: >-
+    docs/proposals/0053-mitmproxy-runtime-and-sandbox.md описывает отдельную
+    предпосылку controlled sandbox ingress; её исторические оценки не доказывают
+    наличие этой возможности. Настоящая задача не превращает весь proposal в
+    требование и не заменяет обязательную проверку текущего кода.
+  current_state: >-
+    Bridge/mitmproxy встроен в процесс Runtime. Нативный ConnectionHandler передаёт
+    Server.sockname как local_addr в asyncio.open_connection; наш server_connect
+    hook является точкой привязки исходящего адреса. Готового VPN lifecycle нет.
+    Нынешние podman@1 и podman-network@1 не получают bridge routing/credentials;
+    networked profile использует rootless pasta и не обеспечивает controlled
+    engagement egress. Подключение VPN только внутри sandbox не направит через
+    него исходящие сокеты bridge.
+  agent_proposal: >-
+    Минимальный первый срез: Linux, один операторский OpenVPN-профиль для выбранного
+    Runtime и один свежий VPN client/interface на allocation. Профиль передаётся
+    по существующему доверенному deployment/secret пути, а не выбирается моделью.
+    Bridge привязывает target sockets к адресу VPN-интерфейса; source-based policy
+    routing выбирает отдельную таблицу с разрешёнными lab routes. Сам bind не
+    считается гарантией интерфейса: правила egress запрещают VPN-source выход
+    вне tunnel и исключают переход к main/default при потере маршрута. Этот
+    механизм и предлагаемые ниже численные bounds являются предложением агента,
+    а не дополнительными пользовательскими требованиями.
+  boundary_decision: >-
+    AllocationContext и существующий механизм owned resources владеют общим
+    tunnel handle, запуском, остановкой и fencing. Доверенный Linux network owner
+    выполняет привилегированные операции TUN/routing/firewall; bridge получает
+    приватный готовый egress handle и выбирает его для target sockets. Native
+    engine сохраняет parsing/TLS/HTTP pooling; HTTPTransport сохраняет admission,
+    DNS pinning, identity, quotas и result assembly. Sandbox не получает NET_ADMIN,
+    VPN-профиль или прямой VPN-выход. Нового lifecycle framework, Server request
+    permit, таблицы VPN-сессий или распределённой lease не требуется.
+  decision_needed:
+  - >-
+    Перед началом реализации нужно назвать и поставить в depends_on отдельную
+    задачу controlled sandbox-to-bridge ingress: готовой предпосылки сейчас нет.
+    Рекомендация для полного пользовательского сценария — доверенная закрытая
+    сеть и transparent HTTP/HTTPS ingress с original destination и CA trust.
+    Более простой первый демонстратор — proxy-aware команда в закрытой сети,
+    имеющей доступ только к explicit bridge. Он доказывает VPN-выход, но не
+    считается доказательством прозрачного контроля произвольного sandbox-кода.
+    Изменения EXE-R24/R124/R125 и SEC-R89 принадлежат этой отдельной предпосылке.
+  - >-
+    На реальном целевом Linux нужно подтвердить, кто предоставляет /dev/net/tun
+    и права на собственные routing/firewall objects при текущем Podman deployment.
+    Рекомендация — существующая доверенная deployment/network boundary без
+    повышения привилегий workload и всего Runtime. Если такой boundary нет,
+    выделить отдельную предпосылку для минимального network owner; не строить
+    привилегированный сетевой сервис незаметно внутри этой VPN-задачи.
+  implementation_entry: >-
+    Задача остаётся pending до разрешения перечисленных предпосылок и завершения
+    depends_on. Первый deliverable после этого — узкая реальная VPN/bridge
+    демонстрация; её результат определяет оставшиеся platform details.
+  delivery_boundary: >-
+    Это опциональное расширение общей HTTP lane. Оно не добавляет VPN в exit
+    criteria V410-007 или обязательный базовый pentest Workflow. Создание задачи
+    не запускает изменения соседних задач, deployment, маршрутов или VPN.
+scope:
+  in:
+  - Allocation-owned OpenVPN resource с приватным профилем, bounded startup/readiness и точной повторяемой очисткой.
+  - Выбор VPN-выхода для исходящих target sockets bridge без изменения обычной сети Server, Gateway и других Runtime clients.
+  - Fail-closed policy routing, отсутствие прямого обхода при разрыве, истечении lease и ошибках cleanup.
+  - Согласованные DNS/alias resolution, Host/SNI и TLS verification для лабораторных целей.
+  - Реальные HTTP/scanner и sandbox callers через существующий controlled bridge после завершения отдельной sandbox предпосылки.
+  - Нормативные изменения в owning specs и Linux integration gate с реальным OpenVPN server/client и доказательством маршрута.
+  out:
+  - Реализация transparent sandbox ingress, новый sandbox profile или привилегированный network manager под видом вспомогательного кода этой задачи.
+  - Маршрутизация всего Runtime/хоста через VPN, изменение глобального default route или глобальных DNS/hosts.
+  - Универсальный VPN/provider framework, WireGuard, VPN catalog UI, хранение VPN-сессий в новой БД или profile pooling между allocations.
+  - Raw TCP/UDP, ICMP, QUIC и произвольный CONNECT bypass через HTTP bridge; поддержка HTTP/1.0.
+  - Автоматический login в HTB, spawning Machines, получение/покупка VPN packs или обязательное обращение к публичному HTB в CI.
+  - Незаметное отключение TLS verification, сохранение .ovpn в обычном Artifact/Workspace или выдача VPN secrets модели.
+requirements:
+- id: R1
+  text: >-
+    Пользовательская цепочка — sandbox/scanner/HTTP tool -> controlled bridge /
+    HTTPTransport -> target socket с выбранным VPN egress -> TUN -> HTB target.
+    VPN даёт сетевую достижимость, но не расширяет разрешённые origin/path/method,
+    CIDRs, credentials или HTTP limits. Native target peer, Host, SNI и TLS
+    verification сохраняются. Минимальная версия — HTTP/1.1; HTTP/2 сохраняется.
+- id: R2
+  text: >-
+    Prepare сохраняет только приватную конфигурацию и ownership, без target DNS,
+    target probe и VPN dial. Первый реальный HTTP/sandbox caller запускает один
+    общий bounded startup. Конкурентные callers используют один allocation-owned
+    startup task; отмена отдельного caller не уничтожает туннель других callers.
+    Startup task остаётся под lease и отдельным startup budget до результата
+    либо остановки allocation. Probe capability проверяет binary/permissions/
+    local cleanup без HTB login и без подключения к пользовательским targets.
+- id: R3
+  text: >-
+    .ovpn и сопутствующие ключи поступают от оператора по доверенному private
+    secret пути. Создаются только allocation-owned private copies с закрытыми
+    directory/file permissions. Конфигурация не может направить произвольные
+    scripts/plugins, log/keylog sinks или внешние file references в пользовательский
+    workspace; поддерживаемый набор параметров и сопутствующих файлов валидируется
+    до запуска. VPN material отсутствует в argv/env, telemetry, events, prompts,
+    результатах tools и обычных artifacts; argv может содержать только приватный
+    путь к подготовленной конфигурации. Новые модели хранения/HTTP API не вводятся
+    без реального caller и отдельного согласования scope.
+- id: R4
+  text: >-
+    Готовность означает подтверждённое состояние OpenVPN, известный адрес TUN,
+    принадлежность интерфейса allocation и проверенную policy-route lookup для
+    выбранного egress; строка в stdout не является единственным подтверждением.
+    Для readiness не выполняется HTTP-запрос к цели. Управляющий канал и вывод
+    OpenVPN ограничены по bytes/messages и не публикуют сырой профиль или secrets.
+- id: R5
+  text: >-
+    Source binding применяется до каждого нового target connect; адрес TUN должен
+    находиться в namespace, где native engine создаёт socket. Только VPN egress
+    bridge выбирает отдельную routing table. VPN control connection, Server,
+    Gateway и служебные endpoints сохраняют обычный маршрут. Server-pushed routes
+    и DNS не могут незаметно заменить main/default или protected-service routing.
+    Отсутствие route завершается reject/unreachable, а не продолжением поиска
+    обычного маршрута. Конфликт адресов/namespace/CIDRs отклоняется до target I/O.
+- id: R6
+  text: >-
+    VPN egress недоступен sandbox напрямую. Его сеть допускает только доверенный
+    путь к bridge и явно необходимую инфраструктуру, с проверкой обхода по IP,
+    IPv6, UDP и альтернативным портам в задаче sandbox boundary. OpenVPN/TUN,
+    host routing и secret mounts не передаются исполняемому коду. Запросы bridge
+    исключаются из повторного redirect, чтобы не возникал proxy loop.
+- id: R7
+  text: >-
+    Target DNS выполняется владельцем controlled HTTP. Для machine.htb допустим
+    ограниченный доверенный alias map или явно настроенный lab resolver через
+    тот же VPN egress; системные DNS/hosts глобально не меняются. Каждый ответ
+    проходит существующие CIDR/protected checks, а native socket получает
+    проверенный числовой адрес. VPN DNS не заменяет resolver защищённых Server/
+    Gateway endpoints. VPN не отменяет необходимость явного trust для lab TLS.
+- id: R8
+  text: >-
+    Для минимального среза предлагается terminal fail-closed при потере VPN:
+    прекратить новые target writes, закрыть и join активные exchanges и pools,
+    выдать существующий nonretryable HTTP/scanner failure и оставить VPN egress
+    недоступным до конца allocation. Автоматического повторения записей и
+    бесконечного OpenVPN reconnect нет. Новая allocation получает свежий tunnel.
+    Если перед реализацией выбран bounded reconnect вместо этого предложения,
+    сначала описать его бюджет/readiness и обязательное закрытие старых pools
+    перед сменой source IP; живые sockets предыдущего VPN поколения не переиспользуются.
+- id: R9
+  text: >-
+    Все stop paths (finalize, abort, lease loss, failed startup/prepare, release,
+    Runtime shutdown/recovery) используют существующий owned-resource cleanup.
+    Сначала закрывается admission; затем отменяются и join sandbox/scanner work,
+    bridge handlers, native exchanges, streams, callbacks и keepalive timers;
+    затем останавливается и join OpenVPN; затем удаляются только собственные
+    маршруты/rules/interface и private copies. Fail-closed fence сохраняется до
+    подтверждённого уничтожения workload и VPN выхода. Чужие VPN и host rules
+    не затрагиваются; глобальные flush/killall недопустимы.
+- id: R10
+  text: >-
+    Сбой любого шага cleanup сохраняет точные handles/ownership для следующего
+    close. Повторная cancellation не бросает дочерний процесс или привилегированную
+    операцию в фоне. Cleanup ограничен существующим allocation shutdown deadline;
+    если остановка не доказана, Runtime остаётся fenced/применяет существующее
+    process fencing вместо подтверждения успешного release и повторного использования
+    slot. Нормальный cleanup удаляет приватные VPN copies и не сохраняет traffic dump.
+- id: R11
+  text: >-
+    Идентичность принадлежащих allocation сетевых объектов и процесса хранится
+    в существующем resource handle; side effects регистрируются до следующей
+    отменяемой операции. После неоднозначного ответа проверяется существование
+    именно своего объекта, а не повторяется blind create/delete. Runtime crash
+    обрабатывается существующим supervisor/recovery ownership: VPN child не может
+    остаться бесконтрольным после смерти владельца. Статус готовности, стадия и
+    классификация отказа могут быть доступны как content-free diagnostics.
+- id: R12
+  text: >-
+    Новый код не предполагает поддержку произвольной host topology/rootless setup.
+    Реальная Linux проверка prerequisites обязательна; при отсутствии capability
+    профиль недоступен с явным отказом, без host-network/privileged fallback.
+    Изменения limits/error codes или private contracts получают одного владельца,
+    нормативную запись и shared fixtures всех потребителей в той же реализации.
+failure_outcomes:
+- operation: Read and validate the private OpenVPN profile
+  permanent: Missing/invalid/oversized profile, unsupported directives or absent permissions reject the configured egress before VPN/target dial; return a sanitized existing capability/configuration failure.
+  retryable: No automatic retry of a deterministic profile or permission rejection.
+  ambiguous: Reconcile any created private copy by its owned handle and validated identity; never reuse an unverified pre-existing file.
+  cancelled: Allocation owner joins file I/O and removes only its partial private copies.
+  timeout: Profile work is bounded by its startup budget and remaining allocation lease.
+- operation: Create network objects and establish the VPN
+  permanent: Unsupported namespace, conflicting route, rejected authentication or invalid certificate fails closed before target bytes.
+  retryable: MVP has one bounded startup attempt; any proposed transient retry must first receive explicit finite attempt/deadline limits in the task/spec.
+  ambiguous: Query exact owned interface/rule/process identity through the network owner before retrying or rolling back; do not duplicate side effects.
+  cancelled: Stop admission, join startup and owned helpers, then roll back partial resources under the allocation cleanup owner.
+  timeout: A separate VPN startup budget is clipped by the allocation lease; each caller retains its own request/execution deadline.
+- operation: Send HTTP traffic while the VPN is ready or lost
+  permanent: Normal controlled HTTP denials remain denials; tunnel loss makes VPN egress unavailable and closes old exchanges without direct fallback.
+  retryable: Existing proven pre-send HTTP retry rules remain; VPN failure never authorizes replay of a possibly sent or write request.
+  ambiguous: Preserve existing HTTP result semantics for possibly sent traffic; no new request journal or inferred successful delivery.
+  cancelled: Join the caller's work; a single caller cancellation does not release the allocation's VPN resource.
+  timeout: Request deadlines and the confirmed control lease remain authoritative while readiness has its separate bounded operation budget.
+- operation: Stop the VPN and remove allocation-owned objects
+  permanent: Unexpected identity/foreign object is not deleted; cleanup fails and the slot remains fenced.
+  retryable: A later ordinary close/release retries retained handles, with the existing shutdown bound and no unbounded background janitor.
+  ambiguous: Verify process exit and exact object absence; absence of an owned object is an idempotent success, not permission to delete a replacement belonging to someone else.
+  cancelled: Keep the cleanup operation owned and joined through repeated caller cancellation.
+  timeout: Use the common remaining allocation shutdown deadline and existing process fencing; never report successful cleanup while VPN/workload may survive.
+cardinality:
+- collection: Active tunnel resources of one allocation
+  expected: One optional profile, one client and one TUN interface shared by all controlled HTTP callers.
+  maximum: One of each for the proposed initial slice; no cross-allocation tunnel pool.
+  bound: One coalesced startup task and one owned stop operation; child processes and helpers have finite deadlines.
+- collection: Private profile package and alias map (agent-proposed initial bounds)
+  expected: One .ovpn, a small certificate/key set and a few lab hostname mappings.
+  maximum: 1 MiB aggregate profile material, 16 private files and 64 exact hostname aliases.
+  bound: Reject excess before spawning; no recursive external includes, unbounded file enumeration or model-provided profile content. Register chosen bounds once in the owning limits definition before implementation.
+- collection: Owned lab route and policy objects (agent-proposed initial bounds)
+  expected: A few target CIDRs, one source selector, one private table and a small fixed egress fence.
+  maximum: 128 explicit lab prefixes plus fixed-size per-allocation policy objects; no route creation per HTTP request.
+  bound: Enumerate and delete only this allocation's recorded objects, in bounded batches; reuse existing engagement limits for HTTP work.
+- collection: Readiness/management output and cleanup bookkeeping (agent-proposed initial bounds)
+  expected: One status exchange and a small set of owned handles per lifecycle operation.
+  maximum: 64 KiB retained diagnostic/control bytes with no secrets, and a handle count bounded by the profile/route limits above.
+  bound: Incremental bounded reads; blocking process/network setup runs off the event loop and is joined; no traffic archive or unbounded log buffer.
+lifecycle:
+- entity: Allocation-owned OpenVPN egress handle
+  delete: Ordinary allocation teardown; the Worker/model cannot stop, replace or export the shared tunnel independently.
+  cascade: Target work and bridge/native pools stop first, then client/helpers, private network objects and profile copies. Repeat close retains failed handles until confirmed cleanup.
+  retention: Exists from lazy startup until allocation teardown; individual requests/scanner runs reuse it. No durable VPN-session record or profile/traffic artifact is created.
+- entity: Operator profile source and unrelated host network state
+  delete: Only the existing operator/secret owner manages the source; allocation cleanup removes its private copies and owned objects, never the original profile or foreign routes.
+  cascade: None into operator profiles, other Runtime allocations or host default networking.
+  retention: Source retention follows its existing secret/deployment owner. Reusing a VPN pack across different Runtime processes is operator responsibility; duplicate-session disconnects are treated as ordinary VPN loss, without a new distributed lock.
+acceptance_criteria:
+- id: A1
+  given: A real local OpenVPN server, a target reachable only through it, and one allocation with a configured private profile
+  when: A controlled HTTP caller makes the first request and later callers reuse the connection
+  then: Exactly one VPN client is started; actual HTTP/1.1 and HTTP/2 target bytes traverse VPN, Host/SNI/TLS and engagement policy remain enforced, and Server/Gateway traffic stays on the ordinary route.
+- id: A2
+  given: The separately delivered controlled sandbox-to-bridge path and a real Podman workload
+  when: A sandbox command and a scanner access the lab target and attempt a direct bypass
+  then: Both legitimate HTTP paths use the same bridge authority and allocation VPN; direct target access bypassing bridge fails, and the workload cannot read profile material or alter routing. Proxy-aware-only evidence cannot be reported as transparent arbitrary-command enforcement.
+- id: A3
+  given: Concurrent first callers, cancellation of one caller, malformed profiles, absent TUN permissions and bounded startup failures
+  when: Startup is shared or interrupted at each side-effect boundary
+  then: At most one owned client/startup exists, other callers are not silently detached, no target request is used as a readiness probe, permanent errors do not loop, and partial resources are cleaned or the slot stays fenced.
+- id: A4
+  given: Active and queued HTTP/1.1 and multiplexed HTTP/2 work with a normal-route target trap and an IPv6/direct-egress trap
+  when: VPN drops, the route disappears, or the lease expires
+  then: No target bytes reach a non-VPN fallback, no possibly sent write is replayed, old pools and timers are joined/retired, and content-free failures distinguish unavailable egress from successful execution.
+- id: A5
+  given: A populated allocation with sandbox descendants, scanner, bridge, active requests and VPN secrets/network objects
+  when: Finalize, abort, failed startup, release, Runtime shutdown or lease-loss cleanup runs, including repeated cancellation and injected deletion failures
+  then: Teardown follows the documented order and the common deadline; success leaves no child/socket/TUN/route/rule/private copy, while failure retains ownership and fencing. A fresh next allocation cannot inherit the prior tunnel or pools.
+- id: A6
+  given: An unrelated VPN, existing host routes, lab hostname aliases, protected endpoints and conflicting network addresses
+  when: The configured allocation starts and stops or receives ambiguous network-owner replies
+  then: Only exact owned objects change, conflicts fail before target I/O, DNS answers still pass target policy, and no secrets appear in argv/env, diagnostics, model state or artifacts.
+- id: A7
+  given: The supported Linux fixture and the selected real Runtime/bridge/sandbox execution path
+  when: The dedicated integration gate, affected complete suites and report verifiers run
+  then: Real VPN/target/control-plane observers prove the path and cleanup with zero selected skips; missing privileges fail setup. Register the gate in release verification or explicitly allowlist the opt-in prerequisite with its reason; a fake OpenVPN process alone cannot satisfy conformance.
+tests:
+- command: make test-bridge-openvpn-linux
+  covers: [A1, A2, A3, A4, A5, A6, A7]
+- command: make test-runtime
+  covers: [A3, A4, A5, A6, A7]
+- command: make lint
+  covers: [A7]
+- command: python3 scripts/check_spec.py
+  covers: [A7]
+- command: cd runtime && uv run python ../scripts/check_tasks.py
+  covers: [A7]
+validation_plan:
+  new_gate: >-
+    Реализация создаёт make test-bridge-openvpn-linux как один ограниченный
+    воспроизводимый gate с настоящими OpenVPN server/client, отдельной lab сетью,
+    target/control-plane observers и production Runtime bridge. Окружение Linux
+    задаёт необходимые TUN/network prerequisites; чужие host routes не меняются.
+    Точные test identities и проверка непустой выборки включаются в gate.
+  ordinary_suites: >-
+    Выполнить полные пакеты реально изменённых Runtime/HTTP/sandbox модулей;
+    при изменении wire/config contract добавить cross-language fixtures и gates.
+    Ошибки baseline и skips фиксируются отдельно и не называются успешными тестами.
+  manual_htb: >-
+    После детерминированного gate оператор предоставляет свой HTB pack и target
+    scope для отдельного smoke. Проверить готовность, один разрешённый HTTP-запрос,
+    путь трафика и allocation cleanup. Не получать pack автоматически и не
+    включать реальные VPN credentials/сертификаты или ответы HTB в репозиторий.

@@ -59,6 +59,9 @@ null for optional members outside their schema-declared `nullable_fields`.
 every valid fixture it lists the members whose value outside an `enum` or
 `const`, the strings one character over `maxLength`, and the objects whose
 added member or repeated key the schema, Go and Python must all reject.
+The same catalog probes schema-forbidden numeric zeroes, including omitted
+optional ModelPolicy limits, and both renamed and shadowing snake_case aliases
+of closed-object camelCase members.
 `maxLength` counts characters. Where Go and Python bound a string in UTF-8
 bytes, the schema also states the byte bound as `x-maxBytes`, which the Go and
 Python schema tests enforce, and the cases record the verdict all three reach
@@ -301,5 +304,5 @@ Project ID. The selection body has `clientKey`, `findings` (explicit `findingId`
 and exact `revision`) and `receiptIds`; arrays are required, with at most 128
 selectors total. Live pages return `items`, `projectRevision`, `nextCursor`;
 selection returns the existing exact collection publication descriptor.
-FND-R224 through FND-R229 own bounds, authority, source mode, replay and failures.
+FND-R224 through FND-R229 own bounds, owner/Project authority, replay and failures.
 The shared findings collection fixture pins Project source kinds in both languages.

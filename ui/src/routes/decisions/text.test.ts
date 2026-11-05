@@ -3,9 +3,7 @@ import { describe, expect, it } from "vitest";
 import { makeFinding } from "./test-support";
 import {
   aiSummary,
-  firstParagraph,
   httpOperation,
-  plainText,
   splitImpact,
   standardReferences,
   weaknessReferences,
@@ -60,30 +58,41 @@ describe("splitImpact", () => {
   });
 });
 
-describe("firstParagraph", () => {
-  it("skips headings and keeps fenced code whole", () => {
-    expect(firstParagraph("# Title\n\nFirst line\nsecond line\n\nNext.")).toBe(
-      "First line\nsecond line",
-    );
-    expect(
-      firstParagraph("```js\nconst a = 1;\n\nconst b = 2;\n```\n\nText"),
-    ).toBe("```js\nconst a = 1;\n\nconst b = 2;\n```");
-    expect(firstParagraph("## Only a heading")).toBe("");
-  });
-});
-
-describe("plainText", () => {
-  it("keeps the words of Markdown", () => {
-    expect(
-      plainText(
-        "## Head\n\n- The **bold** and _soft_ [link](https://x.test) to `code`\n> quoted <b>tag</b>",
-      ),
-    ).toBe("Head The bold and soft link to code quoted tag");
-    expect(plainText("snake_case_name stays")).toBe("snake_case_name stays");
-  });
-});
-
 describe("aiSummary", () => {
+  it("keeps Markdown words and first fenced paragraphs through the production summary API", () => {
+    expect(
+      aiSummary(
+        makeFinding(
+          {},
+          {
+            title: "Markdown claim",
+            description:
+              "## Head\n\n- The **bold** and _soft_ [link](https://x.test) to `code`\n> quoted <b>tag</b>.",
+          },
+        ),
+      ),
+    ).toBe("Markdown claim. The bold and soft link to code quoted tag.");
+    expect(
+      aiSummary(
+        makeFinding(
+          {},
+          {
+            title: "Code",
+            description: "```js\nconst a = 1;\n\nconst b = 2;\n```\n\nNext.",
+          },
+        ),
+      ),
+    ).toBe("Code. const a = 1; const b = 2;");
+    expect(
+      aiSummary(
+        makeFinding(
+          {},
+          { title: "Heading only", description: "## Only a heading" },
+        ),
+      ),
+    ).toBe("Heading only");
+  });
+
   it("joins the title and the first sentence of what the AI found", () => {
     expect(
       aiSummary(

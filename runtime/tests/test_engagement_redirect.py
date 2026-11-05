@@ -73,7 +73,7 @@ def test_redirect_reference_preserves_valid_path_and_query_semantics(reference, 
     ],
 )
 def test_redirect_reference_rejects_ambiguous_syntax_before_resolution(reference):
-    with pytest.raises(ValueError, match="engagement engagement is invalid"):
+    with pytest.raises(ValueError, match="engagement is invalid"):
         resolve_redirect_url(BASE, reference)
 
 

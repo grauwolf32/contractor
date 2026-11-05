@@ -467,6 +467,162 @@ describe("Runtime configuration hub navigation", () => {
     });
   });
 
+  it("replays a lost Runtime credential response and rejects a changed secret under its original key", async () => {
+    const { user, server } = setupWithCreate();
+    const originalSecret = "original-session-secret";
+    const changedSecret = "different-session-secret";
+    let receipt: { key: string; body: unknown } | undefined;
+    server.route(
+      "POST /v1/operations/runtime-credentials",
+      async ({ request }) => {
+        const key = request.headers.get("Idempotency-Key")!;
+        const body: unknown = await request.json();
+        if (receipt === undefined) {
+          receipt = { key, body };
+          throw new TypeError("response lost after the credential committed");
+        }
+        if (
+          key !== receipt.key ||
+          JSON.stringify(body) !== JSON.stringify(receipt.body)
+        ) {
+          return json(
+            conforming("Error", {
+              code:
+                key === receipt.key
+                  ? "idempotency_conflict"
+                  : "runtime_config_conflict",
+              message: "The original credential request must be repeated",
+              retryable: false,
+              requestId: "credential-retry-test",
+            }),
+            409,
+          );
+        }
+        return json(
+          conforming("RuntimeCredentialMetadata", {
+            credentialId: "alice-cookies",
+            kind: "target-cookies@1",
+            createdBy: "user_local",
+            createdAt: CREATED,
+          }),
+          201,
+          { "Idempotency-Replayed": "true" },
+        );
+      },
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Add Runtime credential" }),
+    );
+    const dialog = screen.getByRole("dialog", {
+      name: "Create Runtime credential",
+    });
+    await user.type(
+      within(dialog).getByLabelText("Runtime credential ID"),
+      "alice-cookies",
+    );
+    await user.selectOptions(
+      within(dialog).getByLabelText("Credential kind"),
+      "HTTP target cookies",
+    );
+    const secretField = within(dialog).getByLabelText(/Cookie value/);
+    const submit = within(dialog).getByRole("button", {
+      name: "Create active Runtime credential",
+    });
+    await user.click(secretField);
+    await user.paste(originalSecret);
+    await user.click(submit);
+    expect(
+      await within(dialog).findByText("Public API is unavailable"),
+    ).toBeVisible();
+    expect(secretField).toHaveValue("");
+
+    await user.click(secretField);
+    await user.paste(changedSecret);
+    await user.click(submit);
+    expect(
+      await within(dialog).findByText("Code idempotency_conflict · Status 409"),
+    ).toBeInTheDocument();
+    expect(secretField).toHaveValue("");
+    expect(within(dialog).queryByText(/Created safe metadata/)).toBeNull();
+
+    await user.click(secretField);
+    await user.paste(originalSecret);
+    await user.click(submit);
+    expect(
+      await within(dialog).findByText(
+        /Created safe metadata for alice-cookies/,
+      ),
+    ).toBeVisible();
+    expect(secretField).toHaveValue("");
+    const sent = server.sent("POST", "/v1/operations/runtime-credentials");
+    expect(sent).toHaveLength(3);
+    expect(
+      new Set(sent.map((request) => request.headers.get("Idempotency-Key")))
+        .size,
+    ).toBe(1);
+    for (const secret of [originalSecret, changedSecret]) {
+      expect(document.body.textContent).not.toContain(secret);
+    }
+  });
+
+  it.each(["ID", "kind"])(
+    "starts a fresh Runtime credential attempt when its %s changes",
+    async (changed) => {
+      const { user, server } = setupWithCreate();
+      server.route("POST /v1/operations/runtime-credentials", () => {
+        throw new TypeError("request failed");
+      });
+      await user.click(
+        await screen.findByRole("button", { name: "Add Runtime credential" }),
+      );
+      const dialog = screen.getByRole("dialog", {
+        name: "Create Runtime credential",
+      });
+      const idField = within(dialog).getByLabelText("Runtime credential ID");
+      const kindField = within(dialog).getByLabelText("Credential kind");
+      const submit = within(dialog).getByRole("button", {
+        name: "Create active Runtime credential",
+      });
+      await user.type(idField, "alice-cookies");
+      await user.selectOptions(kindField, "HTTP target cookies");
+      await user.type(
+        within(dialog).getByLabelText(/Cookie value/),
+        "test-session",
+      );
+      await user.click(submit);
+      await within(dialog).findByText("Public API is unavailable");
+
+      if (changed === "ID") {
+        await user.clear(idField);
+        await user.type(idField, "bob-cookies");
+        await user.type(
+          within(dialog).getByLabelText(/Cookie value/),
+          "test-session",
+        );
+      } else {
+        await user.selectOptions(kindField, "HTTP target bearer token");
+        await user.type(
+          within(dialog).getByLabelText("Bearer token · write only"),
+          "test-session",
+        );
+      }
+      await user.click(submit);
+      await waitFor(() =>
+        expect(
+          server.sent("POST", "/v1/operations/runtime-credentials"),
+        ).toHaveLength(2),
+      );
+      const [first, second] = server.sent(
+        "POST",
+        "/v1/operations/runtime-credentials",
+      );
+      expect(second!.headers.get("Idempotency-Key")).not.toBe(
+        first!.headers.get("Idempotency-Key"),
+      );
+      await waitFor(() => expect(submit).toBeEnabled());
+    },
+  );
+
   it("opens Runtime configuration as an Operations section with a scope label and refresh", async () => {
     const { router, paths, user } = setup("/operations/configuration");
     await screen.findByRole("heading", { name: "Runtime configuration" });

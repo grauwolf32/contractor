@@ -550,7 +550,6 @@ Assembled from every document.
 | `planner_worker_unknown` | — | no | Tool error of execute_current_subtask or read_context_history for a Worker name that names no available logical Worker; no A2A side effect or history data, and the Planner continues. | [PLN-R122](../execution/planners.md) |
 | `project_active_checks_prohibited` | — | no | Reason code of audit_profile_unsupported for active tools prohibited by Project settings. | [AUD-R89](../audits/audits.md) |
 | `engagement_capability_unsupported` | — | no | Engagement requires a Server capability that is not implemented; metadata support never implies target execution. | [AUD-R247](../audits/audits.md) |
-| `engagement_source_closure_unsupported` | — | no | Blackbox closure would expose source or has unclassified source provenance. | [AUD-R247](../audits/audits.md) |
 | `engagement_active_checks_unsupported` | — | no | Effective Project/profile active-check policy is incompatible with the engagement. | [AUD-R247](../audits/audits.md) |
 | `batching_unsupported` | — | not specified | Reserved reason value of audit_profile_unsupported kept for compatible clients; the Server does not produce it. | [AUD-R91](../audits/audits.md) |
 | `binary_file_unsupported` | — | not specified | Binary file unsupported by the workspace tools | [ERR-R10](errors.md), [WSP-R54](../tools/workspace.md) |

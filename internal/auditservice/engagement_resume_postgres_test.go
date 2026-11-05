@@ -6,17 +6,18 @@ import (
 	"time"
 )
 
-func TestEngagementResumePreservesFiniteAllowanceAndReplay(t *testing.T) {
+func TestEngagementResumeUsesOrdinaryDeadlineAndReplay(t *testing.T) {
 	for _, test := range []struct {
 		name      string
 		override  *int
 		remainder time.Duration
 		want      time.Duration
+		unlimited bool
 	}{
-		{name: "zero", override: new(0), want: 120 * time.Second},
-		{name: "oversized-positive", override: new(600), want: 120 * time.Second},
+		{name: "zero", override: new(0), unlimited: true},
+		{name: "oversized-positive", override: new(600), want: 600 * time.Second},
 		{name: "smaller-positive", override: new(30), want: 30 * time.Second},
-		{name: "omitted-exhausted", want: 120 * time.Second},
+		{name: "omitted-exhausted", want: time.Hour},
 		{name: "omitted-remainder", remainder: 40 * time.Second, want: 40 * time.Second},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -48,7 +49,7 @@ func TestEngagementResumePreservesFiniteAllowanceAndReplay(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if resumed.Audit.DeadlineAt == nil || !resumed.Audit.DeadlineAt.Equal(expectedDeadline) {
+			if (test.unlimited && resumed.Audit.DeadlineAt != nil) || (!test.unlimited && (resumed.Audit.DeadlineAt == nil || !resumed.Audit.DeadlineAt.Equal(expectedDeadline))) {
 				t.Fatalf("resumed deadline=%v want %v", resumed.Audit.DeadlineAt, expectedDeadline)
 			}
 			if !bytes.Equal(resumed.Audit.BaselineSnapshot, started.Audit.BaselineSnapshot) {
@@ -56,7 +57,7 @@ func TestEngagementResumePreservesFiniteAllowanceAndReplay(t *testing.T) {
 			}
 			now = now.Add(time.Hour)
 			replayed, err := f.service.Resume(f.ctx, params)
-			if err != nil || !replayed.Replayed || replayed.Audit.Revision != resumed.Audit.Revision || replayed.Audit.DeadlineAt == nil || !replayed.Audit.DeadlineAt.Equal(expectedDeadline) {
+			if err != nil || !replayed.Replayed || replayed.Audit.Revision != resumed.Audit.Revision || (test.unlimited && replayed.Audit.DeadlineAt != nil) || (!test.unlimited && (replayed.Audit.DeadlineAt == nil || !replayed.Audit.DeadlineAt.Equal(expectedDeadline))) {
 				t.Fatalf("resume replay changed bounded deadline: %+v %v", replayed, err)
 			}
 		})

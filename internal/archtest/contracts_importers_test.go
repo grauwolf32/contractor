@@ -18,7 +18,8 @@ import (
 // contracts and the vocabulary they share: artifact refs, names and media
 // types, identifier grammars, SecretString, validation errors and the strict
 // codec. Domain rules live with their owners: Run Skill provenance in
-// agentskills, the Stage result in stageresult, Audit task contracts,
+// agentskills, the Stage result in stageresult, Audit check-plan rules in
+// auditdomain, Audit task contracts,
 // the finding collection media type, Planner model policies and the
 // audit-results Toolset rules in config/resolved, Runtime adapter and
 // credential kinds in contracts/runtimesettings, and pinned selections in

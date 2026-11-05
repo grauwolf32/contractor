@@ -9,10 +9,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
-	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -41,13 +39,10 @@ func newEngagementIdentityAudit(t *testing.T, h *engagementProcessHarness, origi
 		routes = append(routes, route)
 	}
 	f.document = engagementcontract.Document{
-		Schema: engagementcontract.Schema, AccessMode: "blackbox",
-		Target:     engagementcontract.Target{Origins: origins},
-		Scope:      engagementcontract.Scope{Routes: routes, Exclusions: []engagementcontract.Route{}},
+		Schema: engagementcontract.Schema, Egress: engagementcontract.Egress{Routes: routes, Exclusions: []engagementcontract.Route{}},
 		Identities: []engagementcontract.Identity{{ID: "anonymous", Kind: "anonymous", Origins: origins}},
-		Inputs:     []engagementcontract.Input{{ID: "checklist", Role: "documentation", Artifact: contracts.ArtifactRef{Namespace: f.checklist.Namespace, Name: f.checklist.Name, Revision: f.checklist.Revision}, ContentDigest: contentdigest.Bytes(checks)}},
-		Policy:     engagementcontract.Policy{Version: "1", ActiveChecks: "automatic", RequiredCapabilities: []string{engagementcontract.Capability, "http-target@1"}, OptionalCapabilities: []string{}},
-		Budgets:    engagementcontract.Budgets{ActiveSeconds: 120, Rounds: 1, SubmittedRuns: 1, EvidenceBytes: 1048576},
+
+		Limits: &engagementcontract.HTTPLimits{},
 	}
 	return f
 }
@@ -95,7 +90,7 @@ func engagementCredential(t *testing.T, h *engagementProcessHarness, id, kind st
 
 func (f *engagementIdentityAudit) addIdentity(t *testing.T, id, kind string, credential *runtimesettings.RuntimeCredentialRef) {
 	t.Helper()
-	f.document.Identities = append(f.document.Identities, engagementcontract.Identity{ID: id, Kind: kind, Credential: credential, Origins: f.document.Target.Origins})
+	f.document.Identities = append(f.document.Identities, engagementcontract.Identity{ID: id, Kind: kind, Credential: credential, Origins: f.document.Identities[0].Origins})
 }
 
 func (f *engagementIdentityAudit) draft(t *testing.T) auditProgramAudit {

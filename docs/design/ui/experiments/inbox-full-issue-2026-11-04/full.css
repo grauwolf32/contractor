@@ -1,0 +1,8 @@
+/* Inbox owns queue chrome; all domain content keeps the actual Issues layout. */
+.inbox-full-issue { display: flex; flex-direction: column; min-height: 100%; }
+.inbox-full-issue > .ui-detail-pane { flex: 1 0 auto; }
+/* The project and position are already in Inbox's queue bar above this header. */
+.inbox-full-issue .issues-detail-top { display: none; }
+.inbox-full-issue .inbox-detail-bar { flex: none; }
+.inbox-full-issue .issues-detail-bar { padding-top: var(--space-4); }
+@media(max-width:480px){.inbox-full-issue .issues-detail-bar{padding-top:var(--space-2);}}

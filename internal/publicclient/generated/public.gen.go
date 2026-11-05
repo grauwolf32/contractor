@@ -468,17 +468,16 @@ func (e AuditCollectionDisposition) Valid() bool {
 
 // Defines values for AuditCompatibilityReason.
 const (
-	AssessmentUnsupported              AuditCompatibilityReason = "assessment_unsupported"
-	AutomaticActiveChecksUnsupported   AuditCompatibilityReason = "automatic_active_checks_unsupported"
-	BatchingUnsupported                AuditCompatibilityReason = "batching_unsupported"
-	DiscoveryUnsupported               AuditCompatibilityReason = "discovery_unsupported"
-	EngagementActiveChecksUnsupported  AuditCompatibilityReason = "engagement_active_checks_unsupported"
-	EngagementCapabilityUnsupported    AuditCompatibilityReason = "engagement_capability_unsupported"
-	EngagementSourceClosureUnsupported AuditCompatibilityReason = "engagement_source_closure_unsupported"
-	ManualItemUnsupported              AuditCompatibilityReason = "manual_item_unsupported"
-	MultipleRoundsUnsupported          AuditCompatibilityReason = "multiple_rounds_unsupported"
-	PreparationUnsupported             AuditCompatibilityReason = "preparation_unsupported"
-	ProjectActiveChecksProhibited      AuditCompatibilityReason = "project_active_checks_prohibited"
+	AssessmentUnsupported             AuditCompatibilityReason = "assessment_unsupported"
+	AutomaticActiveChecksUnsupported  AuditCompatibilityReason = "automatic_active_checks_unsupported"
+	BatchingUnsupported               AuditCompatibilityReason = "batching_unsupported"
+	DiscoveryUnsupported              AuditCompatibilityReason = "discovery_unsupported"
+	EngagementActiveChecksUnsupported AuditCompatibilityReason = "engagement_active_checks_unsupported"
+	EngagementCapabilityUnsupported   AuditCompatibilityReason = "engagement_capability_unsupported"
+	ManualItemUnsupported             AuditCompatibilityReason = "manual_item_unsupported"
+	MultipleRoundsUnsupported         AuditCompatibilityReason = "multiple_rounds_unsupported"
+	PreparationUnsupported            AuditCompatibilityReason = "preparation_unsupported"
+	ProjectActiveChecksProhibited     AuditCompatibilityReason = "project_active_checks_prohibited"
 )
 
 // Valid indicates whether the value is a known member of the AuditCompatibilityReason enum.
@@ -495,8 +494,6 @@ func (e AuditCompatibilityReason) Valid() bool {
 	case EngagementActiveChecksUnsupported:
 		return true
 	case EngagementCapabilityUnsupported:
-		return true
-	case EngagementSourceClosureUnsupported:
 		return true
 	case ManualItemUnsupported:
 		return true
