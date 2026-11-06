@@ -219,6 +219,9 @@
   padding: 0 0 var(--space-5) 42px;
   min-height: 44px;
 }
+.research-timeline > li > .ui-status-chip {
+  align-self: start;
+}
 .research-timeline > li::before {
   content: "";
   position: absolute;

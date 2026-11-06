@@ -1,0 +1,45 @@
+schema_version: '1.0'
+id: V64-038
+title: Keep research timeline status badges compact
+milestone: audit-check-prioritization
+epic: ui
+kind: defect
+introduced_by: V64-009
+priority: P2
+status: in_progress
+depends_on: [V64-009]
+languages: [css, typescript]
+goal: Results and observations show Collected as a compact status pill independent of the result row height.
+context:
+  authority: 'User request 2026-11-06: Collected in Results & observations must be a pill rather than a circle.'
+  finding: >-
+    ui/src/routes/projects/audits/research.css:214 defines timeline rows as a grid.
+    The direct StatusChip in research-work.tsx stretches vertically with the content
+    column, turning Collected into a tall rounded shape, especially with a saved preview.
+  siblings: >-
+    Current work and collected results share ResearchTaskTimeline and need the same
+    compact vertical alignment. Detail-header chips use flex alignment and are unaffected.
+    Left timeline markers remain circular icons. No backend, status or persistence changes.
+scope:
+  in:
+  - Align the direct timeline status chip to the top of its row.
+  - Verify compact badges before and after opening a result at 390/1440 px in every theme.
+  - Bump the UI patch release.
+  out:
+  - Changes to status meanings, shared chip typography or circular timeline markers.
+acceptance_criteria:
+- id: A1
+  text: Collected remains a compact pill in Results & observations before and after expanding the exact saved result.
+- id: A2
+  text: Current work shares the same alignment, while circular timeline icons and all themes remain intact at mobile and desktop widths.
+- id: A3
+  text: The browser regression rejects the previous vertically stretched badge.
+tests:
+- command: >-
+    cd ui && node --input-type=module -e 'import {runBrowserGate} from "./server/browser-gate.mjs"; await runBrowserGate("audit-status-pill", "Audit status pill", ["e2e/audit-workspace.spec.ts"]);'
+  covers: [A1, A2, A3]
+- command: make ui-verify
+  covers: [A1, A2]
+- command: make ui-gates
+  covers: [A2]
+implementation_commit: null

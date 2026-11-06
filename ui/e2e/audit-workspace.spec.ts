@@ -7,6 +7,39 @@ import { installResearchAPI } from "./support/research-api";
 
 const root = `/projects/${RESEARCH_PROJECT}/audits/${RESEARCH_AUDIT}`;
 for (const theme of ["light", "dark", "black"])
+  test(`timeline status stays a pill when results expand in ${theme}`, async ({
+    page,
+  }) => {
+    await page.addInitScript(
+      (value) => localStorage.setItem("contractor.theme", value),
+      theme,
+    );
+    await installResearchAPI(page);
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.goto(root);
+      const row = page.locator(".research-timeline > li").filter({
+        has: page.getByRole("heading", {
+          name: "A customer can read another customer’s order",
+          exact: true,
+        }),
+      });
+      const badge = row.getByText("Collected", { exact: true });
+      await expect(badge).toBeVisible();
+      const before = (await badge.boundingBox())!;
+      expect(before.height).toBeLessThan(32);
+      await row
+        .getByRole("button", { name: "Read saved result", exact: true })
+        .click();
+      await expect(
+        row.getByRole("heading", { name: "Recorded result", exact: true }),
+      ).toBeVisible();
+      const after = (await badge.boundingBox())!;
+      expect(after.height).toBeCloseTo(before.height, 0);
+    }
+  });
+
+for (const theme of ["light", "dark", "black"])
   test(`combined Checks research views in ${theme}`, async ({ page }, info) => {
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
