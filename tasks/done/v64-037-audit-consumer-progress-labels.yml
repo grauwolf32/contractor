@@ -6,7 +6,8 @@ epic: audits
 kind: defect
 introduced_by: V64-010
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: ead25fba1378c51ebd379aaeea89593e8bf94487
 depends_on: [V64-010]
 languages: [go, sql, typescript, json, yaml, markdown]
 goal: Inbox describes common Task progress and Eval never attributes a mixed-iteration Run to its first Task's iteration.
@@ -39,6 +40,26 @@ context:
     ceiling; collection retains its 1024-execution ceiling.
     No new entity, migration, provider interpretation, coverage calculation or
     dispatch restriction is introduced. Exact task associations remain authoritative.
+  verification: >-
+    Full evalstore and evalservice suites passed against disposable PostgreSQL
+    contractor_v64_037, including the 5000-execution/45000-background inventory
+    paging fixture. The regression binds a real Audit Run and verifies uniform,
+    mixed, mixed-after-uniform-prefix and absent membership through Inventory
+    and one-entry InventoryPage traversal. Running it with the original SQL via
+    a Go overlay fails both mixed cases in both paths. The original UI function
+    likewise fails the corrected Task-label expectation.
+    make ui-verify passed: 211 files, 2404 tests and one declared expected failure;
+    typecheck, formatting, static-server tests and production build passed.
+    make verify-public-api and make lint passed. A separate API-mocked Chromium
+    probe passed all six Inbox cases at 390/1440 px in light/dark/black themes;
+    inspected screenshots show Task progress without overflow. The Podman-only
+    maintenance test remains opt-in and its skip is not passing coverage.
+    Logs and browser evidence are retained under .local/v64-037 in this worktree.
+    The owned disposable database was dropped after all connections closed;
+    the temporary UI server was stopped.
+    Rebased onto main a0b0808b383b420d93bc834eaecf8315ec02814c after its independent
+    design-material additions; implementation and tested source bytes are unchanged.
+    The branch codex/audit-consumer-progress-labels is ready for review, not merged.
 scope:
   in:
   - Correct consumer labels, EVM-R76 and nullable iteration field documentation.
