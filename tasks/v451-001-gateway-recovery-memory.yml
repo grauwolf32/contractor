@@ -107,8 +107,9 @@ tests:
 verification:
   results:
     - The eight affected domain/API/persistence package suites passed against real PostgreSQL with integration tags and the race detector; the separate app suite passed as well. App lease tests run separately from process tests because both deliberately use one active Server per database.
-    - Both real Server/Runtime Gateway recovery process scenarios passed (90.5 seconds), including three queued Runs, retained findings, manual Retry, cancellation and a permanent request error. The manual-window fixture uses four seconds; cancellation retains a five-minute window.
+    - Both real Server/Runtime Gateway recovery process scenarios passed again on the final cancellation-fenced implementation (102.2 seconds), including three queued Runs, retained findings, manual Retry, cancellation and a permanent request error. The manual-window fixture uses four seconds; cancellation retains a five-minute window.
     - Memory regression tests pass with deterministic clocks and concurrent probe acquisition, stale outcomes, exact failure redelivery, worker versus planner lease bounds, stage replacement, restart, changed causes, cancellation and actual 10000-Run/1024-binding capacity paths.
     - Real-store projection tests cover a delayed write and a committed write whose response is lost after the model already recovered; Run state converges without resending the model call. Migration 000014 removes all five tables and preserves populated Run records.
+    - Cancellation synchronously unregisters memory participants before Planner teardown; public manual Retry checks active Run states first. Dedicated tests cover immediate fencing and all eight Run states.
     - make lint, make verify-public-api, make verify-architecture and generated client/ERD/dependency checks passed. Optional disk-heavy I/O fixtures were not enabled and their declared skips are not passing coverage.
   delivery: Implemented on the isolated codex/gateway-recovery-memory branch; not merged into main. No demo deployment was requested. The owned disposable test database was dropped after its pools and processes stopped.

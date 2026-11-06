@@ -1177,6 +1177,10 @@ the shared route or resetting its retry window. Late non-terminal updates from
 an unregistered Stage are refused without mutation; terminal redelivery is a
 no-op. Only Scheduler admission and binding register participants; participant
 updates cannot create state. Runtime's allocation write fence remains effective.
+Scheduler cancellation synchronously unregisters the Run before acknowledging
+the cancellation notifier, so late participants cannot acquire or report failures
+while Planner teardown is still joining. Manual Retry refuses initializing,
+cancelling and terminal Runs before changing the process gate.
 
 Scheduler projects current invocation waits into the durable Run through
 RunStore under its claim and the Run-then-Stage locks. The projection checks the

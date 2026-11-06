@@ -173,3 +173,30 @@ func TestPostgresModelOutcomeDoesNotWaitForRunProjection(t *testing.T) {
 		})
 	}
 }
+
+func TestCancellationImmediatelyUnregistersMemoryRecovery(t *testing.T) {
+	service, err := gatewayrecovery.New(gatewayrecovery.DefaultPolicy(), time.Minute, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	route := gatewayrecovery.Route{OwnerID: "owner", GatewayDigest: "gateway", Model: "model"}
+	if ok, err := service.Admit(t.Context(), "run", "stage", []gatewayrecovery.Route{route}); err != nil || !ok {
+		t.Fatal(err)
+	}
+	service.Activate("run", "stage")
+	p := service.Planner("run", "stage", route, llmgateway.DefaultGatewayFailureSignatures())
+	if _, err := p.Update(t.Context(), gatewayrecovery.Request{RequestID: "outage", Action: "failed", Code: "model_unavailable"}); err != nil {
+		t.Fatal(err)
+	}
+	s := &Scheduler{options: Options{GatewayRecovery: service}, wake: make(chan struct{}, 1)}
+	s.Cancel("run")
+	if _, err := p.Update(t.Context(), gatewayrecovery.Request{RequestID: "late", Action: "failed", Code: "model_unavailable"}); !gatewayrecovery.IsUnavailable(err) {
+		t.Fatalf("cancelled participant still active: %v", err)
+	}
+	if err := service.Retry(t.Context(), "owner", "run"); !gatewayrecovery.IsUnavailable(err) {
+		t.Fatalf("cancelled Run reopened window: %v", err)
+	}
+	if status, err := service.ReadStatus(t.Context(), "run", "stage"); err != nil || status != nil {
+		t.Fatalf("cancelled status: %+v %v", status, err)
+	}
+}
