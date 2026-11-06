@@ -235,7 +235,15 @@ verification:
 delivery:
   branch: codex/audit-api-cli
   base_commit: b84f7f672626eaf538605824f79668d4fb68c316
-  merged_into_main: false
+  merged_into_main: true
+  merge_commit: ae839bbf0dd4c3f95badb0e228845b7fc9b0bbaa
+  integration_task: tasks/done/v450-002-integrate-audit-research-main.yml
+  integration_note: >-
+    User-requested integration on 2026-11-06 preserves later main's user-reviewed
+    V64-037 Task progress in workspace instead of the earlier coordination-only
+    projection. Main's pipeline retirement remains 000012; material pagination
+    is 000013. Original implementation evidence above is retained, and combined
+    verification is recorded by V450-002.
   pushed: false
 implementation_commit: be6a94128df40f3edf56648b9b12eacc79e12231
 replanning:

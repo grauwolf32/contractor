@@ -50,6 +50,8 @@ verification:
     A complete package rerun passed; no assertions or deadlines were changed.
 delivery:
   branch: codex/audit-api-cli
-  merged_into_main: false
+  merged_into_main: true
+  merge_commit: ae839bbf0dd4c3f95badb0e228845b7fc9b0bbaa
+  integration_task: tasks/done/v450-002-integrate-audit-research-main.yml
   pushed: false
 implementation_commit: 235a5cb52e75b59eb693c235f0f4077b420d4e31

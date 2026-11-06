@@ -5,7 +5,7 @@ milestone: audit-check-prioritization
 epic: audits
 kind: chore
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V64-008, V64-010, V64-037, V449-004]
 languages: [go, sql, typescript, yaml, markdown]
 goal: Main exposes the Audit research API and CLI while retaining the common pipeline and accurately labelled Task progress already delivered there.
@@ -87,4 +87,14 @@ verification:
     and remaining fixture problems; passing current activity pagination tests
     does not prove the missing retention guarantee.
   cleanup: The owned contractor_v450_002_20261106 database had zero connections, was dropped, and was verified absent.
-implementation_commit: null
+delivery:
+  date: '2026-11-06'
+  branch: codex/audit-api-cli-main-integration
+  merged_into_main: true
+  merge_commit: ae839bbf0dd4c3f95badb0e228845b7fc9b0bbaa
+  previous_main: 360ffd44ad07d280f3e612fb0aa91b5a6315a8c3
+  source_head: 7221687033ff3e9c4016a2e2daf3cabf6d54403c
+  ancestry: Previous main, V64-008 and V449-004 implementation commits were verified as ancestors of main; previous main is the merge first parent.
+  worktrees: The primary checkout was clean before and after fast-forwarding to the prepared merge.
+  pushed: false
+implementation_commit: ae839bbf0dd4c3f95badb0e228845b7fc9b0bbaa

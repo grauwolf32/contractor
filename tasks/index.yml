@@ -9,13 +9,14 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
-    User assignment 2026-11-06 completed V64-008 on codex/audit-api-cli from main
-    b84f7f672, using common-contract.md and hypotheses.md as normative inputs.
-    Required Go/PostgreSQL, API, UI, focused browser and lint checks passed.
-    V449-004 separately repairs the existing trigger verification inventory.
-    The additional full mocked browser gate remains failing; V450-001 records
-    the existing contract/selector failures without assigning their implementation.
-    This branch is not merged into main. Dependent tasks and demo deployment remain unassigned.
+    User request 2026-11-06 integrated V64-008 and V449-004 into main through
+    merge ae839bbf0 (V450-002), preserving V64-010 pipeline retirement, V64-037
+    Task progress and mixed-iteration Eval labels, and independent UI designs.
+    Material pagination is migration 000013. Combined Go/PostgreSQL, API, UI,
+    seven focused browser tests and lint passed; the owned test database was dropped.
+    The full mocked browser gate was not rerun; V450-001 retains the known
+    activity-retention gap and fixture follow-ups without assigning implementation.
+    Dependent tasks and demo deployment remain unassigned.
     User request 2026-11-05 delivered on 2026-11-06: V449-003 integrates ordinary
     Run engagement (V449-001) and permanent missing-credential preparation failure
     (V449-002) into main through a no-fast-forward merge. Exact policy inputs use
