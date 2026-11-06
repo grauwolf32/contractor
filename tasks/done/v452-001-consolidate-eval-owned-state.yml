@@ -1,12 +1,13 @@
 schema_version: "1.0"
-id: V451-001
+id: V452-001
 title: Fold Eval plan and current selection into their owning rows
 milestone: eval-maintenance-2026-10
 epic: evals
 kind: chore
 introduced_by: V38-006
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: 5e3c7a9023a6011598a84c217b19cde00b9615ce
 depends_on: []
 languages: [go, sql]
 goal: Reduce Eval persistence from nineteen to seventeen tables while preserving exact frozen plans, current selections, recovery, read bounds and bounded purge.
@@ -14,6 +15,7 @@ context:
   authority: User 2026-11-06 approves merging eval_selections into eval_members and eval_frozen_plans into eval_experiments after the schema investigation in this chat.
   specification: [docs/spec/evals/managed-evals.md, docs/spec/platform/persistence.md, docs/spec/platform/limits.md]
   finding: internal/evalstore/selections.go stores one mutable selection per immutable member; internal/evalstore/experiments.go stores one immutable frozen plan per experiment. These dependent one-to-one tables duplicate owner identity and require extra joins and purge steps.
+  tracker_identity: V451-001 was allocated locally before concurrent main work published a different V451-001. This task uses V452-001 before integration to keep tracker identities unique; the implementation commit and authorized scope are unchanged.
   origin: V38-006 introduced selected records; V38-003 introduced managed experiment persistence. Historical task contracts remain historical.
   boundary: EvalStore retains authority. Immutable plan and matrix columns use column-scoped guards; mutable selection columns remain independent of projection rows. Existing receipts, CAS revisions, controller claims and atomic view publication remain unchanged.
   alternatives: Keep the separate tables, which avoids migration work but retains redundant identities and joins. Folding projections or claims would alter locking boundaries and is outside this change.
@@ -49,4 +51,6 @@ verification:
     - Real-store regressions reject a partial matrix at commit, preserve immutable plan/matrix fields and exact record foreign keys, count one generated digest evaluation at freeze and zero at progress, and clear 1200 selected members in bounded resumable passes without dirtying projections.
     - Existing dense experiment and Project purge, recovery, CAS/idempotency, native-ceiling metadata reads and API suites pass. Optional heavy-I/O fixtures were not enabled by this lane.
     - make docs-erd succeeds; the generated page has 67 total tables and 84 foreign keys, with ownership and size registries aligned. Specification and task checks pass.
+    - Final make lint passes, including generated contracts, formatting, vet, staticcheck, test-only export checks, script/deployment tests, release graph, task/spec/fixture/ERD checks, Ruff and Runtime import boundaries.
+  cleanup: Owned disposable database contractor_test_v451_eval was dropped after all Go processes and pools stopped; no demo data was changed.
   delivery: Implementation is isolated on codex/evalstore-consolidation; merge into main and deployment are not performed.
