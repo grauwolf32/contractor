@@ -2,7 +2,6 @@ package pgstore
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -21,13 +20,7 @@ func (s *ClaimStore) Collect(
 		var err error
 		bound := NewClaimStore(tx, s.storage)
 		receipt, changed, err = bound.collect(ctx, params)
-		if err != nil || !changed {
-			return err
-		}
-		if len(params.Tasks) != 0 {
-			return nil
-		}
-		return bound.retainFindingCheckResults(ctx, params)
+		return err
 	})
 	if err != nil {
 		return auditstore.CollectionReceipt{}, false, err
@@ -36,12 +29,7 @@ func (s *ClaimStore) Collect(
 }
 
 func (s *ClaimStore) collect(ctx context.Context, params auditstore.CollectParams) (auditstore.CollectionReceipt, bool, error) {
-	var err error
-	params, err = withPreparationLinks(params)
-	if err != nil {
-		return auditstore.CollectionReceipt{}, false, err
-	}
-	if err := validateCollection(params); err != nil {
+	if err := ValidateCollect(params); err != nil {
 		return auditstore.CollectionReceipt{}, false, err
 	}
 	if replay, found, err := s.lookupReceiptReplay(
@@ -50,12 +38,11 @@ func (s *ClaimStore) collect(ctx context.Context, params auditstore.CollectParam
 		return replay, false, err
 	}
 	prepared := prepareCollectionWrite(params)
-	outputs, _ := json.Marshal(append([]auditstore.PreparationOutput{}, params.PreparationOutputs...))
 	receipt, err := scanReceipt(persistencepostgres.SavepointQueryRow(ctx, s.db, collectAuditExecutionSQL,
 		params.Claim.AuditID, params.Claim.HolderID, params.Claim.Epoch,
 		params.ExecutionID, params.ReceiptID, string(params.Disposition),
 		prepared.sourceRef, prepared.sourceDigest, prepared.retained, prepared.items, prepared.links,
-		prepared.retainedBytes, params.ErrorCode, params.RequestDigest, outputs,
+		prepared.retainedBytes, params.ErrorCode, params.RequestDigest,
 	))
 	if err == nil {
 		return receipt, true, nil

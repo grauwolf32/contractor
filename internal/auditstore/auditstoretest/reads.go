@@ -42,29 +42,6 @@ func (s *Store) EventsAfter(
 	return newestFirst[:min(limit, len(newestFirst))], nil
 }
 
-// Items reads every item of the owner's Audit in Round and item order. It
-// pages through the owner-fenced item pages that the public API serves.
-func (s *Store) Items(ctx context.Context, ownerID, auditID string) ([]auditstore.Item, error) {
-	params := auditstore.ListItemsParams{OwnerID: ownerID, AuditID: auditID, Limit: pagelimit.MaxRows}
-	items := make([]auditstore.Item, 0)
-	for {
-		page, err := s.ListItemsPage(ctx, params)
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, page...)
-		if len(page) < params.Limit {
-			return items, nil
-		}
-		last := page[len(page)-1]
-		round, err := s.GetRound(ctx, auditID, last.RoundID)
-		if err != nil {
-			return nil, err
-		}
-		params.AfterRoundOrdinal, params.AfterItemOrdinal, params.AfterItemID = &round.Ordinal, &last.Ordinal, last.ItemID
-	}
-}
-
 // listExecutionsSQL reads every execution of Audit $1 in creation order.
 var listExecutionsSQL = `
 SELECT ` + pgstore.ExecutionColumns("execution") + `

@@ -159,11 +159,6 @@ func snapshotJSONReads() []snapshotJSONRead {
 			sql: []string{"jsonb_typeof(NEW.baseline_snapshot->'inputs')"},
 		},
 		{
-			name: "baseline inventory", document: baselineDocument,
-			path: []string{"inventory", "worklist"},
-			sql:  []string{"baseline_snapshot ? 'inventory'"},
-		},
-		{
 			name: "baseline scope field", document: baselineDocument,
 			path: []string{"scope", "objective"}, want: "objective text",
 		},
@@ -234,7 +229,6 @@ func baselineDocument(*testing.T) any {
 		Schema: auditbaseline.Schema, Inputs: map[string]auditstore.ExactArtifact{"source": artifact},
 		Scope:            auditbaseline.Scope{Objective: "objective text"},
 		LLMCredentialIDs: []string{"llm-credential"}, RuntimeCredentialIDs: []string{"runtime-credential"},
-		Inventory: &auditbaseline.BaselineInventory{Worklist: artifact},
 	}
 }
 

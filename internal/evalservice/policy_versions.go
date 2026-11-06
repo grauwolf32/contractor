@@ -5,8 +5,10 @@ package evalservice
 // its behavior changes intentionally; source edits, comments, and refactors
 // must not invalidate existing Experiments.
 const (
-	humanPolicyV1SHA256  = "sha256:25740d3d9f24f4894b4f44d4e90585df006712bc84017be40114c6c1fea6d8c1"
-	nativePolicyV1SHA256 = "sha256:d63f0a408b377c728a9d472819216fd3f34d666bd251321ee3ccadeb66db766f"
+	humanPolicyV1SHA256 = "sha256:25740d3d9f24f4894b4f44d4e90585df006712bc84017be40114c6c1fea6d8c1"
+	// Version 2 replaces retired evidence/coverage/check-results schemas with
+	// common result/conclusions validation. Digest: native_checks.go + auditcontract/codec.go at cutover.
+	nativePolicyV2SHA256 = "sha256:8694fa9204632b1ad79072d685d20c6e14cbcfcda21179ce013f14d0a728b17e"
 
 	// The output normalizer is version 3 since collection reads stored
 	// StageMetrics strictly and every counter as reported: a retained

@@ -216,10 +216,7 @@ func collectPurgeFinding(t *testing.T, f collectingAuditFixture, receiptID strin
 // survive their Audit and exercise the Project duplicate graph.
 func seedPurgeFindingAssessments(t *testing.T, f collectingAuditFixture, confirmedID, duplicateID string) {
 	t.Helper()
-	_ = seedItemRows(t, f.ctx, f.pool, f.audit.AuditID, f.itemID)
-	if _, err := f.pool.Exec(f.ctx, `UPDATE audit_items SET state='settled',final_disposition='excluded' WHERE audit_id=$1`, f.audit.AuditID); err != nil {
-		t.Fatal(err)
-	}
+
 	err := persistencepostgres.InTx(f.ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		severity := auditstore.SeverityHigh
 		if _, err := NewOwnerTxStore(tx, artifactpgtest.NewStorage()).AssessProjectFinding(f.ctx, auditstore.ProjectFindingEdit{OwnerID: f.audit.OwnerID, ProjectID: f.project.ProjectID, FindingID: confirmedID, ExpectedRevision: 1, Verdict: auditstore.VerdictTruePositive, Severity: &severity, Rationale: "Confirmed before Audit deletion."}); err != nil {

@@ -126,26 +126,19 @@ SELECT audit.state, audit.dispatch_state, audit.deadline_at, audit.owner_id, aud
 		return auditstore.RunCreationIntent{}, invalidf("stored Audit placement requirements differ from labels")
 	}
 	result.Execution = execution
-	if execution.Role == auditstore.ExecutionTask {
-		ids, err := taskExecutionIDs(ctx, s.db, execution.AuditID, execution.ExecutionID)
-		if err != nil {
-			return auditstore.RunCreationIntent{}, err
-		}
-		result.Tasks, err = loadSelectedTasks(ctx, s.db, auditstore.Audit{AuditID: execution.AuditID}, ids)
-		if err != nil {
-			return auditstore.RunCreationIntent{}, err
-		}
-		if len(result.Tasks) == 1 {
-			result.Observations, err = readTaskObservations(ctx, s.db, execution.AuditID, result.Tasks[0].Source.ObservationTaskIDs)
-			if err != nil {
-				return auditstore.RunCreationIntent{}, err
-			}
-		}
-		return result, nil
-	}
-	result.Items, err = s.listExecutionItems(ctx, executionID)
+	ids, err := taskExecutionIDs(ctx, s.db, execution.AuditID, execution.ExecutionID)
 	if err != nil {
 		return auditstore.RunCreationIntent{}, err
+	}
+	result.Tasks, err = loadSelectedTasks(ctx, s.db, auditstore.Audit{AuditID: execution.AuditID}, ids)
+	if err != nil {
+		return auditstore.RunCreationIntent{}, err
+	}
+	if len(result.Tasks) == 1 {
+		result.Observations, err = readTaskObservations(ctx, s.db, execution.AuditID, result.Tasks[0].Source.ObservationTaskIDs)
+		if err != nil {
+			return auditstore.RunCreationIntent{}, err
+		}
 	}
 	return result, nil
 }

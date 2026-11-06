@@ -28,7 +28,7 @@
   {
    "id": "audits",
    "name": "Аудиты",
-   "note": "Раунды, проверки, раны аудита, покрытие"
+   "note": "Задачи, гипотезы, обычные раны и результаты аудита"
   },
   {
    "id": "findings",
@@ -393,16 +393,6 @@
     "Удаление проекта"
    ]
   ],
-  "audit_rounds": [
-   "audits",
-   "Раунды аудита",
-   "Раунд аудита: манифест рабочего списка и состояние.",
-   [
-    "Контроллер: принятие и закрытие раунда",
-    "API раундов",
-    "Сборка отчёта"
-   ]
-  ],
   "audit_tasks": [
    "audits",
    "Принятая работа и точные выбранные материалы",
@@ -411,20 +401,6 @@
     "Общий приём явной и подготовленной работы",
     "Ограниченные страницы и выбор совместимых задач",
     "Связи с попытками обычных Runs"
-   ]
-  ],
-  "audit_items": [
-   "audits",
-   "Отдельная проверка, её покрытие, источник-предложение и итоговое решение",
-   "Отдельная проверка аудита. Рабочий список диспетчеризации, итоговое решение, покрытие (coverage_*) и для последующих раундов предложение-источник (proposal_*).",
-   [
-    "Принятие раунда создаёт проверки с покрытием",
-    "Диспетчеризация и сбор результатов",
-    "Ревью действий человеком",
-    "Закрытие и отмена аудита",
-    "Выбор следующего раунда: барьер повторного использования предложения",
-    "Страница покрытия и сводка рабочего пространства",
-    "Происхождение находки"
    ]
   ],
   "audit_executions": [
@@ -468,15 +444,6 @@
    [
     "Мутации аудита пишут события",
     "Приём находок читает отклонённые предложения (finding.proposal_rejected)"
-   ]
-  ],
-  "audit_report_pages": [
-   "audits",
-   "Записанные страницы собираемого отчёта аудита",
-   "Финализация записывает отчёт постранично для одной ревизии аудита, поэтому следующая попытка продолжает с записанных страниц, а не собирает отчёт заново.",
-   [
-    "Финализация отчёта: запись и чтение страниц",
-    "Выход аудита из finalizing удаляет страницы (триггер)"
    ]
   ],
   "audit_controller_claims": [
@@ -702,15 +669,6 @@
     "Разрешение конфигурации Run, Audit и Eval"
    ]
   ],
-  "audit_round_result_pages": [
-   "audits",
-   "Immutable settled-Round snapshot construction pages",
-   "Captures one coherent settled Round in bounded slices, then publishes exact protected pages and one accepted manifest.",
-   [
-    "Audit Controller capture and publication",
-    "Audit purge after drain"
-   ]
-  ],
   "project_findings": [
    "findings",
    "Находка проекта",
@@ -791,10 +749,6 @@
    "kind": "fold",
    "text": "Вобрала audit_collection_receipts. Квитанция сбора (collection_*) пишется тем же UPDATE, что переводит исполнение в collected, и дальше неизменна."
   },
-  "audit_items": {
-   "kind": "fold",
-   "text": "Вобрала audit_coverage_rows, audit_proposal_items. Покрытие (coverage_*) изменяемо; источник (proposal_*) задаётся один раз, его уникальность — барьер повторного использования предложения."
-  },
   "finding_proposal_receipts": {
    "kind": "fold",
    "text": "Вобрала finding_proposal_retention. Состояние хранения — единственные изменяемые колонки квитанции."
@@ -832,13 +786,17 @@
   "artifact_git_sources": "→ artifact_versions (git_*)",
   "workflow_run_metadata_labels": "→ workflow_runs.metadata_labels (jsonb + GIN)",
   "audit_collection_receipts": "→ audit_executions (collection_*)",
-  "audit_coverage_rows": "→ audit_items (coverage_*)",
-  "audit_proposal_items": "→ audit_items (proposal_*)",
+  "audit_coverage_rows": "Removed: coverage belongs to common Task results.",
+  "audit_proposal_items": "Removed: common Tasks retain their finding source associations.",
   "finding_proposal_retention": "→ finding_proposal_receipts (retention_state и др.)",
   "eval_project_dependencies": "→ eval_submissions.execution_project_id",
   "eval_view_generations": "→ eval_projection_queue (generation, summary, suites и др.)",
   "audit_idempotency": "→ mutation_receipts (key_scope ['audit', владелец, операция])",
   "eval_mutation_receipts": "→ mutation_receipts (key_scope ['eval', владелец, проект, ресурс, операция])",
-  "runtime_management_operations": "→ mutation_receipts (key_scope ['runtime-management'])"
+  "runtime_management_operations": "→ mutation_receipts (key_scope ['runtime-management'])",
+  "audit_items": "Removed: common Tasks own execution; historical facts are opaque retained Project Artifacts.",
+  "audit_rounds": "Removed: common Tasks own execution; historical facts are opaque retained Project Artifacts.",
+  "audit_round_result_pages": "Removed: common Tasks own execution; historical facts are opaque retained Project Artifacts.",
+  "audit_report_pages": "Removed: common Tasks own execution; historical facts are opaque retained Project Artifacts."
  }
 }

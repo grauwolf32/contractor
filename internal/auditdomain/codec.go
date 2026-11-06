@@ -2,28 +2,7 @@ package auditdomain
 
 import (
 	"sort"
-	"strconv"
-	"strings"
-	"time"
-
-	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 )
-
-func DecodeItemTask(data []byte) (ItemTask, error) {
-	var result ItemTask
-	if _, err := decodeJSONWithBounds(data, &result, openAPIOutputBounds); err != nil {
-		return result, err
-	}
-	if result.Operation == nil {
-		return decodeDocument(data, validateItemTask)
-	}
-	return result, validateItemTask(result)
-}
-
-func DecodeCheckResultSet(data []byte) (CheckResultSet, error) {
-	return decodeDocument(data, validateCheckResultSet)
-}
 
 func DecodeDirectVerificationSet(data []byte) (DirectVerificationSet, error) {
 	return decodeDocument(data, validateDirectVerificationSet)
@@ -35,14 +14,6 @@ func EncodeFindingProposal(value FindingProposal) ([]byte, error) {
 
 func DecodeFindingProposal(data []byte) (FindingProposal, error) {
 	return decodeDocument(data, validateFindingProposal)
-}
-
-func DecodeEvidence(data []byte) (EvidenceEnvelope, error) {
-	return decodeDocument(data, validateEvidence)
-}
-
-func DecodeCoverage(data []byte) (CoverageEnvelope, error) {
-	return decodeDocument(data, validateCoverage)
 }
 
 func encodeDocument[T any](value T, validate func(T) error) ([]byte, error) {
@@ -61,307 +32,14 @@ func decodeDocument[T any](data []byte, validate func(T) error) (T, error) {
 	if len(data) > MaximumDocumentBytes {
 		return result, invalid(CodeLimitExceeded, "document")
 	}
-	raw, err := decodeStrictJSON(data, &result)
+	_, err := decodeStrictJSON(data, &result)
 	if err != nil {
 		return result, err
-	}
-	switch any(result).(type) {
-	case ItemTask:
-		if err = rejectNullItemAuthority(raw); err != nil {
-			return result, err
-		}
-	case ExecutionManifest:
-		if object, ok := raw.(map[string]any); ok {
-			if items, ok := object["items"].([]any); ok {
-				for _, item := range items {
-					if err = rejectNullItemAuthority(item); err != nil {
-						return result, err
-					}
-				}
-			}
-		}
 	}
 	if err := validate(result); err != nil {
 		return result, err
 	}
 	return result, nil
-}
-
-func rejectNullItemAuthority(raw any) error {
-	if object, ok := raw.(map[string]any); ok {
-		for _, name := range []string{"accepted_plan", "dependencies"} {
-			if value, present := object[name]; present && value == nil {
-				return invalid(CodeInvalid, "item.authority_null")
-			}
-		}
-	}
-	return nil
-}
-
-func validateItemTask(value ItemTask) error {
-	if value.AcceptedPlan != nil {
-		if !validAuditProfileMode(value.ProfileMode) {
-			return invalid(CodeInvalid, "accepted_plan.profile_mode")
-		}
-		plan := value.AcceptedPlan
-		if ValidateAcceptedPlan(*plan, value.Dependencies) != nil || plan.ItemKey != value.ItemKey || plan.Route.WorkflowRole != value.WorkflowRole || value.Finding == nil || plan.Source.ReceiptID != value.Finding.ReceiptID || plan.Source.ProposedCheckOrdinal == nil || *plan.Source.ProposedCheckOrdinal != value.Finding.ProposedCheckOrdinal || !plan.Source.RetainedProposal.Ref.SameExact(value.Finding.ProposalRef) || plan.Source.RetainedProposal.Digest != value.Finding.ProposalDigest || plan.Plan.Objective != value.Finding.Objective || plan.Plan.Method != value.Finding.Method {
-			return invalid(CodeInvalid, "accepted_plan.task")
-		}
-	}
-
-	if value.Dependencies != nil {
-		if err := validateItemDependencies(value.ItemKey, value.Dependencies); err != nil {
-			return err
-		}
-	}
-	if value.Schema != TaskSchema {
-		return invalid(CodeSchemaUnsupported, "schema")
-	}
-	// Empty remains valid for exact task packages retained before profile mode
-	// became Worker-visible. New Server-built packages always pin this field.
-	if value.ProfileMode != "" && !validAuditProfileMode(value.ProfileMode) {
-		return invalid(CodeInvalid, "profile_mode")
-	}
-	for field, candidate := range map[string]string{
-		"item_key": value.ItemKey, "kind": value.Kind, "subject_key": value.SubjectKey,
-		"workflow_role": value.WorkflowRole,
-	} {
-		if err := validateIdentifier(candidate, field); err != nil {
-			return err
-		}
-	}
-	if !contentdigest.Valid(value.SourceContentDigest) || !contentdigest.Valid(value.CanonicalInventoryDigest) || !validMediaType(value.SourceMediaType) || value.SourceMediaType != normalizedMediaType(value.SourceMediaType) {
-		return invalid(CodeInvalid, "digest")
-	}
-	if err := value.SourceRef.ValidateExact(); err != nil {
-		return invalid(CodeReferenceInvalid, "source_ref")
-	}
-	if len(value.Scope) > 64 {
-		return invalid(CodeLimitExceeded, "scope")
-	}
-	for key, candidate := range value.Scope {
-		if validateIdentifier(key, "scope") != nil || validateText(candidate, "scope", false) != nil {
-			return invalid(CodeInvalid, "scope")
-		}
-	}
-	shapes := 0
-	if value.Checklist != nil {
-		shapes++
-	}
-	if value.Operation != nil {
-		shapes++
-	}
-	if value.Finding != nil {
-		shapes++
-	}
-	if value.Scan != nil {
-		shapes++
-	}
-	if shapes != 1 {
-		return invalid(CodeInvalid, "task")
-	}
-	if value.Checklist != nil {
-		if value.Standard == nil && value.Kind != "checklist" ||
-			value.Standard != nil && value.Kind != "standard-mapping" {
-			return invalid(CodeInvalid, "kind")
-		}
-		if err := validateChecklistTask(*value.Checklist); err != nil {
-			return err
-		}
-		if value.Standard != nil {
-			return validateStandardMappingTask(*value.Standard, value.ItemKey, *value.Checklist)
-		}
-		return nil
-	}
-	if value.Standard != nil {
-		return invalid(CodeInvalid, "standard")
-	}
-	if value.Operation != nil {
-		if value.Kind != "operation-trace" {
-			return invalid(CodeInvalid, "kind")
-		}
-		return validateOperationTask(*value.Operation)
-	}
-	if value.Scan != nil {
-		if value.Kind != "openapi-scan" && value.Kind != "web-scan" {
-			return invalid(CodeInvalid, "kind")
-		}
-		if value.Kind == "web-scan" && value.SourceMediaType != JSONMediaType {
-			return invalid(CodeInvalid, "source_media_type")
-		}
-		return validateScanTask(*value.Scan, value.Kind == "web-scan")
-	}
-	if value.Kind != "finding-verification" {
-		return invalid(CodeInvalid, "kind")
-	}
-	return validateFindingTask(*value.Finding)
-}
-
-func validateStandardMappingTask(
-	value StandardMappingTask, itemKey string, checklist ChecklistTask,
-) error {
-	if validateIdentifier(value.Scheme, "standard.scheme") != nil ||
-		validateText(value.Version, "standard.version", true) != nil ||
-		validateIdentifier(value.MappingKey, "standard.mapping_key") != nil ||
-		value.MappingKey != itemKey || len(value.EntryIDs) == 0 ||
-		validateSortedStrings(value.EntryIDs, MaximumCoverageValues, "standard.entry_ids", true) != nil {
-		return invalid(CodeInvalid, "standard")
-	}
-	contract := value.EvidenceContract
-	if validateIdentifier(contract.ID, "standard.evidence_contract.id") != nil ||
-		validateText(contract.Version, "standard.evidence_contract.version", true) != nil ||
-		contract.MinimumEvidence < 0 || contract.MaximumEvidence < contract.MinimumEvidence ||
-		contract.MaximumEvidence > MaximumEvidencePerItem ||
-		validateSortedStrings(contract.Assessments, MaximumCoverageValues, "standard.evidence_contract.assessments", true) != nil ||
-		validateSortedStrings(contract.EvidenceKinds, MaximumEvidencePerItem, "standard.evidence_contract.evidence_kinds", true) != nil ||
-		contract.HumanReview != "never" && contract.HumanReview != "required" {
-		return invalid(CodeInvalid, "standard.evidence_contract")
-	}
-	for _, assessment := range contract.Assessments {
-		if !validAssessment(assessment) {
-			return invalid(CodeInvalid, "standard.evidence_contract.assessments")
-		}
-	}
-	required := []string{}
-	if contract.MinimumEvidence > 0 {
-		required = contract.EvidenceKinds
-	}
-	if !equalStringSlices(checklist.RequiredEvidence, required) ||
-		contract.HumanReview == "required" && checklist.ReviewPolicy != "manual" {
-		return invalid(CodeInvalid, "standard.evidence_contract")
-	}
-	return nil
-}
-
-func validateFindingTask(value FindingTask) error {
-	if validateIdentifier(value.ReceiptID, "finding.receipt_id") != nil ||
-		value.ProposalRef.ValidateExact() != nil || !contentdigest.Valid(value.ProposalDigest) ||
-		value.ProposedCheckOrdinal < 0 || value.ProposedCheckOrdinal >= MaximumCoverageValues ||
-		validateText(value.Objective, "finding.objective", true) != nil ||
-		validateIdentifier(value.Method, "finding.method") != nil {
-		return invalid(CodeInvalid, "finding")
-	}
-	return validateSortedStrings(value.Limitations, MaximumCoverageValues, "finding.limitations", false)
-}
-
-func validateChecklistTask(value ChecklistTask) error {
-	if validateText(value.Version, "checklist.version", true) != nil ||
-		validateText(value.Statement, "checklist.statement", true) != nil ||
-		validateText(value.Applicability, "checklist.applicability", true) != nil ||
-		value.ReviewPolicy != "automatic" && value.ReviewPolicy != "manual" {
-		return invalid(CodeInvalid, "checklist")
-	}
-	if err := validateSortedStrings(value.AllowedMethods, MaximumCoverageValues, "checklist.allowed_methods", true); err != nil {
-		return err
-	}
-	return validateSortedStrings(value.RequiredEvidence, MaximumEvidencePerItem, "checklist.required_evidence", true)
-}
-
-func validateOperationTask(value OperationTask) error {
-	if !strings.HasPrefix(value.Path, "/") || validateOpenAPISourceText(value.Path, "operation.path", true) != nil || !validHTTPMethod(value.Method) ||
-		validateOpenAPISourceText(value.OperationID, "operation.operation_id", false) != nil || value.Resolved == nil {
-		return invalid(CodeInvalid, "operation")
-	}
-	return validateSortedStrings(value.Gaps, MaximumCoverageValues, "operation.gaps", false)
-}
-
-func validateExecutionManifest(value ExecutionManifest) error {
-	if value.Schema != ExecutionManifestSchema {
-		return invalid(CodeSchemaUnsupported, "schema")
-	}
-	if value.Items == nil || len(value.Items) > MaximumItems {
-		return invalid(CodeLimitExceeded, "items")
-	}
-	seen := make(map[string]struct{}, len(value.Items))
-	seenPackages := make(map[string]struct{}, len(value.Items))
-	for index, item := range value.Items {
-		if item.Ordinal != index || validateIdentifier(item.ItemKey, "items.item_key") != nil ||
-			validateIdentifier(item.SubjectKey, "items.subject_key") != nil || validateIdentifier(item.TaskPackageID, "items.task_package_id") != nil ||
-			!contentdigest.Valid(item.TaskPackageDigest) {
-			return invalid(CodeInvalid, "items")
-		}
-		if _, duplicate := seen[item.ItemKey]; duplicate {
-			return invalid(CodeInvalid, "items.item_key")
-		}
-		seen[item.ItemKey] = struct{}{}
-		if _, duplicate := seenPackages[item.TaskPackageID]; duplicate {
-			return invalid(CodeInvalid, "items.task_package_id")
-		}
-		seenPackages[item.TaskPackageID] = struct{}{}
-		if item.TaskRef != nil {
-			if err := item.TaskRef.ValidateExact(); err != nil {
-				return invalid(CodeReferenceInvalid, "items.task_ref")
-			}
-		}
-		previous := ""
-		for _, input := range item.Inputs {
-			if validateIdentifier(input.Name, "items.inputs.name") != nil || input.Name <= previous || !contentdigest.Valid(input.Digest) {
-				return invalid(CodeInvalid, "items.inputs")
-			}
-			if err := input.Ref.ValidateExact(); err != nil {
-				return invalid(CodeReferenceInvalid, "items.inputs.ref")
-			}
-			previous = input.Name
-		}
-	}
-	return nil
-}
-
-// ValidateDispatchExecutionManifest applies the additional exact-reference
-// gate required immediately before a trusted child Run is created. Inventory
-// construction may use the same codec before task packages have revisions.
-func ValidateDispatchExecutionManifest(value ExecutionManifest) error {
-	if err := validateExecutionManifest(value); err != nil {
-		return err
-	}
-	for _, item := range value.Items {
-		if item.TaskRef == nil {
-			return invalid(CodeReferenceInvalid, "items.task_ref")
-		}
-	}
-	return nil
-}
-
-func validateCheckResultSet(value CheckResultSet) error {
-	if value.Schema != CheckResultsSchema {
-		return invalid(CodeSchemaUnsupported, "schema")
-	}
-	if !contentdigest.Valid(value.ExecutionManifestDigest) || len(value.Results) == 0 || len(value.Results) > MaximumItems {
-		return invalid(CodeResultSetInvalid, "results")
-	}
-	seen := make(map[string]struct{}, len(value.Results))
-	for _, result := range value.Results {
-		if validateIdentifier(result.ItemKey, "results.item_key") != nil || validateIdentifier(result.SubjectKey, "results.subject_key") != nil ||
-			!validAssessment(result.Assessment) || validateText(result.Summary, "results.summary", true) != nil {
-			return invalid(CodeResultSetInvalid, "results")
-		}
-		if _, duplicate := seen[result.ItemKey]; duplicate {
-			return invalid(CodeResultSetInvalid, "results.item_key")
-		}
-		seen[result.ItemKey] = struct{}{}
-		if err := validateUniqueStrings(result.EvidenceIDs, MaximumEvidencePerItem, "results.evidence_ids", true); err != nil {
-			return invalid(CodeResultSetInvalid, "results.evidence_ids")
-		}
-		if err := validateResultCoverage(result.Coverage); err != nil {
-			return err
-		}
-		previousProposal := ""
-		for _, proposal := range result.Proposals {
-			if validateIdentifier(proposal.InvocationID, "results.proposals.invocation_id") != nil ||
-				validateIdentifier(proposal.ClientKey, "results.proposals.client_key") != nil {
-				return invalid(CodeResultSetInvalid, "results.proposals")
-			}
-			key := proposal.InvocationID + "\x00" + proposal.ClientKey
-			if key <= previousProposal {
-				return invalid(CodeResultSetInvalid, "results.proposals")
-			}
-			previousProposal = key
-		}
-		if len(result.Proposals) > MaximumProposalsPerItem {
-			return invalid(CodeResultSetInvalid, "results.proposals")
-		}
-	}
-	return nil
 }
 
 func validateDirectVerificationSet(value DirectVerificationSet) error {
@@ -388,24 +66,6 @@ func validateDirectVerificationSet(value DirectVerificationSet) error {
 			return invalid(CodeResultSetInvalid, "verifications.identity")
 		}
 		previous = identity
-	}
-	return nil
-}
-
-func validateResultCoverage(value ResultCoverage) error {
-	if validateUniqueStrings(value.Requested, MaximumCoverageValues, "coverage.requested", true) != nil ||
-		validateUniqueStrings(value.Completed, MaximumCoverageValues, "coverage.completed", true) != nil ||
-		validateUniqueStrings(value.Gaps, MaximumCoverageValues, "coverage.gaps", false) != nil {
-		return invalid(CodeResultSetInvalid, "coverage")
-	}
-	requested := make(map[string]struct{}, len(value.Requested))
-	for _, item := range value.Requested {
-		requested[item] = struct{}{}
-	}
-	for _, item := range value.Completed {
-		if _, exists := requested[item]; !exists {
-			return invalid(CodeResultSetInvalid, "coverage.completed")
-		}
 	}
 	return nil
 }
@@ -438,86 +98,6 @@ func validateFindingProposal(proposal FindingProposal) error {
 	return nil
 }
 
-func validateEvidence(value EvidenceEnvelope) error {
-	if value.Schema != EvidenceSchema {
-		return invalid(CodeSchemaUnsupported, "schema")
-	}
-	if value.Evidence == nil || len(value.Evidence) > MaximumItems {
-		return invalid(CodeLimitExceeded, "evidence")
-	}
-	seen := make(map[string]struct{}, len(value.Evidence))
-	for _, evidence := range value.Evidence {
-		if validateIdentifier(evidence.ID, "evidence.id") != nil || validateIdentifier(evidence.Kind, "evidence.kind") != nil || validateText(evidence.Summary, "evidence.summary", true) != nil ||
-			(evidence.Artifact == nil) == (evidence.ContentMemberID == "") {
-			return invalid(CodeInvalid, "evidence")
-		}
-		if _, duplicate := seen[evidence.ID]; duplicate {
-			return invalid(CodeInvalid, "evidence.id")
-		}
-		seen[evidence.ID] = struct{}{}
-		if evidence.Artifact != nil {
-			if err := evidence.Artifact.ValidateExact(); err != nil {
-				return invalid(CodeReferenceInvalid, "evidence.artifact")
-			}
-		}
-		if evidence.ContentMemberID != "" && validateIdentifier(evidence.ContentMemberID, "evidence.content_member_id") != nil {
-			return invalid(CodeReferenceInvalid, "evidence.content_member_id")
-		}
-		if evidence.HTTPRequestID != "" || evidence.HTTPRequestTag != "" {
-			id, err := strconv.ParseUint(evidence.HTTPRequestID, 10, 64)
-			if err != nil || id == 0 || id > contracts.MaxExactInteger || strconv.FormatUint(id, 10) != evidence.HTTPRequestID ||
-				validateIdentifier(evidence.HTTPRequestTag, "evidence.http_request_tag") != nil || evidence.ObservedAt == "" || !strings.HasSuffix(evidence.ObservedAt, "Z") || evidence.ContentMemberID == "" ||
-				len(evidence.DeploymentMarker) > 256 || strings.IndexFunc(evidence.DeploymentMarker, func(r rune) bool { return r < 32 }) >= 0 {
-				return invalid(CodeInvalid, "evidence.http_observation")
-			}
-		}
-		if evidence.ObservedAt != "" {
-			parsed, err := time.Parse(time.RFC3339Nano, evidence.ObservedAt)
-			if err != nil || parsed.Format(time.RFC3339Nano) != evidence.ObservedAt {
-				return invalid(CodeInvalid, "evidence.observed_at")
-			}
-		}
-		if validateText(evidence.DeploymentMarker, "evidence.deployment_marker", false) != nil {
-			return invalid(CodeInvalid, "evidence.deployment_marker")
-		}
-	}
-	return nil
-}
-
-func validateCoverage(value CoverageEnvelope) error {
-	if value.Schema != CoverageSchema {
-		return invalid(CodeSchemaUnsupported, "schema")
-	}
-	if value.Rows == nil || len(value.Rows) > MaximumItems {
-		return invalid(CodeLimitExceeded, "rows")
-	}
-	seen := make(map[string]struct{}, len(value.Rows))
-	for _, row := range value.Rows {
-		if validateIdentifier(row.ItemKey, "rows.item_key") != nil || validateIdentifier(row.SubjectKey, "rows.subject_key") != nil || !validCoverageStatus(row.Status) || validateText(row.Rationale, "rows.rationale", false) != nil {
-			return invalid(CodeInvalid, "rows")
-		}
-		if _, duplicate := seen[row.ItemKey]; duplicate {
-			return invalid(CodeInvalid, "rows.item_key")
-		}
-		seen[row.ItemKey] = struct{}{}
-		if validateSortedStrings(row.Requested, MaximumCoverageValues, "rows.requested", true) != nil ||
-			validateSortedStrings(row.Completed, MaximumCoverageValues, "rows.completed", true) != nil ||
-			validateSortedStrings(row.Gaps, MaximumCoverageValues, "rows.gaps", false) != nil {
-			return invalid(CodeInvalid, "rows")
-		}
-	}
-	return nil
-}
-
-func validAssessment(value string) bool {
-	switch value {
-	case "supported", "refuted", "inconclusive", "blocked", "satisfied", "violated", "not-tested", "not-applicable":
-		return true
-	default:
-		return false
-	}
-}
-
 func validDirectAssessment(value string) bool {
 	switch value {
 	case "supported", "refuted", "inconclusive", "blocked":
@@ -527,23 +107,9 @@ func validDirectAssessment(value string) bool {
 	}
 }
 
-func validCoverageStatus(value string) bool {
-	_, ok := CoverageStatusBucket(value)
-	return ok
-}
-
 func validSeverity(value string) bool {
 	switch value {
 	case "", "informational", "low", "medium", "high", "critical":
-		return true
-	default:
-		return false
-	}
-}
-
-func validHTTPMethod(value string) bool {
-	switch value {
-	case "get", "put", "post", "delete", "options", "head", "patch", "trace":
 		return true
 	default:
 		return false

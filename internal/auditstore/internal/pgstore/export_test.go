@@ -11,35 +11,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 )
 
-// ListItems reads every item of one Audit in Round and item order, without
-// the owner fence of ListItemsPage, so a test can inspect all of them.
-// Production reads items only by bounded page, selection or reconcile
-// window.
-func (s *QueryStore) ListItems(ctx context.Context, auditID string) ([]auditstore.Item, error) {
-	if err := validateID("auditID", auditID); err != nil {
-		return nil, err
-	}
-	rows, err := s.db.Query(ctx, `
-SELECT `+prefixedItemColumns("item")+`
-  FROM audit_items AS item
-  JOIN audit_rounds AS round USING (round_id, audit_id)
- WHERE item.audit_id = $1
- ORDER BY round.ordinal, item.ordinal, item.item_id`, auditID)
-	if err != nil {
-		return nil, fmt.Errorf("list Audit items: %w", err)
-	}
-	defer rows.Close()
-	result := make([]auditstore.Item, 0)
-	for rows.Next() {
-		item, scanErr := scanItem(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("scan Audit item: %w", scanErr)
-		}
-		result = append(result, item)
-	}
-	return result, rows.Err()
-}
-
 var eventKindPattern = regexp.MustCompile(`^[a-z][a-z0-9_.-]{0,127}$`)
 
 // ListEvents returns a forward, bounded page of one Audit's events above

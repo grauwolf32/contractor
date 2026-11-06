@@ -29,7 +29,7 @@ import {
 } from "../../../ui";
 import { useCheckWorkspace } from "../../projects/audits/check-data";
 import { timeLimitText } from "../../projects/audits/check-format";
-import { checkPath, sectionPath } from "../../projects/audits/check-links";
+import { checkPath } from "../../projects/audits/check-links";
 import {
   countLegend,
   countSegments,
@@ -65,7 +65,6 @@ function Summary({
   const kind = checkItemKind(audit);
   const unreviewed = workspace.data?.unreviewedFindings ?? 0;
   const timeLimit = timeLimitText(audit);
-  const coverage = sectionPath(audit.projectId, audit.auditId, "coverage");
   return (
     <DetailPane
       header={
@@ -119,7 +118,7 @@ function Summary({
           {(snapshot) => {
             const counts = workCounts(snapshot);
             const legend = countLegend(counts);
-            const done = doneSummary(snapshot.completedChecks, counts.total);
+            const done = doneSummary(snapshot.completedTasks, counts.total);
             return (
               <section
                 className="checks-summary-progress"
@@ -136,13 +135,7 @@ function Summary({
                 )}
                 <ProgressLegend
                   entries={counts.total === 0 ? [] : legend}
-                  // The counts pin the list they open to their revision (S19).
-                  linkFor={(group) =>
-                    `${coverage}?${new URLSearchParams({
-                      ...(group === "all" ? {} : { result: group }),
-                      auditRevision: String(snapshot.auditRevision),
-                    }).toString()}`
-                  }
+                  linkFor={() => root}
                 />
               </section>
             );

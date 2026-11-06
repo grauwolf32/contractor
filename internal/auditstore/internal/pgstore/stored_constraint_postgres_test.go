@@ -33,7 +33,7 @@ BEGIN
 END $$;
 CREATE TRIGGER contractor_test_inject_check_violation BEFORE INSERT OR UPDATE ON audits
 FOR EACH STATEMENT EXECUTE FUNCTION contractor_test_inject_check_violation();
-CREATE TRIGGER contractor_test_inject_check_violation BEFORE INSERT OR UPDATE ON audit_items
+CREATE TRIGGER contractor_test_inject_check_violation BEFORE INSERT OR UPDATE ON audit_tasks
 FOR EACH STATEMENT EXECUTE FUNCTION contractor_test_inject_check_violation();
 CREATE TRIGGER contractor_test_inject_check_violation BEFORE INSERT OR UPDATE ON audit_executions
 FOR EACH STATEMENT EXECUTE FUNCTION contractor_test_inject_check_violation();`
@@ -114,7 +114,7 @@ func TestPostgresStoredSizeBoundsRefuseAuditWritesAsInvalid(t *testing.T) {
 	_, created, err := f.store.Activate(f.ctx, auditstore.ActivateParams{OwnerID: draft.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision, BaselineSnapshot: f.audit.BaselineSnapshot, DeadlineAt: time.Now().Add(time.Hour), IdempotencyKey: "bounded-start", RequestDigest: testDigest("2")})
 	assertStoredConstraintInvalid(t, err, "audits_baseline_snapshot_check")
 	after, getErr := f.store.Get(f.ctx, draft.OwnerID, draft.AuditID)
-	if created || getErr != nil || after.Revision != draft.Revision || after.State != draft.State || after.CurrentRoundID != nil {
+	if created || getErr != nil || after.Revision != draft.Revision || after.State != draft.State {
 		t.Fatalf("Audit after a refused start = (%+v, %t, %v), want the unchanged draft", after, created, getErr)
 	}
 }

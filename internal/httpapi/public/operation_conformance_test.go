@@ -106,27 +106,10 @@ func conformAuditOperations(t *testing.T, router routers.Router) {
 		},
 		CreatedAt: now, UpdatedAt: now,
 	}
-	roundID := "round-one"
 	active := draft
 	active.State, active.Revision, active.Hold = auditstore.AuditActive, 2, auditstore.HoldHeld
-	active.CurrentRoundID, active.StartedAt = &roundID, &now
-	item := auditstore.Item{
-		FindingIDs: []string{}, ItemID: "item-one", AuditID: active.AuditID, RoundID: roundID, ItemKey: "check-one",
-		Kind: "checklist", SubjectKey: "check-one@1", Task: input,
-		Origin: auditstore.ItemOrigin{
-			Schema: auditstore.ItemOriginSchema, SourceRef: &input.Ref, SourceContentDigest: input.Digest,
-			SourceMediaType: input.MediaType, CanonicalInventoryDigest: auditHandlerDigest("inventory"),
-			EntryKey: "check-one",
-		},
-		WorkflowRole: "check", State: auditstore.ItemSubmitted,
-		CreatedAt: now, UpdatedAt: now,
-	}
+	active.StartedAt = &now
 	runID := "run-one"
-	attempt := auditstore.ItemAttempt{
-		ExecutionItemID: "execution-item-one", ExecutionID: "execution-one", ItemID: item.ItemID,
-		ItemAttempt: 1, Role: auditstore.ExecutionCheck, State: auditstore.ItemSubmitted,
-		RunID: &runID, CreatedAt: now,
-	}
 	receipt := conformanceFindingReceipt(now)
 	projectID := "project_fixed"
 	findingID := "finding-one"
@@ -158,24 +141,8 @@ func conformAuditOperations(t *testing.T, router routers.Router) {
 			},
 			EntryCount: 1, MappingCount: 1, EvidenceContractCount: 1,
 		}},
-		audit: draft,
-		started: auditservice.StartedAudit{
-			Audit: active,
-			Round: auditstore.Round{
-				RoundID: roundID, AuditID: active.AuditID, Ordinal: 1, Manifest: input,
-				State: auditstore.RoundExecuting, ExpectedItemCount: 1, Revision: 1,
-				CreatedAt: now, UpdatedAt: now,
-			},
-			Items: []auditstore.Item{item},
-		},
-		attempts: map[string][]auditstore.ItemAttempt{item.ItemID: {attempt}},
-		coverage: auditservice.CoveragePage{AuditRevision: active.Revision, Rows: []auditstore.CoverageRow{{
-			AuditID: active.AuditID, RoundID: roundID, ItemID: item.ItemID, ItemKey: item.ItemKey,
-			SubjectKey: item.SubjectKey, Task: input, UpdatedAt: now, FindingIDs: []string{},
-			Coverage: auditstore.Coverage{
-				Status: auditstore.CoverageNotTested, Requested: []string{}, Completed: []string{}, Gaps: []string{},
-			},
-		}}},
+		audit:   draft,
+		started: auditservice.StartedAudit{Audit: active},
 		events: auditservice.EventPage{ThroughSequence: 1, Total: 1, Items: []auditservice.Event{{
 			AuditID: active.AuditID, Sequence: 1, Kind: "audit.created", EntityID: active.AuditID,
 			Summary: map[string]any{"state": "draft"}, CreatedAt: now,
@@ -236,7 +203,7 @@ func conformAuditOperations(t *testing.T, router routers.Router) {
 	management.artifactRead = artifacts.ReadResult{Ref: input.Ref, Payload: artifacts.Payload{MediaType: "text/plain", Data: []byte("Accepted output")}}
 	call(jsonContractRequest(http.MethodGet, "/v1/audits/audit-one/artifacts?key=prepare%3Aexecution%3Aapi&revision=revision-1", ""), http.StatusOK)
 	for _, path := range []string{
-		"/v1/audits/audit-one/items", "/v1/audits/audit-one/coverage", "/v1/audits/audit-one/events",
+		"/v1/audits/audit-one/events",
 		"/v1/audits/audit-one/workspace", "/v1/audits/audit-one/finding-proposals",
 		"/v1/runs/run-one/finding-proposals", "/v1/audits/audit-one/findings",
 		"/v1/audits/audit-one/findings/finding-one",

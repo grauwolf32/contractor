@@ -173,7 +173,7 @@ func newCommonControllerHarnessWithInputs(t *testing.T, prepare func(artifacts.S
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `UPDATE audits SET state='active',phase='rounds',started_at=clock_timestamp(),hold_state='held',baseline_snapshot=$2 WHERE audit_id=$1`, audit.AuditID, baseline); err != nil {
+	if _, err := pool.Exec(ctx, `UPDATE audits SET state='active',started_at=clock_timestamp(),hold_state='held',baseline_snapshot=$2 WHERE audit_id=$1`, audit.AuditID, baseline); err != nil {
 		t.Fatal(err)
 	}
 	service, err := auditservice.New(auditservice.Options{Pool: pool, Profiles: catalog, TransactionLLMCredentials: controllerTransactionCredentialLookup(), CredentialGuard: controllerCredentialGuard{}, Storage: artifactpgtest.NewStorage()})
@@ -290,10 +290,6 @@ func TestPostgresCommonControllerPauseHandoffResume(t *testing.T) {
 		if audit.State == auditstore.AuditCompleted {
 			if audit.SubmittedRunCount != 2 || audit.TaskCount != 2 || audit.OutstandingRunCount != 0 {
 				t.Fatalf("bad completion: %+v", audit)
-			}
-			var rounds, items int
-			if err := h.pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM audit_rounds WHERE audit_id=$1),(SELECT count(*) FROM audit_items WHERE audit_id=$1)`, audit.AuditID).Scan(&rounds, &items); err != nil || rounds != 0 || items != 0 {
-				t.Fatalf("retired pipeline used: %d/%d %v", rounds, items, err)
 			}
 			return
 		}

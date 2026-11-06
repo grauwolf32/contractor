@@ -37,7 +37,7 @@ func validTaskRunIdentity(p AuditCreateParams) bool {
 // Audit pin and immutable accepted Task documents. A coordinator passes only
 // the reserved execution identity and membership, never replacement authority.
 func normalizeTaskRunCreate(intent auditstore.RunCreationIntent, p AuditCreateParams) (auditRunCreate, json.RawMessage, error) {
-	if !validTaskRunIdentity(p) || intent.Execution.Role != auditstore.ExecutionTask || intent.Execution.AuditID != p.Claim.AuditID || intent.Execution.ExecutionID != p.ExecutionID || intent.Execution.RequestDigest != p.RequestDigest || len(intent.Tasks) != len(p.TaskIDs) {
+	if !validTaskRunIdentity(p) || intent.Execution.AuditID != p.Claim.AuditID || intent.Execution.ExecutionID != p.ExecutionID || intent.Execution.RequestDigest != p.RequestDigest || len(intent.Tasks) != len(p.TaskIDs) {
 		return auditRunCreate{}, nil, auditstore.ErrConflict
 	}
 	pinned, err := auditprofile.DecodePinnedProgram(intent.ProgramSnapshot)
@@ -98,7 +98,7 @@ func normalizeTaskRunCreate(intent auditstore.RunCreationIntent, p AuditCreatePa
 }
 
 func validateTaskRunIntent(intent auditstore.RunCreationIntent, p auditRunCreate) error {
-	if !validTaskRunIdentity(p.AuditCreateParams) || intent.Execution.Role != auditstore.ExecutionTask || intent.Execution.AuditID != p.Claim.AuditID || intent.Execution.ExecutionID != p.ExecutionID || intent.Execution.RequestDigest != p.RequestDigest || len(intent.Tasks) != len(p.TaskIDs) || len(intent.Items) != 0 {
+	if !validTaskRunIdentity(p.AuditCreateParams) || intent.Execution.AuditID != p.Claim.AuditID || intent.Execution.ExecutionID != p.ExecutionID || intent.Execution.RequestDigest != p.RequestDigest || len(intent.Tasks) != len(p.TaskIDs) {
 		return auditstore.ErrConflict
 	}
 	pinned, err := auditprofile.DecodePinnedProgram(intent.ProgramSnapshot)

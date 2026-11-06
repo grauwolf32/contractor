@@ -1,6 +1,10 @@
+implementation_update: '2026-11-06: V64-010 removes the empty retired operational relations and
+  exclusive ZIP/schema readers after common Task consumers migrate. Migration 000012
+  refuses unarchived old records atomically and preserves current Tasks and original
+  Artifact bytes. Evals uses workflow/iteration; Studio authors common Programs.'
 schema_version: '1.0'
-boundary: V64-001 validates contracts offline. Dependent tasks switch executable callers. No compatibility
-  mode and no second execution pipeline.
+boundary: Common Program/Task callers are executable. The old internal package, Round,
+  item and coverage projections are removed. No compatibility mode or second pipeline.
 relations:
 - name: audit_hypotheses
   action: preserve
@@ -33,10 +37,10 @@ relations:
   facts: Transfer exact refs, lineage and retention to ordinary Audit/Project Artifact ownership before
     releasing old holds.
 - name: audit_items
-  action: replace
-  owner: V64-002
-  facts: Accepted task identity, immutable selected inputs and remaining work; do not invent historical
-    hypotheses or verdicts.
+  action: delete
+  owner: V64-010
+  facts: 'Removed by migration 000012 after the FND-R215 cutover. Refuse surviving operational
+    rows atomically; keep opaque historical Project Artifacts byte-for-byte without fabricating history.'
 - name: audit_execution_items
   action: replace
   owner: V64-002
@@ -47,17 +51,17 @@ relations:
   facts: Keep original Run identity, submission key, pinned inputs, collection receipt and exact outputs;
     technical execution state comes from Run.
 - name: audit_rounds
-  action: replace
-  owner: V64-002
-  facts: Preserve selected membership/order as iteration boundary; remove admission/staging/seal and progression
-    state.
+  action: delete
+  owner: V64-010
+  facts: 'Removed by migration 000012 after the FND-R215 cutover. Refuse surviving operational
+    rows atomically; keep opaque historical Project Artifacts byte-for-byte without fabricating history.'
 - name: audit_round_result_pages
-  action: replace
-  owner: V64-013
-  facts: Retain exact accepted results and any independent input snapshot; remove round-specific page
-    chain after consumers migrate.
+  action: delete
+  owner: V64-010
+  facts: 'Removed by migration 000012 after the FND-R215 cutover. Refuse surviving operational
+    rows atomically; keep opaque historical Project Artifacts byte-for-byte without fabricating history.'
 - name: audit_report_pages
-  action: replace
+  action: delete
   owner: V64-010
   facts: Keep every existing report byte and exact descriptor in ArtifactStore; no report candidate/acceptance
     lifecycle.
@@ -213,16 +217,13 @@ paths:
   facts: Migrate only workerCompletion, completion capabilities and Audit allocation context with actual
     Runtime caller; preserve other wire fields.
 - prefix: api/audit-check-plans/
-  action: replace
+  action: delete
   owner: V64-010
-  facts: Retain exact facts needed by findings/results; drop exclusive acceptance-package schemas after
-    migration.
+  facts: Removed with exclusive fixtures and codecs; ordinary Task materials retain exact refs through ArtifactStore.
 - prefix: api/audit-dependencies/
-  action: replace
+  action: delete
   owner: V64-010
-  facts: Retire the old item dependency format after its actual consumers migrate. V64-004 supplies
-    per-artifact exact forks only; the concrete SMT snapshot/original-input case remains domain-owned
-    in V410-025, without a replacement universal dependency manifest.
+  facts: Removed with exclusive fixtures and codecs; ordinary Task materials retain exact refs through ArtifactStore.
 - prefix: api/audit-priority/
   action: preserve
   owner: V64-010
@@ -553,18 +554,14 @@ operations:
     projections. Independent SARIF/export bytes and routes keep their own contracts.
 - path: /v1/audits/{auditId}/items
   method: get
-  operation_id: listAuditItems
-  action: replace
-  owner: V64-008
-  facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
-    projections. Independent SARIF/export bytes and routes keep their own contracts.
+  action: delete
+  owner: V64-010
+  facts: Common Task/result readers replace this retired projection; no compatibility endpoint.
 - path: /v1/audits/{auditId}/coverage
   method: get
-  operation_id: listAuditCoverage
-  action: replace
-  owner: V64-008
-  facts: Preserve user purpose, owner authorization and exact data; adapt task/result/Project finding
-    projections. Independent SARIF/export bytes and routes keep their own contracts.
+  action: delete
+  owner: V64-010
+  facts: Common Task/result readers replace this retired projection; no compatibility endpoint.
 - path: /v1/audits/{auditId}/artifacts
   method: get
   operation_id: getAuditArtifact

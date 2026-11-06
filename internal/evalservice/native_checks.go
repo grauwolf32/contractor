@@ -3,18 +3,20 @@ package evalservice
 import (
 	"slices"
 
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
+
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
 
 func NativePolicySHA256() string {
-	return nativePolicyV1SHA256
+	return nativePolicyV2SHA256
 }
 func RegisteredChecks() []string {
 	return []string{"human-review@1", "required-artifact@1", "media-type@1", "json-schema@1"}
 }
 func RegisteredSchemas() []string {
-	return []string{"json@1", auditdomain.EvidenceSchema, auditdomain.CoverageSchema, auditdomain.CheckResultsSchema, auditdomain.FindingProposalSchema, auditdomain.FindingCollectionSchema}
+	return []string{"json@1", "contractor.audit.result.v1", "contractor.audit.conclusions.v1", auditdomain.FindingProposalSchema, auditdomain.FindingCollectionSchema}
 }
 
 func validateNativeCheck(c evaldomain.Check) error {
@@ -55,15 +57,8 @@ func validateRegisteredSchema(schema string, raw []byte) error {
 	case "json@1":
 		_, err := evaldomain.StrictOutputJSON(raw)
 		return err
-	case auditdomain.EvidenceSchema:
-		_, err := auditdomain.DecodeEvidence(raw)
-		return err
-	case auditdomain.CoverageSchema:
-		_, err := auditdomain.DecodeCoverage(raw)
-		return err
-	case auditdomain.CheckResultsSchema:
-		_, err := auditdomain.DecodeCheckResultSet(raw)
-		return err
+	case "contractor.audit.result.v1", "contractor.audit.conclusions.v1":
+		return auditcontract.ValidateResultShape(schema, raw)
 	case auditdomain.FindingProposalSchema:
 		_, err := auditdomain.DecodeFindingProposal(raw)
 		return err

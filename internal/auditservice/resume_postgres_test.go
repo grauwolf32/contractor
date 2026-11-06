@@ -134,16 +134,9 @@ func TestAuditRejectsTerminalDeadlineResumeWithoutChangingRetainedState(t *testi
 			if _, err := pool.Exec(ctx, `UPDATE audits SET state=$1,dispatch_state='closed',hold_state='released',deadline_at=clock_timestamp()-interval '1 hour',finished_at=clock_timestamp(),stop_reason_code='deadline_exhausted',stop_reason_message='Legacy deadline' WHERE audit_id='audit-time'`, state); err != nil {
 				t.Fatal(err)
 			}
-			// Retain a terminal round, accepted/interrupted work, expired review and report.
-			for _, sql := range []string{
-				`UPDATE audit_rounds SET state='closed' WHERE audit_id='audit-time'`,
-				`UPDATE audit_items SET state='settled',final_disposition=CASE WHEN item_key='accepted' THEN 'accepted-result' WHEN item_key='cancelled' THEN 'execution-cancelled' ELSE 'excluded' END,accepted_result_ref=CASE WHEN item_key='accepted' THEN task_ref END,accepted_result_digest=CASE WHEN item_key='accepted' THEN task_digest END WHERE audit_id='audit-time'`,
-				`UPDATE audit_items SET coverage_gaps='["audit-closed-before-dispatch"]'::jsonb WHERE audit_id='audit-time' AND item_key IN ('remaining','manual')`,
-				`INSERT INTO audit_artifact_links(audit_id,logical_key,artifact_ref,artifact_digest,media_type,size_bytes,source_provenance,display_ref) SELECT audit_id,'report/machine',task_ref,task_digest,'application/json',1,'{}'::jsonb,'Historical report' FROM audit_items WHERE audit_id='audit-time' AND item_key='accepted'`,
-			} {
-				if _, err := pool.Exec(ctx, sql); err != nil {
-					t.Fatal(err)
-				}
+			// Keep terminal common work and exact baseline materials unchanged.
+			if _, err := pool.Exec(ctx, `UPDATE audit_tasks SET state='settled',gap_code='audit-closed-before-dispatch' WHERE audit_id='audit-time' AND state<>'settled'`); err != nil {
+				t.Fatal(err)
 			}
 			before := auditTimeControlSnapshot(t, ctx, pool)
 			zero, hour := 0, 3600
@@ -156,7 +149,7 @@ func TestAuditRejectsTerminalDeadlineResumeWithoutChangingRetainedState(t *testi
 				}
 			}
 			if after := auditTimeControlSnapshot(t, ctx, pool); !bytes.Equal(before, after) {
-				t.Fatal("terminal Resume changed retained authority, reports, items or reviews")
+				t.Fatal("terminal Resume changed retained authority, reports or Tasks")
 			}
 		})
 	}
@@ -167,8 +160,7 @@ func auditTimeControlSnapshot(t *testing.T, ctx context.Context, pool *pgxpool.P
 	var data []byte
 	if err := pool.QueryRow(ctx, `SELECT jsonb_build_object(
 'audit', (SELECT to_jsonb(a) FROM audits a WHERE audit_id='audit-time'),
-'rounds', (SELECT jsonb_agg(to_jsonb(r) ORDER BY round_id) FROM audit_rounds r WHERE audit_id='audit-time'),
-'items', (SELECT jsonb_agg(to_jsonb(i) ORDER BY item_id) FROM audit_items i WHERE audit_id='audit-time'),
+'tasks', (SELECT jsonb_agg(to_jsonb(i) ORDER BY task_id) FROM audit_tasks i WHERE audit_id='audit-time'),
 'links', (SELECT jsonb_agg(to_jsonb(l) ORDER BY logical_key) FROM audit_artifact_links l WHERE audit_id='audit-time'),
 'events', (SELECT jsonb_agg(to_jsonb(e) ORDER BY sequence_number) FROM audit_events e WHERE audit_id='audit-time'),
 'receipts', (SELECT jsonb_agg(to_jsonb(i) ORDER BY idempotency_key) FROM mutation_receipts i WHERE audit_id='audit-time')

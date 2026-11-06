@@ -4567,74 +4567,6 @@ paths:
         '503':
           $ref: '#/components/responses/StorageTransactionConflict'
 
-  /v1/audits/{auditId}/items:
-    parameters:
-      - $ref: '#/components/parameters/AuditId'
-    get:
-      operationId: listAuditItems
-      tags: [Audits]
-      summary: List immutable Audit items and their current settlement state
-      parameters:
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Cursor'
-        - name: round
-          in: query
-          required: false
-          schema: {$ref: '#/components/schemas/ResourceId'}
-        - name: state
-          in: query
-          required: false
-          schema: {$ref: '#/components/schemas/AuditItemState'}
-        - name: subject
-          in: query
-          required: false
-          schema: {$ref: '#/components/schemas/AuditSubjectKey'}
-      responses:
-        '200':
-          description: Stable item page after filters
-          headers:
-            X-Request-ID: {$ref: '#/components/headers/RequestId'}
-            Cache-Control: {$ref: '#/components/headers/NoStore'}
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/AuditItemPage'}
-        '400': {$ref: '#/components/responses/BadRequest'}
-        '401': {$ref: '#/components/responses/Unauthorized'}
-        '404': {$ref: '#/components/responses/NotFound'}
-        '500': {$ref: '#/components/responses/InternalError'}
-        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
-
-  /v1/audits/{auditId}/coverage:
-    parameters:
-      - $ref: '#/components/parameters/AuditId'
-    get:
-      operationId: listAuditCoverage
-      tags: [Audits]
-      summary: List truthful coverage rows for one exact or current Round
-      parameters:
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Cursor'
-        - name: round
-          in: query
-          required: false
-          schema: {$ref: '#/components/schemas/ResourceId'}
-        - {name: auditRevision, in: query, required: false, schema: {type: integer, minimum: 1}, description: 'Pin this page, and the current Round it defaults to, to one Audit revision. Every page is read at one revision; continuations bind the Round and revision; a stale revision returns 409.'}
-      responses:
-        '200':
-          description: Stable coverage page
-          headers:
-            X-Request-ID: {$ref: '#/components/headers/RequestId'}
-            Cache-Control: {$ref: '#/components/headers/NoStore'}
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/AuditCoveragePage'}
-        '400': {$ref: '#/components/responses/BadRequest'}
-        '401': {$ref: '#/components/responses/Unauthorized'}
-        '404': {$ref: '#/components/responses/NotFound'}
-        '409': {$ref: '#/components/responses/Conflict'}
-        '500': {$ref: '#/components/responses/InternalError'}
-        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
-
   /v1/projects/{projectId}/audit-material-publications:
     parameters:
       - $ref: '#/components/parameters/ProjectId'
@@ -4820,7 +4752,7 @@ paths:
     get:
       operationId: getAuditWorkspace
       tags: [Audits]
-      summary: Read consistent current-round progress and whole-Audit decision counts
+      summary: Read consistent Task progress and whole-Audit Finding counts
       responses:
         '200':
           description: Owner-scoped snapshot
@@ -11394,7 +11326,7 @@ components:
             }
           ]
         },
-        "role": {
+        "workflow": {
           "anyOf": [
             {
               "$ref": "#/components/schemas/EvalId"
@@ -11404,7 +11336,7 @@ components:
             }
           ]
         },
-        "round": {
+        "iteration": {
           "anyOf": [
             {
               "type": "integer",
@@ -11449,8 +11381,8 @@ components:
       "required": [
         "execution",
         "parent",
-        "role",
-        "round",
+        "workflow",
+        "iteration",
         "state",
         "available"
       ],
@@ -13236,9 +13168,6 @@ components:
       properties:
         name: {$ref: '#/components/schemas/ConfigurationName'}
         version: {$ref: '#/components/schemas/ConfigVersion'}
-    AuditProfileMode:
-      type: string
-      enum: [risk-assessment, requirements-verification, custom-checklist, operation-tracing, finding-verification]
     AuditStandardRef:
       type: object
       additionalProperties: false
@@ -13397,18 +13326,6 @@ components:
         license: {$ref: '#/components/schemas/AuditStandardLicense'}
         catalog: {$ref: '#/components/schemas/AuditStandardExactPackage'}
         retained: {$ref: '#/components/schemas/AuditStandardExactPackage'}
-    AuditProfileInput:
-      type: object
-      additionalProperties: false
-      required: [required, mediaTypes]
-      properties:
-        required: {type: boolean}
-        mediaTypes:
-          type: array
-          minItems: 1
-          maxItems: 32
-          uniqueItems: true
-          items: {$ref: '#/components/schemas/MediaType'}
     AuditWebTarget:
       type: object
       additionalProperties: false
@@ -13433,157 +13350,6 @@ components:
       type: string
       maxLength: 2048
       pattern: '^([A-Za-z0-9_*][A-Za-z0-9_.*-]*(,[A-Za-z0-9_*][A-Za-z0-9_.*-]*)*)?$'
-    AuditInventory:
-      type: object
-      additionalProperties: false
-      required: [implementation, itemWorkflowRole]
-      properties:
-        implementation: {type: string, enum: [checklist@1, openapi-operations@1, openapi-scans@1, web-scans@1, finding-candidates@1, standard-mappings@1]}
-        source: {$ref: '#/components/schemas/AuditInventoryArtifact'}
-        settings: {$ref: '#/components/schemas/AuditInventoryArtifact'}
-        itemWorkflowRole: {$ref: '#/components/schemas/ArtifactName'}
-        standardSelection: {$ref: '#/components/schemas/AuditStandardSelection'}
-      oneOf:
-        - properties: {implementation: {type: string, const: standard-mappings@1}}
-          not:
-            anyOf: [{required: [source]}, {required: [settings]}]
-        - properties: {implementation: {type: string, enum: [openapi-scans@1, web-scans@1]}}
-          required: [source, settings]
-          not: {required: [standardSelection]}
-        - properties: {implementation: {type: string, enum: [checklist@1, openapi-operations@1, finding-candidates@1]}}
-          required: [source]
-          not:
-            anyOf: [{required: [settings]}, {required: [standardSelection]}]
-    AuditInventoryArtifact:
-      type: object
-      additionalProperties: false
-      required: [source, name]
-      properties:
-        source: {type: string, enum: [audit-input, prepare-output]}
-        name: {$ref: '#/components/schemas/ArtifactName'}
-        role: {$ref: '#/components/schemas/ArtifactName'}
-      oneOf:
-        - properties: {source: {type: string, const: audit-input}}
-          not: {required: [role]}
-        - properties: {source: {type: string, const: prepare-output}}
-          required: [role]
-    AuditStandardSelection:
-      type: object
-      additionalProperties: false
-      required: [scope, levels, entryIds]
-      properties:
-        scope: {type: string, minLength: 1, maxLength: 512}
-        levels:
-          type: array
-          minItems: 1
-          maxItems: 16
-          uniqueItems: true
-          items: {type: string, minLength: 1, maxLength: 128}
-        entryIds:
-          type: array
-          minItems: 1
-          maxItems: 4096
-          uniqueItems: true
-          items: {type: string, minLength: 1, maxLength: 128}
-    AuditWorkflowInputMapping:
-      type: object
-      additionalProperties: false
-      required: [source]
-      properties:
-        source: {type: string, enum: [audit-input, item-package, execution-manifest, retained-output, prepare-output, round-results, retained-dependency]}
-        name: {$ref: '#/components/schemas/ArtifactName'}
-        role: {$ref: '#/components/schemas/ArtifactName'}
-      oneOf:
-        - properties: {source: {type: string, enum: [audit-input, retained-dependency]}}
-          required: [name]
-          not: {required: [role]}
-        - properties: {source: {type: string, enum: [item-package, execution-manifest, round-results]}}
-          not:
-            anyOf: [{required: [name]}, {required: [role]}]
-        - properties: {source: {type: string, enum: [retained-output, prepare-output]}}
-          required: [name, role]
-    AuditWorkflowParameterMapping:
-      type: object
-      additionalProperties: false
-      required: [source]
-      properties:
-        source: {type: string, enum: [literal, item-field, scope-field]}
-        name: {$ref: '#/components/schemas/ArtifactName'}
-        value: {type: string, maxLength: 4096}
-    AuditCheckCapabilityRequirement:
-      type: object
-      additionalProperties: false
-      required: [stage, agent, ref, tools]
-      properties:
-        stage: {$ref: '#/components/schemas/ConfigId'}
-        agent: {$ref: '#/components/schemas/ConfigId'}
-        ref:
-          type: object
-          additionalProperties: false
-          required: [toolsetId, version]
-          properties:
-            toolsetId: {$ref: '#/components/schemas/ConfigId'}
-            version: {$ref: '#/components/schemas/ConfigVersion'}
-        tools:
-          type: array
-          minItems: 1
-          maxItems: 128
-          uniqueItems: true
-          items: {type: string, minLength: 1}
-    AuditCheckMethodMapping:
-      type: object
-      additionalProperties: false
-      required: [planSchema, method, workflowRole, requiredCapabilities]
-      properties:
-        planSchema: {type: string, const: contractor.audit.finding-check-plan.v1}
-        method: {type: string, enum: [verify, replay, applicability, alternative, static-trace, http-probe]}
-        workflowRole: {type: string, minLength: 1, maxLength: 128}
-        requiredCapabilities:
-          type: array
-          maxItems: 32
-          uniqueItems: true
-          items: {$ref: '#/components/schemas/AuditCheckCapabilityRequirement'}
-    AuditProfileWorkflow:
-      type: object
-      additionalProperties: false
-      required: [kind, workflow, inputs, parameters, outputs]
-      properties:
-        kind: {type: string, enum: [prepare, check, discovery, assessment]}
-        maxRunAttempts: {type: integer, minimum: 1, maximum: 10}
-        workflow: {$ref: '#/components/schemas/WorkflowRef'}
-        inputs:
-          type: object
-          maxProperties: 128
-          additionalProperties: {$ref: '#/components/schemas/AuditWorkflowInputMapping'}
-        parameters:
-          type: object
-          maxProperties: 128
-          additionalProperties: {$ref: '#/components/schemas/AuditWorkflowParameterMapping'}
-        outputs:
-          type: object
-          minProperties: 1
-          maxProperties: 128
-          additionalProperties: {$ref: '#/components/schemas/ArtifactName'}
-      oneOf:
-        - properties: {kind: {type: string, const: prepare}}
-          required: [maxRunAttempts]
-        - properties: {kind: {type: string, enum: [check, discovery, assessment]}}
-          not: {required: [maxRunAttempts]}
-    AuditExecutionPolicy:
-      type: object
-      additionalProperties: false
-      required: [roundMode, maxRounds, batchSize, maxItemsPerRound, maxItemsTotal, maxSubmittedRuns, maxItemRunAttempts, deadlineSeconds, maxEvidenceBytes, incompleteRound]
-      properties:
-        roundMode: {type: string, const: fixed-barrier}
-        maxRounds: {type: integer, minimum: 1, maximum: 32}
-        batchSize: {type: integer, minimum: 1, maximum: 64}
-        maxItemsPerRound: {type: integer, minimum: 1, maximum: 10000}
-        maxItemsTotal: {type: integer, minimum: 1, maximum: 100000}
-        maxSubmittedRuns: {type: integer, minimum: 1, maximum: 1000000}
-        maxItemRunAttempts: {type: integer, minimum: 1, maximum: 10}
-        deadlineSeconds: {type: integer, minimum: 1, maximum: 31536000}
-        maxEvidenceBytes: {type: integer, minimum: 1, maximum: 1073741824}
-        incompleteRound: {type: string, enum: [assess-with-gaps, fail]}
     AuditCompatibilityReason:
       type: string
       enum:
@@ -14196,19 +13962,6 @@ components:
         source: {$ref: '#/components/schemas/ExactArtifactRef'}
         sourceDigest: {$ref: '#/components/schemas/Digest'}
         sourceSize: {type: integer, minimum: 1, maximum: 16777216}
-    AuditBaselineInventory:
-      type: object
-      additionalProperties: false
-      required: [sourceContentDigest, canonicalInventoryDigest, gaps, worklist]
-      properties:
-        sourceContentDigest: {$ref: '#/components/schemas/Digest'}
-        canonicalInventoryDigest: {$ref: '#/components/schemas/Digest'}
-        standardSelection: {$ref: '#/components/schemas/AuditStandardSelection'}
-        gaps:
-          type: array
-          maxItems: 1024
-          items: {type: string, minLength: 1, maxLength: 512}
-        worklist: {$ref: '#/components/schemas/AuditExactArtifact'}
     AuditBaseline:
       type: object
       additionalProperties: false
@@ -14240,81 +13993,6 @@ components:
           maxItems: 16
           items: {$ref: '#/components/schemas/AuditPinnedStandard'}
         projectHttpTarget: {$ref: '#/components/schemas/ProjectHTTPTarget'}
-        inventory: {$ref: '#/components/schemas/AuditBaselineInventory'}
-    AuditGeneratedInventory:
-      type: object
-      additionalProperties: false
-      required: [snapshot, sources, sourceContentDigest, canonicalInventoryDigest, worklist, itemCount, gaps]
-      properties:
-        snapshot: {$ref: '#/components/schemas/AuditExactArtifact'}
-        sources:
-          type: object
-          additionalProperties: false
-          required: [source]
-          properties:
-            source: {$ref: '#/components/schemas/AuditExactArtifact'}
-            settings: {$ref: '#/components/schemas/AuditExactArtifact'}
-        sourceContentDigest: {$ref: '#/components/schemas/Digest'}
-        canonicalInventoryDigest: {$ref: '#/components/schemas/Digest'}
-        worklist: {$ref: '#/components/schemas/AuditExactArtifact'}
-        itemCount: {type: integer, minimum: 1, maximum: 10000}
-        gaps: {type: array, maxItems: 1024, items: {type: string, maxLength: 512}}
-    AuditPhase:
-      type: string
-      enum: [not-started, preparing, inventory, rounds]
-    AuditPreparationOutput:
-      type: object
-      additionalProperties: false
-      required: [artifact, executionId, runId, workflowOutput]
-      properties:
-        artifact:
-          allOf:
-            - {$ref: '#/components/schemas/AuditExactArtifact'}
-            - required: [mediaType, sizeBytes]
-        executionId: {$ref: '#/components/schemas/ResourceId'}
-        runId: {$ref: '#/components/schemas/ResourceId'}
-        workflowOutput: {$ref: '#/components/schemas/ArtifactName'}
-    AuditPreparationRole:
-      type: object
-      additionalProperties: false
-      required: [status, attempts, maxAttempts, outputs]
-      properties:
-        status: {type: string, enum: [pending, running, accepted, failed]}
-        attempts: {type: integer, minimum: 0, maximum: 10}
-        maxAttempts: {type: integer, minimum: 1, maximum: 10}
-        executionId: {$ref: '#/components/schemas/ResourceId'}
-        runId: {$ref: '#/components/schemas/ResourceId'}
-        outputs:
-          type: object
-          maxProperties: 128
-          additionalProperties: {$ref: '#/components/schemas/AuditPreparationOutput'}
-      oneOf:
-        - properties:
-            status: {type: string, const: pending}
-            attempts: {type: integer, const: 0}
-            outputs: {maxProperties: 0}
-          not:
-            anyOf: [{required: [executionId]}, {required: [runId]}]
-        - properties:
-            status: {type: string, enum: [running, failed]}
-            attempts: {minimum: 1}
-            outputs: {maxProperties: 0}
-          required: [executionId]
-        - properties:
-            status: {type: string, const: accepted}
-            attempts: {minimum: 1}
-            outputs: {minProperties: 1}
-          required: [executionId, runId]
-    AuditPreparation:
-      type: object
-      additionalProperties: false
-      required: [roles]
-      properties:
-        roles:
-          type: object
-          minProperties: 1
-          maxProperties: 16
-          additionalProperties: {$ref: '#/components/schemas/AuditPreparationRole'}
     AuditState:
       type: string
       enum: [draft, active, paused, finalizing, cancelling, completed, cancelled, failed, deleting]
@@ -14393,20 +14071,17 @@ components:
         state: {type: string, maxLength: 32}
         from: {type: string, maxLength: 32}
         to: {type: string, maxLength: 32}
-        role: {$ref: '#/components/schemas/AuditExecutionRole'}
         outcome: {$ref: '#/components/schemas/AuditTerminalOutcome'}
         disposition: {$ref: '#/components/schemas/AuditCollectionDisposition'}
         verdict: {type: string, enum: [true_positive, false_positive, needs_evidence, duplicate, reopen]}
         runId: {$ref: '#/components/schemas/ResourceId'}
         subjectId: {$ref: '#/components/schemas/ResourceId'}
         findingId: {$ref: '#/components/schemas/ResourceId'}
-        workflowRole: {$ref: '#/components/schemas/ResourceId'}
-        round: {type: integer, minimum: 0, maximum: 2147483647}
-        items: {type: integer, minimum: 0, maximum: 2147483647}
         members: {type: integer, minimum: 0, maximum: 2147483647}
         count: {type: integer, minimum: 0, maximum: 2147483647}
         createdCount: {type: integer, minimum: 0, maximum: 128}
         workCount: {type: integer, minimum: 0, maximum: 256}
+        iteration: {type: integer, minimum: 1, maximum: 32}
         taskCount: {type: integer, minimum: 0, maximum: 64}
         workflow: {$ref: '#/components/schemas/AuditCommonKey'}
     AuditEvent:
@@ -14437,20 +14112,6 @@ components:
       properties:
         items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/Audit'}}
         page: {$ref: '#/components/schemas/PageInfo'}
-    AuditRoundState: {type: string, enum: [proposed, accepted, executing, assessing, closed]}
-    AuditRound:
-      type: object
-      additionalProperties: false
-      required: [roundId, ordinal, manifest, state, expectedItemCount, revision, createdAt, updatedAt]
-      properties:
-        roundId: {$ref: '#/components/schemas/ResourceId'}
-        ordinal: {type: integer, minimum: 1, maximum: 32}
-        manifest: {$ref: '#/components/schemas/AuditExactArtifact'}
-        state: {$ref: '#/components/schemas/AuditRoundState'}
-        expectedItemCount: {type: integer, minimum: 0, maximum: 10000}
-        revision: {type: integer, minimum: 1}
-        createdAt: {type: string, format: date-time}
-        updatedAt: {type: string, format: date-time}
     AuditCommonKey:
       type: string
       minLength: 1
@@ -14805,9 +14466,6 @@ components:
             $ref: '#/components/schemas/AuditTask'
         page:
           $ref: '#/components/schemas/PageInfo'
-    AuditItemState: {type: string, enum: [pending, ready, submitted, collecting, settled]}
-    AuditFinalDisposition: {type: string, enum: [accepted-result, missing-output, invalid-result, execution-failed, execution-cancelled, excluded, not-applicable]}
-    AuditExecutionRole: {type: string, enum: [prepare, discovery, check, assessment]}
     AuditExecutionItemState: {type: string, enum: [submitted, collecting, settled]}
     AuditTerminalOutcome: {type: string, enum: [succeeded, failed, cancelled, submission-failed]}
     AuditCollectionDisposition: {type: string, enum: [accepted-result, missing-output, invalid-result, execution-failed, execution-cancelled, collection-contract-invalid]}
@@ -14829,158 +14487,12 @@ components:
         schema: {type: string, const: contractor.audit.run-provenance.v1}
         runId: {$ref: '#/components/schemas/ResourceId'}
         workflow: {$ref: '#/components/schemas/AuditWorkflowProvenance'}
-    AuditItemAttempt:
-      type: object
-      additionalProperties: false
-      required: [executionItemId, executionId, itemId, itemAttempt, role, state, runDeleted, createdAt]
-      properties:
-        executionItemId: {$ref: '#/components/schemas/ResourceId'}
-        executionId: {$ref: '#/components/schemas/ResourceId'}
-        itemId: {$ref: '#/components/schemas/ResourceId'}
-        itemAttempt: {type: integer, minimum: 1, maximum: 10}
-        role: {$ref: '#/components/schemas/AuditExecutionRole'}
-        state: {$ref: '#/components/schemas/AuditExecutionItemState'}
-        collectionDisposition: {$ref: '#/components/schemas/AuditCollectionDisposition'}
-        result: {$ref: '#/components/schemas/AuditExactArtifact'}
-        terminalOutcome: {$ref: '#/components/schemas/AuditTerminalOutcome'}
-        runId: {$ref: '#/components/schemas/ResourceId'}
-        runDeleted: {type: boolean}
-        runProvenance: {$ref: '#/components/schemas/AuditRunProvenance'}
-        createdAt: {type: string, format: date-time}
-        collectedAt: {type: string, format: date-time}
-    AuditItemOrigin:
-      type: object
-      additionalProperties: false
-      required: [schema, sourceRef, sourceContentDigest, sourceMediaType, canonicalInventoryDigest, entryKey]
-      properties:
-        schema: {type: string, const: contractor.audit.item-origin.v1}
-        sourceRef: {$ref: '#/components/schemas/ArtifactRef'}
-        sourceContentDigest: {$ref: '#/components/schemas/Digest'}
-        sourceMediaType: {type: string, minLength: 3, maxLength: 255, pattern: '^[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*$'}
-        canonicalInventoryDigest: {$ref: '#/components/schemas/Digest'}
-        entryKey: {type: string, minLength: 1, maxLength: 256}
-        entryVersion: {type: string, minLength: 1, maxLength: 256}
-        standard: {$ref: '#/components/schemas/AuditStandardItemOrigin'}
-    AuditStandardEvidenceOrigin:
-      type: object
-      additionalProperties: false
-      required: [id, version]
-      properties:
-        id: {type: string, minLength: 1, maxLength: 128}
-        version: {type: string, minLength: 1, maxLength: 128}
-    AuditStandardItemOrigin:
-      type: object
-      additionalProperties: false
-      required: [scheme, version, mappingKey, entryIds, evidenceContract]
-      properties:
-        scheme: {type: string, minLength: 1, maxLength: 128}
-        version: {type: string, minLength: 1, maxLength: 128}
-        mappingKey: {type: string, minLength: 1, maxLength: 128}
-        entryIds:
-          type: array
-          minItems: 1
-          maxItems: 64
-          uniqueItems: true
-          items: {type: string, minLength: 1, maxLength: 128}
-        evidenceContract: {$ref: '#/components/schemas/AuditStandardEvidenceOrigin'}
     AuditArtifactKey:
       type: string
       minLength: 1
       maxLength: 512
       x-max-utf8-bytes: 512
       description: The logical key of one committed Audit receipt link, at most 512 UTF-8 bytes (LIM-AUD-39).
-    AuditSubjectKey:
-      type: string
-      minLength: 1
-      maxLength: 512
-      x-max-utf8-bytes: 512
-      description: The subject key of an Audit item, at most 512 UTF-8 bytes (LIM-AUD-40).
-    AuditItem:
-      type: object
-      additionalProperties: false
-      required:
-      - itemId
-      - roundId
-      - itemKey
-      - ordinal
-      - kind
-      - subjectKey
-      - task
-      - origin
-      - workflowRole
-      - state
-      - attempts
-      - createdAt
-      - updatedAt
-      - findingIds
-      properties:
-        itemId:
-          $ref: '#/components/schemas/ResourceId'
-        roundId:
-          $ref: '#/components/schemas/ResourceId'
-        itemKey:
-          type: string
-          minLength: 1
-          maxLength: 256
-        ordinal:
-          type: integer
-          minimum: 0
-          maximum: 9999
-        kind:
-          type: string
-          minLength: 1
-          maxLength: 128
-        subjectKey:
-          $ref: '#/components/schemas/AuditSubjectKey'
-        task:
-          $ref: '#/components/schemas/AuditExactArtifact'
-        origin:
-          $ref: '#/components/schemas/AuditItemOrigin'
-        workflowRole:
-          $ref: '#/components/schemas/ArtifactName'
-        state:
-          $ref: '#/components/schemas/AuditItemState'
-        finalDisposition:
-          $ref: '#/components/schemas/AuditFinalDisposition'
-        acceptedResult:
-          $ref: '#/components/schemas/AuditExactArtifact'
-        lastExecutionItemId:
-          $ref: '#/components/schemas/ResourceId'
-        attempts:
-          type: array
-          maxItems: 10
-          items:
-            $ref: '#/components/schemas/AuditItemAttempt'
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
-        findingIds:
-          type: array
-          maxItems: 130
-          uniqueItems: true
-          items:
-            $ref: '#/components/schemas/ResourceId'
-    AuditItemPage:
-      type: object
-      additionalProperties: false
-      required: [items, page]
-      properties:
-        items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/AuditItem'}}
-        page: {$ref: '#/components/schemas/PageInfo'}
-    AuditCoverageStatus: {type: string, enum: [not-tested, inconclusive, satisfied, violated, not-applicable, blocked, excluded, traced-complete, traced-partial, unmapped]}
-    AuditCoverage:
-      type: object
-      additionalProperties: false
-      required: [status, requested, completed, gaps]
-      properties:
-        status: {$ref: '#/components/schemas/AuditCoverageStatus'}
-        requested: {type: array, maxItems: 1024, items: {type: string, maxLength: 512}}
-        completed: {type: array, maxItems: 1024, items: {type: string, maxLength: 512}}
-        gaps: {type: array, maxItems: 1024, items: {type: string, maxLength: 512}}
-        rationale: {type: string, maxLength: 4096}
     AuditScanProvenance:
       type: object
       additionalProperties: false
@@ -14996,84 +14508,6 @@ components:
         runnable: {type: boolean}
         testParameters: {type: array, maxItems: 64, uniqueItems: true, items: {type: string, minLength: 1, maxLength: 128}}
         gaps: {type: array, maxItems: 1024, items: {type: string, maxLength: 512}}
-    AuditCoverageDetails:
-      type: object
-      additionalProperties: false
-      required: [objective, methods, taskDocument, evidence]
-      properties:
-        scan: {$ref: '#/components/schemas/AuditScanProvenance'}
-        objective: {type: string}
-        methods: {type: array, items: {type: string}}
-        taskDocument:
-          type: object
-          additionalProperties: true
-          description: Exact retained item-task document given to the worker, independent of the selected checklist or profile.
-        resultSummary: {type: string}
-        evidence:
-          type: array
-          items:
-            type: object
-            additionalProperties: false
-            required: [id, kind, summary]
-            properties:
-              id: {type: string}
-              kind: {type: string}
-              summary: {type: string}
-              contentMemberId: {type: string, minLength: 1, maxLength: 128}
-              observedAt: {type: string, format: date-time}
-              deploymentMarker: {type: string, minLength: 1, maxLength: 256}
-              httpRequestId: {type: string, pattern: '^[1-9][0-9]{0,15}$'}
-              httpRequestTag: {type: string, minLength: 1, maxLength: 160}
-    AuditCoverageRow:
-      type: object
-      additionalProperties: false
-      required:
-      - roundId
-      - itemId
-      - ordinal
-      - itemKey
-      - subjectKey
-      - coverage
-      - updatedAt
-      - findingIds
-      properties:
-        roundId:
-          $ref: '#/components/schemas/ResourceId'
-        itemId:
-          $ref: '#/components/schemas/ResourceId'
-        ordinal:
-          type: integer
-          minimum: 0
-          maximum: 9999
-        itemKey:
-          type: string
-          minLength: 1
-          maxLength: 256
-        subjectKey:
-          $ref: '#/components/schemas/AuditSubjectKey'
-        coverage:
-          $ref: '#/components/schemas/AuditCoverage'
-        details:
-          $ref: '#/components/schemas/AuditCoverageDetails'
-        result:
-          $ref: '#/components/schemas/AuditExactArtifact'
-        updatedAt:
-          type: string
-          format: date-time
-        findingIds:
-          type: array
-          maxItems: 130
-          uniqueItems: true
-          items:
-            $ref: '#/components/schemas/ResourceId'
-    AuditCoveragePage:
-      type: object
-      additionalProperties: false
-      required: [items, page, auditRevision]
-      properties:
-        items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/AuditCoverageRow'}}
-        page: {$ref: '#/components/schemas/PageInfo'}
-        auditRevision: {type: integer, minimum: 1, description: The Audit revision every row of this page was read at.}
     AuditReportSummaryArtifact:
       type: object
       additionalProperties: false
@@ -15608,19 +15042,18 @@ components:
     AuditWorkspace:
       type: object
       additionalProperties: false
-      required: [auditId, auditRevision, asOf, executionState, outstandingRuns, totalChecks, completedChecks, issues, gaps, unchecked, findings, unreviewedFindings]
+      required: [auditId, auditRevision, asOf, iteration, executionState, outstandingRuns, totalTasks, completedTasks, gaps, pendingTasks, findings, unreviewedFindings]
       properties:
         auditId: {$ref: '#/components/schemas/ResourceId'}
         auditRevision: {type: integer, minimum: 1}
         asOf: {type: string, format: date-time}
-        roundId: {$ref: '#/components/schemas/ResourceId'}
+        iteration: {type: integer, minimum: 1, maximum: 32}
         executionState: {$ref: '#/components/schemas/AuditState'}
         outstandingRuns: {type: integer, minimum: 0}
-        totalChecks: {type: integer, minimum: 0}
-        completedChecks: {type: integer, minimum: 0}
-        issues: {type: integer, minimum: 0}
+        totalTasks: {type: integer, minimum: 0}
+        completedTasks: {type: integer, minimum: 0}
         gaps: {type: integer, minimum: 0}
-        unchecked: {type: integer, minimum: 0}
+        pendingTasks: {type: integer, minimum: 0}
         findings: {type: integer, minimum: 0}
         unreviewedFindings: {type: integer, minimum: 0}
     OwnerFindingPage:

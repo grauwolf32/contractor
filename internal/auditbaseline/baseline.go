@@ -4,10 +4,8 @@ package auditbaseline
 
 import (
 	"github.com/grauwolf32/contractor/internal/agentskills"
-	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
@@ -21,15 +19,6 @@ type Scope struct {
 	Objective          string `json:"objective,omitempty"`
 	Target             string `json:"target,omitempty"`
 	AuthorizationScope string `json:"authorizationScope,omitempty"`
-}
-
-type BaselineInventory struct {
-	SourceContentDigest      string                               `json:"sourceContentDigest"`
-	CanonicalInventoryDigest string                               `json:"canonicalInventoryDigest"`
-	StandardSelection        *auditprofile.AuditStandardSelection `json:"standardSelection,omitempty"`
-	Gaps                     []string                             `json:"gaps"`
-	Worklist                 auditstore.ExactArtifact             `json:"worklist"`
-	ExecutionManifest        auditdomain.ExecutionManifest        `json:"executionManifest"`
 }
 
 type BaselineSnapshot struct {
@@ -48,5 +37,4 @@ type BaselineSnapshot struct {
 	RuntimeCredentialIDs    []string                             `json:"runtimeCredentialIds"`
 	ProjectHTTPTarget       *runtimesettings.HTTPOriginTargetRef `json:"projectHttpTarget,omitempty"`
 	Standards               []auditstandards.PinnedPackage       `json:"standards"`
-	Inventory               *BaselineInventory                   `json:"inventory,omitempty"`
 }

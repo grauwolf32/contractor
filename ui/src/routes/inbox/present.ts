@@ -6,10 +6,9 @@
 import type { Audit, AuditWorkspace } from "../../api/audits";
 import type { CrossProjectCheck } from "../../api/cross-project";
 import type { RunStatus, RunSummary } from "../../api/runs";
-import { formatNumber, plural } from "../../app/format";
+import { formatNumber } from "../../app/format";
 import {
   checkItemKind,
-  COVERAGE_STATUS_LABELS,
   itemCount,
   itemNoun,
   type ItemKind,
@@ -121,10 +120,9 @@ export function rowPage(row: InboxRow): string {
 interface CheckProgress {
   kind: ItemKind;
   total: number;
-  /** Concluded items, including those with an issue found. */
+  /** Tasks settled without a technical gap. */
   done: number;
-  issues: number;
-  /** Blocked, inconclusive, partially traced, unmapped or excluded items. */
+  /** Tasks settled with a technical gap. */
   gaps: number;
   unchecked: number;
   segments: ProgressSegment[];
@@ -144,38 +142,25 @@ function repeat(entry: ProgressSegment, times: number): ProgressSegment[] {
 
 export const PROGRESS_LABELS = {
   done: "Done",
-  issue: COVERAGE_STATUS_LABELS.violated.label,
-  followUp: "Needs follow-up",
-  unchecked: COVERAGE_STATUS_LABELS["not-tested"].label,
+  followUp: "Gaps",
+  unchecked: "Pending",
 } as const;
 
-/**
- * One segment per item of the current round, grouped by outcome: done, issue
- * found, needs follow-up, not checked yet. The workspace has counts only, so
- * the line keeps their proportions, not the items' list order.
- */
+/** Task progress from one consistent Server workspace snapshot. */
 export function checkProgress(
   workspace: AuditWorkspace,
   kind: ItemKind,
 ): CheckProgress {
-  const total = count(workspace.totalChecks);
-  const done = Math.min(count(workspace.completedChecks), total);
-  const issues = Math.min(count(workspace.issues), done);
+  const total = count(workspace.totalTasks);
+  const done = Math.min(count(workspace.completedTasks), total);
   const gaps = Math.min(count(workspace.gaps), total - done);
   const unchecked = Math.max(0, total - done - gaps);
   const segments = [
-    ...repeat({ tone: "done", label: PROGRESS_LABELS.done }, done - issues),
-    ...repeat(
-      {
-        tone: COVERAGE_STATUS_LABELS.violated.tone,
-        label: PROGRESS_LABELS.issue,
-      },
-      issues,
-    ),
+    ...repeat({ tone: "done", label: PROGRESS_LABELS.done }, done),
     ...repeat({ tone: "partial", label: PROGRESS_LABELS.followUp }, gaps),
     ...repeat(
       {
-        tone: COVERAGE_STATUS_LABELS["not-tested"].tone,
+        tone: "idle" as const,
         label: PROGRESS_LABELS.unchecked,
       },
       unchecked,
@@ -186,15 +171,13 @@ export function checkProgress(
       ? `No ${itemNoun(kind, 0)} listed yet`
       : `${formatNumber(done)} of ${itemCount(kind, total)} done`;
   const details = [
-    issues > 0 ? `${formatNumber(issues)} with an issue found` : "",
-    gaps > 0 ? `${plural(gaps, "needs", "need")} follow-up` : "",
-    unchecked > 0 ? `${formatNumber(unchecked)} not checked yet` : "",
+    gaps > 0 ? `${formatNumber(gaps)} with gaps` : "",
+    unchecked > 0 ? `${formatNumber(unchecked)} pending` : "",
   ].filter((part) => part !== "");
   return {
     kind,
     total,
     done,
-    issues,
     gaps,
     unchecked,
     segments,

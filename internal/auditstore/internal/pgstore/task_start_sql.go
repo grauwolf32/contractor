@@ -1,7 +1,6 @@
 package pgstore
 
 // Activation uses the ordinary Audit event allocator and Artifact link owner.
-// The transitional physical phase column disappears with the retired schema.
 var commonStartedEvents = auditEvents(auditEvent("'audit.started'", "audit.audit_id", "audit.revision", "'{}'::jsonb"))
 
 var activateAuditSQL = `
@@ -10,7 +9,7 @@ WITH project_gate AS MATERIALIZED (
  FROM audits WHERE audit_id=$2 AND owner_id=$1
 ), started AS (
  UPDATE audits AS audit
- SET baseline_snapshot=$4::jsonb,phase='rounds',state='active',hold_state='held',
+ SET baseline_snapshot=$4::jsonb,state='active',hold_state='held',
      dispatch_state='open',deadline_at=$5,retained_evidence_bytes=$7,
      started_at=clock_timestamp(),updated_at=clock_timestamp(),` + commonStartedEvents.advance() + `
  FROM project_gate

@@ -62,6 +62,6 @@ func (s *Service) validateProfileDependencies(
 }
 
 func (s *Service) startedProjection(_ context.Context, audit auditstore.Audit, replayed bool) (StartedAudit, error) {
-	return StartedAudit{Audit: audit, Items: []auditstore.Item{}, Replayed: replayed}, nil
+	return StartedAudit{Audit: audit, Replayed: replayed}, nil
 }
 func timeDurationSeconds(value int) time.Duration { return time.Duration(value) * time.Second }

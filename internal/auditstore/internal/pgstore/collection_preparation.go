@@ -6,31 +6,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 )
 
-type collectionItemJSON struct {
-	ExecutionItemID     string                   `json:"execution_item_id"`
-	Disposition         string                   `json:"disposition"`
-	ResultRef           json.RawMessage          `json:"result_ref,omitempty"`
-	ResultDigest        *string                  `json:"result_digest,omitempty"`
-	Retryable           bool                     `json:"retryable"`
-	FinalDisposition    string                   `json:"final_disposition"`
-	Status              string                   `json:"status"`
-	Requested           []string                 `json:"requested"`
-	Completed           []string                 `json:"completed"`
-	Gaps                []string                 `json:"gaps"`
-	Rationale           string                   `json:"rationale"`
-	FindingAssociations []findingAssociationJSON `json:"finding_associations"`
-}
-
-type findingAssociationJSON struct {
-	AssessmentID       string          `json:"assessment_id"`
-	ReceiptID          string          `json:"receipt_id"`
-	ProposalRef        json.RawMessage `json:"proposal_ref"`
-	ProposalDigest     string          `json:"proposal_digest"`
-	ProposalMediaType  string          `json:"proposal_media_type"`
-	ProposalSizeBytes  int64           `json:"proposal_size_bytes"`
-	SemanticAssessment string          `json:"semantic_assessment"`
-}
-
 type artifactLinkJSON struct {
 	Scope            string          `json:"artifact_scope"`
 	LogicalKey       string          `json:"logical_key"`
@@ -51,7 +26,7 @@ type collectionWrite struct {
 // prepareCollectionWrite projects already validated parameters. It runs after
 // the replay lookup and performs no reads or durable mutations.
 func prepareCollectionWrite(params auditstore.CollectParams) collectionWrite {
-	encodedItems := prepareCollectionItems(params)
+	encodedItems := prepareTaskCollection(params)
 	encodedLinks, retainedBytes := prepareRetainedLinks(params)
 	retainedSnapshot := append([]auditstore.ArtifactLink{}, params.Retained...)
 	encodedRetained, _ := json.Marshal(retainedSnapshot)
@@ -63,43 +38,6 @@ func prepareCollectionWrite(params auditstore.CollectParams) collectionWrite {
 		sourceDigest = &value
 	}
 	return collectionWrite{items: encodedItems, links: encodedLinks, retained: encodedRetained, sourceRef: sourceRef, sourceDigest: sourceDigest, retainedBytes: retainedBytes}
-}
-
-func prepareCollectionItems(params auditstore.CollectParams) json.RawMessage {
-	if len(params.Tasks) != 0 {
-		return prepareTaskCollection(params)
-	}
-	items := make([]collectionItemJSON, len(params.Items))
-	for index, item := range params.Items {
-		var resultRef json.RawMessage
-		var resultDigest *string
-		if item.Result != nil {
-			resultRef, _ = json.Marshal(item.Result.Ref)
-			value := item.Result.Digest
-			resultDigest = &value
-		}
-		associations := make([]findingAssociationJSON, len(item.FindingAssociations))
-		for associationIndex, association := range item.FindingAssociations {
-			proposalRef, _ := json.Marshal(association.Proposal.Ref)
-			associations[associationIndex] = findingAssociationJSON{
-				AssessmentID: association.AssessmentID, ReceiptID: association.ReceiptID,
-				ProposalRef: proposalRef, ProposalDigest: association.Proposal.Digest,
-				ProposalMediaType:  association.Proposal.MediaType,
-				ProposalSizeBytes:  association.Proposal.SizeBytes,
-				SemanticAssessment: association.SemanticAssessment,
-			}
-		}
-		items[index] = collectionItemJSON{
-			ExecutionItemID: item.ExecutionItemID, Disposition: string(item.Disposition),
-			ResultRef: resultRef, ResultDigest: resultDigest, Retryable: item.Retryable,
-			FinalDisposition: string(item.FinalDisposition), Status: string(item.Coverage.Status),
-			Requested: nonNilStrings(item.Coverage.Requested), Completed: nonNilStrings(item.Coverage.Completed),
-			Gaps: nonNilStrings(item.Coverage.Gaps), Rationale: item.Coverage.Rationale,
-			FindingAssociations: associations,
-		}
-	}
-	encoded, _ := json.Marshal(items)
-	return encoded
 }
 
 func prepareRetainedLinks(params auditstore.CollectParams) (json.RawMessage, int64) {

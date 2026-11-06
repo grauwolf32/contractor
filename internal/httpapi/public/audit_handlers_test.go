@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -131,20 +130,7 @@ func TestAuditCreateStartQueryAndStableErrors(t *testing.T) {
 	management.audit.State = auditstore.AuditActive
 	management.audit.Revision = 2
 	management.audit.Hold = auditstore.HoldHeld
-	roundID := "round-one"
-	management.audit.CurrentRoundID = &roundID
-	management.started = auditservice.StartedAudit{
-		Audit: management.audit,
-		Round: auditstore.Round{RoundID: roundID, AuditID: management.audit.AuditID, Ordinal: 1,
-			Manifest: selection.Inputs["checklist"], State: auditstore.RoundAccepted,
-			ExpectedItemCount: 1, Revision: 1, CreatedAt: now, UpdatedAt: now},
-		Items: []auditstore.Item{{
-			ItemID: "item-one", AuditID: management.audit.AuditID, RoundID: roundID,
-			ItemKey: "check-one", Ordinal: 0, Kind: "checklist", SubjectKey: "check-one@1",
-			Task: selection.Inputs["checklist"], WorkflowRole: "check", State: auditstore.ItemReady,
-			CreatedAt: now, UpdatedAt: now,
-		}},
-	}
+	management.started = auditservice.StartedAudit{Audit: management.audit}
 	start := auditAuthenticatedRequest(http.MethodPost, "/v1/audits/audit-fixed/start", nil)
 	start.SetPathValue("auditId", "audit-fixed")
 	start.Header.Set("Idempotency-Key", "start-audit")
@@ -327,8 +313,6 @@ type fakeAuditManagement struct {
 	standards         []auditstandards.PackageProjection
 	audit             auditstore.Audit
 	started           auditservice.StartedAudit
-	attempts          map[string][]auditstore.ItemAttempt
-	coverage          auditservice.CoveragePage
 	artifactRead      artifacts.ReadResult
 	created           auditservice.CreateDraftParams
 	start             auditservice.StartParams
@@ -479,41 +463,6 @@ func (f *fakeAuditManagement) List(_ context.Context, p auditstore.ListParams) (
 	return []auditstore.Audit{f.audit}, nil
 }
 
-func (f *fakeAuditManagement) ListItems(_ context.Context, params auditstore.ListItemsParams) ([]auditstore.Item, error) {
-	if err := fakePageFetch(params.Limit, auditstore.ErrInvalid); err != nil {
-		return nil, err
-	}
-	return append([]auditstore.Item(nil), f.started.Items...), f.err
-}
-
-func (f *fakeAuditManagement) ListItemAttempts(
-	_ context.Context, _, _ string, itemIDs []string,
-) (map[string][]auditstore.ItemAttempt, error) {
-	if len(itemIDs) == 0 || len(itemIDs) > pagelimit.MaxRows {
-		return nil, fmt.Errorf("%w: fake attempt selection of %d items", auditstore.ErrInvalid, len(itemIDs))
-	}
-	// Like the store, the result answers every requested item, with an empty
-	// list for an item without attempts.
-	attempts := make(map[string][]auditstore.ItemAttempt, len(itemIDs))
-	for _, itemID := range itemIDs {
-		attempts[itemID] = append([]auditstore.ItemAttempt{}, f.attempts[itemID]...)
-	}
-	return attempts, f.err
-}
-
-func (f *fakeAuditManagement) GetRound(context.Context, string, string, string) (auditstore.Round, error) {
-	return f.started.Round, f.err
-}
-
-func (f *fakeAuditManagement) ListCoverage(
-	_ context.Context, _, _, _ string, _ int, limit int, _ *uint64,
-) (auditservice.CoveragePage, error) {
-	if err := fakePageFetch(limit, auditstore.ErrInvalid); err != nil {
-		return auditservice.CoveragePage{}, err
-	}
-	return f.coverage, f.err
-}
-
 func (f *fakeAuditManagement) GetReport(
 	context.Context, string, string,
 ) (auditservice.ReportProjection, error) {
@@ -573,7 +522,7 @@ var _ AuditManagement = (*fakeAuditManagement)(nil)
 var _ FindingProposalManagement = (*fakeFindingProposalManagement)(nil)
 
 func (f *fakeAuditManagement) GetWorkspace(_ context.Context, _, _ string) (auditstore.WorkspaceSummary, error) {
-	return auditstore.WorkspaceSummary{AuditID: f.audit.AuditID, AuditRevision: f.audit.Revision, AsOf: time.Now(), ExecutionState: string(f.audit.State)}, f.err
+	return auditstore.WorkspaceSummary{AuditID: f.audit.AuditID, AuditRevision: f.audit.Revision, AsOf: time.Now(), Iteration: 1, ExecutionState: string(f.audit.State)}, f.err
 }
 func (f *fakeAuditManagement) ListFindingsPage(ctx context.Context, params auditstore.FindingListParams) (auditservice.FindingPage, error) {
 	if params.AuditRevision != nil && *params.AuditRevision != f.audit.Revision {

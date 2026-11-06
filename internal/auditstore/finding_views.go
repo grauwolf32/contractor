@@ -113,14 +113,13 @@ type WorkspaceSummary struct {
 	AuditID            string    `json:"auditId"`
 	AuditRevision      uint64    `json:"auditRevision"`
 	AsOf               time.Time `json:"asOf"`
-	RoundID            *string   `json:"roundId,omitempty"`
+	Iteration          int       `json:"iteration"`
 	ExecutionState     string    `json:"executionState"`
 	OutstandingRuns    int       `json:"outstandingRuns"`
-	TotalChecks        int       `json:"totalChecks"`
-	CompletedChecks    int       `json:"completedChecks"`
-	Issues             int       `json:"issues"`
+	TotalTasks         int       `json:"totalTasks"`
+	CompletedTasks     int       `json:"completedTasks"`
 	Gaps               int       `json:"gaps"`
-	Unchecked          int       `json:"unchecked"`
+	PendingTasks       int       `json:"pendingTasks"`
 	Findings           int       `json:"findings"`
 	UnreviewedFindings int       `json:"unreviewedFindings"`
 }

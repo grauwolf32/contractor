@@ -124,9 +124,6 @@ func (c *Controller) reconcileTasks(ctx context.Context, claim auditstore.Contro
 }
 
 func (c *Controller) createTaskRun(ctx context.Context, claim auditstore.ControllerClaim, execution auditstore.Execution) (bool, error) {
-	if execution.Role != auditstore.ExecutionTask {
-		return c.failInvalidIntent(ctx, claim, execution.ExecutionID)
-	}
 	tasks, err := c.reads.ListExecutionTasks(ctx, claim.AuditID, execution.ExecutionID)
 	if err != nil {
 		return false, err

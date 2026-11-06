@@ -4,13 +4,11 @@ Requirement prefix: `AUD` · [Specification index](../README.md)
 
 ## Purpose and scope
 
-An `Audit` is the assessment abstraction above Workflows in Contractor's
-Application Security orchestration model. It defines a long-lived,
-Project-bound assessment against an immutable baseline, a selected scope and a
-versioned program. An AuditProfile selects Workflows for check, discovery or
-assessment roles. Audit coordinates their ordinary WorkflowRuns, deterministic
-inventory items, evidence, finding proposals, rounds and authenticated human
-decisions.
+An `Audit` durably coordinates ordinary WorkflowRuns within a Project against
+an immutable baseline and selected scope. Its common Program declares initial
+Tasks, optional hypotheses and continuation, allowed Workflows and bounds.
+Check verdicts, technical execution outcomes and evidenced Project Findings
+remain independent.
 
 [![Audit architecture: Project-bound coordination, ordinary WorkflowRuns, result collection, and persistent state](../../assets/contractor-audits.png)](../../assets/contractor-audits.png)
 
@@ -18,13 +16,14 @@ Executable AuditProfiles contain the common [Program](common-contract.md),
 with selected inputs, allowed ordinary Workflows, initial work and limits/policy.
 Accepted Tasks and ordinary Run attempts replace inventory/Round/role authoring.
 The public common projection is ACT-R15. The previous profile/round authoring
-requirements below are retired as execution contracts; independent retained
-projections and original provenance do not authorize a compatibility executor.
+requirements below are retired as execution contracts. Their internal ZIP
+codecs, Round/item/report-page tables and item/coverage API projections are
+removed. Historical facts survive only as exact opaque Project Artifacts under
+FND-R215; they confer no execution authority. No compatibility reader remains.
 
 This document owns the AuditProfile and the curated standard packages it
-pins, the Audit baseline and scope, the durable Audit domain model, Audit
-packages and their schemas, deterministic inventories, the Audit, Round and
-item lifecycle, and the public Audit API surface.
+pins, the Audit baseline and scope, common Task records and lifecycle, and the
+public Audit API surface. Common document schemas belong to ACT-R14.
 
 It leaves to other documents:
 
@@ -34,8 +33,8 @@ It leaves to other documents:
   proposal import from ordinary Runs: [review and reports](review-and-reports.md).
 - Check result collection and completion inside the Worker:
   [worker completion](worker-completion.md).
-- Preparation roles, the mapping-source contract for inventories and prepare
-  roles, pre-Round controls and OpenAPI scan checks: [scans](scans.md).
+- Deterministic OpenAPI preparation, scan settings and domain selection:
+  [scans](scans.md).
 - Finding proposals, the bundled CWE catalog and finding collections:
   [findings](../findings/findings.md).
 - Projects and output publication: [projects](../artifacts/projects.md);
@@ -66,8 +65,8 @@ document owns are:
 - **Audit.** A long-lived, Project-bound assessment against an immutable
   baseline, a selected scope and a versioned program.
 - **AuditProfile.** The versioned, operator-authored configuration document
-  that selects an Audit's mode, standards, inputs, inventory, Workflow roles,
-  execution limits and interaction policy.
+  that declares a common Program with inputs, allowed Workflows, initial work,
+  hypotheses, continuation, limits and policy.
 - **Audit Controller.** The Server component that owns coordination across
   Runs: rounds, items, child Run intents, collection, coverage and Audit
   budgets.
@@ -1365,12 +1364,11 @@ conventions are in [public API](../api/public-api.md).
 | `GET /v1/projects/{projectId}/audits` | Keyset list with state/profile filters |
 | `GET /v1/audits/{auditId}` | Authoritative projection and revision |
 | `POST /v1/audits/{auditId}/start` | CAS-pin baseline and enter active with an optional time-limit override |
-| `POST /v1/audits/{auditId}/pause` | Stop new Audit submissions; optionally gate admission |
+| `POST /v1/audits/{auditId}/pause` | Stop new Audit submissions and drain existing Runs |
 | `POST /v1/audits/{auditId}/resume` | Resume a paused Audit with an optional time-limit override |
 | `POST /v1/audits/{auditId}/cancel` | Close dispatch and bounded-cancel children |
-| `GET /v1/audits/{auditId}/items` | Paginated items filtered by round/state/subject |
-| `GET /v1/audits/{auditId}/coverage` | Requirement or operation matrix |
-| `GET /v1/audits/{auditId}/workspace` | Owner-scoped snapshot of current-round progress, gaps and findings |
+| `GET /v1/audits/{auditId}/tasks` | Bounded common Tasks with exact inputs and retained results |
+| `GET /v1/audits/{auditId}/workspace` | Owner-scoped snapshot of common Task progress, gaps and independent findings |
 | `GET /v1/audits/{auditId}/finding-proposals` | Paginated, oldest-first inbox of unconfirmed proposal receipts |
 | `POST /v1/audits/{auditId}/finding-proposal-imports` | Retain one exact ordinary-Run proposal and its evidence revisions in a compatible owned Audit; idempotent replay returns 200 |
 | `POST /v1/finding-collections` | Publish selected exact proposals as an ordinary finding collection (see [findings](../findings/findings.md)) |
@@ -1391,8 +1389,8 @@ endpoints is specified in [review and reports](review-and-reports.md); the
 [ui](../ui/ui.md); the events endpoint in AUD-R210 to
 AUD-R214.
 
-Wire names owned here include `phase` (AUD-R190) and `currentRoundId`
-(AUD-R194), `deadlineSeconds`, `deadlineAt` and `pausedAt`
+The former `phase` (AUD-R190) and `currentRoundId` (AUD-R194) wire fields are
+retired. Current wire names include `deadlineSeconds`, `deadlineAt` and `pausedAt`
 (AUD-R206, AUD-R209), `serverCompatible`
 (AUD-R93) and `throughSequence` (AUD-R211).
 

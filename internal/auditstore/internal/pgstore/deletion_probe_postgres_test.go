@@ -43,10 +43,7 @@ SELECT audit.project_id
    AND audit.dispatch_state = 'closed' AND audit.hold_state <> 'held'
    AND audit.deletion_requested_at IS NOT NULL
    AND ` + auditClaims.LiveCondition("claim", "$2", "$3") + `
-   AND NOT EXISTS (
-       SELECT 1 FROM audit_items AS item
-        WHERE item.audit_id = audit.audit_id AND item.state <> 'settled'
-   )
+   AND NOT EXISTS (SELECT 1 FROM audit_tasks AS task WHERE task.audit_id=audit.audit_id AND task.state<>'settled')
    AND NOT ` + uncollectedExecutionSQL + `
    AND NOT EXISTS (
        SELECT 1
@@ -181,8 +178,6 @@ func addDeletionProbeExecutions(t *testing.T, f deletionProbeFixture, groups ...
 		}
 		if group.audit != f.audit.AuditID {
 			// Another Audit's executions belong to no Round of it.
-			overrides["round_id"], overrides["role"] = `NULL`, `'task'`
-			overrides["role_attempt"] = `NULL`
 		}
 		overrides["run_deleted_at"] = `NULL`
 		if group.gone {

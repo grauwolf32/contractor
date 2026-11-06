@@ -374,7 +374,7 @@ func newCommonTaskRunFixtureWithWorkflow(t *testing.T, contextInput bool, config
 		t.Fatal(err)
 	}
 	baseline, _ := json.Marshal(auditbaseline.BaselineSnapshot{Schema: auditbaseline.Schema, Labels: map[string]string{}, RequiredPlacementLabels: []string{}, Inputs: map[string]auditstore.ExactArtifact{"source": source}, ActiveChecks: contracts.ActiveChecksProhibited, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(), RuntimeLabels: []string{}, Skills: []agentskills.RunSkillSnapshot{}, LLMCredentialIDs: []string{}, RuntimeCredentialIDs: []string{}, Standards: []auditstandards.PinnedPackage{}})
-	if _, err := pool.Exec(ctx, `UPDATE audits SET state='active',phase='rounds',started_at=clock_timestamp(),baseline_snapshot=$2 WHERE audit_id=$1`, audit.AuditID, baseline); err != nil {
+	if _, err := pool.Exec(ctx, `UPDATE audits SET state='active',started_at=clock_timestamp(),baseline_snapshot=$2 WHERE audit_id=$1`, audit.AuditID, baseline); err != nil {
 		t.Fatal(err)
 	}
 	projectScope, _ := artifacts.ProjectScope(project.ProjectID)
@@ -452,10 +452,6 @@ func TestSharedPostgresCommonTaskCreatesOrdinaryRunAndReplays(t *testing.T) {
 			audit, err := f.audits.Get(t.Context(), "owner", f.audit.AuditID)
 			if err != nil || audit.ReservedRunCount != 1 || audit.SubmittedRunCount != 1 {
 				t.Fatalf("duplicate reservation or submission: %+v %v", audit, err)
-			}
-			var rounds int
-			if err := f.pool.QueryRow(t.Context(), `SELECT count(*) FROM audit_rounds WHERE audit_id=$1`, f.audit.AuditID).Scan(&rounds); err != nil || rounds != 0 {
-				t.Fatalf("invented legacy Round: %d %v", rounds, err)
 			}
 		})
 	}

@@ -123,13 +123,6 @@ WITH live_claim AS MATERIALIZED (
        SET state = 'collecting'
       FROM changed
      WHERE item.execution_id = changed.execution_id AND item.state = 'submitted'
-), collecting_domain_items AS (
-    UPDATE audit_items AS item
-       SET state = 'collecting',
-           updated_at = GREATEST(clock_timestamp(), item.updated_at + interval '1 microsecond')
-      FROM audit_execution_items AS member, changed
-     WHERE member.execution_id = changed.execution_id
-       AND item.item_id = member.item_id AND item.state = 'submitted'
 ), advanced_audit AS (
     UPDATE audits AS audit
        SET outstanding_run_count = audit.outstanding_run_count - 1,
@@ -180,13 +173,6 @@ WITH live_claim AS MATERIALIZED (
     UPDATE audit_execution_items AS item SET state = 'collecting'
       FROM changed
      WHERE item.execution_id = changed.execution_id AND item.state = 'submitted'
-), collecting_domain_items AS (
-    UPDATE audit_items AS item
-       SET state = 'collecting',
-           updated_at = GREATEST(clock_timestamp(), item.updated_at + interval '1 microsecond')
-      FROM audit_execution_items AS member, changed
-     WHERE member.execution_id = changed.execution_id
-       AND item.item_id = member.item_id AND item.state = 'submitted'
 ), advanced_audit AS (
     UPDATE audits AS audit
        SET outstanding_run_count = audit.outstanding_run_count - 1,

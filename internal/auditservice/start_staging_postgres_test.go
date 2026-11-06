@@ -47,7 +47,7 @@ func TestAuditStartRetriesAtomicActivationWithoutStagedPackages(t *testing.T) {
 		t.Fatalf("invented staged packages: %v", staged)
 	}
 	started, err := service.Start(ctx, params)
-	if err != nil || started.Replayed || started.Audit.State != auditstore.AuditActive || started.Audit.CurrentRoundID != nil {
+	if err != nil || started.Replayed || started.Audit.State != auditstore.AuditActive {
 		t.Fatalf("retried activation=%+v error=%v", started, err)
 	}
 }

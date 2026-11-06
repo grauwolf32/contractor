@@ -135,7 +135,7 @@ func scanAudit(row scanner) (auditstore.Audit, error) {
 		&result.AuditID, &result.OwnerID, &result.ProjectID,
 		&result.Profile.Name, &result.Profile.Version, &result.Profile.Digest,
 		&result.ProfileSnapshot, &result.InputSelection, &baseline,
-		&state, &revision, &result.CurrentRoundID, &result.Dispatch, &result.Hold,
+		&state, &revision, &result.Dispatch, &result.Hold,
 		&result.DeadlineAt, &result.Limits.MaxRounds, &result.Limits.BatchSize,
 		&result.Limits.MaxItemsPerRound, &result.Limits.MaxItemsTotal,
 		&result.Limits.MaxSubmittedRuns,
@@ -144,7 +144,7 @@ func scanAudit(row scanner) (auditstore.Audit, error) {
 		&result.OutstandingToolRunCount, &result.RetainedEvidenceBytes,
 		&eventSequence, &stopCode, &stopMessage,
 		&result.CreatedAt, &result.UpdatedAt, &result.StartedAt, &result.FinishedAt,
-		&result.DeletionRequestedAt, &result.PausedAt, &result.Phase,
+		&result.DeletionRequestedAt, &result.PausedAt,
 		&result.TaskCount, &result.TaskIteration, &result.IterationTaskCount, &result.InitialWorkOffset, &result.InitialHypothesisOffset,
 		&result.CollectionPending,
 	)
@@ -152,7 +152,7 @@ func scanAudit(row scanner) (auditstore.Audit, error) {
 		return auditstore.Audit{}, err
 	}
 	result.State = auditstore.AuditState(state)
-	if revision <= 0 || eventSequence < 0 || !result.State.Valid() || !result.Phase.Valid() ||
+	if revision <= 0 || eventSequence < 0 || !result.State.Valid() ||
 		(result.Dispatch != auditstore.DispatchOpen && result.Dispatch != auditstore.DispatchClosed) ||
 		(result.Hold != auditstore.HoldPending && result.Hold != auditstore.HoldHeld && result.Hold != auditstore.HoldReleased) ||
 		(result.DeletionRequestedAt == nil && result.State == auditstore.AuditDeleting) ||

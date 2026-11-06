@@ -560,12 +560,14 @@ suggest that an Audit is just one child Run.
 
 **EVM-R75.** For either kind, token measures aggregate one authoritative
 cumulative snapshot per unique Run or stage execution (LIM-EVM-7) across all
-included roles and retries.
+included ordinary Workflows and retries.
 
 **EVM-R76.** For an Audit, all owned child executions are resolved through
-authoritative Audit associations, not only item labels or the first item page;
-discovery and assessment work counts too. An Audit item list alone is not a
-complete execution inventory.
+authoritative common execution/Task associations, including supporting work
+and generation. Every child retains its Workflow alias and the iteration of
+its first ordered Task; a batch shares one iteration. A Task page or Run labels
+alone are not a complete execution inventory. Pages seek by `(audit_id,
+execution_id)` and never rescan other Audits to fill a page.
 
 **EVM-R77.** The bounded managed member execution-list endpoint exposes these
 authoritative associations to external clients as well as to the UI.
@@ -574,7 +576,7 @@ authoritative associations to external clients as well as to the UI.
 polling snapshots are never summed.
 
 **EVM-R79.** Missing children, truncated reports or unavailable finalizer or
-role accounting make the corresponding scope partial or unavailable. Child
+Workflow accounting make the corresponding scope partial or unavailable. Child
 counts do not change the expected member or scored denominator.
 
 **EVM-R80.** Cached tokens remain a subset of input tokens.
@@ -991,7 +993,13 @@ reachable by ID is specified by [PRJ-R9 and PRJ-R10](../artifacts/projects.md).
 
 **EVM-R152.** Native validators run in explicitly allowed bounded paths over
 exact artifacts. External check records do not trigger code import or a
-callback.
+callback. The registered Audit schemas are common result/conclusions and
+Finding proposal/collection. The former evidence, coverage and check-results
+envelopes are rejected. Common result validation checks bounded structure only;
+provenance acceptance still requires the trusted context at the Audit boundary.
+A structural pass neither scores an assertion nor creates a Finding, and
+missing selected output remains incomplete. The native policy pin changes with
+this registry change; previously pinned checks fail explicitly on mismatch.
 
 **EVM-R153.** Human review requires an explicit actor, rubric pin and exact
 result, with text and evidence bounds.
@@ -1477,7 +1485,7 @@ expected membership, receipts and Project deletion fences.
 | `GET /v1/eval-experiments/{id}/commands/{commandId}` | Durable accepted/running/completed/failed receipt and safe reason |
 | `POST /v1/eval-experiments/{id}/members/{memberId}/submissions` | `planSha256`; managed replay-safe submission receipt; server mode rejects external dispatch |
 | `GET /v1/eval-experiments/{id}/members` | Expected member page including zero/one verified receipt, state, result/assessment selection and conflicts; accepts a bound chart bin filter token |
-| `GET /v1/eval-experiments/{id}/members/{memberId}/executions` | Owner-scoped paginated parent/child execution refs with kind, role/round, exact association, observed status and inventory completeness; all Audit roles, no private inputs |
+| `GET /v1/eval-experiments/{id}/members/{memberId}/executions` | Owner-scoped paginated parent/child execution refs with kind, workflow/iteration, exact association, observed status and inventory completeness; all ordinary Audit executions, no private inputs |
 | `POST /v1/eval-experiments/{id}/members/{memberId}/results` | Versioned external collection/result with exact execution/artifact refs; cannot override authoritative execution state or server usage |
 | `GET /v1/eval-experiments/{id}/members/{memberId}/review` | Owner-only bounded review context: exact selected result, pinned rubric/check settings and evidence availability; omitted from execution and safe reports |
 | `POST /v1/eval-experiments/{id}/members/{memberId}/assessments` | Registered native-check request, human decision or external record; exact result digest, check pins, actor/producer and predecessor |

@@ -46,7 +46,7 @@ func newFindingScaleFixture(t *testing.T) findingScaleFixture {
 	t.Cleanup(cancel)
 	f.ctx = ctx
 	findingID := collectPurgeFinding(t, f, "receipt-finding-scale")
-	seedItemRows(t, f.ctx, f.pool, f.audit.AuditID, f.itemID)
+
 	type copySet struct {
 		audit, prefix        string
 		findings, executions int
@@ -93,9 +93,10 @@ func newFindingScaleFixture(t *testing.T) findingScaleFixture {
 			t.Fatal(err)
 		}
 		if copy.audit == f.audit.AuditID {
-			cloneRows(t, f.ctx, setup, "audit_items", "item_id", f.itemID, copy.findings, map[string]string{
-				"item_id": `'` + copy.prefix + `-finding-' || lpad(n::text,6,'0')`, "item_key": `'scale-review-item-'||n`, "origin": `jsonb_set(src.origin,'{entryKey}',to_jsonb('scale-review-item-'||n))`, "ordinal": `n`,
-				"state": `'ready'`, "final_disposition": `NULL`, "accepted_result_ref": `NULL`, "accepted_result_digest": `NULL`, "last_execution_item_id": `NULL`, "coverage_status": `'not-tested'`, "coverage_result_ref": `NULL`, "coverage_result_digest": `NULL`,
+			cloneRows(t, f.ctx, setup, "audit_tasks", "task_id", f.itemID, copy.findings, map[string]string{
+				"task_id": "'scale-task-'||n", "source_key": "'sha256:'||encode(sha256(convert_to('scale-task-'||n,'UTF8')),'hex')",
+				"document": "jsonb_set(src.document::jsonb,'{task_id}',to_jsonb('scale-task-'||n))::json", "ordinal": "src.ordinal+n",
+				"state": "'ready'", "attempts": "0", "last_execution_id": "NULL", "result": "NULL", "gap_code": "NULL",
 			})
 		}
 
@@ -103,7 +104,7 @@ func newFindingScaleFixture(t *testing.T) findingScaleFixture {
 
 		cloneRows(t, f.ctx, setup, "audit_executions", "execution_id", f.execution.ExecutionID, copy.executions, map[string]string{
 			"execution_id": `'` + copy.prefix + `-execution-' || n`, "audit_id": audit,
-			"round_id": `NULL`, "role": `'task'`, "role_attempt": `NULL`,
+
 			"submission_key":        `'` + copy.prefix + `-' || n`,
 			"run_id":                `'` + copy.prefix + `-run-' || n`,
 			"run_provenance":        `jsonb_set(src.run_provenance, '{runId}', to_jsonb('` + copy.prefix + `-run-' || n))`,

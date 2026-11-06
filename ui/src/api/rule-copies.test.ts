@@ -167,83 +167,6 @@ function stateListCopies(path: string, text: string): string[] {
   return found;
 }
 
-const AUDIT_PHASES = new Set<string>(schemaEnum("AuditPhase"));
-/** Phase sets owned by the predicates in states.ts, in lexical order. */
-const SHARED_PHASE_SETS = new Map([
-  ["inventory,preparing", "phases before Rounds"],
-  ["inventory,rounds", "phases past preparation"],
-]);
-
-/**
- * Conditions and lists that repeat a shared Audit phase predicate: a
- * chain of && and || whose comparisons with Audit phases compare with
- * exactly those two, or a list of exactly those two.
- */
-function phaseSetCopies(path: string, text: string): string[] {
-  const file = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true);
-  const found: string[] = [];
-  const line = (node: ts.Node) =>
-    file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1;
-  const isChain = (node: ts.Node): node is ts.BinaryExpression =>
-    ts.isBinaryExpression(node) &&
-    (node.operatorToken.kind === ts.SyntaxKind.BarBarToken ||
-      node.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken);
-  const leaves = (node: ts.Expression): ts.Expression[] => {
-    if (ts.isParenthesizedExpression(node)) return leaves(node.expression);
-    if (isChain(node)) return [...leaves(node.left), ...leaves(node.right)];
-    return [node];
-  };
-  const comparedPhases = (leaf: ts.Expression): string[] => {
-    if (
-      !ts.isBinaryExpression(leaf) ||
-      ![
-        ts.SyntaxKind.EqualsEqualsEqualsToken,
-        ts.SyntaxKind.ExclamationEqualsEqualsToken,
-        ts.SyntaxKind.EqualsEqualsToken,
-        ts.SyntaxKind.ExclamationEqualsToken,
-      ].includes(leaf.operatorToken.kind)
-    ) {
-      return [];
-    }
-    return [leaf.left, leaf.right].flatMap((side) =>
-      ts.isStringLiteral(side) && AUDIT_PHASES.has(side.text)
-        ? [side.text]
-        : [],
-    );
-  };
-  const phaseSet = (phases: readonly string[]) =>
-    SHARED_PHASE_SETS.get([...new Set(phases)].sort().join(","));
-  const visit = (node: ts.Node) => {
-    if (isChain(node)) {
-      const parts = leaves(node);
-      const shared = phaseSet(parts.flatMap(comparedPhases));
-      if (shared !== undefined) {
-        found.push(`${shared} at line ${line(node)}`);
-      }
-      parts.forEach(visit);
-      return;
-    }
-    if (
-      ts.isArrayLiteralExpression(node) &&
-      node.elements.every(ts.isStringLiteral)
-    ) {
-      const shared = phaseSet(
-        node.elements.map((element) => (element as ts.StringLiteral).text),
-      );
-      if (shared !== undefined) {
-        found.push(`${shared} at line ${line(node)}`);
-      }
-    }
-    ts.forEachChild(node, visit);
-  };
-  visit(file);
-  return found;
-}
-
-/**
- * The patterns a module compiles: regular-expression literals and the
- * string arguments of RegExp. Messages that quote a grammar are not rules.
- */
 function patternTexts(path: string, text: string): string[] {
   const file = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true);
   const texts: string[] = [];
@@ -298,22 +221,6 @@ describe("contract rules have one definition", () => {
       "state list [completed, failed]",
       "state list [running, cancelled]",
     ]);
-    expect(
-      phaseSetCopies(
-        "probe.ts",
-        'const a = audit.phase === "preparing" || audit.phase === "inventory";\n' +
-          'if ((phase !== "inventory" && phase !== "preparing") && ok) go();\n' +
-          'const before: AuditPhase[] = ["preparing", "inventory"];\n' +
-          'const prepared = phase === "inventory" || phase === "rounds";\n' +
-          'const runs = state === "preparing" || state === "running";\n' +
-          'const started = phase === "preparing" || ready(phase);\n',
-      ),
-    ).toEqual([
-      "phases before Rounds at line 1",
-      "phases before Rounds at line 2",
-      "phases before Rounds at line 3",
-      "phases past preparation at line 4",
-    ]);
   });
 
   it("finds no copy outside the shared definitions", () => {
@@ -328,9 +235,6 @@ describe("contract rules have one definition", () => {
         }
       }
       for (const copy of stateListCopies(path, text)) {
-        copies.push(`${name}: ${copy}`);
-      }
-      for (const copy of phaseSetCopies(path, text)) {
         copies.push(`${name}: ${copy}`);
       }
     }

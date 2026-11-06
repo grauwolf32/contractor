@@ -85,7 +85,7 @@ SELECT (SELECT count(*) FROM project_finding_audits WHERE audit_id = $1),
 			}
 			// One pass over the Audit's findings and one over its review
 			// requests, each row once.
-			within(t, mode, getWorkspaceSQL, workspaceArgs(owner, auditID), map[string]int64{
+			within(t, mode, getWorkspaceSQL, []any{owner, auditID}, map[string]int64{
 				"project_findings": findings, "project_finding_audits": findings, "audit_executions": 0,
 			})
 		})

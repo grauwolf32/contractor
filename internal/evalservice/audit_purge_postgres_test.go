@@ -63,16 +63,6 @@ func TestSharedPostgresEvalAuditWithDecidedHistoryPurges(t *testing.T) {
 func seedEvalAuditDecidedHistory(t *testing.T, pool *pgxpool.Pool, audit auditstore.Audit) {
 	t.Helper()
 	digest := "sha256:" + strings.Repeat("d", 64)
-	sourceRevision := "checks-r1"
-	origin, err := json.Marshal(auditstore.ItemOrigin{
-		Schema: auditstore.ItemOriginSchema, EntryKey: "check-decided",
-		SourceRef:           &contracts.ArtifactRef{Namespace: "inputs", Name: "checks", Revision: &sourceRevision},
-		SourceContentDigest: digest, SourceMediaType: "application/json",
-		CanonicalInventoryDigest: digest,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
 	workflow := &auditstore.WorkflowProvenance{
 		Name: "check", Version: "1", SchemaVersion: contracts.APIVersion, ClosureDigest: digest,
 	}
@@ -83,46 +73,24 @@ func seedEvalAuditDecidedHistory(t *testing.T, pool *pgxpool.Pool, audit auditst
 	if err != nil {
 		t.Fatal(err)
 	}
-	taskRef := `{"namespace":"audit-task-packages","name":"check-decided","revision":"task-r1"}`
 	resultRef := `{"namespace":"audit-results","name":"check-decided","revision":"result-r1"}`
 	statements := []struct {
 		sql  string
 		args []any
 	}{
-		{`
-INSERT INTO audit_rounds (
-    round_id, audit_id, ordinal, manifest_ref, manifest_digest, state, expected_item_count
-) VALUES ('round-decided', $1, 1,
-          '{"namespace":"audit-rounds","name":"round-decided","revision":"round-r1"}'::jsonb,
-          $2, 'closed', 1)`, []any{audit.AuditID, digest}},
-		{`
-INSERT INTO audit_items (
-    item_id, audit_id, round_id, item_key, ordinal, kind, subject_key,
-    task_ref, task_digest, origin, workflow_role, state,
-    coverage_status, coverage_requested, coverage_completed, coverage_gaps
-) VALUES ('item-decided', $1, 'round-decided', 'check-decided', 0, 'check',
-          'component-decided', $2::jsonb, $3, $4::jsonb, 'check-role', 'ready',
-          'not-tested', '[]', '[]', '[]')`,
-			[]any{audit.AuditID, taskRef, digest, origin}},
+		{`INSERT INTO audit_tasks(task_id,audit_id,source_key,source,document,batch_digest,ordinal,iteration)
+VALUES('task-decided',$1,$2,'{}',json_build_object('schema','contractor.audit.task.v1','task_id','task-decided','audit_id',$1::text,'workflow','check'),$2,1,1)`, []any{audit.AuditID, digest}},
 		{`
 INSERT INTO audit_executions (
-    lane_class, execution_id, audit_id, round_id, role, workflow_role, manifest_ref, manifest_digest,
+    lane_class, execution_id, audit_id, workflow_role,
     submission_key, request_digest, run_id, state, terminal_outcome,
     terminal_run_generation, terminal_run_sequence, terminal_observed_at,
     run_provenance, run_deleted_at
-) VALUES ('model', 'execution-decided', $1, 'round-decided', 'check', 'check-role',
-          '{"namespace":"audit-executions","name":"check-decided","revision":"execution-r1"}'::jsonb,
-          $2, 'submission-decided', $2, 'deleted-run-decided', 'collected', 'succeeded',
+) VALUES ('model', 'execution-decided', $1, 'check-role', 'submission-decided', $2, 'deleted-run-decided', 'collected', 'succeeded',
           'generation-one', 1, clock_timestamp(), $3::jsonb, clock_timestamp())`,
 			[]any{audit.AuditID, digest, runProvenance}},
-		{`
-INSERT INTO audit_execution_items (
-    execution_item_id, execution_id, audit_id, round_id, item_id,
-    batch_ordinal, item_attempt, task_ref, task_digest, input_refs,
-    state, collection_disposition, result_ref, result_digest, collected_at
-) VALUES ('execution-item-decided', 'execution-decided', $1, 'round-decided', 'item-decided',
-          0, 1, $2::jsonb, $3, '[]'::jsonb, 'settled', 'accepted-result',
-          $4::jsonb, $3, clock_timestamp())`, []any{audit.AuditID, taskRef, digest, resultRef}},
+		{`INSERT INTO audit_execution_items(execution_item_id,execution_id,audit_id,task_id,batch_ordinal,item_attempt,state,collection_disposition,result_ref,result_digest,collected_at)
+VALUES('execution-item-decided','execution-decided',$1,'task-decided',0,1,'settled','accepted-result',$2::jsonb,$3,clock_timestamp())`, []any{audit.AuditID, resultRef, digest}},
 		{`
 UPDATE audit_executions
    SET collection_receipt_id = 'collection-decided', collection_disposition = 'accepted-result',
@@ -131,12 +99,8 @@ UPDATE audit_executions
        collected_at = clock_timestamp()
  WHERE audit_id = $1 AND execution_id = 'execution-decided'`,
 			[]any{audit.AuditID, resultRef, digest}},
-		{`
-UPDATE audit_items
-   SET state = 'settled', final_disposition = 'accepted-result',
-       accepted_result_ref = $2::jsonb, accepted_result_digest = $3,
-       last_execution_item_id = 'execution-item-decided'
- WHERE audit_id = $1 AND item_id = 'item-decided'`, []any{audit.AuditID, resultRef, digest}},
+		{`UPDATE audit_tasks SET state='settled',last_execution_id='execution-decided',attempts=1,result=$2::json
+WHERE audit_id=$1 AND task_id='task-decided'`, []any{audit.AuditID, `{"scope_kind":"audit","scope_id":"` + audit.AuditID + `","ref":` + resultRef + `,"digest":"` + digest + `","media_type":"application/json","size_bytes":1}`}},
 	}
 	err = pg.InTx(t.Context(), pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		for _, statement := range statements {

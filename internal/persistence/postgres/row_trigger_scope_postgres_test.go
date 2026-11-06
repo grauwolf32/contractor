@@ -32,17 +32,10 @@ func TestRowTriggerGuardsFireOnTheColumnsTheyCompare(t *testing.T) {
 	}{
 		{name: "stage_allocations", guards: 4,
 			why: "the identity, performance policy, placement label and completion guards"},
-		// The preparation guard selects the Audit's executions by audit_id.
-		{name: "audits", guards: 1, why: "the preparation guard",
-			qualifiers: explaintest.Qualifiers{"audits_protect_preparation_baseline": {"audit_id"}}},
+		{name: "audits", guards: 0, why: "no column-scoped BEFORE UPDATE guard remains after Round retirement"},
 		{name: "artifact_bindings", guards: 1, why: "the identity guard; Project and Audit admission depend on other tables"},
-		// The preparation check reads the Run and the receipt's source only
-		// to validate the receipt being assigned.
-		{name: "audit_executions", guards: 4, why: "collection, prepared source, Task identity and preparation guards",
-			qualifiers: explaintest.Qualifiers{"audit_execution_protect_prepared_source": {"state"}, "audit_executions_validate_preparation": {
-				"collection_disposition", "collection_retained_refs", "collection_source_output_digest",
-				"collection_source_output_ref", "run_id",
-			}}},
+		{name: "audit_executions", guards: 3, why: "collection, prepared source and Task identity guards",
+			qualifiers: explaintest.Qualifiers{"audit_execution_protect_prepared_source": {"state"}}},
 	} {
 		if guards := explaintest.RequireColumnScopedGuards(t, ctx, pool, table.name, table.qualifiers); guards != table.guards {
 			t.Errorf("found %d column-scoped guards of %s, want %d: %s (PER-R22)", guards, table.name, table.guards, table.why)
@@ -69,15 +62,13 @@ var rowTriggerInventory = map[string]map[string]rowTrigger{
 		"stage_allocations_require_completion":         {definition: "CREATE TRIGGER stage_allocations_require_completion BEFORE INSERT OR UPDATE OF completion_contract ON stage_allocations FOR EACH ROW EXECUTE FUNCTION contractor_require_allocation_completion()"},
 	},
 	"audits": {
-		"audits_discard_report_pages":     {definition: "CREATE TRIGGER audits_discard_report_pages AFTER UPDATE OF state ON audits FOR EACH ROW WHEN (((old.state = 'finalizing'::text) AND (new.state <> 'finalizing'::text))) EXECUTE FUNCTION contractor_discard_audit_report_pages()"},
 		"audits_hold_artifacts":           {definition: "CREATE TRIGGER audits_hold_artifacts AFTER INSERT ON audits FOR EACH ROW EXECUTE FUNCTION contractor_hold_audit_artifacts()"},
 		"audits_hold_artifacts_on_update": {definition: "CREATE TRIGGER audits_hold_artifacts_on_update AFTER UPDATE OF input_selection, baseline_snapshot ON audits FOR EACH ROW WHEN (((old.input_selection IS DISTINCT FROM new.input_selection) OR (old.baseline_snapshot IS DISTINCT FROM new.baseline_snapshot))) EXECUTE FUNCTION contractor_hold_audit_artifacts()"},
 		"audits_release_artifacts": {definition: "CREATE TRIGGER audits_release_artifacts AFTER DELETE ON audits FOR EACH ROW EXECUTE FUNCTION contractor_hold_audit_artifacts()",
 			retained: "deleting an Audit releases the exact Project inputs and Skill sources it holds (DEL-R63); an Audit without any changes no revision"},
 		"audits_eval_tombstone": {definition: "CREATE TRIGGER audits_eval_tombstone BEFORE DELETE ON audits FOR EACH ROW EXECUTE FUNCTION contractor_eval_retain_deleted_execution()",
 			retained: "every column it matches an audit-create suboperation on is NOT NULL, so any Audit delete can match"},
-		"audits_project_admission":            {definition: "CREATE TRIGGER audits_project_admission BEFORE INSERT ON audits FOR EACH ROW EXECUTE FUNCTION contractor_guard_audit_admission()"},
-		"audits_protect_preparation_baseline": {definition: "CREATE TRIGGER audits_protect_preparation_baseline BEFORE UPDATE OF phase, baseline_snapshot, profile_snapshot, input_selection, profile_name, profile_version, profile_digest, owner_id, project_id ON audits FOR EACH ROW EXECUTE FUNCTION contractor_protect_audit_preparation_baseline()"},
+		"audits_project_admission": {definition: "CREATE TRIGGER audits_project_admission BEFORE INSERT ON audits FOR EACH ROW EXECUTE FUNCTION contractor_guard_audit_admission()"},
 		"eval_audits_projection": {definition: "CREATE TRIGGER eval_audits_projection AFTER DELETE OR UPDATE OF state, finished_at, dispatch_state ON audits FOR EACH ROW EXECUTE FUNCTION contractor_eval_execution_changed()",
 			retained: "deleting an Audit removes the execution its Eval members project"},
 	},
@@ -93,16 +84,16 @@ var rowTriggerInventory = map[string]map[string]rowTrigger{
 	},
 	"audit_executions": {
 		"audit_execution_protect_prepared_source":         {definition: "CREATE TRIGGER audit_execution_protect_prepared_source BEFORE UPDATE OF prepared_work_source, prepared_work_count, prepared_work_offset ON audit_executions FOR EACH ROW EXECUTE FUNCTION contractor_protect_audit_prepared_source()"},
-		"audit_task_execution_protect_identity":           {definition: "CREATE TRIGGER audit_task_execution_protect_identity BEFORE UPDATE OF execution_id, audit_id, role, workflow_role, submission_key, request_digest, lane_class ON audit_executions FOR EACH ROW WHEN ((((old.role = 'task'::text) OR (new.role = 'task'::text)) AND (((((((new.execution_id IS DISTINCT FROM old.execution_id) OR (new.audit_id IS DISTINCT FROM old.audit_id)) OR (new.role IS DISTINCT FROM old.role)) OR (new.workflow_role IS DISTINCT FROM old.workflow_role)) OR (new.submission_key IS DISTINCT FROM old.submission_key)) OR (new.request_digest IS DISTINCT FROM old.request_digest)) OR (new.lane_class IS DISTINCT FROM old.lane_class)))) EXECUTE FUNCTION contractor_protect_immutable_history()"},
+		"audit_task_execution_protect_identity":           {definition: "CREATE TRIGGER audit_task_execution_protect_identity BEFORE UPDATE OF execution_id, audit_id, workflow_role, submission_key, request_digest, lane_class ON audit_executions FOR EACH ROW WHEN (((new.execution_id IS DISTINCT FROM old.execution_id) OR (new.audit_id IS DISTINCT FROM old.audit_id) OR (new.workflow_role IS DISTINCT FROM old.workflow_role) OR (new.submission_key IS DISTINCT FROM old.submission_key) OR (new.request_digest IS DISTINCT FROM old.request_digest) OR (new.lane_class IS DISTINCT FROM old.lane_class))) EXECUTE FUNCTION contractor_protect_immutable_history()"},
 		"audit_executions_project_admission":              {definition: "CREATE TRIGGER audit_executions_project_admission BEFORE INSERT ON audit_executions FOR EACH ROW EXECUTE FUNCTION contractor_guard_audit_child_admission()"},
 		"audit_executions_protect_collection":             {definition: "CREATE TRIGGER audit_executions_protect_collection BEFORE UPDATE OF execution_id, audit_id, run_id, terminal_outcome, terminal_run_generation, terminal_run_sequence, collection_receipt_id, collection_disposition, collection_source_output_ref, collection_source_output_digest, collection_retained_refs, collection_error_code, collection_request_digest, collected_at ON audit_executions FOR EACH ROW EXECUTE FUNCTION contractor_protect_audit_execution_collection()"},
 		"audit_executions_require_matching_run":           {definition: "CREATE CONSTRAINT TRIGGER audit_executions_require_matching_run AFTER INSERT ON audit_executions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION contractor_require_matching_audit_run()"},
 		"audit_executions_require_matching_run_on_update": {definition: "CREATE CONSTRAINT TRIGGER audit_executions_require_matching_run_on_update AFTER UPDATE ON audit_executions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (((old.run_id IS DISTINCT FROM new.run_id) OR (old.run_deleted_at IS DISTINCT FROM new.run_deleted_at) OR (old.execution_id IS DISTINCT FROM new.execution_id) OR (old.submission_key IS DISTINCT FROM new.submission_key))) EXECUTE FUNCTION contractor_require_matching_audit_run()"},
-		"audit_executions_validate_preparation":           {definition: "CREATE TRIGGER audit_executions_validate_preparation BEFORE INSERT OR UPDATE OF execution_id, audit_id, round_id, role, workflow_role, role_attempt, manifest_ref, manifest_digest, submission_key, request_digest, preparation_snapshot, preparation_outputs, collection_receipt_id ON audit_executions FOR EACH ROW EXECUTE FUNCTION contractor_validate_audit_preparation_execution()"},
 		"eval_audit_children_projection": {definition: "CREATE TRIGGER eval_audit_children_projection AFTER INSERT OR DELETE OR UPDATE ON audit_executions FOR EACH ROW EXECUTE FUNCTION contractor_eval_audit_child_changed()",
 			retained: "every execution write changes the state, Run, terminal outcome, collection or Run deletion that Eval inventory reads, and the function's work is one indexed probe of eval_submissions"},
 	},
 	"workflow_runs": {
+		"workflow_runs_protect_engagement_credentials":      {definition: "CREATE TRIGGER workflow_runs_protect_engagement_credentials BEFORE UPDATE OF engagement_credential_ids ON workflow_runs FOR EACH ROW WHEN ((old.engagement_credential_ids IS DISTINCT FROM new.engagement_credential_ids)) EXECUTE FUNCTION contractor_protect_artifact_immutable()"},
 		"workflow_runs_hold_audit_inputs_on_insert":         {definition: "CREATE TRIGGER workflow_runs_hold_audit_inputs_on_insert AFTER INSERT ON workflow_runs FOR EACH ROW WHEN ((new.audit_input_materialization IS NOT NULL)) EXECUTE FUNCTION contractor_hold_audit_run_inputs()"},
 		"workflow_runs_hold_audit_inputs_on_update":         {definition: "CREATE TRIGGER workflow_runs_hold_audit_inputs_on_update AFTER UPDATE OF audit_input_materialization ON workflow_runs FOR EACH ROW WHEN (((old.audit_input_materialization)::text IS DISTINCT FROM (new.audit_input_materialization)::text)) EXECUTE FUNCTION contractor_hold_audit_run_inputs()"},
 		"workflow_runs_protect_audit_input_materialization": {definition: "CREATE TRIGGER workflow_runs_protect_audit_input_materialization BEFORE UPDATE OF audit_input_materialization ON workflow_runs FOR EACH ROW WHEN (((old.audit_input_materialization)::text IS DISTINCT FROM (new.audit_input_materialization)::text)) EXECUTE FUNCTION contractor_protect_audit_input_materialization()"},

@@ -1,11 +1,11 @@
-import { ARTIFACT_NAME_PATTERN, MEDIA_TYPE_PATTERN } from "../../api/artifacts";
+import { MEDIA_TYPE_PATTERN } from "../../api/artifacts";
 import {
   CONFIG_NAME_PATTERN,
   CONFIG_VERSION_PATTERN,
   isConfigSelector,
 } from "../../api/workflows";
 import { at, record, textValue, type Draft, type Path } from "./document";
-import { validateCheckMethods } from "./check-methods";
+import { schemaViolation } from "../../api/contract";
 import { validateAdvanced } from "./advanced-validation";
 import { plannerFacts } from "./planners";
 
@@ -633,196 +633,10 @@ export function validateDraft(draft: Draft): Problem[] {
         skills.add(textValue(skill.name));
       });
   } else {
-    slots(["spec", "inputs"], false);
-    if (
-      ![
-        "operation-tracing",
-        "requirements-verification",
-        "custom-checklist",
-        "risk-assessment",
-        "finding-verification",
-      ].includes(textValue(spec.mode))
-    )
-      error(["spec", "mode"], "Choose a supported check mode.");
-    selector(["spec", "inventory", "implementation"]);
-    const roles = record(spec.workflows),
-      inventory = record(spec.inventory),
-      dependencies = new Map<string, string[]>();
-    if (!Object.keys(roles).length)
-      error(["spec", "workflows"], "At least one workflow role is required.");
-    if (record(roles[textValue(inventory.itemWorkflowRole)]).kind !== "check")
-      error(
-        ["spec", "inventory", "itemWorkflowRole"],
-        "Choose a check workflow role.",
-      );
-    validateCheckMethods(spec.methods, roles, error);
-    for (const [name, value] of Object.entries(roles)) {
-      const role = record(value),
-        p: Path = ["spec", "workflows", name],
-        deps: string[] = [];
-      selector([...p, "ref"]);
-      if (
-        !["prepare", "discovery", "check", "assessment"].includes(
-          textValue(role.kind),
-        )
-      )
-        error(
-          [...p, "kind"],
-          "Choose prepare, discovery, check or assessment.",
-        );
-      for (const key of ["inputs", "parameters", "outputs"])
-        if (
-          role[key] === undefined ||
-          role[key] === null ||
-          typeof role[key] !== "object" ||
-          Array.isArray(role[key])
-        )
-          error([...p, key], "A mapping is required; use {} for none.");
-      for (const [binding, value] of Object.entries(record(role.inputs))) {
-        const row = record(value),
-          path = [...p, "inputs", binding];
-        if (
-          ![
-            "audit-input",
-            "item-package",
-            "execution-manifest",
-            "prepare-output",
-            "retained-output",
-            "round-results",
-            "retained-dependency",
-          ].includes(textValue(row.source))
-        )
-          error([...path, "source"], "Choose a supported input source.");
-        if (
-          ["item-package", "execution-manifest", "round-results"].includes(
-            textValue(row.source),
-          ) &&
-          (row.name || row.role)
-        )
-          error(path, "This input source forbids name and role.");
-        if (row.source === "retained-dependency") {
-          if (role.kind !== "check")
-            error(path, "retained-dependency requires a check role.");
-          if (row.role || !ARTIFACT_NAME_PATTERN.test(textValue(row.name)))
-            error(path, "Choose a named dependency and omit producer role.");
-        }
-        if (row.source === "round-results" && role.kind !== "assessment")
-          error(path, "round-results requires an assessment role.");
-        if (row.source === "audit-input" && row.role)
-          error(path, "audit-input forbids role.");
-        if (
-          row.source === "audit-input" &&
-          !Object.hasOwn(record(spec.inputs), textValue(row.name))
-        )
-          error(path, "This check input is not declared.");
-        if (
-          ["prepare-output", "retained-output"].includes(textValue(row.source))
-        ) {
-          const producer = record(roles[textValue(row.role)]);
-          if (!Object.hasOwn(record(producer.outputs), textValue(row.name)))
-            error(path, "Producer role and logical output must exist.");
-          if (row.source === "prepare-output" && producer.kind !== "prepare")
-            error(path, "prepare-output must select a prepare role.");
-          if (
-            row.source === "retained-output" &&
-            (producer.kind === "check" ||
-              producer.kind === "prepare" ||
-              role.kind === "prepare")
-          )
-            error(path, "This role cannot supply retained-output here.");
-          const phases: Record<string, number> = {
-            prepare: -1,
-            discovery: 0,
-            check: 1,
-            assessment: 2,
-          };
-          if (
-            (phases[textValue(producer.kind)] ?? 0) >
-            (phases[textValue(role.kind)] ?? 0)
-          )
-            error(path, "Cannot depend on a later role phase.");
-          deps.push(textValue(row.role));
-        }
-      }
-      if (
-        Object.values(record(role.inputs)).filter(
-          (input) => record(input).source === "round-results",
-        ).length > 1
-      )
-        error([...p, "inputs"], "Choose at most one round-results input.");
-      dependencies.set(name, deps);
-    }
-    const active = new Set<string>(),
-      done = new Set<string>();
-    const visitRole = (name: string) => {
-      if (active.has(name)) {
-        error(
-          ["spec", "workflows", name, "inputs"],
-          "Workflow role dependencies form a cycle.",
-        );
-        return;
-      }
-      if (done.has(name)) return;
-      active.add(name);
-      (dependencies.get(name) ?? []).forEach(visitRole);
-      active.delete(name);
-      done.add(name);
-    };
-    Object.keys(roles).forEach(visitRole);
-    const execution = record(spec.execution);
-    if (execution.roundMode !== "fixed-barrier")
-      error(["spec", "execution", "roundMode"], "Use fixed-barrier.");
-    for (const [key, maximum] of Object.entries({
-      maxRounds: 32,
-      batchSize: 64,
-      maxItemsPerRound: 10000,
-      maxItemsTotal: 100000,
-      maxSubmittedRuns: 1000000,
-      maxItemRunAttempts: 10,
-      deadlineSeconds: 31536000,
-      maxEvidenceBytes: 1073741824,
-    }))
-      if (
-        !Number.isSafeInteger(execution[key]) ||
-        Number(execution[key]) < 1 ||
-        Number(execution[key]) > maximum
-      )
-        error(
-          ["spec", "execution", key],
-          `Use an integer between 1 and ${maximum}.`,
-        );
-    if (
-      Number(execution.batchSize) > Number(execution.maxItemsPerRound) ||
-      Number(execution.maxItemsPerRound) > Number(execution.maxItemsTotal)
-    )
-      error(
-        ["spec", "execution"],
-        "Require batchSize ≤ maxItemsPerRound ≤ maxItemsTotal.",
-      );
-    if (
-      Number(execution.maxSubmittedRuns) <
-      Math.ceil(Number(execution.maxItemsTotal) / Number(execution.batchSize))
-    )
-      error(
-        ["spec", "execution", "maxSubmittedRuns"],
-        "Run budget cannot cover the initial items.",
-      );
-    if (
-      !["assess-with-gaps", "fail"].includes(
-        textValue(execution.incompleteRound),
-      )
-    )
-      error(
-        ["spec", "execution", "incompleteRound"],
-        "Choose assess-with-gaps or fail.",
-      );
-    for (const [key, allowed] of Object.entries({
-      activeChecks: ["prohibited", "automatic"],
-      notApplicable: ["human-required", "profile-rule"],
-      reportAcceptance: ["automatic", "human-required"],
-    }))
-      if (!allowed.includes(textValue(record(spec.interaction)[key])))
-        error(["spec", "interaction", key], `Choose ${allowed.join(" or ")}.`);
+    const violation = schemaViolation("AuditProgram", spec);
+    if (violation) error(["spec"], violation);
+    for (const name of Object.keys(record(spec.workflows)))
+      selector(["spec", "workflows", name, "ref"]);
   }
   return [...problems, ...validateAdvanced(draft)];
 }

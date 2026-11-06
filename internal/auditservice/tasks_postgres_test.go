@@ -101,7 +101,7 @@ func newCommonTaskServiceFixture(t *testing.T, configure func(*auditcontract.Pro
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `UPDATE audits SET state='paused',phase='rounds',started_at=clock_timestamp(),paused_at=clock_timestamp(),baseline_snapshot=$2,dispatch_state='closed' WHERE audit_id=$1`, audit.AuditID, baseline); err != nil {
+	if _, err := pool.Exec(ctx, `UPDATE audits SET state='paused',started_at=clock_timestamp(),paused_at=clock_timestamp(),baseline_snapshot=$2,dispatch_state='closed' WHERE audit_id=$1`, audit.AuditID, baseline); err != nil {
 		t.Fatal(err)
 	}
 	service := &Service{pool: pool, storage: artifactpgtest.NewStorage()}

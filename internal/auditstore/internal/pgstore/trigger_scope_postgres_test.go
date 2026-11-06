@@ -55,68 +55,15 @@ func (p auditTriggerProbe) expect(t *testing.T, step string, want map[string]map
 	}
 }
 
-// executionScans counts the scans of audit_executions in the transaction.
-func (p auditTriggerProbe) executionScans(t *testing.T) int64 {
-	t.Helper()
-	var scans int64
-	if err := p.tx.QueryRow(p.ctx, `
-SELECT COALESCE(seq_scan, 0) + COALESCE(idx_scan, 0)
-  FROM pg_stat_xact_user_tables WHERE relid = 'audit_executions'::regclass`).Scan(&scans); err != nil {
-		t.Fatal(err)
-	}
-	return scans
-}
-
 const (
-	preparationGuard   = "audits_protect_preparation_baseline"
 	executionAdmission = "audit_executions_project_admission"
 	collectionGuard    = "audit_executions_protect_collection"
-	preparationCheck   = "audit_executions_validate_preparation"
 	matchingRun        = "audit_executions_require_matching_run"
 	matchingRunUpdate  = "audit_executions_require_matching_run_on_update"
 	childProjection    = "eval_audit_children_projection"
 
 	runAssociationMessage = "AuditExecution Run association is not authoritative"
 )
-
-// TestPostgresAuditUpdatesSkipThePreparationProbe counts the work of the
-// Audit preparation guard (PER-R22). An event append, which every Audit
-// write makes, assigns no baseline column and calls no guard; assigning the
-// phase without changing it calls the guard but no longer probes
-// audit_executions for a prepare execution, which only a changed baseline
-// needs, and such a change still probes.
-func TestPostgresAuditUpdatesSkipThePreparationProbe(t *testing.T) {
-	p := newAuditTriggerProbe(t, "preparation-probe")
-	event := `{"kind":"review.requested","entityId":"review-probe","entityRevision":1,"summary":{}}`
-	before := p.executionScans(t)
-	p.expect(t, "event append", map[string]map[string]int64{"audits": {}}, func() error {
-		var last int64
-		return p.probe.QueryRow(p.ctx, `
-WITH changed AS (
-    UPDATE audits AS audit SET next_event_sequence = audit.next_event_sequence + 1
-     WHERE audit.audit_id = $1
-    RETURNING contractor_append_audit_events(audit.audit_id, $2::jsonb) AS last_event_sequence
-)
-SELECT last_event_sequence FROM changed`, p.audit.AuditID, "["+event+"]").Scan(&last)
-	})
-	p.expect(t, "unchanged phase", map[string]map[string]int64{"audits": {preparationGuard: 1}}, func() error {
-		_, err := p.probe.Exec(p.ctx, `UPDATE audits SET phase = phase WHERE audit_id = $1`, p.audit.AuditID)
-		return err
-	})
-	if scans := p.executionScans(t) - before; scans != 0 {
-		t.Errorf("an event append and an unchanged phase scanned audit_executions %d times, want none", scans)
-	}
-	// An Audit whose preparation never began may still change its input
-	// selection, which the guard decides by probing for a prepare execution.
-	before = p.executionScans(t)
-	if _, err := explaintest.Explain(p.ctx, p.tx, `UPDATE audits SET input_selection = '{"changed":true}'
-WHERE audit_id = $1`, p.audit.AuditID); err != nil {
-		t.Fatal(err)
-	}
-	if scans := p.executionScans(t) - before; scans != 1 {
-		t.Errorf("a changed input selection scanned audit_executions %d times, want 1", scans)
-	}
-}
 
 // TestPostgresAuditExecutionWritesFireOnlyTheTriggersTheyConcern counts the
 // triggers each AuditExecution write calls from intent to collection
@@ -135,7 +82,7 @@ func TestPostgresAuditExecutionWritesFireOnlyTheTriggersTheyConcern(t *testing.T
 	var execution auditstore.Execution
 	p.expect(t, "intent", map[string]map[string]int64{
 		"audits":           {},
-		"audit_executions": {executionAdmission: 1, preparationCheck: 1, matchingRun: 1, childProjection: 1},
+		"audit_executions": {executionAdmission: 1, matchingRun: 1, childProjection: 1},
 	}, func() error {
 		var err error
 		execution, _, err = p.store.SelectTasks(p.ctx, auditstore.SelectTasksParams{Claim: p.claim, TaskIDs: []string{page.Tasks[1].Document.TaskID}})
@@ -187,7 +134,7 @@ WHERE run_id = $1`, runID).Scan(&generation, &sequence); err != nil {
 	})
 	code := "run_failed"
 	p.expect(t, "collection", map[string]map[string]int64{
-		"audit_executions": {collectionGuard: 1, preparationCheck: 1, childProjection: 1},
+		"audit_executions": {collectionGuard: 1, childProjection: 1},
 	}, func() error {
 		_, _, err := p.store.Collect(p.ctx, auditstore.CollectParams{
 			Claim: p.claim, ReceiptID: "receipt-second", ExecutionID: execution.ExecutionID,

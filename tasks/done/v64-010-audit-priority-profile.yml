@@ -5,7 +5,7 @@ milestone: audit-check-prioritization
 epic: audits
 kind: feature
 priority: P1
-status: pending
+status: completed
 depends_on:
 - V64-012
 - V64-013
@@ -24,7 +24,66 @@ goal: Verify the shipped programs already rewritten by V64-002 and V64-012 toget
 demonstration: The shipped source/API/target/checklist/verification programs resolve and pass real deterministic
   journeys through the same task/Run path with the expected retained findings and coverage.
 context:
-  authority: 'User direction on 2026-11-05: validate the integrated V64-033/034 contract from proposal 0054;
+  implementation_notes:
+  - Removed the Round/item/role package execution paths, exclusive internal ZIP codecs and schemas,
+    old preparation/coverage/finding-result projections, and item/coverage HTTP operations with both
+    generated clients. Ordinary source ZIPs, Finding exports, common prepared work and domain parsers remain.
+  - Migration 000012 removes four obsolete relations, old execution/member columns and fourteen
+    obsolete functions. It atomically rejects unarchived operational history; current active/paused/terminal
+    Tasks, receipts and original Artifact bytes remain exact. Common membership and immutable identities
+    retain their existing owners and bounded purge path.
+  - Workspace counts common Tasks independently of Findings. Studio edits the common Program and uses
+    its generated schema; Evals uses workflow/iteration in its schema, store, API and clients. Native
+    Eval checks validate common result/conclusions shape with an intentional version-2 policy pin.
+  - No new collector, admission subsystem, lease, compatibility reader or model configuration was added.
+    Existing maxRounds/maxItems storage/API limit names still bound common iterations/Tasks; they do
+    not select an old Round executor. Demo deployment and live-model quality remain outside this task.
+  verification_evidence:
+    date: '2026-11-06'
+    product_commit: 0b037b4c39d56e15f8e0797175c68c58c31b852e
+    final_test_commit: 5e03862f86090b7e75f7d0af81e8571556b2c34d
+    result: passed
+    postgres: >-
+      All listed Audit/domain/store/service/controller/Run, Finding intake/import/Artifact,
+      Eval and persistence package suites passed with real disposable PostgreSQL. Full touched
+      public API, public client and configuration packages passed as well. Migration tests preserve
+      current work and exact history and reject unarchived old rows atomically. Workspace is checked
+      on 5000 Tasks among 45000 background Tasks; inventory pages retain their measured row budgets.
+    catalog: make test-config passed; 27 Workflows, 29 AgentTemplates, 15 AuditProfiles and 41 instructions validated.
+    basic: >-
+      make test-audit-basic-e2e passed on clean product_commit: 12 mandatory cases, no selected skips.
+      Includes positive/negative Finding handoff, observe/trace, 256 prepared Tasks with pause/restart/cancel,
+      fixed hypotheses, both continuation modes and ordinary material sets.
+    composition: >-
+      make test-audit-composition-e2e passed on clean final_test_commit: 9 mandatory integration cases,
+      10 process cases and the real browser journey, no selected skips. Installed SQLMap/Nuclei, source
+      preparation, exact handoff, publication, replay, CAS, authority and retained result after Run deletion passed.
+    completion: make test-audit-completion-e2e passed on clean product_commit; 181 Go and 415 Runtime cases, no selected skips.
+    public_api: make verify-public-api verify-public-api-postgres passed, including the race-enabled PostgreSQL gate and 404 checks for removed routes.
+    ui: >-
+      make ui-verify passed: 210 test files, 2399 passing tests and one declared expected failure;
+      generated checks, lint, typecheck and build passed. Sixteen Playwright Audit/Studio/activity
+      scenarios passed, including 390 px and all themes. The final production-browser selector-only
+      change also passed TypeScript/format checks and the complete composition gate.
+    wire: >-
+      make test-wire-cross-language passed: 373 fixtures, 410 Go and 264 Python shared tests;
+      390 Runtime contract cases and 1492 shared-selected Runtime cases passed. One optional disk-heavy
+      shared test skipped under the explicit policy and is not counted as passing coverage.
+    guards: make lint, make verify-architecture, generated ERD/dependency checks, task/spec validators and git diff --check passed.
+    execution_notes: >-
+      Targets were also run independently. Early failing attempts exposed remaining execution.role SQL,
+      Eval schema and public pagination fixture references, and stale browser selectors; all were corrected.
+      An uncommitted basic run passed its scenarios but was correctly refused as publishable evidence;
+      clean-commit basic/completion evidence is retained. The first committed composition run failed on
+      the old download-button selector; the final selector-only commit passed its complete rerun.
+    cleanup: The owned contractor_v64_010 database was dropped after all test processes/pools stopped; the temporary Vite server was stopped.
+    retained_evidence: .local/v64-010-verification in the primary checkout contains the final logs and basic/completion/composition evidence.
+    not_claimed: Optional heavy-I/O fixtures were not enabled; no live-model, demo deployment or full release-verify result is claimed.
+  authority: 'User assignment on 2026-11-06: implement V64-010 from current main
+    (b84f7f672626eaf538605824f79668d4fb68c316), on codex/audit-pipeline-retirement.
+    The existing basic and composition gates together cover the common-programs cases;
+    do not add a redundant common-programs gate. Deployment remains outside scope.
+    User direction on 2026-11-05: validate the integrated V64-033/034 contract from proposal 0054;
     remove source_01 through source_16 and do not treat old V64-013 evidence as proof of
     replacement. This update starts no implementation.
     User decisions and task-formation request on 2026-10-31: Audit durably coordinates ordinary
@@ -48,8 +107,8 @@ context:
     task-acceptance integration in V64-002. Preserve those domain algorithms/callers while removing
     their replaced inventory/Round/ZIP wrappers; do not recreate a generic inventory engine here.
     This is a planning amendment only.'
-  implementation_gate: V64-001 decisions are settled. Keep pending until implementation is assigned and
-    dependencies are complete; this task amendment starts no code, migrations, live Runs or deployment.
+  implementation_gate: User assigned implementation on 2026-11-06; all declared dependencies are completed
+    on the selected main baseline. This assignment does not include demo deployment.
   design:
   - docs/proposals/0054-workflow-hypothesis-production.md
   - docs/proposals/0050-audit-common-hypothesis-model.md
@@ -90,8 +149,7 @@ scope:
   out:
   - Removing external exports, source archives or Skills merely because they use ZIP; compatibility readers;
     changing configured live models; demo deployment.
-  - Implementation during this planning-only update; changing user model configuration or deploying/migrating
-    the demo.
+  - Changing user model configuration or deploying/migrating the demo.
   - Removing or redesigning Managed Evals, its datasets or scorer truth; changing model selections.
 requirements:
 - id: R1
@@ -182,9 +240,17 @@ tests:
   covers:
   - A1
   - A3
+- command: go test -tags=integration -count=1 ./internal/persistence/... ./internal/contracts/auditcontract
+  covers:
+  - A2
+  - A3
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A2
 - command: make lint
 test_prerequisites:
-- Commands below are future implementation acceptance, not results of this planning update.
+- Commands below are required implementation acceptance; record actual results at completion.
 - Use disposable PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set; configured/unavailable DB or mandatory
   skips fail. A focused selector matching zero tests fails.
 - Use testdata catalogs and pseudo-Skills, not live configs in unit/integration tests. Run whole touched-package
@@ -198,7 +264,7 @@ verification_requirements:
   dependencies and strict reads/writes.
 - Delete the replaced vertical path and its exclusive schemas/states/tests as its callers migrate. Final
   V64-011 proves no parallel legacy pipeline remains.
-implementation_commit: null
+implementation_commit: 5e03862f86090b7e75f7d0af81e8571556b2c34d
 replanning:
   date: '2026-10-31'
   previous_title: Publish opt-in guide and material research profiles with deterministic selection

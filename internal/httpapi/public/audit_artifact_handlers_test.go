@@ -24,7 +24,7 @@ func (f *auditArtifactManagement) ReadArtifact(_ context.Context, owner, audit, 
 }
 
 func TestAuditArtifactReadsExactReceiptAndValidatedMember(t *testing.T) {
-	data, _, err := auditdomain.BuildPackage("accepted", auditdomain.PackageKindCheckResults, "", []auditdomain.PackageInput{
+	data, _, err := auditdomain.BuildPackage("accepted", auditdomain.PackageKindFindingCollection, "", []auditdomain.PackageInput{
 		{ID: "scanner-report", Path: "report.json", MediaType: "application/json", Data: []byte(`{"observations":[]}`)},
 	})
 	if err != nil {

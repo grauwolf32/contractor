@@ -5,7 +5,6 @@ import { describe, expect, it } from "vitest";
 import type {
   Audit,
   ProjectFinding,
-  AuditItem,
   AuditReport,
   AuditWorkspace,
 } from "../../api/audits";
@@ -67,9 +66,9 @@ function workspace(
   counts: Parameters<typeof build.workspace>[1] = {},
 ): AuditWorkspace {
   return build.workspace(check, {
-    totalChecks: 5,
-    completedChecks: 1,
-    unchecked: 4,
+    totalTasks: 5,
+    completedTasks: 1,
+    pendingTasks: 4,
     ...counts,
   });
 }
@@ -132,7 +131,6 @@ interface InboxServer {
   findings: Record<string, ProjectFinding[]>;
   reports: Record<string, AuditReport>;
   workspaces: Record<string, AuditWorkspace>;
-  items: Record<string, AuditItem[]>;
   runs: RunSummary[];
   statuses: Record<string, RunStatus>;
   /** Exact Workflow versions by "name@version". */
@@ -167,7 +165,6 @@ function emptyServer(): InboxServer {
     findings: {},
     reports: {},
     workspaces: {},
-    items: {},
     runs: [],
     statuses: {},
     workflows: {},
@@ -251,21 +248,10 @@ function busyServer(): InboxServer {
       }),
     },
     workspaces: {
-      audit_trace: workspace(trace, { gaps: 2, unchecked: 2 }),
-      audit_wait: workspace(wait, { completedChecks: 5, unchecked: 0 }),
-      audit_paused: workspace(paused, { completedChecks: 2, unchecked: 3 }),
-      audit_done: workspace(done, { completedChecks: 5, unchecked: 0 }),
-    },
-    items: {
-      audit_trace: [
-        build.auditItem("item_1", 0, "standard-mapping", {
-          itemKey: "WSTG-ATHN-01",
-          subjectKey: "WSTG-ATHN-01",
-          state: "ready",
-          createdAt: ago(30),
-          updatedAt: ago(25),
-        }),
-      ],
+      audit_trace: workspace(trace, { gaps: 2, pendingTasks: 2 }),
+      audit_wait: workspace(wait, { completedTasks: 5, pendingTasks: 0 }),
+      audit_paused: workspace(paused, { completedTasks: 2, pendingTasks: 3 }),
+      audit_done: workspace(done, { completedTasks: 5, pendingTasks: 0 }),
     },
     runs,
     statuses: {
@@ -416,16 +402,6 @@ function inboxRoutes(server: InboxServer): Routes {
       found(server.reports[params.auditId!]),
     "GET /v1/audits/{auditId}/workspace": ({ params }) =>
       found(server.workspaces[params.auditId!]),
-    "GET /v1/audits/{auditId}/items": ({ params, url }) => {
-      const state = url.searchParams.get("state");
-      return json(
-        page(
-          (server.items[params.auditId!] ?? []).filter(
-            (item) => state === null || item.state === state,
-          ),
-        ),
-      );
-    },
     "GET /v1/runs": ({ url }) => {
       const state = url.searchParams.get("state");
       const lifecycle = url.searchParams.get("lifecycle");
@@ -1021,7 +997,7 @@ describe("Inbox", () => {
     advance(server, "audit_paused");
     server.workspaces.audit_paused = workspace(
       auditOf(server, "audit_paused"),
-      { completedChecks: 3, unchecked: 2 },
+      { completedTasks: 3, pendingTasks: 2 },
     );
     const reads = sent("GET", "/v1/audits/audit_paused/workspace").length;
     await user.click(screen.getByRole("button", { name: "Refresh" }));
@@ -1046,10 +1022,9 @@ describe("Inbox", () => {
     server.workspaces.audit_paused = workspace(
       auditOf(server, "audit_paused"),
       {
-        completedChecks: 2,
-        issues: 1,
+        completedTasks: 2,
         gaps: 1,
-        unchecked: 2,
+        pendingTasks: 2,
         unreviewedFindings: 1,
       },
     );
@@ -1067,7 +1042,7 @@ describe("Inbox", () => {
     ).toBeInTheDocument();
     expect(
       within(pane).getByRole("img", {
-        name: "2 of 5 endpoints done: 1 with an issue found, 1 needs follow-up, 2 not checked yet",
+        name: "2 of 5 endpoints done: 1 with gaps, 2 pending",
       }),
     ).toBeInTheDocument();
     for (const link of within(pane).getAllByRole("link", {

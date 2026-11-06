@@ -30,27 +30,6 @@ func sameCanonicalValue(left, right any) bool {
 	return leftErr == nil && rightErr == nil && bytes.Equal(leftBytes, rightBytes)
 }
 
-func equalStringSlices(left, right []string) bool {
-	if len(left) != len(right) || (left == nil) != (right == nil) {
-		return false
-	}
-	for index := range left {
-		if left[index] != right[index] {
-			return false
-		}
-	}
-	return true
-}
-
-func validAuditProfileMode(mode string) bool {
-	switch mode {
-	case "risk-assessment", "requirements-verification", "custom-checklist", "operation-tracing", "finding-verification":
-		return true
-	default:
-		return false
-	}
-}
-
 func cloneMap(value map[string]any) map[string]any {
 	if value == nil {
 		return nil

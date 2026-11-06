@@ -57,6 +57,8 @@ export function buildGraph(draft: Draft): StudioGraph {
   const files = (section: string) =>
     Object.entries(record(spec[section])).forEach(([name, value]) => {
       const row = record(value);
+      const mediaTypes =
+        row[draft.kind === "AuditProfile" ? "media_types" : "mediaTypes"];
       node(
         ["spec", section, name],
         section === "parameters"
@@ -69,8 +71,8 @@ export function buildGraph(draft: Draft): StudioGraph {
           ? row.required
             ? "Required parameter"
             : "Optional parameter"
-          : Array.isArray(row.mediaTypes)
-            ? row.mediaTypes.join(" · ")
+          : Array.isArray(mediaTypes)
+            ? mediaTypes.join(" · ")
             : "File format needed",
         true,
       );
@@ -149,67 +151,51 @@ export function buildGraph(draft: Draft): StudioGraph {
     );
   } else if (draft.kind === "AuditProfile") {
     files("inputs");
-    node(
-      ["spec", "inventory"],
-      "inventory",
-      "Inventory",
-      textValue(record(spec.inventory).implementation),
-    );
-    for (const key of ["source", "settings"]) {
-      const source = record(record(spec.inventory)[key]);
-      if (source.source === "audit-input")
-        edge(
-          ["spec", "inputs", textValue(source.name)],
-          ["spec", "inventory"],
-          `Inventory ${key}`,
-          "wire",
-        );
-      if (source.source === "prepare-output")
-        edge(
-          ["spec", "workflows", textValue(source.role)],
-          ["spec", "inventory"],
-          `${textValue(source.name)} → inventory ${key}`,
-          "wire",
-        );
-    }
     Object.entries(record(spec.workflows)).forEach(([name, value]) => {
       const row = record(value),
         path: Path = ["spec", "workflows", name];
-      node(
-        path,
-        "role",
-        name,
-        `${textValue(row.kind)} · ${textValue(row.ref)}`,
-        true,
-      );
-      if (name === record(spec.inventory).itemWorkflowRole)
-        edge(["spec", "inventory"], path, "Items");
+      node(path, "role", name, textValue(row.ref), true);
       for (const [binding, value] of Object.entries(record(row.inputs))) {
         const wire = record(value);
         if (wire.source === "audit-input")
           edge(["spec", "inputs", textValue(wire.name)], path, binding, "wire");
-        if (
-          ["retained-output", "prepare-output"].includes(textValue(wire.source))
-        )
-          edge(
-            ["spec", "workflows", textValue(wire.role)],
-            path,
-            `${textValue(wire.name)} → ${binding}`,
-            "wire",
-          );
       }
     });
+    for (const [key, title] of [
+      ["initial_work", "Initial tasks"],
+      ["hypotheses", "Hypotheses"],
+      ["seed_source", "Assertion source"],
+      ["continuation", "Continuation"],
+    ] as const) {
+      if (spec[key] !== undefined)
+        node(["spec", key], key, title, "Edit in block YAML");
+    }
+    if (Array.isArray(spec.initial_work))
+      spec.initial_work.forEach((work) =>
+        edge(
+          ["spec", "initial_work"],
+          ["spec", "workflows", textValue(record(work).workflow)],
+          textValue(record(work).key),
+        ),
+      );
+    for (const key of ["seed_source", "continuation"])
+      if (spec[key] !== undefined)
+        edge(
+          ["spec", key],
+          ["spec", "workflows", textValue(record(spec[key]).workflow)],
+          "Workflow",
+        );
     node(
-      ["spec", "execution"],
+      ["spec", "limits"],
       "execution",
       "Execution limits",
-      `${textValue(record(spec.execution).maxRounds)} rounds · ${textValue(record(spec.execution).batchSize)} per batch`,
+      `${textValue(record(spec.limits).max_tasks)} tasks · ${textValue(record(spec.limits).batch_size)} per batch`,
     );
     node(
-      ["spec", "interaction"],
+      ["spec", "policy"],
       "interaction",
-      "Review policy",
-      textValue(record(spec.interaction).reportAcceptance),
+      "Active operations",
+      textValue(record(spec.policy).active_operations),
     );
   } else {
     node(

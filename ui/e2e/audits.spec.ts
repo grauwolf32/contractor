@@ -29,7 +29,7 @@ for (const width of [390, 1440]) {
       await page.getByRole("button", { name: "Read saved result" }).click();
       await expect(page.getByText(/Exact saved observation/)).toBeVisible();
       await expect(
-        page.getByRole("button", { name: "Download saved result" }),
+        page.getByRole("button", { name: "Download complete Run result" }),
       ).toBeVisible();
       await expect(
         page.getByRole("link", { name: "Project possible issues" }),

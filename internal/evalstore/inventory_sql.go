@@ -22,15 +22,18 @@ WHERE e.owner_id = $1 AND e.experiment_id = $2 AND m.member_id = $3
 `
 
 // inventoryAuditExecutionsSQL lists the child executions of the owner's Audit
-// $1 in creation order, limited to $3: intent ID, child Run ID, role, round
+// $1 in creation order, limited to $3: intent ID, child Run ID, Workflow alias, iteration
 // ordinal, collection state, terminal outcome, and the child Run's state,
 // existence and Project ID. Used by Store.Inventory.
 var inventoryAuditExecutionsSQL = `
-SELECT x.execution_id,x.run_id,x.role,round.ordinal,x.state,x.terminal_outcome,r.state,r.run_id IS NOT NULL,r.project_id
+SELECT x.execution_id,x.run_id,x.workflow_role,task.iteration,x.state,x.terminal_outcome,r.state,r.run_id IS NOT NULL,r.project_id
 FROM audit_executions x
 JOIN audits a USING(audit_id)
-LEFT JOIN audit_rounds round ON round.audit_id = x.audit_id
-AND round.round_id = x.round_id
+LEFT JOIN LATERAL (
+ SELECT t.iteration FROM audit_execution_items member
+ JOIN audit_tasks t ON t.task_id=member.task_id AND t.audit_id=member.audit_id
+ WHERE member.execution_id=x.execution_id AND member.batch_ordinal=0
+) task ON TRUE
 LEFT JOIN workflow_runs r ON r.run_id = x.run_id
 AND r.owner_id = a.owner_id
 WHERE x.audit_id = $1

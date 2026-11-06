@@ -100,7 +100,7 @@ func (s *ClaimStore) SelectTasks(ctx context.Context, p auditstore.SelectTasksPa
 			expected := slices.Clone(p.TaskIDs)
 			slices.Sort(expected)
 			slices.Sort(members)
-			if !slices.Equal(members, expected) || execution.Role != auditstore.ExecutionTask {
+			if !slices.Equal(members, expected) {
 				return auditstore.ErrConflict
 			}
 			return nil

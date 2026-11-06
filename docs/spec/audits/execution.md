@@ -10,8 +10,12 @@ collection and budgets. Executable profiles use the common
 [Program/Task contract](common-contract.md#ACT-R14).
 
 The former Round/inventory/role progression below is a retired representation:
-it does not register an alternative profile reader or executor. Its independent
-stored projections and receipt/retention facts confer no new dispatch authority.
+its tables, execution columns and internal ZIP codecs have been removed.
+The pre-release cutover retains original facts as opaque Project Artifacts
+(FND-R215). Retirement refuses any surviving old operational records atomically;
+it never fabricates hypotheses or verdicts or rewrites current Tasks. Current
+execution membership, submission identities, receipts and exact Artifact refs
+remain unchanged for active, paused and terminal Audits.
 Common coordination follows AUX-R108 through AUX-R110; ordinary Scheduler,
 Artifact and Finding guarantees continue to belong to their named owners.
 

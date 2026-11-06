@@ -4,7 +4,6 @@ import { parse } from "yaml";
 
 import type {
   Audit,
-  AuditItem,
   AuditProfile,
   AuditState,
   FindingSeverity,
@@ -221,37 +220,9 @@ describe("checkItemKind", () => {
     return { ref: { name, version: "1", digest } };
   }
 
-  function item(
-    kind: string,
-    scheme?: string,
-  ): Pick<AuditItem, "kind" | "origin"> {
-    return {
-      kind,
-      origin: {
-        schema: "contractor.audit.item-origin.v1",
-        sourceRef: { namespace: "sources", name: "inventory" },
-        sourceContentDigest: digest,
-        sourceMediaType: "application/json",
-        canonicalInventoryDigest: digest,
-        entryKey: "entry",
-        ...(scheme === undefined
-          ? {}
-          : {
-              standard: {
-                scheme,
-                version: "1",
-                mappingKey: "mapping",
-                entryIds: ["A01"],
-                evidenceContract: { id: "contract", version: "1" },
-              },
-            }),
-      },
-    };
-  }
-
   function check(
     name: string,
-    baseline?: { schemes?: string[]; selection?: boolean },
+    baseline?: { schemes?: string[] },
   ): Pick<Audit, "profile" | "baseline"> {
     const exact = {
       ref: { namespace: "inputs", name: "source", revision: "r1" },
@@ -302,48 +273,10 @@ describe("checkItemKind", () => {
                   sizeBytes: 1,
                 },
               })),
-              ...(baseline.selection === true
-                ? {
-                    inventory: {
-                      sourceContentDigest: digest,
-                      canonicalInventoryDigest: digest,
-                      standardSelection: {
-                        scope: "Level 1",
-                        levels: ["1"],
-                        entryIds: [],
-                      },
-                      gaps: [],
-                      worklist: exact,
-                    },
-                  }
-                : {}),
             },
           }),
     };
   }
-
-  it.each<[string, ItemKind]>([
-    ["operation-trace", "endpoint"],
-    ["openapi-scan", "endpoint"],
-    ["checklist", "item"],
-    ["finding-verification", "item"],
-    ["something-new", "item"],
-  ])("names a %s work item an %s", (kind, expected) => {
-    expect(checkItemKind(item(kind))).toBe(expected);
-  });
-
-  it("names standard work items by their standard", () => {
-    expect(checkItemKind(item("standard-mapping", "owasp-wstg"))).toBe(
-      "scenario",
-    );
-    expect(checkItemKind(item("standard-mapping", "owasp-asvs"))).toBe(
-      "requirement",
-    );
-    expect(checkItemKind(item("standard-mapping", "owasp-web-top10"))).toBe(
-      "requirement",
-    );
-    expect(checkItemKind(item("standard-mapping"))).toBe("requirement");
-  });
 
   it.each<[string, ItemKind]>([
     ["openapi-operation-trace", "endpoint"],
@@ -363,9 +296,6 @@ describe("checkItemKind", () => {
     expect(
       checkItemKind(check("custom-review", { schemes: ["owasp-asvs"] })),
     ).toBe("requirement");
-    expect(checkItemKind(check("custom-review", { selection: true }))).toBe(
-      "requirement",
-    );
   });
 
   it.each<[string, ItemKind]>([

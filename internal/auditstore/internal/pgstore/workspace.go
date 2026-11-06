@@ -5,7 +5,6 @@ import (
 	"errors"
 	"math"
 
-	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -19,21 +18,13 @@ func (s *QueryStore) GetWorkspace(ctx context.Context, ownerID, auditID string) 
 		return auditstore.WorkspaceSummary{}, auditstore.ErrInvalid
 	}
 	var result auditstore.WorkspaceSummary
-	err := s.db.QueryRow(ctx, getWorkspaceSQL, workspaceArgs(ownerID, auditID)...).Scan(
-		&result.AuditID, &result.AuditRevision, &result.AsOf, &result.RoundID, &result.ExecutionState, &result.OutstandingRuns,
-		&result.TotalChecks, &result.CompletedChecks, &result.Issues, &result.Gaps, &result.Unchecked, &result.Findings, &result.UnreviewedFindings)
+	err := s.db.QueryRow(ctx, getWorkspaceSQL, ownerID, auditID).Scan(
+		&result.AuditID, &result.AuditRevision, &result.AsOf, &result.Iteration, &result.ExecutionState, &result.OutstandingRuns,
+		&result.TotalTasks, &result.CompletedTasks, &result.Gaps, &result.PendingTasks, &result.Findings, &result.UnreviewedFindings)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return auditstore.WorkspaceSummary{}, auditstore.ErrNotFound
 	}
 	return result, err
-}
-
-// workspaceArgs binds getWorkspaceSQL: owner, Audit and the coverage
-// statuses of each workspace bucket.
-func workspaceArgs(ownerID, auditID string) []any {
-	return []any{ownerID, auditID,
-		auditdomain.CoverageStatusesIn(auditdomain.CoverageBucketCompleted), auditdomain.CoverageIssueStatuses(),
-		auditdomain.CoverageStatusesIn(auditdomain.CoverageBucketGap), auditdomain.CoverageStatusesIn(auditdomain.CoverageBucketUnchecked)}
 }
 
 // ListEventsPage reads one page of an owner's Audit events, newest first,

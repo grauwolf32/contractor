@@ -6,12 +6,10 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 
-	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
-	"github.com/grauwolf32/contractor/internal/helpers/pagelimit"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
@@ -23,23 +21,14 @@ const (
 	MaxCollectionItems      = auditcontract.MaxExecutionMembers
 	MaxArtifactLinksPerCall = 1024
 	MaxArtifactRefBytes     = 4 << 10
-	MaxCoverageArrayBytes   = 1 << 20
-	MaxExecutionInputsBytes = 1 << 20
-	MaxRoundPayloadBytes    = 64 << 20
-	MaxExecutionIntentBytes = 64 << 20
-	MaxCollectionBytes      = 16 << 20
 	MaxRetainedRefsBytes    = 8 << 20
-	MaxAttemptProjection    = pagelimit.MaxRows * 10
 
 	// MaxStopReasonMessageBytes bounds a stop reason message, as the
 	// audits_stop_reason_message_check constraint does.
 	MaxStopReasonMessageBytes = 4 << 10
 	// MaxArtifactLogicalKeyBytes bounds the logical key of an Audit receipt
-	// link (LIM-AUD-39) and MaxSubjectKeyBytes the subject key of an Audit
-	// item (LIM-AUD-40), both in UTF-8 bytes as the public schemas declare.
+	// link in UTF-8 bytes (LIM-AUD-39).
 	MaxArtifactLogicalKeyBytes = 512
-	MaxSubjectKeyBytes         = 512
-	ItemOriginSchema           = auditdomain.ItemOriginSchema
 )
 
 type AuditState string
@@ -86,50 +75,6 @@ const (
 	HoldReleased HoldState = "released"
 )
 
-type RoundState string
-
-const (
-	RoundProposed  RoundState = "proposed"
-	RoundAccepted  RoundState = "accepted"
-	RoundExecuting RoundState = "executing"
-	RoundAssessing RoundState = "assessing"
-	RoundClosed    RoundState = "closed"
-)
-
-func (s RoundState) Valid() bool {
-	return s == RoundProposed || s == RoundAccepted || s == RoundExecuting ||
-		s == RoundAssessing || s == RoundClosed
-}
-
-type ItemState string
-
-const (
-	ItemPending    ItemState = "pending"
-	ItemReady      ItemState = "ready"
-	ItemSubmitted  ItemState = "submitted"
-	ItemCollecting ItemState = "collecting"
-	ItemSettled    ItemState = "settled"
-)
-
-func (s ItemState) Valid() bool {
-	return s == ItemPending || s == ItemReady ||
-		s == ItemSubmitted || s == ItemCollecting || s == ItemSettled
-}
-
-type ExecutionRole string
-
-const (
-	ExecutionTask       ExecutionRole = "task"
-	ExecutionPrepare    ExecutionRole = "prepare"
-	ExecutionDiscovery  ExecutionRole = "discovery"
-	ExecutionCheck      ExecutionRole = "check"
-	ExecutionAssessment ExecutionRole = "assessment"
-)
-
-func (r ExecutionRole) Valid() bool {
-	return r == ExecutionTask || r == ExecutionPrepare || r == ExecutionDiscovery || r == ExecutionCheck || r == ExecutionAssessment
-}
-
 type ExecutionState string
 
 const (
@@ -175,42 +120,6 @@ func (d CollectionDisposition) Valid() bool {
 		d == CollectionExecutionCancelled || d == CollectionContractInvalid
 }
 
-type FinalDisposition string
-
-const (
-	FinalAccepted           FinalDisposition = "accepted-result"
-	FinalMissingOutput      FinalDisposition = "missing-output"
-	FinalInvalidResult      FinalDisposition = "invalid-result"
-	FinalExecutionFailed    FinalDisposition = "execution-failed"
-	FinalExecutionCancelled FinalDisposition = "execution-cancelled"
-	FinalExcluded           FinalDisposition = "excluded"
-	FinalNotApplicable      FinalDisposition = "not-applicable"
-)
-
-func (d FinalDisposition) Valid() bool {
-	switch d {
-	case FinalAccepted, FinalMissingOutput, FinalInvalidResult,
-		FinalExecutionFailed, FinalExecutionCancelled, FinalExcluded,
-		FinalNotApplicable:
-		return true
-	default:
-		return false
-	}
-}
-
-type CoverageStatus string
-
-// The coverage statuses and their progress buckets are defined once in
-// auditdomain.
-const (
-	CoverageNotTested CoverageStatus = auditdomain.CoverageNotTested
-)
-
-func (s CoverageStatus) Valid() bool {
-	_, ok := auditdomain.CoverageStatusBucket(string(s))
-	return ok
-}
-
 type Limits struct {
 	MaxRounds          int   `json:"maxRounds"`
 	BatchSize          int   `json:"batchSize"`
@@ -233,17 +142,17 @@ type StopReason struct {
 }
 
 type Audit struct {
-	AuditID                 string
-	OwnerID                 string
-	ProjectID               string
-	Profile                 ProfileIdentity
-	ProfileSnapshot         json.RawMessage
-	InputSelection          json.RawMessage
-	BaselineSnapshot        json.RawMessage
-	State                   AuditState
-	Phase                   auditdomain.AuditPhase
-	Revision                uint64
-	CurrentRoundID          *string
+	AuditID          string
+	OwnerID          string
+	ProjectID        string
+	Profile          ProfileIdentity
+	ProfileSnapshot  json.RawMessage
+	InputSelection   json.RawMessage
+	BaselineSnapshot json.RawMessage
+	State            AuditState
+
+	Revision uint64
+
 	Dispatch                DispatchState
 	Hold                    HoldState
 	DeadlineAt              *time.Time
@@ -299,18 +208,6 @@ type ListParams struct {
 	Limit           int
 }
 
-type ListItemsParams struct {
-	OwnerID           string
-	AuditID           string
-	RoundID           *string
-	State             *ItemState
-	SubjectKey        *string
-	AfterRoundOrdinal *int
-	AfterItemOrdinal  *int
-	AfterItemID       string
-	Limit             int
-}
-
 type MutationOperation string
 
 const (
@@ -360,120 +257,9 @@ type ClaimedTransitionParams struct {
 	Reason           *StopReason
 }
 
-// ExactArtifact is the shared exact-content descriptor. Rounds, executions
+// ExactArtifact is the shared exact-content descriptor. Tasks, executions
 // and results persist only its ref and digest and read back digest-only.
 type ExactArtifact = contracts.ExactArtifact
-
-// ItemOrigin is the immutable attribution of a materialized Audit item to the
-// exact source document and normalized inventory entry from which it was
-// generated. Every stored item must retain this complete projection.
-type ItemOrigin struct {
-	Schema                   string                 `json:"schema"`
-	SourceRef                *contracts.ArtifactRef `json:"sourceRef,omitempty"`
-	SourceContentDigest      string                 `json:"sourceContentDigest,omitempty"`
-	SourceMediaType          string                 `json:"sourceMediaType,omitempty"`
-	CanonicalInventoryDigest string                 `json:"canonicalInventoryDigest,omitempty"`
-	EntryKey                 string                 `json:"entryKey"`
-	EntryVersion             string                 `json:"entryVersion,omitempty"`
-	Standard                 *StandardItemOrigin    `json:"standard,omitempty"`
-}
-
-// StandardItemOrigin identifies the authoritative mapping that caused a
-// standard-backed Audit item to exist. Finding proposals may carry additional
-// standardRefs, but those model-authored references never replace this causal
-// Server-authored origin.
-type StandardItemOrigin struct {
-	Scheme           string                 `json:"scheme"`
-	Version          string                 `json:"version"`
-	MappingKey       string                 `json:"mappingKey"`
-	EntryIDs         []string               `json:"entryIds"`
-	EvidenceContract StandardEvidenceOrigin `json:"evidenceContract"`
-}
-
-type StandardEvidenceOrigin struct {
-	ID      string `json:"id"`
-	Version string `json:"version"`
-}
-
-type MaterializedItem struct {
-	Dependencies    *auditdomain.RetainedDependencyManifest
-	ItemID          string
-	ItemKey         string
-	Ordinal         int
-	Kind            string
-	SubjectKey      string
-	Task            ExactArtifact
-	Origin          ItemOrigin
-	WorkflowRole    string
-	InitialState    ItemState
-	Coverage        Coverage
-	ProposalSources []ProposalItemSource
-}
-
-// ProposalItemSource is the exact consume-once cause of a later-round item.
-// MVP generation uses one source per item while the durable shape can later
-// admit explicitly merged checks without changing proposal identity.
-type ProposalItemSource struct {
-	ReceiptID            string
-	ProposedCheckOrdinal int
-	Proposal             ExactArtifact
-}
-
-type Coverage struct {
-	Status    CoverageStatus `json:"status"`
-	Requested []string       `json:"requested"`
-	Completed []string       `json:"completed"`
-	Gaps      []string       `json:"gaps"`
-	Rationale string         `json:"rationale,omitempty"`
-}
-
-type MaterializeRoundParams struct {
-	OwnerID          string
-	AuditID          string
-	ExpectedRevision uint64
-	RoundID          string
-	RoundOrdinal     int
-	Manifest         ExactArtifact
-	BaselineSnapshot json.RawMessage
-	DeadlineAt       time.Time
-	Items            []MaterializedItem
-	InitialRetained  []ArtifactLink
-	IdempotencyKey   string
-	RequestDigest    string
-}
-
-type Round struct {
-	RoundID           string
-	AuditID           string
-	Ordinal           int
-	Manifest          ExactArtifact
-	State             RoundState
-	ExpectedItemCount int
-	Revision          uint64
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-}
-
-type Item struct {
-	FindingIDs          []string
-	Dependencies        *auditdomain.RetainedDependencyManifest
-	ItemID              string
-	AuditID             string
-	RoundID             string
-	ItemKey             string
-	Ordinal             int
-	Kind                string
-	SubjectKey          string
-	Task                ExactArtifact
-	Origin              ItemOrigin
-	WorkflowRole        string
-	State               ItemState
-	FinalDisposition    *FinalDisposition
-	AcceptedResult      *ExactArtifact
-	LastExecutionItemID *string
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
-}
 
 type ControllerClaim struct {
 	AuditID   string
@@ -489,41 +275,12 @@ type ClaimParams struct {
 	Limit    int
 }
 
-type ExecutionMemberIntent struct {
-	ExecutionItemID string
-	ItemID          string
-	BatchOrdinal    int
-	ItemAttempt     int
-	Task            ExactArtifact
-	Inputs          []ExactArtifact
-}
-
-type CreateExecutionIntentParams struct {
-	Claim        ControllerClaim
-	ExecutionID  string
-	RoundID      *string
-	Role         ExecutionRole
-	WorkflowRole string
-	// LaneClass is the class of WorkflowRole's pinned Workflow
-	// (resolved.WorkflowLaneClass), whose dispatch window the intent
-	// reserves (AUX-R3).
-	LaneClass     resolved.LaneClass
-	RoleAttempt   *int
-	Manifest      ExactArtifact
-	SubmissionKey string
-	RequestDigest string
-	Members       []ExecutionMemberIntent
-	Preparation   *PreparationSnapshot
-}
-
 type Execution struct {
-	ExecutionID           string
-	AuditID               string
-	RoundID               *string
-	Role                  ExecutionRole
-	WorkflowRole          string
-	RoleAttempt           *int
-	Manifest              ExactArtifact
+	ExecutionID string
+	AuditID     string
+
+	WorkflowRole string
+
 	SubmissionKey         string
 	RequestDigest         string
 	RunID                 *string
@@ -536,8 +293,6 @@ type Execution struct {
 	RunDeletedAt          *time.Time
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
-	Preparation           *PreparationSnapshot
-	PreparationOutputs    []PreparationOutput
 }
 
 // RunProvenance is a bounded, non-secret tombstone captured when a child Run
@@ -558,23 +313,6 @@ type WorkflowProvenance struct {
 		Version string `json:"version"`
 	} `json:"configurationRef"`
 	ClosureDigest string `json:"closureDigest"`
-}
-
-type ExecutionItem struct {
-	ExecutionItemID       string
-	ExecutionID           string
-	AuditID               string
-	RoundID               string
-	ItemID                string
-	BatchOrdinal          int
-	ItemAttempt           int
-	Task                  ExactArtifact
-	Inputs                []ExactArtifact
-	State                 ItemState
-	CollectionDisposition *CollectionDisposition
-	Result                *ExactArtifact
-	CreatedAt             time.Time
-	CollectedAt           *time.Time
 }
 
 type BindRunParams struct {
@@ -601,7 +339,6 @@ type RunCreationIntent struct {
 	OwnerID                 string
 	ProjectID               string
 	Execution               Execution
-	Items                   []ExecutionItem
 }
 
 type ObserveTerminalParams struct {
@@ -617,26 +354,6 @@ type ObserveSubmissionFailureParams struct {
 	ExecutionID string
 }
 
-type CollectionItem struct {
-	ExecutionItemID     string
-	Disposition         CollectionDisposition
-	Result              *ExactArtifact
-	Retryable           bool
-	FinalDisposition    FinalDisposition
-	Coverage            Coverage
-	FindingAssociations []FindingAssociation
-}
-
-// FindingAssociation is trusted importer output. It binds one exact intake
-// receipt to the accepted result for this precise execution item; Workers
-// cannot write these rows through the generic Artifact API.
-type FindingAssociation struct {
-	AssessmentID       string
-	ReceiptID          string
-	Proposal           ExactArtifact
-	SemanticAssessment string
-}
-
 type ArtifactLink struct {
 	Scope            artifacts.ScopeKind `json:"scope"`
 	LogicalKey       string              `json:"logicalKey"`
@@ -647,17 +364,15 @@ type ArtifactLink struct {
 }
 
 type CollectParams struct {
-	Tasks              []TaskCollection
-	Claim              ControllerClaim
-	ReceiptID          string
-	ExecutionID        string
-	Disposition        CollectionDisposition
-	SourceOutput       *ExactArtifact
-	Retained           []ArtifactLink
-	ErrorCode          *string
-	RequestDigest      string
-	Items              []CollectionItem
-	PreparationOutputs []PreparationOutput
+	Tasks         []TaskCollection
+	Claim         ControllerClaim
+	ReceiptID     string
+	ExecutionID   string
+	Disposition   CollectionDisposition
+	SourceOutput  *ExactArtifact
+	Retained      []ArtifactLink
+	ErrorCode     *string
+	RequestDigest string
 }
 
 type CollectionReceipt struct {
@@ -693,34 +408,6 @@ type CollectionReceiptSummary struct {
 	CreatedAt             time.Time
 }
 
-type ItemAttempt struct {
-	ExecutionItemID       string                 `json:"executionItemId"`
-	ExecutionID           string                 `json:"executionId"`
-	ItemID                string                 `json:"itemId"`
-	ItemAttempt           int                    `json:"itemAttempt"`
-	Role                  ExecutionRole          `json:"role"`
-	State                 ItemState              `json:"state"`
-	CollectionDisposition *CollectionDisposition `json:"collectionDisposition,omitempty"`
-	Result                *ExactArtifact         `json:"result,omitempty"`
-	TerminalOutcome       *TerminalOutcome       `json:"terminalOutcome,omitempty"`
-	RunID                 *string                `json:"runId,omitempty"`
-	RunDeleted            bool                   `json:"runDeleted"`
-	RunProvenance         *RunProvenance         `json:"runProvenance,omitempty"`
-	CreatedAt             time.Time              `json:"createdAt"`
-	CollectedAt           *time.Time             `json:"collectedAt,omitempty"`
-}
-
-type CommitReportParams struct {
-	ExpectedProjectRevision uint64
-	Claim                   ControllerClaim
-	ExpectedAuditRevision   uint64
-	RoundID                 string
-	ExpectedRoundRevision   uint64
-	Machine                 ArtifactLink
-	Summary                 ArtifactLink
-	RequestDigest           string
-}
-
 type Event struct {
 	AuditID        string
 	Sequence       uint64
@@ -729,57 +416,6 @@ type Event struct {
 	EntityRevision *uint64
 	Summary        json.RawMessage
 	CreatedAt      time.Time
-}
-
-type CoverageRow struct {
-	FindingIDs []string `json:"findingIds"`
-	AuditID    string
-	RoundID    string
-	ItemID     string
-	Ordinal    int
-	ItemKey    string
-	SubjectKey string
-	Coverage   Coverage
-	Result     *ExactArtifact
-	UpdatedAt  time.Time
-	Task       ExactArtifact
-	Details    *CoverageDetails
-}
-
-// CoverageDetails describes the exact retained task and its accepted result.
-// It is a read projection, never authority for assessment or execution.
-type CoverageDetails struct {
-	Scan          *ScanProvenance    `json:"scan,omitempty"`
-	Objective     string             `json:"objective"`
-	Methods       []string           `json:"methods"`
-	TaskDocument  json.RawMessage    `json:"taskDocument"`
-	ResultSummary string             `json:"resultSummary,omitempty"`
-	Evidence      []CoverageEvidence `json:"evidence"`
-}
-
-// ScanProvenance projects only the accepted task, never raw requests or credentials.
-type ScanProvenance struct {
-	Scanner           string        `json:"scanner"`
-	Operation         string        `json:"operation"`
-	Source            ExactArtifact `json:"source"`
-	Settings          ExactArtifact `json:"settings"`
-	PreparationDigest string        `json:"preparationDigest"`
-	RequestDigest     string        `json:"requestDigest,omitempty"`
-	TargetURL         string        `json:"targetUrl,omitempty"`
-	Runnable          bool          `json:"runnable"`
-	TestParameters    []string      `json:"testParameters"`
-	Gaps              []string      `json:"gaps"`
-}
-
-type CoverageEvidence struct {
-	ObservedAt       string `json:"observedAt,omitempty"`
-	DeploymentMarker string `json:"deploymentMarker,omitempty"`
-	HTTPRequestID    string `json:"httpRequestId,omitempty"`
-	HTTPRequestTag   string `json:"httpRequestTag,omitempty"`
-	ContentMemberID  string `json:"contentMemberId,omitempty"`
-	ID               string `json:"id"`
-	Kind             string `json:"kind"`
-	Summary          string `json:"summary"`
 }
 
 type ReconcileSnapshot struct {
@@ -792,23 +428,13 @@ type ReconcileSnapshot struct {
 	// races.
 	MaxConcurrentRuns     int
 	MaxConcurrentToolRuns int
-	Round                 *Round
-	Items                 []Item
-	Executions            []Execution
+
+	Executions []Execution
 	// RunStates is the lifecycle state of the Run bound to each execution in
 	// Executions, keyed by Run ID and read in the same snapshot. A Run whose
 	// row no longer exists has no entry.
 	RunStates      map[string]runstore.WorkflowRunState
-	RoleExecutions []Execution
 	Receipts       []CollectionReceiptSummary
-	RoleReceipts   []CollectionReceiptSummary
-	// ReadyItems are the current Round's dispatchable items, read directly so
-	// that earlier non-runnable items cannot starve dispatch. Each
-	// Workflow role contributes its first MaxReconcileRows items, so the lane
-	// class whose window is full cannot starve the other one; they are in item
-	// order.
-	ReadyItems     []Item
-	MoreItems      bool
 	MoreExecutions bool
 	MoreReceipts   bool
 }

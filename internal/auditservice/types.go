@@ -140,8 +140,6 @@ type MutationResult struct {
 
 type StartedAudit struct {
 	Audit    auditstore.Audit
-	Round    auditstore.Round
-	Items    []auditstore.Item
 	Replayed bool
 }
 

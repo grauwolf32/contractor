@@ -42,7 +42,7 @@ INSERT INTO audits (
     audit_id, owner_id, project_id, profile_name, profile_version, profile_digest,
     profile_snapshot, input_selection, baseline_snapshot, state, dispatch_state, hold_state,
     max_rounds, batch_size, max_items_per_round, max_items_total, max_submitted_runs,
-    max_item_run_attempts, max_evidence_bytes, created_at, updated_at, started_at, finished_at, phase
+    max_item_run_attempts, max_evidence_bytes, created_at, updated_at, started_at, finished_at
 )
 SELECT 'audit-' || lpad(i::text, 5, '0'), 'owner-' || (i % 6), 'project-' || (i % 6) || '-' || ((i / 6) % 5),
        'profile', '1', 'sha256:' || repeat('b', 64), '{}'::jsonb, '{}'::jsonb,
@@ -53,8 +53,7 @@ SELECT 'audit-' || lpad(i::text, 5, '0'), 'owner-' || (i % 6), 'project-' || (i 
        audit.state, CASE WHEN audit.hold = 'released' THEN 'closed' ELSE 'open' END, audit.hold,
        1, 1, 1, 1, 1, 1, 1024, audit.created_at, audit.created_at,
        CASE WHEN audit.state <> 'draft' THEN audit.created_at END,
-       CASE WHEN audit.state = 'completed' THEN audit.created_at + interval '1 hour' END,
-       CASE WHEN audit.state = 'draft' THEN 'not-started' ELSE 'rounds' END
+       CASE WHEN audit.state = 'completed' THEN audit.created_at + interval '1 hour' END
 FROM generate_series($1::integer, $2::integer) AS i
 CROSS JOIN LATERAL (
     SELECT CASE WHEN i % $4::integer = 0 THEN 'held' WHEN i % 97 = 1 THEN 'pending' ELSE 'released' END AS hold,

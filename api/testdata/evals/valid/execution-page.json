@@ -8,8 +8,8 @@
         "id": "audit-1"
       },
       "parent": null,
-      "role": null,
-      "round": null,
+      "workflow": null,
+      "iteration": null,
       "state": "succeeded",
       "available": true
     },
@@ -22,8 +22,8 @@
         "kind": "audit",
         "id": "audit-1"
       },
-      "role": "discovery",
-      "round": 1,
+      "workflow": "discovery",
+      "iteration": 1,
       "state": "succeeded",
       "available": true
     },
@@ -36,8 +36,8 @@
         "kind": "audit",
         "id": "audit-1"
       },
-      "role": "check",
-      "round": 1,
+      "workflow": "check",
+      "iteration": 1,
       "state": "succeeded",
       "available": true
     }
