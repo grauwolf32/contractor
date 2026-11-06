@@ -6,7 +6,8 @@ epic: ui
 kind: defect
 introduced_by: V64-010
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 6f158637de17f078b339aaa6d0729009eb9a874c
 depends_on: []
 languages: [typescript]
 goal: Choosing a current check type in Eval setup displays its exact required inputs and media types without crashing the form; Workflow inputs retain their existing contract.
@@ -42,3 +43,10 @@ tests:
     covers: [A1, A2, A3]
   - command: python3 scripts/check_spec.py
     covers: [A1, A2, A3]
+verification:
+  results:
+    - Both built Audit setup cases reproduced the original page crash after a valid common profile was selected at 390/1280px; Workflow cases remained successful.
+    - After the explicit kind-specific projection, all six built setup journeys passed, including Audit/Workflow, reload, explicit controls, ambiguous Start replay and private review material isolation.
+    - The entire Eval UI package plus root setup suite passed 104 tests across 20 files. New component cases exercise strict current AuditProfile media_types and unchanged Workflow mediaTypes.
+    - make ui-verify passed generation checks, lint, both typechecks, 213 test files with 2409 passing tests and one declared expected failure, 17 static-server tests and production build. Task/spec checks passed.
+  delivery: Committed on codex/ui-browser-contracts; not merged into main. UI release 0.11.16; no API, CLI or persistence changes.
