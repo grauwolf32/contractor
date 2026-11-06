@@ -309,20 +309,15 @@ describe("Inbox words", () => {
   });
 
   it("builds a progress line from the workspace counts", () => {
-    const progress = checkProgress(
-      {
-        ...workspace("a", 1),
-        totalTasks: 6,
-        completedTasks: 3,
-        findings: 1,
-        pendingTasks: 2,
-      },
-      "requirement",
-    );
-    expect(progress.summary).toBe("3 of 6 requirements done");
-    expect(progress.label).toBe(
-      "3 of 6 requirements done: 1 with gaps, 2 pending",
-    );
+    const progress = checkProgress({
+      ...workspace("a", 1),
+      totalTasks: 6,
+      completedTasks: 3,
+      findings: 1,
+      pendingTasks: 2,
+    });
+    expect(progress.summary).toBe("3 of 6 tasks done");
+    expect(progress.label).toBe("3 of 6 tasks done: 1 with gaps, 2 pending");
     expect(progress.segments.map((segment) => segment.tone)).toEqual([
       "done",
       "done",
@@ -331,6 +326,16 @@ describe("Inbox words", () => {
       "idle",
       "idle",
     ]);
+  });
+
+  it("names empty and singular progress as tasks", () => {
+    expect(checkProgress({ ...workspace("a", 0), totalTasks: 0 }).summary).toBe(
+      "No tasks listed yet",
+    );
+    expect(
+      checkProgress({ ...workspace("a", 0), totalTasks: 1, completedTasks: 1 })
+        .summary,
+    ).toBe("1 of 1 task done");
   });
 
   it("never picks a file when no primary output is declared", () => {

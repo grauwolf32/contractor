@@ -1,0 +1,66 @@
+schema_version: '1.0'
+id: V64-037
+title: Label Audit Task progress and mixed-iteration Eval executions accurately
+milestone: audit-check-prioritization
+epic: audits
+kind: defect
+introduced_by: V64-010
+priority: P1
+status: in_progress
+depends_on: [V64-010]
+languages: [go, sql, typescript, json, yaml, markdown]
+goal: Inbox describes common Task progress and Eval never attributes a mixed-iteration Run to its first Task's iteration.
+context:
+  authority: >-
+    User review 2026-11-06 requests local corrections: label Task progress without
+    inventing domain coverage, and omit a single iteration for mixed batches without
+    changing dispatch. Both regressions originate in V64-010 commit
+    0b037b4c39d56e15f8e0797175c68c58c31b852e.
+  specification:
+  - docs/spec/ui/ui.md#UI-R144
+  - docs/spec/evals/managed-evals.md#EVM-R76
+  finding: >-
+    ui/src/routes/inbox/present.ts:154 consumes all Tasks but labels them by profile
+    as endpoints/requirements/scenarios: one preparation plus two pending checks
+    becomes 1 of 3 endpoints done. internal/evalstore/inventory_pages_sql.go:45 and
+    inventory_sql.go:33 select batch_ordinal zero, so a Run spanning iterations 1
+    and 2 is falsely shown as iteration 1. EVM-R76 incorrectly assumes uniform batches.
+  siblings: >-
+    Fix Inbox list/detail progress, accessibility text, empty state and gap labels;
+    remove the obsolete coverage follow-up link in favor of the existing check link.
+    Correct the Checks summary's draft/empty-state nouns too; nonempty shared
+    Checks progress already uses neutral counts and common Tasks. Fix both
+    paginated and collection Eval inventory SQL; nullable iteration already exists
+    in Go, managed JSON schema, OpenAPI and clients, and UI already omits null.
+  boundary: >-
+    Existing Server Task counters remain authoritative. Eval derives a single
+    iteration only when all execution members agree; otherwise it returns null.
+    Read work stays bounded by the existing execution page and 64-Task batch
+    ceiling; collection retains its 1024-execution ceiling.
+    No new entity, migration, provider interpretation, coverage calculation or
+    dispatch restriction is introduced. Exact task associations remain authoritative.
+scope:
+  in:
+  - Correct consumer labels, EVM-R76 and nullable iteration field documentation.
+  - Regression tests through real UI rendering and real PostgreSQL inventory reads.
+  - Verify homogeneous, mixed, missing-member and paginated execution cases.
+  out:
+  - New coverage accounting, scheduler changes, lifecycle changes and live-model checks.
+acceptance_criteria:
+- id: A1
+  text: One completed preparation and two pending checks show 1 of 3 tasks done; no profile-specific coverage is claimed in Inbox list, detail or gap labels.
+- id: A2
+  text: Both Eval inventory paths return the common iteration for homogeneous batches and null for mixed or absent members, retaining execution/Workflow associations and pagination.
+- id: A3
+  text: The Eval UI omits iteration for mixed batches, and the spec and both public schemas describe the same nullable semantics.
+- id: A4
+  text: Regressions fail on the original implementation and existing indexed inventory scale checks still pass.
+tests:
+- command: go test -tags=integration -count=1 ./internal/evalstore ./internal/evalservice
+  covers: [A2, A4]
+- command: make ui-verify
+  covers: [A1, A3, A4]
+- command: make verify-public-api
+  covers: [A2, A3]
+- command: make lint
+  covers: [A1, A2, A3, A4]

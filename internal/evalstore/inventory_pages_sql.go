@@ -35,16 +35,18 @@ WHERE e.owner_id = $1 AND e.experiment_id = $2 AND m.member_id = $3
 // child executions ordered by execution_id, after the execution ID $3 (empty
 // for the first child), limited to $4. Comparing the bare execution ID lets
 // the scan start at $3 in an index led by execution_id instead of reading
-// every earlier execution. Rows carry the child Run ID, Workflow alias, iteration ordinal,
-// Run state and existence, and terminal outcome. Used by Store.InventoryPage.
+// every earlier execution. Rows carry the child Run ID, Workflow alias, common
+// Task iteration (NULL for mixed or absent members), Run state and existence,
+// and terminal outcome. Used by Store.InventoryPage.
 var inventoryPageAuditExecutionsSQL = `
 SELECT x.execution_id,x.run_id,x.workflow_role,task.iteration,r.state,r.run_id IS NOT NULL,x.terminal_outcome
 FROM audit_executions x
 JOIN audits a USING(audit_id)
 LEFT JOIN LATERAL (
- SELECT t.iteration FROM audit_execution_items member
+ SELECT CASE WHEN min(t.iteration) = max(t.iteration) THEN min(t.iteration) END AS iteration
+ FROM audit_execution_items member
  JOIN audit_tasks t ON t.task_id=member.task_id AND t.audit_id=member.audit_id
- WHERE member.execution_id=x.execution_id AND member.batch_ordinal=0
+ WHERE member.execution_id=x.execution_id
 ) task ON TRUE
 LEFT JOIN workflow_runs r ON r.run_id = x.run_id
 AND r.owner_id = a.owner_id

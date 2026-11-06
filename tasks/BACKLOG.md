@@ -5,13 +5,14 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-72 open tasks: 10 in progress, 49 pending, 13 deferred. 1460 finished: 1442 completed, 18 archived.
+73 open tasks: 11 in progress, 49 pending, 13 deferred. 1460 finished: 1442 completed, 18 archived.
 
 ## In progress
 
 | Task | Epic | Kind | Priority | Title |
 | --- | --- | --- | --- | --- |
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
+| [V64-037](v64-037-audit-consumer-progress-labels.yml) | audits | defect | P1 | Label Audit Task progress and mixed-iteration Eval executions accurately |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | quality | chore | P3 | Make the Runtime suite pass on macOS: declare the Linux-only Podman tests, make the other tests portable and file the macOS defects |
@@ -175,7 +176,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 1 | 17 | 10 | 10 | 16 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 21 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 39 | 17 | 67 |
-| Audits (`audits`) | 11 | 69 | 95 | 40 | 152 |
+| Audits (`audits`) | 12 | 69 | 96 | 40 | 153 |
 | Evaluations (`evals`) | 6 | 21 | 40 | 16 | 49 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
 | Web UI (`ui`) | 2 | 49 | 71 | 26 | 72 |
