@@ -116,9 +116,9 @@ test("research continuation, exact grounds and Project publication through real 
   await page.getByRole("tab", { name: "History", exact: true }).click();
   const sources = page.getByRole("region", { name: "Independent sources" });
   await expect(sources.getByText(/^Run run_/)).toBeVisible();
-  await page.getByRole("tab", { name: "Evidence", exact: true }).click();
+  await page.getByRole("tab", { name: /^Evidence/ }).click();
   await expect(
-    page.getByRole("heading", { name: /Evidence/ }).first(),
+    page.getByRole("heading", { name: /[Ee]vidence/ }).first(),
   ).toBeVisible();
   for (const theme of ["light", "dark", "black"]) {
     await page.addInitScript(
