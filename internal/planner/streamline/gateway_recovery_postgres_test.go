@@ -62,7 +62,7 @@ func TestPostgresGatewayRecoveryEndsPermanentFailuresNonRetryable(t *testing.T) 
 				_, _ = w.Write([]byte(body))
 			}))
 			t.Cleanup(server.Close)
-			participant := admittedPlannerParticipant(t, ctx, pool, "run-gateway")
+			participant, recovery := admittedPlannerParticipant(t, ctx, pool, "run-gateway")
 			sessions := newFakeSessions()
 			instance := recoveryBackedPlanner(t, server, participant, sessions, 32, 0)
 
@@ -87,12 +87,8 @@ func TestPostgresGatewayRecoveryEndsPermanentFailuresNonRetryable(t *testing.T) 
 			}
 			// The permanent answer of the recovery probe proves the transport
 			// recovered: the route reopens and the Run stops waiting.
-			var blocked bool
-			var state string
-			if err := pool.QueryRow(ctx, `
-SELECT g.blocked, r.state FROM gateway_recovery_routes g, workflow_runs r
-WHERE r.run_id='run-gateway'`).Scan(&blocked, &state); err != nil || blocked || state != string(runstore.RunRunning) {
-				t.Fatalf("recovery state blocked=%v Run=%s err=%v", blocked, state, err)
+			if status, err := recovery.ReadStatus(ctx, "run-gateway", "stage-1"); err != nil || status != nil {
+				t.Fatalf("recovery status=%+v err=%v", status, err)
 			}
 		})
 	}
@@ -144,7 +140,7 @@ func TestPostgresGatewayRecoveryKeepsOutcomeWhenBookkeepingWaits(t *testing.T) {
 }`))
 			}))
 			t.Cleanup(server.Close)
-			participant := admittedPlannerParticipant(t, ctx, budgeted, "run-bookkeeping")
+			participant, _ := admittedPlannerParticipant(t, ctx, budgeted, "run-bookkeeping")
 			instance := recoveryBackedPlanner(t, server, participant, newFakeSessions(), 1, 0)
 
 			_, runErr := instance.Run(ctx)
@@ -179,7 +175,7 @@ func TestPostgresGatewayRecoveryDoesNotResendAbandonedRequest(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	t.Cleanup(func() { close(release) })
-	participant := admittedPlannerParticipant(t, ctx, pool, "run-abandoned")
+	participant, recovery := admittedPlannerParticipant(t, ctx, pool, "run-abandoned")
 	instance := recoveryBackedPlanner(t, server, participant, newFakeSessions(), 32, 300*time.Millisecond)
 
 	_, err := instance.Run(ctx)
@@ -188,12 +184,8 @@ func TestPostgresGatewayRecoveryDoesNotResendAbandonedRequest(t *testing.T) {
 		t.Fatalf("failure=%+v Gateway calls=%d, want one retryable unanswered request", failure, calls.Load())
 	}
 	// A slow model is not an outage: the route stays open and the Run running.
-	var blocked bool
-	var state string
-	if err := pool.QueryRow(ctx, `
-SELECT g.blocked, r.state FROM gateway_recovery_routes g, workflow_runs r
-WHERE r.run_id='run-abandoned'`).Scan(&blocked, &state); err != nil || blocked || state != string(runstore.RunRunning) {
-		t.Fatalf("recovery state blocked=%v Run=%s err=%v", blocked, state, err)
+	if status, err := recovery.ReadStatus(ctx, "run-abandoned", "stage-1"); err != nil || status != nil {
+		t.Fatalf("recovery status=%+v err=%v", status, err)
 	}
 }
 
@@ -201,9 +193,9 @@ WHERE r.run_id='run-abandoned'`).Scan(&blocked, &state); err != nil || blocked |
 // running Run to the production recovery authority.
 func admittedPlannerParticipant(
 	t *testing.T, ctx context.Context, pool *pgxpool.Pool, runID string,
-) *gatewayrecovery.Participant {
+) (*gatewayrecovery.Participant, *gatewayrecovery.Service) {
 	t.Helper()
-	service, err := gatewayrecovery.New(pool, runstore.GatewayRecoveryRuns{}, gatewayrecovery.Policy{
+	service, err := gatewayrecovery.New(gatewayrecovery.Policy{
 		InitialDelay: time.Second, MaxDelay: time.Second, AutomaticWindow: time.Minute,
 	}, time.Minute, time.Minute)
 	if err != nil {
@@ -222,7 +214,7 @@ func admittedPlannerParticipant(
 		t.Fatal(err)
 	}
 	route := gatewayrecovery.Route{OwnerID: "owner", GatewayDigest: "gateway", Model: "planner-model"}
-	if allowed, err := service.Admit(ctx, runID, []gatewayrecovery.Route{route}); err != nil || !allowed {
+	if allowed, err := service.Admit(ctx, runID, "stage-1", []gatewayrecovery.Route{route}); err != nil || !allowed {
 		t.Fatalf("admit route = %v, %v", allowed, err)
 	}
 	if _, err := runs.TransitionRun(ctx, runID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "admitted"}); err != nil {
@@ -248,7 +240,8 @@ func admittedPlannerParticipant(
 	}); err != nil {
 		t.Fatal(err)
 	}
-	return service.Planner(runID, "stage-1", route, llmgateway.DefaultGatewayFailureSignatures())
+	service.Activate(runID, "stage-1")
+	return service.Planner(runID, "stage-1", route, llmgateway.DefaultGatewayFailureSignatures()), service
 }
 
 func recoveryBackedPlanner(

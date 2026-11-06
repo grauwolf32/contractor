@@ -807,3 +807,7 @@ func (laneNoopPersistence) AdmitStage(context.Context, string, string) (runstore
 func (laneNoopPersistence) DiscardUnadmittedPlacement(context.Context, string, string, func() error) error {
 	return errors.New("unexpected placement discard")
 }
+
+func (laneNoopPersistence) ReconcileModelWait(context.Context, string, string, string) error {
+	return nil
+}

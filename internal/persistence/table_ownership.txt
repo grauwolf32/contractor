@@ -57,11 +57,6 @@ git_ssh_keys                         internal/credentials             secrets
 llm_credentials                      internal/credentials             secrets
 runtime_credentials                  internal/credentials             secrets
 
-gateway_allocation_routes            internal/gatewayrecovery         runtime
-gateway_recovery_failures            internal/gatewayrecovery         runtime
-gateway_recovery_routes              internal/gatewayrecovery         runtime
-gateway_recovery_waits               internal/gatewayrecovery         runtime
-gateway_run_routes                   internal/gatewayrecovery         runtime
 runtime_agent_principals             internal/agentprincipal          runtime
 runtime_config_versions              internal/runtimeconfig           runtime
 runtime_label_bindings               internal/runtimeconfig           runtime
@@ -185,17 +180,6 @@ internal/findingintake       stage_executions               Trusted execution ch
     Run.
 internal/findingintake       workflow_runs                  Receipts join their source Run; import fences that Run FOR KEY
     SHARE.
-
-internal/gatewayrecovery     workflow_runs                  Admission waits while a running or waiting Run waits on the
-    route, an update that changes nothing is decided from one read without locks (SCH-R165) and recovery status shows
-    only active Runs. Recovery locks and moves Runs, and reads the owner that manual retry checks, through the Run
-    store. Accepted upward read PER-UR-3.
-internal/gatewayrecovery     stage_executions               Recovery refuses non-terminal updates of an ending or ended
-    participant. Primary-key reads share the healthy-route snapshot or the existing Run row lock; no Stage is locked.
-    Accepted upward read PER-UR-3.
-internal/gatewayrecovery     stage_allocations              Recovery resolves an allocation participant's owning Stage by
-    primary key for the same lifecycle fence; allocations are never changed or locked here. Accepted upward read
-    PER-UR-3.
 
 internal/gitimport           projects                       Git import checks that the Project is active and fences its
     deletion FOR SHARE.

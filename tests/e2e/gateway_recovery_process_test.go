@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -105,20 +104,20 @@ func TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses(t *testing.T) {
 		case <-time.After(100 * time.Millisecond):
 		}
 	}
-	// Advance only the recovery window in this isolated database; avoid waiting
-	// five real minutes merely to exercise the manual-retry transition.
-	pool, err := pgxpool.New(h.ctx, h.databaseURL)
-	if err != nil {
-		t.Fatal(err)
+	// A short configured automatic window exercises manual Retry through the
+	// production clock and public API, without editing internal SQL state.
+	for {
+		paused := awaitRecoveryRunState(t, h, runs[0], "waiting")
+		if paused.Recovery != nil && paused.Recovery.RequiresRetry {
+			break
+		}
+		select {
+		case <-h.ctx.Done():
+			t.Fatal("manual retry window did not expire")
+		case <-time.After(100 * time.Millisecond):
+		}
 	}
-	defer pool.Close()
-	if _, err := pool.Exec(h.ctx, `UPDATE gateway_recovery_routes SET automatic_until=clock_timestamp()-interval '1 second' WHERE blocked`); err != nil {
-		t.Fatal(err)
-	}
-	paused := awaitRecoveryRunState(t, h, runs[0], "waiting")
-	if paused.Recovery == nil || !paused.Recovery.RequiresRetry {
-		t.Fatalf("missing manual retry: %+v", paused.Recovery)
-	}
+
 	outage.recover()
 	request, _ := http.NewRequestWithContext(h.ctx, http.MethodPost, h.baseURL+"/v1/runs/"+runs[0]+"/retry-gateway", bytes.NewReader([]byte(`{}`)))
 	request.Header.Set("Authorization", "Bearer "+publicToken)
@@ -229,6 +228,16 @@ func startRecoveryHarness(t *testing.T, outage *recoveryOutage, count int) *find
 		stages[index] = stage
 	}
 	return startConfiguredFindingsHarness(t, stages, func(root string) {
+		window := "5m"
+		if outage.afterFinding {
+			window = "4s"
+		}
+		serverConfig := filepath.Join(t.TempDir(), "server.yaml")
+		if err := os.WriteFile(serverConfig, []byte(fmt.Sprintf("apiVersion: contractor/v1alpha1\nkind: ServerConfig\nspec:\n  llmRecovery: {initialDelay: 1s, maxDelay: 1s, automaticWindow: %s}\n", window)), 0600); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("CONTRACTOR_SERVER_CONFIG", serverConfig)
+
 		// Skill preparation requires its own Runtime allocation. Leave it out
 		// so all queued Runs can finish initialization during the model outage.
 		path := filepath.Join(root, "agent-templates", "fixture-ordinary-findings.yaml")

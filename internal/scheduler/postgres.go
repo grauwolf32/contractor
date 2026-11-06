@@ -10,7 +10,6 @@ import (
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/stageresult"
@@ -161,9 +160,8 @@ func (p *PostgresPersistence) CommitResultProgression(
 		); err != nil {
 			return err
 		}
-		// A completed invocation no longer waits for its model gateway or
-		// holds a recovery probe.
-		if err := gatewayrecovery.EndStage(ctx, tx, runstore.GatewayRecoveryRuns{}, value.RunID); err != nil {
+		// Complete the durable wait projection even if its asynchronous write failed.
+		if err := txStore.LeaveWaiting(ctx, value.RunID); err != nil {
 			return err
 		}
 
@@ -242,9 +240,8 @@ func (p *PostgresPersistence) CommitTerminationProgression(
 		if err := store.CompleteStageTermination(ctx, value.StageExecutionID); err != nil {
 			return err
 		}
-		// A terminated invocation cannot continue recovering its model. Drop
-		// its waits and probe before admitting any configured follow-up Stage.
-		if err := gatewayrecovery.EndStage(ctx, tx, runstore.GatewayRecoveryRuns{}, value.RunID); err != nil {
+		// A follow-up Stage starts without its predecessor's durable wait.
+		if err := txStore.LeaveWaiting(ctx, value.RunID); err != nil {
 			return err
 		}
 
@@ -291,7 +288,7 @@ func (p *PostgresPersistence) AcceptResultDuringCancellation(
 		); err != nil {
 			return err
 		}
-		return gatewayrecovery.EndStage(ctx, tx, runstore.GatewayRecoveryRuns{}, runID)
+		return nil
 	})
 }
 
@@ -327,9 +324,7 @@ func (p *PostgresPersistence) CommitTerminationAndFinishRun(
 		); err != nil {
 			return err
 		}
-		// After the Run transition, whose expected state the gateway cleanup
-		// must not change, and still in the transaction that ends the Stage.
-		return gatewayrecovery.EndStage(ctx, tx, runstore.GatewayRecoveryRuns{}, runID)
+		return nil
 	})
 }
 
@@ -365,9 +360,7 @@ func (p *PostgresPersistence) FailRunWithActiveStages(
 		if err := freezeOutputs(ctx, artifacts.NewService(p.storage.Repository(tx)), runID); err != nil {
 			return fmt.Errorf("freeze Workflow outputs: %w", err)
 		}
-		// Every active Stage ended above; a waiting Run's expected state is
-		// matched before the gateway cleanup could return it to running.
-		return gatewayrecovery.EndStage(ctx, tx, runstore.GatewayRecoveryRuns{}, runID)
+		return nil
 	})
 }
 

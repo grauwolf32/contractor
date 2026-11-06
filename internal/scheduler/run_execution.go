@@ -123,8 +123,10 @@ func (s *Scheduler) executeRun(
 		}
 		return s.prepareAndPlan(ctx, run, workflow, execution)
 	case runstore.StageFinalizing:
+		s.endModelRoutes(run.RunID, execution.StageExecutionID)
 		return s.resumeFinalizing(ctx, run, workflow, execution, nil)
 	case runstore.StageAborting:
+		s.endModelRoutes(run.RunID, execution.StageExecutionID)
 		return s.resumeAborting(ctx, run, workflow, execution, nil)
 	default:
 		if execution.State.Terminal() {
@@ -184,8 +186,10 @@ func (s *Scheduler) executeCancelling(ctx context.Context, run runstore.Workflow
 	case runstore.StagePreparing, runstore.StageRunning:
 		return s.beginCancellationAbort(ctx, run, workflow, execution, reservations)
 	case runstore.StageAborting:
+		s.endModelRoutes(run.RunID, execution.StageExecutionID)
 		return s.resumeAborting(ctx, run, workflow, execution, reservations)
 	case runstore.StageFinalizing:
+		s.endModelRoutes(run.RunID, execution.StageExecutionID)
 		return s.resumeFinalizing(ctx, run, workflow, execution, reservations)
 	default:
 		return fmt.Errorf("unhandled cancelling StageExecution state %q", execution.State)
@@ -236,6 +240,9 @@ func (s *Scheduler) finishCancelledRun(ctx context.Context, runID string) error 
 	defer cancel()
 	// The commit freezes the outputs that earlier Stages bound (ART-R94).
 	err := s.persistence.FinishCancelledRun(operationContext, runID)
+	if err == nil && s.options.GatewayRecovery != nil {
+		s.options.GatewayRecovery.EndRun(runID)
+	}
 	if errors.Is(err, runstore.ErrConflict) {
 		state, loadErr := s.store.GetRunState(operationContext, runID)
 		if loadErr == nil && state == runstore.RunCancelled {
@@ -278,6 +285,9 @@ func (s *Scheduler) failActiveRun(ctx context.Context, runID, code string, cause
 	err = s.persistence.FailRunWithActiveStages(operationContext, runID, state, next, reason, termination, abortID)
 	if err != nil {
 		return errors.Join(cause, err)
+	}
+	if s.options.GatewayRecovery != nil {
+		s.options.GatewayRecovery.EndRun(runID)
 	}
 	// The Run keeps only the stable code and the fixed, owner-facing
 	// StageTermination message; the operator finds the cause here, once per

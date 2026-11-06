@@ -3,87 +3,74 @@ package gatewayrecovery
 import (
 	"context"
 	"time"
-
-	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
-	"github.com/jackc/pgx/v5"
 )
 
-// setWaiting records that a participant waits for its blocked route and moves
-// its Run to waiting. The caller holds the Run row lock (lockRun).
-func setWaiting(ctx context.Context, tx pgx.Tx, runs RunStates, participantID, model, runID, key, code string) error {
-	if _, err := tx.Exec(ctx, `
-INSERT INTO gateway_recovery_waits(participant_id,model,run_id,route_key)
-VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING`, participantID, model, runID, key); err != nil {
-		return err
+// EndStage unregisters exactly this Stage. Late updates cannot recreate it.
+func (s *Service) EndStage(runID, stageID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if run := s.runs[runID]; run != nil && run.stageID == stageID {
+		s.endStage(run)
 	}
-	return runs.EnterWaiting(ctx, tx, runID, code)
+}
+func (s *Service) endStage(run *runState) {
+	s.failureReceipts -= len(run.failures)
+	for participant := range run.waits {
+		s.clearWaiting(run, participant)
+	}
+	for binding := range run.bindings {
+		delete(s.bindings, binding)
+	}
+	for key := range run.routes {
+		state := s.routes[key]
+		if state.probeRunID == run.id {
+			state.release()
+		}
+		delete(state.members, run.id)
+		if !state.blocked && len(state.members) == 0 {
+			delete(s.routes, key)
+		}
+	}
+	delete(s.runs, run.id)
+	close(run.changed)
 }
 
-// clearWaiting drops a participant's wait and returns its Run to running once
-// no participant of the Run waits. The caller holds the Run row lock, under
-// which every wait of the Run is inserted and deleted, so no wait can appear
-// between the check and the transition.
-func clearWaiting(ctx context.Context, tx pgx.Tx, runs RunStates, participantID, model, runID string) error {
-	if _, err := tx.Exec(ctx, `DELETE FROM gateway_recovery_waits WHERE participant_id=$1 AND model=$2`, participantID, model); err != nil {
-		return err
+func (s *Service) ReleaseAdmission(runID, stageID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	run := s.runs[runID]
+	if run == nil || run.stageID != stageID {
+		return
 	}
-	var waits bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM gateway_recovery_waits WHERE run_id=$1)`, runID).Scan(&waits); err != nil {
-		return err
+	for key := range run.routes {
+		state := s.routes[key]
+		if state.probeRunID == runID && state.probeID == "" {
+			state.release()
+		}
 	}
-	if waits {
-		return nil
-	}
-	return runs.LeaveWaiting(ctx, tx, runID)
 }
 
-// EndStage drops the model recovery state of a Run's ending Stage inside the
-// transaction that ends it; the caller already holds the Run row lock. The
-// Stage's waits and route membership go, and any probe the Run holds or
-// reserved is relinquished without reopening the route or resetting its
-// retry window, so another Run can probe at once instead of after the lease
-// (SCH-R107, SCH-R108). With no wait left, a waiting Run returns to running
-// through runs.
-//
-// Route rows are locked in key order, like Admit and Retry, so a Run holding
-// probes on several routes cannot deadlock with them. gateway_recovery_routes
-// holds one row per distinct owner model route, so the probe scan is bounded
-// by that catalog, not by Runs or Stages.
-func EndStage(ctx context.Context, tx pgx.Tx, runs RunStates, runID string) error {
-	if _, err := tx.Exec(ctx, `DELETE FROM gateway_recovery_waits WHERE run_id=$1`, runID); err != nil {
-		return err
+// Waiting returns a stable wait reason and a broadcast channel for its next
+// change. Scheduler reconciles this projection with the durable Run separately.
+func (s *Service) Waiting(runID, stageID string) (string, <-chan struct{}) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	run := s.runs[runID]
+	if run == nil || run.stageID != stageID {
+		return "", nil
 	}
-	if _, err := tx.Exec(ctx, `DELETE FROM gateway_run_routes WHERE run_id=$1`, runID); err != nil {
-		return err
+	key := ""
+	for _, route := range run.waits {
+		if key == "" || route < key {
+			key = route
+		}
 	}
-	if err := relinquishProbes(ctx, tx, runID, false); err != nil {
-		return err
+	if key == "" {
+		return "", run.changed
 	}
-	return runs.LeaveWaiting(ctx, tx, runID)
+	return s.routes[key].code, run.changed
 }
 
-// ReleaseAdmission relinquishes the probes that admission reserved for a Run
-// whose placement was discarded before its Stage was admitted, inside the
-// caller's transaction, which holds the Run row lock. The Run may wait for a
-// paused queue for long; its reservation must not refuse other Runs' probes
-// meanwhile. Its route membership stays, so its status still names the route.
-func ReleaseAdmission(ctx context.Context, tx pgx.Tx, runID string) error {
-	return relinquishProbes(ctx, tx, runID, true)
-}
-
-// relinquishProbes clears the probes a Run holds, or only those admission
-// reserved, locking route rows in key order like Admit and Retry.
-func relinquishProbes(ctx context.Context, tx pgx.Tx, runID string, admissionOnly bool) error {
-	_, err := tx.Exec(ctx, `
-UPDATE gateway_recovery_routes SET probe_id=NULL,probe_run_id=NULL,probe_until=NULL
-WHERE route_key IN (
- SELECT route_key FROM gateway_recovery_routes
- WHERE probe_run_id=$1 AND (NOT $2 OR probe_id IS NULL)
- ORDER BY route_key FOR UPDATE)`, runID, admissionOnly)
-	return err
-}
-
-// Status deliberately excludes provider data, route identities and credentials.
 type Status struct {
 	Code           string     `json:"code"`
 	Since          time.Time  `json:"since"`
@@ -92,61 +79,76 @@ type Status struct {
 	RequiresRetry  bool       `json:"requiresRetry"`
 }
 
-// ReadStatus reads the recovery status of an active Run through db, a pool or
-// the caller's transaction, so a Run detail can read it in the same snapshot
-// as the Run state. It reports nil when no route of the Run is blocked.
-func ReadStatus(ctx context.Context, db persistencepostgres.DBTX, runID string) (*Status, error) {
-	var status Status
-	err := db.QueryRow(ctx, `
-SELECT g.failure_code,g.blocked_at,
- CASE WHEN g.automatic_until>clock_timestamp()
-      THEN GREATEST(g.next_probe_at,g.probe_until) ELSE NULL END,
- g.automatic_until,g.automatic_until<=clock_timestamp()
-FROM gateway_recovery_routes g JOIN gateway_run_routes b USING(route_key)
-JOIN workflow_runs r USING(run_id)
-WHERE b.run_id=$1 AND g.blocked AND r.state IN ('pending','running','waiting')
-ORDER BY (g.automatic_until<=clock_timestamp()) DESC,g.next_probe_at DESC
-LIMIT 1`, runID).Scan(&status.Code, &status.Since, &status.NextRetryAt, &status.AutomaticUntil, &status.RequiresRetry)
-	if err == pgx.ErrNoRows {
-		return nil, nil
-	}
-	if err != nil {
+// ReadStatus is a live process snapshot. The reader supplies the exact active
+// Stage from its durable Run snapshot, preventing status from a later Stage.
+func (s *Service) ReadStatus(ctx context.Context, runID, stageID string) (*Status, error) {
+	if err := checkContext(ctx); err != nil {
 		return nil, err
 	}
-	return &status, nil
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	run := s.runs[runID]
+	if run == nil || run.stageID != stageID {
+		return nil, nil
+	}
+	now := s.now()
+	var chosen *routeState
+	var chosenKey string
+	for key := range run.routes {
+		state := s.routes[key]
+		if !state.blocked {
+			continue
+		}
+		if chosen == nil || state.automaticExpired(now) && !chosen.automaticExpired(now) ||
+			state.automaticExpired(now) == chosen.automaticExpired(now) && (state.next.After(chosen.next) || state.next.Equal(chosen.next) && key < chosenKey) {
+			chosen, chosenKey = state, key
+		}
+	}
+	if chosen == nil {
+		return nil, nil
+	}
+	status := &Status{Code: chosen.code, Since: chosen.blockedAt, AutomaticUntil: chosen.automaticUntil, RequiresRetry: chosen.automaticExpired(now)}
+	if !status.RequiresRetry {
+		next := chosen.next
+		if chosen.probeUntil.After(next) {
+			next = chosen.probeUntil
+		}
+		status.NextRetryAt = &next
+	}
+	return status, nil
 }
 
 func (s *Service) Retry(ctx context.Context, ownerID, runID string) error {
-	return persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		// The Run row lock returns the owner, so the owner check needs no
-		// second read of the Run.
-		owner, err := lockRun(ctx, tx, s.runs, runID, false)
-		if err != nil {
-			return err
-		}
-		if owner != ownerID {
-			return ErrUnavailable
-		}
-		// Take route locks in the same order as admission, avoiding multi-route
-		// deadlocks. An active probe retains its lease when the user clicks Retry.
-		rows, err := tx.Query(ctx, `
-SELECT g.route_key FROM gateway_recovery_routes g
-JOIN gateway_run_routes b USING(route_key)
-WHERE b.run_id=$1 AND g.owner_id=$2 AND g.blocked
-ORDER BY g.route_key FOR UPDATE OF g`, runID, ownerID)
-		if err != nil {
-			return err
-		}
-		keys, err := pgx.CollectRows(rows, pgx.RowTo[string])
-		if err != nil {
-			return err
-		}
-		if len(keys) == 0 {
-			return ErrUnavailable
-		}
-		_, err = tx.Exec(ctx, `
-UPDATE gateway_recovery_routes SET automatic_until=clock_timestamp()+$2,next_probe_at=clock_timestamp()
-WHERE route_key=ANY($1)`, keys, s.policy.AutomaticWindow)
+	if err := checkContext(ctx); err != nil {
 		return err
-	})
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	run := s.runs[runID]
+	if run == nil || run.ownerID != ownerID {
+		return ErrUnavailable
+	}
+	changed := false
+	now := s.now()
+	for key := range run.routes {
+		state := s.routes[key]
+		if state.blocked {
+			state.automaticUntil, state.next = now.Add(s.policy.AutomaticWindow), now
+			changed = true
+		}
+	}
+	if !changed {
+		return ErrUnavailable
+	}
+	return nil
+}
+
+// EndRun removes any admission registration after Scheduler durably ends a Run
+// without progressing its Stage, including an unreadable Workflow snapshot.
+func (s *Service) EndRun(runID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if run := s.runs[runID]; run != nil {
+		s.endStage(run)
+	}
 }

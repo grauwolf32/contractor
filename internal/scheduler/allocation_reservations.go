@@ -92,7 +92,7 @@ func (s *Scheduler) liveOrNewReservations(
 	// Gateway admission runs before placement is durable: a denial must not
 	// leave pinned allocation rows without live grants behind.
 	request.Admit = func(ctx context.Context, candidates []controlplane.Reservation) error {
-		allowed, err := s.admitModelRoutes(ctx, run, workflow.stage, candidates)
+		allowed, err := s.admitModelRoutes(ctx, run, workflow.stage, execution.StageExecutionID, candidates)
 		if err == nil && !allowed {
 			err = ErrDeferred
 		}

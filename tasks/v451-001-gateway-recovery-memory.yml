@@ -1,0 +1,114 @@
+schema_version: "1.0"
+id: V451-001
+title: Coordinate model recovery in Server memory
+milestone: run-admission-gateway-recovery
+epic: execution-core
+kind: feature
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go]
+goal: >-
+  Runs share bounded model-outage recovery through the single active Server,
+  without five recovery tables or a database operation for every model attempt.
+  Restart resets outage history and retry windows; ordinary Stage recovery remains authoritative.
+demonstration: >-
+  Real Server and Runtime processes keep three Runs queued during a Gateway outage,
+  expose waiting and manual Retry, and finish within the original invocation after
+  recovery. A fresh coordinator forgets the outage and refuses old participants.
+context:
+  authority: >-
+    User decision 2026-11-06 accepts fully in-memory Gateway recovery with reset
+    of backoff and manual-retry windows on Server restart and requests implementation.
+  specification:
+    - docs/spec/execution/scheduler.md#SCH-R105
+    - docs/spec/execution/scheduler.md#SCH-R169
+    - docs/spec/platform/persistence.md#PER-R1
+  boundary: >-
+    Recovery owns route gates, participant bindings, waits, single probes and failure
+    deduplication in memory. Scheduler owns durable Run waiting transitions and
+    participant lifecycle. The existing single-active-Server lease fences process
+    ownership. Alternative: retain one route table to preserve outage history;
+    rejected because restart already interrupts active model executions. Reopen if
+    continued invocations or persistent retry windows become a product requirement.
+scope:
+  in:
+    - Replace recovery SQL with bounded process state and deterministic clock tests.
+    - Reconcile durable waiting through Scheduler; retry failed state writes independently of model outcomes.
+    - Fence old participants and clean stage/admission state on completion, cancellation and restart.
+    - Drop all five recovery tables through a migration; update ownership, ERD and specifications.
+    - Replace SQL-specific recovery tests and exercise existing real-process Gateway journeys.
+  out:
+    - Active-active Servers, model selection changes, Runtime protocol changes and demo deployment.
+requirements:
+  - id: R1
+    text: Preserve one probe per route, active-invocation priority, request-timeout leases, idempotent failures, manual Retry and cancellation within a Server process.
+  - id: R2
+    text: Scheduler persists waiting independently; failed or ambiguous state writes reconcile and cannot discard a model response or restore an ended Stage's waits.
+  - id: R3
+    text: Restart forgets gates, waits, bindings and receipts; existing Stage recovery interrupts old invocations, which cannot register themselves in the new coordinator.
+failure_outcomes:
+  - operation: In-memory admission and model outcome updates
+    permanent: Unknown or ended participants are refused without mutations; invalid requests retain the existing private API error.
+    retryable: Capacity exhaustion refuses new state without evicting live probes or deduplication records; existing retryable recovery-unavailable response applies.
+    ambiguous: Re-delivered outcomes use the same request ID and are idempotent while their participant is registered.
+    cancelled: Joined Scheduler invocation cleanup unregisters its stage; cancellation never creates a Gateway failure.
+    timeout: The existing participant request timeout sizes its probe lease; Stage deadlines remain effective.
+  - operation: Durable Run waiting reconciliation
+    permanent: Ended, replaced or cancelling stages cannot enter waiting.
+    retryable: Scheduler retries on its bounded polling cadence while its claim remains valid.
+    ambiguous: Setting the desired waiting state is idempotent and replayed from current coordinator state.
+    cancelled: Reconciliation work is cancelled and joined before the lane relinquishes ownership.
+    timeout: Existing Scheduler operation timeout bounds each database transaction.
+cardinality:
+  - collection: Recovery routes and Run memberships
+    expected: Tens of routes and the active or recently considered queued Runs.
+    maximum: Explicit process bounds, with only per-Run or per-route indexed membership traversal.
+    bound: No database scan or history read per model call; admission handles only the candidate Stage routes.
+  - collection: Failure receipts and participant waits
+    expected: One wait per participant/model and a small number of failure receipts per Stage.
+    maximum: Explicit bounded receipts and bindings; Stage cleanup removes all of its records.
+    bound: No receipt eviction while a Stage is registered; capacity failure cannot double-count earlier failures.
+lifecycle:
+  - entity: In-memory recovery state
+    delete: Scheduler unregisters participants when their invocation ends and relinquishes abandoned admission probes.
+    cascade: Stage cleanup removes bindings, waits and receipts and relinquishes its probe without reopening the shared gate.
+    retention: Shared blocked routes live within the bounded Server process state; every record is lost on restart.
+acceptance_criteria:
+  - id: A1
+    given: Several active and queued Runs share a failed route
+    when: Concurrent attempts, stale outcomes, manual retry and cancellation occur
+    then: Only one current probe opens the gate, unrelated routes proceed, queue priority and request-timeout leases hold, and memory stays bounded.
+  - id: A2
+    given: A waiting Run, a failed state write, an ended Stage or a restarted coordinator
+    when: Scheduler reconciles or receives late participant updates
+    then: Durable waiting converges without losing model outcomes, and ended participants cannot affect a new Stage.
+  - id: A3
+    given: A database migrated from the previous schema
+    when: The new migration and application start
+    then: All five recovery tables are absent and recovery/API status work through the composed memory service.
+  - id: A4
+    given: Real Server and Runtime processes using a scripted Gateway
+    when: The outage, manual retry, cancellation and permanent-error journeys execute
+    then: Existing user-visible recovery behavior passes without mutating recovery SQL tables.
+tests:
+  - command: go test -race -tags=integration -count=1 ./internal/gatewayrecovery ./internal/scheduler ./internal/runstore ./internal/runservice ./internal/planner/streamline ./internal/httpapi/privateartifacts ./internal/httpapi/public ./internal/persistence/postgres
+    covers: [A1, A2, A3]
+  - command: go test -race -tags=integration -count=1 ./internal/app
+    covers: [A2, A3]
+  - command: go test -tags=e2e -count=1 ./tests/e2e -run '^TestGatewayRecovery(KeepsThreeQueuedRuns|CancellationAndPermanentError)AcrossProcesses$'
+    covers: [A4]
+  - command: make verify-public-api
+    covers: [A3, A4]
+  - command: make verify-architecture
+    covers: [A3]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+verification:
+  results:
+    - The eight affected domain/API/persistence package suites passed against real PostgreSQL with integration tags and the race detector; the separate app suite passed as well. App lease tests run separately from process tests because both deliberately use one active Server per database.
+    - Both real Server/Runtime Gateway recovery process scenarios passed (90.5 seconds), including three queued Runs, retained findings, manual Retry, cancellation and a permanent request error. The manual-window fixture uses four seconds; cancellation retains a five-minute window.
+    - Memory regression tests pass with deterministic clocks and concurrent probe acquisition, stale outcomes, exact failure redelivery, worker versus planner lease bounds, stage replacement, restart, changed causes, cancellation and actual 10000-Run/1024-binding capacity paths.
+    - Real-store projection tests cover a delayed write and a committed write whose response is lost after the model already recovered; Run state converges without resending the model call. Migration 000014 removes all five tables and preserves populated Run records.
+    - make lint, make verify-public-api, make verify-architecture and generated client/ERD/dependency checks passed. Optional disk-heavy I/O fixtures were not enabled and their declared skips are not passing coverage.
+  delivery: Implemented on the isolated codex/gateway-recovery-memory branch; not merged into main. No demo deployment was requested. The owned disposable test database was dropped after its pools and processes stopped.

@@ -15,7 +15,6 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/helpers/randomid"
-	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
 
 // FailureError reports a classified model request failure. Its text names only
@@ -68,10 +67,9 @@ func (p *Participant) Do(request *http.Request, client *http.Client, maxResponse
 			}
 			continue
 		}
-		// A reply or permanent rejection ends the call, and a transient failure
-		// to record it must not discard it: the route and the Run's waits
-		// reconcile on a later update, the probe lease expiry or the Stage end.
-		if err != nil && (request.Context().Err() != nil || !persistencepostgres.IsTransientFailure(err)) {
+		// A reply or permanent rejection ends the call; recording it is entirely
+		// local and never waits for the Run projection in PostgreSQL.
+		if err != nil {
 			return nil, err
 		}
 		if failure != nil {
@@ -80,10 +78,6 @@ func (p *Participant) Do(request *http.Request, client *http.Client, maxResponse
 		return body, nil
 	}
 }
-
-// maxRecordAttempts bounds the bookkeeping of one observed outcome. Each
-// attempt is itself bounded by the database acquire and lock budgets.
-const maxRecordAttempts = 3
 
 // terminalRedeliveryTimeout bounds the best-effort re-delivery of an update
 // after the invocation ended, like the Runtime's
@@ -141,24 +135,11 @@ func (p *Participant) deliver(ctx context.Context, update Request) error {
 	return p.record(detached, redelivery(update))
 }
 
-// record reports an observed outcome and retries a transient database failure.
-// Repeating an update for the same request ID is idempotent, including after
-// an unacknowledged commit.
+// record changes process-local coordination only. Outcome delivery never waits
+// for a Run state write; Scheduler reconciles that projection independently.
 func (p *Participant) record(ctx context.Context, update Request) error {
-	for attempt := 1; ; attempt++ {
-		_, err := p.Update(ctx, update)
-		if err == nil || attempt == maxRecordAttempts || ctx.Err() != nil ||
-			!persistencepostgres.IsTransientFailure(err) {
-			return err
-		}
-		timer := time.NewTimer(time.Duration(attempt) * 50 * time.Millisecond)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return err
-		case <-timer.C:
-		}
-	}
+	_, err := p.Update(ctx, update)
+	return err
 }
 
 // Send performs one model request without a recovery authority. A failure is

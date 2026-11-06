@@ -51,6 +51,7 @@ func (s *Scheduler) beginTermination(
 	reservations []controlplane.Reservation,
 	termination runstore.StageTermination,
 ) error {
+	s.endModelRoutes(run.RunID, execution.StageExecutionID)
 	if execution.State != runstore.StagePreparing && execution.State != runstore.StageRunning {
 		return fmt.Errorf("cannot abort StageExecution from %s", execution.State)
 	}

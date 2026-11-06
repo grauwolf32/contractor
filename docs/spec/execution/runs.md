@@ -463,13 +463,13 @@ prevents the Stage start, session creation and event allocation.
 **RUN-R106.** RunStore alone changes the state of a Run or a
 StageExecution and takes their exclusive row locks
 ([PER-R23](../platform/persistence.md)). The Scheduler's commit points,
-model-availability recovery, the Planner Memory write fence and allocation
+model-wait projection, the Planner Memory write fence and allocation
 placement call its operations inside their own transactions. An operation
 that locks both rows locks the Run row first (RUN-R29), each operation
 compares the stored state with the state its caller expects and changes
 nothing on a mismatch, and each edge of the Run lifecycle has exactly one
 operation that performs it: `running` and `waiting` move into each other only
-through the waiting operations of model-availability recovery (RUN-R30).
+through Scheduler's waiting projection operations (RUN-R30).
 Operations whose locks must outlive their call are available only on the
 caller-transaction-bound RunStore, including queue admission, Skill
 initialization and Audit input materialization. Materialization's lock is
@@ -481,8 +481,9 @@ Rationale: transitions written as SQL in several components drifted apart,
 recording different reasons for the same edge and copying the lock-and-check
 code three times; a copy can skip a check that RunStore makes.
 
-**RUN-R30.** A live invocation waiting for model availability sets its
-Run to `waiting`. `waiting` is an active state: leases, cancellation,
+**RUN-R30.** Scheduler projects a live invocation's current model-availability
+waits into its Run as `waiting`, reconciling failed writes independently of model
+outcomes (SCH-R107). `waiting` is an active state: leases, cancellation,
 retention, credentials, queue and Audit and eval reconciliation must treat it
 as non-terminal.
 
@@ -494,7 +495,8 @@ are not replayed (FAIL-RUN-3). The recovery gate itself is specified in
 [Scheduler](scheduler.md).
 
 **RUN-R32.** Public `RunStatus.recovery` contains a safe cause and
-timing and whether a manual retry is required.
+timing and whether a manual retry is required. It is a live process snapshot for
+the exact active Stage, and is reset on Server restart (SCH-R169).
 
 **RUN-R33.** `POST /v1/runs/{runId}/retry-gateway` is
 owner-scoped and preserves the current invocation. Local recovery settings are
@@ -823,11 +825,13 @@ their origin (`workflow`, inline escalation) and never reconstructs authority fr
 
 **RUN-R87.** A Run detail response includes the event cursor of the
 Run's `run` stream ([Public API](../api/public-api.md)). The Server reads the
-Run, its Stage data, artifacts, deletion and recovery state and that cursor in
+Run, its Stage data, artifacts, deletion state and that cursor in
 one read-only REPEATABLE READ transaction, so the cursor belongs to exactly the
 state in the response: a change committed while the detail is read is either
 in the response or after its cursor, and a subscription from that cursor
-delivers it.
+delivers it. Process-local model recovery is read separately for the exact active
+Stage from that snapshot; it has no durable event cursor and is refreshed by
+ordinary active-Run polling.
 
 **RUN-R88.** The Run detail read verifies ownership before it loads
 related Stage data.

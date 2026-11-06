@@ -114,7 +114,7 @@ func TestPostgresRunDetailReadsStateAndCursorFromOneSnapshot(t *testing.T) {
 			ctx, runID, runstore.RunRunning, runstore.RunFailed, runstore.Reason{Code: "stage_failed"},
 		)
 	}}
-	reader, err := NewRunDetailReader(PostgresRunDetailTransaction(newRunDetailReaderPool(t, ctx, pool, trace), artifactpgtest.NewStorage()))
+	reader, err := NewRunDetailReader(PostgresRunDetailTransaction(newRunDetailReaderPool(t, ctx, pool, trace), artifactpgtest.NewStorage(), nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +196,7 @@ func TestPostgresRunDetailSurvivesFailedOptionalMetricsRead(t *testing.T) {
 	if _, err := pool.Exec(ctx, `ALTER TABLE stage_metrics RENAME TO stage_metrics_hidden`); err != nil {
 		t.Fatal(err)
 	}
-	reader, err := NewRunDetailReader(PostgresRunDetailTransaction(newRunDetailReaderPool(t, ctx, pool, nil), artifactpgtest.NewStorage()))
+	reader, err := NewRunDetailReader(PostgresRunDetailTransaction(newRunDetailReaderPool(t, ctx, pool, nil), artifactpgtest.NewStorage(), nil))
 	if err != nil {
 		t.Fatal(err)
 	}

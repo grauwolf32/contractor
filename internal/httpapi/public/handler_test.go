@@ -783,7 +783,7 @@ func newHandlerFixtureWithAuth(
 	detailStores := &runservice.RunDetailStores{
 		Runs: runs, Deletion: runs, Artifacts: service, Plans: plans, Metrics: metrics,
 		Resources: allocationResources,
-		Recovery: func(context.Context, string) (*gatewayrecovery.Status, error) {
+		Recovery: func(context.Context, string, string) (*gatewayrecovery.Status, error) {
 			return nil, nil
 		},
 	}

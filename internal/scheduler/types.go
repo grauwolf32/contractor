@@ -166,6 +166,9 @@ type operationPersistence interface {
 // or cancelled also freezes the
 // Run's output bindings in the same transaction (ART-R92, ART-R94).
 type AtomicPersistence interface {
+	// ReconcileModelWait projects the current process wait into this exact Stage.
+	ReconcileModelWait(context.Context, string, string, string) error
+
 	AdmitStage(context.Context, string, string) (runstore.StageExecution, error)
 	// DiscardUnadmittedPlacement deletes the durable allocation rows of a
 	// pending Run's never admitted Stage and runs discard under its locks.

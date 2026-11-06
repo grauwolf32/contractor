@@ -15,7 +15,8 @@ import (
 )
 
 // RunDetail is an owner-visible Run with everything its public detail
-// shows, read from one database snapshot. EventCursor is therefore the
+// shows. Durable fields share one database snapshot; Recovery is a live
+// observation for its exact active Stage. EventCursor is therefore the
 // cursor of exactly this state (API-R48): a change committed after the
 // snapshot has a later sequence, so a subscription from EventCursor delivers
 // it instead of skipping it.
@@ -76,7 +77,7 @@ type RunDetailStores struct {
 	// still complete.
 	Metrics   StageMetricsReader
 	Resources AllocationResourceReader
-	Recovery  func(context.Context, string) (*gatewayrecovery.Status, error)
+	Recovery  func(context.Context, string, string) (*gatewayrecovery.Status, error)
 }
 
 // RunDetailTransaction calls fn once with readers that all observe one
@@ -152,8 +153,15 @@ func readRunDetail(ctx context.Context, stores RunDetailStores, ownerID, runID s
 			return RunDetail{}, err
 		}
 	}
-	if detail.Recovery, err = stores.Recovery(ctx, runID); err != nil {
-		return RunDetail{}, err
+	if run.State == runstore.RunPending || run.State == runstore.RunRunning || run.State == runstore.RunWaiting {
+		for _, stage := range detail.Executions {
+			if !stage.State.Terminal() {
+				if detail.Recovery, err = stores.Recovery(ctx, runID, stage.StageExecutionID); err != nil {
+					return RunDetail{}, err
+				}
+				break
+			}
+		}
 	}
 	if err := readStageRecords(ctx, stores, ownerID, &detail); err != nil {
 		return RunDetail{}, err
