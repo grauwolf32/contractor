@@ -5,7 +5,7 @@ milestone: autonomous-http-pentest-2026-10
 epic: findings
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V422-002
 - V421-001
@@ -309,7 +309,7 @@ verification_requirements:
   dependencies and strict reads/writes.
 - Delete the replaced vertical path and its exclusive schemas/states/tests as its callers migrate. Final
   V64-011 proves no parallel legacy pipeline remains.
-implementation_commit: null
+implementation_commit: 2246c2ec07acf14b98c059aacc623a66567bafdd
 replanning:
   date: '2026-10-31'
   previous_title: Retain actual engagement HTTP exchanges through ordinary Audit evidence
