@@ -36,7 +36,6 @@ test("Catalog discovers exact Workflows and Agent usage from direct routes", asy
           ref: "instructions/evidence-analyst.md",
           digest: exactDigest,
         },
-        modelPolicy: { policyId: "worker", version: "1", digest },
         toolsets: [
           {
             ref: "run-artifacts@1",

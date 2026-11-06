@@ -6,8 +6,8 @@ epic: quality
 kind: chore
 introduced_by: V64-002
 priority: P2
-status: in_progress
-depends_on: [V450-003]
+status: pending
+depends_on: [V450-003, V450-004]
 languages: [typescript, javascript]
 goal: The complete mocked browser gate again exercises the shipped UI without stale fixtures or weakened behavioral assertions.
 context:
@@ -21,17 +21,19 @@ context:
   - docs/spec/platform/failure-model.md
   - api/openapi/contractor-public-v1.yaml
   finding: >-
-    The additional make ui-browser-mocked run at the V64-008 branch reported
-    140 passing and 17 failing tests. One new Studio Live fixture had an invalid
-    Task counter and missing revision header; V64-008 fixes and reruns that case.
-    The other sixteen failures concern existing journeys: audit-presets expects
-    the removed View requirements link (1); catalog and Studio return a string
-    sandboxProfile where the unchanged API requires a Selector object (4);
-    check-events expects the old always-open accumulating activity list instead
-    of the shipped Show activity and cursor controls (3); evals-setup omits
-    profile input mediaTypes (2); scheduler-settings matches increment/decrement
-    buttons as well as its number input (3); Studio's exact YAML expectation
-    omits normalized summarizerModelPolicy defaults (3).
+    On current main 360ffd44a, after the separately recorded V450-003 activity
+    repair, the complete mocked gate reproduced 150 passing and seven failing
+    tests. Check types still expected a retired requirements viewer (one);
+    Catalog supplied an obsolete AgentTemplate modelPolicy (one); the shared
+    Evals fixture still supplied a retired AuditProfile body and camelCase
+    input mediaTypes instead of the common media_types contract (two); and
+    Scheduler selectors matched decrement/increment buttons along with the
+    actual number input (three). All seven Studio cases already passed.
+  original_report: >-
+    V64-008's earlier additional gate reported 140 passing and 17 failing
+    cases. Its sandboxProfile/Selector-object diagnosis and missing normalized
+    summarizer-default expectations do not match the current pinned OpenAPI
+    and passing Studio tests. Preserve string Selectors and exact YAML assertions.
   locations:
   - ui/e2e/audit-presets.spec.ts:58
   - ui/e2e/catalog.spec.ts:14
@@ -41,18 +43,30 @@ context:
   - ui/e2e/studio.spec.ts:143
   - ui/e2e/studio.spec.ts:212
   attribution: >-
-    Audit activity changed in 9e803f2fc during V64-002; its implementation in
-    ui/src/routes/projects/audits/detail.tsx is unchanged by V64-008. The Studio
-    normalization changed in 1fd737538 (select Worker models through Workflows).
-    Sandbox Selector and profile mediaTypes contracts are also unchanged by
-    V64-008. Trace the remaining originating tasks before each repair.
+    V64-002 (9e803f2fc) introduced the activity replacement, retained by V64-010
+    (0b037b4c3); V450-003 repairs that production guarantee separately.
+    The original Catalog fixture is V37-007 (97e5663af); V425-041
+    (1fd737538) removed AgentTemplate model selection. The original Evals
+    fixture comes from 98ad7b818 (its historical task association is not
+    recorded); V385-001 (7fa7f1c0) added its input mediaTypes, and V64-010
+    subsequently replaced that profile with the common Program contract.
+    Scheduler's broad selector came from V400-003 (e4c0bb8fb); V429-028
+    (71041cac9) added the accessible stepper buttons and nested saved-settings
+    disclosure. Studio retains V425-041's already updated authored fixtures.
+  contract_reconciliation:
+    audit_presets: V64-010 removed the old item/requirement projection. Keep library paging/search, exact numeric version selection, current required inputs/media types, Workflow role/output links, reload and mobile return context.
+    catalog: Remove the no-longer-declared modelPolicy member only. Selector is a string in the pinned OpenAPI and its generated schema; runtime, toolset and sandbox strings remain exact.
+    studio: All seven cases pass on the reconciled baseline; retain string Selectors, full parsed-YAML equality, comments, normalized summarizer selections and existing catalog retry assertions unchanged.
+    activity: V450-003 preserves and refreshes all explicitly loaded pages through the existing owner, with failure retention asserted at 1440/390/320px.
+    evals: Reuse the schema-checked current common AuditProfile fixture, pinning its requested name/version/digest and matching the dataset's source ZIP input; remove the obsolete inventory/execution/interaction shape.
+    scheduler: Select exact named spinbuttons, explicitly open Saved scheduling settings before its Technical details, and preserve bounds, viewport, exact two-lane body and If-Match assertions.
   boundary: >-
     Do not change product behavior merely to satisfy an old selector. Compare
     the current specification first, especially FAIL-UI-6's retained activity
     guarantee. If product code violates that guarantee, record the concrete
     defect separately before changing it. V64-008's focused research browser
     checks do not prove this full release gate.
-  production_defect: V450-003 separately owns the confirmed activity retention/refresh violation. Resume the fixture-only reconciliation after that prerequisite is complete; do not weaken settled-history assertions to match the faulty page replacement.
+  production_defect: V450-003 owns activity retention/refresh; V450-004 owns the Eval media_types consumer crash exposed by a valid common profile. Resume final fixture verification after these prerequisites complete; do not weaken schemas or settled-history assertions.
 scope:
   in:
   - Reconcile every listed fixture and selector against its current owner contract.

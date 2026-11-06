@@ -54,10 +54,19 @@ for (const theme of ["light", "dark", "black"]) {
     await page.goto("/operations/settings#workflow-scheduling");
 
     const section = page.locator("#workflow-scheduling");
-    const model = section.getByLabel("Concurrent Runs using a model");
-    const tool = section.getByLabel("Concurrent Runs without a model");
+    const model = section.getByRole("spinbutton", {
+      name: "Concurrent Runs using a model",
+      exact: true,
+    });
+    const tool = section.getByRole("spinbutton", {
+      name: "Concurrent Runs without a model",
+      exact: true,
+    });
     await expect(model).toHaveValue("1");
     await expect(tool).toHaveValue("2");
+    await section
+      .getByText("Saved scheduling settings", { exact: true })
+      .click();
     await section.getByText("Technical details").click();
     await expect(
       section.getByText("maxConcurrentToolRuns", { exact: true }),
