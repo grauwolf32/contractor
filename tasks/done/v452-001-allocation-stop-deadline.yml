@@ -6,7 +6,7 @@ epic: execution-core
 kind: defect
 introduced_by: V17-005
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - python
@@ -92,3 +92,4 @@ verification:
     model, database or deployment.
   negative_probe: /tmp/contractor-v452-001-before.log
   landing: Implemented on codex/runtime-stop-state in an isolated worktree; integration pending.
+implementation_commit: bcaab7ab4f6411e59826f424e4bc5e820ba2c91d
