@@ -6,7 +6,8 @@ epic: execution-core
 kind: chore
 introduced_by: V1-003
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: 3ed272688628191ee56a1803cb0849ceebccedfa
 depends_on: []
 languages: [go, sql]
 goal: Remove two dependent RunStore tables while retaining immutable progression history and safe idempotent manual continuation.
@@ -43,3 +44,21 @@ tests:
     covers: [A1, A4]
   - command: make verify-public-api lint
     covers: [A1, A2, A3, A4]
+
+verification:
+  results:
+    - Final seven-package PostgreSQL command passed with integration tags, race detector and count=1; complete RunStore, Scheduler, ArtifactStore, RunService, public HTTP, persistence and migration suites passed.
+    - Populated migration preserves every decision kind, exhausted escalation, all Stage and Run fields, events, original continuation attribution/timestamp/xid8 and a manual target that has already terminated. Fresh-schema and drift verification pass.
+    - Real-store regressions prove one decision under eight simultaneous writers, immutable decision and receipt columns, exact foreign-Run target rejection, forged owner/transaction rejection, rollback with no partial attempt or output thaw, and old receipt refusal while its target is still preparing.
+    - Existing concurrent Resume, late replay after another failure or Project deletion, base/escalated attempts, exact pins, Scheduler restart, terminal source history and Run deletion pass.
+    - make docs-erd verify-architecture passed; the generated ERD has 60 application tables and 70 foreign keys. make docs-dependencies regenerated the owning specification fingerprint.
+    - make verify-public-api lint passed, including API/schema generation checks, Go vet/staticcheck, test-only exports, task/spec/ERD/layer checks, script/deployment checks, UI lint, Ruff and Runtime import boundaries.
+    - Initial schema-coupled fixture expectations were updated for inline receipts, the transition-history index and the additional column-scoped decision guard; the final complete PostgreSQL run is green.
+  cleanup: Owned disposable database contractor_test_v455_stage was explicitly dropped after every Go process and pool stopped; its absence was verified. No demo database was changed.
+  limitations: Optional heavy-I/O fixtures were not enabled. Full release-verify, live models and additional Runtime/UI/process suites were not run; their coverage is not claimed.
+delivery:
+  date: '2026-11-07'
+  branch: codex/runstore-stage-owned-state
+  base_main: 5d53197574e3f75c70b580584a727783041f88a3
+  merged_into_main: false
+  migration: 000016_stage_owned_state.sql
