@@ -6,7 +6,7 @@ epic: planner-worker
 kind: chore
 introduced_by: V17-005
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V452-001
 languages:
@@ -63,3 +63,18 @@ tests:
   - A1
   - A2
   - A3
+verification:
+  date: '2026-11-06'
+  focused_result: 375 passed, 15 Linux/Podman cases skipped on macOS in the combined Worker, ToolWorker, allocation,
+    State endpoint, lease, CLI and thread selection. Ruff, formatting, four import contracts, task/spec validators
+    and whitespace passed.
+  regression: The 1000-record conditional-read cost regression fails against the pre-optimization source (503 instead
+    of 304 when repeated full-snapshot work is refused).
+  measurement: '15 local ASGI samples per size: at 3,648,054 JSON bytes, median conditional GET fell from 22.714
+    ms before to 0.163 ms after. A deterministic test proves zero full copy, wire decode or response serialization
+    on unchanged validated revisions. No wall-clock test thresholds.'
+  full_runtime_gate: make test-runtime is running; completion remains pending until its result is reviewed.
+  negative_probe: /tmp/contractor-v452-002-before.log
+  benchmark: /tmp/contractor-v452-state-after.log
+  landing: Implemented on codex/runtime-stop-state; primary checkout has unrelated uncommitted HTTP/UI/docs work,
+    including tasks/BACKLOG.md.

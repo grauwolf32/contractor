@@ -191,11 +191,19 @@ class AllocationService:
                 return None
             return getattr(context.worker, "a2a_application", None)
 
-    async def agent_state_snapshot(self, allocation_id: str) -> AgentStateSnapshot:
-        """Return only the exact active Worker's Contractor-owned State."""
+    async def agent_state_snapshot(
+        self, allocation_id: str, *, if_none_match: str | None = None
+    ) -> AgentStateSnapshot | None:
+        """Read the active Worker's State; None means a validated ETag still matches."""
 
         async with self._lock:
             context, worker = await self._worker_for_state_read(allocation_id)
+            if if_none_match is not None and context.worker_state is not None:
+                revision = await context.worker_state.validated_state_revision()
+                if revision is not None and if_none_match == (
+                    f'"contractor-agent-state-v1-{revision}"'
+                ):
+                    return None
         try:
             snapshot = await worker.agent_state_snapshot()
         except asyncio.CancelledError:

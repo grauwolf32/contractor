@@ -211,9 +211,16 @@ def create_app(
         if allocation_service is None:
             return await lifecycle_unavailable_without_dispatch(request)
         try:
+            conditional_values = request.headers.getlist("if-none-match")
+            conditional = conditional_values[0] if len(conditional_values) == 1 else None
             snapshot = await allocation_service.agent_state_snapshot(
-                request.path_params["allocation_id"]
+                request.path_params["allocation_id"], if_none_match=conditional
             )
+            if snapshot is None:
+                return Response(
+                    status_code=304,
+                    headers={"Cache-Control": "private, no-cache", "ETag": conditional},
+                )
             encoded_text = await asyncio.to_thread(
                 snapshot.model_dump_json,
                 by_alias=True,

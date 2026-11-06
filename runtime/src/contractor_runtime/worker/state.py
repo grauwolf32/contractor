@@ -92,6 +92,7 @@ class WorkerStateStore:
             "lastCompletedInvocation": None,
         }
         self._state = _fit_snapshot(self._state)
+        self._validated_revision: int | None = None
 
     async def begin_invocation(
         self,
@@ -254,7 +255,17 @@ class WorkerStateStore:
         """Validate an immutable snapshot through the exact JSON wire boundary."""
 
         snapshot = await self.snapshot()
-        return await asyncio.to_thread(_agent_state_snapshot, snapshot)
+        result = await asyncio.to_thread(_agent_state_snapshot, snapshot)
+        async with self._lock:
+            if self._state["stateRevision"] == result.state.state_revision:
+                self._validated_revision = result.state.state_revision
+        return result
+
+    async def validated_state_revision(self) -> int | None:
+        """Return the current revision only after successful wire validation."""
+
+        async with self._lock:
+            return self._validated_revision
 
     async def _mutate(self, transform: Callable[[dict[str, Any]], None]) -> dict[str, Any]:
         while True:
@@ -277,6 +288,7 @@ class WorkerStateStore:
                 if self._state["stateRevision"] != base_revision:
                     continue
                 self._state = candidate
+                self._validated_revision = None
                 return copy.deepcopy(candidate)
 
     def __repr__(self) -> str:

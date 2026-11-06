@@ -231,3 +231,171 @@ def test_agent_state_snapshot_races_remain_revision_consistent_and_nonblocking(
         assert SECRET not in retained
 
     asyncio.run(scenario(), debug=True)
+
+
+def test_large_unchanged_state_revalidation_runs_no_full_snapshot_work(
+    tmp_path, runtime_capabilities, monkeypatch
+):
+    async def scenario():
+        state, service = await make_service(tmp_path, runtime_capabilities)
+        await service.prepare(make_spec())
+        store = service._context.worker_state
+        for index in range(1000):
+            store.metrics.record_tool_call(
+                "read_file", arguments={"index": index, "safe": "x" * 3500}, duration_ms=index
+            )
+        await store.sync_metrics()
+        app = create_app(state, allocation_service=service, require_verified_peer=False)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="https://runtime.example"
+        ) as client:
+            first = await client.get(STATE_PATH)
+            assert first.status_code == 200
+            assert len(first.content) > 3_000_000
+
+            def unexpected(*args, **kwargs):
+                raise RuntimeError("unchanged revision repeated full snapshot work")
+
+            # Reject each costly boundary; the 304 must not enter any of them.
+            with monkeypatch.context() as patch:
+                patch.setattr(store, "snapshot", unexpected)
+                patch.setattr("contractor_runtime.worker.state._agent_state_snapshot", unexpected)
+                patch.setattr(AgentStateSnapshot, "model_dump_json", unexpected)
+                for _ in range(3):
+                    response = await client.get(
+                        STATE_PATH, headers={"If-None-Match": first.headers["etag"]}
+                    )
+                    assert response.status_code == 304
+                    assert response.content == b""
+                    assert response.headers["etag"] == first.headers["etag"]
+                    assert response.headers["cache-control"] == "private, no-cache"
+
+            await store.sync_metrics()
+            changed = await client.get(STATE_PATH, headers={"If-None-Match": first.headers["etag"]})
+            assert changed.status_code == 200
+            assert changed.headers["etag"] != first.headers["etag"]
+
+    asyncio.run(scenario())
+
+
+def test_fresh_and_changed_conditional_revisions_must_pass_validation(
+    tmp_path, runtime_capabilities, monkeypatch
+):
+    from contractor_runtime.worker import state as state_module
+
+    original = state_module._agent_state_snapshot
+    validations = []
+
+    def counted(snapshot):
+        validations.append(snapshot["stateRevision"])
+        return original(snapshot)
+
+    monkeypatch.setattr(state_module, "_agent_state_snapshot", counted)
+
+    async def scenario():
+        state, service = await make_service(tmp_path, runtime_capabilities)
+        await service.prepare(make_spec())
+        store = service._context.worker_state
+        app = create_app(state, allocation_service=service, require_verified_peer=False)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="https://runtime.example"
+        ) as client:
+            guessed = '"contractor-agent-state-v1-1"'
+            first = await client.get(STATE_PATH, headers={"If-None-Match": guessed})
+            assert first.status_code == 304
+            assert validations == [1]
+            repeated = await client.get(STATE_PATH, headers={"If-None-Match": guessed})
+            assert repeated.status_code == 304
+            assert validations == [1]
+
+            changed = await store.sync_metrics()
+            revision = changed["stateRevision"]
+            # Fault injection into a new revision must never be hidden by the
+            # preceding revision's successful validation, even with a guessed ETag.
+            store._state["currentInvocation"] = {"unknown": True}
+            invalid = await client.get(
+                STATE_PATH, headers={"If-None-Match": f'"contractor-agent-state-v1-{revision}"'}
+            )
+            assert invalid.status_code == 503
+            assert invalid.json()["retryable"] is False
+            assert validations == [1, revision]
+            assert await store.validated_state_revision() is None
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("terminal", ["draining", "stopped", "released", "replaced"])
+def test_conditional_state_reuse_is_bound_to_the_live_allocation(
+    tmp_path, runtime_capabilities, monkeypatch, terminal
+):
+    from contractor_runtime.worker import state as state_module
+
+    async def scenario():
+        state, service = await make_service(tmp_path, runtime_capabilities)
+        await service.prepare(make_spec())
+        app = create_app(state, allocation_service=service, require_verified_peer=False)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="https://runtime.example"
+        ) as client:
+            first = await client.get(STATE_PATH)
+            assert first.status_code == 200
+            if terminal == "draining":
+                await state.begin_draining("allocation-1")
+            else:
+                await service.expire_control_lease(10)
+                if terminal in {"released", "replaced"}:
+                    from contractor_runtime.contracts import ReleaseAllocationRequest
+
+                    await service.release(
+                        ReleaseAllocationRequest(
+                            apiVersion=API_VERSION, allocationId="allocation-1"
+                        )
+                    )
+                    await service.confirm_release("allocation-1")
+                if terminal == "replaced":
+                    await service.prepare(make_spec())
+
+            calls = []
+            original = state_module._agent_state_snapshot
+
+            def counted(snapshot):
+                calls.append(snapshot["stateRevision"])
+                return original(snapshot)
+
+            monkeypatch.setattr(state_module, "_agent_state_snapshot", counted)
+            response = await client.get(
+                STATE_PATH, headers={"If-None-Match": first.headers["etag"]}
+            )
+            if terminal == "replaced":
+                assert response.status_code == 304
+                assert calls == [1]  # Same revision number, a different owner: validate again.
+            else:
+                assert response.status_code == (404 if terminal == "released" else 409)
+                assert calls == []
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("kind", ["duplicate", "weak", "wildcard"])
+def test_early_revalidation_preserves_exact_single_etag_matching(
+    tmp_path, runtime_capabilities, kind
+):
+    async def scenario():
+        state, service = await make_service(tmp_path, runtime_capabilities)
+        await service.prepare(make_spec())
+        app = create_app(state, allocation_service=service, require_verified_peer=False)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="https://runtime.example"
+        ) as client:
+            first = await client.get(STATE_PATH)
+            tag = first.headers["etag"]
+            values = {
+                "duplicate": [("If-None-Match", tag), ("If-None-Match", tag)],
+                "weak": [("If-None-Match", f"W/{tag}")],
+                "wildcard": [("If-None-Match", "*")],
+            }
+            response = await client.get(STATE_PATH, headers=values[kind])
+            assert response.status_code == 200
+            assert response.content == first.content
+
+    asyncio.run(scenario())

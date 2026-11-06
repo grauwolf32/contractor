@@ -1204,7 +1204,13 @@ The endpoint:
   its positive revision; the ETag format is its own independently versioned
   `v1` cache contract;
 - **WRK-R118.** honors a matching `If-None-Match` with `304` and no body,
-  for bounded Server-side caching;
+  for bounded Server-side caching. An unchanged revision that already passed
+  full wire validation may be revalidated without another deep copy, JSON
+  encoding or schema validation. The State owner remembers at most one
+  validated revision, invalidates it atomically on each committed mutation,
+  and never retains a payload cache. A new or not-yet-validated revision must
+  pass the full validation and response-size checks before `200` or `304`.
+  Conditional reuse still requires the exact allocation's live Worker;
 - **WRK-R119.** sends `Cache-Control: private, no-cache`, so revision
   revalidation remains usable without accepting an unvalidated cached body,
   and a body no larger than 4 MiB including the response envelope
