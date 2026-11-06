@@ -938,7 +938,15 @@ Session. Snapshot construction and validation run outside the allocation
 lifecycle lock. Before returning a snapshot, the service rechecks the exact
 allocation context, Worker identity and active state; a read that races stop,
 release or replacement cannot return a successful stale snapshot. A slow
-read must not delay lease-driven teardown.
+read must not delay lease-driven teardown. Release joins the admitted reads
+under its existing cleanup deadline before clearing allocation resources
+(RTA-R116). A stopped reader rejects before reacquiring the lifecycle lock,
+so release can join construction and validation while retaining lifecycle
+ownership. Once that work has joined, a reader drops its Worker reference
+before waiting for the final lifecycle check; a queued release can therefore
+run first without retaining Worker State. Reader admission
+uses one counter and one completion event per allocation, without a task or
+payload registry.
 
 The route `GET /private/v1/allocations/{allocation_id}/agent-state`, its
 accepted peer, caching, 4 MiB body bound (LIM-WRK-17) and errors

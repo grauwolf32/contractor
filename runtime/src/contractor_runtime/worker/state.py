@@ -16,6 +16,7 @@ from contractor_runtime.contracts import (
 from contractor_runtime.contracts.base import json_byte_size
 from contractor_runtime.shared_config import get_shared_config
 from contractor_runtime.telemetry.metrics import MetricsState
+from contractor_runtime.threads import to_thread_until_done
 from contractor_runtime.worker.observations import validate_workspace_observation
 
 WORKER_STATE_SCHEMA_VERSION = 2
@@ -255,7 +256,9 @@ class WorkerStateStore:
         """Validate an immutable snapshot through the exact JSON wire boundary."""
 
         snapshot = await self.snapshot()
-        result = await asyncio.to_thread(_agent_state_snapshot, snapshot)
+        result = await to_thread_until_done(
+            _agent_state_snapshot, snapshot, name="worker-state-snapshot"
+        )
         async with self._lock:
             if self._state["stateRevision"] == result.state.state_revision:
                 self._validated_revision = result.state.state_revision

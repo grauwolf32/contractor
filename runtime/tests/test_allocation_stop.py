@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import gc
 import threading
+import weakref
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -203,17 +205,171 @@ def test_detached_snapshot_cannot_escape_release_or_same_id_replacement(
         await started.wait()
         try:
             await asyncio.wait_for(service.expire_control_lease(10), timeout=2)
-            await release(service)
-            if replace_allocation:
-                await service.prepare(allocation_spec())
         finally:
             unblock.set()
         with pytest.raises(AllocationError) as error:
             await reader
-        assert error.value.status_code == (409 if replace_allocation else 404)
+        assert error.value.status_code == 409
+        await release(service)
         assert exits == []
         if replace_allocation:
+            await service.prepare(allocation_spec())
+            assert await service.agent_state_snapshot("allocation-1") is not None
             await service.expire_control_lease(10)
             await release(service)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("expire_release", [False, True])
+@pytest.mark.parametrize("cancel_reader", [False, True])
+def test_release_joins_admitted_http_state_reads_and_erases_the_real_state(
+    tmp_path, monkeypatch, expire_release, cancel_reader
+):
+    async def scenario():
+        state, service, exits = await make_adk_service(tmp_path)
+        retained = weakref.ref(service._context.worker_state)
+        loop = asyncio.get_running_loop()
+        started, unblock = asyncio.Event(), threading.Event()
+        release_started, scratch_cleanup_started = asyncio.Event(), asyncio.Event()
+        original_snapshot = state_module._agent_state_snapshot
+        original_release = service._cleanup.release
+        original_cleanup = service._context.sandbox.cleanup
+
+        def gated(snapshot):
+            loop.call_soon_threadsafe(started.set)
+            unblock.wait()
+            return original_snapshot(snapshot)
+
+        async def observed_release(context, deadline):
+            release_started.set()
+            await original_release(context, deadline)
+
+        async def observed_cleanup(workspace):
+            scratch_cleanup_started.set()
+            await original_cleanup(workspace)
+
+        monkeypatch.setattr(state_module, "_agent_state_snapshot", gated)
+        monkeypatch.setattr(service._cleanup, "release", observed_release)
+        monkeypatch.setattr(service._context.sandbox, "cleanup", observed_cleanup)
+        app = create_app(state, allocation_service=service, require_verified_peer=False)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="https://runtime.example"
+        ) as client:
+            reader = asyncio.create_task(client.get(STATE_PATH))
+            await started.wait()
+            if cancel_reader:
+                reader.cancel()
+                await asyncio.sleep(0)
+            await service.expire_control_lease(10)
+            if expire_release:
+                service._context.runtime_settings.request_timeout_seconds = 1
+            releasing = asyncio.create_task(release(service))
+            await release_started.wait()
+            try:
+                for _ in range(10):
+                    await asyncio.sleep(0)
+                assert not scratch_cleanup_started.is_set()
+                assert not releasing.done()
+                assert retained() is not None
+                if expire_release:
+                    advance_clock(2)
+                    with pytest.raises(AllocationError) as error:
+                        await asyncio.wait_for(releasing, timeout=2)
+                    assert error.value.retryable
+                    assert not service._context.release_prepared
+                    assert (await state.snapshot()).process_state is ProcessState.FENCED
+            finally:
+                unblock.set()
+                if cancel_reader:
+                    with pytest.raises(asyncio.CancelledError):
+                        await reader
+                else:
+                    response = await reader
+                    assert response.status_code == 409
+            if expire_release:
+                await release(service)
+            else:
+                await releasing
+        gc.collect()
+        assert scratch_cleanup_started.is_set()
+        assert retained() is None
+        assert exits == []
+
+    run_with_advanceable_clock(scenario())
+
+
+def test_release_queued_before_the_final_state_check_cannot_deadlock_or_retain_state(
+    tmp_path, monkeypatch
+):
+    async def scenario():
+        _, service, exits = await make_adk_service(tmp_path, controlled_http=True)
+        context = service._context
+        retained = weakref.ref(context.worker_state)
+        transport = context.http_transport
+        transport.configure(authority_deadline=lambda: asyncio.get_running_loop().time() + 60)
+        loop = asyncio.get_running_loop()
+        parse_started, unblock_parse = asyncio.Event(), threading.Event()
+        http_started, http_cancelled, finish_http = (
+            asyncio.Event(),
+            asyncio.Event(),
+            asyncio.Event(),
+        )
+        original = state_module._agent_state_snapshot
+
+        def gated(snapshot):
+            loop.call_soon_threadsafe(parse_started.set)
+            unblock_parse.wait()
+            return original(snapshot)
+
+        async def http_in_flight():
+            added = transport.own_invocation()
+            http_started.set()
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                http_cancelled.set()
+                await finish_http.wait()
+            finally:
+                transport.finish_invocation(added)
+
+        monkeypatch.setattr(state_module, "_agent_state_snapshot", gated)
+        io_task = asyncio.create_task(http_in_flight())
+        await http_started.wait()
+        app = create_app(service._state, allocation_service=service, require_verified_peer=False)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="https://runtime.example"
+        ) as client:
+            reader = asyncio.create_task(client.get(STATE_PATH))
+            await parse_started.wait()
+            stopping = asyncio.create_task(service.expire_control_lease(10))
+            releasing = None
+            try:
+                await asyncio.wait_for(http_cancelled.wait(), timeout=2)
+                releasing = asyncio.create_task(release(service))
+                await asyncio.sleep(
+                    0
+                )  # Queue release behind stop, ahead of the read's final check.
+                unblock_parse.set()
+                await asyncio.wait_for(context.state_reads_drained.wait(), timeout=2)
+                assert not reader.done() and not releasing.done()
+                finish_http.set()
+                await asyncio.wait_for(stopping, timeout=2)
+                await asyncio.wait_for(releasing, timeout=2)
+                response = await reader
+                assert response.status_code in {404, 409}
+                gc.collect()
+                assert retained() is None
+                assert exits == []
+            finally:
+                unblock_parse.set()
+                finish_http.set()
+                for task in (reader, stopping, releasing):
+                    if task is not None and not task.done():
+                        task.cancel()
+                await asyncio.gather(
+                    *(task for task in (reader, stopping, releasing, io_task) if task is not None),
+                    return_exceptions=True,
+                )
 
     asyncio.run(scenario())

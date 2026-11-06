@@ -6,7 +6,7 @@ epic: execution-core
 kind: defect
 introduced_by: V17-005
 priority: P2
-status: completed
+status: in_progress
 depends_on: []
 languages:
 - python
@@ -22,6 +22,7 @@ context:
   - docs/spec/execution/runtime-agent.md#RTA-R93
   - docs/spec/execution/worker.md#WRK-R121
   - docs/spec/platform/failure-model.md
+  - docs/spec/execution/runtime-agent.md#RTA-R116
   severity: medium
   finding: allocation/service.py:197-213 holds the slot lock while a real ADK State read waits in the default thread
     pool; expire_control_lease:442 cannot enter its grace. At :607 and :623 HTTP cleanup and Worker abort receive
@@ -34,6 +35,9 @@ context:
     snapshots. Capture and revalidate the exact allocation and Worker around snapshot work. Establish one deadline
     before waiting for the lifecycle lock; force the existing process fence if lock ownership or cleanup cannot
     settle in time. No additional lifecycle or lease store is introduced.
+  release_review: Final review found that a detached read can retain Worker State after release. Reopened before
+    landing to join admitted State reads under the existing release deadline; lease stop remains independent. Use
+    a bounded counter/event, not a task registry or payload cache.
 scope:
   in:
   - Move snapshot validation outside the allocation lock and reject reads that race draining, release or replacement.
@@ -42,6 +46,8 @@ scope:
   - Add deterministic real-ADK and real-HTTP lifecycle regressions, including a saturated executor and deadline
     exhaustion.
   - Clarify the existing Runtime specification.
+  - Join admitted State reads before release clears resources; a stopped read rejects before reacquiring the lifecycle
+    lock so release cannot deadlock it. Prove collection of real Worker State with a queued HTTP snapshot.
   out:
   - Changing finalizer, model selection, wire fields, stop codes, configuration limits or unrelated HTTP capture
     work.
@@ -55,6 +61,10 @@ acceptance_criteria:
 - id: A3
   text: Existing prepare, finalization, abort, release, cancellation and stale-allocation contracts pass; new deterministic
     regressions fail before the fix.
+- id: A4
+  text: Release cannot complete while an admitted State read retains the old Worker/State; after the read settles
+    the real State is collected and same-ID replacement is safe. A blocked read consumes the existing finite release
+    deadline, without blocking lease stop.
 tests:
 - command: cd runtime && uv run pytest -W error tests/test_allocation_stop.py tests/test_allocation.py tests/test_lease_watchdog.py
     tests/test_agent_state_endpoint.py tests/test_worker_state.py tests/test_cli.py tests/test_cli_shutdown.py tests/test_podman_allocation.py
@@ -63,16 +73,19 @@ tests:
   - A1
   - A2
   - A3
+  - A4
 - command: cd runtime && uv run ruff check . && uv run ruff format --check . && uv run lint-imports --no-cache --no-logo
   covers:
   - A1
   - A2
   - A3
+  - A4
 - command: python3 scripts/check_tasks.py && python3 scripts/check_spec.py
   covers:
   - A1
   - A2
   - A3
+  - A4
 failure_outcomes:
   success: The same active Worker supplies the snapshot; stopped allocations remain fenced until confirmed release.
   permanent: Invalid snapshots retain the current non-retryable 503 classification.
@@ -85,11 +98,19 @@ cardinality: One allocation and one active Worker; State remains bounded by 4 Mi
   cache or unbounded task registry.
 verification:
   date: '2026-11-06'
-  result: 130 passed, 15 macOS/Linux-Podman skips in the full listed Runtime selection; Ruff, formatting, all four
-    import contracts, task/spec validators and diff whitespace passed. The seven new regressions all fail against
-    the original AllocationService.
+  result: 'Final combined Runtime selection: 380 passed, 15 Linux/Podman skips on macOS. Ruff, format check, four
+    import contracts, task/spec validators and whitespace passed. The seven original stop regressions fail before
+    the fix; release ownership regression fails before joining State reads.'
   environment: macOS arm64; uv sync --locked; Go 1.26.9 provided on PATH for real-mTLS CLI PKI generation. No live
     model, database or deployment.
   negative_probe: /tmp/contractor-v452-001-before.log
   landing: Implemented on codex/runtime-stop-state in an isolated worktree; integration pending.
+  release_regressions: Real ADK/HTTP readers cover ordinary completion, cancellation, release deadline exhaustion,
+    collection of WorkerStateStore and release queued ahead of final snapshot revalidation; one counter/event tracks
+    construction and validation, and detached results drop their Worker reference before waiting for the final lifecycle
+    check.
+  release_negative_probe: /tmp/contractor-v452-release-before.log
+  full_runtime_gate: 5914 passed, 135 allowed skips before the final release-ownership tightening. A broad rerun
+    excluding two already-passing unaffected long ADK modules is in progress; final 380-test owner selection passed
+    after the tightening.
 implementation_commit: bcaab7ab4f6411e59826f424e4bc5e820ba2c91d

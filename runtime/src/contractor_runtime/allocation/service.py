@@ -204,27 +204,48 @@ class AllocationService:
                     f'"contractor-agent-state-v1-{revision}"'
                 ):
                     return None
+            context.state_reads += 1
+            context.state_reads_drained.clear()
         try:
-            snapshot = await worker.agent_state_snapshot()
-        except asyncio.CancelledError:
-            raise
-        except ValidationError:
-            raise AllocationError(
-                "agent_state_unavailable",
-                "allocation Worker State is unavailable",
-                retryable=False,
-                status_code=503,
-            ) from None
-        except Exception:
-            raise AllocationError(
-                "agent_state_unavailable",
-                "allocation Worker State is unavailable",
-                retryable=True,
-                status_code=503,
-            ) from None
+            try:
+                snapshot = await worker.agent_state_snapshot()
+            except asyncio.CancelledError:
+                raise
+            except ValidationError:
+                raise AllocationError(
+                    "agent_state_unavailable",
+                    "allocation Worker State is unavailable",
+                    retryable=False,
+                    status_code=503,
+                ) from None
+            except Exception:
+                raise AllocationError(
+                    "agent_state_unavailable",
+                    "allocation Worker State is unavailable",
+                    retryable=True,
+                    status_code=503,
+                ) from None
+            # Stop has detached this Worker. Reject before taking the lifecycle
+            # lock: release may hold it while joining admitted State readers.
+            if context.worker is not worker:
+                raise AllocationError(
+                    "agent_state_unavailable",
+                    "allocation Worker State is unavailable",
+                    retryable=True,
+                    status_code=409,
+                )
+        finally:
+            # No Worker or State owner may remain in this frame while the
+            # final lifecycle check waits behind release. The context itself
+            # is cleared by release; the snapshot is an independent value.
+            del worker
+            context.state_reads -= 1
+            if context.state_reads == 0:
+                context.state_reads_drained.set()
         async with self._lock:
-            current, current_worker = await self._worker_for_state_read(allocation_id)
-            if current is not context or current_worker is not worker:
+            current, _ = await self._worker_for_state_read(allocation_id)
+            # A context binds one Worker immutably until stop detaches it.
+            if current is not context:
                 raise AllocationError(
                     "agent_state_unavailable",
                     "allocation Worker State is unavailable",

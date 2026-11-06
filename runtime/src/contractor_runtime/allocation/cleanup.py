@@ -59,6 +59,12 @@ class AllocationResourceCleanup:
         context: _AllocationContext,
         deadline: datetime,
     ) -> None:
+        if context.state_reads:
+
+            async def reads_drained() -> None:
+                await context.state_reads_drained.wait()
+
+            await _await_before_deadline(reads_drained, deadline=deadline, now=self._now)
         await _close_tools(context.tools)
         if context.collector is not None:
             await context.collector.close()
