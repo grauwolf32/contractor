@@ -60,5 +60,7 @@ delivery:
   date: '2026-11-07'
   branch: codex/runstore-stage-owned-state
   base_main: 5d53197574e3f75c70b580584a727783041f88a3
-  merged_into_main: false
+  merged_into_main: true
+  integrated_head: 5f3e30037593712f05cc48290a16497074f2db2f
+  integration: User-authorized fast-forward into main on 2026-11-07; reviewed code is unchanged. Review reran complete RunStore, Scheduler, PostgreSQL persistence and Run deletion suites with integration tags and the race detector on a disposable PostgreSQL database; all passed and the database was dropped.
   migration: 000016_stage_owned_state.sql
