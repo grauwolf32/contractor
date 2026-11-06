@@ -6,7 +6,7 @@ epic: ui
 kind: defect
 introduced_by: V64-009
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V64-009]
 languages: [css, typescript]
 goal: Results and observations show Collected as a compact status pill independent of the result row height.
@@ -42,4 +42,24 @@ tests:
   covers: [A1, A2]
 - command: make ui-gates
   covers: [A2]
-implementation_commit: null
+implementation_commit: cc0cef81bebbda59bdc3201e92c03520d60b770c
+
+verification:
+  date: '2026-11-06'
+  result: >-
+    The timeline status chip now aligns to the start of its grid row rather than
+    stretching with the text and preview. Both current work and collected results
+    share the correction. Circular timeline markers and status meanings are unchanged.
+    The UI patch version is 0.11.18. No backend or database changes were required.
+  browser: >-
+    The focused production-build browser gate passed all eight cases. Its three
+    new theme cases visit 1440/390 px, require Collected to remain a compact badge
+    and verify its height stays unchanged when the saved result expands. The
+    other five research cases passed, including bounded reads and request retries.
+  ui: >-
+    VITEST_MAX_WORKERS=2 make ui-verify passed generate-check, lint, typecheck,
+    all 214 UI test files (2419 tests passed; one intentional expected failure)
+    and production build. make ui-gates passed CSS references, exports and ESLint.
+  preview: >-
+    Visually verified Results & observations in the actual-component preview.
+    The updated source remains on codex/audit-research-ui, unmerged into main.
