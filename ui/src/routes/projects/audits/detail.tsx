@@ -6,7 +6,6 @@ import {
   AUDIT_ID_PATTERN,
   auditPollInterval,
   getAudit,
-  listAuditEvents,
   type Audit,
 } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
@@ -30,6 +29,7 @@ import "./checks.css";
 import { taskResultPreview } from "./task-result";
 import { AuditHypotheses } from "./hypotheses";
 import { AuditControls } from "./controls";
+import { AuditActivity } from "./activity";
 import { auditProfileLabel } from "./labels";
 import "./styles.css";
 
@@ -112,74 +112,6 @@ function TaskResult({ auditId, task }: { auditId: string; task: Task }) {
         </QueryView>
       ) : null}
     </div>
-  );
-}
-
-/** Read the existing bounded event window only when the user opens it. */
-function AuditActivity({ audit }: { audit: Audit }) {
-  const api = usePublicAPI();
-  const [open, setOpen] = useState(false);
-  const pages = useURLCursorStack({ param: "eventsCursor" });
-  const query = useQuery({
-    queryKey: [
-      "audit-activity",
-      audit.auditId,
-      audit.eventSequence,
-      pages.cursor,
-    ],
-    enabled: open,
-    queryFn: ({ signal }) =>
-      listAuditEvents(
-        api,
-        audit.auditId,
-        pages.cursor === undefined ? {} : { cursor: pages.cursor },
-        signal,
-      ),
-  });
-  return (
-    <section className="ui-stack">
-      <Button size="sm" onClick={() => setOpen(!open)}>
-        {open ? "Hide activity" : "Show activity"}
-      </Button>
-      {open ? (
-        <QueryView
-          query={query}
-          loading={<p role="status">Loading activity…</p>}
-        >
-          {(page) => (
-            <>
-              <ul>
-                {page.items.map((event) => (
-                  <li key={event.sequence}>
-                    <span>{event.kind}</span>
-                    {event.summary.runId === undefined ? null : (
-                      <>
-                        {" "}
-                        ·{" "}
-                        <Link
-                          to={`/runs/${encodeURIComponent(event.summary.runId)}`}
-                        >
-                          Open Run
-                        </Link>
-                      </>
-                    )}
-                    <TechnicalDetails description="Recorded event identity and summary.">
-                      <pre className="checks-task-json">
-                        {JSON.stringify(event, null, 2)}
-                      </pre>
-                    </TechnicalDetails>
-                  </li>
-                ))}
-              </ul>
-              <CursorControls
-                label="Activity pages"
-                {...pages.controls(page.page)}
-              />
-            </>
-          )}
-        </QueryView>
-      ) : null}
-    </section>
   );
 }
 

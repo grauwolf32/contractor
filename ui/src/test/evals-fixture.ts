@@ -14,6 +14,8 @@ import progress from "../../../api/testdata/evals/valid/progress-chart.json" wit
 import differences from "../../../api/testdata/evals/valid/deltas-chart.json" with { type: "json" };
 import type { components } from "../api/generated/public";
 import { workflowResource } from "./builders-execution";
+import { presetFixture } from "./audit-presets-fixture";
+import { conforming } from "./builders";
 import { errorRetryable } from "./responses";
 import type {
   EvalCommand,
@@ -207,43 +209,14 @@ export function createEvalFixture(
       );
     if (path.includes("/audit-profiles/"))
       return response(
-        {
+        conforming("AuditProfile", {
+          ...presetFixture,
           ref: {
-            name: path.split("/")[3],
-            version: path.split("/")[5],
+            name: path.split("/")[3]!,
+            version: path.split("/")[5]!,
             digest: EVAL_FIXTURE_DIGEST,
           },
-          mode: "custom-checklist",
-          standards: [],
-          inputs: {
-            tasks: { required: true, mediaTypes: ["application/json"] },
-          },
-          inventory: {
-            implementation: "checklist@1",
-            source: { source: "audit-input", name: "tasks" },
-            itemWorkflowRole: "check",
-          },
-          execution: {
-            roundMode: "fixed-barrier",
-            maxRounds: 1,
-            batchSize: 1,
-            maxItemsPerRound: 10,
-            maxItemsTotal: 10,
-            maxSubmittedRuns: 10,
-            maxItemRunAttempts: 1,
-            deadlineSeconds: 3600,
-            maxEvidenceBytes: 1_048_576,
-            incompleteRound: "assess-with-gaps",
-          },
-          interaction: {
-            activeChecks: "prohibited",
-            notApplicable: "profile-rule",
-            reportAcceptance: "automatic",
-          },
-          serverCompatible: true,
-          requiresInputValidation: false,
-          compatibilityReasons: [],
-        },
+        }),
         200,
         EVAL_FIXTURE_DIGEST,
       );

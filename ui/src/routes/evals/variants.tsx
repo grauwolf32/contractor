@@ -33,10 +33,21 @@ export function VariantEditor({
   const contract = useQuery({
     queryKey: queryKeys.evals.binding(value.kind, value.selector),
     enabled: !!value.selector,
-    queryFn: async () =>
-      value.kind === "workflow"
-        ? getWorkflow(api, name, version)
-        : getAuditProfile(api, name, version),
+    queryFn: async () => {
+      if (value.kind === "workflow") return getWorkflow(api, name, version);
+      const profile = await getAuditProfile(api, name, version);
+      // Project the common profile's exact wire slots into this display model.
+      // Workflow slots retain their separate camelCase public contract.
+      return {
+        ...profile,
+        inputs: Object.fromEntries(
+          Object.entries(profile.inputs).map(([key, slot]) => [
+            key,
+            { required: slot.required, mediaTypes: slot.media_types },
+          ]),
+        ),
+      };
+    },
   });
   const inputs = contract.data?.inputs ?? {};
   const optionsForFamily = options.filter((x) =>

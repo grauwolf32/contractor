@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-72 open tasks: 10 in progress, 49 pending, 13 deferred. 1464 finished: 1446 completed, 18 archived.
+71 open tasks: 10 in progress, 48 pending, 13 deferred. 1467 finished: 1449 completed, 18 archived.
 
 ## In progress
 
@@ -136,7 +136,6 @@ the epics are in [epics.yml](epics.yml).
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-006, V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
 | [V425-014](v425-014-runtime-tests-fail-on-macos.yml) | chore | P3 | — | Make the Runtime process-liveness assertions able to fail on macOS |
 | [V433-005](v433-005-runtime-resource-bounds-gate.yml) | chore | P3 | — | Verify the Runtime resource-bound fixes and reconcile the review dispositions |
-| [V450-001](v450-001-reconcile-mocked-browser-contracts.yml) | chore | P2 | — | Reconcile existing mocked browser journeys with the shipped UI contracts |
 
 ## Deferred
 
@@ -175,11 +174,11 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 1 | 17 | 10 | 10 | 16 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 21 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 39 | 17 | 67 |
-| Audits (`audits`) | 10 | 69 | 96 | 41 | 154 |
+| Audits (`audits`) | 10 | 69 | 96 | 41 | 156 |
 | Evaluations (`evals`) | 6 | 21 | 40 | 16 | 49 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
-| Web UI (`ui`) | 2 | 49 | 71 | 26 | 72 |
+| Web UI (`ui`) | 2 | 49 | 73 | 26 | 72 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 46 | 9 | 22 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 42 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 47 | 18 |
-| Quality, CI and process (`quality`) | 12 | 1 | 29 | 133 | 28 |
+| Quality, CI and process (`quality`) | 11 | 1 | 29 | 133 | 28 |

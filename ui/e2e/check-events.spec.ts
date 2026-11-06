@@ -76,23 +76,25 @@ for (const width of [1440, 390, 320]) {
     await page
       .getByRole("button", { name: "Show activity", exact: true })
       .click();
-    const activity = page.getByRole("main").getByRole("list");
+    const activity = page
+      .getByRole("region", { name: "Check activity" })
+      .getByRole("list");
     await expect(activity.getByRole("listitem")).toHaveCount(50);
     await expect(page.getByRole("alert")).toHaveCount(0);
-    const pages = page.getByRole("navigation", { name: "Activity pages" });
-    await pages.getByRole("button", { name: "Next", exact: true }).click();
+    const older = page.getByRole("button", {
+      name: "Load older activity",
+      exact: true,
+    });
+    await older.click();
     await expect(page.getByRole("alert")).toContainText("Unavailable");
+    await expect(activity.getByRole("listitem")).toHaveCount(50);
     fail = false;
     await page.getByRole("button", { name: "Try again" }).click();
-    await expect(activity.getByRole("listitem")).toHaveCount(1);
+    await expect(activity.getByRole("listitem")).toHaveCount(51);
     await expect(
       activity.getByText("audit.created", { exact: true }),
     ).toBeVisible();
-    await expect(
-      pages.getByRole("button", { name: "Next", exact: true }),
-    ).toBeDisabled();
-    await pages.getByRole("button", { name: "Previous", exact: true }).click();
-    await expect(activity.getByRole("listitem")).toHaveCount(50);
+    await expect(older).toBeDisabled();
     expect(cursors.slice(0, 3)).toEqual(["head", "older", "older"]);
     expect(errors).toEqual([]);
     expect(
