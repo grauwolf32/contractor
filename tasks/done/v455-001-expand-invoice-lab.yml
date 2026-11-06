@@ -1,0 +1,65 @@
+schema_version: '1.0'
+id: V455-001
+title: Expand Invoice Lab with ten paired HTTP vulnerability scenarios
+milestone: autonomous-http-pentest-2026-10
+epic: evals
+kind: feature
+priority: P1
+status: completed
+implementation_commit: 78fa5384b2746cd679f52fbd2f9e01d2cc19944b
+depends_on: []
+languages: [python]
+goal: Provide at least ten distinct, reproducible HTTP vulnerability scenarios in the separate Invoice Lab target, each paired with a corrected behavior.
+demonstration: Real HTTP requests against vulnerable and fixed processes show each unintended effect only in the vulnerable version, alongside ordinary successful use.
+context:
+  authority: 'User request 2026-11-07: extend the separate contractor-playground target to at least ten different vulnerabilities.'
+  progress: >-
+    Playground commit 78fa5384b2746cd679f52fbd2f9e01d2cc19944b implements ten
+    paired scenarios. The complete standalone suite (now fourteen tests including
+    private oracle regressions) passes, as does Contractor make lint with the
+    installed Go 1.26.9 and Node 24.20 toolchains on PATH and UV_OFFLINE=1.
+    The CSRF case simulates a browser form with HTTP headers rather than
+    launching a browser. V411-019 owns the separate private fixture acceptance.
+  boundary: >-
+    This extends the standalone target. V411-019 retains ownership of Contractor
+    integration, evidence scoring, and Runtime/sandbox isolation proof.
+scope:
+  in:
+  - Ten distinct paired vulnerability scenarios with documented setup and outcomes.
+  - Deterministic process tests and disposable state, including legitimate controls.
+  out:
+  - Production changes, model quality claims, external benchmark frameworks and V411-019 acceptance.
+requirements:
+- id: R1
+  text: Each vulnerability has an observable exploit and a fixed counterpart, with no model or Gateway required.
+failure_outcomes:
+- operation: Fixture requests and local state mutations
+  permanent: Invalid and unauthorized requests return finite errors without unexpected state changes in the fixed variant.
+  retryable: Tests do not automatically retry state-changing requests.
+  ambiguous: Inspect disposable target state rather than repeating a mutation.
+  cancelled: The harness terminates and joins fixture processes before removing disposable data.
+  timeout: Tests use bounded request and process shutdown timeouts.
+cardinality:
+- collection: Fixture accounts, invoices and requests
+  expected: Two users and a few invoices per test.
+  maximum: Fixed seed and bounded request bodies and responses.
+  bound: Each case resets disposable state and terminates the process.
+lifecycle:
+- entity: Disposable fixture database
+  delete: Test harness removes it after joining the server process.
+  cascade: All target data is removed with the temporary directory.
+  retention: No production data or persistent private oracle.
+acceptance_criteria:
+- id: A1
+  given: Fresh vulnerable and fixed target processes
+  when: Each of ten distinct attack scenarios is sent
+  then: The vulnerable effect is observable and the fixed behavior blocks it.
+- id: A2
+  given: Legitimate users and inputs
+  when: Normal operations are sent
+  then: They work on both variants, and process cleanup completes.
+tests:
+- command: cd ../contractor-playground && python3 -W error::ResourceWarning -m unittest discover -s tests -v
+  covers: [A1, A2]
+- command: make lint
+  covers: [A1, A2]
