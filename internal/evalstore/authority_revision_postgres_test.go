@@ -80,8 +80,8 @@ func TestSharedPostgresEvalCoordinatorObservationsKeepAuthorityRevision(t *testi
 		return s.SelectFirstNative(ctx, scope, experiment.ID, result.MemberID, claim, resultDoc, evaldomain.Frozen{})
 	})
 	var selected int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM eval_selections
-WHERE experiment_id=$1 AND member_id=$2`, experiment.ID, result.MemberID).Scan(&selected); err != nil || selected != 1 {
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM eval_members
+WHERE selected_result_sha256 IS NOT NULL AND experiment_id=$1 AND member_id=$2`, experiment.ID, result.MemberID).Scan(&selected); err != nil || selected != 1 {
 		t.Fatalf("native selections = %d (%v), want 1", selected, err)
 	}
 	operation := Suboperation{Kind: "run-create", Key: "rejected-run", Request: json.RawMessage(`{"workflow":"trace-a@1"}`)}

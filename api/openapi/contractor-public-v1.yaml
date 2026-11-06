@@ -16461,6 +16461,11 @@ components:
         errorMessage: {type: string, minLength: 1, maxLength: 2048}
         createdAt: {type: string, format: date-time}
     RunRecovery:
+      description: >-
+        Live model-availability recovery for the Run's exact active stage.
+        Coordination is held in the active Server's memory; Server restart resets
+        outage history, backoff and automatic retry windows. This observation is
+        refreshed by active-Run polling and is outside the durable event cursor.
       type: object
       additionalProperties: false
       required: [code, since, automaticUntil, requiresRetry]

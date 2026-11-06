@@ -221,6 +221,9 @@ func (s *Store) purgeExperiment(ctx context.Context, e Experiment, budget *pg.Cl
 		}
 		budget.Charge(1, queueBytes)
 	}
+	if done, err := s.clearPurgedSelections(ctx, e.ID, budget); err != nil || !done {
+		return false, err
+	}
 	for _, table := range experimentPurgePhases {
 		gone, err := pg.DeleteWithinBudget(ctx, s.db, budget, purgeDelete(table, "experiment_id = $5", e.ID))
 		if err != nil || !gone {
@@ -239,4 +242,21 @@ func (s *Store) purgeExperiment(ctx context.Context, e Experiment, budget *pg.Cl
 	}
 	budget.Charge(rows, bytes)
 	return true, nil
+}
+
+// clearPurgedSelections spends the same pass budget as the deletes that follow
+// it; a stopped pass resumes on the remaining selected members.
+func (s *Store) clearPurgedSelections(ctx context.Context, id string, budget *pg.CleanupBudget) (bool, error) {
+	remaining := budget.RowLimit - budget.Rows
+	if remaining < 1 {
+		return false, nil
+	}
+	var changed, bytes, read int64
+	err := s.db.QueryRow(ctx, clearPurgedSelectionsSQL, id, remaining,
+		budget.ByteLimit-budget.Bytes, budget.Rows == 0).Scan(&changed, &bytes, &read)
+	if err != nil {
+		return false, err
+	}
+	budget.Charge(changed, bytes)
+	return changed == read, nil
 }

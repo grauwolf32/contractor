@@ -18,7 +18,9 @@ from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.contracts.artifacts import (
     AUDIT_CONTEXT_NAMESPACE,
     FINDING_PROPOSAL_NAMESPACE,
+    HTTP_EXCHANGE_NAMESPACE,
     PURPOSE_RESERVED_NAMESPACES,
+    http_exchange_artifact_name,
 )
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.finding_proposals import FindingProposalClient
@@ -204,6 +206,57 @@ def test_finding_transport_loss_retries_byte_identical_submission() -> None:
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize(
+    "capture_name", ["received_http_error_is_response", "caido_without_response"]
+)
+@pytest.mark.parametrize("invalid", [None, "namespace", "name"])
+def test_shared_finding_client_reads_independent_selected_http_receipt(capture_name, invalid):
+    async def scenario():
+        cases = json.loads(
+            (Path(__file__).parents[2] / "api/testdata/http-capture-cases.json").read_text()
+        )["cases"]
+        capture = next(row["value"] for row in cases if row["name"] == capture_name)
+
+        class Transport:
+            async def request(self, method, path, *, headers, body, max_response_bytes):
+                response = _receipt_response(201, replayed=False, request=json.loads(body))
+                receipt = json.loads(response.body)
+                if invalid == "namespace":
+                    receipt["evidence"][-1]["ref"]["namespace"] = FINDING_PROPOSAL_NAMESPACE
+                elif invalid == "name":
+                    receipt["evidence"][-1]["ref"]["name"] = "http.exchange.proposal-1"
+                data = json.dumps(receipt).encode()
+                return ArtifactHTTPResponse(
+                    201,
+                    {"content-type": "application/json", "content-length": str(len(data))},
+                    data,
+                )
+
+        client = FindingProposalClient("allocation-1", Transport())
+        request = {
+            "apiVersion": "contractor/v1alpha1",
+            "invocationId": "original-invocation",
+            "submissionId": "selected-http",
+            "proposal": {"client_key": "candidate"},
+            "evidenceRefs": [],
+            "httpEvidence": capture,
+        }
+        if invalid:
+            with pytest.raises(ArtifactTransportError, match="invalid HTTP evidence"):
+                await client.submit(request)
+        else:
+            receipt = await client.submit(request)
+            assert receipt["evidence"][-1]["ref"] == {
+                "namespace": HTTP_EXCHANGE_NAMESPACE,
+                "name": http_exchange_artifact_name(
+                    request["invocationId"], capture["source"], capture["request_id"]
+                ),
+                "revision": "http-rev-1",
+            }
+
+    asyncio.run(scenario())
+
+
 # The distinctive reserved Namespaces, the same names the Go scan
 # (internal/artifacts/policy/namespace_literal_test.go) and the UI scan
 # (ui/src/api/artifacts.test.ts) check: the purpose-reserved Run Namespaces the
@@ -211,7 +264,12 @@ def test_finding_transport_loss_retries_byte_identical_submission() -> None:
 # (ART-R25), which no Runtime code names. inputs, outputs and skills are
 # ordinary words of other rules and are not scanned.
 RESERVED_NAMESPACES = frozenset(
-    {FINDING_PROPOSAL_NAMESPACE, AUDIT_CONTEXT_NAMESPACE, "audit-standards"}
+    {
+        FINDING_PROPOSAL_NAMESPACE,
+        HTTP_EXCHANGE_NAMESPACE,
+        AUDIT_CONTEXT_NAMESPACE,
+        "audit-standards",
+    }
 )
 
 
@@ -365,8 +423,12 @@ def _receipt_response(
         CapturedHTTPExchange.model_validate(request["httpEvidence"])
         refs.append(
             {
-                "namespace": "finding-proposals",
-                "name": "http.exchange.proposal-1",
+                "namespace": HTTP_EXCHANGE_NAMESPACE,
+                "name": http_exchange_artifact_name(
+                    request["invocationId"],
+                    request["httpEvidence"]["source"],
+                    request["httpEvidence"]["request_id"],
+                ),
                 "revision": "http-rev-1",
             }
         )
@@ -375,7 +437,7 @@ def _receipt_response(
             "ref": ref,
             "digest": "sha256:" + "a" * 64,
             "mediaType": "application/vnd.contractor.http-exchange+json"
-            if ref["name"].startswith("http.exchange.")
+            if ref["namespace"] == HTTP_EXCHANGE_NAMESPACE
             else "text/plain",
             "sizeBytes": 2,
         }

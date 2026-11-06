@@ -102,7 +102,7 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tracedDetails, err := runservice.NewRunDetailReader(runservice.PostgresRunDetailTransaction(traced, artifactpgtest.NewStorage()))
+	tracedDetails, err := runservice.NewRunDetailReader(runservice.PostgresRunDetailTransaction(traced, artifactpgtest.NewStorage(), nil))
 	if err != nil {
 		t.Fatal(err)
 	}

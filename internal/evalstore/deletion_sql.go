@@ -59,22 +59,20 @@ var purgeRowColumns = map[string][]string{
 	"eval_experiments": {"experiment_id", "owner_id", "project_id", "portable_id", "control_mode", "name", "state",
 		"revision", "draft", "dataset_id", "dataset_revision", "expected_count", "outstanding_count", "max_in_flight",
 		"wall_ms", "token_limit", "observed_tokens", "started_at", "deadline_at", "last_producer_activity_at",
-		"deletion_requested_at", "diagnostic", "view_generation", "created_at", "updated_at"},
-	"eval_frozen_plans": {"experiment_id", "document_kind", "document", "document_sha256", "plan_sha256", "setup",
-		"created_at", "readiness"},
+		"deletion_requested_at", "diagnostic", "view_generation", "created_at", "updated_at",
+		"plan_kind", "plan_document", "plan_document_sha256", "plan_sha256", "plan_setup", "plan_created_at", "plan_readiness"},
 	"eval_member_projections": {"experiment_id", "member_id", "revision", "projected_revision", "document",
 		"collection_complete", "observed_document", "checked_at"},
 	"eval_members": {"experiment_id", "member_id", "pair_id", "ordinal", "suite_id", "case_id", "sample", "variant_id",
 		"case_sha256", "binding_sha256", "eligibility", "execution_kind", "recipe", "submission_key",
-		"eligibility_reason"},
+		"eligibility_reason", "selected_result_kind", "selected_result_sha256", "selected_assessment_kind",
+		"selected_assessment_sha256", "selection_revision", "selected_by"},
 	"eval_plan_resources":        {"experiment_id", "resource_path", "document_kind", "document", "document_sha256"},
 	"eval_progress_observations": {"experiment_id", "sequence", "observed_at", "counts"},
 	"eval_projection_queue": {"experiment_id", "revision", "published_revision", "snapshot_id", "generation",
 		"summary", "suites", "pins_verified", "content_sha256", "published_at"},
 	"eval_records": {"experiment_id", "member_id", "kind", "record_sha256", "document", "actor_id",
 		"predecessor_sha256", "created_at"},
-	"eval_selections": {"experiment_id", "member_id", "result_kind", "result_sha256", "assessment_kind",
-		"assessment_sha256", "revision", "actor_id"},
 	"eval_submissions": {"experiment_id", "member_id", "state", "actor_id", "execution_kind", "execution_id",
 		"execution_project_id", "terminal_state", "created_at", "updated_at", "observed_tokens"},
 	"eval_suboperations": {"experiment_id", "member_id", "kind", "operation_key", "request", "request_sha256",
@@ -155,15 +153,16 @@ func purgeChargedBytes(table string) string {
 
 // experimentPurgePhases are the tables one experiment's purge empties before
 // its final unit, leaf first (EVM-R243): the view rows and progress
-// observations of its invalidated view; selections before the records they
-// name; the evidence references, suboperations and submissions that the
-// projection and tombstone triggers find members through, before the
+// observations of its invalidated view; selected record references have
+// already been cleared by clearPurgedSelections; the evidence references,
+// suboperations and submissions that projection and tombstone triggers find
+// members through, before the
 // projections and tombstones those triggers write; members and plan
-// resources, the children of the frozen plan; and the commands, which stay
+// resources; and the commands, which stay
 // readable until then. No table has a child that a later phase or the final
 // unit removes (TestSharedPostgresEvalPurgeCoversCascadesAndTriggers).
 var experimentPurgePhases = []string{
-	"eval_view_pairs", "eval_view_charts", "eval_progress_observations", "eval_selections",
+	"eval_view_pairs", "eval_view_charts", "eval_progress_observations",
 	"eval_evidence_refs", "eval_suboperations", "eval_submissions", "eval_records",
 	"eval_execution_tombstones", "eval_member_projections", "eval_members", "eval_plan_resources",
 	"eval_commands",
@@ -172,7 +171,7 @@ var experimentPurgePhases = []string{
 // finalPurgeCascades are the children of eval_experiments that deleting the
 // experiment row, the last unit of its purge, cascades to. Their own children
 // are phases, so the cascade removes nothing else.
-var finalPurgeCascades = []string{"eval_frozen_plans", "eval_projection_queue", "eval_controller_claims"}
+var finalPurgeCascades = []string{"eval_projection_queue", "eval_controller_claims"}
 
 // projectPurgeTables are the tables a Project pass empties after its
 // experiments and before its Eval receipts (pg.DeleteEvalReceiptsWithinBudget):
@@ -236,3 +235,33 @@ WHERE owner_id = $1 AND project_id = $2
 ORDER BY experiment_id
 LIMIT 1
 `
+
+// clearPurgedSelectionsSQL clears the current selection before records are
+// deleted. The member itself stays until its records and other children are
+// gone. Measure at most the remaining row budget plus one, charge each full
+// stored member row, and update only the longest prefix that fits. The purge
+// holds the experiment and queue locks; clearing a selection cannot fire
+// eval_members_selection_projection (its NEW result must be non-NULL).
+// Used by Store.clearPurgedSelections.
+var clearPurgedSelectionsSQL = fmt.Sprintf(`
+WITH candidate AS MATERIALIZED (
+    SELECT member_id, (%s)::bigint AS charged_bytes,
+        row_number() OVER (ORDER BY member_id) AS position
+    FROM eval_members
+    WHERE experiment_id=$1 AND selected_result_sha256 IS NOT NULL
+    ORDER BY member_id LIMIT $2::bigint + 1
+), measured AS (
+    SELECT *, sum(charged_bytes) OVER (ORDER BY position) AS running_bytes
+    FROM candidate
+), cleared AS (
+    UPDATE eval_members m
+    SET selected_result_sha256=NULL, selected_assessment_sha256=NULL,
+        selection_revision=0, selected_by=NULL
+    FROM measured c
+    WHERE m.experiment_id=$1 AND m.member_id=c.member_id
+        AND c.position <= $2::bigint
+        AND (c.running_bytes <= $3::bigint OR ($4::boolean AND c.position=1))
+    RETURNING c.charged_bytes
+)
+SELECT count(*), COALESCE(sum(charged_bytes),0)::bigint, (SELECT count(*) FROM candidate)
+FROM cleared`, purgeRowBytes["eval_members"])

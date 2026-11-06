@@ -130,6 +130,9 @@ func (s *Scheduler) Wake() {
 // public API has already made cancellation durable. A different Scheduler
 // process observes the same state through claim reconciliation.
 func (s *Scheduler) Cancel(runID string) {
+	if s.options.GatewayRecovery != nil {
+		s.options.GatewayRecovery.EndRun(runID)
+	}
 	s.interruptRun(runID, ErrRunCancellationRequested)
 	s.Wake()
 }

@@ -12,6 +12,7 @@ import {
   canPreviewArtifact,
   downloadArtifact,
   FINDING_PROPOSAL_NAMESPACE,
+  HTTP_EXCHANGE_NAMESPACE,
   listArtifacts,
   MAXIMUM_PREVIEW_BYTES,
   previewArtifact,
@@ -340,6 +341,7 @@ const UI_ROOT = join(__dirname, "..", "..");
  */
 const RESERVED_NAMESPACES = new Set([
   FINDING_PROPOSAL_NAMESPACE,
+  HTTP_EXCHANGE_NAMESPACE,
   "audit-context",
   "audit-standards",
 ]);
@@ -379,7 +381,9 @@ function reservedNamespaceCopies(name: string, text: string): number[] {
       !(
         name === NAMESPACE_DEFINITION &&
         ts.isVariableDeclaration(node.parent) &&
-        node.parent.name.getText(file) === "FINDING_PROPOSAL_NAMESPACE"
+        ["FINDING_PROPOSAL_NAMESPACE", "HTTP_EXCHANGE_NAMESPACE"].includes(
+          node.parent.name.getText(file),
+        )
       )
     ) {
       lines.push(file.getLineAndCharacterOfPosition(node.getStart(file)).line);

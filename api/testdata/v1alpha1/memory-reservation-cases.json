@@ -4,11 +4,13 @@
   "purposeReservedNamespaces": [
     "audit-context",
     "finding-proposals",
+    "http-exchanges",
     "inputs",
     "outputs",
     "skills"
   ],
   "bindings": [
+    {"namespace": "http-exchanges", "name": "exchange-test", "memoryReserved": false, "resultReserved": true},
     {"namespace": "analysis", "name": "memory.note", "memoryReserved": true, "resultReserved": true},
     {"namespace": "analysis", "name": "memory.", "memoryReserved": true, "resultReserved": true},
     {"namespace": "analysis", "name": "memory.nested.note", "memoryReserved": true, "resultReserved": true},

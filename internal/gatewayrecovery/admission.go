@@ -1,129 +1,135 @@
 package gatewayrecovery
 
-import (
-	"context"
-	"sort"
+import "context"
 
-	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
-	"github.com/jackc/pgx/v5"
-)
-
-// Admit checks all routes before reserving any probe. Existing invocations get
-// first opportunity to recover; new Runs do not drain through an unavailable model.
-func (s *Service) Admit(ctx context.Context, runID string, routes []Route) (bool, error) {
+// Admit checks the candidate Stage routes before placement. Live invocations
+// have priority over queued Runs. Re-admission relinquishes earlier reserved
+// probes and replaces route membership, including after a denied admission.
+func (s *Service) Admit(ctx context.Context, runID, stageID string, routes []Route) (bool, error) {
+	if err := checkContext(ctx); err != nil {
+		return false, err
+	}
+	if runID == "" || stageID == "" || len(routes) > maximumBindingsPerRun {
+		return false, ErrInvalid
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	keys := make(map[string]Route, len(routes))
+	owner := ""
+	missing := 0
+	for _, route := range routes {
+		if route.OwnerID == "" || route.Model == "" || (owner != "" && owner != route.OwnerID) {
+			return false, ErrInvalid
+		}
+		owner = route.OwnerID
+		key := route.Key()
+		if _, exists := keys[key]; exists {
+			continue
+		}
+		keys[key] = route
+		if s.routes[key] == nil {
+			missing++
+		}
+	}
+	if len(s.routes)+missing > maximumRoutes || (s.runs[runID] == nil && len(s.runs) >= maximumRuns) {
+		return false, errCapacity
+	}
+	run := s.runs[runID]
+	if run != nil && run.stageID != stageID {
+		s.endStage(run)
+		run = nil
+	}
+	if run == nil {
+		run = &runState{id: runID, stageID: stageID, ownerID: owner, routes: make(map[string]struct{}),
+			bindings: make(map[bindingKey]string), waits: make(map[bindingKey]string),
+			failures: make(map[string]struct{}), changed: make(chan struct{})}
+		s.runs[runID] = run
+	}
+	if run.active {
+		return false, ErrInvalid
+	}
+	for key := range run.routes {
+		state := s.routes[key]
+		if state.probeRunID == runID && state.probeID == "" {
+			state.release()
+		}
+		if _, keep := keys[key]; !keep {
+			delete(state.members, runID)
+			delete(run.routes, key)
+			if len(state.members) == 0 && !state.blocked {
+				delete(s.routes, key)
+			}
+		}
+	}
+	for key := range keys {
+		state := s.routes[key]
+		if state == nil {
+			state = &routeState{members: make(map[string]*runState)}
+			s.routes[key] = state
+		}
+		state.members[runID] = run
+		run.routes[key] = struct{}{}
+	}
+	now := s.now()
 	allowed := true
-	ordered := append([]Route(nil), routes...)
-	sort.Slice(ordered, func(i, j int) bool { return ordered[i].Key() < ordered[j].Key() })
-	err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if _, err := lockRun(ctx, tx, s.runs, runID, false); err != nil {
-			return err
+	for key := range keys {
+		state := s.routes[key]
+		if !state.blocked {
+			continue
 		}
-		// Candidate selection may change between attempts. Keep only the routes
-		// being admitted now, including when this admission is denied.
-		keys := make([]string, 0, len(ordered))
-		for _, route := range ordered {
-			keys = append(keys, route.Key())
+
+		if state.waiters != 0 || state.automaticExpired(now) || now.Before(state.next) || state.activeProbe(now) {
+			allowed = false
 		}
-		if _, err := tx.Exec(ctx, `
-DELETE FROM gateway_run_routes WHERE run_id=$1 AND NOT (route_key=ANY($2::text[]))`, runID, keys); err != nil {
-			return err
-		}
-		now, err := transactionNow(ctx, tx)
-		if err != nil {
-			return err
-		}
-		// An earlier admission of this Run may still reserve probes, for
-		// instance when Queue Pause discarded its placement. Release them, so
-		// the Run competes for each probe again instead of being refused by its
-		// own reservation, and a route it no longer admits is not left blocked
-		// until that lease expires. Admitted and reserved routes are locked in
-		// one key-ordered pass, the order every route lock uses.
-		rows, err := tx.Query(ctx, `
-SELECT route_key FROM gateway_recovery_routes WHERE probe_run_id=$1 AND probe_id IS NULL`, runID)
-		if err != nil {
-			return err
-		}
-		reserved, err := pgx.CollectRows(rows, pgx.RowTo[string])
-		if err != nil {
-			return err
-		}
-		admitted := make(map[string]Route, len(ordered))
-		lockKeys := append([]string(nil), keys...)
-		for _, route := range ordered {
-			admitted[route.Key()] = route
-		}
-		for _, key := range reserved {
-			if _, ok := admitted[key]; !ok {
-				lockKeys = append(lockKeys, key)
+	}
+	if allowed {
+		for key := range keys {
+			state := s.routes[key]
+			if state.blocked {
+				state.probeRunID = runID
+				state.probeUntil = now.Add(max(s.workerRequestTimeout, s.plannerRequestTimeout) + s.policy.MaxDelay)
 			}
 		}
-		sort.Strings(lockKeys)
-		probes := map[string]bool{}
-		for _, key := range lockKeys {
-			route, admitting := admitted[key]
-			if admitting {
-				if _, err := tx.Exec(ctx, `
-INSERT INTO gateway_recovery_routes(route_key,owner_id) VALUES($1,$2)
-ON CONFLICT DO NOTHING`, key, route.OwnerID); err != nil {
-					return err
-				}
-				if _, err := tx.Exec(ctx, `
-INSERT INTO gateway_run_routes(run_id,route_key) VALUES($1,$2)
-ON CONFLICT DO NOTHING`, runID, key); err != nil {
-					return err
-				}
-			}
-			state, err := readRoute(ctx, tx, key)
-			if err != nil {
-				return err
-			}
-			if state.probeID == nil && state.probeRunID != nil && *state.probeRunID == runID {
-				if _, err := tx.Exec(ctx, `
-UPDATE gateway_recovery_routes SET probe_run_id=NULL,probe_until=NULL WHERE route_key=$1`, key); err != nil {
-					return err
-				}
-				state.probeRunID, state.probeUntil = nil, nil
-			}
-			if !admitting || !state.blocked {
-				continue
-			}
-			var waiter bool
-			if err := tx.QueryRow(ctx, `
-SELECT EXISTS(SELECT 1 FROM gateway_recovery_waits w
-JOIN workflow_runs r USING(run_id)
-WHERE w.route_key=$1 AND r.state IN ('running','waiting'))`, key).Scan(&waiter); err != nil {
-				return err
-			}
-			if waiter || state.automaticExpired(now) || state.next == nil || now.Before(*state.next) || state.activeProbe(now) {
-				allowed = false
-				if err := s.runs.RecordAdmissionWait(ctx, tx, runID, state.code); err != nil {
-					return err
-				}
-			} else {
-				probes[key] = true
-			}
-		}
-		if !allowed {
-			return nil
-		}
-		for key := range probes {
-			// Include preparation time in this reservation. A crashed scheduler cannot
-			// hold the gate indefinitely; the first request, from a Worker or the
-			// planner, takes a lease sized by its own request timeout.
-			if _, err := tx.Exec(ctx, `
-UPDATE gateway_recovery_routes SET probe_id=NULL,probe_run_id=$2,probe_until=$3
-WHERE route_key=$1`, key, runID, now.Add(max(s.workerRequestTimeout, s.plannerRequestTimeout)+s.policy.MaxDelay)); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-	return allowed, err
+	}
+	return allowed, nil
 }
 
-func (s *Service) Bind(ctx context.Context, allocationID, runID string, route Route) error {
-	_, err := s.pool.Exec(ctx, `
-INSERT INTO gateway_allocation_routes(allocation_id,model,run_id,route_key)
-VALUES($1,$2,$3,$4) ON CONFLICT(allocation_id,model) DO NOTHING`, allocationID, route.Model, runID, route.Key())
-	return err
+// Bind records a trusted Scheduler allocation binding before Runtime preparation.
+func (s *Service) Bind(ctx context.Context, allocationID, runID, stageID string, route Route) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	run := s.runs[runID]
+	if run == nil || run.stageID != stageID {
+		return ErrUnavailable
+	}
+	key := route.Key()
+	if _, ok := run.routes[key]; !ok {
+		return ErrUnavailable
+	}
+	binding := bindingKey{"allocation:" + allocationID, route.Model}
+	if old, exists := run.bindings[binding]; exists {
+		if old != key {
+			return ErrInvalid
+		}
+		return nil
+	}
+	if len(run.bindings) >= maximumBindingsPerRun || len(s.bindings) >= maximumBindings {
+		return errCapacity
+	}
+	run.bindings[binding] = key
+	s.bindings[binding] = run
+	return nil
+}
+
+// Activate opens the registered Stage's participants only while its Planner is
+// running. The Scheduler closes them before beginning finalization or abort.
+func (s *Service) Activate(runID, stageID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if run := s.runs[runID]; run != nil && run.stageID == stageID {
+		run.active = true
+	}
 }

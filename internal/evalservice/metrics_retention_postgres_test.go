@@ -164,7 +164,7 @@ FROM stage_metrics WHERE stage_execution_id = ANY($1)`, memberStages).Scan(&kept
 	if err := pg.InTx(t.Context(), h.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		for _, statement := range []string{
 			`SELECT set_config('contractor.eval_purge', 'on', true)`,
-			`DELETE FROM eval_selections WHERE experiment_id = '` + e.ID + `'`,
+			`UPDATE eval_members SET selected_result_sha256=NULL,selected_assessment_sha256=NULL,selection_revision=0,selected_by=NULL WHERE experiment_id = '` + e.ID + `'`,
 			`DELETE FROM eval_experiments WHERE experiment_id = '` + e.ID + `'`,
 		} {
 			if _, err := tx.Exec(t.Context(), statement); err != nil {

@@ -76,7 +76,7 @@ func configureHTTP(
 		return serverHandlers{}, fmt.Errorf("configure finding collection publisher: %w", err)
 	}
 	runStore := runstore.NewPostgresStore(pool, storage)
-	runDetails, err := runservice.NewRunDetailReader(runservice.PostgresRunDetailTransaction(pool, storage))
+	runDetails, err := runservice.NewRunDetailReader(runservice.PostgresRunDetailTransaction(pool, storage, workflows.gatewayRecovery))
 	if err != nil {
 		return serverHandlers{}, fmt.Errorf("configure Run detail reader: %w", err)
 	}

@@ -33,7 +33,7 @@ func TestSharedHTTPFindingCapture(t *testing.T) {
 				t.Fatalf("valid=%v, error=%v", test.Valid, err)
 			}
 			if err == nil {
-				encoded, err := EncodeHTTPExchangeArtifact(value, "proposal-test", "receipt-test")
+				encoded, err := EncodeHTTPExchangeArtifact(value, "run-test", "invocation-test")
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -41,9 +41,34 @@ func TestSharedHTTPFindingCapture(t *testing.T) {
 				if err := json.Unmarshal(encoded, &object); err != nil {
 					t.Fatal(err)
 				}
-				if object["schema"] != HTTPExchangeSchema || object["finding"].(map[string]any)["proposal_id"] != "proposal-test" {
-					t.Fatal("missing finding association")
+				if object["schema"] != HTTPExchangeSchema || object["origin"].(map[string]any)["run_id"] != "run-test" || object["finding"] != nil {
+					t.Fatal("missing independent origin")
 				}
+			}
+		})
+	}
+}
+
+func TestSharedStandaloneHTTPExchangeArtifacts(t *testing.T) {
+	var fixture struct {
+		Cases []struct {
+			Name         string
+			Valid        bool
+			ArtifactName string `json:"artifact_name"`
+			Value        json.RawMessage
+		}
+	}
+	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "http-exchange-artifact-cases.json"), &fixture); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range fixture.Cases {
+		t.Run(test.Name, func(t *testing.T) {
+			value, err := DecodeHTTPExchangeArtifact(test.Value)
+			if (err == nil) != test.Valid {
+				t.Fatalf("valid=%t: %v", test.Valid, err)
+			}
+			if test.Valid && HTTPExchangeArtifactName(value.Origin.InvocationID, value.Capture.Source, value.Capture.RequestID) != test.ArtifactName {
+				t.Fatal("natural HTTP evidence identity drifted")
 			}
 		})
 	}

@@ -25,16 +25,16 @@ type readinessCase struct {
 	ErrorCode  string                `json:"errorCode"`
 }
 
-// bypassPlanImmutability runs statement on eval_frozen_plans with
+// bypassPlanImmutability runs statement on eval_experiments with
 // eval_plans_immutable disabled, which only DDL can do.
 func bypassPlanImmutability(t *testing.T, pool *pgxpool.Pool, statement string, args ...any) error {
 	t.Helper()
 	ctx := t.Context()
-	if _, err := pool.Exec(ctx, `ALTER TABLE eval_frozen_plans DISABLE TRIGGER eval_plans_immutable`); err != nil {
+	if _, err := pool.Exec(ctx, `ALTER TABLE eval_experiments DISABLE TRIGGER eval_plans_immutable; ALTER TABLE eval_experiments DISABLE TRIGGER eval_experiments_protect`); err != nil {
 		t.Fatal(err)
 	}
 	_, err := pool.Exec(ctx, statement, args...)
-	if _, enable := pool.Exec(ctx, `ALTER TABLE eval_frozen_plans ENABLE TRIGGER eval_plans_immutable`); enable != nil {
+	if _, enable := pool.Exec(ctx, `ALTER TABLE eval_experiments ENABLE TRIGGER eval_plans_immutable; ALTER TABLE eval_experiments ENABLE TRIGGER eval_experiments_protect`); enable != nil {
 		t.Fatal(enable)
 	}
 	return err
@@ -129,7 +129,7 @@ func TestSharedPostgresStoredReadinessIsImmutableAndDecodedStrictly(t *testing.T
 	f := newNativeFreeze(t, pool)
 	mustTx(t, pool, func(s *Store) error { return f.freeze(ctx, s) })
 	external := createExperiment(t, pool, setupProject(t, pool, "owner", "external"), "external", "trace-1", "external-workflow")
-	if _, err := pool.Exec(ctx, `UPDATE eval_frozen_plans SET readiness=readiness WHERE experiment_id=$1`, f.e.ID); !checkViolation(err) || !strings.Contains(err.Error(), "immutable") {
+	if _, err := pool.Exec(ctx, `UPDATE eval_experiments SET plan_readiness=plan_readiness WHERE experiment_id=$1`, f.e.ID); !checkViolation(err) || !strings.Contains(err.Error(), "immutable") {
 		t.Fatalf("stored readiness changed: %v", err)
 	}
 	for name, update := range map[string]struct {
@@ -143,7 +143,7 @@ func TestSharedPostgresStoredReadinessIsImmutableAndDecodedStrictly(t *testing.T
 		if update.value == "" {
 			value = nil
 		}
-		if err := bypassPlanImmutability(t, pool, `UPDATE eval_frozen_plans SET readiness=$2 WHERE experiment_id=$1`, update.id, value); !checkViolation(err) {
+		if err := bypassPlanImmutability(t, pool, `UPDATE eval_experiments SET plan_readiness=$2 WHERE experiment_id=$1`, update.id, value); !checkViolation(err) {
 			t.Fatalf("%s: %v", name, err)
 		}
 	}
@@ -155,7 +155,7 @@ func TestSharedPostgresStoredReadinessIsImmutableAndDecodedStrictly(t *testing.T
 		`{"pins":[],"pins":[],"arms":[]}`,
 		`{"pins":[{"dimension":"source","requiredEqual":true,"baselineOrigin":"observed","candidateOrigin":"observed"}],"arms":[]}`,
 	} {
-		if err := bypassPlanImmutability(t, pool, `UPDATE eval_frozen_plans SET readiness=$2 WHERE experiment_id=$1`, f.e.ID, []byte(malformed)); err != nil {
+		if err := bypassPlanImmutability(t, pool, `UPDATE eval_experiments SET plan_readiness=$2 WHERE experiment_id=$1`, f.e.ID, []byte(malformed)); err != nil {
 			t.Fatal(err)
 		}
 		_, err := NewPostgresStore(pool, artifactpgtest.NewStorage()).FrozenPlanView(ctx, f.scope.OwnerID, f.e.ID)

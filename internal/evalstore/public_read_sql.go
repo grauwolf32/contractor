@@ -31,17 +31,16 @@ SELECT COALESCE((SELECT revision
 const summaryPageSQL = `
 WITH page AS MATERIALIZED (
     SELECT experiment_id, project_id, name, control_mode, state, revision,
-        expected_count, draft, created_at, updated_at, dataset_id
+        expected_count, draft, created_at, updated_at, dataset_id, plan_setup
     FROM eval_experiments
     WHERE owner_id = $1 /* predicates */
     ORDER BY created_at DESC, experiment_id DESC LIMIT $3
 ), details AS (
-    SELECT page.*, convert_from(COALESCE(p.setup, page.draft), 'UTF8')::jsonb AS setup,
+    SELECT page.*, convert_from(COALESCE(page.plan_setup, page.draft), 'UTF8')::jsonb AS setup,
         convert_from(q.summary, 'UTF8')::jsonb AS summary,
         CASE WHEN q.generation IS NULL THEN 'pending'
              WHEN q.revision = q.published_revision THEN 'current' ELSE 'stale' END AS freshness
     FROM page
-    LEFT JOIN eval_frozen_plans p USING (experiment_id)
     LEFT JOIN eval_projection_queue q USING (experiment_id)
 )
 SELECT COALESCE((SELECT revision FROM eval_collections WHERE owner_id = $1 AND project_id = $2), 0),

@@ -25,12 +25,14 @@ interface HTTPCapture {
   source: "http" | "caido";
   request_id: string;
   request_tag?: string;
+  observed_at?: string;
+  deployment_marker?: string;
   attempts: HTTPAttempt[];
 }
 export interface HTTPExchangeDocument {
   schema: typeof HTTP_EXCHANGE_SCHEMA;
   capture: HTTPCapture;
-  finding: { proposal_id: string; receipt_id: string };
+  origin: { run_id: string; invocation_id: string };
 }
 
 const TOKEN = /^[!#$%&'*+.^_\x60|~0-9A-Za-z-]+(?![\s\S])/;
@@ -172,7 +174,11 @@ function attempt(value: unknown, source: string): value is HTTPAttempt {
 /** Strict current capture contract; shared Go/Python/UI cases pin its semantics. */
 function isHTTPCapture(value: unknown): value is HTTPCapture {
   if (
-    !fields(value, ["source", "request_id", "attempts"], ["request_tag"]) ||
+    !fields(
+      value,
+      ["source", "request_id", "attempts"],
+      ["request_tag", "observed_at", "deployment_marker"],
+    ) ||
     typeof value.source !== "string" ||
     !["http", "caido"].includes(value.source) ||
     typeof value.request_id !== "string" ||
@@ -188,10 +194,26 @@ function isHTTPCapture(value: unknown): value is HTTPCapture {
   )
     return false;
   if (
+    Object.hasOwn(value, "observed_at") &&
+    !observationTime(value.observed_at)
+  )
+    return false;
+  if (
+    Object.hasOwn(value, "deployment_marker") &&
+    (typeof value.deployment_marker !== "string" ||
+      !value.deployment_marker ||
+      bytes(value.deployment_marker) > 256 ||
+      Array.from(value.deployment_marker).some(
+        (char) => char.charCodeAt(0) < 32,
+      ))
+  )
+    return false;
+  if (
     value.source === "http" &&
     (!/^[1-9][0-9]*$/.test(value.request_id) ||
       !Number.isSafeInteger(Number(value.request_id)) ||
-      value.request_tag === undefined)
+      value.request_tag === undefined ||
+      value.observed_at === undefined)
   )
     return false;
   return (
@@ -199,6 +221,21 @@ function isHTTPCapture(value: unknown): value is HTTPCapture {
     value.attempts.length > 0 &&
     value.attempts.length <= HTTP_CAPTURE_LIMITS.attempts &&
     value.attempts.every((item) => attempt(item, String(value.source)))
+  );
+}
+
+function observationTime(value: unknown): value is string {
+  if (
+    typeof value !== "string" ||
+    value.length > 32 ||
+    value.startsWith("0000") ||
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.[0-9]{0,8}[1-9])?Z$/.test(value)
+  )
+    return false;
+  const date = new Date(value);
+  return (
+    Number.isFinite(date.getTime()) &&
+    date.toISOString().slice(0, 19) === value.slice(0, 19)
   );
 }
 
@@ -216,14 +253,14 @@ export function parseHTTPExchange(
     )
       return undefined;
     if (
-      !fields(value, ["schema", "capture", "finding"]) ||
+      !fields(value, ["schema", "capture", "origin"]) ||
       value.schema !== HTTP_EXCHANGE_SCHEMA ||
       !isHTTPCapture(value.capture) ||
-      !fields(value.finding, ["proposal_id", "receipt_id"]) ||
-      typeof value.finding.proposal_id !== "string" ||
-      !IDENTIFIER.test(value.finding.proposal_id) ||
-      typeof value.finding.receipt_id !== "string" ||
-      !IDENTIFIER.test(value.finding.receipt_id)
+      !fields(value.origin, ["run_id", "invocation_id"]) ||
+      typeof value.origin.run_id !== "string" ||
+      !IDENTIFIER.test(value.origin.run_id) ||
+      typeof value.origin.invocation_id !== "string" ||
+      !IDENTIFIER.test(value.origin.invocation_id)
     )
       return undefined;
     return value as unknown as HTTPExchangeDocument;

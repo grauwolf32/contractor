@@ -57,9 +57,9 @@ credential_operations_request_check                         LIM-PER-19
 eval_controller_claims_holder_id_check                      invariant: a Server-generated randomid identity, its prefix and 32 hexadecimal digits
 eval_dataset_revisions_document_check                       LIM-EVF-3
 eval_experiments_check3                                     LIM-PER-21
-eval_frozen_plans_document_check                            LIM-EVF-3
-eval_frozen_plans_readiness_check                           LIM-EVM-19
-eval_frozen_plans_setup_check                               LIM-PER-21
+eval_experiments_plan_document_check                       LIM-EVF-3
+eval_experiments_plan_readiness_check                      LIM-EVM-19
+eval_experiments_plan_setup_check                          LIM-PER-21
 eval_member_projections_document_check                      LIM-PER-21
 eval_member_projections_observed_document_check             LIM-PER-21
 eval_members_recipe_check                                   LIM-PER-21

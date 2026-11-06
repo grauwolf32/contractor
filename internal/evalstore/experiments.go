@@ -149,16 +149,16 @@ type Plan struct {
 
 // FrozenPlan trusts the stored document: persistPlan writes only Freeze output,
 // eval_plans_immutable rejects every later change and document_sha256 is
-// generated from the stored bytes, so ticks never revalidate up to 1 MiB.
+// generated from the stored bytes when the document is written, so ticks never
+// revalidate or rehash up to 1 MiB.
 func (s *Store) FrozenPlan(ctx context.Context, owner, id string) (Plan, error) {
 	var kind, digest, identity string
 	var raw, setup []byte
 	err := s.db.QueryRow(ctx, `
-SELECT p.document_kind, p.document, p.document_sha256, p.setup, p.plan_sha256
-FROM eval_frozen_plans p
-JOIN eval_experiments e USING(experiment_id)
-WHERE e.owner_id=$1
-    AND e.experiment_id=$2
+SELECT p.plan_kind, p.plan_document, p.plan_document_sha256, p.plan_setup, p.plan_sha256
+FROM eval_experiments p
+WHERE p.plan_document IS NOT NULL AND p.owner_id=$1
+    AND p.experiment_id=$2
 `, owner, id).Scan(&kind, &raw, &digest, &setup, &identity)
 	if err != nil {
 		return Plan{}, normalize(err)
@@ -176,9 +176,9 @@ type PlanMetadata struct {
 func (s *Store) FrozenPlanMetadata(ctx context.Context, owner, id string) (PlanMetadata, error) {
 	var out PlanMetadata
 	err := s.db.QueryRow(ctx, `
-SELECT p.plan_sha256, p.setup
-FROM eval_frozen_plans p JOIN eval_experiments e USING (experiment_id)
-WHERE e.owner_id = $1 AND e.experiment_id = $2`, owner, id).Scan(&out.SHA256, &out.Setup)
+SELECT p.plan_sha256, p.plan_setup
+FROM eval_experiments p
+WHERE p.plan_document IS NOT NULL AND p.owner_id = $1 AND p.experiment_id = $2`, owner, id).Scan(&out.SHA256, &out.Setup)
 	return out, normalize(err)
 }
 
@@ -198,9 +198,9 @@ func (s *Store) FrozenPlanView(ctx context.Context, owner, id string) (PlanView,
 	var out PlanView
 	var readiness []byte
 	err := s.db.QueryRow(ctx, `
-SELECT p.plan_sha256, p.setup, p.readiness
-FROM eval_frozen_plans p JOIN eval_experiments e USING (experiment_id)
-WHERE e.owner_id = $1 AND e.experiment_id = $2`, owner, id).Scan(&out.SHA256, &out.Setup, &readiness)
+SELECT p.plan_sha256, p.plan_setup, p.plan_readiness
+FROM eval_experiments p
+WHERE p.plan_document IS NOT NULL AND p.owner_id = $1 AND p.experiment_id = $2`, owner, id).Scan(&out.SHA256, &out.Setup, &readiness)
 	if err != nil {
 		return PlanView{}, normalize(err)
 	}
@@ -338,11 +338,12 @@ func (s *Store) persistPlan(ctx context.Context, e Experiment, document evaldoma
 		// revision has always named the second authority write.
 		change = advance
 	}
-	_, err = s.db.Exec(ctx, `UPDATE eval_experiments SET state='ready',diagnostic=NULL,expected_count=$2,`+change+` WHERE experiment_id=$1`, e.ID, len(manifest.Members))
-	if err != nil {
-		return err
-	}
-	_, err = s.db.Exec(ctx, `INSERT INTO eval_frozen_plans(experiment_id,document_kind,document,setup,plan_sha256,readiness) VALUES($1,$2,$3,$4,$5,$6)`, e.ID, document.Kind(), document.Bytes(), setup, identity, readiness)
+	_, err = s.db.Exec(ctx, `
+UPDATE eval_experiments
+SET state='ready', diagnostic=NULL, expected_count=$2,
+    plan_kind=$3, plan_document=$4, plan_setup=$5, plan_sha256=$6,
+    plan_readiness=$7, plan_created_at=clock_timestamp(), `+change+`
+WHERE experiment_id=$1`, e.ID, len(manifest.Members), document.Kind(), document.Bytes(), setup, identity, readiness)
 	if err != nil {
 		return normalize(err)
 	}

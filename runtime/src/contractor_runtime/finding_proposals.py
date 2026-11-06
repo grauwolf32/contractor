@@ -18,7 +18,11 @@ from contractor_runtime.artifacts import (
     require_json,
 )
 from contractor_runtime.contracts import DIGEST_PATTERN, ArtifactRef, validate_media_type
-from contractor_runtime.contracts.artifacts import FINDING_PROPOSAL_NAMESPACE
+from contractor_runtime.contracts.artifacts import (
+    FINDING_PROPOSAL_NAMESPACE,
+    HTTP_EXCHANGE_NAMESPACE,
+    http_exchange_artifact_name,
+)
 from contractor_runtime.shared_config import artifact_payload_max_bytes
 
 # findingintake.MaxRequestBytes / auditdomain.MaximumDocumentBytes.
@@ -179,8 +183,13 @@ class FindingProposalClient:
         if "httpEvidence" in request:
             selected = evidence[-1]
             if (
-                selected["ref"]["namespace"] != FINDING_PROPOSAL_NAMESPACE
-                or selected["ref"]["name"] != "http.exchange." + value["proposalId"]
+                selected["ref"]["namespace"] != HTTP_EXCHANGE_NAMESPACE
+                or selected["ref"]["name"]
+                != http_exchange_artifact_name(
+                    request["invocationId"],
+                    request["httpEvidence"]["source"],
+                    request["httpEvidence"]["request_id"],
+                )
                 or selected["mediaType"] != "application/vnd.contractor.http-exchange+json"
             ):
                 raise ArtifactTransportError("finding proposal API returned invalid HTTP evidence")

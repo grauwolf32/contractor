@@ -2,13 +2,10 @@ package gatewayrecovery
 
 import (
 	"context"
-	"errors"
 	"math"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
-	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
-	"github.com/jackc/pgx/v5"
 )
 
 // Request contains only safe control metadata. Provider messages and secrets
@@ -56,212 +53,148 @@ func (r Request) Terminal() bool {
 	}
 }
 
-// Update resolves the route from an authenticated allocation's durable binding.
+// Update resolves an authenticated allocation from the Scheduler's memory binding.
 func (s *Service) Update(ctx context.Context, allocationID string, request Request) (Decision, error) {
 	if err := request.Validate(); err != nil {
 		return Decision{}, err
 	}
-	var runID, key string
-	if err := s.pool.QueryRow(ctx, `
-SELECT run_id,route_key FROM gateway_allocation_routes
-WHERE allocation_id=$1 AND model=$2`, allocationID, request.Model).Scan(&runID, &key); err != nil {
+	if err := checkContext(ctx); err != nil {
 		return Decision{}, err
 	}
-	return s.update(ctx, runID, "allocation:"+allocationID, key, request, s.workerRequestTimeout)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	binding := bindingKey{"allocation:" + allocationID, request.Model}
+	run := s.bindings[binding]
+	if run == nil {
+		if request.Terminal() {
+			return Decision{}, nil
+		}
+		return Decision{}, ErrUnavailable
+	}
+	return s.update(run, binding, run.bindings[binding], request, s.workerRequestTimeout)
 }
 
-// Participant is a Server-side planner's invocation, bound to the same authority
-// used by Runtime model calls. The route must first pass Admit.
 type Participant struct {
-	service                          *Service
-	runID, participantID, key, model string
-	signatures                       llmgateway.GatewayFailureSignatures
+	service                    *Service
+	runID, stageID, key, model string
+	signatures                 llmgateway.GatewayFailureSignatures
 }
 
-// Planner binds a planner invocation to its route; signatures are the selected
-// Gateway's effective failure signatures, applied to every response it reads.
+// Planner references an already admitted Stage; it never registers a missing
+// participant. An old Participant cannot recreate state after cleanup or restart.
 func (s *Service) Planner(runID, stageID string, route Route, signatures llmgateway.GatewayFailureSignatures) *Participant {
-	return &Participant{s, runID, "planner:" + stageID, route.Key(), route.Model, signatures}
+	return &Participant{s, runID, stageID, route.Key(), route.Model, signatures}
 }
 func (p *Participant) Update(ctx context.Context, request Request) (Decision, error) {
 	request.Model = p.model
 	if err := request.Validate(); err != nil {
 		return Decision{}, err
 	}
-	return p.service.update(ctx, p.runID, p.participantID, p.key, request, p.service.plannerRequestTimeout)
+	if err := checkContext(ctx); err != nil {
+		return Decision{}, err
+	}
+	s := p.service
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	run := s.runs[p.runID]
+	if run == nil || run.stageID != p.stageID {
+		if request.Terminal() {
+			return Decision{}, nil
+		}
+		return Decision{}, ErrUnavailable
+	}
+	return s.update(run, bindingKey{"planner:" + p.stageID, p.model}, p.key, request, s.plannerRequestTimeout)
 }
 
-// update applies one participant request. requestTimeout bounds that
-// participant's own model request and so sizes a probe lease it acquires.
-func (s *Service) update(
-	ctx context.Context, runID, participantID, key string, request Request, requestTimeout time.Duration,
-) (Decision, error) {
-	if decision, unchanged, err := s.unchanged(ctx, runID, participantID, key, request); err != nil || unchanged {
-		return decision, err
-	}
+// update holds only the process mutex; no database or network work runs here.
+func (s *Service) update(run *runState, participant bindingKey, key string, request Request, timeout time.Duration) (Decision, error) {
 	result := Decision{RetryAfterSeconds: s.policy.MaxDelay.Seconds()}
-	err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if _, err := lockRun(ctx, tx, s.runs, runID, request.Terminal()); err != nil {
-			return err
-		}
-		if !request.Terminal() {
-			var active bool
-			if err := tx.QueryRow(ctx, readActiveParticipantSQL, runID, participantID).Scan(&active); err != nil {
-				return err
+	state := s.routes[key]
+	if state == nil {
+		return result, ErrUnavailable
+	}
+	if _, ok := run.routes[key]; !ok {
+		return result, ErrUnavailable
+	}
+	if !run.active && !request.Terminal() {
+		return result, ErrUnavailable
+	}
+	now := s.now()
+	switch request.Action {
+	case "failed":
+		// Request IDs are opaque: frame the route and ID rather than concatenate.
+		receipt := key + ":" + request.RequestID
+		if _, seen := run.failures[receipt]; !seen {
+			if s.failureReceipts >= maximumFailures {
+				return result, errCapacity
 			}
-			if !active {
-				return ErrUnavailable
-			}
-		}
-		state, err := readRoute(ctx, tx, key)
-		if err != nil {
-			return err
-		}
-		now, err := transactionNow(ctx, tx)
-		if err != nil {
-			return err
-		}
-		switch request.Action {
-		case "failed":
-			receipt, err := tx.Exec(ctx, `INSERT INTO gateway_recovery_failures(route_key,request_id,run_id)
-VALUES($1,$2,$3) ON CONFLICT DO NOTHING`, key, request.RequestID, runID)
-			if err != nil {
-				return err
-			}
-			if receipt.RowsAffected() == 0 && !state.blocked {
-				return nil
-			}
-			if receipt.RowsAffected() != 0 {
-				delay := s.policy.failureDelay(state.failures)
-				// A hint beyond the automatic window causes manual waiting; it must not
-				// force an early retry or overflow time.Duration.
-				delay = max(delay, time.Duration(min(request.RetryAfterSeconds, s.policy.AutomaticWindow.Seconds())*float64(time.Second)))
-				_, err = tx.Exec(ctx, `
-UPDATE gateway_recovery_routes SET blocked=true,failure_code=$2,
- failure_count=failure_count+1,
- blocked_at=CASE WHEN blocked THEN blocked_at ELSE $3 END,
- automatic_until=CASE WHEN blocked THEN automatic_until ELSE $4 END,
- next_probe_at=GREATEST(next_probe_at,$5),
- probe_id=CASE WHEN probe_id=$6 THEN NULL ELSE probe_id END,
- probe_run_id=CASE WHEN probe_id=$6 THEN NULL ELSE probe_run_id END,
- probe_until=CASE WHEN probe_id=$6 THEN NULL ELSE probe_until END
-WHERE route_key=$1`, key, request.Code, now, now.Add(s.policy.AutomaticWindow), now.Add(delay), request.RequestID)
-				if err != nil {
-					return err
-				}
-			}
-			return setWaiting(ctx, tx, s.runs, participantID, request.Model, runID, key, request.Code)
-		case "acquire":
-			result.Code = state.code
+			run.failures[receipt] = struct{}{}
+			s.failureReceipts++
+			delay := max(s.policy.failureDelay(state.failures), time.Duration(min(request.RetryAfterSeconds, s.policy.AutomaticWindow.Seconds())*float64(time.Second)))
 			if !state.blocked {
-				result.Allowed = true
-				return nil
+				state.blockedAt = now
+				state.automaticUntil = now.Add(s.policy.AutomaticWindow)
 			}
-			if err := setWaiting(ctx, tx, s.runs, participantID, request.Model, runID, key, state.code); err != nil {
-				return err
+			state.blocked, state.code = true, request.Code
+			state.failures++
+			if next := now.Add(delay); next.After(state.next) {
+				state.next = next
 			}
-			result.RequiresRetry = state.automaticExpired(now)
-			if result.RequiresRetry {
-				return nil
+			if state.probeID == request.RequestID {
+				state.release()
 			}
-			ownProbe := state.activeProbe(now) && state.probeRunID != nil && *state.probeRunID == runID && (state.probeID == nil || *state.probeID == request.RequestID)
-			if !ownProbe && (state.activeProbe(now) || state.next == nil || now.Before(*state.next)) {
-				until := state.next
-				if state.activeProbe(now) {
-					until = state.probeUntil
-				}
-				if until != nil {
-					result.RetryAfterSeconds = max(s.policy.InitialDelay.Seconds(), min(s.policy.MaxDelay.Seconds(), until.Sub(now).Seconds()))
-				}
-				return nil
-			}
-			_, err = tx.Exec(ctx, `
-UPDATE gateway_recovery_routes SET probe_id=$2,probe_run_id=$3,probe_until=$4
-WHERE route_key=$1`, key, request.RequestID, runID, now.Add(requestTimeout+s.policy.InitialDelay))
-			result.Allowed = err == nil
-			return err
-		case "succeeded", "finished":
-			// Only a response to the current probe may reopen the route. A permanent
-			// input error proves the model transport answered but fails this invocation.
-			if state.probeID != nil && *state.probeID == request.RequestID {
-				_, err = tx.Exec(ctx, `
-UPDATE gateway_recovery_routes SET blocked=false,failure_code='',failure_count=0,
- blocked_at=NULL,next_probe_at=NULL,automatic_until=NULL,
- probe_id=NULL,probe_run_id=NULL,probe_until=NULL
-WHERE route_key=$1`, key)
-				if err != nil {
-					return err
-				}
-			}
-			return clearWaiting(ctx, tx, s.runs, participantID, request.Model, runID)
-		case "released":
-			// The Runtime abandoned its granted call without observing a model
-			// result. Relinquish only its current probe; a stale release must not
-			// clear a newer probe or its participant's wait.
-			if state.probeID == nil || *state.probeID != request.RequestID {
-				return nil
-			}
-			_, err = tx.Exec(ctx, `
-UPDATE gateway_recovery_routes SET probe_id=NULL,probe_run_id=NULL,probe_until=NULL
-WHERE route_key=$1 AND probe_id=$2`, key, request.RequestID)
-			if err != nil {
-				return err
-			}
-			return clearWaiting(ctx, tx, s.runs, participantID, request.Model, runID)
+		} else if !state.blocked {
+			return result, nil
 		}
-		return ErrInvalid
-	})
-	return result, err
-}
-
-// unchanged decides, from one read without row locks or writes, a request
-// that changes nothing (SCH-R165): an acquire by an active participant on a
-// route that is not blocked,
-// or a terminal update whose participant holds neither the route's probe nor,
-// for succeeded and finished, a wait while its Run is not waiting. Every
-// model call of a healthy route is such a pair, so it no longer serializes on
-// the Run row and the route row shared by the owner's Runs. The decision is
-// the one the locking path would make at the moment of the read: a
-// concurrent failure that blocks the route commits after it. Any other
-// request, and one whose Run or route the read does not find, takes the
-// locking path, which also reports those errors.
-func (s *Service) unchanged(
-	ctx context.Context, runID, participantID, key string, request Request,
-) (Decision, bool, error) {
-	var runState, code string
-	var blocked, waits, active bool
-	var probeID *string
-	err := s.pool.QueryRow(ctx, readUnchangedUpdateSQL,
-		runID, participantID, key, request.Model).Scan(&runState, &blocked, &code, &probeID, &waits, &active)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return Decision{}, false, nil
+		s.setWaiting(run, participant, key)
+		run.notify()
+	case "acquire":
+		result.Code = state.code
+		if !state.blocked {
+			result.Allowed = true
+			return result, nil
+		}
+		if run.waits[participant] != key {
+			s.setWaiting(run, participant, key)
+		}
+		// Another participant may have changed the shared route's cause.
+		// Wake this Run's projection even when its membership already exists.
+		run.notify()
+		result.RequiresRetry = state.automaticExpired(now)
+		if result.RequiresRetry {
+			return result, nil
+		}
+		ownProbe := state.activeProbe(now) && state.probeRunID == run.id && (state.probeID == "" || state.probeID == request.RequestID)
+		if !ownProbe && (state.activeProbe(now) || now.Before(state.next)) {
+			until := state.next
+			if state.activeProbe(now) {
+				until = state.probeUntil
+			}
+			result.RetryAfterSeconds = max(s.policy.InitialDelay.Seconds(), min(s.policy.MaxDelay.Seconds(), until.Sub(now).Seconds()))
+			return result, nil
+		}
+		state.probeID, state.probeRunID, state.probeUntil = request.RequestID, run.id, now.Add(timeout+s.policy.InitialDelay)
+		result.Allowed = true
+	case "succeeded", "finished":
+		if state.probeID == request.RequestID && state.probeRunID == run.id {
+			state.blocked, state.code, state.failures = false, "", 0
+			state.blockedAt, state.next, state.automaticUntil = time.Time{}, time.Time{}, time.Time{}
+			state.release()
+		}
+		if _, waits := run.waits[participant]; waits {
+			s.clearWaiting(run, participant)
+			run.notify()
+		}
+	case "released":
+		if state.probeID == request.RequestID && state.probeRunID == run.id {
+			state.release()
+			if _, waits := run.waits[participant]; waits {
+				s.clearWaiting(run, participant)
+				run.notify()
+			}
+		}
 	}
-	if err != nil {
-		return Decision{}, false, err
-	}
-	decision := Decision{RetryAfterSeconds: s.policy.MaxDelay.Seconds()}
-	switch {
-	case request.Action == "acquire":
-		if !active {
-			return Decision{}, true, ErrUnavailable
-		}
-		if blocked || !acceptsUpdate(runState, false) {
-			return Decision{}, false, nil
-		}
-		decision.Allowed, decision.Code = true, code
-		return decision, true, nil
-	case request.Terminal():
-		ownProbe := probeID != nil && *probeID == request.RequestID
-		// released clears only its own probe; succeeded and finished also
-		// clear the participant's wait and may return a waiting Run to running.
-		clearsWait := request.Action != "released" && (waits || runState == "waiting")
-		if ownProbe || clearsWait || !acceptsUpdate(runState, true) {
-			return Decision{}, false, nil
-		}
-		return decision, true, nil
-	default:
-		return Decision{}, false, nil
-	}
+	return result, nil
 }
 
 func (p Policy) failureDelay(failures int64) time.Duration {
@@ -274,4 +207,21 @@ func (p Policy) failureDelay(failures int64) time.Duration {
 		failures--
 	}
 	return min(delay, p.MaxDelay)
+}
+
+func (s *Service) setWaiting(run *runState, participant bindingKey, key string) {
+	if old, exists := run.waits[participant]; exists {
+		if old == key {
+			return
+		}
+		s.routes[old].waiters--
+	}
+	run.waits[participant] = key
+	s.routes[key].waiters++
+}
+func (s *Service) clearWaiting(run *runState, participant bindingKey) {
+	if old, exists := run.waits[participant]; exists {
+		s.routes[old].waiters--
+		delete(run.waits, participant)
+	}
 }

@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-71 open tasks: 11 in progress, 47 pending, 13 deferred. 1472 finished: 1454 completed, 18 archived.
+70 open tasks: 11 in progress, 46 pending, 13 deferred. 1477 finished: 1459 completed, 18 archived.
 
 ## In progress
 
@@ -59,12 +59,6 @@ the epics are in [epics.yml](epics.yml).
 | [V410-026](v410-026-sitemap-source-comparison.yml) | chore | P2 | — | Compare transport observations and scanner report projections for sitemap |
 | [V412-005](v412-005-controlled-scanner-pentest-integration.yml) | feature | P2 | — | Run ffuf through the existing allocation-local engagement authority |
 
-### Findings tools and collections (`findings`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V411-007](v411-007-trusted-http-capture.yml) | feature | P1 | — | Retain actual HTTP exchanges in ordinary check results and findings |
-
 ### Workflow catalog and document workflows (`workflows`)
 
 | Task | Kind | Priority | Waiting for | Title |
@@ -72,7 +66,7 @@ the epics are in [epics.yml](epics.yml).
 | [V410-006](v410-006-sitemap-workflow-composition.yml) | feature | P1 | — | Ship standalone sitemap discovery and reconciliation Workflows |
 | [V410-025](v410-025-sitemap-audit-composition.yml) | feature | P1 | V410-007 | Compose exact sitemap artifacts through ordinary Audit tasks |
 | [V411-014](v411-014-pentest-discovery-surface.yml) | feature | P1 | V411-015, V410-025 | Discover URL-only targets using HTTP tools and the shared sitemap |
-| [V411-015](v411-015-http-pentest-workflow-presets.yml) | feature | P1 | V411-007, V411-019 | Demonstrate an ordinary HTTP Workflow on the lean Audit path |
+| [V411-015](v411-015-http-pentest-workflow-presets.yml) | feature | P1 | V411-019 | Demonstrate an ordinary HTTP Workflow on the lean Audit path |
 | [V412-003](v412-003-browser-pentest-profiles-and-gate.yml) | feature | P2 | V412-001, V410-009, V411-020 | Compose optional browser investigation with truthful availability and results |
 | [V425-043](v425-043-resolve-historical-run-model-policy-snapshots.yml) | defect | P2 | — | Resolve historical Run snapshots after Workflow-owned model selection |
 
@@ -162,7 +156,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 2 | 48 | 68 | 37 | 103 |
+| Run execution core (`execution-core`) | 2 | 49 | 68 | 38 | 103 |
 | Planners and the Worker model boundary (`planner-worker`) | 9 | 35 | 53 | 33 | 82 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 15 | 5 | 47 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 3 | 14 |
@@ -171,11 +165,11 @@ tasks in `introduced_by`.
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 5 | 24 | 32 | 15 | 35 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 3 | 17 | 10 | 10 | 21 |
-| Findings tools and collections (`findings`) | 1 | 17 | 10 | 10 | 16 |
+| Findings tools and collections (`findings`) | 0 | 17 | 10 | 11 | 17 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 21 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 39 | 17 | 67 |
 | Audits (`audits`) | 10 | 69 | 96 | 41 | 156 |
-| Evaluations (`evals`) | 6 | 21 | 40 | 16 | 49 |
+| Evaluations (`evals`) | 6 | 21 | 40 | 17 | 50 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
 | Web UI (`ui`) | 2 | 49 | 74 | 28 | 74 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 46 | 9 | 22 |

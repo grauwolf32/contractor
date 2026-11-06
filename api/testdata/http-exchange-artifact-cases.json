@@ -1,0 +1,517 @@
+{
+  "cases": [
+    {
+      "name": "standalone_http",
+      "valid": true,
+      "value": {
+        "schema": "contractor.http.exchange.v1",
+        "origin": {
+          "run_id": "run-test",
+          "invocation_id": "invocation-test"
+        },
+        "capture": {
+          "source": "http",
+          "request_id": "7",
+          "request_tag": "r-test-h000007",
+          "attempts": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://target.example/api?q=%2F&q=2",
+                "message": {
+                  "kind": "structured",
+                  "headers": [
+                    {
+                      "name": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "name": "X-Probe",
+                      "value": "one"
+                    },
+                    {
+                      "name": "X-Probe",
+                      "value": "two"
+                    }
+                  ],
+                  "body_base64": "eyJwcm9iZSI6MX0="
+                }
+              },
+              "response": {
+                "status": 422,
+                "message": {
+                  "kind": "structured",
+                  "headers": [
+                    {
+                      "name": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+                },
+                "complete": true
+              }
+            }
+          ],
+          "observed_at": "2026-11-06T18:20:00Z"
+        }
+      },
+      "artifact_name": "exchange-d66f23ff7f34249d001f3773b4c2e3c38bad2cf835f350ad5b2ae96961858c5d"
+    },
+    {
+      "name": "missing_origin",
+      "valid": false,
+      "value": {
+        "schema": "contractor.http.exchange.v1",
+        "capture": {
+          "source": "http",
+          "request_id": "7",
+          "request_tag": "r-test-h000007",
+          "attempts": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://target.example/api?q=%2F&q=2",
+                "message": {
+                  "kind": "structured",
+                  "headers": [
+                    {
+                      "name": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "name": "X-Probe",
+                      "value": "one"
+                    },
+                    {
+                      "name": "X-Probe",
+                      "value": "two"
+                    }
+                  ],
+                  "body_base64": "eyJwcm9iZSI6MX0="
+                }
+              },
+              "response": {
+                "status": 422,
+                "message": {
+                  "kind": "structured",
+                  "headers": [
+                    {
+                      "name": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+                },
+                "complete": true
+              }
+            }
+          ],
+          "observed_at": "2026-11-06T18:20:00Z"
+        }
+      }
+    },
+    {
+      "name": "finding_association",
+      "valid": false,
+      "value": {
+        "schema": "contractor.http.exchange.v1",
+        "origin": {
+          "run_id": "run-test",
+          "invocation_id": "invocation-test"
+        },
+        "capture": {
+          "source": "http",
+          "request_id": "7",
+          "request_tag": "r-test-h000007",
+          "attempts": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://target.example/api?q=%2F&q=2",
+                "message": {
+                  "kind": "structured",
+                  "headers": [
+                    {
+                      "name": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "name": "X-Probe",
+                      "value": "one"
+                    },
+                    {
+                      "name": "X-Probe",
+                      "value": "two"
+                    }
+                  ],
+                  "body_base64": "eyJwcm9iZSI6MX0="
+                }
+              },
+              "response": {
+                "status": 422,
+                "message": {
+                  "kind": "structured",
+                  "headers": [
+                    {
+                      "name": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+                },
+                "complete": true
+              }
+            }
+          ],
+          "observed_at": "2026-11-06T18:20:00Z"
+        },
+        "finding": {
+          "proposal_id": "proposal",
+          "receipt_id": "receipt"
+        }
+      }
+    },
+    {
+      "name": "missing_invocation",
+      "valid": false,
+      "value": {
+        "schema": "contractor.http.exchange.v1",
+        "origin": {
+          "run_id": "run-test"
+        },
+        "capture": {
+          "source": "http",
+          "request_id": "7",
+          "request_tag": "r-test-h000007",
+          "attempts": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://target.example/api?q=%2F&q=2",
+                "message": {
+                  "kind": "structured",
+                  "headers": [
+                    {
+                      "name": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "name": "X-Probe",
+                      "value": "one"
+                    },
+                    {
+                      "name": "X-Probe",
+                      "value": "two"
+                    }
+                  ],
+                  "body_base64": "eyJwcm9iZSI6MX0="
+                }
+              },
+              "response": {
+                "status": 422,
+                "message": {
+                  "kind": "structured",
+                  "headers": [
+                    {
+                      "name": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+                },
+                "complete": true
+              }
+            }
+          ],
+          "observed_at": "2026-11-06T18:20:00Z"
+        }
+      }
+    },
+    {
+      "name": "empty_run",
+      "valid": false,
+      "value": {
+        "schema": "contractor.http.exchange.v1",
+        "origin": {
+          "run_id": "",
+          "invocation_id": "invocation-test"
+        },
+        "capture": {
+          "source": "http",
+          "request_id": "7",
+          "request_tag": "r-test-h000007",
+          "attempts": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://target.example/api?q=%2F&q=2",
+                "message": {
+                  "kind": "structured",
+                  "headers": [
+                    {
+                      "name": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "name": "X-Probe",
+                      "value": "one"
+                    },
+                    {
+                      "name": "X-Probe",
+                      "value": "two"
+                    }
+                  ],
+                  "body_base64": "eyJwcm9iZSI6MX0="
+                }
+              },
+              "response": {
+                "status": 422,
+                "message": {
+                  "kind": "structured",
+                  "headers": [
+                    {
+                      "name": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+                },
+                "complete": true
+              }
+            }
+          ],
+          "observed_at": "2026-11-06T18:20:00Z"
+        }
+      }
+    },
+    {
+      "name": "missing_observed_at",
+      "valid": false,
+      "value": {
+        "schema": "contractor.http.exchange.v1",
+        "origin": {
+          "run_id": "run-test",
+          "invocation_id": "invocation-test"
+        },
+        "capture": {
+          "source": "http",
+          "request_id": "7",
+          "request_tag": "r-test-h000007",
+          "attempts": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://target.example/api?q=%2F&q=2",
+                "message": {
+                  "kind": "structured",
+                  "headers": [
+                    {
+                      "name": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "name": "X-Probe",
+                      "value": "one"
+                    },
+                    {
+                      "name": "X-Probe",
+                      "value": "two"
+                    }
+                  ],
+                  "body_base64": "eyJwcm9iZSI6MX0="
+                }
+              },
+              "response": {
+                "status": 422,
+                "message": {
+                  "kind": "structured",
+                  "headers": [
+                    {
+                      "name": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+                },
+                "complete": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "null_observed_at",
+      "valid": false,
+      "value": {
+        "schema": "contractor.http.exchange.v1",
+        "origin": {
+          "run_id": "run-test",
+          "invocation_id": "invocation-test"
+        },
+        "capture": {
+          "source": "http",
+          "request_id": "7",
+          "request_tag": "r-test-h000007",
+          "attempts": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://target.example/api?q=%2F&q=2",
+                "message": {
+                  "kind": "structured",
+                  "headers": [
+                    {
+                      "name": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "name": "X-Probe",
+                      "value": "one"
+                    },
+                    {
+                      "name": "X-Probe",
+                      "value": "two"
+                    }
+                  ],
+                  "body_base64": "eyJwcm9iZSI6MX0="
+                }
+              },
+              "response": {
+                "status": 422,
+                "message": {
+                  "kind": "structured",
+                  "headers": [
+                    {
+                      "name": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+                },
+                "complete": true
+              }
+            }
+          ],
+          "observed_at": null
+        }
+      }
+    },
+    {
+      "name": "noncanonical_time",
+      "valid": false,
+      "value": {
+        "schema": "contractor.http.exchange.v1",
+        "origin": {
+          "run_id": "run-test",
+          "invocation_id": "invocation-test"
+        },
+        "capture": {
+          "source": "http",
+          "request_id": "7",
+          "request_tag": "r-test-h000007",
+          "attempts": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://target.example/api?q=%2F&q=2",
+                "message": {
+                  "kind": "structured",
+                  "headers": [
+                    {
+                      "name": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "name": "X-Probe",
+                      "value": "one"
+                    },
+                    {
+                      "name": "X-Probe",
+                      "value": "two"
+                    }
+                  ],
+                  "body_base64": "eyJwcm9iZSI6MX0="
+                }
+              },
+              "response": {
+                "status": 422,
+                "message": {
+                  "kind": "structured",
+                  "headers": [
+                    {
+                      "name": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+                },
+                "complete": true
+              }
+            }
+          ],
+          "observed_at": "2026-11-06T18:20:00+00:00"
+        }
+      }
+    },
+    {
+      "name": "empty_deployment",
+      "valid": false,
+      "value": {
+        "schema": "contractor.http.exchange.v1",
+        "origin": {
+          "run_id": "run-test",
+          "invocation_id": "invocation-test"
+        },
+        "capture": {
+          "source": "http",
+          "request_id": "7",
+          "request_tag": "r-test-h000007",
+          "attempts": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://target.example/api?q=%2F&q=2",
+                "message": {
+                  "kind": "structured",
+                  "headers": [
+                    {
+                      "name": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "name": "X-Probe",
+                      "value": "one"
+                    },
+                    {
+                      "name": "X-Probe",
+                      "value": "two"
+                    }
+                  ],
+                  "body_base64": "eyJwcm9iZSI6MX0="
+                }
+              },
+              "response": {
+                "status": 422,
+                "message": {
+                  "kind": "structured",
+                  "headers": [
+                    {
+                      "name": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body_base64": "eyJlcnJvciI6ImlucHV0In0="
+                },
+                "complete": true
+              }
+            }
+          ],
+          "observed_at": "2026-11-06T18:20:00Z",
+          "deployment_marker": ""
+        }
+      }
+    }
+  ]
+}

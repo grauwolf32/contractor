@@ -3,91 +3,77 @@ package gatewayrecovery
 import (
 	"context"
 	"errors"
+	"sync"
 	"time"
-
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// These bounds refuse new state rather than evicting live probes or receipts.
+// Stage cleanup releases Run, binding and receipt capacity; healthy unused
+// routes are removed. Blocked routes retain their retry window until restart.
+const (
+	maximumRoutes         = 10000
+	maximumRuns           = 10000
+	maximumBindingsPerRun = 1024
+	maximumFailures       = 65536
+	maximumBindings       = 100000
+)
+
+var errCapacity = errors.New("gateway recovery capacity exhausted")
+
 type Service struct {
-	pool *pgxpool.Pool
-	// runs locks Runs and moves them between running and waiting; recovery
-	// writes no Run row itself (PER-R23).
-	runs   RunStates
-	policy Policy
-	// A probe lease must outlast its holder's own model request, or a slow
-	// probe would admit a second one. Runtime Workers bound each request by
-	// workerRequestTimeout and Server-side planners by plannerRequestTimeout;
-	// each lease follows its holder's bound, not the longest one.
+	mu                                          sync.Mutex
+	failureReceipts                             int
+	routes                                      map[string]*routeState
+	runs                                        map[string]*runState
+	bindings                                    map[bindingKey]*runState
+	policy                                      Policy
+	now                                         func() time.Time
 	workerRequestTimeout, plannerRequestTimeout time.Duration
 }
 
-func New(
-	pool *pgxpool.Pool, runs RunStates, policy Policy, workerRequestTimeout, plannerRequestTimeout time.Duration,
-) (*Service, error) {
-	if pool == nil || runs == nil || workerRequestTimeout < time.Second || plannerRequestTimeout < time.Second {
+type bindingKey struct{ participant, model string }
+
+type runState struct {
+	id, stageID, ownerID string
+	active               bool
+	routes               map[string]struct{}
+	bindings             map[bindingKey]string
+	waits                map[bindingKey]string
+	failures             map[string]struct{}
+	changed              chan struct{}
+}
+
+type routeState struct {
+	members                         map[string]*runState
+	blocked                         bool
+	waiters                         int
+	code                            string
+	failures                        int64
+	blockedAt, next, automaticUntil time.Time
+	probeID, probeRunID             string
+	probeUntil                      time.Time
+}
+
+func New(policy Policy, workerRequestTimeout, plannerRequestTimeout time.Duration) (*Service, error) {
+	if workerRequestTimeout < time.Second || plannerRequestTimeout < time.Second {
 		return nil, ErrInvalid
 	}
 	if err := policy.Validate(); err != nil {
 		return nil, err
 	}
 	return &Service{
-		pool: pool, runs: runs, policy: policy,
+		routes: make(map[string]*routeState), runs: make(map[string]*runState),
+		bindings: make(map[bindingKey]*runState), policy: policy, now: time.Now,
 		workerRequestTimeout: workerRequestTimeout, plannerRequestTimeout: plannerRequestTimeout,
 	}, nil
 }
 
-type routeState struct {
-	blocked                          bool
-	code                             string
-	failures                         int64
-	next, automaticUntil, probeUntil *time.Time
-	probeID, probeRunID              *string
-}
+func (r *runState) notify()                               { close(r.changed); r.changed = make(chan struct{}) }
+func (r *routeState) automaticExpired(now time.Time) bool { return !now.Before(r.automaticUntil) }
+func (r *routeState) activeProbe(now time.Time) bool      { return now.Before(r.probeUntil) }
+func (r *routeState) release()                            { r.probeID, r.probeRunID, r.probeUntil = "", "", time.Time{} }
+func IsUnavailable(err error) bool                        { return errors.Is(err, ErrUnavailable) }
 
-func readRoute(ctx context.Context, tx pgx.Tx, key string) (routeState, error) {
-	var state routeState
-	err := tx.QueryRow(ctx, `
-SELECT blocked, failure_code, failure_count, next_probe_at, automatic_until,
-       probe_until, probe_id, probe_run_id
-FROM gateway_recovery_routes WHERE route_key=$1 FOR UPDATE`, key).Scan(
-		&state.blocked, &state.code, &state.failures, &state.next, &state.automaticUntil,
-		&state.probeUntil, &state.probeID, &state.probeRunID)
-	return state, err
-}
-
-// transactionNow reads the database clock so route deadlines written here
-// compare consistently with the clock_timestamp() predicates in Status and
-// Admit, whatever skew exists between Server and PostgreSQL hosts.
-func transactionNow(ctx context.Context, tx pgx.Tx) (time.Time, error) {
-	var now time.Time
-	if err := tx.QueryRow(ctx, `SELECT clock_timestamp()`).Scan(&now); err != nil {
-		return time.Time{}, err
-	}
-	return now, nil
-}
-
-// acceptsUpdate reports whether a Run in state takes a recovery update: a
-// pending, running or waiting Run takes every update, and a cancelling Run
-// only the terminal update of a granted attempt (SCH-R108).
-func acceptsUpdate(state string, terminalUpdate bool) bool {
-	switch state {
-	case "pending", "running", "waiting":
-		return true
-	case "cancelling":
-		return terminalUpdate
-	default:
-		return false
-	}
-}
-
-func (s routeState) automaticExpired(now time.Time) bool {
-	return s.automaticUntil == nil || !now.Before(*s.automaticUntil)
-}
-func (s routeState) activeProbe(now time.Time) bool {
-	return s.probeUntil != nil && now.Before(*s.probeUntil)
-}
-
-func IsUnavailable(err error) bool {
-	return errors.Is(err, ErrUnavailable) || errors.Is(err, pgx.ErrNoRows)
-}
+// checkContext is called before a memory mutation. Once applied, an update is
+// acknowledged even if cancellation races it; repeating its ID is safe.
+func checkContext(ctx context.Context) error { return context.Cause(ctx) }

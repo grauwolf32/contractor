@@ -313,7 +313,7 @@ func TestSharedPostgresEvalExternalFreezeAdmissionAndDeletionFence(t *testing.T)
 	if !bytes.Equal(p.Document.Bytes(), bytesOf(input.Registration)) || p.SHA256 != input.Registration.SourcePlanSHA256 {
 		t.Fatal("registration identity changed")
 	}
-	for _, sql := range []string{`UPDATE eval_frozen_plans SET document=convert_to('{}','UTF8')`, `UPDATE eval_members SET eligibility='blocked'`, `UPDATE eval_experiments SET control_mode='server',revision=revision+1,updated_at=clock_timestamp()`} {
+	for _, sql := range []string{`UPDATE eval_experiments SET plan_document=convert_to('{}','UTF8')`, `UPDATE eval_members SET eligibility='blocked'`, `UPDATE eval_experiments SET control_mode='server',revision=revision+1,updated_at=clock_timestamp()`} {
 		if _, err = pool.Exec(ctx, sql); err == nil {
 			t.Fatal("immutable data changed")
 		}

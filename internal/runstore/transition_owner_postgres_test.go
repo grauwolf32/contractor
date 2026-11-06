@@ -291,23 +291,6 @@ func TestPostgresWaitingOperationsMoveOnlyAdmittedRuns(t *testing.T) {
 		}
 	}
 
-	// Recovery's port returns the owner with the state from its locking read
-	// and reports a missing Run as no state and no owner, which accepts no
-	// recovery update.
-	err := inRunStoreTx(ctx, pool, func(s *PostgresTxStore) error {
-		ports := GatewayRecoveryRuns{}
-		if state, owner, err := ports.LockRun(ctx, s.tx, "run-pending"); err != nil ||
-			state != string(RunPending) || owner != pending.OwnerID || owner == "" {
-			t.Errorf("port lock = (%q, %q, %v), want pending of %q", state, owner, err, pending.OwnerID)
-		}
-		if state, owner, err := ports.LockRun(ctx, s.tx, "run-missing"); err != nil || state != "" || owner != "" {
-			t.Errorf("port lock of a missing Run = (%q, %q, %v), want no state", state, owner, err)
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
 }
 
 // TestPostgresFailRunWithActiveStagesEndsEveryActiveStage fails a Run with a

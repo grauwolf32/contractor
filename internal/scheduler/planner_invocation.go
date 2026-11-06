@@ -67,7 +67,13 @@ func (s *Scheduler) invokeStagePlanner(ctx context.Context, run runstore.Workflo
 			Code: "planner_initialization_failed", Message: "Planner could not be initialized", Retryable: false,
 		})
 	}
+	if s.options.GatewayRecovery != nil {
+		s.options.GatewayRecovery.Activate(run.RunID, execution.StageExecutionID)
+	}
+	stopWaits := s.monitorModelWaits(ctx, run, execution.StageExecutionID)
 	candidate, err := instance.Run(ctx)
+	s.endModelRoutes(run.RunID, execution.StageExecutionID)
+	stopWaits()
 	if err == nil {
 		telemetry.CapturePlannerOutput(invocationSpan, func() any { return candidate })
 	}

@@ -1153,7 +1153,7 @@ StageExecution should retry.
 While the Run is `waiting`, StageExecution state follows
 [RUN-R31](runs.md).
 
-**SCH-R105.** Server persists a recovery gate for the owner, resolved gateway
+**SCH-R105.** The single active Server holds a process-local recovery gate for the owner, resolved gateway
 digest, model, credential identity and model HTTP proxy route. Active
 invocations recover before new queued work.
 
@@ -1170,20 +1170,28 @@ it and a route it no longer admits is freed.
 
 **SCH-R107.** The automatic recovery window is bounded; manual retry reopens
 it, while cancellation and the admitted Stage wall-clock limit remain
-effective. Terminated invocations relinquish their recovery waits: every
-transaction that ends a Stage, whether it accepts a result, commits a
-termination, finishes a cancelled Run or fails an unprogressable Run, also
-drops that Stage's waits and route membership and relinquishes any probe its
-Run holds or reserved, without reopening the route or resetting its retry
-window, so another Run can probe at once.
-Non-terminal model updates of an ending, ended or unknown participant are
-refused before writing a failure receipt, wait or route change. A Planner is
-identified by its exact StageExecution, and an allocation by its durable
-owning StageExecution; only a `running` Stage may acquire or report a failure.
-The authority reads these primary-key facts under the same Run row lock that
-orders Stage-ending transactions, so an old Stage cannot put a later one back
-into `waiting`, including after Server restart. Terminal updates retain the
-cleanup rules of SCH-R108.
+effective. Terminated invocations relinquish their recovery waits and participant bindings
+before finalization or abort. Scheduler unregisters their exact Stage, removing
+its failure receipts and membership and relinquishing its probe without reopening
+the shared route or resetting its retry window. Late non-terminal updates from
+an unregistered Stage are refused without mutation; terminal redelivery is a
+no-op. Only Scheduler admission and binding register participants; participant
+updates cannot create state. Runtime's allocation write fence remains effective.
+Scheduler cancellation synchronously unregisters the Run before acknowledging
+the cancellation notifier, so late participants cannot acquire or report failures
+while Planner teardown is still joining. Manual Retry refuses initializing,
+cancelling and terminal Runs before changing the process gate.
+
+Scheduler projects current invocation waits into the durable Run through
+RunStore under its claim and the Run-then-Stage locks. The projection checks the
+exact Stage and enters waiting only for a running Stage, or records the admission
+reason of a pending Run. It coalesces wait notifications and retries failed or
+ambiguous writes from the latest memory snapshot on scheduler.pollInterval;
+model outcome delivery never waits for that transaction and never resends a
+model request because a Run state write failed. Projection work is cancelled and
+joined before invocation cleanup continues. Terminal Stage commits clear durable
+waiting even when an earlier projection failed. On Server restart, ordinary
+Stage recovery interrupts prior invocations (SCH-R100); their waits are discarded.
 
 **SCH-R108.** A Runtime call or Server-side Planner request that abandons a
 granted attempt, through cancellation or an unexpected failure at any point
@@ -1210,11 +1218,10 @@ generating its answer.
 **SCH-R110.** Cancellation before a grant is known sends nothing and leaves an
 unknown lease to its expiry or to the end of its Stage (SCH-R107).
 
-**SCH-R111.** A Server-side Planner retries a transient database failure while
-recording an observed outcome a bounded number of times. A model reply or
-permanent rejection is kept, and its usage charged, even when that recording
-still fails: the route and waits reconcile on a later update, the probe lease
-expiry or the end of the Stage (FAIL-SCH-15).
+**SCH-R111.** A Server-side Planner records model outcomes in process memory.
+A database failure while projecting the Run's waiting state cannot discard a
+model reply or permanent rejection, alter its charged usage, or repeat that
+model request. Scheduler reconciles the projection independently (SCH-R107).
 
 **SCH-R112.** A retryable failure must be recorded before its request is
 resent.
@@ -1230,34 +1237,35 @@ the bounds of an update; the update that reports each attempt outcome, where
 only `failed` carries a code and retry hint and only `failed` resends the
 request; and the update re-delivered after cancellation (SCH-R108).
 
-**SCH-R169.** Recovery routes are retained. A route holds the shared gate of
-one owner model route (SCH-R105) and is keyed by that configuration, not by a
-Run, so the routes are bounded by the distinct Gateway, model, credential and
-transport combinations an owner has used, and an outage recorded on a route
-reaches the next Run that uses it. Ending a Stage drops only its waits, route
-membership and probe (SCH-R107); a probe holder is found through an index
-that holds only routes with a probe in flight or reserved. Failure receipts,
-which make repeated failure reports idempotent (SCH-R106), belong to their
-Run and are deleted with it (LIFE-SCH-4, LIFE-SCH-5). This retention is
-reopened if a route key gains a per-Run or per-allocation value, which a
-PostgreSQL test of two Runs on one configuration detects.
+**SCH-R169.** Recovery state belongs to the active Server process. Route gates,
+probe reservations, Stage membership, allocation bindings, waits and exact failure
+receipts use memory only. Healthy routes without members are removed; blocked
+routes keep outage history for later Runs in this process. Stage cleanup removes
+its bindings, waits and receipts and releases its probe (LIFE-SCH-4, LIFE-SCH-5).
+Memory is bounded by LIM-SCH-24 through LIM-SCH-27. New state at capacity is
+refused with the existing retryable recovery-unavailable outcome; live probes and
+receipts are never evicted, and cleanup releases capacity. Admission and cleanup
+visit only the Stage's bounded routes and bindings; priority uses a route waiter
+count, and model updates use keyed lookups.
+
+Restart deliberately forgets outage history, backoff and exhausted automatic
+windows. Old participant updates cannot recreate registrations; new executions
+may try the Gateway again and share the first observed failure. This relies on
+the enforced single active Server (PER-R1) and interrupted old invocations
+(SCH-R100). Retaining one durable route table was considered and rejected because
+persistent outage windows are not a product requirement. Reopen this decision if
+invocations must continue across Server replacement, retry windows must survive
+restart, or multiple active Servers become supported.
 
 **SCH-R113.** Model-availability recovery does not persist or restore an ADK
 session after Runtime process loss. Which model request is retried during
 `waiting` is specified in [Runs](runs.md).
 
-**SCH-R165.** A model-call update that changes nothing is decided from one
-read without row locks or writes: an `acquire` by an active participant on a
-route that is not blocked,
-and a terminal update whose participant holds neither the route's probe nor,
-for `succeeded` and `finished`, a recovery wait while its Run is not
-`waiting`. Every call on a healthy route is such a pair, so model calls of an
-owner's Runs no longer serialize on the Run row and the shared route row. The
-decision is the one the locking path makes at the moment of that read; every
-other update takes the Run and route locks (SCH-R106, SCH-R108).
-The participant's Stage state is part of that same read; refusing an inactive
-participant's `acquire` also needs no lock or write. A healthy route never
-grants an ended Stage a new call.
+**SCH-R165.** Every model-call recovery update is a process-local operation
+under the coordinator's mutex, with no database or network access while it is
+held. Healthy model calls take no Run or route database lock or read. Scheduler
+activates the registered Stage's participants only during its live Planner
+invocation and closes them before finalization or abort (SCH-R107).
 
 ### Run claims and execution lanes
 

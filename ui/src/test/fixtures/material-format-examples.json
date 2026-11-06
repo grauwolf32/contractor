@@ -33,7 +33,7 @@
       ],
       "origin": {
         "label": "Order lookup issue",
-        "sourcePath": "src/routes/orders.ts:41\u201349",
+        "sourcePath": "src/routes/orders.ts:41–49",
         "runId": "run_demo_source_review",
         "check": "Source checklist"
       }
@@ -44,8 +44,8 @@
       "namespace": "evidence",
       "kind": "HTTP exchange",
       "mediaType": "application/vnd.contractor.http-exchange+json",
-      "source": "{\n  \"schema\": \"contractor.http.exchange.v1\",\n  \"capture\": {\n    \"source\": \"http\",\n    \"request_id\": \"42\",\n    \"request_tag\": \"demo-order-lookup\",\n    \"attempts\": [\n      {\n        \"request\": {\n          \"method\": \"GET\",\n          \"url\": \"https://shop.example.test/orders/42\",\n          \"message\": {\n            \"kind\": \"structured\",\n            \"headers\": [\n              {\n                \"name\": \"Accept\",\n                \"value\": \"application/json\"\n              },\n              {\n                \"name\": \"Authorization\",\n                \"value\": \"Bearer demo_only_not_a_real_credential\"\n              }\n            ],\n            \"body_base64\": \"\"\n          }\n        },\n        \"response\": {\n          \"status\": 200,\n          \"complete\": true,\n          \"message\": {\n            \"kind\": \"structured\",\n            \"headers\": [\n              {\n                \"name\": \"Content-Type\",\n                \"value\": \"application/json\"\n              },\n              {\n                \"name\": \"Set-Cookie\",\n                \"value\": \"demo_session=not_a_real_cookie\"\n              }\n            ],\n            \"body_base64\": \"eyJvcmRlcklkIjo0MiwiY3VzdG9tZXJJZCI6ImRlbW8tY3VzdG9tZXIiLCJ0b3RhbCI6MTI5LjAwfQ==\"\n          }\n        }\n      }\n    ]\n  },\n  \"finding\": {\n    \"proposal_id\": \"demo-proposal-order\",\n    \"receipt_id\": \"demo-receipt-order\"\n  }\n}\n",
-      "sizeBytes": 1346,
+      "source": "{\n  \"schema\": \"contractor.http.exchange.v1\",\n  \"capture\": {\n    \"source\": \"http\",\n    \"request_id\": \"42\",\n    \"request_tag\": \"demo-order-lookup\",\n    \"attempts\": [\n      {\n        \"request\": {\n          \"method\": \"GET\",\n          \"url\": \"https://shop.example.test/orders/42\",\n          \"message\": {\n            \"kind\": \"structured\",\n            \"headers\": [\n              {\n                \"name\": \"Accept\",\n                \"value\": \"application/json\"\n              },\n              {\n                \"name\": \"Authorization\",\n                \"value\": \"Bearer demo_only_not_a_real_credential\"\n              }\n            ],\n            \"body_base64\": \"\"\n          }\n        },\n        \"response\": {\n          \"status\": 200,\n          \"complete\": true,\n          \"message\": {\n            \"kind\": \"structured\",\n            \"headers\": [\n              {\n                \"name\": \"Content-Type\",\n                \"value\": \"application/json\"\n              },\n              {\n                \"name\": \"Set-Cookie\",\n                \"value\": \"demo_session=not_a_real_cookie\"\n              }\n            ],\n            \"body_base64\": \"eyJvcmRlcklkIjo0MiwiY3VzdG9tZXJJZCI6ImRlbW8tY3VzdG9tZXIiLCJ0b3RhbCI6MTI5LjAwfQ==\"\n          }\n        }\n      }\n    ],\n    \"observed_at\": \"2026-11-01T09:59:00Z\"\n  },\n  \"origin\": {\n    \"run_id\": \"run_demo\",\n    \"invocation_id\": \"order-lookup-demo\"\n  }\n}\n",
+      "sizeBytes": 1374,
       "scope": {
         "kind": "project",
         "id": "project_shop",
@@ -70,7 +70,7 @@
       ],
       "origin": {
         "label": "Order lookup issue",
-        "sourcePath": "src/routes/orders.ts:41\u201349",
+        "sourcePath": "src/routes/orders.ts:41–49",
         "runId": "run_demo_source_review",
         "check": "Source checklist"
       }
@@ -81,7 +81,7 @@
       "namespace": "outputs",
       "kind": "Report",
       "mediaType": "text/markdown",
-      "source": "# Order access review\n\n## Scope\nThe review covers the saved handler and the selected HTTP exchange in the synthetic Shop API project.\n\n## Observation\nThe handler reads an order using the supplied identifier. Whether middleware or database policies enforce ownership remains to be checked.\n\n## Evidence\n- `src/routes/orders.ts:41\u201349`\n- Saved request: `GET /orders/42`\n\n## Next checks\n1. Inspect authentication middleware.\n2. Compare access using two separate test accounts.\n\n> This saved report records an observation; it does not contain an analyst decision.\n",
+      "source": "# Order access review\n\n## Scope\nThe review covers the saved handler and the selected HTTP exchange in the synthetic Shop API project.\n\n## Observation\nThe handler reads an order using the supplied identifier. Whether middleware or database policies enforce ownership remains to be checked.\n\n## Evidence\n- `src/routes/orders.ts:41–49`\n- Saved request: `GET /orders/42`\n\n## Next checks\n1. Inspect authentication middleware.\n2. Compare access using two separate test accounts.\n\n> This saved report records an observation; it does not contain an analyst decision.\n",
       "sizeBytes": 561,
       "scope": {
         "kind": "project",
@@ -107,7 +107,7 @@
       ],
       "origin": {
         "label": "Order lookup issue",
-        "sourcePath": "src/routes/orders.ts:41\u201349",
+        "sourcePath": "src/routes/orders.ts:41–49",
         "runId": "run_demo_source_review",
         "check": "Source checklist"
       }
@@ -144,7 +144,7 @@
       ],
       "origin": {
         "label": "Order lookup issue",
-        "sourcePath": "src/routes/orders.ts:41\u201349",
+        "sourcePath": "src/routes/orders.ts:41–49",
         "runId": "run_demo_source_review",
         "check": "Source checklist"
       }
@@ -181,7 +181,7 @@
       ],
       "origin": {
         "label": "Order lookup issue",
-        "sourcePath": "src/routes/orders.ts:41\u201349",
+        "sourcePath": "src/routes/orders.ts:41–49",
         "runId": "run_demo_source_review",
         "check": "Source checklist"
       }
@@ -218,7 +218,7 @@
       ],
       "origin": {
         "label": "Order lookup issue",
-        "sourcePath": "src/routes/orders.ts:41\u201349",
+        "sourcePath": "src/routes/orders.ts:41–49",
         "runId": "run_demo_source_review",
         "check": "Source checklist"
       }
@@ -255,7 +255,7 @@
       ],
       "origin": {
         "label": "Order lookup issue",
-        "sourcePath": "src/routes/orders.ts:41\u201349",
+        "sourcePath": "src/routes/orders.ts:41–49",
         "runId": "run_demo_source_review",
         "check": "Source checklist"
       },
@@ -263,7 +263,7 @@
       "files": [
         {
           "path": "README.md",
-          "text": "# Shop API source bundle\n\nSaved synthetic source and documentation for the order service.\n\n## Contents\n- `src/orders.ts` \u2014 saved handler\n- `docs/review.md` \u2014 review notes\n- `assets/sample.bin` \u2014 binary example\n",
+          "text": "# Shop API source bundle\n\nSaved synthetic source and documentation for the order service.\n\n## Contents\n- `src/orders.ts` — saved handler\n- `docs/review.md` — review notes\n- `assets/sample.bin` — binary example\n",
           "sizeBytes": 216
         },
         {
@@ -283,7 +283,7 @@
         },
         {
           "path": "docs/review.md",
-          "text": "# Order access review\n\n## Scope\nThe review covers the saved handler and the selected HTTP exchange in the synthetic Shop API project.\n\n## Observation\nThe handler reads an order using the supplied identifier. Whether middleware or database policies enforce ownership remains to be checked.\n\n## Evidence\n- `src/routes/orders.ts:41\u201349`\n- Saved request: `GET /orders/42`\n\n## Next checks\n1. Inspect authentication middleware.\n2. Compare access using two separate test accounts.\n\n> This saved report records an observation; it does not contain an analyst decision.\n",
+          "text": "# Order access review\n\n## Scope\nThe review covers the saved handler and the selected HTTP exchange in the synthetic Shop API project.\n\n## Observation\nThe handler reads an order using the supplied identifier. Whether middleware or database policies enforce ownership remains to be checked.\n\n## Evidence\n- `src/routes/orders.ts:41–49`\n- Saved request: `GET /orders/42`\n\n## Next checks\n1. Inspect authentication middleware.\n2. Compare access using two separate test accounts.\n\n> This saved report records an observation; it does not contain an analyst decision.\n",
           "sizeBytes": 561
         },
         {

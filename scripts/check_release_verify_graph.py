@@ -31,6 +31,8 @@ EXPECTED_PROCESS_TESTS = {
     "TestAuditCommonPrepared256PauseRestartAndCancelAcrossProcesses",
     "TestAuditCommonObservationProfilesAcrossProductionProcesses",
     "TestEngagementHTTPRouteMatrixAcrossProcesses",
+    "TestEngagementHTTPSelectedEvidenceAcrossProcesses",
+        "TestEngagementHTTPFindingReusesSelectedEvidenceAcrossProcesses",
     "TestEngagementHTTPBoundsAcrossProcesses",
     "TestEngagementHTTPLifecycleAcrossProcesses",
     "TestEngagementIdentitySessionsAcrossProcesses",

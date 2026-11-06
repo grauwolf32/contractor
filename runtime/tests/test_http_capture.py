@@ -16,6 +16,7 @@ from shared_config_defaults import (
     MAX_RESPONSE_BODY_BYTES,
 )
 
+from contractor_runtime.contracts.artifacts import http_exchange_artifact_name
 from contractor_runtime.core.http_limits import (
     MAX_EXCHANGE_ATTEMPTS,
     MAX_HISTORY,
@@ -45,7 +46,7 @@ def test_shared_http_finding_capture():
                 {
                     "schema": http_capture.HTTP_EXCHANGE_SCHEMA,
                     "capture": case["value"],
-                    "finding": {"proposal_id": "proposal-test", "receipt_id": "receipt-test"},
+                    "origin": {"run_id": "run-test", "invocation_id": "invocation-test"},
                 }
             )
         else:
@@ -163,3 +164,26 @@ def test_observation_metadata_shares_capture_ownership_eviction_and_byte_budget(
         assert buffer._bytes == 0 and not buffer._observations
 
     asyncio.run(scenario())
+
+
+def test_shared_standalone_http_exchange_artifacts():
+    from contractor_runtime.toolsets.common.http_capture import HTTPExchangeArtifact
+
+    fixtures = json.loads(
+        (Path(__file__).parents[2] / "api/testdata/http-exchange-artifact-cases.json").read_text()
+    )
+    for case in fixtures["cases"]:
+        if case["valid"]:
+            value = HTTPExchangeArtifact.model_validate(case["value"])
+            assert (
+                http_exchange_artifact_name(
+                    value.origin.invocation_id, value.capture.source, value.capture.request_id
+                )
+                == case["artifact_name"]
+            )
+            private_validator("http-exchange.schema.json#/$defs/artifact").validate(case["value"])
+        else:
+            with pytest.raises(ValidationError):
+                HTTPExchangeArtifact.model_validate(case["value"])
+            # JSON Schema enforces syntax; semantic UTC/calendar checks belong
+            # to the same Go/Python shared capture validators as other fields.

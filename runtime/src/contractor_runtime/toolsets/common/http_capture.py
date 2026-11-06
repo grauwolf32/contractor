@@ -1,4 +1,4 @@
-"""Bounded allocation-owned HTTP evidence shared by transport and finding tools."""
+"""Bounded allocation-owned HTTP evidence shared by transport, results and finding tools."""
 
 from __future__ import annotations
 
@@ -131,7 +131,16 @@ class CapturedHTTPExchange(ClosedModel):
     source: Literal["http", "caido"]
     request_id: str = Field(min_length=1, max_length=256)
     request_tag: str | None = Field(default=None, min_length=1, max_length=160)
+    observed_at: str | None = None
+    deployment_marker: str | None = None
     attempts: list[CapturedHTTPAttempt] = Field(min_length=1, max_length=MAX_EXCHANGE_ATTEMPTS)
+
+    @field_validator("observed_at", "deployment_marker", mode="before")
+    @classmethod
+    def observation_field(cls, value):
+        if not isinstance(value, str) or not value:
+            raise ValueError("omit unavailable observation metadata")
+        return value
 
     @field_validator("request_tag", mode="before")
     @classmethod
@@ -142,6 +151,10 @@ class CapturedHTTPExchange(ClosedModel):
 
     @model_validator(mode="after")
     def source_identity(self) -> CapturedHTTPExchange:
+        if self.observed_at is not None:
+            HTTPObservation(self.observed_at, self.deployment_marker)
+        elif self.deployment_marker is not None:
+            HTTPObservation("2000-01-01T00:00:00Z", self.deployment_marker)
         if len(self.request_id.encode()) > 256 or any(ord(char) < 32 for char in self.request_id):
             raise ValueError("invalid HTTP evidence identity")
         if self.request_tag is not None and (
@@ -222,6 +235,16 @@ class RecentHTTPCaptures:
                 exclude_none=True
             ).encode()
 
+        if observation is not None:
+            capture = {
+                **capture,
+                "observed_at": observation.observed_at,
+                **(
+                    {"deployment_marker": observation.deployment_marker}
+                    if observation.deployment_marker
+                    else {}
+                ),
+            }
         key, encoded = await threads.to_thread_until_done(encode, name="http-capture-encode")
         metadata_bytes = observation.size_bytes if observation is not None else 0
         if len(encoded) + metadata_bytes > MAX_CAPTURE_BUFFER_BYTES:
@@ -283,3 +306,20 @@ class RecentHTTPCaptures:
 
 def allocation_http_captures(resources: ToolResources) -> RecentHTTPCaptures:
     return resources.http_captures
+
+
+class HTTPExchangeOrigin(ClosedModel):
+    run_id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$")
+    invocation_id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$")
+
+
+class HTTPExchangeArtifact(ClosedModel):
+    schema_: Literal["contractor.http.exchange.v1"] = Field(alias="schema")
+    origin: HTTPExchangeOrigin
+    capture: CapturedHTTPExchange
+
+    @model_validator(mode="after")
+    def observed_http(self):
+        if self.capture.source == "http" and self.capture.observed_at is None:
+            raise ValueError("Runtime HTTP evidence requires its original observation time")
+        return self

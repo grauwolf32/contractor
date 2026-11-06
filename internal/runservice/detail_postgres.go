@@ -21,8 +21,9 @@ import (
 // the first one, so a transition committed between two reads is invisible to
 // all of them. The transaction takes no row locks and writes nothing, so it
 // cannot fail with a serialization conflict and is never retried. Every
-// reader uses the transaction's connection, never a second one from pool.
-func PostgresRunDetailTransaction(pool *pgxpool.Pool, storage *artifactpostgres.Storage) RunDetailTransaction {
+// durable reader uses the transaction's connection, never a second one from
+// pool. Recovery reads process memory for the snapshot's exact active Stage.
+func PostgresRunDetailTransaction(pool *pgxpool.Pool, storage *artifactpostgres.Storage, recovery *gatewayrecovery.Service) RunDetailTransaction {
 	return func(ctx context.Context, fn func(RunDetailStores) error) error {
 		if pool == nil {
 			return fmt.Errorf("%w: Run detail database is missing", ErrNotConfigured)
@@ -40,8 +41,11 @@ func PostgresRunDetailTransaction(pool *pgxpool.Pool, storage *artifactpostgres.
 				Artifacts: artifacts.NewService(storage.Repository(tx)),
 				Plans:     plans, Metrics: savepointStageMetrics{tx: tx},
 				Resources: telemetry.NewRepository(tx),
-				Recovery: func(ctx context.Context, runID string) (*gatewayrecovery.Status, error) {
-					return gatewayrecovery.ReadStatus(ctx, tx, runID)
+				Recovery: func(ctx context.Context, runID, stageID string) (*gatewayrecovery.Status, error) {
+					if recovery == nil {
+						return nil, nil
+					}
+					return recovery.ReadStatus(ctx, runID, stageID)
 				},
 			})
 		})

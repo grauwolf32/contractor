@@ -55,7 +55,8 @@
               "complete": true
             }
           }
-        ]
+        ],
+        "observed_at": "2026-11-06T18:20:00Z"
       }
     },
     {
@@ -104,7 +105,8 @@
               "complete": true
             }
           }
-        ]
+        ],
+        "observed_at": "2026-11-06T18:20:00Z"
       }
     },
     {
@@ -153,7 +155,8 @@
               "complete": true
             }
           }
-        ]
+        ],
+        "observed_at": "2026-11-06T18:20:00Z"
       }
     },
     {
@@ -189,7 +192,8 @@
             },
             "error": "transport_error"
           }
-        ]
+        ],
+        "observed_at": "2026-11-06T18:20:00Z"
       }
     },
     {
@@ -225,7 +229,8 @@
             },
             "error": "timeout"
           }
-        ]
+        ],
+        "observed_at": "2026-11-06T18:20:00Z"
       }
     },
     {
@@ -261,7 +266,8 @@
             },
             "error": "cancelled"
           }
-        ]
+        ],
+        "observed_at": "2026-11-06T18:20:00Z"
       }
     },
     {
@@ -297,7 +303,8 @@
             },
             "error": "response_invalid"
           }
-        ]
+        ],
+        "observed_at": "2026-11-06T18:20:00Z"
       }
     },
     {
@@ -333,7 +340,8 @@
             },
             "error": "response_too_large"
           }
-        ]
+        ],
+        "observed_at": "2026-11-06T18:20:00Z"
       }
     },
     {
@@ -383,7 +391,8 @@
             },
             "error": "timeout"
           }
-        ]
+        ],
+        "observed_at": "2026-11-06T18:20:00Z"
       }
     },
     {
@@ -779,11 +788,11 @@
       }
     },
     {
-      "name": "invalid_http_identity_١",
+      "name": "invalid_http_identity_\u0661",
       "valid": false,
       "value": {
         "source": "http",
-        "request_id": "١",
+        "request_id": "\u0661",
         "request_tag": "r-test-h000007",
         "attempts": [
           {
@@ -2659,7 +2668,7 @@
       "valid": false,
       "value": {
         "source": "caido",
-        "request_id": "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+        "request_id": "\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9",
         "attempts": [
           {
             "request": {
@@ -2743,7 +2752,8 @@
             },
             "error": "target_denied"
           }
-        ]
+        ],
+        "observed_at": "2026-11-06T18:20:00Z"
       }
     },
     {
@@ -2779,7 +2789,8 @@
             },
             "error": "request_invalid"
           }
-        ]
+        ],
+        "observed_at": "2026-11-06T18:20:00Z"
       }
     },
     {

@@ -85,7 +85,7 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(eventHub.Close)
-	runDetails, err := runservice.NewRunDetailReader(runservice.PostgresRunDetailTransaction(pool, artifactpgtest.NewStorage()))
+	runDetails, err := runservice.NewRunDetailReader(runservice.PostgresRunDetailTransaction(pool, artifactpgtest.NewStorage(), nil))
 	if err != nil {
 		t.Fatal(err)
 	}

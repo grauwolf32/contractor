@@ -37,8 +37,7 @@ const consolidationRecordsSQL = `
 INSERT INTO eval_experiments (experiment_id, owner_id, project_id, portable_id, control_mode, name, state,
     expected_count, max_in_flight, wall_ms)
 VALUES ('exp-records', 'owner-0', 'project-0-0', 'portable-records', 'external', 'Records', 'ready', 50, 1, 1000);
-INSERT INTO eval_frozen_plans (experiment_id, document_kind, document, setup, plan_sha256)
-VALUES ('exp-records', 'ExternalRegistration', convert_to('{}', 'UTF8'), convert_to('{}', 'UTF8'), 'sha256:' || repeat('c', 64));
+UPDATE eval_experiments SET plan_kind='ExternalRegistration', plan_document=convert_to('{}','UTF8'), plan_setup=convert_to('{}','UTF8'), plan_sha256='sha256:' || repeat('c',64), plan_created_at=clock_timestamp(), updated_at=clock_timestamp() WHERE experiment_id='exp-records';
 INSERT INTO eval_members (experiment_id, member_id, pair_id, ordinal, suite_id, case_id, sample, variant_id,
     case_sha256, binding_sha256, eligibility, execution_kind, recipe, submission_key)
 SELECT 'exp-records', encode(sha256(convert_to('member-' || n, 'UTF8')), 'hex'),

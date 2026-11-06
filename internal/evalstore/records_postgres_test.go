@@ -160,7 +160,7 @@ func TestSharedPostgresEvalRecordRevisionsSelectionCASAndRetainedReview(t *testi
 		t.Fatal("immutable record replay", err)
 	}
 	var count int
-	if err = pool.QueryRow(ctx, `SELECT count(*) FROM eval_selections WHERE experiment_id=$1`, e.ID).Scan(&count); err != nil || count != 1 {
+	if err = pool.QueryRow(ctx, `SELECT count(*) FROM eval_members WHERE selected_result_sha256 IS NOT NULL AND experiment_id=$1`, e.ID).Scan(&count); err != nil || count != 1 {
 		t.Fatal("selection", count, err)
 	}
 	if _, err = pool.Exec(ctx, `UPDATE eval_records SET actor_id='someone-else' WHERE experiment_id=$1`, e.ID); err == nil {

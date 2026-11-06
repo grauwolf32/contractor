@@ -176,7 +176,7 @@ func newDeferredPlacementHarness(t *testing.T, ctx context.Context, wrap func(At
 	if err != nil {
 		t.Fatal(err)
 	}
-	recovery, err := gatewayrecovery.New(pool, runstore.GatewayRecoveryRuns{}, gatewayrecovery.DefaultPolicy(), time.Minute, time.Minute)
+	recovery, err := gatewayrecovery.New(gatewayrecovery.DefaultPolicy(), time.Minute, time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -341,15 +341,11 @@ func TestPostgresGatewayDeferralDoesNotLoseControlPlaneState(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	h := newDeferredPlacementHarness(t, ctx, nil)
-	pool, store, scheduler, workflow := h.pool, h.store, h.scheduler, h.workflow
+	store, scheduler, workflow := h.store, h.scheduler, h.workflow
+	var recoveries []func()
 	for _, reservation := range schedulerTestReservations(t, workflow.Stages[workflow.EntryStage]) {
 		for _, route := range reservationModelRoutes("user-1", reservation) {
-			if _, err := pool.Exec(ctx, `
-INSERT INTO gateway_recovery_routes(route_key,owner_id,blocked,failure_code,next_probe_at,automatic_until)
-VALUES($1,$2,true,'model_unavailable',clock_timestamp()+interval '1 hour',clock_timestamp()+interval '1 hour')`,
-				route.Key(), route.OwnerID); err != nil {
-				t.Fatal(err)
-			}
+			recoveries = append(recoveries, blockRecoveryRoute(t, scheduler.options.GatewayRecovery, route, false))
 		}
 	}
 	if worked, err := scheduler.RunOnce(ctx); !errors.Is(err, ErrDeferred) || !worked {
@@ -367,9 +363,10 @@ VALUES($1,$2,true,'model_unavailable',clock_timestamp()+interval '1 hour',clock_
 		t.Fatalf("deferred placement left allocations = (%+v, %v)", allocations, err)
 	}
 
-	if _, err := pool.Exec(ctx, `UPDATE gateway_recovery_routes SET blocked=false,next_probe_at=NULL,automatic_until=NULL`); err != nil {
-		t.Fatal(err)
+	for _, recover := range recoveries {
+		recover()
 	}
+
 	if worked, err := scheduler.RunOnce(ctx); err != nil || !worked {
 		t.Fatalf("unblocked RunOnce = (%v, %v)", worked, err)
 	}
@@ -538,10 +535,12 @@ func TestPostgresAdmitStageFailureReusesDurablePlacement(t *testing.T) {
 		t.Fatalf("retried RunOnce = (%v, %v)", worked, err)
 	}
 	h.requireSingleSucceededStage(t, ctx)
-	var routes int
-	if err := h.pool.QueryRow(ctx, `SELECT count(*) FROM gateway_allocation_routes`).Scan(&routes); err != nil || routes == 0 {
-		t.Fatalf("reused placement did not bind model routes: %d %v", routes, err)
+	// Completed invocation bindings are removed, including on reused placement.
+	if _, err := h.scheduler.options.GatewayRecovery.Update(ctx, "ended-allocation",
+		gatewayrecovery.Request{Model: "model", RequestID: "late", Action: "acquire"}); !gatewayrecovery.IsUnavailable(err) {
+		t.Fatalf("ended allocation: %v", err)
 	}
+
 }
 
 // Failing a Run the Scheduler cannot progress must also end its active Stage,

@@ -101,10 +101,7 @@ DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION test_fail_discard_co
 			if err != nil || current.Attempt != 1 || current.Termination != nil || h.invoker.calls != 1 {
 				t.Fatalf("resumed Stage attempt=%d termination=%+v calls=%d err=%v", current.Attempt, current.Termination, h.invoker.calls, err)
 			}
-			var probes int
-			if err := h.pool.QueryRow(ctx, `SELECT count(*) FROM gateway_recovery_routes WHERE probe_run_id='run-1'`).Scan(&probes); err != nil || probes != 0 {
-				t.Fatalf("recovery probe reservations=%d err=%v", probes, err)
-			}
+
 		})
 	}
 }

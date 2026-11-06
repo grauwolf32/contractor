@@ -608,8 +608,9 @@ per-Run sequence in the same transaction as its source record. Its generation
 is stable for that Run.
 
 **API-R48.** A Run detail response includes the corresponding event cursor,
-read in the same database snapshot as the rest of the response, so the cursor
-never runs ahead of the state it accompanies
+read in the same database snapshot as the durable response fields, so the cursor
+never runs ahead of the state it accompanies. Process-local model recovery is a
+separate live observation for that snapshot's exact active Stage
 ([RUN-R87](../execution/runs.md)).
 
 **API-R49.** Subscribing with `after` replays committed events after that

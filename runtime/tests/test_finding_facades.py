@@ -293,7 +293,7 @@ def test_caido_finding_selects_inspected_bytes_without_another_graphql_call(tmp_
                 )
             else:
                 assert "response" not in attempt and attempt["error"] == "response_unavailable"
-            assert result["evidence_refs"][-1]["namespace"] == "finding-proposals"
+            assert result["evidence_refs"][-1]["namespace"] == "http-exchanges"
             assert observed == ["RequestDetail"]
             assert artifacts.payloads == {}
             with pytest.raises(ToolInputError, match="unavailable"):

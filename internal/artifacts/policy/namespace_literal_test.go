@@ -22,6 +22,7 @@ import (
 // (runtime/tests/test_security_findings_toolset.py) and the UI
 // (ui/src/api/artifacts.test.ts) scan their sources for the same names.
 var reservedNamespaceOwners = map[string]string{
+	HTTPExchangeNamespace:         "artifactpolicy.HTTPExchangeNamespace",
 	AuditStandardCatalogNamespace: "artifactpolicy.AuditStandardCatalogNamespace",
 	FindingProposalNamespace:      "artifactpolicy.FindingProposalNamespace",
 	FindingMaterialsNamespace:     "artifactpolicy.FindingMaterialsNamespace",
