@@ -5,7 +5,8 @@ milestone: run-admission-gateway-recovery
 epic: execution-core
 kind: feature
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 35711ccc3abc4a2f360865982109b277cbe35dca
 depends_on: []
 languages: [go]
 goal: >-
