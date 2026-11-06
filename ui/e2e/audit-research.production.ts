@@ -62,7 +62,9 @@ test("research continuation, exact grounds and Project publication through real 
   const hypotheses = ((await response.json()) as Schemas["AuditHypothesisPage"])
     .items;
   const generated = hypotheses.find(
-    (h) => h.document.origin.kind === "run" && h.document.sources.length === 3,
+    (h) =>
+      h.document.origin.kind === "run" &&
+      (h.document.sources?.length ?? 0) === 3,
   )!;
   expect(generated).toBeDefined();
   await page.goto(root + `/hypotheses?hypothesis=${generated.document.id}`);
@@ -80,7 +82,7 @@ test("research continuation, exact grounds and Project publication through real 
   await expect(
     page.getByText("selected fixture and actor", { exact: true }),
   ).toBeVisible();
-  const ground = generated.document.sources[0]!;
+  const ground = generated.document.sources![0]!;
   await page.getByRole("link", { name: new RegExp(ground.ref.name) }).click();
   await expect(
     page.getByRole("heading", { name: ground.ref.name, exact: true }),
