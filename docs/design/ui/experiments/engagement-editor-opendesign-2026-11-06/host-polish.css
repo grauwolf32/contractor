@@ -1,0 +1,36 @@
+/* Host QA: keep mobile section titles readable beside their add action. */
+.engagement-editor .eg-errors a { color: var(--danger); }
+.eg-credential-picker { display: flex; gap: var(--space-2); align-items: start; }
+.eg-credential-picker select { flex: 1; }
+.eg-credential-picker .eg-btn { flex: none; }
+.eg-credential-dialog {
+  width: min(560px, calc(100% - 32px)); max-height: calc(100dvh - 32px); overflow: auto;
+  margin: auto; padding: var(--space-6); border: 1px solid var(--line-strong);
+  border-radius: var(--radius-xl); background: var(--surface); color: var(--text);
+  box-shadow: var(--shadow-lg); font: inherit;
+}
+.eg-credential-dialog::backdrop { background: var(--scrim); }
+.eg-credential-dialog form { display: grid; gap: var(--space-4); }
+.eg-credential-heading { display: flex; align-items: center; gap: var(--space-3); }
+.eg-credential-heading > div { flex: 1; min-width: 0; }
+.eg-credential-heading h2 { font-size: var(--text-lg); margin: var(--space-1) 0 0; }
+.eg-credential-dialog .eg-note { margin: 0; }
+.eg-credential-dialog .eg-help { margin: 0; }
+.eg-credential-material { display: grid; gap: var(--space-3); }
+.eg-cookie-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: start; gap: var(--space-2); }
+.eg-cookie-row > .eg-btn { margin-top: var(--space-6); }
+#credential-cookie-rows { display: grid; gap: var(--space-3); }
+.eg-credential-material > .eg-btn { justify-self: start; }
+.eg-credential-error { padding: var(--space-3); border: 1px solid var(--danger-line); border-radius: var(--radius-md); color: var(--danger); background: var(--danger-bg); font-size: var(--text-sm); }
+.eg-credential-actions { display: flex; justify-content: flex-end; gap: var(--space-2); border-top: 1px solid var(--line); padding-top: var(--space-4); }
+@media (max-width: 480px) {
+  .engagement-editor .eg-section-heading { display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: start; }
+  .engagement-editor .eg-section-heading > .eg-btn { grid-column: 2; justify-self: start; margin-left: 0; }
+  .eg-credential-picker { flex-direction: column; align-items: stretch; }
+  .eg-credential-picker .eg-btn { align-self: start; }
+  .eg-credential-dialog { padding: var(--space-4); width: calc(100% - 16px); max-height: calc(100dvh - 16px); }
+  .eg-cookie-row { grid-template-columns: minmax(0, 1fr); }
+  .eg-cookie-row > .eg-btn { justify-self: start; margin-top: 0; }
+  .eg-credential-actions { flex-wrap: wrap; }
+  .eg-credential-actions > .eg-btn { flex: 1; }
+}
