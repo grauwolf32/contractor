@@ -77,9 +77,9 @@ func TestSharedPostgresFrozenPlanRestoresStoredDocumentWithoutRevalidation(t *te
 	// Only DDL can bypass eval_plans_immutable. The probe field breaks the
 	// closed schema, so a read that revalidated the plan would reject it.
 	for _, statement := range []string{
-		`ALTER TABLE eval_frozen_plans DISABLE TRIGGER eval_plans_immutable`,
-		`UPDATE eval_frozen_plans SET document=convert_to('{"probe":true,'||substr(convert_from(document,'UTF8'),2),'UTF8')`,
-		`ALTER TABLE eval_frozen_plans ENABLE TRIGGER eval_plans_immutable`,
+		`ALTER TABLE eval_experiments DISABLE TRIGGER eval_plans_immutable; ALTER TABLE eval_experiments DISABLE TRIGGER eval_experiments_protect`,
+		`UPDATE eval_experiments SET plan_document=convert_to('{"probe":true,'||substr(convert_from(plan_document,'UTF8'),2),'UTF8')`,
+		`ALTER TABLE eval_experiments ENABLE TRIGGER eval_plans_immutable; ALTER TABLE eval_experiments ENABLE TRIGGER eval_experiments_protect`,
 	} {
 		if _, err := pool.Exec(ctx, statement); err != nil {
 			t.Fatal(err)
@@ -87,7 +87,7 @@ func TestSharedPostgresFrozenPlanRestoresStoredDocumentWithoutRevalidation(t *te
 	}
 	var stored []byte
 	var digest, identity string
-	if err := pool.QueryRow(ctx, `SELECT document, document_sha256, plan_sha256 FROM eval_frozen_plans WHERE experiment_id=$1`, e.ID).Scan(&stored, &digest, &identity); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT plan_document, plan_document_sha256, plan_sha256 FROM eval_experiments WHERE experiment_id=$1`, e.ID).Scan(&stored, &digest, &identity); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := evaldomain.Freeze("ExternalRegistration", stored); !code(err, "eval_invalid") {

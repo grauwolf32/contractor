@@ -1,0 +1,52 @@
+schema_version: "1.0"
+id: V451-001
+title: Fold Eval plan and current selection into their owning rows
+milestone: eval-maintenance-2026-10
+epic: evals
+kind: chore
+introduced_by: V38-006
+priority: P3
+status: in_progress
+depends_on: []
+languages: [go, sql]
+goal: Reduce Eval persistence from nineteen to seventeen tables while preserving exact frozen plans, current selections, recovery, read bounds and bounded purge.
+context:
+  authority: User 2026-11-06 approves merging eval_selections into eval_members and eval_frozen_plans into eval_experiments after the schema investigation in this chat.
+  specification: [docs/spec/evals/managed-evals.md, docs/spec/platform/persistence.md, docs/spec/platform/limits.md]
+  finding: internal/evalstore/selections.go stores one mutable selection per immutable member; internal/evalstore/experiments.go stores one immutable frozen plan per experiment. These dependent one-to-one tables duplicate owner identity and require extra joins and purge steps.
+  origin: V38-006 introduced selected records; V38-003 introduced managed experiment persistence. Historical task contracts remain historical.
+  boundary: EvalStore retains authority. Immutable plan and matrix columns use column-scoped guards; mutable selection columns remain independent of projection rows. Existing receipts, CAS revisions, controller claims and atomic view publication remain unchanged.
+  alternatives: Keep the separate tables, which avoids migration work but retains redundant identities and joins. Folding projections or claims would alter locking boundaries and is outside this change.
+  digest_decision: PostgreSQL experiments proved that a stored generated digest is re-evaluated on a counter update when the table has a BEFORE UPDATE row trigger. Pure experiment/plan guards now run AFTER UPDATE in the same statement, preserving rollback on rejection and keeping the generated digest without a second writer or per-progress hash. The real-store regression counts generated-expression evaluations.
+  reopen: Reconsider physical separation only if real-store measurements show parent-row contention or payload read/write amplification; explicit projections must continue to avoid transferring frozen documents.
+scope:
+  in:
+    - Forward migration preserving frozen bytes, digests, readiness, setup, timestamps and current selection attribution/revisions; remove both old tables without compatibility readers.
+    - Update production SQL, column immutability, foreign keys, bounded purge accounting and all affected real-store fixtures.
+    - Update normative ownership/limits, ERD metadata and regenerate the schema diagram.
+  out:
+    - External contracts, execution semantics, tombstones, projection/claim consolidation and deployment or demo database mutation.
+acceptance_criteria:
+  - id: A1
+    text: The migrated schema has seventeen Eval-owned tables; existing native/external plans and selections retain their exact bytes, digests, attribution and revisions. Fresh and populated migrations succeed and leave no legacy read path.
+  - id: A2
+    text: Frozen plan and matrix changes are rejected, selection remains mutable with exact record foreign keys and existing CAS/idempotency, and plan metadata/page reads do not transfer plan bytes.
+  - id: A3
+    text: Experiment and Project purge with selected records completes in bounded passes with exact charged rows/bytes, including triggers; interrupted passes remain resumable and ordinary Run/Audit state survives.
+  - id: A4
+    text: Full suites of touched Go packages and lint pass against a disposable PostgreSQL database; generated ERD and source ownership/size registries agree with the schema.
+tests:
+  - command: go test -race -tags=integration -count=1 ./internal/evalstore ./internal/evalservice ./internal/evaldomain ./internal/httpapi/public ./internal/persistence ./internal/persistence/postgres
+    covers: [A1, A2, A3, A4]
+  - command: make docs-erd
+    covers: [A1, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+verification:
+  results:
+    - Full six-package Go race suites passed with and without integration tags against the disposable PostgreSQL database. Final tagged run includes the final generated-digest and AFTER-guard design.
+    - Populated native/external migration preserves exact document bytes, generated and attributed digests, setup, readiness, freeze timestamps, member identities, selection revisions/authors and existing projection/collection revisions; the installed Eval schema has seventeen tables.
+    - Real-store regressions reject a partial matrix at commit, preserve immutable plan/matrix fields and exact record foreign keys, count one generated digest evaluation at freeze and zero at progress, and clear 1200 selected members in bounded resumable passes without dirtying projections.
+    - Existing dense experiment and Project purge, recovery, CAS/idempotency, native-ceiling metadata reads and API suites pass. Optional heavy-I/O fixtures were not enabled by this lane.
+    - make docs-erd succeeds; the generated page has 67 total tables and 84 foreign keys, with ownership and size registries aligned. Specification and task checks pass.
+  delivery: Implementation is isolated on codex/evalstore-consolidation; merge into main and deployment are not performed.

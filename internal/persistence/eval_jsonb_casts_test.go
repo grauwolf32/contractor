@@ -48,7 +48,7 @@ func TestEvalSQLCastsStoredValuesToJSONBOnlyWhereListed(t *testing.T) {
 			relations[name] = true
 		}
 	}
-	if !relations["eval_frozen_plans"] || !relations["eval_records"] {
+	if !relations["eval_experiments"] || !relations["eval_records"] {
 		t.Fatalf("the ownership registry assigns no Eval tables to internal/evalstore: %v", slices.Sorted(maps.Keys(relations)))
 	}
 	found := map[string]int{}

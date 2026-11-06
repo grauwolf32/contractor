@@ -26,7 +26,10 @@ var deleteActions = map[string]string{"a": "NO ACTION", "r": "RESTRICT", "c": "C
 // the current schema: the referencing table, the referenced table and the
 // referenced row's delete action.
 const purgeForeignKeysSQL = `
-SELECT child.relname::text, parent.relname::text, c.confdeltype::text
+SELECT child.relname::text, parent.relname::text, c.confdeltype::text, c.conname::text,
+    ARRAY(SELECT a.attname::text FROM pg_attribute a
+        WHERE a.attrelid=c.conrelid AND a.attnum=ANY(c.conkey)
+        ORDER BY array_position(c.conkey,a.attnum))
 FROM pg_constraint c
 JOIN pg_class child ON child.oid = c.conrelid
 JOIN pg_class parent ON parent.oid = c.confrelid
@@ -36,7 +39,7 @@ ORDER BY 2, 1, c.conname`
 // purgeTriggersSQL lists every user trigger of the current schema's tables
 // with its events and the source of its function.
 const purgeTriggersSQL = `
-SELECT c.relname::text, t.tgname::text, t.tgtype::integer, p.proname::text
+SELECT c.relname::text, t.tgname::text, t.tgtype::integer, p.proname::text, pg_get_triggerdef(t.oid)
 FROM pg_trigger t
 JOIN pg_class c ON c.oid = t.tgrelid
 JOIN pg_proc p ON p.oid = t.tgfoid
@@ -154,7 +157,10 @@ func purgeCoverageViolations(ctx context.Context, db pg.DBTX) ([]string, error) 
 		final[table] = true
 	}
 
-	type foreignKey struct{ child, parent, action string }
+	type foreignKey struct {
+		child, parent, action, name string
+		columns                     []string
+	}
 	children := map[string][]foreignKey{}
 	rows, err := db.Query(ctx, purgeForeignKeysSQL)
 	if err != nil {
@@ -162,7 +168,7 @@ func purgeCoverageViolations(ctx context.Context, db pg.DBTX) ([]string, error) 
 	}
 	keys, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (foreignKey, error) {
 		var key foreignKey
-		return key, row.Scan(&key.child, &key.parent, &key.action)
+		return key, row.Scan(&key.child, &key.parent, &key.action, &key.name, &key.columns)
 	})
 	if err != nil {
 		return nil, err
@@ -178,6 +184,13 @@ func purgeCoverageViolations(ctx context.Context, db pg.DBTX) ([]string, error) 
 		parent := queue[0]
 		queue = queue[1:]
 		for _, key := range children[parent] {
+			// This NO ACTION cycle is broken by the bounded selection-clear
+			// update before any record delete, while the member stays alive.
+			if key.child == "eval_members" && parent == "eval_records" && key.action == "a" &&
+				((key.name == "eval_members_selected_result_fk" && slices.Equal(key.columns, []string{"experiment_id", "member_id", "selected_result_kind", "selected_result_sha256"})) ||
+					(key.name == "eval_members_selected_assessment_fk" && slices.Equal(key.columns, []string{"experiment_id", "member_id", "selected_assessment_kind", "selected_assessment_sha256"}))) {
+				continue
+			}
 			if at, ok := order[key.child]; ok && at < removedAt[parent] {
 				continue
 			}
@@ -220,8 +233,8 @@ func purgeCoverageViolations(ctx context.Context, db pg.DBTX) ([]string, error) 
 		return nil, err
 	}
 	type trigger struct {
-		name, function string
-		events         int
+		name, function, condition string
+		events                    int
 	}
 	triggers := map[string][]trigger{}
 	rows, err = db.Query(ctx, purgeTriggersSQL)
@@ -230,7 +243,7 @@ func purgeCoverageViolations(ctx context.Context, db pg.DBTX) ([]string, error) 
 	}
 	var table string
 	var tr trigger
-	if _, err = pgx.ForEachRow(rows, []any{&table, &tr.name, &tr.events, &tr.function}, func() error {
+	if _, err = pgx.ForEachRow(rows, []any{&table, &tr.name, &tr.events, &tr.function, &tr.condition}, func() error {
 		triggers[table] = append(triggers[table], tr)
 		return nil
 	}); err != nil {
@@ -244,13 +257,12 @@ func purgeCoverageViolations(ctx context.Context, db pg.DBTX) ([]string, error) 
 	for _, table := range slices.Sorted(maps.Keys(removedAt)) {
 		fired = append(fired, event{table, triggerDelete})
 	}
-	// The only row a pass updates is the experiment's projection queue row
-	// (invalidatePurgedViewSQL).
+	// A pass updates the projection queue and clears member selections.
 	invalidation, err := explaintest.ReadBody(invalidatePurgedViewSQL)
 	if err != nil || len(invalidation.Writes) != 1 {
 		return nil, fmt.Errorf("read invalidatePurgedViewSQL: writes %v, %v", invalidation.Writes, err)
 	}
-	fired = append(fired, event{inSchema(invalidation.Writes[0], schema), triggerUpdate})
+	fired = append(fired, event{inSchema(invalidation.Writes[0], schema), triggerUpdate}, event{"eval_members", triggerUpdate})
 	declared := map[string]bool{}
 	visited := map[event]bool{}
 	eventNames := map[int]string{triggerInsert: "inserts into", triggerDelete: "deletes from", triggerUpdate: "updates"}
@@ -262,6 +274,10 @@ func purgeCoverageViolations(ctx context.Context, db pg.DBTX) ([]string, error) 
 		}
 		visited[next] = true
 		for _, tr := range triggers[next.table] {
+			if next.table == "eval_members" && next.event == triggerUpdate &&
+				tr.name == "eval_members_selection_projection" && strings.Contains(tr.condition, " WHEN ((new.selected_result_sha256 IS NOT NULL)) EXECUTE FUNCTION ") {
+				continue // clearPurgedSelectionsSQL sets this column to NULL.
+			}
 			if tr.events&next.event == 0 {
 				continue
 			}
@@ -366,6 +382,14 @@ func TestSharedPostgresEvalPurgeCoversCascadesAndTriggers(t *testing.T) {
 		ddl  []string
 		want []string
 	}{
+		{"selection key no longer cleared", []string{
+			`ALTER TABLE eval_members DROP CONSTRAINT eval_members_selected_result_fk`,
+			`ALTER TABLE eval_members ADD CONSTRAINT eval_members_selected_result_fk FOREIGN KEY(experiment_id,member_id,selected_result_kind,case_sha256) REFERENCES eval_records(experiment_id,member_id,kind,record_sha256)`},
+			[]string{"eval_members references eval_records (ON DELETE NO ACTION)"}},
+		{"selection trigger fires during cleanup", []string{
+			`DROP TRIGGER eval_members_selection_projection ON eval_members`,
+			`CREATE TRIGGER eval_members_selection_projection AFTER UPDATE ON eval_members FOR EACH ROW EXECUTE FUNCTION contractor_eval_member_changed()`},
+			[]string{"trigger eval_members_selection_projection on eval_members writes [eval_member_projections eval_projection_queue] when the purge updates it"}},
 		{"cascading Eval child of members", []string{`CREATE TABLE eval_member_notes (
     experiment_id text NOT NULL, member_id text NOT NULL, note text,
     FOREIGN KEY (experiment_id, member_id) REFERENCES eval_members (experiment_id, member_id) ON DELETE CASCADE)`},
@@ -412,8 +436,8 @@ BEGIN PERFORM eval_purge_fixture_helper(OLD.command_id); RETURN OLD; END $$`,
 		{"deletion trigger with dynamic SQL", []string{
 			`CREATE FUNCTION eval_purge_fixture() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN EXECUTE format('SELECT %L', OLD.experiment_id); RETURN NULL; END $$`,
-			`CREATE TRIGGER eval_frozen_plans_logged AFTER DELETE ON eval_frozen_plans FOR EACH STATEMENT EXECUTE FUNCTION eval_purge_fixture()`},
-			[]string{"trigger eval_frozen_plans_logged on eval_frozen_plans writes [?] when the purge deletes from it"}},
+			`CREATE TRIGGER eval_plan_resources_logged AFTER DELETE ON eval_plan_resources FOR EACH STATEMENT EXECUTE FUNCTION eval_purge_fixture()`},
+			[]string{"trigger eval_plan_resources_logged on eval_plan_resources writes [?] when the purge deletes from it"}},
 		{"trigger on the projection queue update", []string{logTable,
 			`CREATE FUNCTION eval_purge_fixture() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN INSERT INTO eval_purge_log VALUES (NEW.experiment_id); RETURN NEW; END $$`,

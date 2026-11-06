@@ -66,7 +66,7 @@ func TestSharedEvalPostgresRetainedHumanParametersRejectReviewAndAssessment(t *t
 	check := review.Policy[0]
 	assessment := evaldomain.AssessmentInput{SchemaVersion: evaldomain.AssessmentSchemaVersion, Source: evaldomain.AssessmentSource{Kind: "human"}, ResultSHA256: review.ResultSHA256, PreviousAssessmentSHA256: member.AssessmentSHA256, Checks: []evaldomain.CheckResult{{ID: check.ID, Evaluator: check.Evaluator, ImplementationSHA256: check.ImplementationSHA256, Status: "pass", Reason: "Owner decision", EvidenceRefs: []string{}}}}
 	var original []byte
-	if err := h.pool.QueryRow(t.Context(), `SELECT setup FROM eval_frozen_plans WHERE experiment_id=$1`, e.ID).Scan(&original); err != nil {
+	if err := h.pool.QueryRow(t.Context(), `SELECT plan_setup FROM eval_experiments WHERE experiment_id=$1`, e.ID).Scan(&original); err != nil {
 		t.Fatal(err)
 	}
 	var setup map[string]any
@@ -90,13 +90,13 @@ func TestSharedEvalPostgresRetainedHumanParametersRejectReviewAndAssessment(t *t
 		t.Fatal(err)
 	}
 	defer func() { _ = tx.Rollback(t.Context()) }()
-	if _, err = tx.Exec(t.Context(), `ALTER TABLE eval_frozen_plans DISABLE TRIGGER eval_plans_immutable`); err != nil {
+	if _, err = tx.Exec(t.Context(), `ALTER TABLE eval_experiments DISABLE TRIGGER eval_plans_immutable; ALTER TABLE eval_experiments DISABLE TRIGGER eval_experiments_protect`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = tx.Exec(t.Context(), `UPDATE eval_frozen_plans SET setup=$2 WHERE experiment_id=$1`, e.ID, retained); err != nil {
+	if _, err = tx.Exec(t.Context(), `UPDATE eval_experiments SET plan_setup=$2 WHERE experiment_id=$1`, e.ID, retained); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = tx.Exec(t.Context(), `ALTER TABLE eval_frozen_plans ENABLE TRIGGER eval_plans_immutable`); err != nil {
+	if _, err = tx.Exec(t.Context(), `ALTER TABLE eval_experiments ENABLE TRIGGER eval_plans_immutable; ALTER TABLE eval_experiments ENABLE TRIGGER eval_experiments_protect`); err != nil {
 		t.Fatal(err)
 	}
 	if err = tx.Commit(t.Context()); err != nil {
@@ -107,8 +107,8 @@ func TestSharedEvalPostgresRetainedHumanParametersRejectReviewAndAssessment(t *t
 		var records []byte
 		if err := h.pool.QueryRow(t.Context(), `SELECT jsonb_build_object(
     'records', (SELECT jsonb_agg(to_jsonb(r) ORDER BY experiment_id,member_id,kind,record_sha256) FROM eval_records r),
-    'selections', (SELECT jsonb_agg(to_jsonb(s) ORDER BY experiment_id,member_id) FROM eval_selections s),
-    'plans', (SELECT jsonb_agg(to_jsonb(p) ORDER BY experiment_id) FROM eval_frozen_plans p)
+    'selections', (SELECT jsonb_agg(to_jsonb(s) ORDER BY experiment_id,member_id) FROM eval_members s WHERE selected_result_sha256 IS NOT NULL),
+    'plans', (SELECT jsonb_agg(to_jsonb(p) ORDER BY experiment_id) FROM eval_experiments p)
 )`).Scan(&records); err != nil {
 			t.Fatal(err)
 		}

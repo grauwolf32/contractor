@@ -43,11 +43,11 @@ var foreignKeyProbeAllowances = map[string]probeAllowance{
 	"audits_project_owner_fkey": {
 		prefixIndex: "audits_project_state_idx", reason: "the Audits of one Project, probed once per Project deletion",
 	},
-	"eval_selections_experiment_id_member_id_assessment_kind_as_fkey": {
-		prefixIndex: "eval_selections_pkey", reason: "one selection per Eval member",
+	"eval_members_selected_assessment_fk": {
+		prefixIndex: "eval_members_pkey", reason: "one selection per Eval member",
 	},
-	"eval_selections_experiment_id_member_id_result_kind_result_fkey": {
-		prefixIndex: "eval_selections_pkey", reason: "one selection per Eval member",
+	"eval_members_selected_result_fk": {
+		prefixIndex: "eval_members_pkey", reason: "one selection per Eval member",
 	},
 	"eval_submissions_experiment_id_member_id_execution_kind_fkey": {
 		prefixIndex: "eval_submissions_pkey", reason: "one submission per Eval member",
