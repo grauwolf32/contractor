@@ -62,4 +62,9 @@ verification:
     and production build. make ui-gates passed CSS references, exports and ESLint.
   preview: >-
     Visually verified Results & observations in the actual-component preview.
-    The updated source remains on codex/audit-research-ui, unmerged into main.
+    The reviewed source later landed in main under V64-039 on 2026-11-07.
+
+delivery:
+  date: '2026-11-07'
+  task: V64-039
+  main_merge: 579e6cc970ba14be4d072c8084957e7696ff6848

@@ -203,8 +203,8 @@ verification:
     navigation. The common Audit detail combines that path with the reviewed overview,
     colored Task timeline, Work list/detail, hypothesis history, canonical possible issues,
     exact accepted materials/publication and activity. No backend execution path, model
-    configuration or demo deployment was changed. The branch is ready for user review;
-    it has not been merged into main.
+    configuration or demo deployment was changed. The branch was ready for user review on 2026-11-06; its later landing in main
+    is recorded by V64-039.
   boundary: >-
     Server owns identity, admission, exact inputs, provenance, receipts and persistence.
     UI composes existing bounded APIs and Artifact readers. Live catalog definitions are
@@ -238,3 +238,8 @@ verification:
     its verified external archive remains intact. Preview output and disposable test
     evidence live under ignored directories. The owned test database was dropped after
     all lane processes and API suites finished.
+
+delivery:
+  date: '2026-11-07'
+  task: V64-039
+  main_merge: 579e6cc970ba14be4d072c8084957e7696ff6848

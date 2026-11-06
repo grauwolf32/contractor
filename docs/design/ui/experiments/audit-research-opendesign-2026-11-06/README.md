@@ -104,4 +104,7 @@ passed all 163 cases; `make test-audit-research-ui` passed the real browser/API
 journey, including exact publication and 390 px in every theme. Public API and
 PostgreSQL contract suites, all 12 clean-source common Audit process cases and
 `make lint` passed. The final source implementation is
-`5ff2678a13cf2d2c121326104facad5825a4c676`. The feature branch remains unmerged.
+`5ff2678a13cf2d2c121326104facad5825a4c676`. The reviewed implementation landed in main on 2026-11-07 through
+`579e6cc970ba14be4d072c8084957e7696ff6848`;
+[V64-039](../../../../../tasks/done/v64-039-research-ui-main-integration.yml)
+records the integration checks and preservation of concurrent work.
