@@ -5,7 +5,8 @@ milestone: run-admission-gateway-recovery
 epic: execution-core
 kind: chore
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 2baba6bd660df15003d9782fbcaae683befaa472
 depends_on: [V451-002]
 languages: [go, python, yaml, markdown]
 goal: Main uses the verified process-local Gateway recovery while preserving the current Runtime lifecycle, standalone HTTP evidence and unrelated user work.
@@ -45,3 +46,25 @@ tests:
     covers: [A2]
   - command: make verify-public-api verify-architecture lint
     covers: [A1, A3]
+
+verification:
+  date: '2026-11-06'
+  passed:
+    - The complete listed nine-package Go/PostgreSQL command passed with -p=2, integration tags and the race detector.
+    - Both real Gateway recovery Server/Runtime process scenarios passed on the combined tree in 89.0 seconds, including manual Retry, cancellation and permanent failure with current Runtime stop/State code.
+    - make verify-public-api verify-architecture lint passed, including generated clients, layers, unused exports, task/spec registries and Runtime import contracts.
+  reconciliation: Only the generated backlog and dependency graph conflicted; both were regenerated. Main's V451-001 UI archive record remains intact, and the recovery record was renumbered to V451-002. Migration 000014 remains the next migration.
+  preservation: >-
+    Prepared the no-fast-forward merge in an isolated clean worktree with main as
+    its first parent; its tree exactly matches tested source 34772864cd32638e03084b1ba1301d9744baed23.
+    Advanced primary main to that prepared commit using a fast-forward checkout.
+    All 23 pre-existing dirty tracked/untracked files retained identical content
+    hashes and modes, and the user index stayed unchanged. Recoverable snapshot:
+    /private/tmp/v451-main-preserve-e7iyt7pr/snapshot.json.
+  cleanup: The owned contractor_test_v451_merge database had no remaining connections and was dropped after all DB tests and process scenarios stopped.
+  limitations: Full release-verify, live models and additional UI/Runtime suites were not rerun for this merge. Optional disk-heavy fixtures stayed disabled; their skips are not passing coverage. Existing main and feature verification records retain their separate coverage.
+delivery:
+  merged_into_main: true
+  merge_commit: 2baba6bd660df15003d9782fbcaae683befaa472
+  main_first_parent: a2863002ba327b9cb1a860f2b247546b0b0c06be
+  tested_source: 34772864cd32638e03084b1ba1301d9744baed23

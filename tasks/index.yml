@@ -9,6 +9,12 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
+    User request 2026-11-06 integrated process-local Gateway recovery into main
+    through merge 2baba6bd660df15003d9782fbcaae683befaa472 (V451-003). Recovery is V451-002 after
+    resolving its task-ID collision with the existing V451-001 UI archive. Migration
+    000014 removes five recovery tables. Nine Go/PostgreSQL race suites, both real
+    recovery process scenarios, API/architecture and lint passed on the combined
+    tree; unrelated primary edits were preserved and the owned database was dropped.
     User request 2026-11-06 merged completed V411-007 standalone selected HTTP
     evidence into main through no-fast-forward merge f73627944 (V453-001),
     preserving the current Runtime stop/State fixes and external UI archive.
