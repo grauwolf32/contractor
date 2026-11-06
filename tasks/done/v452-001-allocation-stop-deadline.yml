@@ -6,7 +6,7 @@ epic: execution-core
 kind: defect
 introduced_by: V17-005
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - python
@@ -104,13 +104,15 @@ verification:
   environment: macOS arm64; uv sync --locked; Go 1.26.9 provided on PATH for real-mTLS CLI PKI generation. No live
     model, database or deployment.
   negative_probe: /tmp/contractor-v452-001-before.log
-  landing: Implemented on codex/runtime-stop-state in an isolated worktree; integration pending.
+  landing: Implementation and verification finished on codex/runtime-stop-state; no deployment. Integration outcome
+    is recorded in the merge commit.
   release_regressions: Real ADK/HTTP readers cover ordinary completion, cancellation, release deadline exhaustion,
     collection of WorkerStateStore and release queued ahead of final snapshot revalidation; one counter/event tracks
     construction and validation, and detached results drop their Worker reference before waiting for the final lifecycle
     check.
   release_negative_probe: /tmp/contractor-v452-release-before.log
-  full_runtime_gate: 5914 passed, 135 allowed skips before the final release-ownership tightening. A broad rerun
-    excluding two already-passing unaffected long ADK modules is in progress; final 380-test owner selection passed
-    after the tightening.
-implementation_commit: bcaab7ab4f6411e59826f424e4bc5e820ba2c91d
+  full_runtime_gate: 'make test-runtime passed: 5914 passed, 135 declared skips before final release-ownership hardening.
+    Broad rerun after reader joining: 5891 passed, 135 skips, excluding the two previously-passing unaffected long
+    ADK modules (27 tests). Final owner selection after the queued-release correction: 380 passed, 15 Linux/Podman
+    skips.'
+implementation_commit: 4105368664d3a1043e49c2a912a6746d4d31ee8d
