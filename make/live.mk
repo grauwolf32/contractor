@@ -28,3 +28,8 @@ test-ui-stack-operations: ui-install ui-browser-install require-database runtime
 # Focused project Web scan Audit form; same real Server/Runtime/browser harness.
 test-web-scan-ui-stack: ui-install ui-browser-install require-database runtime-venv
 	$(UI_STACK_TEST_FLAGS) ./tests/ui-stack -run '^TestBrowserScanWidgetsStack$$'
+
+# Common Audit research journey through the production browser and real API.
+.PHONY: test-audit-research-ui
+test-audit-research-ui: ui-install ui-browser-install require-database runtime-venv
+	python3 scripts/release_test_reports.py run --report "$(RELEASE_REPORTS)/audit-research-ui.jsonl" --timeout-seconds 720 -- go test -json -tags=e2e -count=1 -timeout=10m ./tests/e2e -run '^TestAuditResearchUIAcrossProductionProcesses$$'

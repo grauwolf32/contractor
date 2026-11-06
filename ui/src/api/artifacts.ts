@@ -336,7 +336,9 @@ export async function writeScopedArtifact(
   return result;
 }
 
-export function canPreviewArtifact(metadata: ArtifactMetadata): boolean {
+export function canPreviewArtifact(
+  metadata: Pick<ArtifactMetadata, "size" | "mediaType">,
+): boolean {
   return (
     metadata.size <= MAXIMUM_PREVIEW_BYTES &&
     (PREVIEW_MEDIA_TYPES.has(metadata.mediaType) ||

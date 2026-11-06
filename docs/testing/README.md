@@ -31,6 +31,13 @@ at most once per invocation.
 Gate definitions describe what a command checks; completed results are
 recorded in the corresponding task files.
 
+The focused `make test-audit-research-ui` gate runs the common Audit research
+journey through the production browser, real Server/Runtime and disposable
+PostgreSQL. It uses a scripted Gateway, verifies generated hypothesis grounds,
+negative/scoped results, ordinary continuation and exact Project publication,
+and visits 390/1440 px in light/dark/black. It is included in the first browser
+release stage; the browser report rejects skipped or empty selections.
+
 ## Shared PostgreSQL test setup
 
 Use `internal/persistence/postgrestest.NewPool` for a single schema-isolated

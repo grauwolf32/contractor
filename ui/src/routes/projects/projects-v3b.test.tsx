@@ -1183,7 +1183,7 @@ describe("Project overview", () => {
       await screen.findByRole("link", { name: "OpenAPI · Operation trace" })
     ).closest("li")!;
     await user.click(
-      within(row).getByRole("button", { name: "Pause new work" }),
+      within(row).getByRole("button", { name: "Pause new Audit Runs" }),
     );
     expect(await within(row).findByText("Paused")).toBeVisible();
     // Back within the overview's polling interval: the pause refreshed the

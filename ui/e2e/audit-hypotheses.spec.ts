@@ -61,7 +61,7 @@ for (const theme of ["light", "dark", "black"]) {
       return fulfillEmptyPageOrNotFound(route);
     });
     await page.goto(`/projects/${current.projectId}/audits/${current.auditId}`);
-    await page.getByRole("button", { name: "Show assertions" }).click();
+    await page.getByRole("link", { name: "Hypotheses", exact: true }).click();
     await expect(
       page.getByText(/2 requirements in the original checklist/),
     ).toBeVisible();

@@ -25,7 +25,11 @@ for (const width of [390, 1440]) {
           name: "Inspect the selected exact material",
         }),
       ).toBeVisible();
-      await expect(page.getByText("Paused", { exact: true })).toBeVisible();
+      await expect(
+        page
+          .getByRole("region", { name: "Check research" })
+          .getByText("Paused", { exact: true }),
+      ).toBeVisible();
       await page.getByRole("button", { name: "Read saved result" }).click();
       await expect(page.getByText(/Exact saved observation/)).toBeVisible();
       await expect(
@@ -33,7 +37,7 @@ for (const width of [390, 1440]) {
       ).toBeVisible();
       await expect(
         page.getByRole("link", { name: "Project possible issues" }),
-      ).toHaveAttribute("href", `/projects/${COMMON_PROJECT}/issues`);
+      ).toHaveAttribute("href", `/projects/${COMMON_PROJECT}/findings`);
       expect(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= window.innerWidth,

@@ -12,13 +12,21 @@ import { queryKeys } from "../../../api/query-keys";
 import { nextPageCursor } from "../../../app/pagination";
 import { pollInterval } from "../../../app/polling";
 import { QueryView } from "../../../app/query-view";
-import { Button, TechnicalDetails } from "../../../ui";
+import { Button, TechnicalDetails, StatusGlyph } from "../../../ui";
+import { readableValue } from "../../../app/vocabulary";
+import { RecordedTime } from "../../../app/recorded-time";
 import { useAuditProjectionRefresh } from "./projection-refresh";
 
 /** Only the user loads older pages; refreshes reread the already loaded chain. */
-export function AuditActivity({ audit }: { audit: Audit }) {
+export function AuditActivity({
+  audit,
+  expanded = false,
+}: {
+  audit: Audit;
+  expanded?: boolean;
+}) {
   const api = usePublicAPI();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(expanded);
   const queryKey = queryKeys.audits.events(audit.auditId);
   const changing = auditPollInterval([audit]) !== false;
   const query = useInfiniteQuery({
@@ -40,9 +48,18 @@ export function AuditActivity({ audit }: { audit: Audit }) {
   useAuditProjectionRefresh(audit, queryKey, open);
   return (
     <section className="ui-stack" aria-label="Check activity">
-      <Button size="sm" onClick={() => setOpen(!open)}>
-        {open ? "Hide activity" : "Show activity"}
-      </Button>
+      {expanded ? (
+        <header className="research-section-head">
+          <div>
+            <p className="eyebrow">Recorded events</p>
+            <h2>Activity</h2>
+          </div>
+        </header>
+      ) : (
+        <Button size="sm" onClick={() => setOpen(!open)}>
+          {open ? "Hide activity" : "Show activity"}
+        </Button>
+      )}
       {open ? (
         <QueryView
           query={query}
@@ -50,28 +67,53 @@ export function AuditActivity({ audit }: { audit: Audit }) {
         >
           {(data) => (
             <>
-              <ul>
+              <ul className="research-timeline">
                 {data.pages
                   .flatMap((page) => page.items)
                   .map((event) => (
                     <li key={event.sequence}>
-                      <span>{event.kind}</span>
-                      {event.summary.runId === undefined ? null : (
-                        <>
-                          {" "}
-                          ·{" "}
-                          <Link
-                            to={`/runs/${encodeURIComponent(event.summary.runId)}`}
-                          >
-                            Open Run
-                          </Link>
-                        </>
-                      )}
-                      <TechnicalDetails description="Recorded event identity and summary.">
-                        <pre className="checks-task-json">
-                          {JSON.stringify(event, null, 2)}
-                        </pre>
-                      </TechnicalDetails>
+                      <span
+                        className="research-timeline-mark"
+                        data-tone={
+                          event.summary.disposition?.includes("invalid")
+                            ? "warning"
+                            : event.summary.state === "active"
+                              ? "info"
+                              : "neutral"
+                        }
+                      >
+                        <StatusGlyph
+                          tone={
+                            event.summary.disposition?.includes("invalid")
+                              ? "warning"
+                              : "info"
+                          }
+                        />
+                      </span>
+                      <div className="research-timeline-copy">
+                        <strong>
+                          {readableValue(event.kind.replaceAll(".", " "))}
+                        </strong>
+                        <p className="ui-caption">
+                          <RecordedTime value={event.createdAt} />
+                        </p>
+                        {event.summary.runId === undefined ? null : (
+                          <>
+                            {" "}
+                            ·{" "}
+                            <Link
+                              to={`/runs/${encodeURIComponent(event.summary.runId)}`}
+                            >
+                              Open Run
+                            </Link>
+                          </>
+                        )}
+                        <TechnicalDetails description="Recorded event identity and summary.">
+                          <pre className="checks-task-json">
+                            {JSON.stringify(event, null, 2)}
+                          </pre>
+                        </TechnicalDetails>
+                      </div>
                     </li>
                   ))}
               </ul>

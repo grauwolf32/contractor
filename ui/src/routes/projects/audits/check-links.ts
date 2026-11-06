@@ -1,6 +1,6 @@
 /** Sections of the check page, the last path segment of its URL. */
 type CheckSection =
-  "overview" | "coverage" | "findings" | "reviews" | "runs" | "report";
+  "overview" | "work" | "hypotheses" | "findings" | "materials" | "activity";
 
 /** /projects/:projectId/audits/:auditId */
 export function checkPath(projectId: string, auditId: string): string {

@@ -56,7 +56,7 @@ const CLIENT_ROUTE_PATTERNS = [
     `^/projects/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}/workflows/${CONFIG_NAME}/${CONFIG_VERSION}/run$`,
   ),
   /^\/projects\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/audits\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/,
-  /^\/projects\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/audits\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/(?:overview|coverage|findings|checks|reviews|runs|report)$/,
+  /^\/projects\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/audits\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/(?:overview|work|hypotheses|findings|materials|activity)$/,
   /^\/artifacts\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/,
   /^\/runs\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/,
   /^\/runs\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/artifacts\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/,

@@ -269,24 +269,6 @@
   font-size: var(--text-sm);
 }
 
-/* ---------- Check page: sections ---------- */
-
-.checks-section-heading {
-  display: grid;
-  gap: var(--space-0-5);
-}
-
-.checks-section-heading h2 {
-  margin: 0;
-  font-size: 1.125rem;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-}
-
-/* ---------- Check page: one item ---------- */
-
-/* Give the result a quiet surface; evidence and activity stay in the page flow. */
-
 /* ---------- Check page: All activity ---------- */
 
 /* ---------- Check page: Decisions and Runs ---------- */
@@ -367,18 +349,6 @@
   display: grid;
   gap: var(--space-2);
   max-width: 36rem;
-}
-
-/* V62: A overview and B endpoint input/evidence workspace. */
-
-/* Ordinary task cards stay within a narrow check page in every theme. */
-.checks-task {
-  min-width: 0;
-  padding: var(--space-4);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  overflow-wrap: anywhere;
 }
 
 .checks-task-json {

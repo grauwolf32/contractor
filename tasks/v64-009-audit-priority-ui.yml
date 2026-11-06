@@ -19,7 +19,10 @@ goal: Users understand the goal, current work, hypotheses, findings, evidence an
 demonstration: The production browser journey starts exploratory work, opens a finding and its origin,
   follows the generated hypothesis and later result, then publishes a useful material to Project.
 context:
-  authority: 'User assignment on 2026-11-06: take V64-009 and develop its design through
+  authority: 'User implementation direction on 2026-11-06: adapt the reviewed design to the
+    production UI, combining the best of the existing Checks instead of simply replacing it.
+    Preserve its list/filter/navigation/progress strengths and integrate the new research views.
+    User assignment on 2026-11-06: take V64-009 and develop its design through
     OpenDesign, preserving all native design data and the existing configured model.
     This explicitly starts the task after completed V64-008/010. User direction on
     2026-11-05: UI follows proposal 0054 through V64-008/010; show exact hypothesis
@@ -154,6 +157,16 @@ tests:
   - A2
   - A3
 - command: make test-audit-basic-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-audit-research-ui
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make ui-browser-mocked
   covers:
   - A1
   - A2

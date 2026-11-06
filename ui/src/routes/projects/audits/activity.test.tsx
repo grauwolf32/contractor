@@ -113,9 +113,9 @@ describe("Audit activity", () => {
       expect(within(activity()).getAllByRole("listitem")).toHaveLength(1),
     );
     expect(
-      within(activity()).queryByText("task.settled"),
+      within(activity()).queryByText("Task settled"),
     ).not.toBeInTheDocument();
-    expect(within(activity()).getByText("audit.created")).toBeInTheDocument();
+    expect(within(activity()).getByText("Audit created")).toBeInTheDocument();
   });
   it("retains successful pages across continuation and refresh errors and retries the failed cursor", async () => {
     const view = fixture();

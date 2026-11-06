@@ -186,9 +186,9 @@ function controlButtons(audit: Audit): ControlButton[] {
   if (audit.state === "active")
     buttons.push({
       action: "pause",
-      text: "Pause",
-      name: "Pause new work",
-      title: "Pause new work; running work can finish",
+      text: "Pause new Audit Runs",
+      name: "Pause new Audit Runs",
+      title: "Pause new Audit Runs; admitted work can finish and collect",
       icon: <Icon name="pause" />,
       variant: "secondary",
     });

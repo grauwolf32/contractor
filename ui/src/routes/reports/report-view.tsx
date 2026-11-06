@@ -285,7 +285,7 @@ function LoadedReportContent({
           </Link>
         ) : (
           <Link
-            to={`${sectionPath(audit.projectId, audit.auditId, "coverage")}?result=uncertain`}
+            to={`${sectionPath(audit.projectId, audit.auditId, "work")}?work=gap`}
           >
             Review coverage gaps →
           </Link>

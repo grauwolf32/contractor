@@ -23,118 +23,132 @@ import (
 func TestAuditHypothesisContinuationAcrossProductionProcesses(t *testing.T) {
 	for _, initial := range []bool{false, true} {
 		t.Run(fmt.Sprint("initial=", initial), func(t *testing.T) {
-			stages := []domainGatewayStage{}
-			if !initial {
-				stages = append(stages, hypothesisFindingSeedStage(), generationCheckStage("refuted"))
-			}
-			stages = append(stages, generationProposalStage(!initial, false, !initial), generationCheckStage("inconclusive"), generationProposalStage(true, true, !initial))
-			h := startConfiguredFindingsHarness(t, stages, func(root string) {
-				installGenerationAuditProgram(t, root, initial)
-				installHypothesisFindingSeed(t, root)
-			})
-			project := createProjectResource(t, h.client, h.baseURL)
-			source := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "fixture", "source", "application/zip", auditProgramZip(t, map[string][]byte{"app.py": []byte(findingsSource)}))
-			report := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "fixture", "report", "text/plain", []byte(findingsEvidence))
-			inputs := map[string]artifactRef{"source": source, "report": report}
-			if !initial {
-				seedBody := mustBasicJSON(t, map[string]any{"workflow": "hypothesis-finding-seed@1", "artifacts": map[string]any{}})
-				seedRun := postProjectRun(t, h.client, h.baseURL, project.ProjectID, "seed-hypothesis-findings", seedBody, false)
-				waitForFindingsRun(t, h, seedRun, "succeeded")
-				members := []contracts.MaterialDescriptor{}
-				for i := range 17 {
-					payload := []byte(fmt.Sprint("Architecture boundary ", i))
-					ref := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "architecture", fmt.Sprintf("report-%02d", i), "text/plain", payload)
-					members = append(members, contracts.MaterialDescriptor{ScopeKind: "project", ScopeID: project.ProjectID, Ref: contracts.ArtifactRef{Namespace: ref.Namespace, Name: ref.Name, Revision: ref.Revision}, Digest: contentdigest.Bytes(payload), MediaType: "text/plain", SizeBytes: int64(len(payload))})
-				}
-				raw := mustBasicJSON(t, contracts.MaterialSet{Schema: contracts.MaterialSetSchema, Materials: members})
-				inputs["materials"] = uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "selections", "architecture", "application/json", raw)
-			}
-			draft, _ := basicAuditRequest(t, h, http.MethodPost, "/v1/projects/"+project.ProjectID+"/audits", map[string]any{"profile": map[string]string{"name": "generation-process", "version": "1"}, "inputs": inputs}, "generation-draft", 0, http.StatusCreated)
-			id := draft["auditId"].(string)
-			blocked := h.gateway.blockNextRequest()
-			basicAuditRequest(t, h, http.MethodPost, "/v1/audits/"+id+"/start", nil, "generation-start", uint64(draft["revision"].(float64)), http.StatusOK)
-			select {
-			case <-blocked:
-			case <-h.ctx.Done():
-				t.Fatal("initial ordinary work did not reach Runtime")
-			}
-			current := basicAuditGet(t, h, id)
-			basicAuditRequest(t, h, http.MethodPost, "/v1/audits/"+id+"/pause", nil, "generation-pause", uint64(current["revision"].(float64)), http.StatusOK)
-			h.gateway.releaseBlockedRequest()
-			count := 1
-			if initial {
-				count = 2
-			}
-			pausedTasks := waitBasicTask(t, h, id, count, map[bool]string{true: "ready", false: "settled"}[initial])
-			current = basicAuditGet(t, h, id)
-			if current["state"] != "paused" || current["submittedRunCount"].(float64) != 1 {
-				t.Fatalf("pause dispatched continuation: state=%v submitted=%v", current["state"], current["submittedRunCount"])
-			}
-			h.restartServer()
-			current = basicAuditGet(t, h, id)
-			basicAuditRequest(t, h, http.MethodPost, "/v1/audits/"+id+"/resume", nil, "generation-resume", uint64(current["revision"].(float64)), http.StatusOK)
-			total := 4
-			if initial {
-				total = 3
-			}
-			tasks := waitBasicTask(t, h, id, total, "settled")
-			for basicAuditGet(t, h, id)["state"] != "completed" {
-				basicPoll(t, h)
-			}
-			if h.gateway.CompletedStages() != total+map[bool]int{true: 0, false: 1}[initial] || len(h.gateway.Failures()) > 0 {
-				t.Fatalf("duplicate or failed generation: completed=%d failures=%v", h.gateway.CompletedStages(), h.gateway.Failures())
-			}
-			if tasks[0].Document.TaskID != pausedTasks[0].Document.TaskID {
-				t.Fatal("restart changed accepted work identity")
-			}
-			checkIndex := 2
-			if initial {
-				checkIndex = 1
-			}
-			check := tasks[checkIndex]
-			if check.Document.Hypothesis == nil || check.Document.Hypothesis.Revision != 1 {
-				t.Fatal("generated check has no exact system hypothesis pin")
-			}
-			result := basicTaskArtifact(t, h, id, check, "result")
-			if !strings.Contains(string(result), `"verdict":"inconclusive"`) || !strings.Contains(string(result), check.Document.Hypothesis.ID) {
-				t.Fatal("check output lost inconclusive result or exact assertion")
-			}
-			hypotheses, _ := basicAuditRequest(t, h, http.MethodGet, "/v1/audits/"+id+"/hypotheses?limit=64", nil, "", 0, http.StatusOK)
-			expected := 3
-			if initial {
-				expected = 1
-			}
-			if len(hypotheses["items"].([]any)) != expected {
-				t.Fatal("proposal replay duplicated assertions")
-			}
-			if !initial {
-				generated := 0
-				for _, raw := range hypotheses["items"].([]any) {
-					document := raw.(map[string]any)["document"].(map[string]any)
-					if document["origin"].(map[string]any)["kind"] != "run" {
-						continue
-					}
-					generated++
-					sources := document["sources"].([]any)
-					if len(sources) != 1 && len(sources) != 3 {
-						t.Fatal("missing exact grounds", document)
-					}
-					for _, source := range sources {
-						m := source.(map[string]any)
-						if m["scope_kind"] != "audit" || m["scope_id"] != id {
-							t.Fatal("grounds were not retained by Audit", m)
-						}
-					}
-				}
-				if generated != 2 {
-					t.Fatal("wrong generated hypothesis count", generated)
-				}
-				findings, _ := basicAuditRequest(t, h, http.MethodGet, "/v1/projects/"+project.ProjectID+"/findings?limit=100", nil, "", 0, http.StatusOK)
-				if len(findings["items"].([]any)) != 1 {
-					t.Fatal("hypothesis checks created/resolved problems implicitly", findings)
-				}
-			}
+			exerciseAuditHypothesisContinuation(t, initial, false)
 		})
+	}
+}
+
+// The production browser resumes the same retained scenario through session/CSRF APIs.
+func TestAuditResearchUIAcrossProductionProcesses(t *testing.T) {
+	exerciseAuditHypothesisContinuation(t, false, true)
+}
+
+func exerciseAuditHypothesisContinuation(t *testing.T, initial, browser bool) {
+	t.Helper()
+	stages := []domainGatewayStage{}
+	if !initial {
+		stages = append(stages, hypothesisFindingSeedStage(), generationCheckStage("refuted"))
+	}
+	stages = append(stages, generationProposalStage(!initial, false, !initial), generationCheckStage("inconclusive"), generationProposalStage(true, true, !initial))
+	h := startFindingsHarnessForBrowser(t, stages, browser, func(root string) {
+		installGenerationAuditProgram(t, root, initial)
+		installHypothesisFindingSeed(t, root)
+	})
+	project := createProjectResource(t, h.client, h.baseURL)
+	source := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "fixture", "source", "application/zip", auditProgramZip(t, map[string][]byte{"app.py": []byte(findingsSource)}))
+	report := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "fixture", "report", "text/plain", []byte(findingsEvidence))
+	inputs := map[string]artifactRef{"source": source, "report": report}
+	if !initial {
+		seedBody := mustBasicJSON(t, map[string]any{"workflow": "hypothesis-finding-seed@1", "artifacts": map[string]any{}})
+		seedRun := postProjectRun(t, h.client, h.baseURL, project.ProjectID, "seed-hypothesis-findings", seedBody, false)
+		waitForFindingsRun(t, h, seedRun, "succeeded")
+		members := []contracts.MaterialDescriptor{}
+		for i := range 17 {
+			payload := []byte(fmt.Sprint("Architecture boundary ", i))
+			ref := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "architecture", fmt.Sprintf("report-%02d", i), "text/plain", payload)
+			members = append(members, contracts.MaterialDescriptor{ScopeKind: "project", ScopeID: project.ProjectID, Ref: contracts.ArtifactRef{Namespace: ref.Namespace, Name: ref.Name, Revision: ref.Revision}, Digest: contentdigest.Bytes(payload), MediaType: "text/plain", SizeBytes: int64(len(payload))})
+		}
+		raw := mustBasicJSON(t, contracts.MaterialSet{Schema: contracts.MaterialSetSchema, Materials: members})
+		inputs["materials"] = uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "selections", "architecture", "application/json", raw)
+	}
+	draft, _ := basicAuditRequest(t, h, http.MethodPost, "/v1/projects/"+project.ProjectID+"/audits", map[string]any{"profile": map[string]string{"name": "generation-process", "version": "1"}, "inputs": inputs}, "generation-draft", 0, http.StatusCreated)
+	id := draft["auditId"].(string)
+	blocked := h.gateway.blockNextRequest()
+	basicAuditRequest(t, h, http.MethodPost, "/v1/audits/"+id+"/start", nil, "generation-start", uint64(draft["revision"].(float64)), http.StatusOK)
+	select {
+	case <-blocked:
+	case <-h.ctx.Done():
+		t.Fatal("initial ordinary work did not reach Runtime")
+	}
+	current := basicAuditGet(t, h, id)
+	basicAuditRequest(t, h, http.MethodPost, "/v1/audits/"+id+"/pause", nil, "generation-pause", uint64(current["revision"].(float64)), http.StatusOK)
+	h.gateway.releaseBlockedRequest()
+	count := 1
+	if initial {
+		count = 2
+	}
+	pausedTasks := waitBasicTask(t, h, id, count, map[bool]string{true: "ready", false: "settled"}[initial])
+	current = basicAuditGet(t, h, id)
+	if current["state"] != "paused" || current["submittedRunCount"].(float64) != 1 {
+		t.Fatalf("pause dispatched continuation: state=%v submitted=%v", current["state"], current["submittedRunCount"])
+	}
+	h.restartServer()
+	current = basicAuditGet(t, h, id)
+	if browser {
+		runResearchBrowser(t, h, project.ProjectID, id)
+	} else {
+		basicAuditRequest(t, h, http.MethodPost, "/v1/audits/"+id+"/resume", nil, "generation-resume", uint64(current["revision"].(float64)), http.StatusOK)
+	}
+	total := 4
+	if initial {
+		total = 3
+	}
+	tasks := waitBasicTask(t, h, id, total, "settled")
+	for basicAuditGet(t, h, id)["state"] != "completed" {
+		basicPoll(t, h)
+	}
+	if h.gateway.CompletedStages() != total+map[bool]int{true: 0, false: 1}[initial] || len(h.gateway.Failures()) > 0 {
+		t.Fatalf("duplicate or failed generation: completed=%d failures=%v", h.gateway.CompletedStages(), h.gateway.Failures())
+	}
+	if tasks[0].Document.TaskID != pausedTasks[0].Document.TaskID {
+		t.Fatal("restart changed accepted work identity")
+	}
+	checkIndex := 2
+	if initial {
+		checkIndex = 1
+	}
+	check := tasks[checkIndex]
+	if check.Document.Hypothesis == nil || check.Document.Hypothesis.Revision != 1 {
+		t.Fatal("generated check has no exact system hypothesis pin")
+	}
+	result := basicTaskArtifact(t, h, id, check, "result")
+	if !strings.Contains(string(result), `"verdict":"inconclusive"`) || !strings.Contains(string(result), check.Document.Hypothesis.ID) {
+		t.Fatal("check output lost inconclusive result or exact assertion")
+	}
+	hypotheses, _ := basicAuditRequest(t, h, http.MethodGet, "/v1/audits/"+id+"/hypotheses?limit=64", nil, "", 0, http.StatusOK)
+	expected := 3
+	if initial {
+		expected = 1
+	}
+	if len(hypotheses["items"].([]any)) != expected {
+		t.Fatal("proposal replay duplicated assertions")
+	}
+	if !initial {
+		generated := 0
+		for _, raw := range hypotheses["items"].([]any) {
+			document := raw.(map[string]any)["document"].(map[string]any)
+			if document["origin"].(map[string]any)["kind"] != "run" {
+				continue
+			}
+			generated++
+			sources := document["sources"].([]any)
+			if len(sources) != 1 && len(sources) != 3 {
+				t.Fatal("missing exact grounds", document)
+			}
+			for _, source := range sources {
+				m := source.(map[string]any)
+				if m["scope_kind"] != "audit" || m["scope_id"] != id {
+					t.Fatal("grounds were not retained by Audit", m)
+				}
+			}
+		}
+		if generated != 2 {
+			t.Fatal("wrong generated hypothesis count", generated)
+		}
+		findings, _ := basicAuditRequest(t, h, http.MethodGet, "/v1/projects/"+project.ProjectID+"/findings?limit=100", nil, "", 0, http.StatusOK)
+		if len(findings["items"].([]any)) != 1 {
+			t.Fatal("hypothesis checks created/resolved problems implicitly", findings)
+		}
 	}
 }
 

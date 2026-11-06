@@ -46,6 +46,26 @@ describe("useCursorStack", () => {
 });
 
 describe("useURLCursorStack", () => {
+  it("clears a page selection atomically while preserving other filters", () => {
+    const { result } = renderHook(
+      () => ({
+        pages: useURLCursorStack({
+          param: "tasksCursor",
+          clearOnChange: ["task"],
+        }),
+        location: useLocation(),
+      }),
+      {
+        wrapper: ({ children }) => (
+          <MemoryRouter initialEntries={["/checks?work=gap&task=task_1"]}>
+            {children}
+          </MemoryRouter>
+        ),
+      },
+    );
+    act(() => result.current.pages.controls(undefined).onNext("next"));
+    expect(result.current.location.search).toBe("?work=gap&tasksCursor=next");
+  });
   function wrapper({ children }: { children: ReactNode }) {
     return (
       <MemoryRouter initialEntries={["/runs?state=failed&cursor=c1"]}>

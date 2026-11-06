@@ -49,7 +49,7 @@ file removed after generation. No existing design project is deleted or replaced
 
 ## Production boundary
 
-The next implementation uses existing generated public clients, shared UI
+The production implementation uses existing generated public clients, shared UI
 components and query/polling owners. No new backend, registry, receipt or execution
 path is proposed. Task counts come from the workspace projection, hypotheses and
 attempts from their bounded owner pages, materials from accepted receipt links,
@@ -69,3 +69,27 @@ issues. Full exact IDs stay under Technical details, never in user-authored form
 is a **design-only** browser check. The task's production `ui-verify`, real public
 API/PostgreSQL, basic process/browser and lint gates still apply when implementing
 the production journey. A synthetic screenshot is not evidence those gates passed.
+
+
+## Combined production preview
+
+The existing Checks list, filters, summary and keyboard navigation remain the
+entry point. The detail page adds the reviewed overview, colored work timeline,
+Task list/detail workspace, hypothesis history, exact material receipts and
+activity. It uses the project's shared components, typography and theme tokens.
+Native OpenDesign inputs/outputs and preservation records above remain unchanged.
+
+Run `node docs/design/ui/experiments/audit-research-opendesign-2026-11-06/prepare-production.mjs`
+with the UI development server running, then open
+`http://127.0.0.1:17560/test-results/audit-research-production/`.
+This preview renders production React routes with synthetic contract fixtures;
+writes are disabled. It is distinct from the untouched native design review.
+
+Production browser verification uses `make test-audit-research-ui`, registered in
+the release browser stage. It reuses the real hypothesis-continuation scenario,
+Server, Runtime and PostgreSQL with a scripted test Gateway. The browser uses
+ordinary session/CSRF APIs, resumes retained work, inspects negative and later
+inconclusive checks, follows generated grounds, reads the canonical issue origin
+and publishes an exact material into Project. The mock browser gate additionally
+covers bounded pages, failed/ambiguous writes and all six sections in three themes.
+No live model quality claim follows from these deterministic checks.

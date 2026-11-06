@@ -14,6 +14,7 @@ import {
 } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
 import { queryKeys } from "../../../api/query-keys";
+import { pollInterval } from "../../../app/polling";
 import { useAuditProjectionRefresh } from "./projection-refresh";
 
 export const checkKeys = {
@@ -68,10 +69,14 @@ export function useCheckWorkspace(audit: Audit, enabled = true) {
   const queryKey = checkKeys.workspace(audit.auditId);
   const query = useQuery({
     queryKey,
-    queryFn: () => getAuditWorkspace(api, audit.auditId),
+    queryFn: ({ signal }: { signal: AbortSignal }) =>
+      getAuditWorkspace(api, audit.auditId, signal),
     enabled,
     placeholderData: () => previousWorkspace(queryClient, audit.auditId),
-    refetchInterval: auditPollInterval([audit], 5_000),
+    refetchInterval: pollInterval<AuditWorkspace>({
+      interval: 5000,
+      settled: () => auditPollInterval([audit]) === false,
+    }),
     refetchOnReconnect: true,
     refetchOnWindowFocus: false,
     retry: false,
@@ -94,7 +99,8 @@ export function useCheckWorkspaces(
     () =>
       audits.map((audit) => ({
         queryKey: checkKeys.workspaceAt(audit.auditId, audit.revision),
-        queryFn: () => getAuditWorkspace(api, audit.auditId),
+        queryFn: ({ signal }: { signal: AbortSignal }) =>
+          getAuditWorkspace(api, audit.auditId, signal),
         placeholderData: () => previousWorkspace(queryClient, audit.auditId),
         staleTime: Number.POSITIVE_INFINITY,
         refetchOnWindowFocus: false,
