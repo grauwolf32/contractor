@@ -5,7 +5,7 @@ milestone: audit-check-prioritization
 epic: ui
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V64-008
 - V64-010
@@ -173,7 +173,7 @@ tests:
   - A3
 - command: make lint
 test_prerequisites:
-- Commands below are future implementation acceptance, not results of this planning update.
+- The listed production gates passed on 2026-11-06; results and scope are recorded below.
 - Use disposable PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set; configured/unavailable DB or mandatory
   skips fail. A focused selector matching zero tests fails.
 - Use testdata catalogs and pseudo-Skills, not live configs in unit/integration tests. Run whole touched-package
@@ -187,7 +187,7 @@ verification_requirements:
   dependencies and strict reads/writes.
 - Delete the replaced vertical path and its exclusive schemas/states/tests as its callers migrate. Final
   V64-011 proves no parallel legacy pipeline remains.
-implementation_commit: null
+implementation_commit: 5ff2678a13cf2d2c121326104facad5825a4c676
 replanning:
   date: '2026-10-31'
   previous_title: Show hypotheses, selection reasons and bounded lineage in the Audit UI
@@ -195,3 +195,46 @@ replanning:
   - V64-008
   reason: Replaces earlier scope and acceptance with the common Audit research plan; this is not implementation
     or completion.
+
+verification:
+  date: '2026-11-06'
+  outcome: >-
+    Production Checks retains its list, filters, selected summary, progress and keyboard
+    navigation. The common Audit detail combines that path with the reviewed overview,
+    colored Task timeline, Work list/detail, hypothesis history, canonical possible issues,
+    exact accepted materials/publication and activity. No backend execution path, model
+    configuration or demo deployment was changed. The branch is ready for user review;
+    it has not been merged into main.
+  boundary: >-
+    Server owns identity, admission, exact inputs, provenance, receipts and persistence.
+    UI composes existing bounded APIs and Artifact readers. Live catalog definitions are
+    usable for Add work only when their digest matches the Audit pin; drift is unavailable,
+    never a substituted Program. Scoped result display validates the common shared schema
+    and exact Audit/Task/hypothesis revision, without manufacturing an analyst assessment.
+  commands:
+  - command: make ui-verify
+    result: 214 test files passed; 2419 tests passed, one intentional expected failure; generated client, lint, typecheck and production build passed.
+  - command: make ui-browser-mocked
+    result: 163 browser cases across 28 specs passed without skips or flaky attempts; includes all six research sections, 320/390/1100/1440 widths, three themes, exact inputs, lost acknowledgements, readable cards and keyboard focus.
+  - command: make test-audit-research-ui
+    result: Real Server/Runtime/PostgreSQL and session/CSRF browser journey passed; resumes after pause/restart, follows generated hypothesis grounds, reads refuted/inconclusive scoped checks and canonical issue source/evidence, publishes an exact material and visits all themes at 390/1440 px. The scripted test Gateway does not establish live model quality.
+  - command: make verify-public-api verify-public-api-postgres
+    result: Public contract and real PostgreSQL API suites passed; no public schema change was required.
+  - command: make test-audit-basic-e2e
+    result: All 12 selected cases passed without skips on clean source 5ff2678a13cf2d2c121326104facad5825a4c676; fresh evidence pin and report checks passed.
+  - command: make lint
+    result: Passed, including UI CSS/export gates, Go/static checks, script tests, task/spec consistency and the release graph registration of the real browser gate.
+  corrections: >-
+    Verification found and repaired direct-navigation static-server allowlists, counted
+    evidence selectors and historical activity fixtures, fixed-height hypothesis cards,
+    long exact-material names on mobile and list focus following keyboard selection.
+    A loaded material selection survives browsing a second page. The full UI suite was
+    rerun successfully after one evidence-panel timeout during concurrent test load.
+    An earlier process attempt passed its Go cases but was rejected because source changed
+    during verification; only the subsequent clean immutable run is counted above.
+  preservation: >-
+    Native OpenDesign files, provenance and original inputs remain unchanged. Current main's
+    archival of the 16 earlier experiments was integrated without restoring removed files;
+    its verified external archive remains intact. Preview output and disposable test
+    evidence live under ignored directories. The owned test database was dropped after
+    all lane processes and API suites finished.

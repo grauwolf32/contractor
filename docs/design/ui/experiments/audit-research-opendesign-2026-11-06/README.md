@@ -1,8 +1,9 @@
 # Audit research · OpenDesign review · 2026-11-06
 
-Design stage of [V64-009](../../../../../tasks/v64-009-audit-priority-ui.yml),
-assigned by the user on 2026-11-06. The production task remains **in progress**.
-This preview does not establish real API, persistence or process acceptance.
+Design and production review of [V64-009](../../../../../tasks/done/v64-009-audit-priority-ui.yml),
+assigned by the user on 2026-11-06. Production integration is implemented and
+verified; the task records the completed gates. The native preview below is
+synthetic and is distinct from those real API/process checks.
 
 ## Review
 
@@ -93,3 +94,14 @@ inconclusive checks, follows generated grounds, reads the canonical issue origin
 and publishes an exact material into Project. The mock browser gate additionally
 covers bounded pages, failed/ambiguous writes and all six sections in three themes.
 No live model quality claim follows from these deterministic checks.
+
+
+## Final verification
+
+On 2026-11-06 `make ui-verify` passed all 214 UI test files (2419 passing tests
+and one intentional expected failure), typecheck and build. `make ui-browser-mocked`
+passed all 163 cases; `make test-audit-research-ui` passed the real browser/API
+journey, including exact publication and 390 px in every theme. Public API and
+PostgreSQL contract suites, all 12 clean-source common Audit process cases and
+`make lint` passed. The final source implementation is
+`5ff2678a13cf2d2c121326104facad5825a4c676`. The feature branch remains unmerged.
