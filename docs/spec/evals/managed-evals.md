@@ -364,6 +364,24 @@ Rationale: reads do not revalidate up to 1 MiB, the [portable
 format](format.md) document bound (LIM-EVF-3), on every coordinator tick,
 admission or collection.
 
+**EVM-R251.** The experiment row owns its single frozen plan or external
+registration, exact document bytes, database-computed document digest, source plan
+digest, setup, readiness and freeze timestamp. A member row owns its current
+selected result and optional assessment, selection revision and actor. Database
+guards protect the frozen plan and matrix columns while allowing ordinary
+experiment observations and selection updates. Selected digests retain exact
+foreign keys to their records. Reads explicitly select the needed columns;
+metadata and ordinary experiment reads never transfer the plan document.
+The database computes the document digest only when the document is written;
+ordinary progress updates do not rehash it.
+
+Rationale: these dependent one-to-one records need no separate identity or
+lifecycle. Keeping them in separate tables adds joins and purge steps. Claims,
+projection queues and mutable member projections retain their independent
+locking boundaries. Reopen the physical placement if real-store measurements
+show parent-row contention or payload read/write amplification; the EvalStore
+owner retains responsibility for those measurements and the read bounds.
+
 **EVM-R241.** The transaction that freezes a plan or registration validates
 every expected member before it writes the plan and every plan resource before
 it writes the resources. It then inserts the members, in manifest order, and
@@ -1371,17 +1389,19 @@ no execution workspace that still exists; until then the controller waits.
 - The first pass removes the selected view pointer and its summary before it
   deletes any row of that view.
 - It then empties the experiment's tables leaf first: view pairs and charts,
-  progress observations, selections, evidence references, suboperations,
+  progress observations, evidence references, suboperations,
   submissions, records, execution tombstones, member projections, members,
-  plan resources and commands. The last unit is the experiment row with the
-  frozen plan, projection queue row and controller claim its deletion
-  cascades to.
+  plan resources and commands. Before deleting records it clears current
+  selection references in bounded member updates charged to the same pass;
+  those updates do not dirty projections. The last unit is the experiment row,
+  including its frozen plan, and the projection queue row and controller claim
+  its deletion cascades to.
 - No parent row is deleted while one of its children is left, so no cascade
   removes a row the pass has not counted. The pass charges each row it deletes
   or rewrites, including the collection rows its deletion triggers rewrite,
   at its stored size, and stops at the first unit that does not fit.
-- The first unit of a pass always goes, so every pass with work left removes
-  at least one row. The byte bound exceeds the largest row a validated write
+- The first unit of a pass always goes, so every pass with work left deletes
+  or rewrites at least one row. The byte bound exceeds the largest row a validated write
   stores (about 10.8 MiB), so only a row that no validated write produces can
   take a pass beyond it.
 - A Project pass spends one budget on the Project's experiments in identifier

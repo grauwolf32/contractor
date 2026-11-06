@@ -85,14 +85,12 @@ eval_dataset_revisions               internal/evalstore               evals
 eval_evidence_refs                   internal/evalstore               evals
 eval_execution_tombstones            internal/evalstore               evals
 eval_experiments                     internal/evalstore               evals
-eval_frozen_plans                    internal/evalstore               evals
 eval_member_projections              internal/evalstore               evals
 eval_members                         internal/evalstore               evals
 eval_plan_resources                  internal/evalstore               evals
 eval_progress_observations           internal/evalstore               evals
 eval_projection_queue                internal/evalstore               evals
 eval_records                         internal/evalstore               evals
-eval_selections                      internal/evalstore               evals
 eval_submissions                     internal/evalstore               evals
 eval_suboperations                   internal/evalstore               evals
 eval_view_charts                     internal/evalstore               evals

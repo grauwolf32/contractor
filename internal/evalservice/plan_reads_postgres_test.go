@@ -121,9 +121,9 @@ func TestSharedPostgresNativeTickTrustsStoredPlanAtMemberCeiling(t *testing.T) {
 	// decodes stays intact, so any revalidation of the stored plan fails the
 	// tick. Only DDL can bypass eval_plans_immutable.
 	for _, statement := range []string{
-		`ALTER TABLE eval_frozen_plans DISABLE TRIGGER eval_plans_immutable`,
-		`UPDATE eval_frozen_plans SET document=convert_to('{"probe":true,'||substr(convert_from(document,'UTF8'),2),'UTF8') WHERE experiment_id='` + e.ID + `'`,
-		`ALTER TABLE eval_frozen_plans ENABLE TRIGGER eval_plans_immutable`,
+		`ALTER TABLE eval_experiments DISABLE TRIGGER eval_plans_immutable; ALTER TABLE eval_experiments DISABLE TRIGGER eval_experiments_protect`,
+		`UPDATE eval_experiments SET plan_document=convert_to('{"probe":true,'||substr(convert_from(plan_document,'UTF8'),2),'UTF8') WHERE experiment_id='` + e.ID + `'`,
+		`ALTER TABLE eval_experiments ENABLE TRIGGER eval_plans_immutable; ALTER TABLE eval_experiments ENABLE TRIGGER eval_experiments_protect`,
 	} {
 		if _, err := h.pool.Exec(t.Context(), statement); err != nil {
 			t.Fatal(err)
@@ -175,13 +175,14 @@ type planTransferTracer struct {
 	full, metadata int
 }
 
-var fullPlanProjection = regexp.MustCompile(`\bdocument\b`)
+var fullPlanProjection = regexp.MustCompile(`\bplan_document\b`)
 
 func (p *planTransferTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
 	query := strings.ToLower(data.SQL)
-	if strings.Contains(query, "eval_frozen_plans") && strings.HasPrefix(strings.TrimSpace(query), "select") {
+	if strings.Contains(query, "eval_experiments") && strings.HasPrefix(strings.TrimSpace(query), "select") &&
+		strings.Contains(strings.SplitN(query, "from", 2)[0], "plan_") {
 		p.mu.Lock()
-		if fullPlanProjection.MatchString(query) {
+		if fullPlanProjection.MatchString(strings.SplitN(query, "from", 2)[0]) {
 			p.full++
 		} else {
 			p.metadata++

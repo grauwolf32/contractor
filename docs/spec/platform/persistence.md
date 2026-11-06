@@ -172,7 +172,7 @@ own the rules of particular state are indexed in the next section.
 | `internal/artifacts/postgres` | `artifact_binding_revisions`, `artifact_bindings`, `artifact_blobs`, `artifact_lineage`, `artifact_scopes`, `artifact_versions` |
 | `internal/auditstore/internal/pgstore` | `audit_artifact_links`, `audit_controller_claims`, `audit_events`, `audit_execution_items`, `audit_executions`, `audit_tasks`, `audit_hypotheses`, `audit_hypothesis_revisions`, `audits`, `finding_correlation_fences`, `project_findings`, `project_finding_sources`, `project_finding_audits` |
 | `internal/credentials` | `credential_operations`, `git_ssh_keys`, `llm_credentials`, `runtime_credentials` |
-| `internal/evalstore` | `eval_collections`, `eval_commands`, `eval_controller_claims`, `eval_dataset_revisions`, `eval_evidence_refs`, `eval_execution_tombstones`, `eval_experiments`, `eval_frozen_plans`, `eval_member_projections`, `eval_members`, `eval_plan_resources`, `eval_progress_observations`, `eval_projection_queue`, `eval_records`, `eval_selections`, `eval_submissions`, `eval_suboperations`, `eval_view_charts`, `eval_view_pairs` |
+| `internal/evalstore` | `eval_collections`, `eval_commands`, `eval_controller_claims`, `eval_dataset_revisions`, `eval_evidence_refs`, `eval_execution_tombstones`, `eval_experiments`, `eval_member_projections`, `eval_members`, `eval_plan_resources`, `eval_progress_observations`, `eval_projection_queue`, `eval_records`, `eval_submissions`, `eval_suboperations`, `eval_view_charts`, `eval_view_pairs` |
 | `internal/findingintake` | `finding_proposal_audit_holds`, `finding_proposal_receipts` |
 | `internal/performance` | `performance_minutes` |
 | `internal/persistence/postgres` | `contractor_schema_migrations` (the migration ledger), `mutation_receipts` |
@@ -842,6 +842,15 @@ may have to reject, with the reason stated beside it: Project admission runs on
 every INSERT and UPDATE of a Project-scoped artifact binding, each of which is
 an artifact write that a deleting Project rejects at the write itself
 ([DEL-R40](../artifacts/retention-and-deletion.md)).
+
+The Eval experiment and frozen-plan guards check after an UPDATE and raise
+within the same statement, rolling back all its effects on rejection. They
+assign no columns. This keeps the stored generated plan digest from being
+recomputed on an ordinary progress update: PostgreSQL must recompute generated
+values when a table has a BEFORE UPDATE row trigger, even if that write leaves
+the source column unchanged. The experiment guard checks every update because
+every update must advance its observation timestamp; the plan guard names only
+its immutable columns and fires only after the plan was frozen.
 
 ### Functions that table definitions evaluate
 

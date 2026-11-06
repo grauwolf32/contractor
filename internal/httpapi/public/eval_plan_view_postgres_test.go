@@ -20,7 +20,7 @@ func (h *evalAPIHarness) storedPlanView(t *testing.T, id string) (identity strin
 	t.Helper()
 	var kind, digest string
 	var document []byte
-	if err := h.pool.QueryRow(t.Context(), `SELECT document_kind, document, document_sha256, setup, plan_sha256 FROM eval_frozen_plans WHERE experiment_id=$1`, id).
+	if err := h.pool.QueryRow(t.Context(), `SELECT plan_kind, plan_document, plan_document_sha256, plan_setup, plan_sha256 FROM eval_experiments WHERE experiment_id=$1`, id).
 		Scan(&kind, &document, &digest, &setup, &identity); err != nil {
 		t.Fatal(err)
 	}
@@ -128,9 +128,9 @@ func TestSharedEvalPostgresExperimentViewFieldsAcrossPlanStates(t *testing.T) {
 	corrupt := func(value string, status int) {
 		t.Helper()
 		for _, statement := range []string{
-			`ALTER TABLE eval_frozen_plans DISABLE TRIGGER eval_plans_immutable`,
-			`UPDATE eval_frozen_plans SET readiness=convert_to('` + value + `','UTF8') WHERE experiment_id='` + native + `'`,
-			`ALTER TABLE eval_frozen_plans ENABLE TRIGGER eval_plans_immutable`,
+			`ALTER TABLE eval_experiments DISABLE TRIGGER eval_plans_immutable; ALTER TABLE eval_experiments DISABLE TRIGGER eval_experiments_protect`,
+			`UPDATE eval_experiments SET plan_readiness=convert_to('` + value + `','UTF8') WHERE experiment_id='` + native + `'`,
+			`ALTER TABLE eval_experiments ENABLE TRIGGER eval_plans_immutable; ALTER TABLE eval_experiments ENABLE TRIGGER eval_experiments_protect`,
 		} {
 			if _, err := h.pool.Exec(t.Context(), statement); err != nil {
 				t.Fatal(err)

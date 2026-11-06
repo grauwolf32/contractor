@@ -27,7 +27,7 @@ type freezeWriteTracer struct {
 	writes map[string]int
 }
 
-var freezeWrite = regexp.MustCompile(`(?i)^\s*(?:update|insert\s+into)\s+(eval_experiments|eval_frozen_plans|eval_members|eval_plan_resources)\b`)
+var freezeWrite = regexp.MustCompile(`(?i)^\s*(?:update|insert\s+into)\s+(eval_experiments|eval_members|eval_plan_resources)\b`)
 
 func (f *freezeWriteTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
 	if match := freezeWrite.FindStringSubmatch(data.SQL); match != nil {
@@ -162,7 +162,10 @@ func rows(t *testing.T, pool *pgxpool.Pool, query string, args ...any) int {
 // projection, projection queue row, plan or plan resource of experiment id.
 func assertNothingFrozen(t *testing.T, pool *pgxpool.Pool, id string) {
 	t.Helper()
-	for _, table := range []string{"eval_members", "eval_member_projections", "eval_projection_queue", "eval_frozen_plans", "eval_plan_resources"} {
+	if n := rows(t, pool, `SELECT count(*) FROM eval_experiments WHERE experiment_id=$1 AND plan_document IS NOT NULL`, id); n != 0 {
+		t.Fatal("failed freeze left its plan")
+	}
+	for _, table := range []string{"eval_members", "eval_member_projections", "eval_projection_queue", "eval_plan_resources"} {
 		if n := rows(t, pool, `SELECT count(*) FROM `+table+` WHERE experiment_id = $1`, id); n != 0 {
 			t.Fatalf("failed freeze left %d %s rows", n, table)
 		}

@@ -138,7 +138,7 @@ func ceilingPlan(t *testing.T, variants []string, perArm int) Frozen {
 // A native plan pins at most 1,024 dimensions for each of its two arms, so
 // its readiness has at most 2,048 pins and 2 arms, whatever the member count
 // (LIM-EVM-19). Even with every string at its schema maximum that encodes to
-// 543,169 bytes, within the 1 MiB eval_frozen_plans_readiness_check bound.
+// 543,169 bytes, within the 1 MiB eval_experiments_plan_readiness_check bound.
 // A plan that pins more dimensions under further variants yields a
 // readiness the closed schema rejects, so the freeze cannot store it.
 func TestSharedEvalNativeReadinessIsBoundedByPinnedDimensions(t *testing.T) {

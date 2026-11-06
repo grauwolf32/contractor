@@ -26,7 +26,7 @@ const evalEscapeText, evalControl = `\u0000`, "\x01"
 func (h *evalAPIHarness) evalSideEffects(t *testing.T) map[string]int {
 	t.Helper()
 	counts := map[string]int{}
-	for _, table := range []string{"eval_dataset_revisions", "eval_experiments", "eval_records", "eval_selections", "mutation_receipts"} {
+	for _, table := range []string{"eval_dataset_revisions", "eval_experiments", "eval_records", "mutation_receipts"} {
 		var count int
 		if err := h.pool.QueryRow(t.Context(), "SELECT count(*) FROM "+table).Scan(&count); err != nil {
 			t.Fatal(err)
@@ -38,6 +38,12 @@ func (h *evalAPIHarness) evalSideEffects(t *testing.T) map[string]int {
 		t.Fatal(err)
 	}
 	counts["drafts "+drafts] = 1
+	var selected int
+	if err := h.pool.QueryRow(t.Context(), `SELECT count(*) FROM eval_members WHERE selected_result_sha256 IS NOT NULL`).Scan(&selected); err != nil {
+		t.Fatal(err)
+	}
+	counts["selections"] = selected
+
 	return counts
 }
 

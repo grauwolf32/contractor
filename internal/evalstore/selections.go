@@ -18,12 +18,12 @@ type Selection struct {
 func (s *Store) Selected(ctx context.Context, owner, id, member string) (*Selection, error) {
 	var out Selection
 	err := s.db.QueryRow(ctx, `
-SELECT s.member_id,s.result_sha256,s.assessment_sha256,s.revision,s.actor_id
-FROM eval_selections s
+SELECT s.member_id,s.selected_result_sha256,s.selected_assessment_sha256,s.selection_revision,s.selected_by
+FROM eval_members s
 JOIN eval_experiments e USING(experiment_id)
 WHERE e.owner_id = $1
     AND e.experiment_id = $2
-    AND s.member_id = $3
+    AND s.member_id = $3 AND s.selected_result_sha256 IS NOT NULL
 `, owner, id, member).Scan(&out.MemberID, &out.ResultSHA256, &out.AssessmentSHA256, &out.Revision, &out.ActorID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
@@ -90,13 +90,10 @@ func (s *Store) selectRecord(ctx context.Context, e Experiment, actor string, en
 		}
 	}
 	_, err := s.db.Exec(ctx, `
-INSERT INTO eval_selections(experiment_id, member_id, result_sha256, assessment_sha256, actor_id)
-VALUES ($1, $2, $3, $4, $5)
-ON CONFLICT (experiment_id, member_id) DO UPDATE SET
-    result_sha256 = EXCLUDED.result_sha256,
-    assessment_sha256 = EXCLUDED.assessment_sha256,
-    actor_id = EXCLUDED.actor_id,
-    revision = eval_selections.revision + 1
+UPDATE eval_members
+SET selected_result_sha256=$3, selected_assessment_sha256=$4,
+    selected_by=$5, selection_revision=selection_revision+1
+WHERE experiment_id=$1 AND member_id=$2
 `, e.ID, entry.MemberID, entry.ResultSHA256, entry.AssessmentSHA256, actor)
 	return normalize(err)
 }

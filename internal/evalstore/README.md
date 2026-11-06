@@ -31,13 +31,14 @@ and resolves every suboperation before decrementing outstanding once. A cancelle
 intent with no possible execution creation can settle without inventing a Run.
 
 Datasets and plans retain byte payloads with database-computed SHA-256. Only
-`Freeze` output reaches the immutable plan row, so `FrozenPlan` restores the
-stored bytes and generated digest without validating the schema again.
+`Freeze` output reaches the immutable plan columns of the experiment row, so
+`FrozenPlan` restores the stored bytes and database-computed digest without
+validating the schema again. Progress updates never rehash the plan.
 `FrozenPlanMetadata` reads only plan attribution and setup for admission,
 per-member collection and the selected views; `FrozenPlanView` adds the
 readiness the native freeze derived from the validated plan and stored in the
-plan row, so experiment reads never transfer the document (EVM-R242). It decodes
-that small immutable copy strictly; the service validates the response that
+experiment row, so experiment reads never transfer the document (EVM-R242).
+It decodes that small immutable copy strictly; the service validates the response that
 carries it. Only the comparison publication, which needs the native pins, reads
 the whole document. `PlanResource` likewise restores immutable validated
 resources without repeating their schema validation. External
@@ -69,8 +70,8 @@ state field. Current typed receipts retain their original identity and revision
 across state changes and experiment purge.
 Referenced dataset revisions are protected by foreign keys.
 
-V38-006 separates immutable records, selection history, mutable dirty-member
-projections and immutable published generations. Run/Audit, child inventory,
+Immutable records and the current selection on each member are separate
+from mutable dirty-member projections and immutable published generations. Run/Audit, child inventory,
 metric and exact artifact-deletion triggers invalidate affected members. A bulk
 matrix insert invalidates the experiment queue once per statement. The public
 experiment `revision` is the owner's authority CAS token: draft edits, commands,
@@ -79,6 +80,13 @@ plan preparation, coordinator transitions, token observations, admission, settle
 first native selection, external producer activity and execution tombstones update
 `updated_at` without consuming that token. A submission receipt reports the
 current authority revision; selected-view and collection revisions remain separate.
+
+The frozen plan lives on the experiment and current selection on the member.
+Column-scoped guards protect plan and matrix identity while selection fields
+remain mutable. Purge clears selected digests in bounded member updates before
+it deletes records, without dirtying projections; it charges those full stored
+member rows to the existing row/byte budget. Claims and projections retain their
+separate locks.
 
 Collection revalidates selected evidence and publishes every expected member,
 pair, suite summary and chart aggregate atomically. Failure leaves the last
