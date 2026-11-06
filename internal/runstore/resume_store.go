@@ -73,7 +73,7 @@ func (s *PostgresStore) ResumeFailedRun(ctx context.Context, ownerID, runID, sou
 			return err
 		}
 		result = ResumeRunResult{RunID: runID, SourceStageExecutionID: sourceID}
-		err = tx.QueryRow(ctx, `SELECT target_execution_id FROM run_stage_resumptions WHERE run_id=$1 AND source_execution_id=$2`, runID, sourceID).Scan(&result.StageExecutionID)
+		err = tx.QueryRow(ctx, `SELECT stage_execution_id FROM stage_executions WHERE run_id=$1 AND resume_source_execution_id=$2`, runID, sourceID).Scan(&result.StageExecutionID)
 		if err == nil {
 			return nil
 		}
@@ -104,13 +104,13 @@ func (s *PostgresStore) ResumeFailedRun(ctx context.Context, ownerID, runID, sou
 		if err != nil {
 			return err
 		}
-		next, err := store.CreateStageExecution(ctx, CreateStageExecutionParams{
+		next, err := store.createStageExecution(ctx, CreateStageExecutionParams{
 			StageExecutionID: targetID, RunID: runID, StageName: previous.StageName, Attempt: previous.Attempt + 1,
 			PreviousExecutionID: &sourceID, ResumeSourceExecutionID: &sourceID, ExecutionConfigVariant: previous.ExecutionConfigVariant,
 			EscalationOrdinal: previous.EscalationOrdinal, StageSpecSchemaVersion: previous.StageSpecSchemaVersion,
 			StageSpecSnapshot: previous.StageSpecSnapshot, StageContextSchemaVersion: previous.StageContextSchemaVersion,
 			StageContext: previous.StageContext, LaneClass: laneClass,
-		})
+		}, &ownerID)
 		if err != nil {
 			return err
 		}
@@ -124,11 +124,6 @@ func (s *PostgresStore) ResumeFailedRun(ctx context.Context, ownerID, runID, sou
 			if err := service.RequireExact(ctx, scope, pin.Ref); err != nil {
 				return err
 			}
-		}
-		_, err = tx.Exec(ctx, `INSERT INTO run_stage_resumptions(source_execution_id,run_id,target_execution_id,requested_by)
-    VALUES($1,$2,$3,$4)`, sourceID, runID, next.StageExecutionID, ownerID)
-		if err != nil {
-			return err
 		}
 		// The database permits thawing only in this receipt's transaction.
 		err = s.storage.TxRepository(tx).ThawOutputs(ctx, scope)

@@ -33,9 +33,9 @@ func TestWorkflowRunGuardsFireOnTheColumnsTheyCompare(t *testing.T) {
 }
 
 // TestStageExecutionGuardsFireOnTheColumnsTheyCompare checks the same for
-// stage_executions: the immutability guard lists the columns it protects and
-// the manual continuation guard, which also validates every INSERT, fires on
-// an UPDATE only for resume_source_execution_id (PER-R22).
+// stage_executions: the execution, automatic transition and manual receipt
+// guards list exactly the columns they protect. The manual receipt guard also
+// validates every INSERT (PER-R22).
 func TestStageExecutionGuardsFireOnTheColumnsTheyCompare(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 	defer cancel()
@@ -43,7 +43,7 @@ func TestStageExecutionGuardsFireOnTheColumnsTheyCompare(t *testing.T) {
 	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
-	if guards := explaintest.RequireColumnScopedGuards(t, ctx, pool, "stage_executions", nil); guards != 2 {
-		t.Fatalf("found %d column-scoped guards of stage_executions, want the immutability and the manual continuation guards (PER-R22)", guards)
+	if guards := explaintest.RequireColumnScopedGuards(t, ctx, pool, "stage_executions", nil); guards != 3 {
+		t.Fatalf("found %d column-scoped guards of stage_executions, want the execution, transition and manual receipt guards (PER-R22)", guards)
 	}
 }

@@ -2,6 +2,7 @@ package runstore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -9,8 +10,8 @@ import (
 )
 
 const stageTransitionDecisionColumns = `
-source_execution_id, run_id, action, target_stage_name, target_execution_id,
-escalation_ordinal, escalation_exhausted, decided_at`
+stage_execution_id, run_id, transition_action, transition_target_stage_name, transition_target_execution_id,
+transition_escalation_ordinal, transition_escalation_exhausted, transition_decided_at`
 
 func (s *PostgresStore) RecordStageTransitionDecision(
 	ctx context.Context,
@@ -19,16 +20,21 @@ func (s *PostgresStore) RecordStageTransitionDecision(
 	if err := validateStageTransitionDecision(params); err != nil {
 		return StageTransitionDecision{}, err
 	}
-	decision, err := scanStageTransitionDecision(s.db.QueryRow(ctx, `
-INSERT INTO stage_transition_decisions (
-    source_execution_id, run_id, action, target_stage_name, target_execution_id,
-    escalation_ordinal, escalation_exhausted
-) VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING `+stageTransitionDecisionColumns,
+	decision, err := scanStageTransitionDecision(s.db.QueryRow(ctx, recordStageTransitionDecisionSQL,
 		params.SourceExecutionID, params.RunID, params.Action,
 		params.TargetStageName, params.TargetExecutionID,
 		params.EscalationOrdinal, params.EscalationExhausted,
 	))
+	if errors.Is(err, pgx.ErrNoRows) {
+		var exists bool
+		if readErr := s.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM stage_executions WHERE stage_execution_id=$1 AND run_id=$2)`, params.SourceExecutionID, params.RunID).Scan(&exists); readErr != nil {
+			return StageTransitionDecision{}, fmt.Errorf("read transition source: %w", readErr)
+		}
+		if !exists {
+			return StageTransitionDecision{}, ErrNotFound
+		}
+		return StageTransitionDecision{}, ErrConflict
+	}
 	if err != nil {
 		switch persistencepostgres.Classify(err) {
 		case persistencepostgres.ClassDuplicate:
@@ -60,9 +66,9 @@ func (s *PostgresStore) ListStageTransitionDecisions(
 	}
 	rows, err := s.db.Query(ctx, `
 SELECT `+stageTransitionDecisionColumns+`
-FROM stage_transition_decisions
-WHERE run_id = $1
-ORDER BY decided_at, source_execution_id`, runID)
+FROM stage_executions
+WHERE run_id = $1 AND transition_action IS NOT NULL
+ORDER BY transition_decided_at, stage_execution_id`, runID)
 	if err != nil {
 		return nil, fmt.Errorf("list transition decisions for WorkflowRun %q: %w", runID, err)
 	}

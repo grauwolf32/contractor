@@ -61,14 +61,8 @@ var foreignKeyProbeAllowances = map[string]probeAllowance{
 	"stage_execution_planner_session": {
 		prefixIndex: "stage_executions_pkey", reason: "stage_execution_id is unique",
 	},
-	"stage_execution_resume_receipt": {
-		prefixIndex: "stage_executions_pkey", reason: "stage_execution_id is unique",
-	},
-	"stage_transition_source_run": {
-		prefixIndex: "stage_transition_decisions_pkey", reason: "source_execution_id is unique",
-	},
 	"stage_transition_target_run_stage": {
-		prefixIndex: "stage_transition_target_once", reason: "target_execution_id is unique",
+		prefixIndex: "stage_execution_transition_target_once", reason: "target_execution_id is unique",
 	},
 	"workflow_run_output_publicati_source_scope_kind_run_id_sou_fkey": {
 		prefixIndex: "workflow_run_output_publications_pkey", reason: "the output publications of one Run",

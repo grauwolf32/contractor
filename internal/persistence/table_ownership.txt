@@ -30,11 +30,9 @@ allocation_execution_reports         internal/telemetry               exec
 performance_minutes                  internal/performance             exec
 planner_execution_reports            internal/telemetry               exec
 planner_sessions                     internal/runstore                exec
-run_stage_resumptions                internal/runstore                exec
 stage_allocations                    internal/runstore                exec
 stage_executions                     internal/runstore                exec
 stage_metrics                        internal/telemetry               exec
-stage_transition_decisions           internal/runstore                exec
 workflow_run_events                  internal/runstore                exec
 workflow_runs                        internal/runstore                exec
 

@@ -167,11 +167,12 @@ WHERE stage_execution_id = $1`, aborted)
 INSERT INTO stage_executions (
     stage_execution_id, run_id, stage_name, attempt, previous_execution_id, resume_source_execution_id,
     stage_spec_schema_version, stage_spec_snapshot, stage_context_schema_version, stage_context_snapshot,
-    state, state_reason_code
+    state, state_reason_code, resume_requested_by, resume_requested_at, resume_transaction_id
 )
 SELECT 'stage-triggers-continuation', run_id, stage_name, 2, stage_execution_id, stage_execution_id,
        stage_spec_schema_version, '{"objective":"other"}', stage_context_schema_version, stage_context_snapshot,
-       'preparing', 'created'
+       'preparing', 'created',
+       (SELECT owner_id FROM workflow_runs WHERE run_id=stage_executions.run_id), clock_timestamp(), pg_current_xact_id()
 FROM stage_executions WHERE stage_execution_id = $1`, aborted); err == nil ||
 		!strings.Contains(err.Error(), "manual continuation must copy its terminal source") {
 		t.Errorf("manual continuation with another Stage spec = %v, want rejected", err)

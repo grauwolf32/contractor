@@ -37,6 +37,12 @@ func (s *PostgresStore) CreateStageExecution(
 	ctx context.Context,
 	params CreateStageExecutionParams,
 ) (StageExecution, error) {
+	return s.createStageExecution(ctx, params, nil)
+}
+
+// resumedBy is set only by the atomic manual-continuation operation. Its
+// receipt is inserted with the new attempt, never attached to an existing one.
+func (s *PostgresStore) createStageExecution(ctx context.Context, params CreateStageExecutionParams, resumedBy *string) (StageExecution, error) {
 	if params.ExecutionConfigVariant == "" {
 		params.ExecutionConfigVariant = StageExecutionConfigBase
 	}
@@ -59,7 +65,7 @@ func (s *PostgresStore) CreateStageExecution(
 		params.PreviousExecutionID, params.ExecutionConfigVariant, params.EscalationOrdinal,
 		params.ResumeSourceExecutionID,
 		params.StageSpecSchemaVersion, []byte(params.StageSpecSnapshot),
-		params.StageContextSchemaVersion, encodedContext, string(params.LaneClass),
+		params.StageContextSchemaVersion, encodedContext, string(params.LaneClass), resumedBy,
 	))
 	if err != nil {
 		failure := persistencepostgres.Classify(err)

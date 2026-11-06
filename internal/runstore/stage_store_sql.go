@@ -20,7 +20,8 @@ SELECT EXISTS (
 // with reason created, and returns it. The same statement sets the Run's
 // scheduler_lane_class to $13, the class of the new StageExecution, which is
 // the one the Scheduler progresses next (SCH-R175); a failed insert changes
-// neither row. Used by PostgresStore.CreateStageExecution.
+// neither row. $14 is the owner recording a manual continuation, or NULL for
+// an ordinary attempt. Used by PostgresStore.createStageExecution.
 var createStageExecutionSQL = `
 WITH inserted AS (
 INSERT INTO stage_executions (
@@ -28,8 +29,11 @@ INSERT INTO stage_executions (
     execution_config_variant, escalation_ordinal, resume_source_execution_id,
     stage_spec_schema_version, stage_spec_snapshot,
     stage_context_schema_version, stage_context_snapshot,
-    state, state_reason_code, state_reason_message
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12::jsonb, 'preparing', 'created', '')
+    state, state_reason_code, state_reason_message,
+    resume_requested_by, resume_requested_at, resume_transaction_id
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12::jsonb, 'preparing', 'created', '',
+    $14::text, CASE WHEN $14::text IS NOT NULL THEN clock_timestamp() END,
+    CASE WHEN $14::text IS NOT NULL THEN pg_current_xact_id() END)
 RETURNING *
 ), lane AS (
 UPDATE workflow_runs AS run

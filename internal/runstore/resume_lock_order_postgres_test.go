@@ -50,7 +50,7 @@ func TestPostgresResumeReplaysReceiptAfterProjectDeletionStarts(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM stage_executions WHERE run_id=$1`, params.RunID).Scan(&stages); err != nil {
 		t.Fatal(err)
 	}
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM run_stage_resumptions WHERE run_id=$1`, params.RunID).Scan(&receipts); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM stage_executions WHERE run_id=$1 AND resume_source_execution_id IS NOT NULL`, params.RunID).Scan(&receipts); err != nil {
 		t.Fatal(err)
 	}
 	if stages != 3 || receipts != 1 {

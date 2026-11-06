@@ -856,7 +856,7 @@ contribute only to reaching Run quiescence.
 
 **SCH-R77.** For every accepted StageResult or committed interrupted
 StageTermination while the Run remains `running`, Scheduler records one
-immutable transition decision keyed by the source `stage_execution_id`
+immutable transition decision on the source StageExecution, keyed by its `stage_execution_id`
 (LIM-SCH-12). The
 decision is exactly one of `next`, `retry`, `escalate`, `succeed` or `fail`. A
 `next`, `retry` or `escalate` decision includes the target Stage name and the

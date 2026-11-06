@@ -1021,9 +1021,11 @@ cannot prevent a terminal WorkflowRun transition.
 
 **ART-R97.** Manual continuation of an eligible failed Run
 ([Runs](../execution/runs.md)) is the explicit exception to output-binding
-freezing. The same transaction records the continuation receipt, creates the
-new attempt and unfreezes that Run's `outputs` bindings without changing their
-current revisions. Immutable artifact revisions, terminal Stage facts and other
+freezing. The same transaction creates the new attempt with its immutable
+continuation receipt and unfreezes that Run's `outputs` bindings without changing their
+current revisions. The binding guard requires that the new attempt's receipt
+was created by the current transaction; a retained receipt cannot authorize a
+later thaw. Immutable artifact revisions, terminal Stage facts and other
 frozen bindings remain protected, and Workers gain no output-write authority.
 Cancelled, succeeded and already-published Runs cannot use this exception
 (LIFE-ART-2).

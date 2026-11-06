@@ -590,7 +590,7 @@ Planner session.
 
 **RUN-R47.** One transaction changes the Run from `failed` to
 `pending`, clears its finish time, creates a new `preparing` attempt of the
-same Stage, records a durable manual-continuation receipt and unfreezes the
+same Stage with its durable manual-continuation receipt and unfreezes the
 Run's `outputs` bindings without changing their current revisions
 ([ART-R97](../artifacts/artifact-store.md)).
 
@@ -599,7 +599,10 @@ Run's `outputs` bindings without changing their current revisions
 StageContext pins and effective execution configuration, including escalation.
 It records an immutable `resumeSourceExecutionId` equal to its
 `previousExecutionId`, retains the source's execution configuration variant
-and escalation ordinal, and is linked to its receipt in the same transaction.
+and escalation ordinal, and stores the immutable receipt on that new attempt: requested owner, request
+time and the creating transaction identity. A unique source identity prevents
+a second manual successor. The receipt cannot be attached to an existing
+attempt or changed later.
 
 **RUN-R49.** Manual continuation leaves Run configuration,
 exact input and configuration pins, completed StageExecutions, successful

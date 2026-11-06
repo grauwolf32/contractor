@@ -67,12 +67,11 @@ func TestPostgresResumeEscalatedStage(t *testing.T) {
 				StageSpecSchemaVersion: previous.StageSpecSchemaVersion, StageSpecSnapshot: previous.StageSpecSnapshot,
 				StageContextSchemaVersion: previous.StageContextSchemaVersion, StageContext: previous.StageContext,
 			})
-			if err != nil {
-				_ = tx.Rollback(ctx)
-				t.Fatal(err)
-			}
-			if err := tx.Commit(ctx); persistencepostgres.SQLState(err) != persistencepostgres.SQLStateForeignKeyViolation {
+			if persistencepostgres.SQLState(err) != persistencepostgres.SQLStateCheckViolation {
 				t.Fatalf("missing receipt accepted: %v", err)
+			}
+			if err := tx.Rollback(ctx); err != nil {
+				t.Fatal(err)
 			}
 			if _, err := store.GetStageExecution(ctx, "forged-manual"); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("failed commit left attempt: %v", err)
@@ -128,7 +127,7 @@ func TestPostgresResumeEscalatedStage(t *testing.T) {
 				t.Fatalf("delete resumed terminal Run: %v", err)
 			}
 			var remaining int
-			if err := pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM stage_executions WHERE run_id=$1) + (SELECT count(*) FROM run_stage_resumptions WHERE run_id=$1)`, runID).Scan(&remaining); err != nil || remaining != 0 {
+			if err := pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM stage_executions WHERE run_id=$1) + (SELECT count(*) FROM stage_executions WHERE run_id=$1 AND resume_source_execution_id IS NOT NULL)`, runID).Scan(&remaining); err != nil || remaining != 0 {
 				t.Fatalf("resume history did not cascade: remaining=%d err=%v", remaining, err)
 			}
 

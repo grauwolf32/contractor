@@ -1,0 +1,45 @@
+schema_version: "1.0"
+id: V455-001
+title: Fold transition decisions and manual continuation receipts into Stage executions
+milestone: hub-audit-structure-2026-10
+epic: execution-core
+kind: chore
+introduced_by: V1-003
+priority: P3
+status: in_progress
+depends_on: []
+languages: [go, sql]
+goal: Remove two dependent RunStore tables while retaining immutable progression history and safe idempotent manual continuation.
+context:
+  authority: User 2026-11-07 requests implementing both reviewed RunStore consolidation steps together from current main.
+  base: 5d53197574e3f75c70b580584a727783041f88a3
+  specification: [docs/spec/execution/runs.md, docs/spec/execution/scheduler.md, docs/spec/artifacts/artifact-store.md, docs/spec/platform/persistence.md]
+  finding: internal/runstore/transition_store.go:15 stores one decision per source Stage in a dependent table; internal/runstore/resume_store.go:76 and :128 store a separate continuation receipt although the target Stage already records its source.
+  boundary: RunStore owns progression and continuation authority. Keep decisions on their source Stage and continuation receipt fields on their target Stage. The target retains unique source identity, attribution, original receipt timestamp and transaction identity; ArtifactStore permits output thaw only using a target created by the current transaction. No authority moves into process memory.
+  origin: V1-003 introduced automatic transitions; commit 16c41112c introduced manual continuation with no identifiable task, as recorded by V431-002.
+  alternatives: Retain both dependent tables and their foreign-key cycles. Folding them removes redundant identities and joins while keeping the same durable contracts. Reopen physical separation only for demonstrated row contention or read amplification.
+  cardinality: At most 1024 Stage attempts per Run; at most one automatic decision and one manual successor per source. Existing bounded Run deletion and cascade semantics remain applicable.
+  failure_outcomes: Progression and continuation roll back atomically on rejection or cancellation; retryable storage conflicts follow existing classification. A lost successful Resume response returns the original target before mutable eligibility checks, including after another failure or Project deletion begins. Old receipt transactions cannot thaw later bindings.
+scope:
+  in:
+    - Forward populated migration preserving every decision and continuation field and removing both old tables, validation functions and redundant foreign keys without compatibility readers.
+    - Update RunStore SQL, column-scoped immutability, exact target constraints, transaction-scoped thaw authority and all affected tests.
+    - Update normative contracts, ownership, ERD metadata and generated diagram; verify migration, real-store lifecycle, replay and purge.
+  out:
+    - Changes to public API, Scheduler policy, controller claims, Gateway recovery, UI, live-model runs or demo deployment.
+acceptance_criteria:
+  - id: A1
+    text: Fresh and populated migrations remove both dependent tables and preserve all Stage/Run business facts, transition actions/targets/escalation/timestamps and continuation attribution/timestamp/transaction identity.
+  - id: A2
+    text: Decisions remain single-write immutable and exact-target validated. Continuations copy their source, uniquely identify it and replay before mutable eligibility without creating another attempt; source history is unchanged.
+  - id: A3
+    text: Outputs thaw only in the transaction that creates the manual target, preserving exact revisions. Missing, malformed, old or forged receipt authority is rejected, and cancelled or rolled-back continuation leaves no partial state.
+  - id: A4
+    text: Base/escalated continuation, automatic progression, restart and deletion pass on real PostgreSQL; the full suites of changed packages and lint pass, and schema documents agree with the migrated database.
+tests:
+  - command: go test -p=2 -race -tags=integration -count=1 ./internal/runstore ./internal/scheduler ./internal/artifacts/postgres ./internal/runservice ./internal/httpapi/public ./internal/persistence ./internal/persistence/postgres
+    covers: [A1, A2, A3, A4]
+  - command: make docs-erd verify-architecture
+    covers: [A1, A4]
+  - command: make verify-public-api lint
+    covers: [A1, A2, A3, A4]
