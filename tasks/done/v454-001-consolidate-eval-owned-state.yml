@@ -6,7 +6,8 @@ epic: evals
 kind: chore
 introduced_by: V38-006
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: d0ceecbf437513efc2049b519cf3ce1cd09ec38d
 depends_on: []
 languages: [go, sql]
 goal: Reduce Eval persistence from nineteen to seventeen tables while preserving exact frozen plans, current selections, recovery, read bounds and bounded purge.
@@ -56,4 +57,20 @@ verification:
     - Final make lint passes, including generated contracts, formatting, vet, staticcheck, test-only export checks, script/deployment tests, release graph, task/spec/fixture/ERD checks, Ruff and Runtime import boundaries.
     - Combined-main verification passes the complete six-package Go/PostgreSQL command with -p=2, -race and integration tags, plus make lint and make docs-erd. Both 000014 Gateway and 000015 Eval populated migration tests pass. No full release-verify, live-model or additional Runtime/UI suites are claimed for this merge.
   cleanup: Feature database contractor_test_v451_eval and integration database contractor_test_eval_merge were explicitly dropped after their Go processes and pools stopped; no demo data was changed.
-  delivery: The feature is being reconciled with current main on codex/evalstore-main-integration; main transfer and combined verification are pending. Deployment is outside this merge request.
+  delivery: Merged into local main through no-fast-forward merge d0ceecbf437513efc2049b519cf3ce1cd09ec38d after combined verification. Deployment remains outside this merge request.
+delivery:
+  date: '2026-11-07'
+  merged_into_main: true
+  merge_commit: d0ceecbf437513efc2049b519cf3ce1cd09ec38d
+  previous_main: b8d6129c6468eda366ef46f47f9371ffef049a7b
+  source_head: 82c265f665255564c131c18d1399d3a628849444
+  migration: 000015_eval_owned_state.sql
+  preservation: >-
+    Prepared the no-fast-forward merge with previous main as its first parent
+    and the exact completed feature head as its second parent. Native three-way
+    checkout, CAS main-ref advancement and reattachment preserve all 23
+    pre-existing dirty tracked/untracked paths and their modes: 22 retain their
+    exact bytes and the one overlapping Eval specification retains its user
+    change merged with the committed consolidation. The user index stays clean.
+    Recoverable snapshot: /private/tmp/eval-main-preserve-xdiwymjq/snapshot.json.
+  limitations: Full release-verify and additional Runtime/UI/live-model suites were not rerun for this merge. Optional heavy-I/O fixtures were not enabled by the lane.
