@@ -362,7 +362,10 @@ delivery:
   date: '2026-11-06'
   branch: codex/http-selected-evidence
   base_commit: 6fa3cb53f740b58736c629fb488e62c363172f53
-  merged_into_main: false
+  merged_into_main: true
+  merge_commit: f73627944d110b400b42d0193e5f35bfe2429b18
+  integration_task: V453-001
+  integration_branch: codex/http-evidence-main-integration
   pushed: false
   workspace: >-
     Implemented in an attached managed worktree after unrelated work resumed

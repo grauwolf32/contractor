@@ -6,7 +6,7 @@ epic: findings
 kind: chore
 introduced_by: V411-007
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V411-007, V451-001, V452-001, V452-002]
 languages: [typescript, python, go, json]
 goal: Land the completed standalone HTTP evidence feature on main while preserving current Runtime fixes, repository test examples and the user's uncommitted work.
@@ -50,7 +50,7 @@ tests:
   covers: [A1, A3]
 - command: python3 scripts/check_tasks.py
   covers: [A1, A4]
-implementation_commit: null
+implementation_commit: f73627944d110b400b42d0193e5f35bfe2429b18
 
 verification:
   date: '2026-11-06'
@@ -68,3 +68,22 @@ verification:
   primary_preflight: Native three-way checkout and restoring only originally unstaged paths to a clean index passed in a disposable Git fixture. The actual primary preflight found 19 tracked edits and 5 untracked files, with only the plan link and generated graph overlapping the merge.
   cleanup: The owned contractor_v453_001_20261106 database had zero connections after all DB gates stopped, was dropped and was verified absent.
   limitations: Full release-verify and Linux/rootless/live-model gates were not run. Optional disk-heavy fixtures stayed disabled; the wire gate reported one such skip, not passing coverage. Runtime skips are declared platform or explicit-environment gates.
+
+  primary_transfer: >-
+    main was advanced to f73627944d110b400b42d0193e5f35bfe2429b18 through native
+    three-way checkout, CAS ref update and reattachment. The recoverable snapshot
+    is /private/tmp/v453-main-preserve-ljsa_l2i/snapshot.json. All non-generated
+    unrelated content and modes were preserved exactly; the plan combines the
+    user's edits with the completed-task link. The generated graph was rebuilt
+    and its semantic JSON data was verified identical; its previous dirty state
+    is represented by the merged generated result. Five untracked files remain
+    unchanged; all remaining user edits are unstaged and the index is clean.
+delivery:
+  date: '2026-11-06'
+  branch: codex/http-evidence-main-integration
+  merged_into_main: true
+  merge_commit: f73627944d110b400b42d0193e5f35bfe2429b18
+  previous_main: d42ef9158630c14ce8343dfe1d9fa3a539dc05db
+  source_head: 23847e193515ad69ebdb95827d59d465bf77cc80
+  ancestry: Previous main is the merge first parent; the exact completed HTTP feature head is the second parent.
+  pushed: false

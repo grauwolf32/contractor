@@ -9,6 +9,14 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
+    User request 2026-11-06 merged completed V411-007 standalone selected HTTP
+    evidence into main through no-fast-forward merge f73627944 (V453-001),
+    preserving the current Runtime stop/State fixes and external UI archive.
+    The active Material reader example now follows the strict standalone format.
+    Combined Go/PostgreSQL, complete Runtime, wire/API, UI, 28 browser checks and
+    lint passed. User working-tree content was preserved and the owned test
+    database was dropped. Optional disk-heavy and declared platform/live skips
+    are not passing coverage; dependent features and demo deployment remain unassigned.
     User request 2026-11-06 integrated V64-008 and V449-004 into main through
     merge ae839bbf0 (V450-002), preserving V64-010 pipeline retirement, V64-037
     Task progress and mixed-iteration Eval labels, and independent UI designs.
