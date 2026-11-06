@@ -5,7 +5,7 @@ milestone: audit-check-prioritization
 epic: ui
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V64-008
 - V64-010
@@ -19,9 +19,12 @@ goal: Users understand the goal, current work, hypotheses, findings, evidence an
 demonstration: The production browser journey starts exploratory work, opens a finding and its origin,
   follows the generated hypothesis and later result, then publishes a useful material to Project.
 context:
-  authority: 'User direction on 2026-11-05: UI follows proposal 0054 through V64-008/010; show exact hypothesis
+  authority: 'User assignment on 2026-11-06: take V64-009 and develop its design through
+    OpenDesign, preserving all native design data and the existing configured model.
+    This explicitly starts the task after completed V64-008/010. User direction on
+    2026-11-05: UI follows proposal 0054 through V64-008/010; show exact hypothesis
     grounds and distinguish saved proposals, accepted hypotheses and optional checks. A producer
-    tool call does not mean a registered hypothesis exists. This update starts no implementation.
+    tool call does not mean a registered hypothesis exists. That earlier planning update started no implementation.
     User decisions and task-formation request on 2026-10-31: Audit durably coordinates ordinary
     tasks/Runs for investigation, checking, supporting work and generation. There is no mandatory discovery-finding-generator
     sequence. Assertion checks use common hypotheses; exploratory work may have none. Check results retain
@@ -33,10 +36,19 @@ context:
     Generation can use selected materials, findings and ordinary results including refutations and gaps.
     The user accepted the common execution skeleton and requested concrete tasks; implementation is a
     subsequent step, not part of this task-formation request.'
-  implementation_gate: Task formation only, requested on 2026-10-31 after acceptance of the common execution
-    skeleton. Keep pending until implementation is requested and dependencies are complete. Do not start
-    code, migrations, live Runs or deployment in this planning turn. Resolve the explicitly labelled remaining
-    contract proposals in V64-001 before dependent implementation.
+  implementation_gate: >-
+    User assignment on 2026-11-06 supersedes the earlier planning-only gate. Begin with a
+    reviewable OpenDesign preview of the existing basic research journey, then carry the
+    accepted contract through the production UI without deploying the demo or changing the model.
+  design_review: >-
+    docs/design/ui/experiments/audit-research-opendesign-2026-11-06/README.md records the
+    synthetic preview, immutable native outputs and preservation evidence. The design-only
+    browser command is node docs/design/ui/experiments/audit-research-opendesign-2026-11-06/verify.mjs
+    after prepare.mjs and loopback serving on 17566. It does not fulfill the production/API
+    acceptance criteria; the task remains in_progress through design review. On 2026-11-06,
+    all 72 width/theme/section combinations and seven local interaction scenarios passed
+    with no JavaScript errors. Prior project files and history were preserved; the owned
+    model relay was stopped and its upstream credential file removed.
   design:
   - docs/proposals/0054-workflow-hypothesis-production.md
   - docs/proposals/0050-audit-common-hypothesis-model.md
@@ -74,8 +86,7 @@ scope:
   out:
   - A separate research studio, graph UI, probability dashboards, project-wide hypothesis registry or
     speculative configuration editor framework.
-  - Implementation during this planning-only update; changing user model configuration or deploying/migrating
-    the demo.
+  - Changing user model configuration or deploying/migrating the demo.
 requirements:
 - id: R1
   text: Server state is authoritative; pause does not claim existing Runs stopped, technical success does

@@ -1,0 +1,596 @@
+{
+  "scope": "Synthetic OpenDesign review; not production or real API acceptance",
+  "matrix": [
+    {
+      "width": 1440,
+      "theme": "light",
+      "tab": "overview",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "tab": "hypotheses",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "tab": "issues",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "tab": "materials",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "tab": "work",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "tab": "activity",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "tab": "overview",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "tab": "hypotheses",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "tab": "issues",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "tab": "materials",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "tab": "work",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "tab": "activity",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1440,
+      "theme": "black",
+      "tab": "overview",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1440,
+      "theme": "black",
+      "tab": "hypotheses",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1440,
+      "theme": "black",
+      "tab": "issues",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1440,
+      "theme": "black",
+      "tab": "materials",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1440,
+      "theme": "black",
+      "tab": "work",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1440,
+      "theme": "black",
+      "tab": "activity",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1100,
+      "theme": "light",
+      "tab": "overview",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1100,
+      "theme": "light",
+      "tab": "hypotheses",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1100,
+      "theme": "light",
+      "tab": "issues",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1100,
+      "theme": "light",
+      "tab": "materials",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1100,
+      "theme": "light",
+      "tab": "work",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1100,
+      "theme": "light",
+      "tab": "activity",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1100,
+      "theme": "dark",
+      "tab": "overview",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1100,
+      "theme": "dark",
+      "tab": "hypotheses",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1100,
+      "theme": "dark",
+      "tab": "issues",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1100,
+      "theme": "dark",
+      "tab": "materials",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1100,
+      "theme": "dark",
+      "tab": "work",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1100,
+      "theme": "dark",
+      "tab": "activity",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1100,
+      "theme": "black",
+      "tab": "overview",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1100,
+      "theme": "black",
+      "tab": "hypotheses",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1100,
+      "theme": "black",
+      "tab": "issues",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1100,
+      "theme": "black",
+      "tab": "materials",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1100,
+      "theme": "black",
+      "tab": "work",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 1100,
+      "theme": "black",
+      "tab": "activity",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 0
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "tab": "overview",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 3
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "tab": "hypotheses",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 3
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "tab": "issues",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 3
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "tab": "materials",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 3
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "tab": "work",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 3
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "tab": "activity",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 3
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "tab": "overview",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 3
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "tab": "hypotheses",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 3
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "tab": "issues",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 3
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "tab": "materials",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 3
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "tab": "work",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 3
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "tab": "activity",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 3
+    },
+    {
+      "width": 390,
+      "theme": "black",
+      "tab": "overview",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 3
+    },
+    {
+      "width": 390,
+      "theme": "black",
+      "tab": "hypotheses",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 3
+    },
+    {
+      "width": 390,
+      "theme": "black",
+      "tab": "issues",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 3
+    },
+    {
+      "width": 390,
+      "theme": "black",
+      "tab": "materials",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 3
+    },
+    {
+      "width": 390,
+      "theme": "black",
+      "tab": "work",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 3
+    },
+    {
+      "width": 390,
+      "theme": "black",
+      "tab": "activity",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 3
+    },
+    {
+      "width": 320,
+      "theme": "light",
+      "tab": "overview",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 4
+    },
+    {
+      "width": 320,
+      "theme": "light",
+      "tab": "hypotheses",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 4
+    },
+    {
+      "width": 320,
+      "theme": "light",
+      "tab": "issues",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 4
+    },
+    {
+      "width": 320,
+      "theme": "light",
+      "tab": "materials",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 4
+    },
+    {
+      "width": 320,
+      "theme": "light",
+      "tab": "work",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 4
+    },
+    {
+      "width": 320,
+      "theme": "light",
+      "tab": "activity",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 4
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "tab": "overview",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 4
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "tab": "hypotheses",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 4
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "tab": "issues",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 4
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "tab": "materials",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 4
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "tab": "work",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 4
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "tab": "activity",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 4
+    },
+    {
+      "width": 320,
+      "theme": "black",
+      "tab": "overview",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 4
+    },
+    {
+      "width": 320,
+      "theme": "black",
+      "tab": "hypotheses",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 4
+    },
+    {
+      "width": 320,
+      "theme": "black",
+      "tab": "issues",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 4
+    },
+    {
+      "width": 320,
+      "theme": "black",
+      "tab": "materials",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 4
+    },
+    {
+      "width": 320,
+      "theme": "black",
+      "tab": "work",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 4
+    },
+    {
+      "width": 320,
+      "theme": "black",
+      "tab": "activity",
+      "overflow": false,
+      "sharedFont": true,
+      "scrollingTabControls": 4
+    }
+  ],
+  "interactions": [
+    "Pause retains active Run and offers Resume",
+    "Registered hypothesis is separate from scheduled check",
+    "Manual hypothesis can save without scheduling a check",
+    "Exact material preview and explicit Project publication dialog",
+    "Ordinary work selects a material set and updates task totals",
+    "Stale edit keeps draft and requires explicit reload",
+    "Failed refresh keeps loaded content"
+  ],
+  "errors": [],
+  "nativeIDs": {
+    "expected": 30,
+    "missing": []
+  },
+  "passed": true
+}
