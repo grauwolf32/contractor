@@ -1,0 +1,54 @@
+{
+  "task": "V411-019",
+  "date": "2026-11-07",
+  "playground_commit": "69bb55d3157bd62d6b7568a9ebada8ad73b7c438",
+  "platform": "macOS arm64 with a rootless Podman VM",
+  "checks": [
+    {
+      "command": "make test-pentest-fixtures",
+      "outcome": "passed",
+      "standalone_tests": 14,
+      "manifest": "invoice-lab.cases.v1",
+      "mandatory_checks": [
+        "cancelled-check",
+        "denied-traffic",
+        "fabricated-assertion",
+        "failure-teardown",
+        "forged-capture",
+        "incomplete-response",
+        "missing-evidence",
+        "no-state-effect",
+        "paired-identity-matrix",
+        "paired-injection",
+        "private-controls-runtime",
+        "private-controls-sandbox",
+        "private-controls-target",
+        "private-files-target",
+        "truncated-evidence",
+        "wrong-identity"
+      ],
+      "skipped": 0
+    },
+    {
+      "command": "uv run pytest -W error tests/test_http_toolset.py tests/test_http_target_policy.py tests/test_http_capture.py tests/test_http_selected_evidence.py",
+      "cwd": "runtime",
+      "outcome": "passed",
+      "passed": 76,
+      "skipped": 0
+    },
+    {
+      "command": "UV_OFFLINE=1 make lint",
+      "environment": "Go 1.26.9 and Node 24.20/Corepack on PATH",
+      "outcome": "passed; final metadata check repeated before closure",
+      "note": "Declared platform skips in existing lint helper suites are not fixture coverage."
+    }
+  ],
+  "boundaries": [
+    "Private oracles cover the required injection/authz pair; all ten expanded target scenarios remain in the standalone suite.",
+    "Actual Runtime tools/captures; SQLite state read by separate network=none private controls over trusted Podman exec.",
+    "Actual sandbox network namespace corresponds to the selected podman@1 network boundary; no claim of complete guardian/lifecycle coverage.",
+    "Other sandbox network profiles require explicit selection and proof before fixture reuse.",
+    "No production persistence changed; no PostgreSQL behavior or live model quality claimed.",
+    "Owned containers and volumes removed after the deliberately injected failure; shared engine resources retained."
+  ]
+}
