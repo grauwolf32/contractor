@@ -36,7 +36,7 @@ tests:
       node --input-type=module -e 'import { runBrowserGate } from "./ui/server/browser-gate.mjs";
       await runBrowserGate("eval-common-inputs", "Eval common inputs", ["e2e/evals-setup.spec.ts"]);'
     covers: [A1, A2, A3]
-  - command: cd ui && corepack pnpm lint && corepack pnpm typecheck
+  - command: make ui-verify
     covers: [A1, A2, A3]
   - command: python3 scripts/check_tasks.py
     covers: [A1, A2, A3]
