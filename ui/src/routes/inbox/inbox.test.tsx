@@ -937,6 +937,36 @@ describe("Inbox", () => {
     );
   });
 
+  it.each(["openapi-observe", "asvs", "wstg"])(
+    "labels preparation and pending checks as tasks for %s",
+    async (profile) => {
+      const server = busyServer();
+      const audit = auditOf(server, "audit_trace");
+      audit.profile.name = profile;
+      server.workspaces.audit_trace = workspace(audit, {
+        totalTasks: 3,
+        completedTasks: 1,
+        gaps: 0,
+        pendingTasks: 2,
+        findings: 0,
+        unreviewedFindings: 0,
+      });
+      renderApplication("/?item=check:audit_trace", {
+        server: inboxServer(server),
+      });
+      const pane = await findDetail();
+      expect(
+        await within(pane).findByText("1 of 3 tasks done"),
+      ).toBeInTheDocument();
+      expect(
+        within(await findSection("Running")).getByText("1 of 3 tasks done"),
+      ).toBeInTheDocument();
+      expect(
+        within(pane).getByRole("img", { name: "1 of 3 tasks done: 2 pending" }),
+      ).toBeInTheDocument();
+    },
+  );
+
   it("selects the row the user chose for a check listed twice", async () => {
     const { router } = renderApplication("/?item=check:audit_trace", {
       server: inboxServer(busyServer()),
@@ -944,7 +974,7 @@ describe("Inbox", () => {
     const user = userEvent.setup();
     const stuck = await within(await findSection("Unblock")).findByRole(
       "link",
-      { name: "2 endpoints couldn't be fully checked" },
+      { name: "2 tasks with gaps" },
     );
     const running = within(await findSection("Running")).getByRole("link", {
       name: "crapi-workshop: OpenAPI · Operation trace",
@@ -985,7 +1015,7 @@ describe("Inbox", () => {
     const user = userEvent.setup();
     const pane = await findDetail();
     expect(
-      await within(pane).findByText("2 of 5 endpoints done"),
+      await within(pane).findByText("2 of 5 tasks done"),
     ).toBeInTheDocument();
 
     // The check moves on; its new counts take a while.
@@ -1009,11 +1039,11 @@ describe("Inbox", () => {
     expect(
       within(pane).queryByText("Loading progress…"),
     ).not.toBeInTheDocument();
-    expect(within(pane).getByText("2 of 5 endpoints done")).toBeInTheDocument();
+    expect(within(pane).getByText("2 of 5 tasks done")).toBeInTheDocument();
 
     counts.resolve();
     expect(
-      await within(pane).findByText("3 of 5 endpoints done"),
+      await within(pane).findByText("3 of 5 tasks done"),
     ).toBeInTheDocument();
   });
 
@@ -1034,7 +1064,7 @@ describe("Inbox", () => {
 
     const pane = await findDetail();
     expect(
-      await within(pane).findByText("2 of 5 endpoints done"),
+      await within(pane).findByText("2 of 5 tasks done"),
     ).toBeInTheDocument();
     expect(within(pane).getByText("Time limit reached.")).toBeInTheDocument();
     expect(
@@ -1042,7 +1072,7 @@ describe("Inbox", () => {
     ).toBeInTheDocument();
     expect(
       within(pane).getByRole("img", {
-        name: "2 of 5 endpoints done: 1 with gaps, 2 pending",
+        name: "2 of 5 tasks done: 1 with gaps, 2 pending",
       }),
     ).toBeInTheDocument();
     for (const link of within(pane).getAllByRole("link", {
@@ -1053,13 +1083,8 @@ describe("Inbox", () => {
         "/projects/project_shop/audits/audit_paused",
       );
     expect(
-      within(pane).getByRole("link", {
-        name: "Show endpoints that need follow-up",
-      }),
-    ).toHaveAttribute(
-      "href",
-      "/projects/project_shop/audits/audit_paused/coverage?result=uncertain",
-    );
+      within(pane).queryByRole("link", { name: /need follow-up/ }),
+    ).not.toBeInTheDocument();
     expect(
       within(pane).getByText(
         "Continue, Stop and Delete are on the check page.",

@@ -970,6 +970,8 @@ with a gap), and pending Tasks (ready or selected) partition all accepted Tasks.
 The aggregate is bounded by the Audit's Task ceiling. A completed Task can
 retain inconclusive or refuted conclusions; technical progress does not imply
 an analyst assessment, a vulnerability or a successful security evaluation.
+These counts describe Tasks, including preparation and generation; progress
+labels never call them endpoints, requirements or scenarios.
 
 **UI-R145.** Audit Overview begins with Task progress, retained results and
 optional Project Finding annotation links.

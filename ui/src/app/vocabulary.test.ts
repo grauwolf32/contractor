@@ -30,9 +30,10 @@ import {
   TERMS,
   VERDICT_LABELS,
   verdictLabel,
-  type ItemKind,
   type VocabularyLabel,
 } from "./vocabulary";
+
+type ItemKind = ReturnType<typeof checkItemKind>;
 
 // The generated types come from this document; reading its enums keeps the
 // tables complete at run time as well as at compile time.

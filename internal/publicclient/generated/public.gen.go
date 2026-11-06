@@ -8345,6 +8345,8 @@ type EvalInventoryEntry struct {
 	Available bool                                `json:"available"`
 	Execution nullable.Nullable[EvalExecutionRef] `json:"execution"`
 	IntentId  *EvalOpaque                         `json:"intentId,omitempty"`
+
+	// Iteration Common iteration when all associated Tasks share it; null for mixed-iteration batches or executions without Tasks.
 	Iteration nullable.Nullable[int]              `json:"iteration"`
 	Parent    nullable.Nullable[EvalExecutionRef] `json:"parent"`
 	ProjectId *EvalOpaque                         `json:"projectId,omitempty"`

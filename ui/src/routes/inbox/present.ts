@@ -7,12 +7,6 @@ import type { Audit, AuditWorkspace } from "../../api/audits";
 import type { CrossProjectCheck } from "../../api/cross-project";
 import type { RunStatus, RunSummary } from "../../api/runs";
 import { formatNumber } from "../../app/format";
-import {
-  checkItemKind,
-  itemCount,
-  itemNoun,
-  type ItemKind,
-} from "../../app/vocabulary";
 import type { ProgressSegment } from "../../ui";
 import { auditPresetLabel } from "../projects/audits/labels";
 import type { InboxRow, InboxSectionId } from "./model";
@@ -22,7 +16,7 @@ import {
   type OutputEntry,
   type WorkflowOutputSlot,
 } from "../runs/output-model";
-import { checkPath, sectionPath } from "../projects/audits/check-links";
+import { checkPath } from "../projects/audits/check-links";
 
 /** Section titles, asides and empty states (V3B home mockup). */
 export const SECTIONS: Readonly<
@@ -75,15 +69,6 @@ export function projectPath(projectId: string): string {
   return `/projects/${segment(projectId)}`;
 }
 
-/**
- * The check's coverage filtered to the work that needs follow-up: blocked,
- * inconclusive, partially traced, unmapped and excluded items, the statuses
- * the workspace counts as gaps.
- */
-export function followUpPath(projectId: string, auditId: string): string {
-  return `${sectionPath(projectId, auditId, "coverage")}?result=uncertain`;
-}
-
 export function issuePath(auditId: string, findingId: string): string {
   return `/issues/${segment(auditId)}/${segment(findingId)}`;
 }
@@ -116,9 +101,8 @@ export function rowPage(row: InboxRow): string {
   }
 }
 
-/** Progress of a check's current round from its workspace counters. */
+/** Whole-check Task progress from its workspace counters. */
 interface CheckProgress {
-  kind: ItemKind;
   total: number;
   /** Tasks settled without a technical gap. */
   done: number;
@@ -126,9 +110,9 @@ interface CheckProgress {
   gaps: number;
   unchecked: number;
   segments: ProgressSegment[];
-  /** "3 of 5 endpoints done: 1 issue found, 1 needs follow-up, …". */
+  /** "3 of 5 tasks done: 1 with gaps, 1 pending". */
   label: string;
-  /** "3 of 5 endpoints done". */
+  /** "3 of 5 tasks done". */
   summary: string;
 }
 
@@ -147,10 +131,7 @@ export const PROGRESS_LABELS = {
 } as const;
 
 /** Task progress from one consistent Server workspace snapshot. */
-export function checkProgress(
-  workspace: AuditWorkspace,
-  kind: ItemKind,
-): CheckProgress {
+export function checkProgress(workspace: AuditWorkspace): CheckProgress {
   const total = count(workspace.totalTasks);
   const done = Math.min(count(workspace.completedTasks), total);
   const gaps = Math.min(count(workspace.gaps), total - done);
@@ -168,14 +149,13 @@ export function checkProgress(
   ];
   const summary =
     total === 0
-      ? `No ${itemNoun(kind, 0)} listed yet`
-      : `${formatNumber(done)} of ${itemCount(kind, total)} done`;
+      ? "No tasks listed yet"
+      : `${formatNumber(done)} of ${formatNumber(total)} ${total === 1 ? "task" : "tasks"} done`;
   const details = [
     gaps > 0 ? `${formatNumber(gaps)} with gaps` : "",
     unchecked > 0 ? `${formatNumber(unchecked)} pending` : "",
   ].filter((part) => part !== "");
   return {
-    kind,
     total,
     done,
     gaps,
@@ -186,14 +166,9 @@ export function checkProgress(
   };
 }
 
-/** "2 endpoints couldn't be fully checked". */
-export function gapsTitle(gaps: number, kind: ItemKind): string {
-  return `${itemCount(kind, gaps)} couldn't be fully checked`;
-}
-
-/** What a check's work items are called. */
-export function checkKind(check: CrossProjectCheck): ItemKind {
-  return checkItemKind(check.audit);
+/** Technical gaps in accepted Tasks, including preparation and generation. */
+export function gapsTitle(gaps: number): string {
+  return `${formatNumber(gaps)} ${gaps === 1 ? "task" : "tasks"} with gaps`;
 }
 
 type OutputArtifact = NonNullable<OutputEntry["artifact"]>;

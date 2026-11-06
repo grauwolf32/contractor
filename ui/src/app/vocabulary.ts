@@ -237,7 +237,7 @@ export function runRecoveryReason(code: RunRecoveryCode): string {
 }
 
 /** What one unit of work in a check is called. */
-export type ItemKind = "endpoint" | "requirement" | "scenario" | "item";
+type ItemKind = "endpoint" | "requirement" | "scenario" | "item";
 
 const ITEM_NOUNS: Readonly<
   Record<ItemKind, readonly [singular: string, plural: string]>

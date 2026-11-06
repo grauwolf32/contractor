@@ -11337,6 +11337,7 @@ components:
           ]
         },
         "iteration": {
+          "description": "Common iteration when all associated Tasks share it; null for mixed-iteration batches or executions without Tasks.",
           "anyOf": [
             {
               "type": "integer",

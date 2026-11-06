@@ -11,11 +11,7 @@ import { formatTimestamp, plural } from "../../../app/format";
 import { pollInterval } from "../../../app/polling";
 import { QueryView } from "../../../app/query-view";
 import { RecordedTime } from "../../../app/recorded-time";
-import {
-  checkItemKind,
-  checkStateLabel,
-  itemNoun,
-} from "../../../app/vocabulary";
+import { checkStateLabel } from "../../../app/vocabulary";
 import {
   ButtonLink,
   DetailHeader,
@@ -62,7 +58,6 @@ function Summary({
   const state = checkStateLabel(audit.state);
   const type = auditProfileLabel(audit);
   const root = checkPath(audit.projectId, audit.auditId);
-  const kind = checkItemKind(audit);
   const unreviewed = workspace.data?.unreviewedFindings ?? 0;
   const timeLimit = timeLimitText(audit);
   return (
@@ -102,8 +97,8 @@ function Summary({
       ) : null}
       {audit.state === "draft" ? (
         <p className="ui-caption">
-          This check is a draft: it has no {itemNoun(kind, 2)} yet. Start it to
-          create them, or delete it.
+          This check is a draft: it has no tasks yet. Start it to create them,
+          or delete it.
         </p>
       ) : (
         <QueryView
@@ -125,7 +120,7 @@ function Summary({
                 aria-label="Progress"
               >
                 <p className="checks-progress-count">
-                  {counts.total === 0 ? `No ${itemNoun(kind, 2)} yet` : done}
+                  {counts.total === 0 ? "No tasks yet" : done}
                 </p>
                 {counts.total === 0 ? null : (
                   <ProgressSegments

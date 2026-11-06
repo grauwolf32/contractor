@@ -3316,6 +3316,7 @@ export interface components {
             execution: components["schemas"]["EvalExecutionRef"] | null;
             parent: components["schemas"]["EvalExecutionRef"] | null;
             workflow: components["schemas"]["EvalId"] | null;
+            /** @description Common iteration when all associated Tasks share it; null for mixed-iteration batches or executions without Tasks. */
             iteration: number | null;
             /** @enum {string} */
             state: "not_submitted" | "accepted" | "running" | "succeeded" | "failed" | "cancelled" | "unknown";

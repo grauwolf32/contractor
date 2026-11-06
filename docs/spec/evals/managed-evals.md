@@ -564,9 +564,11 @@ included ordinary Workflows and retries.
 
 **EVM-R76.** For an Audit, all owned child executions are resolved through
 authoritative common execution/Task associations, including supporting work
-and generation. Every child retains its Workflow alias and the iteration of
-its first ordered Task; a batch shares one iteration. A Task page or Run labels
-alone are not a complete execution inventory. Pages seek by `(audit_id,
+and generation. Every child retains its Workflow alias. Its `iteration` is
+the common iteration only when all associated Tasks share it; mixed-iteration batches and
+executions without Tasks expose `null`. Compatible Tasks may share a batch
+across iterations; this display field does not constrain dispatch. A Task page
+or Run labels alone are not a complete execution inventory. Pages seek by `(audit_id,
 execution_id)` and never rescan other Audits to fill a page.
 
 **EVM-R77.** The bounded managed member execution-list endpoint exposes these

@@ -9,7 +9,7 @@ import { queryKeys } from "../../api/query-keys";
 import { formatTimestamp } from "../../app/format";
 import { QueryView } from "../../app/query-view";
 import { RecordedTime } from "../../app/recorded-time";
-import { checkStateLabel, itemNoun } from "../../app/vocabulary";
+import { checkStateLabel } from "../../app/vocabulary";
 import {
   ButtonLink,
   DetailPane,
@@ -31,11 +31,9 @@ import {
 } from "./detail-parts";
 import { refKey, type InboxRowOf } from "./model";
 import {
-  checkKind,
   checkProgress,
   checkTypeLabel,
   excerpt,
-  followUpPath,
   PROGRESS_LABELS,
   projectPath,
   sectionTitle,
@@ -76,11 +74,6 @@ export function CheckDetail({
     placeholderData: placeholder,
     ...pinned<AuditWorkspace>(),
   });
-  const kind = checkKind(check);
-  const progress =
-    workspace.data === undefined
-      ? undefined
-      : checkProgress(workspace.data, kind);
   const state = checkStateLabel(audit.state);
   const stop = describeStopReason(audit);
   const objective = audit.scope.objective?.trim() ?? "";
@@ -130,14 +123,14 @@ export function CheckDetail({
           {stop.message.trim() === "" ? null : stop.message}
         </p>
       )}
-      <Block title="Progress">
+      <Block title="Task progress">
         <QueryView
           query={workspace}
           errorContext="Progress could not be loaded."
           loading={<p className="ui-caption">Loading progress…</p>}
         >
           {(counts) => {
-            const shown = checkProgress(counts, kind);
+            const shown = checkProgress(counts);
             return (
               <>
                 <p className="inbox-progress-summary">{shown.summary}</p>
@@ -173,15 +166,6 @@ export function CheckDetail({
         >
           Open check
         </ButtonLink>
-        {progress === undefined || progress.gaps === 0 ? null : (
-          <ButtonLink
-            returnLabel="Inbox"
-            to={followUpPath(project.projectId, audit.auditId)}
-            size="sm"
-          >
-            Show {itemNoun(kind, 2)} that need follow-up
-          </ButtonLink>
-        )}
       </div>
       {audit.state === "paused" ? (
         <p className="ui-caption">

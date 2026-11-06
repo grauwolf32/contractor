@@ -28,7 +28,6 @@ import {
   type InboxSectionId,
 } from "./model";
 import {
-  checkKind,
   checkName,
   checkProgress,
   checkTypeLabel,
@@ -102,7 +101,6 @@ const CHECK_GLYPHS: Readonly<
 function CheckRow({ row, selected, onChoose }: RowProps<"check">) {
   const { project, audit } = row.check;
   const glyph = <StatusGlyph tone={CHECK_GLYPHS[row.reason]} />;
-  const kind = checkKind(row.check);
   const state = checkStateLabel(audit.state).label;
   switch (row.reason) {
     case "paused":
@@ -140,7 +138,7 @@ function CheckRow({ row, selected, onChoose }: RowProps<"check">) {
         <ListRow
           {...rowControl(row, selected, onChoose)}
           glyph={glyph}
-          title={gapsTitle(row.workspace?.gaps ?? 0, kind)}
+          title={gapsTitle(row.workspace?.gaps ?? 0)}
           meta={[
             <Project key="project" name={project.name} />,
             checkTypeLabel(audit),
@@ -150,9 +148,7 @@ function CheckRow({ row, selected, onChoose }: RowProps<"check">) {
       );
     case "running": {
       const progress =
-        row.workspace === undefined
-          ? undefined
-          : checkProgress(row.workspace, kind);
+        row.workspace === undefined ? undefined : checkProgress(row.workspace);
       return (
         <ListRow
           {...rowControl(row, selected, onChoose)}
