@@ -6,7 +6,7 @@ epic: quality
 kind: chore
 introduced_by: V64-002
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V450-003, V450-004]
 languages: [typescript, javascript]
 goal: The complete mocked browser gate again exercises the shipped UI without stale fixtures or weakened behavioral assertions.
@@ -99,4 +99,16 @@ tests:
   covers: [A1, A2]
 - command: make lint
   covers: [A1, A2]
-implementation_commit: null
+implementation_commit: 6c1f766e18ffba420a826fae3bfca5d25a22f351
+verification:
+  baseline: Main 360ffd44a plus the V450-003 activity prerequisite reproduced 150 passing and seven failing mocked cases. The corrected common profile fixture separately exposed V450-004's actual Eval rendering defect.
+  integrated_main: 89d182bdc74317a9e0f455992f51a496a8dae3e0
+  verified_revision: 6c1f766e18ffba420a826fae3bfca5d25a22f351
+  results:
+    - make ui-browser-mocked passed all 158 registered cases across 27 specs after importing V450-002's research API, CLI, generated clients and browser spec. The existing report validator confirmed zero skipped, unexpected or flaky attempts; response validators and gate inventory checks are unchanged.
+    - make ui-verify passed generated-contract checks, lint, both typechecks, 213 unit test files with 2409 passing tests and one declared expected failure, all 17 static-server tests and the production build.
+    - make lint passed on the integrated tree, including generated types/schemas, UI gates, Go checks, script/deployment fixtures, release graph, thirteen-migration ERD, task/spec registries and Runtime lint/layers. Optional disk-heavy fixtures were not enabled; skipped checks are not passing coverage.
+    - V450-003 browser regressions first failed on the original product at all three widths and then passed, with 40 focused Audit/QueryView/polling unit cases. V450-004's valid-profile crash was reproduced at both setup widths; its six built journeys and 104 focused Eval cases passed after repair.
+    - The complete passing Studio spec retains exact parsed YAML, comments, summarizer policies and original catalog retry assertions. Current-contract explanations and originating tasks/commits for every reported failure are recorded above.
+    - All gate-owned private builds and static servers were cleaned up by their existing harness. This UI lane created no database, called no live model and changed no original OpenDesign data.
+  delivery: Committed on codex/ui-browser-contracts, based on the current research API integration; not merged into main. UI release 0.11.16. API/CLI implementation remains the owning lane's work and was retained through the merge.
