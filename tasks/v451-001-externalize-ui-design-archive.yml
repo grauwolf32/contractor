@@ -1,0 +1,70 @@
+schema_version: "1.0"
+id: V451-001
+title: Move preserved UI experiments outside the source checkout
+milestone: ui-journey-usability
+epic: ui
+kind: chore
+introduced_by: V429-015
+priority: P3
+status: in_progress
+depends_on: []
+languages: [typescript]
+goal: Keep UI design history recoverable outside the source checkout while ordinary UI tests use repository-owned fixtures.
+context:
+  authority: User 2026-11-06 explicitly requests archiving UI experiments outside ~/src/contractor after the documentation review.
+  finding: ui/src/test/issue-review-fixtures.ts:5 and ui/e2e/material-detail-design.spec.ts:3 import examples from the preserved experiments, so removing that directory alone breaks tests.
+  siblings: Preserve both JSON fixture values exactly, formatting copies to the UI convention; update Issues and Start route documentation and the UI design index. Completed task commands retain their historical original paths and can be rerun after restoring the archive.
+  boundary: The external archive owns dated prototypes, screenshots, provenance and historical verifiers. UI test data remains in ui/src/test/fixtures; no production dependency on the external archive is introduced.
+scope:
+  in:
+    - Archive all 16 UI experiment directories with a per-file SHA-256 manifest outside the checkout; verify every archive member before removing source files.
+    - Move the two imported JSON documents into test fixtures and update their imports.
+    - Document archive location, checksum, inventory and exact restoration procedure; repoint active documentation links.
+  out:
+    - Production UI changes, package release, historical evidence rewrites, execution of archived generation scripts or changes to unrelated working-tree files.
+acceptance_criteria:
+  - id: A1
+    text: Every original experiment file is recoverable byte-for-byte from the external archive and recorded in its manifest; the checkout retains only the archive index.
+  - id: A2
+    text: UI code has no import from docs/design/ui/experiments; both required JSON fixtures contain identical JSON values to their archived originals and the full Issues unit suite and two consuming browser suites pass.
+  - id: A3
+    text: Typechecks, changed-file formatting, task/spec validation and archive-index links pass; restoration preserves original relative paths for historical commands.
+tests:
+  - command: cd ui && corepack pnpm test --run src/routes/issues
+    covers: [A2]
+  - command: cd ui && corepack pnpm typecheck
+    covers: [A2, A3]
+  - command: >-
+      node --input-type=module -e 'import { runBrowserGate } from "./ui/server/browser-gate.mjs"; await runBrowserGate("v451-archive", "Archived design fixtures", ["e2e/issue-review-design.spec.ts", "e2e/material-detail-design.spec.ts"]);'
+    covers: [A2]
+  - command: cd ui && corepack pnpm exec prettier --check src/test/issue-review-fixtures.ts e2e/material-detail-design.spec.ts src/test/fixtures/issue-review-examples.json src/test/fixtures/material-format-examples.json
+    covers: [A3]
+  - command: python3 scripts/check_tasks.py
+    covers: [A3]
+  - command: python3 scripts/check_spec.py
+    covers: [A3]
+verification:
+  archive:
+    directory: /Users/ruslan/Documents/ChatGPT/AppSec/archives/contractor-ui-experiments-2026-11-06
+    file_count: 509
+    original_bytes: 42172935
+    compressed_bytes: 37393723
+    sha256: d3d80bd75e5cc45cf648e64fba6deb8a206943b794529003f3b390e9473877bd
+    recovery: All members were read back and then extracted into a disposable directory; every path, size and SHA-256 matched manifest.json. The disposable extraction was removed.
+  fixtures: Both repository fixture copies preserve the archived JSON values exactly. The Issue JSON copy was formatted with Prettier; original bytes remain in the archive.
+  working_tree_browser_failure: >-
+    The current checkout includes unrelated uncommitted V411-007 HTTP changes.
+    Its strict HTTP reader now requires origin instead of finding and new capture metadata;
+    the unchanged historical material example is rejected as invalid. The combined browser
+    run passed all 14 Issue cases, failed five Material variants on the same missing Request
+    tab, and was interrupted after the repeated failure; nine later cases did not run.
+    No production code or historical example semantics were changed to hide this mismatch.
+  isolation: >-
+    Verify this task independently on committed baseline 6fa3cb53f740b58736c629fb488e62c363172f53
+    with only the two relocated JSON documents and their import updates, without any docs/design
+    experiment directory. A disposable source copy reuses the existing node_modules read-only;
+    pnpm_config_verify_deps_before_run=false prevents pnpm trying to replace that shared symlink.
+    The normal runBrowserGate command builds and serves that copy independently.
+  unit: The full Issues package passed 31 tests across four files. The first concurrent build run hit the existing five-second test timeout; a subsequent package run passed without changing timeouts or tests.
+  browser_baseline: All 29 browser tests across Issue review and Material detail passed against the committed baseline with this task's fixture/import changes, no retries or skips and no experiment directory.
+  remaining_checks: Both TypeScript projects, changed-file Prettier, task/spec validation, archive-index local links and git diff --check passed.
