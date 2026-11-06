@@ -63,16 +63,20 @@ export function useURLCursorStack({
   param = "cursor",
   navigateOptions = { preventScrollReset: true },
   onChange,
+  clearOnChange = [],
 }: {
   param?: string;
   navigateOptions?: NavigateOptions;
   onChange?: () => void;
+  /** Selection tied to this page, removed atomically with a cursor change. */
+  clearOnChange?: readonly string[];
 } = {}) {
   const [searchParams, setSearchParams] = useSearchParams();
   const cursors = searchParams.getAll(param);
   function change(nextCursors: readonly string[]): void {
     const next = new URLSearchParams(searchParams);
     next.delete(param);
+    for (const name of clearOnChange) next.delete(name);
     for (const value of nextCursors) next.append(param, value);
     setSearchParams(next, navigateOptions);
     onChange?.();

@@ -20,8 +20,10 @@ from release_race_packages import packages_with_tests
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = "github.com/grauwolf32/contractor/"
 
-# Union of the process e2e names selected by release-verify before V155.
+# Process e2e roots selected by release-verify, including the real Audit
+# browser journey in the browser stage (it shares the e2e process harness).
 EXPECTED_PROCESS_TESTS = {
+    "TestAuditResearchUIAcrossProductionProcesses",
     "TestWorkflowMaterialSetsAcrossProductionProcesses",
     "TestAuditHypothesisContinuationAcrossProductionProcesses",
     "TestAuditBasicExactHandoffAcrossProductionProcesses",
@@ -340,7 +342,7 @@ def check_release_graph() -> list[str]:
     if len(races) != 2:
         raise SystemExit(f"release gate has {len(races)} untagged race commands, want the explicit and discovered passes")
     expected_process = EXPECTED_PROCESS_TESTS | set(load_script("scripts/test-findings-e2e.py").PROCESS_TESTS)
-    if process_commands != 3 or set(process_tests) != expected_process or any(
+    if process_commands != 4 or set(process_tests) != expected_process or any(
         count != 1 for count in process_tests.values()
     ):
         raise SystemExit(

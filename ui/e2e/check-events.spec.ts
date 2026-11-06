@@ -4,6 +4,7 @@ import {
   audit as auditBuilder,
   auditInput,
   project,
+  workspace,
 } from "../src/test/builders";
 import {
   authSession,
@@ -48,6 +49,15 @@ for (const width of [1440, 390, 320]) {
         if (url.pathname === "/v1/projects/project_history")
           value = project("project_history", { name: "History project" });
         else if (url.pathname === "/v1/audits/audit_history") value = audit;
+        else if (url.pathname.endsWith("/workspace")) value = workspace(audit);
+        else if (url.pathname.endsWith("/hypotheses"))
+          value = {
+            items: [],
+            page: { hasMore: false },
+            checking_workflows: [],
+            fixed_denominator: 0,
+            pending_fixed_count: 0,
+          };
         else if (url.pathname.endsWith("/events")) {
           const cursor = url.searchParams.get("cursor");
           cursors.push(cursor ?? "head");
@@ -73,9 +83,7 @@ for (const width of [1440, 390, 320]) {
       { session: authSession("owner", ["user"]) },
     );
     await page.goto("/projects/project_history/audits/audit_history");
-    await page
-      .getByRole("button", { name: "Show activity", exact: true })
-      .click();
+    await page.getByRole("link", { name: "Activity", exact: true }).click();
     const activity = page
       .getByRole("region", { name: "Check activity" })
       .getByRole("list");
@@ -92,7 +100,7 @@ for (const width of [1440, 390, 320]) {
     await page.getByRole("button", { name: "Try again" }).click();
     await expect(activity.getByRole("listitem")).toHaveCount(51);
     await expect(
-      activity.getByText("audit.created", { exact: true }),
+      activity.getByText("Audit created", { exact: true }),
     ).toBeVisible();
     await expect(older).toBeDisabled();
     expect(cursors.slice(0, 3)).toEqual(["head", "older", "older"]);

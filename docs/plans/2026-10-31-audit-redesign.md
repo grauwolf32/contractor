@@ -1,11 +1,11 @@
 # План переработки Audit
 
-Дата исходного плана: 2026-10-31. **Статус на 2026-11-06: частично
+Дата исходного плана: 2026-10-31. **Статус на 2026-11-07: частично
 реализован; базовый release gate V64-011 остаётся pending.** Контракты,
 общий coordinator, передача материалов, Project Findings, реестр гипотез,
-Workflow-генерация, API/CLI и перенос shipped программ завершены. Общий UI
-V64-009 и регрессия лимита отчёта V425-017 остаются pending; HTTP evidence
-V411-007 находится в работе. Завершённые этапы не доказывают прохождение
+Workflow-генерация, API/CLI, перенос shipped программ, общий UI V64-009 и
+HTTP evidence V411-007 завершены. Регрессия лимита отчёта V425-017 остаётся
+pending. Завершённые этапы не доказывают прохождение
 базового release gate.
 
 [Общая модель](../proposals/0050-audit-common-hypothesis-model.md) ·
@@ -63,7 +63,7 @@ V64-001 остаётся завершённой историей; исправл
 
 ## Основные задачи
 
-| Порядок | Задача | Статус на 2026-11-06 | Конкретный результат |
+| Порядок | Задача | Статус на 2026-11-07 | Конкретный результат |
 | --- | --- | --- | --- |
 | 1 | [V64-001](../../tasks/done/v64-001-audit-priority-contracts.yml) | completed | Общие строгие program/task/result contracts, owning boundaries, fixtures, лимиты и карта удаления/cutover |
 | 2 | [V64-004](../../tasks/done/v64-004-audit-priority-context.yml) | completed | Audit workspace, exact handoff и публикация в Project через существующий ArtifactStore с реальным caller |
@@ -76,7 +76,7 @@ V64-001 остаётся завершённой историей; исправл
 | 5 | [V64-013](../../tasks/done/v64-013-audit-hypothesis-generation.yml) | completed | Обычный Workflow генерации по материалам, findings и результатам, включая опровержения/пробелы; следующая итерация тем же путём |
 | 6 | [V64-008](../../tasks/done/v64-008-audit-priority-api-coverage.yml) | completed | API/CLI чтение цепочки исследования, управление и публикация материалов |
 | 6 | [V64-010](../../tasks/done/v64-010-audit-priority-profile.yml) | completed | Итоговая проверка уже перенесённых shipped программ и удаление оставшихся ZIP/round/admission/review механизмов |
-| 7 | [V64-009](../../tasks/v64-009-audit-priority-ui.yml) | pending | Общий UI-путь исследования, без approval inbox и ручного ввода системных связей |
+| 7 | [V64-009](../../tasks/done/v64-009-audit-priority-ui.yml) | completed | Общий UI-путь исследования, без approval inbox и ручного ввода системных связей |
 | 7 | [V425-017](../../tasks/v425-017-machine-report-ceiling-test.yml) | pending | Регрессия retained report ceiling на новом выбранном assembler |
 | 8 | [V64-011](../../tasks/v64-011-audit-priority-release.yml) | pending | Базовый real-store/process/browser gate и доказательство контроля сложности |
 

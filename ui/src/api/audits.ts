@@ -477,10 +477,12 @@ export function auditPollInterval(
 export async function getAuditWorkspace(
   api: PublicAPI,
   auditId: string,
+  signal?: AbortSignal,
 ): Promise<AuditWorkspace> {
   requireAuditID(auditId);
   const result = await api.request((client) =>
     client.GET("/v1/audits/{auditId}/workspace", {
+      ...(signal === undefined ? {} : { signal }),
       params: { path: { auditId } },
     }),
   );

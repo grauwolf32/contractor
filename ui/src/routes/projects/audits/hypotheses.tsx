@@ -1,22 +1,33 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
-import { auditPollInterval, type Audit } from "../../../api/audits";
+import { type Audit } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
 import { PublicAPIError, requireData } from "../../../api/error";
+import { readableValue } from "../../../app/vocabulary";
+import { checkPath } from "./check-links";
+import {
+  useResearchHypotheses,
+  useResearchTasks,
+  taskStatus,
+} from "./research-data";
+import { ResearchTaskDetail } from "./research-work";
 import type { components } from "../../../api/generated/public";
 import { queryKeys } from "../../../api/query-keys";
 import { CursorControls } from "../../../app/cursor-controls";
 import { ErrorNotice } from "../../../app/error-notice";
-import { useURLCursorStack } from "../../../app/pagination";
-import { pollInterval } from "../../../app/polling";
 import { QueryView } from "../../../app/query-view";
 import { createMutationIdempotencyKey } from "../../../mutations/idempotency";
-import { Button, Field, TechnicalDetails } from "../../../ui";
+import {
+  Button,
+  Field,
+  TechnicalDetails,
+  StatusChip,
+  Facts,
+} from "../../../ui";
 
 type Hypothesis = components["schemas"]["AuditHypothesis"];
 type Content = components["schemas"]["AuditHypothesisContent"];
-type Page = components["schemas"]["AuditHypothesisPage"];
 type PendingWrite = {
   method?: string;
   key: string;
@@ -26,11 +37,20 @@ type PendingWrite = {
 };
 
 /** Assertions are owner commands over ordinary retained Task results. */
-export function AuditHypotheses({ audit }: { audit: Audit }) {
+export function AuditHypotheses({
+  audit,
+  expanded = false,
+  active = true,
+}: {
+  audit: Audit;
+  expanded?: boolean;
+  active?: boolean;
+}) {
   const api = usePublicAPI();
-  const [search] = useSearchParams();
+  const [search, setSearch] = useSearchParams();
   const cache = useQueryClient();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(expanded);
+  const [formOpen, setFormOpen] = useState(!expanded);
   const [editing, setEditing] = useState<Hypothesis>();
   const [formRevision, setFormRevision] = useState(audit.revision);
   const [statement, setStatement] = useState("");
@@ -43,31 +63,8 @@ export function AuditHypotheses({ audit }: { audit: Audit }) {
   const [conflict, setConflict] = useState(false);
   const [message, setMessage] = useState("");
   const pending = useRef<PendingWrite | undefined>(undefined);
-  const pages = useURLCursorStack({ param: "hypothesesCursor" });
   const editable = audit.state === "active" || audit.state === "paused";
-  const query = useQuery({
-    queryKey: ["audit-hypotheses", audit.auditId, audit.revision, pages.cursor],
-    enabled: open,
-    queryFn: async ({ signal }) =>
-      requireData(
-        await api.request((client) =>
-          client.GET("/v1/audits/{auditId}/hypotheses", {
-            signal,
-            params: {
-              path: { auditId: audit.auditId },
-              query: {
-                limit: 50,
-                ...(pages.cursor === undefined ? {} : { cursor: pages.cursor }),
-              },
-            },
-          }),
-        ),
-      ),
-    refetchInterval: pollInterval<Page>({
-      interval: 2000,
-      settled: () => auditPollInterval([audit]) === false,
-    }),
-  });
+  const { query, pages } = useResearchHypotheses(audit, open && active);
   const methods = query.data?.checking_workflows ?? [];
   const currentSource = query.data?.items.find(
     (value) => value.document.id === editing?.document.id,
@@ -90,6 +87,7 @@ export function AuditHypotheses({ audit }: { audit: Audit }) {
   }
 
   function choose(value?: Hypothesis) {
+    setFormOpen(true);
     if (pending.current !== undefined || busy) return;
     setEditing(value);
     setFormRevision(audit.revision);
@@ -279,105 +277,227 @@ export function AuditHypotheses({ audit }: { audit: Audit }) {
     }
   }
 
+  const chosen =
+    query.data?.items.find((h) => h.document.id === search.get("hypothesis")) ??
+    query.data?.items[0];
   return (
-    <section className="ui-stack" aria-label="Assertions">
-      <Button
-        size="sm"
-        onClick={() => {
-          if (
-            !open &&
-            editing === undefined &&
-            statement === "" &&
-            grounds === "" &&
-            conditions === ""
-          )
-            setFormRevision(audit.revision);
-          setOpen(!open);
-        }}
-      >
-        {open ? "Hide assertions" : "Show assertions"}
-      </Button>
+    <section className="research-hypotheses ui-stack" aria-label="Assertions">
+      {!expanded ? (
+        <Button
+          size="sm"
+          onClick={() => {
+            if (
+              !open &&
+              editing === undefined &&
+              statement === "" &&
+              grounds === "" &&
+              conditions === ""
+            )
+              setFormRevision(audit.revision);
+            setOpen(!open);
+          }}
+        >
+          {open ? "Hide assertions" : "Show assertions"}
+        </Button>
+      ) : null}
       {open ? (
         <>
+          <header className="research-section-head">
+            <div>
+              <p className="eyebrow">Assertions & results</p>
+              <h2>Hypotheses</h2>
+            </div>
+            {editable ? (
+              <Button size="sm" onClick={() => choose()}>
+                Add hypothesis
+              </Button>
+            ) : null}
+          </header>
           <QueryView
             query={query}
             loading={<p role="status">Loading assertions…</p>}
           >
             {(page) => (
               <>
-                <p>
+                <p className="ui-caption">
                   {page.fixed_denominator} requirements in the original
                   checklist. New assertions, split checks and missing evidence
                   do not change this total.
                 </p>
-                {page.pending_fixed_count === 0 ? null : (
+                {page.pending_fixed_count ? (
                   <p role="status">
                     {page.pending_fixed_count} original requirements have no
                     accepted assertion yet. They remain unchecked.
                   </p>
-                )}
-                {page.items.map((value) => (
-                  <article
-                    className="checks-task ui-stack"
-                    key={value.document.id}
-                  >
-                    <h2>{value.document.statement}</h2>
-                    <p>{value.document.grounds}</p>
-                    {value.document.scope.conditions === undefined ? null : (
-                      <p>{value.document.scope.conditions}</p>
-                    )}
-                    {value.document.scope.coverage_gap === undefined ? null : (
-                      <p>{value.document.scope.coverage_gap}</p>
-                    )}
-                    <Link
-                      to={`?${new URLSearchParams([...search.entries()].filter(([key]) => key !== "tasksCursor" && key !== "hypothesis").concat([["hypothesis", value.document.id]]))}`}
-                    >
-                      View checks and results
-                    </Link>
-                    <p>
-                      {value.fixed
-                        ? "Original checklist requirement"
-                        : "Additional assertion"}
-                    </p>
-                    {editable ? (
-                      <div className="ui-toolbar">
-                        <Button
+                ) : null}
+                <div className="research-hypothesis-workspace">
+                  <div className="research-hypothesis-list">
+                    {page.items.map((value) => (
+                      <Button
+                        key={value.document.id}
+                        variant="ghost"
+                        className="research-hypothesis-choice"
+                        aria-pressed={chosen?.document.id === value.document.id}
+                        onClick={() =>
+                          setSearch((previous) => {
+                            const next = new URLSearchParams(previous);
+                            next.set("hypothesis", value.document.id);
+                            next.delete("historyCursor");
+                            next.delete("historyTask");
+                            return next;
+                          })
+                        }
+                      >
+                        <StatusChip
+                          tone={
+                            value.fixed
+                              ? "neutral"
+                              : value.document.origin.kind === "run"
+                                ? "info"
+                                : "neutral"
+                          }
                           size="sm"
-                          disabled={busy || writeLocked || checkLocked}
-                          onClick={() => choose(value)}
                         >
-                          Edit assertion
-                        </Button>
-                        {methods.map((method) => (
+                          {value.fixed
+                            ? "Fixed"
+                            : value.document.origin.kind === "run"
+                              ? "Generated"
+                              : "Manual"}
+                        </StatusChip>
+                        <strong>{value.document.statement}</strong>
+                        <small>Revision {value.document.revision}</small>
+                      </Button>
+                    ))}
+                    <CursorControls
+                      label="Assertion pages"
+                      {...pages.controls(page.page)}
+                    />
+                  </div>
+                  {chosen ? (
+                    <article className="research-hypothesis-detail">
+                      <header>
+                        <StatusChip
+                          tone={chosen.fixed ? "neutral" : "info"}
+                          size="sm"
+                        >
+                          {chosen.fixed
+                            ? "Original checklist requirement"
+                            : "Additional assertion"}
+                        </StatusChip>
+                        <h2>{chosen.document.statement}</h2>
+                        <p className="ui-caption">
+                          Exact assertion · revision {chosen.document.revision}
+                        </p>
+                      </header>
+                      <section>
+                        <h3>Scope & conditions</h3>
+                        <Facts
+                          layout="list"
+                          items={Object.entries(chosen.document.scope).map(
+                            ([term, value]) => ({
+                              term: readableValue(term),
+                              value,
+                            }),
+                          )}
+                        />
+                      </section>
+                      <section>
+                        <h3>Why investigate this</h3>
+                        <p>{chosen.document.grounds}</p>
+                      </section>
+                      <section>
+                        <h3>Grounds · exact materials</h3>
+                        {chosen.document.sources?.length ? (
+                          chosen.document.sources.map((source) => (
+                            <Link
+                              className="research-source-link"
+                              key={JSON.stringify(source)}
+                              to={`${checkPath(audit.projectId, audit.auditId)}/materials?${new URLSearchParams({ source: JSON.stringify(source) })}`}
+                            >
+                              <span>{source.ref.name}</span>
+                              <small>
+                                {source.media_type} · {source.ref.revision}
+                              </small>
+                              <span aria-hidden="true">↗</span>
+                            </Link>
+                          ))
+                        ) : (
+                          <p className="ui-caption">
+                            No exact source material was selected.
+                          </p>
+                        )}
+                      </section>
+                      <section>
+                        <h3>Origin</h3>
+                        <p>
+                          {chosen.document.origin.kind === "run"
+                            ? "Generated by a check workflow"
+                            : chosen.document.origin.kind === "checklist"
+                              ? "Frozen checklist source"
+                              : "Explicit analyst input"}
+                        </p>
+                        {chosen.document.origin.run_id ? (
+                          <Link
+                            to={`/runs/${encodeURIComponent(chosen.document.origin.run_id)}`}
+                          >
+                            Recorded source Run →
+                          </Link>
+                        ) : null}
+                      </section>
+                      <div className="ui-toolbar">
+                        {editable ? (
                           <Button
-                            key={method}
                             size="sm"
                             disabled={busy || writeLocked || checkLocked}
-                            onClick={() =>
-                              void check(value.document.id, method)
-                            }
+                            onClick={() => choose(chosen)}
                           >
-                            Check assertion
-                            {methods.length > 1 ? ` · ${method}` : ""}
+                            Edit assertion
                           </Button>
-                        ))}
+                        ) : null}
+                        {editable
+                          ? methods.map((method) => (
+                              <Button
+                                key={method}
+                                size="sm"
+                                disabled={busy || writeLocked || checkLocked}
+                                onClick={() =>
+                                  void check(chosen.document.id, method)
+                                }
+                              >
+                                Check assertion
+                                {methods.length > 1 ? ` · ${method}` : ""}
+                              </Button>
+                            ))
+                          : null}
+                        <Link
+                          to={`${checkPath(audit.projectId, audit.auditId)}/work?${new URLSearchParams({ hypothesis: chosen.document.id })}`}
+                        >
+                          View checks and results →
+                        </Link>
                       </div>
-                    ) : null}
-                    <TechnicalDetails description="Exact assertion revision, source, scope and evidence requirements.">
-                      <pre className="checks-task-json">
-                        {JSON.stringify(value, null, 2)}
-                      </pre>
-                    </TechnicalDetails>
-                  </article>
-                ))}
-                <CursorControls
-                  label="Assertion pages"
-                  {...pages.controls(page.page)}
-                />
+                      {active ? (
+                        <HypothesisHistory
+                          audit={audit}
+                          hypothesis={chosen.document.id}
+                        />
+                      ) : null}
+                      <TechnicalDetails description="Exact revision, origin and evidence requirements.">
+                        <pre className="checks-task-json">
+                          {JSON.stringify(chosen, null, 2)}
+                        </pre>
+                      </TechnicalDetails>
+                    </article>
+                  ) : (
+                    <p>
+                      No registered hypotheses yet. Saved proposal outputs are
+                      separate from registration.
+                    </p>
+                  )}
+                </div>
               </>
             )}
           </QueryView>
-          {editable ? (
+          {editable && formOpen ? (
             <form
               className="ui-stack"
               onSubmit={(event) => {
@@ -496,6 +616,78 @@ export function AuditHypotheses({ audit }: { audit: Audit }) {
           {message === "" ? null : <p role="status">{message}</p>}
         </>
       ) : null}
+    </section>
+  );
+}
+
+function HypothesisHistory({
+  audit,
+  hypothesis,
+}: {
+  audit: Audit;
+  hypothesis: string;
+}) {
+  const { query, pages } = useResearchTasks(audit, hypothesis);
+  const [historyParams, setHistoryParams] = useSearchParams();
+  const selected = historyParams.get("historyTask");
+  return (
+    <section className="research-hypothesis-history">
+      <h3>Check history</h3>
+      <QueryView query={query}>
+        {(page) => {
+          const chosen =
+            page.items.find((t) => t.document.task_id === selected) ??
+            page.items[0];
+          return (
+            <>
+              {page.items.length ? (
+                <>
+                  <div className="ui-toolbar">
+                    {page.items.map((t) => (
+                      <Button
+                        size="sm"
+                        key={t.document.task_id}
+                        aria-pressed={
+                          chosen?.document.task_id === t.document.task_id
+                        }
+                        onClick={() =>
+                          setHistoryParams(
+                            (previous) => {
+                              const next = new URLSearchParams(previous);
+                              next.set("historyTask", t.document.task_id);
+                              return next;
+                            },
+                            { preventScrollReset: true },
+                          )
+                        }
+                      >
+                        Revision {t.document.hypothesis?.revision} ·{" "}
+                        {taskStatus(t).label}
+                      </Button>
+                    ))}
+                  </div>
+                  {chosen ? (
+                    <ResearchTaskDetail
+                      key={chosen.document.task_id}
+                      audit={audit}
+                      task={chosen}
+                    />
+                  ) : null}
+                </>
+              ) : (
+                <p className="ui-caption">
+                  No checking task is recorded. Registration does not schedule a
+                  check automatically.
+                </p>
+              )}
+              <CursorControls
+                label="Hypothesis check pages"
+                {...pages.controls(page.page)}
+              />
+            </>
+          );
+        }}
+      </QueryView>
     </section>
   );
 }

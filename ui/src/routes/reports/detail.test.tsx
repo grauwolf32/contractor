@@ -81,7 +81,7 @@ describe("Report detail", () => {
       within(pane).getByRole("link", { name: "Review coverage gaps →" }),
     ).toHaveAttribute(
       "href",
-      "/projects/project_payment/audits/audit_ready/coverage?result=uncertain",
+      "/projects/project_payment/audits/audit_ready/work?work=gap",
     );
     expect(
       await within(pane).findByRole("heading", { name: "Coverage summary" }),

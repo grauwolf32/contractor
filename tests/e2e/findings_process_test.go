@@ -25,6 +25,7 @@ import (
 )
 
 type findingsHarness struct {
+	browser                          *researchBrowserTransport
 	runtimeExtraArguments            []string
 	restartServer                    func()
 	ctx                              context.Context
@@ -41,6 +42,11 @@ func startFindingsHarness(t *testing.T, stages []domainGatewayStage, beforeRunti
 
 func startConfiguredFindingsHarness(t *testing.T, stages []domainGatewayStage, configure func(string), beforeRuntime ...func(*findingsHarness)) *findingsHarness {
 	t.Helper()
+	return startFindingsHarnessForBrowser(t, stages, false, configure, beforeRuntime...)
+}
+
+func startFindingsHarnessForBrowser(t *testing.T, stages []domainGatewayStage, browser bool, configure func(string), beforeRuntime ...func(*findingsHarness)) *findingsHarness {
+	t.Helper()
 	if testing.Short() {
 		t.Fatal("findings process checks cannot run in short mode")
 	}
@@ -50,7 +56,11 @@ func startConfiguredFindingsHarness(t *testing.T, stages []domainGatewayStage, c
 	}
 	repositoryRoot := repoRoot(t)
 	temporaryRoot := t.TempDir()
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
+	budget := 4 * time.Minute
+	if browser {
+		budget = 8 * time.Minute
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), budget)
 	t.Cleanup(cancel)
 
 	isolateURL := isolatedDatabase(t, ctx, databaseURL)
@@ -107,6 +117,11 @@ func startConfiguredFindingsHarness(t *testing.T, stages []domainGatewayStage, c
 		"CONTRACTOR_LOCAL_AUTH_FILE":         localAuthFile,
 		"CONTRACTOR_BROWSER_ORIGINS":         "https://ui.contractor.invalid",
 	}
+	var transport *researchBrowserTransport
+	if browser {
+		transport = configureResearchBrowser(t, publicBaseURL, temporaryRoot)
+		serverEnvironment["CONTRACTOR_BROWSER_ORIGINS"] = transport.baseURL
+	}
 	startServer := func() *childProcess {
 		return startProcess(t, "Go Server", repositoryRoot, serverEnvironment, serverBinary, "serve")
 	}
@@ -149,7 +164,7 @@ func startConfiguredFindingsHarness(t *testing.T, stages []domainGatewayStage, c
 	})
 
 	gateway.releaseBlockedRequest()
-	return &findingsHarness{ctx: ctx, server: server, runtimeProcess: runtimeProcess,
+	return &findingsHarness{browser: transport, ctx: ctx, server: server, runtimeProcess: runtimeProcess,
 		gateway: gateway, client: client, baseURL: publicBaseURL, databaseURL: isolateURL, configRoot: configRoot,
 		restartServer: func() {
 			server.stop(t)

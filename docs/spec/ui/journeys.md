@@ -375,23 +375,21 @@ request.
 
 ### US-07 — Conduct an Audit and make decisions
 
-#### Preparation and endpoint details
+#### Research overview and work details
 
-**UIJ-R113.** A prepared Check has a guided overview showing material
-preparation, endpoint checks and review/report as separate stages. Server
-`phase`, role status and accepted inventory determine progress; authored role
-names do not determine lifecycle. Before inventory acceptance there is no
-endpoint denominator or coverage percentage. A failed preparation shows the
-failed attempt and its diagnostics without presenting an empty clean assessment
-or offering an unsupported in-place restart.
+**UIJ-R113.** The check overview presents its objective, authoritative Task
+collection progress, current work and collected results with a colored icon
+Timeline. The original checklist remains separate from generated/manual
+hypotheses. There is no mandatory exploration/finding/generation sequence or
+approval inbox; missing results and technical gaps remain explicit.
 
-**UIJ-R114.** Endpoint details keep the bounded endpoint list beside its
-conclusion, observations, exact source/settings and saved evidence. SQLMap
-request checks name the prepared request identity; Nuclei URL checks name the
-fixed URL and explain that method, body and authenticated session are not
-replayed. Technical scan completion uses the neutral information tone and
-remains separate from security coverage and confirmed findings. Partial lists
-label completion counts as describing the loaded endpoints.
+**UIJ-R114.** Work keeps a bounded list beside the selected Task's exact inputs,
+hypothesis snapshot when present, scoped result, limitations and technical
+attempts. Selection and page/filter context remain in the URL and keyboard
+navigation remains available. Whole-check totals come from the workspace;
+filters and previews describe loaded pages. Existing typed scanner viewers retain
+their request/URL semantics. Technical completion never implies semantic support,
+confirmed issues or security coverage.
 
 **UIJ-R115.** Original materials and accepted generated outputs are distinct.
 Generated outputs and result members open through an exact committed Audit
@@ -401,12 +399,11 @@ cancels the read. Read failures offer an explicit read retry, never replay an
 execution or decision. Unsupported or large previews explain the limit and offer
 download; textual content is rendered without executing embedded HTML.
 
-**UIJ-R116.** A phase or first-Round change refreshes dependent items, coverage,
-workspace counts, findings and decisions immediately, as do existing terminal
-transition and reconnect rules. Starting preparation moves focus to its new
-overview heading; closing a material returns focus to its trigger. The guided
-overview and endpoint workspace support keyboard navigation, 390-pixel layouts
-and the existing light, dark and black themes.
+**UIJ-R116.** Changes in Task admission, control state and terminal collection
+refresh dependent projections through their shared owner. Settled work stops
+polling; failed reads back off and preserve loaded data. Closing a material or
+form restores focus to its trigger. The research workspace and common Checks
+navigation support keyboard use, 390 px and light/dark/black themes.
 
 #### Summary and review navigation
 

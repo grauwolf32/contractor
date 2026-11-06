@@ -1,0 +1,65 @@
+schema_version: '1.0'
+id: V64-038
+title: Keep research timeline status badges compact
+milestone: audit-check-prioritization
+epic: ui
+kind: defect
+introduced_by: V64-009
+priority: P2
+status: completed
+depends_on: [V64-009]
+languages: [css, typescript]
+goal: Results and observations show Collected as a compact status pill independent of the result row height.
+context:
+  authority: 'User request 2026-11-06: Collected in Results & observations must be a pill rather than a circle.'
+  finding: >-
+    ui/src/routes/projects/audits/research.css:214 defines timeline rows as a grid.
+    The direct StatusChip in research-work.tsx stretches vertically with the content
+    column, turning Collected into a tall rounded shape, especially with a saved preview.
+  siblings: >-
+    Current work and collected results share ResearchTaskTimeline and need the same
+    compact vertical alignment. Detail-header chips use flex alignment and are unaffected.
+    Left timeline markers remain circular icons. No backend, status or persistence changes.
+scope:
+  in:
+  - Align the direct timeline status chip to the top of its row.
+  - Verify compact badges before and after opening a result at 390/1440 px in every theme.
+  - Bump the UI patch release.
+  out:
+  - Changes to status meanings, shared chip typography or circular timeline markers.
+acceptance_criteria:
+- id: A1
+  text: Collected remains a compact pill in Results & observations before and after expanding the exact saved result.
+- id: A2
+  text: Current work shares the same alignment, while circular timeline icons and all themes remain intact at mobile and desktop widths.
+- id: A3
+  text: The browser regression rejects the previous vertically stretched badge.
+tests:
+- command: >-
+    cd ui && node --input-type=module -e 'import {runBrowserGate} from "./server/browser-gate.mjs"; await runBrowserGate("audit-status-pill", "Audit status pill", ["e2e/audit-workspace.spec.ts"]);'
+  covers: [A1, A2, A3]
+- command: make ui-verify
+  covers: [A1, A2]
+- command: make ui-gates
+  covers: [A2]
+implementation_commit: cc0cef81bebbda59bdc3201e92c03520d60b770c
+
+verification:
+  date: '2026-11-06'
+  result: >-
+    The timeline status chip now aligns to the start of its grid row rather than
+    stretching with the text and preview. Both current work and collected results
+    share the correction. Circular timeline markers and status meanings are unchanged.
+    The UI patch version is 0.11.18. No backend or database changes were required.
+  browser: >-
+    The focused production-build browser gate passed all eight cases. Its three
+    new theme cases visit 1440/390 px, require Collected to remain a compact badge
+    and verify its height stays unchanged when the saved result expands. The
+    other five research cases passed, including bounded reads and request retries.
+  ui: >-
+    VITEST_MAX_WORKERS=2 make ui-verify passed generate-check, lint, typecheck,
+    all 214 UI test files (2419 tests passed; one intentional expected failure)
+    and production build. make ui-gates passed CSS references, exports and ESLint.
+  preview: >-
+    Visually verified Results & observations in the actual-component preview.
+    The updated source remains on codex/audit-research-ui, unmerged into main.

@@ -85,7 +85,7 @@ function Summary({
             </>
           }
           actions={
-            <ButtonLink variant="primary" to={root}>
+            <ButtonLink variant="primary" to={root} returnLabel="Checks">
               Open check
             </ButtonLink>
           }

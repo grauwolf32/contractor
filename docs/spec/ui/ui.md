@@ -940,25 +940,31 @@ no retained copy has no fabricated link.
 
 ### Audits
 
-**UI-R139.** Audit navigation is Project → Audits → Overview / Coverage /
-Findings / Checks / Runs / Report.
+**UI-R139.** The existing Checks list keeps its filters, compact selected-check
+summary, progress and keyboard navigation. A check opens Overview / Work /
+Hypotheses / Possible issues / Materials / Activity, with a link to its exact
+report. The contextual Project check list and return navigation retain the
+source list context. Work preserves the list/detail pattern over accepted Tasks;
+it does not restore the removed Round/item executor.
 
 **UI-R140.** Audit pages display technical Run outcome separately from semantic
 assessment, and proposed findings separately from confirmed findings.
 
-**UI-R215.** A selected Audit item visually separates its written conclusion
-and labelled limitations from supporting evidence and activity. Evidence stays
-expanded. Proposed and needs-evidence findings offer an explicit **Review**
-link to their existing issue route with return context; confirmed and set-aside
-findings retain their state and title links without a pending-review action.
-This presentation preserves item navigation, coverage facts and the existing
-check-level primary action.
+**UI-R215.** A selected Task separates its saved scoped result, tested conditions
+and limitations from technical Run attempts. The display validates the common
+result document and selects exactly one member by trusted Task identity, Audit
+and exact hypothesis revision; another member's verdict never fans out to it.
+Exploration may have no hypothesis or verdict. The original full batch remains
+downloadable. A deleted source Run is marked as provenance while accepted exact
+results remain readable. Possible issues open the canonical Project issue,
+including its existing independent sources and analyst decision owner.
 
 **UI-R141.** The generic Runs and Queue UI remains authoritative for execution
 and links back to the Audit; an Audit does not create a second Runtime queue.
 
-**UI-R142.** The Audit heading combines profile, Project and creation date,
-with the exact ID and a copy action.
+**UI-R142.** The check heading combines profile, Project and recorded date.
+Exact identity and copy, profile digest and immutable baseline remain under
+Technical details. The objective is prominent; scope remains available beside it.
 
 **UI-R143.** `GET /v1/audits/{auditId}/workspace` returns one owner-scoped SQL
 snapshot (`auditRevision`, `asOf`): current iteration, whole-Audit `totalTasks`,
@@ -994,13 +1000,38 @@ metrics.
 
 Finding pages use bounded candidate windows, revision pins and signed continuation
 cursors. A concurrent change conflicts, filter changes clear incompatible cursors,
-and refresh starts a new context. Coverage links pin the summary revision and
-reject mixed revisions (REV-R170 through REV-R172).
+and refresh starts a new context. The fixed checklist denominator and pending
+fixed admission count come from the hypothesis owner. Generated/manual assertions and additional checks cannot change
+that denominator. Loaded Task or hypothesis pages do not imply a whole-check
+semantic coverage numerator; summaries label their page scope.
 
 **UI-R153.** All activity reads 50 events at a time (LIM-UI-11), exposes Load
 older activity, keeps settled events visible on continuation errors and
 refreshes the complete loaded cursor chain while the Audit is nonterminal or
 after a mutation or reconnect (FAIL-UI-6).
+
+**UI-R233.** Hypotheses show authored grounds and retained exact sources separately
+from system origin, with explicit fixed/generated/manual labels. Manual editing
+and checking reuse the existing revision precondition and mutation receipts;
+conflicts preserve unsaved text and require explicit reload. Save alone does not
+schedule checking work. History reads one indexed hypothesis page at a time and
+keeps the exact checked snapshot, including older revisions and negative results.
+
+**UI-R234.** Materials use accepted Audit receipt pages and exact revision reads,
+shared bounded format viewers, icon-only download and a concise `details →` below
+the divider. Closing a preview cancels its read. A ground outside the loaded
+receipt page remains explicitly unlocated, with its exact descriptor retained;
+no latest revision or source-Run fallback is invented. Explicit Project publication
+is create-only and retains its original body/key across uncertain acknowledgement.
+A definitive refusal permits correction without overwriting another material.
+
+**UI-R235.** Add work offers only aliases from the exact matching Program definition
+and retained material selectors with explicit page continuation. A changed/missing
+catalog definition is unavailable rather than substituted for the stored pin.
+Checking hypotheses uses Server's pinned checking aliases independently. Work
+acceptance retains its body, key and Audit precondition across ambiguous failure.
+Technical progress renders a bounded number of weighted segments, not one DOM node
+per Task. The common font/theme tokens apply at 390 px and in all three themes.
 
 **UI-R154.** The current-state sentence is separate from recorded history.
 Per-item activity summarizes its retained attempts and current results, without

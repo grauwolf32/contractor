@@ -38,7 +38,7 @@ release-verify-families: ui-install verify-public-api-postgres \
 	test-findings-e2e test-engagement-http-process test-performance-metrics test-nuclei-web-e2e \
 	test-artifact-history-postgres test-artifact-history-e2e test-project-sitemap-postgres test-project-sitemap-tools-e2e
 
-release-verify-browser-a: ui-browser-mocked test-release-ui-stack-a
+release-verify-browser-a: ui-browser-mocked test-release-ui-stack-a test-audit-research-ui
 
 release-verify-browser-b: test-release-ui-stack-b
 
