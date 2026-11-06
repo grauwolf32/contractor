@@ -568,6 +568,27 @@ func (e AuditEventSummaryVerdict) Valid() bool {
 	}
 }
 
+// Defines values for AuditExecutionItemState.
+const (
+	AuditExecutionItemStateCollecting AuditExecutionItemState = "collecting"
+	AuditExecutionItemStateSettled    AuditExecutionItemState = "settled"
+	AuditExecutionItemStateSubmitted  AuditExecutionItemState = "submitted"
+)
+
+// Valid indicates whether the value is a known member of the AuditExecutionItemState enum.
+func (e AuditExecutionItemState) Valid() bool {
+	switch e {
+	case AuditExecutionItemStateCollecting:
+		return true
+	case AuditExecutionItemStateSettled:
+		return true
+	case AuditExecutionItemStateSubmitted:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AuditHoldState.
 const (
 	AuditHoldStateHeld     AuditHoldState = "held"
@@ -6626,6 +6647,9 @@ type AuditExactArtifact struct {
 	SizeBytes *int             `json:"sizeBytes,omitempty"`
 }
 
+// AuditExecutionItemState defines model for AuditExecutionItemState.
+type AuditExecutionItemState string
+
 // AuditFindingPage defines model for AuditFindingPage.
 type AuditFindingPage struct {
 	AsOf            time.Time               `json:"asOf"`
@@ -6725,6 +6749,22 @@ type AuditLimits struct {
 	MaxItemsTotal      int `json:"maxItemsTotal"`
 	MaxRounds          int `json:"maxRounds"`
 	MaxSubmittedRuns   int `json:"maxSubmittedRuns"`
+}
+
+// AuditMaterialEntry defines model for AuditMaterialEntry.
+type AuditMaterialEntry struct {
+	CreatedAt time.Time `json:"created_at"`
+
+	// Key The logical key of one committed Audit receipt link, at most 512 UTF-8 bytes (LIM-AUD-39).
+	Key      AuditArtifactKey  `json:"key"`
+	Material AuditTaskMaterial `json:"material"`
+}
+
+// AuditMaterialPage defines model for AuditMaterialPage.
+type AuditMaterialPage struct {
+	AuditRevision int                  `json:"auditRevision"`
+	Items         []AuditMaterialEntry `json:"items"`
+	Page          PageInfo             `json:"page"`
 }
 
 // AuditMaterialPublication defines model for AuditMaterialPublication.
@@ -7177,6 +7217,26 @@ type AuditTaskAcceptance struct {
 	AuditRevision int          `json:"audit_revision"`
 	CreatedCount  int          `json:"created_count"`
 	TaskIds       []ResourceId `json:"task_ids"`
+}
+
+// AuditTaskAttempt defines model for AuditTaskAttempt.
+type AuditTaskAttempt struct {
+	Attempt               int                         `json:"attempt"`
+	CollectedAt           *time.Time                  `json:"collected_at,omitempty"`
+	CollectionDisposition *AuditCollectionDisposition `json:"collection_disposition,omitempty"`
+	CreatedAt             time.Time                   `json:"created_at"`
+	ExecutionId           ResourceId                  `json:"execution_id"`
+	Outcome               *AuditTerminalOutcome       `json:"outcome,omitempty"`
+	RunDeleted            bool                        `json:"run_deleted"`
+	RunId                 *ResourceId                 `json:"run_id,omitempty"`
+	State                 AuditExecutionItemState     `json:"state"`
+}
+
+// AuditTaskAttemptPage defines model for AuditTaskAttemptPage.
+type AuditTaskAttemptPage struct {
+	AuditRevision int                `json:"auditRevision"`
+	Items         []AuditTaskAttempt `json:"items"`
+	Page          PageInfo           `json:"page"`
 }
 
 // AuditTaskCreationRequest defines model for AuditTaskCreationRequest.
@@ -12118,6 +12178,13 @@ type EditAuditHypothesisParams struct {
 	IfMatch        RequiredIfMatch `json:"If-Match"`
 }
 
+// ListAuditMaterialsParams defines parameters for ListAuditMaterials.
+type ListAuditMaterialsParams struct {
+	Limit         *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor        *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+	AuditRevision *int    `form:"auditRevision,omitempty" json:"auditRevision,omitempty"`
+}
+
 // PauseAuditParams defines parameters for PauseAudit.
 type PauseAuditParams struct {
 	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
@@ -12170,6 +12237,13 @@ type CreateAuditTasksParams struct {
 	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey  `json:"Idempotency-Key"`
 	IfMatch        RequiredIfMatch `json:"If-Match"`
+}
+
+// ListAuditTaskAttemptsParams defines parameters for ListAuditTaskAttempts.
+type ListAuditTaskAttemptsParams struct {
+	Limit         *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor        *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+	AuditRevision *int    `form:"auditRevision,omitempty" json:"auditRevision,omitempty"`
 }
 
 // LoginParams defines parameters for Login.
@@ -17727,6 +17801,13 @@ type ClientInterface interface {
 	// Corresponds with PATCH /v1/audits/{auditId}/hypotheses/{hypothesisId} (the `EditAuditHypothesis` operationId).
 	EditAuditHypothesis(ctx context.Context, auditId AuditId, hypothesisId ResourceId, params *EditAuditHypothesisParams, body EditAuditHypothesisJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListAuditMaterials List accepted exact materials without reading payloads
+	//
+	// Bounded owner-authorized keyset pages pinned to one Audit revision. A concurrent change requires restarting traversal. Reads create no retention or execution effects.
+	//
+	// Corresponds with GET /v1/audits/{auditId}/materials (the `ListAuditMaterials` operationId).
+	ListAuditMaterials(ctx context.Context, auditId AuditId, params *ListAuditMaterialsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// PauseAudit Pause admission of new child Runs while existing work drains
 	//
 	// Corresponds with POST /v1/audits/{auditId}/pause (the `PauseAudit` operationId).
@@ -17792,6 +17873,13 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /v1/audits/{auditId}/tasks/{taskId} (the `GetAuditTask` operationId).
 	GetAuditTask(ctx context.Context, auditId AuditId, taskId ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListAuditTaskAttempts List ordinary Run attempts of one accepted Task
+	//
+	// Bounded owner-authorized keyset pages pinned to one Audit revision. A concurrent change requires restarting traversal. Reads create no retention or execution effects.
+	//
+	// Corresponds with GET /v1/audits/{auditId}/tasks/{taskId}/attempts (the `ListAuditTaskAttempts` operationId).
+	ListAuditTaskAttempts(ctx context.Context, auditId AuditId, taskId ResourceId, params *ListAuditTaskAttemptsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetAuditWorkspace Read consistent Task progress and whole-Audit Finding counts
 	//
@@ -19457,6 +19545,23 @@ func (c *Client) EditAuditHypothesis(ctx context.Context, auditId AuditId, hypot
 	return c.Client.Do(req)
 }
 
+// ListAuditMaterials List accepted exact materials without reading payloads
+//
+// Bounded owner-authorized keyset pages pinned to one Audit revision. A concurrent change requires restarting traversal. Reads create no retention or execution effects.
+//
+// Corresponds with GET /v1/audits/{auditId}/materials (the `ListAuditMaterials` operationId).
+func (c *Client) ListAuditMaterials(ctx context.Context, auditId AuditId, params *ListAuditMaterialsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListAuditMaterialsRequest(c.Server, auditId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // PauseAudit Pause admission of new child Runs while existing work drains
 //
 // Corresponds with POST /v1/audits/{auditId}/pause (the `PauseAudit` operationId).
@@ -19613,6 +19718,23 @@ func (c *Client) CreateAuditTasks(ctx context.Context, auditId AuditId, params *
 // Corresponds with GET /v1/audits/{auditId}/tasks/{taskId} (the `GetAuditTask` operationId).
 func (c *Client) GetAuditTask(ctx context.Context, auditId AuditId, taskId ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetAuditTaskRequest(c.Server, auditId, taskId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListAuditTaskAttempts List ordinary Run attempts of one accepted Task
+//
+// Bounded owner-authorized keyset pages pinned to one Audit revision. A concurrent change requires restarting traversal. Reads create no retention or execution effects.
+//
+// Corresponds with GET /v1/audits/{auditId}/tasks/{taskId}/attempts (the `ListAuditTaskAttempts` operationId).
+func (c *Client) ListAuditTaskAttempts(ctx context.Context, auditId AuditId, taskId ResourceId, params *ListAuditTaskAttemptsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListAuditTaskAttemptsRequest(c.Server, auditId, taskId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -24385,6 +24507,91 @@ func NewEditAuditHypothesisRequestWithBody(server string, auditId AuditId, hypot
 	return req, nil
 }
 
+// NewListAuditMaterialsRequest constructs an http.Request for the ListAuditMaterials method
+func NewListAuditMaterialsRequest(server string, auditId AuditId, params *ListAuditMaterialsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "auditId", auditId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/audits/%s/materials", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.AuditRevision != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "auditRevision", *params.AuditRevision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewPauseAuditRequest constructs an http.Request for the PauseAudit method
 func NewPauseAuditRequest(server string, auditId AuditId, params *PauseAuditParams) (*http.Request, error) {
 	var err error
@@ -24876,6 +25083,98 @@ func NewGetAuditTaskRequest(server string, auditId AuditId, taskId ResourceId) (
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListAuditTaskAttemptsRequest constructs an http.Request for the ListAuditTaskAttempts method
+func NewListAuditTaskAttemptsRequest(server string, auditId AuditId, taskId ResourceId, params *ListAuditTaskAttemptsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "auditId", auditId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "taskId", taskId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/audits/%s/tasks/%s/attempts", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.AuditRevision != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "auditRevision", *params.AuditRevision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
 	}
 
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
@@ -33517,6 +33816,15 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with PATCH /v1/audits/{auditId}/hypotheses/{hypothesisId} (the `EditAuditHypothesis` operationId).
 	EditAuditHypothesisWithResponse(ctx context.Context, auditId AuditId, hypothesisId ResourceId, params *EditAuditHypothesisParams, body EditAuditHypothesisJSONRequestBody, reqEditors ...RequestEditorFn) (*EditAuditHypothesisResponse, error)
 
+	// ListAuditMaterialsWithResponse List accepted exact materials without reading payloads
+	//
+	// Bounded owner-authorized keyset pages pinned to one Audit revision. A concurrent change requires restarting traversal. Reads create no retention or execution effects.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/audits/{auditId}/materials (the `ListAuditMaterials` operationId).
+	ListAuditMaterialsWithResponse(ctx context.Context, auditId AuditId, params *ListAuditMaterialsParams, reqEditors ...RequestEditorFn) (*ListAuditMaterialsResponse, error)
+
 	// PauseAuditWithResponse Pause admission of new child Runs while existing work drains
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -33590,6 +33898,15 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /v1/audits/{auditId}/tasks/{taskId} (the `GetAuditTask` operationId).
 	GetAuditTaskWithResponse(ctx context.Context, auditId AuditId, taskId ResourceId, reqEditors ...RequestEditorFn) (*GetAuditTaskResponse, error)
+
+	// ListAuditTaskAttemptsWithResponse List ordinary Run attempts of one accepted Task
+	//
+	// Bounded owner-authorized keyset pages pinned to one Audit revision. A concurrent change requires restarting traversal. Reads create no retention or execution effects.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/audits/{auditId}/tasks/{taskId}/attempts (the `ListAuditTaskAttempts` operationId).
+	ListAuditTaskAttemptsWithResponse(ctx context.Context, auditId AuditId, taskId ResourceId, params *ListAuditTaskAttemptsParams, reqEditors ...RequestEditorFn) (*ListAuditTaskAttemptsResponse, error)
 
 	// GetAuditWorkspaceWithResponse Read consistent Task progress and whole-Audit Finding counts
 	//
@@ -39175,6 +39492,141 @@ func (r EditAuditHypothesisResponse) ContentType() string {
 	return ""
 }
 
+// ListAuditMaterialsResponse200Headers the declared response headers of an HTTP 200 response for ListAuditMaterials
+type ListAuditMaterialsResponse200Headers struct {
+	CacheControl string
+	XRequestID   RequestId
+}
+
+// ListAuditMaterialsResponse400Headers the declared response headers of an HTTP 400 response for ListAuditMaterials
+type ListAuditMaterialsResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// ListAuditMaterialsResponse401Headers the declared response headers of an HTTP 401 response for ListAuditMaterials
+type ListAuditMaterialsResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// ListAuditMaterialsResponse404Headers the declared response headers of an HTTP 404 response for ListAuditMaterials
+type ListAuditMaterialsResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// ListAuditMaterialsResponse409Headers the declared response headers of an HTTP 409 response for ListAuditMaterials
+type ListAuditMaterialsResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// ListAuditMaterialsResponse500Headers the declared response headers of an HTTP 500 response for ListAuditMaterials
+type ListAuditMaterialsResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// ListAuditMaterialsResponse503Headers the declared response headers of an HTTP 503 response for ListAuditMaterials
+type ListAuditMaterialsResponse503Headers struct {
+	XRequestID RequestId
+}
+
+type ListAuditMaterialsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AuditMaterialPage
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *ListAuditMaterialsResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *ListAuditMaterialsResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *ListAuditMaterialsResponse401Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *ListAuditMaterialsResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *ListAuditMaterialsResponse409Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *ListAuditMaterialsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListAuditMaterialsResponse503Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListAuditMaterialsResponse) GetJSON200() *AuditMaterialPage {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r ListAuditMaterialsResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListAuditMaterialsResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r ListAuditMaterialsResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r ListAuditMaterialsResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r ListAuditMaterialsResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListAuditMaterialsResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r ListAuditMaterialsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListAuditMaterialsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListAuditMaterialsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListAuditMaterialsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // PauseAuditResponse200Headers the declared response headers of an HTTP 200 response for PauseAudit
 type PauseAuditResponse200Headers struct {
 	CacheControl        string
@@ -40262,6 +40714,141 @@ func (r GetAuditTaskResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetAuditTaskResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// ListAuditTaskAttemptsResponse200Headers the declared response headers of an HTTP 200 response for ListAuditTaskAttempts
+type ListAuditTaskAttemptsResponse200Headers struct {
+	CacheControl string
+	XRequestID   RequestId
+}
+
+// ListAuditTaskAttemptsResponse400Headers the declared response headers of an HTTP 400 response for ListAuditTaskAttempts
+type ListAuditTaskAttemptsResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// ListAuditTaskAttemptsResponse401Headers the declared response headers of an HTTP 401 response for ListAuditTaskAttempts
+type ListAuditTaskAttemptsResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// ListAuditTaskAttemptsResponse404Headers the declared response headers of an HTTP 404 response for ListAuditTaskAttempts
+type ListAuditTaskAttemptsResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// ListAuditTaskAttemptsResponse409Headers the declared response headers of an HTTP 409 response for ListAuditTaskAttempts
+type ListAuditTaskAttemptsResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// ListAuditTaskAttemptsResponse500Headers the declared response headers of an HTTP 500 response for ListAuditTaskAttempts
+type ListAuditTaskAttemptsResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// ListAuditTaskAttemptsResponse503Headers the declared response headers of an HTTP 503 response for ListAuditTaskAttempts
+type ListAuditTaskAttemptsResponse503Headers struct {
+	XRequestID RequestId
+}
+
+type ListAuditTaskAttemptsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AuditTaskAttemptPage
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *ListAuditTaskAttemptsResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *ListAuditTaskAttemptsResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *ListAuditTaskAttemptsResponse401Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *ListAuditTaskAttemptsResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *ListAuditTaskAttemptsResponse409Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *ListAuditTaskAttemptsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *ListAuditTaskAttemptsResponse503Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListAuditTaskAttemptsResponse) GetJSON200() *AuditTaskAttemptPage {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r ListAuditTaskAttemptsResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListAuditTaskAttemptsResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r ListAuditTaskAttemptsResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r ListAuditTaskAttemptsResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r ListAuditTaskAttemptsResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r ListAuditTaskAttemptsResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r ListAuditTaskAttemptsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListAuditTaskAttemptsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListAuditTaskAttemptsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListAuditTaskAttemptsResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -57753,6 +58340,21 @@ func (c *ClientWithResponses) EditAuditHypothesisWithResponse(ctx context.Contex
 	return ParseEditAuditHypothesisResponse(rsp)
 }
 
+// ListAuditMaterialsWithResponse List accepted exact materials without reading payloads
+//
+// Bounded owner-authorized keyset pages pinned to one Audit revision. A concurrent change requires restarting traversal. Reads create no retention or execution effects.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/audits/{auditId}/materials (the `ListAuditMaterials` operationId).
+func (c *ClientWithResponses) ListAuditMaterialsWithResponse(ctx context.Context, auditId AuditId, params *ListAuditMaterialsParams, reqEditors ...RequestEditorFn) (*ListAuditMaterialsResponse, error) {
+	rsp, err := c.ListAuditMaterials(ctx, auditId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListAuditMaterialsResponse(rsp)
+}
+
 // PauseAuditWithResponse Pause admission of new child Runs while existing work drains
 //
 // Returns a wrapper object for the known response body format(s).
@@ -57885,6 +58487,21 @@ func (c *ClientWithResponses) GetAuditTaskWithResponse(ctx context.Context, audi
 		return nil, err
 	}
 	return ParseGetAuditTaskResponse(rsp)
+}
+
+// ListAuditTaskAttemptsWithResponse List ordinary Run attempts of one accepted Task
+//
+// Bounded owner-authorized keyset pages pinned to one Audit revision. A concurrent change requires restarting traversal. Reads create no retention or execution effects.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/audits/{auditId}/tasks/{taskId}/attempts (the `ListAuditTaskAttempts` operationId).
+func (c *ClientWithResponses) ListAuditTaskAttemptsWithResponse(ctx context.Context, auditId AuditId, taskId ResourceId, params *ListAuditTaskAttemptsParams, reqEditors ...RequestEditorFn) (*ListAuditTaskAttemptsResponse, error) {
+	rsp, err := c.ListAuditTaskAttempts(ctx, auditId, taskId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListAuditTaskAttemptsResponse(rsp)
 }
 
 // GetAuditWorkspaceWithResponse Read consistent Task progress and whole-Audit Finding counts
@@ -65414,6 +66031,168 @@ func ParseEditAuditHypothesisResponse(rsp *http.Response) (*EditAuditHypothesisR
 	return response, nil
 }
 
+// ParseListAuditMaterialsResponse parses an HTTP response from a ListAuditMaterialsWithResponse call
+func ParseListAuditMaterialsResponse(rsp *http.Response) (*ListAuditMaterialsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListAuditMaterialsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AuditMaterialPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers ListAuditMaterialsResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers ListAuditMaterialsResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers ListAuditMaterialsResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 404:
+		var headers ListAuditMaterialsResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers ListAuditMaterialsResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 500:
+		var headers ListAuditMaterialsResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListAuditMaterialsResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
 // ParsePauseAuditResponse parses an HTTP response from a PauseAuditWithResponse call
 func ParsePauseAuditResponse(rsp *http.Response) (*PauseAuditResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -66761,6 +67540,168 @@ func ParseGetAuditTaskResponse(rsp *http.Response) (*GetAuditTaskResponse, error
 		response.Headers500 = &headers
 	case rsp.StatusCode == 503:
 		var headers GetAuditTaskResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseListAuditTaskAttemptsResponse parses an HTTP response from a ListAuditTaskAttemptsWithResponse call
+func ParseListAuditTaskAttemptsResponse(rsp *http.Response) (*ListAuditTaskAttemptsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListAuditTaskAttemptsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AuditTaskAttemptPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers ListAuditTaskAttemptsResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers ListAuditTaskAttemptsResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers ListAuditTaskAttemptsResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 404:
+		var headers ListAuditTaskAttemptsResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers ListAuditTaskAttemptsResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 500:
+		var headers ListAuditTaskAttemptsResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers ListAuditTaskAttemptsResponse503Headers
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
 			var value RequestId
 			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {

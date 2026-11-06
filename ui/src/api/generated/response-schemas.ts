@@ -291,6 +291,10 @@ export type PublicSchemaName =
   | "FindingProposalPage"
   | "ImportFindingProposalRequest"
   | "ImportFindingProposalResponse"
+  | "AuditMaterialEntry"
+  | "AuditTaskAttempt"
+  | "AuditMaterialPage"
+  | "AuditTaskAttemptPage"
   | "AuditWorkspace"
   | "OwnerFindingPage"
   | "AuditFindingPage"
@@ -1454,6 +1458,24 @@ export const RESPONSE_SCHEMAS = {
     "500": "Error",
     "503": "Error",
   },
+  "GET /v1/audits/{auditId}/materials": {
+    "200": "AuditMaterialPage",
+    "400": "Error",
+    "401": "Error",
+    "404": "Error",
+    "409": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "GET /v1/audits/{auditId}/tasks/{taskId}/attempts": {
+    "200": "AuditTaskAttemptPage",
+    "400": "Error",
+    "401": "Error",
+    "404": "Error",
+    "409": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
   "GET /v1/audits/{auditId}/workspace": {
     "200": "AuditWorkspace",
     "400": "Error",
@@ -2150,6 +2172,8 @@ export const PUBLIC_PAGED_OPERATIONS: readonly string[] = [
   "GET /v1/audits/{auditId}/tasks",
   "GET /v1/audits/{auditId}/finding-proposals",
   "GET /v1/audits/{auditId}/events",
+  "GET /v1/audits/{auditId}/materials",
+  "GET /v1/audits/{auditId}/tasks/{taskId}/attempts",
   "GET /v1/audits/{auditId}/findings",
   "GET /v1/queue",
   "GET /v1/runs",

@@ -7569,6 +7569,96 @@
         "replayed": { "type": "boolean" }
       }
     },
+    "AuditMaterialEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "material", "created_at"],
+      "properties": {
+        "key": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditArtifactKey"
+        },
+        "material": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditTaskMaterial"
+        },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "AuditTaskAttempt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attempt",
+        "execution_id",
+        "run_deleted",
+        "state",
+        "created_at"
+      ],
+      "properties": {
+        "attempt": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "execution_id": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "run_id": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "run_deleted": { "type": "boolean" },
+        "state": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExecutionItemState"
+        },
+        "outcome": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditTerminalOutcome"
+        },
+        "collection_disposition": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCollectionDisposition"
+        },
+        "created_at": { "type": "string", "format": "date-time" },
+        "collected_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "AuditMaterialPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["items", "page", "auditRevision"],
+      "properties": {
+        "items": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditMaterialEntry"
+          }
+        },
+        "page": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PageInfo"
+        },
+        "auditRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      }
+    },
+    "AuditTaskAttemptPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["items", "page", "auditRevision"],
+      "properties": {
+        "items": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditTaskAttempt"
+          }
+        },
+        "page": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PageInfo"
+        },
+        "auditRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      }
+    },
     "AuditWorkspace": {
       "type": "object",
       "additionalProperties": false,

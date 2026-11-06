@@ -1331,6 +1331,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/audits/{auditId}/materials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * List accepted exact materials without reading payloads
+         * @description Bounded owner-authorized keyset pages pinned to one Audit revision. A concurrent change requires restarting traversal. Reads create no retention or execution effects.
+         */
+        get: operations["listAuditMaterials"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/audits/{auditId}/tasks/{taskId}/attempts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+                taskId: components["schemas"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * List ordinary Run attempts of one accepted Task
+         * @description Bounded owner-authorized keyset pages pinned to one Audit revision. A concurrent change requires restarting traversal. Reads create no retention or execution effects.
+         */
+        get: operations["listAuditTaskAttempts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/audits/{auditId}/workspace": {
         parameters: {
             query?: never;
@@ -4684,6 +4729,35 @@ export interface components {
         ImportFindingProposalResponse: {
             hold: components["schemas"]["FindingAuditHold"];
             replayed: boolean;
+        };
+        AuditMaterialEntry: {
+            key: components["schemas"]["AuditArtifactKey"];
+            material: components["schemas"]["AuditTaskMaterial"];
+            /** Format: date-time */
+            created_at: string;
+        };
+        AuditTaskAttempt: {
+            attempt: number;
+            execution_id: components["schemas"]["ResourceId"];
+            run_id?: components["schemas"]["ResourceId"];
+            run_deleted: boolean;
+            state: components["schemas"]["AuditExecutionItemState"];
+            outcome?: components["schemas"]["AuditTerminalOutcome"];
+            collection_disposition?: components["schemas"]["AuditCollectionDisposition"];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            collected_at?: string;
+        };
+        AuditMaterialPage: {
+            items: components["schemas"]["AuditMaterialEntry"][];
+            page: components["schemas"]["PageInfo"];
+            auditRevision: number;
+        };
+        AuditTaskAttemptPage: {
+            items: components["schemas"]["AuditTaskAttempt"][];
+            page: components["schemas"]["PageInfo"];
+            auditRevision: number;
         };
         AuditWorkspace: {
             auditId: components["schemas"]["ResourceId"];
@@ -10875,6 +10949,75 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
+    listAuditMaterials: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+                auditRevision?: number;
+            };
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One bounded page */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditMaterialPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
+    listAuditTaskAttempts: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+                auditRevision?: number;
+            };
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+                taskId: components["schemas"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One bounded page */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditTaskAttemptPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["StorageTransactionConflict"];
         };

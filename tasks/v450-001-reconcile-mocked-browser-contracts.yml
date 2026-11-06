@@ -60,6 +60,18 @@ context:
     activity: V450-003 preserves and refreshes all explicitly loaded pages through the existing owner, with failure retention asserted at 1440/390/320px.
     evals: Reuse the schema-checked current common AuditProfile fixture, pinning its requested name/version/digest and matching the dataset's source ZIP input; remove the obsolete inventory/execution/interaction shape.
     scheduler: Select exact named spinbuttons, explicitly open Saved scheduling settings before its Technical details, and preserve bounds, viewport, exact two-lane body and If-Match assertions.
+  prior_integration_review: >-
+    Before the V450-002 merge, current main already rewrote the activity and
+    Studio common-Program browser fixtures in V64-010. Re-establish the current
+    failing set rather than assuming the historical count of sixteen still holds.
+    Read-only inspection confirmed a product gap in AuditActivity: switching
+    cursor changes the query key, and failed continuation replaces loaded events
+    and navigation with the error. UI-R153/FAIL-UI-6 require settled events to
+    remain visible. Main's revised test omits that assertion; a passing page/retry
+    test alone does not prove retention. Record this as a production defect before
+    changing the component. For Studio YAML, summarizerModelPolicy is already
+    present in the imported fixture; the expected-result code overwrites its
+    stages map and drops those fields, while the UI preserves them correctly.
   boundary: >-
     Do not change product behavior merely to satisfy an old selector. Compare
     the current specification first, especially FAIL-UI-6's retained activity

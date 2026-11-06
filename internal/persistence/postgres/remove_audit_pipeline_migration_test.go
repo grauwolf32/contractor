@@ -56,7 +56,7 @@ VALUES($1,$1,$1,$1,0,1,'[]','settled','execution-failed',clock_timestamp())`, id
  'attempts',(SELECT jsonb_agg(to_jsonb(m)-ARRAY['round_id','item_id','task_ref','task_digest','input_refs','finding_sources'] ORDER BY execution_item_id) FROM audit_execution_items m),
  'blobs',(SELECT jsonb_agg(to_jsonb(b) ORDER BY sha256) FROM artifact_blobs b),
  'revisions',(SELECT jsonb_agg(to_jsonb(r) ORDER BY scope_id,namespace,name,revision) FROM artifact_binding_revisions r),
- 'links',(SELECT jsonb_agg(to_jsonb(l) ORDER BY audit_id,logical_key) FROM audit_artifact_links l))::text`).Scan(&s); err != nil {
+ 'links',(SELECT jsonb_agg(to_jsonb(l)-'material_ordinal' ORDER BY audit_id,logical_key) FROM audit_artifact_links l))::text`).Scan(&s); err != nil {
 			t.Fatal(err)
 		}
 		return s

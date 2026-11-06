@@ -5,7 +5,7 @@ milestone: audit-check-prioritization
 epic: audits
 kind: feature
 priority: P1
-status: pending
+status: completed
 depends_on:
 - V64-012
 - V64-013
@@ -23,9 +23,11 @@ demonstration: An API/CLI caller starts and pauses/resumes a program, reads ordi
   and hypothesis history separately from Project problem findings with their sources, then publishes an
   exact material.
 context:
-  authority: 'User direction on 2026-11-05: API coverage follows proposal 0054 and V64-034; distinguish
+  authority: 'User assignment on 2026-11-06: implement V64-008 from current main,
+    explicitly using common-contract.md and hypotheses.md as normative inputs.
+    User direction on 2026-11-05: API coverage follows proposal 0054 and V64-034; distinguish
     proposal output from registered hypotheses and expose exact selected grounds without a
-    numbered-slot contract. This update starts no implementation.
+    numbered-slot contract. That earlier task-formation update started no implementation.
     User decisions and task-formation request on 2026-10-31: Audit durably coordinates ordinary
     tasks/Runs for investigation, checking, supporting work and generation. There is no mandatory discovery-finding-generator
     sequence. Assertion checks use common hypotheses; exploratory work may have none. Check results retain
@@ -39,13 +41,16 @@ context:
     subsequent step, not part of this task-formation request. User decision on 2026-11-01 rejects parallel
     Audit/Project Finding models: V64-014 supplies one Project identity/current state and its existing
     read/edit callers; this task reuses that owner rather than adding another Finding lifecycle.'
-  implementation_gate: V64-001 decisions are settled. Keep pending until implementation is assigned and
-    dependencies are complete; this task amendment starts no code, migrations, live Runs or deployment.
+  implementation_gate: Assigned by the user on 2026-11-06; all dependencies are completed
+    and integrated into main. Implement on codex/audit-api-cli from b84f7f672.
+    Demo deployment and dependent tasks remain unassigned.
   design:
   - docs/proposals/0054-workflow-hypothesis-production.md
   - docs/proposals/0050-audit-common-hypothesis-model.md
   - docs/plans/2026-10-31-audit-redesign.md
   specification:
+  - docs/spec/audits/common-contract.md
+  - docs/spec/audits/hypotheses.md
   - docs/spec/audits/audits.md
   - docs/spec/audits/execution.md
   - docs/spec/audits/review-and-reports.md
@@ -58,6 +63,15 @@ context:
   specification_baseline: Named specifications describe current behavior. Update their owning requirements,
     API/wire contracts and fixtures with implementation; proposal 0050 governs the reviewed replacement
     direction.
+  boundary_decision: >-
+    V64-008 uses existing accepted artifact links and execution membership for bounded material
+    and Task-attempt reads. A link ordinal is internal pagination metadata: the 512-byte logical
+    key cannot safely fit in the existing 512-byte signed cursor. An indexed ordinal preserves
+    both bounds without offset scans or a new receipt store. The old Round items/coverage routes
+    and their exclusive response consumers are removed; workspace reads persisted Task/Run
+    counters only. Hypothesis pages and exact Task results own semantic coverage, and Project
+    Findings retain their existing source/history owner. Reopen only if a real caller needs an
+    additional semantic summary with a separately specified bounded implementation.
   implementation_boundary: Every new state, export, relation or capability needs its real production caller
     in this task. Reuse RunService, Scheduler, ArtifactStore, finding intake, ControllerClaims and existing
     keyed/natural receipts. No new collector, admission engine, lease store or compatibility reader.
@@ -74,8 +88,7 @@ scope:
   out:
   - A second research API, generic graph endpoints, broad cross-Project grants or manual identity/revision
     fields in model-facing result commands.
-  - Implementation during this planning-only update; changing user model configuration or deploying/migrating
-    the demo.
+  - Changing user model configuration or deploying/migrating the demo.
 requirements:
 - id: R1
   text: Every list follows existing pagination/byte bounds, including complete source-contribution traversal;
@@ -135,7 +148,8 @@ acceptance_criteria:
 tests:
 - command: make require-database
 - command: go test -tags=integration -count=1 ./internal/httpapi/public/... ./internal/publicclient/...
-    ./internal/auditservice ./internal/artifacts/...
+    ./internal/cli ./internal/auditdomain ./internal/auditservice ./internal/artifacts/... ./internal/auditstore/...
+    ./internal/persistence/... ./internal/auditcontroller
   covers:
   - A1
   - A2
@@ -150,9 +164,14 @@ tests:
   - A1
   - A2
   - A3
+- command: >-
+    node --input-type=module -e "import {runBrowserGate} from './ui/server/browser-gate.mjs';
+    await runBrowserGate('audit-research', 'Audit research',
+    ['e2e/audit-hypotheses.spec.ts', 'e2e/audit-research.spec.ts'])"
+  covers: [A3]
 - command: make lint
 test_prerequisites:
-- Commands below are future implementation acceptance, not results of this planning update.
+- Listed commands are required implementation acceptance; results are recorded after execution.
 - Use disposable PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set; configured/unavailable DB or mandatory
   skips fail. A focused selector matching zero tests fails.
 - Use testdata catalogs and pseudo-Skills, not live configs in unit/integration tests. Run whole touched-package
@@ -166,7 +185,67 @@ verification_requirements:
   dependencies and strict reads/writes.
 - Delete the replaced vertical path and its exclusive schemas/states/tests as its callers migrate. Final
   V64-011 proves no parallel legacy pipeline remains.
-implementation_commit: null
+verification:
+  date: '2026-11-06'
+  environment: >-
+    Go 1.26.9, Node 24.20.0, pnpm 11.24.0 and an owned disposable PostgreSQL
+    database over TCP. GOFLAGS=-p=2 bounds parallel Go package builds;
+    VITEST_MAX_WORKERS=4 bounds UI workers without changing assertions or timeouts.
+  passed:
+  - make require-database
+  - go test -tags=integration -count=1 ./internal/httpapi/public/... ./internal/publicclient/...
+      ./internal/cli ./internal/auditdomain ./internal/auditservice ./internal/artifacts/...
+      ./internal/auditstore/... ./internal/persistence/... ./internal/auditcontroller
+  - make verify-public-api verify-public-api-postgres
+  - make ui-verify
+  - >-
+      node --input-type=module -e "import {runBrowserGate} from './ui/server/browser-gate.mjs';
+      await runBrowserGate('audit-research', 'Audit research',
+      ['e2e/audit-hypotheses.spec.ts', 'e2e/audit-research.spec.ts'])"
+  - make lint
+  evidence:
+  - >-
+    A real CLI process against HTTP/PostgreSQL creates and controls an Audit,
+    replays a lost Task acknowledgement without duplicate work, traverses Tasks
+    and hypotheses, reads accepted attempts/materials and publishes an exact material.
+    Authorization, stale revisions and retired routes have regression coverage.
+  - >-
+    Real-store material traversal visits 5000 links with 512-byte logical keys
+    without loss or duplication; custom and generic plans use bounded indexed seeks.
+    Migration 11-to-12 preserves existing links and backfills unique seek positions.
+  - >-
+    Generated hypotheses retain exact grounds separately from origin after the
+    producer Run is deleted; accepted materials remain readable and explicit
+    Project publication survives Audit purge. Existing HG-R6/R8/R12/R15/R16
+    requirements remain normative; ACT-R15 now defines the added read operations.
+  - >-
+    UI verification passes 211 files and 2412 tests with one pre-existing expected
+    failure. Four focused browser tests pass, including hypothesis revision
+    conflicts and common coordination at 320/390/1440 pixels in light/dark/black.
+  additional_gate:
+    command: make ui-browser-mocked
+    result: >-
+      The broader optional run reported 140 passing and 17 failing cases. Its
+      invalid new Studio Live fixture was corrected and passed the focused rerun.
+      Sixteen existing contract/selector failures are recorded in V450-001;
+      the complete browser gate has not subsequently passed and is not claimed green.
+  not_run: >-
+    Full release-verify and live-model checks were not run. Optional disk-heavy
+    fixtures stayed disabled; their skips are not passing coverage.
+delivery:
+  branch: codex/audit-api-cli
+  base_commit: b84f7f672626eaf538605824f79668d4fb68c316
+  merged_into_main: true
+  merge_commit: ae839bbf0dd4c3f95badb0e228845b7fc9b0bbaa
+  integration_task: tasks/done/v450-002-integrate-audit-research-main.yml
+  integration_note: >-
+    User-requested integration on 2026-11-06 preserves later main's user-reviewed
+    V64-037 Task progress in workspace instead of the earlier coordination-only
+    projection. Main's pipeline retirement remains 000012; material pagination
+    is 000013. Original implementation evidence above is retained, and combined
+    verification is recorded by V450-002.
+  pushed: false
+implementation_commit: be6a94128df40f3edf56648b9b12eacc79e12231
 replanning:
   date: '2026-10-31'
   previous_title: Expose paginated research state and separate coverage through the public API

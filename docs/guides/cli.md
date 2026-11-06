@@ -43,13 +43,87 @@ contractor --output name workflow list
 ```
 
 `--timeout` (or `CONTRACTOR_TIMEOUT`, default `30s`) bounds each request. For
-`source push`, `artifact put`/`get`, `audit findings export`/`download` and `run output` it instead bounds each
+`source push`, `artifact put`/`get`, `audit findings export`/`download`, `audit materials get`, `audit tasks result` and `run output` it instead bounds each
 period without progress, from connecting through the last body byte, so a large
 Artifact may take longer on a slow link while a stalled transfer still fails.
 
 Cleartext HTTP is accepted by default only for IP-literal loopback origins.
 Use `--allow-http` explicitly for another development origin. Redirects and a
 Server with an incompatible `X-Contractor-API-Version` are rejected.
+
+## Audits, hypotheses and retained results
+
+Audit commands use the same owner-authorized public API. Mutations require an
+explicit `--idempotency-key`; edits and lifecycle actions also require the
+revision read from the resource. A retry keeps the original key, request and
+revision. Request files are strict JSON: unknown fields, duplicate keys and
+metadata larger than 1 MiB are rejected before submission.
+
+```shell
+contractor audit profiles
+contractor audit list --project "$PROJECT_ID" --limit 50
+contractor audit create "$PROJECT_ID" --request ./audit.json --idempotency-key create-audit
+contractor audit get "$AUDIT_ID"
+contractor audit start "$AUDIT_ID" --revision 1 --idempotency-key start-audit
+contractor audit pause "$AUDIT_ID" --revision 2 --idempotency-key pause-audit
+contractor audit resume "$AUDIT_ID" --revision 3 --idempotency-key resume-audit
+contractor audit workspace "$AUDIT_ID"
+```
+
+`audit.json` has the `CreateAuditRequest` shape: a selected `profile` with name
+and version, exact Project Artifact `inputs`, `scope`, `runtimeLabels` and
+`labels`. Start and resume accept `--deadline-seconds`; omission preserves the
+owning operation's default, and zero removes the allowance. Use the actual
+revision returned by the Server for each subsequent mutation.
+
+```shell
+contractor --output json audit tasks list "$AUDIT_ID" --limit 50
+contractor audit tasks get "$AUDIT_ID" "$TASK_ID"
+contractor audit tasks attempts "$AUDIT_ID" "$TASK_ID"
+contractor audit tasks result "$AUDIT_ID" "$TASK_ID" --revision "$RESULT_REVISION" --to result.json
+contractor audit hypotheses list "$AUDIT_ID"
+contractor audit hypotheses get "$AUDIT_ID" "$HYPOTHESIS_ID" --revision 1
+contractor audit tasks list "$AUDIT_ID" --hypothesis "$HYPOTHESIS_ID" --state settled
+```
+
+Lists return one page. Follow `page.nextCursor` with `--cursor` while `hasMore`
+is true, including an empty filtered page. Task and hypothesis pages expose
+accepted work and immutable assertions. A saved proposal appears as material;
+it does not itself mean hypotheses were registered. Hypothesis grounds and
+selected exact sources remain separate from automatically assigned origin.
+Task results preserve supported, refuted or inconclusive conclusions and their
+tested conditions. Run completion and workspace coordination counts do not
+imply a supported assertion or a problem finding.
+
+`tasks create AUDIT --request FILE` accepts `AuditTaskCreationRequest`;
+`hypotheses create AUDIT` and `hypotheses edit AUDIT HYPOTHESIS` accept
+`AuditHypothesisContent`. All three require `--revision` of the **Audit** and
+`--idempotency-key`. The Server assigns hypothesis identity, revision and origin.
+
+```shell
+contractor audit materials list "$AUDIT_ID"
+contractor audit materials get "$AUDIT_ID" "$LOGICAL_KEY" --revision "$MATERIAL_REVISION" --to material.bin
+contractor audit materials publish "$PROJECT_ID" --request publication.json --idempotency-key publish-material
+contractor audit findings list "$PROJECT_ID"
+contractor audit findings get "$PROJECT_ID" "$FINDING_ID"
+contractor audit findings sources "$PROJECT_ID" --finding "$FINDING_ID" --limit 64
+contractor audit findings source "$PROJECT_ID" "$RECEIPT_ID"
+contractor audit findings history "$PROJECT_ID" "$RECEIPT_ID" --limit 64
+contractor audit events "$AUDIT_ID"
+contractor audit report "$AUDIT_ID"
+```
+
+`publication.json` contains `auditId`, an exact `source` Artifact reference and
+a revision-free `target` reference. Omit `--revision` for create-only publication;
+provide the exact current **destination Artifact** revision to replace it by CAS.
+The Project receipt replays the same publication without repeating execution.
+Finding edits use `findings edit PROJECT FINDING --request FILE`, the exact
+Finding `--revision` and an idempotency key. Project Finding sources remain
+readable independently of the source Audit lifecycle.
+
+`audit cancel AUDIT` requires its revision and key. `audit delete AUDIT` also
+requires `--yes`. Exact material/result reads use Artifact transfer timeouts;
+`--force` explicitly permits replacing a local output file.
 
 ## Workflows, Projects, Artifacts, and Runs
 

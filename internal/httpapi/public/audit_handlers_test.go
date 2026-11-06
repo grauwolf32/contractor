@@ -620,3 +620,10 @@ func (f *fakeFindingProposalManagement) ListProjectSourceHistory(ctx context.Con
 func (f *fakeAuditManagement) PublishMaterial(context.Context, string, string, string, auditservice.MaterialPublicationRequest, *string) (auditservice.MaterialPublication, error) {
 	return auditservice.MaterialPublication{}, auditstore.ErrNotFound
 }
+
+func (f *fakeAuditManagement) Materials(context.Context, auditstore.MaterialListParams) (auditstore.MaterialPage, error) {
+	return auditstore.MaterialPage{Items: []auditstore.MaterialEntry{}, AuditRevision: 1}, nil
+}
+func (f *fakeAuditManagement) TaskAttempts(context.Context, auditstore.TaskAttemptListParams) (auditstore.TaskAttemptPage, error) {
+	return auditstore.TaskAttemptPage{Items: []auditstore.TaskAttempt{}, AuditRevision: 1}, nil
+}
