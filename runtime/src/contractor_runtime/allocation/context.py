@@ -73,3 +73,5 @@ class _AllocationContext:
     terminal_response: AllocationFinalResponse | None = None
     release_prepared: bool = False
     release_cleanup_task: asyncio.Task[None] | None = field(default=None, repr=False)
+    state_reads: int = 0
+    state_reads_drained: asyncio.Event = field(default_factory=asyncio.Event, repr=False)
