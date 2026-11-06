@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-72 open tasks: 10 in progress, 49 pending, 13 deferred. 1461 finished: 1443 completed, 18 archived.
+73 open tasks: 11 in progress, 49 pending, 13 deferred. 1463 finished: 1445 completed, 18 archived.
 
 ## In progress
 
@@ -21,6 +21,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V450-002](v450-002-integrate-audit-research-main.yml) | audits | chore | P1 | Integrate Audit research API and CLI with the retired pipeline on main |
 
 ## Pending
 
@@ -80,15 +81,14 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V64-005](v64-005-independent-priority-verdicts.yml) | feature | P2 | — | Optionally rank the common Audit ready-task shortlist |
-| [V64-008](v64-008-audit-priority-api-coverage.yml) | feature | P1 | — | Expose Audit tasks check results findings and selected materials |
 | [V64-011](v64-011-audit-priority-release.yml) | feature | P1 | V64-009, V411-015, V425-017 | Gate the basic Audit research scenario and complexity reduction |
 | [V64-015](v64-015-audit-research-frontier.yml) | feature | P2 | V64-011 | Measure whether a larger Audit frontier needs incremental indexing |
 | [V64-016](v64-016-audit-research-ranking-evaluation.yml) | chore | P2 | V64-005, V64-011 | Evaluate optional Audit ranking against the deterministic baseline |
 | [V64-017](v64-017-audit-attack-tree-projection.yml) | feature | P2 | V64-011 | Project optional attack trees over retained research conclusions |
 | [V64-018](v64-018-audit-research-pentest-integration.yml) | feature | P2 | V64-011, V411-020 | Compose optional hypothesis generation with ordinary HTTP Audit tasks |
-| [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-015, V411-014, V64-008 | Show HTTP engagement context and gaps in ordinary retained Audit reports |
+| [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-015, V411-014 | Show HTTP engagement context and gaps in ordinary retained Audit reports |
 | [V417-005](v417-005-audit-worker-context-compaction.yml) | feature | P1 | V417-003, V417-004 | Admit compaction without bypassing trusted Audit completion |
-| [V425-017](v425-017-machine-report-ceiling-test.yml) | chore | P3 | V64-008 | Drive the cumulative 64 MiB machine report check to its rejection in a test |
+| [V425-017](v425-017-machine-report-ceiling-test.yml) | chore | P3 | — | Drive the cumulative 64 MiB machine report check to its rejection in a test |
 
 ### Evaluations (`evals`)
 
@@ -110,14 +110,14 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V64-009](v64-009-audit-priority-ui.yml) | feature | P1 | V64-008 | Show the basic research journey in the existing Audit UI |
+| [V64-009](v64-009-audit-priority-ui.yml) | feature | P1 | — | Show the basic research journey in the existing Audit UI |
 | [V411-018](v411-018-pentest-ui-journey.yml) | feature | P1 | V411-015, V411-017, V64-009 | Build the ordinary HTTP Audit setup and evidence UI journey |
 
 ### Public API and wire contracts (`api-contracts`)
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V411-017](v411-017-pentest-api-cli.yml) | feature | P1 | V411-015, V411-016, V64-008 | Expose HTTP engagement setup and results through existing API and CLI |
+| [V411-017](v411-017-pentest-api-cli.yml) | feature | P1 | V411-015, V411-016 | Expose HTTP engagement setup and results through existing API and CLI |
 
 ### PostgreSQL persistence and schema (`persistence`)
 
@@ -137,6 +137,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-006, V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
 | [V425-014](v425-014-runtime-tests-fail-on-macos.yml) | chore | P3 | — | Make the Runtime process-liveness assertions able to fail on macOS |
 | [V433-005](v433-005-runtime-resource-bounds-gate.yml) | chore | P3 | — | Verify the Runtime resource-bound fixes and reconcile the review dispositions |
+| [V450-001](v450-001-reconcile-mocked-browser-contracts.yml) | chore | P2 | — | Reconcile existing mocked browser journeys with the shipped UI contracts |
 
 ## Deferred
 
@@ -163,7 +164,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 2 | 48 | 67 | 36 | 102 |
+| Run execution core (`execution-core`) | 2 | 48 | 67 | 37 | 103 |
 | Planners and the Worker model boundary (`planner-worker`) | 9 | 35 | 53 | 32 | 80 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 15 | 5 | 47 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 3 | 14 |
@@ -175,11 +176,11 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 1 | 17 | 10 | 10 | 16 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 21 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 39 | 17 | 67 |
-| Audits (`audits`) | 11 | 69 | 96 | 40 | 153 |
+| Audits (`audits`) | 11 | 69 | 96 | 41 | 154 |
 | Evaluations (`evals`) | 6 | 21 | 40 | 16 | 49 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
 | Web UI (`ui`) | 2 | 49 | 71 | 26 | 72 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 46 | 9 | 22 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 42 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 47 | 18 |
-| Quality, CI and process (`quality`) | 11 | 1 | 29 | 132 | 28 |
+| Quality, CI and process (`quality`) | 12 | 1 | 29 | 133 | 28 |

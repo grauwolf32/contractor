@@ -104,11 +104,10 @@ type FindingRevision struct {
 	Revision  uint64
 }
 
-// WorkspaceSummary is one database statement's owner-scoped snapshot. Work is
-// scoped to the current round; findings span the entire Audit.
-// CompletedChecks, Gaps and Unchecked partition TotalChecks by the coverage
-// buckets of auditdomain, the classification the Audit report concludes
-// with; Issues is the part of CompletedChecks with an issue found.
+// WorkspaceSummary is one database statement's owner-scoped snapshot.
+// CompletedTasks, Gaps and PendingTasks partition all accepted Tasks by
+// technical settlement. Findings use the Audit's Project membership; neither
+// these counts nor Run completion imply a supported hypothesis.
 type WorkspaceSummary struct {
 	AuditID            string    `json:"auditId"`
 	AuditRevision      uint64    `json:"auditRevision"`

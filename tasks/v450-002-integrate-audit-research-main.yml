@@ -1,0 +1,90 @@
+schema_version: '1.0'
+id: V450-002
+title: Integrate Audit research API and CLI with the retired pipeline on main
+milestone: audit-check-prioritization
+epic: audits
+kind: chore
+priority: P1
+status: in_progress
+depends_on: [V64-008, V64-010, V64-037, V449-004]
+languages: [go, sql, typescript, yaml, markdown]
+goal: Main exposes the Audit research API and CLI while retaining the common pipeline and accurately labelled Task progress already delivered there.
+context:
+  authority: User request 2026-11-06 explicitly authorizes merging codex/audit-api-cli into main.
+  review: >-
+    Source 1e69f5899e2d24d14f6ffe7929e0bc1678578898 and main
+    360ffd44ad07d280f3e612fb0aa91b5a6315a8c3 diverged after b84f7f672.
+    V64-010 and V64-037 removed the remaining old pipeline and corrected Task
+    progress on main while V64-008 added bounded material/attempt reads and CLI.
+  specification:
+  - docs/spec/audits/common-contract.md
+  - docs/spec/audits/hypotheses.md
+  - docs/spec/ui/ui.md
+  - docs/spec/platform/persistence.md
+  boundary: >-
+    Retain main's common Task/Run types, retired tables and schemas, accurate
+    Task progress and mixed-iteration Eval labels. Integrate V64-008 reads and
+    CLI without restoring old Item fixtures or helpers. Main owns migration
+    000012; material pagination becomes 000013. Regenerate both clients, ERD
+    and dependency documentation. The later user-reviewed V64-037 Task progress
+    supersedes V64-008's earlier coordination-only workspace projection.
+    Known activity retention and unrelated mocked-browser failures remain
+    tracked separately; this merge does not assign new feature or defect work.
+scope:
+  in:
+  - Reconcile overlapping API, Task/store, UI and specification changes.
+  - Adapt new read and migration regressions to main's retired-pipeline schema.
+  - Verify the combined tree and integrate it with main as the merge first parent.
+  - Update delivery records while preserving the original implementation hashes.
+  out:
+  - New Audit semantics, compatibility readers, demo deployment or remote publication.
+  - Implementation of the existing V450-001 follow-up.
+acceptance_criteria:
+- id: A1
+  text: Previous main and V64-008 are ancestors of main through an explicit merge; unrelated main work remains intact.
+- id: A2
+  text: New materials, Task attempts and CLI work with the retired-pipeline schema; migrations are sequential and Task/Eval presentation preserves V64-037.
+- id: A3
+  text: Relevant whole Go/PostgreSQL packages, public API checks, UI verification, focused browser checks and lint pass on the combined tree.
+- id: A4
+  text: Delivery records name the merge and remaining browser limitations; user files are preserved and the owned test database is dropped.
+tests:
+- command: go test -tags=integration -count=1 ./internal/httpapi/public/... ./internal/publicclient/... ./internal/cli ./internal/auditdomain ./internal/auditservice ./internal/artifacts/... ./internal/auditstore/... ./internal/persistence/... ./internal/auditcontroller ./internal/evalstore ./internal/evalservice
+  covers: [A2, A3]
+- command: make verify-public-api verify-public-api-postgres
+  covers: [A2, A3]
+- command: make ui-verify
+  covers: [A2, A3]
+- command: >-
+    node --input-type=module -e "import {runBrowserGate} from './ui/server/browser-gate.mjs';
+    await runBrowserGate('audit-research', 'Audit research',
+    ['e2e/audit-hypotheses.spec.ts', 'e2e/audit-research.spec.ts', 'e2e/check-events.spec.ts'])"
+  covers: [A3]
+- command: make lint
+  covers: [A2, A3]
+- command: git merge-base --is-ancestor be6a94128df40f3edf56648b9b12eacc79e12231 main
+  covers: [A1, A4]
+verification:
+  date: '2026-11-06'
+  environment: >-
+    Go 1.26.9, Node 24.20.0, pnpm 11.24.0 and disposable PostgreSQL over TCP.
+    GOFLAGS=-p=2 and VITEST_MAX_WORKERS=4 bound local worker concurrency.
+  passed:
+  - The complete listed Go integration package command, including public API/CLI, Artifact retention, migrations, Audit and Eval repositories/controllers.
+  - make verify-public-api verify-public-api-postgres
+  - make ui-verify; 211 files, 2404 tests and one declared expected failure.
+  - The listed focused browser command; seven passing cases across three specs.
+  - make lint; both clients, dependency graph, thirteen-migration ERD and registries are consistent.
+  reconciliation:
+  - Preserved main's V64-037 Task progress and mixed-iteration Eval behavior; the workspace contract and its UI callers remain consistent.
+  - Preserved migration 000012 retirement and moved material pagination to 000013; real migration regressions preserve original links and bytes.
+  - Removed retired Item fixtures/types; attempt reads use the existing execution-membership states and accepted material reads retain their bounds.
+  - Deduplicated the engagement trigger inventory entry already independently registered on main.
+  limitations: >-
+    Full release-verify, the complete mocked browser gate and live-model checks
+    were not rerun. Optional disk-heavy fixtures stayed disabled and their skips
+    are not passing coverage. V450-001 records the known activity-retention gap
+    and remaining fixture problems; passing current activity pagination tests
+    does not prove the missing retention guarantee.
+  cleanup: The owned contractor_v450_002_20261106 database had zero connections, was dropped, and was verified absent.
+implementation_commit: null

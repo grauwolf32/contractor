@@ -288,6 +288,29 @@ explicit limitations and gaps; Run state and Finding state remain separate. It
 does not claim coverage or a security verdict from successful Run completion.
 Activity uses the existing paged Audit event history.
 
+`GET /v1/audits/{auditId}/materials` lists only accepted receipt links as exact
+scoped material descriptors and logical keys, without payload/provenance hydration.
+It seeks by an internal immutable ordinal, so even a 512-byte logical key fits
+the existing 512-byte signed cursor bound. Candidate selection reads at most
+`limit+1` links (maximum 201); encoded metadata is bounded to 1 MiB including
+framing. The ordinal is traversal metadata, not a public artifact identity.
+`GET /v1/audits/{auditId}/tasks/{taskId}/attempts` reads only the selected Task's
+indexed membership history (at most the configured attempt ceiling, never more
+than ten), with retained Run ID, deletion marker and technical outcome/disposition.
+Both lists authorize the owner, bind continuation to the resource and Audit revision, recheck the
+owner fence after the read, and reject concurrent changes with `409`. A deleted
+Run remains provenance and need not be a live navigable resource.
+
+The public Round `items` and `coverage` operations are removed. Coverage is
+read from the fixed hypothesis denominator, pending authored seeds, immutable
+hypothesis revisions and their indexed Task/result history (ACT-R16–ACT-R17).
+The workspace summary retains authoritative whole-Audit Task progress:
+completed Tasks, Tasks with technical gaps and pending Tasks partition its total.
+These counts never imply supported hypotheses or semantic security coverage.
+Finding counts remain separate and use existing Project Finding membership;
+Findings and their sources retain their Project owner and bounded independent reads.
+The public Audit detail separately exposes submitted and outstanding Run counters.
+
 **ACT-R16.** The Audit owns hypothesis identities and append-only exact revisions.
 Initial authored seeds receive opaque deterministic IDs; manual commands receive
 owner-assigned IDs. Public writers provide source key, statement, scope and

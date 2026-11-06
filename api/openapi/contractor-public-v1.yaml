@@ -4746,6 +4746,70 @@ paths:
         '500': {$ref: '#/components/responses/InternalError'}
         '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
+  /v1/audits/{auditId}/materials:
+    parameters:
+    - $ref: '#/components/parameters/AuditId'
+    get:
+      operationId: listAuditMaterials
+      tags: [Audits]
+      summary: List accepted exact materials without reading payloads
+      description: Bounded owner-authorized keyset pages pinned to one Audit revision. A concurrent change requires restarting traversal. Reads create no retention or execution effects.
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      - name: auditRevision
+        in: query
+        schema: {type: integer, minimum: 1, maximum: 9007199254740991}
+      responses:
+        '200':
+          description: One bounded page
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuditMaterialPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
+
+  /v1/audits/{auditId}/tasks/{taskId}/attempts:
+    parameters:
+    - $ref: '#/components/parameters/AuditId'
+    - name: taskId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/ResourceId'}
+    get:
+      operationId: listAuditTaskAttempts
+      tags: [Audits]
+      summary: List ordinary Run attempts of one accepted Task
+      description: Bounded owner-authorized keyset pages pinned to one Audit revision. A concurrent change requires restarting traversal. Reads create no retention or execution effects.
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      - name: auditRevision
+        in: query
+        schema: {type: integer, minimum: 1, maximum: 9007199254740991}
+      responses:
+        '200':
+          description: One bounded page
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuditTaskAttemptPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
+
   /v1/audits/{auditId}/workspace:
     parameters:
       - $ref: '#/components/parameters/AuditId'
@@ -15040,6 +15104,50 @@ components:
       properties:
         hold: {$ref: '#/components/schemas/FindingAuditHold'}
         replayed: {type: boolean}
+    AuditMaterialEntry:
+      type: object
+      additionalProperties: false
+      required: [key, material, created_at]
+      properties:
+        key: {$ref: '#/components/schemas/AuditArtifactKey'}
+        material: {$ref: '#/components/schemas/AuditTaskMaterial'}
+        created_at: {type: string, format: date-time}
+    AuditTaskAttempt:
+      type: object
+      additionalProperties: false
+      required: [attempt, execution_id, run_deleted, state, created_at]
+      properties:
+        attempt: {type: integer, minimum: 1, maximum: 10}
+        execution_id: {$ref: '#/components/schemas/ResourceId'}
+        run_id: {$ref: '#/components/schemas/ResourceId'}
+        run_deleted: {type: boolean}
+        state: {$ref: '#/components/schemas/AuditExecutionItemState'}
+        outcome: {$ref: '#/components/schemas/AuditTerminalOutcome'}
+        collection_disposition: {$ref: '#/components/schemas/AuditCollectionDisposition'}
+        created_at: {type: string, format: date-time}
+        collected_at: {type: string, format: date-time}
+    AuditMaterialPage:
+      type: object
+      additionalProperties: false
+      required: [items, page, auditRevision]
+      properties:
+        items:
+          type: array
+          maxItems: 200
+          items: {$ref: '#/components/schemas/AuditMaterialEntry'}
+        page: {$ref: '#/components/schemas/PageInfo'}
+        auditRevision: {type: integer, minimum: 1, maximum: 9007199254740991}
+    AuditTaskAttemptPage:
+      type: object
+      additionalProperties: false
+      required: [items, page, auditRevision]
+      properties:
+        items:
+          type: array
+          maxItems: 200
+          items: {$ref: '#/components/schemas/AuditTaskAttempt'}
+        page: {$ref: '#/components/schemas/PageInfo'}
+        auditRevision: {type: integer, minimum: 1, maximum: 9007199254740991}
     AuditWorkspace:
       type: object
       additionalProperties: false

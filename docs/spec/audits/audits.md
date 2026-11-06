@@ -1368,6 +1368,8 @@ conventions are in [public API](../api/public-api.md).
 | `POST /v1/audits/{auditId}/resume` | Resume a paused Audit with an optional time-limit override |
 | `POST /v1/audits/{auditId}/cancel` | Close dispatch and bounded-cancel children |
 | `GET /v1/audits/{auditId}/tasks` | Bounded common Tasks with exact inputs and retained results |
+| `GET /v1/audits/{auditId}/tasks/{taskId}/attempts` | Revision-pinned ordinary Task attempts with retained Run identity and deletion marker |
+| `GET /v1/audits/{auditId}/materials` | Bounded accepted exact material descriptors and logical keys |
 | `GET /v1/audits/{auditId}/workspace` | Owner-scoped snapshot of common Task progress, gaps and independent findings |
 | `GET /v1/audits/{auditId}/finding-proposals` | Paginated, oldest-first inbox of unconfirmed proposal receipts |
 | `POST /v1/audits/{auditId}/finding-proposal-imports` | Retain one exact ordinary-Run proposal and its evidence revisions in a compatible owned Audit; idempotent replay returns 200 |

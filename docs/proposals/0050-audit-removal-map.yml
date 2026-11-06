@@ -392,6 +392,16 @@ profiles:
   facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
     initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
 operations:
+- method: get
+  path: /v1/audits/{auditId}/materials
+  action: preserve
+  owner: V64-008
+  facts: Bounded accepted exact material descriptors and logical keys through existing receipt links.
+- method: get
+  path: /v1/audits/{auditId}/tasks/{taskId}/attempts
+  action: preserve
+  owner: V64-008
+  facts: Bounded ordinary Task attempt membership with retained Run identity and deletion marker.
 - path: /v1/audits/{auditId}/hypotheses
   method: post
   action: preserve

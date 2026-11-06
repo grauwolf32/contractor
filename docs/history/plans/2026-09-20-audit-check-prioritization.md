@@ -126,7 +126,7 @@ its own acceptance evidence, and unimplemented capabilities remain unavailable.
 | [005](../../../tasks/v64-005-independent-priority-verdicts.yml) | Independent model calls, validation, durable verdicts and recovery | 003, 004 |
 | [006](../../../tasks/done/v64-006-audit-priority-selection.yml) | Accepted verdict integration and immutable atomic Round admission | 000, 002 |
 | [007](../../../tasks/done/v64-007-audit-priority-controller.yml) | Initial/later pass coordination, budgets and no-Round controls | 005, 006, V62-003 |
-| [008](../../../tasks/v64-008-audit-priority-api-coverage.yml) | Full coverage, history, reports, API and generated clients | 007 |
+| [008](../../../tasks/done/v64-008-audit-priority-api-coverage.yml) | Full coverage, history, reports, API and generated clients | 007 |
 | [009](../../../tasks/v64-009-audit-priority-ui.yml) | Setup, progress, selected/deferred list and explanation journey | 008 |
 | [010](../../../tasks/done/v64-010-audit-priority-profile.yml) | Complete custom-checklist profile, Workflow, rubric and examples | 008 |
 | [011](../../../tasks/v64-011-audit-priority-release.yml) | Required database, real-process and browser release gate | 009, 010 |

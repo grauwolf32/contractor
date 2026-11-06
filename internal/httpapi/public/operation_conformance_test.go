@@ -203,7 +203,7 @@ func conformAuditOperations(t *testing.T, router routers.Router) {
 	management.artifactRead = artifacts.ReadResult{Ref: input.Ref, Payload: artifacts.Payload{MediaType: "text/plain", Data: []byte("Accepted output")}}
 	call(jsonContractRequest(http.MethodGet, "/v1/audits/audit-one/artifacts?key=prepare%3Aexecution%3Aapi&revision=revision-1", ""), http.StatusOK)
 	for _, path := range []string{
-		"/v1/audits/audit-one/events",
+		"/v1/audits/audit-one/events", "/v1/audits/audit-one/materials", "/v1/audits/audit-one/tasks/task-one/attempts",
 		"/v1/audits/audit-one/workspace", "/v1/audits/audit-one/finding-proposals",
 		"/v1/runs/run-one/finding-proposals", "/v1/audits/audit-one/findings",
 		"/v1/audits/audit-one/findings/finding-one",

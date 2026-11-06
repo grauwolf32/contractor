@@ -24,6 +24,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
+	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/findingintake"
@@ -150,10 +151,16 @@ func TestPostgresPublicPagedListsAcceptTheLargestPage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	var auditService *auditservice.Service
 	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid",
 		newTestAuthentication(t), mustTestOrigins(t), false, nil,
 		func(dependencies *testServices) {
 			managed := newFakeManagedCredentials()
+			gateway, err := dependencies.Config.(*config.Manager).LLMGateway("local-litellm@1")
+			if err != nil {
+				t.Fatal(err)
+			}
+			managed.lookups["development-worker"] = resolved.CredentialMetadata{Ref: llmgateway.LLMCredentialRef{CredentialID: "development-worker"}, LLMGateway: gateway.Ref, Unrestricted: true}
 			audits, err := auditservice.New(auditservice.Options{Storage: artifactpgtest.NewStorage(),
 				Pool: pool, Profiles: dependencies.Config.(*config.Manager), CredentialGuard: managed,
 				TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
@@ -168,6 +175,7 @@ func TestPostgresPublicPagedListsAcceptTheLargestPage(t *testing.T) {
 			dependencies.RunDeletion = rundeletion.New(pool, artifactpgtest.NewStorage())
 			dependencies.Artifacts = artifactService
 			dependencies.Audits = audits
+			auditService = audits
 			dependencies.FindingProposals = findings
 			dependencies.RuntimeAgentPrincipals = principals
 			// The services in front of these repositories pass the limit
@@ -181,7 +189,21 @@ func TestPostgresPublicPagedListsAcceptTheLargestPage(t *testing.T) {
 			}
 		},
 	)
+	current, err := auditService.Get(ctx, owner, auditID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	started, err := auditService.Start(ctx, auditservice.StartParams{OwnerID: owner, AuditID: auditID, ExpectedRevision: current.Revision, IdempotencyKey: "page-start", RequestDigest: auditHandlerDigest("page-start")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	accepted, err := auditService.CreateTasks(ctx, auditservice.TaskCreationParams{OwnerID: owner, AuditID: auditID, ExpectedRevision: started.Audit.Revision, IdempotencyKey: "page-task", RequestDigest: auditHandlerDigest("page-task"), Work: []auditcontract.PreparedSelection{{Key: "page-task", Workflow: "inspect", Objective: "Inspect page input", Inputs: map[string]auditcontract.Material{}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	checkLargestPublicPage(t, fixture.handler, map[string]string{
+		"listAuditMaterials":                "/v1/audits/" + auditID + "/materials",
+		"listAuditTaskAttempts":             "/v1/audits/" + auditID + "/tasks/" + accepted.Acceptance.TaskIDs[0] + "/attempts",
 		"listAuditHypotheses":               "/v1/audits/" + auditID + "/hypotheses",
 		"listAuditTasks":                    "/v1/audits/" + auditID + "/tasks",
 		"listWorkflows":                     "/v1/workflows",
