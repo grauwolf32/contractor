@@ -9,7 +9,14 @@
         ],
         "methods": [
           "GET",
-          "HEAD"
+          "HEAD",
+          "POST",
+          "PUT",
+          "PATCH",
+          "DELETE",
+          "OPTIONS",
+          "TRACE",
+          "CONNECT"
         ],
         "addressRanges": [
           "203.0.113.0/24"
@@ -28,19 +35,16 @@
     },
     {
       "id": "member",
-      "kind": "basic",
+      "kind": "cookies",
       "origins": [
         "https://shop.example.test"
       ],
       "role": "member",
       "tenant": "demo-shop",
       "credential": {
-        "credentialId": "shop-operator",
-        "kind": "target-basic@1"
+        "credentialId": "demo-cookies",
+        "kind": "target-cookies@1"
       }
     }
-  ],
-  "limits": {
-    "concurrentRequests": 2
-  }
+  ]
 }

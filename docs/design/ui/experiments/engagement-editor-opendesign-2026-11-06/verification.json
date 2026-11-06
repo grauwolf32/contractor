@@ -1,5 +1,5 @@
 {
-  "layouts": 78,
+  "layouts": 107,
   "checks": [
     {
       "width": 1440,
@@ -458,6 +458,180 @@
       "version": "native"
     },
     {
+      "width": 390,
+      "theme": "dark",
+      "state": "normal",
+      "version": "native"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "state": "normal",
+      "version": "native"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "state": "normal",
+      "version": "native"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "state": "normal",
+      "version": "native"
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "state": "normal",
+      "version": "native"
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "state": "normal",
+      "version": "native"
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "state": "normal",
+      "version": "native"
+    },
+    {
+      "width": 320,
+      "theme": "light",
+      "state": "normal",
+      "version": "native"
+    },
+    {
+      "width": 320,
+      "theme": "light",
+      "state": "normal",
+      "version": "native"
+    },
+    {
+      "width": 320,
+      "theme": "light",
+      "state": "normal",
+      "version": "native"
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "state": "normal",
+      "version": "native"
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "state": "normal",
+      "version": "native"
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "state": "normal",
+      "version": "native"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "state": "normal",
+      "version": "native"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "state": "normal",
+      "version": "native"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "state": "normal",
+      "version": "native"
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "state": "normal",
+      "version": "native"
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "state": "normal",
+      "version": "native"
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "state": "normal",
+      "version": "native"
+    },
+    {
+      "width": 1440,
+      "theme": "black",
+      "state": "normal",
+      "version": "native"
+    },
+    {
+      "width": 1440,
+      "theme": "black",
+      "state": "normal",
+      "version": "native"
+    },
+    {
+      "width": 1440,
+      "theme": "black",
+      "state": "normal",
+      "version": "native"
+    },
+    {
+      "width": 390,
+      "theme": "black",
+      "state": "normal",
+      "version": "native"
+    },
+    {
+      "width": 390,
+      "theme": "black",
+      "state": "normal",
+      "version": "native"
+    },
+    {
+      "width": 390,
+      "theme": "black",
+      "state": "normal",
+      "version": "native"
+    },
+    {
+      "width": 320,
+      "theme": "black",
+      "state": "normal",
+      "version": "native"
+    },
+    {
+      "width": 320,
+      "theme": "black",
+      "state": "normal",
+      "version": "native"
+    },
+    {
+      "width": 320,
+      "theme": "black",
+      "state": "normal",
+      "version": "native"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "state": "normal",
+      "version": "native"
+    },
+    {
       "width": 1440,
       "theme": "dark",
       "state": "normal",
@@ -483,7 +657,13 @@
     "route add/remove",
     "stale draft retained",
     "simulated save refusal",
-    "shared typography"
+    "shared typography",
+    "all methods selected by default and individual narrowing",
+    "Basic Bearer cookies inline creation across themes and widths",
+    "metadata-only selection and export",
+    "duplicate/invalid IDs and missing material",
+    "secret clearing on submit/cancel/Escape",
+    "modal focus restoration and reload cleanup"
   ],
   "nativePreservationVerified": true
 }
