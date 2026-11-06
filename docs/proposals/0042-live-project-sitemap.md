@@ -1,9 +1,12 @@
 # Live Project sitemap over ArtifactStore
 
-Proposal 0042 · Status: **Draft design; not implemented.** Recorded on
-2026-10-23; implementation task breakdown added on 2026-10-24. This document
-records the user's selected direction and proposed contracts. The pending tasks
-in section 12 do not establish implementation or reactivate deferred work.
+Proposal 0042 · Status: **Partially implemented; first-slice release gate pending.**
+Recorded on 2026-10-23; implementation task breakdown added on 2026-10-24.
+V410-001 through V410-005 delivered the store, tools, HTTP collection,
+structured imports and OpenAPI reconciliation. Workflow composition V410-006
+and release gate V410-007 remain pending; Caido history and browser collection
+are separate follow-ups. Task records own current status and verification;
+the pending gate does not establish first-slice release readiness.
 
 Review update, 2026-10-27: automatic HTTP/scanner contributions are bounded
 best effort, isolated from tool outcomes and Run contracts. Earlier generic
@@ -829,8 +832,8 @@ contracts outside this slice; existing deferred task records retain their status
 The generic ArtifactStore retention task V410-010 is independently useful and
 precedes the seven-task HTTP/OpenAPI sitemap slice. Caido history and managed
 browser collection are separately deliverable follow-ups. Each task owns its normative contract updates, production callers,
-failure/lifecycle/scale criteria and required checks; this proposal remains
-unimplemented until those records are completed with evidence.
+failure/lifecycle/scale criteria and required checks. The completed tasks and
+the pending first-slice release gate are distinguished in the table below.
 
 | Task | Outcome | Depends on |
 | --- | --- | --- |

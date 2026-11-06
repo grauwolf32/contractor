@@ -554,8 +554,31 @@ case and sample for Workflow or Audit variants, in both native and external
 control modes.
 
 **UIJ-R101.** The browser journey supports configure, prepare, start, review
-and compare, as designed in the
-[Evals experience design](../../evals-experience-design.md).
+and compare under the [Managed Evals contract](../evals/managed-evals.md).
+Setup presents variants, cases and inputs, assessment and repetitions, then
+readiness. It shows the expected member count and resolved differences before
+Prepare freezes a plan; Start is a separate action against that exact plan.
+Draft edits invalidate readiness, and a stale response cannot launch an unseen
+plan. Reload restores the server draft; changes use revision preconditions.
+
+Experiment detail offers Overview, Comparison, Attempts and read-only Setup.
+Overview shows lifecycle, control source, execution and assessment coverage and
+the conclusion. Comparison presents paired cases/samples and selected evidence;
+Attempts includes expected members that were never submitted or failed. Setup
+shows exact inputs, variants, assessment policy, repetitions, limits, provenance
+and plan identity, with Duplicate for a new native draft. Comparison prioritizes
+regressions and unresolved pairs and provides access to all pairs. Missing
+measurements, execution failures and failed checks remain distinguishable.
+Filters, snapshot and cursor survive navigation to execution or evidence detail.
+On narrow screens paired cards retain A/B labels and evidence opens a dedicated
+page; keyboard navigation and focus return remain available.
+
+Overview contains quality and execution progress; Comparison offers tokens,
+duration and case differences alongside the pair table. Charts and drill-down
+follow EVM-R190–209, including equivalent data tables and explicit coverage.
+Lifecycle controls follow the experiment's reported state and control mode:
+native commands use the Server contract, while external experiments identify
+the producer and expose inspection/review without native lifecycle commands.
 
 **UIJ-R102.** Missing, repeated and failed attempts are shown explicitly.
 

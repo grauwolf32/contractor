@@ -13,6 +13,11 @@ existing task references continue to resolve.
 | [Implemented model-free Stage lanes](proposals/0040-model-free-stage-lanes.md) | `docs/proposals/0040-model-free-stage-lanes.md` |
 | [Implemented web scanning and rule sweeps](proposals/0041-web-nuclei-scanning-and-rule-sweeps.md) | `docs/proposals/0041-web-nuclei-scanning-and-rule-sweeps.md` |
 | [Implemented Runtime placement labels](proposals/0043-runtime-placement-labels.md) | `docs/proposals/0043-runtime-placement-labels.md` |
+| [Target scanning through Audit](proposals/0049-audit-owned-target-scanning.md) | `docs/proposals/0049-audit-owned-target-scanning.md` |
+| [Workflow hypothesis production](proposals/0054-workflow-hypothesis-production.md) | `docs/proposals/0054-workflow-hypothesis-production.md` |
+| [Hypothesis Workflow correction plan](plans/2026-11-05-hypothesis-workflow-correction.md) | `docs/plans/2026-11-05-hypothesis-workflow-correction.md` |
+| [Superseded hypothesis search plan](plans/2026-10-24-audit-hypothesis-search.md) | `docs/plans/2026-10-24-audit-hypothesis-search.md` |
+| [Evals experience design](evals-experience-design.md) | `docs/evals-experience-design.md` |
 | [Superseded Audit prioritization design](proposals/0034-audit-check-prioritization.md) | `docs/proposals/0034-audit-check-prioritization.md` |
 | [Superseded V64 integration plan](plans/2026-09-20-audit-check-prioritization.md) | `docs/plans/2026-09-20-audit-check-prioritization.md` |
 | [Review of the superseded V64 integration plan](research/2026-09-20-audit-check-prioritization-review.md) | `docs/research/2026-09-20-audit-check-prioritization-review.md` |

@@ -189,8 +189,8 @@ same public API.
 **EVM-R237.** Native coordination and the public endpoints run in Contractor
 Server; browser setup and optional external clients use the same protocol.
 
-**EVM-R3.** Browser Evals setup, launch and comparison follow the [Evals
-experience design](../../evals-experience-design.md) and this document.
+**EVM-R3.** Browser Evals setup, launch and comparison follow this document
+and the [Evals user journey](../ui/journeys.md) (UIJ-R100–103).
 
 **EVM-R4.** Managed Evals are an explicit additional server authority for new
 managed experiments. They are not an upgrade of an old private CLI journal

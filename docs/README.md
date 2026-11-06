@@ -15,60 +15,14 @@ The [configuration catalog](../configs/README.md) lists shipped Workflows and
 policies. [Operations](operations/README.md) contains focused references used by
 the deployment guide.
 
-[Proposals](proposals/) hold designs of capabilities that are not implemented
-yet; each is folded into the specification once implemented.
-[Target scanning through Audit](proposals/0049-audit-owned-target-scanning.md)
-records the decision to remove independent local and durable sweeps and use the
-existing Project Audit and selected check Workflow for a concrete target scan.
-[Compressed HTTP traffic export](proposals/0036-compressed-http-traffic-export.md)
-is a deferred idea. The
-[autonomous pentest Audit proposal](proposals/0033-autonomous-pentest-audits.md)
-defines source-optional web/API auditing, enforced scope, isolated identities,
-typed evidence, independent replay, recovery, budgets and acceptance gates; it
-is not yet implemented.
-
-[Hypothesis search within Audits](proposals/0045-audit-hypothesis-search.md)
-records an optional research pool, provenance, experiment selection, exact
-cross-Run context and the revised V64 direction. Direct deterministic execution
-remains independent; attack trees are an optional analytical layer. It is a
-draft and does not enable the capability.
-
-Runtime placement labels are implemented: see the [Control Plane contract](spec/execution/control-plane.md)
-for `cloud` and `local` namespaces, startup declarations and matching for Run
-and Audit launches.
-
-[Workflow context compaction](proposals/0046-workflow-context-compaction.md)
-proposes continuing a Worker within one invocation, an explicit Workflow
-binding policy, configurable reasoning input for summarization and compaction,
-and bounded history recovery. It is a draft and does not enable the capability.
-
-[Worker model consultation](proposals/0047-worker-model-consultation.md)
-proposes advice from an explicitly pinned tool-free model within the same
-Worker, with shared budgets, bounded context and repeated comparative Eval.
-It remains a proposal without implementation tasks or activation.
-
-[OpenCode and retained Audit environments](proposals/0048-opencode-audit-environments.md)
-proposes an autonomous OpenCode backend behind the existing A2A boundary,
-an Audit-owned writable Podman environment, placement on `local` or a concrete
-cloud VM, and named service publications across Runs. It is a draft; session
-retention, lifecycle details and port forwarding still require contract decisions.
-
-[Dynamic Workflow publication](proposals/0051-dynamic-workflow-publication.md)
-records the 2026-10-31 direction to publish new Workflow variants dynamically
-and compare them through ordinary Runs and Evals. It is a separate future
-capability, with no implementation tasks; the direction alone guides the current
-execution-configuration refactoring.
-
-[Sitemap transport and report comparison](proposals/0052-sitemap-transport-and-report-comparison.md)
-plans a local comparison of actual HTTP observations and scanner-selected results,
-including wildcard `200` responses and soft-404. It keeps ffuf, Katana and Nuclei
-under existing scan tools, does not require one allocation, and defers production
-source removal until comparative evidence exists.
-
-[mitmproxy for Runtime HTTP and sandbox](proposals/0053-mitmproxy-runtime-and-sandbox.md)
-records the embedding experiment branch, lifecycle reuse, useful addons, memory
-observations, optional Caido chains and transparent sandbox HTTP/HTTPS routing.
-The production engine and sandbox network integration remain open choices.
+[Proposals](proposals/) contain designs and decisions for unfinished or partly
+delivered capabilities. Their status is stated in each document; task files own
+delivery status. For example, the [pentest Audit design](proposals/0033-autonomous-pentest-audits.md)
+contains historical design and a revised delivery plan; its implemented parts
+are specified by their owning contracts. [Project sitemap](proposals/0042-live-project-sitemap.md)
+is partially implemented, with its first-slice release gate still pending.
+The [common Audit hypothesis model](proposals/0050-audit-common-hypothesis-model.md)
+revises the superseded research-only [proposal 0045](proposals/0045-audit-hypothesis-search.md).
 
 Accepted contracts belong in the specification; implementation status belongs
 in [task files](../tasks/) governed by [tasks/index.yml](../tasks/index.yml).
@@ -81,13 +35,9 @@ current readiness:
   [ScanTools](plans/2026-09-19-scan-tools.md) (V55),
   [run-scoped toolset configuration](plans/2026-09-19-toolset-runtime-configuration.md) (V61),
   [Audit preparation and Workflow composition](plans/2026-09-20-audit-workflow-composition.md) (V62),
-  [optional hypothesis search](plans/2026-10-24-audit-hypothesis-search.md) (revised V64 and shared V62 dependencies),
+  [Audit redesign](plans/2026-10-31-audit-redesign.md) (common Audit model and V64),
   [schema reduction](plans/2026-10-04-schema-reduction.md) (V365)
   and [schema reduction, round two](plans/2026-10-23-schema-reduction-round-2.md) (analysis, no task yet).
 - [Research](research/README.md) holds dated reviews and experiment planning.
 - [Historical documents](history/README.md) preserve completed proposals and
   superseded plans/reviews; original paths remain available for task references.
-- [Evals experience design](evals-experience-design.md) records the selected
-  full browser journey and independent producer boundary. V38-001–010 are
-  delivered, including collection, comparison, the native UI and the release
-  gate.
