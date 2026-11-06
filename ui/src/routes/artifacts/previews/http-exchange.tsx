@@ -1,11 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router";
 
-import type { ArtifactArchiveScope } from "../../../api/artifact-archive";
-import {
-  FINDING_PROPOSAL_NAMESPACE,
-  type ArtifactMetadata,
-} from "../../../api/artifacts";
 import {
   messageBytes,
   type HTTPExchangeDocument,
@@ -13,9 +7,8 @@ import {
   type HTTPMessage,
 } from "../../../api/http-exchange";
 import { saveBlob } from "../../../app/download";
-import { formatBytes } from "../../../app/format";
+import { formatBytes, formatTimestamp } from "../../../app/format";
 import { Button, MethodChip, TechnicalDetails } from "../../../ui";
-import { artifactDetailPath } from "../paths";
 import { PanelTabs } from "../tabs";
 import "./http-exchange.css";
 
@@ -31,11 +24,6 @@ const OUTCOME_LABELS: Record<string, string> = {
   target_denied: "Destination was denied",
   request_invalid: "A following request could not be sent",
 };
-
-export interface HTTPPreviewContext {
-  metadata: ArtifactMetadata;
-  scope?: ArtifactArchiveScope | undefined;
-}
 
 function Headers({ rows }: { rows: HTTPHeader[] }) {
   const [page, setPage] = useState(0);
@@ -294,40 +282,23 @@ function Attempt({
 
 export default function HTTPExchangePreview({
   document,
-  context,
 }: {
   document: HTTPExchangeDocument;
-  context?: HTTPPreviewContext | undefined;
 }) {
   const [index, setIndex] = useState(0);
   const capture = document.capture;
   const attempt = capture.attempts[index]!;
-  const scope = context?.scope;
-  const trustedAssociation =
-    scope?.kind === "run" &&
-    context?.metadata.frozen === true &&
-    context.metadata.artifact.namespace === FINDING_PROPOSAL_NAMESPACE &&
-    context.metadata.artifact.name ===
-      "http.exchange." + document.finding.proposal_id;
   return (
     <div className="http-evidence">
       <div className="http-evidence-heading">
         <MethodChip method={attempt.request.method} />
         <code>{attempt.request.url}</code>
       </div>
-      {trustedAssociation && scope?.kind === "run" ? (
+      {capture.observed_at === undefined ? null : (
         <p className="ui-caption">
-          Saved with a possible issue.{" "}
-          <Link
-            to={artifactDetailPath(scope, {
-              namespace: FINDING_PROPOSAL_NAMESPACE,
-              name: document.finding.proposal_id,
-            })}
-          >
-            Open possible issue
-          </Link>
+          Request attempt started {formatTimestamp(capture.observed_at)}
         </p>
-      ) : null}
+      )}
       {capture.attempts.length === 1 ? null : (
         <label className="http-evidence-attempt">
           Attempt
@@ -361,13 +332,19 @@ export default function HTTPExchangePreview({
             </div>
           )}
           <div>
-            <dt>Proposal ID</dt>
-            <dd>{document.finding.proposal_id}</dd>
+            <dt>Origin Run ID</dt>
+            <dd>{document.origin.run_id}</dd>
           </div>
           <div>
-            <dt>Receipt ID</dt>
-            <dd>{document.finding.receipt_id}</dd>
+            <dt>Origin invocation ID</dt>
+            <dd>{document.origin.invocation_id}</dd>
           </div>
+          {capture.deployment_marker === undefined ? null : (
+            <div>
+              <dt>Declared deployment</dt>
+              <dd>{capture.deployment_marker}</dd>
+            </div>
+          )}
         </dl>
       </TechnicalDetails>
     </div>

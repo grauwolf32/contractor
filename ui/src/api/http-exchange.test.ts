@@ -1,5 +1,6 @@
 import { ARTIFACT_STORAGE_TIMESTAMPS } from "../test/builders";
 import { describe, expect, it } from "vitest";
+import artifactCases from "../../../api/testdata/http-exchange-artifact-cases.json";
 import captures from "../../../api/testdata/http-capture-cases.json";
 import attempts from "../../../api/testdata/findings/finding-http-attempts.json";
 import {
@@ -19,7 +20,7 @@ function acceptsCapture(capture: unknown): boolean {
       JSON.stringify({
         schema: HTTP_EXCHANGE_SCHEMA,
         capture,
-        finding: { proposal_id: "proposal-test", receipt_id: "receipt-test" },
+        origin: { run_id: "run-test", invocation_id: "invocation-test" },
       }),
     ) !== undefined
   );
@@ -83,21 +84,21 @@ describe("shared HTTP finding capture contract", () => {
 const document = {
   schema: HTTP_EXCHANGE_SCHEMA,
   capture: captures.cases[0]!.value,
-  finding: { proposal_id: "proposal-test", receipt_id: "receipt-test" },
+  origin: { run_id: "run-test", invocation_id: "invocation-test" },
 };
 describe("selected HTTP evidence artifact", () => {
   it("accepts the closed current artifact", () => {
     expect(parseHTTPExchange(JSON.stringify(document))).toEqual(document);
   });
-  it("rejects unknown versions, fields and missing finding association", () => {
+  it("rejects unknown versions, fields and invalid origin", () => {
     for (const invalid of [
       { ...document, schema: "contractor.http.exchange.v0" },
       { ...document, unexpected: true },
-      { ...document, finding: null },
-      { ...document, finding: { ...document.finding, receipt_id: null } },
+      { ...document, origin: null },
+      { ...document, origin: { ...document.origin, invocation_id: null } },
       {
         ...document,
-        finding: { ...document.finding, proposal_id: "proposal\n" },
+        origin: { ...document.origin, run_id: "run\n" },
       },
       { ...document, capture: { ...document.capture, source: ["http"] } },
     ])
@@ -136,3 +137,10 @@ describe("selected HTTP evidence artifact", () => {
     ).toBe(false);
   });
 });
+
+it.each(artifactCases.cases)(
+  "standalone exchange: $name",
+  ({ value, valid }) => {
+    expect(parseHTTPExchange(JSON.stringify(value)) !== undefined).toBe(valid);
+  },
+);

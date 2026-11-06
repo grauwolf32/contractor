@@ -5,7 +5,7 @@ milestone: autonomous-http-pentest-2026-10
 epic: findings
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V422-002
 - V421-001
@@ -16,12 +16,50 @@ languages:
 - python
 - json
 - markdown
+- typescript
 goal: A real HTTP check selects invocation-owned sent exchanges as ordinary retained evidence under the
   revised task/Run/finding context.
 demonstration: A controlled local request with redirect is selected by the actual Runtime result tool
   from several executed requests and remains readable with exact provenance after result/finding intake
-  and source cleanup. Only the selected exchange becomes an evidence Artifact.
+  and source cleanup. A second real process scenario selects the same exchange through a later Finding
+  and checks exact reuse. Only the selected exchange becomes an evidence Artifact.
 context:
+  execution_authority_2026_11_06: >-
+    User explicitly requested implementation on 2026-11-06 after accepting the
+    standalone exchange format and removal of the secret-free projection
+    requirement. Implement this task on codex/http-selected-evidence; do not
+    start dependent tasks or deploy the demo.
+  authority_exchange_format_2026_11_06: >-
+    User decision 2026-11-06 accepts a standalone HTTP exchange Artifact with
+    schema, origin and capture. Remove the finding member entirely rather than
+    making it optional. Trusted code supplies origin.run_id and
+    origin.invocation_id; capture retains the existing request/response/attempt
+    structure and transport-owned observation metadata. Results and Findings
+    select exact evidence refs through their existing owners; a consumer's
+    proposal/receipt identity is not a property of the HTTP observation.
+  exchange_format_boundary:
+    guarantee: >-
+      One selected exchange can support an ordinary check result without a
+      Finding proposal and later be reused by a Finding without rewriting its
+      bytes or original provenance. The closed contractor.http.exchange.v1
+      envelope has schema, origin and capture; it has no finding member.
+      Existing Artifact metadata has no invocation identity, so origin keeps
+      the original Run/invocation readable after ordinary retention forks and
+      permitted source deletion. Embedded origin is provenance, not an access
+      grant or independent proof of Runtime capture authority.
+    alternative: >-
+      Making finding optional is a smaller schema edit, but leaves the first
+      consumer's identity inside otherwise reusable HTTP evidence. The user
+      accepted removing that association from the Artifact content instead.
+    reversal_condition: >-
+      Revisit only if a concrete consumer needs immutable association data that
+      cannot be represented by the existing result, Finding receipt or source
+      contribution. Do not add a second exchange store or compatibility reader.
+  authority_projection_2026_11_06: >-
+    User decision 2026-11-06: remove the A2 requirement for a secret-free
+    projection from the current scope. Preserve existing injected credential
+    redaction under R2; this task adds no broader evidence/projection secret
+    filtering guarantee. Revisit that requirement when separately requested.
   authority_selected_evidence_2026_11_06: >-
     User decision 2026-11-06: do not persist all HTTP traffic. Reuse the bounded
     allocation-local in-memory capture buffer; only an explicitly selected
@@ -52,10 +90,9 @@ context:
     Generation can use selected materials, findings and ordinary results including refutations and gaps.
     The user accepted the common execution skeleton and requested concrete tasks; implementation is a
     subsequent step, not part of this task-formation request.'
-  implementation_gate: Task formation only, requested on 2026-10-31 after acceptance of the common execution
-    skeleton. Keep pending until implementation is requested and dependencies are complete. Do not start
-    code, migrations, live Runs or deployment in this planning turn. Resolve the explicitly labelled remaining
-    contract proposals in V64-001 before dependent implementation.
+  implementation_gate: The planning gate from 2026-10-31 was superseded by the user's explicit
+    implementation assignment on 2026-11-06. All declared dependencies are complete. Dependent
+    features and demo deployment remain separate assignments.
   design:
   - docs/proposals/0050-audit-common-hypothesis-model.md
   - docs/plans/2026-10-31-audit-redesign.md
@@ -63,6 +100,8 @@ context:
   - docs/spec/audits/audits.md
   - docs/spec/audits/execution.md
   - docs/spec/audits/review-and-reports.md
+  - docs/spec/audits/common-contract.md
+  - docs/spec/audits/worker-completion.md
   - docs/spec/artifacts/artifact-store.md
   - docs/spec/findings/findings.md
   - docs/spec/tools/http-caido.md#HTP-R71
@@ -82,6 +121,11 @@ scope:
     publisher and credential handling.
   - Bind normalized selected evidence to the revised finding/result intake and ordinary Artifact publication;
     Server derives task/Audit/Run association.
+  - Update existing UI preview decoding and Run material filters for the standalone exchange namespace
+    and original provenance; preserve bounded previews and the existing themes/layout.
+  - Replace the finding-coupled exchange envelope with the accepted standalone schema/origin/capture
+    format across publication, strict readers, analysis/report/export consumers and shared fixtures.
+    Reuse existing Artifact refs, retention forks and Finding receipt/source associations.
   - For explicitly selected exchanges, retain attempted request time, redirects/failures/truncation
     and available pinned deployment attribution within existing capture bounds, without fabricating
     omitted bytes or capture facts. Selection never includes unrelated requests from the Run.
@@ -91,8 +135,7 @@ scope:
   - Automatic evidence publication of every HTTP request, a durable traffic journal, disk-backed capture
     spool or recovery of unselected traffic. Do not enable bridge flow archival or change the separate
     sitemap metadata collection contract.
-  - Implementation during this planning-only update; changing user model configuration or deploying/migrating
-    the demo.
+  - Changing user model configuration or deploying/migrating the demo.
 requirements:
 - id: R1
   text: Model-selected request IDs select only actual invocation-owned captures; no arguments or summaries
@@ -108,6 +151,21 @@ requirements:
     may discard them. Explicit selection publishes only the selected request and its own captured
     attempts/redirects, with ordinary Artifact retention. Do not flush unselected captures to storage
     at invocation completion, pause, cancellation or allocation release.
+- id: R4
+  text: The retained exchange is a closed contractor.http.exchange.v1 document with schema, origin
+    and capture. Origin has required run_id and invocation_id supplied and verified by trusted
+    publication code, never by model arguments. Capture preserves source, request_id, applicable
+    request_tag and the existing attempts/messages/outcomes. Runtime HTTP capture.observed_at is
+    the transport-recorded start of the first attempt, never the publication time; an available
+    pinned capture.deployment_marker is optional and omitted when unavailable. Do not synthesize
+    timestamps for sources lacking a trusted observation or widen their existing selection eligibility.
+    Finding, proposal_id and receipt_id are absent from the exchange envelope.
+- id: R5
+  text: Check results and Finding contributions select exact exchange Artifacts through their existing
+    evidence associations. Finding intake receipts keep proposal/receipt identities outside the
+    exchange content. Reuse of selected evidence, receipt replay and ordinary Audit/Project retention
+    forks preserve the original origin and content digest; they do not re-encode an exchange with
+    a later consumer's identities. Source Run cleanup does not rewrite its recorded provenance.
 failure_outcomes:
 - operation: Select a real invocation-owned HTTP exchange as retained evidence
   permanent: Reject invalid/foreign/unsupported content and exact-revision or collision conflicts through
@@ -153,13 +211,14 @@ lifecycle:
 acceptance_criteria:
 - id: A1
   given: a real HTTP request and redirect
-  when: actual Runtime selection and PostgreSQL finding intake run
+  when: actual Runtime selection and PostgreSQL result collection run, with Finding intake only when
+    a problem is explicitly published
   then: retained attempts/time/response/evidence match the transport for ordinary results both with and
     without an optional problem finding
 - id: A2
   given: foreign/evicted/truncated/failed captures
   when: selection is attempted
-  then: no fabricated complete evidence or secret-bearing projection is accepted
+  then: no fabricated complete evidence is accepted
 - id: A3
   given: committed selected-evidence publication with a lost reply or subsequent cancellation, followed
     by source deletion permitted by the retaining owner
@@ -176,16 +235,36 @@ acceptance_criteria:
   when: cleanup or subsequent evidence selection runs
   then: evidence may be absent and unavailable selection reports the gap; no automatic buffer flush,
     reconstruction or repeat target request occurs
+- id: A6
+  given: a selected exchange retained by an ordinary check result without a Finding proposal
+  when: a later Finding explicitly selects that exact evidence and ordinary retention forks preserve
+    it through permitted source Run/Audit deletion
+  then: the exchange remains readable with its original Run/invocation, observation metadata and
+    content digest; its envelope contains no finding association, and reuse neither rewrites the
+    observation nor sends another HTTP request
+- id: A7
+  given: the accepted standalone exchange format and payloads with an old finding member, missing
+    required origin or model-supplied provenance arguments
+  when: strict producers/readers and trusted publication validate them
+  then: Go/Python/shared-schema fixtures agree on the closed format and invalid submissions fail
+    before authoritative result mutation; no reader accepts the replaced finding-coupled envelope
 tests:
 - command: make require-database
-- command: go test -tags=integration -count=1 ./internal/findingintake/... ./internal/auditimport/...
-    ./internal/auditstore/... ./internal/artifacts/...
+- command: go test -p=2 -tags=integration -count=1 ./internal/findingintake/... ./internal/auditimport/...
+    ./internal/auditstore/... ./internal/artifacts/... ./internal/httpapi/privateartifacts/...
+    ./internal/controlplane/... ./internal/auditservice/... ./internal/findingexport/...
   covers:
   - A1
   - A2
   - A3
   - A4
   - A5
+  - A6
+  - A7
+- command: go test -count=1 ./internal/auditdomain/... ./internal/findinganalysis/...
+  covers:
+  - A6
+  - A7
 - command: make test-runtime test-wire-cross-language test-engagement-http-process
   covers:
   - A1
@@ -193,14 +272,27 @@ tests:
   - A3
   - A4
   - A5
+  - A6
+  - A7
 - command: make verify-public-api verify-public-api-postgres
   covers:
   - A1
   - A2
   - A3
+- command: VITEST_MAX_WORKERS=2 make ui-verify
+  covers:
+  - A6
+  - A7
+- command: >-
+    node --input-type=module -e 'import { runBrowserGate } from "./ui/server/browser-gate.mjs";
+    await runBrowserGate("v411-http-evidence", "HTTP evidence", ["e2e/artifact-preview.spec.ts"]);'
+  covers:
+  - A6
+  - A7
 - command: make lint
 test_prerequisites:
-- Commands below are future implementation acceptance, not results of this planning update.
+- Run the listed commands against the final implementation. UI and Go worker bounds change only
+  verification scheduling, without increasing assertion deadlines or removing tests.
 - Use disposable PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set; configured/unavailable DB or mandatory
   skips fail. A focused selector matching zero tests fails.
 - Use testdata catalogs and pseudo-Skills, not live configs in unit/integration tests. Run whole touched-package
@@ -208,6 +300,9 @@ test_prerequisites:
 - Create and register any named future gate in this task before claiming it ran. Use deterministic clocks/work
   counters; live model quality is outside deterministic acceptance.
 verification_requirements:
+- Update api/v1alpha1/http-exchange.schema.json and every Go/Python publisher, decoder and analysis/report/export
+  reader of the exchange envelope together. Shared fixtures cover standalone evidence, trusted origin,
+  observation metadata, exact reuse and rejection of the replaced finding member without compatibility paths.
 - Update OpenAPI and both generated clients for public changes; shared wire fixtures cover every changed
   cross-language rule.
 - Classify new packages in the layer registry and register relation ownership/ERD changes; preserve downward
@@ -224,3 +319,52 @@ replanning:
   reason: Replaces earlier scope and acceptance with the common Audit research plan; this is not implementation
     or completion.
 introduced_by: V411-027
+
+verification:
+  date: '2026-11-06'
+  environment: >-
+    Go 1.26.9, Python 3.13.16, Node 24.20.0, pnpm 11.24.0 and a disposable
+    local PostgreSQL database. Go package concurrency was bounded with -p=2;
+    VITEST_MAX_WORKERS=2 removed local scheduling contention without changing
+    test deadlines or excluding tests.
+  passed:
+  - make require-database
+  - The complete listed Go integration package command passed against PostgreSQL.
+  - go test -count=1 ./internal/auditdomain/... ./internal/findinganalysis/...
+  - The complete auditimport package also passed after permanent-reference error classification changed.
+  - make test-runtime; 5919 passed, 135 declared platform/explicit-environment skips; JUnit completeness and skip policy verification passed.
+  - make test-wire-cross-language; 374 fixtures, 415 Go and 266 Python shared tests; the new standalone identity fixture is also read by the UI.
+  - make test-engagement-http-process; 44 process cases, 2 accounting cases and 170 Runtime cases; zero selected skips.
+  - make verify-public-api verify-public-api-postgres
+  - VITEST_MAX_WORKERS=2 make ui-verify; 213 files, 2418 passing tests and one pre-declared expected failure, plus static-server tests and production build.
+  - The listed artifact-preview browser command; 13 passing cases, including HTTP evidence at 390 px in light, dark and black themes.
+  - make lint; layer, unused-export, task/spec, release-graph, shared-fixture, ERD, Ruff and import contracts passed.
+  outcome_evidence:
+  - Real Server/Runtime/PostgreSQL scenarios retain only the selected request and its redirect, without a Finding and with a later explicit Finding that reuses the same frozen exchange.
+  - Actual Finding client reads the independent HTTP/Caido receipts; the replaced finding-coupled namespace/name is rejected. Shared Go/Python fixtures pin the natural identity.
+  - Lost replies, cancellation before/after publication, eviction, missing/foreign selections, partial responses and collection bounds preserve truthful result acceptance and never repeat target traffic.
+  - Real Project retention preserves original HTTP bytes, Run/invocation and observation time through source Run and Audit purge.
+  reconciliation: >-
+    Initial full runs exposed stale namespace/schema expectations and SARIF
+    goldens. They were updated to the accepted incompatible contract, and the
+    relevant full gates passed again. One Runtime Finding receipt reader still
+    used the old name; it was corrected, covered by shared fixtures and a real
+    process scenario, then verified by the final complete Runtime gate.
+  limitations: >-
+    Full release-verify, Linux/rootless Podman and live-model gates were not run.
+    Optional disk-heavy fixtures remained disabled; the wire gate reported one
+    such skip, which is not passing coverage. The 135 Runtime skips are declared
+    platform or explicit-environment gates, not verified behavior.
+  cleanup: >-
+    The owned contractor_v411_007_20261106 database had zero connections after
+    all database gates stopped, was dropped and was verified absent.
+delivery:
+  date: '2026-11-06'
+  branch: codex/http-selected-evidence
+  base_commit: 6fa3cb53f740b58736c629fb488e62c363172f53
+  merged_into_main: false
+  pushed: false
+  workspace: >-
+    Implemented in an attached managed worktree after unrelated work resumed
+    in the primary checkout. Only this task's paths were transferred; the
+    unchanged primary copies were restored with content/hash guards.

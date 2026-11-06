@@ -86,7 +86,8 @@ following ones.
   returns for one completed request.
 - **Selected HTTP exchange artifact.** The immutable Run evidence artifact of
   media type `application/vnd.contractor.http-exchange+json`, published only
-  with a finding, containing its captured request and optional response.
+  after explicit selection by a result or Finding, containing its captured
+  request and optional response.
 - **Outgoing exchange store.** The allocation memory store of the latest
   outgoing exchanges from which a finding snapshots selected HTTP evidence.
 - **Request ID.** The allocation-monotonic identifier of one `http_request`
@@ -111,7 +112,7 @@ following ones.
 
 `http-tools@1` sends model-described requests to application targets, either
 through the `tool-http` forward-proxy route or directly. `caido@1` drives the
-Caido control GraphQL API through the `caido-graphql@1` adapter. Both buffer inspected exchanges in allocation memory. A finding selects
+Caido control GraphQL API through the `caido-graphql@1` adapter. Both buffer inspected exchanges in allocation memory. A result or Finding explicitly selects
 which exchanges become durable evidence; large convert workflow output remains
 an artifact under its separate contract.
 
@@ -142,7 +143,7 @@ Each allocation of `http-tools@1` holds this state in memory:
 | Default headers | Session default request headers | Non-sensitive values; redaction markers for sensitive headers |
 | Authentication | `none`, `bearer` or `basic` | `auth_kind` |
 | History | Recent request summaries and explicit failed outcomes | `http_history`; the history count |
-| Outgoing exchange store | Shared bounded HTTP/Caido capture buffer, including attempts, available response bytes and invocation ownership | HTTP bodies through `http_read_body`; selection through `finding(request_id=...)` or `finding(caido_request_id=...)`; selected current-invocation Runtime HTTP capture through Audit result `http_request_id` (AWC-R126) |
+| Outgoing exchange store | Shared bounded HTTP/Caido capture buffer, including attempts, available response bytes and invocation ownership | HTTP bodies through `http_read_body`; selection through `finding(request_id=...)` or `finding(caido_request_id=...)`; selected current-invocation Runtime HTTP capture through Audit result `http_request_ids` (AWC-R126) |
 | Project target | Target URL, derived `Authorization` header and source secret | Never |
 
 ### One `http_request` call
@@ -1082,7 +1083,7 @@ Toolset call counters and Runtime adapter metrics remain the only ones.
 - Adapter: `caido-graphql@1` with the private handle `caido-graphql-client` and
   the client `execute(operation, variables)` (HTP-R13, HTP-R17).
 - Artifacts: selected exchanges as `application/vnd.contractor.http-exchange+json`
-  under frozen `finding-proposals/http.exchange.<proposal_id>` bindings
+  under frozen `http-exchanges` bindings
   (HTP-R74); convert output
   under `caido.output.*` (HTP-R93).
 - Controlled identity assignment:
@@ -1433,7 +1434,8 @@ allocation-local. Each attempted connection, redirect and retry consumes the
 configured request allowance; denied route admission consumes none. No global
 Audit request quota is maintained (AUX-R106). Fresh allocations start fresh
 counters and jars. Interactive bodies, history and read_body remain bounded
-private allocation buffers without trusted finding/proof authority. There is no
+private allocation buffers until explicit selection under HTP-R150. Capture
+provenance does not establish a vulnerability or machine proof. There is no
 startup result, identity-summary or request-journal RPC.
 
 **HTP-R146.** Abort, finalize, cancellation, lease loss, failed preparation and
@@ -1483,3 +1485,25 @@ consumer is Nuclei (SCN-R259 through SCN-R263). Other HTTP scanner adapters may
 reuse this boundary after real conformance; TCP/DNS or unintegrated subprocess
 paths remain outside its authority. No scanner-specific fields are added to
 engagement and no new persistent lifecycle or request journal exists.
+
+**HTP-R150.** A model may select invocation-owned Runtime HTTP request IDs with
+`submit_check_result(http_request_ids=[...])`; the scalar and batch result paths
+use the same selection and authority. An entire selection resolves before result
+mutation; missing, evicted or foreign captures are explicit gaps. Execution alone
+publishes no exchange. Runtime assembles the standalone envelope defined by
+FND-R160–162 and publishes only selected exchanges through ordinary create-only
+Artifact PUT in `http-exchanges` (ART-R144). The natural binding name uses the
+original invocation/source/request identity, independently of any result or Finding.
+Committed selection/replay uses the same exact content after volatile eviction;
+correction still obeys the collector's expected revision. The existing collection
+limit of 256 selected evidence records and 8 MiB encoded data applies to selected
+Artifact bytes plus conclusion metadata (LIM-AWC-5/6); buffer capacity grants no
+additional durable quota. Two writes and one bounded read-back reconcile an
+ambiguous selection through the existing Artifact CAS helper, within at most
+three request-timeout budgets plus one second and the owning invocation deadline.
+No target request repeats for persistence recovery. Cleanup/restart may discard
+unpublished captures; committed evidence does not itself prove result acceptance.
+Ordinary result collection validates exact frozen capture content and provenance,
+adds it only to its owning member's trusted evidence set, and retains it through
+ordinary Audit Artifact forks. Finding selection uses the same envelope and
+Artifact owner; its receipt remains independent. No traffic archive or spool exists.

@@ -12,7 +12,8 @@ import httpx
 from contractor_runtime.adapters.http_transport import HTTPTransport, HTTPTransportError
 from contractor_runtime.core.http_limits import MAX_HISTORY
 from contractor_runtime.threads import to_thread_until_done
-from contractor_runtime.toolsets.common.http_capture import RecentHTTPCaptures
+from contractor_runtime.toolsets.common.credentials import RUNTIME_CREDENTIAL
+from contractor_runtime.toolsets.common.http_capture import HTTPObservation, RecentHTTPCaptures
 from contractor_runtime.toolsets.http.capture import CapturedAttempt, CapturedExchange
 from contractor_runtime.toolsets.http.errors import HTTPToolError
 from contractor_runtime.toolsets.http.headers import body_headers, merge_headers, validate_headers
@@ -37,13 +38,16 @@ class ControlledHTTPError(HTTPToolError):
 class ControlledHTTPSession(_HTTPSession):
     """Reuse HTTP result/history readers with private allocation-only response storage."""
 
-    def __init__(self, transport: HTTPTransport, timeout_cap: int):
+    def __init__(
+        self, transport: HTTPTransport, timeout_cap: int, *, captures=None, deployment_marker=None
+    ):
         self._transport = transport
         self._timeout_cap_seconds = timeout_cap
         self._lock = asyncio.Lock()
         self._history = deque(maxlen=MAX_HISTORY)
-        # Interactive responses do not acquire trusted engagement capture/proof status.
-        self._captures = RecentHTTPCaptures()
+        # Explicit selection retains observations; capture alone establishes no vulnerability.
+        self._captures = captures if captures is not None else RecentHTTPCaptures()
+        self._deployment_marker = deployment_marker
         self._cached_body = None
         self._default_headers = {}
         self._next_request_id = 1
@@ -120,6 +124,10 @@ class ControlledHTTPSession(_HTTPSession):
             request_id = self._next_request_id
             self._next_request_id += 1
             started = time.monotonic()
+            tag = f"r{self._nonce}-h{request_id:06d}"
+            selected_headers = merge_headers(selected_headers, {"X-Request-Id": tag})
+            capture = _ExchangeCapture(request_id, tag)
+            completed = False
             try:
                 outcome, response = await self._transport.request(
                     selected_url,
@@ -132,7 +140,9 @@ class ControlledHTTPSession(_HTTPSession):
                     body=payload,
                     timeout=timeout_seconds,
                     follow_redirects=follow_redirects,
+                    capture=capture,
                 )
+                completed = response is not None and outcome.kind == "completed"
             except ValueError:
                 raise ControlledHTTPError("http_request_invalid") from None
             except TimeoutError:
@@ -143,6 +153,38 @@ class ControlledHTTPSession(_HTTPSession):
                     if error.code == "http_scope_denied"
                     else "http_request_failed"
                 ) from None
+            finally:
+                if capture.exchange.attempts:
+                    if not completed:
+                        last = capture.exchange.attempts[-1]
+                        self._history.append(
+                            _RequestRecord(
+                                request_id=request_id,
+                                tag=tag,
+                                method=last.method,
+                                final_url=last.url,
+                                status=last.status,
+                                content_type="",
+                                body_kind="empty",
+                                body_bytes=0,
+                                redirects=0,
+                                retries=max(0, len(capture.exchange.attempts) - 1),
+                                elapsed_ms=int((time.monotonic() - started) * 1000),
+                                preview=None,
+                                headers={},
+                                error=capture.exchange.error or "transport_error",
+                            )
+                        )
+                    evidence = await to_thread_until_done(
+                        capture.exchange.evidence, name="controlled-http-capture"
+                    )
+                    await self._captures.put(
+                        evidence,
+                        invocation_id,
+                        observation=HTTPObservation(
+                            capture.exchange.attempts[0].at, self._deployment_marker
+                        ),
+                    )
             if response is None or outcome.kind != "completed":
                 code = (
                     "http_target_denied"
@@ -158,25 +200,6 @@ class ControlledHTTPSession(_HTTPSession):
                 _encode_body, content_type, response.body, name="audit-http-body-preview"
             )
             safe_headers, headers_truncated = _response_headers(message.headers)
-            tag = f"r{self._nonce}-h{request_id:06d}"
-            attempt = CapturedAttempt.from_request(
-                httpx.Request(
-                    selected_method, selected_url, headers=selected_headers, content=payload
-                )
-            )
-            attempt.receive(message)
-            exchange = CapturedExchange(
-                request_id,
-                tag,
-                attempts=[attempt],
-                complete=not response.truncated,
-                response_body=response.body,
-                error="response_too_large" if response.truncated else None,
-            )
-            evidence = await to_thread_until_done(
-                exchange.evidence, name="audit-http-response-buffer"
-            )
-            await self._captures.put(evidence, invocation_id)
             record = _RequestRecord(
                 request_id=request_id,
                 tag=tag,
@@ -258,3 +281,44 @@ class ControlledHTTPSession(_HTTPSession):
         self._captures.clear("http")
         self._cached_body = None
         self._default_headers.clear()
+
+
+class _ExchangeCapture:
+    """Receive actual transport attempts; no storage or authority of its own."""
+
+    def __init__(self, request_id, tag):
+        self.exchange = CapturedExchange(request_id, tag)
+
+    def request(self, method, url, headers, body, injected_headers):
+        safe = [
+            {
+                "name": name.decode("ascii"),
+                "value": (
+                    RUNTIME_CREDENTIAL
+                    if name.lower() in injected_headers
+                    and name.lower() in {b"authorization", b"cookie"}
+                    else value.decode("latin-1")
+                ),
+            }
+            for name, value in headers
+        ]
+        self.exchange.attempts.append(CapturedAttempt(method, url, safe, body))
+        self.exchange.complete = False
+        self.exchange.response_body = b""
+        self.exchange.error = None
+
+    def finish(self, response, error):
+        attempt = self.exchange.attempts[-1]
+        if response is not None:
+            attempt.status = response.status
+            attempt.response_headers = [
+                {"name": k.decode("ascii"), "value": v.decode("latin-1")}
+                for k, v in response.headers
+            ]
+            self.exchange.response_body = response.body
+            self.exchange.complete = error is None and not response.truncated
+            if response.truncated and error is None:
+                error = "response_too_large"
+        self.exchange.error = error
+        if error is not None and response is None:
+            attempt.error = error

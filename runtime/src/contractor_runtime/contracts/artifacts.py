@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 from typing import Self
 
+import jcs
 from pydantic import (
     ConfigDict,
     Field,
@@ -28,12 +30,15 @@ from contractor_runtime.shared_config import artifact_payload_max_bytes
 # Namespace (ART-R19 to ART-R22). The Server's artifactpolicy applies the same
 # rule; api/testdata/v1alpha1/memory-reservation-cases.json pins both.
 # FINDING_PROPOSAL_NAMESPACE (artifactpolicy.FindingProposalNamespace) holds the
-# proposals and frozen HTTP exchanges Server finding intake writes;
+# proposals Server finding intake writes. Selected HTTP exchanges use their own
+# frozen purpose namespace.
 FINDING_PROPOSAL_NAMESPACE = "finding-proposals"
+HTTP_EXCHANGE_NAMESPACE = "http-exchanges"
 AUDIT_CONTEXT_NAMESPACE = "audit-context"
 PURPOSE_RESERVED_NAMESPACES = frozenset(
     {
         FINDING_PROPOSAL_NAMESPACE,
+        HTTP_EXCHANGE_NAMESPACE,
         AUDIT_CONTEXT_NAMESPACE,
         "inputs",
         "outputs",
@@ -41,6 +46,14 @@ PURPOSE_RESERVED_NAMESPACES = frozenset(
     }
 )
 MEMORY_ARTIFACT_PREFIX = "memory."
+
+
+def http_exchange_artifact_name(invocation_id: str, source: str, request_id: str) -> str:
+    """Natural identity shared by ordinary selection and Finding receipt readers."""
+    return (
+        "exchange-"
+        + hashlib.sha256(jcs.canonicalize([invocation_id, source, request_id])).hexdigest()
+    )
 
 
 def is_reserved_memory_binding(namespace: object, name: object) -> bool:

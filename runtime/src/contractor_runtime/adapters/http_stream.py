@@ -16,6 +16,7 @@ class RequestBoundary:
         self.clock = monotonic
         self._authority_deadline = authority_deadline
         self.request_started = False
+        self.response = None
         self._require_session = require_session
 
     def require_time(self) -> None:

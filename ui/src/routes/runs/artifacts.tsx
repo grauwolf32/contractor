@@ -7,6 +7,7 @@ import {
   ARTIFACT_NAME_PATTERN,
   ARTIFACT_REVISION_PATTERN,
   FINDING_PROPOSAL_NAMESPACE,
+  HTTP_EXCHANGE_NAMESPACE,
 } from "../../api/artifacts";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
@@ -74,8 +75,9 @@ export function RunArtifactLibrary({
             { value: "", label: "All materials" },
             {
               value: FINDING_PROPOSAL_NAMESPACE,
-              label: "Possible issues and evidence",
+              label: "Possible issues",
             },
+            { value: HTTP_EXCHANGE_NAMESPACE, label: "HTTP evidence" },
           ]}
           value={namespace ?? ""}
           onChange={(value) => {
@@ -87,8 +89,7 @@ export function RunArtifactLibrary({
         {namespaceFilter.error}
       </div>
       <p className="ui-caption">
-        HTTP exchanges are saved with possible issues. Other proxied traffic is
-        available in Caido.
+        HTTP evidence contains only explicitly selected requests.
       </p>
       <QueryView
         query={query}

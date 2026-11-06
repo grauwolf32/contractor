@@ -84,6 +84,7 @@ const artifacts = {
         source: "http",
         request_id: "1",
         request_tag: "r-browser-h1",
+        observed_at: "2026-11-06T18:20:00Z",
         attempts: [
           {
             request: {
@@ -113,9 +114,9 @@ const artifacts = {
           },
         ],
       },
-      finding: {
-        proposal_id: "proposal-browser",
-        receipt_id: "receipt-browser",
+      origin: {
+        run_id: "run-browser",
+        invocation_id: "invocation-browser",
       },
     }),
   },

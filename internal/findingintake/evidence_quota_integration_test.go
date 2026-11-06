@@ -42,15 +42,13 @@ func TestPostgresProposalEvidenceQuotaAdmitsExactlyItsLimit(t *testing.T) {
 		t.Fatal(err)
 	}
 	var capture auditdomain.CapturedHTTPExchange
-	if err := strictjson.Decode([]byte(`{"source":"http","request_id":"1","request_tag":"r-test-q000001","attempts":[{"request":{"method":"GET","url":"https://target.example/","message":{"kind":"structured","headers":[],"body_base64":""}},"response":{"status":200,"message":{"kind":"structured","headers":[],"body_base64":"AAE="},"complete":true}}]}`), &capture); err != nil {
+	if err := strictjson.Decode([]byte(`{"source":"http","request_id":"1","request_tag":"r-test-q000001","observed_at":"2026-11-06T18:20:00Z","attempts":[{"request":{"method":"GET","url":"https://target.example/","message":{"kind":"structured","headers":[],"body_base64":""}},"response":{"status":200,"message":{"kind":"structured","headers":[],"body_base64":"AAE="},"complete":true}}]}`), &capture); err != nil {
 		t.Fatal(err)
 	}
-	// The exchange Artifact binds the Server-derived proposal and receipt IDs,
-	// so its size is fixed by the submission identity.
+	// Exchange content records the original Run/invocation independently of its consumer.
 	exchangeBytes := func(input Submission) int64 {
 		data, err := auditdomain.EncodeHTTPExchangeArtifact(capture,
-			deterministicID("proposal", grant.AllocationID, input.InvocationID, input.SubmissionID),
-			deterministicID("receipt", grant.AllocationID, input.InvocationID, input.SubmissionID))
+			grant.RunID, input.InvocationID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -111,14 +109,14 @@ func TestPostgresProposalEvidenceQuotaAdmitsExactlyItsLimit(t *testing.T) {
 			t.Fatalf("%s: replay at the limit = (%s, replayed=%t, %v)", admitted.Proposal.ClientKey, replay.ReceiptID, replayed, err)
 		}
 	}
-	// Each admitted submission stores its proposal; the second also its exchange.
-	if receipts, proposals := evidenceQuotaStored(t, ctx, pool, run); receipts != 2 || proposals != 3 {
-		t.Fatalf("admitted submissions stored %d receipts and %d finding-proposals bindings, want 2 and 3", receipts, proposals)
+	// Exchanges have their own frozen namespace; only proposals are counted here.
+	if receipts, proposals := evidenceQuotaStored(t, ctx, pool, run); receipts != 2 || proposals != 2 {
+		t.Fatalf("admitted submissions stored %d receipts and %d finding-proposals bindings, want 2 and 2", receipts, proposals)
 	}
 }
 
 // evidenceQuotaStored counts the Run's receipts and finding-proposals
-// bindings, which hold proposals and selected HTTP exchanges.
+// bindings, which hold proposals independently of selected HTTP exchanges.
 func evidenceQuotaStored(t *testing.T, ctx context.Context, pool *pgxpool.Pool, run string) (int, int) {
 	t.Helper()
 	var receipts, proposals int

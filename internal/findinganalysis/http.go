@@ -11,7 +11,6 @@ import (
 
 	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
-	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/grauwolf32/contractor/internal/scanplan"
 )
 
@@ -38,17 +37,11 @@ func ProjectHTTP(exchange HTTPExchange, doc auditdomain.FindingCollectionDocumen
 	if exchange.Decoder != "contractor-http-exchange/v1" || doc.MediaType != auditdomain.HTTPExchangeMediaType {
 		return result, invalidEvidence()
 	}
-	var envelope struct {
-		Schema  string                           `json:"schema" strictjson:"required"`
-		Capture auditdomain.CapturedHTTPExchange `json:"capture" strictjson:"required"`
-		Finding struct {
-			ProposalID string `json:"proposal_id" strictjson:"required"`
-			ReceiptID  string `json:"receipt_id" strictjson:"required"`
-		} `json:"finding" strictjson:"required"`
-	}
-	if strictjson.DecodeNonNull(data, &envelope) != nil || envelope.Schema != auditdomain.HTTPExchangeSchema || !identifier.MatchString(envelope.Finding.ProposalID) || !identifier.MatchString(envelope.Finding.ReceiptID) {
+	envelope, err := auditdomain.DecodeHTTPExchangeArtifact(data)
+	if err != nil {
 		return result, invalidEvidence()
 	}
+
 	// Only the explicitly selected exchange is used; its final attempt is the
 	// available outcome. Previous attempts stay in the native access-controlled
 	// evidence and do not become fabricated independent requests.
@@ -95,7 +88,7 @@ func ProjectHTTP(exchange HTTPExchange, doc auditdomain.FindingCollectionDocumen
 	} else {
 		result.ContentType = ""
 	}
-	if doc.Scope.Kind == "run" && doc.Ref.Namespace == artifactpolicy.FindingProposalNamespace && doc.Ref.Name == "http.exchange."+envelope.Finding.ProposalID {
+	if doc.Scope.Kind == "run" && doc.Ref.Namespace == artifactpolicy.HTTPExchangeNamespace && doc.Scope.ID == envelope.Origin.RunID && doc.Ref.Name == auditdomain.HTTPExchangeArtifactName(envelope.Origin.InvocationID, envelope.Capture.Source, envelope.Capture.RequestID) {
 		result.Origin = "runtime-capture"
 	}
 	return result, nil

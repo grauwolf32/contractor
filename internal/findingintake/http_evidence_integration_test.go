@@ -52,7 +52,7 @@ func TestPostgresFindingHTTPExchangePublishesAtomically(t *testing.T) {
 				t.Fatal(err)
 			}
 			var capture auditdomain.CapturedHTTPExchange
-			if err := strictjson.Decode([]byte(`{"source":"http","request_id":"1","request_tag":"r-test-h000001","attempts":[{"request":{"method":"POST","url":"https://target.example/","message":{"kind":"structured","headers":[],"body_base64":"AAE="}},"response":{"status":422,"message":{"kind":"structured","headers":[],"body_base64":"/wA="},"complete":true}}]}`), &capture); err != nil {
+			if err := strictjson.Decode([]byte(`{"source":"http","request_id":"1","request_tag":"r-test-h000001","observed_at":"2026-11-06T18:20:00Z","attempts":[{"request":{"method":"POST","url":"https://target.example/","message":{"kind":"structured","headers":[],"body_base64":"AAE="}},"response":{"status":422,"message":{"kind":"structured","headers":[],"body_base64":"/wA="},"complete":true}}]}`), &capture); err != nil {
 				t.Fatal(err)
 			}
 			missingRevision := "missing"
@@ -62,7 +62,7 @@ func TestPostgresFindingHTTPExchangePublishesAtomically(t *testing.T) {
 				t.Fatalf("invalid evidence: %v", err)
 			}
 			var count int
-			if err := pool.QueryRow(ctx, `SELECT count(*) FROM artifact_bindings WHERE scope_kind = 'run' AND scope_id = $1 AND name LIKE 'http.exchange.%'`, run).Scan(&count); err != nil || count != 0 {
+			if err := pool.QueryRow(ctx, `SELECT count(*) FROM artifact_bindings WHERE scope_kind = 'run' AND scope_id = $1 AND namespace = 'http-exchanges'`, run).Scan(&count); err != nil || count != 0 {
 				t.Fatalf("HTTP artifacts after rejection: %d, %v", count, err)
 			}
 			// Force a failure after the HTTP binding was created inside the
@@ -81,7 +81,7 @@ func TestPostgresFindingHTTPExchangePublishesAtomically(t *testing.T) {
 			if _, _, err := service.Submit(ctx, grant, lateRejected); !errors.Is(err, ErrConflict) {
 				t.Fatalf("late proposal collision: %v", err)
 			}
-			if err := pool.QueryRow(ctx, `SELECT count(*) FROM artifact_bindings WHERE scope_kind = 'run' AND scope_id = $1 AND name LIKE 'http.exchange.%'`, run).Scan(&count); err != nil || count != 0 {
+			if err := pool.QueryRow(ctx, `SELECT count(*) FROM artifact_bindings WHERE scope_kind = 'run' AND scope_id = $1 AND namespace = 'http-exchanges'`, run).Scan(&count); err != nil || count != 0 {
 				t.Fatalf("HTTP artifacts after rollback: %d, %v", count, err)
 			}
 			input := testSubmission("http-invocation", "selected", []contracts.ArtifactRef{})
@@ -145,9 +145,9 @@ func TestPostgresFindingHTTPExchangePublishesAtomically(t *testing.T) {
 			if err := json.Unmarshal(read.Payload.Data, &document); err != nil {
 				t.Fatal(err)
 			}
-			association := document["finding"].(map[string]any)
-			if association["proposal_id"] != saved.ProposalID || association["receipt_id"] != saved.ReceiptID {
-				t.Fatal("HTTP artifact not bound to its finding")
+			association := document["origin"].(map[string]any)
+			if association["run_id"] != run || association["invocation_id"] != input.InvocationID || document["finding"] != nil {
+				t.Fatal("HTTP artifact has incorrect independent origin")
 			}
 			encodedCapture, err := json.Marshal(document["capture"])
 			if err != nil {
@@ -163,13 +163,27 @@ func TestPostgresFindingHTTPExchangePublishesAtomically(t *testing.T) {
 			if err != nil || !metadata.Frozen {
 				t.Fatalf("evidence not frozen: %+v, %v", metadata, err)
 			}
+			duplicate := testSubmission("http-invocation", "duplicate-selection", []contracts.ArtifactRef{saved.Evidence[0].Ref})
+			duplicate.HTTPEvidence = &capture
+			if _, _, err := service.Submit(ctx, grant, duplicate); !errors.Is(err, ErrInvalid) {
+				t.Fatalf("duplicate raw/exact selection: %v", err)
+			}
+			reused := testSubmission("later-invocation", "reuse-selected", []contracts.ArtifactRef{saved.Evidence[0].Ref})
+			reusedReceipt, _, err := service.Submit(ctx, grant, reused)
+			if err != nil || len(reusedReceipt.Evidence) != 1 || !reusedReceipt.Evidence[0].Ref.SameExact(saved.Evidence[0].Ref) || reusedReceipt.Evidence[0].Digest != saved.Evidence[0].Digest {
+				t.Fatalf("exact exchange reuse: %+v %v", reusedReceipt, err)
+			}
+			unchanged, err := runStore.Read(ctx, saved.Evidence[0].Ref)
+			if err != nil || string(unchanged.Payload.Data) != string(read.Payload.Data) {
+				t.Fatalf("later consumer rewrote exchange: %v", err)
+			}
 			changed := capture
 			changed.RequestTag = "r-changed"
 			input.HTTPEvidence = &changed
 			if _, _, err := service.Submit(ctx, grant, input); !errors.Is(err, ErrConflict) {
 				t.Fatalf("changed replay: %v", err)
 			}
-			if err := pool.QueryRow(ctx, `SELECT count(*) FROM artifact_bindings WHERE scope_kind = 'run' AND scope_id = $1 AND name LIKE 'http.exchange.%'`, run).Scan(&count); err != nil || count != 1 {
+			if err := pool.QueryRow(ctx, `SELECT count(*) FROM artifact_bindings WHERE scope_kind = 'run' AND scope_id = $1 AND namespace = 'http-exchanges'`, run).Scan(&count); err != nil || count != 1 {
 				t.Fatalf("HTTP artifacts after replay: %d, %v", count, err)
 			}
 			raw := base64.StdEncoding.EncodeToString([]byte("GET /no-response HTTP/1.1\r\nHost: target.example\r\n\r\n"))

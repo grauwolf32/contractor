@@ -55,13 +55,7 @@ export function ArtifactPreviewPanel({
       />
     );
   }
-  return (
-    <TextArtifactPreviewPanel
-      {...props}
-      scope={archiveScope}
-      titleAs={titleAs}
-    />
-  );
+  return <TextArtifactPreviewPanel {...props} titleAs={titleAs} />;
 }
 
 function TextArtifactPreviewPanel({
@@ -70,7 +64,6 @@ function TextArtifactPreviewPanel({
   loadOnMountKey,
   unavailableCopy,
   titleAs: Title,
-  scope,
   compact = false,
 }: {
   metadata: ArtifactMetadata;
@@ -78,7 +71,6 @@ function TextArtifactPreviewPanel({
   loadOnMountKey?: readonly unknown[] | undefined;
   unavailableCopy: string;
   titleAs: "h2" | "h3";
-  scope?: ArtifactArchiveScope | undefined;
   compact?: boolean | undefined;
 }) {
   const headingId = useId();
@@ -175,7 +167,6 @@ function TextArtifactPreviewPanel({
           key={metadata.artifact.revision}
           mediaType={metadata.mediaType}
           source={data}
-          context={{ metadata, scope }}
         />
       )}
     </section>

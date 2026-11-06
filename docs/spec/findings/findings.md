@@ -413,14 +413,16 @@ exactly one of `status` or `error`; its errors are `transport_error` or
 all capture error codes. A capture that this limited projection cannot
 represent truthfully has no embedded projection; its evidence remains intact.
 
-**FND-R49.** Only a finding-selected exchange becomes an ordinary HTTP
-evidence artifact, using media type
-`application/vnd.contractor.http-exchange+json` and schema
-`contractor.http.exchange.v1`. The Server creates a frozen binding in the
-RunScope namespace `finding-proposals`, named `http.exchange.<proposal_id>`,
-and appends its exact descriptor to the receipt's evidence. No independent save
-tool or automatic publication of ordinary traffic is required. An exact
-previously saved exchange can be reused through `evidence_refs`.
+**FND-R49.** Only explicitly selected exchanges become ordinary HTTP evidence
+Artifacts, using media type `application/vnd.contractor.http-exchange+json` and
+schema `contractor.http.exchange.v1`. The frozen RunScope namespace is
+`http-exchanges`. Its binding name is `exchange-` plus the lowercase SHA-256 of
+the RFC 8785 JSON array `[invocation_id, source, request_id]`. Finding intake
+creates the selected Artifact atomically with its proposal, or reuses its exact
+existing bytes. Ordinary check-result selection publishes the same independent
+format through HTP-R150 without requiring a proposal. Results and Findings cite
+exact refs; their proposal/receipt identities never alter the exchange content.
+An exact previously saved exchange can be reused through `evidence_refs`.
 
 **FND-R50.** A selected exchange retains actual target headers and body
 bytes, including model-supplied `Authorization` and `Cookie`, under the
@@ -476,13 +478,20 @@ never silently truncated.
 ### Selected exchange artifact
 
 **FND-R160.** The selected artifact is a closed JSON object with `schema`,
-`capture` and `finding`. `finding` contains Server-derived `proposal_id` and
-`receipt_id`; Runtime and the model cannot supply this association. The private
-submission carries only optional `httpEvidence: capture`. Intake returns
-`evidence`, an ordered array of exact Artifact descriptors, including when empty.
+`origin` and `capture`. The closed origin requires `run_id` and `invocation_id`
+supplied by trusted publication code. The Server derives Run identity from the
+allocation and validates the publication origin. It preserves historical origin
+through reuse and ordinary Audit/Project retention forks. The envelope has no
+`finding` member. Proposal/receipt associations stay with Finding intake.
+Embedded origin is historical provenance; an uploaded copy grants neither access
+nor trusted capture authority. The private finding submission carries optional
+`httpEvidence: capture`; intake returns ordered exact `evidence` descriptors.
 
 **FND-R161.** `capture` has `source: http|caido`, string `request_id`, optional
-`request_tag` (required for HTTP), and 1–13 `attempts`. Each attempt has a
+`request_tag` (required for HTTP), and 1–13 `attempts`. Runtime HTTP selected
+artifacts require `observed_at`, the first actual attempt start time (canonical UTC RFC 3339), and may carry the
+available pinned `deployment_marker` (REV-R8). Missing attribution is omitted;
+no Caido observation time is invented. Each attempt has a
 mandatory `request: {method,url,message}`, an optional
 `response: {status,message,complete}`, and optional `error`. An absent response
 requires an error; a complete response cannot also claim an error. Outcomes are
@@ -1458,9 +1467,9 @@ sanitizer effect, overloaded callee or primary location.
 `decoder`, optional `operation: {document_ref, pointer, method, path_template}`
 and `implementation_location_id`. Decoder `contractor-http-exchange/v1`
 strictly reads the current HTTP/Caido captured-exchange envelope and preserves
-its original finding association, including reuse by a later proposal.
-A capture in the reserved `finding-proposals/http.exchange.<proposal_id>`
-Run binding has Runtime capture origin; an uploaded copy has producer origin.
+its original Run/invocation origin, including reuse by a later proposal.
+A capture in its matching frozen `http-exchanges` Run binding has Runtime
+capture origin; an uploaded copy has producer origin.
 Decoder `http-response-body/v1` projects only the retained media type; a body
 cannot recover a request or status. Unknown decoders fail. The projection
 contains only known method, URI without query/fragment/userinfo, response

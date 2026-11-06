@@ -24,32 +24,11 @@ function document(
     capture: structuredClone(
       captures.cases.find((item) => item.name === name)!.value,
     ) as HTTPExchangeDocument["capture"],
-    finding: { proposal_id: "proposal-test", receipt_id: "receipt-test" },
+    origin: { run_id: "run-test", invocation_id: "invocation-test" },
   };
 }
-function preview(value = document(), trusted = true) {
-  return renderWithAPI(
-    <HTTPExchangePreview
-      document={value}
-      context={{
-        scope: { kind: "run", id: "run-test" },
-        metadata: {
-          canUploadNewVersion: false,
-          storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
-          artifact: {
-            namespace: trusted ? "finding-proposals" : "worker",
-            name: "http.exchange.proposal-test",
-            revision: "exact",
-          },
-          mediaType: HTTP_EXCHANGE_MEDIA_TYPE,
-          size: 1000,
-          current: true,
-          frozen: trusted,
-          createdAt: "2026-10-13T00:00:00Z",
-        },
-      }}
-    />,
-  );
+function preview(value = document()) {
+  return renderWithAPI(<HTTPExchangePreview document={value} />);
 }
 describe("HTTP exchange preview", () => {
   it("does not diagnose a transport failure from an unavailable Caido response", async () => {
@@ -61,7 +40,7 @@ describe("HTTP exchange preview", () => {
     ).toBeVisible();
     expect(screen.queryByText("Transport failed")).not.toBeInTheDocument();
   });
-  it("shows exact request bytes, readable JSON and a Server-owned finding association", async () => {
+  it("shows exact request bytes, readable JSON and independent capture origin", async () => {
     const value = document();
     value.capture.attempts[0]!.request.message = {
       kind: "structured",
@@ -73,11 +52,10 @@ describe("HTTP exchange preview", () => {
     };
     preview(value);
     expect(
-      screen.getByRole("link", { name: "Open possible issue" }),
-    ).toHaveAttribute(
-      "href",
-      "/runs/run-test/artifacts/finding-proposals/proposal-test",
-    );
+      screen.queryByRole("link", { name: "Open possible issue" }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(screen.getByText("Technical details"));
+    expect(screen.getByText("invocation-test")).toBeVisible();
     expect(
       within(screen.getByRole("tabpanel", { name: "Request" })).getAllByText(
         "X-Duplicate",
@@ -89,8 +67,8 @@ describe("HTTP exchange preview", () => {
     await userEvent.click(screen.getByRole("tab", { name: "Response" }));
     expect(screen.getByText("HTTP 422 · Complete response")).toBeVisible();
   });
-  it("does not infer a finding relationship from names in an ordinary namespace", () => {
-    preview(document(), false);
+  it("does not infer a finding relationship from an independent observation", () => {
+    preview(document());
     expect(
       screen.queryByRole("link", { name: "Open possible issue" }),
     ).not.toBeInTheDocument();

@@ -102,7 +102,8 @@ Reserved Namespaces and name prefixes:
 | `inputs` | Namespace | RunScope | Mutable working copies of declared Workflow inputs | ART-R14, ART-R37, ART-R76 |
 | `outputs` | Namespace | RunScope | Declared Workflow results, managed by Workflow Scheduler | ART-R14, ART-R90 |
 | `skills` | Namespace | RunScope | Exact read-only Agent Skill packages ([Skills](../tools/skills.md)) | ART-R14, ART-R39, ART-R108, ART-R109 |
-| `finding-proposals` | Namespace | RunScope | Finding proposals and their frozen selected HTTP exchanges that Server finding intake writes ([Findings](../findings/findings.md)) | ART-R114 |
+| `finding-proposals` | Namespace | RunScope | Finding proposals that Server finding intake writes ([Findings](../findings/findings.md)) | ART-R114 |
+| `http-exchanges` | Namespace, model-readable | RunScope | Frozen explicitly selected exchanges; trusted allocation publication and Finding intake ([HTP-R150](../tools/http-caido.md)) | ART-R114 |
 | `audit-context` | Namespace, model-readable | RunScope | Frozen exact pages and dependencies materialized by the owning Audit | ART-R114 |
 | `memory.` | Name prefix | Non-reserved RunScope Namespaces | Memory notes ([Memory](../tools/memory.md)) | ART-R19 to ART-R22 |
 | `tool-invocation.` | Name prefix | RunScope | Runtime-owned receipts of model-free tool Workers ([Scanners](../tools/scanners.md)) | ART-R23 |
@@ -1597,7 +1598,6 @@ reads never probe another scope as a fallback. Staged unaccepted outputs are
 not public or publishable. Artifact material publication accepts the ordinary 1 MiB JSON bound
 for request metadata; the existing payload and transaction/history limits apply.
 
-
 **ART-R142.** Allocation-selected finding collections use ordinary frozen Run
 bindings and the existing collection publication receipt. Their exact references
 may be supplied through ordinary Workflow inputs, Audit retention and explicit
@@ -1650,3 +1650,14 @@ Initialization, cancel and deletion keep their existing transaction fences.
 Lineage/current binding holds retain exact member versions; reading/listing
 alone does not. Run purge releases these ordinary bindings and references via
 the normal reference-aware cleanup, without a material registry or new lease.
+
+**ART-R144.** The ordinary allocation-bound Artifact PUT admits the reserved
+`http-exchanges` namespace only for a trusted allocation selecting
+`audit-results@2.submit_check_result`. It requires create-only CAS, the selected
+exchange media type, a strict independent envelope, the allocation's Run and the
+natural binding name from HTP-R150. It creates frozen content with ordinary
+Artifact replay/collision and transfer admission. Generic Artifact writes, Stage
+Agent namespaces and result targets cannot mint or advance these bindings. The
+same owner write fence is rechecked immediately before publication. Reads remain
+ordinary exact allocation-authorized Artifact reads. No new endpoint or receipt
+store is introduced.

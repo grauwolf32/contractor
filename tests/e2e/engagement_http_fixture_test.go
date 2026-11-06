@@ -133,9 +133,12 @@ func engagementEnvironment(t *testing.T, dns map[string][][]string, protected ..
 func engagementRoute(origin, prefix string) engagementcontract.Route {
 	return engagementcontract.Route{Origin: origin, PathPrefixes: []string{prefix}, Methods: []string{"GET"}, AddressRanges: []string{"0.0.0.0/0", "::/0"}}
 }
-func startEngagementMatrixAudit(t *testing.T, h *engagementProcessHarness, origins, seeds []string, routes, exclusions []engagementcontract.Route, responseBytes uint32) string {
+func startEngagementMatrixAudit(t *testing.T, h *engagementProcessHarness, origins, seeds []string, routes, exclusions []engagementcontract.Route, responseBytes uint32, configure ...func()) string {
 	t.Helper()
 	setEngagementURLs(h, seeds)
+	for _, setup := range configure {
+		setup()
+	}
 	if exclusions == nil {
 		exclusions = []engagementcontract.Route{}
 	}

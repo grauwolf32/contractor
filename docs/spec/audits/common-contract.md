@@ -99,8 +99,11 @@ cannot globally refute an existential bug claim beyond the stated conditions.
 
 **ACT-R5.** The assembler derives Audit/task/Run and exact hypothesis provenance
 from caller-supplied trusted context. It requires complete, unique per-item
-membership and selected evidence membership. It rejects latest-revision
-substitution, foreign provenance/evidence and model-authored origin. In a batch,
+membership and selected evidence membership. For Runtime-selected HTTP evidence,
+the accepting owner validates and retains the exact frozen capture under HTP-R150
+before extending the matching member's
+trusted evidence set; a model-supplied ref alone grants no membership.
+It rejects latest-revision substitution, foreign provenance/evidence and model-authored origin. In a batch,
 one conclusion is never copied to every hypothesis. Optional finding receipt
 associations also come from trusted per-item context, never model-authored IDs. A later hypothesis revision
 or Run attempt never rewrites an accepted result.
