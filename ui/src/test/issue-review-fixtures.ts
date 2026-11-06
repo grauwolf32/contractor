@@ -2,7 +2,7 @@
 // Test/browser fixtures only; production routes never import this module.
 // Synthetic review data from the preserved, user-reviewed OpenDesign trial.
 // Test/browser fixtures only; production routes never import this module.
-import examples from "../../../docs/design/ui/experiments/issues-review-opendesign-2026-11-01/examples.json" with { type: "json" };
+import examples from "./fixtures/issue-review-examples.json" with { type: "json" };
 import type { components } from "../api/generated/public";
 import * as build from "./builders";
 

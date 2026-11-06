@@ -79,7 +79,8 @@ not copy analyst decisions, and a representative is not presented as a winner.
 ## Reviewed workspace composition
 
 The accepted OpenDesign composition is recorded in
-[the preserved experiment](../../../../docs/design/ui/experiments/issues-review-opendesign-2026-11-01/review.json).
+the externally archived `issues-review-opendesign-2026-11-01/review.json`; see
+[archive inventory and restoration](../../../../docs/design/ui/experiments/README.md).
 `IssueIdentity` keeps the subject, human state, Verification and separate AI/analyst
 severity visible above the tabs. `IssueOverview` puts the original narrative and
 exact evidence in the main column; Impact comes before Verification and Limitations
@@ -110,7 +111,9 @@ receipts, pending locks and focus. On phones the compact header and full compose
 are not sticky; content remains reachable by ordinary scrolling.
 
 The follow-up OpenDesign reviews of the actual React transfer are preserved in
-[production-review-v11](../../../../docs/design/ui/experiments/issues-review-opendesign-2026-11-01/production-review-v11/review.json).
+the external archive at
+`issues-review-opendesign-2026-11-01/production-review-v11/review.json`; see
+[archive inventory and restoration](../../../../docs/design/ui/experiments/README.md).
 Their mobile spacing, code treatment, composer and related-observation refinements
 are adapted to the existing owners. Shared Artifact preview's optional `compact`
 presentation removes redundant ready-state controls around inline saved snippets;
