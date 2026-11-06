@@ -6,7 +6,8 @@ epic: ui
 kind: defect
 introduced_by: V64-002
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 035bd847201a6dbf23e9d7940a25fa850e089c39
 depends_on: []
 languages: [typescript]
 goal: The check activity keeps already read events visible when loading older events fails, refreshes its loaded history through the existing Audit owner, and stops polling when settled.
@@ -60,3 +61,10 @@ tests:
     covers: [A1, A2, A3]
   - command: python3 scripts/check_spec.py
     covers: [A1, A2, A3]
+verification:
+  results:
+    - The added retained-events assertion failed on the original production build at 1440/390/320px, expecting 50 visible events after continuation failure and finding zero.
+    - The built activity browser gate passed all three widths with 50 retained events on failure and 51 after retry; strict response checks, cursor order and no-overflow assertions remain enabled.
+    - All 40 tests across the complete Audit UI package and shared QueryView/polling suites passed. Coverage includes prefix invalidation, reconnect, full loaded-chain refresh, active polling, terminal stop under an injected clock and navigation between Audits.
+    - UI lint/typecheck and task/spec checks passed. UI release 0.11.15 changes no API, persistence or credential behavior.
+  delivery: Committed on codex/ui-browser-contracts; not merged into main. V450-001 resumes its independent fixture/selector reconciliation after this prerequisite.
