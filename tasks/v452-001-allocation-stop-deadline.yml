@@ -56,8 +56,9 @@ acceptance_criteria:
   text: Existing prepare, finalization, abort, release, cancellation and stale-allocation contracts pass; new deterministic
     regressions fail before the fix.
 tests:
-- command: cd runtime && uv run pytest -W error tests/test_allocation_stop.py tests/test_allocation.py tests/test_lease_watchdog.py tests/test_agent_state_endpoint.py
-    tests/test_worker_state.py tests/test_cli.py tests/test_cli_shutdown.py tests/test_podman_allocation.py tests/test_threads.py
+- command: cd runtime && uv run pytest -W error tests/test_allocation_stop.py tests/test_allocation.py tests/test_lease_watchdog.py
+    tests/test_agent_state_endpoint.py tests/test_worker_state.py tests/test_cli.py tests/test_cli_shutdown.py tests/test_podman_allocation.py
+    tests/test_threads.py
   covers:
   - A1
   - A2
@@ -82,3 +83,12 @@ failure_outcomes:
   timeout: Every stop phase receives only the remaining original grace; unresolved ownership forces process termination.
 cardinality: One allocation and one active Worker; State remains bounded by 4 MiB. Reads introduce no retained payload
   cache or unbounded task registry.
+verification:
+  date: '2026-11-06'
+  result: 130 passed, 15 macOS/Linux-Podman skips in the full listed Runtime selection; Ruff, formatting, all four
+    import contracts, task/spec validators and diff whitespace passed. The seven new regressions all fail against
+    the original AllocationService.
+  environment: macOS arm64; uv sync --locked; Go 1.26.9 provided on PATH for real-mTLS CLI PKI generation. No live
+    model, database or deployment.
+  negative_probe: /tmp/contractor-v452-001-before.log
+  landing: Implemented on codex/runtime-stop-state in an isolated worktree; integration pending.

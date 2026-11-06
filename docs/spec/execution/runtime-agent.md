@@ -394,7 +394,11 @@ without further semantic work.
 **RTA-R24.** Step 3 after local lease expiry: the Runtime Agent stops and
 destroys that Worker instance within the configured shutdown grace,
 `CONTRACTOR_SHUTDOWN_GRACE_SECONDS` (default 10 seconds, LIM-RTA-6), which is
-also the bound before forced termination after lease loss.
+also the bound before forced termination after lease loss. The budget starts
+before waiting for allocation lifecycle ownership. Lock acquisition, joining
+HTTP requests, Worker abort and subsequent resource teardown share that one
+deadline; no phase renews the grace. Unresolved lifecycle ownership at the
+deadline requires the same process termination as an unconfirmed Worker stop.
 
 **RTA-R25.** Step 4 after local lease expiry: if in-process termination cannot
 be guaranteed, the Runtime Agent exits its process instead of reusing the slot.
@@ -930,7 +934,11 @@ route lives beside the allocation lifecycle routes and delegates to
 `AllocationService`, which verifies that the exact allocation owns the live
 Worker. The Worker implementation returns a framework-neutral
 `AgentStateSnapshot`; the HTTP layer never reaches directly into the ADK
-Session.
+Session. Snapshot construction and validation run outside the allocation
+lifecycle lock. Before returning a snapshot, the service rechecks the exact
+allocation context, Worker identity and active state; a read that races stop,
+release or replacement cannot return a successful stale snapshot. A slow
+read must not delay lease-driven teardown.
 
 The route `GET /private/v1/allocations/{allocation_id}/agent-state`, its
 accepted peer, caching, 4 MiB body bound (LIM-WRK-17) and errors
