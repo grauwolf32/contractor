@@ -1,6 +1,6 @@
 # Audit preparation and Workflow composition
 
-Date: 2026-09-20. Series: **V62**. Status: **preparation/source-to-scan delivery implemented and verified on 2026-10-21; V62-005/006/007/013 pending by explicit user direction on 2026-10-24; V62-008 remains deferred**.
+Date: 2026-09-20. Series: **V62**. Status: **preparation/source-to-scan and iterative composition delivered; V62-008 remains deferred**. Task records own current status and verification evidence.
 
 After review, the user requested explicit deferral of disputed work and accepted
 the order supplied OpenAPI → useful scan results → source preparation. Nuclei
@@ -37,13 +37,13 @@ that check's item already exists. The preparation contract must extend exact
 input mappings to accepted outputs without coupling an inventory implementation
 to a particular Workflow name or graph shape.
 The [task index](../../tasks/index.yml) and individual V62 files own execution
-status; this document does not establish feature readiness. By explicit user
-direction on 2026-10-24, V62-005/006/007/013 are pending with unchanged
-dependencies. V62-008 remains deferred; its reactivation condition is unchanged.
+status; this document does not establish feature readiness. V62-005/006/007/013
+were subsequently completed. V62-008 remains deferred; its reactivation
+condition is unchanged.
 
 ## Iterative planning update (2026-10-24)
 
-The [hypothesis-search plan](2026-10-24-audit-hypothesis-search.md) revises
+The [historical hypothesis-search plan](2026-10-24-audit-hypothesis-search.md) revised
 V62-005 (settled result snapshots), V62-006 (exact retained dependencies) and
 V62-007 (typed profile routing). They remain generic composition capabilities,
 with no V64 dependency. Their new `audit-iterative-composition-2026-10`
@@ -55,9 +55,14 @@ now completed, with source-pinned verification evidence. V62-008
 remains deferred and is not required for cold research from existing materials.
 Completed preparation/scan tasks and
 their `audit-workflow-composition` milestone remain historical delivery
-evidence, not proof that the iterative extensions are implemented.
+evidence; the iterative extensions have their own completion records.
 
 ## Recorded delivery decision (2026-10-21)
+
+The sections below preserve the original V62 design and delivery evidence.
+Role/round, approval and input-source details describe that revision; current
+behaviour is owned by the [Audit specification](../spec/audits/audits.md) and
+[execution contract](../spec/audits/execution.md).
 
 The user clarified the delivery order: finish V62-010 → V62-011 → V62-012
 and implement the accepted A overview/B endpoint details first, then start
@@ -83,7 +88,8 @@ selects one AuditProfile and starts an Audit. Preparation analyzes the project
 and generates validated OpenAPI. Server derives the bounded initial worklist
 from the retained OpenAPI revision. Checks consume that same revision, prepare
 concrete requests, scan the selected operations and publish Audit results.
-Assessment snapshots and later routed checks are pending, unimplemented extensions.
+Assessment snapshots and later routed checks were delivered separately by
+V62-005/006/007/013; they were outside the original preparation slice.
 
 ```mermaid
 flowchart TD
@@ -149,10 +155,11 @@ Profiles without preparation keep start-time inventory; all profiles migrate
 to the current mapping schema rather than preserving old canonical
 snapshot bytes. Preparation is opt-in even for an already supplied checklist.
 
-### Explicit input sources and pending iterative extensions
+### Recorded input sources and iterative extensions
 
-`prepare-output` is accepted by V62-001 validation and capability-gated for
-execution. The other proposed additions below are pending and unimplemented:
+The table records the V62 delivery design. `prepare-output` belonged to the
+initial preparation slice; the other sources were delivered by V62-005/006/007.
+These historical names do not override the current common Audit contract.
 
 | Source | Meaning and allowed consumers |
 | --- | --- |
@@ -161,9 +168,8 @@ execution. The other proposed additions below are pending and unimplemented:
 | `retained-dependency` | A named exact dependency from the accepted item's dependency manifest; usable by its check Run |
 
 Only `prepare-output` belongs to the delivered preparation slice. The
-following snapshot and cross-round dependency design belongs to pending
-V62-005/006/007; V62-001 does not implement it. Their implementation may start
-after their declared prerequisites complete.
+snapshot and cross-round dependency design was delivered separately by
+V62-005/006/007 and verified by V62-013; V62-001 did not implement it.
 
 `retained-output` keeps its existing same-round semantics. Validate role kind,
 execution scope, phase order, cycles, required outputs and media compatibility.
@@ -180,14 +186,14 @@ reviews do not rewrite a consumed snapshot. Freeze only after the settlement
 barrier; bound bytes/counts and define partitioning or an explicit limit failure.
 Workers can read evidence only through inputs authorized for their Run.
 
-### Later checks and routing — pending
+### Recorded later checks and routing
 
 Reuse the typed `proposedChecks` mapping and `retained-dependency` direction in
 [specification 33](../proposals/0033-autonomous-pentest-audits.md).
 Generic routing belongs to V62; pentest recipe, predicate, proof and transport
-semantics remain owned by that separate specification. The pending V62 tasks
-settle the shared contract before their dependent implementations, so the two
-paths cannot create incompatible mechanisms.
+semantics were discussed in that separate proposal. V62-007 delivered the
+shared routing contract and V62-013 verified the iterative composition. The
+current common Audit specification supersedes the historical role/round design.
 
 A profile maps a validated plan schema and phase to an exact `kind: check`
 binding. `verify` and `replay` remain check roles, not new lifecycle kinds.

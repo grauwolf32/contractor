@@ -391,7 +391,7 @@ surfaces; their contents follow
 [Projects](../artifacts/projects.md) (PRJ-R45, PRJ-R47, PRJ-R49).
 
 **UI-R48.** Evals renders evaluation Projects and eval-specific label
-grouping. The [experiment journey](../../evals-experience-design.md) makes
+grouping. The [experiment journey](journeys.md) (UIJ-R100–103) makes
 experiments the Evals entry point. Current evaluation workspaces have one
 management surface at `/evals/workspaces` and `/evals/workspaces/:projectId`,
 reachable from experiments, setup and datasets. Creating a workspace is named

@@ -1,24 +1,28 @@
 # План переработки Audit
 
-Дата: 2026-10-31. **План для ревью пользователя. Реализацию не начинать до
-следующего разрешения после просмотра [схем и деталей](../proposals/0050-audit-common-hypothesis-model.md).**
-Исключение по последующему решению пользователя от 2026-10-31: реализация
-контрактного этапа V64-001 разрешена, включая подтверждённые лимиты и pause/cancel.
-Отдельным решением от 2026-11-01 пользователь разрешил исправления V64-020/021/022;
-они реализованы и проверены без запуска зависимых implementation-задач.
-Текущие правила продукта остаются в `docs/spec/`; task files задают будущую
-реализацию после ревью. Нормативные изменения выполняются вместе с кодом.
+Дата исходного плана: 2026-10-31. **Статус на 2026-11-07: частично
+реализован; базовый release gate V64-011 остаётся pending.** Контракты,
+общий coordinator, передача материалов, Project Findings, реестр гипотез,
+Workflow-генерация, API/CLI, перенос shipped программ, общий UI V64-009 и
+HTTP evidence V411-007 завершены. Регрессия лимита отчёта V425-017 остаётся
+pending. Завершённые этапы не доказывают прохождение
+базового release gate.
 
-По запросу пользователя «Сформируй задачи» от 2026-10-31 оформлен пакет из
-**16 существующих задач в pending**: 12 задач ядра, 3 для HTTP-сценария и одна
-регрессия лимита отчёта. Сохранены ID и история перепланирования; новых
-дублирующих задач нет. В задачах зафиксированы goal/demonstration, scope,
-зависимости, критерии приёмки и будущие проверки. Основной каркас согласован;
-оставшиеся помеченные предложения о конкретных лимитах и pause/cancel
-относятся к первому контракту V64-001. Удаление approvals согласовано:
-отдельного перехода со старой approval policy и режима совместимости нет.
-Пользователь делегировал V64-001 отдельному агенту; этот документ и последующее
-уточнение задачи сами по себе не запускают остальные implementation-задачи.
+[Общая модель](../proposals/0050-audit-common-hypothesis-model.md) ·
+[Действующие контракты](../spec/audits/audits.md) ·
+[Производство гипотез](../spec/audits/hypotheses.md).
+Точные статусы, зависимости, назначения и результаты проверок находятся в
+задачах. Открытая работа выполняется по содержащимся в них разрешениям;
+эта сводка не назначает зависимые задачи.
+
+Исходный пакет от 2026-10-31 содержал 16 pending-задач: 12 задач ядра,
+3 для HTTP-сценария и одну регрессию лимита отчёта. После отдельных назначений
+пользователя значительная часть пакета завершена; таблица ниже показывает
+текущее состояние основных задач. Последующие решения 2026-11-05 доставлены
+в V64-033/034 с исправлениями V64-035/036: выбранные точные материалы и
+производство гипотез принадлежат обычному Workflow. Реализация включена в main.
+Разделы с датированными решениями сохраняют историю планирования; их прежние
+ограничения назначения и pending-статусы не заменяют актуальные task records.
 
 ## Базовый результат
 
@@ -59,22 +63,23 @@ V64-001 остаётся завершённой историей; исправл
 
 ## Основные задачи
 
-| Порядок | Задача | Конкретный результат |
-| --- | --- | --- |
-| 1 | [V64-001](../../tasks/done/v64-001-audit-priority-contracts.yml) | Общие строгие program/task/result contracts, owning boundaries, fixtures, лимиты и карта удаления/cutover |
-| 2 | [V64-004](../../tasks/done/v64-004-audit-priority-context.yml) | Audit workspace, exact handoff и публикация в Project через существующий ArtifactStore с реальным caller |
-| 2 | [V64-014](../../tasks/done/v64-014-audit-hypothesis-assessments.yml) | Одна Finding model в Project: существующая дедупликация, источники/evidence, единые чтение и изменение; удаление Audit finding lifecycle |
-| 2 | [V64-026](../../tasks/done/v64-026-openapi-prepared-work-operation.yml) | Обычный Server-operation Workflow подготовки OpenAPI и ограниченный exact work-list контракт для общего приёма отдельных заданий |
-| 3 | [V64-002](../../tasks/done/v64-002-audit-priority-store.yml) | Один coordinator, обычные Runs, pause/recovery, первый exploratory сценарий и переписывание YAML шести observation/tracing/scan программ |
-| 4 | [V64-012](../../tasks/done/v64-012-audit-hypothesis-registry.yml) | Fixed/manual hypotheses, automatic exact association и checklist coverage; переписывание YAML восьми checklist/standard программ вместе с их проверяющими consumers |
-| 4 | [V411-010](../../tasks/done/v411-010-pentest-program-availability.yml) | Удаление оставшихся item/report approvals и Audit control policy; использование готовых Project Finding-команд |
-| 4 | [V411-011](../../tasks/done/v411-011-project-findings-reader.yml) | Реальный обычный consumer выбранных Project findings и exact snapshots/evidence |
-| 5 | [V64-013](../../tasks/done/v64-013-audit-hypothesis-generation.yml) | Обычный Workflow генерации по материалам, findings и результатам, включая опровержения/пробелы; следующая итерация тем же путём |
-| 6 | [V64-008](../../tasks/done/v64-008-audit-priority-api-coverage.yml) | API/CLI чтение цепочки исследования, управление и публикация материалов |
-| 6 | [V64-010](../../tasks/done/v64-010-audit-priority-profile.yml) | Итоговая проверка уже перенесённых shipped программ и удаление оставшихся ZIP/round/admission/review механизмов |
-| 7 | [V64-009](../../tasks/done/v64-009-audit-priority-ui.yml) | Общий UI-путь исследования, без approval inbox и ручного ввода системных связей |
-| 7 | [V425-017](../../tasks/v425-017-machine-report-ceiling-test.yml) | Регрессия retained report ceiling на новом выбранном assembler |
-| 8 | [V64-011](../../tasks/v64-011-audit-priority-release.yml) | Базовый real-store/process/browser gate и доказательство контроля сложности |
+| Порядок | Задача | Статус на 2026-11-07 | Конкретный результат |
+| --- | --- | --- | --- |
+| 1 | [V64-001](../../tasks/done/v64-001-audit-priority-contracts.yml) | completed | Общие строгие program/task/result contracts, owning boundaries, fixtures, лимиты и карта удаления/cutover |
+| 2 | [V64-004](../../tasks/done/v64-004-audit-priority-context.yml) | completed | Audit workspace, exact handoff и публикация в Project через существующий ArtifactStore с реальным caller |
+| 2 | [V64-014](../../tasks/done/v64-014-audit-hypothesis-assessments.yml) | completed | Одна Finding model в Project: существующая дедупликация, источники/evidence, единые чтение и изменение; удаление Audit finding lifecycle |
+| 2 | [V64-026](../../tasks/done/v64-026-openapi-prepared-work-operation.yml) | completed | Обычный Server-operation Workflow подготовки OpenAPI и ограниченный exact work-list контракт для общего приёма отдельных заданий |
+| 3 | [V64-002](../../tasks/done/v64-002-audit-priority-store.yml) | completed | Один coordinator, обычные Runs, pause/recovery, первый exploratory сценарий и переписывание YAML шести observation/tracing/scan программ |
+| 4 | [V64-012](../../tasks/done/v64-012-audit-hypothesis-registry.yml) | completed | Fixed/manual hypotheses, automatic exact association и checklist coverage; переписывание YAML восьми checklist/standard программ вместе с их проверяющими consumers |
+| 4 | [V411-010](../../tasks/done/v411-010-pentest-program-availability.yml) | completed | Удаление оставшихся item/report approvals и Audit control policy; использование готовых Project Finding-команд |
+| 4 | [V411-011](../../tasks/done/v411-011-project-findings-reader.yml) | completed | Реальный обычный consumer выбранных Project findings и exact snapshots/evidence |
+| 5 | [V64-013](../../tasks/done/v64-013-audit-hypothesis-generation.yml) | completed | Обычный Workflow генерации по материалам, findings и результатам, включая опровержения/пробелы; следующая итерация тем же путём |
+| 6 | [V64-008](../../tasks/done/v64-008-audit-priority-api-coverage.yml) | completed | API/CLI чтение цепочки исследования, управление и публикация материалов |
+| 6 | [V64-010](../../tasks/done/v64-010-audit-priority-profile.yml) | completed | Итоговая проверка уже перенесённых shipped программ и удаление оставшихся ZIP/round/admission/review механизмов |
+| 7 | [V64-009](../../tasks/done/v64-009-audit-priority-ui.yml) | completed | Общий UI-путь исследования, без approval inbox и ручного ввода системных связей |
+| 7 | [V425-017](../../tasks/v425-017-machine-report-ceiling-test.yml) | pending | Регрессия retained report ceiling на новом выбранном assembler |
+| 8 | [V64-011](../../tasks/v64-011-audit-priority-release.yml) | pending | Базовый real-store/process/browser gate и доказательство контроля сложности |
+
 
 Одинаковый порядковый номер показывает независимые после prerequisites работы,
 а не назначение параллельных агентов. Точные зависимости находятся в tasks.
@@ -145,7 +150,8 @@ V64-014 включает конкурентное поступление одн�
 добавление Project header рядом с живыми изменяемыми Audit findings не выполняет
 переход scope. Код сохранён в Git-теге
 `archive/v64-014-project-problem-findings-2026-11-01`, в main не включён.
-V64-014 остаётся pending с обновлённым контрактом одной сущности.
+После этого решения V64-014 была реализована с контрактом одной сущности
+и завершена; отклонённая ветка остаётся только историей.
 
 Небольшой private HTTP fixture V411-019 имеет уже завершённые prerequisites;
 он готовится независимо от контрактной цепочки и используется ранним HTTP demo.
