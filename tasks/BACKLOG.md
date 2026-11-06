@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-69 open tasks: 11 in progress, 45 pending, 13 deferred. 1479 finished: 1461 completed, 18 archived.
+68 open tasks: 10 in progress, 45 pending, 13 deferred. 1480 finished: 1462 completed, 18 archived.
 
 ## In progress
 
@@ -16,7 +16,6 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | quality | chore | P3 | Make the Runtime suite pass on macOS: declare the Linux-only Podman tests, make the other tests portable and file the macOS defects |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
-| [V411-019](v411-019-pentest-target-fixtures-and-proof-scorers.yml) | evals | chore | P1 | Build small paired HTTP targets and independent result oracles |
 | [V417-001](v417-001-terminal-summarizer-include-reasoning.yml) | planner-worker | feature | P1 | Make terminal summarizer reasoning input explicitly configurable |
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Continue an isolated Worker through workflow-selected context compaction |
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
@@ -66,7 +65,7 @@ the epics are in [epics.yml](epics.yml).
 | [V410-006](v410-006-sitemap-workflow-composition.yml) | feature | P1 | — | Ship standalone sitemap discovery and reconciliation Workflows |
 | [V410-025](v410-025-sitemap-audit-composition.yml) | feature | P1 | V410-007 | Compose exact sitemap artifacts through ordinary Audit tasks |
 | [V411-014](v411-014-pentest-discovery-surface.yml) | feature | P1 | V411-015, V410-025 | Discover URL-only targets using HTTP tools and the shared sitemap |
-| [V411-015](v411-015-http-pentest-workflow-presets.yml) | feature | P1 | V411-019 | Demonstrate an ordinary HTTP Workflow on the lean Audit path |
+| [V411-015](v411-015-http-pentest-workflow-presets.yml) | feature | P1 | — | Demonstrate an ordinary HTTP Workflow on the lean Audit path |
 | [V412-003](v412-003-browser-pentest-profiles-and-gate.yml) | feature | P2 | V412-001, V410-009, V411-020 | Compose optional browser investigation with truthful availability and results |
 | [V425-043](v425-043-resolve-historical-run-model-policy-snapshots.yml) | defect | P2 | — | Resolve historical Run snapshots after Workflow-owned model selection |
 
@@ -124,7 +123,7 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V347-001](v347-001-protect-main-branch.yml) | chore | P1 | — | Protect main with a required check |
 | [V410-007](v410-007-sitemap-release-gate.yml) | chore | P1 | V410-006 | Verify the standalone sitemap slice across scale and lifecycle boundaries |
-| [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V64-011, V411-013, V411-014, V411-016, V411-017, V411-018, V411-019, V410-025 | Gate the composed ordinary HTTP pentest through real processes |
+| [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V64-011, V411-013, V411-014, V411-016, V411-017, V411-018, V410-025 | Gate the composed ordinary HTTP pentest through real processes |
 | [V417-009](v417-009-context-compaction-release-gate.yml) | chore | P1 | V417-003, V417-004, V417-005, V417-006, V417-007 | Verify context compaction across real processes and close the deterministic milestone |
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-006, V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
 | [V425-014](v425-014-runtime-tests-fail-on-macos.yml) | chore | P3 | — | Make the Runtime process-liveness assertions able to fail on macOS |
@@ -168,7 +167,7 @@ tasks in `introduced_by`.
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 21 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 39 | 17 | 67 |
 | Audits (`audits`) | 10 | 69 | 96 | 41 | 156 |
-| Evaluations (`evals`) | 6 | 22 | 40 | 17 | 50 |
+| Evaluations (`evals`) | 5 | 22 | 40 | 17 | 50 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
 | Web UI (`ui`) | 1 | 49 | 74 | 28 | 74 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 46 | 9 | 22 |

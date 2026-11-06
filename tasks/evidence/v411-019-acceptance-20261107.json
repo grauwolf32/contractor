@@ -39,8 +39,9 @@
     {
       "command": "UV_OFFLINE=1 make lint",
       "environment": "Go 1.26.9 and Node 24.20/Corepack on PATH",
-      "outcome": "passed; final metadata check repeated before closure",
-      "note": "Declared platform skips in existing lint helper suites are not fixture coverage."
+      "outcome": "passed",
+      "note": "Declared platform skips in existing lint helper suites are not fixture coverage.",
+      "successful_runs": 2
     }
   ],
   "boundaries": [
