@@ -6,7 +6,8 @@ epic: ui
 kind: chore
 introduced_by: V429-015
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: fcc9bd15f82f29cb2338796060ad2eda73df3ab4
 depends_on: []
 languages: [typescript]
 goal: Keep UI design history recoverable outside the source checkout while ordinary UI tests use repository-owned fixtures.
@@ -68,3 +69,4 @@ verification:
   unit: The full Issues package passed 31 tests across four files. The first concurrent build run hit the existing five-second test timeout; a subsequent package run passed without changing timeouts or tests.
   browser_baseline: All 29 browser tests across Issue review and Material detail passed against the committed baseline with this task's fixture/import changes, no retries or skips and no experiment directory.
   remaining_checks: Both TypeScript projects, changed-file Prettier, task/spec validation, archive-index local links and git diff --check passed.
+  delivery: Archive and fixture relocation committed directly on local main; unrelated HTTP working-tree changes remain separate.
