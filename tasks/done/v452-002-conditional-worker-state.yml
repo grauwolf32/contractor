@@ -6,7 +6,7 @@ epic: planner-worker
 kind: chore
 introduced_by: V17-005
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V452-001
 languages:
@@ -73,8 +73,11 @@ verification:
   measurement: '15 local ASGI samples per size: at 3,648,054 JSON bytes, median conditional GET fell from 22.714
     ms before to 0.163 ms after. A deterministic test proves zero full copy, wire decode or response serialization
     on unchanged validated revisions. No wall-clock test thresholds.'
-  full_runtime_gate: make test-runtime is running; completion remains pending until its result is reviewed.
+  full_runtime_gate: 'make test-runtime passed: 5914 passed, 135 declared skips. The later release-ownership fixes
+    have 5891 passes in a broad rerun excluding two already-passing unaffected long ADK modules and 380 passes/15
+    platform skips in the final owner selection after the last queue-ordering correction.'
   negative_probe: /tmp/contractor-v452-002-before.log
   benchmark: /tmp/contractor-v452-state-after.log
-  landing: Implemented on codex/runtime-stop-state; primary checkout has unrelated uncommitted HTTP/UI/docs work,
-    including tasks/BACKLOG.md.
+  landing: Implementation and verification finished on codex/runtime-stop-state; integration outcome is recorded
+    in the merge commit. No deployment.
+implementation_commit: 76be3a827cabbc2454053af28c43779fee85e983
