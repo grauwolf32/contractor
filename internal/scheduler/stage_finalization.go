@@ -25,6 +25,7 @@ import (
 
 // enterFinalizing validates and fences before the atomic candidate transition.
 func (s *Scheduler) enterFinalizing(ctx context.Context, run runstore.WorkflowRun, workflow executableWorkflow, execution runstore.StageExecution, reservations []controlplane.Reservation, candidate stageresult.StageContentResult) error {
+	s.endModelRoutes(run.RunID, execution.StageExecutionID)
 	if err := s.validateCandidate(ctx, run.RunID, workflow, candidate); err != nil {
 		failure := planner.Failure{
 			Code: "result_contract_violation", Message: "Stage candidate violates the Stage result contract", Retryable: false,

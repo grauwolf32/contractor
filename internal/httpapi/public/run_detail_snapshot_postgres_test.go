@@ -93,7 +93,7 @@ func TestPostgresRunDetailResponseKeepsStateWithItsCursor(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(readerPool.Close)
-	details, err := runservice.NewRunDetailReader(runservice.PostgresRunDetailTransaction(readerPool, artifactpgtest.NewStorage()))
+	details, err := runservice.NewRunDetailReader(runservice.PostgresRunDetailTransaction(readerPool, artifactpgtest.NewStorage(), nil))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -23,6 +23,9 @@ func (h *runHandlers) retryRunGateway(w http.ResponseWriter, r *http.Request) er
 	if err != nil {
 		return err
 	}
+	if run.State != runstore.RunPending && run.State != runstore.RunRunning && run.State != runstore.RunWaiting {
+		return fmt.Errorf("%w: Run has no retryable gateway wait", runstore.ErrConflict)
+	}
 	if err := h.GatewayRecovery.Retry(r.Context(), run.OwnerID, run.RunID); err != nil {
 		if gatewayrecovery.IsUnavailable(err) {
 			err = fmt.Errorf("%w: Run has no retryable gateway wait", runstore.ErrConflict)

@@ -265,6 +265,9 @@ func (s *Scheduler) discardUnadmittedPlacement(ctx context.Context, runID, stage
 	discardContext, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
 	defer cancel()
 	if err := s.persistence.DiscardUnadmittedPlacement(discardContext, runID, stageID, func() error {
+		if s.options.GatewayRecovery != nil {
+			s.options.GatewayRecovery.ReleaseAdmission(runID, stageID)
+		}
 		return s.allocator.DiscardUnprepared(stageID)
 	}); err != nil {
 		s.options.Logger.Warn("deferred Stage placement discard needs reconciliation", "stage_execution_id", stageID)

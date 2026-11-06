@@ -2610,7 +2610,7 @@ func (p *memoryAtomicPersistence) runIn(runID string, states []runstore.Workflow
 	return runID == p.store.run.RunID && slices.Contains(states, p.store.run.State)
 }
 
-// endStage mirrors gatewayrecovery.EndStage in the commit that ends a Stage:
+// endStage clears the durable model-wait projection when a Stage ends:
 // a Run waiting for its model route returns to running.
 func (p *memoryAtomicPersistence) endStage() {
 	if p.store.run.State == runstore.RunWaiting {
@@ -3643,6 +3643,27 @@ func (p *memoryAtomicPersistence) requireClaim(ctx context.Context, runID string
 	}
 	if p.store.claimID != claimID {
 		return errors.Join(ErrClaimLost, runstore.ErrConflict)
+	}
+	return nil
+}
+
+func (p *memoryAtomicPersistence) ReconcileModelWait(ctx context.Context, runID, stageID, code string) error {
+	if p.store.run.RunID != runID {
+		return runstore.ErrNotFound
+	}
+	for _, stage := range p.store.stages {
+		if stage.StageExecutionID != stageID || stage.State != runstore.StageRunning {
+			continue
+		}
+		if p.store.run.State != runstore.RunRunning && p.store.run.State != runstore.RunWaiting {
+			return nil
+		}
+		if code == "" {
+			p.store.run.State = runstore.RunRunning
+		} else {
+			p.store.run.State = runstore.RunWaiting
+		}
+		p.store.run.StateReason = runstore.Reason{Code: code}
 	}
 	return nil
 }

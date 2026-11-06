@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5"
@@ -55,10 +54,6 @@ func (p *PostgresPersistence) DiscardUnadmittedPlacement(
 			return err
 		}
 		if err := store.DiscardUnadmittedAllocations(ctx, runID, stageID); err != nil {
-			return err
-		}
-		// Admission may have reserved a recovery probe for this placement.
-		if err := gatewayrecovery.ReleaseAdmission(ctx, tx, runID); err != nil {
 			return err
 		}
 		return discard()

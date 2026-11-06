@@ -23,7 +23,7 @@
   {
    "id": "runtime",
    "name": "Рантаймы и LLM-шлюз",
-   "note": "Конфиги рантаймов, агенты, восстановление маршрутов к модели"
+   "note": "Конфиги рантаймов и зарегистрированные агенты"
   },
   {
    "id": "audits",
@@ -334,52 +334,6 @@
     "Регистрация агента",
     "API меток агентов",
     "Размещение стадий по меткам"
-   ]
-  ],
-  "gateway_recovery_routes": [
-   "runtime",
-   "Маршрут к модели: заблокирован ли, сколько ошибок, когда следующая проверка",
-   "Предохранитель (circuit breaker) на маршрут модели.",
-   [
-    "Допуск стадии",
-    "Отчёты о сбоях",
-    "Ретрай и статус рана"
-   ]
-  ],
-  "gateway_run_routes": [
-   "runtime",
-   "Маршруты, которые использует текущая стадия рана",
-   "Маршруты, которые использует текущая стадия рана.",
-   [
-    "Допуск стадии заменяет набор",
-    "Статус и ретрай рана",
-    "Очистка при завершении рана"
-   ]
-  ],
-  "gateway_allocation_routes": [
-   "runtime",
-   "Какой маршрут и модель использует аллокация",
-   "Доверенная привязка (выдача, модель) → маршрут LLM-шлюза.",
-   [
-    "Планировщик при выдаче агента",
-    "Обработка отчётов рантайма о сбоях модели"
-   ]
-  ],
-  "gateway_recovery_waits": [
-   "runtime",
-   "Кто ждёт разблокировки маршрута",
-   "Участники, ждущие заблокированный маршрут.",
-   [
-    "Отчёт о сбое и захват маршрута",
-    "Гейт допуска стадии"
-   ]
-  ],
-  "gateway_recovery_failures": [
-   "runtime",
-   "Отказы по request_id, отсекает повторный учёт",
-   "Дедупликация повторных отчётов о сбое маршрута.",
-   [
-    "Вставка отчёта; дубликат отсекает ON CONFLICT"
    ]
   ],
   "audits": [
@@ -797,6 +751,11 @@
   "audit_items": "Removed: common Tasks own execution; historical facts are opaque retained Project Artifacts.",
   "audit_rounds": "Removed: common Tasks own execution; historical facts are opaque retained Project Artifacts.",
   "audit_round_result_pages": "Removed: common Tasks own execution; historical facts are opaque retained Project Artifacts.",
-  "audit_report_pages": "Removed: common Tasks own execution; historical facts are opaque retained Project Artifacts."
+  "audit_report_pages": "Removed: common Tasks own execution; historical facts are opaque retained Project Artifacts.",
+  "gateway_recovery_routes": "Удалена: состояние восстановления Gateway хранится в памяти единственного активного Server и сбрасывается при рестарте.",
+  "gateway_run_routes": "Удалена: состояние восстановления Gateway хранится в памяти единственного активного Server и сбрасывается при рестарте.",
+  "gateway_allocation_routes": "Удалена: состояние восстановления Gateway хранится в памяти единственного активного Server и сбрасывается при рестарте.",
+  "gateway_recovery_waits": "Удалена: состояние восстановления Gateway хранится в памяти единственного активного Server и сбрасывается при рестарте.",
+  "gateway_recovery_failures": "Удалена: состояние восстановления Gateway хранится в памяти единственного активного Server и сбрасывается при рестарте."
  }
 }

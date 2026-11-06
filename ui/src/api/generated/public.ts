@@ -5551,6 +5551,7 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
         };
+        /** @description Live model-availability recovery for the Run's exact active stage. Coordination is held in the active Server's memory; Server restart resets outage history, backoff and automatic retry windows. This observation is refreshed by active-Run polling and is outside the durable event cursor. */
         RunRecovery: {
             /**
              * @description Cause of the model gateway failure that holds the Run, from the recovery cause vocabulary that the Server and the Runtime share. It is not an error code: gateway_unavailable here is an unavailable model gateway route, not the error of a failed Gateway credential manager.

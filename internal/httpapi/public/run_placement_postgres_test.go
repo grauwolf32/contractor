@@ -22,7 +22,7 @@ func TestPostgresPublicRunPlacementPinsAndReplaysSelection(t *testing.T) {
 	pool := isolatedPublicPool(t, ctx)
 	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
 	artifactService := artifacts.NewService(artifactpgtest.NewStorage().Repository(pool))
-	details, err := runservice.NewRunDetailReader(runservice.PostgresRunDetailTransaction(pool, artifactpgtest.NewStorage()))
+	details, err := runservice.NewRunDetailReader(runservice.PostgresRunDetailTransaction(pool, artifactpgtest.NewStorage(), nil))
 	if err != nil {
 		t.Fatal(err)
 	}

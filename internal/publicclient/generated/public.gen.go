@@ -10382,7 +10382,7 @@ type RunQueueProject struct {
 	ProjectId ResourceId  `json:"projectId"`
 }
 
-// RunRecovery defines model for RunRecovery.
+// RunRecovery Live model-availability recovery for the Run's exact active stage. Coordination is held in the active Server's memory; Server restart resets outage history, backoff and automatic retry windows. This observation is refreshed by active-Run polling and is outside the durable event cursor.
 type RunRecovery struct {
 	AutomaticUntil time.Time `json:"automaticUntil"`
 
@@ -10480,7 +10480,9 @@ type RunStatus struct {
 	Parameters         *map[string]string          `json:"parameters,omitempty"`
 	ProjectHttpTarget  *ProjectHTTPTarget          `json:"projectHttpTarget,omitempty"`
 	ProjectId          *ResourceId                 `json:"projectId,omitempty"`
-	Recovery           *RunRecovery                `json:"recovery,omitempty"`
+
+	// Recovery Live model-availability recovery for the Run's exact active stage. Coordination is held in the active Server's memory; Server restart resets outage history, backoff and automatic retry windows. This observation is refreshed by active-Run polling and is outside the durable event cursor.
+	Recovery *RunRecovery `json:"recovery,omitempty"`
 
 	// RequiredPlacementLabels Sorted unique cloud/local paths forming one ancestor chain. Empty means no location declaration or requirement.
 	RequiredPlacementLabels *PlacementLabels `json:"requiredPlacementLabels,omitempty"`

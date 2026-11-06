@@ -2,18 +2,15 @@ package runstore
 
 import (
 	"context"
-	"errors"
 	"fmt"
-
-	"github.com/jackc/pgx/v5"
 )
 
 // The waiting operations move a Run between running and waiting while its
-// invocation waits for a blocked model route (RUN-R30). Model-availability
-// recovery decides when; these operations are the only writers of those
+// invocation waits for a blocked model route (RUN-R30). Scheduler projects
+// the live model-recovery waits; these operations are the only writers of those
 // edges and of the reason they record. Each runs in the caller's
-// transaction, which already holds the Run row lock (LockRunState) under
-// which the Run's recovery waits change.
+// transaction, which already holds the Run row lock (LockRunState) and checks
+// the exact active Stage.
 
 // gatewayWaitMessage is the state reason message of a Run that waits for a
 // blocked model route, whether it waits to be admitted or in its invocation.
@@ -80,36 +77,4 @@ func validateGatewayWait(runID, reasonCode string) error {
 		return err
 	}
 	return validateReason(Reason{Code: reasonCode})
-}
-
-// GatewayRecoveryRuns is the Run store's implementation of
-// gatewayrecovery.RunStates. Model-availability recovery lies below the Run
-// store in the layer stack, so it locks Runs and moves them between running
-// and waiting only through these methods (PER-R23), each in the
-// transaction it passes.
-type GatewayRecoveryRuns struct{}
-
-// LockRun locks the row of Run runID until tx ends and returns its state and
-// owner, or "" for both when there is no such Run.
-func (GatewayRecoveryRuns) LockRun(ctx context.Context, tx pgx.Tx, runID string) (string, string, error) {
-	state, ownerID, err := (&PostgresTxStore{tx: tx}).lockRunOwner(ctx, runID, "")
-	if errors.Is(err, ErrNotFound) {
-		return "", "", nil
-	}
-	return string(state), ownerID, err
-}
-
-// EnterWaiting is PostgresTxStore.EnterWaiting in tx.
-func (GatewayRecoveryRuns) EnterWaiting(ctx context.Context, tx pgx.Tx, runID, reasonCode string) error {
-	return (&PostgresTxStore{tx: tx}).EnterWaiting(ctx, runID, reasonCode)
-}
-
-// LeaveWaiting is PostgresTxStore.LeaveWaiting in tx.
-func (GatewayRecoveryRuns) LeaveWaiting(ctx context.Context, tx pgx.Tx, runID string) error {
-	return (&PostgresTxStore{tx: tx}).LeaveWaiting(ctx, runID)
-}
-
-// RecordAdmissionWait is PostgresTxStore.RecordAdmissionWait in tx.
-func (GatewayRecoveryRuns) RecordAdmissionWait(ctx context.Context, tx pgx.Tx, runID, reasonCode string) error {
-	return (&PostgresTxStore{tx: tx}).RecordAdmissionWait(ctx, runID, reasonCode)
 }

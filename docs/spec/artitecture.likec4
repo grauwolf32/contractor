@@ -240,9 +240,6 @@ model {
       #contractor
     }
 
-    gatewayRecoveryState = storage 'Model gateway recovery gates / leased probes / idempotent failure reports on the database clock' {
-      #contractor
-    }
   }
 
   blobBackend = system 'Filesystem Artifact Blobs — optional Server-owned root, persistent or ephemeral' {
@@ -633,7 +630,7 @@ model {
         #contractor
       }
 
-      gatewayRecovery = component 'Model Gateway Recovery — durable route gate per owner/gateway/model/credential/proxy; one leased probe; bounded automatic window; manual retry' {
+      gatewayRecovery = component 'Model Gateway Recovery — bounded process-memory route gates and participants; one leased probe; automatic window and manual retry reset on restart' {
         #contractor
       }
     }
@@ -695,7 +692,7 @@ model {
     orchestration.workflowScheduler -> identityConfiguration.executionConfigService 'Resolve immutable per-Run executionConfig'
     orchestration.workflowScheduler -> workspaceLifecycle.projectStore 'Resolve optional Project snapshot and respect the deleting fence'
     orchestration.workflowScheduler -> workspaceLifecycle.ownerQueueGate 'Serialize every normal Stage admission against durable pause'
-    orchestration.workflowScheduler -> workspaceLifecycle.runStore 'CAS Run lifecycle; persist attempts, candidates and terminal outcomes'
+    orchestration.workflowScheduler -> workspaceLifecycle.runStore 'CAS Run lifecycle; project live model waits; persist attempts, candidates and terminal outcomes'
     orchestration.workflowScheduler -> runtimeOperations.controlPlane 'Prepare / finalize / abort / release allocations'
     orchestration.workflowScheduler -> orchestration.serverOperations 'Invoke operation Stage directly under Run claim and admitted deadline'
     orchestration.serverOperations -> orchestration.sitemapOperations 'Dispatch registered code with exact Stage context and output bindings'
@@ -1219,8 +1216,6 @@ model {
   server.orchestration.workflowScheduler -> server.runtimeOperations.gatewayRecovery 'Run waiting state; active invocations recover before queued work'
   server.orchestration.stagePlanner -> server.runtimeOperations.gatewayRecovery 'Retry only the interrupted Planner model request with the same serialized input'
   runtimeAgent.allocationCapabilities.modelClient -> server.runtimeOperations.gatewayRecovery 'Private gateway-recovery route: classified failure reports and reopen decisions'
-  server.runtimeOperations.gatewayRecovery -> artifactDatabase.gatewayRecoveryState 'Route gates, probe leases and route deadlines on the database clock'
-  server.runtimeOperations.gatewayRecovery -> server.workspaceLifecycle.runStore 'Lock the Run row and move the Run between running and waiting through the RunStore port'
   server.runtimeOperations.gatewayRecovery -> llmGateway 'One leased probe per blocked route; stale successes cannot reopen it'
   server.productSurface.publicApi -> server.runtimeOperations.gatewayRecovery 'POST /v1/runs/{runId}/retry-gateway reopens the bounded window; RunStatus.recovery'
 
@@ -4477,7 +4472,7 @@ views {
 
   view modelRecovery {
     title '45 / Execution / Model Gateway Recovery'
-    description 'Scheduler spec. A live invocation waiting for model availability sets its Run to waiting. Server keeps one durable route gate per owner/gateway/model/credential/proxy, probes it under a lease, bounds the automatic window and lets the owner reopen it with retry-gateway.'
+    description 'Scheduler spec. The single active Server coordinates model gates, participants and probes in bounded memory. Scheduler projects live waits into durable Runs independently. Restart forgets outage history and interrupts old invocations.'
 
     include server.productSurface.publicApi with {
       title 'Runs API'
@@ -4495,8 +4490,8 @@ views {
     include runtimeAgent.allocationCapabilities.modelClient with {
       title 'Worker Model Client'
     }
-    include artifactDatabase.gatewayRecoveryState with {
-      title 'Recovery State'
+    include server.workspaceLifecycle.runStore with {
+      title 'Durable Run state'
     }
     include llmGateway with {
       title 'LLM Gateway'
@@ -4515,8 +4510,8 @@ views {
     include runtimeAgent.allocationCapabilities.modelClient -> server.runtimeOperations.gatewayRecovery with {
       title 'Classified failures / reopen'
     }
-    include server.runtimeOperations.gatewayRecovery -> artifactDatabase.gatewayRecoveryState with {
-      title 'Gates / leases'
+    include server.orchestration.workflowScheduler -> server.workspaceLifecycle.runStore with {
+      title 'Reconcile current waits'
     }
     include server.runtimeOperations.gatewayRecovery -> llmGateway with {
       title 'Leased probe'

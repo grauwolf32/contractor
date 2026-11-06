@@ -6,15 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
-
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
-	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 )
 
 // The owner's queue pauses after placement pinned the Stage's allocation rows
@@ -43,12 +36,7 @@ WHERE run_id = 'run-1'`); err != nil {
 			routes := reservationModelRoutes("user-1", schedulerTestReservations(t, stage)[0])
 			if test.blockedRoute {
 				for _, route := range routes {
-					if _, err := h.pool.Exec(ctx, `
-INSERT INTO gateway_recovery_routes(route_key,owner_id,blocked,failure_code,next_probe_at,automatic_until)
-VALUES($1,$2,true,'model_unavailable',clock_timestamp()-interval '1 second',clock_timestamp()+interval '1 hour')`,
-						route.Key(), route.OwnerID); err != nil {
-						t.Fatal(err)
-					}
+					blockRecoveryRoute(t, h.scheduler.options.GatewayRecovery, route, true)
 				}
 			}
 			setPaused := func(paused bool) {
@@ -72,12 +60,7 @@ VALUES($1,$2,true,'model_unavailable',clock_timestamp()-interval '1 second',cloc
 				}
 				if !paused {
 					paused = true
-					if test.blockedRoute {
-						var reserved int
-						if err := h.pool.QueryRow(ctx, `SELECT count(*) FROM gateway_recovery_routes WHERE probe_run_id='run-1'`).Scan(&reserved); err != nil || reserved != len(routes) {
-							t.Errorf("admission reserved %d of %d probes: %v", reserved, len(routes), err)
-						}
-					}
+
 					setPaused(true)
 				}
 				return nil
@@ -98,10 +81,15 @@ VALUES($1,$2,true,'model_unavailable',clock_timestamp()-interval '1 second',cloc
 					len(allocations), len(allocator.grants), len(allocator.cached),
 					allocator.released[executions[0].StageExecutionID], err)
 			}
-			var reserved int
-			if err := h.pool.QueryRow(ctx, `SELECT count(*) FROM gateway_recovery_routes WHERE probe_run_id='run-1'`).Scan(&reserved); err != nil || reserved != 0 {
-				t.Fatalf("deferred Run kept %d recovery probe reservations: %v", reserved, err)
+			// Competing admission can take the relinquished probe immediately.
+			if test.blockedRoute {
+				service := h.scheduler.options.GatewayRecovery
+				if allowed, err := service.Admit(ctx, "competitor", "competitor-stage", routes); err != nil || !allowed {
+					t.Fatalf("probe not released: %v %v", allowed, err)
+				}
+				service.EndStage("competitor", "competitor-stage")
 			}
+
 			if run, err := h.store.GetRun(ctx, "run-1"); err != nil || run.State != runstore.RunPending {
 				t.Fatalf("deferred Run = (%s, %v), want pending", run.State, err)
 			}
@@ -119,70 +107,5 @@ VALUES($1,$2,true,'model_unavailable',clock_timestamp()-interval '1 second',cloc
 					allocator.reserveCalls, h.invoker.calls)
 			}
 		})
-	}
-}
-
-// A second admission of the same Run, as when placement is retried after
-// admission reserved the probe of a blocked route, takes that probe again
-// instead of being refused by its own reservation. A route the Run no longer
-// admits does not keep the reservation.
-func TestPostgresGatewayReadmissionReusesOwnProbeReservation(t *testing.T) {
-	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
-	defer cancel()
-	pool := isolatedSchedulerPool(t, ctx)
-	service := newProbeTestRecovery(t, pool)
-	route := gatewayrecovery.Route{OwnerID: "user-1", GatewayDigest: "gateway", Model: "model"}
-	other := route
-	other.Model = "other-model"
-	if _, err := pool.Exec(ctx, `
-INSERT INTO gateway_recovery_routes(route_key,owner_id,blocked,failure_code,next_probe_at,automatic_until)
-VALUES($1,$2,true,'model_unavailable',clock_timestamp()-interval '1 second',clock_timestamp()+interval '1 hour')`,
-		route.Key(), route.OwnerID); err != nil {
-		t.Fatal(err)
-	}
-	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
-	pending := func(runID string) {
-		t.Helper()
-		if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
-			LaneClass: resolved.LaneClassModel,
-			RunID:     runID, OwnerID: "user-1", WorkflowName: "test", WorkflowVersion: "1",
-			WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: []byte(`{}`),
-			RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
-		}); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := runs.TransitionRun(ctx, runID, runstore.RunInitializing, runstore.RunPending, runstore.Reason{Code: "initialized"}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	pending("run-readmitted")
-	pending("run-competing")
-	probeHolder := func() string {
-		t.Helper()
-		var holder *string
-		if err := pool.QueryRow(ctx, `SELECT probe_run_id FROM gateway_recovery_routes WHERE route_key=$1`, route.Key()).Scan(&holder); err != nil {
-			t.Fatal(err)
-		}
-		return stringValue(holder)
-	}
-	for attempt := 1; attempt <= 2; attempt++ {
-		if allowed, err := service.Admit(ctx, "run-readmitted", []gatewayrecovery.Route{route}); err != nil || !allowed {
-			t.Fatalf("admission %d of the reserving Run = (%v, %v)", attempt, allowed, err)
-		}
-		if holder := probeHolder(); holder != "run-readmitted" {
-			t.Fatalf("probe after admission %d is reserved by %s", attempt, holder)
-		}
-	}
-	if allowed, err := service.Admit(ctx, "run-competing", []gatewayrecovery.Route{route}); err != nil || allowed {
-		t.Fatalf("competing Run admitted while the probe is reserved = (%v, %v)", allowed, err)
-	}
-	if allowed, err := service.Admit(ctx, "run-readmitted", []gatewayrecovery.Route{other}); err != nil || !allowed {
-		t.Fatalf("admission on another route = (%v, %v)", allowed, err)
-	}
-	if holder := probeHolder(); holder != "<none>" {
-		t.Fatalf("dropped route kept the probe reservation of %s", holder)
-	}
-	if allowed, err := service.Admit(ctx, "run-competing", []gatewayrecovery.Route{route}); err != nil || !allowed {
-		t.Fatalf("competing Run after the reservation was dropped = (%v, %v)", allowed, err)
 	}
 }
