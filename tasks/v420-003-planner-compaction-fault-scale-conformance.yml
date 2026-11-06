@@ -35,11 +35,22 @@ context:
   - docs/spec/platform/lifecycle.md#LIFE-R1
   - docs/spec/execution/scheduler.md
   - docs/spec/platform/observability.md
+  - docs/spec/execution/planners.md#PLN-R130
   implementation_boundary: Update owning numbered specifications, limits/errors/failure/lifecycle registries
     and every affected reader/writer with implementation. A planned extension is not current shipped behavior.
     No legacy readers, v1/v2 production branches, native SDK resume, new receipt store or model substitution.
     Scheduler retains claims, queues, Stage identities, transitions, retries and completed recovery; only configuration
     plumbing, mechanical imports and regression fixtures may change there.
+  replanning_authority: 'User request 2026-11-07: reconcile the compaction backlog with merged refactors
+    before implementation. This edit updates task scope and acceptance only; it does not start implementation,
+    run live experiments or claim task completion.'
+  review_baseline: Local main 1142c2681d6520baa8c04bb0a90ca8fd224deb29. Current owning specifications
+    and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
+    and verification history. Recheck affected contracts if main changes before execution.
+  current_state: Keep this conformance task. compaction_test.go already covers continuation, cancellation,
+    reply validation, scope, history paging and bounds; compaction_postgres_test.go covers two checkpoints/privacy,
+    marker write fencing and finish-write failure. Inventory those cases before adding only missing
+    fault interleavings, exact-ceiling/multibyte/parent-bound and deterministic work-count coverage.
 scope:
   in:
   - Expanded production-path PostgreSQL/race/scale/history conformance and contract-preserving fixes where
@@ -51,8 +62,10 @@ acceptance_criteria:
 - id: A1
   given: Every real-store append outcome at pre/post-finish boundaries
   when: Production session/compaction code runs
-  then: Classification and reconciliation are correct, next effects/candidates are fenced and no append or
-    Worker effect is blindly repeated.
+  then: 'Current error classification and PLN-R130 fencing are preserved: no further model/Worker effect
+    or candidate after required append failure, including commit followed by lost acknowledgement. No
+    marker append or Worker effect is duplicated; existing Worker receipts keep their own reconciliation
+    semantics.'
 - id: A2
   given: Barriers at every execution boundary
   when: Cancel/deadline/early-stop races run under the race detector
@@ -104,10 +117,11 @@ tests:
   - A6
 requirements:
 - id: R1
-  text: Exercise PostgreSQL permanent rejection, retryable outage, commit-then-lost-ack and cancellation for
-    ordinary events, accepted summary markers and any supported repair/correction. Reconcile the same identity/sequence
-    and test errors both before the next model and after iterator exit/finish; no candidate may outrank a required
-    failed write.
+  text: 'Exercise real PostgreSQL rejection, retryable outage, commit-then-lost-ack and cancellation for
+    required ordinary/marker/finish appends. Assert PLN-R130: every checkpoint append failure fences continuation
+    and candidate completion; a lost acknowledgement never causes marker replay, read-back-based continuation
+    or a fresh Worker dispatch. Preserve existing classified failures and include iterator-exit/finish
+    paths. Reuse existing compaction_postgres_test.go cases rather than duplicate them.'
 - id: R2
   text: Add deterministic barriers around main admission, completed Worker tool group, compactor request, summary
     validation, append and continuation. Cover consumer break, parent cancel, absolute deadline, completion-write
@@ -139,26 +153,28 @@ requirements:
     errors cannot reach durable facts or public/closed telemetry projections. Partial events retain their current
     durable policy.
 - id: R9
-  text: Preserve completed recovery, unfinished-session failure, existing Worker terminal summary continuation
-    and stable Scheduler claims/transitions. No new stored transcript or expanded recovery promise is introduced
-    by these tests.
+  text: Preserve completed recovery, unfinished-session failure, independent Worker terminal-summary continuation
+    and current Scheduler/RunStore ownership. V451-002 process-local Gateway recovery and V455-001 Stage-owned
+    resume state are existing infrastructure; do not restore removed recovery/decision/receipt tables
+    or add stored transcripts and resumable Planner context.
 failure_outcomes:
 - operation: Compactor model call, checkpoint selection/append, history projection and continuation
   permanent: Empty/declined/tool-bearing/truncated/oversized/invalid output is a finite planner_compaction_failed
     outcome; exhausted cycle/retention limits use planner_compaction_limit_exceeded. Freeze stable codes/reasons
-    in V420-001 and owning registries before implementation. Invalid session writes remain nonretryable planner_session_rejected.
-    Never fall back to terminal summarizer or silently continue after an admitted failed checkpoint.
+    in V420-001 and owning registries before implementation. Invalid session writes remain nonretryable
+    planner_session_rejected. Never fall back to terminal summarizer or silently continue after an admitted
+    failed checkpoint.
   retryable: Gateway/session outages retain their existing classified bounded recovery and PLN-R106 rules.
     Do not add semantic compaction retries, duplicate summary appends or model fallbacks. Total attempts/known
     usage and original deadline remain authoritative.
-  ambiguous: Fence continuation; reconcile the same pending checkpoint ID/generation/source range through the
-    existing session/reduced-fact sequence. Never append a fresh marker or redispatch a Worker merely because
-    acknowledgement was lost. Unresolved ambiguity ends in the owning classified session failure.
+  ambiguous: 'Follow PLN-R130: a checkpoint append with lost acknowledgement fences this invocation and
+    candidate completion; never replay the marker or use read-back to resume. Already dispatched Worker
+    effects use their existing receipts independently.'
   cancelled: Cancellation takes precedence; the Planner owner closes the iterator and joins main/compactor/persistence/repair
     work before return and cleanup. It cannot promise rollback of a dispatched remote effect.
-  timeout: Admission uses the original absolute Planner/Stage deadline; each compactor request uses the minimum
-    of the remaining invocation deadline and effective LLMGatewayConfig requestTimeout. ModelPolicy does not
-    own timeouts. Session-write/cleanup timeouts stay distinct and no detached repair may outlive Planner return.
+  timeout: The original Planner/Stage deadline and the existing Server Planner Gateway request timeout
+    bound admission and transport. LLMGatewayConfig has no requestTimeout field; session writes and joined
+    cleanup retain their current bounded owners.
 cardinality:
 - collection: Invocation-local raw history, prior summaries and validated Worker-result/reference index together
   expected: Several dozen groups and two or more checkpoints within one ordinary Planner invocation.
@@ -200,3 +216,6 @@ test_prerequisites:
 - No dependency on Python V418 or Worker compaction V417 is implied. Cross-language regression uses the currently
   supported Runtime lock. New shared grammar or wire changes, if actually needed, must update all implementations
   and shared fixtures in the owning task.
+- Follow the current Linux/platform and disk-heavy test policies (V433-007 and AGENTS.md). Do not enable
+  CONTRACTOR_TEST_HEAVY_IO implicitly or count declared optional skips as passing coverage. Record exact
+  revision, executed cases and exclusions; this backlog review ran no feature acceptance suites.

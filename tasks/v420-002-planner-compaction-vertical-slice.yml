@@ -1,6 +1,6 @@
 schema_version: '1.0'
 id: V420-002
-title: Implement opt-in bounded compaction for Streamline and Router Planners
+title: Accept merged Streamline and Router context compaction
 milestone: planner-context-compaction-2026-10
 epic: planner-worker
 kind: feature
@@ -37,11 +37,23 @@ context:
   - docs/spec/platform/lifecycle.md#LIFE-R1
   - docs/spec/platform/observability.md
   - docs/spec/api/public-api.md
+  - docs/spec/execution/planners.md#PLN-R130
+  - docs/spec/configuration/agent-templates.md#TPL-R117
   implementation_boundary: Update owning numbered specifications, limits/errors/failure/lifecycle registries
     and every affected reader/writer with implementation. A planned extension is not current shipped behavior.
     No legacy readers, v1/v2 production branches, native SDK resume, new receipt store or model substitution.
     Scheduler retains claims, queues, Stage identities, transitions, retries and completed recovery; only configuration
     plumbing, mechanical imports and regression fixtures may change there.
+  replanning_authority: 'User request 2026-11-07: reconcile the compaction backlog with merged refactors
+    before implementation. This edit updates task scope and acceptance only; it does not start implementation,
+    run live experiments or claim task completion.'
+  review_baseline: Local main 1142c2681d6520baa8c04bb0a90ca8fd224deb29. Current owning specifications
+    and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
+    and verification history. Recheck affected contracts if main changes before execution.
+  current_state: 'The Planner implementation is merged through 217158c7f. V425-042 subsequently made
+    Workflow executionConfig the sole Planner compactor-model source. The current checkpoint failure
+    contract is PLN-R130: a lost marker acknowledgement fences the invocation, without append replay
+    or continuation.'
 scope:
   in:
   - 'One buildable vertical feature: selectable policy, pinned config plumbing, both modeled Planners, bounded
@@ -52,10 +64,11 @@ scope:
     changes.
 requirements:
 - id: R1
-  text: 'Implement the frozen Stage plannerContextManagement none/compact@1 union end to end: strict authoring,
-    exact instruction/model dependencies, existing execution-selection precedence, immutable resolved snapshot/digests,
-    Planner Invocation and shared Streamline/Router engine. Accept configuration only with its reachable production
-    consumer in the same commit; default existing authoring to none, with no read-time legacy inference.'
+  text: Accept the implemented Stage plannerContextManagement none/compact@1 union with strict behavior-only
+    authoring, exact instruction dependencies and sole model selection through Workflow/inline-escalation
+    executionConfig (V425-042). Preserve current strict normalized snapshot encoding and immutable pins
+    through Planner Invocation and the common Streamline/Router engine. Omitted authoring selects none;
+    no compatibility reader or context-block model source.
 - id: R2
   text: Enforce the per-owner mutual exclusion on authoring, persisted snapshot read and execution admission.
     Reject Planner terminal/summarizer settings, mixed branches, ignored compactor overrides on none and compaction
@@ -96,18 +109,20 @@ requirements:
     Gateway payload. Native ADK history retention is not a memory bound; stop with the owning limit error before
     exceeding the aggregate ceiling. Do not silently evict the only trusted result or split a required group.
 - id: R8
-  text: 'Validate compactor output before checkpoint mutation: finite nonempty text, no tools/unsupported content,
-    strict output/byte limits, complete successful finish and consistent usage. The current decodeChatResponse
-    drops non-length finish reasons and leaves LLMResponse.FinishReason unset: implement explicit compactor-path
-    Gateway metadata/admission and HTTP-level regressions for stop, length, content_filter, missing and unknown
-    reasons, retaining valid usage on rejection. Preserve ordinary main-response semantics unless separately
-    justified in its owning contract. Empty/declined/oversized/truncated or demonstrably ineffective output
-    ends under the frozen code, without terminal fallback, semantic retry or hidden continuation.'
+  text: 'Verify the implemented compactor response admission: finite nonempty text, no tools/unsupported
+    content, bounded output bytes, successful finish and consistent usage. Retain HTTP-level coverage
+    for stop, length, content_filter, missing and unknown finish reasons, including known usage on rejection.
+    The original decoder gap described in the spike is already addressed by the compactor path; do not
+    restore it or rewrite ordinary main-response semantics. Invalid, truncated or demonstrably ineffective
+    output ends with its current classified failure, without terminal fallback, semantic retry or hidden
+    continuation.'
 - id: R9
-  text: Persist required reduced facts through the existing session adapter before exposing a checkpoint; retain
-    full Actions.Compaction and exact scope in RAM. Reconcile ambiguous append with the same marker identity/generation.
-    A sticky write failure fences next model/Worker work AND candidate completion, including after iterator
-    stop. Rejected writes remain planner_session_rejected; outages retain PLN-R106.
+  text: 'Persist the required content-free checkpoint marker through the existing session adapter before
+    exposing continuation; raw history and summary remain in RAM. Follow PLN-R130: any marker append failure,
+    including commit followed by lost acknowledgement, fences further model/Worker work and candidate
+    completion; never append the marker again or resume by read-back reconciliation. Rejection is planner_session_rejected;
+    other append failures use planner_session_unavailable. A required finish append failure after checkpoints
+    also forbids success.'
 - id: R10
   text: Cancel/timeout and early stop close and join the Runner, main/compactor calls, serialization and any
     repair work before Planner returns. No post-terminal compaction or unowned detached repair; completed recovery
@@ -122,10 +137,11 @@ requirements:
     schemas are exposed; align existing UI readers without requiring a new editor. Planner-only policy stays
     Server-side and is not added to AllocationSpec without a real Runtime consumer.
 - id: R13
-  text: Update all current snapshot/test fixtures strictly; if a durable schema transition requires a migration,
-    own a bounded real-store migration and test it rather than add lenient readers or reset business data.
-    Provide a production-consumed opt-in configuration example and validate shipped configs through the existing
-    CLI gate; unit tests use fixtures.
+  text: Validate the currently shipped Streamline/Router and summary-continuation selections delivered
+    by V420-006 and the behavior-only context/model-source migration from V425-042. Do not recreate the
+    removed duplicate compaction Workflow/policy examples or revert the catalog to opt-in-only. Keep snapshots
+    strict and use fixtures for unit tests; any actual persistence transition follows current repository
+    policy without legacy readers or implicit business-data reset.
 - id: R14
   text: 'All mandatory safety cases already pass before this task completes: write failure near finish, budget
     exhaustion, cancellation, old exact refs, mixed-policy rejection, two compactions and no duplicate effects.
@@ -134,19 +150,20 @@ failure_outcomes:
 - operation: Compactor model call, checkpoint selection/append, history projection and continuation
   permanent: Empty/declined/tool-bearing/truncated/oversized/invalid output is a finite planner_compaction_failed
     outcome; exhausted cycle/retention limits use planner_compaction_limit_exceeded. Freeze stable codes/reasons
-    in V420-001 and owning registries before implementation. Invalid session writes remain nonretryable planner_session_rejected.
-    Never fall back to terminal summarizer or silently continue after an admitted failed checkpoint.
+    in V420-001 and owning registries before implementation. Invalid session writes remain nonretryable
+    planner_session_rejected. Never fall back to terminal summarizer or silently continue after an admitted
+    failed checkpoint.
   retryable: Gateway/session outages retain their existing classified bounded recovery and PLN-R106 rules.
     Do not add semantic compaction retries, duplicate summary appends or model fallbacks. Total attempts/known
     usage and original deadline remain authoritative.
-  ambiguous: Fence continuation; reconcile the same pending checkpoint ID/generation/source range through the
-    existing session/reduced-fact sequence. Never append a fresh marker or redispatch a Worker merely because
-    acknowledgement was lost. Unresolved ambiguity ends in the owning classified session failure.
+  ambiguous: A marker acknowledgement lost after commit ends the invocation with planner_session_unavailable
+    and no candidate, further dispatch or marker replay (PLN-R130). Worker effects retain their own existing
+    receipts; marker read-back does not authorize continuation.
   cancelled: Cancellation takes precedence; the Planner owner closes the iterator and joins main/compactor/persistence/repair
     work before return and cleanup. It cannot promise rollback of a dispatched remote effect.
-  timeout: Admission uses the original absolute Planner/Stage deadline; each compactor request uses the minimum
-    of the remaining invocation deadline and effective LLMGatewayConfig requestTimeout. ModelPolicy does not
-    own timeouts. Session-write/cleanup timeouts stay distinct and no detached repair may outlive Planner return.
+  timeout: Use the original absolute Planner/Stage deadline and existing Server Planner Gateway request
+    timeout, as in the implementation; LLMGatewayConfig has no requestTimeout field. Session-write and
+    cleanup budgets keep their current owners, with no detached repair after return.
 cardinality:
 - collection: Invocation-local raw history, prior summaries and validated Worker-result/reference index together
   expected: Several dozen groups and two or more checkpoints within one ordinary Planner invocation.
@@ -255,6 +272,9 @@ test_prerequisites:
 - No dependency on Python V418 or Worker compaction V417 is implied. Cross-language regression uses the currently
   supported Runtime lock. New shared grammar or wire changes, if actually needed, must update all implementations
   and shared fixtures in the owning task.
+- Follow the current Linux/platform and disk-heavy test policies (V433-007 and AGENTS.md). Do not enable
+  CONTRACTOR_TEST_HEAVY_IO implicitly or count declared optional skips as passing coverage. Record exact
+  revision, executed cases and exclusions; this backlog review ran no feature acceptance suites.
 decisions:
 - >-
   2026-11-01 (user decision, V425-042): supersedes the older authoring/precedence
@@ -310,3 +330,8 @@ decisions:
   Planner, including explicit summary-continuation targets. This supersedes the
   earlier copy-to-load-only policy decision and the open catalog-supply question.
   The four deployment model-selection roles and Worker strategies are unchanged.
+remaining_work:
+- Map existing unit, real-PostgreSQL and race coverage to A1-A6 and complete remaining required verification
+  on the integrated revision.
+- Use the implemented behavior-only Planner context grammar and fail-closed marker contract; do not restore
+  context-block model selection, removed overrides or a reconciliation engine.

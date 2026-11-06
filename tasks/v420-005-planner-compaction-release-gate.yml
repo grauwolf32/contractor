@@ -39,11 +39,23 @@ context:
   - docs/spec/platform/observability.md
   - docs/testing/README.md
   - docs/testing/live-models.md
+  - docs/spec/execution/planners.md#PLN-R130
+  - docs/spec/configuration/agent-templates.md#TPL-R117
   implementation_boundary: Update owning numbered specifications, limits/errors/failure/lifecycle registries
     and every affected reader/writer with implementation. A planned extension is not current shipped behavior.
     No legacy readers, v1/v2 production branches, native SDK resume, new receipt store or model substitution.
     Scheduler retains claims, queues, Stage identities, transitions, retries and completed recovery; only configuration
     plumbing, mechanical imports and regression fixtures may change there.
+  replanning_authority: 'User request 2026-11-07: reconcile the compaction backlog with merged refactors
+    before implementation. This edit updates task scope and acceptance only; it does not start implementation,
+    run live experiments or claim task completion.'
+  review_baseline: Local main 1142c2681d6520baa8c04bb0a90ca8fd224deb29. Current owning specifications
+    and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
+    and verification history. Recheck affected contracts if main changes before execution.
+  current_state: Planner compact@1 is already explicitly enabled in shipped modeled Stages and summary
+    continuations by V420-006, then migrated to executionConfig by V425-042. Existing TestWorkerSummarizerProductionBoundaries
+    and production configuration staging supply partial evidence; Router/two-checkpoint/fault composed
+    release acceptance remains required.
 scope:
   in:
   - A registered real-process gate, integrated release verification, final safe evidence and an optional repeatable
@@ -99,26 +111,30 @@ tests:
   - A4
 requirements:
 - id: R1
-  text: Create make test-planner-compaction-e2e with a nonzero required-case inventory and register it in the
-    release graph; it runs a real Server/Runtime/PostgreSQL process scenario with a scripted Gateway controlling
-    both main Planner and compactor responses and a real Worker/A2A path. Cover Streamline and Router, at least
-    two compactions and successful finish using an early exact artifact reference. Fake WorkerInvoker tests
-    are complementary, not this acceptance.
+  text: Create make test-planner-compaction-e2e with a nonzero required-case inventory and register it
+    in the release graph; it runs a real Server/Runtime/PostgreSQL process scenario with a scripted Gateway
+    controlling both main Planner and compactor responses and a real Worker/A2A path. Cover Streamline
+    and Router, at least two compactions and successful finish using an early exact artifact reference.
+    Fake WorkerInvoker tests are complementary, not this acceptance. Reuse existing summary-continuation/configuration
+    process cases and extend only the missing matrix; register required cases once in the consolidated
+    release graph.
 - id: R2
   text: Count actual Worker effects across checkpoints and assert singular dispatch/receipt identity, stable
     SessionID/StageExecutionID, cumulative budgets/deadline, preserved task/continuation/result contract and
     ordinary final candidate. Compaction neither emits Worker summarized nor creates an extra Stage, lease,
     claim, retry or transition.
 - id: R3
-  text: 'Run the strategy matrix: none/compact, rejected Planner terminal/mixed settings, Worker terminal with
-    Planner compact, and existing passthrough terminal-summary escalation with Planner compaction none. If
-    Worker compact exists at integration time, include its local mutual exclusion without making pending V417/V418
-    a prerequisite or weakening the fixed current matrix.'
+  text: Run the explicit none/compact fixture matrix, rejected Planner terminal/mixed settings, Worker
+    terminal with Planner compact, existing passthrough terminal-summary escalation with Planner none,
+    and the already implemented isolated Worker compact control with its local mutual exclusion. Verify
+    real shipped direct and continuation selection through executionConfig; Worker shared/Audit future
+    extensions do not become Planner release prerequisites.
 - id: R4
   text: Inject process cancellation/deadline, Gateway failure and real session-write failure at checkpoint
-    and near finish. Observe no false candidate, no late local model/write/Worker work, no terminal fallback
-    and exact existing retryability/reconciliation. Verify completed recovery without model calls and unfinished
-    recovery without SDK resume.
+    and finish. Assert no false candidate or late model/write/Worker work. A marker commit with lost acknowledgement
+    fences the invocation under PLN-R130, with no marker replay or read-back continuation. Preserve existing
+    Worker-effect receipts, completed recovery without model calls and unfinished recovery without SDK
+    resume.
 - id: R5
   text: Run accepted scale/privacy/diagnostic matrices and the full deterministic release graph on the integrated
     committed module graph. New process gates fail missing prerequisites/zero selected cases, participate in
@@ -133,26 +149,29 @@ requirements:
     retention, completed objectives and duplicate effects if run. Live execution/default changes are not part
     of this deterministic exit and require their own authorized run.
 - id: R8
-  text: Verify final owning specs, generated contracts and shipped opt-in configuration agree. No existing
-    Workflow is silently switched to compact, no deployment or demo migration occurs and no substantial Scheduler
-    implementation changes are accepted under this milestone.
+  text: Verify current specs, generated contracts and the explicitly enabled shipped catalog agree with
+    V420-006 and V425-042. Both direct modeled Planners and summary-continuation targets select the generated
+    compactor@1 through executionConfig. None fixtures remain supported controls. Do not restore duplicate
+    policy examples, change independent Worker strategies, deploy or migrate the demo, or expand Scheduler
+    functionality.
 failure_outcomes:
 - operation: Compactor model call, checkpoint selection/append, history projection and continuation
   permanent: Empty/declined/tool-bearing/truncated/oversized/invalid output is a finite planner_compaction_failed
     outcome; exhausted cycle/retention limits use planner_compaction_limit_exceeded. Freeze stable codes/reasons
-    in V420-001 and owning registries before implementation. Invalid session writes remain nonretryable planner_session_rejected.
-    Never fall back to terminal summarizer or silently continue after an admitted failed checkpoint.
+    in V420-001 and owning registries before implementation. Invalid session writes remain nonretryable
+    planner_session_rejected. Never fall back to terminal summarizer or silently continue after an admitted
+    failed checkpoint.
   retryable: Gateway/session outages retain their existing classified bounded recovery and PLN-R106 rules.
     Do not add semantic compaction retries, duplicate summary appends or model fallbacks. Total attempts/known
     usage and original deadline remain authoritative.
-  ambiguous: Fence continuation; reconcile the same pending checkpoint ID/generation/source range through the
-    existing session/reduced-fact sequence. Never append a fresh marker or redispatch a Worker merely because
-    acknowledgement was lost. Unresolved ambiguity ends in the owning classified session failure.
+  ambiguous: 'Follow PLN-R130: a checkpoint append with lost acknowledgement fences this invocation and
+    candidate completion; never replay the marker or use read-back to resume. Already dispatched Worker
+    effects use their existing receipts independently.'
   cancelled: Cancellation takes precedence; the Planner owner closes the iterator and joins main/compactor/persistence/repair
     work before return and cleanup. It cannot promise rollback of a dispatched remote effect.
-  timeout: Admission uses the original absolute Planner/Stage deadline; each compactor request uses the minimum
-    of the remaining invocation deadline and effective LLMGatewayConfig requestTimeout. ModelPolicy does not
-    own timeouts. Session-write/cleanup timeouts stay distinct and no detached repair may outlive Planner return.
+  timeout: The original Planner/Stage deadline and the existing Server Planner Gateway request timeout
+    bound admission and transport. LLMGatewayConfig has no requestTimeout field; session writes and joined
+    cleanup retain their current bounded owners.
 cardinality:
 - collection: Invocation-local raw history, prior summaries and validated Worker-result/reference index together
   expected: Several dozen groups and two or more checkpoints within one ordinary Planner invocation.
@@ -194,3 +213,6 @@ test_prerequisites:
 - No dependency on Python V418 or Worker compaction V417 is implied. Cross-language regression uses the currently
   supported Runtime lock. New shared grammar or wire changes, if actually needed, must update all implementations
   and shared fixtures in the owning task.
+- Follow the current Linux/platform and disk-heavy test policies (V433-007 and AGENTS.md). Do not enable
+  CONTRACTOR_TEST_HEAVY_IO implicitly or count declared optional skips as passing coverage. Record exact
+  revision, executed cases and exclusions; this backlog review ran no feature acceptance suites.

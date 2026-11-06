@@ -29,6 +29,8 @@ context:
   - docs/spec/evals/managed-evals.md#EVM-R75
   - docs/spec/execution/worker.md
   - docs/spec/platform/observability.md
+  - docs/spec/configuration/agent-templates.md#TPL-R76
+  - docs/spec/configuration/agent-templates.md#TPL-R77
   design: docs/testing/live-models.md
   implementation_boundary: Reuse existing Eval planning, member identity, submission, result, assessment
     and comparison contracts. Deliver test fixtures and executable harness consumers, not a second Eval
@@ -37,6 +39,15 @@ context:
   adk_migration: V418-007 accepts the exact ADK 2.13.0 lock before V417-002 establishes compaction integration.
     Internal SDK turns are not new logical Contractor invocations; use the accepted migration contract,
     not 2.8 callback/identity assumptions.
+  replanning_authority: 'User request 2026-11-07: reconcile the compaction backlog with merged refactors
+    before implementation. This edit updates task scope and acceptance only; it does not start implementation,
+    run live experiments or claim task completion.'
+  review_baseline: Local main 1142c2681d6520baa8c04bb0a90ca8fd224deb29. Current owning specifications
+    and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
+    and verification history. Recheck affected contracts if main changes before execution.
+  current_state: 'Still required: no context-compaction evaluation harness or live evidence is delivered.
+    V425-041 makes published Workflow refs the experiment model/configuration boundary. V454-001 only
+    consolidated existing Eval storage; reuse its public owner APIs, frozen plans and member receipts.'
 scope:
   in:
   - Frozen visible cases, private expected data, variant manifests and scorer regressions under tests/eval.
@@ -60,7 +71,10 @@ requirements:
     the existing configured terminal handoff to streamline, and observation masking as declared comparison
     variants. Masking exists only in the isolated experiment adapter; it adds no production strategy enum.
     Represent A/B comparisons through the existing exactly-two-arm contract, using multiple pinned experiments
-    rather than widening Managed Eval arms.
+    rather than widening Managed Eval arms. Each production arm selects a separately authored, published
+    Workflow ref with exact closure pins. Do not add executionConfig to Eval variants or Run-create requests,
+    publish Workflows dynamically, or mutate a catalog entry between samples. Test-only masking remains
+    confined to the controlled adapter.
 - id: R2
   text: Freeze cases, visible input digests, private truth/scorer revisions, Workflow/AgentTemplate/ModelPolicy/Gateway/Skill/instruction
     pins, provider reasoning availability, repetition count, order, seeds where supported, intended differences
@@ -215,6 +229,9 @@ test_prerequisites:
   are failures, not successful skips.
 - Run integration acceptance on the exact ADK 2.13.0 closure accepted by V418-007; record Runtime revision
   and lock digest. No separate old-SDK compaction implementation or version-switching production path.
+- Follow the current Linux/platform and disk-heavy test policies (V433-007 and AGENTS.md). Do not enable
+  CONTRACTOR_TEST_HEAVY_IO implicitly or count declared optional skips as passing coverage. Record exact
+  revision, executed cases and exclusions; this backlog review ran no feature acceptance suites.
 verification_requirements:
 - Preserve owning Eval contracts; any necessary contract change must land with its actual consumer and
   shared validation in the implementation change.

@@ -24,6 +24,8 @@ context:
   - docs/spec/tools/skills.md#SKL-R98
   - docs/spec/platform/lifecycle.md
   - docs/spec/platform/limits.md
+  - docs/spec/execution/worker.md#WRK-R174
+  - docs/spec/execution/runtime-agent.md#RTA-R116
   implementation_boundary: Update numbered owning specifications, limits/errors/failure/lifecycle registries,
     strict schemas, fixtures and every affected reader/writer together with implemented behavior. Generated
     clients are regenerated through their tools. No legacy readers, unsupported accepted configuration,
@@ -31,6 +33,15 @@ context:
   adk_migration: V418-007 accepts the exact ADK 2.13.0 lock before V417-002 establishes compaction integration.
     Internal SDK turns are not new logical Contractor invocations; use the accepted migration contract,
     not 2.8 callback/identity assumptions.
+  replanning_authority: 'User request 2026-11-07: reconcile the compaction backlog with merged refactors
+    before implementation. This edit updates task scope and acceptance only; it does not start implementation,
+    run live experiments or claim task completion.'
+  review_baseline: Local main 1142c2681d6520baa8c04bb0a90ca8fd224deb29. Current owning specifications
+    and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
+    and verification history. Recheck affected contracts if main changes before execution.
+  current_state: 'Still required: internal/contracts/worker_context.go and Runtime allocation validation
+    reject compact@1 for shared sessions. V432 ownership refactoring and V452-001 shutdown fixes are
+    implemented prerequisites in the baseline, not new mechanisms to rebuild.'
 scope:
   in:
   - Enable compact@1 with shared sessions in config/wire validation and Runtime together, removing only
@@ -67,9 +78,10 @@ requirements:
     timestamps coincide. No cross-binding/allocation access; isolated history/cursors expire at logical
     invocation completion. Repeated Skill reads remain charged and redacted across subtasks.
 - id: R6
-  text: Use existing serial invocation ownership and joined off-event-loop work. Cancel/deadline/lease
-    loss at commit, continuation or cleanup cannot race another invocation into using uncertain state.
-    An incomplete cleanup keeps the existing allocation fence.
+  text: Use existing serial invocation ownership, joined off-event-loop work and the current allocation
+    stop/lease-loss deadline owner delivered by V432/V452-001. Cancellation at checkpoint, continuation
+    or cleanup cannot admit another invocation into uncertain state. Reuse the existing release fence;
+    do not add another grace clock, cleanup owner or lock that makes State reads block stopping the allocation.
 - id: R7
   text: Finalize, abort and release never initiate compaction and clear session data, pending input, history
     indexes, model clients and reasoning. Runtime restart uses the existing interrupted/retry path; new
@@ -174,3 +186,6 @@ test_prerequisites:
   work counters for assertions, not wall-clock thresholds.
 - Run integration acceptance on the exact ADK 2.13.0 closure accepted by V418-007; record Runtime revision
   and lock digest. No separate old-SDK compaction implementation or version-switching production path.
+- Follow the current Linux/platform and disk-heavy test policies (V433-007 and AGENTS.md). Do not enable
+  CONTRACTOR_TEST_HEAVY_IO implicitly or count declared optional skips as passing coverage. Record exact
+  revision, executed cases and exclusions; this backlog review ran no feature acceptance suites.
