@@ -63,6 +63,7 @@ def test_adk_schema_exposes_only_judgment_and_selected_evidence():
             "tested_conditions",
             "limitations",
             "evidence",
+            "http_request_ids",
             "verdict",
             "expected_revision",
             "results",

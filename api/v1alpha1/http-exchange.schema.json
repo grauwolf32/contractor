@@ -220,6 +220,18 @@
           "items": {
             "$ref": "#/$defs/attempt"
           }
+        },
+        "observed_at": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.[0-9]{0,8}[1-9])?Z$",
+          "maxLength": 32
+        },
+        "deployment_marker": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "x-maxBytes": 256,
+          "pattern": "^[^\\u0000-\\u001f]+$"
         }
       },
       "allOf": [
@@ -249,31 +261,49 @@
       "additionalProperties": false,
       "required": [
         "schema",
-        "capture",
-        "finding"
+        "origin",
+        "capture"
       ],
       "properties": {
         "schema": {
           "const": "contractor.http.exchange.v1"
         },
         "capture": {
-          "$ref": "#/$defs/capture"
+          "allOf": [
+            {
+              "$ref": "#/$defs/capture"
+            },
+            {
+              "if": {
+                "properties": {
+                  "source": {
+                    "const": "http"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "observed_at"
+                ]
+              }
+            }
+          ]
         },
-        "finding": {
+        "origin": {
           "type": "object",
           "additionalProperties": false,
           "required": [
-            "proposal_id",
-            "receipt_id"
+            "run_id",
+            "invocation_id"
           ],
           "properties": {
-            "proposal_id": {
+            "run_id": {
               "type": "string",
               "minLength": 1,
               "maxLength": 160,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
             },
-            "receipt_id": {
+            "invocation_id": {
               "type": "string",
               "minLength": 1,
               "maxLength": 160,

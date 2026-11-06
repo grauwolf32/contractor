@@ -207,7 +207,7 @@ func TestFlowConnectivityAndUntrustedToolClaims(t *testing.T) {
 	}
 }
 func TestHTTPProjectionUsesActualCaptureAndOmitsPrivateFields(t *testing.T) {
-	payload := []byte(`{"schema":"contractor.http.exchange.v1","capture":{"source":"http","request_id":"1","request_tag":"tag","attempts":[{"request":{"method":"POST","url":"https://example.test/check?token=private#secret","message":{"kind":"structured","headers":[{"name":"Cookie","value":"private-cookie"}],"body_base64":"cHJpdmF0ZQ=="}},"response":{"status":201,"message":{"kind":"structured","headers":[{"name":"Content-Type","value":"application/json"}],"body_base64":"cHJpdmF0ZQ=="},"complete":true}}]},"finding":{"proposal_id":"proposal","receipt_id":"receipt"}}`)
+	payload := []byte(`{"schema":"contractor.http.exchange.v1","capture":{"source":"http","request_id":"1","request_tag":"tag","observed_at":"2026-11-06T18:20:00Z","attempts":[{"request":{"method":"POST","url":"https://example.test/check?token=private#secret","message":{"kind":"structured","headers":[{"name":"Cookie","value":"private-cookie"}],"body_base64":"cHJpdmF0ZQ=="}},"response":{"status":201,"message":{"kind":"structured","headers":[{"name":"Content-Type","value":"application/json"}],"body_base64":"cHJpdmF0ZQ=="},"complete":true}}]},"origin":{"run_id":"run","invocation_id":"invocation"}}`)
 	doc := testEvidence(t, "http", auditdomain.HTTPExchangeMediaType, payload)
 	exchange := HTTPExchange{ID: "http", EvidenceRef: doc.Ref, Decoder: "contractor-http-exchange/v1"}
 	value := testAnalysis()
@@ -234,13 +234,13 @@ func TestHTTPProjectionUsesActualCaptureAndOmitsPrivateFields(t *testing.T) {
 	// Reusing an earlier saved capture is valid; its original association is
 	// provenance, and a new analysis need not invent another target request.
 	trusted := doc
-	trusted.Ref.Namespace = "finding-proposals"
-	trusted.Ref.Name = "http.exchange.proposal"
+	trusted.Ref.Namespace = "http-exchanges"
+	trusted.Ref.Name = auditdomain.HTTPExchangeArtifactName("invocation", "http", "1")
 	projection, err = ProjectHTTP(exchange, trusted, payload)
 	if err != nil || projection.Origin != "runtime-capture" {
 		t.Fatalf("trusted saved capture: %+v %v", projection, err)
 	}
-	invalid := bytes.Replace(payload, []byte(`"receipt_id":"receipt"`), []byte(`"receipt_id":""`), 1)
+	invalid := bytes.Replace(payload, []byte(`"invocation_id":"invocation"`), []byte(`"invocation_id":""`), 1)
 	if _, err := ProjectHTTP(exchange, doc, invalid); err == nil {
 		t.Fatal("accepted invalid capture provenance")
 	}

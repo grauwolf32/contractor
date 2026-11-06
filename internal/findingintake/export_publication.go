@@ -111,7 +111,7 @@ func (p *CollectionPublisher) PublishFindingExport(ctx context.Context, ownerID,
 					evidence.Git = &findingexport.GitSource{RepositoryURI: source.RepositoryURL, Commit: source.ResolvedCommit}
 				}
 				value.Evidence = append(value.Evidence, evidence)
-				if analysis == nil && original.MediaType == auditdomain.HTTPExchangeMediaType && original.Ref.Namespace == artifactpolicy.FindingProposalNamespace && original.Ref.Name == "http.exchange."+receipt.ProposalID {
+				if analysis == nil && original.MediaType == auditdomain.HTTPExchangeMediaType && original.Ref.Namespace == artifactpolicy.HTTPExchangeNamespace {
 					projected, err := findinganalysis.ProjectHTTP(findinganalysis.HTTPExchange{ID: "selected-exchange", EvidenceRef: original.Ref, Decoder: "contractor-http-exchange/v1"}, original, contents[doc.ID])
 					if err != nil {
 						return err

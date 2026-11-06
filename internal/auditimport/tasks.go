@@ -13,6 +13,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
@@ -404,6 +405,10 @@ func (i *Importer) normalizeTaskResult(ctx context.Context, audit auditstore.Aud
 	if err != nil {
 		return nil, err
 	}
+	trusted, httpTranslations, err := i.taskHTTPContext(ctx, audit, execution, trusted, raw)
+	if err != nil {
+		return nil, err
+	}
 	result, err := auditcontract.Decode(raw, trusted)
 	if err != nil {
 		return invalid()
@@ -423,7 +428,7 @@ func (i *Importer) normalizeTaskResult(ctx context.Context, audit auditstore.Aud
 	if len(members) != len(tasks) {
 		return invalid()
 	}
-	translations := map[string]auditcontract.Material{}
+	translations := httpTranslations
 	inputMaterials := map[string]auditcontract.Material{}
 	for _, member := range members {
 		for _, raw := range member.(map[string]any)["evidence"].([]any) {
@@ -432,6 +437,9 @@ func (i *Importer) normalizeTaskResult(ctx context.Context, audit auditstore.Aud
 				return nil, err
 			}
 			var m auditcontract.Material
+			if strictjson.Decode(data, &m) == nil && m.ScopeKind == "run" && m.ScopeID == *execution.RunID && m.Ref.Namespace == artifactpolicy.HTTPExchangeNamespace {
+				continue
+			}
 			if strictjson.Decode(data, &m) != nil || m.ScopeKind != "run" || m.ScopeID != *execution.RunID || m.Ref.Namespace != "inputs" {
 				return invalid()
 			}
@@ -463,6 +471,9 @@ func (i *Importer) normalizeTaskResult(ctx context.Context, audit auditstore.Aud
 				return nil, err
 			}
 			var material auditcontract.Material
+			if strictjson.Decode(data, &material) == nil && material.ScopeKind == "run" && material.ScopeID == *execution.RunID && material.Ref.Namespace == artifactpolicy.HTTPExchangeNamespace {
+				continue
+			}
 			if strictjson.Decode(data, &material) != nil || material.ScopeKind != "run" || material.ScopeID != *execution.RunID || material.Ref.Namespace != "inputs" {
 				return invalid()
 			}

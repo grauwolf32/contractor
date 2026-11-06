@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
@@ -44,12 +45,36 @@ func TestProjectFindingExplicitPublicationRetainsIndependentSources(t *testing.T
 	}
 	grants := make([]controlplane.AllocationGrant, 2)
 	inputs := make([]Submission, 2)
+	var originalHTTP []byte
 	for index, run := range []string{"publication-run-a", "publication-run-b"} {
 		var refs []contracts.ArtifactRef
 		grants[index] = quotaSubmissionGrantWithInputs(t, ctx, pool, owner, project, run, func() map[string]runstore.PinnedContextArtifact {
 			refs = writeFingerprintInputs(t, ctx, pool, run)
 			return map[string]runstore.PinnedContextArtifact{"source": {Artifact: &refs[0]}, "report": {Artifact: &refs[1]}}
 		})
+		if index == 0 {
+			// This exchange was selected independently, before any Finding consumer.
+			// The process test exercises the ordinary result publisher; here its
+			// frozen Artifact crosses both Finding and Project retention boundaries.
+			empty := ""
+			headers := []auditdomain.FindingHTTPHeader{}
+			capture := auditdomain.CapturedHTTPExchange{Source: "http", RequestID: "1", RequestTag: "selected-request", ObservedAt: "2026-11-06T18:20:00Z",
+				Attempts: []auditdomain.CapturedHTTPAttempt{{Request: &auditdomain.CapturedHTTPRequest{Method: "GET", URL: "https://target.example/", Message: auditdomain.HTTPMessage{Kind: "structured", Headers: &headers, BodyBase64: &empty}}, Error: "timeout"}}}
+			originalHTTP, err = auditdomain.EncodeHTTPExchangeArtifact(capture, run, "original-observation")
+			if err != nil {
+				t.Fatal(err)
+			}
+			storage := artifactpgtest.NewStorage()
+			payload, err := storage.PreparePayload(ctx, pool, artifacts.Payload{MediaType: auditdomain.HTTPExchangeMediaType, Data: originalHTTP})
+			if err != nil {
+				t.Fatal(err)
+			}
+			saved, err := artifacts.NewService(storage.Repository(pool)).CreateFrozen(ctx, mustRunScope(run), contracts.ArtifactRef{Namespace: artifactpolicy.HTTPExchangeNamespace, Name: auditdomain.HTTPExchangeArtifactName("original-observation", "http", "1")}, payload)
+			if err != nil {
+				t.Fatal(err)
+			}
+			refs = append(refs, saved.Ref)
+		}
 		inputs[index] = testSubmission("publication-invocation", "problem", refs)
 		inputs[index].PublishProblem = true
 		inputs[index].Proposal.Title = "rule/sql"
@@ -89,7 +114,7 @@ func TestProjectFindingExplicitPublicationRetainsIndependentSources(t *testing.T
 	close(start)
 	group.Wait()
 	for index, receipt := range receipts {
-		if submissionErrors[index] != nil || receipt.FindingID == nil || receipt.ProjectProposal == nil || len(receipt.ProjectEvidence) != 2 {
+		if submissionErrors[index] != nil || receipt.FindingID == nil || receipt.ProjectProposal == nil || len(receipt.ProjectEvidence) != len(inputs[index].EvidenceRefs) {
 			t.Fatalf("publication %d: %+v err=%v", index, receipt, submissionErrors[index])
 		}
 	}
@@ -221,8 +246,15 @@ func TestProjectFindingExplicitPublicationRetainsIndependentSources(t *testing.T
 				if err != nil || exact.Verify(metadata.Exact()) != nil {
 					t.Fatalf("retained exact evidence after purge: %+v %v", metadata, err)
 				}
-				if _, err := scope.Read(ctx, exact.Ref); err != nil {
+				read, err := scope.Read(ctx, exact.Ref)
+				if err != nil {
 					t.Fatal(err)
+				}
+				if exact.MediaType == auditdomain.HTTPExchangeMediaType {
+					envelope, decodeErr := auditdomain.DecodeHTTPExchangeArtifact(read.Payload.Data)
+					if decodeErr != nil || string(read.Payload.Data) != string(originalHTTP) || envelope.Origin.RunID != grants[0].RunID || envelope.Origin.InvocationID != "original-observation" || envelope.Capture.ObservedAt != "2026-11-06T18:20:00Z" {
+						t.Fatalf("reused HTTP observation changed after source purge: %+v %v", envelope, decodeErr)
+					}
 				}
 			}
 		}

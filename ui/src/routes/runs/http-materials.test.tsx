@@ -13,17 +13,17 @@ import { RunArtifactDetailRoute, RunArtifactLibrary } from "./artifacts";
 const SOURCE = JSON.stringify({
   schema: "contractor.http.exchange.v1",
   capture: captures.cases[0]!.value,
-  finding: { proposal_id: "proposal-100", receipt_id: "receipt-100" },
+  origin: { run_id: "run-test", invocation_id: "invocation-test" },
 });
 
-/** 130 HTTP exchanges saved with possible issues: three pages of 50. */
+/** 130 HTTP exchanges explicitly selected for evidence: three pages of 50. */
 const MATERIALS = Array.from({ length: 130 }, (_, index) =>
   conforming("ArtifactMetadata", {
     canUploadNewVersion: false,
     storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
     artifact: {
-      namespace: "finding-proposals",
-      name: "http.exchange.proposal-" + String(index).padStart(3, "0"),
+      namespace: "http-exchanges",
+      name: "exchange-" + String(index).padStart(3, "0"),
       revision: "exact-" + index,
     },
     mediaType: HTTP_EXCHANGE_MEDIA_TYPE,
@@ -63,7 +63,7 @@ it(
         json(page([])),
       "GET /v1/runs/{runId}/artifacts/{namespace}/{name}": ({ url }) => {
         expect(url.pathname).toBe(
-          "/v1/runs/run-test/artifacts/finding-proposals/http.exchange.proposal-100",
+          "/v1/runs/run-test/artifacts/http-exchanges/exchange-100",
         );
         expect(url.searchParams.get("revision")).toBe("exact-100");
         return bytes(SOURCE, HTTP_EXCHANGE_MEDIA_TYPE, {
@@ -90,39 +90,33 @@ it(
         },
       ],
     });
-    await screen.findByRole("link", { name: /http.exchange.proposal-000/ });
-    await user.click(
-      screen.getByRole("button", { name: "Possible issues and evidence" }),
-    );
+    await screen.findByRole("link", { name: /exchange-000/ });
+    await user.click(screen.getByRole("button", { name: "HTTP evidence" }));
     await waitFor(() =>
       expect(observed().at(-1)?.searchParams.get("namespace")).toBe(
-        "finding-proposals",
+        "http-exchanges",
       ),
     );
     await user.click(screen.getByRole("button", { name: "Next" }));
-    await screen.findByRole("link", { name: /http.exchange.proposal-050/ });
+    await screen.findByRole("link", { name: /exchange-050/ });
     await user.click(screen.getByRole("button", { name: "Next" }));
     const link = await screen.findByRole("link", {
-      name: /http.exchange.proposal-100/,
+      name: /exchange-100/,
     });
     expect(
       observed().every((url) => url.pathname === "/v1/runs/run-test/artifacts"),
     ).toBe(true);
     await user.click(screen.getByRole("button", { name: "Previous" }));
-    await screen.findByRole("link", { name: /http.exchange.proposal-050/ });
+    await screen.findByRole("link", { name: /exchange-050/ });
     await user.click(screen.getByRole("button", { name: "Next" }));
-    await user.click(
-      await screen.findByRole("link", { name: /http.exchange.proposal-100/ }),
-    );
+    await user.click(await screen.findByRole("link", { name: /exchange-100/ }));
     expect(link).toHaveAttribute(
       "href",
-      "/runs/run-test/artifacts/finding-proposals/http.exchange.proposal-100?revision=exact-100",
+      "/runs/run-test/artifacts/http-exchanges/exchange-100?revision=exact-100",
     );
     await screen.findByRole("button", { name: "Load preview" });
     const payloadReads = () =>
-      observed().filter((url) =>
-        url.pathname.endsWith("http.exchange.proposal-100"),
-      );
+      observed().filter((url) => url.pathname.endsWith("exchange-100"));
     expect(payloadReads()).toHaveLength(0);
     await user.click(screen.getByRole("button", { name: "Load preview" }));
     expect(await screen.findByRole("tab", { name: "Request" })).toBeVisible();

@@ -132,5 +132,6 @@ complete inventories and authorization remain Server-owned. Larger/invalid
 content retains explicit Preview. Source-only checks have no separate Scope;
 standard variants remain Advanced profile choices. No executable Engagement
 profile is introduced by the UI. The real-route preview fixture and layout gate
-live alongside the preserved designs in
-`docs/design/ui/experiments/new-check-opendesign-2026-11-02`.
+are retained in the external archive at
+`new-check-opendesign-2026-11-02/`; see
+[archive inventory and restoration](../../../../../docs/design/ui/experiments/README.md).

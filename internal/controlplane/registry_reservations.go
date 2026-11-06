@@ -2,6 +2,7 @@ package controlplane
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -200,6 +201,9 @@ func (r *InMemoryRegistry) reserveAll(
 			SitemapPolicy: binding.AgentTemplate.Sitemap.Clone(),
 		}
 		for _, selection := range binding.AgentTemplate.Toolsets {
+			if selection.Ref == (contracts.ToolsetRef{ToolsetID: "audit-results", Version: "2"}) && slices.Contains(selection.Tools, "submit_check_result") {
+				grant.HTTPResultEvidence = true
+			}
 			if selection.Ref == (contracts.ToolsetRef{ToolsetID: "security-findings", Version: "1"}) {
 				grant.FindingTools = append([]string(nil), selection.Tools...)
 			}

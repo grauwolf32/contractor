@@ -124,4 +124,5 @@ class CapturedExchange:
             "request_id": str(self.request_id),
             "request_tag": self.request_tag,
             "attempts": attempts,
+            **({"observed_at": self.attempts[0].at} if self.attempts else {}),
         }

@@ -1,0 +1,47 @@
+schema_version: "1.0"
+id: V451-003
+title: Integrate process-local Gateway recovery into main
+milestone: run-admission-gateway-recovery
+epic: execution-core
+kind: chore
+priority: P1
+status: in_progress
+depends_on: [V451-002]
+languages: [go, python, yaml, markdown]
+goal: Main uses the verified process-local Gateway recovery while preserving the current Runtime lifecycle, standalone HTTP evidence and unrelated user work.
+context:
+  authority: User request 2026-11-06 explicitly authorizes merging codex/gateway-recovery-memory into main.
+  source_head: 4da2c7fef47ea4c4ec5c3804113eba9a9d36a5cf
+  main_before: a2863002ba327b9cb1a860f2b247546b0b0c06be
+  specification:
+    - docs/spec/execution/scheduler.md#SCH-R105
+    - docs/spec/execution/scheduler.md#SCH-R169
+    - docs/spec/platform/persistence.md#PER-R1
+  boundary: >-
+    Keep the accepted memory-only recovery contract and migration 000014, and
+    preserve main's Runtime stop/State and standalone HTTP changes. Main already
+    assigned V451-001 to the UI archive; renumber the completed recovery record
+    to V451-002 without rewriting its implementation commits. Resolve generated
+    backlog and documentation through their generators. No new runtime behavior
+    or deployment is assigned by this integration.
+scope:
+  in:
+    - Reconcile current main on the isolated recovery branch, including task identity collision and generated documentation.
+    - Verify combined Go/PostgreSQL packages, real Gateway recovery processes, API, architecture and lint.
+    - Merge with main as first parent using --no-ff, preserving dirty primary-checkout files and recording delivery.
+  out:
+    - Demo deployment, live models, optional heavy I/O, unrelated user changes and new capabilities.
+acceptance_criteria:
+  - id: A1
+    text: Main contains the original recovery source and the previous main through an explicit no-fast-forward merge; migration 000014 remains sequential and task IDs are unique.
+  - id: A2
+    text: Combined recovery/Run/API/store packages and both real Server/Runtime recovery scenarios pass with current Runtime stop/State and HTTP evidence changes.
+  - id: A3
+    text: API, architecture, generated documentation, task/spec and lint checks pass; unrelated primary modifications remain uncommitted and recoverable, and the owned test database is dropped.
+tests:
+  - command: go test -p=2 -race -tags=integration -count=1 ./internal/gatewayrecovery ./internal/scheduler ./internal/runstore ./internal/runservice ./internal/planner/streamline ./internal/httpapi/privateartifacts ./internal/httpapi/public ./internal/persistence/postgres ./internal/app
+    covers: [A1, A2]
+  - command: go test -tags=e2e -count=1 ./tests/e2e -run '^TestGatewayRecovery(KeepsThreeQueuedRuns|CancellationAndPermanentError)AcrossProcesses$'
+    covers: [A2]
+  - command: make verify-public-api verify-architecture lint
+    covers: [A1, A3]

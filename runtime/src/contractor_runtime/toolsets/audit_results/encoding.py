@@ -1,5 +1,6 @@
 """Deterministic ordinary JSON results over a single exact trusted context."""
 
+import json
 import threading
 from dataclasses import dataclass, field
 
@@ -92,7 +93,7 @@ class CanonicalAuditResultEncoder:
             if checking != (value.verdict is not None):
                 raise AuditResultError("audit_result_invalid")
             if value.verdict in {"supported", "refuted"} and (
-                not value.tested_conditions or not value.evidence
+                not value.tested_conditions or not (value.evidence or value.http_evidence)
             ):
                 raise AuditResultError("audit_result_invalid")
             if value.verdict == "inconclusive" and not value.limitations:
@@ -106,7 +107,8 @@ class CanonicalAuditResultEncoder:
                     "rationale": value.rationale,
                     "tested_conditions": list(value.tested_conditions),
                     "limitations": list(value.limitations),
-                    "evidence": [allowed[handle] for handle in value.evidence],
+                    "evidence": [allowed[handle] for handle in value.evidence]
+                    + [json.loads(raw) for raw in value.http_evidence],
                     **({"verdict": value.verdict} if checking else {}),
                 }
             )

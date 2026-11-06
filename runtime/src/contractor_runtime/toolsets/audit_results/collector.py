@@ -2,12 +2,15 @@
 
 import asyncio
 from copy import deepcopy
+from dataclasses import replace
 from functools import partial
 
 from contractor_runtime import threads
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.worker_completion import WorkerCompletionError
 from contractor_runtime.toolsets.audit_results.contracts import (
+    MAX_COLLECTED_BYTES,
+    MAX_EVIDENCE,
     MAX_ITEMS,
     MAX_PROPOSAL_KEYS,
     MAX_REVISION,
@@ -24,6 +27,7 @@ from contractor_runtime.toolsets.audit_results.encoding import (
     evidence_handles,
 )
 from contractor_runtime.toolsets.common.cwe import CWEReferenceError, check_cwe_reference
+from contractor_runtime.toolsets.common.http_publication import HTTPSelectionLimitError
 
 
 class AuditCollectionError(WorkerCompletionError, ToolInputError):
@@ -54,9 +58,17 @@ class InvocationAuditCollector:
     before releasing it. Nothing survives the invocation except normal artifacts.
     """
 
-    def __init__(self, inputs: AuditTrustedInputs, encoder: CanonicalAuditResultEncoder):
+    def __init__(
+        self,
+        inputs: AuditTrustedInputs,
+        encoder: CanonicalAuditResultEncoder,
+        *,
+        http_publisher=None,
+    ):
         self._inputs, self._encoder = inputs, encoder
         self._tasks = encoder.trusted_inputs(inputs).items
+        self._http_publisher = http_publisher
+        self._http_selected = {}
         self._items: dict[str, RecordedAuditItem] = {}
         self._replayed_from: dict[str, int] = {}
         self._proposals: dict[str, frozenset] = {}
@@ -137,7 +149,7 @@ class InvocationAuditCollector:
                 "verdict", "Supply a verdict only for a task with an assigned hypothesis."
             )
         if item.verdict in {"supported", "refuted"} and (
-            not item.tested_conditions or not item.evidence
+            not item.tested_conditions or not (item.evidence or item.http_request_ids)
         ):
             raise AuditCollectionError(
                 "evidence", "A conclusive check needs tested conditions and selected evidence."
@@ -157,10 +169,21 @@ class InvocationAuditCollector:
 
     async def _admit(self, prospective):
         try:
-            await threads.to_thread_until_done(
+            encoded = await threads.to_thread_until_done(
                 partial(self._encoder.encode, self._snapshot(prospective), inputs=self.inputs),
                 name="audit-admission-encode",
             )
+            selected = {
+                request_id
+                for record in prospective.values()
+                for request_id in record.value.http_request_ids
+            }
+            if (
+                len(selected) > MAX_EVIDENCE
+                or len(encoded.data) + sum(self._http_selected[key][1] for key in selected)
+                > MAX_COLLECTED_BYTES
+            ):
+                raise AuditResultError("audit_result_size_exceeded")
         except AuditResultError:
             raise AuditCollectionError(
                 "collection", "Prospective conclusions exceed the JSON document contract."
@@ -193,7 +216,7 @@ class InvocationAuditCollector:
                 )
             if (
                 current is not None
-                and current.value == item
+                and replace(current.value, http_evidence=()) == item
                 and (expected_revision is None or expected_revision == self._replayed_from.get(key))
             ):
                 return self._receipt()
@@ -211,6 +234,7 @@ class InvocationAuditCollector:
                 raise AuditCollectionError(
                     "expected_revision", "Revision limit reached.", item_key=key
                 )
+            (item,) = await self._resolve_http((item,))
             prospective = {**self._items, key: RecordedAuditItem(item, revision)}
             await self._admit(prospective)
             # The lock is still held: nothing changed the collection while
@@ -231,7 +255,7 @@ class InvocationAuditCollector:
             prospective = dict(self._items)
             for item in values:
                 current = prospective.get(item.item_key)
-                if current is not None and current.value != item:
+                if current is not None and replace(current.value, http_evidence=()) != item:
                     raise AuditCollectionError(
                         "results",
                         "Existing result differs; correct it with scalar expected_revision.",
@@ -240,9 +264,57 @@ class InvocationAuditCollector:
                     )
                 if current is None:
                     prospective[item.item_key] = RecordedAuditItem(item, 1)
+            resolved = await self._resolve_http(values)
+            for item in resolved:
+                prospective[item.item_key] = RecordedAuditItem(
+                    item, prospective[item.item_key].revision
+                )
             await self._admit(prospective)
             self._items = prospective
             return self._receipt()
+
+    async def _resolve_http(self, items):
+        ids = tuple(dict.fromkeys(key for item in items for key in item.http_request_ids))
+        missing = [key for key in ids if key not in self._http_selected]
+        if missing:
+            if self._http_publisher is None:
+                raise AuditCollectionError(
+                    "http_request_ids", "HTTP evidence is unavailable in this invocation."
+                )
+            try:
+                pending = await self._http_publisher.prepare(
+                    self.owner.invocation_id,
+                    missing,
+                    max_bytes=MAX_COLLECTED_BYTES
+                    - sum(size for _, size in self._http_selected.values()),
+                )
+            except HTTPSelectionLimitError:
+                raise AuditCollectionError(
+                    "http_request_ids", "Selected HTTP evidence exceeds the collection budget."
+                ) from None
+            except ValueError:
+                raise AuditCollectionError(
+                    "http_request_ids", "HTTP evidence is unavailable in this invocation."
+                ) from None
+            if (
+                len(self._http_selected) + len(pending) > MAX_EVIDENCE
+                or sum(size for _, size in self._http_selected.values())
+                + sum(len(raw) for _, raw in pending)
+                > MAX_COLLECTED_BYTES
+            ):
+                raise AuditCollectionError(
+                    "http_request_ids", "Selected HTTP evidence exceeds the collection budget."
+                )
+            for key, raw in pending:
+                material = await self._http_publisher.publish(self.owner.invocation_id, key, raw)
+                self._http_selected[key] = (material, len(raw))
+        return tuple(
+            replace(
+                item,
+                http_evidence=tuple(self._http_selected[key][0] for key in item.http_request_ids),
+            )
+            for item in items
+        )
 
     async def snapshot(self):
         async with self._lock:
@@ -266,3 +338,4 @@ class InvocationAuditCollector:
             self._items.clear()
             self._replayed_from.clear()
             self._proposals.clear()
+            self._http_selected.clear()

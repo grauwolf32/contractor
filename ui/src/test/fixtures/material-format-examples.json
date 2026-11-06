@@ -1,0 +1,327 @@
+{
+  "synthetic": true,
+  "examples": [
+    {
+      "id": "source",
+      "name": "order-handler",
+      "namespace": "evidence",
+      "kind": "Source code",
+      "mediaType": "text/plain",
+      "source": "async function getOrder(req, res) {\n  const order = await db.orders.findById(req.params.id);\n  return res.json(order);\n}\n",
+      "sizeBytes": 121,
+      "scope": {
+        "kind": "project",
+        "id": "project_shop",
+        "name": "Shop API"
+      },
+      "createdAt": "2026-11-01T10:00:00Z",
+      "versions": [
+        {
+          "revision": "order-handler-r2",
+          "current": true,
+          "frozen": true,
+          "createdAt": "2026-11-01T10:00:00Z",
+          "canUploadNewVersion": false
+        },
+        {
+          "revision": "order-handler-r1",
+          "current": false,
+          "frozen": true,
+          "createdAt": "2026-10-31T09:00:00Z",
+          "canUploadNewVersion": false
+        }
+      ],
+      "origin": {
+        "label": "Order lookup issue",
+        "sourcePath": "src/routes/orders.ts:41–49",
+        "runId": "run_demo_source_review",
+        "check": "Source checklist"
+      }
+    },
+    {
+      "id": "http",
+      "name": "order-exchange",
+      "namespace": "evidence",
+      "kind": "HTTP exchange",
+      "mediaType": "application/vnd.contractor.http-exchange+json",
+      "source": "{\n  \"schema\": \"contractor.http.exchange.v1\",\n  \"capture\": {\n    \"source\": \"http\",\n    \"request_id\": \"42\",\n    \"request_tag\": \"demo-order-lookup\",\n    \"attempts\": [\n      {\n        \"request\": {\n          \"method\": \"GET\",\n          \"url\": \"https://shop.example.test/orders/42\",\n          \"message\": {\n            \"kind\": \"structured\",\n            \"headers\": [\n              {\n                \"name\": \"Accept\",\n                \"value\": \"application/json\"\n              },\n              {\n                \"name\": \"Authorization\",\n                \"value\": \"Bearer demo_only_not_a_real_credential\"\n              }\n            ],\n            \"body_base64\": \"\"\n          }\n        },\n        \"response\": {\n          \"status\": 200,\n          \"complete\": true,\n          \"message\": {\n            \"kind\": \"structured\",\n            \"headers\": [\n              {\n                \"name\": \"Content-Type\",\n                \"value\": \"application/json\"\n              },\n              {\n                \"name\": \"Set-Cookie\",\n                \"value\": \"demo_session=not_a_real_cookie\"\n              }\n            ],\n            \"body_base64\": \"eyJvcmRlcklkIjo0MiwiY3VzdG9tZXJJZCI6ImRlbW8tY3VzdG9tZXIiLCJ0b3RhbCI6MTI5LjAwfQ==\"\n          }\n        }\n      }\n    ],\n    \"observed_at\": \"2026-11-01T09:59:00Z\"\n  },\n  \"origin\": {\n    \"run_id\": \"run_demo\",\n    \"invocation_id\": \"order-lookup-demo\"\n  }\n}\n",
+      "sizeBytes": 1374,
+      "scope": {
+        "kind": "project",
+        "id": "project_shop",
+        "name": "Shop API"
+      },
+      "createdAt": "2026-11-01T10:00:00Z",
+      "versions": [
+        {
+          "revision": "order-exchange-r2",
+          "current": true,
+          "frozen": true,
+          "createdAt": "2026-11-01T10:00:00Z",
+          "canUploadNewVersion": false
+        },
+        {
+          "revision": "order-exchange-r1",
+          "current": false,
+          "frozen": true,
+          "createdAt": "2026-10-31T09:00:00Z",
+          "canUploadNewVersion": false
+        }
+      ],
+      "origin": {
+        "label": "Order lookup issue",
+        "sourcePath": "src/routes/orders.ts:41–49",
+        "runId": "run_demo_source_review",
+        "check": "Source checklist"
+      }
+    },
+    {
+      "id": "report",
+      "name": "order-review",
+      "namespace": "outputs",
+      "kind": "Report",
+      "mediaType": "text/markdown",
+      "source": "# Order access review\n\n## Scope\nThe review covers the saved handler and the selected HTTP exchange in the synthetic Shop API project.\n\n## Observation\nThe handler reads an order using the supplied identifier. Whether middleware or database policies enforce ownership remains to be checked.\n\n## Evidence\n- `src/routes/orders.ts:41–49`\n- Saved request: `GET /orders/42`\n\n## Next checks\n1. Inspect authentication middleware.\n2. Compare access using two separate test accounts.\n\n> This saved report records an observation; it does not contain an analyst decision.\n",
+      "sizeBytes": 561,
+      "scope": {
+        "kind": "project",
+        "id": "project_shop",
+        "name": "Shop API"
+      },
+      "createdAt": "2026-11-01T10:00:00Z",
+      "versions": [
+        {
+          "revision": "order-review-r2",
+          "current": true,
+          "frozen": false,
+          "createdAt": "2026-11-01T10:00:00Z",
+          "canUploadNewVersion": true
+        },
+        {
+          "revision": "order-review-r1",
+          "current": false,
+          "frozen": true,
+          "createdAt": "2026-10-31T09:00:00Z",
+          "canUploadNewVersion": false
+        }
+      ],
+      "origin": {
+        "label": "Order lookup issue",
+        "sourcePath": "src/routes/orders.ts:41–49",
+        "runId": "run_demo_source_review",
+        "check": "Source checklist"
+      }
+    },
+    {
+      "id": "json",
+      "name": "order-response",
+      "namespace": "evidence",
+      "kind": "JSON",
+      "mediaType": "application/json",
+      "source": "{\n  \"orderId\": 42,\n  \"customerId\": \"demo-customer\",\n  \"items\": [\n    {\n      \"sku\": \"DEMO-12\",\n      \"quantity\": 1\n    }\n  ],\n  \"total\": 129.0\n}\n",
+      "sizeBytes": 145,
+      "scope": {
+        "kind": "project",
+        "id": "project_shop",
+        "name": "Shop API"
+      },
+      "createdAt": "2026-11-01T10:00:00Z",
+      "versions": [
+        {
+          "revision": "order-response-r2",
+          "current": true,
+          "frozen": true,
+          "createdAt": "2026-11-01T10:00:00Z",
+          "canUploadNewVersion": false
+        },
+        {
+          "revision": "order-response-r1",
+          "current": false,
+          "frozen": true,
+          "createdAt": "2026-10-31T09:00:00Z",
+          "canUploadNewVersion": false
+        }
+      ],
+      "origin": {
+        "label": "Order lookup issue",
+        "sourcePath": "src/routes/orders.ts:41–49",
+        "runId": "run_demo_source_review",
+        "check": "Source checklist"
+      }
+    },
+    {
+      "id": "openapi",
+      "name": "shop-api",
+      "namespace": "outputs",
+      "kind": "API specification",
+      "mediaType": "application/vnd.oai.openapi+json",
+      "source": "{\n  \"openapi\": \"3.0.3\",\n  \"info\": {\n    \"title\": \"Shop API\",\n    \"version\": \"1.0.0\",\n    \"description\": \"Saved synthetic contract for the order service.\"\n  },\n  \"tags\": [\n    {\n      \"name\": \"Orders\",\n      \"description\": \"Read and create orders.\"\n    }\n  ],\n  \"paths\": {\n    \"/orders\": {\n      \"get\": {\n        \"tags\": [\n          \"Orders\"\n        ],\n        \"summary\": \"List orders\",\n        \"description\": \"Returns the orders visible to the authenticated caller. This is a saved contract, not a request result.\",\n        \"operationId\": \"listOrders\",\n        \"parameters\": [\n          {\n            \"name\": \"limit\",\n            \"in\": \"query\",\n            \"description\": \"Maximum number of orders.\",\n            \"schema\": {\n              \"type\": \"integer\",\n              \"minimum\": 1,\n              \"maximum\": 100,\n              \"default\": 20\n            }\n          }\n        ],\n        \"responses\": {\n          \"200\": {\n            \"description\": \"Orders returned\",\n            \"content\": {\n              \"application/json\": {\n                \"schema\": {\n                  \"type\": \"array\",\n                  \"items\": {\n                    \"$ref\": \"#/components/schemas/Order\"\n                  }\n                }\n              }\n            }\n          },\n          \"401\": {\n            \"description\": \"Authentication required\",\n            \"content\": {\n              \"application/json\": {\n                \"schema\": {\n                  \"$ref\": \"#/components/schemas/Problem\"\n                }\n              }\n            }\n          }\n        }\n      },\n      \"post\": {\n        \"tags\": [\n          \"Orders\"\n        ],\n        \"summary\": \"Create an order\",\n        \"operationId\": \"createOrder\",\n        \"requestBody\": {\n          \"required\": true,\n          \"content\": {\n            \"application/json\": {\n              \"schema\": {\n                \"$ref\": \"#/components/schemas/NewOrder\"\n              }\n            }\n          }\n        },\n        \"responses\": {\n          \"201\": {\n            \"description\": \"Order created\",\n            \"content\": {\n              \"application/json\": {\n                \"schema\": {\n                  \"$ref\": \"#/components/schemas/Order\"\n                }\n              }\n            }\n          },\n          \"400\": {\n            \"description\": \"Invalid input\",\n            \"content\": {\n              \"application/json\": {\n                \"schema\": {\n                  \"$ref\": \"#/components/schemas/Problem\"\n                }\n              }\n            }\n          }\n        }\n      }\n    },\n    \"/orders/{orderId}\": {\n      \"get\": {\n        \"tags\": [\n          \"Orders\"\n        ],\n        \"summary\": \"Get an order\",\n        \"description\": \"Looks up one order. The contract declares responses; it does not establish authorization behavior.\",\n        \"operationId\": \"getOrder\",\n        \"parameters\": [\n          {\n            \"name\": \"orderId\",\n            \"in\": \"path\",\n            \"required\": true,\n            \"description\": \"Saved order identifier.\",\n            \"schema\": {\n              \"type\": \"integer\"\n            }\n          }\n        ],\n        \"responses\": {\n          \"200\": {\n            \"description\": \"Order returned\",\n            \"content\": {\n              \"application/json\": {\n                \"schema\": {\n                  \"$ref\": \"#/components/schemas/Order\"\n                }\n              }\n            }\n          },\n          \"403\": {\n            \"description\": \"Access denied\",\n            \"content\": {\n              \"application/json\": {\n                \"schema\": {\n                  \"$ref\": \"#/components/schemas/Problem\"\n                }\n              }\n            }\n          },\n          \"404\": {\n            \"description\": \"Order not found\",\n            \"content\": {\n              \"application/json\": {\n                \"schema\": {\n                  \"$ref\": \"#/components/schemas/Problem\"\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n  },\n  \"components\": {\n    \"schemas\": {\n      \"Order\": {\n        \"type\": \"object\",\n        \"required\": [\n          \"id\",\n          \"customerId\",\n          \"total\",\n          \"status\"\n        ],\n        \"properties\": {\n          \"id\": {\n            \"type\": \"integer\",\n            \"example\": 42\n          },\n          \"customerId\": {\n            \"type\": \"string\",\n            \"example\": \"demo-customer\"\n          },\n          \"total\": {\n            \"type\": \"number\",\n            \"example\": 129\n          },\n          \"status\": {\n            \"type\": \"string\",\n            \"enum\": [\n              \"pending\",\n              \"paid\",\n              \"shipped\"\n            ]\n          }\n        }\n      },\n      \"NewOrder\": {\n        \"type\": \"object\",\n        \"required\": [\n          \"productId\",\n          \"quantity\"\n        ],\n        \"properties\": {\n          \"productId\": {\n            \"type\": \"string\"\n          },\n          \"quantity\": {\n            \"type\": \"integer\",\n            \"minimum\": 1\n          }\n        }\n      },\n      \"Problem\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"message\": {\n            \"type\": \"string\"\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "sizeBytes": 5123,
+      "scope": {
+        "kind": "project",
+        "id": "project_shop",
+        "name": "Shop API"
+      },
+      "createdAt": "2026-11-01T10:00:00Z",
+      "versions": [
+        {
+          "revision": "shop-api-r2",
+          "current": true,
+          "frozen": true,
+          "createdAt": "2026-11-01T10:00:00Z",
+          "canUploadNewVersion": false
+        },
+        {
+          "revision": "shop-api-r1",
+          "current": false,
+          "frozen": true,
+          "createdAt": "2026-10-31T09:00:00Z",
+          "canUploadNewVersion": false
+        }
+      ],
+      "origin": {
+        "label": "Order lookup issue",
+        "sourcePath": "src/routes/orders.ts:41–49",
+        "runId": "run_demo_source_review",
+        "check": "Source checklist"
+      }
+    },
+    {
+      "id": "likec4",
+      "name": "shop-architecture",
+      "namespace": "outputs",
+      "kind": "Architecture diagram",
+      "mediaType": "text/vnd.likec4",
+      "source": "specification {\n  element actor { style { shape person } }\n  element service\n  element database { style { shape storage } }\n}\nmodel {\n  customer = actor 'Customer'\n  web = service 'Storefront'\n  api = service 'Orders API'\n  database = database 'Orders database'\n  customer -> web 'Browses orders'\n  web -> api 'HTTPS / JSON'\n  api -> database 'Reads and writes orders'\n}\nviews {\n  view overview {\n    title 'System overview'\n    include *\n    autoLayout LeftRight\n  }\n  view backend {\n    title 'Backend services'\n    include api, database\n    autoLayout LeftRight\n  }\n}\n",
+      "sizeBytes": 571,
+      "scope": {
+        "kind": "project",
+        "id": "project_shop",
+        "name": "Shop API"
+      },
+      "createdAt": "2026-11-01T10:00:00Z",
+      "versions": [
+        {
+          "revision": "shop-architecture-r2",
+          "current": true,
+          "frozen": true,
+          "createdAt": "2026-11-01T10:00:00Z",
+          "canUploadNewVersion": false
+        },
+        {
+          "revision": "shop-architecture-r1",
+          "current": false,
+          "frozen": true,
+          "createdAt": "2026-10-31T09:00:00Z",
+          "canUploadNewVersion": false
+        }
+      ],
+      "origin": {
+        "label": "Order lookup issue",
+        "sourcePath": "src/routes/orders.ts:41–49",
+        "runId": "run_demo_source_review",
+        "check": "Source checklist"
+      }
+    },
+    {
+      "id": "archive",
+      "name": "source-bundle",
+      "namespace": "evidence",
+      "kind": "ZIP archive",
+      "mediaType": "application/zip",
+      "source": "",
+      "sizeBytes": 1550,
+      "scope": {
+        "kind": "project",
+        "id": "project_shop",
+        "name": "Shop API"
+      },
+      "createdAt": "2026-11-01T10:00:00Z",
+      "versions": [
+        {
+          "revision": "source-bundle-r2",
+          "current": true,
+          "frozen": true,
+          "createdAt": "2026-11-01T10:00:00Z",
+          "canUploadNewVersion": false
+        },
+        {
+          "revision": "source-bundle-r1",
+          "current": false,
+          "frozen": true,
+          "createdAt": "2026-10-31T09:00:00Z",
+          "canUploadNewVersion": false
+        }
+      ],
+      "origin": {
+        "label": "Order lookup issue",
+        "sourcePath": "src/routes/orders.ts:41–49",
+        "runId": "run_demo_source_review",
+        "check": "Source checklist"
+      },
+      "payloadBase64": "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",
+      "files": [
+        {
+          "path": "README.md",
+          "text": "# Shop API source bundle\n\nSaved synthetic source and documentation for the order service.\n\n## Contents\n- `src/orders.ts` — saved handler\n- `docs/review.md` — review notes\n- `assets/sample.bin` — binary example\n",
+          "sizeBytes": 216
+        },
+        {
+          "path": "src",
+          "directory": true,
+          "sizeBytes": 0
+        },
+        {
+          "path": "src/orders.ts",
+          "text": "async function getOrder(req, res) {\n  const order = await db.orders.findById(req.params.id);\n  return res.json(order);\n}\n",
+          "sizeBytes": 121
+        },
+        {
+          "path": "docs",
+          "directory": true,
+          "sizeBytes": 0
+        },
+        {
+          "path": "docs/review.md",
+          "text": "# Order access review\n\n## Scope\nThe review covers the saved handler and the selected HTTP exchange in the synthetic Shop API project.\n\n## Observation\nThe handler reads an order using the supplied identifier. Whether middleware or database policies enforce ownership remains to be checked.\n\n## Evidence\n- `src/routes/orders.ts:41–49`\n- Saved request: `GET /orders/42`\n\n## Next checks\n1. Inspect authentication middleware.\n2. Compare access using two separate test accounts.\n\n> This saved report records an observation; it does not contain an analyst decision.\n",
+          "sizeBytes": 561
+        },
+        {
+          "path": "assets",
+          "directory": true,
+          "sizeBytes": 0
+        },
+        {
+          "path": "assets/example.html",
+          "text": "<!doctype html>\n<html><body><h1>Saved example page</h1></body></html>\n",
+          "sizeBytes": 70
+        },
+        {
+          "path": "assets/sample.bin",
+          "base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+Pw==",
+          "sizeBytes": 64
+        }
+      ]
+    }
+  ],
+  "states": [
+    "normal",
+    "historical",
+    "no-response",
+    "incomplete",
+    "unavailable",
+    "oversize",
+    "invalid"
+  ],
+  "previewLimits": {
+    "textBytes": 1048576,
+    "httpBodyCharacters": 8192,
+    "headersPerPage": 50
+  },
+  "binaryExample": {
+    "name": "capture.bin",
+    "mediaType": "application/octet-stream",
+    "sizeBytes": 4194304,
+    "content": "Local synthetic zero bytes created on explicit download only; no inline preview."
+  }
+}

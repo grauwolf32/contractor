@@ -1,0 +1,83 @@
+schema_version: '1.0'
+id: V452-002
+title: Skip repeated State projection for validated unchanged revisions
+milestone: runtime-ownership-2026-11
+epic: planner-worker
+kind: chore
+introduced_by: V17-005
+priority: P2
+status: completed
+depends_on:
+- V452-001
+languages:
+- python
+- markdown
+goal: Conditional reads of an unchanged validated Worker State return 304 without copying, validating or serializing
+  the whole snapshot.
+context:
+  authority: User request 2026-11-06 authorizes the measured conditional State-read optimization alongside allocation
+    stop fixes. Result finalizer remains required and unchanged.
+  specification:
+  - docs/spec/execution/worker.md#WRK-R118
+  - docs/spec/execution/worker.md#WRK-R119
+  - docs/spec/execution/worker.md#WRK-R121
+  - docs/spec/execution/worker.md#WRK-R160
+  finding: server.py:214-235 checks ETag only after complete State copying, validation and serialization. Local
+    ASGI medians at 1000 retained calls (3.65 MB) are 22.78 ms for 200 and 22.71 ms for 304.
+  boundary: WorkerStateStore remembers at most one revision that completed wire validation. AllocationService verifies
+    the exact active owner before conditional reuse. The HTTP handler retains the exact ETag/body/error contract.
+    No payload cache, new WorkerRuntime method or wire field is needed.
+scope:
+  in:
+  - Remember a successfully wire-validated revision and invalidate eligibility whenever State changes.
+  - Check the exact conditional ETag before Worker snapshot work, after live-allocation validation.
+  - Prove at 1000 records that matching revalidation runs no full-snapshot work; retain error, mutation, release
+    and replacement coverage.
+  out:
+  - Changing State publication cadence, fields, size limits, revision semantics, strict validation of new revisions
+    or result finalization.
+acceptance_criteria:
+- id: A1
+  text: After successful validation of a 1000-record snapshot, a matching conditional GET returns 304 with no snapshot
+    deep copy, wire validation or response serialization.
+- id: A2
+  text: Fresh or mutated revisions take the full validation path; invalid snapshots retain non-retryable 503 and
+    stale/draining/released allocations never return cached 304.
+- id: A3
+  text: Existing State, HTTP, real ADK and ToolWorker tests pass; post-change measurements show the unchanged conditional-read
+    cost no longer scales with payload bytes.
+tests:
+- command: cd runtime && uv run pytest -W error tests/test_agent_state_endpoint.py tests/test_worker_state.py tests/test_allocation.py
+    tests/test_tool_worker.py tests/test_adk_runtime.py
+  covers:
+  - A1
+  - A2
+  - A3
+- command: cd runtime && uv run ruff check . && uv run ruff format --check . && uv run lint-imports --no-cache --no-logo
+  covers:
+  - A1
+  - A2
+  - A3
+- command: python3 scripts/check_tasks.py && python3 scripts/check_spec.py
+  covers:
+  - A1
+  - A2
+  - A3
+verification:
+  date: '2026-11-06'
+  focused_result: 375 passed, 15 Linux/Podman cases skipped on macOS in the combined Worker, ToolWorker, allocation,
+    State endpoint, lease, CLI and thread selection. Ruff, formatting, four import contracts, task/spec validators
+    and whitespace passed.
+  regression: The 1000-record conditional-read cost regression fails against the pre-optimization source (503 instead
+    of 304 when repeated full-snapshot work is refused).
+  measurement: '15 local ASGI samples per size: at 3,648,054 JSON bytes, median conditional GET fell from 22.714
+    ms before to 0.163 ms after. A deterministic test proves zero full copy, wire decode or response serialization
+    on unchanged validated revisions. No wall-clock test thresholds.'
+  full_runtime_gate: 'make test-runtime passed: 5914 passed, 135 declared skips. The later release-ownership fixes
+    have 5891 passes in a broad rerun excluding two already-passing unaffected long ADK modules and 380 passes/15
+    platform skips in the final owner selection after the last queue-ordering correction.'
+  negative_probe: /tmp/contractor-v452-002-before.log
+  benchmark: /tmp/contractor-v452-state-after.log
+  landing: Implementation and verification finished on codex/runtime-stop-state; integration outcome is recorded
+    in the merge commit. No deployment.
+implementation_commit: 76be3a827cabbc2454053af28c43779fee85e983

@@ -211,7 +211,7 @@ exploratory E2E в V64-002 появляется раньше полного ба
 
 - [V411-019](../../tasks/v411-019-pentest-target-fixtures-and-proof-scorers.yml)
   сохраняет небольшой vulnerable/fixed target с private independent oracle.
-- [V411-007](../../tasks/v411-007-trusted-http-capture.yml) связывает реальные
+- [V411-007](../../tasks/done/v411-007-trusted-http-capture.yml) связывает реальные
   invocation-owned HTTP exchanges с обычной приёмкой результатов и evidence.
 - [V411-015](../../tasks/v411-015-http-pentest-workflow-presets.yml) даёт ранний
   обычный HTTP Workflow поверх lean Audit без гипотезы по умолчанию.

@@ -201,7 +201,10 @@ class HTTPToolsetFactory:
             from contractor_runtime.toolsets.http.controlled import ControlledHTTPSession
 
             session = ControlledHTTPSession(
-                controlled_http, runtime_settings.request_timeout_seconds
+                controlled_http,
+                runtime_settings.request_timeout_seconds,
+                captures=allocation_http_captures(resources),
+                deployment_marker=deployment_marker,
             )
             return _selected_http_tools(selected, session, metrics)
 
@@ -1153,7 +1156,8 @@ class HTTPRequestTool(_HTTPTool):
 
     Returns:
         Request ID, response status and headers, body kind and preview, timing,
-        redirect/retry counts. Ordinary HTTP finding saves selected exchanges.
+        redirect/retry counts. Select exchanges with submit_check_result or finding;
+        failed attempts can be inspected through http_history when selected.
     """
 
     async def __call__(

@@ -191,26 +191,24 @@ class AllocationService:
                 return None
             return getattr(context.worker, "a2a_application", None)
 
-    async def agent_state_snapshot(self, allocation_id: str) -> AgentStateSnapshot:
-        """Return only the exact active Worker's Contractor-owned State."""
+    async def agent_state_snapshot(
+        self, allocation_id: str, *, if_none_match: str | None = None
+    ) -> AgentStateSnapshot | None:
+        """Read the active Worker's State; None means a validated ETag still matches."""
 
         async with self._lock:
-            context = self._require_context(allocation_id)
-            state = await self._state.snapshot()
-            worker = context.worker
-            if (
-                worker is None
-                or state.process_state is not ProcessState.ALLOCATED
-                or state.allocation_id != allocation_id
-            ):
-                raise AllocationError(
-                    "agent_state_unavailable",
-                    "allocation Worker State is unavailable",
-                    retryable=True,
-                    status_code=409,
-                )
+            context, worker = await self._worker_for_state_read(allocation_id)
+            if if_none_match is not None and context.worker_state is not None:
+                revision = await context.worker_state.validated_state_revision()
+                if revision is not None and if_none_match == (
+                    f'"contractor-agent-state-v1-{revision}"'
+                ):
+                    return None
+            context.state_reads += 1
+            context.state_reads_drained.clear()
+        try:
             try:
-                return await worker.agent_state_snapshot()
+                snapshot = await worker.agent_state_snapshot()
             except asyncio.CancelledError:
                 raise
             except ValidationError:
@@ -227,6 +225,55 @@ class AllocationService:
                     retryable=True,
                     status_code=503,
                 ) from None
+            # Stop has detached this Worker. Reject before taking the lifecycle
+            # lock: release may hold it while joining admitted State readers.
+            if context.worker is not worker:
+                raise AllocationError(
+                    "agent_state_unavailable",
+                    "allocation Worker State is unavailable",
+                    retryable=True,
+                    status_code=409,
+                )
+        finally:
+            # No Worker or State owner may remain in this frame while the
+            # final lifecycle check waits behind release. The context itself
+            # is cleared by release; the snapshot is an independent value.
+            del worker
+            context.state_reads -= 1
+            if context.state_reads == 0:
+                context.state_reads_drained.set()
+        async with self._lock:
+            current, _ = await self._worker_for_state_read(allocation_id)
+            # A context binds one Worker immutably until stop detaches it.
+            if current is not context:
+                raise AllocationError(
+                    "agent_state_unavailable",
+                    "allocation Worker State is unavailable",
+                    retryable=True,
+                    status_code=409,
+                )
+            return snapshot
+
+    async def _worker_for_state_read(
+        self, allocation_id: str
+    ) -> tuple[_AllocationContext, WorkerRuntime]:
+        """Check live ownership while the caller holds the allocation lock."""
+
+        context = self._require_context(allocation_id)
+        state = await self._state.snapshot()
+        worker = context.worker
+        if (
+            worker is None
+            or state.process_state is not ProcessState.ALLOCATED
+            or state.allocation_id != allocation_id
+        ):
+            raise AllocationError(
+                "agent_state_unavailable",
+                "allocation Worker State is unavailable",
+                retryable=True,
+                status_code=409,
+            )
+        return context, worker
 
     async def prepare(self, spec: AllocationSpec) -> PrepareAllocationResponse:
         async with self._lock:
@@ -439,20 +486,15 @@ class AllocationService:
             # A long prepare holds the slot lock. Fence now so the expired
             # lease cannot wait for it; its commit then fails and rolls back.
             await self._state.fence_control_lease()
-        async with self._lock:
-            context = self._context
-            if context is None:
-                await self._state.fence_control_lease()
-                return
-            await self._stop_worker_for_fence(
-                context,
-                shutdown_grace_seconds,
-                TerminationError(
-                    code="control_lease_expired",
-                    message="Runtime Agent confirmed control lease expired",
-                    retryable=True,
-                ),
-            )
+        await self._drain_allocation(
+            None,
+            shutdown_grace_seconds,
+            TerminationError(
+                code="control_lease_expired",
+                message="Runtime Agent confirmed control lease expired",
+                retryable=True,
+            ),
+        )
 
     async def reconcile_drain(self, allocation_id: str, shutdown_grace_seconds: float) -> None:
         if self._context is None or self._context.allocation_id != allocation_id:
@@ -460,19 +502,50 @@ class AllocationService:
             # allocation is a no-op and must not wait behind a long prepare;
             # the Control Plane repeats it if the allocation later commits.
             return
-        async with self._lock:
+        await self._drain_allocation(
+            allocation_id,
+            shutdown_grace_seconds,
+            TerminationError(
+                code="control_plane_reconciliation",
+                message="Control Plane requested allocation reconciliation",
+                retryable=True,
+            ),
+        )
+
+    async def _drain_allocation(
+        self,
+        allocation_id: str | None,
+        timeout_seconds: float,
+        reason: TerminationError,
+    ) -> None:
+        if timeout_seconds <= 0:
+            raise ValueError("Worker shutdown grace must be positive")
+        deadline = self._now() + timedelta(seconds=timeout_seconds)
+        try:
+            # Lock acquisition has no resource I/O or cancellation cleanup.
+            # Its wait consumes the same budget as the subsequent teardown.
+            async with asyncio.timeout(timeout_seconds):
+                await self._lock.acquire()
+        except TimeoutError:
+            await self._state.fence_control_lease()
+            self._force_exit(70)
+            raise AllocationError(
+                "worker_stop_unconfirmed",
+                "allocation stop could not acquire lifecycle ownership before its deadline",
+                retryable=False,
+                status_code=503,
+            ) from None
+        try:
             context = self._context
-            if context is None or context.allocation_id != allocation_id:
+            if context is None:
+                if allocation_id is None:
+                    await self._state.fence_control_lease()
                 return
-            await self._stop_worker_for_fence(
-                context,
-                shutdown_grace_seconds,
-                TerminationError(
-                    code="control_plane_reconciliation",
-                    message="Control Plane requested allocation reconciliation",
-                    retryable=True,
-                ),
-            )
+            if allocation_id is not None and context.allocation_id != allocation_id:
+                return
+            await self._stop_worker_for_fence(context, deadline, reason)
+        finally:
+            self._lock.release()
 
     def _validate_spec(self, spec: AllocationSpec) -> None:
         validate_spec(
@@ -595,46 +668,33 @@ class AllocationService:
     async def _stop_worker_for_fence(
         self,
         context: _AllocationContext,
-        timeout_seconds: float,
+        deadline: datetime,
         reason: TerminationError,
     ) -> None:
         """Stop a Worker after authority is lost without making the slot idle."""
 
-        if timeout_seconds <= 0:
-            raise ValueError("Worker shutdown grace must be positive")
         if context.execution is not None:
             context.execution.reject()
-        await self._close_http_or_exit(context, self._now() + timedelta(seconds=timeout_seconds))
+        state = await self._state.snapshot()
+        if state.process_state is ProcessState.ALLOCATED:
+            await self._state.begin_draining(context.allocation_id)
+        await self._close_http_or_exit(context, deadline)
         if context.worker is None:
             if context.release_cleanup_task is not None:
                 await self._state.fence_allocation(context.allocation_id)
                 return
-            deadline = self._now() + timedelta(seconds=timeout_seconds)
             await self._stop_tools_or_exit(context, deadline)
             await self._stop_adapters_or_exit(context, deadline)
             await self._discard_project_workspace_or_exit(context, deadline)
             await self._state.fence_allocation(context.allocation_id)
             return
 
-        state = await self._state.snapshot()
-        if state.process_state is ProcessState.ALLOCATED:
-            await self._state.begin_draining(context.allocation_id)
         worker = context.worker
-        deadline = self._now() + timedelta(seconds=timeout_seconds)
-        stop_task = asyncio.create_task(
-            worker.abort(deadline), name=f"worker-lease-abort-{context.allocation_id}"
-        )
         try:
-            done, _ = await asyncio.wait({stop_task}, timeout=timeout_seconds)
-            if not done:
-                stop_task.cancel()
-                stop_task.add_done_callback(consume_task_exception)
-                raise TimeoutError
-            await stop_task
+            await _await_before_deadline(
+                lambda: worker.abort(deadline), deadline=deadline, now=self._now
+            )
         except asyncio.CancelledError:
-            if not stop_task.done():
-                stop_task.cancel()
-                stop_task.add_done_callback(consume_task_exception)
             await self._state.fence_allocation(context.allocation_id)
             self._force_exit(70)
             raise

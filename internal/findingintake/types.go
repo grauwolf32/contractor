@@ -233,7 +233,7 @@ func canonicalize(input Submission) (canonicalSubmission, error) {
 	refs := append([]contracts.ArtifactRef(nil), input.EvidenceRefs...)
 	for _, ref := range refs {
 		if err := ref.ValidateExact(); err != nil ||
-			ref.Namespace == artifactpolicy.FindingProposalNamespace && !strings.HasPrefix(ref.Name, "http.exchange.") {
+			ref.Namespace == artifactpolicy.FindingProposalNamespace {
 			return canonicalSubmission{}, fmt.Errorf("%w: evidence reference", ErrInvalid)
 		}
 	}
@@ -265,6 +265,12 @@ func canonicalize(input Submission) (canonicalSubmission, error) {
 	}
 	input.EvidenceRefs = refs
 	if input.HTTPEvidence != nil {
+		name := auditdomain.HTTPExchangeArtifactName(input.InvocationID, input.HTTPEvidence.Source, input.HTTPEvidence.RequestID)
+		for _, ref := range refs {
+			if ref.Namespace == artifactpolicy.HTTPExchangeNamespace && ref.Name == name {
+				return canonicalSubmission{}, fmt.Errorf("%w: duplicate HTTP evidence selection", ErrInvalid)
+			}
+		}
 		if len(refs) >= MaxEvidenceRefs || auditdomain.ValidateCapturedHTTPExchange(*input.HTTPEvidence) != nil {
 			return canonicalSubmission{}, fmt.Errorf("%w: HTTP evidence", ErrInvalid)
 		}
