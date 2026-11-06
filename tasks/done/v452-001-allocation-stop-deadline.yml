@@ -1,0 +1,118 @@
+schema_version: '1.0'
+id: V452-001
+title: Bound allocation stop and detach State reads from the lifecycle lock
+milestone: runtime-resource-bounds-2026-11
+epic: execution-core
+kind: defect
+introduced_by: V17-005
+priority: P2
+status: completed
+depends_on: []
+languages:
+- python
+- markdown
+goal: Lease loss stops the Worker within one grace budget even when State encoding or another lifecycle operation
+  is waiting.
+context:
+  authority: User request 2026-11-06 authorizes implementing the two verified Runtime stop defects and conditional
+    State-read optimization; the result finalizer is required and stays unchanged.
+  specification:
+  - docs/spec/execution/runtime-agent.md#RTA-R21
+  - docs/spec/execution/runtime-agent.md#RTA-R24
+  - docs/spec/execution/runtime-agent.md#RTA-R93
+  - docs/spec/execution/worker.md#WRK-R121
+  - docs/spec/platform/failure-model.md
+  - docs/spec/execution/runtime-agent.md#RTA-R116
+  severity: medium
+  finding: allocation/service.py:197-213 holds the slot lock while a real ADK State read waits in the default thread
+    pool; expire_control_lease:442 cannot enter its grace. At :607 and :623 HTTP cleanup and Worker abort receive
+    separate full budgets; V422-003 (41f6fb79e) introduced the HTTP phase. A controlled 8-second HTTP join gives
+    the Worker an 18-second deadline for a 10-second grace.
+  siblings: Lease expiry and Control Plane reconciliation share allocation teardown. Explicit finalize/abort already
+    receive an absolute deadline; release retains its separate idempotent cleanup budget. Cover active and absent
+    Workers, pending prepare, lock contention, stale snapshots and cancellation.
+  boundary: AllocationService owns live-allocation checks and stop ordering. WorkerStateStore owns detached immutable
+    snapshots. Capture and revalidate the exact allocation and Worker around snapshot work. Establish one deadline
+    before waiting for the lifecycle lock; force the existing process fence if lock ownership or cleanup cannot
+    settle in time. No additional lifecycle or lease store is introduced.
+  release_review: Final review found that a detached read can retain Worker State after release. Reopened before
+    landing to join admitted State reads under the existing release deadline; lease stop remains independent. Use
+    a bounded counter/event, not a task registry or payload cache.
+scope:
+  in:
+  - Move snapshot validation outside the allocation lock and reject reads that race draining, release or replacement.
+  - Use one stop deadline for lock acquisition, HTTP join, Worker abort and subsequent existing cleanup steps; enter
+    draining before HTTP join.
+  - Add deterministic real-ADK and real-HTTP lifecycle regressions, including a saturated executor and deadline
+    exhaustion.
+  - Clarify the existing Runtime specification.
+  - Join admitted State reads before release clears resources; a stopped read rejects before reacquiring the lifecycle
+    lock so release cannot deadlock it. Prove collection of real Worker State with a queued HTTP snapshot.
+  out:
+  - Changing finalizer, model selection, wire fields, stop codes, configuration limits or unrelated HTTP capture
+    work.
+acceptance_criteria:
+- id: A1
+  text: A queued real ADK snapshot does not hold the allocation lock or block lease stop; a snapshot finishing after
+    stop or replacement cannot return success.
+- id: A2
+  text: HTTP cleanup, lock acquisition, Worker abort and remaining cleanup share one initial deadline for both lease
+    expiry and reconciliation; exhaustion invokes the existing process fence.
+- id: A3
+  text: Existing prepare, finalization, abort, release, cancellation and stale-allocation contracts pass; new deterministic
+    regressions fail before the fix.
+- id: A4
+  text: Release cannot complete while an admitted State read retains the old Worker/State; after the read settles
+    the real State is collected and same-ID replacement is safe. A blocked read consumes the existing finite release
+    deadline, without blocking lease stop.
+tests:
+- command: cd runtime && uv run pytest -W error tests/test_allocation_stop.py tests/test_allocation.py tests/test_lease_watchdog.py
+    tests/test_agent_state_endpoint.py tests/test_worker_state.py tests/test_cli.py tests/test_cli_shutdown.py tests/test_podman_allocation.py
+    tests/test_threads.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: cd runtime && uv run ruff check . && uv run ruff format --check . && uv run lint-imports --no-cache --no-logo
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: python3 scripts/check_tasks.py && python3 scripts/check_spec.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+failure_outcomes:
+  success: The same active Worker supplies the snapshot; stopped allocations remain fenced until confirmed release.
+  permanent: Invalid snapshots retain the current non-retryable 503 classification.
+  retryable: A stopped or replaced Worker returns existing 409/404 errors.
+  ambiguous: Unconfirmed stop or lock acquisition uses process exit rather than slot reuse.
+  cancelled: Caller cancellation preserves existing cancellation behavior and cannot produce a stale successful
+    snapshot.
+  timeout: Every stop phase receives only the remaining original grace; unresolved ownership forces process termination.
+cardinality: One allocation and one active Worker; State remains bounded by 4 MiB. Reads introduce no retained payload
+  cache or unbounded task registry.
+verification:
+  date: '2026-11-06'
+  result: 'Final combined Runtime selection: 380 passed, 15 Linux/Podman skips on macOS. Ruff, format check, four
+    import contracts, task/spec validators and whitespace passed. The seven original stop regressions fail before
+    the fix; release ownership regression fails before joining State reads.'
+  environment: macOS arm64; uv sync --locked; Go 1.26.9 provided on PATH for real-mTLS CLI PKI generation. No live
+    model, database or deployment.
+  negative_probe: /tmp/contractor-v452-001-before.log
+  landing: Implementation and verification finished on codex/runtime-stop-state; no deployment. Integration outcome
+    is recorded in the merge commit.
+  release_regressions: Real ADK/HTTP readers cover ordinary completion, cancellation, release deadline exhaustion,
+    collection of WorkerStateStore and release queued ahead of final snapshot revalidation; one counter/event tracks
+    construction and validation, and detached results drop their Worker reference before waiting for the final lifecycle
+    check.
+  release_negative_probe: /tmp/contractor-v452-release-before.log
+  full_runtime_gate: 'make test-runtime passed: 5914 passed, 135 declared skips before final release-ownership hardening.
+    Broad rerun after reader joining: 5891 passed, 135 skips, excluding the two previously-passing unaffected long
+    ADK modules (27 tests). Final owner selection after the queued-release correction: 380 passed, 15 Linux/Podman
+    skips.'
+implementation_commit: 4105368664d3a1043e49c2a912a6746d4d31ee8d

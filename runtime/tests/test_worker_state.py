@@ -669,3 +669,34 @@ def test_released_allocation_retains_no_worker_state_projection(
         assert retained_metrics() is None
 
     asyncio.run(scenario())
+
+
+def test_validation_finishing_after_a_mutation_cannot_validate_the_new_revision(monkeypatch):
+    async def scenario():
+        state = WorkerStateStore()
+        loop = asyncio.get_running_loop()
+        started, unblock = asyncio.Event(), threading.Event()
+        original = state_module._agent_state_snapshot
+
+        def gated(snapshot):
+            loop.call_soon_threadsafe(started.set)
+            unblock.wait()
+            return original(snapshot)
+
+        monkeypatch.setattr(state_module, "_agent_state_snapshot", gated)
+        assert await state.validated_state_revision() is None
+        read = asyncio.create_task(state.agent_state_snapshot())
+        await started.wait()
+        try:
+            changed = await state.sync_metrics()
+        finally:
+            unblock.set()
+        old = await read
+        assert old.state.state_revision < changed["stateRevision"]
+        assert await state.validated_state_revision() is None
+        current = await state.agent_state_snapshot()
+        assert await state.validated_state_revision() == current.state.state_revision
+        await state.sync_metrics()
+        assert await state.validated_state_revision() is None
+
+    asyncio.run(scenario())

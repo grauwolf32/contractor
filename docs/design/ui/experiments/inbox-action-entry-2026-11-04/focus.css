@@ -1,8 +1,0 @@
-/* Host-owned flow revision, using the retained OpenDesign visual system. */
-.inbox-redesign .inbox-focus-state { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); max-width: 36rem; padding-block: var(--space-6); }
-.inbox-redesign .inbox-focus-state > .ui-glyph { width: 2.5rem; height: 2.5rem; background: var(--sunken); border: 1px solid var(--line); border-radius: var(--radius-lg); }
-.inbox-redesign .inbox-focus-state h2 { margin: 0; font-size: var(--text-xl); line-height: 1.3; letter-spacing: -.02em; }
-.inbox-redesign .inbox-focus-state p { margin: 0; color: var(--muted); font-size: var(--text-md); line-height: 1.6; }
-.inbox-redesign .inbox-focus-state .inbox-focus-eyebrow { font-size: var(--text-xs); color: var(--warning); font-weight: 700; }
-.inbox-redesign .inbox-focus-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); }
-@media(max-width:480px){.inbox-redesign .inbox-focus-state {padding-block:var(--space-3);}.inbox-redesign .inbox-focus-actions {align-items:flex-start;flex-direction:column;}}

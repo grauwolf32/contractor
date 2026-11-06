@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
-import fixtures from "../../docs/design/ui/experiments/material-formats-opendesign-2026-11-01/examples.json" with { type: "json" };
+import fixtures from "../src/test/fixtures/material-format-examples.json" with { type: "json" };
 import { artifactMetadata, project } from "../src/test/builders";
 import {
   fulfillJSON,

@@ -19,8 +19,18 @@ languages:
 goal: A real HTTP check selects invocation-owned sent exchanges as ordinary retained evidence under the
   revised task/Run/finding context.
 demonstration: A controlled local request with redirect is selected by the actual Runtime result tool
-  and remains readable with exact provenance after Project finding intake and source cleanup.
+  from several executed requests and remains readable with exact provenance after result/finding intake
+  and source cleanup. Only the selected exchange becomes an evidence Artifact.
 context:
+  authority_selected_evidence_2026_11_06: >-
+    User decision 2026-11-06: do not persist all HTTP traffic. Reuse the bounded
+    allocation-local in-memory capture buffer; only an explicitly selected
+    request_id becomes ordinary retained evidence. Unselected captures may be
+    evicted and disappear on cleanup or restart, without recovery or target
+    replay. Durability starts with committed publication of selected evidence,
+    not with execution of the HTTP request. Do not add a flow archive, disk
+    spool or another traffic store. Existing sitemap metadata collection is
+    a separate capability and is not an archive of HTTP exchanges.
   authority_engagement_2026_11_04: >-
     User decision 2026-11-04 supersedes source-mode and engagement budget/material
     requirements: engagement owns egress, traffic limits and identities only.
@@ -55,6 +65,9 @@ context:
   - docs/spec/audits/review-and-reports.md
   - docs/spec/artifacts/artifact-store.md
   - docs/spec/findings/findings.md
+  - docs/spec/tools/http-caido.md#HTP-R71
+  - docs/spec/platform/limits.md#LIM-HTP-18
+  - docs/spec/platform/limits.md#LIM-HTP-33
   - docs/spec/platform/failure-model.md
   - docs/spec/platform/persistence.md
   specification_baseline: Named specifications describe current behavior. Update their owning requirements,
@@ -69,11 +82,15 @@ scope:
     publisher and credential handling.
   - Bind normalized selected evidence to the revised finding/result intake and ordinary Artifact publication;
     Server derives task/Audit/Run association.
-  - Retain attempted request time, redirects/failures/truncation and available pinned deployment attribution
-    without fabricating omitted bytes or capture facts.
+  - For explicitly selected exchanges, retain attempted request time, redirects/failures/truncation
+    and available pinned deployment attribution within existing capture bounds, without fabricating
+    omitted bytes or capture facts. Selection never includes unrelated requests from the Run.
   out:
   - A new collector/service, special trusted-proof channel, resending target requests to recover evidence
     or generic transport redesign.
+  - Automatic evidence publication of every HTTP request, a durable traffic journal, disk-backed capture
+    spool or recovery of unselected traffic. Do not enable bridge flow archival or change the separate
+    sitemap metadata collection contract.
   - Implementation during this planning-only update; changing user model configuration or deploying/migrating
     the demo.
 requirements:
@@ -85,6 +102,12 @@ requirements:
     injected credential redaction and original transport cancellation. Exact captures can support an ordinary
     check result with no finding; retaining negative/inconclusive evidence does not require a problem
     publication or another HTTP request.
+- id: R3
+  text: HTTP execution alone creates no retained exchange Artifact. Keep unselected exchanges only in
+    the existing bounded allocation capture buffer; eviction, allocation cleanup and Runtime restart
+    may discard them. Explicit selection publishes only the selected request and its own captured
+    attempts/redirects, with ordinary Artifact retention. Do not flush unselected captures to storage
+    at invocation completion, pause, cancellation or allocation release.
 failure_outcomes:
 - operation: Select a real invocation-owned HTTP exchange as retained evidence
   permanent: Reject invalid/foreign/unsupported content and exact-revision or collision conflicts through
@@ -95,17 +118,31 @@ failure_outcomes:
   ambiguous: Reconcile the original task/Run/publication/intake identity through existing keyed mutations
     or natural receipts. Never repeat target activity or create a new logical result to recover an acknowledgement.
   cancelled: Honor the Audit/Run owner fence, allow authorized terminal collection, and join in-flight
-    work before allocation release or scope cleanup.
+    work before allocation release or scope cleanup. Before publication commits, selected evidence may
+    be absent; committed or ambiguous publication uses its original receipt/identity for reconciliation.
+    Losing a volatile capture never triggers another target request. A retained Artifact alone does
+    not imply that a check result was submitted or accepted.
   timeout: Use the owning operation deadline. Audit deadline pauses new work and drains; model/HTTP/Run
     timeouts remain with their owners. No post-deadline semantic work to repair persistence.
 cardinality:
-- collection: Select a real invocation-owned HTTP exchange as retained evidence
-  expected: 'Base fixture: 2 ordinary Runs, 2 seeded hypotheses, 1 generated hypothesis and several conclusions.'
-  maximum: Keep applicable published LIM-AUD/LIM-FND ceilings unless proposal 0050 explicitly identifies
-    a reviewed change; no new full-pool work.
-  bound: At most 128 admitted primary records / 1 MiB metadata per mutation slice; lists use existing
-    page/byte bounds and explicit continuation.
+- collection: Volatile recent HTTP/Caido captures in one allocation
+  expected: Several executed requests, with one explicitly selected for retained evidence.
+  maximum: Existing shared limits of 128 recent exchanges (LIM-HTP-18) and 64 MiB of serialized capture
+    JSON (LIM-HTP-33); both bounds apply independently.
+  bound: Preserve oldest-first eviction and existing per-exchange attempt/header/body limits. Buffer
+    pressure discards unselected captures instead of spilling them to disk or publishing them.
+- collection: Explicitly selected HTTP evidence
+  expected: One selected request_id produces one exchange Artifact; other executed requests produce none.
+  maximum: Preserve existing Artifact, check-result evidence, Finding evidence and Audit retention
+    limits; this task does not raise them or reserve durable space for the whole capture buffer.
+  bound: Publish the selected exchange only, using its existing idempotent publication identity.
+    Results reference exact Artifacts rather than embedding the buffer or scanning all Run traffic.
 lifecycle:
+- entity: Unselected volatile captures
+  delete: Oldest-first eviction and allocation cleanup erase buffer entries; a Runtime restart loses them.
+  cascade: No durable exchange Artifact or retention hold is created for an unselected capture.
+  retention: No durability or recovery guarantee; unavailable evidence remains an explicit gap and is
+    never reconstructed by replaying target traffic.
 - entity: Task-owned records and exact artifacts
   delete: Authenticated Audit/Project deletion uses the owning drain/purge path. No work or reader may
     outlive its authorization.
@@ -124,9 +161,21 @@ acceptance_criteria:
   when: selection is attempted
   then: no fabricated complete evidence or secret-bearing projection is accepted
 - id: A3
-  given: publication reply loss, cancellation and source deletion
+  given: committed selected-evidence publication with a lost reply or subsequent cancellation, followed
+    by source deletion permitted by the retaining owner
   when: ordinary reconciliation executes
-  then: one evidence result remains without another HTTP request
+  then: the same retained evidence Artifact remains available without a duplicate or another HTTP
+    request; result acceptance is reported only if result intake actually committed
+- id: A4
+  given: several real HTTP requests in one invocation, including one selected request with redirects
+  when: only that request_id is selected and published, then the invocation/allocation is cleaned up
+  then: real PostgreSQL/ArtifactStore contains only the selected exchange as HTTP evidence, including
+    its own captured attempts; unselected exchanges have no evidence Artifacts or retention holds
+- id: A5
+  given: no committed evidence publication and cancellation, capture eviction or Runtime restart
+  when: cleanup or subsequent evidence selection runs
+  then: evidence may be absent and unavailable selection reports the gap; no automatic buffer flush,
+    reconstruction or repeat target request occurs
 tests:
 - command: make require-database
 - command: go test -tags=integration -count=1 ./internal/findingintake/... ./internal/auditimport/...
@@ -135,11 +184,15 @@ tests:
   - A1
   - A2
   - A3
+  - A4
+  - A5
 - command: make test-runtime test-wire-cross-language test-engagement-http-process
   covers:
   - A1
   - A2
   - A3
+  - A4
+  - A5
 - command: make verify-public-api verify-public-api-postgres
   covers:
   - A1

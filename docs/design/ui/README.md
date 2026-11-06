@@ -14,6 +14,7 @@ implemented in `ui/`, its themes and the Workflow, Audit and Agent editor
 | [V3B implementation plan](v3b-implementation.md) | Decisions agreed on 2026-10-06, constraints to keep and remaining work |
 | [Themes](themes.md) | Neutral palette, light, dark and black themes, token set and typography |
 | [Editor studio](editor-studio.md) | The implemented node studio and the proposed composition and rounds view |
+| [Archived UI experiments](experiments/README.md) | External archive inventory, retained test fixtures and restoration instructions |
 
 V3B was chosen on 2026-10-05 from six explored directions (guided wizards, a
 project workspace, an inbox and its focus, panes and board variations). The
