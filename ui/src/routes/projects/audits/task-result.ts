@@ -9,7 +9,7 @@ dereference(materialSchema as Schema, lookup);
 dereference(auditSchema as Schema, lookup);
 
 /** A display projection validated against the owning shared document schema. */
-export interface ScopedTaskResult {
+interface ScopedTaskResult {
   verdict?: "supported" | "refuted" | "inconclusive";
   rationale: string;
   tested_conditions: string[];

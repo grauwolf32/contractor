@@ -14,7 +14,6 @@ import { pollInterval } from "../../../app/polling";
 import { useAuditProjectionRefresh } from "./projection-refresh";
 
 export type ResearchTask = components["schemas"]["AuditTask"];
-export type ResearchHypothesis = components["schemas"]["AuditHypothesis"];
 export type ResearchMaterial = components["schemas"]["AuditMaterialEntry"];
 
 /** A mutable catalog version cannot silently substitute a different Program pin. */

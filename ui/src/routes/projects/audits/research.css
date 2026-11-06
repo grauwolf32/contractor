@@ -337,6 +337,13 @@
   gap: var(--space-5);
   align-items: start;
 }
+.research-work-list {
+  min-width: 0;
+}
+.research-work-choice > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .research-work-list ul {
   list-style: none;
   padding: 0;
@@ -347,6 +354,7 @@
 .research-work-choice.ui-btn,
 .research-hypothesis-choice.ui-btn {
   width: 100%;
+  height: auto;
   justify-content: start;
   align-items: start;
   text-align: left;
@@ -382,6 +390,7 @@
 }
 .research-task-detail,
 .research-hypothesis-detail {
+  overflow-wrap: anywhere;
   display: grid;
   gap: var(--space-5);
   min-width: 0;
@@ -446,6 +455,11 @@
   padding-block: var(--space-3);
   border-bottom: 1px solid var(--line);
   text-decoration: none;
+}
+.research-source-link > span,
+.research-source-link small {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .research-source-link small {
   grid-column: 1;
@@ -529,7 +543,7 @@
   .research-overview,
   .research-workspace,
   .research-hypothesis-workspace {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .research-hypothesis-list,
   .research-work-list {
@@ -553,7 +567,7 @@
   .research-overview,
   .research-workspace,
   .research-hypothesis-workspace {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .research-goal {
     padding: var(--space-4);
@@ -566,7 +580,7 @@
     display: none;
   }
   .research-timeline > li {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--space-2);
   }
   .research-timeline > li > .ui-status-chip {

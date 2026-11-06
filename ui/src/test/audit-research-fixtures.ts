@@ -75,6 +75,10 @@ export function researchFixture(state = "normal") {
     "openapi: 3.1.0\ninfo:\n  title: Shop API\n  version: '1'\npaths: {}",
     "application/yaml",
   );
+  const longGround = material(
+    "ground-" + "c".repeat(64),
+    "Exact retained observations from a synthetic boundary.",
+  );
   const hypotheses: Schemas["AuditHypothesis"][] = subjects.map(
     (statement, index) =>
       conforming("AuditHypothesis", {
@@ -93,7 +97,7 @@ export function researchFixture(state = "normal") {
           scope: {
             conditions: "Pinned Shop API baseline; customer A and customer B",
           },
-          sources: [observations],
+          sources: index === 2 ? [observations, longGround] : [observations],
           origin: [0, 1, 5, 6].includes(index)
             ? { kind: "checklist", audit_id: RESEARCH_AUDIT }
             : {
