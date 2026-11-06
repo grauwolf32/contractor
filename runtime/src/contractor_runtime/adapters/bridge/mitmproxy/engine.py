@@ -519,6 +519,10 @@ class MitmproxyEngine:
             await pool.submit(exchange)
             return await asyncio.shield(future)
         finally:
+            if exchange.response is not None:
+                exchange.response.body = exchange.buffer.getvalue()
+                exchange.response.truncated = exchange.truncated or bool(exchange.reason)
+                boundary.response = exchange.response
             cleanup = asyncio.create_task(
                 self._release_exchange(pool, exchange), name="http-engine-exchange-close"
             )

@@ -332,14 +332,14 @@ batch locally. For incremental submissions its model-facing shape is:
 ```text
 submit_check_result(
   item_key, assessment, summary, completed, gaps,
-  evidence=[], proposal_keys=[], expected_revision=None
+  evidence=[], http_request_ids=[], proposal_keys=[], expected_revision=None
 )
 ```
 
 **AWC-R33.** The model supplies assessments, summaries, completed coverage,
 explicit gaps, bounded evidence summaries and proposal receipt keys. An evidence
-entry may select `http_request_id` (integer 1..9007199254740991) from an
-`http_request` executed in this same invocation. The model cannot supply
+selection uses `http_request_ids` (distinct integers 1..9007199254740991)
+from `http_request` calls executed in this same invocation. The model cannot supply
 observation timestamps, deployment markers, request tags or artifact refs.
 Runtime
 derives item identities and the execution-manifest digest from the pinned
@@ -905,20 +905,19 @@ item IDs stay in bounded diagnostics and never become metric labels
 (AWC-R110).
 
 **AWC-R126.** Selected HTTP evidence resolves only from the allocation's bounded
-recent-capture buffer and the same invocation. Runtime copies the exact request,
-attempts and available response bytes into one `application/json` evidence
-member, and emits `http_request_id`, `http_request_tag`, `observed_at` and an
-available `deployment_marker` in `evidence.json` (REV-R8). The importer validates
-the member's closed capture shape and matching request identity before retention.
-Caido history without a transport observation time is not an eligible Runtime
-HTTP selection. Unknown, evicted or foreign captures fail the tool call before
-any scalar/batch mutation; the caller can submit an explicit gap and an
-inconclusive result instead. The selected immutable bytes and metadata count
-in the existing collection/member/package bounds, including before prospective
-encoding. Replay, correction, publication retries and retention reuse these
-exact values; pure encoding never reads a clock. Summary-only evidence keeps
-its existing assertion semantics and deterministic bytes. No execution-manifest
-or admission-page authority is added.
+recent-capture buffer and the same invocation. `submit_check_result` scalar and
+batch arguments may select `http_request_ids` alongside ordinary input evidence
+handles. HTP-R150 owns standalone immutable Artifact publication, truthful attempt
+and observation metadata, bounds and reconciliation. No Finding proposal is
+required. Invalid source selection fails before result mutation; partial/failed
+responses retain their explicit outcomes. A previously committed selection is
+reused for matching result replay after eviction. Canonical conclusions contain
+exact scoped Artifact descriptors, not embedded HTTP bodies or model-authored
+origin. Server collection validates the frozen reserved binding and matching
+original Run/invocation identity, extends only the selected member's trusted
+membership, then normalizes refs to ordinary retained Audit materials. Reuse and
+source deletion preserve the original evidence bytes. No execution-manifest or
+ZIP evidence-member path is introduced.
 
 ## Invariants
 

@@ -120,7 +120,7 @@ func (s *Service) Submit(
 	proposalID := deterministicID("proposal", grant.AllocationID, input.InvocationID, input.SubmissionID)
 	var httpPayload *artifacts.Payload
 	if canonical.request.HTTPEvidence != nil {
-		data, encodeErr := auditdomain.EncodeHTTPExchangeArtifact(*canonical.request.HTTPEvidence, proposalID, receiptID)
+		data, encodeErr := auditdomain.EncodeHTTPExchangeArtifact(*canonical.request.HTTPEvidence, grant.RunID, input.InvocationID)
 		if encodeErr != nil || len(data) > artifacts.MaxPayloadSize {
 			return Receipt{}, false, fmt.Errorf("%w: HTTP evidence payload", ErrInvalid)
 		}
@@ -206,7 +206,7 @@ SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, grant.RunID).
 				}
 				return metadataErr
 			}
-			if ref.Namespace == artifactpolicy.FindingProposalNamespace &&
+			if ref.Namespace == artifactpolicy.HTTPExchangeNamespace &&
 				(metadata.MediaType != auditdomain.HTTPExchangeMediaType || !metadata.Frozen) {
 				return ErrAccessDenied
 			}
@@ -225,7 +225,7 @@ SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, grant.RunID).
 				return fmt.Errorf("%w: proposal evidence quota exceeded", ErrInvalid)
 			}
 			written, writeErr := artifactService.CreateFrozen(ctx, mustRunScope(grant.RunID),
-				contracts.ArtifactRef{Namespace: artifactpolicy.FindingProposalNamespace, Name: "http.exchange." + proposalID}, *httpPayload)
+				contracts.ArtifactRef{Namespace: artifactpolicy.HTTPExchangeNamespace, Name: auditdomain.HTTPExchangeArtifactName(input.InvocationID, canonical.request.HTTPEvidence.Source, canonical.request.HTTPEvidence.RequestID)}, *httpPayload)
 			if writeErr != nil {
 				if errors.Is(writeErr, artifacts.ErrAuditArtifactCollision) {
 					return ErrConflict

@@ -15,6 +15,7 @@ const (
 	HTTPBodyArtifactPrefix             = "http.body."
 	AuditManagedProjectNamespacePrefix = "audit-"
 	AuditStandardCatalogNamespace      = "audit-standards"
+	HTTPExchangeNamespace              = "http-exchanges"
 	FindingProposalNamespace           = "finding-proposals"
 	FindingMaterialsNamespace          = "finding-materials"
 	FindingHistoryNamespace            = "finding-history"
@@ -47,7 +48,7 @@ func IsAuditStandardCatalogNamespace(namespace string) bool {
 // Runtime's contracts.artifacts.PURPOSE_RESERVED_NAMESPACES is the same list;
 // api/testdata/v1alpha1/memory-reservation-cases.json pins both.
 func PurposeReservedNamespaces() []string {
-	return []string{"inputs", "outputs", "skills", FindingProposalNamespace, AuditContextNamespace}
+	return []string{"inputs", "outputs", "skills", FindingProposalNamespace, AuditContextNamespace, HTTPExchangeNamespace}
 }
 
 // IsPurposeReservedNamespace reports whether a Run Namespace is one of

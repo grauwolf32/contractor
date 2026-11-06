@@ -2,12 +2,15 @@ package privateartifacts
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
@@ -218,6 +221,24 @@ func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
 		func(grant controlplane.AllocationGrant) error {
 			store, storeErr := h.runStoreForGrant(allocationID, grant, identity, true)
 			if storeErr != nil {
+				return storeErr
+			}
+			if ref.Namespace == artifactpolicy.HTTPExchangeNamespace {
+				envelope, decodeErr := auditdomain.DecodeHTTPExchangeArtifact(payload)
+				if !grant.HTTPResultEvidence {
+					return errArtifactAccessDenied
+				}
+				if !create || mediaType != auditdomain.HTTPExchangeMediaType || decodeErr != nil || envelope.Origin.RunID != grant.RunID || envelope.Capture.Source != "http" || ref.Name != auditdomain.HTTPExchangeArtifactName(envelope.Origin.InvocationID, envelope.Capture.Source, envelope.Capture.RequestID) {
+					return errInvalidRequest
+				}
+				scope, err := artifacts.RunScope(grant.RunID)
+				if err != nil {
+					return err
+				}
+				result, storeErr = h.dependencies.Artifacts.CreateFrozen(ctx, scope, ref, preparedPayload)
+				if errors.Is(storeErr, artifacts.ErrAuditArtifactCollision) {
+					return artifacts.ErrArtifactFrozen
+				}
 				return storeErr
 			}
 			result, storeErr = store.Write(ctx, ref, preparedPayload, expectedRevision)

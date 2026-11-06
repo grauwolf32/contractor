@@ -29,7 +29,14 @@ from contractor_runtime.toolsets.common.resources import ToolResources
 
 
 def _normalize(key, value):
-    allowed = {"rationale", "tested_conditions", "limitations", "evidence", "verdict"}
+    allowed = {
+        "rationale",
+        "tested_conditions",
+        "limitations",
+        "evidence",
+        "verdict",
+        "http_request_ids",
+    }
     if not isinstance(value, dict) or set(value) - allowed:
         raise AuditCollectionError("result", "Use only declared conclusion fields.")
     try:
@@ -42,6 +49,9 @@ def _normalize(key, value):
             limitations=tuple(array_argument("limitations", value.get("limitations"), MAX_VALUES)),
             evidence=tuple(array_argument("evidence", value.get("evidence", []), MAX_EVIDENCE)),
             verdict=value.get("verdict"),
+            http_request_ids=tuple(
+                array_argument("http_request_ids", value.get("http_request_ids", []), MAX_EVIDENCE)
+            ),
         )
     except (ValueError, TypeError, UnicodeError):
         raise AuditCollectionError(
@@ -113,6 +123,10 @@ class SubmitCheckResultTool:
         conclusive verdict needs tested conditions and evidence; inconclusive
         needs a limitation. For exploration omit verdict. Use item_key for a
         batch member, or results for the complete batch in assignment order.
+        Select actual HTTP requests with http_request_ids, an array of IDs from
+        http_request in this invocation. Only selected exchanges become evidence
+        Artifacts; no Finding proposal or repeat request is needed. Evicted or
+        foreign IDs fail explicitly. Existing evidence handles remain supported.
         Correct a recorded result with expected_revision from its receipt.
         Returns local revisions and completeness; publication follows completion.
         """
@@ -136,6 +150,7 @@ class SubmitCheckResultTool:
         limitations: list[str] | None = None,
         evidence: list[str] | None = None,
         verdict: str | None = None,
+        http_request_ids: list[int] | None = None,
         expected_revision: int | None = None,
         results: list[BatchResultArgument] | None = None,
     ) -> dict[str, Any]:
@@ -155,6 +170,7 @@ class SubmitCheckResultTool:
                         evidence,
                         verdict,
                         expected_revision,
+                        http_request_ids,
                     )
                 ):
                     raise AuditCollectionError("results", "Do not mix batch and scalar fields.")
@@ -178,6 +194,9 @@ class SubmitCheckResultTool:
                             "limitations": limitations,
                             "evidence": [] if evidence is None else evidence,
                             "verdict": verdict,
+                            "http_request_ids": []
+                            if http_request_ids is None
+                            else http_request_ids,
                         },
                     ),
                     expected_revision=expected_revision,
@@ -251,6 +270,7 @@ class AuditResultsToolsetFactory:
             allocation_id=allocation_id,
             client=self._client_factory(allocation_id, runtime_settings),
             timeout=runtime_settings.request_timeout_seconds,
+            captures=resources.http_captures,
         )
         binding.diagnostics_sink = resources.metrics.record_completion
         resources.proposal_collector = binding.current

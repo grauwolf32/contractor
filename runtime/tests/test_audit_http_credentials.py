@@ -305,7 +305,8 @@ def test_controlled_truncated_prefix_remains_explicit_in_reads_history_and_priva
             page = await tools["http_read_body"](result["request_id"])
             assert page["body_truncated"] and page["total"] == 3 and page["eof"]
         assert (await tools["http_history"]())[0]["body_truncated"]
-        assert not state.resources.http_captures.contains("http", str(result["request_id"]))
+        assert state.resources.http_captures.contains("http", str(result["request_id"]))
+        assert tools["http_request"]._session._captures is state.resources.http_captures
         capture = await tools["http_request"]._session._captures.get(
             "http", str(result["request_id"])
         )

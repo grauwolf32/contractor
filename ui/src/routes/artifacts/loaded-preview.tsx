@@ -15,7 +15,6 @@ import {
 import { Button } from "../../ui";
 import { SourcePreview } from "./source-preview";
 import { ScanReportSummary } from "../../widgets/scan-reports/view";
-import type { HTTPPreviewContext } from "./previews/http-exchange";
 import { PanelTabs } from "./tabs";
 import "./materials.css";
 
@@ -37,18 +36,10 @@ const RENDERER_LABELS = {
 
 type RenderedPlan = Exclude<ArtifactPreviewPlan, { kind: "source" }>;
 
-function Renderer({
-  plan,
-  source,
-  context,
-}: {
-  plan: RenderedPlan;
-  source: string;
-  context?: HTTPPreviewContext | undefined;
-}) {
+function Renderer({ plan, source }: { plan: RenderedPlan; source: string }) {
   switch (plan.kind) {
     case "http":
-      return <HTTPExchangePreview document={plan.document} context={context} />;
+      return <HTTPExchangePreview document={plan.document} />;
     case "invalid-http":
       return (
         <p className="artifact-renderer-error" role="alert">
@@ -171,11 +162,9 @@ class RendererErrorBoundary extends Component<
 export function LoadedArtifactPreview({
   mediaType,
   source,
-  context,
 }: {
   mediaType: string;
   source: string;
-  context?: HTTPPreviewContext | undefined;
 }) {
   const [plan, setPlan] = useState<ArtifactPreviewPlan>();
 
@@ -230,7 +219,7 @@ export function LoadedArtifactPreview({
                     </p>
                   }
                 >
-                  <Renderer plan={plan} source={source} context={context} />
+                  <Renderer plan={plan} source={source} />
                 </Suspense>
               </RendererErrorBoundary>
             ),

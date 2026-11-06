@@ -11,6 +11,7 @@ class BatchResultArgument(TypedDict):
     limitations: list[str]
     evidence: NotRequired[list[str]]
     verdict: NotRequired[str]
+    http_request_ids: NotRequired[list[int]]
 
 
 class AuditArgumentError(ToolInputError):

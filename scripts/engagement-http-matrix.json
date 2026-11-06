@@ -42,7 +42,9 @@
       "TestEngagementIdentityLifecycleAcrossProcesses",
       "TestEngagementIdentityLifecycleAcrossProcesses/cancel_cookie_request_joins_and_next_allocation_is_fresh",
       "TestEngagementIdentityLifecycleAcrossProcesses/credential_kind_mismatch_is_rejected_before_target_traffic",
-      "TestEngagementOrdinaryRunAcrossProcesses"
+      "TestEngagementOrdinaryRunAcrossProcesses",
+      "TestEngagementHTTPSelectedEvidenceAcrossProcesses",
+      "TestEngagementHTTPFindingReusesSelectedEvidenceAcrossProcesses"
     ]
   },
   "accounting": {
@@ -196,6 +198,7 @@
     "tests.test_bridge_establishment::test_native_encoders_and_command_filter_drop_unowned_request_messages[missing-http2]",
     "tests.test_bridge_establishment::test_native_encoders_and_command_filter_drop_unowned_request_messages[closing-http11]",
     "tests.test_bridge_establishment::test_native_encoders_and_command_filter_drop_unowned_request_messages[closing-http2]",
-    "tests.test_bridge_establishment::test_failed_establishment_close_still_joins_tls_and_retains_cleanup_ownership"
+    "tests.test_bridge_establishment::test_failed_establishment_close_still_joins_tls_and_retains_cleanup_ownership",
+    "tests.test_http_selected_evidence::test_selected_redirect_survives_reply_loss_eviction_and_cleanup_without_finding"
   ]
 }

@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
@@ -16,13 +18,15 @@ const HTTPExchangeMediaType = "application/vnd.contractor.http-exchange+json"
 const HTTPExchangeSchema = "contractor.http.exchange.v1"
 const MaximumHTTPResponseBodyBytes = contracts.MaxHTTPResponseBodyBytes
 
-// CapturedHTTPExchange is trusted Runtime capture submitted with a finding.
-// It has no ArtifactRef: intake publishes it and its finding atomically.
+// CapturedHTTPExchange is normalized invocation-owned HTTP/Caido observation.
+// Its publisher supplies original provenance independently of any consumer.
 type CapturedHTTPExchange struct {
-	Source     string                `json:"source"`
-	RequestID  string                `json:"request_id"`
-	RequestTag string                `json:"request_tag,omitempty"`
-	Attempts   []CapturedHTTPAttempt `json:"attempts"`
+	Source           string                `json:"source"`
+	RequestID        string                `json:"request_id"`
+	RequestTag       string                `json:"request_tag,omitempty"`
+	ObservedAt       string                `json:"observed_at,omitempty"`
+	DeploymentMarker string                `json:"deployment_marker,omitempty"`
+	Attempts         []CapturedHTTPAttempt `json:"attempts"`
 }
 
 type CapturedHTTPAttempt struct {
@@ -69,12 +73,17 @@ func (capture *CapturedHTTPExchange) UnmarshalJSON(data []byte) error {
 	if err != nil || strictjson.DecodeNonNull(normalized, &value) != nil {
 		return invalid(CodeInvalid, "httpEvidence")
 	}
-	if err := validateFindingJSONFields(raw, "source request_id attempts", "request_tag", ""); err != nil {
+	if err := validateFindingJSONFields(raw, "source request_id attempts", "request_tag observed_at deployment_marker", ""); err != nil {
 		return err
 	}
 	fields := raw.(map[string]any)
 	if tag, present := fields["request_tag"]; present && tag == "" {
 		return invalid(CodeInvalid, "httpEvidence.request_tag")
+	}
+	for _, field := range []string{"observed_at", "deployment_marker"} {
+		if value, present := fields[field]; present && value == "" {
+			return invalid(CodeInvalid, "httpEvidence."+field)
+		}
 	}
 	attempts, ok := fields["attempts"].([]any)
 	if !ok {
@@ -155,6 +164,16 @@ func ValidateCapturedHTTPExchange(value CapturedHTTPExchange) error {
 			return invalid(CodeInvalid, "httpEvidence.request_id")
 		}
 	}
+	if value.ObservedAt != "" {
+		parsed, err := time.Parse(time.RFC3339Nano, value.ObservedAt)
+		if err != nil || parsed.Year() < 1 || parsed.UTC().Format(time.RFC3339Nano) != value.ObservedAt {
+			return invalid(CodeInvalid, "httpEvidence.observed_at")
+		}
+	}
+	if value.DeploymentMarker != "" && (len(value.DeploymentMarker) > 256 || strings.IndexFunc(value.DeploymentMarker, func(r rune) bool { return r < 32 }) >= 0) {
+		return invalid(CodeInvalid, "httpEvidence.deployment_marker")
+	}
+
 	if len(value.Attempts) < 1 || len(value.Attempts) > MaximumHTTPExchangeAttempts {
 		return invalid(CodeLimitExceeded, "httpEvidence.attempts")
 	}
@@ -222,24 +241,45 @@ func validateHTTPMessage(value HTTPMessage, maximum int) error {
 	return nil
 }
 
-// EncodeHTTPExchangeArtifact binds validated capture to its Server-issued
-// finding identities. Runtime cannot supply or override this association.
-func EncodeHTTPExchangeArtifact(value CapturedHTTPExchange, proposalID, receiptID string) ([]byte, error) {
-	if err := ValidateCapturedHTTPExchange(value); err != nil {
+// HTTPExchangeOrigin is historical provenance supplied by the trusted publisher.
+type HTTPExchangeOrigin struct {
+	RunID        string `json:"run_id" strictjson:"required"`
+	InvocationID string `json:"invocation_id" strictjson:"required"`
+}
+
+// HTTPExchangeArtifact is consumer-independent selected HTTP evidence.
+type HTTPExchangeArtifact struct {
+	Schema  string               `json:"schema" strictjson:"required"`
+	Origin  HTTPExchangeOrigin   `json:"origin" strictjson:"required"`
+	Capture CapturedHTTPExchange `json:"capture" strictjson:"required"`
+}
+
+// DecodeHTTPExchangeArtifact strictly validates one retained capture envelope.
+func DecodeHTTPExchangeArtifact(data []byte) (HTTPExchangeArtifact, error) {
+	var value HTTPExchangeArtifact
+	if len(data) > contracts.MaxArtifactPayloadBytes || strictjson.DecodeNonNull(data, &value) != nil || value.Schema != HTTPExchangeSchema || validateIdentifier(value.Origin.RunID, "origin.run_id") != nil || validateIdentifier(value.Origin.InvocationID, "origin.invocation_id") != nil || ValidateCapturedHTTPExchange(value.Capture) != nil {
+		return value, invalid(CodeInvalid, "httpEvidence")
+	}
+	if value.Capture.Source == "http" && value.Capture.ObservedAt == "" {
+		return value, invalid(CodeInvalid, "httpEvidence.observed_at")
+	}
+	return value, nil
+}
+
+// HTTPExchangeArtifactName supplies one natural identity per invocation capture.
+func HTTPExchangeArtifactName(invocationID, source, requestID string) string {
+	data, _ := strictjson.Canonical([]string{invocationID, source, requestID})
+	return "exchange-" + strings.TrimPrefix(contentdigest.Bytes(data), "sha256:")
+}
+
+// EncodeHTTPExchangeArtifact preserves the original capture and trusted origin.
+func EncodeHTTPExchangeArtifact(value CapturedHTTPExchange, runID, invocationID string) ([]byte, error) {
+	data, err := strictjson.Canonical(HTTPExchangeArtifact{HTTPExchangeSchema, HTTPExchangeOrigin{runID, invocationID}, value})
+	if err != nil {
 		return nil, err
 	}
-	if validateIdentifier(proposalID, "proposal_id") != nil || validateIdentifier(receiptID, "receipt_id") != nil {
-		return nil, invalid(CodeInvalid, "httpEvidence.finding")
+	if _, err = DecodeHTTPExchangeArtifact(data); err != nil {
+		return nil, err
 	}
-	type findingAssociation struct {
-		ProposalID string `json:"proposal_id"`
-		ReceiptID  string `json:"receipt_id"`
-	}
-	return json.Marshal(struct {
-		Schema  string               `json:"schema"`
-		Capture CapturedHTTPExchange `json:"capture"`
-		Finding findingAssociation   `json:"finding"`
-	}{Schema: HTTPExchangeSchema, Capture: value,
-		Finding: findingAssociation{proposalID, receiptID},
-	})
+	return data, nil
 }

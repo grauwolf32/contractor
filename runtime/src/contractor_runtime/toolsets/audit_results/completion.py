@@ -1,6 +1,7 @@
 """Trusted Audit preparation and invocation-local completion strategy."""
 
 import asyncio
+import json
 from collections.abc import Callable
 from dataclasses import replace
 from functools import partial
@@ -44,6 +45,7 @@ from contractor_runtime.toolsets.audit_results.publication import (
     DeterministicAuditResultPublisher,
     PublicationArtifactClient,
 )
+from contractor_runtime.toolsets.common.http_publication import HTTPExchangePublisher
 
 
 class PreparedAuditCompletion(PreparedWorkerCompletion):
@@ -58,6 +60,7 @@ class PreparedAuditCompletion(PreparedWorkerCompletion):
         encoder: CanonicalAuditResultEncoder,
         client: PublicationArtifactClient,
         request_timeout: float,
+        captures=None,
     ):
         self.contract = contract.model_copy(deep=True)
         self._inputs = inputs
@@ -65,6 +68,13 @@ class PreparedAuditCompletion(PreparedWorkerCompletion):
         self._encoder = encoder
         self._client = client
         self._request_timeout = request_timeout
+        self._http_publisher = (
+            None
+            if captures is None
+            else HTTPExchangePublisher(
+                client, captures, json.loads(inputs.context)["run_id"], request_timeout
+            )
+        )
         self._collector: InvocationAuditCollector | None = None
         self._reminders = 0
         self.diagnostics = None
@@ -107,7 +117,7 @@ class PreparedAuditCompletion(PreparedWorkerCompletion):
             await self.phase_sink(self.diagnostics)
 
     @classmethod
-    async def prepare(cls, *, contract, allocation_id, client, timeout):
+    async def prepare(cls, *, contract, allocation_id, client, timeout, captures=None):
         if client.allocation_id != allocation_id:
             raise AuditResultError("audit_result_invalid")
         async with asyncio.timeout(timeout):
@@ -131,7 +141,7 @@ class PreparedAuditCompletion(PreparedWorkerCompletion):
             records.item_keys,
         )
         inputs = AuditTrustedInputs(owner, context.data)
-        return cls(contract, inputs, encoder, client, timeout)
+        return cls(contract, inputs, encoder, client, timeout, captures=captures)
 
     def current(self) -> InvocationAuditCollector:
         if self._collector is None:
@@ -144,7 +154,9 @@ class PreparedAuditCompletion(PreparedWorkerCompletion):
         inputs = replace(
             self._inputs, owner=replace(self._inputs.owner, invocation_id=invocation_id)
         )
-        self._collector = InvocationAuditCollector(inputs, self._encoder)
+        self._collector = InvocationAuditCollector(
+            inputs, self._encoder, http_publisher=self._http_publisher
+        )
         self._reminders = 0
         self.reset_diagnostics()
 

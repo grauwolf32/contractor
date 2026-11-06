@@ -361,6 +361,7 @@ class HTTPTransport:
         body=b"",
         follow_redirects=True,
         deadline=None,
+        capture=None,
     ):
         if deadline is None:
             deadline = min(self._require_authority(), self._clock() + 30)
@@ -380,6 +381,7 @@ class HTTPTransport:
                 if epoch is not session.epoch or session.state == "blocked":
                     raise TargetDenied
 
+            injected_headers = {name.lower() for name, _ in private_request.headers}
             private_request.method = method
             private_request.body = body
             private_request.follow_redirects = follow_redirects
@@ -406,12 +408,17 @@ class HTTPTransport:
             )
             next_url = None
             response = None
+            if capture is not None:
+                capture.request(method, url, list(private_request.headers), body, injected_headers)
+
             try:
                 async with asyncio.timeout(max(0, boundary.deadline - self._clock())):
                     outcome, next_url, response = await self._request(
                         url, boundary, session, private_request
                     )
             except asyncio.CancelledError:
+                if capture is not None:
+                    capture.finish(boundary.response, "cancelled")
                 raise
             except TargetDenied:
                 outcome = self._failure(boundary, "policy_denied")
@@ -425,6 +432,17 @@ class HTTPTransport:
                 outcome = self._failure(boundary, "tls_failed")
             except (HTTPTransportError, ValueError, OSError):
                 outcome = self._failure(boundary, "transport_failed")
+            if capture is not None:
+                capture.finish(
+                    response or boundary.response,
+                    None
+                    if outcome.kind == "completed"
+                    else {
+                        "timeout": "timeout",
+                        "policy_denied": "target_denied",
+                        "response_invalid": "response_invalid",
+                    }.get(outcome.reason, "transport_error"),
+                )
             if response is not None:
                 response.method = method
                 response.redirects = hop
