@@ -43,12 +43,28 @@ for (const theme of ["light", "dark", "black"])
               exact: true,
             }),
           ).toBeVisible();
-        if (section === "hypotheses")
+        if (section === "hypotheses") {
           await expect(
             page.getByRole("button", {
               name: /Product search input can change/,
             }),
           ).toBeVisible();
+          const readable = await page
+            .getByRole("button", { name: /Product search input can change/ })
+            .evaluate((button) => {
+              const box = button.getBoundingClientRect();
+              const range = document.createRange();
+              range.selectNodeContents(button.querySelector("strong")!);
+              const label = range.getBoundingClientRect();
+              return (
+                label.height > 0 &&
+                label.bottom <= box.bottom &&
+                label.top >= box.top &&
+                label.right <= box.right + 1
+              );
+            });
+          expect(readable).toBe(true);
+        }
         if (section === "materials")
           await expect(
             page.getByRole("heading", {

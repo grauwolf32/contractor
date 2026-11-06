@@ -20,6 +20,29 @@ function render(section = "", state = "normal") {
 }
 
 describe("combined Checks research workspace", () => {
+  it("moves selection and focus together with the existing list keyboard controls", async () => {
+    render("/work");
+    await userEvent.click(
+      await screen.findByRole("button", {
+        name: /A customer can read another customer/,
+      }),
+    );
+    await userEvent.keyboard("j");
+    expect(
+      screen.getByRole("button", { name: /Product search input can change/ }),
+    ).toHaveFocus();
+    expect(
+      screen.getByRole("heading", {
+        name: "Product search input can change the SQL query",
+      }),
+    ).toBeInTheDocument();
+    await userEvent.keyboard("{Home}");
+    expect(
+      screen.getByRole("button", {
+        name: /A customer can read another customer/,
+      }),
+    ).toHaveFocus();
+  });
   it("keeps an exact work input selected while browsing a second material page", async () => {
     const fixture = researchFixture();
     const original = fixture.materials[0]!;

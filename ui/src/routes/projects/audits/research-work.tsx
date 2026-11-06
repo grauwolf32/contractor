@@ -330,6 +330,11 @@ export function ResearchWork({ audit }: { audit: Audit }) {
                       <Button
                         variant="ghost"
                         className="research-work-choice"
+                        aria-current={
+                          chosen?.document.task_id === task.document.task_id
+                            ? true
+                            : undefined
+                        }
                         aria-pressed={
                           chosen?.document.task_id === task.document.task_id
                         }
