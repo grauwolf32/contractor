@@ -361,6 +361,18 @@ status, safe Markdown and downloads. A completed check without an aggregate
 report links to its ordinary task results. Inbox retains its queue navigation
 and return context, without a duplicate Run/capacity summary.
 
+**UI-R238.** Reports resolves availability for at most twenty report-capable
+checks on the selected page (LIM-UI-24), after applying the Project filter.
+Previous and Next reach other pages of the loaded check inventory. Page and
+filter context survive report selection and return; counts describe only the
+selected page, and a page without a ready report does not claim that other pages
+are empty. Availability reads use the existing shared two-slot report transfer
+queue. Leaving a page cancels its active reads and removes its queued reads.
+Reports and Inbox availability caches retain status only; selected detail owns
+the complete report. Inbox keeps its existing seven-day eligibility window.
+The existing report API still transmits content with availability, so page
+bounds limit that work without adding a separate endpoint.
+
 **UI-R40.** An Audit page under `/projects/:projectId/audits/:auditId` marks
 Checks as current in the rail.
 

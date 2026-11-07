@@ -10,11 +10,13 @@ export interface ReportFilters {
   status: ReportFilter;
   /** Only reports of this project; null for every project. */
   project: string | null;
+  page: number;
 }
 
 /** URL parameters of the list; the selected report is the path. */
 export const STATUS_PARAM = "status";
 export const PROJECT_PARAM = "project";
+export const PAGE_PARAM = "page";
 
 const STATUS_FILTERS: readonly ReportFilter[] = ["ready", "all"];
 
@@ -29,10 +31,12 @@ function isReportFilter(value: string | null): value is ReportFilter {
 export function readFilters(params: URLSearchParams): ReportFilters {
   const status = params.get(STATUS_PARAM);
   const project = params.get(PROJECT_PARAM);
+  const page = params.get(PAGE_PARAM) ?? "0";
   return {
     status: isReportFilter(status) ? status : "all",
     project:
       project !== null && PROJECT_ID_PATTERN.test(project) ? project : null,
+    page: /^(?:0|[1-9][0-9]{0,5})$/.test(page) ? Number(page) : 0,
   };
 }
 
@@ -41,6 +45,7 @@ export function filterSearch(filters: ReportFilters): string {
   const params = new URLSearchParams();
   if (filters.status !== "all") params.set(STATUS_PARAM, filters.status);
   if (filters.project !== null) params.set(PROJECT_PARAM, filters.project);
+  if (filters.page > 0) params.set(PAGE_PARAM, String(filters.page));
   const search = params.toString();
   return search === "" ? "" : `?${search}`;
 }

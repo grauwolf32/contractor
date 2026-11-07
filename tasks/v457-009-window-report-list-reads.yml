@@ -1,0 +1,65 @@
+schema_version: "1.0"
+id: V457-009
+title: Bound report availability reads to the visible check window
+milestone: ui-consolidation-2026-10
+epic: ui
+kind: defect
+priority: P2
+status: in_progress
+depends_on: []
+languages: [typescript]
+goal: Opening Reports loads availability only for a bounded visible check window and retains full report content only for the selected detail.
+context:
+  authority: User decision 2026-11-07 authorizes all reported release-review fixes and scoped simplifications on a separate branch, including U4, using routine bounded work choices without speculative APIs.
+  specification:
+    - docs/spec/ui/ui.md#UI-R17
+    - docs/spec/ui/ui.md#UI-R238
+  introduced_commit: c9bae8dda5524316d8f1b203f9a8ac08179f1f20
+  provenance: The introducing cross-project layer commit has no identifiable task file; retain the exact commit without inventing introduced_by.
+  severity: medium
+  finding: >-
+    ui/src/api/cross-project.ts:386-391,674-678 starts one full report read per
+    listed terminal Audit, potentially four thousand queued full-payload reads at
+    the twenty-page owner-list ceiling, although list rows only use availability.
+    api/audits.ts already limits actual network reads to two; the queue still
+    drains abandoned work because callers do not consume cancellation signals.
+  siblings: >-
+    ReportDetail and the Inbox selected reader fetch full content explicitly.
+    Inbox also preloads availability for checks finished in the last seven days;
+    narrow that preload cache to status and preserve its existing eligibility.
+    All consumers share the existing transfer queue and propagate cancellation.
+  decision: >-
+    Use the existing Audit and report APIs, a twenty-check visible window and the
+    existing shared two-slot report queue. The list cache stores only status and
+    cancellation removes abandoned queued reads before they acquire a slot.
+    GET report still transmits its current full payload to obtain status; eliminating
+    those wire bytes requires a separately justified API change, which is outside scope.
+scope:
+  in:
+    - Bound report reads and expose navigation through every loaded check window.
+    - Apply Project filtering before availability reads and preserve URL selection and return context.
+    - Measure request counts at realistic inventory size and verify selection loads complete content.
+  out:
+    - New public endpoints, server report semantics or synthetic availability assumptions.
+acceptance_criteria:
+  - id: A1
+    text: A realistic large terminal-check inventory reads availability only for the selected window and obeys its in-flight request bound.
+  - id: A2
+    text: Explicit navigation reaches later windows and Project filtering does not read unrelated report payloads.
+  - id: A3
+    text: The list cache retains status only; selecting a report renders its full authoritative content with existing detail APIs.
+  - id: A4
+    text: Partial or empty windows are explicit, revision changes refresh availability, and failure recovery does not reload settled unchanged reports.
+tests:
+  - command: cd ui && corepack pnpm test --run src/api/cross-project.test.tsx src/routes/reports/list.test.tsx src/routes/reports/detail.test.tsx
+    covers: [A1, A2, A3, A4]
+  - command: make ui-verify
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+verification:
+  scale: A 1000-check fixture schedules 20 availability queries, performs 20 report reads for page one and 20 more only after moving to page two, and measures a maximum of 2 simultaneous transfers. All list cache entries contain status only.
+  focused: 77 passing tests across Audit API, report contract, cross-project lists, Reports list/detail and Inbox suites; queued and active cancellation and empty-window continuation are covered.
+  browser: 5 passing Chromium owner-list cases, including bounded Reports paging, selected full content, preserved Project/page return context and overflow checks at 1440 px and 390 px.
+  static: Both TypeScript configurations and ESLint for all changed sources and tests passed.
+  integration: Full UI and repository lint gates remain for the integrated branch; task stays in_progress.

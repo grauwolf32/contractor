@@ -57,6 +57,106 @@ async function settled() {
 }
 
 describe("Reports list", () => {
+  it("pages availability reads and loads complete content only into the selected detail", async () => {
+    const checks = Array.from({ length: 25 }, (_, index) =>
+      audit("project_reports", `audit_${index}`, "completed"),
+    );
+    const server = reportsServer({
+      projects: [project("project_reports", "Reports project")],
+      audits: checks,
+      reports: Object.fromEntries(
+        checks.map((check) => [
+          check.auditId,
+          report(check.auditId, "ready", {
+            summary: `Saved report ${check.auditId}`,
+          }),
+        ]),
+      ),
+    });
+    const { user, queryClient, location } = renderRoutes(
+      "/reports?project=project_reports",
+      server,
+    );
+    await screen.findByRole("button", { name: "All 20" });
+    expect(
+      server.requests.filter((request) =>
+        new URL(request.url).pathname.endsWith("/report"),
+      ),
+    ).toHaveLength(20);
+    expect(rowTitles()).toHaveLength(20);
+    expect(
+      screen.getByText("Counts describe this page.", { exact: false }),
+    ).toBeVisible();
+    const paging = screen.getByRole("navigation", { name: "Report pages" });
+    await user.click(within(paging).getByRole("button", { name: "Next" }));
+    await screen.findByRole("button", { name: "All 5" });
+    expect(location()).toBe("/reports?project=project_reports&page=1");
+    expect(
+      server.requests.filter((request) =>
+        new URL(request.url).pathname.endsWith("/report"),
+      ),
+    ).toHaveLength(25);
+    const selected = screen
+      .getAllByRole("link")
+      .find(
+        (link) =>
+          link.getAttribute("href") ===
+          "/reports/audit_20?project=project_reports&page=1",
+      )!;
+    await user.click(selected);
+    expect(await screen.findByText("Saved report audit_20")).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Back to reports" }),
+    ).toHaveAttribute("href", "/reports?project=project_reports&page=1");
+    const listCache = queryClient
+      .getQueryCache()
+      .findAll({ queryKey: ["cross-project", "report"] });
+    expect(listCache).toHaveLength(25);
+    expect(
+      listCache.every(
+        (query) =>
+          JSON.stringify(query.state.data) ===
+          JSON.stringify({ status: "ready" }),
+      ),
+    ).toBe(true);
+    expect(
+      queryClient.getQueryData<{ summary: string }>([
+        "audits",
+        "detail",
+        "audit_20",
+        "report",
+      ])?.summary,
+    ).toBe("Saved report audit_20");
+  });
+
+  it("keeps later report pages reachable when this check page has no ready reports", async () => {
+    const checks = Array.from({ length: 21 }, (_, index) =>
+      audit("project_reports", `audit_${index}`, "completed"),
+    );
+    const server = reportsServer({
+      projects: [project("project_reports", "Reports project")],
+      audits: checks,
+      reports: Object.fromEntries(
+        checks.map((check, index) => [
+          check.auditId,
+          report(check.auditId, index < 20 ? "unavailable" : "ready"),
+        ]),
+      ),
+    });
+    const { user } = renderRoutes("/reports", server);
+    expect(
+      await screen.findByText("No ready reports in these checks"),
+    ).toBeVisible();
+    expect(screen.queryByText("No reports yet")).toBeNull();
+    await user.click(
+      within(
+        screen.getByRole("navigation", { name: "Report pages" }),
+      ).getByRole("button", { name: "Next" }),
+    );
+    await screen.findByRole("button", { name: "All 1" });
+    expect(rowTitles()).toHaveLength(1);
+  });
+
   it("lists ready reports across projects without acceptance actions", async () => {
     renderRoutes("/reports", reportsServer(state()));
     await settled();

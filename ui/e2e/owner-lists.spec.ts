@@ -6,6 +6,7 @@ import {
   project,
   finding,
   findingSummary,
+  report,
 } from "../src/test/builders";
 import { ownerListResponse } from "../src/test/owner-lists";
 import {
@@ -75,6 +76,82 @@ test("Inbox badge describes a failed findings continuation as a lower bound", as
 });
 
 for (const width of [1440, 390]) {
+  test(`Reports reads one check page and preserves it on selection at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const owner = project("project_reports", { name: "Report workspace" });
+    const audits = Array.from({ length: 25 }, (_, index) =>
+      audit(owner.projectId, `audit_report_${index}`, "completed"),
+    );
+    const reportReads: string[] = [];
+    await mockAPI(
+      page,
+      async (route, _request, url) => {
+        const list = ownerListResponse(url, { projects: [owner], audits });
+        if (list) return fulfillResponse(route, list);
+        if (url.pathname === "/v1/projects")
+          return fulfillJSON(route, {
+            items: [owner],
+            page: { hasMore: false },
+          });
+        if (url.pathname === `/v1/projects/${owner.projectId}`)
+          return fulfillJSON(route, owner, 200, { ETag: '"1"' });
+        const match = /^\/v1\/audits\/([^/]+)(\/report)?$/.exec(url.pathname);
+        if (match?.[2]) {
+          reportReads.push(match[1]!);
+          return fulfillJSON(
+            route,
+            report(match[1]!, "ready", {
+              summary: `Saved content for ${match[1]}`,
+            }),
+          );
+        }
+        if (match) {
+          const selected = audits.find((check) => check.auditId === match[1]);
+          return fulfillJSON(route, selected, 200, {
+            ETag: `"${selected!.revision}"`,
+          });
+        }
+        return fulfillEmptyPageOrNotFound(route);
+      },
+      { session: authSession("owner", ["user"]) },
+    );
+    await page.goto(`/reports?project=${owner.projectId}`);
+    const list = page.getByRole("region", { name: "Reports", exact: true });
+    await expect(
+      list.getByRole("button", { name: "All 20", exact: true }),
+    ).toBeVisible();
+    await expect(list.locator("li.ui-row")).toHaveCount(20);
+    expect(reportReads).toHaveLength(20);
+    await list
+      .getByRole("navigation", { name: "Report pages" })
+      .getByRole("button", { name: "Next" })
+      .click();
+    await expect(
+      list.getByRole("button", { name: "All 5", exact: true }),
+    ).toBeVisible();
+    expect(reportReads).toHaveLength(25);
+    await expect(page).toHaveURL(/project=project_reports&page=1$/);
+    await list
+      .locator(
+        'a[href="/reports/audit_report_20?project=project_reports&page=1"]',
+      )
+      .click();
+    await expect(
+      page.getByText("Saved content for audit_report_20"),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Back to reports", includeHidden: true }),
+    ).toHaveAttribute("href", "/reports?project=project_reports&page=1");
+    expect(reportReads).toHaveLength(26);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+  });
+
   test(`owner lists follow every page at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     const requests: URL[] = [];
