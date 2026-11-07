@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-78 open tasks: 20 in progress, 45 pending, 13 deferred. 1495 finished: 1477 completed, 18 archived.
+77 open tasks: 19 in progress, 45 pending, 13 deferred. 1496 finished: 1478 completed, 18 archived.
 
 ## In progress
 
@@ -20,7 +20,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Accept merged isolated Worker context compaction |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V457-006](v457-006-project-target-credential-replay.yml) | ui | defect | P2 | Retain Project target credential creation identity after response loss |
 | [V457-007](v457-007-selected-research-task-refresh.yml) | ui | defect | P2 | Refresh selected research Tasks outside the current list page |
 | [V457-008](v457-008-inbox-count-completeness.yml) | ui | defect | P2 | Preserve findings truncation in Inbox counts and labels |
 | [V457-009](v457-009-window-report-list-reads.yml) | ui | defect | P2 | Bound report availability reads to the visible check window |
@@ -179,7 +178,7 @@ tasks in `introduced_by`.
 | Audits (`audits`) | 10 | 69 | 97 | 42 | 164 |
 | Evaluations (`evals`) | 6 | 22 | 41 | 17 | 50 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
-| Web UI (`ui`) | 5 | 51 | 79 | 28 | 76 |
+| Web UI (`ui`) | 4 | 51 | 79 | 28 | 76 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 47 | 9 | 22 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 42 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 50 | 18 |
