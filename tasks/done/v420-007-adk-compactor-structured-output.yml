@@ -6,7 +6,8 @@ epic: planner-worker
 kind: defect
 introduced_by: V420-002
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 3bee7d16ed6efa08ac6f804aba26dd8da556c1b8
 depends_on: []
 languages: [go, markdown, yaml]
 goal: Constrain Planner compactor replies at the model boundary using ADK structured output.
@@ -66,3 +67,16 @@ decisions:
     and usage metadata for the existing validation. Application validation,
     exact history membership and checkpoint persistence retain their owners.
     Reopen if the compactor gains tools or the ADK/provider schema API changes.
+verification:
+  date: '2026-11-07'
+  result: >-
+    Full Streamline and Router packages passed with -race and an explicit
+    disposable PostgreSQL database. Both profiles passed actual auxiliary
+    ADK Runner-to-HTTP success, invalid JSON, unexpected tool call, truncation
+    and schema-rejection cases, plus schema-inclusive admission and one-call
+    bounds. Existing usage, cancellation and durable checkpoint cases passed.
+    make lint passed in full, including generated documentation, Go vet,
+    staticcheck, layer checks and task/spec validation. The script unit suite
+    reported 210 tests with four declared skips; those skips are not coverage.
+    Dependencies were restored from cache after online build setup timed out.
+    The owned test database was dropped. No live model was invoked.
