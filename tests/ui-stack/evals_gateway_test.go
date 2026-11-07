@@ -51,20 +51,43 @@ func managedEvalGatewayMessage(request map[string]any) (map[string]any, string, 
 			return call("read_audit_task", map[string]any{})
 		}
 		if !completed["submit_check_result"] {
-			var coverage []any
+			var tasks []any
 			walkJSON(request, func(object map[string]any) {
-				if value, ok := object["requestedCoverage"].([]any); ok {
-					coverage = value
+				if value, ok := object["tasks"].([]any); ok {
+					tasks = value
 				}
 			})
-			if len(coverage) == 0 {
-				return nil, "", model, errors.New("Audit task coverage missing")
+			if len(tasks) == 0 {
+				return nil, "", model, errors.New("Audit tasks missing")
 			}
-			results := make([]any, 0, len(coverage))
-			for _, requested := range coverage {
-				results = append(results, map[string]any{"assessment": "satisfied",
-					"summary": "Deterministic retained fixture evidence", "completed": requested,
-					"gaps": []string{}, "evidence": []map[string]string{{"kind": "source-trace", "summary": "Fixture evidence"}}})
+			results := make([]any, 0, len(tasks))
+			for _, raw := range tasks {
+				task, ok := raw.(map[string]any)
+				if !ok || task["item_key"] == nil {
+					return nil, "", model, errors.New("Audit task key missing")
+				}
+				evidence := []string{}
+				materials, _ := task["evidence"].([]any)
+				for _, raw := range materials {
+					material, _ := raw.(map[string]any)
+					handle, _ := material["handle"].(string)
+					if handle == "" {
+						return nil, "", model, errors.New("Audit evidence handle missing")
+					}
+					evidence = append(evidence, handle)
+				}
+				result := map[string]any{
+					"rationale":         "Deterministic retained fixture evidence",
+					"tested_conditions": []string{"Selected authored fixture and retained source only"},
+					"limitations":       []string{}, "evidence": evidence,
+				}
+				if task["hypothesis"] != nil {
+					if len(evidence) == 0 {
+						return nil, "", model, errors.New("Audit hypothesis evidence missing")
+					}
+					result["verdict"] = "supported"
+				}
+				results = append(results, result)
 			}
 			return call("submit_check_result", map[string]any{"results": results})
 		}

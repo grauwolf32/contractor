@@ -153,6 +153,25 @@ def upload(client, project, name, media, raw):
     }
 
 
+def audit_assertion_source():
+    return {
+        "schema": "contractor.audit.assertions.v1",
+        "items": [
+            {
+                "key": "check-" + key,
+                "version": "1",
+                "statement": "Inspect fixture " + key,
+                "scope": {},
+                "grounds": "An authored deterministic fixture requirement",
+                "applicability": "Fixture",
+                "allowed_methods": ["static-trace"],
+                "required_evidence": ["source-trace"],
+            }
+            for key in ("one", "two")
+        ],
+    }
+
+
 def seed(client, directory):
     project = client.request(
         "POST",
@@ -172,23 +191,12 @@ def seed(client, directory):
     audit_source = upload(
         client, project_id, "source-archive", "application/zip", archive.getvalue()
     )
-    checklist = {
-        "schema": "contractor.audit.checklist.v1",
-        "items": [
-            {
-                "key": "check-" + key,
-                "version": "1",
-                "statement": "Inspect fixture " + key,
-                "applicability": "Fixture",
-                "allowed_methods": ["static-trace"],
-                "required_evidence": ["source-trace"],
-                "review_policy": "automatic",
-            }
-            for key in ("one", "two")
-        ],
-    }
     checklist_ref = upload(
-        client, project_id, "checklist", "application/json", encoded(checklist)
+        client,
+        project_id,
+        "checklist",
+        "application/json",
+        encoded(audit_assertion_source()),
     )
     datasets = {}
     for kind in ("workflow", "audit"):
@@ -385,7 +393,9 @@ def run_external(client, fixture):
             fixture["datasets"][kind]["document"]["cases"],
         )
         path = "/v1/eval-experiments/" + experiment["experimentId"]
-        experiment = client.wait(path, lambda value: value.get("freshness") == "current")
+        experiment = client.wait(
+            path, lambda value: value.get("freshness") == "current"
+        )
         rows, _ = client.pages(path + "/members", filter="all")
         assert len(rows) == MEMBERS
         start = deadline = None

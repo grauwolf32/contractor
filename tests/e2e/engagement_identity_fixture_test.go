@@ -30,7 +30,7 @@ func newEngagementIdentityAudit(t *testing.T, h *engagementProcessHarness, origi
 		f.requests = append(f.requests, map[string]any{"url": url})
 	}
 	engagementAuditPOST(t, h, "/v1/projects", map[string]string{"kind": "project", "name": "Private identity fixture", "activeChecks": "automatic"}, 0, http.StatusCreated, &f.project)
-	checks := []byte(`{"schema":"contractor.audit.checklist.v1","items":[{"key":"check-preflight","version":"1","statement":"Record private identity conformance.","applicability":"always","allowed_methods":["static"],"required_evidence":[],"review_policy":"automatic"}]}`)
+	checks := engagementAssertionSource(t, "Record private identity conformance.")
 	f.checklist = uploadProjectScopeArtifact(t, h.client, h.baseURL, f.project.ProjectID, "inputs", "checks", "application/json", checks)
 	routes := make([]engagementcontract.Route, 0, len(origins))
 	for _, origin := range origins {

@@ -1,0 +1,51 @@
+schema_version: "1.0"
+id: V457-014
+title: Author current Audit assertions and checker results in process fixtures
+milestone: release-gate-integration-coverage-2026-10
+epic: quality
+kind: defect
+introduced_by: V64-012
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go, python]
+goal: Managed Eval and Engagement process fixtures author the current strict Audit source and checker contracts so their real journeys reach the intended checks.
+context:
+  authority: User decision 2026-11-07 authorizes release-review repairs and necessary process fixture maintenance on a separate branch; the release Native Eval exposed this retired fixture boundary.
+  specification: docs/spec/audits/common-contract.md#ACT-R17
+  provenance: V64-012 migration d6bbd3c759c1133f09643c7f8e2f69aca3458356 made fixed seeds explicit hypothesis assertions. The older UI producer and Engagement fixtures retained the retired checklist schema; the managed gateway retained the retired checker argument fields.
+  finding: >-
+    evals_producer.py:175-187 and both Engagement process fixture helpers author
+    contractor.audit.checklist.v1 with review_policy and no scope/grounds.
+    ChecklistAssertions strictly requires contractor.audit.assertions.v1; the
+    Native Audit Eval remains draft with an audit-start intent and repeated
+    audit_document_invalid before child Runs. evals_gateway_test.go:53-69 also
+    expects retired requestedCoverage and emits retired assessment/summary/
+    completed/gaps fields instead of current task keys, evidence handles and
+    checker rationale/tested_conditions/limitations/verdict fields.
+scope:
+  in:
+    - Update the UI producer and both Engagement authored fixture sources to current assertions with explicit scope and grounds.
+    - Update only the managed Eval gateway fixture to current checker task input and result arguments.
+    - Regress authored bytes against the real domain parser and checker output against the owning Runtime validator.
+  out:
+    - Production readers, classifier/retry behavior, model choices, live configurations or reduced Eval membership/assertions.
+acceptance_criteria:
+  - id: A1
+    text: All three authored process fixture sources validate through ChecklistAssertions with preserved keys, required evidence and nonempty grounds.
+  - id: A2
+    text: Managed Eval checker fixture consumes current task keys and evidence handles and its result arguments validate through the authoritative Runtime parser.
+  - id: A3
+    text: Native and external Eval scenarios retain eight expected members and every lifecycle/result assertion; no legacy parser fallback or production model/configuration change is introduced.
+tests:
+  - command: go test -p=2 -tags=e2e -count=1 -run '^(TestManagedEvalAssertionsUseCurrentDomainContract|TestManagedEvalGatewayUsesCurrentCheckerContract|TestManagedEvalGatewayHasIndependentHistories|TestEngagementAssertionSourcesUseCurrentDomainContract)$' ./tests/ui-stack ./tests/e2e
+    covers: [A1, A2, A3]
+  - command: go test -p=2 -tags=e2e -count=1 -run '^TestManagedEvals(Native|External)Stack$' -timeout=26m ./tests/ui-stack
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+verification:
+  baseline: Native Eval finishes its eight Workflow Runs but Audit remains draft at audit-start, repeating audit_document_invalid until the official process test fails after 602.07 seconds. The retained source digest matches the exact old producer bytes; the domain parser rejects those bytes and accepts the current two-assertion source.
+  focused: Four focused tests pass. The actual Python producer source validates through auditdomain.ChecklistAssertions; both Engagement sources validate through the same owner. Managed gateway assignment order and exact evidence handles are preserved, hypothesis/exploration verdict handling is checked, and emitted arguments pass the actual Runtime v2._normalize parser.
+  static: Ruff check and format-check, Go formatting, diff-check and task validation pass. No production source, model configuration or legacy parser is changed.
+  integration: Corrected native and external real Eval process/browser scenarios are running against the assigned isolated UI database; their existing eight-member and lifecycle/result assertions remain unchanged. Integrated make lint and complete process gates are required before task completion.
