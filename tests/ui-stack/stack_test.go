@@ -125,8 +125,8 @@ func runBrowserStack(t *testing.T, evalMode string) {
 	temporaryRoot := t.TempDir()
 	timeout := 5 * time.Minute
 	if managedEvals {
-		// Each serial mode exercises 24 ordinary Workers with production
-		// heartbeat/release timing, including two children for every Audit.
+		// Each serial mode exercises eight Workflow Runs and eight Audit-owned
+		// child Runs with the current two-assertion batch and production timing.
 		timeout = 12 * time.Minute
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)

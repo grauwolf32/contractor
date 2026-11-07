@@ -28,6 +28,7 @@ scope:
     - Update the UI producer and both Engagement authored fixture sources to current assertions with explicit scope and grounds.
     - Update only the managed Eval gateway fixture to current checker task input and result arguments.
     - Regress authored bytes against the real domain parser and checker output against the owning Runtime validator.
+    - Wire the tagged regression tests into the ordinary release browser/configuration selections and keep the exact reachability guard current.
   out:
     - Production readers, classifier/retry behavior, model choices, live configurations or reduced Eval membership/assertions.
 acceptance_criteria:
@@ -48,4 +49,6 @@ verification:
   baseline: Native Eval finishes its eight Workflow Runs but Audit remains draft at audit-start, repeating audit_document_invalid until the official process test fails after 602.07 seconds. The retained source digest matches the exact old producer bytes; the domain parser rejects those bytes and accepts the current two-assertion source.
   focused: Four focused tests pass. The actual Python producer source validates through auditdomain.ChecklistAssertions; both Engagement sources validate through the same owner. Managed gateway assignment order and exact evidence handles are preserved, hypothesis/exploration verdict handling is checked, and emitted arguments pass the actual Runtime v2._normalize parser.
   static: Ruff check and format-check, Go formatting, diff-check and task validation pass. No production source, model configuration or legacy parser is changed.
+  release_selection: The two new UI owner-parser regressions are selected by browser shard A; the Engagement source regression is selected by the configuration fixture stage, with exact expected sets maintained by the release reachability guard. All 56 release-graph guard unit tests pass; the five focused Go closure/parser tests pass after the wiring and the explicit two-assertion batch regression passes.
+  batch: Current source-checklist Programs batch both assertions into one Audit-owned child Run. Remove the obsolete batchSize replacement, which never matched the current batch_size field, and preserve the two-item batch and eight expected Audit executions without changing any case assertion.
   integration: Corrected native and external real Eval process/browser scenarios are running against the assigned isolated UI database; their existing eight-member and lifecycle/result assertions remain unchanged. Integrated make lint and complete process gates are required before task completion.

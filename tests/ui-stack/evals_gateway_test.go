@@ -118,15 +118,14 @@ func stageManagedEvalConfiguration(t *testing.T, root, target string) {
 		if directory == "workflows" {
 			value = string(adaptUIStackCopyWorkflow(t, []byte(value)))
 		}
-		if directory == "audit-profiles" {
-			value = strings.Replace(value, "batchSize: 2", "batchSize: 1", 1)
-		}
 		if err = os.WriteFile(filepath.Join(target, directory, newName+".yaml"), []byte(value), 0600); err != nil {
 			t.Fatal(err)
 		}
 	}
 	for _, arm := range []string{"a", "b"} {
 		copyVariant("configs/e2e/workflows/artifact_copy.yaml", "workflows", "artifact-copy", "eval-copy-"+arm)
+		// Keep the current Program's two-assertion batch, including both exact
+		// item results in the ordinary Audit-owned child Run.
 		copyVariant("configs/audit-profiles/source_checklist.yaml", "audit-profiles", "source-checklist", "eval-audit-"+arm)
 	}
 	// The fixture uses no Skills uploaded by the Operations browser journey.
@@ -210,8 +209,12 @@ func TestUIStackConfigurationClosure(t *testing.T) {
 			if managedEvals {
 				for _, arm := range []string{"a", "b"} {
 					fixtureWorkflows = append(fixtureWorkflows, "eval-copy-"+arm+"@1")
-					if _, err := snapshot.AuditProfile("eval-audit-" + arm + "@1"); err != nil {
+					profile, err := snapshot.AuditProfile("eval-audit-" + arm + "@1")
+					if err != nil {
 						t.Fatal(err)
+					}
+					if profile.Program.Limits.BatchSize != 2 {
+						t.Fatal("managed Eval fixture must retain the current two-assertion batch")
 					}
 				}
 			}

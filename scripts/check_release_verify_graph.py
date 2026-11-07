@@ -78,6 +78,8 @@ EXPECTED_BROWSER_STACK_TESTS = {
     "TestManagedEvalsExternalStack",
     "TestBrowserReportRequiresExecutedSelection",
     "TestManagedEvalGatewayHasIndependentHistories",
+    "TestManagedEvalAssertionsUseCurrentDomainContract",
+    "TestManagedEvalGatewayUsesCurrentCheckerContract",
     "TestUIStackConfigurationClosure",
     "TestModelGatewayFindsNamedInputAfterParameterBlock",
 }
@@ -91,6 +93,7 @@ EXPECTED_CONFIG_TESTS = {
     "TestProductionMemoryConfigurationStaging",
     "TestProjectWorkerBudgetMatchesPinnedPolicy",
     "TestRuntimeWorkRootEmptyAllowsPersistentOwnerLock",
+    "TestEngagementAssertionSourcesUseCurrentDomainContract",
 }
 
 # e2e-tagged tests that need tools absent from the CI runner. Each names the
