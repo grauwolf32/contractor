@@ -6,7 +6,7 @@ epic: quality
 kind: chore
 introduced_by: V429-002
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [typescript]
 goal: The real UI process journey verifies successful Runs through their authoritative visible header state while preserving lifecycle and result checks.
@@ -20,6 +20,12 @@ context:
     that region for successful Runs; detail.tsx:247 renders the authoritative
     RunStateChip instead. The real Operations journey fails despite durable Run
     state succeeded and Stage result_accepted.
+  integration_verification: >-
+    Acceptance verified on 2026-11-08. Both success waits passed in the complete real
+    Operations journey: 108 executed cases with zero skips/unexpected/flaky cases. The
+    full Run component suite and complete ui-verify passed. Lifecycle, exact output,
+    download and secret-boundary assertions remain intact. Final release-verify-lint
+    passed.
 scope:
   in:
     - Scope both real process success assertions to the Run detail header's visible Succeeded state chip.
@@ -42,4 +48,9 @@ verification:
   baseline: The real Operations journey waited 45 seconds for the removed success region while its diagnostics reported Run succeeded, Workflow workflow_succeeded and Stage result_accepted.
   focused: All 42 Run route tests pass, including the authoritative header identity/timestamps and omitted-success-triage regression.
   static: ESLint, Prettier and the complete e2e TypeScript configuration pass; diff-check and task validation pass.
-  integration: Root will rerun the real Operations journey after combining this fixture correction with V457-012 Studio fixture alias expansion; existing lifecycle/result assertions and timeouts remain unchanged.
+  integration: >-
+    Both success waits passed in the complete real Operations journey: 108 executed
+    cases with zero skips/unexpected/flaky cases. The full Run component suite and
+    complete ui-verify passed. Lifecycle, exact output, download and secret-boundary
+    assertions remain intact. Final release-verify-lint passed.
+implementation_commit: 89d9632b7c10f0234f8becf2bb9d4f499dcfefb3
