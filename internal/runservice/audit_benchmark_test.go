@@ -34,8 +34,8 @@ func BenchmarkAuditRunCreatePinnedProgram(b *testing.B) {
 			transaction := fixture.service.auditTransaction
 			rolledBack := errors.New("benchmark creation rolled back")
 			fixture.service.auditTransaction = func(ctx context.Context, create func(AuditRunWriter, *artifacts.Service, AuditExecutionWriter) error) error {
-				return transaction(ctx, func(runs AuditRunWriter, artifacts *artifacts.Service, audits AuditExecutionWriter) error {
-					if err := create(runs, artifacts, audits); err != nil {
+				return transaction(ctx, func(runs AuditRunWriter, artifactService *artifacts.Service, audits AuditExecutionWriter) error {
+					if err := create(runs, artifactService, audits); err != nil {
 						return err
 					}
 					return rolledBack
