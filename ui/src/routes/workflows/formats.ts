@@ -1,4 +1,7 @@
+import { ENGAGEMENT_MEDIA_TYPE } from "../../api/artifacts";
+
 export const workflowFormats: Record<string, string> = {
+  [ENGAGEMENT_MEDIA_TYPE]: "Engagement",
   "application/json": "JSON",
   "application/zip": "ZIP",
   "application/vnd.contractor.agent-skill+zip": "Skill package",

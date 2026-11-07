@@ -1,0 +1,83 @@
+schema_version: "1.0"
+id: V429-039
+title: Add engagement to material choices and show saved policy previews
+milestone: ui-journey-usability
+epic: ui
+kind: feature
+priority: P2
+status: completed
+implementation_commit: 0d35661d921949c50c9c3241be1610c71c920b1e
+depends_on: [V429-038]
+languages: [typescript, css, markdown]
+goal: Users can choose Engagement in Add material and read its saved network routes, identities and optional HTTP limits without decoding JSON.
+demonstration: Open a Project's Add material choices, select Engagement, upload through the ordinary Artifact form, then open that exact material and inspect the policy in Preview or Source at desktop and phone widths.
+context:
+  authority: User 2026-11-07 explicitly requests an Engagement card in the illustrated Add material sheet and a good structured engagement preview instead of raw JSON. Earlier user decisions keep typography/themes consistent and preserve OpenDesign originals together in the common archive.
+  specification: [docs/spec/audits/audits.md#AUD-R241, docs/spec/audits/audits.md#AUD-R242, docs/spec/ui/ui.md#UI-R213, docs/spec/ui/ui.md#UI-R231]
+  design: [docs/design/ui/README.md, ui/src/ui/README.md]
+  format: api/v1alpha1/engagement.schema.json
+  boundary: The ordinary Artifact form owns upload, mutation receipts, cancellation and exact revisions. Preview reads the existing closed shared engagement schema and only presents saved fields. Server remains authoritative for canonical network grammar, identity cross-field rules, credential authorization and execution admission. Rendering never grants authority, fetches credentials or contacts targets. Reuse the preserved OpenDesign engagement composition with shared production controls rather than introducing another design system.
+scope:
+  in:
+    - Add an Engagement choice with a shared icon, suggested namespace/media type and consistent kind/format labels in Project material surfaces.
+    - Add a lazy specialized reader for application/vnd.contractor.engagement+json, with Preview/Source and unchanged exact download/error/byte-limit behavior.
+    - Show allowed routes and exclusions distinctly, methods, path prefixes and address ranges; present all anonymous/basic/bearer/cookies identity metadata and non-secret credential references.
+    - Distinguish each configured optional per-allocation HTTP limit from absent values, without inventing defaults or merging ordinary Run/Audit budgets.
+    - Bound route and nested lists, keep selection stable and support 390px/light/dark/black, malformed/unsupported/oversized input and maximum-sized collections on actual Material routes.
+    - Reuse and preserve the existing engagement OpenDesign originals, add the new review host/evidence to the common external archive and bump the UI patch release.
+  out:
+    - New policy editor or credential creation flow, modifying execution policy/egress, new APIs/storage, live checks, target calls, secret reads, demo deployment or main merge.
+    - Reimplementing authoritative policy admission/canonicalization in React or changing the existing engagement contract and domain semantics.
+failure_outcomes:
+  - operation: Add or inspect an exact engagement material
+    permanent: Existing Artifact errors remain authoritative. Malformed/unsupported or structurally invalid policy bytes show a clear preview notice with Source/download available; no policy is silently repaired or widened.
+    retryable: Existing upload/read retry owner remains unchanged; rendering introduces no requests or background retry.
+    ambiguous: Ordinary Artifact mutation receipts remain authoritative; the new choice never repeats an upload automatically.
+    cancelled: Existing upload abort and exact-reader context fences release pending work and discard late results.
+    timeout: Existing Artifact operation deadlines remain unchanged; local rendering starts no remote work.
+cardinality:
+  - collection: One saved policy and its route/identity/limit presentation
+    expected: A few allowed/excluded origins and one to four identities.
+    maximum: Existing common 1 MiB preview ceiling; the shared schema bounds 128 routes plus 128 exclusions, 128 path prefixes/address ranges per route, eight identities and five optional limit fields.
+    bound: Mount at most 50 navigation/nested-list rows per page over one loaded document, render only selected route details and keep all eight identities reachable without extra reads.
+lifecycle:
+  - entity: Local material choice, preview tabs and selected route
+    delete: Ordinary material deletion/retention and credential lifecycle remain unchanged; leaving the reader releases local state.
+    cascade: No new persisted entities, usage holds or background processes.
+    retention: Exact Source/download preserve all original bytes; design inputs/output and review evidence remain in the common external experiment archive with previous archive revisions recoverable.
+acceptance_criteria:
+  - id: A1
+    given: A Project's Add material sheet
+    when: The user selects Engagement
+    then: A recognizable labeled card opens the existing upload form with engagement namespace and exact media type, retaining cancellation, validation and write-result navigation.
+  - id: A2
+    given: An exact saved engagement material
+    when: Preview is loaded
+    then: Routes/exclusions, all identity kinds/non-secret refs and configured/absent limits are readable and truthful; Source/download retain bytes and no credential/target requests or automatic writes occur.
+  - id: A3
+    given: Maximum-size collections, long values or malformed/unsupported/oversized content
+    when: Users browse with a keyboard or at 390px in any theme
+    then: Every saved row remains reachable with bounded mounting, stable selection, no horizontal overflow and explicit invalid/unavailable states.
+  - id: A4
+    given: The completed production-component review host
+    when: Required UI gates and archive verification run
+    then: The gates pass and preserved design/evidence can be reviewed from the common archive without losing earlier original files.
+tests:
+  - command: make ui-verify
+    covers: [A1, A2, A3, A4]
+  - command: make ui-browser-mocked
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+  - command: make test-wire-cross-language
+    covers: [A2, A3, A4]
+verification:
+  results:
+    - VITEST_MAX_WORKERS=2 make ui-verify passed generated checks, lint, typecheck, 217 test files (2439 passed and one intentional expected failure), server tests and the UI 0.11.21 production build.
+    - make ui-browser-mocked passed all 206 browser tests across 32 specs, including eight engagement cases, actual Add material choices, exact revision reads, all four identity kinds, absent/configured limits, 128 allowed plus 128 excluded routes, nested 128-item lists, long origins and three themes at 1440/390px. Production route checks reported no page errors, credential reads, external requests or automatic writes.
+    - UV_OFFLINE=1 make lint passed the full repository gate. The first full check found the generated dependency page stale after the specification changes; make docs-dependencies regenerated it and the complete lint gate passed. Four declared script-test skips are not passing coverage.
+    - make test-wire-cross-language passed with an owned disposable PostgreSQL database, including 390 focused Runtime tests, 374 fixtures, 418 Go and 266 Python shared tests and 1501 selected Runtime tests. One explicitly optional disk-heavy shared test remained skipped; the owned database was dropped and absence verified.
+    - The owning Go engagementcontract.Decode accepted the synthetic fixture with two allowed routes, one exclusion and all four identity kinds. Upload unit coverage verifies the suggested typed media survives a JSON filename, raw request bytes/Content-Type and the exact returned material link.
+    - Desktop and mobile visual review confirmed the Add material card, Egress, Identities, Limits, shared fonts, 390px wrapping and collapsed mobile Browse after selection. The isolated iframe review host logged a MutationObserver error during IAB automation/reload; rendering remained functional, and the direct reader and actual-route browser checks did not reproduce it. Review screenshots and full gate logs remain in .local/engagement-preview-20261107.
+    - The common external archive now verifies 553 member hashes. All 529 previous member payloads remain unchanged, including every original native OpenDesign file and the 20 sitemap additions; 24 engagement review/source/evidence files were added. Complete previous archive revisions remain recoverable. The updated archive SHA-256 is 194aa56c01511cb53b93b4d181951579a0975e1bd553ccf98e7d21d4149d94e2.
+  delivery: Ready on codex/engagement-material-preview with the production-component review host at http://127.0.0.1:17560/test-results/engagement-preview/index.html?theme=dark&width=1440. The actual application retains ordinary Artifact uploads; this synthetic host deliberately blocks publication. No new native generation, model/credential/target access, Server/Runtime changes, main merge or demo deployment was performed.

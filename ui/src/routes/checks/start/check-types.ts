@@ -11,7 +11,10 @@ import { isWebScanProfile } from "./web-scan-contract";
  * (docs/spec/ui/journeys.md US-03).
  */
 import type { IconName } from "../../../app/icon";
-import type { ArtifactMetadata } from "../../../api/artifacts";
+import {
+  ENGAGEMENT_MEDIA_TYPE,
+  type ArtifactMetadata,
+} from "../../../api/artifacts";
 import type { AuditProfile } from "../../../api/audits";
 import { compareVersions } from "../../../app/format";
 
@@ -501,7 +504,7 @@ export function scopeSummary(profile: AuditProfile): ScopeSummary | undefined {
     };
   if (
     Object.values(profile.inputs).some((input) =>
-      input.media_types.includes("application/vnd.contractor.engagement+json"),
+      input.media_types.includes(ENGAGEMENT_MEDIA_TYPE),
     )
   )
     return {
