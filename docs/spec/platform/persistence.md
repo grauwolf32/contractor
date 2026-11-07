@@ -650,6 +650,16 @@ transition for that demo, with no runtime ledger repair or old-schema reader.
 Every other stale ledger fails the same strict drift check. This fold does not
 relax immutability for subsequent migrations.
 
+The user-authorized pre-production release fold on 2026-11-07 replaces that
+baseline and versions 000002–000016 with one baseline representing their final
+installed schema and initial rows. Current functions, constraints, indexes,
+triggers and seed values retain the same behavior; retired intermediate
+schemas and upgrade-only fixtures are removed. The migrator and startup
+verification retain the strict ledger/name/checksum checks above. No deployed
+database transition is included in this fold; crossing it with a populated
+database requires a separately authorized data-preserving operational change.
+Subsequent schema changes again use the next free migration version.
+
 **PER-R31.** The migration budget is the operation budget (PER-R19) of the
 migrator's transaction. The operator chooses it for each run, with
 `--statement-timeout` and `--lock-timeout` or with

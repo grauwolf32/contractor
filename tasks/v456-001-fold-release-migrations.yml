@@ -1,0 +1,72 @@
+schema_version: '1.0'
+id: V456-001
+title: Fold the release schema into one baseline migration
+milestone: hub-audit-defects-2026-10
+epic: persistence
+kind: chore
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go, sql, python, markdown]
+goal: >-
+  A fresh release database installs the current schema and initial data through
+  one readable baseline without replaying retired intermediate schemas.
+context:
+  authority: >-
+    User request 2026-11-07: prepare for release by collapsing all migrations
+    into one. The project is pre-production and has no backward compatibility
+    requirement. This request changes repository migrations, not deployed databases.
+  specification: docs/spec/platform/persistence.md
+  verification_prerequisite: V456-002
+  decision: >-
+    Install the unchanged sixteen-file chain on disposable PostgreSQL, extract
+    its final schema and seed rows in dependency order, and prove equivalence
+    before retiring the chain. Keep the existing migrator, checksums, transaction
+    and drift checks. Retired ledgers fail closed. Concatenation would preserve
+    obsolete schema transitions; manual redesign could change schema behavior.
+    Reopen only if a populated deployment must cross this boundary, with an
+    explicitly authorized backup and data-preserving operational transition.
+scope:
+  in:
+    - One current baseline containing all final functions, relations, indexes, constraints, triggers, sequence state and initial rows.
+    - Remove retired upgrade-only fixtures; retain current-schema and migrator protocol coverage, including byte ordering under both collations.
+    - Update the persistence specification, agent baseline note, ERD and affected checks.
+    - Record catalog and seed equivalence against the unchanged chain and verify real-store consumers.
+  out:
+    - Deployment or changes to demo or user databases, migration compatibility or automatic ledger repair.
+    - Domain behavior, schema redesign, public API or runtime changes.
+acceptance_criteria:
+  - id: A1
+    text: Exactly one baseline applies once through the production migrator, verifies and replays without applying further changes.
+  - id: A2
+    text: The chain and baseline have equivalent installed catalogs, seed rows and sequence state, excluding ledger history, physical dropped-column gaps and documented equivalent PostgreSQL deparser formatting.
+  - id: A3
+    text: Retired ledgers fail drift without changing schema or data; protocol and current-schema tests remain independent of deleted migration files.
+  - id: A4
+    text: Real PostgreSQL consumer tests, backup/restore, matrices, policy generation, wire contracts and lint pass; evidence and branch delivery status are recorded.
+tests:
+  - command: go test -tags=integration -count=1 ./internal/...
+    covers: [A1, A2, A3, A4]
+  - command: make test-backup-restore
+    covers: [A1, A4]
+  - command: go test -count=1 -run Matrix ./tests/e2e
+    covers: [A3, A4]
+  - command: python3 -m unittest discover -s scripts -p test_generate_shared_config.py
+    covers: [A3, A4]
+  - command: make shared-config-check
+    covers: [A3, A4]
+  - command: make -o runtime-venv test-wire-cross-language
+    covers: [A3, A4]
+  - command: make lint
+    covers: [A3, A4]
+
+verification:
+  - tasks/evidence/v456-001-schema-equivalence.json pins all sixteen source SQL checksums and the final baseline checksum against source commit 2fc3bb3d14c237095f968267adc599534a33dc2b.
+  - PostgreSQL 17.11 catalogs match for 60 tables, 725 columns, 611 constraints, 239 indexes, 130 triggers, 127 functions and two identity sequences with their ownership, state and all three seed rows.
+  - Comparison ignores physical dropped-column gaps and the per-database scheduler seed timestamp; one CHECK has equivalent flattened AND grouping. Scheduler timestamp and the complete ledger are separately unchanged after drift rejection.
+  - The production CLI applies one baseline and replays zero migrations; the unchanged sixteen-version ledger is refused as drift before any schema or data mutation.
+  - Retired upgrade-only tests are removed. The shared credential-order test still checks both credential sets in C and ICU en-US databases, writes valid Runs and verifies the current ledger.
+  - The metadata validator retains its existing SQL-standard source form for the shared-policy generator; its installed function definition is exactly equivalent to the dump and retired chain.
+  - Full go test -tags=integration -count=1 ./internal/... passes after V456-002 repairs existing verification fixtures. Backup/restore passes both physical payload backends, all 17 selected Matrix tests pass and all three shared-policy generator tests pass.
+  - The wire gate passes 374 shared fixtures with 418 Go and 266 Python shared tests; its separate contract-model pass has 390 Python tests. One explicitly disabled disk-heavy case remains a skip, not passing coverage.
+  - No live or demo database is modified. The branch codex/release-migration-baseline is not merged into main; merging remains the user's step.

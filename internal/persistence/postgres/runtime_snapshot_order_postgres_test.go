@@ -14,7 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func TestSharedPostgresRuntimeSnapshotCredentialOrderMigration(t *testing.T) {
+func TestSharedPostgresRuntimeSnapshotCredentialOrderAcrossCollations(t *testing.T) {
 	dsn := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
 	if dsn == "" {
 		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
@@ -34,15 +34,7 @@ func TestSharedPostgresRuntimeSnapshotCredentialOrderMigration(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
 			defer cancel()
 			pool := snapshotOrderPool(t, ctx, dsn, locale)
-			available, err := loadMigrations()
-			if err != nil {
-				t.Fatal(err)
-			}
-			const previous = 7
-			if len(available) <= previous || available[previous].name != "000008_runtime_snapshot_byte_order.sql" {
-				t.Fatal("missing byte-order migration")
-			}
-			if _, err := applyMigrations(ctx, pool, MigrationBudgets{}, available[:previous]); err != nil {
+			if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
 				t.Fatal(err)
 			}
 			if _, err := pool.Exec(ctx, `INSERT INTO workflow_runs(run_id,owner_id,workflow_name,workflow_version,workflow_schema_version,workflow_snapshot,parameters,runtime_labels,runtime_config_snapshot,scheduler_lane_class,state,state_reason_code)
@@ -66,18 +58,6 @@ VALUES ('before','owner','workflow','1','v1','{}','{}','{}',$1::jsonb,'model','i
 				}
 				return data
 			}
-			if locale == "en-US" {
-				var accepted bool
-				if err := pool.QueryRow(ctx, `SELECT contractor_valid_run_runtime_snapshot($1::jsonb, '{}'::text[])`, candidate("llmCredentialIds", []string{"a-1", "a_2"})).Scan(&accepted); err != nil {
-					t.Fatal(err)
-				}
-				if accepted {
-					t.Fatal("pre-migration validator did not expose the locale regression")
-				}
-			}
-			if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
-				t.Fatal(err)
-			}
 			for _, c := range fixture.Cases {
 				for _, list := range []string{"llmCredentialIds", "runtimeCredentialIds"} {
 					var accepted bool
@@ -98,7 +78,7 @@ VALUES ('after','owner','workflow','1','v1','{}','{}','{}',$1::jsonb,'model','in
 				t.Fatal(err)
 			}
 			if before != after {
-				t.Fatal("migration rewrote the existing snapshot")
+				t.Fatal("credential validation rewrote the existing snapshot")
 			}
 			if err := VerifyMigrations(ctx, pool); err != nil {
 				t.Fatal(err)
