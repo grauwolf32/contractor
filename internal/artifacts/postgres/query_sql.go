@@ -59,16 +59,15 @@ WHERE binding.scope_kind = $1 AND binding.scope_id = $2
   AND (($5::text IS NULL AND revision.revision = binding.current_revision)
        OR ($5::text IS NOT NULL AND revision.revision = $5))`
 
-// listMetadataSQL returns one keyset page of the current bindings of scope
-// ($1, $2) with their current revision metadata, in namespace and name order:
-// only namespace $3 when it is not NULL, without namespace $4 when it is not
-// NULL, without the namespaces starting with $5 when it is not empty, after
-// the key ($6, $7) when $6 is not empty, without the hidden namespace $9 when
-// it is not empty, at most $8 rows. Used by Repository.ListMetadata.
-var listMetadataSQL = `
-SELECT binding.namespace, binding.name, revision.revision,
-       version.media_type, blob.size_bytes, true, binding.frozen, binding.created_at, revision.created_at, scope.created_at, blob.created_at, version.created_at, binding.updated_at, ` + gitSourceProjection + `
-FROM artifact_bindings AS binding
+// metadataPageColumnsSQL is the common scanMetadata projection after the
+// binding identity. Only the current-revision flag differs for history pages.
+func metadataPageColumnsSQL(current string) string {
+	return `version.media_type, blob.size_bytes, ` + current + `, binding.frozen, binding.created_at, revision.created_at, scope.created_at, blob.created_at, version.created_at, binding.updated_at, ` + gitSourceProjection
+}
+
+// currentMetadataJoinsSQL hydrates the current revision of binding, whether
+// it comes from artifact_bindings or a bounded prefix-selection CTE.
+const currentMetadataJoinsSQL = `
 JOIN artifact_scopes AS scope ON scope.scope_kind = binding.scope_kind AND scope.scope_id = binding.scope_id
 JOIN artifact_binding_revisions AS revision
   ON revision.scope_kind = binding.scope_kind
@@ -78,6 +77,22 @@ JOIN artifact_binding_revisions AS revision
  AND revision.revision = binding.current_revision
 JOIN artifact_versions AS version ON version.version_id = revision.version_id
 JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
+`
+
+// Only projection and hydration are shared. Each listing below keeps the exact
+// predicates and argument positions that make its partial index usable.
+var currentMetadataPageSQL = `
+SELECT binding.namespace, binding.name, revision.revision,
+       ` + metadataPageColumnsSQL("true") + `
+FROM artifact_bindings AS binding` + currentMetadataJoinsSQL
+
+// listMetadataSQL returns one keyset page of the current bindings of scope
+// ($1, $2) with their current revision metadata, in namespace and name order:
+// only namespace $3 when it is not NULL, without namespace $4 when it is not
+// NULL, without the namespaces starting with $5 when it is not empty, after
+// the key ($6, $7) when $6 is not empty, without the hidden namespace $9 when
+// it is not empty, at most $8 rows. Used by Repository.ListMetadata.
+var listMetadataSQL = currentMetadataPageSQL + `
 WHERE binding.scope_kind = $1 AND binding.scope_id = $2
   AND ($3::text IS NULL OR binding.namespace = $3)
   AND ($4::text IS NULL OR binding.namespace <> $4)
@@ -98,19 +113,7 @@ LIMIT $8`
 // Audit-managed binding (ART-R115); a test pins that literal prefix to
 // artifactpolicy.AuditManagedProjectNamespacePrefix. Used by
 // Repository.ListMetadata.
-var listProjectMetadataSQL = `
-SELECT binding.namespace, binding.name, revision.revision,
-       version.media_type, blob.size_bytes, true, binding.frozen, binding.created_at, revision.created_at, scope.created_at, blob.created_at, version.created_at, binding.updated_at, ` + gitSourceProjection + `
-FROM artifact_bindings AS binding
-JOIN artifact_scopes AS scope ON scope.scope_kind = binding.scope_kind AND scope.scope_id = binding.scope_id
-JOIN artifact_binding_revisions AS revision
-  ON revision.scope_kind = binding.scope_kind
- AND revision.scope_id = binding.scope_id
- AND revision.namespace = binding.namespace
- AND revision.name = binding.name
- AND revision.revision = binding.current_revision
-JOIN artifact_versions AS version ON version.version_id = revision.version_id
-JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
+var listProjectMetadataSQL = currentMetadataPageSQL + `
 WHERE binding.scope_kind = 'project' AND binding.scope_id = $1
   AND binding.namespace NOT LIKE 'audit-%'
   AND ($2::text IS NULL OR binding.namespace = $2)
@@ -127,8 +130,7 @@ LIMIT $6`
 // page. At most $7 rows. Used by Repository.ListVersions.
 var listVersionsSQL = `
 SELECT revision.namespace, revision.name, revision.revision,
-       version.media_type, blob.size_bytes,
-       revision.revision = binding.current_revision, binding.frozen, binding.created_at, revision.created_at, scope.created_at, blob.created_at, version.created_at, binding.updated_at, ` + gitSourceProjection + `
+       ` + metadataPageColumnsSQL("revision.revision = binding.current_revision") + `
 FROM artifact_binding_revisions AS revision
 JOIN artifact_bindings AS binding
   ON binding.scope_kind = revision.scope_kind
@@ -146,19 +148,7 @@ LIMIT $7`
 
 // listUserMetadataSQL uses the library-only partial index. Server-owned bindings
 // and catalog packages do not enter the scan before LIMIT (ART-R119).
-var listUserMetadataSQL = `
-SELECT binding.namespace, binding.name, revision.revision,
-       version.media_type, blob.size_bytes, true, binding.frozen, binding.created_at, revision.created_at, scope.created_at, blob.created_at, version.created_at, binding.updated_at, ` + gitSourceProjection + `
-FROM artifact_bindings AS binding
-JOIN artifact_scopes AS scope ON scope.scope_kind = binding.scope_kind AND scope.scope_id = binding.scope_id
-JOIN artifact_binding_revisions AS revision
-  ON revision.scope_kind = binding.scope_kind
- AND revision.scope_id = binding.scope_id
- AND revision.namespace = binding.namespace
- AND revision.name = binding.name
- AND revision.revision = binding.current_revision
-JOIN artifact_versions AS version ON version.version_id = revision.version_id
-JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
+var listUserMetadataSQL = currentMetadataPageSQL + `
 WHERE binding.scope_kind = 'user' AND binding.scope_id = $1
   AND binding.namespace <> '` + artifactpolicy.AuditStandardCatalogNamespace + `'
   AND ($2::text IS NULL OR binding.namespace = $2)

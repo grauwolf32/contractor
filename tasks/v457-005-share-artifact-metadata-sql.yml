@@ -1,0 +1,46 @@
+schema_version: "1.0"
+id: V457-005
+title: "Share Artifact metadata SQL projection without generalizing indexed predicates"
+milestone: artifact-release-cleanup-2026-11
+epic: projects-artifacts
+kind: chore
+introduced_by: V370-025
+priority: P3
+status: in_progress
+depends_on: []
+languages: [go]
+goal: "Artifact metadata readers share their field and join definitions while retaining specialized indexed listing statements."
+context:
+  authority: "User request 2026-11-07 authorizes the release review fixes and simplifications on a separate branch."
+  review: "Contractor main release review 2026-11-07, DATA2."
+  specification: [docs/spec/artifacts/artifact-store.md#ART-R115]
+  finding: >-
+    internal/artifacts/postgres/query_sql.go repeats metadata fields and joins
+    across general, Project, User and historical pages. The Project/User literal
+    predicates are intentional partial-index requirements and must stay specialized.
+scope:
+  in:
+    - "Extract shared metadata column and join fragments, including prefix metadata readers where applicable."
+    - "Retain all selected fields, argument positions, ordering, limits and literal index predicates."
+  out: ["Universal parameterized OR queries, schema/index changes or claimed query speedups."]
+acceptance_criteria:
+  - id: A1
+    text: "Metadata page SQL shares its common projection and joins with unchanged result mapping and specialized predicates."
+  - id: A2
+    text: "Real-store pagination and Project/User partial-index row budgets pass without relaxing their assertions."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/artifacts/postgres"
+    covers: [A1, A2]
+  - command: "go test -count=1 ./internal/persistence ./internal/archtest"
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]
+verification: >-
+  Full artifacts/postgres, persistence ownership and archtest suites passed
+  against the owned PostgreSQL 17 database: 128 top-level tests passed and
+  the two explicitly disk-heavy Artifact fixtures skipped. Existing Project
+  and User partial-index listing/read-budget tests, prefix pagination and
+  historical metadata tests passed unchanged. The two SQL files remove 46
+  lines and add 30; no query-speed claim is made. Evidence is
+  work/data2-postgres-tests.jsonl in the coordinating workspace. Integrated
+  lint and task completion remain with the coordinating lane.
