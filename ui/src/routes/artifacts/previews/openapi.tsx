@@ -167,7 +167,9 @@ export default function OpenApiArtifactPreview({
                     setSelectedId(entry.id);
                     if (window.matchMedia("(max-width: 1100px)").matches) {
                       setNavigationOpen(false);
-                      window.document.getElementById(browseId)?.focus();
+                      window.document
+                        .getElementById(browseId)
+                        ?.focus({ preventScroll: true });
                     }
                   }}
                 >
@@ -228,7 +230,6 @@ export default function OpenApiArtifactPreview({
             </div>
           ) : null}
           <ApiReferenceReact
-            key={selected?.id ?? "document"}
             configuration={{
               content,
               agent: { disabled: true, hideAddApi: true },

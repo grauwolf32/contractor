@@ -6,7 +6,7 @@ import { isWebScanProfile } from "./web-scan-contract";
  * else the first ready check type), the form, and what still keeps the
  * check from starting.
  */
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { auditLabels } from "../../../api/audit-labels";
 import type { LabelEntry } from "../../../ui";
@@ -178,6 +178,7 @@ export interface StartCheck {
   readonly isReady: (checkType: string) => boolean;
   readonly slots: readonly InputSlot[];
   readonly chooseMaterial: (input: string, value: string) => void;
+  readonly setChecklistEditorOpen: (open: boolean) => void;
   readonly registerAuthoredMaterial: (
     input: string,
     material: ArtifactMetadata,
@@ -239,6 +240,10 @@ export function useStartCheck(
           ],
   };
 
+  const [checklistEditor, setChecklistEditor] = useState({
+    context: "",
+    open: false,
+  });
   const [objective, setObjective] = useState(initialObjective);
   const [versions, setVersions] = useState<Readonly<Record<string, string>>>(
     {},
@@ -376,6 +381,18 @@ export function useStartCheck(
           presentation: presentCheckType(selectedProfile),
         };
 
+  const editorContext = `${projectId}:${selectedProfile === undefined ? "" : versionKey(selectedProfile)}`;
+  const setChecklistEditorOpen = useCallback(
+    (open: boolean) => {
+      setChecklistEditor((current) =>
+        !open && current.context !== editorContext
+          ? current
+          : { context: editorContext, open },
+      );
+    },
+    [editorContext],
+  );
+
   const detail = useProfileDetail(selectedProfile);
   const exact =
     detail.data !== undefined &&
@@ -481,6 +498,9 @@ export function useStartCheck(
     (slot) => slot.input.required && slot.selected === undefined,
   );
   if (selection === undefined) draftBlocker = "Choose a check type.";
+  else if (checklistEditor.context === editorContext && checklistEditor.open)
+    draftBlocker =
+      "Save and attach your checklist, or close the editor to use the selected material.";
   else if (project?.lifecycle === "deleting")
     draftBlocker = "This project is being deleted.";
   else if (exact === undefined)
@@ -633,6 +653,7 @@ export function useStartCheck(
     suggestions,
     isReady,
     slots,
+    setChecklistEditorOpen,
     registerAuthoredMaterial(input, material) {
       setAuthored({
         projectId,

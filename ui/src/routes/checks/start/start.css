@@ -888,3 +888,104 @@
     font-size: 1.5rem;
   }
 }
+
+/* Common-assertion checklist: one row first, details on demand. */
+.start-checklist {
+  min-width: 0;
+  margin-top: var(--space-2);
+}
+.start-checklist-editor {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  padding: var(--space-4) 0 0;
+  margin: var(--space-3) 0 0;
+}
+.start-checklist-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.start-checklist-heading h4 {
+  margin: 0;
+  font-size: var(--text-md);
+}
+.start-checklist-heading p {
+  margin: var(--space-1) 0 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.start-checklist-count {
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+.start-checklist-items {
+  display: grid;
+  gap: var(--space-3);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.start-checklist-items > li {
+  display: grid;
+  grid-template-columns: var(--space-6) minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.start-checklist-number {
+  display: grid;
+  place-items: center;
+  width: var(--space-6);
+  height: var(--space-6);
+  margin-top: var(--space-6);
+  border-radius: var(--radius-full);
+  background: var(--surface-raised);
+  color: var(--muted-strong);
+  font-size: var(--text-xs);
+}
+.start-checklist-items textarea {
+  min-height: 4.5rem;
+}
+.start-checklist-items > li > .ui-btn {
+  margin-top: var(--space-6);
+}
+.start-checklist-editor > .ui-btn {
+  justify-self: start;
+}
+.start-checklist-options {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.start-checklist-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-3);
+}
+.start-checklist-footer > .ui-caption {
+  flex: 1 1 12rem;
+}
+.start-scope-material {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+}
+@media (max-width: 480px) {
+  .start-checklist-footer > .ui-btn {
+    width: 100%;
+  }
+}

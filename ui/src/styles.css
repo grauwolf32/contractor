@@ -415,3 +415,9 @@ code {
     flex: 1;
   }
 }
+
+@media (min-width: 821px) {
+  :root {
+    scrollbar-gutter: stable;
+  }
+}

@@ -1626,44 +1626,41 @@ the chooser folds above setup and the summary follows it. No pinned mobile actio
 area covers fields. Shared font, theme, icon, field and button primitives apply.
 Existing generic, preparation and Web scan controls, catalog/material pagination,
 read failures and keyboard navigation remain available. Ctrl/Command+Enter starts
-from setup, but not from a link or the type chooser. Standard coverage variants
-remain exact profile choices under Advanced options, not separate source Scope.
+from setup, but not from a link or the type chooser. Exact published profiles remain selectable without presenting task limits as source Scope.
 
-**UI-R228.** A `checklist@1` inventory whose audit-input source accepts JSON
-permits inline checklist authoring. The composer starts with one empty item;
-Apply validates and snapshots a local `contractor.audit.checklist.v1` document,
-without claiming persistence. Keys are stable through edits/removals; changing
-an applied statement advances that item's version. New entries use version 1,
-`always`, `static`, no required evidence and `automatic` review. Defaults are
-explained in Advanced options. Empty/dirty/invalid drafts block launch and save.
-The composer allows at most 128 entries or the lower profile item limit
-(LIM-UI-20), with existing 64 KiB UTF-8 text/8 MiB document bounds (AUD-R141)
-and the Server artifact payload limit. Larger existing checklists retain the
-ordinary material-selection path; YAML-only inputs do not get a JSON writer.
+**UI-R228.** A common program whose `seed_source.input` selects a JSON-capable
+assertion input permits inline checklist authoring using
+`contractor.audit.assertions.v1`. The composer starts with one empty check;
+Add/remove preserves each surviving item's key. A shared required rationale and
+optional conditions, evidence requirements and explicit version use the current
+assertion schema. Conditions/evidence/version are disclosed on demand. Blank
+checks, absent rationale or invalid schema prevent saving. An open checklist draft
+blocks Start/Save draft until explicitly saved and attached or closed; an older
+selected material is never silently used in place of that draft. Bounds come from the
+common assertion source schema; this is not the retired inventory checklist codec.
 
-**UI-R229.** Start/Save retains an applied checklist as an ordinary Project
-Artifact under `check-inputs`, named `checklist.<SHA-256 of exact bytes>`, through
-existing create-only Artifact CAS. This shares Web scan's retention path: an
-unsuccessful write is reused only after metadata, media type, size and downloaded
-exact bytes/digest agree. A different binding is never overwritten. Launch then
-uses the Server's exact revision through the existing preparation/context fence,
-create/start request keys and stale-revision/ambiguous-outcome handling. Retention
-failure preserves the local draft and sends no create/start. Leaving its form
-context prevents subsequent launch; an already retained material follows normal
-Project Artifact lifecycle. Retention freezes the submitted material choices so
-its new JSON binding cannot change another input's automatic selection.
+**UI-R229.** Explicit Save and attach retains the exact assertion document as an
+ordinary Project Artifact through the existing content-derived create-only CAS
+owner, then attaches the returned exact revision. An uncertain write is reconciled
+only by matching metadata and complete bytes/digest. A different binding is never
+overwritten. Failed retention preserves the editor draft; opening or editing it
+creates no material or Audit. Existing context fences stop abandoned forms from
+continuing to attach or launch. Start/Save draft keeps the ordinary Audit request
+keys and stale-revision handling. Material deletion/retention stays Project-owned.
 
-**UI-R230.** New check Scope is a descriptive projection of its inventory source,
-not authorization, an execution worklist or proof of coverage. Source archives
-have no separate file-scope control. API/checklist counts come from the selected
-exact material; referenced/invalid/unavailable content does not claim complete
-endpoint counts. API parsing reuses the Material Preview parser without fetching
-references; lists page 50 inline endpoints. Automatic reads cover at most one
-inventory source and one declared Engagement, each at most 128 KiB (LIM-UI-21),
-with exact-revision query keys, cancellation and no automatic retries/polling.
-Larger/unsupported content keeps an exact Material Preview link. Errors offer
-explicit retry without changing ordinary launch readiness. Engagement inputs
-explicitly declaring `application/vnd.contractor.engagement+json` move under
-Scope and project saved target/routes/exclusions/identities/HTTP limits through the
-canonical schema. All declared inputs remain selectable; unsupported profiles
-remain blocked and Server validation/authorization remains authoritative.
+**UI-R230.** New check Scope describes selected exact API, target or explicitly
+typed engagement inputs. Source-only checks have no separate Scope card or summary
+row. Task limits never claim endpoint counts, coverage or authorization. Until
+preparation records the worklist, the UI explains that the accepted endpoint set
+is established at start. Selected exact materials link to their ordinary reader;
+this descriptive presentation adds no automatic content reads. Known shipped
+check types use concise names and distinct shared glyphs; unknown programs keep
+a neutral label without inferred capabilities. Exact profiles remain individually
+selectable; presentation does not reconstruct retired inventory/variant semantics.
+
+**UI-R231.** Context-list and API operation selection keeps its navigation and
+outer page stable. Shared scroll containers reserve their scrollbar gutter;
+keyboard row focus avoids scrolling ancestors before revealing the row. The
+embedded API renderer updates its configuration without remounting for each
+operation. Intentional anchors, local references, mobile list/detail transitions
+and the existing keyboard focus contract remain available.

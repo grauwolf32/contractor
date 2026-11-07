@@ -475,3 +475,57 @@ test("local references to other paths keep their actual Scalar targets", async (
     }),
   ).toBeVisible();
 });
+
+for (const theme of ["light", "dark", "black"]) {
+  test(`OpenAPI selection keeps the renderer and outer scroll stable in ${theme}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.addInitScript(
+      (theme) => localStorage.setItem("contractor.theme", theme),
+      theme,
+    );
+    await install(page);
+    const file = fixtures.examples.find((file) => file.id === "openapi")!;
+    await page.goto(
+      `/projects/project_shop/artifacts/${file.namespace}/${file.name}`,
+    );
+    await page
+      .getByRole("button", { name: "Load preview", exact: true })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "List orders", exact: true }),
+    ).toBeVisible();
+    const renderer = page.locator(".openapi-artifact-preview > div").last();
+    await renderer.evaluate((el) =>
+      el.setAttribute("data-reader-continuity", "kept"),
+    );
+    const before = await page.evaluate(() => ({
+      y: scrollY,
+      x: document
+        .querySelector(".materials-api-browser")!
+        .getBoundingClientRect().x,
+      width: document
+        .querySelector(".materials-api-browser")!
+        .getBoundingClientRect().width,
+    }));
+    await page
+      .getByRole("button", { name: "POST /orders", exact: true })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "Create an order", exact: true }),
+    ).toBeVisible();
+    await expect(renderer).toHaveAttribute("data-reader-continuity", "kept");
+    expect(await page.evaluate(() => scrollY)).toBeCloseTo(before.y, 0);
+    expect(
+      (await page.locator(".materials-api-browser").boundingBox())!.x,
+    ).toBeCloseTo(before.x, 0);
+    await page
+      .getByRole("button", { name: "GET /orders", exact: true })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "List orders", exact: true }),
+    ).toBeVisible();
+    expect(await page.evaluate(() => scrollY)).toBeCloseTo(before.y, 0);
+  });
+}

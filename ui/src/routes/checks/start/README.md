@@ -24,26 +24,17 @@ dialog ([build contract](../../../../../docs/design/ui/v3b-build-contract.md)
 
 ## Check types and readiness (`check-types.ts`)
 
-- Versions of one name form a family; the preferred version is the newest
-  the Server can run. Advanced options can pick another loaded version.
-- Families that differ only in scope (same standard scheme, mode, inventory,
-  inputs and interaction rules; for example ASVS review and its pilot, WSTG
-  and its fast pass) share a row; Advanced options → Review coverage chooses between them.
-- Readiness: the Server can run it, every required input can have a current
-  material of its own whose media type matches (a maximum matching, so one
-  JSON is not counted as both an API spec and scan settings), and a check
-  type whose workflows read the `target` scope field finds a live target in
-  the project settings. Groups: Ready with your materials, Needs more
-  materials (with what is missing and links to add it), Can't run on this
-  server (with the Server's reasons). If the materials cannot be read, the
-  types are listed without readiness.
-- The list shows as soon as check types are read. A failed refresh (on
-  mount, on reconnect) or a failed "Load more check types" keeps the ones
-  read before, with the error and "Try again" above them.
-- A scope variant the Server cannot run stays selectable under Scope, so
-  choosing it shows the Server's reasons; it cannot be saved or started.
-- "See all check types" opens the Library list (`/catalog/audit-presets`).
-- Media types are all that is compared ("format matches", UUS:80-81).
+- Versions of one name form a family; the newest published version is selected.
+  Advanced options can pick another loaded version. Each published program stays
+  an exact selectable choice; the UI does not reconstruct retired inventory variants.
+- Known shipped names have concise labels and distinct shared glyphs. Unknown
+  programs keep a neutral presentation and their published input contract.
+- Readiness compares required input formats with current materials, using a maximum
+  matching so one JSON is not counted as two inputs. A format match does not
+  establish content validity. Web scan additionally requires its ordinary target.
+- Catalog/material reads remain paged. Failed refresh/continuation retains the
+  loaded choices and an explicit Retry; a partial inventory never implies a unique
+  automatic match. The Library link exposes every published check type.
 
 ## Suggestions (`suggestions.ts`)
 
@@ -115,23 +106,14 @@ follow setup, and phones use normal document flow with a collapsible type choose
 The existing list and launch owners still handle pagination, partial reads,
 compatibility, exact versions, request keys and context changes.
 
-`checklist-state.ts` owns one-empty-item local authoring, stable entry versions,
-UTF-8/document/profile bounds and Apply. Start/Save prepares an ordinary exact
-Project Artifact through `authored-material.ts`, shared with Web scan. Apply is
-local; only the Server response establishes a saved material. The content-derived
-create-only binding reconciles failed answers by metadata and bytes, without a
-new receipt mechanism. Existing `useLaunch` fences prevent an abandoned form
-from creating a check. Shared fixtures are read by UI codec and Go domain tests.
+`assertion-material-editor.tsx` starts with one empty common assertion row and
+keeps stable local keys through Add/remove. Shared rationale is required;
+conditions/evidence/version are available on demand. Explicit Save and attach
+uses `authored-material.ts` and the existing exact Project Artifact CAS path.
+Failures keep the draft; editing alone performs no write or launch.
 
-`material-scope.ts` reads at most two selected exact documents ≤128 KiB: the
-inventory source and first declared typed Engagement. Reads use the existing
-preview transport and its streaming byte bound/abort signal. API paths use the
-Material Preview parser before external-reference sanitization, so referenced
-paths cannot become false complete/zero counts. Scope is descriptive; admission,
-complete inventories and authorization remain Server-owned. Larger/invalid
-content retains explicit Preview. Source-only checks have no separate Scope;
-standard variants remain Advanced profile choices. No executable Engagement
-profile is introduced by the UI. The real-route preview fixture and layout gate
-are retained in the external archive at
-`new-check-opendesign-2026-11-02/`; see
-[archive inventory and restoration](../../../../../docs/design/ui/experiments/README.md).
+Scope is descriptive, with no extra content reads. It appears only for known API
+programs, Web scan or explicitly typed engagement inputs. Source-only checks have
+no separate Scope. Task limits are not endpoint counts. Exact selected material
+links open the existing reader; preparation establishes the accepted worklist.
+Concise known-profile labels and shared glyphs change no execution capability.

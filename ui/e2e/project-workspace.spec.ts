@@ -631,7 +631,7 @@ for (const theme of ["light", "dark", "black"] as const) {
       expect(positions.details.top).toBeGreaterThanOrEqual(
         positions.provenance.bottom,
       );
-      expect(positions.documentWidth).toBe(width);
+      expect(positions.documentWidth).toBeLessThanOrEqual(width);
       await output
         .getByRole("button", { name: "Preview", exact: true })
         .click();
@@ -672,7 +672,7 @@ for (const theme of ["light", "dark", "black"] as const) {
           .toBe(true);
         await expect
           .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
-          .toBe(resized);
+          .toBeLessThanOrEqual(resized);
       }
       await navigation
         .getByRole("link", { name: "Overview", exact: true })
@@ -682,7 +682,7 @@ for (const theme of ["light", "dark", "black"] as const) {
       ).toBeInViewport();
       await expect
         .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
-        .toBe(width);
+        .toBeLessThanOrEqual(width);
     });
   }
 }

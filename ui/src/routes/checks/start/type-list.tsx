@@ -71,7 +71,7 @@ function TypeRow({ row, projectId }: { row: RowView; projectId: string }) {
     <ListRow
       to={row.href}
       selected={row.selected}
-      glyph={<Icon name={checkTypeIcon()} size={16} />}
+      glyph={<Icon name={checkTypeIcon(row.family.preferred)} size={16} />}
       title={row.presentation.label}
       meta={
         <span className="start-row-meta">

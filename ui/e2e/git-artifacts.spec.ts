@@ -1,3 +1,4 @@
+import { mkdir } from "node:fs/promises";
 import { ARTIFACT_STORAGE_TIMESTAMPS } from "../src/test/builders";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -42,6 +43,8 @@ async function fixture(
     failImport?: boolean;
     pendingImport?: boolean;
     operations?: boolean;
+    configured?: boolean;
+    fingerprint?: string;
   } = {},
 ) {
   const writes: Array<{
@@ -49,7 +52,7 @@ async function fixture(
     headers: Record<string, string>;
     body: unknown;
   }> = [];
-  let configured = false;
+  let configured = options.configured ?? false;
   const metadata = [
     {
       canUploadNewVersion: true,
@@ -108,7 +111,7 @@ async function fixture(
           configured
             ? {
                 configured: true,
-                fingerprint: "SHA256:fixture-public",
+                fingerprint: options.fingerprint ?? "SHA256:fixture-public",
                 keyType: "ssh-ed25519",
                 updatedAt: timestamp,
               }
@@ -417,3 +420,50 @@ for (const theme of ["light", "dark", "black"]) {
     ).toBe(true);
   });
 }
+
+for (const theme of ["light", "dark", "black"])
+  for (const width of [1280, 390]) {
+    test(`saved SSH key facts remain readable at ${width}px in ${theme}`, async ({
+      page,
+    }, info) => {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.addInitScript(
+        (theme) => localStorage.setItem("contractor.theme", theme),
+        theme,
+      );
+      await fixture(page, uiOrigin(info), {
+        configured: true,
+        operations: true,
+        fingerprint: "SHA256:" + "AbCdEf0123456789".repeat(3),
+      });
+      await page.goto("/operations/settings");
+      const key = page.getByLabel("Saved key", { exact: true });
+      await expect(key.getByText("ssh-ed25519", { exact: true })).toBeVisible();
+      const cells = await key
+        .locator(":scope > div")
+        .evaluateAll((els) =>
+          els.map((el) => el.getBoundingClientRect().toJSON()),
+        );
+      expect(cells[0]!.width).toBeGreaterThanOrEqual(240);
+      expect(cells[1]!.y).toBeGreaterThanOrEqual(
+        cells[0]!.y + cells[0]!.height - 1,
+      );
+      expect(cells[2]!.width).toBeGreaterThanOrEqual(120);
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+      ).toBeLessThanOrEqual(width);
+      if (process.env.CONTRACTOR_UI_POLISH_CAPTURE_DIR) {
+        await mkdir(process.env.CONTRACTOR_UI_POLISH_CAPTURE_DIR, {
+          recursive: true,
+        });
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await page.screenshot({
+          path: join(
+            process.env.CONTRACTOR_UI_POLISH_CAPTURE_DIR,
+            `settings-${theme}-${width}.png`,
+          ),
+          fullPage: true,
+        });
+      }
+    });
+  }

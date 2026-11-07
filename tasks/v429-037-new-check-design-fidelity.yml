@@ -1,0 +1,62 @@
+schema_version: "1.0"
+id: V429-037
+title: Restore reviewed UI fidelity and stable context navigation
+milestone: ui-journey-usability
+epic: ui
+kind: defect
+introduced_by: V64-002
+priority: P2
+status: in_progress
+depends_on: []
+languages: [typescript, css, markdown]
+goal: The main demo journeys retain the reviewed design, compact real-data presentation and stable context selection on current contracts.
+context:
+  authority: >-
+    User 2026-11-07 requested comparing the major demo journeys with the preserved
+    OpenDesign references, then authorized polishing the observed differences and
+    showing a preview. The same-day follow-ups request correcting selection jumps across contexts including OpenAPI, reviewing demo details, and deploying the finished UI while the user is AFK. Preserve all original OpenDesign data and current APIs.
+  specification: [docs/spec/ui/ui.md]
+  design: [docs/design/ui/README.md, ui/src/ui/README.md]
+  finding: >-
+    ui/src/routes/checks/start/check-types.ts:138 and :430 reduce OWASP names/icons and scope to generic text after 9e803f2fc; scope.tsx:42 shows endpoint preparation for source-only checks. assertion-material-editor.tsx:107 replaces the reviewed one-empty-item composer with a large multiline form after V64-012.
+  related_origins: >-
+    V64-012 replaced assertion authoring; V429-003 introduced unbounded Project material presentation; V429-028 introduced the cramped configured-key Facts; V429-019 remounted Scalar by operation. These are presentation corrections in one UI release.
+  siblings: >-
+    Type chooser, selected type header, summary and scope must use one presentation definition. Existing exact input selection, partial pages, retries, create-only checklist material retention and context cancellation stay with their current owners.
+  boundary: >-
+    React presentation owns this correction. Existing public clients, exact Artifact
+    identities, mutation/CAS owners and common Audit assertions remain authoritative.
+    No backend, model call, legacy codec or demo business-data mutation is needed; the verified UI service is deployed independently.
+scope:
+  in:
+    - Restore concise known-profile names and distinct shared glyphs, keeping unknown profiles truthful.
+    - Remove generic source-only Scope and describe selected API/target/policy materials without invented endpoint counts or new automatic reads.
+    - Present one empty assertion row, explicit Add/remove, shared rationale and optional advanced conditions/evidence/version using the current assertion schema and retention owner.
+    - Retain stable item keys through edits/removals; preserve draft/error/busy/context fences and add actual-route/browser regression coverage.
+    - Update superseded UI requirements/README and patch release; show current components on the verified demo UI.
+    - Shorten only displayed long Project material references while preserving exact accessible identities, revisions, links and all rows; cover Timeline and pickers.
+    - Give the configured Settings SSH fingerprint a wide row with readable secondary metadata, keeping copy and existing credential owners unchanged.
+    - Keep Scalar mounted across operation changes and stabilize document, pane and API-navigation scrollbar geometry; preserve explicit anchors/mobile focus.
+    - Add real-browser long-name, configured-key and selection-continuity regressions and perform a reversible UI-only demo deployment after verification.
+  out:
+    - Backend/API changes, new live-model generation, changing original design files or demo business data.
+acceptance_criteria:
+  - id: A1
+    text: Known check types use readable labels and distinct shared icons; source-only checks have no separate Scope; any API scope describes exact selected inputs without claiming execution coverage.
+  - id: A2
+    text: Checklist authoring starts with one blank item, keeps stable keys and current required fields, saves exact common assertion material only on explicit Save, preserves failures/drafts and never starts an Audit implicitly.
+  - id: A4
+    text: Project long-name links and Timeline stay compact with exact identities; the configured Settings key uses a readable fingerprint row without altering credential behavior.
+  - id: A5
+    text: Selecting API operations keeps the renderer and outer scroll stable; context lists retain position and width across delayed details; explicit anchors and mobile navigation still work.
+  - id: A6
+    text: A verified reversible UI-only release is deployed to demo, with current Server, Runtime, models and business data retained and the actual main journeys inspected.
+  - id: A3
+    text: Actual route/browser regressions cover the correction, shared typography and 390px light/dark/black layouts; original archive hashes remain unchanged.
+tests:
+  - command: make ui-verify
+    covers: [A1, A2, A3, A4, A5, A6]
+  - command: make ui-browser-mocked
+    covers: [A1, A2, A3, A4, A5, A6]
+  - command: make lint
+    covers: [A1, A2, A3, A4, A5, A6]

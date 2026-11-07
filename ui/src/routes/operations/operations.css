@@ -1493,7 +1493,16 @@
 }
 
 .ops-glance.ops-key-facts {
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+}
+.ops-key-facts > [data-wide] {
+  grid-column: 1 / -1;
+}
+.ops-key-facts dd {
+  font-weight: 400;
+}
+.ops-key-facts .ui-id-chip {
+  max-width: 100%;
 }
 
 @media (max-width: 640px) {
