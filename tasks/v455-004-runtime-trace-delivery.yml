@@ -1,0 +1,178 @@
+schema_version: '1.0'
+id: V455-004
+title: Export Worker traces during execution and preserve bounded flush on teardown failures
+milestone: runtime-otlp-delivery
+epic: operations
+kind: defect
+introduced_by: V411-003
+priority: P1
+status: pending
+depends_on: []
+languages: [python, go, markdown]
+goal: >-
+  Completed Worker spans reach a healthy OTLP collector during execution, and
+  teardown failures cannot bypass a reserved bounded export attempt before a
+  controlled Runtime exit.
+context:
+  authority: >-
+    User decision 2026-11-07: traces must be sent despite execution/cleanup
+    failure; formulate the corrective task and land it on main. This request
+    authorizes planning and integration of this task, not implementation or a
+    new live Invoice Lab run.
+  specification:
+    - docs/spec/platform/observability.md#OBS-R52
+    - docs/spec/platform/observability.md#OBS-R67
+    - docs/spec/platform/observability.md#OBS-R73
+    - docs/spec/platform/observability.md#OBS-R87
+    - docs/spec/platform/observability.md#OBS-R89
+    - docs/spec/configuration/runtime-config.md#RCF-R99
+    - docs/spec/configuration/runtime-config.md#RCF-R102
+    - docs/spec/execution/runtime-agent.md#RTA-R58
+    - docs/spec/execution/runtime-agent.md#RTA-R116
+  severity: high
+  source_revision: 1d2d20a56
+  finding: >-
+    runtime/src/contractor_runtime/adapters/otlp_http.py:482-520 schedules only
+    size/queue-triggered sends; a sub-threshold tail has no maximum waiting age.
+    The default trigger is 8 MiB, with a 2048-span queue bound. In
+    runtime/src/contractor_runtime/allocation/service.py:615-661 HTTP cleanup
+    precedes adapter termination/flush. _close_http_or_exit at :723-733 can
+    call os._exit(70) first, losing the entire in-memory trace queue.
+    runtime/src/contractor_runtime/adapters/host.py:390-440 flushes only when
+    adapter termination is reached. This is also a specification defect:
+    OBS-R73 explicitly requires no periodic timer and must change in the fix.
+  incident: >-
+    Invoice Lab Audit audit_b54394decf54943e4526c572d4ab82d3, Run
+    run_780569669abd9ff2027fc32bd2337579, 2026-11-07 14:30:44-14:35:57
+    Europe/Moscow: worker_budget_exhausted(tool_calls), limit 200; 40 physical
+    target requests. Phoenix retained four Planner spans and no Worker/model/tool
+    spans after checking all projects, pages and the time window. Server logged
+    incomplete allocation finalization, then connection refusal to Runtime local-1
+    and eventual lease loss. A prior Runtime log records ConnectionResetError
+    from the target connection handler. No exact forced-exit branch or exit code
+    was recorded; the causal chain from that reset to process exit is unproven.
+  provenance: >-
+    git blame attributes HTTP cleanup's pre-flush force-exit path to V411-003,
+    commit 85892fd1eb8378b34b6073cdb0e984da02c5201d; V422-003 later bounded
+    its deadline. Size-only scheduling comes from untracked historical commit
+    a224c0c7211be5a02558551663d59d66c6e6fb30, not V368-020, which only pinned
+    existing defaults. V452-001's shared stop deadline must remain intact.
+  siblings: >-
+    Cover explicit finalize and abort, control-lease expiry/reconciliation,
+    Worker/tool/execution/HTTP cleanup failure and cancellation, process shutdown,
+    and repeated release. Review all AllocationService force-exit sites. Prepare
+    rollback has no active Worker trace and must not gain background exporters.
+    Server Planner export has separate ownership and currently survives this
+    incident; retain its behavior and verify shared configuration changes if any.
+  boundary: >-
+    OTLP adapter owns scheduling, bounded queue, one sender and delivery outcomes.
+    Allocation lifecycle owns rejection of new work, cleanup, deadline reservation
+    and process fencing. Worker/tool callbacks never await collector availability.
+    Reuse existing exporter/report counters; add no parallel lifecycle or receipt
+    store. Export failure must not replace worker_budget_exhausted or permit reuse
+    of a slot whose resources have not been confirmed stopped.
+  design_direction: >-
+    Replace OBS-R73 with bounded-age asynchronous export of completed spans.
+    Proposed default maximum batching delay is one second, independent of payload
+    and queue bounds; this is an agent proposal, not an existing configuration.
+    Reserve final export time within the original stop deadline before cleanup can
+    consume it, and ensure an earlier cleanup error cannot skip that attempt.
+    Do not simply move adapter close before producers stop: remaining callbacks
+    must retain safe ownership and final spans need draining. If scheduling becomes
+    configurable, pin values on the Server and update Go/Python/schema/UI/shared
+    fixtures together. A fixed documented interval is the smaller viable choice.
+  recovery_limit: >-
+    This task retains OBS-R52's bounded best-effort, memory-only contract. It does
+    not promise delivery after SIGKILL, machine loss or indefinite collector outage,
+    or recovery of the incident's already lost spans. Reopen with a separate design
+    if durable delivery is requested; no disk spool is implicitly authorized.
+scope:
+  in:
+    - Bounded-age streaming, one active sender, finite retry and accurate drop/flush accounting.
+    - Independent bounded terminal export attempts across cleanup failures without extending the stop deadline.
+    - Safe diagnostic reason and cleanup phase before controlled forced exit, without secrets or response bodies.
+    - >-
+      Reproduce peer-reset closure using the real controlled HTTP transport and
+      OwnedHandler.close_writer (runtime/src/contractor_runtime/adapters/bridge/mitmproxy/lifecycle.py:46-56).
+      If an already closed/reset socket incorrectly poisons teardown, fix that
+      classification while preserving fencing for genuinely unconfirmed ownership.
+    - Real-process OTLP/HTTP regression coverage and corresponding specification/contract updates.
+  out:
+    - Durable exporter spool, unbounded retries, mandatory collector availability or guaranteed delivery after SIGKILL.
+    - Model changes, budget increases, automatic replay of target requests and unrelated Invoice Lab workflow fixes.
+    - Changing telemetry content/redaction permissions or treating HTTP credentials and bodies as exportable content.
+acceptance_criteria:
+  - id: A1
+    text: >-
+      Given a healthy collector and a completed span below every size threshold,
+      the exporter starts sending within the documented batching-delay bound
+      while the allocation remains active, without another span or finalization.
+      Idle/disabled exporters do not create unbounded timers or tasks.
+  - id: A2
+    text: >-
+      Given queued spans and a classified Worker budget failure followed by HTTP
+      or another producer cleanup failure, a healthy collector receives completed
+      spans during execution and the terminal path attempts to drain its tail
+      before controlled exit. It records the original failure and cleanup phase;
+      exporter failure cannot mask them. Fault injection proves the emergency
+      path independently of whether the historical reset cause is reproduced.
+  - id: A3
+    text: >-
+      Finalize, abort, lease loss, cancellation, shutdown and repeated release
+      preserve one absolute stop budget and resource fencing. Collector timeout
+      cannot postpone mandatory termination; sender/timer tasks are cancelled and
+      joined before ordinary release erases queue and credentials. No telemetry
+      task or secret survives slot reuse. Rollback and disabled telemetry remain safe.
+  - id: A4
+    text: >-
+      Size-triggered and age-triggered sends, concurrent enqueue, final flush,
+      slow/unavailable collectors, overflow, partial acknowledgements and exhausted
+      retries preserve queue bounds, stable span IDs, accurate drop counters and
+      one sender. Ambiguous delivery retains existing bounded retry semantics;
+      no exactly-once claim or new unbounded queue is introduced.
+  - id: A5
+    text: >-
+      A real Runtime subprocess, local OTLP receiver and controlled HTTP target
+      demonstrate sub-threshold export and teardown failure delivery using a
+      deterministic Worker/model fixture, not a paid live model. Reproduce reset
+      closure or record why the historical cause is still unknown. The new
+      delivery regressions fail on pre-fix code. Timer ordering uses an injected
+      clock; process tests use handshakes and bounded waits, not fragile sleeps.
+  - id: A6
+    text: >-
+      OBS-R73, batching/teardown diagrams and affected limit/failure contracts
+      describe the new behavior. Content suppression for sensitive HTTP tools
+      and secret canaries still passes. Any added setting agrees across Server,
+      Runtime, public/private schemas, generated clients, UI and shared fixtures.
+tests:
+  - command: >-
+      cd runtime && uv run pytest -W error tests/test_otlp_adapter.py
+      tests/test_otlp_streaming.py tests/test_otlp_retries.py tests/test_allocation.py
+      tests/test_allocation_stop.py tests/test_lease_watchdog.py tests/test_cli_shutdown.py
+      tests/test_bridge_lifecycle.py tests/test_http_toolset_lifecycle.py
+      tests/test_telemetry_content.py tests/test_runtime_trace_delivery_process.py
+    covers: [A1, A2, A3, A4, A5, A6]
+  - command: make test-runtime
+    covers: [A1, A2, A3, A4, A5, A6]
+  - command: go test -count=1 ./internal/contracts/runtimesettings ./internal/runtimeconfig ./internal/scheduler ./internal/telemetry
+    covers: [A4, A6]
+  - command: make test-wire-cross-language verify-public-api
+    covers: [A6]
+  - command: make lint
+    covers: [A1, A2, A3, A4, A5, A6]
+failure_outcomes:
+  success: Collector acknowledgement removes only the sent prefix; later spans remain queued.
+  permanent: Terminal export rejection is counted without changing the execution failure or retrying forever.
+  retryable: Existing finite attempts/backoff apply within the batch and remaining terminal budgets.
+  ambiguous: Preserve span IDs and existing bounded retries after lost acknowledgements; duplicates remain possible.
+  cancelled: Join owned export work within the original stop budget; retain the original cancellation and fence rules.
+  timeout: Account for undelivered spans where possible and record a safe exit reason; never extend mandatory stop.
+cardinality: >-
+  One allocation-local bounded queue, at most one sender and one bounded scheduling
+  timer per enabled Worker exporter. In-flight data remains charged to the existing
+  byte/span limits; no per-span tasks, persistent payload store or growing retry registry.
+verification_notes: >-
+  tests/test_runtime_trace_delivery_process.py is a required new regression module,
+  not an existing passing test. This pending task records no implementation or
+  acceptance pass. Register the process selection in the existing mandatory gate;
+  zero selected tests or skipped required scenarios do not count as verification.
