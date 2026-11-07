@@ -5,6 +5,7 @@ package uistack
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os/exec"
 	"path/filepath"
 	"reflect"
@@ -59,21 +60,81 @@ func testManagedEvalProducerTaskEvidence(t *testing.T) {
 		t.Fatalf("producer exact Task evidence regression: %v\n%s", err, output)
 	}
 	var fixture struct {
-		Result       json.RawMessage `json:"result"`
-		Context      json.RawMessage `json:"context"`
-		Document     json.RawMessage `json:"document"`
-		Rejections   int             `json:"rejections"`
-		Dataset      json.RawMessage `json:"dataset"`
-		Registration json.RawMessage `json:"registration"`
+		Result             json.RawMessage   `json:"result"`
+		Context            json.RawMessage   `json:"context"`
+		Document           json.RawMessage   `json:"document"`
+		Rejections         int               `json:"rejections"`
+		Dataset            json.RawMessage   `json:"dataset"`
+		Registration       json.RawMessage   `json:"registration"`
+		Wrapper            json.RawMessage   `json:"wrapper"`
+		RetainedContext    json.RawMessage   `json:"retainedContext"`
+		InvalidConclusions []json.RawMessage `json:"invalidConclusions"`
+		InvalidWrappers    []json.RawMessage `json:"invalidWrappers"`
+		Tasks              []struct {
+			Document   json.RawMessage        `json:"document"`
+			Hypothesis json.RawMessage        `json:"hypothesis_snapshot"`
+			Result     auditcontract.Material `json:"result"`
+		} `json:"tasks"`
 	}
 	if err := json.Unmarshal(output, &fixture); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := auditcontract.Decode(fixture.Context, nil); err != nil {
+	decodeContext := func(data []byte) ([]byte, error) {
+		var header struct {
+			Schema string `json:"schema"`
+		}
+		if err := json.Unmarshal(data, &header); err != nil || header.Schema != "contractor.audit.context.v1" {
+			return nil, fmt.Errorf("expected exact trusted context kind, got %q", header.Schema)
+		}
+		return auditcontract.Decode(data, nil)
+	}
+	decodeConclusions := func(data, context []byte) ([]byte, error) {
+		if err := auditcontract.ValidateResultShape("contractor.audit.conclusions.v1", data); err != nil {
+			return nil, err
+		}
+		return auditcontract.Decode(data, context)
+	}
+	decodeWrapper := func(data, context []byte) ([]byte, error) {
+		if err := auditcontract.ValidateResultShape("contractor.audit.result.v1", data); err != nil {
+			return nil, err
+		}
+		return auditcontract.Decode(data, context)
+	}
+	if _, err := decodeContext(fixture.Context); err != nil {
 		t.Fatalf("invalid trusted Task context: %v", err)
 	}
-	if _, err := auditcontract.Decode(fixture.Document, fixture.Context); err != nil {
-		t.Fatalf("Task evidence differs from owning result/context contract: %v", err)
+	if _, err := decodeConclusions(fixture.Document, fixture.Context); err != nil {
+		t.Fatalf("raw checking conclusions differ from trusted Run context: %v", err)
+	}
+	if _, err := decodeContext(fixture.RetainedContext); err != nil {
+		t.Fatalf("invalid retained Task context: %v", err)
+	}
+	if _, err := decodeWrapper(fixture.Wrapper, fixture.RetainedContext); err != nil {
+		t.Fatalf("accepted Task wrapper differs from retained evidence context: %v", err)
+	}
+	for index, invalid := range fixture.InvalidConclusions {
+		if _, err := decodeConclusions(invalid, fixture.Context); err == nil {
+			t.Errorf("raw conclusions owner accepted invalid boundary case %d", index)
+		}
+	}
+	for index, invalid := range fixture.InvalidWrappers {
+		if _, err := decodeWrapper(invalid, fixture.RetainedContext); err == nil {
+			t.Errorf("accepted wrapper owner accepted invalid provenance case %d", index)
+		}
+	}
+	if len(fixture.Tasks) != 2 || len(fixture.InvalidConclusions) != 4 || len(fixture.InvalidWrappers) != 5 {
+		t.Fatal("missing an exact Task or owner-decoder negative control")
+	}
+	for _, task := range fixture.Tasks {
+		if _, err := auditcontract.DecodeTask(task.Document); err != nil {
+			t.Fatalf("current accepted Task document rejected: %v", err)
+		}
+		if _, err := auditcontract.DecodeHypothesis(task.Hypothesis); err != nil {
+			t.Fatalf("current Task hypothesis snapshot rejected: %v", err)
+		}
+		if err := task.Result.Validate(); err != nil {
+			t.Fatalf("current exact Task result descriptor rejected: %v", err)
+		}
 	}
 	if _, err := evaldomain.Freeze("ResultInput", fixture.Result); err != nil {
 		t.Fatalf("producer emitted invalid current Eval result: %v", err)
@@ -84,7 +145,7 @@ func testManagedEvalProducerTaskEvidence(t *testing.T) {
 	if _, err := evaldomain.Freeze("ExternalRegistration", fixture.Registration); err != nil {
 		t.Fatalf("current external Audit manifest/recipe/mapping contract rejected: %v", err)
 	}
-	if fixture.Rejections != 11 {
+	if fixture.Rejections != 24 {
 		t.Fatalf("producer skipped an invalid-evidence control: %d", fixture.Rejections)
 	}
 }

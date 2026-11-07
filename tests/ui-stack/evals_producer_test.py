@@ -5,6 +5,7 @@ import json
 import runpy
 import sys
 import tempfile
+import urllib.parse
 from pathlib import Path
 from unittest.mock import patch
 
@@ -18,7 +19,7 @@ def check(producer, root):
     context["workflow_ref"] = "audit-source-check@1"
     source_items = fixture["audit_assertion_source"]()["items"]
     template = context["items"][0]
-    outcomes = []
+    outcomes, accepted, tasks = [], [], {}
     context["items"] = []
     for index, source in enumerate(source_items):
         item = copy.deepcopy(template)
@@ -36,20 +37,65 @@ def check(producer, root):
             "required_evidence": encoded(source["required_evidence"]).decode(),
         }
         item["evidence"][0].update(scope_kind="run", scope_id="run-1")
+        item["evidence"][0]["ref"].update(namespace="inputs", name="source")
         context["items"].append(item)
-        outcome = copy.deepcopy(example["expected"]["items"][0])
+        outcome = copy.deepcopy(json.loads(example["document"])["items"][0])
         outcome.update(
             item_key=item["item_key"],
             evidence=item["evidence"],
-            origin={
-                "audit_id": "audit-1",
-                "run_id": "run-1",
-                "task_id": item["task_id"],
-                "hypothesis": {"id": hypothesis["id"], "revision": 1},
-            },
+        )
+        retained = copy.deepcopy(item["evidence"][0])
+        retained.update(scope_kind="audit", scope_id="audit-1")
+        retained["ref"].update(namespace="audit-inputs", revision="audit-source-1")
+        accepted.append(
+            {
+                **outcome,
+                "evidence": [retained],
+                "origin": {
+                    "audit_id": "audit-1",
+                    "run_id": "run-1",
+                    "task_id": item["task_id"],
+                    "hypothesis": {"id": hypothesis["id"], "revision": 1},
+                },
+            }
         )
         outcomes.append(outcome)
-    document = {"schema": "contractor.audit.result.v1", "items": outcomes}
+        tasks[item["task_id"]] = {
+            "document": {
+                "schema": "contractor.audit.task.v1",
+                "audit_id": "audit-1",
+                "task_id": item["task_id"],
+                "workflow": "check",
+                "objective": item["objective"],
+                "parameters": {},
+                "inputs": {"source": retained},
+                "hypothesis": {"id": hypothesis["id"], "revision": 1},
+            },
+            "hypothesis_snapshot": hypothesis,
+            "state": "settled",
+            "iteration": 1,
+            "attempts": 1,
+            "last_execution_id": "execution-1",
+        }
+    document = {"schema": "contractor.audit.conclusions.v1", "items": outcomes}
+    wrapper = {"schema": "contractor.audit.result.v1", "items": accepted}
+    wrapper_raw = encoded(wrapper)
+    retained_context = copy.deepcopy(context)
+    for item in retained_context["items"]:
+        item["evidence"] = list(tasks[item["task_id"]]["document"]["inputs"].values())
+    for task in tasks.values():
+        task["result"] = {
+            "scope_kind": "audit",
+            "scope_id": "audit-1",
+            "ref": {
+                "namespace": "audit-results",
+                "name": "result",
+                "revision": "task-result-1",
+            },
+            "digest": fixture["digest"](wrapper_raw),
+            "media_type": "application/json",
+            "size_bytes": len(wrapper_raw),
+        }
     # Preserve noncanonical whitespace in the actual bytes and their digest.
     raw = json.dumps(document, indent=2).encode() + b"\n"
     result_ref = {"namespace": "outputs", "name": "result", "revision": "result-1"}
@@ -58,6 +104,14 @@ def check(producer, root):
         "/v1/runs/run-1/artifacts/inputs/context?revision=context-1": encoded(context),
         "/v1/runs/run-1/artifacts/outputs/result?revision=result-1": raw,
     }
+
+    def wrapper_path(task_id, revision="task-result-1"):
+        return "/v1/audits/audit-1/artifacts?" + urllib.parse.urlencode(
+            {"key": f"task/{task_id}/result", "revision": revision}
+        )
+
+    for task_id in tasks:
+        paths[wrapper_path(task_id)] = wrapper_raw
     inventory = [
         {
             "execution": {"kind": "audit", "id": "audit-1"},
@@ -70,6 +124,7 @@ def check(producer, root):
             "parent": {"kind": "audit", "id": "audit-1"},
             "workflow": "check",
             "iteration": 1,
+            "intentId": "execution-1",
             "state": "succeeded",
             "available": True,
         },
@@ -92,16 +147,23 @@ def check(producer, root):
             self.reads = []
             self.report = {"status": "unavailable"}
             self.paths = paths.copy()
+            self.tasks = copy.deepcopy(tasks)
+            self.run = {
+                "inputs": {
+                    "context": context_ref,
+                    "source": copy.deepcopy(context["items"][0]["evidence"][0]["ref"]),
+                },
+                "outputs": {"result": result_ref},
+            }
 
         def get(self, path):
             self.reads.append(path)
+            if path.startswith("/v1/audits/audit-1/tasks/"):
+                return self.tasks[path.rsplit("/", 1)[1]]
             return {
                 "/v1/audits/audit-1": {"projectId": "eval-project"},
                 "/v1/audits/audit-1/report": self.report,
-                "/v1/runs/run-1": {
-                    "inputs": {"context": context_ref},
-                    "outputs": {"result": result_ref},
-                },
+                "/v1/runs/run-1": self.run,
             }[path]
 
         def get_bytes(self, path):
@@ -122,7 +184,7 @@ def check(producer, root):
         "sizeBytes": len(raw),
     }
     assert result["usage"] == row["usage"]
-    assert len(api.reads) == 4 and set(paths) <= set(api.reads)
+    assert len(api.reads) == 8 and set(paths) <= set(api.reads)
 
     class Response:
         def __init__(self):
@@ -188,14 +250,29 @@ def check(producer, root):
         "extra-inventory",
         "pending-report",
         "unexpected-ready",
+        "raw-result-wrapper",
+        "forged-raw-origin",
+        "missing-wrapper-item",
+        "wrapper-conclusions",
+        "wrapper-hypothesis",
+        "wrapper-source",
+        "wrapper-hash",
+        "wrapper-size",
+        "wrapper-revision",
+        "task-hypothesis",
+        "task-original-source",
+        "task-execution",
+        "raw-input-binding",
     ):
         broken = API()
         broken_inventory = copy.deepcopy(inventory)
         value = copy.deepcopy(document)
+        saved = copy.deepcopy(wrapper)
+        first_task = broken.tasks["task-0"]
         if change == "missing-item":
             value["items"].pop()
         elif change == "foreign-origin":
-            value["items"][0]["origin"]["run_id"] = "foreign-run"
+            saved["items"][0]["origin"]["run_id"] = "foreign-run"
         elif change == "wrong-key":
             value["items"][0]["item_key"] = "invented"
         elif change == "wrong-verdict":
@@ -216,6 +293,37 @@ def check(producer, root):
             broken.report = {"status": "pending"}
         elif change == "unexpected-ready":
             broken.report = {"status": "ready", "machineArtifact": {}}
+        elif change == "raw-result-wrapper":
+            value = copy.deepcopy(wrapper)
+        elif change == "forged-raw-origin":
+            value["items"][0]["origin"] = copy.deepcopy(wrapper["items"][0]["origin"])
+        elif change == "missing-wrapper-item":
+            saved["items"].pop()
+        elif change == "wrapper-conclusions":
+            saved = copy.deepcopy(document)
+        elif change == "wrapper-hypothesis":
+            saved["items"][0]["origin"]["hypothesis"]["revision"] = 2
+        elif change == "wrapper-source":
+            saved["items"][0]["evidence"][0]["ref"]["revision"] = "foreign-source"
+        elif change == "task-hypothesis":
+            first_task["document"]["hypothesis"]["revision"] = 2
+        elif change == "task-original-source":
+            first_task["document"]["inputs"]["source"]["digest"] = "sha256:" + "b" * 64
+        elif change == "task-execution":
+            first_task["last_execution_id"] = "foreign-execution"
+        elif change == "raw-input-binding":
+            broken.run["inputs"]["source"]["revision"] = "foreign-revision"
+        saved_bytes = encoded(saved)
+        broken.paths[wrapper_path("task-0")] = saved_bytes
+        first_task["result"].update(
+            digest=fixture["digest"](saved_bytes), size_bytes=len(saved_bytes)
+        )
+        if change == "wrapper-hash":
+            first_task["result"]["digest"] = "sha256:" + "b" * 64
+        elif change == "wrapper-size":
+            first_task["result"]["size_bytes"] += 1
+        elif change == "wrapper-revision":
+            first_task["result"]["ref"]["revision"] = "obsolete-revision"
         broken.paths[list(paths)[1]] = encoded(value)
         try:
             fixture["result_document"](broken, experiment, row, broken_inventory)
@@ -223,7 +331,44 @@ def check(producer, root):
             rejected += 1
         else:
             raise AssertionError(("producer accepted invalid evidence", change))
-    assert rejected == 11
+    assert rejected == 24
+    invalid_conclusions = []
+    for kind in (
+        "old-result-wrapper",
+        "forged-origin",
+        "wrong-key",
+        "foreign-evidence",
+    ):
+        invalid = copy.deepcopy(document)
+        if kind == "old-result-wrapper":
+            invalid = copy.deepcopy(wrapper)
+        elif kind == "forged-origin":
+            invalid["items"][0]["origin"] = copy.deepcopy(wrapper["items"][0]["origin"])
+        elif kind == "wrong-key":
+            invalid["items"][0]["item_key"] = "invented"
+        else:
+            invalid["items"][0]["evidence"][0]["scope_id"] = "foreign-run"
+        invalid_conclusions.append(invalid)
+    invalid_wrappers = []
+    for kind in (
+        "raw-conclusions",
+        "wrong-origin",
+        "wrong-hypothesis",
+        "foreign-source",
+        "missing-item",
+    ):
+        invalid = copy.deepcopy(wrapper)
+        if kind == "raw-conclusions":
+            invalid = copy.deepcopy(document)
+        elif kind == "wrong-origin":
+            invalid["items"][0]["origin"]["task_id"] = "foreign-task"
+        elif kind == "wrong-hypothesis":
+            invalid["items"][0]["origin"]["hypothesis"]["revision"] = 2
+        elif kind == "foreign-source":
+            invalid["items"][0]["evidence"][0]["ref"]["revision"] = "foreign-source"
+        else:
+            invalid["items"].pop()
+        invalid_wrappers.append(invalid)
     return {
         "result": result,
         "context": context,
@@ -231,6 +376,11 @@ def check(producer, root):
         "rejections": rejected,
         "dataset": audit,
         "registration": registration,
+        "wrapper": wrapper,
+        "retainedContext": retained_context,
+        "tasks": list(tasks.values()),
+        "invalidConclusions": invalid_conclusions,
+        "invalidWrappers": invalid_wrappers,
     }
 
 

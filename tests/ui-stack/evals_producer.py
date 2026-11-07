@@ -342,7 +342,8 @@ def register(client, project, kind, cases):
 
 def audit_task_evidence(client, parent, inventory):
     # Two authored assertions are checked in one ordinary Run. An aggregate
-    # report is optional; the retained Task result is the evidence we assess.
+    # report is optional. Correlate raw Run conclusions with both accepted
+    # Task wrappers before using their original bytes as Eval evidence.
     assert len(inventory) == 2, inventory
     owner, child = inventory
     assert owner["execution"] == parent and owner["parent"] is None, owner
@@ -365,15 +366,21 @@ def audit_task_evidence(client, parent, inventory):
     assert (context["audit_id"], context["run_id"]) == (audit_id, run_id), context
     assert context["workflow_ref"] == "audit-source-check@1", context
     raw = read(run["outputs"]["result"])
-    result = json.loads(raw)
-    assert result["schema"] == "contractor.audit.result.v1", result
+    conclusions = json.loads(raw)
+    assert conclusions["schema"] == "contractor.audit.conclusions.v1", conclusions
     expected = {item["statement"]: item for item in audit_assertion_source()["items"]}
-    assert len(context["items"]) == len(result["items"]) == len(expected) == 2
+    assert len(context["items"]) == len(conclusions["items"]) == len(expected) == 2
     assert [item["item_key"] for item in context["items"]] == ["item-00", "item-01"]
+    outcomes = {item["item_key"]: item for item in conclusions["items"]}
+    assert set(outcomes) == {item["item_key"] for item in context["items"]}
     statements = set()
-    for index, item in enumerate(context["items"]):
-        outcome = result["items"][index]
+    tasks, normalized = {}, {}
+    for item in context["items"]:
+        outcome = outcomes[item["item_key"]]
         hypothesis = item["hypothesis"]
+        assert hypothesis["schema"] == "contractor.audit.hypothesis.v1", hypothesis
+        assert hypothesis["revision"] == 1, hypothesis
+        assert hypothesis["origin"]["audit_id"] == audit_id, hypothesis
         source = expected[hypothesis["statement"]]
         statements.add(hypothesis["statement"])
         assert hypothesis["grounds"] == source["grounds"], hypothesis
@@ -384,18 +391,76 @@ def audit_task_evidence(client, parent, inventory):
             "allowed_methods": encoded(source["allowed_methods"]).decode(),
             "required_evidence": encoded(source["required_evidence"]).decode(),
         }, hypothesis
-        assert outcome["item_key"] == item["item_key"], outcome
-        assert outcome["origin"] == {
+        # A checking Run authors conclusions, never trusted origin. The public
+        # Task owner exposes the accepted document and its normalized wrapper.
+        assert "origin" not in outcome, outcome
+        task = client.get(f"/v1/audits/{audit_id}/tasks/{item['task_id']}")
+        document = task["document"]
+        assert document["schema"] == "contractor.audit.task.v1", document
+        assert (document["audit_id"], document["task_id"]) == (
+            audit_id,
+            item["task_id"],
+        ), document
+        assert document["workflow"] == "check", document
+        assert document["objective"] == item["objective"], document
+        pin = {"id": hypothesis["id"], "revision": hypothesis["revision"]}
+        assert document["hypothesis"] == pin, document
+        assert task["hypothesis_snapshot"] == hypothesis, task
+        assert task["state"] == "settled" and task["iteration"] == 1, task
+        assert task["attempts"] == 1 and not task.get("gap_code"), task
+        assert task["last_execution_id"] == child["intentId"], task
+        tasks[item["task_id"]] = task
+        origin = {
             "audit_id": audit_id,
             "run_id": run_id,
             "task_id": item["task_id"],
-            "hypothesis": {"id": hypothesis["id"], "revision": hypothesis["revision"]},
-        }, outcome
+            "hypothesis": pin,
+        }
         assert outcome["verdict"] == "supported", outcome
         assert outcome["rationale"] and outcome["tested_conditions"], outcome
         assert outcome["evidence"] == item["evidence"] and outcome["evidence"], outcome
         assert outcome["limitations"] == [], outcome
+        retained = []
+        for material in outcome["evidence"]:
+            assert (material["scope_kind"], material["scope_id"]) == (
+                "run",
+                run_id,
+            ), material
+            assert material["ref"]["namespace"] == "inputs", material
+            assert material["ref"] == run["inputs"][material["ref"]["name"]], material
+            original = document["inputs"][material["ref"]["name"]]
+            assert (original["scope_kind"], original["scope_id"]) == (
+                "audit",
+                audit_id,
+            ), original
+            for field in ("digest", "media_type", "size_bytes"):
+                assert material[field] == original[field], (material, original)
+            if original not in retained:
+                retained.append(original)
+        normalized[item["item_key"]] = {
+            **outcome,
+            "origin": origin,
+            "evidence": retained,
+        }
     assert statements == set(expected), statements
+    for task_id, task in tasks.items():
+        material = task["result"]
+        assert (material["scope_kind"], material["scope_id"]) == (
+            "audit",
+            audit_id,
+        ), material
+        assert material["media_type"] == "application/json", material
+        query = urllib.parse.urlencode(
+            {"key": f"task/{task_id}/result", "revision": material["ref"]["revision"]}
+        )
+        saved = client.get_bytes(f"/v1/audits/{audit_id}/artifacts?" + query)
+        assert digest(saved) == material["digest"], material
+        assert len(saved) == material["size_bytes"], material
+        wrapper = json.loads(saved)
+        assert wrapper["schema"] == "contractor.audit.result.v1", wrapper
+        assert len(wrapper["items"]) == len(normalized) == 2, wrapper
+        accepted = {item["item_key"]: item for item in wrapper["items"]}
+        assert accepted == normalized, (accepted, normalized)
     return {
         "scope": "run",
         "scopeId": run_id,

@@ -39,6 +39,20 @@ context:
     aggregate output still requires a complete authoritative inventory and
     current usage. Validate both Task items against their retained context and
     explicit ReportUnavailable. No unused report-readiness helper is added.
+  conclusion_boundary_correction: >-
+    The first follow-up incorrectly modeled the raw checking Run output as an
+    accepted result wrapper. The real External retry establishes that current
+    Run outputs contain contractor.audit.conclusions.v1 without trusted origin.
+    Audit import owns normalization, adds origins and translates Run-local
+    evidence to the original accepted Task inputs. Preserve that boundary:
+    validate the raw conclusions and frozen context through the current owning
+    codec's strict kind/shape plus context-aware Decode; separately read both
+    exact public Task.result links and validate the accepted result wrappers,
+    provenance, hypothesis revisions and translated evidence. The actual owner
+    API is auditcontract.Decode/ValidateResultShape; there are no separately
+    exported DecodeContext or DecodeConclusions helpers. Add no production API,
+    permissive wrapper acceptance or fabricated origin. Keep raw owned Run bytes
+    as Eval evidence only after correlation with both accepted Task wrappers.
 scope:
   in:
     - Update the UI producer and both Engagement authored fixture sources to current assertions with explicit scope and grounds.
@@ -62,6 +76,8 @@ tests:
     covers: [A1, A2, A3, A4]
   - command: go test -p=2 -tags=e2e -count=1 -run '^TestManagedEvals(Native|External)Stack$' -timeout=26m ./tests/ui-stack
     covers: [A1, A2, A3, A4]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=integration -count=1 -run '^TestPostgresCommonHypothesisChecksRetainPerItemRevisions$' ./internal/auditcontroller"
+    covers: [A4]
   - command: make lint
     covers: [A1, A2, A3, A4]
 verification:
@@ -92,3 +108,25 @@ verification:
     at the observed machineArtifact KeyError. Native and External must both be
     rerun on the integrated source because their shared Audit dataset now states
     its current no-aggregate output contract; task remains in progress.
+  conclusions_and_accepted_wrapper: >-
+    The next combined real journey passed Native (347.44 s), then External
+    failed in the producer (174.71 s) because that follow-up incorrectly
+    expected raw Run result.v1 instead of actual conclusions.v1. This was a
+    fixture mistake, not a product defect. The raw artifact has both supported
+    item-00/item-01 conclusions and no trusted origin. The correction keeps
+    those exact original bytes as evidence only after reading both public
+    Task documents and exact accepted Task.result links. It verifies settled
+    attempt/execution identity, each immutable hypothesis pin and source,
+    wrapper byte hash/size/revision, both trusted origins, and the importer's
+    evidence translation to the original Task.document.inputs. No origins are
+    written into raw conclusions. Twenty-four producer negative controls and
+    nine strict owner-codec negative controls cover both schema directions,
+    origin/hypothesis/source binding and retained metadata; native Case and
+    external exact recipe validators still pass. The existing real PostgreSQL
+    TestPostgresCommonHypothesisChecksRetainPerItemRevisions passes with the
+    integration tag and exercises genuine two-item raw conclusions, importer
+    normalization and each Task's exact retained artifact reader. The old
+    producer bytes fail the new probe at the same raw-schema assertion.
+    Focused release-selected Go tests and Ruff lint/format pass. No duplicate
+    full External stack was launched; the coordinating lane's final whole
+    UI-stack retry and integrated lint remain required.
