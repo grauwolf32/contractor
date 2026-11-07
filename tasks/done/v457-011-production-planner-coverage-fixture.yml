@@ -6,7 +6,7 @@ epic: quality
 kind: chore
 introduced_by: V411-011
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: The release configuration fixture checks every shipped Planner compaction pin and its exact current coverage without a stale catalog count.
@@ -27,6 +27,12 @@ context:
     Keep the per-stage direct and summarized target checks, exact coverage
     equality, expanded-YAML equivalence and Planner example validation. The
     production catalog is unchanged by this task or the release-polish branch.
+  integration_verification: >-
+    Acceptance verified on 2026-11-08. The final release-verify-unit command passed,
+    including the complete eleven-case configuration fixture selection.
+    ProductionMemoryConfigurationStaging retains exactly eight direct stages and
+    twenty-one continuations, per-stage pins and expanded YAML equivalence. Both
+    deliberate wrong-pin controls fail as expected. Final release-verify-lint passed.
 scope:
   in:
     - Update the fixture's exact continuation coverage and explain the added consumer.
@@ -48,4 +54,4 @@ tests:
     covers: [A1, A3]
   - command: make lint
     covers: [A1, A2, A3]
-implementation_commit: null
+implementation_commit: fdae82d373f986026df3a90a984bf325894b49b9

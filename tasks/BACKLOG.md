@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-78 open tasks: 20 in progress, 45 pending, 13 deferred. 1500 finished: 1482 completed, 18 archived.
+77 open tasks: 19 in progress, 45 pending, 13 deferred. 1501 finished: 1483 completed, 18 archived.
 
 ## In progress
 
@@ -20,7 +20,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Accept merged isolated Worker context compaction |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V457-011](v457-011-production-planner-coverage-fixture.yml) | quality | chore | P1 | Align the production Planner fixture with the shipped findings review |
 | [V457-012](v457-012-studio-catalog-alias-fixture.yml) | quality | chore | P1 | Expand trusted catalog aliases in Studio conformance fixtures |
 | [V457-013](v457-013-ui-stack-success-status-assertion.yml) | quality | chore | P2 | Assert successful Runs through their visible header status in the real UI journey |
 | [V457-014](v457-014-current-audit-process-fixtures.yml) | quality | defect | P1 | Author current Audit assertions and checker results in process fixtures |
@@ -183,4 +182,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 47 | 9 | 22 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 42 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 50 | 18 |
-| Quality, CI and process (`quality`) | 20 | 1 | 33 | 140 | 30 |
+| Quality, CI and process (`quality`) | 19 | 1 | 33 | 140 | 30 |
