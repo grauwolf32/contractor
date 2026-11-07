@@ -4,7 +4,7 @@
   "date": "2026-11-07",
   "status": "passed",
   "baseline_revision": "b1b22111f4cdf428043eb2306005780b7aa7e353",
-  "tested_source": "Baseline plus the exact changed-source hashes below; closure records the implementation revision.",
+  "tested_source": "Verified revision contains the tested production and regression sources; following closure edits only record acceptance metadata.",
   "historical_implementation": "003f6e04444ea42630e70c07e5d886fa9d26f2a4",
   "planner_policy_migration": "851a547b529eb8740431f5377268346d70d8164a",
   "adk_auxiliary_agent": "3bee7d16ed6efa08ac6f804aba26dd8da556c1b8",
@@ -527,5 +527,6 @@
     "The integration/streamline gate uses actual ADK, Gateway HTTP and PostgreSQL with a fake WorkerInvoker.",
     "No claim of a real Server/Runtime process compaction gate; V420-005 owns that release acceptance.",
     "No live models, demo deployment, pending dependent task implementation or disk-heavy opt-in."
-  ]
+  ],
+  "verified_revision": "446794521d1969dbb67d082e9a7b2c1abab5e588"
 }

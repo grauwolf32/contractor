@@ -5,7 +5,8 @@ milestone: planner-context-compaction-2026-10
 epic: planner-worker
 kind: feature
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 446794521d1969dbb67d082e9a7b2c1abab5e588
 depends_on:
 - V420-001
 languages:
@@ -335,9 +336,29 @@ decisions:
   Planner, including explicit summary-continuation targets. This supersedes the
   earlier copy-to-load-only policy decision and the open catalog-supply question.
   The four deployment model-selection roles and Worker strategies are unchanged.
-remaining_work:
-- Include V420-007's separate tool-free ADK compactor and strict Gateway output schema in the integrated acceptance revision.
-- Map existing unit, real-PostgreSQL and race coverage to A1-A6 and complete remaining required verification
-  on the integrated revision.
-- Use the implemented behavior-only Planner context grammar and fail-closed marker contract; do not restore
-  context-block model selection, removed overrides or a reconciliation engine.
+verification:
+  date: '2026-11-07'
+  evidence: tasks/evidence/v420-002-acceptance-20261107.json
+  criteria: A1-A6 passed with 41 explicit test-to-criterion links.
+  results: >-
+    The complete required configuration/configload/Planner/telemetry race suite,
+    the final changed Planner packages with PostgreSQL and -race, final
+    make test-streamline, both public API gates, make test-config, make ui-verify
+    and make lint passed. Final Planner packages ran 255 top-level tests and
+    529 subtests with no skips. The current catalog validates 27 Workflows and
+    all 12 modelled Planner placements select compact@1. Preserve this current
+    inventory separately from the historical 24-Workflow rollout.
+  fixes: >-
+    Regression tests first failed for both profiles retaining compaction state
+    after Run and for tail growth above 1 MiB between checkpoints. The owner now
+    drops invocation context on every exit, and every post-checkpoint projection
+    checks the tail byte ceiling. Real HTTP cases cover explicit, absent and
+    unknown finishes plus absent/inconsistent usage through the auxiliary ADK agent.
+  exclusions: >-
+    Two live Gateway cases and the deployment OTLP collector smoke remain
+    declared optional skips; none is mandatory compaction evidence. Script-suite
+    platform/tool skips and the intentional Vitest test-harness expected failure
+    are recorded separately. No live model, new Runtime wire field, real
+    Server/Runtime process gate or disk-heavy opt-in is claimed. V420-003/004/005/006
+    retain their scope and status. The owned PostgreSQL database was dropped.
+remaining_work: []
