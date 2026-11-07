@@ -51,6 +51,7 @@ class Client:
         raw=None,
         media=None,
         lost=False,
+        decode_json=True,
     ):
         data = raw if raw is not None else encoded(body) if body is not None else None
         headers = {
@@ -83,7 +84,7 @@ class Client:
                 if lost:
                     assert response.headers.get("Idempotency-Replayed") == "true", path
                     self.replays += 1
-                if response.headers.get("Content-Type", "").startswith(
+                if decode_json and response.headers.get("Content-Type", "").startswith(
                     "application/json"
                 ):
                     return json.loads(payload)
@@ -95,6 +96,9 @@ class Client:
 
     def get(self, path):
         return self.request("GET", path)
+
+    def get_bytes(self, path):
+        return self.request("GET", path, decode_json=False)
 
     def pages(self, path, **query):
         for attempt in range(5):
@@ -228,14 +232,12 @@ def seed(client, directory):
                     "requires": [],
                     "outputs": {
                         "report": {
-                            "mediaTypes": [
-                                "text/plain"
-                                if kind == "workflow"
-                                else "application/json"
-                            ],
+                            "mediaTypes": ["text/plain"],
                             "required": True,
                         }
-                    },
+                    }
+                    if kind == "workflow"
+                    else {},
                 }
             )
         path = directory / (kind + "-dataset.json")
@@ -253,7 +255,7 @@ def register(client, project, kind, cases):
             "id": arm,
             "kind": kind,
             "selector": f"eval-{'copy' if kind == 'workflow' else 'audit'}-{arm}@1",
-            "outputMapping": {"report": "result" if kind == "workflow" else "report"},
+            "outputMapping": {"report": "result"} if kind == "workflow" else {},
         }
         for arm in ("a", "b")
     ]
@@ -338,6 +340,72 @@ def register(client, project, kind, cases):
     )
 
 
+def audit_task_evidence(client, parent, inventory):
+    # Two authored assertions are checked in one ordinary Run. An aggregate
+    # report is optional; the retained Task result is the evidence we assess.
+    assert len(inventory) == 2, inventory
+    owner, child = inventory
+    assert owner["execution"] == parent and owner["parent"] is None, owner
+    assert owner["available"] and owner["state"] == "succeeded", owner
+    assert child["parent"] == parent and child["execution"]["kind"] == "run", child
+    assert child["available"] and child["state"] == "succeeded", child
+    assert child["workflow"] == "check" and child["iteration"] == 1, child
+    audit_id, run_id = parent["id"], child["execution"]["id"]
+    report = client.get(f"/v1/audits/{audit_id}/report")
+    assert report == {"status": "unavailable"}, report
+    run = client.get(f"/v1/runs/{run_id}")
+
+    def read(ref):
+        query = urllib.parse.urlencode({"revision": ref["revision"]})
+        path = f"/v1/runs/{run_id}/artifacts/{ref['namespace']}/{ref['name']}"
+        return client.get_bytes(path + "?" + query)
+
+    context = json.loads(read(run["inputs"]["context"]))
+    assert context["schema"] == "contractor.audit.context.v1", context
+    assert (context["audit_id"], context["run_id"]) == (audit_id, run_id), context
+    assert context["workflow_ref"] == "audit-source-check@1", context
+    raw = read(run["outputs"]["result"])
+    result = json.loads(raw)
+    assert result["schema"] == "contractor.audit.result.v1", result
+    expected = {item["statement"]: item for item in audit_assertion_source()["items"]}
+    assert len(context["items"]) == len(result["items"]) == len(expected) == 2
+    assert [item["item_key"] for item in context["items"]] == ["item-00", "item-01"]
+    statements = set()
+    for index, item in enumerate(context["items"]):
+        outcome = result["items"][index]
+        hypothesis = item["hypothesis"]
+        source = expected[hypothesis["statement"]]
+        statements.add(hypothesis["statement"])
+        assert hypothesis["grounds"] == source["grounds"], hypothesis
+        assert hypothesis["scope"] == {
+            **source["scope"],
+            "source_version": source["version"],
+            "applicability": source["applicability"],
+            "allowed_methods": encoded(source["allowed_methods"]).decode(),
+            "required_evidence": encoded(source["required_evidence"]).decode(),
+        }, hypothesis
+        assert outcome["item_key"] == item["item_key"], outcome
+        assert outcome["origin"] == {
+            "audit_id": audit_id,
+            "run_id": run_id,
+            "task_id": item["task_id"],
+            "hypothesis": {"id": hypothesis["id"], "revision": hypothesis["revision"]},
+        }, outcome
+        assert outcome["verdict"] == "supported", outcome
+        assert outcome["rationale"] and outcome["tested_conditions"], outcome
+        assert outcome["evidence"] == item["evidence"] and outcome["evidence"], outcome
+        assert outcome["limitations"] == [], outcome
+    assert statements == set(expected), statements
+    return {
+        "scope": "run",
+        "scopeId": run_id,
+        **run["outputs"]["result"],
+        "sha256": digest(raw),
+        "mediaType": "application/json",
+        "sizeBytes": len(raw),
+    }
+
+
 def result_document(client, experiment, row, inventory):
     execution = row["execution"]
     parent = execution["ref"]
@@ -355,19 +423,12 @@ def result_document(client, experiment, row, inventory):
             "mediaType": "text/plain",
             "sizeBytes": len(raw),
         }
+        outputs = {"report": artifact}
+        evidence = [{"id": "report", "artifact": artifact}]
     else:
-        remote = client.get("/v1/audits/" + parent["id"])
-        report = client.get("/v1/audits/" + parent["id"] + "/report")
-        ref = report["machineArtifact"]
-        artifact = {
-            "scope": "project",
-            "scopeId": remote["projectId"],
-            **ref["ref"],
-            "sha256": ref["digest"],
-            "mediaType": ref["mediaType"],
-            "sizeBytes": ref["sizeBytes"],
-        }
-        assert len(inventory) == 3, inventory
+        artifact = audit_task_evidence(client, parent, inventory)
+        outputs = {}
+        evidence = [{"id": "task-results", "artifact": artifact}]
     assert row["usage"] is not None
     return {
         "schemaVersion": "contractor.eval-result-input/v1",
@@ -376,8 +437,8 @@ def result_document(client, experiment, row, inventory):
         "source": experiment["setup"]["source"],
         "execution": execution,
         "collection": {"status": "complete", "gaps": []},
-        "outputs": {"report": artifact},
-        "evidence": [{"id": "report", "artifact": artifact}],
+        "outputs": outputs,
+        "evidence": evidence,
         "usage": row["usage"],
         "previousResultSha256": None,
     }
@@ -452,7 +513,7 @@ def run_external(client, fixture):
                         "implementationSha256": CHECK_DIGEST,
                         "status": "pass",
                         "reason": "Verified retained fixture",
-                        "evidenceRefs": ["report"],
+                        "evidenceRefs": [item["id"] for item in result["evidence"]],
                     }
                 ],
                 "previousAssessmentSha256": None,

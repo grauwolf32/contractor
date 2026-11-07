@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
+	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
 
 func TestManagedEvalAssertionsUseCurrentDomainContract(t *testing.T) {
@@ -43,6 +45,47 @@ print(fixture["encoded"]({"assertions": fixture["audit_assertion_source"](), "me
 		if seed.Grounds == "" || seed.Scope["source_version"] != "1" || seed.Scope["allowed_methods"] != `["static-trace"]` || seed.Scope["required_evidence"] != `["source-trace"]` {
 			t.Fatalf("%s lost its source contract: %+v", key, seed)
 		}
+	}
+	t.Run("owned-task-evidence", testManagedEvalProducerTaskEvidence)
+}
+
+func testManagedEvalProducerTaskEvidence(t *testing.T) {
+	root := repoRoot(t)
+	command := exec.Command("python3", "-I", "-S", "-B",
+		filepath.Join(root, "tests", "ui-stack", "evals_producer_test.py"),
+		filepath.Join(root, "tests", "ui-stack", "evals_producer.py"), root)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("producer exact Task evidence regression: %v\n%s", err, output)
+	}
+	var fixture struct {
+		Result       json.RawMessage `json:"result"`
+		Context      json.RawMessage `json:"context"`
+		Document     json.RawMessage `json:"document"`
+		Rejections   int             `json:"rejections"`
+		Dataset      json.RawMessage `json:"dataset"`
+		Registration json.RawMessage `json:"registration"`
+	}
+	if err := json.Unmarshal(output, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := auditcontract.Decode(fixture.Context, nil); err != nil {
+		t.Fatalf("invalid trusted Task context: %v", err)
+	}
+	if _, err := auditcontract.Decode(fixture.Document, fixture.Context); err != nil {
+		t.Fatalf("Task evidence differs from owning result/context contract: %v", err)
+	}
+	if _, err := evaldomain.Freeze("ResultInput", fixture.Result); err != nil {
+		t.Fatalf("producer emitted invalid current Eval result: %v", err)
+	}
+	if _, err := evaldomain.Freeze("DatasetInput", fixture.Dataset); err != nil {
+		t.Fatalf("current native Audit dataset/case contract rejected: %v", err)
+	}
+	if _, err := evaldomain.Freeze("ExternalRegistration", fixture.Registration); err != nil {
+		t.Fatalf("current external Audit manifest/recipe/mapping contract rejected: %v", err)
+	}
+	if fixture.Rejections != 11 {
+		t.Fatalf("producer skipped an invalid-evidence control: %d", fixture.Rejections)
 	}
 }
 
