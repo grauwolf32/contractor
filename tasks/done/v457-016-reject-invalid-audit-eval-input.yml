@@ -6,7 +6,7 @@ epic: evals
 kind: defect
 introduced_by: V64-012
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: "An unusable exact Audit assertion source rejects its Eval member, releases capacity and lets the experiment finish."
@@ -36,6 +36,14 @@ context:
     permissive parser, new diagnostic, queue or retry mechanism. The alternative
     of classifying every nonretryable 422 is rejected because HTTP status alone
     does not prove local non-acceptance at this owner boundary.
+  integration_verification: >-
+    Acceptance verified on 2026-11-08. The full integrated unit gate passed 3090 Go
+    tests and the complete Runtime/configuration/shared-fixture checks. The
+    actual-service native/external eight-member invalid-source, draft purge/capacity,
+    same-key uncertainty and accepted-response replay regressions pass. The full
+    evalservice package passed 75 tests ordinarily and 75 with race detection, zero
+    skips. Final release-verify-lint passed; no broad HTTP-status classification or
+    parser leniency was added.
 scope:
   in:
     - "Narrow permanent Audit Start validation classification shared by native and external Eval submissions."
@@ -73,5 +81,5 @@ verification: >-
   audit_document_invalid; fixed bytes were restored afterward. Independent
   business-lane read-only review found no actionable concerns. Diff whitespace
   checks pass; the task checker reports only the expected stale generated
-  BACKLOG, whose regeneration is reserved for the coordinating lane. Integrated
-  lint, task closure and branch integration remain with that lane.
+  BACKLOG, whose regeneration is reserved for the coordinating lane. Final integrated verification passed as recorded in context.integration_verification.
+implementation_commit: 91f15114687285201d46aa917bbb6acccff88abf
