@@ -70,12 +70,15 @@ verification:
     - Live demo review covered Project, New check, OpenAPI with 124 operations, Run, Audit, Inbox, Issues, Operations and configured SSH-key Settings at desktop and 390px. Normal OpenAPI clicks preserved outer scroll and list geometry; Inbox selection retained its 360px list and scroll position. No browser errors were observed. The live Issues list is empty; populated issue details were verified by the API-mocked gate.
     - UI 0.11.19 was deployed independently to http://127.0.0.1:4174 from implementation commit 3addd3d3ab5d64a520682ae277274fae5723dc66. Served HTML/assets and old/new release hashes were verified; the complete previous UI was retained for rollback. Server and Runtime remain on 1142c2681d6520baa8c04bb0a90ca8fd224deb29; non-UI process IDs, configured model and business data were retained, with no schema migrations or review mutations.
     - Original OpenDesign archive SHA-256 remains d3d80bd75e5cc45cf648e64fba6deb8a206943b794529003f3b390e9473877bd. Screenshots and gate logs are retained under .local/ui-design-audit-20261107; the operational deployment record is /Users/ruslan/src/contractor/.local/demo/run/ui-polish-20261107T072614Z.json.
-  delivery: Completed and deployed as a UI-only demo release on codex/ui-design-polish. User-authorized main integration is being verified on codex/ui-polish-main-integration; the independently deployed UI bytes stay unchanged.
+  delivery: Completed, deployed as UI 0.11.19 and merged into local main through the user-authorized no-fast-forward merge 1d2988b80a0244d806f6d609516ae8d1b46eaca5 on 2026-11-07. The independently deployed UI bytes stay unchanged; no further Server, Runtime or database deployment was performed for the Git integration.
 integration_verification:
   date: "2026-11-07"
   main_base: b1b22111f4cdf428043eb2306005780b7aa7e353
   source_branch: codex/ui-design-polish
   source_head: 17f740be7638826dff7c9fb8f45a1e809977d0ac
+  merged_into_main: true
+  merge_commit: 1d2988b80a0244d806f6d609516ae8d1b46eaca5
+  ancestry: Previous main is the merge first parent and the exact completed UI head is the second parent. Both were verified as ancestors of main; the clean main checkout was fast-forwarded to the prepared merge and the user's primary checkout stayed on its own branch without changes.
   reconciliation: Only the generated tasks/BACKLOG.md conflicted; it was regenerated from the combined task records. UI files and the public OpenAPI contract are identical to the verified UI 0.11.19 tree. Independent Planner, HTTP fixture, specifications and task changes from current main are retained.
   ui: VITEST_MAX_WORKERS=2 make ui-verify passed on the integrated candidate, including 215 files, 2431 passing tests, one intentional expected failure, generated checks, lint, typecheck, server tests and production build.
   lint: UV_OFFLINE=1 make lint passed the complete combined-tree gate using the same cached pinned dependencies. The initial online attempt stopped at a PyPI connection timeout while resolving ansible-core; no code or dependency version was changed to make the retry pass.
