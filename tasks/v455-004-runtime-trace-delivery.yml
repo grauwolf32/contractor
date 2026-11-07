@@ -19,6 +19,8 @@ context:
     failure; formulate the corrective task and land it on main. This request
     authorizes planning and integration of this task, not implementation or a
     new live Invoice Lab run.
+    Follow-up user decision 2026-11-07: use a fixed 30-second batching delay,
+    maximize reuse of existing code and avoid unnecessary complexity.
   specification:
     - docs/spec/platform/observability.md#OBS-R52
     - docs/spec/platform/observability.md#OBS-R67
@@ -73,14 +75,16 @@ context:
     of a slot whose resources have not been confirmed stopped.
   design_direction: >-
     Replace OBS-R73 with bounded-age asynchronous export of completed spans.
-    Proposed default maximum batching delay is one second, independent of payload
-    and queue bounds; this is an agent proposal, not an existing configuration.
+    The user-selected maximum batching delay is a fixed 30 seconds, independent
+    of payload and queue bounds, with no new configuration setting. Wake the
+    existing sender for an aged nonempty queue; retain immediate size/queue
+    triggers and final flush. Reuse the existing queue, sender, retries,
+    counters and bounded cleanup primitives; add no parallel exporter or
+    lifecycle framework.
     Reserve final export time within the original stop deadline before cleanup can
     consume it, and ensure an earlier cleanup error cannot skip that attempt.
     Do not simply move adapter close before producers stop: remaining callbacks
-    must retain safe ownership and final spans need draining. If scheduling becomes
-    configurable, pin values on the Server and update Go/Python/schema/UI/shared
-    fixtures together. A fixed documented interval is the smaller viable choice.
+    must retain safe ownership and final spans need draining.
   recovery_limit: >-
     This task retains OBS-R52's bounded best-effort, memory-only contract. It does
     not promise delivery after SIGKILL, machine loss or indefinite collector outage,
@@ -105,7 +109,7 @@ acceptance_criteria:
   - id: A1
     text: >-
       Given a healthy collector and a completed span below every size threshold,
-      the exporter starts sending within the documented batching-delay bound
+      the exporter starts sending within the fixed 30-second batching-delay bound
       while the allocation remains active, without another span or finalization.
       Idle/disabled exporters do not create unbounded timers or tasks.
   - id: A2
