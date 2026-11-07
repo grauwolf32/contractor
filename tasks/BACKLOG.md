@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-82 open tasks: 24 in progress, 45 pending, 13 deferred. 1491 finished: 1473 completed, 18 archived.
+81 open tasks: 23 in progress, 45 pending, 13 deferred. 1492 finished: 1474 completed, 18 archived.
 
 ## In progress
 
@@ -20,7 +20,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Accept merged isolated Worker context compaction |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V457-002](v457-002-audit-run-pinned-program-reuse.yml) | audits | chore | P3 | Reuse one validated Audit program during child Run creation |
 | [V457-003](v457-003-require-explicit-budget-test-database.yml) | quality | defect | P2 | Skip read-budget database fixtures when no test database is configured |
 | [V457-004](v457-004-bound-postcommit-blob-cleanup.yml) | projects-artifacts | chore | P2 | Share one bounded budget across postcommit filesystem blob cleanup |
 | [V457-005](v457-005-share-artifact-metadata-sql.yml) | projects-artifacts | chore | P3 | Share Artifact metadata SQL projection without generalizing indexed predicates |
@@ -180,7 +179,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 0 | 17 | 10 | 11 | 18 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 22 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 37 | 39 | 19 | 69 |
-| Audits (`audits`) | 11 | 69 | 97 | 42 | 164 |
+| Audits (`audits`) | 10 | 69 | 97 | 42 | 164 |
 | Evaluations (`evals`) | 6 | 22 | 41 | 17 | 50 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
 | Web UI (`ui`) | 5 | 51 | 79 | 28 | 76 |

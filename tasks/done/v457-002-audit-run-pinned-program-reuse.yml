@@ -6,7 +6,7 @@ epic: audits
 kind: chore
 introduced_by: V64-002
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: Each locked Audit Run creation attempt decodes its pinned program once while preserving exact membership and publication authority.
@@ -39,7 +39,7 @@ context:
     830,702 B/op and allocations were 33,635 to 11,291. For a 69,521-byte pin,
     medians were 28.666 to 13.628 ms/op, 19,140,706 to 6,634,132 B/op and 33,890
     to 11,372 allocations. These local measurements are not a latency guarantee.
-    Integrated make lint and task closure remain for the coordinating branch.
+    Integrated make lint passed on the combined branch.
 scope:
   in:
     - Pass the already validated program and selected binding through private Run creation helpers.
@@ -65,4 +65,4 @@ tests:
     covers: [A1, A3]
   - command: make lint
     covers: [A1, A2, A3]
-implementation_commit: null
+implementation_commit: 004cfd8aa4c98360ddf8204b1614e324b13cb33f
