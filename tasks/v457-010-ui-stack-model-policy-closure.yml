@@ -1,0 +1,60 @@
+schema_version: "1.0"
+id: V457-010
+title: Stage the complete model policy closure for UI process fixtures
+milestone: release-gate-integration-coverage-2026-10
+epic: quality
+kind: defect
+introduced_by: V425-041
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Every real UI process fixture validates its selected Workflow policies before starting ordinary and managed Eval browser journeys.
+context:
+  authority: User decision 2026-11-07 authorizes release-review repairs and necessary test fixture prerequisites on a separate branch; the release browser shards exposed this existing prerequisite.
+  specification:
+    - docs/spec/configuration/workflows.md#WFL-R3
+  severity: medium
+  finding: >-
+    tests/ui-stack/stack_test.go:856 stages the e2e streamline-copy Workflow and
+    evals_gateway_test.go:103 clones artifact-copy into both Eval arms, which
+    select worker@1 since 1fd73753871b7c96eb83e3dd084d5c0ba294c211. The UI staging
+    root contains only the generated production worker@2 policy. Its existing
+    adapter also upgrades artifact_builder@1 to v2 without the explicit
+    summarizer@1 selection previously owned by that template. Configuration
+    validation therefore fails before Operations, scan, native Eval and external
+    Eval browser scenarios can run. TestUIStackConfigurationClosure fails in both
+    managed_evals_false and managed_evals_true on unchanged main 80d8336e3b089a310796756b608885ec231a190b.
+  siblings: >-
+    Ordinary Operations and scan UI paths share stageUIStackConfiguration;
+    native and external Evals additionally share stageManagedEvalConfiguration.
+    Ordinary tests/e2e stage configs/e2e as their root, already containing worker@1.
+    Production Memory staging derives both Worker and summarizer policies from
+    its source Workflow and retains distinct policy identities when filenames
+    collide. Audit and CodeAnalysis fixture closures pass unchanged.
+scope:
+  in:
+    - Stage the exact existing fixture policy required by imported fixture Workflows and explicitly retain the adapted template's original summarizer policy.
+    - Regress both configuration closures and explicitly assert effective selected policies and budgets.
+    - Run real UI process/browser scenarios against the owned disposable database where feasible.
+  out:
+    - Live models, generated production model policies, shipped configuration edits or new API/features.
+acceptance_criteria:
+  - id: A1
+    text: The unchanged 80d8336 baseline reproduces both missing-worker-policy failures, and the repaired staging validates with and without managed Evals.
+  - id: A2
+    text: Imported streamline and both artifact-copy Eval arms resolve the exact worker@1 fixture policy and adapted template's original summarizer@1 policy, preserving model choices, budgets and the production worker@2 definition.
+  - id: A3
+    text: Operations, scan, native Eval and external Eval use the same repaired stage owner; ordinary e2e staging is fixed or explicitly ruled out with evidence.
+tests:
+  - command: go test -p=2 -tags=e2e -count=1 ./tests/ui-stack -run '^TestUIStackConfigurationClosure$'
+    covers: [A1, A2, A3]
+  - command: go test -p=2 -tags=e2e -count=1 -timeout=26m ./tests/ui-stack
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+verification:
+  baseline: Unchanged main 80d8336e3b089a310796756b608885ec231a190b fails TestUIStackConfigurationClosure for both managed flags with unknown worker@1. The missing Worker and explicit summarizer selections originate in the V425-041 model ownership migration 1fd73753871b7c96eb83e3dd084d5c0ba294c211.
+  focused: Repaired TestUIStackConfigurationClosure passes both managed flags, comparing exact worker@1 fixture model and budgets, preserved production worker@2, and the adapted artifact_builder@2 template's historical summarizer@1 model and budgets.
+  siblings: AuditCommon, AuditPrograms and CodeAnalysis configuration tests pass. ProductionMemoryConfigurationStaging independently fails its existing 8/20 versus 8/21 Planner coverage precondition; a disposable Go overlay removing only that unrelated assertion passes both configuration branches, without source changes.
+  integration: Full real UI-stack browser/process checks are running against the assigned isolated UI database; final repository lint and integrated browser gates remain required before task completion.
