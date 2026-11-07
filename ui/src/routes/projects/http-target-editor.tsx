@@ -190,6 +190,13 @@ function ProjectHTTPTargetDialog({
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [token, setToken] = useState("");
+  // Keep only safe correlation between submits; the Server compares secret
+  // material through its request MAC when the same creation is retried.
+  const creationAttempt = useRef<{
+    credentialId: string;
+    kind: OriginCredential["kind"];
+    key: string;
+  } | null>(null);
   // Secrets stay masked unless the user asks to see them while typing.
   const [showSecrets, setShowSecrets] = useState(false);
   const [pending, setPending] = useState(false);
@@ -224,6 +231,8 @@ function ProjectHTTPTargetDialog({
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
+    if (pending) return;
+    clearSecrets();
     setError(null);
     let target;
     try {
@@ -260,25 +269,36 @@ function ProjectHTTPTargetDialog({
         if (authMode === "bearer" && token === "") {
           throw new Error("Bearer token is required.");
         }
-        const id = `project-target-${crypto.randomUUID()}`;
+        const kind =
+          authMode === "basic" ? "http-origin-basic@1" : "http-origin-bearer@1";
+        const previous = creationAttempt.current;
+        const attempt: NonNullable<typeof previous> =
+          previous?.kind === kind
+            ? previous
+            : {
+                credentialId: `project-target-${crypto.randomUUID()}`,
+                kind,
+                key: createMutationIdempotencyKey("create-project-target"),
+              };
+        creationAttempt.current = attempt;
         const request: CreateRuntimeCredentialRequest =
           authMode === "basic"
             ? {
-                credentialId: id,
+                credentialId: attempt.credentialId,
                 kind: "http-origin-basic@1",
                 material: { username, password },
               }
             : {
-                credentialId: id,
+                credentialId: attempt.credentialId,
                 kind: "http-origin-bearer@1",
                 material: { token },
               };
-        clearSecrets();
         const credential = await createRuntimeCredential(
           api,
           request,
-          createMutationIdempotencyKey("create-project-target"),
+          attempt.key,
         );
+        creationAttempt.current = null;
         createdCredentialID = credential.credentialId;
         target = normalizeProjectHTTPTarget({
           url,
@@ -320,12 +340,14 @@ function ProjectHTTPTargetDialog({
         );
         setCredentialID(createdCredentialID);
         setAuthMode("existing");
-        await queryClient.invalidateQueries({
-          queryKey: queryKeys.operations.runtimeCredentials.all,
-        });
       } else {
         setError(reason);
       }
+      // A lost answer may still have created the credential. Its safe
+      // metadata must also be available through Existing origin credential.
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.operations.runtimeCredentials.all,
+      });
     } finally {
       clearSecrets();
       setPending(false);
@@ -380,6 +402,7 @@ function ProjectHTTPTargetDialog({
               value={authMode}
               onChange={(event) => {
                 setAuthMode(event.target.value as TargetAuthMode);
+                creationAttempt.current = null;
                 clearSecrets();
               }}
             >
@@ -483,6 +506,12 @@ function ProjectHTTPTargetDialog({
           </label>
         ) : null}
         {error === null ? null : <ErrorNotice error={error} reconcileWrite />}
+        {error !== null && (authMode === "basic" || authMode === "bearer") ? (
+          <p className="ui-caption">
+            Re-enter the same secret to retry this credential. If it was saved,
+            you can also select it under Existing origin credential.
+          </p>
+        ) : null}
         <div className="ui-dialog-actions">
           <Button
             variant="primary"
