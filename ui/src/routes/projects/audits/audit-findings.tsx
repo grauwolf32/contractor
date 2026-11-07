@@ -31,6 +31,7 @@ function AuditFindingList({ audit }: { audit: Audit }) {
     ...queryKeys.audits.allFindings(audit.auditId),
     "research",
     pages.cursor,
+    audit.revision,
   ];
   const query = useQuery({
     queryKey: key,
@@ -43,8 +44,10 @@ function AuditFindingList({ audit }: { audit: Audit }) {
               path: { auditId: audit.auditId },
               query: {
                 limit: 50,
-                auditRevision: audit.revision,
-                ...(pages.cursor ? { cursor: pages.cursor } : {}),
+                // A continuation already carries its exact Audit revision.
+                ...(pages.cursor
+                  ? { cursor: pages.cursor }
+                  : { auditRevision: audit.revision }),
               },
             },
           }),
@@ -87,6 +90,7 @@ function AuditFindingList({ audit }: { audit: Audit }) {
       <FindingExportPanel
         state={exporter}
         visible={query.data?.items ?? []}
+        readPending={query.isPending}
         stale={stale}
         onRefresh={refresh}
       />

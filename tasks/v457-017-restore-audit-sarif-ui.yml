@@ -51,6 +51,27 @@ context:
     Runtime configuration. These two fixture selectors follow the current UI;
     every later secret, binding, Agent-label and logout assertion stays intact.
     Root already batches UI release version 0.11.22.
+  freshness_follow_up: >-
+    Final read-only review at adac123c09b67d898ac2eb567b162fd27e1d602e found that
+    audit-findings.tsx sends auditRevision but omits it from the query key.
+    A first-page read fenced to an older active Audit revision receives 409 and
+    stops ordinary polling; a newer active head with the same task count cannot
+    restart that unchanged query. Tie the read identity to Audit revision and
+    block new publication while the current head read is pending, preserving
+    explicit selected Finding revisions, saved exports and stale-cursor refresh.
+  freshness_verification: >-
+    The three new active-head/cursor/frozen-download regressions fail on the
+    original adac implementation. A query-key-only repair independently fails
+    the pending-publication guard, confirming both required changes. The final
+    six-suite group passes all 50 tests, including unchanged canonical revision,
+    cross-page selection, conflict, cancellation and retry assertions. UI and
+    e2e TypeScript, ESLint, Prettier, diff and task checks pass. Keep the existing
+    terminal projection cancellation and final refresh; each deferred HTTP mock
+    receives a separate response body. Continuations retain their own opaque
+    revision pin and require explicit clear/refresh after refusal. Independent
+    read-only SARIF-owner review found no actionable concern. Root owns the
+    final complete UI, mocked browser and real UI-stack verification after
+    integrating this follow-up with the Eval producer follow-up.
   verification: >-
     Real-stack failure is preserved in work/polish-logs/ui-stack-final.log and
     its durable report outside the repository. Restoring the five original

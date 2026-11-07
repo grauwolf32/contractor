@@ -321,7 +321,11 @@ it("blocks publication from the prior check revision until the view refreshes", 
   const next = { ...check, revision: check.revision + 1 };
   revision = next.revision;
   const refresh = deferred<Response>();
-  server.route("GET /v1/audits/{auditId}/findings", () => refresh.promise);
+  // Terminal projection refresh can cancel an earlier read; every request
+  // still owns a separate HTTP response body.
+  server.route("GET /v1/audits/{auditId}/findings", () =>
+    refresh.promise.then((response) => response.clone()),
+  );
   await act(() => changeAudit(next));
   expect(
     screen.getByRole("button", { name: "Create SARIF export" }),
@@ -386,3 +390,152 @@ for (const operation of ["publication", "download"] as const) {
     expect(saved).not.toHaveBeenCalled();
   });
 }
+
+it("recovers the first page after an active head advances beyond a refused revision", async () => {
+  const active = audit("project", "audit", "active", { taskCount: 2 });
+  let revision = active.revision;
+  const fresh = deferred<Response>();
+  const posts: FindingExportRequest[] = [];
+  const server = fakeServer({
+    "GET /v1/audits/{auditId}/findings": ({ url }) => {
+      const requested = Number(url.searchParams.get("auditRevision"));
+      if (requested !== revision) return conflict();
+      return requested === 1 ? json(findingPage()) : fresh.promise;
+    },
+    "POST /v1/audits/{auditId}/findings/exports": async ({ request }) => {
+      posts.push((await request.json()) as FindingExportRequest);
+      return json(await publishedExport(), 201);
+    },
+  });
+  let advance: () => void = () => {};
+  function CurrentCheck() {
+    const [current, change] = useState(active);
+    advance = () => change({ ...active, revision });
+    return <AuditFindings audit={current} />;
+  }
+  const view = renderWithAPI(<CurrentCheck />, { server });
+  await screen.findByText("First issue");
+  open();
+  await view.user.click(
+    screen.getByRole("button", { name: "Select this page" }),
+  );
+  revision = 2;
+  await act(() =>
+    view.queryClient.invalidateQueries({
+      queryKey: queryKeys.audits.allFindings(active.auditId),
+    }),
+  );
+  await screen.findByText(/This check or a selected possible issue changed/);
+  await act(advance);
+  await waitFor(() =>
+    expect(
+      server
+        .sent("GET", "/findings")
+        .map((r) => new URL(r.url).searchParams.get("auditRevision")),
+    ).toEqual(["1", "1", "2"]),
+  );
+  expect(screen.getByText("2 selected for export")).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "Create SARIF export" }),
+  ).toBeDisabled();
+  expect(posts).toHaveLength(0);
+  await act(() =>
+    fresh.resolve(json({ ...findingPage(), auditRevision: revision })),
+  );
+  await waitFor(() =>
+    expect(
+      screen.getByRole("button", { name: "Create SARIF export" }),
+    ).toBeEnabled(),
+  );
+  await view.user.click(
+    screen.getByRole("button", { name: "Create SARIF export" }),
+  );
+  await screen.findByText(/Export ready/);
+  expect(posts[0]!.findings).toEqual([
+    { findingId: first.findingId, revision: first.revision },
+    { findingId: second.findingId, revision: second.revision },
+  ]);
+});
+
+it("keeps a stale continuation and selected revisions until explicit clear and refresh", async () => {
+  const active = audit("project", "audit", "active", { taskCount: 2 });
+  let revision = active.revision;
+  const server = fakeServer({
+    "GET /v1/audits/{auditId}/findings": ({ url }) => {
+      if (url.searchParams.has("cursor"))
+        return revision === 1 ? json(findingPage([second])) : conflict();
+      return json({ ...findingPage([first], true), auditRevision: revision });
+    },
+    "GET /v1/audits/{auditId}": () => json({ ...active, revision }),
+  });
+  let advance: () => void = () => {};
+  function CurrentCheck() {
+    const [current, change] = useState(active);
+    advance = () => change({ ...active, revision });
+    return <AuditFindings audit={current} />;
+  }
+  const view = renderWithAPI(<CurrentCheck />, { server });
+  await screen.findByText("First issue");
+  open();
+  await view.user.click(
+    screen.getByRole("button", { name: "Select this page" }),
+  );
+  await view.user.click(screen.getByRole("button", { name: "Next" }));
+  await screen.findByText("Second issue");
+  revision = 2;
+  await act(advance);
+  await waitFor(() => expect(server.sent("GET", "/findings")).toHaveLength(3));
+  const continuation = new URL(server.sent("GET", "/findings")[2]!.url);
+  expect(continuation.searchParams.get("cursor")).toBe("next");
+  expect(continuation.searchParams.has("auditRevision")).toBe(false);
+  await screen.findByText(/This check or a selected possible issue changed/);
+  expect(screen.getByText("1 selected for export")).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "Create SARIF export" }),
+  ).toBeDisabled();
+  expect(server.sent("POST", "/exports")).toHaveLength(0);
+  await view.user.click(
+    screen.getByRole("button", { name: "Clear selection and refresh" }),
+  );
+  await screen.findByText("First issue");
+  expect(view.location().search).not.toContain("findingsCursor");
+  expect(screen.getByText("0 selected for export")).toBeVisible();
+});
+
+it("keeps frozen downloads available while a newer active head read is pending", async () => {
+  saved.mockClear();
+  const active = audit("project", "audit", "active", { taskCount: 2 });
+  const fresh = deferred<Response>();
+  const server = fakeServer({
+    "GET /v1/audits/{auditId}/findings": ({ url }) =>
+      url.searchParams.get("auditRevision") === "1"
+        ? json(findingPage())
+        : fresh.promise,
+    "POST /v1/audits/{auditId}/findings/exports": async () =>
+      json(await publishedExport(), 201),
+    "GET /v1/audits/{auditId}/findings/exports/{exportId}/content": () =>
+      bytes(EXPORT_BYTES, "application/json", { ETag: '"r1"' }),
+  });
+  let advance: () => void = () => {};
+  function CurrentCheck() {
+    const [current, change] = useState(active);
+    advance = () => change({ ...active, revision: 2 });
+    return <AuditFindings audit={current} />;
+  }
+  const view = renderWithAPI(<CurrentCheck />, { server });
+  await screen.findByText("First issue");
+  open();
+  await view.user.click(
+    screen.getByRole("button", { name: "Select this page" }),
+  );
+  await view.user.click(
+    screen.getByRole("button", { name: "Create SARIF export" }),
+  );
+  await screen.findByText(/Export ready/);
+  await act(advance);
+  await waitFor(() => expect(server.sent("GET", "/findings")).toHaveLength(2));
+  await view.user.click(screen.getByRole("button", { name: "Download SARIF" }));
+  await waitFor(() => expect(saved).toHaveBeenCalledTimes(1));
+  expect(server.sent("POST", "/exports")).toHaveLength(1);
+  await act(() => fresh.resolve(json({ ...findingPage(), auditRevision: 2 })));
+});

@@ -11,11 +11,13 @@ type ExportState = ReturnType<typeof useFindingExport>;
 export function FindingExportPanel({
   state,
   visible,
+  readPending,
   stale,
   onRefresh,
 }: {
   state: ExportState;
   visible: readonly ProjectFindingSummary[];
+  readPending: boolean;
   stale: boolean;
   onRefresh: () => void;
 }) {
@@ -41,6 +43,7 @@ export function FindingExportPanel({
             size="xs"
             disabled={
               state.busy ||
+              readPending ||
               stale ||
               conflict ||
               visible.length === 0 ||
@@ -106,6 +109,7 @@ export function FindingExportPanel({
             size="sm"
             disabled={
               state.selected.size === 0 ||
+              readPending ||
               stale ||
               conflict ||
               state.download.isPending
