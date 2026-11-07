@@ -1,0 +1,53 @@
+schema_version: "1.0"
+id: V457-001
+title: Detach Audit seed sources from catalog profile copies
+milestone: hub-audit-defects-2026-10
+epic: audits
+kind: defect
+introduced_by: V64-012
+priority: P3
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Mutating a copied Audit seed source cannot change the published catalog snapshot or its digest.
+context:
+  authority: >-
+    User request 2026-11-07 authorizes implementing the release review fixes and
+    simplifications autonomously on a separate branch while the user is away.
+    This task addresses review finding D1 only.
+  finding: >-
+    internal/config/auditprofile/pinned_program.go:113 copies the common program
+    but retains Program.SeedSource and its Standard and EntryIDs allocations.
+    Snapshot.AuditProfile and AuditProfiles therefore return aliases despite
+    promising caller-owned copies. The SeedSource fields were introduced by
+    V64-012 in d6bbd3c759c1133f09643c7f8e2f69aca3458356 after the clone implementation.
+  siblings: >-
+    Snapshot.Clone, AuditProfile, AuditProfiles, ResolveAuditProfile and
+    ResolvePinnedAuditProfile all share PinnedProgram.Clone. Existing deep-copy
+    coverage exercises these accessors; its fixture must include SeedSource.
+  verification: >-
+    Both extended regressions failed before the fix: the original profile digest
+    changed and four profile accessors shared SeedSource, Standard and EntryIDs
+    allocations with Snapshot. After the fix, go test -count=1
+    ./internal/config/... passed all three packages. Integrated make lint remains
+    for the coordinating branch; this task remains in_progress until then.
+scope:
+  in:
+    - Copy SeedSource, optional Standard and EntryIDs in the existing clone.
+    - Extend the clone mutation regression and snapshot accessor isolation coverage.
+  out:
+    - Change Audit execution, seed interpretation, catalog identities or stored data.
+    - Repair incompatible historical demo Run snapshots.
+acceptance_criteria:
+  - id: A1
+    text: Mutating cloned SeedSource fields, Standard fields and EntryIDs leaves the original pinned digest unchanged.
+  - id: A2
+    text: Every existing Snapshot profile accessor detaches seeded profile allocations from the published snapshot.
+  - id: A3
+    text: Both regressions fail without the clone fix and the full configuration package suites pass with it.
+tests:
+  - command: go test -count=1 ./internal/config/...
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+implementation_commit: null

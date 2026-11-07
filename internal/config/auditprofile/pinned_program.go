@@ -111,6 +111,15 @@ func (p PinnedProgram) Digest() (string, error) {
 }
 
 func (p PinnedProgram) Clone() PinnedProgram {
+	if p.Program.SeedSource != nil {
+		source := *p.Program.SeedSource
+		source.EntryIDs = slices.Clone(source.EntryIDs)
+		if source.Standard != nil {
+			standard := *source.Standard
+			source.Standard = &standard
+		}
+		p.Program.SeedSource = &source
+	}
 	p.Workflows = maps.Clone(p.Workflows)
 	for alias, workflow := range p.Workflows {
 		p.Workflows[alias] = workflow.Clone()
