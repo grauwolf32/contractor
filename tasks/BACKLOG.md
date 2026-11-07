@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-67 open tasks: 9 in progress, 45 pending, 13 deferred. 1490 finished: 1472 completed, 18 archived.
+82 open tasks: 24 in progress, 45 pending, 13 deferred. 1491 finished: 1473 completed, 18 archived.
 
 ## In progress
 
@@ -20,6 +20,21 @@ the epics are in [epics.yml](epics.yml).
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Accept merged isolated Worker context compaction |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V457-002](v457-002-audit-run-pinned-program-reuse.yml) | audits | chore | P3 | Reuse one validated Audit program during child Run creation |
+| [V457-003](v457-003-require-explicit-budget-test-database.yml) | quality | defect | P2 | Skip read-budget database fixtures when no test database is configured |
+| [V457-004](v457-004-bound-postcommit-blob-cleanup.yml) | projects-artifacts | chore | P2 | Share one bounded budget across postcommit filesystem blob cleanup |
+| [V457-005](v457-005-share-artifact-metadata-sql.yml) | projects-artifacts | chore | P3 | Share Artifact metadata SQL projection without generalizing indexed predicates |
+| [V457-006](v457-006-project-target-credential-replay.yml) | ui | defect | P2 | Retain Project target credential creation identity after response loss |
+| [V457-007](v457-007-selected-research-task-refresh.yml) | ui | defect | P2 | Refresh selected research Tasks outside the current list page |
+| [V457-008](v457-008-inbox-count-completeness.yml) | ui | defect | P2 | Preserve findings truncation in Inbox counts and labels |
+| [V457-009](v457-009-window-report-list-reads.yml) | ui | defect | P2 | Bound report availability reads to the visible check window |
+| [V457-010](v457-010-ui-stack-model-policy-closure.yml) | quality | defect | P1 | Stage the complete model policy closure for UI process fixtures |
+| [V457-011](v457-011-production-planner-coverage-fixture.yml) | quality | chore | P1 | Align the production Planner fixture with the shipped findings review |
+| [V457-012](v457-012-studio-catalog-alias-fixture.yml) | quality | chore | P1 | Expand trusted catalog aliases in Studio conformance fixtures |
+| [V457-013](v457-013-ui-stack-success-status-assertion.yml) | quality | chore | P2 | Assert successful Runs through their visible header status in the real UI journey |
+| [V457-014](v457-014-current-audit-process-fixtures.yml) | quality | defect | P1 | Author current Audit assertions and checker results in process fixtures |
+| [V457-015](v457-015-operations-disclosure-fixture.yml) | quality | chore | P1 | Follow Configuration disclosures in the real Operations journey |
+| [V457-016](v457-016-reject-invalid-audit-eval-input.yml) | evals | defect | P1 | Reject permanently invalid Audit Eval assertion sources and drain members |
 
 ## Pending
 
@@ -154,7 +169,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 2 | 49 | 68 | 39 | 104 |
-| Planners and the Worker model boundary (`planner-worker`) | 8 | 35 | 54 | 33 | 83 |
+| Planners and the Worker model boundary (`planner-worker`) | 8 | 35 | 54 | 33 | 84 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 15 | 5 | 47 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 3 | 14 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
@@ -162,14 +177,14 @@ tasks in `introduced_by`.
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 5 | 24 | 32 | 15 | 35 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 3 | 17 | 10 | 10 | 21 |
-| Findings tools and collections (`findings`) | 0 | 17 | 10 | 11 | 17 |
-| Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 21 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 39 | 17 | 67 |
-| Audits (`audits`) | 10 | 69 | 96 | 41 | 159 |
-| Evaluations (`evals`) | 5 | 22 | 40 | 17 | 50 |
+| Findings tools and collections (`findings`) | 0 | 17 | 10 | 11 | 18 |
+| Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 22 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 37 | 39 | 19 | 69 |
+| Audits (`audits`) | 11 | 69 | 97 | 42 | 164 |
+| Evaluations (`evals`) | 6 | 22 | 41 | 17 | 50 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
-| Web UI (`ui`) | 1 | 51 | 75 | 28 | 74 |
+| Web UI (`ui`) | 5 | 51 | 79 | 28 | 76 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 47 | 9 | 22 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 42 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 50 | 18 |
-| Quality, CI and process (`quality`) | 11 | 1 | 29 | 133 | 28 |
+| Quality, CI and process (`quality`) | 18 | 1 | 32 | 137 | 30 |

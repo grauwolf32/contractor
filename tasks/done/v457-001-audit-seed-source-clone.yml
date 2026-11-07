@@ -6,7 +6,7 @@ epic: audits
 kind: defect
 introduced_by: V64-012
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: Mutating a copied Audit seed source cannot change the published catalog snapshot or its digest.
@@ -29,8 +29,7 @@ context:
     Both extended regressions failed before the fix: the original profile digest
     changed and four profile accessors shared SeedSource, Standard and EntryIDs
     allocations with Snapshot. After the fix, go test -count=1
-    ./internal/config/... passed all three packages. Integrated make lint remains
-    for the coordinating branch; this task remains in_progress until then.
+    ./internal/config/... passed all three packages. Integrated make lint passed on the combined branch.
 scope:
   in:
     - Copy SeedSource, optional Standard and EntryIDs in the existing clone.
@@ -50,4 +49,4 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
-implementation_commit: null
+implementation_commit: 95f5f4a391e3bcdb11c2c8ed7a7cff2d2e7832a7
