@@ -9,6 +9,11 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
+    User decision 2026-11-07 authorizes V420-007: make the Planner compactor a
+    separate tool-free ADK LlmAgent with OutputSchema, a private temporary
+    session and one provider call, and forward strict JSON Schema through the
+    Gateway adapter. This narrow correction does not complete V420-002 or
+    assign its dependent gates. Native history compaction remains disabled.
     User request 2026-11-07 reconciles V417/V420 with main 1142c2681 before
     further implementation. Four merged slices remain in_progress for acceptance:
     V417-001/003 and V420-002/006; cleared V425-020/021 and platform blockers

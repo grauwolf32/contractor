@@ -8,6 +8,7 @@ priority: P1
 status: pending
 depends_on:
 - V420-002
+- V420-007
 languages:
 - go
 - markdown
@@ -131,6 +132,7 @@ requirements:
     finish reasons, known usage plus provider rejection, absent/inconsistent usage, exhausted main total budget,
     exhausted compactor per-call budget and maxCompactions. Pre-commit failures preserve raw context without
     a marker; post-commit no-progress detection preserves accepted state/charges and ends finitely.
+    Exercise V420-007's actual auxiliary ADK agent and strict response_format, including Gateway schema rejection without a schema-free retry.
 - id: R4
   text: Deliberately omit/change an old ArtifactRef, subtask ID, revision, result status and completed-action
     description in summary. The deterministic index/current state still supplies valid evidence, forbids fabricated

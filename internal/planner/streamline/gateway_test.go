@@ -45,6 +45,9 @@ func TestOpenAICompatibleModelConvertsADKToolConversation(t *testing.T) {
 		if payload["model"] != "planner-model" || payload["parallel_tool_calls"] != false {
 			t.Fatalf("payload = %+v", payload)
 		}
+		if _, exists := payload["response_format"]; exists {
+			t.Error("ordinary Planner request acquired an output schema")
+		}
 		messages, _ := payload["messages"].([]any)
 		tools, _ := payload["tools"].([]any)
 		if len(messages) != 2 || len(tools) != 1 {

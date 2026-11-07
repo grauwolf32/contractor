@@ -1,0 +1,68 @@
+schema_version: '1.0'
+id: V420-007
+title: Run Planner compactor as an isolated ADK agent with structured output
+milestone: planner-context-compaction-2026-10
+epic: planner-worker
+kind: defect
+introduced_by: V420-002
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go, markdown, yaml]
+goal: Constrain Planner compactor replies at the model boundary using ADK structured output.
+context:
+  authority: >-
+    User decision 2026-11-07: use ADK after reviewing the missing Planner
+    structured-output path; the subsequent user suggestion selects a separate
+    tool-free auxiliary ADK agent, as in Python Worker. This authorizes the
+    narrow correction against the
+    merged V420-002 implementation while its broader acceptance remains open.
+  specification:
+    - docs/spec/execution/planners.md#PLN-R125
+    - docs/spec/execution/planners.md#PLN-R128
+  finding: >-
+    internal/planner/streamline/compaction.go:499 requests JSON only in the
+    instruction; gateway.go:142 omits response_format, so a model can return
+    prose around the summary despite ADK supporting a response schema.
+  siblings: >-
+    Streamline and Router share this adapter and compactor. Python Worker
+    already supplies output_schema=CompactionSummary and its OpenAI adapter
+    forwards strict JSON Schema. Main Planner requests have tools and no
+    response schema; their payload must remain unchanged.
+scope:
+  in:
+    - Run a separate tool-free ADK LlmAgent with OutputSchema and an ephemeral session.
+    - Translate ADK response schemas into strict OpenAI-compatible response_format.
+    - Verify the actual HTTP payload from compaction and LlmAgent.OutputSchema.
+    - Count schema bytes in admission and preserve one-call failure and usage accounting.
+  out:
+    - Native ADK history compaction, Scheduler/Runtime Workers, retries or model changes.
+    - Completing V420-002 acceptance or changing Worker model selection.
+acceptance_criteria:
+  - id: A1
+    text: >-
+      A real Planner compactor HTTP request carries a strict object schema
+      requiring only summary:string, has no tools, and accepts a valid response.
+  - id: A2
+    text: >-
+      A tool-free pinned ADK LlmAgent.OutputSchema reaches the same adapter as
+      strict JSON Schema; nested types and nullable fields are translated without
+      mutating the ADK schema, and ordinary requests omit response_format.
+  - id: A3
+    text: >-
+      Schema bytes count toward admission. Invalid or rejected replies still
+      fail without retry or checkpoint publication; existing Streamline/Router
+      usage, cancellation and checkpoint regressions pass.
+tests:
+  - command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -race -count=1 ./internal/planner/streamline ./internal/planner/router
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+decisions:
+  - >-
+    ADK owns the auxiliary agent and output schema contract; the Gateway adapter
+    owns provider encoding. An invocation-local model wrapper admits the actual
+    ADK-built request and allows exactly one provider call, retaining raw finish
+    and usage metadata for the existing validation. Application validation,
+    exact history membership and checkpoint persistence retain their owners.
+    Reopen if the compactor gains tools or the ADK/provider schema API changes.

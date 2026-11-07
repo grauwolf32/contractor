@@ -331,6 +331,7 @@ decisions:
   earlier copy-to-load-only policy decision and the open catalog-supply question.
   The four deployment model-selection roles and Worker strategies are unchanged.
 remaining_work:
+- Include V420-007's separate tool-free ADK compactor and strict Gateway output schema in the integrated acceptance revision.
 - Map existing unit, real-PostgreSQL and race coverage to A1-A6 and complete remaining required verification
   on the integrated revision.
 - Use the implemented behavior-only Planner context grammar and fail-closed marker contract; do not restore

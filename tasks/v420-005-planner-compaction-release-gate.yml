@@ -117,7 +117,7 @@ requirements:
     and Router, at least two compactions and successful finish using an early exact artifact reference.
     Fake WorkerInvoker tests are complementary, not this acceptance. Reuse existing summary-continuation/configuration
     process cases and extend only the missing matrix; register required cases once in the consolidated
-    release graph.
+    release graph. Assert the compactor uses its separate tool-free ADK agent and strict output schema through the actual Gateway HTTP request (V420-007).
 - id: R2
   text: Count actual Worker effects across checkpoints and assert singular dispatch/receipt identity, stable
     SessionID/StageExecutionID, cumulative budgets/deadline, preserved task/continuation/result contract and
