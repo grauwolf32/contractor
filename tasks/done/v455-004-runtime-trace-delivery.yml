@@ -6,7 +6,7 @@ epic: operations
 kind: defect
 introduced_by: V411-003
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [python, markdown]
 goal: >-
@@ -201,3 +201,5 @@ verification:
   limits: >-
     The historical peer-reset cause remains unproven and is not repaired here.
     Existing memory-only best-effort delivery and queue/retry bounds remain.
+  landing: Completed on codex/v455-004-terminal-flush; not merged into main or deployed.
+implementation_commit: c2a17fbc37f4cb510026215c87e1a87049d326a7
