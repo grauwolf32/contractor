@@ -42,6 +42,5 @@ verification: >-
   and User partial-index listing/read-budget tests, prefix pagination and
   historical metadata tests passed unchanged. The two SQL files remove 46
   lines and add 30; no query-speed claim is made. Evidence is
-  work/data2-postgres-tests.jsonl in the coordinating workspace. Integrated
-  lint and task completion remain with the coordinating lane.
+  work/data2-postgres-tests.jsonl in the coordinating workspace. Integrated make lint passed on the combined branch.
 implementation_commit: 0cac89a1718a6b7614827a853f8d312acf7a2f40
