@@ -717,7 +717,7 @@ export function useInboxSummary(): InboxSummary {
       needsDecision: possibleIssues,
       possibleIssues,
       partial: checks.partial || findings.errors.length > 0,
-      truncated: checks.truncated,
+      truncated: checks.truncated || findings.merged.truncated,
     };
   }, [checks, findings]);
 }

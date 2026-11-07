@@ -386,6 +386,44 @@ describe("owner-wide lists", () => {
         ?.searchParams.get("severity"),
     ).toBe("high");
   });
+  it("keeps the Inbox count a lower bound beyond the findings page cap", async () => {
+    const state = base();
+    const one = finding("project_a", "finding_0");
+    const pageSize = 200;
+    state.findings = {
+      audit_a: Array.from(
+        { length: MAXIMUM_LOADED_PAGES * pageSize + 1 },
+        (_, index) => ({ ...one, findingId: `finding_${index}` }),
+      ),
+    };
+    const server = setup(state);
+    const { result } = renderHook(() => useInboxSummary(), {
+      wrapper: server.wrapper,
+    });
+    await waitFor(() =>
+      expect(result.current.needsDecision).toBe(
+        MAXIMUM_LOADED_PAGES * pageSize,
+      ),
+    );
+    expect(result.current).toMatchObject({ truncated: true, partial: false });
+    expect(server.count("/v1/findings")).toBe(MAXIMUM_LOADED_PAGES + 1);
+  });
+  it("keeps the Inbox count partial after a failed findings continuation", async () => {
+    const state = base();
+    const one = finding("project_a", "finding_0");
+    state.findings = {
+      audit_a: Array.from({ length: 201 }, (_, index) => ({
+        ...one,
+        findingId: `finding_${index}`,
+      })),
+    };
+    state.continuationFails = "/v1/findings";
+    const { result } = renderHook(() => useInboxSummary(), {
+      wrapper: setup(state).wrapper,
+    });
+    await waitFor(() => expect(result.current.needsDecision).toBe(200));
+    expect(result.current).toMatchObject({ partial: true, truncated: false });
+  });
   it("does not request an impossible unreviewed severity pair", async () => {
     const server = setup(base());
     const { result } = renderHook(

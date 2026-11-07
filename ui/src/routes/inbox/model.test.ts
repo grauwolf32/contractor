@@ -285,6 +285,26 @@ describe("Inbox words", () => {
       "Nothing needs you right now.",
     );
   });
+  it("does not present an incomplete decision count as an exact total or zero", () => {
+    expect(
+      inboxSubtitle({
+        decide: 2,
+        decideIncomplete: true,
+        unblock: 0,
+        ready: 0,
+        running: 0,
+      }),
+    ).toBe("At least 2 need you.");
+    expect(
+      inboxSubtitle({
+        decide: 0,
+        decideIncomplete: true,
+        unblock: 0,
+        ready: 0,
+        running: 0,
+      }),
+    ).toBe("The decision count is incomplete.");
+  });
 
   it("names the next decision after one leaves the list", () => {
     const model = buildInbox(

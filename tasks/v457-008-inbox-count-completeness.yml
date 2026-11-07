@@ -1,0 +1,50 @@
+schema_version: "1.0"
+id: V457-008
+title: Preserve findings truncation in Inbox counts and labels
+milestone: ui-consolidation-2026-10
+epic: ui
+kind: defect
+introduced_by: V411-010
+priority: P2
+status: in_progress
+depends_on: []
+languages: [typescript]
+goal: Inbox and its navigation badge describe capped or failed findings counts as lower bounds.
+context:
+  authority: User decision 2026-11-07 authorizes all reported release-review fixes and scoped simplifications on a separate branch, including U3.
+  specification:
+    - docs/spec/ui/ui.md#UI-R39
+  severity: low
+  finding: >-
+    ui/src/api/cross-project.ts:720 drops findings.merged.truncated. With a complete
+    Project index but over twenty findings pages, Inbox reports its capped count as
+    complete and the rail description presents an exact total.
+  siblings: >-
+    useAllPossibleIssues already propagates finding truncation. Inbox data combines
+    completeness from its lists; the shared summary, subtitle and rail must preserve
+    that information while retaining their current unknown/loading behavior.
+scope:
+  in:
+    - Propagate findings truncation and show lower-bound count language in Inbox and the rail.
+    - Regress a realistic over-cap inventory and a failed continuation alongside complete reads.
+  out:
+    - Larger pagination caps, server counting endpoints or execution changes.
+acceptance_criteria:
+  - id: A1
+    text: A complete Project index and truncated findings inventory produce summary.truncated true.
+  - id: A2
+    text: Partial or truncated visible counts say at least while complete counts retain exact wording and loading does not imply zero.
+  - id: A3
+    text: The owner query remains capped, deduplicates overlapping review filters and preserves successful data on failure.
+tests:
+  - command: cd ui && corepack pnpm test --run src/api/cross-project.test.tsx src/app/shell.test.tsx src/routes/inbox/inbox.test.tsx src/routes/inbox/model.test.ts
+    covers: [A1, A2, A3]
+  - command: make ui-verify
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+verification:
+  focused: 89 passing tests across owner lists, shell, Inbox and presentation suites, including a 4001-finding capped inventory.
+  browser: 3 passing Chromium owner-list cases, including lower-bound badge wording after a failed continuation and pagination at 1440 px and 390 px.
+  static: Both TypeScript configurations and ESLint for every changed source and test passed.
+  integration: Full UI and repository lint gates remain for the integrated branch; task stays in_progress.

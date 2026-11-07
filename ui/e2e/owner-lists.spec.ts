@@ -1,6 +1,12 @@
 import { expect, test } from "@playwright/test";
 
-import { audit, auditInput, project } from "../src/test/builders";
+import {
+  audit,
+  auditInput,
+  project,
+  finding,
+  findingSummary,
+} from "../src/test/builders";
 import { ownerListResponse } from "../src/test/owner-lists";
 import {
   authSession,
@@ -25,6 +31,48 @@ const checks = Array.from({ length: 201 }, (_, i) =>
     updatedAt: date,
   }),
 );
+
+test("Inbox badge describes a failed findings continuation as a lower bound", async ({
+  page,
+}) => {
+  const owner = project("project_partial");
+  const issues = [
+    findingSummary(finding(owner.projectId, "finding_one")),
+    findingSummary(finding(owner.projectId, "finding_two")),
+  ];
+  await mockAPI(
+    page,
+    async (route, _request, url) => {
+      if (url.pathname === "/v1/projects")
+        return fulfillJSON(route, { items: [owner], page: { hasMore: false } });
+      if (
+        url.pathname === "/v1/findings" &&
+        url.searchParams.get("verdict") === "unreviewed"
+      ) {
+        if (url.searchParams.has("cursor"))
+          return fulfillJSON(
+            route,
+            {
+              code: "storage_transaction_conflict",
+              message: "Later findings unavailable",
+              retryable: true,
+            },
+            503,
+          );
+        return fulfillJSON(route, {
+          items: issues,
+          page: { hasMore: true, nextCursor: "later" },
+        });
+      }
+      return fulfillEmptyPageOrNotFound(route);
+    },
+    { session: authSession("owner", ["user"]) },
+  );
+  await page.goto("/checks");
+  await expect(
+    page.getByRole("link", { name: "Inbox (At least 2 need your decision)" }),
+  ).toBeVisible();
+});
 
 for (const width of [1440, 390]) {
   test(`owner lists follow every page at ${width}px`, async ({ page }) => {

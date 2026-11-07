@@ -406,6 +406,8 @@ export function distinctCount(rows: readonly InboxRow[]): number {
 interface SubtitleCounts {
   /** Items that need a decision; the rail badge's number. */
   decide: number;
+  /** The decision total is a lower bound, or unknown if no row was read. */
+  decideIncomplete?: boolean;
   unblock: number;
   ready: number;
   /** Running checks. */
@@ -415,7 +417,11 @@ interface SubtitleCounts {
 /** "2 need you, 1 is stuck, 2 are ready, 1 check is running." */
 export function inboxSubtitle(counts: SubtitleCounts): string {
   const parts = [
-    counts.decide > 0 ? plural(counts.decide, "needs you", "need you") : "",
+    counts.decide > 0
+      ? `${counts.decideIncomplete ? "At least " : ""}${plural(counts.decide, "needs you", "need you")}`
+      : counts.decideIncomplete
+        ? "The decision count is incomplete"
+        : "",
     counts.unblock > 0 ? plural(counts.unblock, "is stuck", "are stuck") : "",
     counts.ready > 0 ? plural(counts.ready, "is ready", "are ready") : "",
     counts.running > 0

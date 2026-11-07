@@ -8,6 +8,7 @@ import {
   renderShell,
 } from "../test/shell-harness";
 import { activeDestination } from "./destinations";
+import { queryKeys } from "../api/query-keys";
 
 function primaryNavigation() {
   return screen.getByRole("navigation", { name: "Primary navigation" });
@@ -170,6 +171,34 @@ describe("Inbox badge", () => {
     });
     expect(inbox.querySelector(".shell-nav-badge")).toHaveTextContent(/^99\+$/);
   });
+
+  it.each(["truncated", "partial"] as const)(
+    "describes a %s badge as a lower bound",
+    async (kind) => {
+      const { queryClient } = renderShell("/runs", { server: server(2) });
+      await within(primaryNavigation()).findByRole("link", {
+        name: "Inbox (2 need your decision)",
+      });
+      const key = queryKeys.crossProject.ownerFindings(
+        null,
+        "unreviewed",
+        null,
+      );
+      const cached = queryClient.getQueryData<{ items: unknown[] }>(key)!;
+      act(() =>
+        queryClient.setQueryData(key, {
+          ...cached,
+          truncated: kind === "truncated",
+          error: kind === "partial" ? new Error("Later page failed") : null,
+        }),
+      );
+      expect(
+        await within(primaryNavigation()).findByRole("link", {
+          name: "Inbox (At least 2 need your decision)",
+        }),
+      ).toBeVisible();
+    },
+  );
 
   it("includes canonical Findings from completed checks", async () => {
     renderShell("/runs", { server: server(0, 7) });

@@ -518,6 +518,31 @@ const FIRST_DECIDED =
   "Decision recorded on “Any user can read any report”: Not an issue.";
 
 describe("Inbox", () => {
+  it("labels a partial decision count as a lower bound and keeps the list selected", async () => {
+    const server = emptyServer();
+    server.projects = [build.project("project_shop")];
+    const one = finding(
+      "project_shop",
+      "finding_partial",
+      "A retained possible issue",
+      1,
+    );
+    server.override = (url) => {
+      if (
+        url.pathname !== "/v1/findings" ||
+        url.searchParams.get("verdict") !== "unreviewed"
+      )
+        return undefined;
+      return url.searchParams.has("cursor")
+        ? failure(503, "storage_transaction_conflict")
+        : json(page([build.findingSummary(one)], "later"));
+    };
+    const view = renderApplication("/", { server: inboxServer(server) });
+    expect(await screen.findByText("At least 1 needs you.")).toBeVisible();
+    expect(screen.queryByText("Nothing needs you right now.")).toBeNull();
+    expect(view.router.state.location.search).toBe("");
+  });
+
   it("says plainly when a section is empty", async () => {
     renderApplication("/", { server: inboxServer(emptyServer()) });
 
