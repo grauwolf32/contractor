@@ -930,7 +930,9 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     0,
   );
   await page.getByRole("link", { name: "Credentials" }).click();
-  await openDetails(page.locator("details.configuration-clone"));
+  await page
+    .getByRole("button", { name: "Create LLM credential", exact: true })
+    .click();
   const credentialForm = page.locator("form.credential-create-form");
   await credentialForm.getByLabel("Credential ID").fill("ui-stack-key");
   await openDetails(credentialForm.locator("details.optional-settings"));
@@ -994,7 +996,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
 
   await page.goto("/operations/configuration");
   await expect(
-    page.getByRole("heading", { name: "RuntimeConfig versions" }),
+    page.getByRole("heading", { name: "Runtime configuration", exact: true }),
   ).toBeVisible();
   await page
     .getByRole("button", { name: "Add Runtime credential", exact: true })

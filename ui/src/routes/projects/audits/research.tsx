@@ -9,7 +9,6 @@ import {
 } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
 import { conformsTo } from "../../../api/contract";
-import { requireData } from "../../../api/error";
 import { getProject } from "../../../api/projects";
 import { queryKeys } from "../../../api/query-keys";
 import { ContextLink, ReturnLink } from "../../../app/context-navigation";
@@ -37,17 +36,16 @@ import {
   StatusGlyph,
   TechnicalDetails,
 } from "../../../ui";
-import { IssueRow } from "../../issues/issue-row";
 import { useCheckWorkspace } from "./check-data";
 import { timeLimitText } from "./check-format";
 import { checkPath } from "./check-links";
 import { AuditControls } from "./controls";
+import { AuditFindings } from "./audit-findings";
 import { AuditHypotheses } from "./hypotheses";
 import { AuditActivity } from "./activity";
 import { auditProfileLabel } from "./labels";
 import { ResearchMaterialCard } from "./material-card";
 import { StopReasonBanner } from "./progress";
-import { useAuditProjectionRefresh } from "./projection-refresh";
 import {
   useResearchHypotheses,
   useResearchMaterials,
@@ -231,80 +229,6 @@ function Materials({ audit }: { audit: Audit }) {
             )}
             <CursorControls
               label="Material pages"
-              {...pages.controls(data.page)}
-            />
-          </>
-        )}
-      </QueryView>
-    </section>
-  );
-}
-
-function PossibleIssues({ audit }: { audit: Audit }) {
-  const api = usePublicAPI();
-  const pages = useURLCursorStack({ param: "findingsCursor" });
-  const key = [
-    ...queryKeys.audits.allFindings(audit.auditId),
-    "research",
-    pages.cursor,
-  ];
-  const query = useQuery({
-    queryKey: key,
-    queryFn: async ({ signal }) =>
-      requireData(
-        await api.request((client) =>
-          client.GET("/v1/audits/{auditId}/findings", {
-            signal,
-            params: {
-              path: { auditId: audit.auditId },
-              query: {
-                limit: 50,
-                ...(pages.cursor ? { cursor: pages.cursor } : {}),
-              },
-            },
-          }),
-        ),
-      ),
-    refetchInterval: pollInterval<components["schemas"]["AuditFindingPage"]>({
-      interval: 5000,
-      settled: () => auditPollInterval([audit]) === false,
-    }),
-  });
-  useAuditProjectionRefresh(audit, key);
-  return (
-    <section className="research-section">
-      <header className="research-section-head">
-        <div>
-          <p className="eyebrow">Canonical Project findings</p>
-          <h2>Possible issues</h2>
-        </div>
-        <Link to={`/projects/${encodeURIComponent(audit.projectId)}/findings`}>
-          All Project issues →
-        </Link>
-      </header>
-      <QueryView query={query}>
-        {(data) => (
-          <>
-            {data.items.length === 0 ? (
-              <EmptyState title="No possible issues recorded">
-                Collected work can still contain observations, refutations and
-                gaps.
-              </EmptyState>
-            ) : (
-              <ListSection>
-                {data.items.map((finding) => (
-                  <IssueRow
-                    key={finding.findingId}
-                    finding={finding}
-                    to={`/issues/${encodeURIComponent(finding.projectId)}/${encodeURIComponent(finding.findingId)}`}
-                    severityBadges
-                    context={auditProfileLabel(audit)}
-                  />
-                ))}
-              </ListSection>
-            )}
-            <CursorControls
-              label="Possible issue pages"
               {...pages.controls(data.page)}
             />
           </>
@@ -685,7 +609,7 @@ export function ResearchAudit({ audit }: { audit: Audit }) {
                 active={section === "hypotheses"}
               />
             </div>
-            {section === "findings" ? <PossibleIssues audit={audit} /> : null}
+            {section === "findings" ? <AuditFindings audit={audit} /> : null}
             {section === "materials" ? <Materials audit={audit} /> : null}
             {section === "activity" ? (
               <AuditActivity audit={audit} expanded />

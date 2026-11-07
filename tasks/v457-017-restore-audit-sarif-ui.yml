@@ -1,0 +1,92 @@
+schema_version: "1.0"
+id: V457-017
+title: Restore Audit-local SARIF publication over canonical Project findings
+milestone: release-gate-2026-10
+epic: findings
+kind: defect
+introduced_by: V64-002
+priority: P1
+status: in_progress
+depends_on: []
+languages: [typescript]
+goal: An owner can again select exact canonical Project findings from one Audit, publish a frozen SARIF export and download its retained parts through the existing UI and API.
+context:
+  authority: >-
+    User request 2026-11-07 authorizes reported release fixes and necessary
+    prerequisites on a separate branch. User directions recorded by V397-009
+    on 2026-10-29 and 2026-10-30 require separate Audit exports and explicit
+    duplicate inclusion. The accepted 0050 removal map preserves the purpose,
+    owner authorization and exact bytes of these independent export routes;
+    V64-014 changes Finding ownership without retiring frozen exports.
+  specification:
+    - docs/spec/findings/findings.md
+    - docs/spec/ui/ui.md
+  design:
+    - docs/proposals/0050-audit-removal-map.yml
+  severity: high
+  finding: >-
+    The real Operations browser journey on 227f824f1e99fa6850b299b236eac48005222df3
+    reaches ui/e2e/support/finding-exports.ts:27 and times out because no
+    details.issues-export exists. V64-002 common-caller cutover in
+    9e803f2fc16b0e07fd7b00d98b001ed59d24e5a5 removed the API adapter,
+    selection/download hook and export panel while replacing the Audit view.
+    research.tsx:243 still reads the canonical Audit-filtered Project findings
+    and the existing Server routes implement FND-R197 through FND-R201, but the
+    UI has no publication or download control. UI-R210 through UI-R212 remain
+    required. The removed UI already used ProjectFindingSummary.
+  boundary: >-
+    Restore the existing bounded adapter, local selection/retry state and panel
+    in the current Audit findings view. Server remains the only authority for
+    membership, grouping, revisions, frozen bytes and ownership. Preserve one
+    canonical Project Finding; no operational Audit Finding model, new endpoint,
+    backend state owner or historical reader is introduced.
+  siblings: >-
+    Retain SARIF, snapshot and diagnostics byte/digest validation, selection
+    across pages, stale revision conflicts, same-key ambiguous retry, download
+    retry and cancellation on leaving the check. Check every existing export
+    helper caller and the later credential/RuntimeConfig/logout selectors in
+    the real journey. The same journey retained two obsolete V429-028 selectors
+    from 71041cac9766a340665e0281e31708218c9ac4de: the credential form now opens
+    with Create LLM credential, and the RuntimeConfig inventory heading is
+    Runtime configuration. These two fixture selectors follow the current UI;
+    every later secret, binding, Agent-label and logout assertion stays intact.
+    Root already batches UI release version 0.11.22.
+  verification: >-
+    Real-stack failure is preserved in work/polish-logs/ui-stack-final.log and
+    its durable report outside the repository. Restoring the five original
+    component regressions against the current list first failed all five on
+    missing Export SARIF. After the repair, all 47 tests across six affected
+    API/Check/credential/RuntimeConfig suites pass, including the real Application
+    route, multi-page 256-selection ceiling, lost-response key replay, conflict
+    refresh, changing Audit/Finding revisions, and deferred publication/download
+    cancellation. UI and e2e TypeScript, ESLint and Prettier checks pass.
+    Independent read-only UI review found no blocking issue. Integrated real
+    browser verification, coordinating-branch lint and task completion remain
+    with integration; no real-stack pass is claimed yet.
+scope:
+  in:
+    - Restore and adapt the existing API adapter, export hook and panel to the current paginated canonical findings view.
+    - Restore meaningful API and real-component tests of selection, conflicts, retry, exact bytes and cancellation.
+    - Keep the existing real browser content, download, theme, width and secret-boundary assertions while following the two obsolete later Operations selectors.
+  out:
+    - New backend endpoints, domain models, catalog, model selection or legacy compatibility.
+    - Project-wide combined export, weaker byte validation or weaker real journey assertions.
+acceptance_criteria:
+  - id: A1
+    text: The current check findings view offers bounded explicit revision selection and immutable Audit-local SARIF publication using the existing API.
+  - id: A2
+    text: Unchanged ambiguous publication retries reuse the exact body/key; changed selections and conflicts require explicit refresh/clear; downloads validate frozen descriptors and retry without republishing.
+  - id: A3
+    text: API and real-component regressions prove bounds, exact bytes, pagination, cancellation and independent check ownership; existing browser bytes/content/theme/width/secret checks remain and pass after integration.
+tests:
+  - command: cd ui && corepack pnpm test --run src/api/finding-exports.test.ts src/routes/projects/audits/finding-export.test.tsx src/routes/projects/audits/research.test.tsx src/routes/operations/credentials src/routes/operations/runtime-configs
+    covers: [A1, A2, A3]
+  - command: cd ui && corepack pnpm exec tsc --noEmit
+    covers: [A1, A2, A3]
+  - command: cd ui && corepack pnpm exec tsc --project tsconfig.e2e.json --noEmit
+    covers: [A1, A2, A3]
+  - command: go test -tags=e2e -count=1 -timeout=12m ./tests/ui-stack -run '^TestBrowserOperationsStack$'
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+implementation_commit: null
