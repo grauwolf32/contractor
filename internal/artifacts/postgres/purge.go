@@ -358,7 +358,7 @@ func (s *Storage) collectUnreferencedBlobs(ctx context.Context, tx pgx.Tx, diges
 			return err
 		}
 		if kind == blob.Filesystem && key != nil {
-			s.deletePhysicalAfterCommit(ctx, tx, blob.Object{Backend: kind, Key: *key})
+			s.deletePhysicalAfterCommit(tx, blob.Object{Backend: kind, Key: *key})
 		}
 	}
 	return deleted.Err()
