@@ -12,6 +12,7 @@ UI dependencies. Choose a check by the boundary you changed:
 | Live advisory scans of the Go commands and the Runtime lock | `make advisories` | Go, uv and access to the Go and PyPI advisory services |
 | Server/Runtime process integration | `make test-e2e` | Test database and locked Runtime environment |
 | Real scanner process and browser integration | `make test-scan-e2e` | Test database, Chromium, and host `nuclei`, `naabu`, `sqlmap`, `ffuf`, `katana` |
+| Private paired HTTP targets, state oracles and network isolation | `make test-pentest-fixtures` | Local Podman, preinstalled exact image and pinned sibling playground; [fixture contract](../../tests/eval/pentest/README.md); no Gateway or database |
 | Separate Node UI with the real Go/Python stack | `make test-ui-stack` | Test database and Chromium with host libraries |
 | Basic scan/sweep widgets through the real API | `make test-web-scan-ui-stack` | Test database and locked Runtime/UI; no Studio or managed Eval scenarios |
 | API-mocked browser journeys | `make ui-browser-mocked` | Node/Corepack and Chromium with host libraries |

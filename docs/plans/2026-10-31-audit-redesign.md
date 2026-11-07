@@ -215,7 +215,7 @@ exploratory E2E в V64-002 появляется раньше полного ба
 
 ## HTTP часть базового сценария
 
-- [V411-019](../../tasks/v411-019-pentest-target-fixtures-and-proof-scorers.yml)
+- [V411-019](../../tasks/done/v411-019-pentest-target-fixtures-and-proof-scorers.yml)
   сохраняет небольшой vulnerable/fixed target с private independent oracle.
 - [V411-007](../../tasks/done/v411-007-trusted-http-capture.yml) связывает реальные
   invocation-owned HTTP exchanges с обычной приёмкой результатов и evidence.

@@ -5,6 +5,13 @@
 	test-podman-e2e test-podman-release test-podman-workflow \
 	test-podman-supervisor
 
+# Private paired targets: mandatory cases, actual Runtime captures and Podman
+# isolation. No database or Gateway; never silently skips unavailable prerequisites.
+PENTEST_PLAYGROUND_ROOT ?= $(abspath ../contractor-playground)
+.PHONY: test-pentest-fixtures
+test-pentest-fixtures: runtime-venv
+	cd runtime && uv run python ../tests/eval/pentest/gate.py --playground-root "$(PENTEST_PLAYGROUND_ROOT)"
+
 test-podman-prerequisites: require-database
 	@test -n "$$CONTRACTOR_TEST_PODMAN_IMAGE" || (echo "CONTRACTOR_TEST_PODMAN_IMAGE must name a preinstalled digest-pinned image" >&2; exit 1)
 	@command -v podman >/dev/null || (echo "local rootless podman is required" >&2; exit 1)
