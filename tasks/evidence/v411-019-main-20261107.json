@@ -1,0 +1,44 @@
+{
+  "task": "V411-019",
+  "date": "2026-11-07",
+  "contractor_merge": "15da83e0c35d9a47b4d0cfd2ba5373e057b3c988",
+  "previous_main": "1142c2681d6520baa8c04bb0a90ca8fd224deb29",
+  "source_head": "0dd3c4168f89e36dac6d2e2c41657c2cb682460e",
+  "playground_main_merge": "00d3be43113d8e79a4e1d0de86199051837f8ed7",
+  "checks": [
+    {
+      "command": "make test-pentest-fixtures",
+      "outcome": "passed",
+      "standalone_tests": 14,
+      "manifest": "invoice-lab.cases.v1",
+      "mandatory_checks": [
+        "cancelled-check",
+        "denied-traffic",
+        "fabricated-assertion",
+        "failure-teardown",
+        "forged-capture",
+        "incomplete-response",
+        "missing-evidence",
+        "no-state-effect",
+        "paired-identity-matrix",
+        "paired-injection",
+        "private-controls-runtime",
+        "private-controls-sandbox",
+        "private-controls-target",
+        "private-files-target",
+        "truncated-evidence",
+        "wrong-identity"
+      ],
+      "skipped": 0
+    },
+    {
+      "command": "UV_OFFLINE=1 make lint",
+      "environment": "Go 1.26.9 and Node 24.20/Corepack on PATH",
+      "outcome": "passed",
+      "note": "Existing declared platform skips are not fixture coverage."
+    }
+  ],
+  "preservation": "Ancestry verified; previous main RunStore, persistence, normative specs and ERD files are unchanged by this merge; playground file contents match its reviewed source head.",
+  "cleanup": "Owned fixture containers and volumes verified absent after completion.",
+  "limitations": "No demo deployment, live-model runs or additional PostgreSQL/release verification claimed."
+}

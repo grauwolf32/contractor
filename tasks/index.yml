@@ -9,6 +9,14 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
+    User request 2026-11-07 integrated the paired private HTTP fixtures into main
+    through no-fast-forward merge 15da83e0c (V411-019). The separate playground
+    main merge is 00d3be4311, pinned with exact file digests. Playground expansion
+    is V455-002 after resolving its collision with the existing V455-001 RunStore
+    task. All sixteen fixture checks, fourteen standalone tests and lint pass on
+    the combined tree; target controls remain network-isolated and owned fixture
+    containers/volumes were removed. V411-015 and other dependent production
+    features and demo deployment remain unassigned.
     User request 2026-11-06 integrated process-local Gateway recovery into main
     through merge 2baba6bd660df15003d9782fbcaae683befaa472 (V451-003). Recovery is V451-002 after
     resolving its task-ID collision with the existing V451-001 UI archive. Migration
