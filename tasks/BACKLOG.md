@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-75 open tasks: 17 in progress, 45 pending, 13 deferred. 1498 finished: 1480 completed, 18 archived.
+74 open tasks: 16 in progress, 45 pending, 13 deferred. 1499 finished: 1481 completed, 18 archived.
 
 ## In progress
 
@@ -20,7 +20,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Accept merged isolated Worker context compaction |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V457-009](v457-009-window-report-list-reads.yml) | ui | defect | P2 | Bound report availability reads to the visible check window |
 | [V457-010](v457-010-ui-stack-model-policy-closure.yml) | quality | defect | P1 | Stage the complete model policy closure for UI process fixtures |
 | [V457-011](v457-011-production-planner-coverage-fixture.yml) | quality | chore | P1 | Align the production Planner fixture with the shipped findings review |
 | [V457-012](v457-012-studio-catalog-alias-fixture.yml) | quality | chore | P1 | Expand trusted catalog aliases in Studio conformance fixtures |
@@ -176,7 +175,7 @@ tasks in `introduced_by`.
 | Audits (`audits`) | 10 | 69 | 97 | 42 | 164 |
 | Evaluations (`evals`) | 6 | 22 | 41 | 17 | 50 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
-| Web UI (`ui`) | 2 | 51 | 79 | 28 | 76 |
+| Web UI (`ui`) | 1 | 51 | 79 | 28 | 76 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 47 | 9 | 22 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 42 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 50 | 18 |

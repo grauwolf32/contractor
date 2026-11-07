@@ -5,7 +5,7 @@ milestone: ui-consolidation-2026-10
 epic: ui
 kind: defect
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [typescript]
 goal: Opening Reports loads availability only for a bounded visible check window and retains full report content only for the selected detail.
@@ -62,4 +62,5 @@ verification:
   focused: 77 passing tests across Audit API, report contract, cross-project lists, Reports list/detail and Inbox suites; queued and active cancellation and empty-window continuation are covered.
   browser: 5 passing Chromium owner-list cases, including bounded Reports paging, selected full content, preserved Project/page return context and overflow checks at 1440 px and 390 px.
   static: Both TypeScript configurations and ESLint for all changed sources and tests passed.
-  integration: Full UI and repository lint gates remain for the integrated branch; task stays in_progress.
+  integration: The full ui-verify gate passed 218 files, 2457 tests and one declared expected failure; Node tests, generation checks, typechecking, lint and production build passed. The integrated make lint and 212-case mocked Chromium gate passed. Skips and the expected failure are not passing coverage.
+implementation_commit: 5efcf27b486d9eee0b976f6e16cd425a9d141e74
