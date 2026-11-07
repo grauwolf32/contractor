@@ -6,7 +6,7 @@ epic: quality
 kind: chore
 introduced_by: V64-012
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [go, python]
 goal: The catalog replacement process fixture removes all current profiles that depend on its deleted ASVS and Top10 definitions while preserving unrelated valid catalog entries and retained source behavior.
@@ -23,6 +23,13 @@ context:
     them. TestAuditProgramCatalogReplacementRestartsServer exits at readiness
     after replacement with audit_document_invalid: Workflow selection is unavailable
     in owasp_asvs_5_0_l1_source_pilot.yaml.
+  integration_verification: >-
+    Acceptance verified on 2026-11-08. The real Server catalog-replacement restart
+    passed on the integrated branch, followed by a successful complete
+    release-verify-process-b command and its engagement report verifier. Both pure
+    configuration closures pass in the eleven-case fixture gate; all unrelated resolved
+    profiles remain equal and the independent ASVS review profile remains available.
+    Final release-verify-lint passed.
 scope:
   in:
     - Remove the complete dependent ASVS/Top10 profile closure in the existing staged catalog replacement helper.
@@ -49,4 +56,10 @@ verification:
   focused: Repaired TestAuditProgramsE2EConfigurationLoads and TestAuditProgramCatalogRemovalConfigurationClosure both pass. Exactly four target profiles disappear; every remaining resolved profile and dependency closure compares equal to its pre-removal value.
   release_selection: The new closure regression is selected by CONFIG_FIXTURE_TESTS and the exact EXPECTED_CONFIG_TESTS guard, now eleven configuration fixture cases. All 56 release-graph guard unit tests pass.
   static: Go formatting, diff-check and task validation pass. No production source, catalog leniency, model choice, standards binding removal or retained source behavior changes.
-  integration: One concurrent local baseline attempt was blocked before replacement by the database-global lease of whole process-A and is not counted as the target negative control. Root will run the focused corrected Server restart and whole process-B on the released Data database; task stays in_progress until those integrated checks pass.
+  integration: >-
+    The real Server catalog-replacement restart passed on the integrated branch,
+    followed by a successful complete release-verify-process-b command and its
+    engagement report verifier. Both pure configuration closures pass in the eleven-case
+    fixture gate; all unrelated resolved profiles remain equal and the independent ASVS
+    review profile remains available. Final release-verify-lint passed.
+implementation_commit: 71e2df70cb72886f951560c8f04b4664bacca260
