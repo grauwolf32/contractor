@@ -1,0 +1,68 @@
+schema_version: "1.0"
+id: V457-002
+title: Reuse one validated Audit program during child Run creation
+milestone: hub-audit-structure-2026-10
+epic: audits
+kind: chore
+introduced_by: V64-002
+priority: P3
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Each locked Audit Run creation attempt decodes its pinned program once while preserving exact membership and publication authority.
+context:
+  authority: >-
+    User request 2026-11-07 authorizes implementing the release review fixes and
+    simplifications autonomously on a separate branch while the user is away.
+    This task addresses review finding B1 only.
+  finding: >-
+    CreateAudit decodes the same immutable program six times through
+    normalizeTaskRunCreate, its validator, a duplicate caller validation,
+    prepareAuditCompletion, input accounting and materializeTaskRunContext.
+    Each decode reconstructs and validates all pinned Workflow closures and
+    recomputes their canonical digest inside the credential-guarded transaction.
+    The ordinary child Run path was introduced by V64-002 beginning with
+    dd5824f562824a6b6bc29fee0ccba10393606fc0.
+  siblings: >-
+    Supporting material and trusted check/proposal context creation, selected
+    Skills, batch membership, replay and the final dispatch fence must retain
+    their existing behavior. Immutable database intent reads remain owned by
+    AuditStore; no cross-request cache or alternate authority is introduced.
+  verification: >-
+    The complete RunService package passed against the owned disposable PostgreSQL
+    database, both ordinarily (10.507 seconds) and under the race detector
+    (17.548 seconds). Source inspection leaves one DecodePinnedProgram call in
+    RunService and one normalized-intent validator invocation. The same real-store
+    benchmark ran three samples of ten creations before and after the refactor,
+    rolling back each transaction after its final dispatch fence. For a 4,088-byte
+    pin, median time was 13.715 to 7.487 ms/op, bytes allocated were 2,352,781 to
+    830,702 B/op and allocations were 33,635 to 11,291. For a 69,521-byte pin,
+    medians were 28.666 to 13.628 ms/op, 19,140,706 to 6,634,132 B/op and 33,890
+    to 11,372 allocations. These local measurements are not a latency guarantee.
+    Integrated make lint and task closure remain for the coordinating branch.
+scope:
+  in:
+    - Pass the already validated program and selected binding through private Run creation helpers.
+    - Remove the second validation of the same normalized locked intent.
+    - Preserve real-store authority and replay regressions and measure the existing creation path before and after.
+  out:
+    - Change Run or Audit contracts, limits, state transitions, configured models or transaction ownership.
+    - Add a global parsed-program cache, receipt or new persistence mechanism.
+    - Repair incompatible historical demo Run snapshots.
+acceptance_criteria:
+  - id: A1
+    text: RunService decodes the locked intent program once per creation attempt and reuses its validated typed program in all downstream helpers.
+  - id: A2
+    text: Real PostgreSQL regressions retain creation and replay identities, exact input and completion membership, invalid membership refusal and dispatch fences.
+  - id: A3
+    text: A repeatable before and after benchmark records time and allocations for real-store child Run creation without asserting a timing threshold.
+tests:
+  - command: CONTRACTOR_TEST_DATABASE_URL=<owned-business-db> go test -count=1 ./internal/runservice/...
+    covers: [A1, A2]
+  - command: CONTRACTOR_TEST_DATABASE_URL=<owned-business-db> go test -race -count=1 ./internal/runservice/...
+    covers: [A1, A2]
+  - command: CONTRACTOR_TEST_DATABASE_URL=<owned-business-db> go test -run '^$' -bench '^BenchmarkAuditRunCreatePinnedProgram$' -benchtime=10x -count=3 -benchmem ./internal/runservice
+    covers: [A1, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+implementation_commit: null
