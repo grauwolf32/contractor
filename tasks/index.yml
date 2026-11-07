@@ -9,6 +9,14 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
+    User request 2026-11-07 integrated the verified release baseline and fixture
+    repairs (V456-001/V456-002) into main through no-fast-forward merge
+    b66620730735f68c4da878ffc12686125d451be7 (V456-003). The single baseline retains its
+    verified checksum and preserves later Planner, Runtime trace and material-preview
+    changes. Combined PostgreSQL persistence/Planner/restore, wire and lint gates
+    passed; optional heavy I/O stayed disabled. Six unrelated primary files and
+    the staged index retained exact hashes and modes; the owned test database
+    was dropped. Deployment and the complete release gate were not run.
     User assignment 2026-11-07 completes V420-002 acceptance on the integrated
     ADK compactor revision. A1-A6 and every required gate passed; acceptance
     fixes release invocation-local compaction context before Run returns and

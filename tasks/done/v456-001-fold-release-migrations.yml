@@ -69,8 +69,14 @@ verification:
   - The metadata validator retains its existing SQL-standard source form for the shared-policy generator; its installed function definition is exactly equivalent to the dump and retired chain.
   - Full go test -tags=integration -count=1 ./internal/... passes after V456-002 repairs existing verification fixtures. Backup/restore passes both physical payload backends, all 17 selected Matrix tests pass and all three shared-policy generator tests pass.
   - The wire gate passes 374 shared fixtures with 418 Go and 266 Python shared tests; its separate contract-model pass has 390 Python tests. One explicitly disabled disk-heavy case remains a skip, not passing coverage.
-  - No live or demo database is modified. The branch codex/release-migration-baseline is not merged into main; merging remains the user's step.
+  - No live or demo database was modified. At implementation completion the branch was not yet merged; the subsequent user-authorized main integration is recorded by V456-003.
   - make shared-config-check and make lint pass on the final code. Lint uses UV_OFFLINE=1 and pinned cached dependencies after the online metadata lookup timed out; no tool version or check was changed.
   - All 105 internal packages reporting tests pass. Optional heavy-I/O cases and the unconfigured Podman storage-image fixture remain declared skips and are not claimed as passing coverage. The complete release-verify gate was not requested or run.
   - The owned chain, comparison and test databases were dropped after all test pools stopped; PostgreSQL reports none of the three remaining.
 implementation_commit: 6d89123166089430a4f5f6ce206e738ddccd3f62
+delivery:
+  date: '2026-11-07'
+  merged_into_main: true
+  merge_commit: b66620730735f68c4da878ffc12686125d451be7
+  integration_task: V456-003
+  pushed: false

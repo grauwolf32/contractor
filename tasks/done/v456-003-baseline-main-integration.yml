@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: persistence
 kind: chore
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V456-001, V456-002]
 languages: [go, sql, python, markdown]
 goal: >-
@@ -57,3 +57,13 @@ verification:
   - make lint passed with the locked Runtime environment and pinned cached tools in offline mode, including generated contracts, layers, release graph, task/spec, schema/ERD and Runtime import checks.
   - The six primary tracked/untracked file hashes and modes and the staged index match the recoverable snapshot in /private/tmp/contractor-v456-evidence/main-integration/primary-preservation.json.
   - Full release-verify, live models, optional heavy I/O, deployment and remote push are outside this integration.
+  - Main advanced to the prepared merge with the expected two parents, and all primary content, modes and staged entries remained unchanged afterward.
+  - The owned contractor_v456_merge database had zero sessions after the gates stopped and was explicitly dropped.
+implementation_commit: b66620730735f68c4da878ffc12686125d451be7
+delivery:
+  date: '2026-11-07'
+  merged_into_main: true
+  merge_commit: b66620730735f68c4da878ffc12686125d451be7
+  main_first_parent: 9d8bc588ca3c1f8829756d329f7cc5f8b1b09e04
+  source_head: 06cb679e75fde559d32c2142fccfb5386f9a2948
+  pushed: false
