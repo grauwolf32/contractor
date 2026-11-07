@@ -6,7 +6,7 @@ epic: quality
 kind: chore
 introduced_by: V414-007
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: "The exact stored-size registry gate inspects only its migrated schema and survives other test schemas being dropped concurrently."
@@ -39,6 +39,14 @@ context:
     existing query accepts exactly the owned FK's covering index without
     deparsing any foreign relation; EXPLAIN shows the owned hash join before
     the deparser join filter. No sibling source changes are needed.
+  integration_verification: >-
+    Acceptance verified on 2026-11-08. The final integrated release-verify-unit command
+    passed 3090 Go tests with no failures, including both catalog deparser probes and
+    the exact migrated-schema registry checks. The full PostgreSQL package passed 72
+    ordinary and 72 race-enabled tests without skips; after removing the irrelevant
+    default-RAISE SQLSTATE literal, both parent persistence and PostgreSQL packages
+    passed again. Final release-verify-lint passed; no registry, migration-lock
+    assertion or production timeout was relaxed.
 scope:
   in:
     - "A test-only materialized owned-constraint query boundary and its real PostgreSQL negative control/EXPLAIN evidence."
@@ -79,7 +87,7 @@ verification:
     in 24.831 seconds and under race detection in 26.576 seconds. No optional
     heavy I/O was enabled. Diff whitespace checks pass; task validation reports
     only the expected generated BACKLOG update reserved for the coordinating
-    lane. Integrated lint, full Go verification and task closure remain there.
+    lane. Final integrated verification passed as recorded in context.integration_verification.
   attempts: >-
     The initial race launch ran no tests because the shared temporary Go SDK
     lost its standard-library sources at midnight. Its setup-failure log is
@@ -97,3 +105,4 @@ verification:
     parent persistence package and PostgreSQL package then passed in 3.151 and
     24.577 seconds on the owned integration database; every registry and
     foreign-OID assertion remains intact.
+implementation_commit: 70daf77ba3413128d332b9ea66b7bd6ef912a6c9
