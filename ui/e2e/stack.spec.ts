@@ -908,8 +908,9 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
 
   await page.goto("/operations/configurations");
   const workerRow = page
-    .getByRole("row")
+    .locator("details.ops-resource-row")
     .filter({ has: page.getByText("worker@2", { exact: true }) });
+  await openDetails(workerRow);
   await workerRow.getByRole("link", { name: "Inspect / clone" }).click();
   await page.getByRole("button", { name: "Clone to new version" }).click();
   await page.getByLabel("New version").fill("ui-stack-1");
