@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-68 open tasks: 9 in progress, 46 pending, 13 deferred. 1486 finished: 1468 completed, 18 archived.
+68 open tasks: 10 in progress, 45 pending, 13 deferred. 1486 finished: 1468 completed, 18 archived.
 
 ## In progress
 
@@ -20,6 +20,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Accept merged isolated Worker context compaction |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V455-004](v455-004-runtime-trace-delivery.yml) | operations | defect | P1 | Preserve bounded Worker trace flush when Runtime cleanup fails |
 
 ## Pending
 
@@ -102,12 +103,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V411-018](v411-018-pentest-ui-journey.yml) | feature | P1 | V411-015, V411-017 | Build the ordinary HTTP Audit setup and evidence UI journey |
-
-### Operations, authentication, CLI and deployment (`operations`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V455-004](v455-004-runtime-trace-delivery.yml) | defect | P1 | — | Export Worker traces during execution and preserve bounded flush on teardown failures |
 
 ### Public API and wire contracts (`api-contracts`)
 

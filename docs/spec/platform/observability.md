@@ -864,7 +864,32 @@ StageResult, the StageTermination or release eligibility (FAIL-OBS-6).
 
 **OBS-R87.** Finalization and abort perform one best-effort flush,
 bounded by both the configured timeout and the remaining finalization or abort
-deadline (FAIL-OBS-6).
+deadline (FAIL-OBS-6). With telemetry enabled, entering allocation teardown
+reserves `min(flushTimeoutSeconds, remainingStopSeconds / 2)` of the original
+stop budget before HTTP, Worker, Toolset and execution cleanup can consume it.
+Those producers receive the earlier deadline. Lease loss, reconciliation and
+process shutdown use the same rule. No deadline or retry budget is restarted.
+An exhausted deadline or failure to acquire lifecycle ownership does not
+authorize extending mandatory process termination.
+
+If producer cleanup fails, the allocation is fenced and the same bounded flush
+is attempted before controlled process exit. It exports completed spans while
+producer handles remain owned; it does not close adapters underneath producers
+whose stop is unconfirmed. Repeated caller cancellation cannot skip this attempt.
+Export failure never replaces the original cleanup failure or allows slot reuse.
+A safe diagnostic records the cleanup phase and bounded exception class name,
+never the exception message, credentials, endpoint or response body.
+
+```mermaid
+flowchart TD
+    S["Stop: one absolute deadline"] --> R["Reserve final flush time"]
+    R --> P["Stop HTTP, Worker, Toolset and execution producers"]
+    P -- confirmed --> F["Existing bounded final flush"]
+    F --> C["Close adapters, then report and release"]
+    P -- "failure, timeout or cancellation" --> X["Fence allocation and log safe cleanup phase"]
+    X --> E["Existing bounded flush with original deadline; retain producer handles"]
+    E --> Q["Exit 70; slot cannot be reused"]
+```
 
 **OBS-R88.** For a Worker the flush joins the active sender and drains
 the remaining spans in the same bounded batches; the deadline bounds the entire
@@ -874,7 +899,9 @@ drain, not each batch independently.
 transport credentials (LIFE-OBS-3).
 
 **OBS-R90.** The Runtime then returns the Contractor
-`ExecutionReport` regardless of export success.
+`ExecutionReport` regardless of export success when resource cleanup is confirmed.
+An unconfirmed cleanup instead forces process exit after the bounded export
+attempt and cannot manufacture a successful final report.
 
 **OBS-R91.** Release erases all credential values, closes clients and
 removes temporary proxy trust material before the slot can become idle
