@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-68 open tasks: 10 in progress, 45 pending, 13 deferred. 1481 finished: 1463 completed, 18 archived.
+69 open tasks: 11 in progress, 45 pending, 13 deferred. 1481 finished: 1463 completed, 18 archived.
 
 ## In progress
 
@@ -21,6 +21,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V456-002](v456-002-current-schema-verification.yml) | persistence | chore | P2 | Align release verification fixtures with the current Audit schema |
 
 ## Pending
 
@@ -166,11 +167,11 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 0 | 17 | 10 | 11 | 17 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 21 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 39 | 17 | 67 |
-| Audits (`audits`) | 10 | 69 | 96 | 41 | 156 |
+| Audits (`audits`) | 10 | 69 | 96 | 41 | 157 |
 | Evaluations (`evals`) | 5 | 22 | 40 | 17 | 50 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
 | Web UI (`ui`) | 1 | 49 | 74 | 28 | 74 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 46 | 9 | 22 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 42 | 30 | 21 |
-| PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 47 | 18 |
+| PostgreSQL persistence and schema (`persistence`) | 4 | 0 | 28 | 48 | 18 |
 | Quality, CI and process (`quality`) | 11 | 1 | 29 | 133 | 28 |

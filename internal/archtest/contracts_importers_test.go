@@ -51,7 +51,7 @@ var contractsImporters = map[string][]string{
 	"internal/auditscan":                          {"ArtifactRef"},
 	"internal/auditservice":                       {"ArtifactRef", "ValidResourceID"},
 	"internal/auditstandards":                     {"ArtifactRef", "ValidConfigVersion"},
-	"internal/auditstore":                         {"ArtifactRef"},
+	"internal/auditstore":                         {"ExactArtifact", "ValidResourceID"},
 	"internal/auditstore/internal/pgstore":        {"ArtifactReadResult", "ValidResourceID"},
 	"internal/auth":                               {"ValidName"},
 	"internal/cli":                                {"ValidateArtifactName"},

@@ -1,0 +1,50 @@
+schema_version: '1.0'
+id: V456-002
+title: Align release verification fixtures with the current Audit schema
+milestone: hub-audit-defects-2026-10
+epic: persistence
+kind: chore
+introduced_by: V64-010
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go]
+goal: >-
+  Backup and restore exercise current Audit-owned rows and architectural
+  importer checks describe actual current imports, so release schema verification can run.
+context:
+  authority: >-
+    The 2026-11-07 release baseline fold exposed these existing verification
+    failures; the prerequisite repairs only test inputs and registries.
+  specification: docs/spec/platform/persistence.md#PER-R33
+  finding: >-
+    tests/integration/restore/restore_test.go:317 seeds removed audits.phase,
+    audit_rounds and audit_items and retired audit_executions columns.
+    internal/archtest/contracts_importers_test.go:54 lists auditstore.ArtifactRef
+    although that package now uses other private-wire symbols.
+    internal/projectlifecycle/drain_plan_postgres_test.go:158 also seeds the
+    same removed audits.phase column. The architecture and restore failures
+    reproduce on unchanged commit 2fc3bb3d14c237095f968267adc599534a33dc2b.
+  decision: >-
+    Update the restore fixture to current ordinary Audit Tasks and executions
+    and name a genuinely used wire symbol in the existing importer registry.
+    Keep all exact-byte, table-function-row, receipt and CAS assertions. Removing
+    those checks would weaken release coverage; changing production code or
+    reintroducing retired schema solely for fixtures is outside this repair.
+scope:
+  in:
+    - Current-schema Audit restore and Project-drain fixtures and the stale contracts importer registry entry.
+  out:
+    - Production behavior, schema or public/private contract changes.
+acceptance_criteria:
+  - id: A1
+    text: Backup/restore passes for both PostgreSQL and filesystem payloads, including populated tables whose constraints call functions, exact bytes, receipts and CAS.
+  - id: A2
+    text: The complete architecture and Project lifecycle test packages pass with a current importer entry and all existing guard probes intact.
+tests:
+  - command: make test-backup-restore
+    covers: [A1]
+  - command: go test -tags=integration -count=1 ./tests/integration/restore ./internal/archtest ./internal/projectlifecycle
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]
