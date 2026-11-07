@@ -16,6 +16,11 @@ languages:
 goal: Deliver a complete selectable Planner compaction path that continues one invocation with bounded history
   while preserving budgets, exact evidence and fail-closed persistence.
 context:
+  execution_authority: >-
+    User assignment 2026-11-07: complete V420-002 acceptance on current main,
+    including the merged V420-007 auxiliary ADK compactor. Continue the existing
+    in-progress task, preserve its implementation history and close only after
+    A1-A6 and every required command pass. Dependent tasks remain unassigned.
   authority: 'User request on 2026-10-25: create detailed tasks for Go ADK v2.6.0 and Planner compaction, including
     compatibility, tests and mutual exclusion with terminal summarization; keep Scheduler substantially unchanged.
     These pending records authorize planning only, do not start implementation and do not change the current

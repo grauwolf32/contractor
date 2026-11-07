@@ -1,0 +1,531 @@
+{
+  "schema_version": "1.0",
+  "task": "V420-002",
+  "date": "2026-11-07",
+  "status": "passed",
+  "baseline_revision": "b1b22111f4cdf428043eb2306005780b7aa7e353",
+  "tested_source": "Baseline plus the exact changed-source hashes below; closure records the implementation revision.",
+  "historical_implementation": "003f6e04444ea42630e70c07e5d886fa9d26f2a4",
+  "planner_policy_migration": "851a547b529eb8740431f5377268346d70d8164a",
+  "adk_auxiliary_agent": "3bee7d16ed6efa08ac6f804aba26dd8da556c1b8",
+  "modules": [
+    {
+      "Path": "google.golang.org/adk/v2",
+      "Version": "v2.6.0",
+      "Sum": "h1:ZgMfKWzzB1H3qQ/6JV3pGkm7rcfNZFRMkgvOLBtmJTk=",
+      "GoModSum": "h1:Z3nLJKDFE1UzbEs3JXiTnAtWjS92kXo4cI8S8FFLRrc="
+    },
+    {
+      "Path": "google.golang.org/genai",
+      "Version": "v1.74.0",
+      "Sum": "h1:n7lBIax9PkdrmfxsNilfFPOwo1ahelozeZj2Ady0lgw=",
+      "GoModSum": "h1:2j40fGpqPPIZNjaDKmjGGjYwCJi6Nm2ofmyP65GnqtY="
+    }
+  ],
+  "module_graph_sha256": "269807b777c899b92586863c59d3c0ee8940caab546a8a32b0c682a880987e2e",
+  "go": "go1.26.9 darwin/arm64",
+  "node": "24.20.0",
+  "database": {
+    "owned": "contractor_v420_002_20261107_a",
+    "transport": "local Unix socket",
+    "tmpdir": "/private/tmp",
+    "cleanup": "Dropped after all test commands and their pools completed."
+  },
+  "source_sha256": {
+    "go.mod": "39814d7a347628f48a62289abba63beba81db20dd51d1acf233d308e654bb937",
+    "go.sum": "33d3b901321b8f39d44e379736d2c9a42b8a0fcb7455ad6c20594ef5417cc195",
+    "runtime/uv.lock": "945f997f38cabe445f1f05a559a26089fdf3bf44c95b523a6d8eb71c8e235c65",
+    "ui/pnpm-lock.yaml": "e4341c4dca90bedcf31ecb890a6fa0a0a9240392f76e202b68666c48420b9b74",
+    "internal/planner/streamline/planner.go": "1122049424fe4425efb2cd4bd470e3e87e26bc0aa1e94767d956bc3266364d45",
+    "internal/planner/streamline/compaction.go": "df10296b4a89c046d6cd6b2514dee265d11ef73c72e7325e0932d386ce75ff3d",
+    "internal/planner/streamline/compactor_agent.go": "f9d3a6257684ca3a97a4c376fc929eef8d7d7ac7af041bb72af229f4ceced6d0",
+    "internal/planner/streamline/compaction_test.go": "d6477c78b598c272a601c5f4e54662393690fa6782a91ea044a6bc3d746a45dd",
+    "internal/planner/streamline/compaction_bounds_test.go": "452f3d9f8e433c77daf1e9cf79ae2b4a0f575c45da1da653fcaae8994e0807c2",
+    "internal/planner/streamline/compaction_postgres_test.go": "f2953edda4ddeb9b036d09165b504bd897baf3066bbdea07a8f3aa331cd2651f",
+    "internal/planner/streamline/compactor_agent_test.go": "5f229e77d087b9b0a55448b10114814a2db57f1a5c4688a791085069268040db",
+    "internal/planner/streamline/gateway.go": "4863dbe8c9cc809e43763204d4e9fcd15d62965b3df1bbda4ad196c8071050b5",
+    "internal/planner/streamline/gateway_schema.go": "cb8ca8e22e53180e51b06059b3f3b49371bd295e56baaa288506f9aa88249fc5",
+    "internal/config/planner_context.go": "446d324ac862336df48d41bf795711fd82ecf86d65c6ff6814156aa1dc06177d",
+    "internal/config/resolved/planner_context.go": "9db70480f49e8aaaee76765297b3ae7c36e46e270f87894fe4054dfd42090086",
+    "internal/config/planner_context_test.go": "cc481745a238103a87188763c9417145ac957d64f736a30bd4eeeed8466c1cd5",
+    "api/v1alpha1/allocation.schema.json": "81dbff7e971b7348a5234b98e968e60bc436bc3a81fc791aca3c195084b508d0",
+    "internal/contracts/control/allocation.go": "d34610847e7a792d9b1ebda971da88d5cad7ce56bdea404ed08921bb1ea52906",
+    "docs/spec/execution/planners.md": "3895f3e7e431c7c9df870721fb98bea774f65268cdc6ddc4a4566890c937c16c"
+  },
+  "checks": [
+    {
+      "command": "go test -json -race -count=1 ./internal/config/... ./internal/configload/... ./internal/planner/... ./internal/telemetry",
+      "exit_code": 0,
+      "phase": "Initial complete package pass; only Planner sources changed afterwards.",
+      "log_sha256": "e94b21b0382056f0fed87dc2d2f9c4c50239f2a63577357707fa111ace126cd6",
+      "passed_top_level": 537,
+      "passed_subtests": 1175,
+      "passed_packages": 12,
+      "failed": 0,
+      "skipped_tests": [
+        {
+          "package": "github.com/grauwolf32/contractor/internal/telemetry",
+          "test": "TestPlannerOTLPCollectorProjection"
+        }
+      ],
+      "packages_without_tests": [
+        {
+          "package": "github.com/grauwolf32/contractor/internal/configload/configloadtest",
+          "test": null
+        }
+      ]
+    },
+    {
+      "command": "go test -json -race -count=1 ./internal/planner/...",
+      "exit_code": 0,
+      "phase": "Final Planner sources, including both fixes and all added regressions.",
+      "log_sha256": "99e7963e126670309e2be179c584c19f11ff4487affa1855354093b49b4db88e",
+      "passed_top_level": 255,
+      "passed_subtests": 529,
+      "passed_packages": 7,
+      "failed": 0,
+      "skipped_tests": [],
+      "packages_without_tests": []
+    },
+    {
+      "command": "make test-streamline",
+      "exit_code": 0,
+      "logging": "GOFLAGS=-v",
+      "passed_top_level": 139,
+      "passed_subtests": 341,
+      "skipped_tests": [
+        "TestLiveGatewayToolCall",
+        "TestLiveRouterWorkflow"
+      ],
+      "log_sha256": "baa19ada84c842a33cb9fb5234f2119e330542520ba2bad65dbf78750a3c96cf"
+    },
+    {
+      "command": "make verify-public-api",
+      "exit_code": 0,
+      "logging": "GOFLAGS=-v",
+      "passed_top_level": 68,
+      "passed_subtests": 332,
+      "skipped_tests": [],
+      "log_sha256": "461bba1a3e07c40e82f0dc5c881bdca46ef67680f3c4925fdb32bddf5eecae9b"
+    },
+    {
+      "command": "make verify-public-api-postgres",
+      "exit_code": 0,
+      "logging": "GOFLAGS=-v",
+      "passed_top_level": 9,
+      "passed_subtests": 10,
+      "skipped_tests": [],
+      "log_sha256": "7cf5564f784b0c746aa618e4136eeb46c68631b9d8e45722a36d26f136a9bb74"
+    },
+    {
+      "command": "make test-config",
+      "exit_code": 0,
+      "logging": "GOFLAGS=-v",
+      "passed_top_level": 223,
+      "passed_subtests": 534,
+      "skipped_tests": [],
+      "log_sha256": "6cd57cf71accb0dbab3d798a52eed251ff8d640f1c9a6f74dd30d5ef3d661cd8"
+    },
+    {
+      "command": "make ui-verify",
+      "exit_code": 0,
+      "vitest_files": 214,
+      "vitest_passed": 2428,
+      "intentional_expected_failure": {
+        "count": 1,
+        "source": "ui/src/test/test-support.test.ts",
+        "reason": "it.fails proves that a fixture body breaking the API contract fails its test."
+      },
+      "node_server_passed": 17,
+      "unexpected_failures": 0,
+      "skipped_tests": 0,
+      "production_build": "passed",
+      "log_sha256": "34112f5859688bf54db51bf985c4d8b6272b57dbabe95070b99267f04fcb7e27"
+    },
+    {
+      "command": "make lint",
+      "exit_code": 0,
+      "script_unittests": 210,
+      "declared_script_skips": 4,
+      "note": "Declared platform/tool skips are not compaction coverage.",
+      "log_sha256": "934b610f32164263bca1899b33811fada99a038ebd6c00173542c43bfeedf465"
+    }
+  ],
+  "acceptance_criteria": {
+    "A1": {
+      "outcome": "Strict authoring, exact policy/instruction pins, snapshot decoding and execution admission pass for ordinary and summary-continuation Planners.",
+      "tests": [
+        {
+          "package": "internal/config",
+          "test": "TestPlannerContextManagementResolvesExplicitCompactBranch",
+          "status": "passed"
+        },
+        {
+          "package": "internal/config",
+          "test": "TestPlannerContextManagementNoneKeepsSnapshotUnchanged",
+          "status": "passed"
+        },
+        {
+          "package": "internal/config",
+          "test": "TestPlannerContextManagementRejectsInvalidAuthoring",
+          "status": "passed"
+        },
+        {
+          "package": "internal/config",
+          "test": "TestPlannerContextManagementSnapshotRejectsNoneAndPartialBranches",
+          "status": "passed"
+        },
+        {
+          "package": "internal/config",
+          "test": "TestCompactorModelPolicySelectionPrecedence",
+          "status": "passed"
+        },
+        {
+          "package": "internal/config",
+          "test": "TestPlannerCompactorPolicyRemainsPinnedAfterCatalogReload",
+          "status": "passed"
+        },
+        {
+          "package": "internal/config",
+          "test": "TestSummaryPlannerCompactionPinsPolicyAndSurvivesSnapshotAndClone",
+          "status": "passed"
+        },
+        {
+          "package": "internal/planner/streamline",
+          "test": "TestCompactionCreateRejectsIncompleteSelection",
+          "status": "passed"
+        }
+      ]
+    },
+    "A2": {
+      "outcome": "Both profiles complete two checkpoints in one invocation, keep the protected objective and old exact artifact reference, and perform two Worker effects without counter or identity resets.",
+      "tests": [
+        {
+          "package": "internal/planner/streamline",
+          "test": "TestCompactionContinuesSameInvocationAcrossTwoCheckpoints",
+          "status": "passed"
+        },
+        {
+          "package": "internal/planner/streamline",
+          "test": "TestPostgresCompactionTwoCheckpointsKeepRawContextOutOfDurableFacts",
+          "status": "passed"
+        },
+        {
+          "package": "internal/planner/streamline",
+          "test": "TestCompactorAgentStructuredOutputHTTP",
+          "status": "passed"
+        },
+        {
+          "package": "internal/planner/streamline",
+          "test": "TestCompactionHistoryPagesExactResultsWithinBounds",
+          "status": "passed"
+        },
+        {
+          "package": "internal/planner/streamline",
+          "test": "TestCompactionHistoryCursorsFailClosed",
+          "status": "passed"
+        }
+      ]
+    },
+    "A3": {
+      "outcome": "Admitted compactor calls and valid known usage are charged once; invalid/missing usage is not invented; schema bytes, model-call and token limits are enforced.",
+      "tests": [
+        {
+          "package": "internal/planner/streamline",
+          "test": "TestCompactionFailuresStopBeforeFurtherEffects",
+          "status": "passed"
+        },
+        {
+          "package": "internal/planner/streamline",
+          "test": "TestCompactorAdmissionCountsSerializedRequestAndFraming",
+          "status": "passed"
+        },
+        {
+          "package": "internal/planner/streamline",
+          "test": "TestCompactorAgentAdmitsActualADKRequest",
+          "status": "passed"
+        },
+        {
+          "package": "internal/planner/streamline",
+          "test": "TestOpenAICompatibleCompactorKeepsFinishReasonAndUsage",
+          "status": "passed"
+        },
+        {
+          "package": "internal/planner/streamline",
+          "test": "TestCompactorReplyValidation",
+          "status": "passed"
+        },
+        {
+          "package": "internal/planner/streamline",
+          "test": "TestOneShotCompactorPreventsSecondProviderCall",
+          "status": "passed"
+        },
+        {
+          "package": "internal/planner/streamline",
+          "test": "TestStreamlineStopsWhenModelCallBudgetIsExhausted",
+          "status": "passed"
+        },
+        {
+          "package": "internal/planner/streamline",
+          "test": "TestStreamlineStopsWhenTokenBudgetIsExceeded",
+          "status": "passed"
+        }
+      ]
+    },
+    "A4": {
+      "outcome": "Real PostgreSQL invalid/outage/lost-ack marker failures and a required finish append failure fence continuation, replay and candidate completion. Invalid HTTP replies fail after one call with known usage retained.",
+      "tests": [
+        {
+          "package": "internal/planner/streamline",
+          "test": "TestPostgresCompactionMarkerWriteFailureFences",
+          "status": "passed"
+        },
+        {
+          "package": "internal/planner/streamline",
+          "test": "TestPostgresCompactionFinishAppendFailureAfterCheckpoints",
+          "status": "passed"
+        },
+        {
+          "package": "internal/planner/streamline",
+          "test": "TestPostgresModeledPlannerAppendFailurePrecedence",
+          "status": "passed"
+        },
+        {
+          "package": "internal/planner/streamline",
+          "test": "TestCompactorAgentStructuredOutputHTTP",
+          "status": "passed"
+        }
+      ]
+    },
+    "A5": {
+      "outcome": "Cancellation joins the compactor, Worker and real SQL append. Success/failure/cancel tests now assert that the owner drops the invocation-local compaction context before Run returns.",
+      "tests": [
+        {
+          "package": "internal/planner/streamline",
+          "test": "TestCompactionCancellationJoinsCompactorBeforeReturn",
+          "status": "passed"
+        },
+        {
+          "package": "internal/planner/streamline",
+          "test": "TestPostgresModeledPlannerCancelDuringEventAppend",
+          "status": "passed"
+        },
+        {
+          "package": "internal/planner/streamline",
+          "test": "TestModeledPlannerCancelDuringWorkerJoin",
+          "status": "passed"
+        },
+        {
+          "package": "internal/planner/streamline",
+          "test": "TestStreamlineWallDeadlineStopsBlockedModel",
+          "status": "passed"
+        },
+        {
+          "package": "internal/planner/streamline",
+          "test": "TestCompactionContinuesSameInvocationAcrossTwoCheckpoints",
+          "status": "passed"
+        },
+        {
+          "package": "internal/planner/streamline",
+          "test": "TestCompactionFailuresStopBeforeFurtherEffects",
+          "status": "passed"
+        },
+        {
+          "package": "internal/planner/streamline",
+          "test": "TestPostgresCompactionMarkerWriteFailureFences",
+          "status": "passed"
+        }
+      ]
+    },
+    "A6": {
+      "outcome": "4096/4097 groups, 1 MiB/one-over tails, 16 KiB summaries, retained/index/page/cursor bounds and privacy canaries pass. Public API, generated clients, UI and shipped config gates agree.",
+      "tests": [
+        {
+          "package": "internal/planner/streamline",
+          "test": "TestCompactionGroupBoundary",
+          "status": "passed"
+        },
+        {
+          "package": "internal/planner/streamline",
+          "test": "TestCompactionTailBoundaryBeforeAndAfterCheckpoint",
+          "status": "passed"
+        },
+        {
+          "package": "internal/planner/streamline",
+          "test": "TestCompactionRetainedLedgerStopsBeforeCeiling",
+          "status": "passed"
+        },
+        {
+          "package": "internal/planner/streamline",
+          "test": "TestCompactorReplyValidation",
+          "status": "passed"
+        },
+        {
+          "package": "internal/planner/streamline",
+          "test": "TestCompactionHistoryPagesExactResultsWithinBounds",
+          "status": "passed"
+        },
+        {
+          "package": "internal/planner/streamline",
+          "test": "TestCompactionHistoryEvictsOnlyLiveCursors",
+          "status": "passed"
+        },
+        {
+          "package": "internal/planner/streamline",
+          "test": "TestPostgresCompactionTwoCheckpointsKeepRawContextOutOfDurableFacts",
+          "status": "passed"
+        },
+        {
+          "package": "internal/config",
+          "test": "TestPlannerContextManagementAcceptsFrozenBounds",
+          "status": "passed"
+        },
+        {
+          "package": "internal/telemetry",
+          "test": "TestPlannerOTLPHTTPExportsOnlyClosedSafeProjection",
+          "status": "passed"
+        }
+      ],
+      "public_contract_gate": "make verify-public-api includes TestPublicConfigurationProjectionContracts, its private-instruction canary, OpenAPI validation and the typed Go client."
+    }
+  },
+  "mandatory_skipped": 0,
+  "findings_closed": [
+    {
+      "id": "acceptance-cleanup",
+      "owner": "A5 / R10 / LIFE-PLN-4",
+      "finding": "Planner retained its compaction ledger after Run returned.",
+      "fix": "Drop p.compaction on every exit after all local work has joined.",
+      "before_fix_exit_code": 1,
+      "before_fix_log_sha256": "94ba07225267210d13f0c0aead365df9395d9c53697aa3d9b4aeabcd08edd08f",
+      "before_fix_failed_profiles": [
+        "streamline",
+        "router"
+      ]
+    },
+    {
+      "id": "acceptance-projected-tail",
+      "owner": "A6 / R7 / LIM-PLN-14",
+      "finding": "The 1 MiB tail ceiling was checked at checkpoint selection but not on later main projections.",
+      "fix": "Check complete post-checkpoint tail bytes before every projected request, independently of the token trigger.",
+      "before_fix_exit_code": 1,
+      "before_fix_log_sha256": "c2c6f113fb34f58144e3ca4525042652678199cfa040af05f38fd719c4da1870"
+    }
+  ],
+  "catalog": {
+    "validated_workflows": 27,
+    "direct_modelled_planners": 8,
+    "summary_modelled_planners": 4,
+    "all_modelled_selections_compact": true,
+    "selections": [
+      {
+        "workflow": "likec4-from-workspace-streamline@4",
+        "stage": "dependency_discovery",
+        "placement": "direct",
+        "planner": "streamline@1",
+        "strategy": "compact@1"
+      },
+      {
+        "workflow": "likec4-from-workspace-streamline@4",
+        "stage": "project_discovery",
+        "placement": "direct",
+        "planner": "streamline@1",
+        "strategy": "compact@1"
+      },
+      {
+        "workflow": "likec4-from-workspace-streamline@4",
+        "stage": "likec4_build",
+        "placement": "direct",
+        "planner": "streamline@1",
+        "strategy": "compact@1"
+      },
+      {
+        "workflow": "likec4-from-workspace-streamline@4",
+        "stage": "likec4_validate",
+        "placement": "direct",
+        "planner": "streamline@1",
+        "strategy": "compact@1"
+      },
+      {
+        "workflow": "openapi-from-workspace-streamline@2",
+        "stage": "dependency_discovery",
+        "placement": "direct",
+        "planner": "streamline@1",
+        "strategy": "compact@1"
+      },
+      {
+        "workflow": "openapi-from-workspace-streamline@2",
+        "stage": "project_discovery",
+        "placement": "direct",
+        "planner": "streamline@1",
+        "strategy": "compact@1"
+      },
+      {
+        "workflow": "openapi-from-workspace-streamline@2",
+        "stage": "openapi_build",
+        "placement": "direct",
+        "planner": "streamline@1",
+        "strategy": "compact@1"
+      },
+      {
+        "workflow": "openapi-from-workspace-streamline@2",
+        "stage": "openapi_validate",
+        "placement": "direct",
+        "planner": "streamline@1",
+        "strategy": "compact@1"
+      },
+      {
+        "workflow": "source-openapi-prepare-work@1",
+        "stage": "dependency_discovery",
+        "placement": "summary",
+        "planner": "streamline@1",
+        "strategy": "compact@1"
+      },
+      {
+        "workflow": "source-openapi-prepare-work@1",
+        "stage": "project_discovery",
+        "placement": "summary",
+        "planner": "streamline@1",
+        "strategy": "compact@1"
+      },
+      {
+        "workflow": "source-openapi-prepare-work@1",
+        "stage": "openapi_build",
+        "placement": "summary",
+        "planner": "streamline@1",
+        "strategy": "compact@1"
+      },
+      {
+        "workflow": "source-openapi-prepare-work@1",
+        "stage": "openapi_validate",
+        "placement": "summary",
+        "planner": "streamline@1",
+        "strategy": "compact@1"
+      }
+    ],
+    "note": "Current catalog validation and selection inventory only; V420-006 retains its independent acceptance and process requirements."
+  },
+  "wire": {
+    "planner_fields_absent_from_allocation_schema": true,
+    "new_runtime_consumer": false
+  },
+  "excluded_optional_checks": [
+    {
+      "test": "TestPlannerOTLPCollectorProjection",
+      "reason": "CONTRACTOR_TEST_OTLP_ENDPOINT is unset; external deployment collector smoke. Deterministic OTLP projection tests passed."
+    },
+    {
+      "test": "TestLiveGatewayToolCall",
+      "reason": "Live Gateway settings are unset; live-model checks are outside deterministic acceptance."
+    },
+    {
+      "test": "TestLiveRouterWorkflow",
+      "reason": "Live routing Gateway settings are unset; live-model checks are outside deterministic acceptance."
+    }
+  ],
+  "scope_limits": [
+    "The integration/streamline gate uses actual ADK, Gateway HTTP and PostgreSQL with a fake WorkerInvoker.",
+    "No claim of a real Server/Runtime process compaction gate; V420-005 owns that release acceptance.",
+    "No live models, demo deployment, pending dependent task implementation or disk-heavy opt-in."
+  ]
+}

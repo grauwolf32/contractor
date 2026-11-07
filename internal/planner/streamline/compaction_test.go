@@ -242,6 +242,13 @@ func compactionFactory(
 	return factory
 }
 
+func assertCompactionReleased(t *testing.T, instance planner.Planner) {
+	t.Helper()
+	if instance.(*streamlinePlanner).compaction != nil {
+		t.Fatal("Planner retained its raw compaction history and index after Run returned")
+	}
+}
+
 func TestCompactionContinuesSameInvocationAcrossTwoCheckpoints(t *testing.T) {
 	for _, profile := range []string{"streamline", "router"} {
 		t.Run(profile, func(t *testing.T) {
@@ -258,6 +265,7 @@ func TestCompactionContinuesSameInvocationAcrossTwoCheckpoints(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			assertCompactionReleased(t, instance)
 			if result.Outcome != stageresult.StageSucceeded || refKey(result.Artifacts["report"]) != "builder/review@report-r1" {
 				t.Fatalf("result = %+v", result)
 			}
@@ -359,6 +367,14 @@ func TestCompactionFailuresStopBeforeFurtherEffects(t *testing.T) {
 			code: "planner_compaction_failed", main: 4, workers: 1, compacts: 1, tokens: 3800 + 50 + 3500,
 		},
 		{
+			name: "post-checkpoint-tail", compactor: []compactorStep{summaryStep("summary-one")},
+			steps: func(profile string, log *requestLog) []modelStep {
+				steps := twoCompactionSteps(profile, log)[:3]
+				return append(steps, withPrompt(textStep(strings.Repeat("x", maxCompactionTailBytes)), 500))
+			},
+			code: "planner_compaction_limit_exceeded", main: 4, workers: 1, compacts: 1, tokens: 3800 + 50 + 500,
+		},
+		{
 			name: "cycle-limit", compactor: []compactorStep{summaryStep("summary-one")},
 			mutate: func(invocation *planner.Invocation) { invocation.Stage.PlannerContextManagement.MaxCompactions = 1 },
 			code:   "planner_compaction_limit_exceeded", main: 5, workers: 2, compacts: 1, tokens: 7900 + 50,
@@ -385,6 +401,7 @@ func TestCompactionFailuresStopBeforeFurtherEffects(t *testing.T) {
 				}
 				result, err := instance.Run(t.Context())
 				assertPlannerCode(t, err, test.code)
+				assertCompactionReleased(t, instance)
 				if planner.FailureFrom(err).Retryable != test.retryable || result.Outcome != "" {
 					t.Fatalf("retryable=%t outcome=%q", planner.FailureFrom(err).Retryable, result.Outcome)
 				}
@@ -435,6 +452,7 @@ func TestCompactionCancellationJoinsCompactorBeforeReturn(t *testing.T) {
 		t.Fatal("Planner returned before its compactor call joined")
 	}
 	assertPlannerCode(t, runErr, "planner_cancelled")
+	assertCompactionReleased(t, instance)
 	if llm.callCount() != 3 || workers.count() != 1 {
 		t.Fatalf("main/workers after cancellation = %d/%d", llm.callCount(), workers.count())
 	}

@@ -17,7 +17,7 @@ import (
 // adapter. Only the remote model and Worker results are controlled fixtures.
 func TestCompactorAgentStructuredOutputHTTP(t *testing.T) {
 	for _, profile := range []string{"streamline", "router"} {
-		for _, outcome := range []string{"valid", "invalid", "tool-call", "truncated", "schema-rejected"} {
+		for _, outcome := range []string{"valid", "invalid", "tool-call", "truncated", "schema-rejected", "content-filter", "missing-finish", "unknown-finish", "missing-usage", "inconsistent-usage"} {
 			t.Run(profile+"/"+outcome, func(t *testing.T) {
 				var calls atomic.Int32
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -52,6 +52,10 @@ func TestCompactorAgentStructuredOutputHTTP(t *testing.T) {
 						message["content"] = "Here is the summary: " + text
 					case "truncated":
 						finish = "length"
+					case "content-filter":
+						finish = "content_filter"
+					case "unknown-finish":
+						finish = "paused"
 					case "tool-call":
 						finish = "tool_calls"
 						message["tool_calls"] = []any{map[string]any{
@@ -59,10 +63,21 @@ func TestCompactorAgentStructuredOutputHTTP(t *testing.T) {
 						}}
 					}
 					w.Header().Set("Content-Type", "application/json")
-					_ = json.NewEncoder(w).Encode(map[string]any{
-						"choices": []any{map[string]any{"finish_reason": finish, "message": message}},
+					choice := map[string]any{"finish_reason": finish, "message": message}
+					if outcome == "missing-finish" {
+						delete(choice, "finish_reason")
+					}
+					response := map[string]any{
+						"choices": []any{choice},
 						"usage":   map[string]any{"prompt_tokens": 50, "completion_tokens": 10, "total_tokens": 60},
-					})
+					}
+					switch outcome {
+					case "missing-usage":
+						delete(response, "usage")
+					case "inconsistent-usage":
+						response["usage"] = map[string]any{"prompt_tokens": 50, "completion_tokens": 10, "total_tokens": 1}
+					}
+					_ = json.NewEncoder(w).Encode(response)
 				}))
 				defer server.Close()
 				compactor, err := NewOpenAICompatibleModel(GatewaySettings{
@@ -72,15 +87,25 @@ func TestCompactorAgentStructuredOutputHTTP(t *testing.T) {
 					t.Fatal(err)
 				}
 				log := &requestLog{}
-				main := &scriptedModel{steps: twoCompactionSteps(profile, log)}
+				var owner *streamlinePlanner
+				var live *contextCompaction
+				steps := twoCompactionSteps(profile, log)
+				first := steps[0]
+				steps[0] = func(request *model.LLMRequest) (*model.LLMResponse, error) {
+					live = owner.compaction
+					return first(request)
+				}
+				main := &scriptedModel{steps: steps}
 				workers, sessions := &sequenceWorkers{}, newFakeSessions()
 				instance, err := compactionFactory(t, profile, sessions, workers, main, compactor).Create(compactionInvocation(profile))
 				if err != nil {
 					t.Fatal(err)
 				}
+				owner = instance.(*streamlinePlanner)
 				result, err := instance.Run(t.Context())
 				report, _ := instance.(planner.ReportProvider).ExecutionReport()
-				generation := instance.(*streamlinePlanner).compaction.generation
+				assertCompactionReleased(t, instance)
+				generation := live.generation
 				if outcome == "valid" {
 					if err != nil || result.Outcome != stageresult.StageSucceeded || calls.Load() != 2 || generation != 2 ||
 						main.callCount() != 6 || workers.count() != 2 || *report.Metrics.ModelCalls != 8 {
@@ -90,6 +115,9 @@ func TestCompactorAgentStructuredOutputHTTP(t *testing.T) {
 					code, inputTokens := "planner_compaction_failed", int64(3850)
 					if outcome == "schema-rejected" {
 						code, inputTokens = "planner_gateway_rejected", 3800
+					}
+					if outcome == "missing-usage" || outcome == "inconsistent-usage" {
+						code, inputTokens = "planner_gateway_invalid_response", 3800
 					}
 					assertPlannerCode(t, err, code)
 					if calls.Load() != 1 || generation != 0 || main.callCount() != 3 || workers.count() != 1 ||
