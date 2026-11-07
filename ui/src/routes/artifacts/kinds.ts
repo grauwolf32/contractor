@@ -1,6 +1,7 @@
 import {
   HTTP_EXCHANGE_MEDIA_TYPE,
   SITEMAP_MEDIA_TYPE,
+  ENGAGEMENT_MEDIA_TYPE,
   type ArtifactMetadata,
 } from "../../api/artifacts";
 import { workflowFormats } from "../workflows/formats";
@@ -16,12 +17,13 @@ import { formatBytes } from "../../app/format";
  * everywhere.
  */
 export type MaterialKind =
-  "source" | "api" | "architecture" | "docs" | "diffs" | "other";
+  "source" | "api" | "engagement" | "architecture" | "docs" | "diffs" | "other";
 
 /** Display order of the kind groups. */
 export const MATERIAL_KIND_ORDER: readonly MaterialKind[] = [
   "source",
   "api",
+  "engagement",
   "architecture",
   "docs",
   "diffs",
@@ -31,6 +33,7 @@ export const MATERIAL_KIND_ORDER: readonly MaterialKind[] = [
 export const MATERIAL_KIND_LABELS: Readonly<Record<MaterialKind, string>> = {
   source: "Source code",
   api: "API spec",
+  engagement: "Engagement",
   architecture: "Architecture",
   docs: "Docs",
   diffs: "Diffs",
@@ -41,6 +44,7 @@ export const MATERIAL_KIND_LABELS: Readonly<Record<MaterialKind, string>> = {
 const NAMESPACE_KINDS: Readonly<Record<string, MaterialKind>> = {
   sources: "source",
   openapi: "api",
+  engagement: "engagement",
   likec4: "architecture",
   docs: "docs",
   diffs: "diffs",
@@ -49,6 +53,7 @@ const NAMESPACE_KINDS: Readonly<Record<string, MaterialKind>> = {
 // Formats that name their purpose. Generic formats (ZIP, YAML, JSON, text)
 // say nothing about what a file is for, so they fall through to Other.
 const MEDIA_TYPE_KINDS: Readonly<Record<string, MaterialKind>> = {
+  [ENGAGEMENT_MEDIA_TYPE]: "engagement",
   "application/vnd.oai.openapi": "api",
   "application/vnd.oai.openapi+json": "api",
   "application/vnd.oai.openapi+yaml": "api",
@@ -80,6 +85,7 @@ export function materialKindOf(item: KindSource): MaterialKind {
 
 /** "Source code", "API spec", …; a Skill package in the skills namespace. */
 export function materialKindLabel(item: KindSource): string {
+  if (item.mediaType === ENGAGEMENT_MEDIA_TYPE) return "Engagement";
   if (item.mediaType === SITEMAP_MEDIA_TYPE) return "Sitemap";
   if (item.mediaType === HTTP_EXCHANGE_MEDIA_TYPE) return "HTTP exchange";
   if (
@@ -111,6 +117,7 @@ export function groupMaterialsByKind<T extends KindSource>(
 
 /** Short format name ("ZIP", "Markdown"), else the media type itself. */
 export function formatLabel(mediaType: string): string {
+  if (mediaType === ENGAGEMENT_MEDIA_TYPE) return "Engagement";
   if (mediaType === HTTP_EXCHANGE_MEDIA_TYPE) return "HTTP exchange";
   if (MEDIA_TYPE_KINDS[mediaType] === "api") return "OpenAPI";
   return Object.hasOwn(workflowFormats, mediaType)
@@ -153,6 +160,13 @@ export const MATERIAL_UPLOAD_KINDS: readonly MaterialUploadKind[] = [
     description: "API spec in YAML or JSON",
     namespace: "openapi",
     mediaType: "application/yaml",
+  },
+  {
+    id: "engagement",
+    label: "Engagement",
+    description: "HTTP egress, identities and optional traffic limits",
+    namespace: "engagement",
+    mediaType: ENGAGEMENT_MEDIA_TYPE,
   },
   {
     id: "architecture",

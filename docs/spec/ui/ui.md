@@ -380,7 +380,7 @@ loads directly.
 **UI-R45.** The UI supports an extensible catalog of security checks and
 supporting analyses.
 
-**UI-R46.** Project artifact tiles may provide familiar OpenAPI, LikeC4,
+**UI-R46.** Project artifact tiles may provide familiar OpenAPI, Engagement, LikeC4,
 source, documentation and diff icons, but they are shortcuts over arbitrary
 ArtifactRefs rather than hard-coded Server modes. The shortcut set and its
 presentation-only classification are owned by
@@ -475,6 +475,33 @@ Rationale: this is a presentation over ordinary exact Artifact bytes, with no
 new sitemap read API, mutable editor, retention hold or background collection.
 Larger documents retain the ordinary download path. Reopen the byte ceiling
 only with a separately bounded reader requirement.
+
+**UI-R237.** Add material includes an Engagement shortcut (PRJ-R15), opening the
+ordinary Artifact upload form with a shared icon, `engagement` namespace and
+`application/vnd.contractor.engagement+json` media type. Suggestions remain
+editable and the existing upload, cancellation, validation and exact-result
+navigation own publication; the shortcut creates no implicit policy or check.
+
+That exact media type has a read-only Preview beside Source in the common
+Material reader. The existing shared `engagement.schema.json` owns the closed
+document shape, enums and collection bounds. Malformed JSON, repeated members,
+unsupported versions and structurally invalid content show an invalid/unsupported
+notice while retaining Source and download. This display does not replace
+Server-owned canonical network, identity cross-field or credential/admission
+validation (AUD-R241–243).
+
+Preview distinguishes allowed egress from exclusions and shows saved methods,
+path prefixes and address ranges. Identities show their actual anonymous, Basic,
+Bearer or cookies kind, origins, declared role/tenant and non-secret credential
+references. No credential values or target URLs are fetched. Optional HTTP
+limits are shown individually as configured or Not set; no default is invented
+and Run/Audit budgets remain separate (AUD-R242).
+
+Route navigation and nested lists mount at most LIM-UI-23 rows per page, with
+search over the bounded loaded document, stable keyboard selection and a phone
+Browse disclosure. Shared typography, theme tokens and 390px layouts follow the
+other Material readers. The existing LIM-UI-12 ceiling and exact Artifact
+authorization, revisions, download and retention remain unchanged.
 
 **UI-R55.** Workflow logical Worker bindings link to the exact AgentTemplate
 version.

@@ -1,8 +1,10 @@
 import {
   HTTP_EXCHANGE_MEDIA_TYPE,
   SITEMAP_MEDIA_TYPE,
+  ENGAGEMENT_MEDIA_TYPE,
 } from "../../api/artifacts";
 import type { SitemapDocument } from "./previews/sitemap-document";
+import type { EngagementDocument } from "./previews/engagement-document";
 import { AUTOMATIC_DOCUMENT_BYTES } from "../../app/document-limits";
 import {
   parseHTTPExchange,
@@ -18,6 +20,8 @@ export type ArtifactPreviewPlan =
   | { kind: "invalid-http" }
   | { kind: "sitemap"; document: SitemapDocument }
   | { kind: "invalid-sitemap" }
+  | { kind: "engagement"; document: EngagementDocument }
+  | { kind: "invalid-engagement" }
   | { kind: "openapi"; document: Record<string, unknown> }
   | { kind: "openapi-on-request" };
 
@@ -41,6 +45,14 @@ export async function createArtifactPreviewPlan(
   mediaType: string,
   source: string,
 ): Promise<ArtifactPreviewPlan> {
+  if (mediaType === ENGAGEMENT_MEDIA_TYPE) {
+    const { parseEngagementDocument } =
+      await import("./previews/engagement-document");
+    const document = parseEngagementDocument(source);
+    return document === undefined
+      ? { kind: "invalid-engagement" }
+      : { kind: "engagement", document };
+  }
   if (mediaType === SITEMAP_MEDIA_TYPE) {
     const { parseSitemapDocument } =
       await import("./previews/sitemap-document");

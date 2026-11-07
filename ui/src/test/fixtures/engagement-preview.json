@@ -1,0 +1,83 @@
+{
+  "schema": "contractor.engagement.v1",
+  "egress": {
+    "routes": [
+      {
+        "origin": "https://api.shop.test",
+        "pathPrefixes": ["/v1", "/health"],
+        "methods": [
+          "GET",
+          "HEAD",
+          "POST",
+          "PUT",
+          "PATCH",
+          "DELETE",
+          "OPTIONS",
+          "TRACE",
+          "CONNECT"
+        ],
+        "addressRanges": ["192.0.2.0/24", "2001:db8::/32"]
+      },
+      {
+        "origin": "https://auth.shop.test",
+        "pathPrefixes": ["/session", "/account"],
+        "methods": ["GET", "POST"],
+        "addressRanges": ["192.0.2.0/24", "2001:db8::/32"]
+      }
+    ],
+    "exclusions": [
+      {
+        "origin": "https://api.shop.test",
+        "pathPrefixes": ["/v1/admin", "/v1/payments/live"],
+        "methods": ["POST", "PUT", "PATCH", "DELETE"],
+        "addressRanges": ["192.0.2.0/24", "2001:db8::/32"]
+      }
+    ]
+  },
+  "identities": [
+    {
+      "id": "anonymous",
+      "kind": "anonymous",
+      "origins": ["https://api.shop.test", "https://auth.shop.test"]
+    },
+    {
+      "id": "reader",
+      "kind": "basic",
+      "origins": ["https://api.shop.test"],
+      "role": "Reader",
+      "tenant": "Shop",
+      "credential": {
+        "credentialId": "demo-reader",
+        "kind": "target-basic@1"
+      }
+    },
+    {
+      "id": "analyst",
+      "kind": "bearer",
+      "origins": ["https://api.shop.test"],
+      "role": "Analyst",
+      "credential": {
+        "credentialId": "demo-analyst",
+        "kind": "target-bearer@1"
+      }
+    },
+    {
+      "id": "admin",
+      "kind": "cookies",
+      "origins": ["https://auth.shop.test"],
+      "role": "Administrator",
+      "tenant": "Shop",
+      "credential": {
+        "credentialId": "demo-session",
+        "kind": "target-cookies@1"
+      }
+    }
+  ],
+  "limits": {
+    "targetRequests": 5000,
+    "requestsPerSecond": 5,
+    "concurrentRequests": 3,
+    "requestBodyBytes": 65536,
+    "responseBodyBytes": 1048576
+  }
+}

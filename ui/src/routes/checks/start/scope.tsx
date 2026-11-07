@@ -1,3 +1,4 @@
+import { ENGAGEMENT_MEDIA_TYPE } from "../../../api/artifacts";
 import { useId } from "react";
 import { useNavigate } from "react-router";
 import { artifactDetailPath } from "../../artifacts/paths";
@@ -54,9 +55,7 @@ export function ScopeCard({ model }: { model: StartCheck }) {
     (slot) =>
       slot.selected !== undefined &&
       (slot.name === "openapi" ||
-        slot.input.media_types.includes(
-          "application/vnd.contractor.engagement+json",
-        )),
+        slot.input.media_types.includes(ENGAGEMENT_MEDIA_TYPE)),
   );
   return (
     <section className="start-card" aria-labelledby={`${id}-heading`}>

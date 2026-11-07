@@ -9,6 +9,8 @@ import type { components } from "./generated/public";
 export const MAXIMUM_PREVIEW_BYTES = 1024 * 1024;
 export const SITEMAP_MEDIA_TYPE =
   "application/vnd.contractor.project-sitemap+json";
+export const ENGAGEMENT_MEDIA_TYPE =
+  "application/vnd.contractor.engagement+json";
 export const PREVIEW_LIMIT_LABEL = `${MAXIMUM_PREVIEW_BYTES / (1024 * 1024)} MiB`;
 export const ARTIFACT_PAGE_SIZE = 50;
 // An ArtifactWriteResponse is a few hundred bytes.

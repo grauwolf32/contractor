@@ -928,6 +928,7 @@ its owning requirement.
 | `LIM-UI-20` | 128 entries and 1 MiB, from the common assertion source schema | One inline common-assertion checklist draft | Web UI composer validates the common schema; profile admission remains Server-owned | [UI-R228](../ui/ui.md) |
 | `LIM-UI-21` | No automatic content reads | New check descriptive Scope | Selected exact metadata only; content uses explicit Material Preview with its existing bounds | [UI-R230](../ui/ui.md) |
 | `LIM-UI-22` | 50 rows | One sitemap navigation or larger detail-collection page | Web UI sitemap Preview; local search/paging over one document within LIM-UI-12 | [UI-R236](../ui/ui.md) |
+| `LIM-UI-23` | 50 rows | One engagement route-navigation or nested-value page | Web UI engagement Preview; local search/paging over one document within LIM-UI-12 | [UI-R237](../ui/ui.md) |
 | `LIM-UIJ-1` | 7 days | Audit Start/Continue time-limit dialog: seven-day preset, which is also the UI default for Start and for resuming after the time limit | Web UI (Audit time-limit dialog) | [journeys](../ui/journeys.md) |
 | `LIM-UIJ-2` | 24 hours | Audit Start/Continue time-limit dialog: 24-hour preset | Web UI (Audit time-limit dialog) | [UIJ-R77](../ui/journeys.md) |
 | `LIM-WFL-1` | exactly 1 entry Stage per Workflow | Workflow `entryStage` | WorkflowCatalog (Workflow schema validation) | [WFL-R3](../configuration/workflows.md) |
