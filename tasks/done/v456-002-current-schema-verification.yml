@@ -6,7 +6,7 @@ epic: persistence
 kind: chore
 introduced_by: V64-010
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: >-
@@ -48,3 +48,11 @@ tests:
     covers: [A1, A2]
   - command: make lint
     covers: [A1, A2]
+
+verification:
+  - Architecture and restore failures were reproduced on the unchanged source revision; Project-drain fixtures used the same removed Audit phase column.
+  - make test-backup-restore passes for PostgreSQL and filesystem payloads with populated current-schema function-dependent tables, exact retained bytes, receipt replay and stale/current CAS checks.
+  - go test -tags=integration -count=1 ./tests/integration/restore ./internal/archtest ./internal/projectlifecycle passes for all three complete packages.
+  - The full internal Go integration tree passes with these fixes and the folded baseline. Existing architecture guard probes and Project drain plan/scale regressions remain intact.
+  - make lint passes with UV_OFFLINE=1 using the pinned cached tools; its one Python script skip is the unconfigured optional Podman storage-image fixture.
+implementation_commit: 71897ee57db5c3abdcf48fed2059a8e32bac48c9
