@@ -1,5 +1,5 @@
 schema_version: '1.0'
-id: V455-001
+id: V455-002
 title: Expand Invoice Lab with ten paired HTTP vulnerability scenarios
 milestone: autonomous-http-pentest-2026-10
 epic: evals
@@ -12,6 +12,7 @@ languages: [python]
 goal: Provide at least ten distinct, reproducible HTTP vulnerability scenarios in the separate Invoice Lab target, each paired with a corrected behavior.
 demonstration: Real HTTP requests against vulnerable and fixed processes show each unintended effect only in the vulnerable version, alongside ordinary successful use.
 context:
+  tracker_identity: Renamed from V455-001 to V455-002 during main integration because current main already owns V455-001 for RunStore consolidation.
   authority: 'User request 2026-11-07: extend the separate contractor-playground target to at least ten different vulnerabilities.'
   progress: >-
     Playground commit 78fa5384b2746cd679f52fbd2f9e01d2cc19944b implements ten
