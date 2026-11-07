@@ -88,6 +88,7 @@ EXPECTED_CONFIG_TESTS = {
     "TestAuditCommonFixtureConfigurationLoads",
     "TestCodeAnalysisE2EConfigurationLoads",
     "TestAuditProgramsE2EConfigurationLoads",
+    "TestAuditProgramCatalogRemovalConfigurationClosure",
     "TestDomainGatewayFindsNamedInputAfterParameterBlock",
     "TestDomainGatewayScriptedModelFailureAdvancesWithoutFixtureFailure",
     "TestProductionMemoryConfigurationStaging",

@@ -1,0 +1,52 @@
+schema_version: "1.0"
+id: V457-020
+title: Remove the full Audit authoring closure in catalog replacement fixtures
+milestone: release-gate-integration-coverage-2026-10
+epic: quality
+kind: chore
+introduced_by: V64-012
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go, python]
+goal: The catalog replacement process fixture removes all current profiles that depend on its deleted ASVS and Top10 definitions while preserving unrelated valid catalog entries and retained source behavior.
+context:
+  authority: User decision 2026-11-07 authorizes release-review repairs and necessary process fixture maintenance on a separate branch; release process shard B exposed this incomplete authored closure.
+  specification:
+    - docs/spec/configuration/workflows.md#WFL-R3
+    - docs/spec/audits/common-contract.md#ACT-R17
+  provenance: V64-012 migration d6bbd3c759c1133f09643c7f8e2f69aca3458356 installed current ASVS/Top10 Programs without updating removeAuditProgramAuthoringEntries and its absent-profile assertion.
+  decision: Remove only the ASVS source pilot and Top10 source risk profiles that reference the deleted Workflows, alongside the two existing OpenAPI removals. Preserve independent ASVS source review, whose audit-standard-source-review Workflow and curated 5.0.0-l1-source.1 package remain present, and every other unrelated profile.
+  finding: >-
+    tests/e2e/audit_programs_process_test.go:166 removes ASVS/Top10 Workflows,
+    AgentTemplates and standards while leaving the current Programs referencing
+    them. TestAuditProgramCatalogReplacementRestartsServer exits at readiness
+    after replacement with audit_document_invalid: Workflow selection is unavailable
+    in owasp_asvs_5_0_l1_source_pilot.yaml.
+scope:
+  in:
+    - Remove the complete dependent ASVS/Top10 profile closure in the existing staged catalog replacement helper.
+    - Assert removed profiles are unavailable while unrelated profiles and strict staged catalog resolution remain valid.
+    - Add a pure configuration closure regression to ordinary release CI with its exact reachability guard.
+  out:
+    - Production catalog readers, lenient validation, shipped definitions, live data, models or altered retained-source and standards removal semantics.
+acceptance_criteria:
+  - id: A1
+    text: The existing real restart test reproduces readiness failure before the repair and passes after it with unchanged source-retention assertions.
+  - id: A2
+    text: All removed OpenAPI, ASVS and Top10 profiles are unavailable after staged replacement, while unrelated current profiles still resolve through the strict catalog owner.
+  - id: A3
+    text: The pure fixture closure regression is selected in CONFIG_FIXTURE_TESTS and its exact expected release set without disabling or relaxing the guard.
+tests:
+  - command: go test -p=2 -tags=e2e -count=1 -run '^TestAuditProgramCatalogRemovalConfigurationClosure$' ./tests/e2e
+    covers: [A2, A3]
+  - command: go test -p=2 -tags=e2e -count=1 -run '^TestAuditProgramCatalogReplacementRestartsServer$' ./tests/e2e
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2, A3]
+verification:
+  baseline: Original release process-B TestAuditProgramCatalogReplacementRestartsServer fails after 2.99 seconds at post-replacement readiness with audit_document_invalid / Workflow selection unavailable. The pure closure regression with an overlay retaining the original removal set reproduces that exact missing Workflow error.
+  focused: Repaired TestAuditProgramsE2EConfigurationLoads and TestAuditProgramCatalogRemovalConfigurationClosure both pass. Exactly four target profiles disappear; every remaining resolved profile and dependency closure compares equal to its pre-removal value.
+  release_selection: The new closure regression is selected by CONFIG_FIXTURE_TESTS and the exact EXPECTED_CONFIG_TESTS guard, now eleven configuration fixture cases. All 56 release-graph guard unit tests pass.
+  static: Go formatting, diff-check and task validation pass. No production source, catalog leniency, model choice, standards binding removal or retained source behavior changes.
+  integration: One concurrent local baseline attempt was blocked before replacement by the database-global lease of whole process-A and is not counted as the target negative control. Root will run the focused corrected Server restart and whole process-B on the released Data database; task stays in_progress until those integrated checks pass.
