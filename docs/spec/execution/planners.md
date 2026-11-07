@@ -1096,8 +1096,10 @@ oldest is evicted first (LIM-PLN-18). A foreign, stale, consumed or evicted
 cursor returns the tool error `history_cursor_invalid` without data, a cursor
 that cannot be issued `history_unavailable`, and an unknown `worker_name`
 `planner_worker_unknown` (PLN-R122). The reader exists only in the live
-invocation's memory; it adds no HTTP endpoint and is released with the
-Planner.
+invocation's memory; it adds no HTTP endpoint. The owner releases the raw
+ledger, summary, index and cursors before `Run` returns, after joining the
+Runner, model calls and session writes (LIFE-PLN-4). Retaining the Planner to
+read its execution report does not retain this invocation context.
 
 ### Cross-Stage state
 

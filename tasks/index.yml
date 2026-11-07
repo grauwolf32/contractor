@@ -9,6 +9,13 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
+    User assignment 2026-11-07 completes V420-002 acceptance on the integrated
+    ADK compactor revision. A1-A6 and every required gate passed; acceptance
+    fixes release invocation-local compaction context before Run returns and
+    enforce the 1 MiB tail ceiling on every post-checkpoint projection. Evidence
+    records real PostgreSQL/race cases, strict HTTP replies, configuration,
+    API and UI verification and declared optional skips; the owned database
+    was dropped. V420-003/004/005/006 and Worker work remain unassigned.
     User request 2026-11-07 integrated the paired private HTTP fixtures into main
     through no-fast-forward merge 15da83e0c (V411-019). The separate playground
     main merge is 00d3be4311, pinned with exact file digests. Playground expansion

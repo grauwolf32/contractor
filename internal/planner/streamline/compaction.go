@@ -353,6 +353,9 @@ func (c *contextCompaction) prepareMain(
 	for _, group := range c.groups[c.covered:] {
 		tail += group.bytes
 	}
+	if tail > maxCompactionTailBytes {
+		return compactionLimit("tail")
+	}
 	projected := c.protectedBytes + int64(len(checkpoint.Parts[0].Text)) + tail
 	if c.retainedLocked()+projected > maxCompactionPeakBytes {
 		return compactionLimit("peak")

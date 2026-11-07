@@ -128,6 +128,7 @@ func TestPostgresCompactionTwoCheckpointsKeepRawContextOutOfDurableFacts(t *test
 			if err != nil {
 				t.Fatal(err)
 			}
+			assertCompactionReleased(t, instance)
 			if result.Outcome != stageresult.StageSucceeded || refKey(result.Artifacts["report"]) != "builder/review@report-r1" {
 				t.Fatalf("result = %+v", result)
 			}
@@ -207,6 +208,7 @@ END $$`, markerPredicate("NEW."), persistencepostgres.SQLStateConnectionFailure)
 					t.Fatal(err)
 				}
 				result, runErr := instance.Run(ctx)
+				assertCompactionReleased(t, instance)
 				wantCode, wantRetryable := "planner_session_unavailable", true
 				if fault == "invalid" {
 					wantCode, wantRetryable = "planner_session_rejected", false
@@ -257,6 +259,7 @@ func TestPostgresCompactionFinishAppendFailureAfterCheckpoints(t *testing.T) {
 				t.Fatal(err)
 			}
 			result, runErr := instance.Run(ctx)
+			assertCompactionReleased(t, instance)
 			assertAppendProbeFailure(t, result, runErr, "planner_session_rejected", false)
 			if llm.callCount() != 6 || workers.count() != 2 || len(compactor.calls()) != 2 || sessions.count() != 2 {
 				t.Fatalf("main/workers/compactor/markers = %d/%d/%d/%d", llm.callCount(), workers.count(), len(compactor.calls()), sessions.count())
