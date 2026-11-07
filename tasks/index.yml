@@ -17,6 +17,25 @@ execution_policy:
     the combined tree; target controls remain network-isolated and owned fixture
     containers/volumes were removed. V411-015 and other dependent production
     features and demo deployment remain unassigned.
+    User decision 2026-11-07 delivered V420-007: make the Planner compactor a
+    separate tool-free ADK LlmAgent with OutputSchema, a private temporary
+    session and one provider call, and forward strict JSON Schema through the
+    Gateway adapter. Full Streamline/Router PostgreSQL race suites and make
+    lint passed; the owned test database was dropped. This narrow correction does not complete V420-002 or
+    assign its dependent gates. Native history compaction remains disabled.
+    User request 2026-11-07 reconciles V417/V420 with main 1142c2681 before
+    further implementation. Four merged slices remain in_progress for acceptance:
+    V417-001/003 and V420-002/006; cleared V425-020/021 and platform blockers
+    are not new feature work. Recommended order from this review: finish their
+    acceptance, then V420-003/004/005;
+    V417-004/005 deliver shared/Audit Worker support through current common
+    Task/JSON completion. V417-006 now moves the Worker compactor model solely
+    into Workflow executionConfig by explicit user choice, removing the binding
+    model field without restoring Run/Eval overrides or deployment roles.
+    Diagnostics preserve current State/stop ownership; quality remains V417-008/010.
+    No compaction task is wholly obsolete: retain statuses and dependencies,
+    except adding V420-002/V425-042 as V420-006 acceptance prerequisites.
+    This task review authorizes planning only and records no new feature test pass.
     User request 2026-11-06 integrated process-local Gateway recovery into main
     through merge 2baba6bd660df15003d9782fbcaae683befaa472 (V451-003). Recovery is V451-002 after
     resolving its task-ID collision with the existing V451-001 UI archive. Migration
@@ -287,7 +306,7 @@ milestones:
     outcome: The exact Go ADK v2.6.0 dependency closure preserves Planner tools, history, persistence, Gateway, A2A and telemetry through targeted owner-package, real-store, shared-wire and five selected real-process scenarios, under the user no-full-rerun instruction. No full final release run or compaction implementation is claimed.
   - id: planner-context-compaction-2026-10
     exit_task: V420-005
-    outcome: Opt-in Streamline and Router compaction continues one bounded Planner invocation with exact evidence, cumulative budgets, fail-closed persistence and per-owner strategy exclusion, while Scheduler lifecycle and independent Worker terminal summarization remain unchanged.
+    outcome: Explicit Workflow-selected compaction in shipped Streamline and Router Planners, including summary continuations, preserves one bounded invocation, exact evidence, cumulative budgets, fail-closed persistence and independent Worker terminal behavior; models come solely from executionConfig.
   - id: adk-213-upgrade-2026-10
     exit_task: V418-007
     outcome: ADK 2.13.0 preserves logical Worker execution, strict tools, lifecycle and telemetry through recorded broad migration evidence and user-authorized targeted checks of the final patched dependency closure. Per the explicit final no-full-rerun instruction, no complete full-release run is claimed for that last lock; compaction and consultation remain independent.

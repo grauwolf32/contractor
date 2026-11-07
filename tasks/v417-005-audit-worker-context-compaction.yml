@@ -23,11 +23,13 @@ context:
     or stay controlled. The user requested task replanning and diagrams for review before implementation.'
   proposal: docs/proposals/0046-workflow-context-compaction.md
   specification:
-  - docs/spec/audits/worker-completion.md#AWC-R3
-  - docs/spec/audits/worker-completion.md#AWC-R12
-  - docs/spec/audits/worker-completion.md#AWC-R20
+  - docs/spec/audits/worker-completion.md#AWC-R127
+  - docs/spec/audits/worker-completion.md#AWC-R128
+  - docs/spec/audits/worker-completion.md#AWC-R129
   - docs/spec/audits/execution.md
-  - docs/spec/execution/worker.md#WRK-R54
+  - docs/spec/execution/worker.md#WRK-R62
+  - docs/spec/execution/worker.md#WRK-R63
+  - docs/spec/execution/worker.md#WRK-R184
   - docs/spec/platform/persistence.md
   implementation_boundary: Update numbered owning specifications, limits/errors/failure/lifecycle registries,
     strict schemas, fixtures and every affected reader/writer together with implemented behavior. Generated
@@ -36,15 +38,26 @@ context:
   adk_migration: V418-007 accepts the exact ADK 2.13.0 lock before V417-002 establishes compaction integration.
     Internal SDK turns are not new logical Contractor invocations; use the accepted migration contract,
     not 2.8 callback/identity assumptions.
-  implementation_gate: Planning only. The user will review the revised task graph and proposal 0050 before
-    authorizing implementation. Keep pending and do not start code, migrations, live Runs or deployment
-    from this planning update.
+  implementation_gate: This 2026-11-07 change replans the remaining feature. The common Audit redesign
+    is already implemented; no new approval of proposal 0050 is a prerequisite. Implementation starts
+    only on assignment after the declared dependencies complete.
   design:
-  - docs/proposals/0050-audit-common-hypothesis-model.md
-  - docs/plans/2026-10-31-audit-redesign.md
-  redesign_boundary: Preserve trusted per-item task context, exact results/evidence and receipts through
-    compaction under the revised Runtime/Run intake path. Do not preserve internal ZIP or a new collector
-    for its own sake.
+  - docs/spec/audits/worker-completion.md
+  - docs/spec/audits/execution.md
+  redesign_boundary: Extend the current audit-results@2 collector/completion owner under AWC-R127-R129.
+    Use the trusted common Task context, ordinary JSON conclusions and Server-added Task/Run/Finding
+    provenance. Do not restore retired internal ZIP packages, execution manifests, approval flows or
+    a second collector.
+  replanning_authority: 'User request 2026-11-07: reconcile the compaction backlog with merged refactors
+    before implementation. This edit updates task scope and acceptance only; it does not start implementation,
+    run live experiments or claim task completion.'
+  review_baseline: Local main 1142c2681d6520baa8c04bb0a90ca8fd224deb29. Current owning specifications
+    and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
+    and verification history. Recheck affected contracts if main changes before execution.
+  current_state: 'Still required: ValidateCompactionTarget rejects templates selecting audit-results@2
+    and allocations with a completionContract. Completed V64-002/012/010 replaced the old Audit execution
+    pipeline with common Tasks, ordinary Runs and JSON results. Audit persistence simplification alone
+    does not remove the Runtime completion gate.'
 scope:
   in:
   - Effective context-policy validation for Audit Worker completion and every reachable escalation, replacing
@@ -67,10 +80,12 @@ requirements:
     A fully complete check finishes without an unnecessary compactor call. An incomplete check keeps its
     collector and continuation contract; compaction may shorten history but cannot report the check complete.
 - id: R3
-  text: Preserve system-derived per-item task/hypothesis context, accepted partial results, evidence requirements,
-    exact revisions and existing publication receipts outside summaries under one logical invocation.
-    Repeated SDK callbacks do not reset ownership or authorize extra publication; no ZIP manifest format
-    is a required mechanism.
+  text: Preserve the current audit-results@2 logical collector, trusted exact per-item Task/hypothesis
+    context, accepted partial conclusions, evidence refs and publication identity across checkpoints.
+    Runtime assembles the ordinary common JSON output and Server validates membership and adds trusted
+    provenance under AWC-R127-R129. Repeated SDK callbacks cannot reset the collector, manufacture result
+    identities or authorize duplicate publication. Retired task-ZIP and execution-manifest paths are not
+    implemented or tested as alternatives.
 - id: R4
   text: Model-authored summaries and reasoning remain untrusted text. An incorrect hypothesis or invented
     artifact/evidence ref cannot satisfy required evidence or become a confirmed finding. History access
@@ -101,10 +116,11 @@ failure_outcomes:
   timeout: Existing effective Worker/Stage deadlines own work; compaction does not renew them.
 cardinality:
 - collection: Audit items, evidence refs and compaction history
-  expected: The current bounded item task/manifest and a few checkpoints
+  expected: One pinned common Task context and its bounded item membership, current conclusions/evidence
+    and a few checkpoints
   maximum: Existing AWC item/evidence limits plus registered compaction history/cycle bounds
-  bound: Do not copy all Audit Runs/rounds into compactor input; preserve exact task-local state and use
-    existing bounded real-store reads.
+  bound: Apply current common-context/result and compaction limits; do not copy all Audit Tasks, Runs
+    or iteration history into the prompt. Reuse exact Artifact references and existing bounded owner reads.
 lifecycle:
 - entity: Audit Worker context and existing collection receipts
   delete: Compaction data follows the allocation; Audit/Run deletion and collection retention retain their
@@ -116,9 +132,9 @@ acceptance_criteria:
 - id: A1
   given: An incomplete Audit check with accepted partial submissions
   when: It compacts twice, resumes, supplies remaining evidence and completes
-  then: The same collector/revisions/receipts survive; result is accepted only after ordinary completeness,
-    without duplicate submission or publication. Several internal SDK turns and repeated callbacks still
-    use one logical collector; completion begin is not re-entered.
+  then: The same collector and accepted conclusions survive; only the ordinary completeness gate authorizes
+    common JSON publication. Server adds exact Task/Run origins and retained Finding receipts once. Repeated
+    SDK turns do not re-enter completion begin, reset collection or restore ZIP packaging.
 - id: A2
   given: A complete check, and a separate false hypothesis/invented-ref summary
   when: Completion and evidence gates run near a context threshold
@@ -185,3 +201,6 @@ test_prerequisites:
   work counters for assertions, not wall-clock thresholds.
 - Run integration acceptance on the exact ADK 2.13.0 closure accepted by V418-007; record Runtime revision
   and lock digest. No separate old-SDK compaction implementation or version-switching production path.
+- Follow the current Linux/platform and disk-heavy test policies (V433-007 and AGENTS.md). Do not enable
+  CONTRACTOR_TEST_HEAVY_IO implicitly or count declared optional skips as passing coverage. Record exact
+  revision, executed cases and exclusions; this backlog review ran no feature acceptance suites.

@@ -39,14 +39,23 @@ context:
   adk_migration: V418-007 accepts the exact ADK 2.13.0 lock before V417-002 establishes compaction integration.
     Internal SDK turns are not new logical Contractor invocations; use the accepted migration contract,
     not 2.8 callback/identity assumptions.
-  implementation_gate: Planning only. The user will review the revised task graph and proposal 0050 before
-    authorizing implementation. Keep pending and do not start code, migrations, live Runs or deployment
-    from this planning update.
+  implementation_gate: This 2026-11-07 backlog edit starts no implementation. The common Audit redesign
+    is already delivered; use current AWC-R127-R129 and complete this gate after its declared compaction
+    dependencies, without reopening proposal 0050 approval.
   design:
-  - docs/proposals/0050-audit-common-hypothesis-model.md
-  - docs/plans/2026-10-31-audit-redesign.md
+  - docs/spec/audits/worker-completion.md
+  - docs/spec/audits/execution.md
   redesign_boundary: Retarget the Audit branch of the real-process compaction gate to common result/context
     semantics; preserve ordinary Worker, SDK/budget/cancellation and required-case evidence.
+  replanning_authority: 'User request 2026-11-07: reconcile the compaction backlog with merged refactors
+    before implementation. This edit updates task scope and acceptance only; it does not start implementation,
+    run live experiments or claim task completion.'
+  review_baseline: Local main 1142c2681d6520baa8c04bb0a90ca8fd224deb29. Current owning specifications
+    and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
+    and verification history. Recheck affected contracts if main changes before execution.
+  current_state: The ordinary isolated Worker process test is already registered in release-verify.
+    Extend that existing coverage for shared/Audit/diagnostic/selection combinations; the remaining
+    gate is not a new Worker engine or a second isolated-only scenario.
 scope:
   in:
   - A context-compaction family/process gate, required-case inventory and release-graph integration using
@@ -110,7 +119,9 @@ requirements:
   text: Create make test-worker-compaction-e2e with required database/locked Runtime prerequisites and
     register it in the release graph without duplicate full-suite execution in consolidated mode. Verify
     required test names/cases from actual reports; zero matches, skips of required cases or missing evidence
-    fail.
+    fail. Reuse TestWorkerCompactionContinuesIsolatedWorker and existing release-case registration; add
+    only missing composed cases and do not duplicate a suite in both the family target and consolidated
+    release run.
 - id: R2
   text: Run real Server and Runtime processes with a deterministic fake Gateway and real PostgreSQL. Verify
     config publication, exact snapshot/read selection, two compactions, useful continuation, one finalizer/trusted
@@ -118,9 +129,10 @@ requirements:
     under test. Use the exact 2.13 closure accepted by V418-007 and capture multiple internal SDK turns
     under one logical owner; record Runtime revision and lock digest.
 - id: R3
-  text: Cover ordinary isolated/shared, mixed-binding Router policies, Audit incomplete/complete paths,
-    reference-only override resolution and lifecycle replacement. Existing terminal summarizer/handoff
-    remains a control without making its optional new flag a prerequisite.
+  text: Cover ordinary isolated/shared, mixed-binding Router policies, common Task/JSON Audit incomplete/complete
+    paths, single-source Workflow/inline-escalation compactor selection and lifecycle replacement. Run/Eval
+    overrides and retired Audit ZIP/manifests are rejected controls, not supported modes. Existing terminal
+    summarizer/handoff remains a control without making its independent includeReasoning task a prerequisite.
 - id: R4
   text: Exercise multiple tool calls/errors, reasoning true/false/no provider text, stale/missing usage,
     exact task constraints, untrusted summary refs, repeated Skill disclosure, large history pagination
@@ -180,6 +192,9 @@ test_prerequisites:
   work counters for assertions, not wall-clock thresholds.
 - Run integration acceptance on the exact ADK 2.13.0 closure accepted by V418-007; record Runtime revision
   and lock digest. No separate old-SDK compaction implementation or version-switching production path.
+- Follow the current Linux/platform and disk-heavy test policies (V433-007 and AGENTS.md). Do not enable
+  CONTRACTOR_TEST_HEAVY_IO implicitly or count declared optional skips as passing coverage. Record exact
+  revision, executed cases and exclusions; this backlog review ran no feature acceptance suites.
 deliverables:
 - path: make/toolsets.mk
   description: New test-worker-compaction-e2e family target and owned required-case checks, integrated

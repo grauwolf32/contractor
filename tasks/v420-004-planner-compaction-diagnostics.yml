@@ -38,6 +38,16 @@ context:
     No legacy readers, v1/v2 production branches, native SDK resume, new receipt store or model substitution.
     Scheduler retains claims, queues, Stage identities, transitions, retries and completed recovery; only configuration
     plumbing, mechanical imports and regression fixtures may change there.
+  replanning_authority: 'User request 2026-11-07: reconcile the compaction backlog with merged refactors
+    before implementation. This edit updates task scope and acceptance only; it does not start implementation,
+    run live experiments or claim task completion.'
+  review_baseline: Local main 1142c2681d6520baa8c04bb0a90ca8fd224deb29. Current owning specifications
+    and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
+    and verification history. Recheck affected contracts if main changes before execution.
+  current_state: The engine already owns context generation, bounded history and authoritative cumulative
+    budgets. Extend only missing allowlisted diagnostics and existing technical-details readers, reusing
+    current telemetry; do not build another counter owner or lifecycle. Per-checkpoint raw payloads
+    remain private RAM.
 scope:
   in:
   - Minimal existing Planner technical-details presentation, numeric safe diagnostics and the exact public/telemetry
@@ -78,16 +88,16 @@ requirements:
     and telemetry failure cannot alter candidate/retry/escalation.
 failure_outcomes:
 - operation: Verification, model/tool execution and existing session mutations covered by this task
-  permanent: Invalid input and deterministic store rejection keep their existing safe nonretryable class. A
-    required verification failure blocks completion; do not relax assertions or add permanent xfails.
-  retryable: Use only the existing bounded transport/recovery policy within the original deadline; no migration-specific
-    retry or rerun-until-green.
-  ambiguous: Reconcile through the existing receipt/session sequence and same operation identity. A lost reply
-    does not prove nonexecution; never blindly repeat a Worker call or append.
+  permanent: Invalid input and deterministic store rejection keep their existing safe nonretryable class.
+    A required verification failure blocks completion; do not relax assertions or add permanent xfails.
+  retryable: Use only the existing bounded transport/recovery policy within the original deadline; no
+    migration-specific retry or rerun-until-green.
+  ambiguous: Reconcile through the existing receipt/session sequence and same operation identity. A lost
+    reply does not prove nonexecution; never blindly repeat a Worker call or append.
   cancelled: Invocation/test owner cancels and joins local work before teardown; already-dispatched remote
     effects follow existing reconciliation.
-  timeout: Keep invocation, transport, completion-write, cleanup and test-harness deadlines distinct; expiration
-    admits no new semantic attempt.
+  timeout: Keep invocation, transport, completion-write, cleanup and test-harness deadlines distinct;
+    expiration admits no new semantic attempt.
 cardinality:
 - collection: Invocation-local raw history, prior summaries and validated Worker-result/reference index together
   expected: Several dozen groups and two or more checkpoints within one ordinary Planner invocation.
@@ -173,3 +183,6 @@ test_prerequisites:
 - No dependency on Python V418 or Worker compaction V417 is implied. Cross-language regression uses the currently
   supported Runtime lock. New shared grammar or wire changes, if actually needed, must update all implementations
   and shared fixtures in the owning task.
+- Follow the current Linux/platform and disk-heavy test policies (V433-007 and AGENTS.md). Do not enable
+  CONTRACTOR_TEST_HEAVY_IO implicitly or count declared optional skips as passing coverage. Record exact
+  revision, executed cases and exclusions; this backlog review ran no feature acceptance suites.

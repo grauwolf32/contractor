@@ -29,6 +29,8 @@ context:
   - docs/spec/execution/worker.md
   - docs/spec/configuration/agent-templates.md
   - docs/spec/platform/observability.md
+  - docs/spec/configuration/agent-templates.md#TPL-R76
+  - docs/spec/configuration/agent-templates.md#TPL-R77
   design: docs/testing/live-models.md
   implementation_boundary: Execute the V417-008 opt-in harness only after deterministic conformance V417-009
     is complete. Reuse existing configured models, Gateway selections, Eval services, receipt and result
@@ -37,6 +39,15 @@ context:
   adk_migration: V418-007 accepts the exact ADK 2.13.0 lock before V417-002 establishes compaction integration.
     Internal SDK turns are not new logical Contractor invocations; use the accepted migration contract,
     not 2.8 callback/identity assumptions.
+  replanning_authority: 'User request 2026-11-07: reconcile the compaction backlog with merged refactors
+    before implementation. This edit updates task scope and acceptance only; it does not start implementation,
+    run live experiments or claim task completion.'
+  review_baseline: Local main 1142c2681d6520baa8c04bb0a90ca8fd224deb29. Current owning specifications
+    and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
+    and verification history. Recheck affected contracts if main changes before execution.
+  current_state: 'Still required: no context-compaction evaluation harness or live evidence is delivered.
+    V425-041 makes published Workflow refs the experiment model/configuration boundary. V454-001 only
+    consolidated existing Eval storage; reuse its public owner APIs, frozen plans and member receipts.'
 scope:
   in:
   - Frozen repeated live comparisons covering terminal reasoning on/off, configured streamline handoff,
@@ -61,7 +72,10 @@ requirements:
     slow, prepare a new equal-budget plan with a longer explicit timeout instead of substituting a model.
     Missing upstream model revision is recorded as unavailable, not inferred from an alias. Freeze exact
     accepted ADK version, dependency lock digest and Runtime build; all comparable arms use the same SDK
-    closure. Do not attribute a 2.8-to-2.13 change to compaction or includeReasoning.
+    closure. Do not attribute a 2.8-to-2.13 change to compaction or includeReasoning. Each production
+    arm selects a separately authored, published Workflow ref with exact closure pins. Do not add executionConfig
+    to Eval variants or Run-create requests, publish Workflows dynamically, or mutate a catalog entry
+    between samples. Test-only masking remains confined to the controlled adapter.
 - id: R2
   text: Run at least five repeats per declared case/variant on fresh isolated fixtures. Compare terminal
     includeReasoning=false/true, existing configured terminal-to-streamline handoff, compact@1 includeReasoning=false/true
@@ -205,6 +219,9 @@ test_prerequisites:
   attempts and report actual executed counts.
 - Run integration acceptance on the exact ADK 2.13.0 closure accepted by V418-007; record Runtime revision
   and lock digest. No separate old-SDK compaction implementation or version-switching production path.
+- Follow the current Linux/platform and disk-heavy test policies (V433-007 and AGENTS.md). Do not enable
+  CONTRACTOR_TEST_HEAVY_IO implicitly or count declared optional skips as passing coverage. Record exact
+  revision, executed cases and exclusions; this backlog review ran no feature acceptance suites.
 verification_requirements:
 - Record exact commands, manifest digests, case/member/repetition counts, configured-model provenance
   and evidence locations after real execution.

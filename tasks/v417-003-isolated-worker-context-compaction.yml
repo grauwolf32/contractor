@@ -1,6 +1,6 @@
 schema_version: '1.0'
 id: V417-003
-title: Continue an isolated Worker through workflow-selected context compaction
+title: Accept merged isolated Worker context compaction
 milestone: worker-context-compaction-2026-10
 epic: planner-worker
 kind: feature
@@ -44,6 +44,16 @@ context:
   adk_migration: V418-007 accepts the exact ADK 2.13.0 lock before V417-002 establishes compaction integration.
     Internal SDK turns are not new logical Contractor invocations; use the accepted migration contract,
     not 2.8 callback/identity assumptions.
+  replanning_authority: 'User request 2026-11-07: reconcile the compaction backlog with merged refactors
+    before implementation. This edit updates task scope and acceptance only; it does not start implementation,
+    run live experiments or claim task completion.'
+  review_baseline: Local main 1142c2681d6520baa8c04bb0a90ca8fd224deb29. Current owning specifications
+    and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
+    and verification history. Recheck affected contracts if main changes before execution.
+  current_state: The isolated Worker implementation and example are merged through d7ecbed9a. runtime/worker/compaction.py,
+    test_worker_compaction.py and TestWorkerCompactionContinuesIsolatedWorker are existing production-path
+    coverage. Shared and Audit admission are still rejected by contracts.ValidateCompactionTarget; those
+    extensions remain V417-004/005.
 scope:
   in:
   - 'One vertical change: Workflow binding authoring and normalization, exact model/instruction dependencies,
@@ -308,6 +318,9 @@ test_prerequisites:
 - Cancellation/deadline tests distinguish new semantic dispatch from remote completion of already-sent
   effects and separately authorized bounded terminal cleanup (WRK-R168); unknown effects reconcile through
   existing receipts.
+- Follow the current Linux/platform and disk-heavy test policies (V433-007 and AGENTS.md). Do not enable
+  CONTRACTOR_TEST_HEAVY_IO implicitly or count declared optional skips as passing coverage. Record exact
+  revision, executed cases and exclusions; this backlog review ran no feature acceptance suites.
 delivery_note: 'This slice is intentionally vertical: splitting unsupported config/wire types from their
   first production consumer would violate AGENTS.md. Shared and Audit combinations remain explicit validation
   errors until V417-004 and V417-005 land. Basic safety, archive recovery and limits are not postponed
@@ -369,3 +382,11 @@ decisions:
   copy of taint-trace-from-workspace@4 with compact@1 on its analyst and no on.summarized
   escalation; existing Workflows are unchanged. Specification numbers: WFL-R91 to WFL-R95
   (V420-002 took WFL-R90), WRK-R184 to WRK-R195, FAIL-WRK-8, LIFE-WRK-6.
+remaining_work:
+- Audit acceptance against the merged coordinator, current stop/cleanup ownership and recorded tests;
+  fill missing evidence or actual defects rather than build a second compaction path.
+- Complete the required gates and record the outstanding representative-input/temporary-copy measurements
+  from R12/R13; the October note says the ceilings were tested but representative live sizes were not
+  measured.
+- Accept the current binding-selected compactor policy here. The separately authorized V417-006 migration
+  to executionConfig does not block acceptance of this implemented slice.

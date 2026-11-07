@@ -140,13 +140,14 @@ func decodeCompactorResponse(payload []byte) (compactorReply, error) {
 }
 
 type chatRequest struct {
-	Model             string        `json:"model"`
-	Messages          []chatMessage `json:"messages"`
-	Tools             []chatTool    `json:"tools,omitempty"`
-	ToolChoice        any           `json:"tool_choice,omitempty"`
-	ParallelToolCalls bool          `json:"parallel_tool_calls"`
-	MaxTokens         int           `json:"max_tokens,omitempty"`
-	Temperature       *float32      `json:"temperature,omitempty"`
+	Model             string              `json:"model"`
+	Messages          []chatMessage       `json:"messages"`
+	Tools             []chatTool          `json:"tools,omitempty"`
+	ToolChoice        any                 `json:"tool_choice,omitempty"`
+	ParallelToolCalls bool                `json:"parallel_tool_calls"`
+	MaxTokens         int                 `json:"max_tokens,omitempty"`
+	Temperature       *float32            `json:"temperature,omitempty"`
+	ResponseFormat    *chatResponseFormat `json:"response_format,omitempty"`
 }
 
 type chatMessage struct {
@@ -192,6 +193,10 @@ func encodeChatRequest(request *model.LLMRequest, modelName string, maxOutputTok
 		MaxTokens: maxOutputTokens,
 	}
 	if request.Config != nil {
+		result.ResponseFormat, err = encodeResponseFormat(request.Config)
+		if err != nil {
+			return nil, err
+		}
 		result.Temperature = request.Config.Temperature
 		for _, group := range request.Config.Tools {
 			if group == nil {

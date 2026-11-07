@@ -1,6 +1,6 @@
 schema_version: '1.0'
 id: V417-001
-title: Make terminal summarizer reasoning input explicitly configurable
+title: Accept merged terminal summarizer reasoning selection
 milestone: terminal-summarizer-reasoning-2026-10
 epic: planner-worker
 kind: feature
@@ -38,6 +38,16 @@ context:
     strict schemas, fixtures and every affected reader/writer together with implemented behavior. Generated
     clients are regenerated through their tools. No legacy readers, unsupported accepted configuration,
     speculative exports or new receipt store.
+  replanning_authority: 'User request 2026-11-07: reconcile the compaction backlog with merged refactors
+    before implementation. This edit updates task scope and acceptance only; it does not start implementation,
+    run live experiments or claim task completion.'
+  review_baseline: Local main 1142c2681d6520baa8c04bb0a90ca8fd224deb29. Current owning specifications
+    and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
+    and verification history. Recheck affected contracts if main changes before execution.
+  current_state: Implementation is merged, including explicit false/true snapshot encoding (2c52c192b).
+    Recorded summarizer/process/API/PostgreSQL checks passed. Historical lint/fixture blockers were
+    fixed by completed V425-020 and V425-021; V433-007 supersedes the old macOS filesystem blocker.
+    These corrections do not themselves complete this task.
 scope:
   in:
   - AgentTemplate summarizer.includeReasoning authoring, strict normalization, exact digests/pins, catalog/public
@@ -188,6 +198,9 @@ test_prerequisites:
   for required gates; an unreachable configured database or skipped required case is a failure.
 - Run full suites for every touched package in addition to focused gates. Use injected clocks and deterministic
   work counters for assertions, not wall-clock thresholds.
+- Follow the current Linux/platform and disk-heavy test policies (V433-007 and AGENTS.md). Do not enable
+  CONTRACTOR_TEST_HEAVY_IO implicitly or count declared optional skips as passing coverage. Record exact
+  revision, executed cases and exclusions; this backlog review ran no feature acceptance suites.
 dependency_note: depends_on is intentionally empty. Neither implementation acceptance nor this milestone
   exit depends on any V417 compaction task.
 
@@ -253,3 +266,8 @@ verification_results:
   registration and unused Planner constant belong to the merged compaction slices;
   this terminal-boolean change does not alter them. Keep V417-001 in_progress
   until all required gates pass; the macOS failures remain owned by V425-001/002.
+remaining_work:
+- Reconcile each acceptance criterion and listed gate with retained results and the current revision;
+  run the still-required verification and record exact provenance.
+- Keep the existing explicit boolean contract; close with the actual implementation commit only after
+  acceptance, without reimplementing the feature.
