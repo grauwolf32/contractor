@@ -1,0 +1,53 @@
+schema_version: "1.0"
+id: V457-018
+title: Stage the complete HTTP and Caido process fixture model policy closure
+milestone: release-gate-integration-coverage-2026-10
+epic: quality
+kind: defect
+introduced_by: V425-041
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go, python]
+goal: The shared HTTP/Caido process fixture validates its exact Worker model and script-derived call budget before both ordinary and sitemap collection journeys start.
+context:
+  authority: User decision 2026-11-07 authorizes release-review repairs and necessary process fixture prerequisites on a separate branch; release process shard A exposed this shared closure defect.
+  specification: docs/spec/configuration/workflows.md#WFL-R3
+  provenance: V425-041 migration 1fd73753871b7c96eb83e3dd084d5c0ba294c211 authored worker@1 in writeHTTPAnalysisE2EWorkflow without staging that e2e policy or making the http_explorer@3 template's original summarizer@1 selection explicit.
+  finding: >-
+    tests/e2e/http_caido_services_test.go:492 creates http-analysis-e2e with worker@1
+    while the shared harness stages the production configs root containing only
+    worker@2. Its selected http_explorer@3 template also requires an explicit
+    summarizer policy. Both TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses
+    and TestProjectSitemapHTTPCollectionAcrossProductionProcesses fail Server
+    readiness before reaching their HTTP/Caido assertions.
+  siblings: Both real process tests share testHTTPAndCaidoProcesses and writeHTTPAnalysisE2EWorkflow; collection changes only staged toolsets and sitemap observations, not the selected policies.
+  decision: Preserve the current HTTP fixture model worker-model, exact original worker@1 bytes and eight-call budget, production worker@2 and summarizer@1. The unchanged ordinary HTTP script plus mandatory finalizer needs nine calls and sitemap collection needs fifteen. Stage a distinct test-only http-caido-worker@1 policy derived from worker@1, changing only identity and maxModelCalls to the longest actual script plus one finalizer. Caido continues selecting production security-analysis@4 and worker@2. No live or shipped model selection changes.
+scope:
+  in:
+    - Stage exact e2e worker@1 under a distinct fixture filename and preserve its bytes, production worker@2 and summarizer@1 policies.
+    - Derive a distinct HTTP-only fixture policy with the same model and the precise bounded call budget required by the unchanged ordinary and sitemap scripts plus finalization.
+    - Make the fixture's historical summarizer selection explicit and regress configuration closure plus selected models and budgets.
+    - Select the regression in ordinary CI configuration fixtures with the exact release reachability guard maintained.
+  out:
+    - Production models, shipped configuration, lenient catalog resolution, new APIs or weakened HTTP/Caido behavior assertions.
+acceptance_criteria:
+  - id: A1
+    text: Shared staged HTTP/Caido configuration loads, resolving HTTP-only http-caido-worker@1 with unchanged worker-model and other budgets, exact script-derived maxModelCalls fifteen and historical summarizer@1, while worker@1 and production worker@2 remain unchanged.
+  - id: A2
+    text: The closure regression is reachable through normal release CI and checks selected models and budgets through the real catalog owner.
+  - id: A3
+    text: Both ordinary HTTP/Caido and sitemap collection process journeys reach their unchanged runtime assertions after Server readiness.
+tests:
+  - command: go test -p=2 -tags=e2e -count=1 -run '^TestHTTPCaidoE2EConfigurationClosure$' ./tests/e2e
+    covers: [A1, A2]
+  - command: go test -p=2 -tags=e2e -count=1 -timeout=12m -run '^(TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestProjectSitemapHTTPCollectionAcrossProductionProcesses)$' ./tests/e2e
+    covers: [A1, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+verification:
+  baseline: The new closure regression first fails with unknown worker@1. Staging that unchanged policy and the historical summarizer makes both real process tests pass Server readiness, then both fail worker_budget_exhausted because the ordinary HTTP script needs nine model calls including finalization while worker@1 permits eight.
+  focused: The repaired closure regression passes through the real catalog owner. It compares original worker@1, production worker@2 and summarizer@1 file bytes, resolved models and budgets; the distinct HTTP-only policy differs from worker@1 only in identity and the exact script-derived fifteen-call limit.
+  release_selection: TestHTTPCaidoE2EConfigurationClosure is selected by CONFIG_FIXTURE_TESTS and the exact EXPECTED_CONFIG_TESTS guard. All 56 release-graph guard unit tests pass.
+  static: Go formatting, diff-check and task validation pass. Every HTTP/Caido tool/validator and production model choice remains unchanged.
+  integration: Both complete real process scenarios are rerunning with the corrected HTTP-only budget against the assigned isolated UI database. Their original lifecycle, Runtime, target, provider and sitemap assertions remain required before task completion.

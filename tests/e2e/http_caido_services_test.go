@@ -15,12 +15,14 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/localpki"
+	"go.yaml.in/yaml/v4"
 )
 
 const (
@@ -469,6 +471,28 @@ func copyHTTPHeaders(destination, source http.Header) {
 
 func writeHTTPAnalysisE2EWorkflow(t *testing.T, configRoot string) {
 	t.Helper()
+	// Keep the exact authored e2e Worker policy beside production worker@2;
+	// their filenames otherwise collide while their identities are distinct.
+	worker, err := os.ReadFile(filepath.Join(repoRoot(t), "configs", "e2e", "model-policies", "worker.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configRoot, "model-policies", "http_e2e_worker.yaml"), worker, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var policy map[string]any
+	if err := yaml.Unmarshal(worker, &policy); err != nil {
+		t.Fatal(err)
+	}
+	policy["metadata"].(map[string]any)["name"] = "http-caido-worker"
+	policy["spec"].(map[string]any)["maxModelCalls"] = httpCaidoFixtureModelCalls()
+	fixtureWorker, err := yaml.Marshal(policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configRoot, "model-policies", "http_caido_worker.yaml"), fixtureWorker, 0o600); err != nil {
+		t.Fatal(err)
+	}
 	instructions := `Delegate the complete bounded HTTP objective to the explorer exactly once.
 Finish from the Worker's semantic result and do not repeat requests.
 `
@@ -489,7 +513,8 @@ spec:
     workers:
       llmGateway: local-litellm@1
       credential: development-worker
-      modelPolicy: worker@1
+      modelPolicy: http-caido-worker@1
+      summarizerModelPolicy: summarizer@1
   entryStage: analyze
   stages:
     analyze:
@@ -522,4 +547,12 @@ spec:
 	); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func httpCaidoFixtureModelCalls() int {
+	ordinary := httpCaidoHTTPGatewayStage("fixture", "http://127.0.0.1:1")
+	collection := sitemapHTTPGatewayStage(ordinary)
+	// Every unchanged scripted response costs one call, including its final
+	// semantic reply. The Runtime then makes one mandatory result finalizer call.
+	return max(len(ordinary.steps), len(collection.steps)) + 1
 }

@@ -94,6 +94,7 @@ EXPECTED_CONFIG_TESTS = {
     "TestProjectWorkerBudgetMatchesPinnedPolicy",
     "TestRuntimeWorkRootEmptyAllowsPersistentOwnerLock",
     "TestEngagementAssertionSourcesUseCurrentDomainContract",
+    "TestHTTPCaidoE2EConfigurationClosure",
 }
 
 # e2e-tagged tests that need tools absent from the CI runner. Each names the
