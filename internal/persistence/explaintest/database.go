@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"os"
 	"testing"
 	"time"
 
@@ -18,6 +19,8 @@ import (
 // of the current schema, so the statistics and the index entries the test
 // measures are those its own ANALYZE and VACUUM leave. Creating the database
 // needs the CREATEDB privilege; without it the test fails.
+// An empty databaseURL uses CONTRACTOR_TEST_DATABASE_URL; when neither is set,
+// the test skips before connecting. Configured but unavailable databases fail.
 //
 // Reads count the entries of row versions that VACUUM has not removed yet
 // (see the package documentation), and VACUUM keeps every version that a
@@ -38,13 +41,19 @@ func Database(
 	t testing.TB, ctx context.Context, databaseURL string, prepare func(context.Context, *pgxpool.Pool) error,
 ) *pgxpool.Pool {
 	t.Helper()
+	if databaseURL == "" {
+		databaseURL = os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
+		if databaseURL == "" {
+			t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
+		}
+	}
 	config, err := pgxpool.ParseConfig(databaseURL)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatal("invalid PostgreSQL test configuration")
 	}
 	admin, err := pgx.ConnectConfig(ctx, config.ConnConfig.Copy())
 	if err != nil {
-		t.Fatal(err)
+		t.Fatal("configured PostgreSQL test database is unavailable:", err)
 	}
 	random := make([]byte, 8)
 	if _, err := rand.Read(random); err != nil {

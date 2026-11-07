@@ -1,0 +1,51 @@
+schema_version: "1.0"
+id: V457-003
+title: "Skip read-budget database fixtures when no test database is configured"
+milestone: review-v407-v409-followups-2026-10
+epic: quality
+kind: defect
+introduced_by: V414-038
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go]
+goal: "Read-budget fixtures skip without a test database and fail for a configured unavailable database."
+context:
+  authority: "User request 2026-11-07 authorizes the release review fixes and simplifications on a separate branch."
+  review: "Contractor main release review 2026-11-07, Q2."
+  specification: [docs/testing/README.md]
+  finding: >-
+    internal/persistence/explaintest/database.go:41 parses an empty DSN and connects
+    using ambient PostgreSQL defaults. The Audit deletion-probe fixture reaches
+    it through common_collecting_fixture_test.go:51 even when
+    CONTRACTOR_TEST_DATABASE_URL is absent, making a no-database Go run fail.
+  siblings: >-
+    All budgetAuditPool consumers and the Run/telemetry/Project read-budget
+    fixtures use explaintest.Database and receive the same guard.
+    postgrestest.NewPool already skips when both its argument and environment are empty.
+scope:
+  in:
+    - "Resolve empty arguments from CONTRACTOR_TEST_DATABASE_URL and skip before parsing or connecting when neither is set."
+    - "Subprocess regressions distinguish unset, invalid and unavailable database configuration on the real helper."
+  out: ["Changing production SQL or relaxing read budgets."]
+acceptance_criteria:
+  - id: A1
+    text: "An empty test database configuration skips before connecting, including all helper consumers."
+  - id: A2
+    text: "Invalid or unavailable configured URLs fail; explicit arguments retain precedence over the environment."
+  - id: A3
+    text: "The existing real PostgreSQL isolation and cleanup regression passes with environment URL resolution."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL= go test -count=1 ./internal/persistence/explaintest ./internal/persistence/postgrestest ./internal/auditstore/internal/pgstore"
+    covers: [A1, A2]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/persistence/explaintest ./internal/persistence/postgrestest"
+    covers: [A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+verification: >-
+  No-database suites passed for explaintest, postgrestest and Audit pgstore.
+  Complete explaintest/postgrestest suites also passed against the owned
+  PostgreSQL 17 database contractor_test_polish_data on localhost:57449.
+  The unset subprocess regression fails with the original helper restored
+  temporarily; fixed bytes were restored afterward. Integrated lint and
+  task completion remain with the coordinating lane.
