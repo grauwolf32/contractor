@@ -23,6 +23,7 @@ const OpenApiArtifactPreview = lazy(() => import("./previews/openapi"));
 const LikeC4ArtifactPreview = lazy(() => import("./previews/likec4"));
 const DiffArtifactPreview = lazy(() => import("./previews/diff"));
 const HTTPExchangePreview = lazy(() => import("./previews/http-exchange"));
+const SitemapPreview = lazy(() => import("./previews/sitemap"));
 
 const RENDERER_LABELS = {
   diff: "Diff",
@@ -32,12 +33,23 @@ const RENDERER_LABELS = {
   likec4: "LikeC4",
   http: "HTTP exchange",
   "invalid-http": "HTTP exchange",
+  sitemap: "Sitemap",
+  "invalid-sitemap": "Sitemap",
 } as const;
 
 type RenderedPlan = Exclude<ArtifactPreviewPlan, { kind: "source" }>;
 
 function Renderer({ plan, source }: { plan: RenderedPlan; source: string }) {
   switch (plan.kind) {
+    case "sitemap":
+      return <SitemapPreview document={plan.document} />;
+    case "invalid-sitemap":
+      return (
+        <p className="artifact-renderer-error" role="alert">
+          This sitemap is invalid or unsupported. Source and download retain the
+          original saved document.
+        </p>
+      );
     case "http":
       return <HTTPExchangePreview document={plan.document} />;
     case "invalid-http":
@@ -209,7 +221,10 @@ export function LoadedArtifactPreview({
         tabs={[
           {
             id: "rendered",
-            label: "Rendered",
+            label:
+              plan.kind === "sitemap" || plan.kind === "invalid-sitemap"
+                ? "Preview"
+                : "Rendered",
             panel: (
               <RendererErrorBoundary>
                 <Suspense

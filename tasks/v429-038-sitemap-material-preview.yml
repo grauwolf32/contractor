@@ -1,0 +1,75 @@
+schema_version: "1.0"
+id: V429-038
+title: Browse saved sitemap materials with a structured read-only preview
+milestone: ui-journey-usability
+epic: ui
+kind: feature
+priority: P2
+status: in_progress
+depends_on: [V410-021, V429-037]
+languages: [typescript, css, markdown]
+goal: Users inspect hosts, routes, concrete members and recorded provenance in a saved sitemap without reading raw JSON.
+demonstration: Open an exact sitemap material in the ordinary Material reader, find and filter a route, inspect its observations, declarations and sources, then switch to the exact Source at desktop and phone widths.
+context:
+  authority: User 2026-11-07 requests implementing the proposed sitemap preview after confirming that V410-021 deliberately delivered only generic JSON viewing. The agreed direction uses OpenDesign, shared Contractor fonts/themes, a host/path/method browser, search/filtering and selected details.
+  archive_authority: User 2026-11-07 additionally requests adding the new OpenDesign originals to the common experiment archive. Preserve every previous member and retain the exact earlier archive as a recoverable revision.
+  specification: [docs/spec/artifacts/project-sitemap.md#SMT-R2, docs/spec/artifacts/project-sitemap.md#SMT-R14, docs/spec/ui/ui.md#UI-R213, docs/spec/ui/ui.md#UI-R231]
+  design: [docs/design/ui/README.md, ui/src/ui/README.md]
+  format: api/openapi/contractor-public-v1.yaml
+  boundary: The existing Artifact reader owns exact bytes, authorization, download, revisions and the 1 MiB preview ceiling. The generated public SitemapDocument schema/types own the persisted format. React only validates and presents that saved document; it never regroups domain identities, calls targets, edits the map or claims Audit/security coverage. Read-only browser pagination bounds mounted rows without a new storage or API owner.
+scope:
+  in:
+    - Generate and preserve an OpenDesign composition using synthetic references in the existing isolated model setup; retain original output and record production adaptation separately.
+    - Add a lazy specialized renderer for application/vnd.contractor.project-sitemap+json through the shared Material preview planner, preserving Source and exact downloads everywhere the shared component is used.
+    - Present host/route/method navigation, search, method and recorded/declared filters, concrete members, observation outcomes/status/parameter names/timestamps, declarations, provenance, annotations and omission/suppression facts actually present in the saved document.
+    - Reuse generated schemas/types and existing formatting, components and color/font tokens; keep mobile browsing and selected details stable and keyboard accessible.
+    - Test actual Material routes and realistic multi-page fixtures, malformed/unsupported/empty/oversized inputs, three themes and 390px; bump the UI patch release and show a working production-component preview.
+    - Add the preserved sitemap originals and review host to the common external experiment archive, with verified per-file hashes and a recoverable unchanged original archive revision.
+  out:
+    - Sitemap mutation/editor, live polling/subscriptions, new API/storage, remote requests, fabricated HTTP evidence/authentication/coverage or changed domain grouping.
+    - New context-snapshot/reconciliation report codecs, previewing beyond the existing common 1 MiB ceiling, changing original OpenDesign file payloads, live-model choice or demo business-data writes.
+failure_outcomes:
+  - operation: Read and render one saved sitemap revision
+    permanent: Existing unavailable/forbidden/exact-revision errors remain with the Artifact owner. Malformed or unsupported sitemap content shows a clear renderer error with Source and original download available; it never becomes an empty valid map.
+    retryable: Existing explicit preview reload/read retry remains authoritative; rendering adds no retry loop or requests.
+    ambiguous: No new mutations; never retry a write or infer a different revision.
+    cancelled: Existing exact-reader/context fences discard late loads; local selection state is reset with the source revision.
+    timeout: Existing Artifact read deadline remains authoritative; no background crawling or model work occurs in production preview.
+cardinality:
+  - collection: One saved map and its navigation/details
+    expected: Several hosts and tens to hundreds of routes.
+    maximum: Only bytes within the existing 1 MiB preview ceiling are loaded; the shared schema retains its domain maxima.
+    bound: Parse/validate/index one bounded document per revision; mount at most 50 navigation routes and paginate larger selected collections, without per-row content requests. Search operates over the already-loaded bounded document and counts describe only that revision/filter.
+lifecycle:
+  - entity: Local preview selection, filters and generated design artifacts
+    delete: Leaving the reader/revision releases local preview state; ordinary Artifact lifecycle and retention stay unchanged.
+    cascade: No persisted child records, holds or background activity.
+    retention: Preserve native OpenDesign inputs/output/provenance outside the source checkout, alongside a small repository design record and test-only fixtures. Existing archives remain unchanged.
+acceptance_criteria:
+  - id: A1
+    text: The ordinary exact-revision Material route renders the saved sitemap as navigable host/routes with colored method labels, search/filters and truthful selected details, while Source/download preserve original bytes and no target/API mutation occurs.
+  - id: A2
+    text: Empty, declared-only, observed, suppressed, omission-bearing and malformed/unsupported maps are distinguished; no observation implies verified coverage, principal identity or finding, and larger documents retain the ordinary preview ceiling.
+  - id: A3
+    text: Multi-page navigation/details are bounded and keyboard accessible; selection does not jerk the surrounding screen; desktop and 390px layouts pass in light/dark/black with shared fonts/tokens and no external requests.
+  - id: A4
+    text: Original OpenDesign output and provenance are retained in the common external archive, with all previous member bytes and the exact earlier archive revision preserved; required gates pass and an interactive preview using production components is available for review.
+tests:
+  - command: make ui-verify
+    covers: [A1, A2, A3, A4]
+  - command: make ui-browser-mocked
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+  - command: make test-wire-cross-language
+    covers: [A1, A2, A4]
+verification:
+  results:
+    - VITEST_MAX_WORKERS=2 make ui-verify passed generated checks, lint, typecheck, 216 test files (2434 passed and one intentional expected failure), server tests and production build on UI 0.11.20.
+    - make ui-browser-mocked passed all 198 browser tests across 31 specs, including ten sitemap cases covering three themes at 1440/390px, 1200 routes, 64 concrete members, 128 notes, long origins/paths, empty/invalid/oversized inputs, exact evidence links and no external or mutating requests.
+    - UV_OFFLINE=1 make lint passed the complete repository gate. Its first attempt exposed a missing UI reader declaration for the new shared sitemap fixture import; the manifest was corrected and the full gate passed. Four declared script-test skips are not passing coverage.
+    - make test-wire-cross-language passed with an owned disposable PostgreSQL database, including 390 focused Runtime tests, 374 shared fixtures, 418 Go and 266 Python shared tests; the shared Runtime selection passed 1501 tests. One explicit optional disk-heavy shared test remained skipped. The initial attempt without a database stopped at require-database, and the owned database was dropped after the passing run.
+    - The existing Go projectsitemap.Decode accepted the synthetic base fixture with 12 groups. Browser visual review confirmed desktop/mobile typography and geometry, source/details behavior and no browser errors; screenshots and complete gate logs remain under .local/sitemap-preview-20261107.
+    - Native OpenDesign output, request-cap failure and successful completion-only continuation are preserved with provenance. Existing 242 project files and previous Project/conversation/message/OpenCode rows were compared with verified recoverable backups and are unchanged; the temporary relay was stopped and upstream credential configuration removed.
+    - The user-requested common archive update verified all 529 member hashes, retaining all 509 previous member payloads and adding 20 sitemap files. The exact earlier archive and metadata remain under revisions/2026-11-06-original with SHA-256 d3d80bd75e5cc45cf648e64fba6deb8a206943b794529003f3b390e9473877bd; the updated archive SHA-256 is 70609a895561b62cfeebaf1722a7c27b28b5d8e7f2d8cd627c995837e5a8ebe7.
+  delivery: Production reader and review host are ready on codex/sitemap-material-preview at http://127.0.0.1:17560/test-results/sitemap-preview/index.html?theme=dark&width=1440. Not merged into main or deployed to demo; no Server, Runtime, model, schema or business-data changes were made.

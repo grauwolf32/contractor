@@ -448,6 +448,34 @@ once, and none of its settings bounds that work: at 1 MiB it held the page
 for over a second, and the YAML parse alone for about 0.3 s. Reopen the limit
 when the renderer can render operations on demand.
 
+**UI-R236.** An exact material with media type
+`application/vnd.contractor.project-sitemap+json` uses a read-only sitemap
+Preview beside Source, within the common LIM-UI-12 byte ceiling. The generated
+public `SitemapDocument` schema owns its shape and versions; malformed content,
+repeated JSON members and ambiguous selection identities show an invalid or
+unsupported notice, never a valid empty map. Source and the existing exact
+download remain available.
+
+The browser presents saved origins, routes and methods with search and filters,
+then concrete members, recorded outcomes/statuses/parameter names/timestamps,
+declarations, provenance, notes, tags and available exact evidence references.
+Saved suppression and omission facts stay visible. Observations and declarations
+remain distinct and establish no current reachability, authentication identity,
+physical request count, complete coverage or security verdict (SMT-R14).
+No referenced bytes, source files or target URLs are fetched automatically;
+existing owner-authorized readers handle an explicitly followed evidence link.
+
+Local navigation and larger detail collections mount at most LIM-UI-22 rows
+per page over the already-loaded bounded document; search reaches all loaded
+routes. Domain grouping and identities remain unchanged. Selection follows
+UI-R231; phone layouts offer a Browse routes disclosure and use the same
+typography, theme tokens and shared controls as other material previews.
+
+Rationale: this is a presentation over ordinary exact Artifact bytes, with no
+new sitemap read API, mutable editor, retention hold or background collection.
+Larger documents retain the ordinary download path. Reopen the byte ceiling
+only with a separately bounded reader requirement.
+
 **UI-R55.** Workflow logical Worker bindings link to the exact AgentTemplate
 version.
 

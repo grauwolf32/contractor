@@ -11,7 +11,7 @@
     "server-operation-stage-cases.json": {"readers": ["go", "ui"], "reason": "Server Workflow execution selection is shared with the Studio; Runtime receives no operation stages."},
     "public/tool-diagnostic-values.json": {"readers": ["go", "ui"]},
     "public/runtime-diagnostic-decimals.json": {"readers": ["go", "ui"]},
-    "project-sitemap-cases.json": {"readers": ["go", "python"]},
+    "project-sitemap-cases.json": {"readers": ["go", "python", "ui"]},
     "sitemap-reports/": {"readers": ["python"], "reason": "Runtime tool adapters own report preprocessing and validate producer output; Server consumes only the shared normalized observation wire contract."},
     "audit-web-scan-settings.json": {"readers": ["go", "ui"]},
     "nuclei-package-manifest.json": {"readers": ["go", "python"]},

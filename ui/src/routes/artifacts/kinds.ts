@@ -1,5 +1,6 @@
 import {
   HTTP_EXCHANGE_MEDIA_TYPE,
+  SITEMAP_MEDIA_TYPE,
   type ArtifactMetadata,
 } from "../../api/artifacts";
 import { workflowFormats } from "../workflows/formats";
@@ -79,6 +80,7 @@ export function materialKindOf(item: KindSource): MaterialKind {
 
 /** "Source code", "API spec", …; a Skill package in the skills namespace. */
 export function materialKindLabel(item: KindSource): string {
+  if (item.mediaType === SITEMAP_MEDIA_TYPE) return "Sitemap";
   if (item.mediaType === HTTP_EXCHANGE_MEDIA_TYPE) return "HTTP exchange";
   if (
     item.artifact.namespace === "skills" &&
