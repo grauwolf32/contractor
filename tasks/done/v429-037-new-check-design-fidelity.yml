@@ -6,7 +6,8 @@ epic: ui
 kind: defect
 introduced_by: V64-002
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 3addd3d3ab5d64a520682ae277274fae5723dc66
 depends_on: []
 languages: [typescript, css, markdown]
 goal: The main demo journeys retain the reviewed design, compact real-data presentation and stable context selection on current contracts.
@@ -60,3 +61,12 @@ tests:
     covers: [A1, A2, A3, A4, A5, A6]
   - command: make lint
     covers: [A1, A2, A3, A4, A5, A6]
+verification:
+  results:
+    - VITEST_MAX_WORKERS=2 make ui-verify passed generated checks, lint, typecheck, 215 test files (2431 passed and one intentional expected failure), server tests and the production build.
+    - make ui-browser-mocked passed all 188 browser tests across 30 specs, including the new check composer, exact long material links, 40-row delayed context selection, three themes and narrow readers. A stronger populated-key/Project rerun passed 21 cases across two specs; make ui-gates ui-build passed on the final UI source.
+    - make lint passed the full repository gates. Task/spec validation and git diff --check passed after the final UI changes.
+    - Live demo review covered Project, New check, OpenAPI with 124 operations, Run, Audit, Inbox, Issues, Operations and configured SSH-key Settings at desktop and 390px. Normal OpenAPI clicks preserved outer scroll and list geometry; Inbox selection retained its 360px list and scroll position. No browser errors were observed. The live Issues list is empty; populated issue details were verified by the API-mocked gate.
+    - UI 0.11.19 was deployed independently to http://127.0.0.1:4174 from implementation commit 3addd3d3ab5d64a520682ae277274fae5723dc66. Served HTML/assets and old/new release hashes were verified; the complete previous UI was retained for rollback. Server and Runtime remain on 1142c2681d6520baa8c04bb0a90ca8fd224deb29; non-UI process IDs, configured model and business data were retained, with no schema migrations or review mutations.
+    - Original OpenDesign archive SHA-256 remains d3d80bd75e5cc45cf648e64fba6deb8a206943b794529003f3b390e9473877bd. Screenshots and gate logs are retained under .local/ui-design-audit-20261107; the operational deployment record is /Users/ruslan/src/contractor/.local/demo/run/ui-polish-20261107T072614Z.json.
+  delivery: Completed and deployed as a UI-only demo release on codex/ui-design-polish. Not merged into main; the user has not requested merging this polish task.
