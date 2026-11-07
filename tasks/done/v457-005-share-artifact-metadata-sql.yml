@@ -6,7 +6,7 @@ epic: projects-artifacts
 kind: chore
 introduced_by: V370-025
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: "Artifact metadata readers share their field and join definitions while retaining specialized indexed listing statements."
@@ -44,3 +44,4 @@ verification: >-
   lines and add 30; no query-speed claim is made. Evidence is
   work/data2-postgres-tests.jsonl in the coordinating workspace. Integrated
   lint and task completion remain with the coordinating lane.
+implementation_commit: 0cac89a1718a6b7614827a853f8d312acf7a2f40

@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-79 open tasks: 21 in progress, 45 pending, 13 deferred. 1494 finished: 1476 completed, 18 archived.
+78 open tasks: 20 in progress, 45 pending, 13 deferred. 1495 finished: 1477 completed, 18 archived.
 
 ## In progress
 
@@ -20,7 +20,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Accept merged isolated Worker context compaction |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V457-005](v457-005-share-artifact-metadata-sql.yml) | projects-artifacts | chore | P3 | Share Artifact metadata SQL projection without generalizing indexed predicates |
 | [V457-006](v457-006-project-target-credential-replay.yml) | ui | defect | P2 | Retain Project target credential creation identity after response loss |
 | [V457-007](v457-007-selected-research-task-refresh.yml) | ui | defect | P2 | Refresh selected research Tasks outside the current list page |
 | [V457-008](v457-008-inbox-count-completeness.yml) | ui | defect | P2 | Preserve findings truncation in Inbox counts and labels |
@@ -176,7 +175,7 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 3 | 17 | 10 | 10 | 21 |
 | Findings tools and collections (`findings`) | 0 | 17 | 10 | 11 | 18 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 22 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 37 | 39 | 19 | 69 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 39 | 19 | 69 |
 | Audits (`audits`) | 10 | 69 | 97 | 42 | 164 |
 | Evaluations (`evals`) | 6 | 22 | 41 | 17 | 50 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
