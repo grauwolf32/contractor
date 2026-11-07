@@ -49,7 +49,7 @@ test-runtime-labels-e2e: require-database runtime-venv
 # Audit preparation, checks, later rounds and trusted inheritance boundaries.
 test-runtime-placement-e2e: require-database runtime-venv
 	$(call run-family-test,go test -tags=e2e ./tests/e2e -list '^TestRuntimePlacementAcrossProductionProcesses$$' | grep -Fx 'TestRuntimePlacementAcrossProductionProcesses')
-	$(call run-family-test,go test -tags=e2e -count=1 -timeout=7m ./tests/e2e -run '^TestRuntimePlacementAcrossProductionProcesses$$')
+	$(call run-family-test,go test -tags=e2e -count=1 -timeout=7m ./tests/e2e -run '^TestRuntimePlacement(AcrossProductionProcesses|ScannerFixture)$$')
 	$(call run-family-test,go test -tags=integration -count=1 ./internal/auditservice ./internal/auditcontroller ./internal/runservice ./internal/controlplane ./internal/runstore ./internal/httpapi/public)
 
 test-project-workspaces-matrix: test-hardening-matrices

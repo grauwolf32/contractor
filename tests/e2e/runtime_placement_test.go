@@ -7,7 +7,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
-	"fmt"
 	"maps"
 	"net"
 	"net/http"
@@ -227,21 +226,7 @@ func startPlacementStackWithConfiguration(t *testing.T, configure func(string)) 
 	}
 	// A real tool Worker runs this deterministic external process. No Gateway or
 	// scanner installation is required, and the failing invocation is repeatable.
-	script := fmt.Sprintf(`#!%s
-import json
-import sys
-from pathlib import Path
-if "-version" in sys.argv:
-    print("placement-fixture 1")
-    sys.exit(0)
-marker = Path(%q)
-if marker.exists():
-    sys.exit(1)
-print(json.dumps({"template-id": "placement-fixture", "info": {"severity": "info"}}))
-`, h.python, filepath.Join(h.temporary, "fail-enabled"))
-	if err := os.WriteFile(filepath.Join(h.scannerBin, "nuclei"), []byte(script), 0700); err != nil {
-		t.Fatal(err)
-	}
+	writePlacementScannerFixture(t, h.scannerBin, h.python, filepath.Join(h.temporary, "fail-enabled"))
 	return h
 }
 
