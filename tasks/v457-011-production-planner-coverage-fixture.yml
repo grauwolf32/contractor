@@ -1,0 +1,51 @@
+schema_version: "1.0"
+id: V457-011
+title: Align the production Planner fixture with the shipped findings review
+milestone: release-gate-2026-10
+epic: quality
+kind: chore
+introduced_by: V411-011
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go]
+goal: The release configuration fixture checks every shipped Planner compaction pin and its exact current coverage without a stale catalog count.
+context:
+  authority: >-
+    User request 2026-11-07 authorizes the reported release fixes and narrow
+    verification prerequisites on a separate branch. Full-gate verification
+    exposed this pre-existing fixture failure; no compaction feature work is assigned.
+  finding: >-
+    tests/e2e/production_memory_configuration_test.go:178 expects eight direct
+    Planner stages and twenty summarized continuations, but base main 80d8336e3
+    loads eight and twenty-one. V411-011 added project-findings-review@1 Stage
+    analyze in 06b2907745288a3b1c0821e112126af986819063 without updating this
+    coverage guard. Its continuation selects the existing compact@1 instructions
+    and compactor@1 policy correctly. The guard was last aligned by V64-002 in
+    9e803f2fc16b0e07fd7b00d98b001ed59d24e5a5.
+  siblings: >-
+    Keep the per-stage direct and summarized target checks, exact coverage
+    equality, expanded-YAML equivalence and Planner example validation. The
+    production catalog is unchanged by this task or the release-polish branch.
+scope:
+  in:
+    - Update the fixture's exact continuation coverage and explain the added consumer.
+    - Re-run the complete release configuration fixture selection and demonstrate that wrong model and instruction pins still fail.
+  out:
+    - Production configuration or configured model changes.
+    - Compaction implementation or unassigned V420 task acceptance.
+acceptance_criteria:
+  - id: A1
+    text: TestProductionMemoryConfigurationStaging passes with exactly eight direct stages and twenty-one continuations from the unchanged production catalog.
+  - id: A2
+    text: Deliberately changing a continuation instruction or compactor identity in an isolated catalog still fails the per-stage pin check.
+  - id: A3
+    text: The complete test-release-config-fixtures selection passes and exact catalog and YAML equivalence guards remain intact.
+tests:
+  - command: go test -tags=e2e -v -count=1 ./tests/e2e -run '^TestProductionMemoryConfigurationStaging$'
+    covers: [A1, A2]
+  - command: make test-release-config-fixtures
+    covers: [A1, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+implementation_commit: null
