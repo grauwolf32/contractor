@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { schemaLimit, schemaViolation } from "../../../api/contract";
 import { usePublicAPI } from "../../../api/context";
 import { getProjectArtifactMetadata } from "../../../api/project-artifacts";
+import { Icon } from "../../../app/icon";
 import { ErrorNotice } from "../../../app/error-notice";
-import { Button, Field } from "../../../ui";
+import { Button, Field, TechnicalDetails } from "../../../ui";
 import { retainAuthoredMaterial } from "./authored-material";
 import type { StartCheck } from "./use-start-check";
 
@@ -27,8 +28,12 @@ export function AssertionMaterialEditor({
   input: string;
 }) {
   const api = usePublicAPI();
+  const { setChecklistEditorOpen } = model;
   const [open, setOpen] = useState(false);
-  const [statements, setStatements] = useState("");
+  const nextKey = useRef(2);
+  const [entries, setEntries] = useState([
+    { key: "assertion-1", statement: "" },
+  ]);
   const [conditions, setConditions] = useState("");
   const [grounds, setGrounds] = useState("");
   const [version, setVersion] = useState("1");
@@ -41,13 +46,11 @@ export function AssertionMaterialEditor({
   useEffect(
     () => () => {
       generation.current++;
+      setChecklistEditorOpen(false);
     },
-    [],
+    [setChecklistEditorOpen],
   );
-  const claims = statements
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
+  const validEntries = entries.every((entry) => entry.statement.trim() !== "");
   const requirements = evidence
     .split("\n")
     .map((line) => line.trim())
@@ -63,10 +66,10 @@ export function AssertionMaterialEditor({
     try {
       const document = {
         schema: "contractor.audit.assertions.v1",
-        items: claims.map((statement, index) => ({
-          key: `assertion-${index + 1}`,
+        items: entries.map(({ key, statement }) => ({
+          key,
           version,
-          statement,
+          statement: statement.trim(),
           grounds,
           scope: conditions.trim() === "" ? {} : { conditions },
           applicability: "within selected source and stated conditions",
@@ -98,6 +101,7 @@ export function AssertionMaterialEditor({
       ensureCurrent();
       model.registerAuthoredMaterial(input, metadata);
       setOpen(false);
+      setChecklistEditorOpen(false);
     } catch (reason) {
       if (generation.current === current) setError(reason);
     } finally {
@@ -105,86 +109,160 @@ export function AssertionMaterialEditor({
     }
   }
   return (
-    <div className="ui-stack">
-      <Button size="sm" disabled={busy} onClick={() => setOpen(!open)}>
+    <div className="start-checklist">
+      <Button
+        variant="ghost"
+        size="sm"
+        disabled={busy}
+        onClick={() => {
+          setOpen(!open);
+          setChecklistEditorOpen(!open);
+        }}
+      >
+        <Icon name="checklist" size={16} />
         {open ? "Close checklist editor" : "Write a checklist"}
       </Button>
       {open ? (
-        <>
+        <fieldset className="start-checklist-editor" disabled={busy}>
+          <div className="start-checklist-heading">
+            <div>
+              <h4>Your checklist</h4>
+              <p>One observable claim per check. Add only what you need.</p>
+            </div>
+            <span className="start-checklist-count">
+              {entries.length} / {MAX_ASSERTIONS}
+            </span>
+          </div>
+          <ol className="start-checklist-items">
+            {entries.map((entry, index) => (
+              <li key={entry.key}>
+                <span className="start-checklist-number" aria-hidden="true">
+                  {index + 1}
+                </span>
+                <Field label={`Check ${index + 1}`} required>
+                  {(control) => (
+                    <textarea
+                      {...control}
+                      rows={2}
+                      value={entry.statement}
+                      placeholder="For example: a user can read another project's export"
+                      onChange={(event) =>
+                        setEntries((current) =>
+                          current.map((row) =>
+                            row.key === entry.key
+                              ? { ...row, statement: event.target.value }
+                              : row,
+                          ),
+                        )
+                      }
+                    />
+                  )}
+                </Field>
+                {entries.length > 1 ? (
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    aria-label={`Remove check ${index + 1}`}
+                    onClick={() =>
+                      setEntries((current) =>
+                        current.filter((row) => row.key !== entry.key),
+                      )
+                    }
+                  >
+                    <Icon name="delete" size={15} />
+                  </Button>
+                ) : null}
+              </li>
+            ))}
+          </ol>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={entries.length >= MAX_ASSERTIONS}
+            onClick={() => {
+              const key = `assertion-${nextKey.current++}`;
+              setEntries((current) => [...current, { key, statement: "" }]);
+            }}
+          >
+            <Icon name="plus" size={15} />
+            Add check
+          </Button>
           <Field
-            label="Assertions"
+            label="Why check these?"
             required
-            hint="One observable claim per line, up to 128. Each keeps its place in the original checklist."
+            hint="Explain the reason for this checklist. It is saved with every check."
           >
             {(control) => (
               <textarea
                 {...control}
-                value={statements}
-                disabled={busy}
-                onChange={(event) => setStatements(event.target.value)}
-              />
-            )}
-          </Field>
-          <Field label="Checklist version" required>
-            {(control) => (
-              <input
-                {...control}
-                value={version}
-                disabled={busy}
-                onChange={(event) => setVersion(event.target.value)}
-              />
-            )}
-          </Field>
-          <Field label="Conditions" optional>
-            {(control) => (
-              <textarea
-                {...control}
-                value={conditions}
-                disabled={busy}
-                onChange={(event) => setConditions(event.target.value)}
-              />
-            )}
-          </Field>
-          <Field label="Why check these?" required>
-            {(control) => (
-              <textarea
-                {...control}
+                rows={2}
                 value={grounds}
-                disabled={busy}
+                placeholder="For example: exports contain private project data"
                 onChange={(event) => setGrounds(event.target.value)}
               />
             )}
           </Field>
-          <Field
-            label="Evidence needed"
-            required
-            hint="One evidence requirement per line. Missing evidence remains a gap."
-          >
-            {(control) => (
-              <textarea
-                {...control}
-                value={evidence}
-                disabled={busy}
-                onChange={(event) => setEvidence(event.target.value)}
-              />
-            )}
-          </Field>
-          <Button
-            size="sm"
-            disabled={
-              busy ||
-              claims.length === 0 ||
-              claims.length > MAX_ASSERTIONS ||
-              grounds.trim() === "" ||
-              version.trim() === "" ||
-              requirements.length === 0
-            }
-            onClick={() => void save()}
-          >
-            {busy ? "Saving checklist…" : "Save and attach checklist"}
-          </Button>
+          <TechnicalDetails summary="Conditions & evidence">
+            <div className="start-checklist-options">
+              <p className="ui-caption">
+                Shared by these checks. Source checks use static analysis.
+              </p>
+              <Field label="Conditions" optional>
+                {(control) => (
+                  <textarea
+                    {...control}
+                    rows={2}
+                    value={conditions}
+                    onChange={(event) => setConditions(event.target.value)}
+                  />
+                )}
+              </Field>
+              <Field
+                label="Evidence needed"
+                required
+                hint="One requirement per line. Missing evidence remains a gap."
+              >
+                {(control) => (
+                  <textarea
+                    {...control}
+                    rows={2}
+                    value={evidence}
+                    onChange={(event) => setEvidence(event.target.value)}
+                  />
+                )}
+              </Field>
+              <Field label="Checklist version" required>
+                {(control) => (
+                  <input
+                    {...control}
+                    value={version}
+                    onChange={(event) => setVersion(event.target.value)}
+                  />
+                )}
+              </Field>
+            </div>
+          </TechnicalDetails>
+          <div className="start-checklist-footer">
+            <span className="ui-caption">
+              Saves a project material. The check starts separately.
+            </span>
+            <Button
+              size="sm"
+              pending={busy}
+              pendingLabel="Saving checklist…"
+              disabled={
+                !validEntries ||
+                grounds.trim() === "" ||
+                version.trim() === "" ||
+                requirements.length === 0
+              }
+              onClick={() => void save()}
+            >
+              Save and attach checklist
+            </Button>
+          </div>
           {error === undefined ? null : <ErrorNotice error={error} />}
-        </>
+        </fieldset>
       ) : null}
     </div>
   );

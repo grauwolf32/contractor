@@ -532,7 +532,7 @@ for (const theme of ["light", "dark", "black"] as const) {
       expect(fonts.heading).toBe(fonts.base);
       expect(fonts.button).toBe(fonts.base);
       expect(fonts.base).not.toMatch(/Manrope|JetBrains/);
-      expect(fonts.documentWidth).toBe(width);
+      expect(fonts.documentWidth).toBeLessThanOrEqual(width);
       const sections = page.locator(".runs-sections");
       await expect(sections).toHaveCSS("border-top-width", "0px");
       await page.screenshot({

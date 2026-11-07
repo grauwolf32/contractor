@@ -14,7 +14,6 @@ import type { IconName } from "../../../app/icon";
 import type { ArtifactMetadata } from "../../../api/artifacts";
 import type { AuditProfile } from "../../../api/audits";
 import { compareVersions } from "../../../app/format";
-import { checkItemKind, itemCount } from "../../../app/vocabulary";
 
 export type ProfileInput = AuditProfile["inputs"][string];
 type CompatibilityReason = string;
@@ -77,6 +76,7 @@ export function groupRows(
 
 export interface CheckTypePresentation {
   readonly label: string;
+  readonly icon: IconName;
   /** One sentence: what the check type does. */
   readonly description: string;
   /** Display order; check types this UI does not know come last. */
@@ -89,36 +89,101 @@ export interface CheckTypePresentation {
  * contract, never a guess about their purpose.
  */
 const KNOWN: Readonly<Record<string, CheckTypePresentation>> = {
+  "source-checklist": {
+    label: "Custom source checklist",
+    icon: "checklist",
+    description:
+      "Checks the source against the assertions you write or attach.",
+    order: 40,
+  },
+  "hypothesis-research": {
+    label: "Hypothesis research",
+    icon: "bulb",
+    description:
+      "Investigates hypotheses using the selected source materials and retained results.",
+    order: 45,
+  },
+  "owasp-top10-2025-source-risk": {
+    label: "OWASP Top 10 \u00b7 2025",
+    icon: "checks",
+    description: "Reviews source code for the risks in OWASP Top 10 (2025).",
+    order: 30,
+  },
+  "owasp-asvs-5-0-l1-source-review": {
+    label: "ASVS 5.0 \u00b7 Level 1",
+    icon: "checklist",
+    description:
+      "Reviews source code against the selected ASVS Level 1 requirements.",
+    order: 31,
+  },
+  "owasp-asvs-5-0-l1-source-pilot": {
+    label: "ASVS 5.0 \u00b7 Pilot",
+    icon: "checklist",
+    description: "Starts with a small selection of ASVS Level 1 requirements.",
+    order: 32,
+  },
+  "owasp-wstg-4-2-source-review": {
+    label: "WSTG 4.2 \u00b7 Source review",
+    icon: "source",
+    description: "Reviews the selected source against WSTG scenarios.",
+    order: 33,
+  },
+  "owasp-wstg-4-2-fast-source-review": {
+    label: "WSTG 4.2 \u00b7 Source quick pass",
+    icon: "source",
+    description: "Reviews a smaller selection of WSTG source scenarios.",
+    order: 34,
+  },
+  "owasp-wstg-4-2-active-http": {
+    label: "WSTG 4.2 \u00b7 HTTP checks",
+    icon: "target",
+    description:
+      "Checks the declared HTTP target using the selected materials and engagement policy.",
+    order: 35,
+  },
+  "owasp-wstg-4-2-fast-active-http": {
+    label: "WSTG 4.2 \u00b7 HTTP quick pass",
+    icon: "target",
+    description:
+      "Runs a smaller selection of HTTP checks under the engagement policy.",
+    order: 36,
+  },
   "web-scan": {
+    icon: "target",
     label: "Web scan",
     description:
       "Checks a project URL with installed Nuclei rules or your custom YAML or ZIP rulepack.",
     order: 65,
   },
   "openapi-operation-trace": {
+    icon: "source",
     label: "API endpoint trace",
     description:
       "Traces every endpoint of your API spec through the source code and proposes possible issues.",
     order: 10,
   },
   "openapi-operation-observe": {
+    icon: "api",
     label: "API endpoint map",
     description: "The same trace, as a map only. Proposes no issues.",
     order: 20,
   },
   "openapi-nuclei-scan": {
+    icon: "target",
     label: "Nuclei scan",
     description:
       "Runs Nuclei on the endpoints your scan settings select, using your project’s active-check setting.",
     order: 70,
   },
   "source-openapi-sqlmap-scan": {
+    icon: "source",
     label: "Source code to SQLMap checks",
     description:
       "Prepares a validated API spec from source code, accepts its selected endpoints, then runs request checks using your scan settings.",
     order: 81,
   },
   "openapi-sqlmap-scan": {
+    icon: "api",
     label: "SQLMap scan",
     description:
       "Runs SQLMap on the endpoints your scan settings select, using your project’s active-check setting.",
@@ -142,6 +207,7 @@ export function presentCheckType(profile: AuditProfile): CheckTypePresentation {
   return (
     known ?? {
       label: humanize(profile.ref.name),
+      icon: "checks",
       description: contractDescription(profile),
       order: 1000,
     }
@@ -426,16 +492,41 @@ interface ScopeSummary {
   readonly detail: string;
 }
 
-/** What the check type covers, from its inventory and limits. */
-export function scopeSummary(profile: AuditProfile): ScopeSummary {
-  return {
-    size: `Up to ${itemCount(checkItemKind(profile), profile.limits.max_tasks)}`,
-    detail:
-      "Accepted tasks use the selected exact materials. Preparation may add endpoint tasks within this limit.",
-  };
+/** Descriptive scope only; task limits are not endpoint or coverage counts. */
+export function scopeSummary(profile: AuditProfile): ScopeSummary | undefined {
+  if (isWebScanProfile(profile))
+    return {
+      size: "One website target",
+      detail: "The target and rule selection are fixed when you start.",
+    };
+  if (
+    Object.values(profile.inputs).some((input) =>
+      input.media_types.includes("application/vnd.contractor.engagement+json"),
+    )
+  )
+    return {
+      size: "Selected engagement policy",
+      detail:
+        "The saved policy defines egress and identities. The Server validates it at start.",
+    };
+  if (
+    [
+      "openapi-operation-trace",
+      "openapi-operation-observe",
+      "openapi-nuclei-scan",
+      "openapi-sqlmap-scan",
+      "source-openapi-sqlmap-scan",
+    ].includes(profile.ref.name)
+  )
+    return {
+      size: "Selected API endpoints",
+      detail:
+        "Exact inputs are pinned at start. Preparation records the accepted endpoint worklist; selecting a file does not establish coverage.",
+    };
+  return undefined;
 }
 
-/** Common programs use one check glyph; their inputs describe the domain. */
-export function checkTypeIcon(): IconName {
-  return "checks";
+/** Presentation of known shipped checks; never an execution capability claim. */
+export function checkTypeIcon(profile: AuditProfile): IconName {
+  return presentCheckType(profile).icon;
 }

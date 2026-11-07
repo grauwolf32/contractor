@@ -183,3 +183,34 @@ export function startResponse(draft: Audit) {
   const audit = startedAudit(draft);
   return build.conforming("AuditStartResponse", { audit });
 }
+
+/** A current common assertion program, independent of the shipped catalog. */
+export function assertionProfileFixture(): AuditProfile {
+  const profile = profileFixture("source-checklist", {
+    inputs: checklist.inputs,
+    limits: limits(128),
+  });
+  return build.conforming("AuditProfile", {
+    ...profile,
+    program: {
+      schema: "contractor.audit.program.v1",
+      inputs: profile.inputs,
+      workflows: {
+        check: {
+          ref: "source-check@1",
+          inputs: {
+            source: { source: "audit-input", name: "source" },
+            context: { source: "task-context" },
+          },
+          parameters: {},
+          outputs: { result: "result" },
+        },
+      },
+      hypotheses: {},
+      initial_work: [],
+      seed_source: { workflow: "check", input: "checklist" },
+      limits: profile.limits,
+      policy: profile.policy,
+    },
+  });
+}

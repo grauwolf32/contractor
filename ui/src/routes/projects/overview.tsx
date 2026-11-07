@@ -1,3 +1,7 @@
+import {
+  materialDisplayName,
+  materialDisplayRef,
+} from "../artifacts/display-name";
 import { useId, type ReactNode } from "react";
 import { Link, useLocation, useSearchParams } from "react-router";
 
@@ -105,16 +109,18 @@ function MaterialChips({
                 className="projects-material-item"
                 returnLabel="Project Overview"
                 title={exact}
+                aria-label={`${materialKindLabel(item)} · ${exact} · ${materialFormat(item)}`}
                 to={artifactDetailPath(
                   { kind: "project", id: projectId },
                   item.artifact,
                 )}
               >
                 <strong>
-                  {materialKindLabel(item)} · {item.artifact.name} ·{" "}
+                  {materialKindLabel(item)} ·{" "}
+                  {materialDisplayName(item.artifact.name)} ·{" "}
                   {materialFormat(item)}
                 </strong>
-                <code>{exact}</code>
+                <code>{materialDisplayRef(item.artifact)}</code>
               </ContextLink>
             </li>
           );

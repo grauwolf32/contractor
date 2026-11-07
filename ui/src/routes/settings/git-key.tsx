@@ -147,6 +147,7 @@ export function GitKeySettings({
               items={[
                 {
                   term: "Fingerprint",
+                  wide: true,
                   value:
                     data.fingerprint === undefined ? (
                       "Unknown"

@@ -46,6 +46,8 @@
   min-width: 0;
   max-height: 40rem;
   overflow: auto;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
   padding: var(--space-3);
 }
 .materials-api-group {
@@ -149,6 +151,8 @@
 .openapi-artifact-preview {
   min-width: 0;
   overflow: auto;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
   padding: var(--space-6) 0 var(--space-3) var(--space-6);
   background: var(--surface);
 }

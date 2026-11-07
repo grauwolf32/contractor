@@ -181,6 +181,7 @@
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   background: var(--surface);
   container-type: inline-size;
 }
