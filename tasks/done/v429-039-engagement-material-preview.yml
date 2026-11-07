@@ -12,6 +12,7 @@ languages: [typescript, css, markdown]
 goal: Users can choose Engagement in Add material and read its saved network routes, identities and optional HTTP limits without decoding JSON.
 demonstration: Open a Project's Add material choices, select Engagement, upload through the ordinary Artifact form, then open that exact material and inspect the policy in Preview or Source at desktop and phone widths.
 context:
+  main_merge_authority: User 2026-11-07 explicitly requests merging the completed sitemap and engagement material previews into current main.
   authority: User 2026-11-07 explicitly requests an Engagement card in the illustrated Add material sheet and a good structured engagement preview instead of raw JSON. Earlier user decisions keep typography/themes consistent and preserve OpenDesign originals together in the common archive.
   specification: [docs/spec/audits/audits.md#AUD-R241, docs/spec/audits/audits.md#AUD-R242, docs/spec/ui/ui.md#UI-R213, docs/spec/ui/ui.md#UI-R231]
   design: [docs/design/ui/README.md, ui/src/ui/README.md]
@@ -26,7 +27,7 @@ scope:
     - Bound route and nested lists, keep selection stable and support 390px/light/dark/black, malformed/unsupported/oversized input and maximum-sized collections on actual Material routes.
     - Reuse and preserve the existing engagement OpenDesign originals, add the new review host/evidence to the common external archive and bump the UI patch release.
   out:
-    - New policy editor or credential creation flow, modifying execution policy/egress, new APIs/storage, live checks, target calls, secret reads, demo deployment or main merge.
+    - New policy editor or credential creation flow, modifying execution policy/egress, new APIs/storage, live checks, target calls, secret reads, demo deployment.
     - Reimplementing authoritative policy admission/canonicalization in React or changing the existing engagement contract and domain semantics.
 failure_outcomes:
   - operation: Add or inspect an exact engagement material
@@ -80,4 +81,20 @@ verification:
     - The owning Go engagementcontract.Decode accepted the synthetic fixture with two allowed routes, one exclusion and all four identity kinds. Upload unit coverage verifies the suggested typed media survives a JSON filename, raw request bytes/Content-Type and the exact returned material link.
     - Desktop and mobile visual review confirmed the Add material card, Egress, Identities, Limits, shared fonts, 390px wrapping and collapsed mobile Browse after selection. The isolated iframe review host logged a MutationObserver error during IAB automation/reload; rendering remained functional, and the direct reader and actual-route browser checks did not reproduce it. Review screenshots and full gate logs remain in .local/engagement-preview-20261107.
     - The common external archive now verifies 553 member hashes. All 529 previous member payloads remain unchanged, including every original native OpenDesign file and the 20 sitemap additions; 24 engagement review/source/evidence files were added. Complete previous archive revisions remain recoverable. The updated archive SHA-256 is 194aa56c01511cb53b93b4d181951579a0975e1bd553ccf98e7d21d4149d94e2.
-  delivery: Ready on codex/engagement-material-preview with the production-component review host at http://127.0.0.1:17560/test-results/engagement-preview/index.html?theme=dark&width=1440. The actual application retains ordinary Artifact uploads; this synthetic host deliberately blocks publication. No new native generation, model/credential/target access, Server/Runtime changes, main merge or demo deployment was performed.
+  delivery: Completed and merged into local main through user-authorized no-fast-forward merge 5176e53f5778f67e9ec03fcd5189cfa671644aca on 2026-11-07. UI 0.11.21 and the review hosts remain unchanged; no demo deployment was performed.
+integration_verification:
+  date: "2026-11-07"
+  main_base: "8908258ab1dfac5dc87f252c1bf1bdd760a9ff09"
+  source_branch: "codex/engagement-material-preview"
+  source_head: "af7ddb017afd4aa3deba02a71c2f3d4198374d74"
+  merged_into_main: true
+  merge_commit: "5176e53f5778f67e9ec03fcd5189cfa671644aca"
+  ancestry: "The previous main is the first parent; the exact completed UI head is the second parent. Both feature implementations are ancestors of the merge."
+  reconciliation: "Only generated tasks/BACKLOG.md and docs/spec/audit-workflow-dependencies.html conflicted; both were regenerated from the combined tree. Current main Planner acceptance and task decisions are preserved."
+  ui: "VITEST_MAX_WORKERS=2 make ui-verify passed on the integrated tree: generated checks, lint, typecheck, 217 test files, 2439 passing tests and one intentional expected failure, server tests and production build."
+  lint: "UV_OFFLINE=1 make lint passed the complete integrated-tree gate with the same pinned cached dependencies. Declared optional script skips are not passing coverage."
+  browser: "The 206 passing API-mocked browser tests across 32 specs recorded in feature verification apply to identical UI and API bytes; browser and wire gates were not repeated for this history-only integration."
+  archive: "The external common archive is unchanged: 553 verified members, SHA-256 194aa56c01511cb53b93b4d181951579a0975e1bd553ccf98e7d21d4149d94e2. Previous revisions and native originals remain retained."
+  preservation: "The primary checkout remains on its own branch; none of its uncommitted files were staged, stashed or modified by this integration."
+  deployment: "No demo deployment or Server, Runtime, model, credential or database operation was performed for this Git integration."
+  evidence: ".local/material-preview-main-20261107/"

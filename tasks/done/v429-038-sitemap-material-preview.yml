@@ -12,6 +12,7 @@ languages: [typescript, css, markdown]
 goal: Users inspect hosts, routes, concrete members and recorded provenance in a saved sitemap without reading raw JSON.
 demonstration: Open an exact sitemap material in the ordinary Material reader, find and filter a route, inspect its observations, declarations and sources, then switch to the exact Source at desktop and phone widths.
 context:
+  main_merge_authority: User 2026-11-07 explicitly requests merging the completed sitemap and engagement material previews into current main.
   authority: User 2026-11-07 requests implementing the proposed sitemap preview after confirming that V410-021 deliberately delivered only generic JSON viewing. The agreed direction uses OpenDesign, shared Contractor fonts/themes, a host/path/method browser, search/filtering and selected details.
   archive_authority: User 2026-11-07 additionally requests adding the new OpenDesign originals to the common experiment archive. Preserve every previous member and retain the exact earlier archive as a recoverable revision.
   specification: [docs/spec/artifacts/project-sitemap.md#SMT-R2, docs/spec/artifacts/project-sitemap.md#SMT-R14, docs/spec/ui/ui.md#UI-R213, docs/spec/ui/ui.md#UI-R231]
@@ -73,4 +74,20 @@ verification:
     - The existing Go projectsitemap.Decode accepted the synthetic base fixture with 12 groups. Browser visual review confirmed desktop/mobile typography and geometry, source/details behavior and no browser errors; screenshots and complete gate logs remain under .local/sitemap-preview-20261107.
     - Native OpenDesign output, request-cap failure and successful completion-only continuation are preserved with provenance. Existing 242 project files and previous Project/conversation/message/OpenCode rows were compared with verified recoverable backups and are unchanged; the temporary relay was stopped and upstream credential configuration removed.
     - The user-requested common archive update verified all 529 member hashes, retaining all 509 previous member payloads and adding 20 sitemap files. The exact earlier archive and metadata remain under revisions/2026-11-06-original with SHA-256 d3d80bd75e5cc45cf648e64fba6deb8a206943b794529003f3b390e9473877bd; the updated archive SHA-256 is 70609a895561b62cfeebaf1722a7c27b28b5d8e7f2d8cd627c995837e5a8ebe7.
-  delivery: Production reader and review host are ready on codex/sitemap-material-preview at http://127.0.0.1:17560/test-results/sitemap-preview/index.html?theme=dark&width=1440. Not merged into main or deployed to demo; no Server, Runtime, model, schema or business-data changes were made.
+  delivery: Completed and merged into local main through user-authorized no-fast-forward merge 5176e53f5778f67e9ec03fcd5189cfa671644aca on 2026-11-07. UI 0.11.21 and the review hosts remain unchanged; no demo deployment was performed.
+integration_verification:
+  date: "2026-11-07"
+  main_base: "8908258ab1dfac5dc87f252c1bf1bdd760a9ff09"
+  source_branch: "codex/engagement-material-preview"
+  source_head: "af7ddb017afd4aa3deba02a71c2f3d4198374d74"
+  merged_into_main: true
+  merge_commit: "5176e53f5778f67e9ec03fcd5189cfa671644aca"
+  ancestry: "The previous main is the first parent; the exact completed UI head is the second parent. Both feature implementations are ancestors of the merge."
+  reconciliation: "Only generated tasks/BACKLOG.md and docs/spec/audit-workflow-dependencies.html conflicted; both were regenerated from the combined tree. Current main Planner acceptance and task decisions are preserved."
+  ui: "VITEST_MAX_WORKERS=2 make ui-verify passed on the integrated tree: generated checks, lint, typecheck, 217 test files, 2439 passing tests and one intentional expected failure, server tests and production build."
+  lint: "UV_OFFLINE=1 make lint passed the complete integrated-tree gate with the same pinned cached dependencies. Declared optional script skips are not passing coverage."
+  browser: "The 206 passing API-mocked browser tests across 32 specs recorded in feature verification apply to identical UI and API bytes; browser and wire gates were not repeated for this history-only integration."
+  archive: "The external common archive is unchanged: 553 verified members, SHA-256 194aa56c01511cb53b93b4d181951579a0975e1bd553ccf98e7d21d4149d94e2. Previous revisions and native originals remain retained."
+  preservation: "The primary checkout remains on its own branch; none of its uncommitted files were staged, stashed or modified by this integration."
+  deployment: "No demo deployment or Server, Runtime, model, credential or database operation was performed for this Git integration."
+  evidence: ".local/material-preview-main-20261107/"
