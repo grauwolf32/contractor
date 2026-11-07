@@ -1,6 +1,72 @@
 import { expect, test } from "@playwright/test";
 import { audit as auditBuilder } from "../src/test/builders";
-import { authSession, fulfillJSON, mockAPI } from "./support/mock-api";
+import {
+  RESEARCH_AUDIT,
+  RESEARCH_PROJECT,
+  researchFixture,
+} from "../src/test/audit-research-fixtures";
+import {
+  authSession,
+  fulfillEmptyPageOrNotFound,
+  fulfillJSON,
+  mockAPI,
+} from "./support/mock-api";
+
+test("an off-page selected Task receives its final collected result", async ({
+  page,
+}) => {
+  const fixture = researchFixture("active");
+  const collected = fixture.tasks[0]!;
+  const ready = { ...collected, state: "ready" as const };
+  delete ready.result;
+  let settled = false;
+  let selectedReads = 0;
+  await page.clock.install();
+  await mockAPI(page, async (route, request, url) => {
+    if (url.pathname === `/v1/audits/${RESEARCH_AUDIT}/tasks`) {
+      await fulfillJSON(route, {
+        items: fixture.tasks.slice(1),
+        page: { hasMore: false },
+      });
+      return;
+    }
+    if (
+      url.pathname ===
+      `/v1/audits/${RESEARCH_AUDIT}/tasks/${collected.document.task_id}`
+    ) {
+      selectedReads++;
+      await fulfillJSON(route, settled ? collected : ready);
+      return;
+    }
+    const response = await fixture.respond(
+      new Request(url, { method: request.method() }),
+    );
+    if (!response) return fulfillEmptyPageOrNotFound(route);
+    const headers: Record<string, string> = {};
+    response.headers.forEach((value, name) => {
+      headers[name] = value;
+    });
+    await fulfillJSON(route, await response.json(), response.status, headers);
+  });
+  await page.goto(
+    `/projects/${RESEARCH_PROJECT}/audits/${RESEARCH_AUDIT}/work?task=${collected.document.task_id}`,
+  );
+  await expect(page.getByText("No collected result yet.")).toBeVisible();
+  expect(selectedReads).toBe(1);
+  settled = true;
+  Object.assign(fixture.audit, {
+    state: "completed",
+    revision: fixture.audit.revision + 1,
+    outstandingRunCount: 0,
+    collectionPending: false,
+  });
+  await page.clock.fastForward(5000);
+  await expect(
+    page.getByRole("button", { name: "Read saved result" }),
+  ).toBeVisible();
+  await expect(page.getByText("No collected result yet.")).not.toBeVisible();
+  expect(selectedReads).toBeGreaterThan(1);
+});
 
 test("studio live shows common coordination and links to retained tasks", async ({
   page,

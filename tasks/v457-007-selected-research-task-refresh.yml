@@ -1,0 +1,50 @@
+schema_version: "1.0"
+id: V457-007
+title: Refresh selected research Tasks outside the current list page
+milestone: ui-consolidation-2026-10
+epic: ui
+kind: defect
+priority: P2
+status: in_progress
+depends_on: []
+languages: [typescript]
+goal: A URL-selected off-page Task shows collected results as work progresses and after terminal collection.
+context:
+  authority: User decision 2026-11-07 authorizes all reported release-review fixes and scoped simplifications on a separate branch, including U2.
+  specification:
+    - docs/spec/ui/journeys.md#UIJ-R116
+  introduced_commit: ad2fdfe3e51fef5ca2a14715b507c1ba03907e34
+  provenance: The introducing commit contains no identifiable task file; the commit is retained instead of assigning an unrelated introduced_by task.
+  severity: medium
+  finding: >-
+    ui/src/routes/projects/audits/research-work.tsx:229-244 reads an off-page selected
+    Task once. Task-list polling and terminal projection refresh do not invalidate
+    this separate key, so the detail keeps claiming that a saved result is absent.
+  siblings: >-
+    useResearchTasks, useResearchHypotheses and useResearchMaterials already use
+    pollInterval and useAuditProjectionRefresh. Apply those existing owners to the
+    selected Task and preserve exact immutable result reads and attempt inspection.
+scope:
+  in:
+    - Share the selected Task read policy with the research data hooks.
+    - Verify active progress, terminal refresh, settled polling and disabled in-page reads.
+  out:
+    - Task mutation, server lifecycle or a new client state store.
+acceptance_criteria:
+  - id: A1
+    text: An off-page selected Task refreshes while the Audit can change and receives its saved result.
+  - id: A2
+    text: Terminal collection cancels an older read and obtains a final projection, then stops polling settled work.
+  - id: A3
+    text: In-page selection uses the list result and performs no redundant single-Task read; failed reads use the shared backoff policy.
+tests:
+  - command: cd ui && corepack pnpm test --run src/routes/projects/audits/research.test.tsx src/routes/projects/audits/research-data.test.tsx src/routes/projects/audits/projection-refresh.test.tsx
+    covers: [A1, A2, A3]
+  - command: make ui-verify
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+verification:
+  focused: 14 passing tests across research workspace, selected Task freshness and terminal projection refresh suites.
+  browser: 2 passing Chromium cases, including off-page selected Task collection with a terminal Audit transition.
+  integration: Full UI and repository lint gates remain for the integrated branch; task stays in_progress.

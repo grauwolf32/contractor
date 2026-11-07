@@ -24,7 +24,11 @@ import {
 import { auditPollInterval } from "../../../api/audits";
 import { taskStatus } from "./research-data";
 import { useAuditProjectionRefresh } from "./projection-refresh";
-import { type ResearchTask, useResearchTasks } from "./research-data";
+import {
+  type ResearchTask,
+  useResearchTask,
+  useResearchTasks,
+} from "./research-data";
 import { TaskResultView } from "./task-result-view";
 
 function TaskAttempts({ audit, task }: { audit: Audit; task: ResearchTask }) {
@@ -207,7 +211,6 @@ export function ResearchTaskTimeline({
 
 /** Keep the former endpoint workspace's list/detail pattern over current Tasks. */
 export function ResearchWork({ audit }: { audit: Audit }) {
-  const api = usePublicAPI();
   const [params, setParams] = useSearchParams();
   const hypothesis = params.get("hypothesis") ?? undefined;
   const { query, pages } = useResearchTasks(audit, hypothesis);
@@ -226,22 +229,12 @@ export function ResearchWork({ audit }: { audit: Audit }) {
           ? task.state !== "settled"
           : task.state === "settled" && !task.gap_code),
   );
-  const selectedRead = useQuery({
-    queryKey: [...queryKeys.audits.detail(audit.auditId), "task", selected],
-    enabled:
-      !!selected &&
-      query.data !== undefined &&
-      !query.data.items.some((t) => t.document.task_id === selected),
-    queryFn: async ({ signal }) =>
-      requireData(
-        await api.request((client) =>
-          client.GET("/v1/audits/{auditId}/tasks/{taskId}", {
-            signal,
-            params: { path: { auditId: audit.auditId, taskId: selected! } },
-          }),
-        ),
-      ),
-  });
+  const selectedRead = useResearchTask(
+    audit,
+    selected,
+    query.data !== undefined &&
+      !query.data.items.some((task) => task.document.task_id === selected),
+  );
   const chosen =
     (query.data?.items ?? []).find((t) => t.document.task_id === selected) ??
     (selected ? selectedRead.data : visible[0]);
