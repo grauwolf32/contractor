@@ -24,6 +24,18 @@ type storedSizeDisposition struct {
 
 var limitToken = regexp.MustCompile(`^(above:)?(LIM-[A-Z]+-[0-9]+)$`)
 
+// Materialization prevents the planner from deparsing another test schema's
+// constraints before it applies the namespace filter. Foreign DDL may remove
+// the relation a still-visible catalog row names.
+const storedSizeCheckNamesSQL = `
+WITH owned_checks AS MATERIALIZED (
+    SELECT oid, conname FROM pg_constraint
+    WHERE contype = 'c' AND connamespace = current_schema()::regnamespace
+)
+SELECT conname FROM owned_checks
+WHERE pg_get_constraintdef(oid) LIKE '%octet_length(%'
+ORDER BY conname`
+
 // TestPostgresStoredSizeChecksHaveADisposition reads every CHECK constraint
 // of the migrated schema that measures a stored value with octet_length and
 // requires exactly one disposition for it in ../stored_size_checks.txt: a
@@ -37,13 +49,7 @@ func TestPostgresStoredSizeChecksHaveADisposition(t *testing.T) {
 	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
-	rows, err := pool.Query(ctx, `
-SELECT conname
-FROM pg_constraint
-WHERE contype = 'c'
-  AND connamespace = current_schema()::regnamespace
-  AND pg_get_constraintdef(oid) LIKE '%octet_length(%'
-ORDER BY conname`)
+	rows, err := pool.Query(ctx, storedSizeCheckNamesSQL)
 	if err != nil {
 		t.Fatal(err)
 	}
