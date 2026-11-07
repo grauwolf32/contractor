@@ -1,0 +1,45 @@
+schema_version: "1.0"
+id: V457-013
+title: Assert successful Runs through their visible header status in the real UI journey
+milestone: release-gate-integration-coverage-2026-10
+epic: quality
+kind: chore
+introduced_by: V429-002
+priority: P2
+status: in_progress
+depends_on: []
+languages: [typescript]
+goal: The real UI process journey verifies successful Runs through their authoritative visible header state while preserving lifecycle and result checks.
+context:
+  authority: User decision 2026-11-07 authorizes release-review repairs and necessary fixture maintenance on a separate branch; the release process exposed this obsolete assertion.
+  specification: docs/spec/ui/ui.md#UI-R216
+  provenance: V429-002 implementation ce4e0e06d477665a1ebb3ca1f8ef708973e4df80 intentionally removed the redundant success triage summary but retained both older process-test expectations introduced by 8930c62e9.
+  finding: >-
+    ui/e2e/stack.spec.ts:650-659 and 833-841 still wait for a region named Run
+    completed successfully. UI-R216 and triage-summary.tsx:105 intentionally omit
+    that region for successful Runs; detail.tsx:247 renders the authoritative
+    RunStateChip instead. The real Operations journey fails despite durable Run
+    state succeeded and Stage result_accepted.
+scope:
+  in:
+    - Scope both real process success assertions to the Run detail header's visible Succeeded state chip.
+    - Preserve existing wait bounds, backend lifecycle and exact result assertions.
+  out:
+    - Production UI changes, success guidance cards, API-only success checks or weakened lifecycle/result checks.
+acceptance_criteria:
+  - id: A1
+    text: Both streamline and OpenAPI success waits observe the visible header RunStateChip with the current Succeeded vocabulary.
+  - id: A2
+    text: Existing process journey lifecycle and exact result checks remain intact, and the Run component regression continues to omit redundant successful triage.
+tests:
+  - command: cd ui && corepack pnpm exec vitest run src/routes/runs/runs.test.tsx
+    covers: [A1, A2]
+  - command: go test -p=2 -tags=e2e -count=1 -run '^TestBrowserOperationsStack$' ./tests/ui-stack
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]
+verification:
+  baseline: The real Operations journey waited 45 seconds for the removed success region while its diagnostics reported Run succeeded, Workflow workflow_succeeded and Stage result_accepted.
+  focused: All 42 Run route tests pass, including the authoritative header identity/timestamps and omitted-success-triage regression.
+  static: ESLint, Prettier and the complete e2e TypeScript configuration pass; diff-check and task validation pass.
+  integration: Root will rerun the real Operations journey after combining this fixture correction with V457-012 Studio fixture alias expansion; existing lifecycle/result assertions and timeouts remain unchanged.

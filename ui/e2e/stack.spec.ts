@@ -647,13 +647,12 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   await invokeControl(request, controlURL, controlToken, "release-worker");
 
   await page.goto(`/runs/${streamlineRunID}`);
-  // The triage region is named by its outcome title, which reads
-  // "Run completed successfully" only for a succeeded Run.
+  // Successful Runs lead directly to results; their visible header chip owns
+  // the state instead of a repeated triage summary.
   await expect(
-    page.getByRole("region", {
-      name: "Run completed successfully",
-      exact: true,
-    }),
+    page
+      .locator(".ui-detail-header .ui-status-chip")
+      .filter({ hasText: /^Succeeded$/ }),
   ).toBeVisible({
     timeout: 45_000,
   });
@@ -832,10 +831,9 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   await page.goto(`/runs/${openAPIRunID}`);
   try {
     await expect(
-      page.getByRole("region", {
-        name: "Run completed successfully",
-        exact: true,
-      }),
+      page
+        .locator(".ui-detail-header .ui-status-chip")
+        .filter({ hasText: /^Succeeded$/ }),
     ).toBeVisible({
       timeout: 180_000,
     });
