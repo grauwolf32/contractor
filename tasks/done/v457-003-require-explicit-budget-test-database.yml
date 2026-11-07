@@ -6,7 +6,7 @@ epic: quality
 kind: defect
 introduced_by: V414-038
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: "Read-budget fixtures skip without a test database and fail for a configured unavailable database."
@@ -49,3 +49,4 @@ verification: >-
   The unset subprocess regression fails with the original helper restored
   temporarily; fixed bytes were restored afterward. Integrated lint and
   task completion remain with the coordinating lane.
+implementation_commit: 076298fc055421be431d88f64cdf229ba11b0ed8

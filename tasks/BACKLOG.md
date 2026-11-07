@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-81 open tasks: 23 in progress, 45 pending, 13 deferred. 1492 finished: 1474 completed, 18 archived.
+80 open tasks: 22 in progress, 45 pending, 13 deferred. 1493 finished: 1475 completed, 18 archived.
 
 ## In progress
 
@@ -20,7 +20,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Accept merged isolated Worker context compaction |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V457-003](v457-003-require-explicit-budget-test-database.yml) | quality | defect | P2 | Skip read-budget database fixtures when no test database is configured |
 | [V457-004](v457-004-bound-postcommit-blob-cleanup.yml) | projects-artifacts | chore | P2 | Share one bounded budget across postcommit filesystem blob cleanup |
 | [V457-005](v457-005-share-artifact-metadata-sql.yml) | projects-artifacts | chore | P3 | Share Artifact metadata SQL projection without generalizing indexed predicates |
 | [V457-006](v457-006-project-target-credential-replay.yml) | ui | defect | P2 | Retain Project target credential creation identity after response loss |
@@ -186,4 +185,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 47 | 9 | 22 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 42 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 50 | 18 |
-| Quality, CI and process (`quality`) | 18 | 1 | 32 | 137 | 30 |
+| Quality, CI and process (`quality`) | 17 | 1 | 32 | 137 | 30 |
