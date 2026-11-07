@@ -6,7 +6,7 @@ epic: quality
 kind: chore
 introduced_by: V429-028
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [typescript]
 goal: The real Operations journey reaches the unchanged clone and credential checks through the current Configuration disclosure UI.
@@ -32,8 +32,13 @@ context:
     and its copied browser report outside the repository. Both existing UI
     configuration tests pass, e2e TypeScript checking passes, and ESLint/Prettier
     accept the changed spec. Task validation passes for all 1,562 task records.
-    The integrated real Operations retry, coordinating-branch lint and task
-    completion remain with integration; no real-stack pass is claimed yet.
+    Final integrated verification passed as recorded in context.integration_verification.
+  integration_verification: >-
+    Acceptance verified on 2026-11-08. The complete real Operations journey passed all
+    108 executed cases with zero skips/unexpected/flaky cases, including exact policy
+    clone/publication, credentials, Runtime configuration, Run ownership and secret
+    boundaries. The configuration component suite, both TypeScript configurations and
+    full ui-verify passed. Final release-verify-lint passed.
 scope:
   in:
     - Select the exact worker@2 Configuration disclosure and open it with the existing helper before inspecting it.
@@ -57,4 +62,4 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
-implementation_commit: null
+implementation_commit: 227f824f1e99fa6850b299b236eac48005222df3

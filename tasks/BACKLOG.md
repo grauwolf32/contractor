@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-74 open tasks: 16 in progress, 45 pending, 13 deferred. 1504 finished: 1486 completed, 18 archived.
+73 open tasks: 15 in progress, 45 pending, 13 deferred. 1505 finished: 1487 completed, 18 archived.
 
 ## In progress
 
@@ -20,7 +20,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Accept merged isolated Worker context compaction |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V457-015](v457-015-operations-disclosure-fixture.yml) | quality | chore | P1 | Follow Configuration disclosures in the real Operations journey |
 | [V457-016](v457-016-reject-invalid-audit-eval-input.yml) | evals | defect | P1 | Reject permanently invalid Audit Eval assertion sources and drain members |
 | [V457-017](v457-017-restore-audit-sarif-ui.yml) | findings | defect | P1 | Restore Audit-local SARIF publication over canonical Project findings |
 | [V457-018](v457-018-http-caido-fixture-policy-closure.yml) | quality | defect | P1 | Stage the complete HTTP and Caido process fixture model policy closure |
@@ -179,4 +178,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 47 | 9 | 22 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 42 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 50 | 18 |
-| Quality, CI and process (`quality`) | 16 | 1 | 33 | 140 | 30 |
+| Quality, CI and process (`quality`) | 15 | 1 | 33 | 140 | 30 |
