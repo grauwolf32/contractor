@@ -70,6 +70,7 @@ class _AllocationContext:
     prepare_response: PrepareAllocationResponse | None = None
     termination_kind: str | None = None
     termination_id: str | None = None
+    stop_deadline: datetime | None = None
     terminal_response: AllocationFinalResponse | None = None
     release_prepared: bool = False
     release_cleanup_task: asyncio.Task[None] | None = field(default=None, repr=False)

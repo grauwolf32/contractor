@@ -386,15 +386,29 @@ class AllocationAdapterHost:
     def report_metrics(self) -> dict[RuntimeAdapterRef, RuntimeAdapterMetrics]:
         return {ref: self._metrics[ref].snapshot() for ref in sorted(self._metrics)}
 
-    async def terminate(
+    @property
+    def flush_timeout_seconds(self) -> float:
+        """Configured cap for a still-unattempted telemetry flush, or zero."""
+
+        return max(
+            (
+                hosted.flush_timeout_seconds
+                for hosted in self._hosted.values()
+                if hosted.flush_timeout_seconds is not None
+                and hosted.adapter.metrics.flush_attempted is None
+            ),
+            default=0.0,
+        )
+
+    async def flush(
         self,
         *,
         deadline: datetime,
         now: Callable[[], datetime],
-    ) -> None:
-        if self._closed:
-            return
-        close_failed = False
+    ) -> bool:
+        """Flush without closing producer handles; return cancellation settlement."""
+
+        confirmed = True
         for ref in reversed(tuple(self._hosted)):
             hosted = self._hosted[ref]
             if (
@@ -412,10 +426,22 @@ class AllocationAdapterHost:
                     hosted.adapter.metrics.record_flush(succeeded=False, error_code="flush_timeout")
                 elif outcome == "cancel_unconfirmed":
                     hosted.adapter.metrics.record_flush(succeeded=False, error_code="flush_timeout")
-                    close_failed = True
+                    confirmed = False
                 else:
                     hosted.adapter.metrics.record_flush(succeeded=False, error_code="flush_failed")
+        return confirmed
 
+    async def terminate(
+        self,
+        *,
+        deadline: datetime,
+        now: Callable[[], datetime],
+    ) -> None:
+        if self._closed:
+            return
+        close_failed = not await self.flush(deadline=deadline, now=now)
+        for ref in reversed(tuple(self._hosted)):
+            hosted = self._hosted[ref]
             remaining = (deadline - now()).total_seconds()
             outcome = await _bounded_call(hosted.adapter.close(), timeout=max(0.0, remaining))
             if outcome == "succeeded":

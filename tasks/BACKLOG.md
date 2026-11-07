@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-68 open tasks: 9 in progress, 46 pending, 13 deferred. 1486 finished: 1468 completed, 18 archived.
+67 open tasks: 9 in progress, 45 pending, 13 deferred. 1487 finished: 1469 completed, 18 archived.
 
 ## In progress
 
@@ -103,12 +103,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V411-018](v411-018-pentest-ui-journey.yml) | feature | P1 | V411-015, V411-017 | Build the ordinary HTTP Audit setup and evidence UI journey |
 
-### Operations, authentication, CLI and deployment (`operations`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V455-004](v455-004-runtime-trace-delivery.yml) | defect | P1 | — | Export Worker traces during execution and preserve bounded flush on teardown failures |
-
 ### Public API and wire contracts (`api-contracts`)
 
 | Task | Kind | Priority | Waiting for | Title |
@@ -175,7 +169,7 @@ tasks in `introduced_by`.
 | Evaluations (`evals`) | 5 | 22 | 40 | 17 | 50 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
 | Web UI (`ui`) | 1 | 51 | 75 | 28 | 74 |
-| Operations, authentication, CLI and deployment (`operations`) | 1 | 18 | 47 | 9 | 22 |
+| Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 47 | 9 | 22 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 42 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 47 | 18 |
 | Quality, CI and process (`quality`) | 11 | 1 | 29 | 133 | 28 |

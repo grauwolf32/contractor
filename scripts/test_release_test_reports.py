@@ -30,6 +30,10 @@ class ReportReuseTest(unittest.TestCase):
         for identity in engagement["matrix"]()["python"]:
             classname, name = identity.split("::", 1)
             ET.SubElement(suite, "testcase", classname=classname, name=name)
+        for name in sorted(reports.TRACE_DELIVERY_CASES):
+            ET.SubElement(
+                suite, "testcase", classname="tests.test_runtime_trace_delivery_process", name=name
+            )
         # Optional tests outside both focused scopes did not fail their old gates.
         ET.SubElement(
             ET.SubElement(suite, "testcase", classname="tests.optional", name="test_optional"),
@@ -52,6 +56,23 @@ class ReportReuseTest(unittest.TestCase):
             ET.ElementTree(suite).write(path)
             with self.assertRaisesRegex(Exception, "did not pass"):
                 reports.verify_runtime(path)
+
+    def test_runtime_trace_delivery_requires_every_process_case_to_pass(self) -> None:
+        for outcome in ("missing", "skipped", "failure", "error"):
+            with self.subTest(outcome=outcome), tempfile.TemporaryDirectory() as directory:
+                suite = self.runtime_report()
+                case = next(
+                    case for case in suite
+                    if case.get("classname") == "tests.test_runtime_trace_delivery_process"
+                )
+                if outcome == "missing":
+                    suite.remove(case)
+                else:
+                    ET.SubElement(case, outcome)
+                path = Path(directory) / "runtime.xml"
+                ET.ElementTree(suite).write(path)
+                with self.assertRaises(reports.GateError):
+                    reports.verify_runtime(path)
 
     def test_each_go_gate_rejects_missing_subcases_skips_and_package_pass(self) -> None:
         for kind in ("audit-completion", "findings"):
