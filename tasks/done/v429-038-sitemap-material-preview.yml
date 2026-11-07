@@ -5,7 +5,8 @@ milestone: ui-journey-usability
 epic: ui
 kind: feature
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 45cccec70bf9ba2ef128c1cbb6603e1d1e2ad822
 depends_on: [V410-021, V429-037]
 languages: [typescript, css, markdown]
 goal: Users inspect hosts, routes, concrete members and recorded provenance in a saved sitemap without reading raw JSON.
