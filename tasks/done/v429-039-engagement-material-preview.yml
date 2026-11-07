@@ -5,7 +5,8 @@ milestone: ui-journey-usability
 epic: ui
 kind: feature
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 0d35661d921949c50c9c3241be1610c71c920b1e
 depends_on: [V429-038]
 languages: [typescript, css, markdown]
 goal: Users can choose Engagement in Add material and read its saved network routes, identities and optional HTTP limits without decoding JSON.
