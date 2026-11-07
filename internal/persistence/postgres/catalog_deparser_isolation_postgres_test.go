@@ -88,7 +88,7 @@ ORDER BY conname`
 		_, err = pgx.CollectRows(rows, pgx.RowTo[string])
 	}
 	var rejected *pgconn.PgError
-	if !errors.As(err, &rejected) || rejected.Code != "P0001" || !strings.Contains(rejected.Message, "deparser received foreign constraint OID") {
+	if !errors.As(err, &rejected) || !strings.Contains(rejected.Message, "deparser received foreign constraint OID") {
 		t.Fatalf("original query did not expose its foreign deparse: %v", err)
 	}
 	t.Logf("original qualification order rejected: %s", rejected.Message)

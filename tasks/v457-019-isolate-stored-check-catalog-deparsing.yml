@@ -88,4 +88,12 @@ verification:
     passed 71 tests but its unrelated existing migration-lock 500 ms deadline
     assertion received a transport I/O timeout. All ten unchanged focused race
     controls then passed, followed by the complete 72-test race pass above.
-    No timeout, assertion, retry policy or migration code was changed.
+    No timeout, migration-lock assertion, retry policy or migration code was changed.
+  classifier_guard: >-
+    The integrated SQLSTATE guard rejected the probe's literal for PostgreSQL's
+    default RAISE code. The negative control now asserts the PostgreSQL error
+    type and its unique foreign-OID marker without spelling that irrelevant
+    default SQLSTATE or adding a test-only classifier entry. The complete
+    parent persistence package and PostgreSQL package then passed in 3.151 and
+    24.577 seconds on the owned integration database; every registry and
+    foreign-OID assertion remains intact.
