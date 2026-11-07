@@ -6,7 +6,7 @@ epic: quality
 kind: defect
 introduced_by: V425-041
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [go, python]
 goal: The shared HTTP/Caido process fixture validates its exact Worker model and script-derived call budget before both ordinary and sitemap collection journeys start.
@@ -23,6 +23,13 @@ context:
     readiness before reaching their HTTP/Caido assertions.
   siblings: Both real process tests share testHTTPAndCaidoProcesses and writeHTTPAnalysisE2EWorkflow; collection changes only staged toolsets and sitemap observations, not the selected policies.
   decision: Preserve the current HTTP fixture model worker-model, exact original worker@1 bytes and eight-call budget, production worker@2 and summarizer@1. The unchanged ordinary HTTP script plus mandatory finalizer needs nine calls and sitemap collection needs fifteen. Stage a distinct test-only http-caido-worker@1 policy derived from worker@1, changing only identity and maxModelCalls to the longest actual script plus one finalizer. Caido continues selecting production security-analysis@4 and worker@2. No live or shipped model selection changes.
+  integration_verification: >-
+    Acceptance verified on 2026-11-08. Both real HTTP/Caido and Sitemap processes passed
+    on the integrated branch, followed by the complete release-verify-process-a command:
+    seventeen top-level tests, zero skips/failures, and all three official report
+    verifiers. The exact policy closure regression passes in the eleven-case
+    configuration gate; unchanged worker, summarizer and Caido model selections remain
+    asserted. Final release-verify-lint passed.
 scope:
   in:
     - Stage exact e2e worker@1 under a distinct fixture filename and preserve its bytes, production worker@2 and summarizer@1 policies.
@@ -50,4 +57,11 @@ verification:
   focused: The repaired closure regression passes through the real catalog owner. It compares original worker@1, production worker@2 and summarizer@1 file bytes, resolved models and budgets; the distinct HTTP-only policy differs from worker@1 only in identity and the exact script-derived fifteen-call limit.
   release_selection: TestHTTPCaidoE2EConfigurationClosure is selected by CONFIG_FIXTURE_TESTS and the exact EXPECTED_CONFIG_TESTS guard. All 56 release-graph guard unit tests pass.
   static: Go formatting, diff-check and task validation pass. Every HTTP/Caido tool/validator and production model choice remains unchanged.
-  integration: Both complete real process scenarios are rerunning with the corrected HTTP-only budget against the assigned isolated UI database. Their original lifecycle, Runtime, target, provider and sitemap assertions remain required before task completion.
+  integration: >-
+    Both real HTTP/Caido and Sitemap processes passed on the integrated branch, followed
+    by the complete release-verify-process-a command: seventeen top-level tests, zero
+    skips/failures, and all three official report verifiers. The exact policy closure
+    regression passes in the eleven-case configuration gate; unchanged worker,
+    summarizer and Caido model selections remain asserted. Final release-verify-lint
+    passed.
+implementation_commit: 9a1627db7b4807ed31750905a2d31376b45d3fbd
