@@ -6,7 +6,7 @@ epic: projects-artifacts
 kind: chore
 introduced_by: V437-004
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: "A committed purge spends one bounded best-effort budget on filesystem unlink work and retains the existing offline orphan recovery path."
@@ -50,5 +50,5 @@ verification: >-
   A real committed Run purge unlinked 64 unique filesystem objects using one
   shared context and left no registry object or filesystem orphan. Caller
   cancellation, rollback and ambiguous-commit regressions passed. Evidence:
-  work/data1-postgres-tests.jsonl in the coordinating workspace. Integrated lint
-  and task completion remain with the coordinating lane.
+  work/data1-postgres-tests.jsonl in the coordinating workspace. Integrated make lint passed on the combined branch.
+implementation_commit: b62142c5cd9390d67ee133182875b5058bc8c818
