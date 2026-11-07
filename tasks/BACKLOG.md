@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-74 open tasks: 16 in progress, 45 pending, 13 deferred. 1499 finished: 1481 completed, 18 archived.
+78 open tasks: 20 in progress, 45 pending, 13 deferred. 1500 finished: 1482 completed, 18 archived.
 
 ## In progress
 
@@ -20,13 +20,17 @@ the epics are in [epics.yml](epics.yml).
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Accept merged isolated Worker context compaction |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V457-010](v457-010-ui-stack-model-policy-closure.yml) | quality | defect | P1 | Stage the complete model policy closure for UI process fixtures |
 | [V457-011](v457-011-production-planner-coverage-fixture.yml) | quality | chore | P1 | Align the production Planner fixture with the shipped findings review |
 | [V457-012](v457-012-studio-catalog-alias-fixture.yml) | quality | chore | P1 | Expand trusted catalog aliases in Studio conformance fixtures |
 | [V457-013](v457-013-ui-stack-success-status-assertion.yml) | quality | chore | P2 | Assert successful Runs through their visible header status in the real UI journey |
 | [V457-014](v457-014-current-audit-process-fixtures.yml) | quality | defect | P1 | Author current Audit assertions and checker results in process fixtures |
 | [V457-015](v457-015-operations-disclosure-fixture.yml) | quality | chore | P1 | Follow Configuration disclosures in the real Operations journey |
 | [V457-016](v457-016-reject-invalid-audit-eval-input.yml) | evals | defect | P1 | Reject permanently invalid Audit Eval assertion sources and drain members |
+| [V457-017](v457-017-restore-audit-sarif-ui.yml) | findings | defect | P1 | Restore Audit-local SARIF publication over canonical Project findings |
+| [V457-018](v457-018-http-caido-fixture-policy-closure.yml) | quality | defect | P1 | Stage the complete HTTP and Caido process fixture model policy closure |
+| [V457-019](v457-019-isolate-stored-check-catalog-deparsing.yml) | quality | chore | P2 | Filter owned CHECK constraints before deparsing stored-size definitions |
+| [V457-020](v457-020-audit-catalog-removal-fixture-closure.yml) | quality | chore | P1 | Remove the full Audit authoring closure in catalog replacement fixtures |
+| [V457-021](v457-021-keep-placement-version-probe-independent-of-python.yml) | quality | chore | P2 | Keep the placement scanner version fixture independent of Python startup |
 
 ## Pending
 
@@ -160,8 +164,8 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 2 | 49 | 68 | 39 | 104 |
-| Planners and the Worker model boundary (`planner-worker`) | 8 | 35 | 54 | 33 | 84 |
+| Run execution core (`execution-core`) | 2 | 49 | 68 | 39 | 105 |
+| Planners and the Worker model boundary (`planner-worker`) | 8 | 35 | 54 | 33 | 85 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 15 | 5 | 47 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 3 | 14 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
@@ -169,14 +173,14 @@ tasks in `introduced_by`.
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 5 | 24 | 32 | 15 | 35 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 3 | 17 | 10 | 10 | 21 |
-| Findings tools and collections (`findings`) | 0 | 17 | 10 | 11 | 18 |
-| Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 22 |
+| Findings tools and collections (`findings`) | 1 | 17 | 11 | 11 | 18 |
+| Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 23 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 39 | 19 | 69 |
-| Audits (`audits`) | 10 | 69 | 97 | 42 | 164 |
+| Audits (`audits`) | 10 | 69 | 97 | 42 | 166 |
 | Evaluations (`evals`) | 6 | 22 | 41 | 17 | 50 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
 | Web UI (`ui`) | 1 | 51 | 79 | 28 | 76 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 47 | 9 | 22 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 42 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 50 | 18 |
-| Quality, CI and process (`quality`) | 17 | 1 | 32 | 137 | 30 |
+| Quality, CI and process (`quality`) | 20 | 1 | 33 | 140 | 30 |
