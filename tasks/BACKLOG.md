@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-67 open tasks: 9 in progress, 45 pending, 13 deferred. 1487 finished: 1469 completed, 18 archived.
+68 open tasks: 10 in progress, 45 pending, 13 deferred. 1489 finished: 1471 completed, 18 archived.
 
 ## In progress
 
@@ -20,6 +20,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Accept merged isolated Worker context compaction |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V456-003](v456-003-baseline-main-integration.yml) | persistence | chore | P2 | Integrate the verified release baseline into current main |
 
 ## Pending
 
@@ -165,11 +166,11 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 0 | 17 | 10 | 11 | 17 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 21 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 39 | 17 | 67 |
-| Audits (`audits`) | 10 | 69 | 96 | 41 | 158 |
+| Audits (`audits`) | 10 | 69 | 96 | 41 | 159 |
 | Evaluations (`evals`) | 5 | 22 | 40 | 17 | 50 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
 | Web UI (`ui`) | 1 | 51 | 75 | 28 | 74 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 47 | 9 | 22 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 42 | 30 | 21 |
-| PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 47 | 18 |
+| PostgreSQL persistence and schema (`persistence`) | 4 | 0 | 28 | 50 | 18 |
 | Quality, CI and process (`quality`) | 11 | 1 | 29 | 133 | 28 |

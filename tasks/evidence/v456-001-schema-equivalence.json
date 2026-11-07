@@ -1,0 +1,108 @@
+{
+  "authority": "User-requested release baseline fold, 2026-11-07",
+  "source_commit": "2fc3bb3d14c237095f968267adc599534a33dc2b",
+  "source_migrations": [
+    {
+      "name": "000001_baseline.sql",
+      "sha256": "b8737f31e67eed658ae3b2e6bea135691b89c45751152c683de8ec3b803073ae"
+    },
+    {
+      "name": "000002_audit_artifact_scope.sql",
+      "sha256": "12ef2f3f3a68ccb7088430bcc5e883acc2e1c8d1083d4d1c03e7535f647657b3"
+    },
+    {
+      "name": "000003_remove_repeat_request.sql",
+      "sha256": "7f0c21966003daeeb68499233dd15cffa44f8822516aadf0b7174270d4e58f76"
+    },
+    {
+      "name": "000004_audit_common_tasks.sql",
+      "sha256": "631613905ab2ed94c3fd8bd80a56c037d362f60ef420ab30ebe8e647660b2ab8"
+    },
+    {
+      "name": "000005_finding_task_origin.sql",
+      "sha256": "396b007cc8db962b2192261bb6e90aab404d4ddecf3dc4c0ab6076c8d82fd733"
+    },
+    {
+      "name": "000006_audit_hypotheses.sql",
+      "sha256": "7c1052e3b5c96edf19b86dc669f74f9a8e4b1cb58c66266f6e0a883e4a9ffc58"
+    },
+    {
+      "name": "000007_remove_audit_approvals.sql",
+      "sha256": "0858194378510ab9a62052ed17bb20ca088ba3d71faa6e0bec3b5545699da099"
+    },
+    {
+      "name": "000008_runtime_snapshot_byte_order.sql",
+      "sha256": "b330d71f24ad999d05e3200c88ee1539ff105520433d2a444d53766b3e01f166"
+    },
+    {
+      "name": "000009_audit_continuation_seek.sql",
+      "sha256": "5d4fdb870de86e57ce3a19edf8d1854ef77e80f7d795caed2a9978a7a4a8086c"
+    },
+    {
+      "name": "000010_audit_external_source_seek.sql",
+      "sha256": "f938472403792c0e01e592cdebca71f4abd52e7bf44d3b95ea62ebf1c4e0c239"
+    },
+    {
+      "name": "000011_run_engagement_credentials.sql",
+      "sha256": "fcc51f1067c942055bc2cbf9d5fc0abde2d46eae57fe172fe0ceea3c0936597f"
+    },
+    {
+      "name": "000012_remove_audit_pipeline.sql",
+      "sha256": "65622b1f5f0312f6955c5170064e54fbe11873771397163f181374fbf1291190"
+    },
+    {
+      "name": "000013_audit_material_pagination.sql",
+      "sha256": "d30f2a1505af8dad3656e0affb0cb25f5bea894156bc6d71711f9dd45d4d7265"
+    },
+    {
+      "name": "000014_gateway_recovery_memory.sql",
+      "sha256": "6dd5cf932bcf1fdb9f1113c3967c137b28fb8750a79c0d1968663f17bf2040ea"
+    },
+    {
+      "name": "000015_eval_owned_state.sql",
+      "sha256": "de19e76ec659ffbc96b26a4f03c25605aaacd104e228074a58d23bfb52061719"
+    },
+    {
+      "name": "000016_stage_owned_state.sql",
+      "sha256": "800976356731ca9223bf36282c9bc041a4fc6320b2b6f906f4b32d4022c059d2"
+    }
+  ],
+  "comparison": "Equivalent installed catalogs, all stable initial rows and sequence state; ledger and physical dropped-column gaps excluded. Only scheduler_settings.updated_at uses its per-database clock_timestamp() default.",
+  "normalizations": [
+    {
+      "object": "audit_hypotheses.audit_hypotheses_source_key_check",
+      "chain_definition": "CHECK ((((octet_length(source_key) >= 1) AND (octet_length(source_key) <= 128)) AND (source_key ~ '^[A-Za-z0-9][A-Za-z0-9_.-]*$'::text)))",
+      "baseline_definition": "CHECK (((octet_length(source_key) >= 1) AND (octet_length(source_key) <= 128) AND (source_key ~ '^[A-Za-z0-9][A-Za-z0-9_.-]*$'::text)))",
+      "reason": "PostgreSQL flattens nested AND expressions when parsing the dumped CHECK; identical bounds and grammar."
+    }
+  ],
+  "counts": {
+    "columns": 725,
+    "constraints": 611,
+    "dependencies": 2,
+    "functions": 127,
+    "indexes": 239,
+    "relations": 62,
+    "rows": 60,
+    "sequence_state": 2,
+    "sequences": 2,
+    "triggers": 130,
+    "views": 0
+  },
+  "seed_rows": 3,
+  "catalog_sha256": "b38004b733c22c520779613cb923ff7d1e82f371358a835d0c6fb1af6dff2a14",
+  "baseline_sha256": "f006661601e0a35747e4ac98b41657a9aa819f6dccbaebc4996ab2750cbb5281",
+  "verification": {
+    "fresh_production_migrator": {
+      "applied": 1,
+      "current_version": 1
+    },
+    "production_migrator_replay": {
+      "applied": 0,
+      "current_version": 1
+    },
+    "retired_chain_ledger": "Rejected as migration drift; unchanged installed schema and data checked after rejection.",
+    "postgres_version": "17.11",
+    "schema_policy_source": "Preserved the existing SQL-standard metadata validator source for the shared-policy generator; its installed function definition equals the chain and dump."
+  }
+}

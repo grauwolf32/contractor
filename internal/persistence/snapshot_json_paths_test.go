@@ -147,37 +147,36 @@ func snapshotJSONReads() []snapshotJSONRead {
 			path: textArrayPath(runtimeconfig.PlannerTelemetryCredentialPath), want: plannerTelemetry,
 		},
 
-		// Audit triggers over the retained baseline snapshot.
+		// Baseline fields and the Artifact hold reader over its pinned inputs.
 		{
 			name: "baseline schema", document: baselineDocument,
 			path: []string{"schema"}, want: auditbaseline.Schema,
-			sql: []string{"baseline_snapshot->>'schema' IS DISTINCT FROM '" + auditbaseline.Schema + "'"},
 		},
 		{
 			name: "baseline inputs", document: baselineDocument,
 			path: []string{"inputs", "source", "digest"}, want: "sha256:" + strings.Repeat("a", 64),
-			sql: []string{"jsonb_typeof(NEW.baseline_snapshot->'inputs')"},
+			sql: []string{"contractor_jsonb_values(baseline -> 'inputs')"},
 		},
 		{
 			name: "baseline scope field", document: baselineDocument,
 			path: []string{"scope", "objective"}, want: "objective text",
 		},
 
-		// The completion trigger compares a Run's completion snapshot with the profile.
+		// The allocation trigger reads completion selection; the Run CHECK pins its contract kind.
 		{
 			name: "Run completion stage", document: auditCompletionDocument,
 			path: []string{"stage"}, want: "copy",
-			sql: []string{"stored.audit_completion ->> 'stage'"},
+			sql: []string{"pinned ->> 'stage'"},
 		},
 		{
 			name: "Run completion agent", document: auditCompletionDocument,
 			path: []string{"agent"}, want: "builder",
-			sql: []string{"stored.audit_completion ->> 'agent'"},
+			sql: []string{"pinned ->> 'agent'"},
 		},
 		{
 			name: "Run completion contract kind", document: auditCompletionDocument,
 			path: []string{"contract", "kind"}, want: contracts.AuditCheckResultsV1,
-			sql: []string{"stored.audit_completion #>> '{contract,kind}'"},
+			sql: []string{"audit_completion #>> '{contract,kind}'::text[]"},
 		},
 	}
 }
