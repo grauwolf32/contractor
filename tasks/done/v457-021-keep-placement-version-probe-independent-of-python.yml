@@ -6,7 +6,7 @@ epic: quality
 kind: chore
 introduced_by: V405-005
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: "The deterministic placement fixture answers its version probe using shell builtins and still runs every actual scan through the original Python payload."
@@ -37,6 +37,14 @@ context:
     deliberately nonexistent interpreter, without elapsed-time assertions.
     Keep all production probe budgets, capability fences, models and retries
     unchanged; no new retry or generic scanner fixture framework is needed.
+  integration_verification: >-
+    Acceptance verified on 2026-11-08. The complete integrated release-verify-process-c
+    command and its findings verifier passed. The revised placement scenario also passed
+    all five original lifecycle cases in 198.61 seconds without skips; the unchanged
+    diagnostic retry had passed in 196.81 seconds. Deterministic missing-Python, literal
+    argv, scan success/failure and version-before-marker controls and release-graph
+    tests pass. Final release-verify-lint passed. Production probe deadlines, capability
+    fences, models and lease waits remain unchanged.
 scope:
   in:
     - "A placement-only scanner writer with a builtin version branch and the original Python scan body."
@@ -81,9 +89,11 @@ verification:
     graph guard tests pass after adding the fixture case to process-C and the
     placement family.
   integration: >-
-    The revised complete placement scenario is running separately on the data
-    database against prepared Runtime dependencies; no dependency install was
-    performed. Its durable report is work/polish-logs/v457-021-placement-fixed.jsonl
-    in the coordinating workspace. The coordinating agent will run the full
-    official process-C stage after integration. This source-ready task remains
-    in progress pending those reports, integrated lint and task closure.
+    The complete integrated release-verify-process-c command and its findings verifier
+    passed. The revised placement scenario also passed all five original lifecycle cases
+    in 198.61 seconds without skips; the unchanged diagnostic retry had passed in 196.81
+    seconds. Deterministic missing-Python, literal argv, scan success/failure and
+    version-before-marker controls and release-graph tests pass. Final
+    release-verify-lint passed. Production probe deadlines, capability fences, models
+    and lease waits remain unchanged.
+implementation_commit: b3fbc4addd83c166effca6ba7b10f040d1b078f8
