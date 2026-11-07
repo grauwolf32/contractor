@@ -201,5 +201,13 @@ verification:
   limits: >-
     The historical peer-reset cause remains unproven and is not repaired here.
     Existing memory-only best-effort delivery and queue/retry bounds remain.
-  landing: Completed on codex/v455-004-terminal-flush; not merged into main or deployed.
+  landing: >-
+    Merged into main through 96d92c5bc3a277bc2b33e845d986a3b4fb50cfad;
+    no deployment was performed.
+  integration:
+    merge_commit: 96d92c5bc3a277bc2b33e845d986a3b4fb50cfad
+    verified_tree: 4ad9c54339220541740e169a1f4310c5d3b84fde
+    tree_equivalence: The merge tree exactly matches the previously verified implementation branch.
+    focused_after_merge: 350 passed in 25.57 seconds on main.
+    metadata_checks: Task, specification, generated dependency graph and whitespace checks passed.
 implementation_commit: c2a17fbc37f4cb510026215c87e1a87049d326a7
