@@ -6,7 +6,7 @@ epic: quality
 kind: chore
 introduced_by: V420-006
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [typescript]
 goal: The shipped-catalog conformance test follows Studio's explicit alias-expansion contract without weakening editor isolation or import bounds.
@@ -36,8 +36,13 @@ context:
     the e2e TypeScript configuration, ESLint and Prettier checks passed.
     Source parsing is bounded to the existing 1 MiB input ceiling, 20,000 syntax
     entries and a finite 100-alias expansion count; expanded input still passes
-    the unchanged production import bounds. Integrated lint remains for the
-    coordinating branch and this task remains in_progress.
+    the unchanged production import bounds. Final integrated verification passed as recorded in context.integration_verification.
+  integration_verification: >-
+    Acceptance verified on 2026-11-08. All 74 original catalog cases pass in the
+    successful complete UI-stack invocation; the existing fourteen Studio document
+    regressions also pass in full ui-verify. Raw aliases retain the required rejection
+    and trusted expansion retains semantic identity and unchanged editor bounds. Final
+    release-verify-lint passed.
 scope:
   in:
     - Assert deliberate raw-source rejection when a trusted shipped fixture contains aliases.
@@ -60,4 +65,4 @@ tests:
     covers: [A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
-implementation_commit: null
+implementation_commit: c8953d65fa37163771703dcfcefbebb7c88ba239
