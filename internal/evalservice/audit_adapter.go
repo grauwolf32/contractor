@@ -3,14 +3,29 @@ package evalservice
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strconv"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
 )
+
+// Audit Start interprets its pinned inputs before activation. Only its owning
+// domain validation errors (including the common codec's private sentinel)
+// prove local non-acceptance; an arbitrary HTTP status does not.
+func auditStartValidationError(cause error) bool {
+	var validation *auditdomain.ValidationError
+	if errors.As(cause, &validation) {
+		return true
+	}
+	classified, ok := apierror.Of(cause)
+	return ok && classified.ErrorKind() == apierror.AuditDocumentInvalid
+}
 
 type auditAdapter struct {
 	operations *executionOperations
