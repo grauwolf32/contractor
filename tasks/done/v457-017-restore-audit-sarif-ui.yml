@@ -6,7 +6,7 @@ epic: findings
 kind: defect
 introduced_by: V64-002
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [typescript]
 goal: An owner can again select exact canonical Project findings from one Audit, publish a frozen SARIF export and download its retained parts through the existing UI and API.
@@ -69,9 +69,7 @@ context:
     terminal projection cancellation and final refresh; each deferred HTTP mock
     receives a separate response body. Continuations retain their own opaque
     revision pin and require explicit clear/refresh after refusal. Independent
-    read-only SARIF-owner review found no actionable concern. Root owns the
-    final complete UI, mocked browser and real UI-stack verification after
-    integrating this follow-up with the Eval producer follow-up.
+    read-only SARIF-owner review found no actionable concern. Final integrated verification passed as recorded in context.integration_verification.
   verification: >-
     Real-stack failure is preserved in work/polish-logs/ui-stack-final.log and
     its durable report outside the repository. Restoring the five original
@@ -81,9 +79,16 @@ context:
     route, multi-page 256-selection ceiling, lost-response key replay, conflict
     refresh, changing Audit/Finding revisions, and deferred publication/download
     cancellation. UI and e2e TypeScript, ESLint and Prettier checks pass.
-    Independent read-only UI review found no blocking issue. Integrated real
-    browser verification, coordinating-branch lint and task completion remain
-    with integration; no real-stack pass is claimed yet.
+    Independent read-only UI review found no blocking issue. Final integrated verification passed as recorded in context.integration_verification.
+  integration_verification: >-
+    Acceptance verified on 2026-11-08. The final fifty-test affected UI group and
+    complete ui-verify passed (2477 ordinary passes plus one intentional negative
+    harness self-test). The 212-case mocked browser suite and complete 111-case UI-stack
+    passed, including 108 Operations cases with frozen SARIF/snapshot bytes, duplicate
+    selection, six theme/width captures, cancellation, credentials and owner/secret
+    boundaries. Active same-count revision recovery, pending-read publication blocking
+    and explicit stale-cursor refresh retain selected Finding revisions. Final
+    release-verify-lint passed.
 scope:
   in:
     - Restore and adapt the existing API adapter, export hook and panel to the current paginated canonical findings view.
@@ -110,4 +115,4 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
-implementation_commit: null
+implementation_commit: 3c74046709ecfe2c3abc0bd40fed8952c976b138

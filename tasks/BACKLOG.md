@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-72 open tasks: 14 in progress, 45 pending, 13 deferred. 1506 finished: 1488 completed, 18 archived.
+71 open tasks: 13 in progress, 45 pending, 13 deferred. 1507 finished: 1489 completed, 18 archived.
 
 ## In progress
 
@@ -20,7 +20,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Accept merged isolated Worker context compaction |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V457-017](v457-017-restore-audit-sarif-ui.yml) | findings | defect | P1 | Restore Audit-local SARIF publication over canonical Project findings |
 | [V457-018](v457-018-http-caido-fixture-policy-closure.yml) | quality | defect | P1 | Stage the complete HTTP and Caido process fixture model policy closure |
 | [V457-019](v457-019-isolate-stored-check-catalog-deparsing.yml) | quality | chore | P2 | Filter owned CHECK constraints before deparsing stored-size definitions |
 | [V457-020](v457-020-audit-catalog-removal-fixture-closure.yml) | quality | chore | P1 | Remove the full Audit authoring closure in catalog replacement fixtures |
@@ -167,7 +166,7 @@ tasks in `introduced_by`.
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 5 | 24 | 32 | 15 | 35 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 3 | 17 | 10 | 10 | 21 |
-| Findings tools and collections (`findings`) | 1 | 17 | 11 | 11 | 18 |
+| Findings tools and collections (`findings`) | 0 | 17 | 11 | 11 | 18 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 23 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 39 | 19 | 69 |
 | Audits (`audits`) | 10 | 69 | 97 | 42 | 166 |
