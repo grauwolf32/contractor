@@ -6,7 +6,7 @@ epic: quality
 kind: defect
 introduced_by: V64-012
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [go, python]
 goal: Managed Eval and Engagement process fixtures author the current strict Audit source and checker contracts so their real journeys reach the intended checks.
@@ -53,6 +53,15 @@ context:
     exported DecodeContext or DecodeConclusions helpers. Add no production API,
     permissive wrapper acceptance or fabricated origin. Keep raw owned Run bytes
     as Eval evidence only after correlation with both accepted Task wrappers.
+  integration_verification: >-
+    Acceptance verified on 2026-11-08. The final complete UI-stack command passed native
+    and external Eval end to end, with eight Workflow and eight Audit members per
+    control mode (32 members total), 52 lost-response replays, exact ordinary execution
+    membership and foreign-owner denial assertions. Raw conclusions and both accepted
+    Task wrappers pass their separate schema, origin, input-evidence and exact-byte
+    checks. The release-selected owner-parser regressions, real PostgreSQL two-item
+    normalization/exact-reader test, full unit gate and final release-verify-lint
+    passed. Historical failed fixture attempts remain preserved.
 scope:
   in:
     - Update the UI producer and both Engagement authored fixture sources to current assertions with explicit scope and grounds.
@@ -86,7 +95,15 @@ verification:
   static: Ruff check and format-check, Go formatting, diff-check and task validation pass. No production source, model configuration or legacy parser is changed.
   release_selection: The two new UI owner-parser regressions are selected by browser shard A; the Engagement source regression is selected by the configuration fixture stage, with exact expected sets maintained by the release reachability guard. All 56 release-graph guard unit tests pass; the five focused Go closure/parser tests pass after the wiring and the explicit two-assertion batch regression passes.
   batch: Current source-checklist Programs batch both assertions into one Audit-owned child Run. Remove the obsolete batchSize replacement, which never matched the current batch_size field, and preserve the two-item batch and eight expected Audit executions without changing any case assertion.
-  integration: Corrected native and external real Eval process/browser scenarios are running against the assigned isolated UI database; their existing eight-member and lifecycle/result assertions remain unchanged. Integrated make lint and complete process gates are required before task completion.
+  integration: >-
+    The final complete UI-stack command passed native and external Eval end to end, with
+    eight Workflow and eight Audit members per control mode (32 members total), 52
+    lost-response replays, exact ordinary execution membership and foreign-owner denial
+    assertions. Raw conclusions and both accepted Task wrappers pass their separate
+    schema, origin, input-evidence and exact-byte checks. The release-selected
+    owner-parser regressions, real PostgreSQL two-item normalization/exact-reader test,
+    full unit gate and final release-verify-lint passed. Historical failed fixture
+    attempts remain preserved.
   external_task_evidence: >-
     The corrected first Native run passed in 407.93 seconds; External reached
     eight successful Workflow Runs and its first successful Audit before the
@@ -105,9 +122,7 @@ verification:
     (including exact manifest recipes and empty output mappings).
     Both focused Go tests, Ruff lint/format and whitespace checks pass. Restoring
     the original producer bytes in a scratch file makes this regression fail
-    at the observed machineArtifact KeyError. Native and External must both be
-    rerun on the integrated source because their shared Audit dataset now states
-    its current no-aggregate output contract; task remains in progress.
+    at the observed machineArtifact KeyError. Final integrated verification passed as recorded in context.integration_verification.
   conclusions_and_accepted_wrapper: >-
     The next combined real journey passed Native (347.44 s), then External
     failed in the producer (174.71 s) because that follow-up incorrectly
@@ -127,6 +142,5 @@ verification:
     integration tag and exercises genuine two-item raw conclusions, importer
     normalization and each Task's exact retained artifact reader. The old
     producer bytes fail the new probe at the same raw-schema assertion.
-    Focused release-selected Go tests and Ruff lint/format pass. No duplicate
-    full External stack was launched; the coordinating lane's final whole
-    UI-stack retry and integrated lint remain required.
+    Focused release-selected Go tests and Ruff lint/format pass. Final integrated verification passed as recorded in context.integration_verification.
+implementation_commit: ea3917f73257832fcb11081872126cfa83f05902
