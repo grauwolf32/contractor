@@ -5,7 +5,7 @@ milestone: ui-consolidation-2026-10
 epic: ui
 kind: defect
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [typescript]
 goal: A URL-selected off-page Task shows collected results as work progresses and after terminal collection.
@@ -47,4 +47,5 @@ tests:
 verification:
   focused: 14 passing tests across research workspace, selected Task freshness and terminal projection refresh suites.
   browser: 2 passing Chromium cases, including off-page selected Task collection with a terminal Audit transition.
-  integration: Full UI and repository lint gates remain for the integrated branch; task stays in_progress.
+  integration: The full ui-verify gate passed 218 files, 2457 tests and one declared expected failure; Node tests, generation checks, typechecking, lint and production build passed. The integrated make lint and 212-case mocked Chromium gate passed. Skips and the expected failure are not passing coverage.
+implementation_commit: bb38a816be437bdc210a1510f86b101c003320ea
