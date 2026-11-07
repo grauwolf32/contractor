@@ -47,6 +47,5 @@ verification: >-
   Complete explaintest/postgrestest suites also passed against the owned
   PostgreSQL 17 database contractor_test_polish_data on localhost:57449.
   The unset subprocess regression fails with the original helper restored
-  temporarily; fixed bytes were restored afterward. Integrated lint and
-  task completion remain with the coordinating lane.
+  temporarily; fixed bytes were restored afterward. Integrated make lint passed on the combined branch.
 implementation_commit: 076298fc055421be431d88f64cdf229ba11b0ed8
