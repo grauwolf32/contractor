@@ -52,5 +52,11 @@
     "raw_scanner_reports": "Remain on the concrete Run and are accessed there on demand",
     "audit_artifacts": "Do not copy/embed scanner reports or export canonical Findings as artifacts",
     "finding_evidence": "Preserve selected evidence via existing internal Finding source retention and origin links"
+  },
+  "review_followup": {
+    "user_decision": "Fingerprints and information-only observations belong in Project sitemap",
+    "source_observation": "Current normalized report importer supports ffuf/Katana; HTTP observation rows lack technology/version fields. Existing sitemap members have source-owned annotations.",
+    "required_outcome": "Runtime adapter contributes supported informational metadata through existing sitemap ownership; explicit operation publishes evidenced problems. Severity alone does not route results. Raw reports remain Run-local.",
+    "still_proposed": "Publish individually complete positive assertions from partial scans with explicit limitations; freeze deterministic rule eligibility policy."
   }
 }
