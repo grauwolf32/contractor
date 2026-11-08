@@ -6,9 +6,9 @@ epic: findings
 kind: defect
 introduced_by: V460-001
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V460-001]
-languages: [python, markdown]
+languages: [python, go, markdown]
 goal: A short selected trace range remains publishable when preceding optional context exceeds the snippet budget.
 context:
   authority: 'User review 2026-11-09: repair the two reproduced trace finding defects before the already authorized main merge.'
@@ -37,3 +37,12 @@ tests:
   covers: [A1, A2, A3]
 - command: make lint
   covers: [A1, A2, A3]
+verification:
+  date: 2026-11-09
+  results:
+  - The exact focused Runtime command passed 173 tests; the complete Runtime suite passed 6055 tests with 135 declared skips.
+  - Oversized prior lines and aggregate UTF-8 context shorten only the optional window; selected ranges at exact line/byte boundaries succeed and oversized ranges fail before proof writes or intake.
+  - The real Server/Runtime/PostgreSQL regression publishes an annotated finding after a comment exceeding 128 KiB, preserves original coordinates and reports snippetStartLine 2; Project evidence survives Run deletion.
+  - python3 scripts/test-findings-e2e.py passed all 16 required process cases and Runtime contracts; UV_OFFLINE=1 make lint passed.
+  - The owned disposable database was explicitly dropped after the test processes stopped; its PostgreSQL cluster and files were removed.
+implementation_commit: 764306815380eab7cf6911652d57ac45e0d96e80
