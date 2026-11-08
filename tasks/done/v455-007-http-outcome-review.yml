@@ -6,9 +6,10 @@ epic: http-tools
 kind: defect
 introduced_by: V455-005
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 6685ef2331c0b321390a55031e809daa1dd168e5
 depends_on: [V455-005]
-languages: [python, markdown]
+languages: [python, markdown, json]
 goal: >-
   Controlled HTTP reports conservative send uncertainty across redirects, honors
   the original request deadline while queued, and terminates Worker execution
@@ -19,6 +20,7 @@ context:
     directly on codex/v455-005-http-outcomes. The implementation remains on this
     separate branch; no merge or deployment is requested.
   severity: high
+  implementation_evidence: tasks/evidence/v455-007-http-outcome-review.json
   finding: >-
     Review of 9bbe820fea0b9b06ab66cd159afdcdc6fa0ebb16 reproduced four defects:
     worker/instrumentation.py:635 rethrows a fatal tool failure but ADK sibling
@@ -75,3 +77,17 @@ tests:
     covers: [A1, A2, A3, A4]
   - command: make lint
     covers: [A1, A2, A3, A4]
+verification_notes: >-
+  Fixed on codex/v455-005-http-outcomes. All six new real-path cases failed on
+  reviewed revision 9bbe820fea0b9b06ab66cd159afdcdc6fa0ebb16 and passed after the
+  fixes. The actual ADK Worker preserves bridge/lease failures with a pending
+  sibling, joins that sibling and refuses another invocation without a model call.
+  A sent POST followed by redirect DNS failure retains possible-send=true; the
+  existing pre-send DNS case remains false. Queued expiry sends nothing, and
+  queue wait consumes the subsequent transport budget. Real scanner preparation
+  classifies a local listener bind failure as fatal and erases its scratch/ingress.
+  All six cases are mandatory entries in the HTTP matrix. make test-runtime
+  passed with 5986 passed, 135 skipped, zero failures/errors and successful report
+  verification. make lint passed, including layer, script, spec/task and UI gates.
+  The optional skips are not passing coverage. No test database was created;
+  no paid model run, deployment or main merge was performed.
