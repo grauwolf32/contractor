@@ -18,6 +18,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 import contractor_runtime.toolsets.code_analysis.languages as language_support
+import contractor_runtime.toolsets.common.source_languages as source_support
 from contractor_runtime.projectfs.paths import ProjectPathError, normalize_project_path
 from contractor_runtime.projectfs.storage import WorkspaceSnapshot, WorkspaceTextFile
 from contractor_runtime.strict_json import strict_json_loads
@@ -25,12 +26,12 @@ from contractor_runtime.toolsets.code_analysis.ids import (
     decode_symbol_id,
     encode_symbol_key,
 )
-from contractor_runtime.toolsets.code_analysis.languages import Language
 from contractor_runtime.toolsets.code_analysis.trailmark_child import (
     MAX_REQUEST_BYTES,
     MAX_RESPONSE_BYTES,
     SCHEMA_VERSION,
 )
+from contractor_runtime.toolsets.common.source_languages import Language
 
 MAX_GRAPH_FILES = 20_000
 MAX_GRAPH_BYTES = 128 * 1024 * 1024
@@ -948,7 +949,7 @@ def _admit_snapshot(
     excluded = 0
     # Trailmark parses .h only with its C or Objective-C grammar, so headers
     # that shallow analysis and taint annotation resolve to C++ stay out.
-    header = language_support.header_language(item.path for item in snapshot.files)
+    header = source_support.header_language(item.path for item in snapshot.files)
     header_parser_active = header is Language.C and any(
         PurePosixPath(item.path).suffix in language_support.GRAPH_HEADER_PARSER_EXTENSIONS
         and not language_support.graph_walk_excluded(item.path)
@@ -960,11 +961,11 @@ def _admit_snapshot(
         # recognized source that Trailmark never parses.
         suffix = PurePosixPath(item.path).suffix
         graph_source = suffix in language_support.GRAPH_EXTENSION_LANGUAGES and (
-            suffix != language_support.HEADER_EXTENSION or header_parser_active
+            suffix != source_support.HEADER_EXTENSION or header_parser_active
         )
         if (
             not graph_source
-            and language_support.detect_language(item.path, header=header) is None
+            and source_support.detect_language(item.path, header=header) is None
             and not language_support.graph_only_source(item.path)
         ):
             continue

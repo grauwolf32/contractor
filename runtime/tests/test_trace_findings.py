@@ -9,6 +9,7 @@ from fakes.worker_state import WorkerState
 from google.adk.tools import FunctionTool
 from test_projectfs_zip import archive, settings, workspace_inputs
 from test_security_findings_toolset import FakeFindingClient, FakeToolContext, _settings, _workspace
+from test_taint_annotations import LANGUAGE_CASES, MemoryWriter, make_tools
 
 from contractor_runtime.artifacts import (
     ArtifactAPIError,
@@ -31,19 +32,25 @@ REF = ArtifactRef(namespace="inputs", name="source", revision="1")
 NOW = datetime(2026, 11, 8, tzinfo=UTC)
 
 
-def capture(original, current):
-    return WorkspaceSourceFile("src/app.py", "app.py", REF, original, current)
+def capture(original, current, path="app.py"):
+    return WorkspaceSourceFile("src/" + path, path, REF, original, current)
 
 
-@pytest.mark.parametrize("marker", ["#", "//", "--"])
-def test_mapping_uses_inserted_annotation_lines_only(marker):
-    original = "declaration\n    sink(x)\n"
+@pytest.mark.parametrize(
+    "path,marker,original",
+    [
+        ("app.py", "#", "def first():\n    sink(x)\n"),
+        ("app.js", "//", "function first() {\n    sink(x);\n}\n"),
+        ("app.lua", "--", "function first()\n    sink(x)\nend\n"),
+    ],
+)
+def test_mapping_uses_inserted_annotation_lines_only(path, marker, original):
     current = f"{marker} @trace target=test\n{marker} @sink kind=test arg=x\n" + original
-    proof = trace_source(capture(original, current), 4, 4)
+    proof = trace_source(capture(original, current, path), 4, 4)
     assert proof["source"]["startLine"] == 2
     assert proof["source"]["endLine"] == 2
-    assert proof["workspace"]["text"] == current
-    assert trace_source(capture(original, current), 1, 2)["source"]["startLine"] == 1
+    assert proof["workspace"]["text"] == "".join(current.splitlines(keepends=True)[:4])
+    assert trace_source(capture(original, current, path), 1, 2)["source"]["startLine"] == 1
 
 
 @pytest.mark.parametrize(
@@ -72,8 +79,8 @@ def test_existing_annotations_and_crlf_are_preserved():
 
 
 def test_large_file_maps_linearly_and_enforces_snippet_limits():
-    original = "same();\n" * 100_000
-    current = "# @trace target=test\n" + original
+    original = "same();\n" * 99_998 + "def first():\n    sink(x)\n"
+    current = original.replace("def first():", "# @trace target=test\ndef first():")
     assert (
         trace_source(capture(original, current), 100_001, 100_001)["source"]["startLine"] == 100_000
     )
@@ -137,8 +144,8 @@ class MemoryArtifacts(ArtifactClient):
         )
 
 
-async def prepare(target="backend"):
-    spec, reader = workspace_inputs([("source", target, archive({"app.py": SOURCE.encode()}))])
+async def prepare(target="backend", source=SOURCE):
+    spec, reader = workspace_inputs([("source", target, archive({"app.py": source.encode()}))])
     spec.mode = "overlay"
     session = await hydrate_workspace(
         provider=MemoryWorkspaceProvider(settings("memory")),
@@ -342,3 +349,155 @@ def test_ambiguous_proof_read_failure_preserves_transport_error_and_replay():
         await session.close()
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("path,original,symbol,_expected", LANGUAGE_CASES)
+def test_trace_accepts_real_annotations_for_every_language(
+    tmp_path, path, original, symbol, _expected
+):
+    async def scenario():
+        writer = MemoryWriter({path: original})
+        tools, _ = await make_tools(tmp_path, writer)
+        for name, args in [
+            ("annotate_trace", {"target": "route", "args": "value:tainted", "calls": "db.query"}),
+            ("annotate_validate", {"arg": "value", "kind": "guard"}),
+            ("annotate_sink", {"arg": "value", "kind": "db.query"}),
+        ]:
+            await tools[name](path=path, symbol=symbol, **args)
+        current = await writer.read_text(path)
+        proof = trace_source(
+            capture(original, current, path), len(current.splitlines()), len(current.splitlines())
+        )
+        assert proof["source"]["endLine"] == len(original.splitlines())
+        marker = "#" if "# @trace" in current else "--" if "-- @trace" in current else "//"
+        wrong = "//" if marker != "//" else "#"
+        with pytest.raises(ToolInputError):
+            trace_source(
+                capture(original, current.replace(marker + " @", wrong + " @"), path), 1, 1
+            )
+        for tool in tools.values():
+            await tool.close()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "original,current",
+    [
+        (
+            'query = """\nSELECT id FROM users\n"""\nexecute(query)\n',
+            'query = """\n# @trace target=route\nSELECT id FROM users\n"""\nexecute(query)\n',
+        ),
+        (SOURCE, "// @trace target=route\n" + SOURCE),
+        (SOURCE, "# @trace arbitrary=route\n" + SOURCE),
+        (SOURCE, "# @trace target=route args=value:other\n" + SOURCE),
+        (SOURCE, "# @trace target=route calls=a,a\n" + SOURCE),
+        (SOURCE, "# @trace target=route extra=value\n" + SOURCE),
+        (SOURCE, SOURCE.replace("    sink(value)", "    # @trace target=route\n    sink(value)")),
+        (SOURCE, "# @trace target=route\n\n" + SOURCE),
+        (SOURCE, "# @trace target=coding:utf-7\n" + SOURCE),
+    ],
+)
+def test_invalid_annotation_edits_fail_before_proof_write_and_intake(original, current):
+    async def scenario():
+        session, tool, annotations, client, transport = await prepare("", source=original)
+        await session.write_text("app.py", current)
+        # State import is not a trusted annotation receipt either.
+        bundle = await session.prepare_export()
+        await session.rollback_changes()
+        await session.import_state(bundle.state)
+        with pytest.raises(ToolInputError):
+            await tool(
+                title="Problem",
+                description="Evidence",
+                file="app.py",
+                line=len(current.splitlines()),
+                tool_context=FakeToolContext("invalid-annotation"),
+            )
+        assert client.writes == 0
+        assert transport.requests == []
+        await tool.close()
+        for annotation in annotations.values():
+            await annotation.close()
+        await session.close()
+
+    asyncio.run(scenario())
+
+
+def test_unchanged_file_does_not_require_a_language_or_parser(monkeypatch):
+    def unexpected_parse(*_args):
+        raise RuntimeError("unchanged sources must not be parsed")
+
+    monkeypatch.setattr(
+        "contractor_runtime.toolsets.common.trace_source.load_parser", unexpected_parse
+    )
+    assert (
+        trace_source(capture("unparseable", "unparseable", "input.unknown"), 1, 1)["source"][
+            "startLine"
+        ]
+        == 1
+    )
+    with pytest.raises(ToolInputError, match="language"):
+        trace_source(
+            capture("unparseable", "# @trace target=route\nunparseable", "input.unknown"), 2, 2
+        )
+
+
+@pytest.mark.parametrize(
+    "original",
+    [
+        "void first(int values[static 2]) {}\n",
+        "class Handler {\npublic:\n    void first() {}\n};\n",
+    ],
+)
+def test_ambiguous_headers_use_a_valid_c_or_cpp_declaration(original):
+    current = original.replace(
+        "void first", "// @trace target=route\n" + "    " * ("class" in original) + "void first"
+    )
+    proof = trace_source(
+        capture(original, current, "app.h"), len(current.splitlines()), len(current.splitlines())
+    )
+    assert proof["source"]["endLine"] == len(original.splitlines())
+
+
+@pytest.mark.parametrize(
+    "path,original,inserted",
+    [
+        (
+            "app.py",
+            'query = """\nSELECT id FROM users\n"""\ndef first(): pass\n',
+            "# @trace target=route\n",
+        ),
+        (
+            "app.js",
+            "const query = `\nSELECT id FROM users\n`;\nfunction first() {}\n",
+            "// @trace target=route\n",
+        ),
+        (
+            "app.go",
+            "package app\nvar query = `\nSELECT id FROM users\n`\nfunc first() {}\n",
+            "// @trace target=route\n",
+        ),
+        (
+            "app.rb",
+            "query = <<SQL\nSELECT id FROM users\nSQL\ndef first\nend\n",
+            "# @trace target=route\n",
+        ),
+        (
+            "app.lua",
+            "query = [[\nSELECT id FROM users\n]]\nfunction first() end\n",
+            "-- @trace target=route\n",
+        ),
+        (
+            "app.sh",
+            "query=$(cat <<SQL\nSELECT id FROM users\nSQL\n)\nfirst() { :; }\n",
+            "# @trace target=route\n",
+        ),
+    ],
+)
+def test_annotations_inside_multiline_literals_are_not_comments(path, original, inserted):
+    current = original.replace("SELECT", inserted + "SELECT")
+    with pytest.raises(ToolInputError):
+        trace_source(
+            capture(original, current, path), len(current.splitlines()), len(current.splitlines())
+        )

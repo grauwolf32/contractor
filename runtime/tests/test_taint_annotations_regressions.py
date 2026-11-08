@@ -22,7 +22,7 @@ from contractor_runtime.projectfs import (
     OverlayWorkspaceSession,
     hydrate_workspace,
 )
-from contractor_runtime.toolsets.code_analysis.languages import Language, detect_language
+from contractor_runtime.toolsets.common.source_languages import Language, detect_language
 from contractor_runtime.toolsets.taint_annotations.tools import (
     MAX_SOURCE_FILE_BYTES,
     TaintAnnotationError,

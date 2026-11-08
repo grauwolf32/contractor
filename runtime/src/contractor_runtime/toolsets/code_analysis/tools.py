@@ -17,6 +17,7 @@ import jcs
 from tree_sitter import Parser
 
 import contractor_runtime.toolsets.code_analysis.languages as language_support
+import contractor_runtime.toolsets.common.source_languages as source_support
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.contracts import RuntimeSettings
@@ -34,7 +35,7 @@ from contractor_runtime.projectfs.storage import (
 )
 from contractor_runtime.threads import to_thread_until_done
 from contractor_runtime.toolsets.code_analysis.ids import symbol_id_shape_valid
-from contractor_runtime.toolsets.code_analysis.languages import Language, SymbolRecord
+from contractor_runtime.toolsets.code_analysis.languages import SymbolRecord
 from contractor_runtime.toolsets.code_analysis.trailmark_host import (
     GraphBuildResult,
     GraphComplexityProjection,
@@ -50,6 +51,7 @@ from contractor_runtime.toolsets.code_analysis.trailmark_host import (
 from contractor_runtime.toolsets.common import cursors
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.resources import ToolResources
+from contractor_runtime.toolsets.common.source_languages import Language
 from contractor_runtime.workspace import AllocationWorkspace
 
 CODE_ANALYSIS_REF = "code-analysis@1"
@@ -141,7 +143,7 @@ class CodeAnalysisToolsetFactory:
         self._available_tools = frozenset()
         if not dependency_versions_match(SHALLOW_PINNED_DEPENDENCIES):
             return frozenset()
-        available = await asyncio.to_thread(language_support.probe_all_parsers)
+        available = await asyncio.to_thread(source_support.probe_all_parsers)
         if not available:
             return frozenset()
         self._available_tools = SHALLOW_TOOLS
@@ -879,12 +881,12 @@ class _CodeAnalysisSession:
         coverage = _Coverage(
             binary_files=sum(1 for item in snapshot.binary_paths if _under_path(item, path))
         )
-        header = language_support.header_language(item.path for item in snapshot.files)
+        header = source_support.header_language(item.path for item in snapshot.files)
         candidates: list[tuple[WorkspaceTextFile, Language]] = []
         for item in sorted(snapshot.files, key=lambda value: value.path):
             if not _under_path(item.path, path):
                 continue
-            language = language_support.detect_language(item.path, header=header)
+            language = source_support.detect_language(item.path, header=header)
             if language is None:
                 if language_support.graph_only_source(item.path):
                     coverage.unsupported_source_files += 1
@@ -998,7 +1000,7 @@ class _CodeAnalysisSession:
         parser = self._parsers.get(language)
         if parser is None:
             parser = await to_thread_until_done(
-                language_support.load_parser,
+                source_support.load_parser,
                 language,
                 name="code-analysis-cpu",
             )

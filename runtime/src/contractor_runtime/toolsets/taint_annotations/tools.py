@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Literal
 
-import contractor_runtime.toolsets.code_analysis.languages as language_support
+import contractor_runtime.toolsets.common.source_languages as language_support
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.contracts import RuntimeSettings
@@ -23,18 +23,28 @@ from contractor_runtime.observations import (
 from contractor_runtime.projectfs.paths import ProjectPathError, normalize_project_path
 from contractor_runtime.projectfs.storage import WorkspaceStorageError, WorkspaceWriter
 from contractor_runtime.threads import to_thread_until_done
-from contractor_runtime.toolsets.code_analysis.languages import Language
 from contractor_runtime.toolsets.code_analysis.tools import (
     SHALLOW_PINNED_DEPENDENCIES,
     dependency_versions_match,
 )
-from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
-from contractor_runtime.toolsets.common.resources import ToolResources
-from contractor_runtime.toolsets.taint_annotations.languages import (
+from contractor_runtime.toolsets.common.annotation_syntax import (
+    MAX_ANNOTATION_BYTES,
+    AnnotationSyntaxError,
+    annotation_args,
+    annotation_calls,
+    annotation_token,
+    argument_token,
+    canonical_annotation,
+    comment_marker,
+)
+from contractor_runtime.toolsets.common.annotation_targets import (
     AnnotationParseResult,
     AnnotationTarget,
     parse_annotation_targets,
 )
+from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
+from contractor_runtime.toolsets.common.resources import ToolResources
+from contractor_runtime.toolsets.common.source_languages import Language
 from contractor_runtime.workspace import AllocationWorkspace
 
 TAINT_ANNOTATIONS_REF = "taint-annotations@1"
@@ -43,24 +53,8 @@ PINNED_DEPENDENCIES = MappingProxyType(dict(SHALLOW_PINNED_DEPENDENCIES))
 
 MAX_SOURCE_FILE_BYTES = 4 * 1024 * 1024
 MAX_SYMBOL_CHARS = 256
-MAX_TOKEN_CHARS = 128
-MAX_LIST_ENTRIES = 32
-MAX_ANNOTATION_BYTES = 4096
 MAX_DEFINITION_LINE = 2_147_483_647
 
-_ARG_STATES = frozenset({"tainted", "validated", "clean", "derived"})
-_TOKEN_PATTERN = re.compile(r"[A-Za-z0-9_.$:/{}\[\]*?+\-<>]+\Z")
-_ARGUMENT_PATTERN = re.compile(r"[A-Za-z0-9_.$\[\]*?+\-<>]+\Z")
-_COMMENT_MARKERS = MappingProxyType(
-    {
-        Language.PYTHON: "#",
-        Language.RUBY: "#",
-        Language.BASH: "#",
-        Language.ELIXIR: "#",
-        Language.HASKELL: "--",
-        Language.LUA: "--",
-    }
-)
 _ERROR_CODES = frozenset(
     {
         "workspace_required",
@@ -481,7 +475,7 @@ def _plan_mutation(
     request: _AnnotationRequest,
 ) -> _MutationPlan:
     lines = split_lines(source, keepends=True)
-    marker = _COMMENT_MARKERS.get(language, "//")
+    marker = comment_marker(language)
     selected: _MutationPlan | None = None
     for target in parsed.targets:
         if target.name != request.symbol:
@@ -502,16 +496,10 @@ def _plan_mutation(
     # Adding a whole line there is not a source comment.
     if not plan.target.insertion_is_line_start:
         raise TaintAnnotationError("taint_annotation_input_invalid")
-    if language is Language.PHP and "?>" in plan.line:
-        raise TaintAnnotationError("taint_annotation_input_invalid")
-    if (
-        language is Language.PYTHON
-        and plan.target.insertion_line <= 2
-        and re.search(r"coding[:=][ \t]*[-\w.]+", plan.line, flags=re.ASCII)
-    ):
-        raise TaintAnnotationError("taint_annotation_input_invalid")
     if len(plan.line.encode("utf-8")) > MAX_ANNOTATION_BYTES:
         raise TaintAnnotationError("taint_annotation_capacity_exceeded")
+    if not canonical_annotation(plan.line, plan.indent, language, plan.target.insertion_line):
+        raise TaintAnnotationError("taint_annotation_input_invalid")
     return plan
 
 
@@ -670,70 +658,32 @@ def _symbol(value: str) -> str:
     return value
 
 
+def _syntax_value(normalize: Callable[[str], str], value: str) -> str:
+    try:
+        return normalize(value)
+    except AnnotationSyntaxError as error:
+        code = (
+            "taint_annotation_capacity_exceeded"
+            if error.capacity
+            else "taint_annotation_input_invalid"
+        )
+        raise TaintAnnotationError(code) from None
+
+
 def _token(value: str) -> str:
-    if (
-        not isinstance(value, str)
-        or not value
-        or len(value) > MAX_TOKEN_CHARS
-        or not value.isascii()
-        or _TOKEN_PATTERN.fullmatch(value) is None
-    ):
-        raise TaintAnnotationError("taint_annotation_input_invalid")
-    return value
+    return _syntax_value(annotation_token, value)
 
 
 def _argument_token(value: str) -> str:
-    if (
-        not isinstance(value, str)
-        or not value
-        or len(value) > MAX_TOKEN_CHARS
-        or not value.isascii()
-        or _ARGUMENT_PATTERN.fullmatch(value) is None
-    ):
-        raise TaintAnnotationError("taint_annotation_input_invalid")
-    return value
+    return _syntax_value(argument_token, value)
 
 
 def _args(value: str) -> str:
-    if not isinstance(value, str):
-        raise TaintAnnotationError("taint_annotation_input_invalid")
-    if not value:
-        return ""
-    result: list[str] = []
-    names: set[str] = set()
-    chunks = value.split(",")
-    if len(chunks) > MAX_LIST_ENTRIES:
-        raise TaintAnnotationError("taint_annotation_capacity_exceeded")
-    for chunk in chunks:
-        parts = chunk.strip().split(":")
-        if len(parts) != 2:
-            raise TaintAnnotationError("taint_annotation_input_invalid")
-        name = _argument_token(parts[0].strip())
-        resources = parts[1].strip()
-        if resources not in _ARG_STATES or name in names:
-            raise TaintAnnotationError("taint_annotation_input_invalid")
-        names.add(name)
-        result.append(f"{name}:{resources}")
-    return ",".join(result)
+    return _syntax_value(annotation_args, value)
 
 
 def _calls(value: str) -> str:
-    if not isinstance(value, str):
-        raise TaintAnnotationError("taint_annotation_input_invalid")
-    if not value:
-        return ""
-    chunks = value.split(",")
-    if len(chunks) > MAX_LIST_ENTRIES:
-        raise TaintAnnotationError("taint_annotation_capacity_exceeded")
-    result: list[str] = []
-    seen: set[str] = set()
-    for chunk in chunks:
-        item = _token(chunk.strip())
-        if item in seen:
-            raise TaintAnnotationError("taint_annotation_input_invalid")
-        seen.add(item)
-        result.append(item)
-    return ",".join(result)
+    return _syntax_value(annotation_calls, value)
 
 
 _RAW_ARGUMENT_FIELDS = MappingProxyType(

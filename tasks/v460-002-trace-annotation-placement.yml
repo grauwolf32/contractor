@@ -32,7 +32,7 @@ acceptance_criteria:
 - id: A3
   text: Shared parsing has one owner in toolsets.common and the complete affected Runtime families plus the real process finding gate pass.
 tests:
-- command: cd runtime && uv run pytest tests/test_trace_findings.py tests/test_taint_annotations.py tests/test_taint_annotations_regressions.py tests/test_taint_annotations_hardening.py tests/test_code_analysis.py tests/test_code_analysis_faults.py tests/test_capabilities.py
+- command: cd runtime && uv run pytest tests/test_trace_findings.py tests/test_taint_annotations.py tests/test_taint_annotations_regressions.py tests/test_taint_annotations_hardening.py tests/test_code_analysis_shallow.py tests/test_code_analysis_faults.py tests/test_code_analysis_concurrency.py tests/test_code_analysis_graph.py tests/test_code_analysis_child_lifecycle.py tests/test_code_analysis_redaction.py tests/test_code_analysis_traversal.py tests/test_trailmark_probe.py tests/test_capabilities.py
   covers: [A1, A2, A3]
 - command: python3 scripts/test-findings-e2e.py
   covers: [A1, A2, A3]
