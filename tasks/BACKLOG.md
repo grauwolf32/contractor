@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-68 open tasks: 10 in progress, 45 pending, 13 deferred. 1515 finished: 1497 completed, 18 archived.
+67 open tasks: 9 in progress, 45 pending, 13 deferred. 1516 finished: 1498 completed, 18 archived.
 
 ## In progress
 
@@ -20,7 +20,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Accept merged isolated Worker context compaction |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V455-009](v455-009-nuclei-selected-evidence.yml) | scan-tools | defect | P2 | Bound Finding evidence to matching Nuclei manifest records |
 
 ## Pending
 
@@ -162,7 +161,7 @@ tasks in `introduced_by`.
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 15 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 5 | 24 | 34 | 15 | 36 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 4 | 18 | 11 | 10 | 22 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 3 | 18 | 11 | 10 | 22 |
 | Findings tools and collections (`findings`) | 0 | 17 | 12 | 11 | 19 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 23 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 39 | 19 | 69 |

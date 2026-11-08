@@ -6,7 +6,8 @@ epic: scan-tools
 kind: defect
 introduced_by: V455-008
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 9a86dd97ec305f689baaaf1930f251d7c2699b22
 depends_on: [V455-008]
 languages: [python, go, markdown]
 goal: >-
@@ -53,3 +54,24 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+verification_notes: >-
+  Fixed on codex/v455-008-scanner-findings. Both new shared Worker regressions
+  failed on the original implementation with tool_report_failed; they now pass
+  with valid 1000-template packs whose manifests respectively exceed 512 KiB
+  after Base64 and already before encoding. Complete scanner/ToolWorker modules
+  passed 226 tests. Selection tests cover repeated candidates for one rule,
+  installed provenance, empty batches without a manifest read and rejection of
+  an unselected custom rule. Actual installed Nuclei plus Server/Runtime and
+  disposable PostgreSQL selected 1000 custom templates, retained a 488417-byte
+  manifest and 1851-byte evidence, and published exactly one Finding. The exact
+  manifest descriptor/digest/size and candidate-related template record were
+  asserted; the complete production-process scenario passed in 177.605 seconds,
+  including existing SQLMap, Audit and no-rescan replay checks. make lint passed;
+  after correcting the test-only Project idempotency key, Go vet and staticcheck
+  also passed on the final E2E fixture. Full isolated make test-runtime passed
+  6011 tests, zero failures/errors and 135 optional/platform skips in 431.14
+  seconds, and Runtime report verification passed. The earlier parallel run hit
+  an existing LikeC4 three-second process-readiness timeout; its unchanged full
+  module passed 12 isolated cases before the successful full rerun. Skips are
+  not acceptance coverage. The owned disposable database was removed. Evidence
+  limits remain unchanged; no new evidence store, main merge or deployment.
