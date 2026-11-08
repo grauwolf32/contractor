@@ -61,6 +61,7 @@ type testRuntimeCredentials interface {
 // dependencies groups them by context the way the Server's composition does,
 // so a test replaces one service for every context that uses it.
 type testServices struct {
+	Costs        LLMCostReader
 	Transfers    artifacttransfer.Admission
 	BearerToken  contracts.SecretString
 	NewRequestID func() (string, error)
@@ -114,6 +115,9 @@ type testServices struct {
 }
 
 func (s testServices) dependencies() Dependencies {
+	if s.Costs == nil {
+		s.Costs = testCostReader{s}
+	}
 	if s.FindingExports == nil {
 		s.FindingExports = missingFindingExports{}
 	}
@@ -128,6 +132,7 @@ func (s testServices) dependencies() Dependencies {
 	}
 
 	return Dependencies{
+		Costs:       CostDependencies{Costs: s.Costs},
 		BearerToken: s.BearerToken, NewRequestID: s.NewRequestID, Logger: s.Logger,
 		Session: SessionDependencies{
 			Authentication: s.Authentication, BrowserOrigins: s.BrowserOrigins,

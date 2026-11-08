@@ -8454,6 +8454,157 @@
         }
       }
     },
+    "CostCounter": { "type": "string", "pattern": "^(0|[1-9][0-9]{0,37})$" },
+    "USDAmount": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]{0,37})(\\.[0-9]{0,17}[1-9])?$"
+    },
+    "NullableUSDAmount": {
+      "oneOf": [
+        {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/USDAmount"
+        },
+        { "type": "null" }
+      ]
+    },
+    "CostBreakdownRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "label", "calls", "amount", "basis"],
+      "properties": {
+        "key": { "type": "string", "minLength": 1, "maxLength": 262 },
+        "label": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "calls": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/CostCounter"
+        },
+        "amount": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/USDAmount"
+        },
+        "basis": {
+          "type": "string",
+          "enum": ["reported", "estimated", "mixed"]
+        }
+      }
+    },
+    "LLMCostExecution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "executionId",
+        "runId",
+        "amount",
+        "basis",
+        "coverage",
+        "pending"
+      ],
+      "properties": {
+        "executionId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "runId": {
+          "type": ["string", "null"],
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$"
+        },
+        "amount": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/NullableUSDAmount"
+        },
+        "basis": {
+          "type": "string",
+          "enum": ["none", "reported", "estimated", "mixed"]
+        },
+        "coverage": {
+          "type": "string",
+          "enum": ["complete", "partial", "pending", "unavailable"]
+        },
+        "pending": { "type": "boolean" }
+      }
+    },
+    "LLMCostSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "scopeId",
+        "currency",
+        "amount",
+        "calls",
+        "pricedCalls",
+        "reports",
+        "unknownReports",
+        "basis",
+        "coverage",
+        "pending",
+        "historicalGap",
+        "asOf",
+        "updatedAt",
+        "checksAmount",
+        "standaloneAmount",
+        "activity",
+        "models",
+        "executions"
+      ],
+      "properties": {
+        "scope": { "type": "string", "enum": ["run", "audit", "project"] },
+        "scopeId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "currency": { "type": "string", "const": "USD" },
+        "amount": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/NullableUSDAmount"
+        },
+        "calls": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/CostCounter"
+        },
+        "pricedCalls": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/CostCounter"
+        },
+        "reports": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/CostCounter"
+        },
+        "unknownReports": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/CostCounter"
+        },
+        "basis": {
+          "type": "string",
+          "enum": ["none", "reported", "estimated", "mixed"]
+        },
+        "coverage": {
+          "type": "string",
+          "enum": ["complete", "partial", "pending", "unavailable"]
+        },
+        "pending": { "type": "boolean" },
+        "historicalGap": { "type": "boolean" },
+        "asOf": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": ["string", "null"], "format": "date-time" },
+        "checksAmount": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/NullableUSDAmount"
+        },
+        "standaloneAmount": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/NullableUSDAmount"
+        },
+        "activity": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/CostBreakdownRow"
+          }
+        },
+        "models": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/CostBreakdownRow"
+          }
+        },
+        "executions": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/LLMCostExecution"
+          }
+        }
+      }
+    },
     "MetricsSummary": {
       "type": "object",
       "additionalProperties": false,

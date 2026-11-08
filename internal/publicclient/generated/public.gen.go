@@ -1303,6 +1303,27 @@ func (e ConfigurationResourceSource) Valid() bool {
 	}
 }
 
+// Defines values for CostBreakdownRowBasis.
+const (
+	CostBreakdownRowBasisEstimated CostBreakdownRowBasis = "estimated"
+	CostBreakdownRowBasisMixed     CostBreakdownRowBasis = "mixed"
+	CostBreakdownRowBasisReported  CostBreakdownRowBasis = "reported"
+)
+
+// Valid indicates whether the value is a known member of the CostBreakdownRowBasis enum.
+func (e CostBreakdownRowBasis) Valid() bool {
+	switch e {
+	case CostBreakdownRowBasisEstimated:
+		return true
+	case CostBreakdownRowBasisMixed:
+		return true
+	case CostBreakdownRowBasisReported:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateRuntimeCredentialRequest0Kind.
 const (
 	CreateRuntimeCredentialRequest0KindOtlpHeaders1 CreateRuntimeCredentialRequest0Kind = "otlp-headers@1"
@@ -3547,6 +3568,138 @@ func (e HTTPOriginCredentialRefKind) Valid() bool {
 	case HTTPOriginCredentialRefKindHttpOriginBasic1:
 		return true
 	case HTTPOriginCredentialRefKindHttpOriginBearer1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LLMCostExecutionBasis.
+const (
+	LLMCostExecutionBasisEstimated LLMCostExecutionBasis = "estimated"
+	LLMCostExecutionBasisMixed     LLMCostExecutionBasis = "mixed"
+	LLMCostExecutionBasisNone      LLMCostExecutionBasis = "none"
+	LLMCostExecutionBasisReported  LLMCostExecutionBasis = "reported"
+)
+
+// Valid indicates whether the value is a known member of the LLMCostExecutionBasis enum.
+func (e LLMCostExecutionBasis) Valid() bool {
+	switch e {
+	case LLMCostExecutionBasisEstimated:
+		return true
+	case LLMCostExecutionBasisMixed:
+		return true
+	case LLMCostExecutionBasisNone:
+		return true
+	case LLMCostExecutionBasisReported:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LLMCostExecutionCoverage.
+const (
+	LLMCostExecutionCoverageComplete    LLMCostExecutionCoverage = "complete"
+	LLMCostExecutionCoveragePartial     LLMCostExecutionCoverage = "partial"
+	LLMCostExecutionCoveragePending     LLMCostExecutionCoverage = "pending"
+	LLMCostExecutionCoverageUnavailable LLMCostExecutionCoverage = "unavailable"
+)
+
+// Valid indicates whether the value is a known member of the LLMCostExecutionCoverage enum.
+func (e LLMCostExecutionCoverage) Valid() bool {
+	switch e {
+	case LLMCostExecutionCoverageComplete:
+		return true
+	case LLMCostExecutionCoveragePartial:
+		return true
+	case LLMCostExecutionCoveragePending:
+		return true
+	case LLMCostExecutionCoverageUnavailable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LLMCostSummaryBasis.
+const (
+	LLMCostSummaryBasisEstimated LLMCostSummaryBasis = "estimated"
+	LLMCostSummaryBasisMixed     LLMCostSummaryBasis = "mixed"
+	LLMCostSummaryBasisNone      LLMCostSummaryBasis = "none"
+	LLMCostSummaryBasisReported  LLMCostSummaryBasis = "reported"
+)
+
+// Valid indicates whether the value is a known member of the LLMCostSummaryBasis enum.
+func (e LLMCostSummaryBasis) Valid() bool {
+	switch e {
+	case LLMCostSummaryBasisEstimated:
+		return true
+	case LLMCostSummaryBasisMixed:
+		return true
+	case LLMCostSummaryBasisNone:
+		return true
+	case LLMCostSummaryBasisReported:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LLMCostSummaryCoverage.
+const (
+	LLMCostSummaryCoverageComplete    LLMCostSummaryCoverage = "complete"
+	LLMCostSummaryCoveragePartial     LLMCostSummaryCoverage = "partial"
+	LLMCostSummaryCoveragePending     LLMCostSummaryCoverage = "pending"
+	LLMCostSummaryCoverageUnavailable LLMCostSummaryCoverage = "unavailable"
+)
+
+// Valid indicates whether the value is a known member of the LLMCostSummaryCoverage enum.
+func (e LLMCostSummaryCoverage) Valid() bool {
+	switch e {
+	case LLMCostSummaryCoverageComplete:
+		return true
+	case LLMCostSummaryCoveragePartial:
+		return true
+	case LLMCostSummaryCoveragePending:
+		return true
+	case LLMCostSummaryCoverageUnavailable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LLMCostSummaryCurrency.
+const (
+	USD LLMCostSummaryCurrency = "USD"
+)
+
+// Valid indicates whether the value is a known member of the LLMCostSummaryCurrency enum.
+func (e LLMCostSummaryCurrency) Valid() bool {
+	switch e {
+	case USD:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LLMCostSummaryScope.
+const (
+	LLMCostSummaryScopeAudit   LLMCostSummaryScope = "audit"
+	LLMCostSummaryScopeProject LLMCostSummaryScope = "project"
+	LLMCostSummaryScopeRun     LLMCostSummaryScope = "run"
+)
+
+// Valid indicates whether the value is a known member of the LLMCostSummaryScope enum.
+func (e LLMCostSummaryScope) Valid() bool {
+	switch e {
+	case LLMCostSummaryScopeAudit:
+		return true
+	case LLMCostSummaryScopeProject:
+		return true
+	case LLMCostSummaryScopeRun:
 		return true
 	default:
 		return false
@@ -7460,6 +7613,24 @@ type ConsumerExecutionConfig struct {
 	SummarizerModelPolicy *ModelPolicyRef `json:"summarizerModelPolicy,omitempty"`
 }
 
+// CostBreakdownRow defines model for CostBreakdownRow.
+type CostBreakdownRow struct {
+	// Amount Exact canonical USD decimal; no binary floating-point accounting.
+	Amount USDAmount             `json:"amount"`
+	Basis  CostBreakdownRowBasis `json:"basis"`
+
+	// Calls Exact nonnegative aggregate call/report count.
+	Calls CostCounter `json:"calls"`
+	Key   string      `json:"key"`
+	Label string      `json:"label"`
+}
+
+// CostBreakdownRowBasis defines model for CostBreakdownRow.Basis.
+type CostBreakdownRowBasis string
+
+// CostCounter Exact nonnegative aggregate call/report count.
+type CostCounter = string
+
 // CreateAuditRequest defines model for CreateAuditRequest.
 type CreateAuditRequest struct {
 	Inputs map[string]ExactArtifactRef `json:"inputs"`
@@ -9475,6 +9646,65 @@ type InteractshTokenMaterial struct {
 	Token *string `json:"token,omitempty"`
 }
 
+// LLMCostExecution defines model for LLMCostExecution.
+type LLMCostExecution struct {
+	Amount      nullable.Nullable[NullableUSDAmount] `json:"amount"`
+	Basis       LLMCostExecutionBasis                `json:"basis"`
+	Coverage    LLMCostExecutionCoverage             `json:"coverage"`
+	ExecutionId ResourceId                           `json:"executionId"`
+	Pending     bool                                 `json:"pending"`
+	RunId       nullable.Nullable[string]            `json:"runId"`
+}
+
+// LLMCostExecutionBasis defines model for LLMCostExecution.Basis.
+type LLMCostExecutionBasis string
+
+// LLMCostExecutionCoverage defines model for LLMCostExecution.Coverage.
+type LLMCostExecutionCoverage string
+
+// LLMCostSummary defines model for LLMCostSummary.
+type LLMCostSummary struct {
+	Activity []CostBreakdownRow                   `json:"activity"`
+	Amount   nullable.Nullable[NullableUSDAmount] `json:"amount"`
+	AsOf     time.Time                            `json:"asOf"`
+	Basis    LLMCostSummaryBasis                  `json:"basis"`
+
+	// Calls Exact nonnegative aggregate call/report count.
+	Calls         CostCounter                          `json:"calls"`
+	ChecksAmount  nullable.Nullable[NullableUSDAmount] `json:"checksAmount"`
+	Coverage      LLMCostSummaryCoverage               `json:"coverage"`
+	Currency      LLMCostSummaryCurrency               `json:"currency"`
+	Executions    []LLMCostExecution                   `json:"executions"`
+	HistoricalGap bool                                 `json:"historicalGap"`
+	Models        []CostBreakdownRow                   `json:"models"`
+	Pending       bool                                 `json:"pending"`
+
+	// PricedCalls Exact nonnegative aggregate call/report count.
+	PricedCalls CostCounter `json:"pricedCalls"`
+
+	// Reports Exact nonnegative aggregate call/report count.
+	Reports          CostCounter                          `json:"reports"`
+	Scope            LLMCostSummaryScope                  `json:"scope"`
+	ScopeId          ResourceId                           `json:"scopeId"`
+	StandaloneAmount nullable.Nullable[NullableUSDAmount] `json:"standaloneAmount"`
+
+	// UnknownReports Exact nonnegative aggregate call/report count.
+	UnknownReports CostCounter                  `json:"unknownReports"`
+	UpdatedAt      nullable.Nullable[time.Time] `json:"updatedAt"`
+}
+
+// LLMCostSummaryBasis defines model for LLMCostSummary.Basis.
+type LLMCostSummaryBasis string
+
+// LLMCostSummaryCoverage defines model for LLMCostSummary.Coverage.
+type LLMCostSummaryCoverage string
+
+// LLMCostSummaryCurrency defines model for LLMCostSummary.Currency.
+type LLMCostSummaryCurrency string
+
+// LLMCostSummaryScope defines model for LLMCostSummary.Scope.
+type LLMCostSummaryScope string
+
 // LLMGatewayBody defines model for LLMGatewayBody.
 type LLMGatewayBody struct {
 	CredentialManager *CredentialManagerDescriptor `json:"credentialManager,omitempty"`
@@ -9571,6 +9801,9 @@ type ModelSelectionValue struct {
 
 // NonTerminalWorkflowRunState defines model for NonTerminalWorkflowRunState.
 type NonTerminalWorkflowRunState string
+
+// NullableUSDAmount defines model for NullableUSDAmount.
+type NullableUSDAmount = USDAmount
 
 // OTLPHeadersMaterial defines model for OTLPHeadersMaterial.
 type OTLPHeadersMaterial struct {
@@ -11423,6 +11656,9 @@ type ToolsetSelection struct {
 	Tools []ConfigId `json:"tools"`
 }
 
+// USDAmount Exact canonical USD decimal; no binary floating-point accounting.
+type USDAmount = string
+
 // UpdateOwnerQueueControlRequest defines model for UpdateOwnerQueueControlRequest.
 type UpdateOwnerQueueControlRequest struct {
 	Paused bool `json:"paused"`
@@ -11949,6 +12185,9 @@ type GitImportResultResponse = GitImportResult
 // GitKeyStateResponse defines model for GitKeyState.
 type GitKeyStateResponse = GitKeyState
 
+// LLMCostResponse defines model for LLMCostResponse.
+type LLMCostResponse = LLMCostSummary
+
 // LoginSession defines model for LoginSession.
 type LoginSession = AuthSession
 
@@ -12178,6 +12417,12 @@ type EditAuditHypothesisParams struct {
 	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey  `json:"Idempotency-Key"`
 	IfMatch        RequiredIfMatch `json:"If-Match"`
+}
+
+// GetAuditLLMCostParams defines parameters for GetAuditLLMCost.
+type GetAuditLLMCostParams struct {
+	// ExecutionId Optional explicitly selected Run attempts; retained costs survive source Run deletion.
+	ExecutionId *[]ResourceId `form:"executionId,omitempty" json:"executionId,omitempty"`
 }
 
 // ListAuditMaterialsParams defines parameters for ListAuditMaterials.
@@ -17803,6 +18048,11 @@ type ClientInterface interface {
 	// Corresponds with PATCH /v1/audits/{auditId}/hypotheses/{hypothesisId} (the `EditAuditHypothesis` operationId).
 	EditAuditHypothesis(ctx context.Context, auditId AuditId, hypothesisId ResourceId, params *EditAuditHypothesisParams, body EditAuditHypothesisJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetAuditLLMCost Read retained LLM cost across an owned Audit's child Runs
+	//
+	// Corresponds with GET /v1/audits/{auditId}/llm-cost (the `GetAuditLLMCost` operationId).
+	GetAuditLLMCost(ctx context.Context, auditId AuditId, params *GetAuditLLMCostParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListAuditMaterials List accepted exact materials without reading payloads
 	//
 	// Bounded owner-authorized keyset pages pinned to one Audit revision. A concurrent change requires restarting traversal. Reads create no retention or execution effects.
@@ -18639,6 +18889,11 @@ type ClientInterface interface {
 	// Corresponds with PATCH /v1/projects/{projectId}/findings/{findingId} (the `EditProjectFinding` operationId).
 	EditProjectFinding(ctx context.Context, projectId ProjectId, findingId FindingId, params *EditProjectFindingParams, body EditProjectFindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetProjectLLMCost Read known Project lifetime LLM cost without counting child Runs twice
+	//
+	// Corresponds with GET /v1/projects/{projectId}/llm-cost (the `GetProjectLLMCost` operationId).
+	GetProjectLLMCost(ctx context.Context, projectId ProjectId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListProjectRuns List Runs that were launched from one owned Project
 	//
 	// Corresponds with GET /v1/projects/{projectId}/runs (the `ListProjectRuns` operationId).
@@ -18806,6 +19061,11 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /v1/runs/{runId}/finding-proposals (the `ListRunFindingProposals` operationId).
 	ListRunFindingProposals(ctx context.Context, runId RunId, params *ListRunFindingProposalsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetRunLLMCost Read retained LLM cost for one owned Run
+	//
+	// Corresponds with GET /v1/runs/{runId}/llm-cost (the `GetRunLLMCost` operationId).
+	GetRunLLMCost(ctx context.Context, runId RunId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DownloadRunOutput Download one frozen Workflow output
 	//
@@ -19537,6 +19797,21 @@ func (c *Client) EditAuditHypothesisWithBody(ctx context.Context, auditId AuditI
 // Corresponds with PATCH /v1/audits/{auditId}/hypotheses/{hypothesisId} (the `EditAuditHypothesis` operationId).
 func (c *Client) EditAuditHypothesis(ctx context.Context, auditId AuditId, hypothesisId ResourceId, params *EditAuditHypothesisParams, body EditAuditHypothesisJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewEditAuditHypothesisRequest(c.Server, auditId, hypothesisId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetAuditLLMCost Read retained LLM cost across an owned Audit's child Runs
+//
+// Corresponds with GET /v1/audits/{auditId}/llm-cost (the `GetAuditLLMCost` operationId).
+func (c *Client) GetAuditLLMCost(ctx context.Context, auditId AuditId, params *GetAuditLLMCostParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAuditLLMCostRequest(c.Server, auditId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -21633,6 +21908,21 @@ func (c *Client) EditProjectFinding(ctx context.Context, projectId ProjectId, fi
 	return c.Client.Do(req)
 }
 
+// GetProjectLLMCost Read known Project lifetime LLM cost without counting child Runs twice
+//
+// Corresponds with GET /v1/projects/{projectId}/llm-cost (the `GetProjectLLMCost` operationId).
+func (c *Client) GetProjectLLMCost(ctx context.Context, projectId ProjectId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetProjectLLMCostRequest(c.Server, projectId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // ListProjectRuns List Runs that were launched from one owned Project
 //
 // Corresponds with GET /v1/projects/{projectId}/runs (the `ListProjectRuns` operationId).
@@ -22051,6 +22341,21 @@ func (c *Client) CancelRun(ctx context.Context, runId RunId, params *CancelRunPa
 // Corresponds with GET /v1/runs/{runId}/finding-proposals (the `ListRunFindingProposals` operationId).
 func (c *Client) ListRunFindingProposals(ctx context.Context, runId RunId, params *ListRunFindingProposalsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListRunFindingProposalsRequest(c.Server, runId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetRunLLMCost Read retained LLM cost for one owned Run
+//
+// Corresponds with GET /v1/runs/{runId}/llm-cost (the `GetRunLLMCost` operationId).
+func (c *Client) GetRunLLMCost(ctx context.Context, runId RunId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRunLLMCostRequest(c.Server, runId)
 	if err != nil {
 		return nil, err
 	}
@@ -24504,6 +24809,67 @@ func NewEditAuditHypothesisRequestWithBody(server string, auditId AuditId, hypot
 
 		req.Header.Set("If-Match", headerParam1)
 
+	}
+
+	return req, nil
+}
+
+// NewGetAuditLLMCostRequest constructs an http.Request for the GetAuditLLMCost method
+func NewGetAuditLLMCostRequest(server string, auditId AuditId, params *GetAuditLLMCostParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "auditId", auditId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/audits/%s/llm-cost", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.ExecutionId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "executionId", *params.ExecutionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "array", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
 	}
 
 	return req, nil
@@ -31304,6 +31670,40 @@ func NewEditProjectFindingRequestWithBody(server string, projectId ProjectId, fi
 	return req, nil
 }
 
+// NewGetProjectLLMCostRequest constructs an http.Request for the GetProjectLLMCost method
+func NewGetProjectLLMCostRequest(server string, projectId ProjectId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "projectId", projectId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/projects/%s/llm-cost", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListProjectRunsRequest constructs an http.Request for the ListProjectRuns method
 func NewListProjectRunsRequest(server string, projectId ProjectId, params *ListProjectRunsParams) (*http.Request, error) {
 	var err error
@@ -32937,6 +33337,40 @@ func NewListRunFindingProposalsRequest(server string, runId RunId, params *ListR
 	return req, nil
 }
 
+// NewGetRunLLMCostRequest constructs an http.Request for the GetRunLLMCost method
+func NewGetRunLLMCostRequest(server string, runId RunId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "runId", runId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/runs/%s/llm-cost", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewDownloadRunOutputRequest constructs an http.Request for the DownloadRunOutput method
 func NewDownloadRunOutputRequest(server string, runId RunId, slot ArtifactSlotParameter) (*http.Request, error) {
 	var err error
@@ -33817,6 +34251,13 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with PATCH /v1/audits/{auditId}/hypotheses/{hypothesisId} (the `EditAuditHypothesis` operationId).
 	EditAuditHypothesisWithResponse(ctx context.Context, auditId AuditId, hypothesisId ResourceId, params *EditAuditHypothesisParams, body EditAuditHypothesisJSONRequestBody, reqEditors ...RequestEditorFn) (*EditAuditHypothesisResponse, error)
+
+	// GetAuditLLMCostWithResponse Read retained LLM cost across an owned Audit's child Runs
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/audits/{auditId}/llm-cost (the `GetAuditLLMCost` operationId).
+	GetAuditLLMCostWithResponse(ctx context.Context, auditId AuditId, params *GetAuditLLMCostParams, reqEditors ...RequestEditorFn) (*GetAuditLLMCostResponse, error)
 
 	// ListAuditMaterialsWithResponse List accepted exact materials without reading payloads
 	//
@@ -34790,6 +35231,13 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with PATCH /v1/projects/{projectId}/findings/{findingId} (the `EditProjectFinding` operationId).
 	EditProjectFindingWithResponse(ctx context.Context, projectId ProjectId, findingId FindingId, params *EditProjectFindingParams, body EditProjectFindingJSONRequestBody, reqEditors ...RequestEditorFn) (*EditProjectFindingResponse, error)
 
+	// GetProjectLLMCostWithResponse Read known Project lifetime LLM cost without counting child Runs twice
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/projects/{projectId}/llm-cost (the `GetProjectLLMCost` operationId).
+	GetProjectLLMCostWithResponse(ctx context.Context, projectId ProjectId, reqEditors ...RequestEditorFn) (*GetProjectLLMCostResponse, error)
+
 	// ListProjectRunsWithResponse List Runs that were launched from one owned Project
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -34989,6 +35437,13 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /v1/runs/{runId}/finding-proposals (the `ListRunFindingProposals` operationId).
 	ListRunFindingProposalsWithResponse(ctx context.Context, runId RunId, params *ListRunFindingProposalsParams, reqEditors ...RequestEditorFn) (*ListRunFindingProposalsResponse, error)
+
+	// GetRunLLMCostWithResponse Read retained LLM cost for one owned Run
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/runs/{runId}/llm-cost (the `GetRunLLMCost` operationId).
+	GetRunLLMCostWithResponse(ctx context.Context, runId RunId, reqEditors ...RequestEditorFn) (*GetRunLLMCostResponse, error)
 
 	// DownloadRunOutputWithResponse Download one frozen Workflow output
 	//
@@ -39488,6 +39943,127 @@ func (r EditAuditHypothesisResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r EditAuditHypothesisResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// GetAuditLLMCostResponse200Headers the declared response headers of an HTTP 200 response for GetAuditLLMCost
+type GetAuditLLMCostResponse200Headers struct {
+	CacheControl string
+	XRequestID   RequestId
+}
+
+// GetAuditLLMCostResponse400Headers the declared response headers of an HTTP 400 response for GetAuditLLMCost
+type GetAuditLLMCostResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// GetAuditLLMCostResponse401Headers the declared response headers of an HTTP 401 response for GetAuditLLMCost
+type GetAuditLLMCostResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// GetAuditLLMCostResponse404Headers the declared response headers of an HTTP 404 response for GetAuditLLMCost
+type GetAuditLLMCostResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// GetAuditLLMCostResponse500Headers the declared response headers of an HTTP 500 response for GetAuditLLMCost
+type GetAuditLLMCostResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// GetAuditLLMCostResponse503Headers the declared response headers of an HTTP 503 response for GetAuditLLMCost
+type GetAuditLLMCostResponse503Headers struct {
+	XRequestID RequestId
+}
+
+type GetAuditLLMCostResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *LLMCostResponse
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *GetAuditLLMCostResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *GetAuditLLMCostResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *GetAuditLLMCostResponse401Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *GetAuditLLMCostResponse404Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *GetAuditLLMCostResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetAuditLLMCostResponse503Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetAuditLLMCostResponse) GetJSON200() *LLMCostResponse {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r GetAuditLLMCostResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetAuditLLMCostResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetAuditLLMCostResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r GetAuditLLMCostResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetAuditLLMCostResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r GetAuditLLMCostResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAuditLLMCostResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAuditLLMCostResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetAuditLLMCostResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -53796,6 +54372,127 @@ func (r EditProjectFindingResponse) ContentType() string {
 	return ""
 }
 
+// GetProjectLLMCostResponse200Headers the declared response headers of an HTTP 200 response for GetProjectLLMCost
+type GetProjectLLMCostResponse200Headers struct {
+	CacheControl string
+	XRequestID   RequestId
+}
+
+// GetProjectLLMCostResponse400Headers the declared response headers of an HTTP 400 response for GetProjectLLMCost
+type GetProjectLLMCostResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// GetProjectLLMCostResponse401Headers the declared response headers of an HTTP 401 response for GetProjectLLMCost
+type GetProjectLLMCostResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// GetProjectLLMCostResponse404Headers the declared response headers of an HTTP 404 response for GetProjectLLMCost
+type GetProjectLLMCostResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// GetProjectLLMCostResponse500Headers the declared response headers of an HTTP 500 response for GetProjectLLMCost
+type GetProjectLLMCostResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// GetProjectLLMCostResponse503Headers the declared response headers of an HTTP 503 response for GetProjectLLMCost
+type GetProjectLLMCostResponse503Headers struct {
+	XRequestID RequestId
+}
+
+type GetProjectLLMCostResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *LLMCostResponse
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *GetProjectLLMCostResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *GetProjectLLMCostResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *GetProjectLLMCostResponse401Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *GetProjectLLMCostResponse404Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *GetProjectLLMCostResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetProjectLLMCostResponse503Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetProjectLLMCostResponse) GetJSON200() *LLMCostResponse {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r GetProjectLLMCostResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetProjectLLMCostResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetProjectLLMCostResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r GetProjectLLMCostResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetProjectLLMCostResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r GetProjectLLMCostResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetProjectLLMCostResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetProjectLLMCostResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetProjectLLMCostResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // ListProjectRunsResponse200Headers the declared response headers of an HTTP 200 response for ListProjectRuns
 type ListProjectRunsResponse200Headers struct {
 	XRequestID RequestId
@@ -56656,6 +57353,127 @@ func (r ListRunFindingProposalsResponse) ContentType() string {
 	return ""
 }
 
+// GetRunLLMCostResponse200Headers the declared response headers of an HTTP 200 response for GetRunLLMCost
+type GetRunLLMCostResponse200Headers struct {
+	CacheControl string
+	XRequestID   RequestId
+}
+
+// GetRunLLMCostResponse400Headers the declared response headers of an HTTP 400 response for GetRunLLMCost
+type GetRunLLMCostResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// GetRunLLMCostResponse401Headers the declared response headers of an HTTP 401 response for GetRunLLMCost
+type GetRunLLMCostResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// GetRunLLMCostResponse404Headers the declared response headers of an HTTP 404 response for GetRunLLMCost
+type GetRunLLMCostResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// GetRunLLMCostResponse500Headers the declared response headers of an HTTP 500 response for GetRunLLMCost
+type GetRunLLMCostResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// GetRunLLMCostResponse503Headers the declared response headers of an HTTP 503 response for GetRunLLMCost
+type GetRunLLMCostResponse503Headers struct {
+	XRequestID RequestId
+}
+
+type GetRunLLMCostResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *LLMCostResponse
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *GetRunLLMCostResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *GetRunLLMCostResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *GetRunLLMCostResponse401Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *GetRunLLMCostResponse404Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *GetRunLLMCostResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetRunLLMCostResponse503Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetRunLLMCostResponse) GetJSON200() *LLMCostResponse {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r GetRunLLMCostResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetRunLLMCostResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetRunLLMCostResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r GetRunLLMCostResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetRunLLMCostResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r GetRunLLMCostResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetRunLLMCostResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetRunLLMCostResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetRunLLMCostResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // DownloadRunOutputResponse200Headers the declared response headers of an HTTP 200 response for DownloadRunOutput
 type DownloadRunOutputResponse200Headers struct {
 	CacheControl       string
@@ -58340,6 +59158,19 @@ func (c *ClientWithResponses) EditAuditHypothesisWithResponse(ctx context.Contex
 		return nil, err
 	}
 	return ParseEditAuditHypothesisResponse(rsp)
+}
+
+// GetAuditLLMCostWithResponse Read retained LLM cost across an owned Audit's child Runs
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/audits/{auditId}/llm-cost (the `GetAuditLLMCost` operationId).
+func (c *ClientWithResponses) GetAuditLLMCostWithResponse(ctx context.Context, auditId AuditId, params *GetAuditLLMCostParams, reqEditors ...RequestEditorFn) (*GetAuditLLMCostResponse, error) {
+	rsp, err := c.GetAuditLLMCost(ctx, auditId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAuditLLMCostResponse(rsp)
 }
 
 // ListAuditMaterialsWithResponse List accepted exact materials without reading payloads
@@ -60064,6 +60895,19 @@ func (c *ClientWithResponses) EditProjectFindingWithResponse(ctx context.Context
 	return ParseEditProjectFindingResponse(rsp)
 }
 
+// GetProjectLLMCostWithResponse Read known Project lifetime LLM cost without counting child Runs twice
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/projects/{projectId}/llm-cost (the `GetProjectLLMCost` operationId).
+func (c *ClientWithResponses) GetProjectLLMCostWithResponse(ctx context.Context, projectId ProjectId, reqEditors ...RequestEditorFn) (*GetProjectLLMCostResponse, error) {
+	rsp, err := c.GetProjectLLMCost(ctx, projectId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetProjectLLMCostResponse(rsp)
+}
+
 // ListProjectRunsWithResponse List Runs that were launched from one owned Project
 //
 // Returns a wrapper object for the known response body format(s).
@@ -60418,6 +61262,19 @@ func (c *ClientWithResponses) ListRunFindingProposalsWithResponse(ctx context.Co
 		return nil, err
 	}
 	return ParseListRunFindingProposalsResponse(rsp)
+}
+
+// GetRunLLMCostWithResponse Read retained LLM cost for one owned Run
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/runs/{runId}/llm-cost (the `GetRunLLMCost` operationId).
+func (c *ClientWithResponses) GetRunLLMCostWithResponse(ctx context.Context, runId RunId, reqEditors ...RequestEditorFn) (*GetRunLLMCostResponse, error) {
+	rsp, err := c.GetRunLLMCost(ctx, runId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetRunLLMCostResponse(rsp)
 }
 
 // DownloadRunOutputWithResponse Download one frozen Workflow output
@@ -66020,6 +66877,151 @@ func ParseEditAuditHypothesisResponse(rsp *http.Response) (*EditAuditHypothesisR
 		response.Headers500 = &headers
 	case rsp.StatusCode == 503:
 		var headers EditAuditHypothesisResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseGetAuditLLMCostResponse parses an HTTP response from a GetAuditLLMCostWithResponse call
+func ParseGetAuditLLMCostResponse(rsp *http.Response) (*GetAuditLLMCostResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAuditLLMCostResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LLMCostResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers GetAuditLLMCostResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers GetAuditLLMCostResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers GetAuditLLMCostResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 404:
+		var headers GetAuditLLMCostResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 500:
+		var headers GetAuditLLMCostResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetAuditLLMCostResponse503Headers
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
 			var value RequestId
 			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
@@ -83686,6 +84688,151 @@ func ParseEditProjectFindingResponse(rsp *http.Response) (*EditProjectFindingRes
 	return response, nil
 }
 
+// ParseGetProjectLLMCostResponse parses an HTTP response from a GetProjectLLMCostWithResponse call
+func ParseGetProjectLLMCostResponse(rsp *http.Response) (*GetProjectLLMCostResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetProjectLLMCostResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LLMCostResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers GetProjectLLMCostResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers GetProjectLLMCostResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers GetProjectLLMCostResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 404:
+		var headers GetProjectLLMCostResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 500:
+		var headers GetProjectLLMCostResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetProjectLLMCostResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
 // ParseListProjectRunsResponse parses an HTTP response from a ListProjectRunsWithResponse call
 func ParseListProjectRunsResponse(rsp *http.Response) (*ListProjectRunsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -87094,6 +88241,151 @@ func ParseListRunFindingProposalsResponse(rsp *http.Response) (*ListRunFindingPr
 		response.Headers500 = &headers
 	case rsp.StatusCode == 503:
 		var headers ListRunFindingProposalsResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseGetRunLLMCostResponse parses an HTTP response from a GetRunLLMCostWithResponse call
+func ParseGetRunLLMCostResponse(rsp *http.Response) (*GetRunLLMCostResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetRunLLMCostResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LLMCostResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers GetRunLLMCostResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers GetRunLLMCostResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers GetRunLLMCostResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 404:
+		var headers GetRunLLMCostResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 500:
+		var headers GetRunLLMCostResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetRunLLMCostResponse503Headers
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
 			var value RequestId
 			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {

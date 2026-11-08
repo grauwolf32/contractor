@@ -1376,6 +1376,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/runs/{runId}/llm-cost": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: components["parameters"]["RunId"];
+            };
+            cookie?: never;
+        };
+        /** Read retained LLM cost for one owned Run */
+        get: operations["getRunLLMCost"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/audits/{auditId}/llm-cost": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        /** Read retained LLM cost across an owned Audit's child Runs */
+        get: operations["getAuditLLMCost"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/projects/{projectId}/llm-cost": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        /** Read known Project lifetime LLM cost without counting child Runs twice */
+        get: operations["getProjectLLMCost"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/audits/{auditId}/workspace": {
         parameters: {
             query?: never;
@@ -5039,6 +5096,56 @@ export interface components {
             requestedBy?: components["schemas"]["ConfigId"];
             reason?: string;
         };
+        /** @description Exact nonnegative aggregate call/report count. */
+        CostCounter: string;
+        /** @description Exact canonical USD decimal; no binary floating-point accounting. */
+        USDAmount: string;
+        NullableUSDAmount: components["schemas"]["USDAmount"] | null;
+        CostBreakdownRow: {
+            key: string;
+            label: string;
+            calls: components["schemas"]["CostCounter"];
+            amount: components["schemas"]["USDAmount"];
+            /** @enum {string} */
+            basis: "reported" | "estimated" | "mixed";
+        };
+        LLMCostExecution: {
+            executionId: components["schemas"]["ResourceId"];
+            runId: string | null;
+            amount: components["schemas"]["NullableUSDAmount"];
+            /** @enum {string} */
+            basis: "none" | "reported" | "estimated" | "mixed";
+            /** @enum {string} */
+            coverage: "complete" | "partial" | "pending" | "unavailable";
+            pending: boolean;
+        };
+        LLMCostSummary: {
+            /** @enum {string} */
+            scope: "run" | "audit" | "project";
+            scopeId: components["schemas"]["ResourceId"];
+            /** @constant */
+            currency: "USD";
+            amount: components["schemas"]["NullableUSDAmount"];
+            calls: components["schemas"]["CostCounter"];
+            pricedCalls: components["schemas"]["CostCounter"];
+            reports: components["schemas"]["CostCounter"];
+            unknownReports: components["schemas"]["CostCounter"];
+            /** @enum {string} */
+            basis: "none" | "reported" | "estimated" | "mixed";
+            /** @enum {string} */
+            coverage: "complete" | "partial" | "pending" | "unavailable";
+            pending: boolean;
+            historicalGap: boolean;
+            /** Format: date-time */
+            asOf: string;
+            /** Format: date-time */
+            updatedAt: string | null;
+            checksAmount: components["schemas"]["NullableUSDAmount"];
+            standaloneAmount: components["schemas"]["NullableUSDAmount"];
+            activity: components["schemas"]["CostBreakdownRow"][];
+            models: components["schemas"]["CostBreakdownRow"][];
+            executions: components["schemas"]["LLMCostExecution"][];
+        };
         MetricsSummary: {
             reportsComplete: boolean;
             modelCalls: number;
@@ -7028,6 +7135,17 @@ export interface components {
             };
             content: {
                 "*/*": string;
+            };
+        };
+        /** @description Bounded prepared monetary observations with independent freshness; missing historical data is explicit. */
+        LLMCostResponse: {
+            headers: {
+                "X-Request-ID": components["headers"]["RequestId"];
+                "Cache-Control": components["headers"]["NoStore"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["LLMCostSummary"];
             };
         };
         BadRequest: {
@@ -11019,6 +11137,66 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
+    getRunLLMCost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: components["parameters"]["RunId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["LLMCostResponse"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
+    getAuditLLMCost: {
+        parameters: {
+            query?: {
+                /** @description Optional explicitly selected Run attempts; retained costs survive source Run deletion. */
+                executionId?: components["schemas"]["ResourceId"][];
+            };
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["LLMCostResponse"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
+    getProjectLLMCost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["LLMCostResponse"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["StorageTransactionConflict"];
         };

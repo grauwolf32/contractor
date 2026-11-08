@@ -383,6 +383,38 @@ selection, inference success, cancellation, limits or retry policy. No model
 call is repeated to recover accounting. Only the closed metadata above is
 retained; credentials, raw headers, prompts and responses are excluded.
 
+**OBS-R123.** Durable cost uses compact fields on existing records, with no
+additional tables. A new parent stores the compact known-empty object `{}`;
+SQL NULL denotes a historical gap. The allocation and Stage's Planner fields keep their last
+counted contribution independently of diagnostic report retention. The ordinary
+Run totals include its Planner and Workers; Audit execution keeps the Run cost
+snapshot, Audit totals include all its child Runs and iterations, and Project
+totals partition Audit children and standalone Runs. An Audit Planner is an
+ordinary Run participant, never another Project charge. Report receipt,
+participant replacement and all parent deltas commit in one existing transaction,
+with each store writing only its owned records. Replay and an obsolete
+incomplete report cannot charge again.
+
+**OBS-R124.** Full diagnostics still expire under OBS-R43. Compact participant
+metadata follows its Stage/Run lifetime; deleting a child removes its detail,
+without subtracting the already observed cost from its living Audit or Project.
+Parent totals follow the parent lifetime. Earlier absent monetary observations
+remain a historical gap, not an inferred price or a zero. No data is reset and
+current tariffs are never applied to historical token counts.
+
+**OBS-R125.** Monetary aggregates have at most 64 model/role/phase/source
+groups: at most 48 explicitly named groups and a phase/role/source remainder
+(LIM-OBS-26). Aggregate counters are canonical nonnegative decimal strings with
+at most 38 integer digits; USD sums add at most 18 fractional digits
+(LIM-OBS-27). The remainder retains exact amounts and coverage. Owner-authorized
+Run, Audit and Project cost reads return one bounded prepared aggregate and
+separate `asOf`, last-observation time, basis and coverage. Monetary updates do
+not alter the parent lifecycle, draft CAS revision or unchanged parent ETag.
+An Audit cost read may additionally select at most 64 exact execution IDs
+(LIM-OBS-26) from its visible Work page; one indexed read returns their retained
+Run snapshots, including deleted source Runs, without browser fan-out.
+Live/partial/unavailable data is not a security verdict or a spending limit.
+
 ### Report content
 
 **OBS-R19.** `complete` describes report completeness, not

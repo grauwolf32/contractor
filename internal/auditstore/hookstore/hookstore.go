@@ -42,6 +42,10 @@ type CredentialHolds = pgstore.CredentialHolds
 // AuditCreations matches an Audit to the owner's create request that made it.
 type AuditCreations = pgstore.AuditCreations
 
+type RunCosts = pgstore.RunCosts
+
+func NewRunCostsTx(tx pgx.Tx) *RunCosts { return pgstore.NewRunCostsTx(tx) }
+
 // ClaimedArtifacts publishes material for round preparation and import under
 // an explicit live claim, without exposing controller commands.
 type ClaimedArtifacts = pgstore.ClaimedArtifacts

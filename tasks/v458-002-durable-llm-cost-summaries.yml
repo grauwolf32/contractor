@@ -5,14 +5,14 @@ milestone: llm-cost-reporting-2026-11
 epic: operations
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on: [V458-001]
 languages: [go, sql, markdown, yaml]
 goal: Provide durable exact cost summaries for Run, Audit and Project that preserve unsuccessful attempts and remain honest after telemetry expiry or child Run deletion.
 demonstration: Real PostgreSQL receives repeated ordinary reports for child and standalone Runs, then telemetry expires and a child Run is deleted; owner-authorized API summaries retain the same known subtotal and incomplete coverage (A1-A3).
 context:
   authority: 'User approval 2026-11-08 includes lifetime Project total, Audit detail and per-Run attribution. User clarification 2026-11-08 explicitly prohibits separate tables for this feature. Reuse report replay identities and add compact fields to existing allocation/Planner, Run, Audit execution, Audit and Project records. Code inspection confirms Planner calls belong to ordinary Runs; their cost is included in each Run, with no separate Audit-planning addend.'
-  design: 'Existing stage_allocations are immutable per logical Worker and planner_sessions are unique per Stage; retain the last counted participant snapshot in those existing lifecycle records (or the owning Stage for a missing Planner session), independently of expiring diagnostic reports. Apply replacement deltas and parent totals in one existing transaction, with each owning store writing only its tables. Parent totals retain history through child deletion; no table, report-retention extension, extra receipt system or per-call billing log is introduced. Choose a common owner-authorized cost subresource for Run/Audit/Project with independent freshness; operational cost columns stay outside unchanged parent ETags. Each aggregate has at most 64 detail groups.'
+  design: 'Existing stage_allocations are immutable per logical Worker and planner_sessions are unique per Stage; retain the last counted participant snapshot in those existing lifecycle records (or the owning Stage for a missing Planner session), independently of expiring diagnostic reports. Apply replacement deltas and parent totals in one existing transaction, with each owning store writing only its tables. Parent totals retain history through child deletion; no table, report-retention extension, extra receipt system or per-call billing log is introduced. Choose a common owner-authorized cost subresource for Run/Audit/Project with independent freshness; operational cost columns stay outside unchanged parent ETags. Each aggregate has at most 64 detail groups. Audit cost reads optionally select at most 64 exact execution IDs to serve visible Work attempts in one indexed read. A compact empty object distinguishes new known-empty totals from SQL NULL historical gaps and preserves Run HOT space.'
   specification: docs/spec/platform/observability.md#usage-attribution
 scope:
   in:

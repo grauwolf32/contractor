@@ -4810,6 +4810,58 @@ paths:
         '500': {$ref: '#/components/responses/InternalError'}
         '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
+  /v1/runs/{runId}/llm-cost:
+    parameters:
+      - $ref: '#/components/parameters/RunId'
+    get:
+      operationId: getRunLLMCost
+      tags: [Runs]
+      summary: Read retained LLM cost for one owned Run
+      responses:
+        '200': {$ref: '#/components/responses/LLMCostResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
+
+  /v1/audits/{auditId}/llm-cost:
+    parameters:
+      - $ref: '#/components/parameters/AuditId'
+    get:
+      operationId: getAuditLLMCost
+      parameters:
+        - name: executionId
+          in: query
+          description: Optional explicitly selected Run attempts; retained costs survive source Run deletion.
+          style: form
+          explode: true
+          schema: {type: array, minItems: 1, maxItems: 64, uniqueItems: true, items: {$ref: '#/components/schemas/ResourceId'}}
+      tags: [Audits]
+      summary: Read retained LLM cost across an owned Audit's child Runs
+      responses:
+        '200': {$ref: '#/components/responses/LLMCostResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
+
+  /v1/projects/{projectId}/llm-cost:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      operationId: getProjectLLMCost
+      tags: [Projects]
+      summary: Read known Project lifetime LLM cost without counting child Runs twice
+      responses:
+        '200': {$ref: '#/components/responses/LLMCostResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
+
   /v1/audits/{auditId}/workspace:
     parameters:
       - $ref: '#/components/parameters/AuditId'
@@ -7507,6 +7559,14 @@ components:
       content:
         '*/*':
           schema: {type: string, format: binary, maxLength: 67108864}
+    LLMCostResponse:
+      description: Bounded prepared monetary observations with independent freshness; missing historical data is explicit.
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestId'}
+        Cache-Control: {$ref: '#/components/headers/NoStore'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/LLMCostSummary'}
     BadRequest: {$ref: '#/components/responses/Error400'}
     Unauthorized: {$ref: '#/components/responses/Error401'}
     Forbidden: {$ref: '#/components/responses/Error403'}
@@ -15620,6 +15680,63 @@ components:
         requestedAt: {type: string, format: date-time}
         requestedBy: {$ref: '#/components/schemas/ConfigId'}
         reason: {type: string, minLength: 1, maxLength: 4096, x-max-utf8-bytes: 4096}
+    CostCounter:
+      type: string
+      pattern: '^(0|[1-9][0-9]{0,37})$'
+      description: Exact nonnegative aggregate call/report count.
+    USDAmount:
+      type: string
+      pattern: '^(0|[1-9][0-9]{0,37})(\.[0-9]{0,17}[1-9])?$'
+      description: Exact canonical USD decimal; no binary floating-point accounting.
+    NullableUSDAmount:
+      oneOf:
+        - {$ref: '#/components/schemas/USDAmount'}
+        - {type: 'null'}
+    CostBreakdownRow:
+      type: object
+      additionalProperties: false
+      required: [key, label, calls, amount, basis]
+      properties:
+        key: {type: string, minLength: 1, maxLength: 262}
+        label: {type: string, minLength: 1, maxLength: 256}
+        calls: {$ref: '#/components/schemas/CostCounter'}
+        amount: {$ref: '#/components/schemas/USDAmount'}
+        basis: {type: string, enum: [reported, estimated, mixed]}
+    LLMCostExecution:
+      type: object
+      additionalProperties: false
+      required: [executionId, runId, amount, basis, coverage, pending]
+      properties:
+        executionId: {$ref: '#/components/schemas/ResourceId'}
+        runId: {type: [string, 'null'], pattern: '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$'}
+        amount: {$ref: '#/components/schemas/NullableUSDAmount'}
+        basis: {type: string, enum: [none, reported, estimated, mixed]}
+        coverage: {type: string, enum: [complete, partial, pending, unavailable]}
+        pending: {type: boolean}
+    LLMCostSummary:
+      type: object
+      additionalProperties: false
+      required: [scope, scopeId, currency, amount, calls, pricedCalls, reports, unknownReports, basis, coverage, pending, historicalGap, asOf, updatedAt, checksAmount, standaloneAmount, activity, models, executions]
+      properties:
+        scope: {type: string, enum: [run, audit, project]}
+        scopeId: {$ref: '#/components/schemas/ResourceId'}
+        currency: {type: string, const: USD}
+        amount: {$ref: '#/components/schemas/NullableUSDAmount'}
+        calls: {$ref: '#/components/schemas/CostCounter'}
+        pricedCalls: {$ref: '#/components/schemas/CostCounter'}
+        reports: {$ref: '#/components/schemas/CostCounter'}
+        unknownReports: {$ref: '#/components/schemas/CostCounter'}
+        basis: {type: string, enum: [none, reported, estimated, mixed]}
+        coverage: {type: string, enum: [complete, partial, pending, unavailable]}
+        pending: {type: boolean}
+        historicalGap: {type: boolean}
+        asOf: {type: string, format: date-time}
+        updatedAt: {type: [string, 'null'], format: date-time}
+        checksAmount: {$ref: '#/components/schemas/NullableUSDAmount'}
+        standaloneAmount: {$ref: '#/components/schemas/NullableUSDAmount'}
+        activity: {type: array, maxItems: 64, items: {$ref: '#/components/schemas/CostBreakdownRow'}}
+        models: {type: array, maxItems: 64, items: {$ref: '#/components/schemas/CostBreakdownRow'}}
+        executions: {type: array, maxItems: 64, items: {$ref: '#/components/schemas/LLMCostExecution'}}
     MetricsSummary:
       type: object
       additionalProperties: false
