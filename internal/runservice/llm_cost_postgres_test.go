@@ -2,10 +2,12 @@ package runservice
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
@@ -73,6 +75,12 @@ func TestSharedPostgresAuditLLMCostUsesExistingFieldsAndDoesNotAdvanceRevision(t
 	}
 	if after.Revision != before.Revision || !after.UpdatedAt.Equal(before.UpdatedAt) {
 		t.Fatal("monetary observation changed authoritative Audit revision")
+	}
+	if _, _, err := f.audits.Transition(ctx, auditstore.TransitionParams{OwnerID: "owner", AuditID: after.AuditID, ExpectedRevision: after.Revision, ExpectedState: after.State, TargetState: auditstore.AuditPaused, IdempotencyKey: "cost-pause", RequestDigest: "sha256:" + strings.Repeat("b", 64)}); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := reports.GetLLMCost(ctx, "owner", "audit", after.AuditID); err != nil || !got.Pending {
+		t.Fatalf("paused outstanding work lost freshness: %+v %v", got, err)
 	}
 	var raw []byte
 	if err := f.pool.QueryRow(ctx, `SELECT llm_cost FROM audit_executions WHERE execution_id=$1`, f.params.ExecutionID).Scan(&raw); err != nil {

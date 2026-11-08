@@ -7,9 +7,9 @@ const updateProjectCostSQL = `UPDATE projects SET llm_cost=$2::jsonb WHERE proje
 // answer only existence probes, never a per-Run cost aggregation.
 const readProjectCostSQL = `
 SELECT project.llm_cost,
-       EXISTS(SELECT 1 FROM workflow_runs run WHERE run.project_id=project.project_id
-              AND run.state NOT IN ('succeeded','failed','cancelled'))
+       EXISTS(SELECT 1 FROM workflow_runs run WHERE run.owner_id=project.owner_id AND run.project_id=project.project_id
+              AND run.state IN ('initializing','pending','running','waiting','cancelling'))
        OR EXISTS(SELECT 1 FROM audits audit WHERE audit.project_id=project.project_id
               AND audit.state IN ('active','finalizing','cancelling')),
-       EXISTS(SELECT 1 FROM workflow_runs run WHERE run.project_id=project.project_id)
+       EXISTS(SELECT 1 FROM workflow_runs run WHERE run.owner_id=project.owner_id AND run.project_id=project.project_id)
 FROM projects project WHERE project.owner_id=$1 AND project.project_id=$2`
