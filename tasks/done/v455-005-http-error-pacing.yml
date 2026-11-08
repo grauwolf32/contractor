@@ -6,7 +6,8 @@ epic: http-tools
 kind: defect
 introduced_by: V422-002
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 76e7e96a159fc5b4d5a36f7494386647f6a6fb1d
 depends_on: []
 languages: [python, go, typescript, json, markdown]
 goal: >-
@@ -173,7 +174,18 @@ tests:
   - command: make lint
     covers: [A1, A2, A3, A4]
 verification_notes: >-
-  Pending implementation on a separate branch after the task-definition merge.
-  Extend real-path regressions and run affected Go packages including their
-  PostgreSQL suites when applicable. Historical probes establish old behavior,
-  not acceptance of the changed contract. No model efficiency claim is required.
+  Completed on codex/v455-005-http-outcomes after task-definition merge
+  8cada27e100fe1847e206fe2fe42e0ad759c5751 into main. Evidence is recorded in
+  tasks/evidence/v455-005-http-outcomes.json. A1 removes the quota end to end,
+  rejects the removed field and permits 45 native sends with injected RPS waits.
+  A2/A3 exercise actual ADK tool declarations/results, safe network diagnoses,
+  send uncertainty and content-free retained metrics/spans. A4 exercises actual
+  Worker termination, joined cancellation, pending RPS deadline/lease expiry and
+  installed Nuclei fatal-signal propagation. The ordinary HTTP client retains
+  its prior errors and retry policy. All listed gates passed: Runtime 5980 passed
+  and 135 skipped, mandatory report verification, wire, UI and lint. Additional
+  PostgreSQL Go packages and both changed production-process scenarios passed;
+  63 real-path and 187 HTTP-isolation cases passed. Optional heavy I/O stayed
+  disabled; skips are not passing coverage. The owned database was dropped.
+  The implementation remains on its separate branch; no deployment or paid
+  model run was performed.

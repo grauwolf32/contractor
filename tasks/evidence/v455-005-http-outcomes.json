@@ -30,16 +30,29 @@
     "scanner": "Installed Nuclei and HTTP tools share the quota-free transport; Nuclei preserves both fatal bridge and authority signals. Ordinary non-controlled HTTP retains its separate bounded retry policy."
   },
   "validation": {
-    "make_test_runtime": "pending final report",
+    "make_test_runtime": {
+      "status": "passed",
+      "junit": {
+        "total": 6115,
+        "passed": 5980,
+        "skipped": 135,
+        "failures": 0,
+        "errors": 0
+      },
+      "mandatory_matrix_verification": "passed"
+    },
     "make_test_wire_cross_language": "passed; 374 shared fixtures, 420 Go and 266 Python shared tests; one optional disk-heavy test skipped",
     "make_ui_verify": "passed; 220 test files, 2483 passed and one expected-failure case; generation, lint, type checks, server tests and production build passed",
-    "make_lint": "passed; includes Go vet/static checks, source/task/spec checks, Ruff and four import-layer contracts",
+    "make_lint": "passed on the final controlled diagnostic types; Go vet/static checks, source/task/spec checks, Ruff and all four import-layer contracts passed",
     "affected_go_services": "go test -count=1 ./internal/contracts/... ./internal/auditservice ./internal/runservice passed with an isolated PostgreSQL database",
     "affected_go_fixtures": "go test -count=1 ./tests/e2e ./tests/eval/audit_programs passed with PostgreSQL",
     "production_processes": "TestEngagementOrdinaryRunAcrossProcesses and TestNucleiEngagementAcrossProductionProcesses passed",
     "latest_real_path_regressions": "63 cases passed across test_controlled_http_outcomes.py, test_http_engine.py and test_nuclei_engagement.py",
     "ordinary_http_isolation": "187 cases passed across test_http_toolset.py, test_finding_facades.py, test_sitemap_collection.py, test_controlled_http_outcomes.py and test_nuclei_engagement.py; ordinary HTTP error handling is unchanged.",
-    "mandatory_regression_matrix": "Updated the renamed RPS regression and registered all twelve new native/ADK controlled HTTP cases in scripts/engagement-http-matrix.json."
+    "mandatory_regression_matrix": "Updated the renamed RPS regression and registered all twelve new native/ADK controlled HTTP cases in scripts/engagement-http-matrix.json.",
+    "report_gate_tests": "6 engagement gate and 19 release-report tests passed; the release verification graph check passed",
+    "cleanup": "Owned PostgreSQL database contractor_v455_005_20261108 was dropped; pg_database reports zero matching databases. Optional heavy I/O remained disabled; skips are not passing coverage."
   },
-  "limits": "No paid model, demo target, deployment, token-efficiency claim, new backoff or blanket delay. Historical allowance exhaustion remains an unconfirmed incident hypothesis; its configured quota is removed."
+  "limits": "No paid model, demo target, deployment, token-efficiency claim, new backoff or blanket delay. Historical allowance exhaustion remains an unconfirmed incident hypothesis; its configured quota is removed.",
+  "implementation_commit": "76e7e96a159fc5b4d5a36f7494386647f6a6fb1d"
 }
