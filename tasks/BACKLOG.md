@@ -48,7 +48,7 @@ the epics are in [epics.yml](epics.yml).
 | [V410-037](v410-037-allocation-openvpn-bridge-egress.yml) | feature | P2 | — | Route bridge egress through an allocation-owned OpenVPN tunnel |
 | [V412-001](v412-001-managed-pentest-browser.yml) | feature | P2 | — | Add allocation-owned browser investigation with explicit network authority |
 | [V412-004](v412-004-trusted-pentest-callback-proof.yml) | feature | P2 | V411-015, V411-016 | Use existing Interactsh tools as bounded HTTP investigation evidence |
-| [V455-005](v455-005-http-error-pacing.yml) | defect | P1 | — | Preserve HTTP failure reasons and decide how to bound repeated failed calls |
+| [V455-005](v455-005-http-error-pacing.yml) | defect | P1 | — | Remove total HTTP quotas and expose actionable controlled HTTP outcomes |
 
 ### Scanner tool Workers and scan planning (`scan-tools`)
 
