@@ -5,7 +5,8 @@ milestone: scan-tools-followups
 epic: scan-tools
 kind: feature
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 73051dbe457684c9b1dc8709016df1abeec5a02a
 depends_on: [V55-003, V64-014, V64-026]
 languages: [python, go, typescript, yaml, json, markdown]
 goal: >-
@@ -335,3 +336,24 @@ verification_requirements: >-
   new-Run replay case after original Run purge with explicitly retained inputs,
   and a forged-origin/cross-Project input rejection. Existing gate names are
   commands to extend, not evidence that these new scenarios already run.
+verification_notes: >-
+  Implemented on codex/v455-008-scanner-findings. All A1-A7 pass; detailed
+  scenarios, bounds, environment repairs and gate results are recorded in
+  tasks/evidence/v455-008-scanner-findings-implementation.json. Actual installed
+  Nuclei and SQLMap run against isolated positive/fixed targets; actual Playwright
+  checks Finding evidence, source Run reports and canonical/empty Audit results
+  with zero Audit report exports. Publication-only replay after source purge
+  requires no Runtime/model/target traffic. Real PostgreSQL/race regressions cover
+  trusted exact provenance, unqualified replay, partial direct-pair/material-set
+  progress, claim fencing, multi-item hypothesis/incidental membership, analyst
+  preservation, quota, cancellation and lifecycle failures. Full final Runtime
+  passed 6007 tests with 135 optional/platform skips and verified its report;
+  skips are not acceptance coverage. All declared process, wire and lint gates
+  pass, including both deterministic and installed Nuclei web checks, four
+  mandatory sitemap tool scenarios and 17 full sitemap PostgreSQL packages
+  (38 mandatory cases; one optional disk-heavy skip). Full UI Vitest passed
+  220 files/2483 tests with two workers and one expected failure; typecheck,
+  Node server tests and production build passed. Generated contracts, ERD,
+  dependency graph and task/spec checks pass. Four owned disposable databases
+  were removed; implementation worktree is retained. No main merge, push or
+  deployment was performed.

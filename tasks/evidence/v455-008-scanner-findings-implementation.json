@@ -3,6 +3,7 @@
   "verified_on": "2026-11-09",
   "branch": "codex/v455-008-scanner-findings",
   "base_revision": "6d85dbe92b7d88d51339ed22ba4dca247f033e1e",
+  "implementation_commit": "73051dbe457684c9b1dc8709016df1abeec5a02a",
   "implementation": {
     "publication": "Explicit publish-findings@1 Server operation over exact normalized candidate/evidence inputs or a flat material selection; no model, Runtime allocation or target traffic during publication.",
     "routing": "Evidenced Nuclei low/medium/high/critical matches become Findings with null analyst assessment. Info/unknown/missing severity have explicit skips. Supported sitemap facts are collected independently, including technology/version annotations; no separate eligibility policy.",
@@ -21,6 +22,7 @@
     "A7": "An actual informational Nuclei fingerprint adds nginx/version metadata to sitemap without a Finding. Reducer tests retain source-owned and manual annotations across replay; supported problem matches may contribute both sitemap facts and a Finding."
   },
   "verification": {
+    "runtime": "Final UV_OFFLINE=1 make test-runtime passed: 6007 passed, 135 optional/platform skips, zero failures or errors, 461.29 seconds; release Runtime report verification passed. These skips do not count as acceptance coverage.",
     "postgresql_and_race": "Touched Go domain, operation, scheduler, planner/session, Artifact, private API, Audit, app and architecture packages tested against isolated real PostgreSQL; app lease tests use TCP and an isolated database. The final Finding intake and operation race run passed after the partial material-set correction (Finding intake 197.063 seconds).",
     "partial_result_regression": "The new material-set interruption case failed before the correction: zero published/sources and complete=true despite one committed source. After the correction, the full PostgreSQL/race suite preserves the committed source, resumes remaining members and rejects historical reassignment.",
     "process_gates": [
@@ -42,7 +44,9 @@
     "Independent E2E Server stacks need separate disposable databases because the single-active Server lease spans schemas.",
     "An initial app lease run used a Unix socket URL, which cannot be interrupted by the TCP fault proxy; the full app race package passed on its isolated TCP database.",
     "Full UI default concurrency timed out existing heavy fixtures under concurrent machine load; the unchanged full suite passed with two workers.",
-    "Ansible lint uses the cached exact locked packages with UV_OFFLINE=1; no dependency or validation check was removed."
+    "Ansible lint uses the cached exact locked packages with UV_OFFLINE=1; no dependency or validation check was removed.",
+    "An earlier full Runtime rerun hit the existing LikeC4 test's three-second child-readiness deadline under concurrent verification load (6006 passed, one failed). The unchanged final full suite passed without the parallel heavy gates."
   ],
+  "cleanup": "All four disposable PostgreSQL databases created for this task were removed after their test connections closed. The isolated implementation worktree and branch are retained.",
   "scope": "Local implementation and verification only. No main merge, push, live model change or deployment. Optional platform/disk-heavy tests are explicitly excluded from acceptance coverage."
 }
