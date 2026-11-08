@@ -68,7 +68,7 @@ document owns are:
 - **Client key.** The proposal key `client_key`, scoped to the trusted
   invocation; it never becomes a global finding ID.
 - **Creation facade.** One of the Toolsets `security-findings@1`,
-  `security-findings-code@1` and `security-findings-http@1`, each exporting
+  `security-findings-code@1`, `security-findings-trace@1` and `security-findings-http@1`, each exporting
   the model-visible tool `finding` with its own required arguments.
 - **Typed location.** A closed Source or Web object that records where the
   producer claims a finding is.
@@ -262,6 +262,7 @@ creation facade in `AgentTemplate.toolsets`:
 | --- | --- | --- |
 | `security-findings@1` | `title`, `description` | typed `locations` |
 | `security-findings-code@1` | `title`, `description`, `file` | `line` or `range` |
+| `security-findings-trace@1` | `title`, `description`, `file`, one `line` or `range` | current overlay coordinates, automatic exact evidence and translation (FND-R230) |
 | `security-findings-http@1` | `title`, `description`, `url`, `method` | `request_id` |
 
 **FND-R17.** Each creation facade exports the single visible name
@@ -2044,3 +2045,11 @@ Artifact owner and allocation. See FAIL-FND-3/4/5/9 and LIFE-FND-2/3.
 - Live CWE taxonomy lookup (FND-R31).
 - GitHub-specific upload/profile, source maps and remediation inference. Generic
   Audit-local SARIF export is specified by FND-R197 through FND-R208.
+
+## Findings from annotated tracing workspaces
+
+**FND-R230.** `security-findings-trace@1` exports `finding` with the code-finding arguments and current overlay coordinates. One explicit line or range is required. Runtime atomically captures the selected file against its exact hydration source, translates insertion-only annotation lines to original-source coordinates and calls the ordinary finding publisher. Added annotation lines map to the following original declaration; both range endpoints are translated. Unsupported edits or unavailable coordinates fail permanently before intake. The model performs no offset calculation.
+
+**FND-R231.** Each trace call saves one immutable ordinary JSON proof with the exact original source descriptor/path/digest, translated range and an annotated workspace snippet with its current coordinates and digest. The selected range and context window follow the existing filesystem window bounds; the escaped JSON envelope follows LIM-FND-55. Evidence includes the original exact source and proof. Ordinary receipts, publication intent, Audit membership and Project retention apply. Saved proof names derive from logical invocation and tool-call identity; replay checks identical arguments and uses the saved proof before reading mutable workspace. Existing exact Artifact write reconciliation owns ambiguous writes.
+
+Boundary decision (user, 2026-11-08): keep coordinate interpretation in a separately selected trace facade named `finding` for the model. Reuse ordinary FindingPublisher rather than changing general/code/HTTP tool semantics or imposing a reporting-before-annotation sequence. Workspace owns atomic source/current reads; the trace facade owns bounded translation/evidence. Reopen for a concrete consumer requiring substantive source edits, renamed files or semantic reconciliation.

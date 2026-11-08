@@ -11,6 +11,7 @@ from typing import Any, Literal
 
 import jcs
 
+from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.core.lines import split_patch_lines
 from contractor_runtime.digests import jcs_digest
 from contractor_runtime.projectfs.config import WorkspaceLimits
@@ -24,6 +25,9 @@ from contractor_runtime.projectfs.storage import (
     WorkspaceChangesView,
     WorkspaceDiff,
     WorkspaceSnapshot,
+    WorkspaceSourceFile,
+    WorkspaceSourceReader,
+    WorkspaceSourceView,
     WorkspaceStorageError,
     _copy_subtree,
     _copy_tree,
@@ -90,6 +94,7 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
         directories: set[str],
         text_files: dict[str, str],
         binary_paths: set[str],
+        source_origins: dict[str, tuple[ArtifactRef, str]] | None = None,
     ) -> None:
         super().__init__(
             mode="overlay",
@@ -99,6 +104,7 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
             text_files=text_files,
             binary_paths=binary_paths,
         )
+        self._source_origins = dict(source_origins or {})
         self._source = self._tree.clone()
         self._checkpoint = self._tree.clone()
         # Managed text bytes of one effective tree. Writes adjust it instead
@@ -108,6 +114,27 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
         # The latest diff query and the generation it rendered. Diff worker
         # threads and close replace it, always under the session lock.
         self._diff_cache: tuple[int, _DiffPager] | None = None
+
+    def source_view(self) -> WorkspaceSourceReader:
+        return WorkspaceSourceView(self)
+
+    async def capture_source_file(self, path: str) -> WorkspaceSourceFile:
+        normalized = _normalized_path(path)
+        async with self._lock:
+            self._require_open()
+            origin = self._source_origins.get(normalized)
+            if origin is None or normalized not in self._source.text_files:
+                raise WorkspaceStorageError("workspace_source_unavailable")
+            if self._tree.kind(normalized) != "text":
+                raise WorkspaceStorageError("workspace_source_unavailable")
+            ref, source_path = origin
+            return WorkspaceSourceFile(
+                path=normalized,
+                source_path=source_path,
+                source_ref=ref,
+                original=self._source.text_files[normalized],
+                current=self._tree.text_files[normalized],
+            )
 
     async def write_text(self, path: str, text: str) -> None:
         normalized = normalize_project_path(path, allow_root=False)
@@ -479,6 +506,7 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
         async with asyncio.timeout_at(deadline), self._lock:
             self._closed = True
             self._diff_cache = None
+            self._source_origins.clear()
             for tree in (self._tree, self._source, self._checkpoint):
                 tree.directories.clear()
                 tree.text_files.clear()

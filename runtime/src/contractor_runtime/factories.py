@@ -58,6 +58,7 @@ from contractor_runtime.toolsets.security_findings.facades import (
     GeneralFindingsToolsetFactory,
     HTTPFindingsToolsetFactory,
 )
+from contractor_runtime.toolsets.security_findings.trace import TraceFindingsToolsetFactory
 from contractor_runtime.toolsets.sitemap.tools import SitemapToolsetFactory, import_sitemap_report
 from contractor_runtime.toolsets.source_analysis.tools import SourceAnalysisToolsetFactory
 from contractor_runtime.toolsets.taint_annotations.tools import TaintAnnotationsToolsetFactory
@@ -74,6 +75,7 @@ if TYPE_CHECKING:
     from contractor_runtime.projectfs.storage import (
         WorkspaceChanges,
         WorkspaceReader,
+        WorkspaceSourceReader,
         WorkspaceWriter,
     )
     from contractor_runtime.worker.state import WorkerStateStore
@@ -187,7 +189,11 @@ class ToolsetFactory(Protocol):
         workspace: AllocationWorkspace,
         resources: ToolResources,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
-        project_workspace: WorkspaceReader | WorkspaceWriter | WorkspaceChanges | None = None,
+        project_workspace: WorkspaceReader
+        | WorkspaceWriter
+        | WorkspaceChanges
+        | WorkspaceSourceReader
+        | None = None,
     ) -> Mapping[str, ToolInstance]: ...
 
 
@@ -333,6 +339,7 @@ def built_in_factories(
                 artifact_client_factory
             ),
             CodeFindingsToolsetFactory.ref: CodeFindingsToolsetFactory(artifact_client_factory),
+            TraceFindingsToolsetFactory.ref: TraceFindingsToolsetFactory(artifact_client_factory),
             HTTPFindingsToolsetFactory.ref: HTTPFindingsToolsetFactory(artifact_client_factory),
             caido_toolset.ref: caido_toolset,
             interactsh_toolset.ref: interactsh_toolset,

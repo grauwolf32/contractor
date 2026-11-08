@@ -139,18 +139,24 @@ async def hydrate_workspace(
             accumulator.local = await to_thread_until_done(
                 initialize_local, name="workspace-zip-hydration"
             )
+        source_origins: dict[str, tuple[ArtifactRef, str]] = {}
         for source in spec.sources:
             if time.monotonic() >= deadline:
                 raise _capacity()
             value = await _read_artifact(artifact_reader, source.artifact, deadline, archive=True)
             if value.artifact != source.artifact or value.media_type != WORKSPACE_SOURCE_MEDIA_TYPE:
                 raise _invalid_source()
+            previous_paths = set(accumulator.text_files)
             await to_thread_until_done(
                 lambda value=value, target=source.target: _extract_archive(
                     value.data, target, accumulator, deadline
                 ),
                 name="workspace-zip-hydration",
             )
+            prefix = source.target.rstrip("/")
+            for path in accumulator.text_files.keys() - previous_paths:
+                relative = path[len(prefix) + 1 :] if prefix else path
+                source_origins[path] = (source.artifact, relative)
         arguments = dict(
             storage=storage,
             limits=limits,
@@ -159,7 +165,7 @@ async def hydrate_workspace(
             binary_paths=accumulator.binary_paths,
         )
         if spec.mode == "overlay":
-            overlay = OverlayWorkspaceSession(**arguments)
+            overlay = OverlayWorkspaceSession(**arguments, source_origins=source_origins)
             if spec.state is not None:
                 value = await _read_artifact(artifact_reader, spec.state.artifact, deadline)
                 if (

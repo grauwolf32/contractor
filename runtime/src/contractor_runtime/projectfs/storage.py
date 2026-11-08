@@ -10,7 +10,7 @@ from typing import Protocol
 
 import jcs
 
-from contractor_runtime.contracts import WorkspaceMode
+from contractor_runtime.contracts import ArtifactRef, WorkspaceMode
 from contractor_runtime.projectfs.config import WorkspaceLimits
 from contractor_runtime.projectfs.errors import WorkspaceStorageError as WorkspaceStorageError
 from contractor_runtime.projectfs.paths import (
@@ -59,6 +59,31 @@ class WorkspaceChange:
     path: str
     change: str
     token: str = field(repr=False)
+
+
+@dataclass(frozen=True, slots=True)
+class WorkspaceSourceFile:
+    """One atomic file capture relative to its immutable hydration source."""
+
+    path: str
+    source_path: str
+    source_ref: ArtifactRef
+    original: str = field(repr=False)
+    current: str = field(repr=False)
+
+
+class WorkspaceSourceReader(Protocol):
+    async def capture_source_file(self, path: str) -> WorkspaceSourceFile: ...
+
+
+class WorkspaceSourceView:
+    __slots__ = ("__reader",)
+
+    def __init__(self, reader: WorkspaceSourceReader) -> None:
+        self.__reader = reader
+
+    async def capture_source_file(self, path: str) -> WorkspaceSourceFile:
+        return await self.__reader.capture_source_file(path)
 
 
 class WorkspaceReader(Protocol):
@@ -267,6 +292,9 @@ class DirectWorkspaceSession:
     def writer_view(self) -> WorkspaceWriter:
         self._require_open()
         return WorkspaceWriterView(self)
+
+    def source_view(self) -> WorkspaceSourceReader:
+        raise WorkspaceStorageError("workspace_mode_unsupported")
 
     def changes_view(self) -> WorkspaceChanges:
         raise WorkspaceStorageError("workspace_mode_unsupported")

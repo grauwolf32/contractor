@@ -213,7 +213,7 @@ func TestFindingsProducerAndReaderAcrossProcesses(t *testing.T) {
 	}
 	receipt := receipts[0]
 	if receipt.Origin.Audit == nil || receipt.Origin.Audit.AuditID != auditID ||
-		receipt.Document.Hypothesis != "" || receipt.Document.Subject != nil || len(receipt.Evidence) != 1 {
+		receipt.Document.Hypothesis != "" || receipt.Document.Subject != nil || len(receipt.Evidence) != 3 {
 		t.Fatalf("generic direct finding origin/content = %+v", receipt)
 	}
 	assertFindingsResultReceipt(t, h, runID, receipt)
@@ -263,7 +263,8 @@ func TestFindingsProducerAndReaderAcrossProcesses(t *testing.T) {
 func findingsProducerStage(name string) domainGatewayStage {
 	tools := append([]string{"list_skills", "load_skill", "load_skill_resource",
 		"read_audit_task", "submit_check_result", "ls", "glob", "grep", "read_file",
-		"write_text_artifact", "finding"}, completeCodeAnalysisTools...)
+		"write_text_artifact", "finding", "annotate_trace", "annotate_validate", "annotate_sink",
+		"changed_paths", "diff", "rollback_changes"}, completeCodeAnalysisTools...)
 	return domainGatewayStage{name: "findings/" + name, tools: withMemoryTools(tools), steps: []domainGatewayStep{
 		toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})),
 		toolGatewayStep("graph_summary", fixedArguments(map[string]any{})),
@@ -339,7 +340,7 @@ func findingsReaderStage(count int, pageSizes ...int) domainGatewayStage {
 		}
 		reads := findingsToolResponses(request, "read_artifact")
 		if len(reads) != 2*count {
-			return nil, fmt.Errorf("reader did not open all full documents")
+			return nil, fmt.Errorf("reader did not open proposals and selected text evidence")
 		}
 		report := fmt.Sprintf("# Findings analysis\n\nCollection: %d proposals.\n", count)
 		for i, raw := range items {
@@ -382,10 +383,23 @@ func findingsDocumentArguments(index int, evidence bool) func(map[string]any) (m
 		document := item["proposal"].(map[string]any)
 		if evidence {
 			values, ok := item["evidence"].([]any)
-			if !ok || len(values) != 1 {
+			if !ok {
 				return nil, fmt.Errorf("reader evidence is missing")
 			}
-			document = values[0].(map[string]any)
+			var selected map[string]any
+			for _, value := range values {
+				candidate := value.(map[string]any)
+				if candidate["media_type"] == "text/plain" {
+					if selected != nil {
+						return nil, fmt.Errorf("reader text evidence is ambiguous")
+					}
+					selected = candidate
+				}
+			}
+			if selected == nil {
+				return nil, fmt.Errorf("reader text evidence is missing")
+			}
+			document = selected
 		}
 		ref, ok := document["ref"].(map[string]any)
 		if !ok || !strings.HasPrefix(fmt.Sprint(ref["namespace"]), "findings-") || ref["revision"] == nil {
@@ -565,7 +579,9 @@ func ordinaryFindingsProducerStage(name string) domainGatewayStage {
 	stage := findingsProducerStage(name)
 	tools := make([]string, 0, len(stage.tools))
 	for _, tool := range stage.tools {
-		if tool != "read_audit_task" && tool != "submit_check_result" {
+		if tool != "read_audit_task" && tool != "submit_check_result" &&
+			tool != "annotate_trace" && tool != "annotate_validate" && tool != "annotate_sink" &&
+			tool != "changed_paths" && tool != "diff" && tool != "rollback_changes" {
 			tools = append(tools, tool)
 		}
 	}

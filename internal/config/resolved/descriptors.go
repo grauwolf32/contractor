@@ -159,6 +159,11 @@ func builtInDescriptors() descriptorTable {
 				Tools:                []string{"finding"},
 				FindingProposalTools: []string{"finding"},
 			},
+			"security-findings-trace@1": {
+				Tools:                []string{"finding"},
+				FindingProposalTools: []string{"finding"},
+				RequiresWorkspace:    true,
+			},
 			"security-findings-http@1": {
 				Tools:                []string{"finding"},
 				FindingProposalTools: []string{"finding"},

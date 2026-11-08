@@ -46,6 +46,7 @@ from contractor_runtime.toolsets.common.cursors import (
 )
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.filesystem_errors import FilesystemToolError
+from contractor_runtime.toolsets.common.line_window import MAX_READ_BYTES, MAX_READ_LINES
 from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -56,9 +57,7 @@ MAX_GREP_SECONDS = 1.0
 MAX_GREP_PATTERN_CHARS = 512
 MAX_GREP_LINE_CHARS = 65_536
 MAX_EXCERPT_CHARS = 500
-MAX_READ_LINES = 400
 DEFAULT_READ_LINES = 200
-MAX_READ_BYTES = 128 * 1024
 MAX_READ_SCAN_BYTES = 16 * 1024 * 1024
 REGEX_LINE_TIMEOUT_SECONDS = 0.01
 
