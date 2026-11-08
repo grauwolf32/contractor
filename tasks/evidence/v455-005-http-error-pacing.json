@@ -1,0 +1,92 @@
+{
+  "verified_at": "2026-11-07T22:46:23.353465+03:00",
+  "audit_id": "audit_d220eabdf35b48e9fbb9cceb18f21feb",
+  "run_id": "run_bb89459d503a5096536a7b4b173e94e1",
+  "run_url": "http://127.0.0.1:4174/runs/run_bb89459d503a5096536a7b4b173e94e1",
+  "state": "failed",
+  "failure_code": "worker_budget_exhausted",
+  "started_at": "2026-11-07T22:38:03.397606+03:00",
+  "finished_at": "2026-11-07T22:44:59.515996+03:00",
+  "runtime_revision": "9d8bc588ca3c1f8829756d329f7cc5f8b1b09e04",
+  "model": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+  "model_changed": false,
+  "worker_model_calls": 199,
+  "worker_tool_calls": 200,
+  "worker_tool_failures": 79,
+  "tools": {
+    "http_history": 75,
+    "http_request": 118,
+    "http_credential_read": 2,
+    "http_credentials": 1,
+    "read_text_artifact": 3,
+    "read_audit_task": 1
+  },
+  "trace_count": 405,
+  "spans": {
+    "contractor.worker.a2a_task": 1,
+    "contractor.worker.error": 1,
+    "contractor.worker.model": 199,
+    "contractor.worker.tool": 200,
+    "contractor.planner.invocation": 1,
+    "contractor.planner.worker": 1,
+    "contractor.planner.session": 2
+  },
+  "traces": [
+    {
+      "trace_id": "65a9983e2ca17873c4b6ff1d8eec4f7a",
+      "span_count": 401,
+      "participants": [
+        "worker"
+      ]
+    },
+    {
+      "trace_id": "a978760ea23eba851e2c2d56c78b9757",
+      "span_count": 4,
+      "participants": [
+        "planner"
+      ]
+    }
+  ],
+  "export_diagnostics": [
+    {
+      "logicalAgent": "verifier",
+      "status": "available",
+      "complete": true,
+      "durationMs": "416014",
+      "stopReason": "finalized",
+      "stopReasonTruncated": false,
+      "adapters": [
+        {
+          "ref": "otlp-http@1",
+          "operations": "2",
+          "failedOperations": "0",
+          "flushAttempted": true,
+          "flushSucceeded": true,
+          "droppedSpans": {
+            "queueOverflow": "0",
+            "encodingFailed": "0",
+            "nonRetryable": "0",
+            "retryExhausted": "0",
+            "collectorRejected": "0",
+            "deadlineExceeded": "0",
+            "cancelled": "0",
+            "shutdown": "0"
+          }
+        }
+      ]
+    }
+  ],
+  "findings": 0,
+  "observation": "Worker repeatedly alternated http_request and http_history after successful HTTP calls stopped at 39. Subsequent HTTP failures were local and immediate. Recorded tool diagnostics classify them generically as ControlledHTTPError; precise underlying HTTP reason is not retained here. Tool budget 200 ended the invocation. Runtime finalized normally, trace flush succeeded, no spans dropped.",
+  "failed_http_span_error_types": {
+    "ControlledHTTPError": 79
+  },
+  "failed_http_span_durations_ms": {
+    "1": 72,
+    "3": 2,
+    "2": 5
+  },
+  "confirmed_code_defect": "Transport http_limit_exceeded is mapped to generic http_request_failed. ControlledHTTPError overrides base retryability to false, and the instrumented model response forwards false. The prior true claim was incorrect.",
+  "incident_cause_status": "Unconfirmed: original transport reason and exact physical send count are absent from retained incident telemetry. Exhausted targetRequests=40 is a hypothesis.",
+  "delay_policy_status": "Open user question on 2026-11-08; no delay or runtime behavior changed."
+}

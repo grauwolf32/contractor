@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-67 open tasks: 9 in progress, 45 pending, 13 deferred. 1512 finished: 1494 completed, 18 archived.
+68 open tasks: 9 in progress, 46 pending, 13 deferred. 1512 finished: 1494 completed, 18 archived.
 
 ## In progress
 
@@ -48,6 +48,7 @@ the epics are in [epics.yml](epics.yml).
 | [V410-037](v410-037-allocation-openvpn-bridge-egress.yml) | feature | P2 | — | Route bridge egress through an allocation-owned OpenVPN tunnel |
 | [V412-001](v412-001-managed-pentest-browser.yml) | feature | P2 | — | Add allocation-owned browser investigation with explicit network authority |
 | [V412-004](v412-004-trusted-pentest-callback-proof.yml) | feature | P2 | V411-015, V411-016 | Use existing Interactsh tools as bounded HTTP investigation evidence |
+| [V455-005](v455-005-http-error-pacing.yml) | defect | P1 | — | Preserve HTTP failure reasons and decide how to bound repeated failed calls |
 
 ### Scanner tool Workers and scan planning (`scan-tools`)
 
@@ -160,12 +161,12 @@ tasks in `introduced_by`.
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 15 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
-| HTTP and Caido tools (`http-tools`) | 5 | 24 | 32 | 15 | 35 |
+| HTTP and Caido tools (`http-tools`) | 6 | 24 | 33 | 15 | 35 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 3 | 17 | 10 | 10 | 21 |
 | Findings tools and collections (`findings`) | 0 | 17 | 12 | 11 | 19 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 23 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 39 | 19 | 69 |
-| Audits (`audits`) | 10 | 69 | 97 | 42 | 166 |
+| Audits (`audits`) | 10 | 69 | 97 | 42 | 167 |
 | Evaluations (`evals`) | 5 | 22 | 41 | 17 | 50 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
 | Web UI (`ui`) | 1 | 51 | 79 | 28 | 76 |
