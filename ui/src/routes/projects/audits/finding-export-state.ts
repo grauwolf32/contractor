@@ -62,6 +62,7 @@ export function useFindingExport(auditId: string) {
   const conflict =
     publication.error instanceof PublicAPIError &&
     publication.error.status === 409;
+  const canRetry = publication.isError && !conflict;
   function changed() {
     attempt.current = undefined;
     setPublished(undefined);
@@ -96,6 +97,7 @@ export function useFindingExport(auditId: string) {
     publication,
     download,
     conflict,
+    canRetry,
     busy: publication.isPending || download.isPending,
     clear() {
       changed();
@@ -118,6 +120,11 @@ export function useFindingExport(auditId: string) {
       if (value === includeDuplicates) return;
       changed();
       setIncludeDuplicates(value);
+    },
+    retry() {
+      // Replay the retained request; live revisions only govern new exports.
+      if (canRetry && attempt.current !== undefined)
+        publication.mutate(attempt.current);
     },
     publish() {
       if (attempt.current === undefined)

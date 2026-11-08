@@ -295,6 +295,193 @@ it("keeps the selected revision when a refreshed canonical finding changes", asy
     );
 });
 
+for (const projection of [
+  "changed finding",
+  "pending read",
+  "failed read",
+] as const) {
+  it(`replays a lost publication despite a ${projection} and downloads the saved export`, async () => {
+    saved.mockClear();
+    const published = await publishedExport(1, 1);
+    const posts: string[] = [];
+    const replay = deferred<Response>();
+    const refresh = deferred<Response>();
+    const server = fakeServer({
+      "GET /v1/audits/{auditId}/findings": () => json(findingPage([first])),
+      "POST /v1/audits/{auditId}/findings/exports": async ({ request }) => {
+        posts.push(await request.text());
+        // The first publication committed, but no response reached the client.
+        if (posts.length === 1) throw new TypeError("Response lost");
+        return replay.promise;
+      },
+      "GET /v1/audits/{auditId}/findings/exports/{exportId}/content": () =>
+        bytes(EXPORT_BYTES, "application/json", { ETag: '"r1"' }),
+    });
+    let changeAudit: (next: typeof check) => void = () => {};
+    function CurrentCheck() {
+      const [current, change] = useState(check);
+      changeAudit = change;
+      return <AuditFindings audit={current} />;
+    }
+    const view = renderWithAPI(<CurrentCheck />, { server });
+    await screen.findByText("First issue");
+    open();
+    await view.user.click(
+      screen.getByRole("button", { name: "Select this page" }),
+    );
+    await view.user.click(
+      screen.getByRole("button", { name: "Create SARIF export" }),
+    );
+    await screen.findByText("Could not create the SARIF export");
+    expect(posts).toHaveLength(1);
+
+    if (projection === "pending read") {
+      server.route("GET /v1/audits/{auditId}/findings", () =>
+        refresh.promise.then((response) => response.clone()),
+      );
+      await act(() => changeAudit({ ...check, revision: 2 }));
+      await waitFor(() =>
+        expect(server.sent("GET", "/findings").length).toBeGreaterThan(1),
+      );
+    } else {
+      server.route("GET /v1/audits/{auditId}/findings", () =>
+        projection === "changed finding"
+          ? json(findingPage([{ ...first, revision: 2 }]))
+          : failure(503, "storage_transaction_conflict", "Read unavailable"),
+      );
+      await act(() =>
+        view.queryClient.invalidateQueries({
+          queryKey: queryKeys.audits.allFindings(check.auditId),
+        }),
+      );
+      await screen.findByText(
+        /This check or a selected possible issue changed/,
+      );
+    }
+    expect(screen.getByText("1 selected for export")).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Select this page" }),
+    ).toBeDisabled();
+    const retry = screen.getByRole("button", { name: "Retry export" });
+    expect(retry).toBeEnabled();
+    await view.user.click(retry);
+    await waitFor(() => expect(posts).toHaveLength(2));
+    expect(posts[1]).toBe(posts[0]);
+    expect(JSON.parse(posts[1]!) as FindingExportRequest).toMatchObject({
+      includeDuplicates: false,
+      findings: [{ findingId: first.findingId, revision: 1 }],
+    });
+    expect(
+      screen.getByRole("button", { name: "Creating export…" }),
+    ).toBeDisabled();
+    await act(() => replay.resolve(json({ ...published, replayed: true })));
+    await screen.findByText(/Export ready: 1 result from 1 selected/);
+    await view.user.click(
+      screen.getByRole("button", { name: "Download SARIF" }),
+    );
+    await waitFor(() => expect(saved).toHaveBeenCalledTimes(1));
+    expect(posts).toHaveLength(2);
+    if (projection === "pending read")
+      await act(() =>
+        refresh.resolve(json({ ...findingPage([first]), auditRevision: 2 })),
+      );
+  });
+}
+
+it("requires clear and refresh when an unchanged ambiguous retry returns a conflict", async () => {
+  const posts: string[] = [];
+  const server = fakeServer({
+    "GET /v1/audits/{auditId}/findings": () => json(findingPage()),
+    "POST /v1/audits/{auditId}/findings/exports": async ({ request }) => {
+      posts.push(await request.text());
+      if (posts.length === 1)
+        throw new TypeError("Response lost before commit");
+      return conflict();
+    },
+  });
+  const view = renderWithAPI(<AuditFindings audit={check} />, { server });
+  await screen.findByText("First issue");
+  open();
+  await view.user.click(
+    screen.getByRole("button", { name: "Select this page" }),
+  );
+  await view.user.click(
+    screen.getByRole("button", { name: "Create SARIF export" }),
+  );
+  await screen.findByText("Could not create the SARIF export");
+  server.route("GET /v1/audits/{auditId}/findings", () =>
+    json(findingPage([{ ...first, revision: 2 }, second])),
+  );
+  await act(() =>
+    view.queryClient.invalidateQueries({
+      queryKey: queryKeys.audits.allFindings(check.auditId),
+    }),
+  );
+  await screen.findByText(/This check or a selected possible issue changed/);
+  await view.user.click(screen.getByRole("button", { name: "Retry export" }));
+  await waitFor(() => expect(posts).toHaveLength(2));
+  expect(posts[1]).toBe(posts[0]);
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Retry export" })).toBeDisabled(),
+  );
+  expect(screen.getByText("2 selected for export")).toBeVisible();
+  expect(
+    screen.getByRole("checkbox", { name: "Include duplicates" }),
+  ).toBeDisabled();
+  await view.user.click(
+    screen.getByRole("button", { name: "Clear selection and refresh" }),
+  );
+  expect(screen.getByText("0 selected for export")).toBeVisible();
+  expect(posts).toHaveLength(2);
+});
+
+for (const change of ["selection", "duplicate option"] as const) {
+  it(`starts a new publication intent after changing the ${change} following response loss`, async () => {
+    const posts: FindingExportRequest[] = [];
+    const server = fakeServer({
+      "GET /v1/audits/{auditId}/findings": () => json(findingPage()),
+      "POST /v1/audits/{auditId}/findings/exports": async ({ request }) => {
+        const body = (await request.json()) as FindingExportRequest;
+        posts.push(body);
+        if (posts.length === 1) throw new TypeError("Response lost");
+        return json(
+          await publishedExport(body.findings.length, body.findings.length),
+          201,
+        );
+      },
+    });
+    const view = renderWithAPI(<AuditFindings audit={check} />, { server });
+    await screen.findByText("First issue");
+    open();
+    await view.user.click(
+      screen.getByRole("button", { name: "Select this page" }),
+    );
+    await view.user.click(
+      screen.getByRole("button", { name: "Create SARIF export" }),
+    );
+    await screen.findByText("Could not create the SARIF export");
+    await view.user.click(
+      screen.getByRole("checkbox", {
+        name:
+          change === "selection"
+            ? "Select Second issue for export"
+            : "Include duplicates",
+      }),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Retry export" }),
+    ).not.toBeInTheDocument();
+    await view.user.click(
+      screen.getByRole("button", { name: "Create SARIF export" }),
+    );
+    await screen.findByText(/Export ready/);
+    expect(posts).toHaveLength(2);
+    expect(posts[1]!.clientKey).not.toBe(posts[0]!.clientKey);
+    expect(posts[1]!.includeDuplicates).toBe(change === "duplicate option");
+    expect(posts[1]!.findings).toHaveLength(change === "selection" ? 1 : 2);
+  });
+}
+
 it("blocks publication from the prior check revision until the view refreshes", async () => {
   let revision = check.revision;
   const server = fakeServer({

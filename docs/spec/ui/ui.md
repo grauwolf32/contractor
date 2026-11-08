@@ -1541,9 +1541,13 @@ or copying ratings. Changing selection or option starts an explicit new
 publication intent; retrying an unchanged ambiguous or retryable publication
 uses the original exact body and client key, with no automatic mutation retry.
 
-**UI-R212.** A changed page or selected revision and a publication conflict
-require explicit clear/refresh; refetching cannot silently replace selected
-revisions. Publication controls remain disabled in flight. After publication,
+**UI-R212.** A changed page or selected revision requires explicit clear/refresh
+before creating a new export; refetching cannot silently replace selected
+revisions. An unchanged retained publication request can still be retried after
+an ambiguous or retryable failure while live reads are stale, pending or failed,
+using its original body and key (FND-R200). A publication conflict requires
+explicit clear/refresh and cannot be retried. Publication controls remain
+disabled in flight. After publication,
 **Download SARIF** reads the saved export ID; failed downloads can be repeated
 without another publication. Snapshot and diagnostics downloads and the saved
 time remain under Technical details. Each part is streamed under its public

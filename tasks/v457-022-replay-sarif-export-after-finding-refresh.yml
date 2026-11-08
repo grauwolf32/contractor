@@ -1,0 +1,63 @@
+schema_version: "1.0"
+id: V457-022
+title: Replay the unchanged SARIF export request after a finding refresh
+milestone: release-gate-2026-10
+epic: findings
+kind: defect
+introduced_by: V457-017
+priority: P1
+status: in_progress
+depends_on: []
+languages: [typescript]
+goal: An owner can recover a saved SARIF export after an ambiguous response even when live finding revisions have advanced.
+context:
+  authority: User report on 2026-11-08 requests the correction on the existing separate release-polish branch.
+  specification:
+    - docs/spec/findings/findings.md
+    - docs/spec/ui/ui.md
+  severity: high
+  finding: >-
+    ui/src/routes/projects/audits/finding-export.tsx:110 disables Retry export
+    on stale findings or a pending list read. The original body and key remain
+    in finding-export-state.ts, but the only enabled stale recovery action
+    clears that attempt. A committed export whose response was lost cannot be
+    recovered despite FND-R200 replay preceding live finding validation.
+  boundary: >-
+    Separate retry of the retained exact request from creation of a new export.
+    The existing Server receipt remains authoritative; no new endpoint, storage
+    or retry mechanism. New exports still require fresh reads. Explicit changes
+    clear the attempt, 409 requires clear/refresh, and navigation cancels transport.
+  siblings: >-
+    Cover changed selected findings, newer Audit heads with pending reads and
+    failed list reads. Preserve bounds, cross-page selection, duplicate-option
+    identity changes, 409 conflicts, frozen downloads and unmount cancellation.
+  verification: >-
+    Four new transport-loss regressions fail on the original implementation.
+    After the repair, all 64 tests in the thirteen affected API/Audit suites
+    pass, including six added regressions comparing the complete raw JSON
+    request, recovering a frozen download, blocking 409 replay and replacing
+    an explicitly changed intent. Full make ui-verify passes: generation,
+    ESLint/Prettier, UI/e2e TypeScript, 2483 ordinary tests, one intentional
+    negative harness self-test, seventeen static-server tests and production
+    build. Independent read-only review found no actionable defect.
+scope:
+  in:
+    - Separate retained-request replay from new-export freshness checks in the existing hook and panel.
+    - Add real-component regressions for response loss followed by stale or unavailable live projections.
+    - Clarify UI-R212 to distinguish replay from new publication and bump the UI patch version.
+  out:
+    - Backend changes, new receipts, automatic mutation retries or changes to canonical Finding state.
+acceptance_criteria:
+  - id: A1
+    text: After response loss and a selected finding update, Retry export sends the identical body and key and exposes the saved download.
+  - id: A2
+    text: Pending or failed live reads do not block replay, while new creation and 409 conflicts retain their freshness guards; explicit selection or option changes start a new identity.
+  - id: A3
+    text: The new regression fails on the unfixed implementation; affected suites, complete UI verification and lint pass.
+tests:
+  - command: cd ui && corepack pnpm test --run src/api/finding-exports.test.ts src/routes/projects/audits
+    covers: [A1, A2, A3]
+  - command: make ui-verify
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]

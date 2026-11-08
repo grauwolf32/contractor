@@ -109,14 +109,13 @@ export function FindingExportPanel({
             size="sm"
             disabled={
               state.selected.size === 0 ||
-              readPending ||
-              stale ||
+              (!state.canRetry && (readPending || stale)) ||
               conflict ||
               state.download.isPending
             }
             pending={state.publication.isPending}
             pendingLabel="Creating export…"
-            onClick={state.publish}
+            onClick={state.canRetry ? state.retry : state.publish}
           >
             {error === null ? "Create SARIF export" : "Retry export"}
           </Button>
