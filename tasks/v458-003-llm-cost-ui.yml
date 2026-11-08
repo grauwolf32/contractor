@@ -1,0 +1,66 @@
+schema_version: '1.0'
+id: V458-003
+title: Show coherent LLM costs on Run Audit and Project
+milestone: llm-cost-reporting-2026-11
+epic: ui
+kind: feature
+priority: P1
+status: pending
+depends_on: [V458-002]
+languages: [typescript, css, markdown]
+goal: Let users see Project lifetime cost, Audit cost beside progress, and individual Run costs through the approved Contractor design without misleading precision or coverage.
+demonstration: Production UI reads real prepared API summaries, opens Audit cost details and activity/model breakdown, shows per-Run cost in Work and Project total without counting child Runs again, at 390 and 1440 pixels in all three themes (A1-A3).
+context:
+  authority: 'User approved the combined Audit/Project proposal on 2026-11-08 and requested implementation. Conversation mockup audit-project-cost-context is the visual reference; its values are synthetic and must not become production state.'
+  specification: docs/spec/ui/ui.md
+scope:
+  in:
+  - Reusable cost card/detail with existing UI blocks and theme/type tokens.
+  - Project summary, Audit Workspace card/details and Run/Work cost rendering from real API data.
+  - Honest source/coverage, refresh and error states, mobile layout, package release bump and preview.
+  out:
+  - Pricing editor, invented client-side prices, billing budgets, unrelated redesign, merge and demo deployment.
+requirements:
+- id: R1
+  text: Preserve existing UI language, progress/timeline/result actions and navigation. Show Reported/Estimate independently of Partial/Pending/Unavailable; no unknown cost is rendered as zero. Positive amounts below one cent render as less than $0.01 with exact decimal available in details.
+- id: R2
+  text: Present the approved compact Audit card beside progress, inline activity/model details, per-Run Work cost and Project total with checks/standalone separation. Use Server prepared aggregates with no Run fan-out or client-side floating-point accounting.
+- id: R3
+  text: Use existing safe polling/backoff and terminal refetch; stop polling settled cost. Stable context navigation and responsive 390-pixel light/dark/black themes preserve all existing actions and common fonts.
+failure_outcomes:
+- operation: Cost summary read and refresh
+  permanent: Unauthorized/not-found states follow existing entity handling; absent data is explicitly unavailable.
+  retryable: Existing query backoff and visible read error; do not overwrite last known cost with zero.
+  ambiguous: Refetch the read-only summary; never submit inference or repeat a mutation.
+  cancelled: Existing query cancellation owns navigation and unmount.
+  timeout: Existing API read timeout applies independently of inference.
+cardinality:
+- collection: Cost UI data
+  expected: One prepared summary per visible owning scope
+  maximum: API-bounded model/phase groups and ordinary visible task page
+  bound: Details are local or loaded on disclosure; no whole Project history scan in the browser.
+lifecycle:
+- entity: UI cost projection
+  delete: Existing route/query lifecycle removes views; retained Server cost follows V458-002.
+  cascade: No synthetic amount is stored in product state.
+  retention: Existing query cache only; Server remains authoritative.
+acceptance_criteria:
+- id: A1
+  given: Reported, estimated, partial, pending, unavailable, zero and tiny positive amounts
+  when: Production Run/Audit/Project routes render and refresh
+  then: Values, exact detail, source and coverage are truthful and totals are never double counted.
+- id: A2
+  given: Approved combined design and all existing result/navigation actions
+  when: Browser journeys run at 390/1440 pixels in light/dark/black
+  then: Cards, disclosure, Work amounts and Project total match the design with shared typography and no overflow or navigation jump.
+- id: A3
+  given: Failed reads, terminal transitions and stale cached data
+  when: Queries settle or navigation changes
+  then: Existing backoff/cancellation/terminal-refetch rules hold and unavailable data never becomes a fabricated zero.
+tests:
+- command: make ui-verify
+  covers: [A1, A2, A3]
+- command: make ui-browser-mocked
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A1, A2, A3]

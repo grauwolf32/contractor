@@ -286,6 +286,9 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
+  - id: llm-cost-reporting-2026-11
+    exit_task: V458-003
+    outcome: Run, Audit and Project show durable attributed LLM costs from recorded provider or Gateway observations, including honest coverage and the approved responsive UI.
   - id: standalone-run-engagement
     exit_task: V449-001
     outcome: Ordinary projectless and Project Runs apply a pinned typed engagement input with validated credentials and controlled allocation-local HTTP execution, verified through real PostgreSQL and Server/Runtime traffic.

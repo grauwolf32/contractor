@@ -1,0 +1,69 @@
+schema_version: '1.0'
+id: V458-001
+title: Preserve bounded provider and Gateway costs in execution reports
+milestone: llm-cost-reporting-2026-11
+epic: operations
+kind: feature
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go, python, markdown, json]
+goal: Preserve monetary cost already returned by the configured Gateway together with its source, model, phase and coverage, without changing inference or the configured model.
+demonstration: A scripted OpenRouter-through-LiteLLM response reaches the ordinary Go Planner and Python Worker paths; their retained reports preserve equal exact USD amounts, including auxiliary phases and failed physical attempts, with missing costs distinct from zero (A1-A3).
+context:
+  authority: 'User decisions 2026-11-07/08 request research, approve the Audit/Project cost design and authorize implementation. A bounded live request on 2026-11-08 verified equal OpenRouter usage.cost and LiteLLM cost headers on installed LiteLLM 1.85.0. Implementation proposals: canonical USD decimals with up to 18 fractional/integer digits; at most 64 model/phase/source groups per report, with unavailable coverage for rejected or overflowing observations.'
+  specification: docs/spec/platform/observability.md#usage-attribution
+  design: 'Approved conversation mockups: audit-llm-cost-proposal and audit-project-cost-context, 2026-11-08. V417-007 and V420-004 remain independently unassigned phase/state diagnostics; this feature adds money without claiming their acceptance.'
+scope:
+  in:
+  - Shared Go/Python ExecutionMetrics cost contract and shared golden cases.
+  - Existing Gateway transports observe each physical attempt before SDK conversion and normalize only allowlisted numeric cost metadata.
+  - Planner, Worker, compactor, result finalizer and terminal summarizer retain model/phase costs in their existing report owner.
+  out:
+  - Pricing editors, currency conversion, invoice reconciliation, new inference retries, budget enforcement and deployment.
+requirements:
+- id: R1
+  text: USD amounts are bounded canonical nonnegative decimal strings, never binary floating-point sums. Source distinguishes provider-reported and Gateway-calculated amounts. Each model/phase/source group records a bounded call count; total observed attempts include unpriced failures. Shared fixtures pin both validators.
+- id: R2
+  text: Capture all physical transport attempts once, including responses rejected by the adapter and retry failures. Cached/reasoning costs are subsets of the returned total and are not added again. Missing, malformed, conflicting or unsupported monetary observations are unpriced, never a known zero and never a reason to fail or repeat inference.
+- id: R3
+  text: Report only numeric amounts, closed source/phase values and bounded selected model aliases. Never retain raw headers, bodies, prompts, credentials or provider errors. Auxiliary calls use the existing allocation/Planner report and do not duplicate main costs.
+failure_outcomes:
+- operation: Gateway observation and execution report emission
+  permanent: Invalid optional cost observations increase unavailable coverage without changing the model response; malformed received report shapes fail existing strict validation.
+  retryable: Existing Gateway and report retry policies remain authoritative; cost collection never adds retries.
+  ambiguous: Existing report identity handles replay; lost responses remain unpriced rather than inferred free or retried for accounting.
+  cancelled: Existing invocation owner joins transport work; any observed cost remains in its final available report.
+  timeout: Existing transport and report deadlines remain independent; no extra network request is needed for cost.
+cardinality:
+- collection: Cost groups per execution report
+  expected: One model per main/auxiliary phase
+  maximum: 64 groups, model aliases at most 256 UTF-8 bytes, counters at most 2^53-1
+  bound: Reject extra groups as unpriced coverage; report byte limits include cost metadata.
+lifecycle:
+- entity: Cost metadata inside existing reports
+  delete: Existing telemetry owner and cleanup apply; V458-002 persists the separate compact lifetime projection before expiry.
+  cascade: No secret or provider transcript is added.
+  retention: Existing report retention until the durable aggregate is introduced in V458-002.
+acceptance_criteria:
+- id: A1
+  given: Equal provider and Gateway observations, tiny/exponent values, missing and malformed values
+  when: Real Go/Python adapters read scripted HTTP responses
+  then: Exact normalized amounts and sources agree; errors and model output remain unchanged; unknown costs are not zero.
+- id: A2
+  given: Main, compactor, finalizer and summarizer calls, transport retry and rejected responses
+  when: Existing execution owners emit reports
+  then: Each physical attempt belongs to one phase/model group once, including paid unsuccessful attempts.
+- id: A3
+  given: Boundary values, overflow and secret canaries
+  when: Shared validators and full touched package suites run
+  then: Go/Python agree on bounds; no prohibited content is exposed; normal inference and report limits are preserved.
+tests:
+- command: make test-wire-cross-language
+  covers: [A1, A3]
+- command: go test ./internal/contracts/reporting ./internal/gatewayrecovery ./internal/planner/streamline ./internal/telemetry
+  covers: [A1, A2, A3]
+- command: make test-runtime
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A1, A2, A3]
