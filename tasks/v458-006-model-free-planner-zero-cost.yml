@@ -1,0 +1,33 @@
+schema_version: '1.0'
+id: V458-006
+title: Report explicit zero LLM cost from the model-free passthrough Planner
+milestone: llm-cost-reporting-2026-11
+epic: operations
+kind: defect
+introduced_by: V458-001
+priority: P2
+status: in_progress
+depends_on: [V458-001]
+languages: [go]
+goal: Keep a complete model-free Planner report from incorrectly making an otherwise fully priced Run appear to have missing cost.
+context:
+  review: Final V458 producer audit on 2026-11-09
+  severity: low
+  finding: 'internal/planner/passthrough.go:207 reports authoritative zero model calls but omits llmCost, so V458-002 correctly treats that missing observation as unknown. Ordinary Checks using passthrough would therefore show Partial even with every actual model charge recorded.'
+  siblings: Runtime metrics already emit a zero collector snapshot when no model is called. Streamline uses observed transport cost. Missing/incomplete reports stay conservative; no zero is inferred from arbitrary token counters or historical data.
+scope:
+  in:
+  - Emit a known-empty USD observation at the deterministic Planner producer that cannot call a model.
+  - Extend actual passthrough success, recovery and typed-failure report assertions.
+  out:
+  - Pricing, model selection, missing-report reconstruction, schema changes or persistence tables.
+acceptance_criteria:
+- id: A1
+  text: Every complete passthrough report carries a valid zero-call zero-cost observation, independently of Worker success.
+- id: A2
+  text: Existing Planner invocation, replay, telemetry export, cancellation and failure behavior remains unchanged; unknown historical reports are not repriced.
+tests:
+- command: go test ./internal/planner ./internal/contracts/reporting ./internal/runservice
+  covers: [A1, A2]
+- command: make lint
+  covers: [A1, A2]
