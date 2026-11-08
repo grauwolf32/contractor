@@ -6,7 +6,7 @@ epic: findings
 kind: defect
 introduced_by: V457-017
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [typescript]
 goal: An owner can recover a saved SARIF export after an ambiguous response even when live finding revisions have advanced.
@@ -39,7 +39,10 @@ context:
     an explicitly changed intent. Full make ui-verify passes: generation,
     ESLint/Prettier, UI/e2e TypeScript, 2483 ordinary tests, one intentional
     negative harness self-test, seventeen static-server tests and production
-    build. Independent read-only review found no actionable defect.
+    build. Full make lint also passes, including specification, task, generated
+    contract, layer, dependency graph and deployment-fixture checks; its existing
+    optional skip is not passing coverage. Independent read-only review found
+    no actionable defect. No backend or database change was required.
 scope:
   in:
     - Separate retained-request replay from new-export freshness checks in the existing hook and panel.
@@ -61,3 +64,4 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+implementation_commit: a74f62f0a9edb544fc5e2edf47fadaf9588ae6c1
