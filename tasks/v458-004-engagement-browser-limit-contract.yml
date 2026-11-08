@@ -1,0 +1,32 @@
+schema_version: '1.0'
+id: V458-004
+title: Reconcile saved Engagement browser limit assertions
+milestone: llm-cost-reporting-2026-11
+epic: ui
+kind: chore
+introduced_by: V455-005
+priority: P2
+status: in_progress
+depends_on: [V455-005]
+languages: [typescript]
+goal: Make the existing Engagement browser gate verify current per-allocation HTTP limits after removal of the total request quota.
+context:
+  review: V458-003 full mocked browser verification on 2026-11-09
+  finding: 'ui/e2e/engagement-preview.spec.ts:172 still expects 5,000 total requests. V455-005 (76e7e96a1) removed total quotas from the actual contract, fixture and production preview, but left this browser assertion from 0d35661d9 unchanged. All six theme/width cases fail on the unchanged production component; the optional-limits case also still expects four unset fields instead of the current three.'
+scope:
+  in:
+  - Assert the saved requests-per-second and concurrency limits from the current fixture in the existing six browser journeys, and the three optional unset values.
+  out:
+  - Any production behavior, schema, engagement payload or LLM cost change.
+acceptance_criteria:
+- id: A1
+  text: The six Engagement preview cases verify the saved 5 requests/s and 3 concurrent requests, plus their existing byte limits and scope/identity actions.
+- id: A2
+  text: No total request quota or lenient schema is restored; the complete browser gate and UI verification pass.
+tests:
+- command: make ui-browser-mocked
+  covers: [A1, A2]
+- command: make ui-verify
+  covers: [A1, A2]
+- command: make lint
+  covers: [A2]

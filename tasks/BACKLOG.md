@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-68 open tasks: 9 in progress, 46 pending, 13 deferred. 1516 finished: 1498 completed, 18 archived.
+69 open tasks: 11 in progress, 45 pending, 13 deferred. 1516 finished: 1498 completed, 18 archived.
 
 ## In progress
 
@@ -20,6 +20,8 @@ the epics are in [epics.yml](epics.yml).
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Accept merged isolated Worker context compaction |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V458-003](v458-003-llm-cost-ui.yml) | ui | feature | P1 | Show coherent LLM costs on Run Audit and Project |
+| [V458-004](v458-004-engagement-browser-limit-contract.yml) | ui | chore | P2 | Reconcile saved Engagement browser limit assertions |
 
 ## Pending
 
@@ -102,7 +104,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V411-018](v411-018-pentest-ui-journey.yml) | feature | P1 | V411-015, V411-017 | Build the ordinary HTTP Audit setup and evidence UI journey |
-| [V458-003](v458-003-llm-cost-ui.yml) | feature | P1 | — | Show coherent LLM costs on Run Audit and Project |
 
 ### Public API and wire contracts (`api-contracts`)
 
@@ -161,7 +162,7 @@ tasks in `introduced_by`.
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 15 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
-| HTTP and Caido tools (`http-tools`) | 5 | 24 | 34 | 15 | 36 |
+| HTTP and Caido tools (`http-tools`) | 5 | 24 | 34 | 15 | 37 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 3 | 17 | 10 | 10 | 21 |
 | Findings tools and collections (`findings`) | 0 | 17 | 12 | 11 | 19 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 23 |
@@ -169,7 +170,7 @@ tasks in `introduced_by`.
 | Audits (`audits`) | 10 | 69 | 97 | 42 | 167 |
 | Evaluations (`evals`) | 5 | 22 | 41 | 17 | 50 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
-| Web UI (`ui`) | 2 | 52 | 79 | 28 | 76 |
+| Web UI (`ui`) | 3 | 52 | 79 | 29 | 76 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 20 | 47 | 9 | 22 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 42 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 50 | 18 |
