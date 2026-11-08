@@ -6,7 +6,7 @@ epic: operations
 kind: defect
 introduced_by: V458-001
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V458-001]
 languages: [go]
 goal: Keep a complete model-free Planner report from incorrectly making an otherwise fully priced Run appear to have missing cost.
@@ -31,3 +31,10 @@ tests:
   covers: [A1, A2]
 - command: make lint
   covers: [A1, A2]
+
+implementation_commit: 6b81af66e178e7e382bf4595ec5b943c8d16dad5
+verification:
+  results:
+  - "Full internal/planner, internal/contracts/reporting and internal/runservice tests passed, including PostgreSQL cases with the owned test URL set."
+  - "Existing passthrough success, replay and typed-failure paths now assert a valid zero-call monetary observation in addition to their zero model/token counters. Missing historical data remains unknown."
+  - "UV_OFFLINE=true make lint passed. Model selection, Worker execution and retry behavior are unchanged."

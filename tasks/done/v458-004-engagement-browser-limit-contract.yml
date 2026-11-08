@@ -6,7 +6,7 @@ epic: ui
 kind: chore
 introduced_by: V455-005
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V455-005]
 languages: [typescript]
 goal: Make the existing Engagement browser gate verify current per-allocation HTTP limits after removal of the total request quota.
@@ -30,3 +30,10 @@ tests:
   covers: [A1, A2]
 - command: make lint
   covers: [A2]
+
+implementation_commit: 00fcf0e04314310c7c20520a3e8b08c5918d206a
+verification:
+  results:
+  - "make ui-verify and make ui-browser-mocked passed on the completed tree; the browser gate verified all 218 cases across 33 specs, with no skipped or flaky retries."
+  - "The seven Engagement preview journeys retain strict schema checks, scope/identity actions, saved byte limits and Source/download behavior. They now assert the current rate/concurrency fields and three unset optional limits."
+  - "UV_OFFLINE=true make lint passed. No production Engagement behavior or payload changed."

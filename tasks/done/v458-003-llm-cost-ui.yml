@@ -5,7 +5,7 @@ milestone: llm-cost-reporting-2026-11
 epic: ui
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V458-002]
 languages: [typescript, css, markdown]
 goal: Let users see Project lifetime cost, Audit cost beside progress, and individual Run costs through the approved Contractor design without misleading precision or coverage.
@@ -64,3 +64,13 @@ tests:
   covers: [A1, A2, A3]
 - command: make lint
   covers: [A1, A2, A3]
+
+implementation_commit: 02aa6663544d9aaafcd4608d51440fe15fb4ca96
+verification:
+  results:
+  - "make ui-verify passed generated checks, lint, both typechecks, all 222 unit test files with 2499 passing tests and one existing declared expected failure, all 17 static-server tests and the production build. The expected failure is not counted as passing coverage."
+  - "make ui-browser-mocked passed all 218 registered cases across 33 specs on the final UI, with zero skipped or flaky attempts. New journeys cover actual Check, Work attempts, Project and Run routes at 390/1440 pixels in light/dark/black."
+  - "Exact tiny/large amounts, known zero versus unavailable, source versus coverage, bounded selected-execution reads, invalid summary rejection, retained data on failed refresh and terminal refresh/stop are covered by focused API/component tests."
+  - "UV_OFFLINE=true make lint passed. Native preview verification confirmed the full-width Check breakdown, mobile Partial state and Project lifetime/checks/standalone split using production components and synthetic observations."
+  - "User preview is available at http://127.0.0.1:17560/test-results/llm-cost-production/index.html?screen=audit&state=normal&theme=dark&width=1440. These amounts are synthetic; production reads the prepared API resource."
+  - "UI release 0.11.25. All feature commits remain on codex/llm-cost-reporting; main and demo are not updated. The owned PostgreSQL database was dropped after all tests, and browser gates cleaned their private builds/servers. OpenDesign originals are untouched. Optional heavy IO stayed disabled."

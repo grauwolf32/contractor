@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-71 open tasks: 13 in progress, 45 pending, 13 deferred. 1516 finished: 1498 completed, 18 archived.
+67 open tasks: 9 in progress, 45 pending, 13 deferred. 1520 finished: 1502 completed, 18 archived.
 
 ## In progress
 
@@ -20,10 +20,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Accept merged isolated Worker context compaction |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V458-003](v458-003-llm-cost-ui.yml) | ui | feature | P1 | Show coherent LLM costs on Run Audit and Project |
-| [V458-004](v458-004-engagement-browser-limit-contract.yml) | ui | chore | P2 | Reconcile saved Engagement browser limit assertions |
-| [V458-005](v458-005-bound-cost-freshness-reads.yml) | operations | defect | P2 | Bound cost freshness reads with existing indexes and Audit counters |
-| [V458-006](v458-006-model-free-planner-zero-cost.yml) | operations | defect | P2 | Report explicit zero LLM cost from the model-free passthrough Planner |
 
 ## Pending
 
@@ -172,8 +168,8 @@ tasks in `introduced_by`.
 | Audits (`audits`) | 10 | 69 | 97 | 42 | 167 |
 | Evaluations (`evals`) | 5 | 22 | 41 | 17 | 50 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
-| Web UI (`ui`) | 3 | 52 | 79 | 29 | 76 |
-| Operations, authentication, CLI and deployment (`operations`) | 2 | 20 | 49 | 9 | 24 |
+| Web UI (`ui`) | 1 | 52 | 79 | 29 | 76 |
+| Operations, authentication, CLI and deployment (`operations`) | 0 | 20 | 49 | 9 | 24 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 42 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 50 | 18 |
 | Quality, CI and process (`quality`) | 11 | 1 | 33 | 140 | 30 |

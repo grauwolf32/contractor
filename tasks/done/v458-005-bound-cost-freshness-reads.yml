@@ -6,7 +6,7 @@ epic: operations
 kind: defect
 introduced_by: V458-002
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V458-002]
 languages: [go]
 goal: Keep independently refreshed cost reads bounded even when a Project or Audit retains a large completed Run history.
@@ -34,3 +34,10 @@ tests:
   covers: [A1, A2, A3]
 - command: make lint
   covers: [A1, A2, A3]
+
+implementation_commit: 6e3905ecb8ffbe7922b27098783a5e0c4390075d
+verification:
+  results:
+  - "The original real-store query failed on 12000 completed Runs: force_custom_plan visited 12003 workflow_runs rows against the budget of four."
+  - "After the correction, both custom and generic prepared plans stayed within four Run reads, before and after a newly active Run. The paused-Audit regression retained pending freshness while its outstanding Run exists."
+  - "Full projectstore, auditstore/internal/pgstore and runservice suites passed against the owned disposable PostgreSQL database; UV_OFFLINE=true make lint passed. No table, index or migration was added by this fix."
