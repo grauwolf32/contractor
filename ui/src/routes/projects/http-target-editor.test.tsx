@@ -49,6 +49,145 @@ function fixture(
 }
 
 describe("Project HTTP credential picker", () => {
+  it.each(["basic", "bearer"] as const)(
+    "replays one %s credential after its committed creation response is lost",
+    async (mode) => {
+      const writes: Request[] = [];
+      const saved = new Map<string, RuntimeCredentialMetadata>();
+      let patch: { httpTarget?: Project["httpTarget"] } | undefined;
+      const { user } = fixture(async (request) => {
+        if (request.method === "POST") {
+          writes.push(request.clone());
+          const body = (await request.json()) as {
+            credentialId: string;
+            kind: RuntimeCredentialMetadata["kind"];
+          };
+          saved.set(
+            body.credentialId,
+            credential(body.credentialId, body.kind),
+          );
+          if (writes.length === 1)
+            throw new TypeError("Connection lost after credential commit");
+          return json(saved.get(body.credentialId), 201);
+        }
+        if (request.method === "PATCH") {
+          patch = (await request.json()) as typeof patch;
+          return json({ ...project, ...patch, revision: "2" }, 200, {
+            ETag: '"2"',
+          });
+        }
+        return json(page([...saved.values()]));
+      });
+      await user.click(
+        screen.getByRole("button", { name: "Configure target" }),
+      );
+      await user.type(
+        screen.getByLabelText("Application URL"),
+        "https://app.example.test/",
+      );
+      await user.selectOptions(screen.getByLabelText("Authorization"), mode);
+      async function enterSecret() {
+        if (mode === "basic") {
+          await user.type(screen.getByLabelText("Username"), "analyst");
+          await user.type(
+            screen.getByLabelText("Password · write only"),
+            "same-secret",
+          );
+        } else {
+          await user.type(
+            screen.getByLabelText("Bearer token · write only"),
+            "same-secret",
+          );
+        }
+      }
+      await enterSecret();
+      await user.click(screen.getByRole("button", { name: "Save target" }));
+      await screen.findByText(/Re-enter the same secret to retry/);
+      await waitFor(() =>
+        expect(
+          screen.getByRole("button", { name: "Save target" }),
+        ).toBeEnabled(),
+      );
+      expect(
+        screen.getByLabelText(
+          mode === "basic"
+            ? "Password · write only"
+            : "Bearer token · write only",
+        ),
+      ).toHaveValue("");
+      if (mode === "basic")
+        expect(screen.getByLabelText("Username")).toHaveValue("");
+      await enterSecret();
+      await user.click(screen.getByRole("button", { name: "Save target" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(writes).toHaveLength(2);
+      expect(writes[1]!.headers.get("Idempotency-Key")).toBe(
+        writes[0]!.headers.get("Idempotency-Key"),
+      );
+      expect(await writes[1]!.json()).toEqual(await writes[0]!.json());
+      expect(saved.size).toBe(1);
+      expect(patch?.httpTarget?.credential?.credentialId).toBe(
+        [...saved.keys()][0],
+      );
+    },
+  );
+
+  it("keeps the created credential when the Project update is refused", async () => {
+    let saved: RuntimeCredentialMetadata | undefined;
+    let creates = 0;
+    let patches = 0;
+    const { user } = fixture(async (request) => {
+      if (request.method === "POST") {
+        creates++;
+        const body = (await request.json()) as { credentialId: string };
+        saved = credential(body.credentialId);
+        return json(saved, 201);
+      }
+      if (request.method === "PATCH") {
+        patches++;
+        if (patches === 1)
+          return json(
+            {
+              code: "storage_transaction_conflict",
+              message: "Try the Project update again",
+              retryable: true,
+            },
+            503,
+          );
+        const patch = (await request.json()) as {
+          httpTarget: Project["httpTarget"];
+        };
+        return json({ ...project, ...patch, revision: "2" }, 200, {
+          ETag: '"2"',
+        });
+      }
+      return json(page(saved === undefined ? [] : [saved]));
+    });
+    await user.click(screen.getByRole("button", { name: "Configure target" }));
+    await user.type(
+      screen.getByLabelText("Application URL"),
+      "https://app.example.test/",
+    );
+    await user.selectOptions(screen.getByLabelText("Authorization"), "bearer");
+    await user.type(
+      screen.getByLabelText("Bearer token · write only"),
+      "same-secret",
+    );
+    await user.click(screen.getByRole("button", { name: "Save target" }));
+    await screen.findByText(/is active, but the Project update failed/);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Save target" })).toBeEnabled(),
+    );
+    expect(screen.getByLabelText("Authorization")).toHaveValue("existing");
+    expect(screen.getByLabelText("Active HTTP origin credential")).toHaveValue(
+      saved!.credentialId,
+    );
+    await user.click(screen.getByRole("button", { name: "Save target" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(creates).toBe(1);
+    expect(patches).toBe(2);
+  });
+
   it("selects a later-page origin credential without replacing the page cache", async () => {
     const cursors: Array<string | null> = [];
     let update: unknown;

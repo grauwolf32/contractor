@@ -402,15 +402,31 @@ const reportReadQueues = new WeakMap<PublicAPI, ReportReadQueue>();
 async function readReportWithCapacity<T>(
   api: PublicAPI,
   read: () => Promise<T>,
+  signal?: AbortSignal,
 ): Promise<T> {
+  signal?.throwIfAborted();
   let queue = reportReadQueues.get(api);
   if (queue === undefined) {
     queue = { active: 0, waiting: [] };
     reportReadQueues.set(api, queue);
   }
   if (queue.active < 2) queue.active++;
-  else await new Promise<void>((resolve) => queue.waiting.push(resolve));
+  else
+    await new Promise<void>((resolve, reject) => {
+      const admitted = () => {
+        signal?.removeEventListener("abort", aborted);
+        resolve();
+      };
+      const aborted = () => {
+        const index = queue.waiting.indexOf(admitted);
+        if (index !== -1) queue.waiting.splice(index, 1);
+        reject(signal?.reason);
+      };
+      queue.waiting.push(admitted);
+      signal?.addEventListener("abort", aborted, { once: true });
+    });
   try {
+    signal?.throwIfAborted();
     return await read();
   } finally {
     // Transfer the slot to the oldest waiter before admitting another read.
@@ -423,14 +439,19 @@ async function readReportWithCapacity<T>(
 export async function getAuditReport(
   api: PublicAPI,
   auditId: string,
+  signal?: AbortSignal,
 ): Promise<AuditReport> {
   requireAuditID(auditId);
-  const result = await readReportWithCapacity(api, () =>
-    api.request((client) =>
-      client.GET("/v1/audits/{auditId}/report", {
-        params: { path: { auditId } },
-      }),
-    ),
+  const result = await readReportWithCapacity(
+    api,
+    () =>
+      api.request((client) =>
+        client.GET("/v1/audits/{auditId}/report", {
+          ...(signal === undefined ? {} : { signal }),
+          params: { path: { auditId } },
+        }),
+      ),
+    signal,
   );
   const report = requireData(result);
   // Cross-field: a proposed or ready report carries its summary.

@@ -71,7 +71,7 @@ func TestSharedPinnedProgramCloneDetachesAuthoringAndExecutionMaps(t *testing.T)
 	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "audit-common", "programs.json"), &fixture); err != nil {
 		t.Fatal(err)
 	}
-	program, err := auditcontract.DecodeProgram([]byte(fixture.Cases[0].Document))
+	program, err := auditcontract.DecodeProgram([]byte(fixture.Cases[1].Document))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,6 +82,11 @@ func TestSharedPinnedProgramCloneDetachesAuthoringAndExecutionMaps(t *testing.T)
 	program.InitialWork[0].Inputs = map[string]string{"source": "source"}
 	program.Hypotheses["example"] = auditcontract.HypothesisSeed{Statement: "The selected reader can access the document", Scope: map[string]string{"actor": "reader"}, Grounds: "Observed document reference"}
 	program.Continuation = &auditcontract.Continuation{Workflow: "inspect"}
+	program.SeedSource = &auditcontract.SeedSource{
+		Workflow: "inspect",
+		Standard: &auditcontract.SeedStandard{Scheme: "example", Version: "1"},
+		EntryIDs: []string{"EX-1"},
+	}
 	data, _ := json.Marshal(program)
 	pinned, err := auditprofile.PinProgram(resolved.Selector{ID: "clone", Version: "1"}, data, catalog.Workflow)
 	if err != nil {
@@ -97,6 +102,10 @@ func TestSharedPinnedProgramCloneDetachesAuthoringAndExecutionMaps(t *testing.T)
 	clone.Program.InitialWork[0].Inputs["source"] = "missing"
 	clone.Program.Hypotheses["example"].Scope["actor"] = "writer"
 	clone.Program.Continuation.Workflow = "missing"
+	clone.Program.SeedSource.Workflow = "missing"
+	clone.Program.SeedSource.Standard.Scheme = "other"
+	clone.Program.SeedSource.Standard.Version = "2"
+	clone.Program.SeedSource.EntryIDs[0] = "EX-2"
 	clone.Workflows["inspect"].Inputs["source"].MediaTypes[0] = "application/zip"
 	digest, err := pinned.Digest()
 	if err != nil || digest != pinned.Ref.Digest {

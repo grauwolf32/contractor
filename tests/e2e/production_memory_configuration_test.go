@@ -175,8 +175,10 @@ func assertProductionPlannerCompactionCatalog(t *testing.T) {
 			}
 		}
 	}
-	if direct != 8 || continuations != 20 {
-		t.Fatalf("modelled Planner coverage = %d direct/%d continuations, want 8/20", direct, continuations)
+	// project-findings-review@1's analyze Stage adds one summarized
+	// continuation to the twenty retained by the common Audit cutover.
+	if direct != 8 || continuations != 21 {
+		t.Fatalf("modelled Planner coverage = %d direct/%d continuations, want 8/21", direct, continuations)
 	}
 	loaded := filepath.Join(t.TempDir(), "catalog")
 	if err := os.CopyFS(loaded, os.DirFS(root)); err != nil {

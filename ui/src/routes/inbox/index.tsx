@@ -225,20 +225,28 @@ export function InboxRoute() {
     }
     if (Object.values(data.pending).some(Boolean)) return;
     initialEntry.current = true;
-    if (data.incomplete) return;
+    if (data.incomplete || data.summary.truncated) return;
     const first = model.order[0];
     if (first !== undefined)
       void navigate(
         { pathname: "/", search: inboxSearch(first.ref) },
         { replace: true },
       );
-  }, [params, data.pending, data.incomplete, model.order, navigate]);
+  }, [
+    params,
+    data.pending,
+    data.incomplete,
+    data.summary.truncated,
+    model.order,
+    navigate,
+  ]);
 
   const decideCount = data.summary.needsDecision ?? model.decide.length;
   const settled = !data.pending.decide || model.order.length > 0;
   const subtitle = settled
     ? inboxSubtitle({
         decide: decideCount,
+        decideIncomplete: data.summary.partial || data.summary.truncated,
         unblock: distinctCount(model.unblock),
         ready: distinctCount(model.ready),
         running: model.running.length,

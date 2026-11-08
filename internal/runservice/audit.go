@@ -2,7 +2,6 @@ package runservice
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"maps"
 	"slices"
@@ -10,7 +9,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/clone"
@@ -24,29 +22,23 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 	if s.auditTransaction == nil {
 		return CreateResult{}, ErrNotConfigured
 	}
-	normalized := auditRunCreate{AuditCreateParams: params}
-	var workflowSnapshot json.RawMessage
-	var err error
 	if !validTaskRunIdentity(params) {
 		return CreateResult{}, ErrInvalid
 	}
 	var result CreateResult
-	err = s.credentialGuard.WithRunCreation(ctx, func() error {
+	err := s.credentialGuard.WithRunCreation(ctx, func() error {
 		return s.auditTransaction(ctx, func(
 			runs AuditRunWriter,
 			artifactService *artifacts.Service,
 			audits AuditExecutionWriter,
 		) error {
-			intent, loadErr := audits.GetRunCreationIntent(ctx, normalized.Claim, normalized.ExecutionID)
+			intent, loadErr := audits.GetRunCreationIntent(ctx, params.Claim, params.ExecutionID)
 			if loadErr != nil {
 				return loadErr
 			}
-			normalized, workflowSnapshot, loadErr = normalizeTaskRunCreate(intent, params)
+			normalized, workflowSnapshot, loadErr := normalizeTaskRunCreate(intent, params)
 			if loadErr != nil {
 				return loadErr
-			}
-			if validationErr := validateTaskRunIntent(intent, normalized); validationErr != nil {
-				return validationErr
 			}
 			if intent.Execution.RunID != nil {
 				run, getErr := runs.GetRun(ctx, *intent.Execution.RunID)
@@ -66,7 +58,8 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 			if idErr != nil {
 				return fmt.Errorf("generate Audit WorkflowRun identity: %w", idErr)
 			}
-			completion, completionErr := prepareAuditCompletion(intent, normalized)
+			binding := normalized.Program.Workflows[intent.Execution.WorkflowRole]
+			completion, completionErr := prepareAuditCompletion(binding, normalized)
 			if completionErr != nil {
 				return completionErr
 			}
@@ -74,7 +67,7 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 			if labelErr != nil {
 				return labelErr
 			}
-			run, createErr := runs.CreateAuditRun(ctx, runstore.CreateAuditRunParams{
+			run, err := runs.CreateAuditRun(ctx, runstore.CreateAuditRunParams{
 				CreateRunParams: runstore.CreateRunParams{
 					RequiredPlacementLabels: append([]string{}, normalized.RequiredPlacementLabels...),
 					RunID:                   runID, OwnerID: intent.OwnerID, ProjectID: &intent.ProjectID,
@@ -90,8 +83,8 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 				AuditExecutionID:   intent.Execution.ExecutionID,
 				AuditSubmissionKey: intent.Execution.SubmissionKey,
 			})
-			if createErr != nil {
-				return createErr
+			if err != nil {
+				return err
 			}
 			if _, bindErr := audits.BindRun(ctx, auditstore.BindRunParams{
 				Claim: normalized.Claim, ExecutionID: normalized.ExecutionID, RunID: runID,
@@ -113,13 +106,9 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 			}
 			selected := map[string]contracts.ArtifactRef{}
 			excluded := map[string]bool{}
-			pin, e := auditprofile.DecodePinnedProgram(intent.ProgramSnapshot)
-			if e != nil {
-				return e
-			}
 			for slot, m := range normalized.Inputs {
 				selected[slot] = m.Ref
-				mapping := pin.Program.Workflows[intent.Execution.WorkflowRole].Inputs[slot]
+				mapping := binding.Inputs[slot]
 				excluded[slot] = mapping.Source == "task-context" || mapping.Source == "prior-results"
 			}
 			budget := &contracts.MaterialBudget{}

@@ -72,13 +72,13 @@ function InboxRailLink(props: {
   active: boolean;
   onNavigate: () => void;
 }) {
-  const { needsDecision } = useInboxSummary();
+  const { needsDecision, partial, truncated } = useInboxSummary();
   const badge =
     needsDecision === undefined || needsDecision <= 0
       ? undefined
       : {
           text: needsDecision > 99 ? "99+" : String(needsDecision),
-          description: `${needsDecision} ${needsDecision === 1 ? "needs" : "need"} your decision`,
+          description: `${partial || truncated ? "At least " : ""}${needsDecision} ${needsDecision === 1 ? "needs" : "need"} your decision`,
         };
   return <RailLink {...props} badge={badge} />;
 }

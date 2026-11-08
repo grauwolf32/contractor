@@ -149,7 +149,7 @@ interface PerCheck<T> {
 function usePerCheckReads<T>(
   checks: readonly CrossProjectCheck[],
   keyOf: (auditId: string, revision: number) => QueryKey,
-  load: (auditId: string) => Promise<T>,
+  load: (auditId: string, signal: AbortSignal) => Promise<T>,
 ): PerCheck<T> {
   const queryClient = useQueryClient();
   const queries = useMemo(
@@ -160,7 +160,8 @@ function usePerCheckReads<T>(
         const placeholder = newestCached<T>(queryClient, key.slice(0, -1));
         return {
           queryKey: key,
-          queryFn: () => load(auditId),
+          queryFn: ({ signal }: { signal: AbortSignal }) =>
+            load(auditId, signal),
           ...pinned<T>(),
           ...(placeholder === undefined
             ? {}
@@ -299,9 +300,13 @@ export function useInboxData(): InboxData {
     [checks.checks, now],
   );
   const loadReport = useCallback(
-    async (auditId: string): Promise<AuditReport | null> => {
+    async (
+      auditId: string,
+      signal: AbortSignal,
+    ): Promise<Pick<AuditReport, "status"> | null> => {
       try {
-        return await getAuditReport(api, auditId);
+        const report = await getAuditReport(api, auditId, signal);
+        return { status: report.status };
       } catch (error) {
         // A check deleted since its project's page was read has no report.
         if (error instanceof PublicAPIError && error.status === 404)

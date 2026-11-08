@@ -51,6 +51,7 @@ class Client:
         raw=None,
         media=None,
         lost=False,
+        decode_json=True,
     ):
         data = raw if raw is not None else encoded(body) if body is not None else None
         headers = {
@@ -83,7 +84,7 @@ class Client:
                 if lost:
                     assert response.headers.get("Idempotency-Replayed") == "true", path
                     self.replays += 1
-                if response.headers.get("Content-Type", "").startswith(
+                if decode_json and response.headers.get("Content-Type", "").startswith(
                     "application/json"
                 ):
                     return json.loads(payload)
@@ -95,6 +96,9 @@ class Client:
 
     def get(self, path):
         return self.request("GET", path)
+
+    def get_bytes(self, path):
+        return self.request("GET", path, decode_json=False)
 
     def pages(self, path, **query):
         for attempt in range(5):
@@ -153,6 +157,25 @@ def upload(client, project, name, media, raw):
     }
 
 
+def audit_assertion_source():
+    return {
+        "schema": "contractor.audit.assertions.v1",
+        "items": [
+            {
+                "key": "check-" + key,
+                "version": "1",
+                "statement": "Inspect fixture " + key,
+                "scope": {},
+                "grounds": "An authored deterministic fixture requirement",
+                "applicability": "Fixture",
+                "allowed_methods": ["static-trace"],
+                "required_evidence": ["source-trace"],
+            }
+            for key in ("one", "two")
+        ],
+    }
+
+
 def seed(client, directory):
     project = client.request(
         "POST",
@@ -172,23 +195,12 @@ def seed(client, directory):
     audit_source = upload(
         client, project_id, "source-archive", "application/zip", archive.getvalue()
     )
-    checklist = {
-        "schema": "contractor.audit.checklist.v1",
-        "items": [
-            {
-                "key": "check-" + key,
-                "version": "1",
-                "statement": "Inspect fixture " + key,
-                "applicability": "Fixture",
-                "allowed_methods": ["static-trace"],
-                "required_evidence": ["source-trace"],
-                "review_policy": "automatic",
-            }
-            for key in ("one", "two")
-        ],
-    }
     checklist_ref = upload(
-        client, project_id, "checklist", "application/json", encoded(checklist)
+        client,
+        project_id,
+        "checklist",
+        "application/json",
+        encoded(audit_assertion_source()),
     )
     datasets = {}
     for kind in ("workflow", "audit"):
@@ -220,14 +232,12 @@ def seed(client, directory):
                     "requires": [],
                     "outputs": {
                         "report": {
-                            "mediaTypes": [
-                                "text/plain"
-                                if kind == "workflow"
-                                else "application/json"
-                            ],
+                            "mediaTypes": ["text/plain"],
                             "required": True,
                         }
-                    },
+                    }
+                    if kind == "workflow"
+                    else {},
                 }
             )
         path = directory / (kind + "-dataset.json")
@@ -245,7 +255,7 @@ def register(client, project, kind, cases):
             "id": arm,
             "kind": kind,
             "selector": f"eval-{'copy' if kind == 'workflow' else 'audit'}-{arm}@1",
-            "outputMapping": {"report": "result" if kind == "workflow" else "report"},
+            "outputMapping": {"report": "result"} if kind == "workflow" else {},
         }
         for arm in ("a", "b")
     ]
@@ -330,6 +340,137 @@ def register(client, project, kind, cases):
     )
 
 
+def audit_task_evidence(client, parent, inventory):
+    # Two authored assertions are checked in one ordinary Run. An aggregate
+    # report is optional. Correlate raw Run conclusions with both accepted
+    # Task wrappers before using their original bytes as Eval evidence.
+    assert len(inventory) == 2, inventory
+    owner, child = inventory
+    assert owner["execution"] == parent and owner["parent"] is None, owner
+    assert owner["available"] and owner["state"] == "succeeded", owner
+    assert child["parent"] == parent and child["execution"]["kind"] == "run", child
+    assert child["available"] and child["state"] == "succeeded", child
+    assert child["workflow"] == "check" and child["iteration"] == 1, child
+    audit_id, run_id = parent["id"], child["execution"]["id"]
+    report = client.get(f"/v1/audits/{audit_id}/report")
+    assert report == {"status": "unavailable"}, report
+    run = client.get(f"/v1/runs/{run_id}")
+
+    def read(ref):
+        query = urllib.parse.urlencode({"revision": ref["revision"]})
+        path = f"/v1/runs/{run_id}/artifacts/{ref['namespace']}/{ref['name']}"
+        return client.get_bytes(path + "?" + query)
+
+    context = json.loads(read(run["inputs"]["context"]))
+    assert context["schema"] == "contractor.audit.context.v1", context
+    assert (context["audit_id"], context["run_id"]) == (audit_id, run_id), context
+    assert context["workflow_ref"] == "audit-source-check@1", context
+    raw = read(run["outputs"]["result"])
+    conclusions = json.loads(raw)
+    assert conclusions["schema"] == "contractor.audit.conclusions.v1", conclusions
+    expected = {item["statement"]: item for item in audit_assertion_source()["items"]}
+    assert len(context["items"]) == len(conclusions["items"]) == len(expected) == 2
+    assert [item["item_key"] for item in context["items"]] == ["item-00", "item-01"]
+    outcomes = {item["item_key"]: item for item in conclusions["items"]}
+    assert set(outcomes) == {item["item_key"] for item in context["items"]}
+    statements = set()
+    tasks, normalized = {}, {}
+    for item in context["items"]:
+        outcome = outcomes[item["item_key"]]
+        hypothesis = item["hypothesis"]
+        assert hypothesis["schema"] == "contractor.audit.hypothesis.v1", hypothesis
+        assert hypothesis["revision"] == 1, hypothesis
+        assert hypothesis["origin"]["audit_id"] == audit_id, hypothesis
+        source = expected[hypothesis["statement"]]
+        statements.add(hypothesis["statement"])
+        assert hypothesis["grounds"] == source["grounds"], hypothesis
+        assert hypothesis["scope"] == {
+            **source["scope"],
+            "source_version": source["version"],
+            "applicability": source["applicability"],
+            "allowed_methods": encoded(source["allowed_methods"]).decode(),
+            "required_evidence": encoded(source["required_evidence"]).decode(),
+        }, hypothesis
+        # A checking Run authors conclusions, never trusted origin. The public
+        # Task owner exposes the accepted document and its normalized wrapper.
+        assert "origin" not in outcome, outcome
+        task = client.get(f"/v1/audits/{audit_id}/tasks/{item['task_id']}")
+        document = task["document"]
+        assert document["schema"] == "contractor.audit.task.v1", document
+        assert (document["audit_id"], document["task_id"]) == (
+            audit_id,
+            item["task_id"],
+        ), document
+        assert document["workflow"] == "check", document
+        assert document["objective"] == item["objective"], document
+        pin = {"id": hypothesis["id"], "revision": hypothesis["revision"]}
+        assert document["hypothesis"] == pin, document
+        assert task["hypothesis_snapshot"] == hypothesis, task
+        assert task["state"] == "settled" and task["iteration"] == 1, task
+        assert task["attempts"] == 1 and not task.get("gap_code"), task
+        assert task["last_execution_id"] == child["intentId"], task
+        tasks[item["task_id"]] = task
+        origin = {
+            "audit_id": audit_id,
+            "run_id": run_id,
+            "task_id": item["task_id"],
+            "hypothesis": pin,
+        }
+        assert outcome["verdict"] == "supported", outcome
+        assert outcome["rationale"] and outcome["tested_conditions"], outcome
+        assert outcome["evidence"] == item["evidence"] and outcome["evidence"], outcome
+        assert outcome["limitations"] == [], outcome
+        retained = []
+        for material in outcome["evidence"]:
+            assert (material["scope_kind"], material["scope_id"]) == (
+                "run",
+                run_id,
+            ), material
+            assert material["ref"]["namespace"] == "inputs", material
+            assert material["ref"] == run["inputs"][material["ref"]["name"]], material
+            original = document["inputs"][material["ref"]["name"]]
+            assert (original["scope_kind"], original["scope_id"]) == (
+                "audit",
+                audit_id,
+            ), original
+            for field in ("digest", "media_type", "size_bytes"):
+                assert material[field] == original[field], (material, original)
+            if original not in retained:
+                retained.append(original)
+        normalized[item["item_key"]] = {
+            **outcome,
+            "origin": origin,
+            "evidence": retained,
+        }
+    assert statements == set(expected), statements
+    for task_id, task in tasks.items():
+        material = task["result"]
+        assert (material["scope_kind"], material["scope_id"]) == (
+            "audit",
+            audit_id,
+        ), material
+        assert material["media_type"] == "application/json", material
+        query = urllib.parse.urlencode(
+            {"key": f"task/{task_id}/result", "revision": material["ref"]["revision"]}
+        )
+        saved = client.get_bytes(f"/v1/audits/{audit_id}/artifacts?" + query)
+        assert digest(saved) == material["digest"], material
+        assert len(saved) == material["size_bytes"], material
+        wrapper = json.loads(saved)
+        assert wrapper["schema"] == "contractor.audit.result.v1", wrapper
+        assert len(wrapper["items"]) == len(normalized) == 2, wrapper
+        accepted = {item["item_key"]: item for item in wrapper["items"]}
+        assert accepted == normalized, (accepted, normalized)
+    return {
+        "scope": "run",
+        "scopeId": run_id,
+        **run["outputs"]["result"],
+        "sha256": digest(raw),
+        "mediaType": "application/json",
+        "sizeBytes": len(raw),
+    }
+
+
 def result_document(client, experiment, row, inventory):
     execution = row["execution"]
     parent = execution["ref"]
@@ -347,19 +488,12 @@ def result_document(client, experiment, row, inventory):
             "mediaType": "text/plain",
             "sizeBytes": len(raw),
         }
+        outputs = {"report": artifact}
+        evidence = [{"id": "report", "artifact": artifact}]
     else:
-        remote = client.get("/v1/audits/" + parent["id"])
-        report = client.get("/v1/audits/" + parent["id"] + "/report")
-        ref = report["machineArtifact"]
-        artifact = {
-            "scope": "project",
-            "scopeId": remote["projectId"],
-            **ref["ref"],
-            "sha256": ref["digest"],
-            "mediaType": ref["mediaType"],
-            "sizeBytes": ref["sizeBytes"],
-        }
-        assert len(inventory) == 3, inventory
+        artifact = audit_task_evidence(client, parent, inventory)
+        outputs = {}
+        evidence = [{"id": "task-results", "artifact": artifact}]
     assert row["usage"] is not None
     return {
         "schemaVersion": "contractor.eval-result-input/v1",
@@ -368,8 +502,8 @@ def result_document(client, experiment, row, inventory):
         "source": experiment["setup"]["source"],
         "execution": execution,
         "collection": {"status": "complete", "gaps": []},
-        "outputs": {"report": artifact},
-        "evidence": [{"id": "report", "artifact": artifact}],
+        "outputs": outputs,
+        "evidence": evidence,
         "usage": row["usage"],
         "previousResultSha256": None,
     }
@@ -385,7 +519,9 @@ def run_external(client, fixture):
             fixture["datasets"][kind]["document"]["cases"],
         )
         path = "/v1/eval-experiments/" + experiment["experimentId"]
-        experiment = client.wait(path, lambda value: value.get("freshness") == "current")
+        experiment = client.wait(
+            path, lambda value: value.get("freshness") == "current"
+        )
         rows, _ = client.pages(path + "/members", filter="all")
         assert len(rows) == MEMBERS
         start = deadline = None
@@ -442,7 +578,7 @@ def run_external(client, fixture):
                         "implementationSha256": CHECK_DIGEST,
                         "status": "pass",
                         "reason": "Verified retained fixture",
-                        "evidenceRefs": ["report"],
+                        "evidenceRefs": [item["id"] for item in result["evidence"]],
                     }
                 ],
                 "previousAssessmentSha256": None,

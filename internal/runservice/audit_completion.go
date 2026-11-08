@@ -3,22 +3,14 @@ package runservice
 import (
 	"fmt"
 
-	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
 // Completion ownership is derived solely from the claim-locked common pin.
-func prepareAuditCompletion(intent auditstore.RunCreationIntent, params auditRunCreate) (*runstore.AuditCompletionSnapshot, error) {
-	pinned, err := auditprofile.DecodePinnedProgram(intent.ProgramSnapshot)
-	if err != nil {
-		return nil, err
-	}
-	binding, found := pinned.Program.Workflows[intent.Execution.WorkflowRole]
-	if !found {
-		return nil, ErrInvalid
-	}
+func prepareAuditCompletion(binding auditcontract.ProgramWorkflow, params auditRunCreate) (*runstore.AuditCompletionSnapshot, error) {
 	target, err := auditprofile.ResolveCompletionTarget(params.Workflow, binding)
 	if err != nil {
 		return nil, fmt.Errorf("%w: common completion target is invalid", ErrInvalid)

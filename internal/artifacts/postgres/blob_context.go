@@ -48,17 +48,17 @@ func (s *Storage) prepareBlob(ctx context.Context, payload artifacts.Payload) (b
 // deletePhysicalAfterCommit schedules the unlink of a filesystem object that
 // the caller's transaction leaves unreferenced. The shared runtime keeps the
 // adapter alive until the owning transaction and its commit callbacks finish.
-func (s *Storage) deletePhysicalAfterCommit(ctx context.Context, tx pgx.Tx, object blob.Object) {
+func (s *Storage) deletePhysicalAfterCommit(tx pgx.Tx, object blob.Object) {
 	if object.Backend != blob.Filesystem {
 		return
 	}
 	r := s.runtime
-	if !postgres.AfterCommit(tx, func() {
-		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-		defer cancel()
+	if !postgres.AfterCommit(tx, func(cleanup context.Context) {
 		if err := r.Store.Delete(cleanup, object); err != nil {
 			r.Logger.Warn("artifact blob unlink deferred to offline cleanup")
 		}
+	}, func(remaining int) {
+		r.Logger.Warn("artifact blob cleanup budget exhausted; remaining objects deferred to offline cleanup", "deferred_objects", remaining)
 	}) {
 		r.Logger.Warn("artifact blob cleanup deferred for externally owned transaction")
 	}
@@ -70,7 +70,7 @@ func (s *Storage) deletePhysicalAfterCommit(ctx context.Context, tx pgx.Tx, obje
 // externally owned transaction leaves the candidate for offline cleanup.
 func (s *Storage) discardUnusedBlob(ctx context.Context, db postgres.DBTX, object blob.Object) {
 	if tx, ok := db.(pgx.Tx); ok {
-		s.deletePhysicalAfterCommit(ctx, tx, object)
+		s.deletePhysicalAfterCommit(tx, object)
 		return
 	}
 	s.discardUnpublishedBlob(ctx, object)

@@ -1230,12 +1230,15 @@ func (f failedRunCreate) CreatePublic(context.Context, runservice.PublicCreatePa
 }
 
 func TestSharedPostgresUnknownEvalCreateErrorKeepsIntent(t *testing.T) {
+	_, codecError := auditdomain.ChecklistAssertions([]byte(strings.Replace(validEvalAssertions, `"grounds":"Authored requirement",`, "", 1)), "application/json", "check")
 	for _, test := range []struct {
 		name  string
 		cause error
 	}{
 		{name: "deadline", cause: context.DeadlineExceeded},
 		{name: "database", cause: errors.New("untyped database failure")},
+		{name: "workflow-audit-codec", cause: codecError},
+		{name: "workflow-audit-domain", cause: &auditdomain.ValidationError{Code: auditdomain.CodeInvalid, Field: "document"}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			h := newHarness(t)
@@ -1314,7 +1317,7 @@ spec:
   inputs:
     task: {required: true, mediaTypes: [application/zip, application/json]}
   outputs:
-    result: {required: true, mediaTypes: [application/zip]}
+    result: {required: true, mediaTypes: [application/zip, application/json]}
   executionConfig:
     workers:
       modelPolicy: worker@1
@@ -1375,6 +1378,38 @@ spec:
     active_operations: prohibited
 `,
 	}
+	files["audit-profiles/assertions.yaml"] = `apiVersion: contractor/v1alpha1
+kind: AuditProfile
+metadata: {name: test-assertions, version: "1"}
+spec:
+  schema: contractor.audit.program.v1
+  inputs:
+    checklist: {required: true, media_types: [application/json]}
+  workflows:
+    check:
+      ref: audit-check@1
+      inputs:
+        task: {source: task-context}
+      parameters: {}
+      outputs: {result: result}
+  hypotheses: {}
+  initial_work: []
+  seed_source: {input: checklist, workflow: check}
+  limits:
+    max_tasks: 10
+    max_iterations: 1
+    max_tasks_per_iteration: 10
+    batch_size: 1
+    max_submitted_runs: 20
+    max_attempts: 2
+    deadline_seconds: 3600
+    max_evidence_bytes: 1048576
+    max_hypotheses: 1
+    max_hypothesis_revisions: 1
+    max_hypothesis_bytes: 32768
+  policy:
+    active_operations: prohibited
+`
 	for _, variant := range []string{"a", "b"} {
 		policy := strings.Replace(files["model-policies/worker.yaml"], "name: worker", "name: variant-worker-"+variant, 1)
 		files["model-policies/variant-worker-"+variant+".yaml"] = strings.Replace(policy, "worker-model", "variant-model-"+variant, 1)

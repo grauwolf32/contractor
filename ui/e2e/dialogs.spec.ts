@@ -94,6 +94,93 @@ for (const viewport of [
   test.describe(`${viewport.width}px journeys`, () => {
     test.use({ viewport });
 
+    test("Project target retries a lost credential response without creating another secret", async ({
+      page,
+    }) => {
+      const saved = new Map<
+        string,
+        {
+          credentialId: string;
+          kind: "http-origin-bearer@1";
+          createdBy: string;
+          createdAt: string;
+        }
+      >();
+      const attempts: Array<{ body: string; key: string | undefined }> = [];
+      let current = project(PROJECT_ID, { name: "Target retry workspace" });
+      await mockAPI(
+        page,
+        async (route, request, url) => {
+          if (url.pathname === "/v1/operations/runtime-credentials") {
+            if (request.method() === "POST") {
+              const body = request.postDataJSON() as { credentialId: string };
+              attempts.push({
+                body: request.postData()!,
+                key: request.headers()["idempotency-key"],
+              });
+              saved.set(body.credentialId, {
+                credentialId: body.credentialId,
+                kind: "http-origin-bearer@1",
+                createdBy: "dialog-user",
+                createdAt: "2026-11-07T10:00:00Z",
+              });
+              if (attempts.length === 1) await route.abort("failed");
+              else await fulfillJSON(route, saved.get(body.credentialId), 201);
+            } else
+              await fulfillJSON(route, {
+                items: [...saved.values()],
+                page: { hasMore: false },
+              });
+            return;
+          }
+          if (url.pathname === `/v1/projects/${PROJECT_ID}`) {
+            if (request.method() === "PATCH")
+              current = {
+                ...current,
+                ...request.postDataJSON(),
+                revision: "2",
+              };
+            await fulfillJSON(route, current, 200, {
+              etag: `"${current.revision}"`,
+            });
+            return;
+          }
+          await fulfillEmptyPageOrNotFound(route);
+        },
+        { apiOrigin: mockedAPIOrigin(), session: authSession("dialog-user") },
+      );
+      await page.goto(`/projects/${PROJECT_ID}/settings`);
+      await page.getByRole("button", { name: "Configure target" }).click();
+      const dialog = page.getByRole("dialog", { name: "Application access" });
+      await dialog
+        .getByLabel("Application URL")
+        .fill("https://app.example.test/");
+      await dialog
+        .getByLabel("Authorization", { exact: true })
+        .selectOption("bearer");
+      await dialog
+        .getByLabel("Bearer token · write only")
+        .fill("browser-test-secret");
+      await dialog.getByRole("button", { name: "Save target" }).click();
+      await expect(
+        dialog.getByText(/Re-enter the same secret to retry/),
+      ).toBeVisible();
+      await expect(dialog.getByLabel("Bearer token · write only")).toHaveValue(
+        "",
+      );
+      await dialog
+        .getByLabel("Bearer token · write only")
+        .fill("browser-test-secret");
+      await dialog.getByRole("button", { name: "Save target" }).click();
+      await expect(dialog).not.toBeVisible();
+      expect(attempts).toHaveLength(2);
+      expect(attempts[1]).toEqual(attempts[0]);
+      expect(saved.size).toBe(1);
+      expect(current.httpTarget?.credential?.credentialId).toBe(
+        [...saved.keys()][0],
+      );
+    });
+
     test("nested Project and Git dialogs isolate focus, forms and Escape", async ({
       page,
     }) => {

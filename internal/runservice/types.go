@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -140,6 +141,7 @@ type AuditCreateParams struct {
 type auditRunCreate struct {
 	AuditCreateParams
 	RequiredPlacementLabels []string
+	Program                 auditcontract.Program
 	Workflow                resolved.ResolvedWorkflow
 	RuntimeConfig           runtimeconfig.RunSnapshot
 	Skills                  []agentskills.RunSkillSnapshot

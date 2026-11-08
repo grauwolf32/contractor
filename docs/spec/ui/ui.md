@@ -361,6 +361,18 @@ status, safe Markdown and downloads. A completed check without an aggregate
 report links to its ordinary task results. Inbox retains its queue navigation
 and return context, without a duplicate Run/capacity summary.
 
+**UI-R238.** Reports resolves availability for at most twenty report-capable
+checks on the selected page (LIM-UI-24), after applying the Project filter.
+Previous and Next reach other pages of the loaded check inventory. Page and
+filter context survive report selection and return; counts describe only the
+selected page, and a page without a ready report does not claim that other pages
+are empty. Availability reads use the existing shared two-slot report transfer
+queue. Leaving a page cancels its active reads and removes its queued reads.
+Reports and Inbox availability caches retain status only; selected detail owns
+the complete report. Inbox keeps its existing seven-day eligibility window.
+The existing report API still transmits content with availability, so page
+bounds limit that work without adding a separate endpoint.
+
 **UI-R40.** An Audit page under `/projects/:projectId/audits/:auditId` marks
 Checks as current in the rail.
 
@@ -1529,9 +1541,13 @@ or copying ratings. Changing selection or option starts an explicit new
 publication intent; retrying an unchanged ambiguous or retryable publication
 uses the original exact body and client key, with no automatic mutation retry.
 
-**UI-R212.** A changed page or selected revision and a publication conflict
-require explicit clear/refresh; refetching cannot silently replace selected
-revisions. Publication controls remain disabled in flight. After publication,
+**UI-R212.** A changed page or selected revision requires explicit clear/refresh
+before creating a new export; refetching cannot silently replace selected
+revisions. An unchanged retained publication request can still be retried after
+an ambiguous or retryable failure while live reads are stale, pending or failed,
+using its original body and key (FND-R200). A publication conflict requires
+explicit clear/refresh and cannot be retried. Publication controls remain
+disabled in flight. After publication,
 **Download SARIF** reads the saved export ID; failed downloads can be repeated
 without another publication. Snapshot and diagnostics downloads and the saved
 time remain under Technical details. Each part is streamed under its public

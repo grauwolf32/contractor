@@ -447,7 +447,12 @@ then attempts to unlink those files (LIFE-BLB-1).
 deletion is committed is logged with a bounded reason and does not block a
 completed Run, Project or Audit deletion (FAIL-BLB-4). This deliberately
 permits physical orphans: a completed lifecycle may leave them for offline
-cleanup (LIFE-BLB-1).
+cleanup (LIFE-BLB-1). All filesystem unlink callbacks of one definite commit
+share a cancellation-independent five-second budget (LIM-BLB-4). Once it
+expires, no further unlink is started and one bounded diagnostic records the
+number of deferred objects; their files remain for offline cleanup. This bounds
+admission between backend calls, not an operating-system call already blocked
+inside the filesystem. Rollback and ambiguous commit run no unlink callback.
 
 **BLB-R51.** Only physical objects with no surviving version, pin or
 lineage dependency may be selected for deletion, and deletion always targets

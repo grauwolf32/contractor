@@ -17,8 +17,8 @@ import (
 // Proposal context is assembled only after ordinary inputs have real bindings.
 // The native material-set owner supplies original identities for accounting;
 // models see exact local refs, never new access from a descriptor's text.
-func materializeProposalContext(ctx context.Context, service *artifacts.Service, intent auditstore.RunCreationIntent, p auditRunCreate, pinned auditprofile.PinnedProgram, runID string, prepared *artifacts.PreparedInputs) error {
-	binding := pinned.Program.Workflows[intent.Execution.WorkflowRole]
+func materializeProposalContext(ctx context.Context, service *artifacts.Service, intent auditstore.RunCreationIntent, p auditRunCreate, runID string, prepared *artifacts.PreparedInputs) error {
+	binding := p.Program.Workflows[intent.Execution.WorkflowRole]
 	target, err := auditprofile.ResolveProposalTarget(p.Workflow, binding)
 	if err != nil {
 		return err
@@ -27,7 +27,7 @@ func materializeProposalContext(ctx context.Context, service *artifacts.Service,
 		return nil
 	}
 	scope, _ := artifacts.RunScope(runID)
-	value := auditcontract.ProposalContext{Schema: auditcontract.ProposalContextSchema, RunID: runID, Program: pinned.Program, Materials: map[string]auditcontract.Material{}, InputSources: map[string]auditcontract.Material{}}
+	value := auditcontract.ProposalContext{Schema: auditcontract.ProposalContextSchema, RunID: runID, Program: p.Program, Materials: map[string]auditcontract.Material{}, InputSources: map[string]auditcontract.Material{}}
 	for handle, material := range prepared.Materials {
 		value.Materials[handle] = material.Local
 		value.InputSources[handle] = material.Source

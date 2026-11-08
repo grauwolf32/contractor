@@ -144,7 +144,7 @@ func startEngagementMatrixAudit(t *testing.T, h *engagementProcessHarness, origi
 	}
 	var project projectResourceResponse
 	engagementAuditPOST(t, h, "/v1/projects", map[string]string{"kind": "project", "name": "HTTP conformance fixture", "activeChecks": "automatic"}, 0, http.StatusCreated, &project)
-	checklistBytes := []byte(`{"schema":"contractor.audit.checklist.v1","items":[{"key":"check-preflight","version":"1","statement":"Record bounded preflight conformance.","applicability":"always","allowed_methods":["static"],"required_evidence":[],"review_policy":"automatic"}]}`)
+	checklistBytes := engagementAssertionSource(t, "Record bounded preflight conformance.")
 	checklist := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "inputs", "checks", "application/json", checklistBytes)
 	document := engagementcontract.Document{Schema: engagementcontract.Schema, Egress: engagementcontract.Egress{Routes: routes, Exclusions: exclusions}, Identities: []engagementcontract.Identity{{ID: "anonymous", Kind: "anonymous", Origins: origins}}, Limits: &engagementcontract.HTTPLimits{}}
 	document.Limits.ResponseBodyBytes = &responseBytes

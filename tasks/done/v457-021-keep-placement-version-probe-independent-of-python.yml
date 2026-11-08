@@ -1,0 +1,99 @@
+schema_version: "1.0"
+id: V457-021
+title: "Keep the placement scanner version fixture independent of Python startup"
+milestone: release-gate-integration-coverage-2026-10
+epic: quality
+kind: chore
+introduced_by: V405-005
+priority: P2
+status: completed
+depends_on: []
+languages: [go]
+goal: "The deterministic placement fixture answers its version probe using shell builtins and still runs every actual scan through the original Python payload."
+context:
+  authority: "User release-polish authorization 2026-11-07; coordinating decision 2026-11-08 explicitly assigns this narrow fixture repair after the unchanged placement retry passed."
+  specification: [docs/spec/execution/runtime-agent.md#RTA-R15, docs/testing/README.md]
+  finding: >-
+    tests/e2e/runtime_placement_test.go:230 starts a Python interpreter and
+    imports json/pathlib before checking -version. In process-C the capable
+    placement-local runtime's scan probe took 2008 ms and was unavailable;
+    the cloud-prefix runtime succeeded in 392 ms and the deliberately incapable
+    runtime correctly returned unavailable immediately. The subsequent local
+    Run remained pending under correct capability/placement fences. Current
+    owner-probe samples were 1018.6 ms cold and approximately 18 ms warm; the
+    entire unchanged placement process test then passed in 196.81 seconds.
+    Cold startup sensitivity belongs to the fixture, not Scheduler authority
+    or the production two-second per-binary scan probe.
+  provenance: "V405-005 introduced the Python version path in d624fec643f62ab9b1b2673ab9bcc67e46d34d53."
+  siblings: >-
+    The common placement stack is also used by the Sitemap tool/operation/import
+    and prepared-work process fixtures; all receive the same version response
+    and unchanged actual scan payload through this one fixture writer. Scanner
+    fidelity and unrelated scanner fixtures are outside this placement gate.
+  decision: >-
+    The coordinating agent chose a POSIX /bin/sh version fast path made only
+    from builtins. Every non-version invocation execs the same Python payload
+    with unchanged arguments, fail marker and JSON. Prove independence with a
+    deliberately nonexistent interpreter, without elapsed-time assertions.
+    Keep all production probe budgets, capability fences, models and retries
+    unchanged; no new retry or generic scanner fixture framework is needed.
+  integration_verification: >-
+    Acceptance verified on 2026-11-08. The complete integrated release-verify-process-c
+    command and its findings verifier passed. The revised placement scenario also passed
+    all five original lifecycle cases in 198.61 seconds without skips; the unchanged
+    diagnostic retry had passed in 196.81 seconds. Deterministic missing-Python, literal
+    argv, scan success/failure and version-before-marker controls and release-graph
+    tests pass. Final release-verify-lint passed. Production probe deadlines, capability
+    fences, models and lease waits remain unchanged.
+scope:
+  in:
+    - "A placement-only scanner writer with a builtin version branch and the original Python scan body."
+    - "Deterministic version/no-interpreter, argument forwarding, success and fail-marker regression tests."
+    - "Include the small fixture regression in the existing placement family and exact release process-C selections."
+    - "Verify the complete real placement process case and every existing lifecycle assertion."
+  out:
+    - "Production scanner probes, deadlines, models, placement/capability policy, other scanner fixtures or retry behavior."
+acceptance_criteria:
+  - id: A1
+    text: "The exact version response succeeds with PATH restricted to the fixture and a nonexistent Python path, proving the payload was not launched."
+  - id: A2
+    text: "Actual scan arguments remain exact, the JSON observation stays the same, the fail marker still exits one, and version ignores that marker as before."
+  - id: A3
+    text: "The complete unchanged placement/lifecycle scenario passes with the revised fixture; no runtime or test deadlines, membership checks or production code change."
+  - id: A4
+    text: "The deterministic regression is reachable from both the placement family and the exact process-C release graph."
+tests:
+  - command: "go test -tags=e2e -count=1 -run '^TestRuntimePlacementScannerFixture$' ./tests/e2e"
+    covers: [A1, A2]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=e2e -count=1 -run '^TestRuntimePlacementAcrossProductionProcesses$' -timeout=8m ./tests/e2e"
+    covers: [A3]
+  - command: python3 scripts/test_check_release_verify_graph.py
+    covers: [A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+verification:
+  diagnosis: >-
+    The unchanged complete real placement test passed all five lifecycle cases
+    in 196.81 seconds, zero skips, on the integrated root source using the owned
+    data database. Its local scan probe was available in 352 ms, cloud-prefix
+    in 19 ms and deliberately missing scanner unavailable in 0 ms. Historical
+    2008 ms local failure and cold-versus-warm samples are retained as fixture
+    startup sensitivity; there is no observed Scheduler or placement defect.
+  deterministic: >-
+    TestRuntimePlacementScannerFixture passes with no database: the builtin
+    version response works with a nonexistent interpreter and restricted PATH,
+    normal scan JSON is preserved, fail marker still exits one, version ignores
+    the marker, and a recording interpreter receives the exact quoted payload
+    path plus arguments containing spaces, apostrophes, an empty value and shell
+    metacharacters. No elapsed-time assertion or retry is used. All 56 release
+    graph guard tests pass after adding the fixture case to process-C and the
+    placement family.
+  integration: >-
+    The complete integrated release-verify-process-c command and its findings verifier
+    passed. The revised placement scenario also passed all five original lifecycle cases
+    in 198.61 seconds without skips; the unchanged diagnostic retry had passed in 196.81
+    seconds. Deterministic missing-Python, literal argv, scan success/failure and
+    version-before-marker controls and release-graph tests pass. Final
+    release-verify-lint passed. Production probe deadlines, capability fences, models
+    and lease waits remain unchanged.
+implementation_commit: b3fbc4addd83c166effca6ba7b10f040d1b078f8
