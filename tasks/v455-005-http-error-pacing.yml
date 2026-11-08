@@ -1,6 +1,6 @@
 schema_version: '1.0'
 id: V455-005
-title: Preserve HTTP failure reasons and decide how to bound repeated failed calls
+title: Remove total HTTP quotas and expose actionable controlled HTTP outcomes
 milestone: autonomous-http-pentest-2026-10
 epic: http-tools
 kind: defect
@@ -8,23 +8,31 @@ introduced_by: V422-002
 priority: P1
 status: pending
 depends_on: []
-languages: [python, markdown]
+languages: [python, go, typescript, json, markdown]
 goal: >-
-  The Worker can distinguish an exhausted HTTP allowance from a temporary
-  failure, retain an actionable content-free diagnosis, and finish useful work
-  without consuming its entire tool budget on the same rejected operation.
+  Engagement constrains HTTP send rate and authorized scope without an arbitrary
+  total request quota. The model knows its allowed targets and receives concrete
+  target/network outcomes; infrastructure and allocation failures terminate
+  execution through Runtime rather than becoming a model troubleshooting loop.
 context:
   authority: >-
-    User request 2026-11-08: document the observed problem; think through whether
-    artificial delays should be introduced. Follow-up requests authorize checking
-    the real path and evaluating bridge-level waits; the user proposes bridge as
-    the owner because the LLM has no wait tool. The user prefers one shared
-    bridge policy over duplication in every HTTP tool. Exact delay semantics remain open.
-    This is investigation, not approval of a blanket delay or another demo run.
+    User decisions 2026-11-08 in the V455-005 discussion supersede the original
+    open delay/allowance decision: remove targetRequests end to end; retain RPS;
+    expose the explicit allowed-origin whitelist to the model; preserve concrete
+    DNS, TLS, connection and timeout reasons. A possibly completed request is a
+    property of its network failure, not a separate failure category. Bridge
+    infrastructure failure, lost allocation/lease and cancellation belong to
+    Runtime/Worker lifecycle and must not be returned as ordinary model errors.
+    User authorizes updating this task, merging the task definition into main,
+    then implementing on a separate branch. No deployment or paid model run is
+    requested. No blanket sleep, new retry policy or repeated-error threshold
+    is approved.
   specification:
+    - docs/spec/audits/audits.md#AUD-R242
     - docs/spec/tools/http-caido.md#HTP-R120
     - docs/spec/tools/http-caido.md#HTP-R122
     - docs/spec/tools/http-caido.md#HTP-R145
+    - docs/spec/platform/limits.md#LIM-HTP-43
     - docs/spec/platform/errors.md#ERR-R13
     - docs/spec/platform/observability.md#OBS-R32
   severity: high
@@ -72,153 +80,96 @@ context:
     http_limit_exceeded and the transport-code mapping at controlled.py:150-155.
     The generic retryability registry predates it and is overridden in the
     controlled path; it is not the cause of the observed model repetition.
-  siblings: >-
-    Review raised HTTPTransportError and non-completed transport outcomes,
-    HTTP tool error normalization, model-facing safe responses, retained Worker
-    diagnostics and content-free telemetry. Inspect shared transport consumers
-    such as scanner/proxy paths for equivalent loss of limit reasons; preserve
-    their existing owners and explicitly record applicability. Distinguish
-    scope denial, request allowance, rate pacing, timeout, transient failure
-    and an ambiguous already-sent request.
+  historical_probe: >-
+    tasks/evidence/v455-005-http-pacing-probe.json records six actual controlled
+    tool/native bridge/local socket probes. Historical targetRequests=2 exhausted
+    before bridge entry; waiting did not replenish it. Existing RPS=2 already
+    paced physical sends by 0.5 seconds with injected time. A 429 was ordinary
+    response data. Those probes explain the old implementation; total-allowance
+    tests and completion guidance are superseded by the user's removal decision.
   boundary: >-
-    Allocation transport owns physical-send accounting and existing rate pacing.
-    HTTP tool adaptation owns safe error classification; Worker owns execution
-    budgets and progress/completion. Telemetry records safe bounded reasons,
-    never credentials, URLs or bodies. A model retry hint is not permission to
-    replay an unsafe or ambiguously completed request.
-  decision_needed: >-
-    Decide whether to add any artificial delay and where it belongs. Option A:
-    preserve permanent classification and useful completion guidance first,
-    with no new sleep; this is the smallest agent-recommended baseline.
-    Option B: bounded backoff only for classified temporary failures, respecting
-    existing transport retries, Retry-After where applicable, attempt limits,
-    cancellation and the original deadline; evaluate only if measurements show
-    benefit. Option C: delay every failed tool call or all tool calls; this may
-    reduce call rate but also postpones completion, does not restore a total
-    request allowance and need not reduce model calls or token usage. It is not
-    recommended without evidence. Separately decide whether repeated permanent
-    rejection needs deterministic prevention or a completion path rather than
-    relying on the model to honor retryable=false; do not silently introduce a
-    global repeated-error threshold. No option has been approved by the user.
-  investigation_2026_11_08:
-    evidence: tasks/evidence/v455-005-http-pacing-probe.json
-    method: >-
-      Six bounded probes through actual Controlled HTTP tools, native mitmproxy
-      bridge and a temporary local TCP target; time is injected for deterministic
-      delay comparisons. One pre-send connection failure is injected at engine
-      entry. No paid model or demo target is invoked. Relevant transport, tool,
-      instrumentation, bridge and ingress files are identical between deployed
-      9d8bc588ca3c and inspected main 80d8336e3.
-    results: >-
-      With targetRequests=2, two sends succeed and 79 subsequent tool calls
-      fail before entering the native bridge. Both no-delay and a simulated
-      one-second engine-entry delay yield zero bridge entries/waits for those
-      failures; advancing time by 30 seconds does not replenish the allowance.
-      The real safe model response has code http_request_failed and retryable=false;
-      history still contains only two physical exchanges. requestsPerSecond=2
-      already waits 0.5 seconds between three sends at transport admission.
-      A 429 with Retry-After=2 returns as an ordinary response; the next explicit
-      call is not delayed. One injected pre-send connect failure retries a safe
-      GET once without backoff when no rate limit is configured. Cancelling a
-      pending admission wait prevents a second send and leaves no owned tasks.
-    actual_run_timing: >-
-      The 79 failed http_request spans span 332.829 seconds. Consecutive failed
-      request start times are 1.031-27.075 seconds apart, median 3.708 seconds.
-      Tool duration of 1-3 ms must not be confused with model-loop frequency.
-    recommendation: >-
-      Put any approved pacing/cooldown in allocation-owned HTTPTransport, the
-      shared request path used by controlled model tools and scanner bridge
-      ingress (adapters/bridge/mitmproxy/ingress.py:234). A wait keeps the current
-      tool call pending; the LLM needs no separate wait tool or extra model call.
-      Low-level MitmproxyEngine.request is below limit admission and is the wrong
-      sole owner for preventing this incident's repeated local rejections.
-      Preserve existing physical-send pacing at _admit_request. If approved,
-      observe transient responses in _request_chain and apply bounded cooldown
-      before the next explicitly requested physical send, with an explicit
-      scope (for example allocation plus origin), without replaying that response.
-      Combine cooldown with existing rate eligibility using the later timestamp,
-      rather than adding two sleeps. Respect the original call/authority deadline,
-      cancellation, fresh authority checks and allocation cleanup; scope denial
-      and total allowance exhaustion remain immediate permanent failures.
-      Safe pre-send connection retry backoff belongs with that same transport's
-      existing bounded retry decision, not a generic Worker/tool error delay.
-      Exact Retry-After/status policy, maximum wait, clock handling and cooldown
-      scope remain proposals. Correct limit classification and a useful completion
-      path still need separate treatment; sleeping cannot replenish total allowance.
-    compatibility_boundary: >-
-      The ordinary non-controlled HTTP session in toolsets/http/tools.py already
-      has a separate bounded status/Retry-After retry implementation, covered by
-      test_http_retries.py. Those tests do not establish controlled-path behavior.
-      Do not add blanket retries to the controlled path or weaken its pre-send-only
-      automatic retry rule. Raw bridge protocol code should not own engagement
-      budgets, model-loop progress or per-tool error throttling.
-    shared_owner_requirement: >-
-      Implement any approved common wait policy once at the shared outbound
-      transport boundary; do not copy sleeps into each tool. Controlled HTTP
-      tools and scanner proxy ingress already converge on HTTPTransport.request.
-      Inventory every claimed consumer before promising coverage of all HTTP:
-      the non-controlled HTTP factory branch uses _HTTPSession directly and
-      does not currently pass through that transport. Decide its integration
-      explicitly if universal coverage is required; do not silently broaden
-      this task into migrating all external HTTP clients or Caido internals.
-    checks: >-
-      All six probes passed. Existing test_engagement_target.py,
-      test_audit_http_credentials.py and test_engagement_socket_conformance.py
-      passed with real socket cases. Task/spec checks and full make lint passed
-      for the initial documentation commit; later evidence/doc corrections are
-      checked with task/spec consistency and git diff --check. No fix or cooldown
-      has been deployed; the task remains pending for the policy decision.
+    Engagement owns authorized routes and optional RPS/concurrency/body bounds.
+    HTTPTransport owns shared physical-send admission for controlled tools and
+    scanner proxy ingress, bounded pre-send safe retries and send-state facts.
+    Controlled tool adaptation owns bounded Runtime-authored model diagnostics.
+    Worker/lifecycle owns fatal infrastructure and authority failures. Retained
+    diagnostics/telemetry preserve safe reason codes without URLs, credentials,
+    request/response content or exception text. Model results may contain the
+    authorized public scope; sensitive HTTP telemetry remains metadata-only.
+  selected_policy: >-
+    Remove targetRequests from schemas, validators, contracts, Runtime enforcement,
+    UI previews, configurations and active fixtures, rejecting the removed field
+    as unknown. Keep existing RPS waits pending within the same call, respecting
+    deadline/cancellation and rechecking authority before send. No added delays
+    or new automatic response retries. Provide allowed origins proactively in
+    the HTTP tool surface and on target-denied responses, including applicable
+    method/path/exclusion and credential-origin restrictions so the projection
+    does not imply broader authority. Never expose protected infrastructure or
+    private credential values. DNS/TLS/connect/timeout failures return a concrete
+    safe reason and a conservative request-may-have-been-sent fact; no automatic
+    replay after a possible send. HTTP status responses including 4xx/5xx remain
+    ordinary data. Invalid model arguments/credential choices return actionable
+    corrections. Fatal bridge infrastructure errors stop Worker execution, while
+    lease loss/cancellation use existing lifecycle termination without a subsequent
+    model call. Distinguish target network failures from bridge failures at source.
+  siblings: >-
+    Inventory controlled HTTP tools, scanner proxy ingress, ordinary non-controlled
+    HTTP tools, Worker instrumentation and native bridge error adaptation. Shared
+    transport changes apply to tools and scanner ingress. The ordinary HTTP client
+    has separate status retries; do not silently change its retry behavior or
+    migrate unrelated HTTP clients. Reconcile error registries, specifications,
+    shared Go/Python wire fixtures and engagement UI readers in the same change.
 scope:
   in:
-    - Reproduce permanent HTTP limit rejection through the real transport and instrumented tool boundary.
-    - Preserve safe classified reasons and retryability through model responses and retained diagnostics.
-    - Evaluate and record the delay/completion decision before implementing a new policy.
-    - Test the chosen behavior, sibling consumers and secret suppression on the real execution path.
+    - Remove total-request quota from all active engagement surfaces and strict readers.
+    - Project authorized HTTP scope to the model and provide actionable safe tool errors.
+    - Preserve network failure reasons and possible-send facts through model/diagnostic boundaries.
+    - Route fatal infrastructure/authority failures through existing Worker termination.
+    - Verify real transport/tool/instrumentation paths and shared scanner consumers.
   out:
-    - Blanket sleeps, new configurable retry policies or thresholds before the open decision is resolved.
-    - Raising budgets, changing models, resetting the target or automatic replay of unsafe requests.
-    - Relaxing HTTP content suppression or changing OTLP delivery scheduling.
+    - New backoff/cooldown policies, blanket delays or repeated-error thresholds.
+    - Changing execution budgets/models, deployment or a paid demo/model comparison.
+    - Replaying unsafe or possibly sent requests, exposing secrets or weakening telemetry suppression.
 acceptance_criteria:
   - id: A1
     text: >-
-      Given a real controlled transport with an exhausted total allowance, the
-      instrumented tool returns a stable non-retryable safe limit reason and
-      sends no additional physical request. Model response and retained
-      diagnostics agree on classification; telemetry permits identifying the
-      reason without exposing sensitive content.
+      Engagement accepts RPS without a total request count; more than forty
+      physical sends can complete subject to ordinary execution budgets. Removed
+      targetRequests is rejected by strict Go/Python/schema/UI readers. Contracts,
+      fixtures and specs agree. RPS applies to sends, redirects and permitted retries
+      through the shared transport; cancellation/deadline prevents later sends.
   - id: A2
     text: >-
-      A decision record compares no added delay, temporary-failure backoff and
-      blanket delay, distinguishing rate limits from total allowance. Record
-      the selected completion/loop policy and its owner before implementation;
-      a proposal is not a user decision. No requirement assumes delays help.
+      Before choosing an HTTP request, the model can see the explicit allowed
+      origins and applicable route/credential restrictions. An out-of-scope call
+      sends nothing and returns a safe target-denied result with the whitelist.
+      Invalid arguments identify the correction. HTTP 4xx/5xx responses remain data.
   - id: A3
     text: >-
-      A deterministic real-path regression fails on the original mapping and
-      exercises permanent rejection, temporary failure, ambiguous send and
-      cancellation. The chosen policy preserves deadlines and send authority,
-      leaves already available evidence usable, and reports incomplete coverage
-      honestly. Any delay uses injected time; no fragile wall-clock assertions.
+      Deterministic regressions through real controlled transport and instrumented
+      tools distinguish DNS, TLS, connection and timeout failures, retain matching
+      safe internal reasons and report conservative send uncertainty. Pre-send DNS
+      failure is not marked possibly sent; timeout after send is. Unsafe or possibly
+      sent requests are never automatically replayed. No sensitive content leaks
+      into diagnostics, errors or telemetry.
   - id: A4
     text: >-
-      Review sibling consumers and reconcile applicable code registries,
-      documentation and shared contracts. Validate with a bounded repeated
-      comparison: model/tool calls, physical sends, tokens, elapsed time,
-      repeated errors and useful completion. A slower run alone is not success;
-      one paid model run is not evidence of improved behavior.
+      Fatal bridge failure, allocation/lease loss and cancellation stop through
+      existing Worker/lifecycle ownership, join owned work and cannot produce
+      another ordinary model/tool loop. Target network failures remain usable
+      request outcomes. Shared scanner ingress remains compatible, and applicability
+      of the separate ordinary HTTP implementation is recorded explicitly.
 tests:
-  - command: >-
-      cd runtime && uv run pytest -W error tests/test_http_engine.py
-      tests/test_http_toolset.py tests/test_http_retries.py
-      tests/test_instrumentation.py tests/test_telemetry_content.py
-    covers: [A1, A3, A4]
+  - command: make test-wire-cross-language
+    covers: [A1]
   - command: make test-runtime
-    covers: [A1, A3, A4]
+    covers: [A1, A2, A3, A4]
+  - command: make ui-verify
+    covers: [A1, A2]
   - command: make lint
     covers: [A1, A2, A3, A4]
 verification_notes: >-
-  Pending design/fix task. Existing test modules above must be extended with
-  the real-path regression; merely running their current tests does not prove
-  acceptance. The policy comparison and decision in A2/A4 require separately
-  recorded evidence. Only documentation is delivered by this task-creation
-  commit; no production behavior, deployment or delay policy has changed.
+  Pending implementation on a separate branch after the task-definition merge.
+  Extend real-path regressions and run affected Go packages including their
+  PostgreSQL suites when applicable. Historical probes establish old behavior,
+  not acceptance of the changed contract. No model efficiency claim is required.
