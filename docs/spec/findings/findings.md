@@ -2044,3 +2044,43 @@ Artifact owner and allocation. See FAIL-FND-3/4/5/9 and LIFE-FND-2/3.
 - Live CWE taxonomy lookup (FND-R31).
 - GitHub-specific upload/profile, source maps and remediation inference. Generic
   Audit-local SARIF export is specified by FND-R197 through FND-R208.
+
+
+## Explicit normalized candidate publication
+
+**FND-R230.** `publish-findings@1` accepts exact current-Run `candidates` and
+`evidence` inputs, or their explicitly selected flat common material set
+(SOP-R11, LIM-FND-57). Runtime adapters own provider interpretation. The closed
+`contractor.finding.candidates.v1` document and its selected exact evidence are
+bounded by LIM-FND-55/56. Invalid envelopes, unavailable evidence or missing
+trusted execution origin fail before the first mutation. Every accepted item
+uses ordinary intake, immutable receipts, Project retention and the existing
+Finding correlation fence. Operation authority derives from the live
+Run/Stage/Scheduler claim, without synthetic Worker/Runtime/allocation fields.
+The source separately preserves the authenticated original scan execution.
+
+**FND-R231.** Candidate source identity derives from the immutable Artifact
+version and candidate key. Ordinary exact forks preserve that version; independent
+writes of identical bytes have different identities. A replay in a new Run adds
+no source even when canonical problem equality is unavailable. Uploaded copies
+have no original execution provenance. Selected input bytes cannot choose an
+owner, Project, Run, Task or publication authority. The adapter's qualified key
+components use the existing producer-issue algorithm with
+`normalized-candidate/v1`; unavailable equality leaves independent problems.
+Nuclei equality includes exact package/content digest, rule ID, sanitized
+endpoint, evidenced method and matcher identity; missing method/package leaves
+an unavailable key. SQLMap equality includes sanitized endpoint, request method,
+actual parameter location and name (JSON body location remains distinct from
+GET/POST). Query values and credentials never enter these keys. Candidate
+identity and original exact evidence descriptors remain distinct from problem
+equality and the publishing Stage identity.
+Analyst assessment remains null until an explicit owner command.
+
+**FND-R232.** A partial scan may publish individually complete positive results
+with `scanner_incomplete` limitations. Operation counts include published,
+replayed, rejected and skipped items and scan completeness independently of
+publication Stage success. Retained exact evidence and original scan provenance
+survive source Run/Audit purge. A later publication Run still requires explicitly
+retained candidate/evidence inputs; accepted sources do not promise indefinite
+retention of unpublished candidates. Neither publication nor recovery calls the
+scanner, target, model or Runtime.

@@ -6373,6 +6373,22 @@
         }
       }
     },
+    "AuditTaskFindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ids", "truncated"],
+      "properties": {
+        "ids": {
+          "type": "array",
+          "maxItems": 128,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+          }
+        },
+        "truncated": { "type": "boolean" }
+      }
+    },
     "AuditTask": {
       "type": "object",
       "additionalProperties": false,
@@ -6388,6 +6404,9 @@
         "updated_at"
       ],
       "properties": {
+        "findings": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditTaskFindings"
+        },
         "hypothesis_snapshot": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditHypothesisDocument"
         },
@@ -6696,6 +6715,44 @@
             "recordLocator": {
               "type": "string",
               "pattern": "^/runs/[0-9]+/results/[0-9]+$"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "schema",
+            "availability",
+            "algorithm",
+            "value",
+            "adapter",
+            "ruleId",
+            "report",
+            "recordLocator"
+          ],
+          "properties": {
+            "schema": {
+              "type": "string",
+              "const": "contractor.finding.fingerprint-projection.v1"
+            },
+            "availability": { "type": "string", "const": "available" },
+            "algorithm": {
+              "type": "string",
+              "const": "contractor/producer-issue/v1"
+            },
+            "value": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "adapter": { "type": "string", "const": "normalized-candidate/v1" },
+            "ruleId": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,159}$"
+            },
+            "report": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingExactArtifact"
+            },
+            "recordLocator": {
+              "type": "string",
+              "pattern": "^/candidates/[0-9]{1,3}$"
             }
           }
         }
@@ -7394,13 +7451,15 @@
       "required": [
         "runId",
         "stageExecutionId",
-        "allocationId",
         "invocationId",
-        "logicalAgentName",
         "workflow",
         "runDeleted"
       ],
       "properties": {
+        "operation": { "type": "string", "const": "publish-findings@1" },
+        "scan": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingScanOrigin"
+        },
         "runId": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
         },
@@ -7423,6 +7482,34 @@
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingAuditOrigin"
         },
         "runDeleted": { "type": "boolean" }
+      }
+    },
+    "FindingScanOrigin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runId",
+        "stageExecutionId",
+        "allocationId",
+        "logicalAgentName",
+        "artifact"
+      ],
+      "properties": {
+        "artifact": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ExactArtifactRef"
+        },
+        "runId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "stageExecutionId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "allocationId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "logicalAgentName": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArtifactName"
+        }
       }
     },
     "FindingAuditHold": {
@@ -11161,7 +11248,8 @@
           "enum": [
             "sitemap-openapi-join@1",
             "sitemap-apply-openapi@1",
-            "openapi-prepare-work@1"
+            "openapi-prepare-work@1",
+            "publish-findings@1"
           ]
         },
         "arguments": {

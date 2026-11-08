@@ -1868,6 +1868,10 @@ def test_scanner_parsing_and_scratch_files_stay_off_the_event_loop(tmp_path, mon
             case, scanner.tool, ProcessResult(0, stdout=stdout, stderr=stderr)
         )
         observed = dict(result)
+        if case in {"scan_nuclei", "scan_sqlmap", "scan_sqlmap_request"}:
+            normalized = observed.pop("findingCandidates")
+            assert normalized["schema"] == "contractor.finding.candidates.v1"
+            assert normalized["complete"] is False
         if case == "scan_katana":
             published = scanner.store.values[("scanner", "targets")]
             _, data = katana_observation(

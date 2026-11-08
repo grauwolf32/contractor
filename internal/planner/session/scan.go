@@ -360,13 +360,16 @@ func validateScanJob(job planner.ScanJobRecord) error {
 	if job.Code != "" && !validScanCode(job.Code) {
 		return fmt.Errorf("scan job code is invalid")
 	}
-	if !terminalScanStatus(job.Status) && (job.Code != "" || job.Report != nil) {
+	if !terminalScanStatus(job.Status) && (job.Code != "" || job.Report != nil || len(job.Outputs) != 0) {
 		return fmt.Errorf("unresolved scan job contains a result")
 	}
 	for name, ref := range job.InputArtifacts {
 		if !validScanName(name, 128) || !validScanRef(ref) {
 			return fmt.Errorf("scan job input reference is invalid")
 		}
+	}
+	if len(job.Outputs) != 0 && (len(job.Outputs) != 2 || !validScanRef(job.Outputs["candidates"]) || !validScanRef(job.Outputs["evidence"])) {
+		return fmt.Errorf("scan job normalized outputs are invalid")
 	}
 	if job.Report != nil && !validScanRef(*job.Report) {
 		return fmt.Errorf("scan job report reference is invalid")
@@ -430,6 +433,11 @@ func cloneScanState(state planner.ScanState) planner.ScanState {
 func cloneScanJob(job planner.ScanJobRecord) planner.ScanJobRecord {
 	result := job
 	result.InputArtifacts = contracts.CloneArtifactRefs(job.InputArtifacts)
+	if len(job.Outputs) > 0 {
+		result.Outputs = contracts.CloneArtifactRefs(job.Outputs)
+	} else {
+		result.Outputs = nil
+	}
 	if job.Report != nil {
 		ref := job.Report.Clone()
 		result.Report = &ref

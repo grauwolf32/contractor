@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import hashlib
 import json
 import os
 import re
@@ -47,6 +49,17 @@ from contractor_runtime.toolsets.scan.ffuf import (
     ffuf_observation,
     validate_ffuf_filter,
     validate_ffuf_url,
+)
+from contractor_runtime.toolsets.scan.findings import (
+    CANDIDATE_MEDIA_TYPE,
+    EVIDENCE_MEDIA_TYPE,
+    MAX_EVIDENCE_BYTES,
+    nuclei_candidates,
+    sqlmap_candidates,
+    sqlmap_points,
+)
+from contractor_runtime.toolsets.scan.findings import (
+    encode as encode_findings,
 )
 from contractor_runtime.toolsets.scan.http_request import (
     MAX_REQUEST_ARTIFACT_BYTES,
@@ -354,6 +367,55 @@ class ScanTool:
         self.__name__ = self.name
         self.__doc__ = self.description
 
+    async def publish_outputs(
+        self, observation: dict, outputs: dict[str, ArtifactRef], arguments: dict | None = None
+    ) -> dict:
+        """Materialize only explicitly declared normalized Finding outputs."""
+        selected = {
+            name: ref for name, ref in outputs.items() if name in {"candidates", "evidence"}
+        }
+        if not selected:
+            return observation
+        if set(selected) != {"candidates", "evidence"} or "findingCandidates" not in observation:
+            raise ValueError("normalized scanner outputs require candidates and evidence")
+        batch = dict(observation["findingCandidates"])
+        selected_evidence = dict(batch.pop("evidence"))
+        select_inputs = getattr(self, "selected_evidence_inputs", None)
+        if select_inputs is not None and batch["candidates"]:
+            selected_evidence["inputs"] = await select_inputs(observation, arguments or {})
+        evidence = encode_findings(selected_evidence)
+        if len(evidence) > 512 << 10:
+            raise ValueError("selected scanner evidence exceeds bound")
+        # HTTP observations are consumed through the independent report collector.
+        batch.pop("surface", None)
+        batch.pop("surfaceOmissions", None)
+        written = await self._session.artifact_client.write_artifact(
+            selected["evidence"],
+            data=evidence,
+            media_type=EVIDENCE_MEDIA_TYPE,
+            expected_revision=None,
+        )
+        batch["evidence"] = {
+            "ref": written.artifact.require_exact().model_dump(by_alias=True),
+            "digest": "sha256:" + hashlib.sha256(evidence).hexdigest(),
+            "mediaType": EVIDENCE_MEDIA_TYPE,
+            "sizeBytes": len(evidence),
+        }
+        candidates = await self._session.artifact_client.write_artifact(
+            selected["candidates"],
+            data=encode_findings(batch),
+            media_type=CANDIDATE_MEDIA_TYPE,
+            expected_revision=None,
+        )
+        return {
+            **observation,
+            "artifacts": {
+                **observation.get("artifacts", {}),
+                "candidates": candidates.artifact.require_exact().model_dump(by_alias=True),
+                "evidence": written.artifact.require_exact().model_dump(by_alias=True),
+            },
+        }
+
     async def close(self) -> None:
         await self._session.close()
 
@@ -449,6 +511,7 @@ class _NucleiPreparationResult:
     engine_version: str | None = None
     template_manifest: dict[str, str] | None = None
     selected_template_count: int | None = None
+    template_methods: dict[str, str] = field(default_factory=dict)
 
     def provenance(self) -> dict[str, Any]:
         values = {
@@ -706,6 +769,7 @@ class _NucleiPreparation:
                     deadline,
                     identifiers,
                     source,
+                    self.result.template_methods,
                     name="nuclei-selected-manifest",
                 )
                 if self.session.controlled_http is not None:
@@ -823,6 +887,22 @@ class NucleiTool(JSONLinesScanTool):
         (directory / "nuclei-templates").mkdir()
         return []
 
+    async def selected_evidence_inputs(self, observation: dict, _arguments: dict) -> list[dict]:
+        selected = observation.get("templateManifest")
+        if selected is None:
+            raise ValueError("selected Nuclei manifest is unavailable")
+        ref = ArtifactRef.model_validate(selected).require_exact()
+        read = await self._session.artifact_client.read_artifact(ref, max_bytes=MAX_EVIDENCE_BYTES)
+        return [
+            {
+                "kind": "nuclei-manifest",
+                "ref": ref.model_dump(by_alias=True),
+                "mediaType": read.media_type,
+                "digest": "sha256:" + hashlib.sha256(read.data).hexdigest(),
+                "dataBase64": base64.b64encode(read.data).decode("ascii"),
+            }
+        ]
+
     async def __call__(
         self,
         url: str,
@@ -864,6 +944,9 @@ class NucleiTool(JSONLinesScanTool):
                     value["rateLimit"] = rate_limit
                 else:
                     value["httpLimits"] = self._session.controlled_http.configured_limits()
+            value["findingCandidates"] = nuclei_candidates(
+                value, methods=preparation.result.template_methods
+            )
             return value
 
         return await self._call(
@@ -912,6 +995,36 @@ class SQLMapTool(ScanTool):
     def prepare(self, directory: Path, templates: Path) -> list[str]:
         return [f"--output-dir={directory / 'output'}", f"--tmp-dir={directory}"]
 
+    async def selected_evidence_inputs(self, observation: dict, arguments: dict) -> list[dict]:
+        """Retain exact selected inputs only in explicit owner-authorized evidence.
+
+        Request bytes never enter the tool result, metadata, keys or telemetry.
+        This is an input snapshot, not an invented HTTP exchange capture.
+        """
+        if observation.get("requestArtifact") is not None:
+            ref = ArtifactRef.model_validate(observation["requestArtifact"]).require_exact()
+            read = await self._session.artifact_client.read_artifact(
+                ref, max_bytes=MAX_REQUEST_ARTIFACT_BYTES
+            )
+            data, media_type = read.data, read.media_type
+            digest = "sha256:" + hashlib.sha256(data).hexdigest()
+            records = observation["findingCandidates"]["evidence"]["records"]
+            if any(record["requestDigest"] != digest for record in records):
+                raise ValueError("prepared request differs from normalized evidence")
+        else:
+            data = encode_findings(
+                {name: arguments.get(name, "") for name in ("url", "parameter", "data", "cookie")}
+            )
+            media_type = "application/json"
+        return [
+            {
+                "kind": "scanner-input",
+                "mediaType": media_type,
+                "digest": "sha256:" + hashlib.sha256(data).hexdigest(),
+                "dataBase64": base64.b64encode(data).decode("ascii"),
+            }
+        ]
+
     async def __call__(
         self,
         url: str = "",
@@ -926,6 +1039,8 @@ class SQLMapTool(ScanTool):
         # All preparation/projection state belongs to this invocation. Concurrent
         # callers never overwrite an input on the shared ToolInstance.
         exact_ref: ArtifactRef | None = None
+        prepared_request = None
+        prepared_digest = ""
 
         def arguments():
             nonlocal exact_ref
@@ -968,6 +1083,7 @@ class SQLMapTool(ScanTool):
             return command
 
         async def prepare_request(directory: Path, _deadline: float) -> list[str]:
+            nonlocal prepared_request, prepared_digest
             if not (exact_ref is not None):
                 raise RuntimeError("Expected exact_ref is not None")
             try:
@@ -984,6 +1100,8 @@ class SQLMapTool(ScanTool):
             request = await threads.to_thread_until_done(
                 parse_http_request, value.data, name="sqlmap-request-parse"
             )
+            prepared_request = request
+            prepared_digest = "sha256:" + hashlib.sha256(value.data).hexdigest()
             host, port = url_endpoint(request.url)
             await self._session.require_destination(host, (port,))
             path = directory / "request.http"
@@ -1021,6 +1139,24 @@ class SQLMapTool(ScanTool):
                 injectionOutcome="reported" if techniques else "unknown",
                 injectionTechniques=techniques,
             )
+            if prepared_request is not None:
+                response["findingCandidates"] = sqlmap_candidates(
+                    response,
+                    url=prepared_request.url,
+                    method=prepared_request.method,
+                    points=sqlmap_points(result.stdout),
+                    request_digest=prepared_digest,
+                )
+            return response
+
+        def url_observation(result: ProcessResult) -> dict:
+            response = self.observation(result)
+            response["findingCandidates"] = sqlmap_candidates(
+                response,
+                url=url,
+                method="POST" if data else "GET",
+                points=sqlmap_points(result.stdout),
+            )
             return response
 
         return await self._call(
@@ -1029,7 +1165,7 @@ class SQLMapTool(ScanTool):
             # Request mode checks the artifact's URL once it has been read.
             destination=(lambda: _url_destination(url)) if request_ref is None else None,
             prepare=prepare_request if request_ref is not None else None,
-            observation=request_observation if request_ref is not None else None,
+            observation=request_observation if request_ref is not None else url_observation,
         )
 
 

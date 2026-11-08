@@ -616,3 +616,8 @@
     flex-wrap: wrap;
   }
 }
+
+.research-finding-results {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

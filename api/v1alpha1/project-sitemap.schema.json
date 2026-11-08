@@ -483,6 +483,21 @@
               "pattern": "[\u0000-\u001f\u007f-\u009f]"
             }
           }
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 4096,
+          "x-maxBytes": 4096
+        },
+        "tags": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "x-maxBytes": 64
+          }
         }
       },
       "required": [

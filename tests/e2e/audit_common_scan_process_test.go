@@ -3,19 +3,15 @@
 package e2e
 
 import (
-	"bytes"
 	"encoding/json"
-	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
-	"github.com/grauwolf32/contractor/internal/planner"
 )
 
 // Real scanner binaries, real Runtime adapters, public API and PostgreSQL.
@@ -78,8 +74,13 @@ func TestAuditCommonScanProfilesAcrossProductionProcesses(t *testing.T) {
 				t.Fatalf("accepted work=%+v", page)
 			}
 			task := page.Items[len(page.Items)-1]
-			if task.State != "settled" || task.GapCode != nil || task.Result == nil || task.Document.Hypothesis != nil || task.Attempts != 1 {
-				t.Fatalf("scan Task=%+v", task)
+			if task.State != "settled" || task.GapCode != nil || task.Findings == nil || task.Result != nil || task.Document.Hypothesis != nil || task.Attempts != 1 {
+				if task.GapCode != nil {
+					t.Logf("Task gap=%s", *task.GapCode)
+				}
+				var diagnostics []byte
+				_ = h.pool.QueryRow(h.ctx, `SELECT jsonb_agg(jsonb_build_object('name',s.stage_name,'state',s.state,'reason',s.state_reason_code,'error',s.accepted_stage_result->'error','termination',s.stage_termination)) FROM stage_executions s JOIN audit_executions e USING(run_id) WHERE e.execution_id=$1`, *task.LastExecution).Scan(&diagnostics)
+				t.Fatalf("scan Task=%+v stages=%s", task, diagnostics)
 			}
 			if scanner != "web" {
 				if page.Items[0].Document.Workflow != "prepare" || task.Document.Workflow != "scan" || task.Document.Inputs["operation"].ScopeKind != "audit" {
@@ -87,23 +88,13 @@ func TestAuditCommonScanProfilesAcrossProductionProcesses(t *testing.T) {
 				}
 			}
 			data := commonScanArtifact(t, h, draft.AuditID, task)
-			var report struct {
-				Schema             string `json:"schema"`
-				RunID              string `json:"run_id"`
-				ExecutionCompleted bool   `json:"execution_completed"`
-				Artifacts          []struct {
-					Kind   string `json:"kind"`
-					Digest string `json:"digest"`
-					Data   []byte `json:"data_base64"`
-				} `json:"artifacts"`
-				Attempts []planner.ScanAttempt `json:"attempts"`
-			}
+			var report retainedWebScanReport
 			if err := json.Unmarshal(data, &report); err != nil || report.Schema != "contractor.scan.operation-report.v1" || !report.ExecutionCompleted || len(report.Attempts) == 0 {
 				t.Fatalf("scan report=%+v error=%v", report, err)
 			}
 			reports := 0
 			for _, artifact := range report.Artifacts {
-				if contentdigest.Bytes(artifact.Data) != artifact.Digest {
+				if contentdigest.Bytes(sourceScanArtifact(t, h, report.RunID, artifact.Ref)) != artifact.Digest {
 					t.Fatal("retained evidence changed bytes")
 				}
 				if artifact.Kind == "scanner-report" {
@@ -114,7 +105,7 @@ func TestAuditCommonScanProfilesAcrossProductionProcesses(t *testing.T) {
 				t.Fatalf("scanner report count=%d", reports)
 			}
 			for _, member := range page.Items {
-				if member.Result == nil || member.LastExecution == nil {
+				if member.Result == nil && member.Findings == nil || member.LastExecution == nil {
 					t.Fatal("supporting work has no retained result")
 				}
 			}
@@ -128,34 +119,43 @@ func TestAuditCommonScanProfilesAcrossProductionProcesses(t *testing.T) {
 				}
 				deleteASVSBacktraceRun(t, h.ctx, h.client, h.baseURL, runID)
 			}
-			if after := commonScanArtifact(t, h, draft.AuditID, task); !bytes.Equal(data, after) || before != len(scanFixtureRequests(h)) {
-				t.Fatal("source Run purge changed evidence or repeated target activity")
+			var after struct {
+				Items []basicTask `json:"items"`
 			}
+			auditProgramGET(t, h.client, h.baseURL+"/v1/audits/"+draft.AuditID+"/tasks?limit=64", &after)
+			if after.Items[len(after.Items)-1].Findings == nil || before != len(scanFixtureRequests(h)) {
+				t.Fatal("source purge lost canonical results or repeated target work")
+			}
+
 		})
 	}
 }
+
+// Reports are read only from the concrete child Run. Audit collection contains
+// canonical domain references, including an empty result, and no report export.
 func commonScanArtifact(t *testing.T, h *scanProcessHarness, auditID string, task basicTask) []byte {
 	t.Helper()
-	key := "execution/" + *task.LastExecution + "/output/scan_report"
-	query := url.Values{"key": {key}, "revision": {*task.Result.Ref.Revision}}
-	request, err := http.NewRequestWithContext(h.ctx, http.MethodGet, h.baseURL+"/v1/audits/"+auditID+"/artifacts?"+query.Encode(), nil)
-	if err != nil {
+	if task.Result != nil || task.Findings == nil {
+		t.Fatal("scanner Task substituted Artifact result")
+	}
+	var runID string
+	var encoded []byte
+	if err := h.pool.QueryRow(h.ctx, `SELECT execution.run_id,stage.accepted_stage_result->'artifacts'->'report' FROM audit_executions execution JOIN stage_executions stage USING(run_id) WHERE execution.execution_id=$1 AND stage.accepted_stage_result->'artifacts' ? 'report' ORDER BY stage.created_at DESC LIMIT 1`, *task.LastExecution).Scan(&runID, &encoded); err != nil {
 		t.Fatal(err)
 	}
-	request.Header.Set("Authorization", "Bearer "+publicToken)
-	response := do(t, h.client, request, http.StatusOK)
-	defer response.Body.Close()
-	data, err := io.ReadAll(io.LimitReader(response.Body, 8<<20))
-	if err != nil {
+	var ref contracts.ArtifactRef
+	if err := json.Unmarshal(encoded, &ref); err != nil {
 		t.Fatal(err)
 	}
-	if task.Result.ScopeKind != "audit" || task.Result.ScopeID != auditID {
-		t.Fatal("foreign collected material")
+	var copied int
+	if err := h.pool.QueryRow(h.ctx, `SELECT count(*) FROM audit_artifact_links WHERE audit_id=$1 AND logical_key LIKE $2`, auditID, "execution/"+*task.LastExecution+"/%").Scan(&copied); err != nil || copied != 0 {
+		t.Fatalf("scanner report copied into Audit: %d %v", copied, err)
 	}
-	var material auditcontract.Material = *task.Result
-	if contentdigest.Bytes(data) != material.Digest {
-		t.Fatal("ordinary result digest differs")
-	}
+	return sourceScanArtifact(t, h, runID, ref)
+}
+func sourceScanArtifact(t *testing.T, h *scanProcessHarness, runID string, ref contracts.ArtifactRef) []byte {
+	t.Helper()
+	data, _ := download(t, h.client, h.baseURL+"/v1/runs/"+runID+"/artifacts/"+ref.Namespace+"/"+ref.Name+"?revision="+*ref.Revision)
 	return data
 }
 

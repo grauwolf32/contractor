@@ -582,3 +582,14 @@ failure. ArtifactStore owns atomic pointer/accounting/hold effects. Member IDs
 and their retained summaries survive route regrouping; a changed structural
 selection creates an explicitly distinct member and cannot silently widen a
 suppression.
+
+
+**SMT-R31.** Normalized observations may additionally carry a bounded source-owned
+note and tags. They become ordinary member annotations with the same source
+provenance, preserving manual annotations and suppression. Repeated facts merge
+without duplicate annotations; byte/tag/source limits produce explicit projection
+gaps. Runtime Nuclei adapters supply supported technology/version facts through
+the existing report collector independently of Finding publication. Missing
+concrete request method produces a projection gap rather than an invented member;
+missing response records only the factual request attempt. No target traffic or
+Audit report export is added.

@@ -154,6 +154,7 @@ def selected_manifest(
     deadline: float,
     identifiers: dict[str, str] | None = None,
     source: dict | None = None,
+    methods: dict[str, str] | None = None,
 ) -> tuple[bytes, int]:
     """Resolve the engine's -tl selection exclusively within verified package bytes."""
     index = {record["path"]: record for record in snapshot.files}
@@ -177,6 +178,33 @@ def selected_manifest(
                 name = identifier[2].decode("ascii")
             else:
                 name = identifiers[line]
+            if methods is not None:
+                resolved_method = ""
+                # Only one explicit method across every HTTP request establishes
+                # the matched request method. Unsupported/dynamic templates keep
+                # an unknown method rather than guessing GET.
+                from contractor_runtime.toolsets.scan.nuclei_rulepack import parse_template
+
+                try:
+                    template = parse_template(data, deadline)
+                    requests = template.get("http", [])
+                    found = set()
+                    for request in requests:
+                        if not isinstance(request, dict):
+                            raise ValueError
+                        if "raw" in request:
+                            for raw in request["raw"]:
+                                found.add(raw.split(" ", 1)[0])
+                        else:
+                            found.add(request.get("method", ""))
+                    if len(found) == 1:
+                        method = next(iter(found))
+                        if isinstance(method, str) and re.fullmatch(r"[A-Z]{1,16}", method):
+                            resolved_method = method
+                except (PackageError, ValueError, TypeError, AttributeError):
+                    pass
+                prior = methods.get(name, resolved_method)
+                methods[name] = resolved_method if prior == resolved_method else ""
             selected[line] = {**index[line], "id": name}
         if not selected:
             raise ValueError

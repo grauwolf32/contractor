@@ -33,8 +33,7 @@ spec:
           source: audit-input
           name: settings
       parameters: {}
-      outputs:
-        scan_report: result
+      outputs: {}
   hypotheses: {}
   initial_work:
   - key: scan-target

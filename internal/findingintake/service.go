@@ -77,14 +77,17 @@ func (s *Service) FindReplay(
 // Submit commits proposal bytes, exact evidence pins, and the replay receipt
 // in one transaction. Its caller holds the Registry write-grant critical
 // section for the entire call, serializing this commit with SetWriteFence.
-func (s *Service) Submit(
-	ctx context.Context,
-	grant controlplane.AllocationGrant,
-	input Submission,
-) (Receipt, bool, error) {
+func (s *Service) Submit(ctx context.Context, grant controlplane.AllocationGrant, input Submission) (Receipt, bool, error) {
+	return s.submit(ctx, intakeExecution{RunID: grant.RunID, StageID: grant.StageExecutionID, Worker: &grant}, input)
+}
+
+func (s *Service) submit(ctx context.Context, execution intakeExecution, input Submission) (Receipt, bool, error) {
 	canonical, err := canonicalize(input)
 	if err != nil {
 		return Receipt{}, false, err
+	}
+	if execution.Worker == nil {
+		canonical.digest = execution.RequestDigest
 	}
 	// Retain the slot while both the candidate blob and receipt are published.
 	ctx, releaseTransfer, err := s.storage.AcquireTransfer(ctx)
@@ -94,21 +97,27 @@ func (s *Service) Submit(
 	defer releaseTransfer()
 	// Replay precedes derived evidence reads: source deletion or a later
 	// adapter version must not prevent reconciliation of a committed call.
-	if previous, found, replayErr := s.FindReplay(ctx, grant, input); replayErr != nil {
+	if previous, found, replayErr := s.findExecutionReplay(ctx, execution, input); replayErr != nil {
 		return Receipt{}, false, replayErr
 	} else if found {
 		return previous, true, nil
 	}
-	readStage := s.lazyPreparationStage(ctx, grant)
-	anchors, err := s.prepareAnchors(ctx, grant, canonical.request, readStage)
-	if err != nil {
-		return Receipt{}, false, err
+	anchors := auditdomain.UnavailableFindingAnchors("not_provided")
+	fingerprint := auditdomain.UnavailableFindingFingerprint("not_provided")
+	if execution.Worker != nil {
+		readStage := s.lazyPreparationStage(ctx, *execution.Worker)
+		anchors, err = s.prepareAnchors(ctx, *execution.Worker, canonical.request, readStage)
+		if err != nil {
+			return Receipt{}, false, err
+		}
+		fingerprint, err = s.prepareFingerprint(ctx, *execution.Worker, canonical.request, readStage)
+		if err != nil {
+			return Receipt{}, false, err
+		}
+	} else if execution.Fingerprint != nil {
+		fingerprint = *execution.Fingerprint
 	}
 	canonical.anchorProjection, err = auditdomain.EncodeFindingAnchors(anchors)
-	if err != nil {
-		return Receipt{}, false, err
-	}
-	fingerprint, err := s.prepareFingerprint(ctx, grant, canonical.request, readStage)
 	if err != nil {
 		return Receipt{}, false, err
 	}
@@ -116,11 +125,10 @@ func (s *Service) Submit(
 	if err != nil {
 		return Receipt{}, false, err
 	}
-	receiptID := deterministicID("receipt", grant.AllocationID, input.InvocationID, input.SubmissionID)
-	proposalID := deterministicID("proposal", grant.AllocationID, input.InvocationID, input.SubmissionID)
+	receiptID, proposalID := execution.receiptID(input), execution.proposalID(input)
 	var httpPayload *artifacts.Payload
 	if canonical.request.HTTPEvidence != nil {
-		data, encodeErr := auditdomain.EncodeHTTPExchangeArtifact(*canonical.request.HTTPEvidence, grant.RunID, input.InvocationID)
+		data, encodeErr := auditdomain.EncodeHTTPExchangeArtifact(*canonical.request.HTTPEvidence, execution.RunID, input.InvocationID)
 		if encodeErr != nil || len(data) > artifacts.MaxPayloadSize {
 			return Receipt{}, false, fmt.Errorf("%w: HTTP evidence payload", ErrInvalid)
 		}
@@ -146,19 +154,15 @@ func (s *Service) Submit(
 		// byte-identical requests both advance the proposal Artifact binding
 		// before either receipt becomes visible.
 		lockKey := persistencepostgres.NewAdvisoryKey(
-			"finding-proposal-submission", grant.AllocationID, input.InvocationID, input.SubmissionID,
+			"finding-proposal-submission", receiptID,
 		)
 		if err := persistencepostgres.LockAdvisory(ctx, tx, lockKey); err != nil {
 			return fmt.Errorf("lock finding proposal submission: %w", err)
 		}
-		existing, readErr := readReceiptBySubmission(
-			ctx, tx, grant.AllocationID, input.InvocationID, input.SubmissionID,
-		)
+		existing, readErr := s.readExecutionReceipt(ctx, tx, execution, input)
 		if readErr == nil {
 			if existing.RequestDigest != canonical.digest ||
-				existing.Origin.RunID != grant.RunID ||
-				existing.Origin.StageExecutionID != grant.StageExecutionID ||
-				existing.Origin.LogicalAgentName != grant.LogicalAgentName {
+				!execution.matchesOrigin(existing.Origin) {
 				return ErrConflict
 			}
 			result, replayed = existing, true
@@ -168,7 +172,7 @@ func (s *Service) Submit(
 			return readErr
 		}
 
-		origin, ownerID, projectID, err := verifyTrustedExecution(ctx, tx, grant, canonical.request.ItemKey, s.storage)
+		origin, ownerID, projectID, err := s.verifyIntakeExecution(ctx, tx, execution, canonical.request.ItemKey)
 		if canonical.request.Incidental && origin.Audit != nil {
 			origin.Audit.Hypothesis = nil
 		}
@@ -178,13 +182,13 @@ func (s *Service) Submit(
 		origin.InvocationID = canonical.request.InvocationID
 		// The quota counts every submission of the Run, so distinct
 		// submissions must also serialize their count and insert.
-		runLockKey := persistencepostgres.NewAdvisoryKey("run-proposal-quota", grant.RunID)
+		runLockKey := persistencepostgres.NewAdvisoryKey("run-proposal-quota", execution.RunID)
 		if err := persistencepostgres.LockAdvisory(ctx, tx, runLockKey); err != nil {
 			return fmt.Errorf("lock Run finding proposal quota: %w", err)
 		}
 		var count int
 		if err := tx.QueryRow(ctx, `
-SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, grant.RunID).Scan(&count); err != nil {
+SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, execution.RunID).Scan(&count); err != nil {
 			return fmt.Errorf("count Run finding proposals: %w", err)
 		}
 		if count >= maxProposalsPerRun {
@@ -192,7 +196,7 @@ SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, grant.RunID).
 		}
 
 		artifactService := artifacts.NewService(s.storage.Repository(tx))
-		runArtifacts, err := artifactService.Run(grant.RunID)
+		runArtifacts, err := artifactService.Run(execution.RunID)
 		if err != nil {
 			return err
 		}
@@ -224,7 +228,7 @@ SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, grant.RunID).
 			if evidenceBytes+int64(len(httpPayload.Data)) > maxProposalEvidenceBytes {
 				return fmt.Errorf("%w: proposal evidence quota exceeded", ErrInvalid)
 			}
-			written, writeErr := artifactService.CreateFrozen(ctx, mustRunScope(grant.RunID),
+			written, writeErr := artifactService.CreateFrozen(ctx, mustRunScope(execution.RunID),
 				contracts.ArtifactRef{Namespace: artifactpolicy.HTTPExchangeNamespace, Name: auditdomain.HTTPExchangeArtifactName(input.InvocationID, canonical.request.HTTPEvidence.Source, canonical.request.HTTPEvidence.RequestID)}, *httpPayload)
 			if writeErr != nil {
 				if errors.Is(writeErr, artifacts.ErrAuditArtifactCollision) {
@@ -239,15 +243,13 @@ SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, grant.RunID).
 		// neither create nor advance it, while the exact revision stays
 		// readable in its RunScope (ART-R114).
 		written, writeErr := artifactService.Create(
-			ctx, mustRunScope(grant.RunID),
+			ctx, mustRunScope(execution.RunID),
 			contracts.ArtifactRef{Namespace: artifactpolicy.FindingProposalNamespace, Name: proposalID},
 			preparedPayload,
 		)
 		if writeErr != nil {
 			if errors.Is(writeErr, artifacts.ErrArtifactConflict) {
-				existing, replayErr := readReceiptBySubmission(
-					ctx, tx, grant.AllocationID, input.InvocationID, input.SubmissionID,
-				)
+				existing, replayErr := s.readExecutionReceipt(ctx, tx, execution, input)
 				if replayErr == nil && existing.RequestDigest == canonical.digest {
 					result, replayed = existing, true
 					return nil
@@ -264,7 +266,7 @@ SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, grant.RunID).
 			MediaType: written.MediaType, SizeBytes: written.Size,
 		}
 		for _, item := range evidence {
-			if err := artifactService.RequireExact(ctx, mustRunScope(grant.RunID), item.Ref); err != nil {
+			if err := artifactService.RequireExact(ctx, mustRunScope(execution.RunID), item.Ref); err != nil {
 				return err
 			}
 		}
@@ -288,7 +290,7 @@ SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, grant.RunID).
 				if err := hookstore.NewFindingEventsTx(tx, s.storage).LockFindingCorrelationFence(ctx, *projectID); err != nil {
 					return err
 				}
-				retained, retainErr := retainFindingArtifact(ctx, artifactService, grant.RunID, *projectID,
+				retained, retainErr := retainFindingArtifact(ctx, artifactService, execution.RunID, *projectID,
 					artifactpolicy.FindingMaterialsNamespace, deterministicID("proposal", receiptID), proposal)
 				if retainErr != nil {
 					return retainErr
@@ -319,7 +321,7 @@ SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, grant.RunID).
 
 				projectEvidence = make([]ExactArtifact, 0, len(evidence))
 				for index, source := range evidence {
-					retained, retainErr := retainFindingArtifact(ctx, artifactService, grant.RunID, *projectID,
+					retained, retainErr := retainFindingArtifact(ctx, artifactService, execution.RunID, *projectID,
 						artifactpolicy.FindingMaterialsNamespace, deterministicID("evidence", receiptID, fmt.Sprint(index)), source)
 					if retainErr != nil {
 						return retainErr
@@ -330,7 +332,7 @@ SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, grant.RunID).
 		}
 		if err := insertReceipt(
 			ctx, tx, receiptID, proposalID, canonical, fingerprintJSON, proposal, evidence,
-			origin, ownerID, projectID, grant,
+			origin, ownerID, projectID, execution.Worker,
 			projectProposal, projectEvidence, publicationError,
 		); err != nil {
 			return err
@@ -341,9 +343,7 @@ SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, grant.RunID).
 				return err
 			}
 		}
-		result, err = readReceiptBySubmission(
-			ctx, tx, grant.AllocationID, input.InvocationID, input.SubmissionID,
-		)
+		result, err = s.readExecutionReceipt(ctx, tx, execution, input)
 		return err
 	})
 	if err != nil {
@@ -473,7 +473,7 @@ func insertReceipt(
 	origin Origin,
 	ownerID string,
 	projectID *string,
-	grant controlplane.AllocationGrant,
+	worker *controlplane.AllocationGrant,
 	projectProposal *ExactArtifact,
 	projectEvidence []ExactArtifact,
 	publicationError string,
@@ -497,17 +497,28 @@ func insertReceipt(
 			}
 		}
 	}
+	stageID, runID := origin.StageExecutionID, origin.RunID
+	var allocationID, runtimeAgentID, runtimeInstanceID, logicalAgentName *string
+	if worker != nil {
+		stageID, runID = worker.StageExecutionID, worker.RunID
+		allocationID, runtimeAgentID = &worker.AllocationID, &worker.RuntimeAgentID
+		runtimeInstanceID, logicalAgentName = &worker.RuntimeInstanceID, &worker.LogicalAgentName
+	}
+	var scanOrigin []byte
+	if origin.Scan != nil {
+		scanOrigin, _ = json.Marshal(origin.Scan)
+	}
 	_, err := tx.Exec(ctx, insertReceiptSQL,
-		receiptID, proposalID, grant.AllocationID, grant.RuntimeAgentID, grant.RuntimeInstanceID,
-		grant.StageExecutionID, grant.LogicalAgentName, canonical.request.InvocationID,
+		receiptID, proposalID, allocationID, runtimeAgentID, runtimeInstanceID,
+		stageID, logicalAgentName, canonical.request.InvocationID,
 		canonical.request.SubmissionID, canonical.request.Proposal.ClientKey, canonical.digest,
-		grant.RunID, ownerID, projectID,
+		runID, ownerID, projectID,
 		auditExecutionID, auditID, auditTaskID, origin.Workflow.Name, origin.Workflow.Version,
 		origin.Workflow.SchemaVersion, configurationRef, origin.Workflow.ClosureDigest,
 		proposalRef, proposal.Digest, proposal.MediaType, proposal.SizeBytes,
 		evidenceJSON, string(canonical.reportProjection), string(fingerprintJSON), string(canonical.anchorProjection),
 		string(canonical.checksProjection),
-		canonical.request.PublishProblem, publicationError, projectProposalJSON, projectEvidenceJSON, hypothesis, hypothesisSnapshot,
+		canonical.request.PublishProblem, publicationError, projectProposalJSON, projectEvidenceJSON, hypothesis, hypothesisSnapshot, origin.Operation, scanOrigin,
 	)
 	if err != nil {
 		switch persistencepostgres.Classify(err) {

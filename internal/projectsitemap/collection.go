@@ -72,6 +72,9 @@ func observationAuthority(access AllocationAccess, kind string) Authority {
 }
 
 func validateCollectedObservation(observation Observation) error {
+	if _, err := projectAnnotation(observation.Note, observation.Tags, Authority{}); err != nil {
+		return err
+	}
 	if !methodPattern.MatchString(observation.Method) || !validOutcome(observation.Outcome, observation.Status) || !validTime(observation.At) || len(observation.Parameters) > MaxBatch {
 		return ErrInvalid
 	}

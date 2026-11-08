@@ -453,11 +453,12 @@ class ToolWorkerRuntime:
                     for name, value in observation.items()
                     if name.endswith("Truncated")
                 )
+                publisher = getattr(self._tool, "publish_outputs", None)
                 try:
                     artifacts = self._additional_artifacts(
                         observation.get("artifacts", {}),
                         request,
-                        complete=observation["status"] == "completed",
+                        complete=observation["status"] == "completed" and publisher is None,
                     )
                     payload = _json(
                         {
@@ -495,6 +496,22 @@ class ToolWorkerRuntime:
                 await notify_report_publication(
                     self._resources.report_publication_sink, self._execution.tool, report
                 )
+                if publisher is not None:
+                    try:
+                        async with asyncio.timeout(
+                            self._context.runtime_settings.request_timeout_seconds
+                        ):
+                            observation = await publisher(
+                                observation, request.result_artifacts, arguments
+                            )
+                            artifacts = self._additional_artifacts(
+                                observation.get("artifacts", {}),
+                                request,
+                                complete=observation["status"] == "completed",
+                            )
+                            await self._verify_additional_artifacts(artifacts)
+                    except Exception:
+                        raise ToolWorkerError("tool_report_failed") from None
                 if observation["status"] == "failed":
                     raise ToolWorkerError("tool_execution_failed")
         except asyncio.CancelledError:

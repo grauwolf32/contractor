@@ -38,17 +38,18 @@ type ResultInput struct {
 }
 
 type Result struct {
-	Data      []byte
-	Retryable bool
-	Summary   string
+	Data               []byte
+	Retryable          bool
+	ExecutionCompleted bool
+	Summary            string
 }
 
 type retainedArtifact struct {
-	ID     string                `json:"id"`
-	Kind   string                `json:"kind"`
-	Ref    contracts.ArtifactRef `json:"ref"`
-	Digest string                `json:"digest"`
-	Data   []byte                `json:"data_base64"`
+	ID        string                `json:"id"`
+	Kind      string                `json:"kind"`
+	Ref       contracts.ArtifactRef `json:"ref"`
+	Digest    string                `json:"digest"`
+	SizeBytes int                   `json:"size_bytes"`
 }
 
 type operationReport struct {
@@ -67,7 +68,6 @@ type resultBuilder struct {
 	input         ResultInput
 	read          ArtifactReader
 	artifacts     []retainedArtifact
-	evidenceBytes int
 	gaps          map[string]bool
 	completed     bool
 	observed      bool
@@ -111,7 +111,7 @@ func BuildResult(ctx context.Context, input ResultInput, read ArtifactReader) (R
 	if err != nil || len(data) > MaxResultBytes {
 		return Result{}, fmt.Errorf("%w: scan report exceeds JSON bound", ErrInvalid)
 	}
-	return Result{Data: data, Retryable: builder.retryable && !builder.needsRecovery, Summary: resultSummary}, nil
+	return Result{Data: data, Retryable: builder.retryable && !builder.needsRecovery, ExecutionCompleted: report.ExecutionCompleted, Summary: resultSummary}, nil
 }
 
 func hash(data []byte) string { sum := sha256.Sum256(data); return hex.EncodeToString(sum[:]) }

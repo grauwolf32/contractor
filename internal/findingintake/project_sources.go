@@ -92,19 +92,26 @@ func (s *Service) ListProjectSources(ctx context.Context, ownerID, projectID, fi
 		var value ProjectSourcePreview
 		var proposal, configuration []byte
 		var auditID, executionID, taskID *string
-		var hypothesis, hypothesisSnapshot []byte
+		var hypothesis, hypothesisSnapshot, scanOrigin []byte
 		var deleted *time.Time
 		if err := rows.Scan(&value.ReceiptID, &value.ProposalID, &value.ProjectID, &value.FindingID,
 			&proposal, &value.EvidenceCount, &value.PublicationRequested, &value.CreatedAt,
 			&value.Origin.RunID, &value.Origin.StageExecutionID, &value.Origin.AllocationID,
 			&value.Origin.InvocationID, &value.Origin.LogicalAgentName, &value.Origin.Workflow.Name,
 			&value.Origin.Workflow.Version, &value.Origin.Workflow.SchemaVersion, &configuration, &value.Origin.Workflow.ClosureDigest,
-			&auditID, &executionID, &taskID, &hypothesis, &hypothesisSnapshot, &deleted); err != nil {
+			&auditID, &executionID, &taskID, &hypothesis, &hypothesisSnapshot, &deleted, &value.Origin.Operation, &scanOrigin); err != nil {
 			return ProjectSourcePage{}, err
 		}
 		if strictjson.Decode(proposal, &value.Proposal) != nil || value.Proposal.Validate() != nil ||
 			!value.Proposal.HasMetadata() || strictjson.Decode(configuration, &value.Origin.Workflow.ConfigurationRef) != nil {
 			return ProjectSourcePage{}, ErrInvalid
+		}
+		if scanOrigin != nil {
+			var origin artifacts.ExecutionOrigin
+			if strictjson.Decode(scanOrigin, &origin) != nil {
+				return ProjectSourcePage{}, ErrInvalid
+			}
+			value.Origin.Scan = &origin
 		}
 		value.Origin.RunDeleted = deleted != nil
 		if auditID != nil {

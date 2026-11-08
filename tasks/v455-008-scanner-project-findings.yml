@@ -5,7 +5,7 @@ milestone: scan-tools-followups
 epic: scan-tools
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on: [V55-003, V64-014, V64-026]
 languages: [python, go, typescript, yaml, json, markdown]
 goal: >-
@@ -29,7 +29,8 @@ context:
     SQLMap needs the same integration. The user requested this task and proposed
     a separate operation. This task adopts that direction through the existing
     Server-operation Stage path. Exact operation/schema names are agent proposals.
-    This request prepares the task; implementation and deployment remain unassigned.
+    User assignment 2026-11-08 authorizes implementation after accepting the
+    severity routing and partial-scan decisions below. Deployment is not assigned.
     It supersedes the initial draft's implicit scanner-publication side effect.
     Further user decision: scanner reports stay on their concrete Run and are not
     added to Audit artifacts. Audit scanner results contain canonical Findings,
@@ -38,6 +39,7 @@ context:
     Project sitemap, not discarded merely because they are not problem Findings.
   source_revision: 8cada27e100fe1847e206fe2fe42e0ad759c5751
   evidence: tasks/evidence/v455-008-scanner-findings-gap.json
+  implementation_evidence: tasks/evidence/v455-008-scanner-findings-implementation.json
   specification:
     - docs/spec/execution/server-operations.md#SOP-R1
     - docs/spec/execution/server-operations.md#SOP-R4
@@ -55,6 +57,15 @@ context:
     - docs/spec/audits/scans.md#ASC-R130
     - docs/spec/audits/scans.md#ASC-R134
     - docs/spec/artifacts/project-sitemap.md#SMT-R25
+    - docs/spec/findings/findings.md#FND-R230
+    - docs/spec/findings/findings.md#FND-R231
+    - docs/spec/findings/findings.md#FND-R232
+    - docs/spec/tools/scanners.md#SCN-R264
+    - docs/spec/tools/scanners.md#SCN-R265
+    - docs/spec/tools/scanners.md#SCN-R266
+    - docs/spec/artifacts/project-sitemap.md#SMT-R31
+    - docs/spec/configuration/workflows.md#WFL-R97
+    - docs/spec/execution/server-operations.md#SOP-R11
   current_gap: >-
     runtime/src/contractor_runtime/worker/tool_runtime.py:480-497 publishes the
     ordinary report and notifies an optional subscriber. Allocation composition
@@ -84,8 +95,8 @@ context:
     do not forge allocations, Worker sessions or source origins.
   operation_contract:
     ref: publish-findings@1
-    inputs: Exact current-Run candidate batch and its explicitly selected exact evidence Artifacts, pinned by ordinary Stage context.
-    arguments: Bounded common literal/parameter arguments; no owner, foreign Project, arbitrary scope or command.
+    inputs: Exact current-Run candidate batch and its explicitly selected exact evidence Artifact, or one common flat material set selecting at most 16 such pairs, pinned by ordinary Stage context.
+    arguments: None. Exact selected Artifacts carry the bounded input; no owner, foreign Project, arbitrary scope or command.
     outputs: Ordinary bounded Stage summary with counts, bounded canonical Finding/source refs and classified gaps/errors; complete detail uses existing paginated domain readers, never parsing summary prose. No required report or Finding-package Artifact. Operation diagnostics stay Run-local; canonical source receipts and selected evidence follow Project retention, not Run-local lifetime.
     execution: Existing model-free operation Stage lane, original deadline and trusted Run/Stage/claim; no Runtime, Planner or model.
     intent: Selecting the publication Stage explicitly requests problem publication; existing observation-only scanning remains available.
@@ -98,26 +109,18 @@ context:
     outputs use the same normalized contract and explicit operation composition.
     A separate Stage defines sequence, not provider-parser ownership. Do not add
     a Runtime round trip merely to publish already normalized input.
-  decision_needed: >-
-    Before implementation settle which Nuclei matches assert a problem rather
-    than fingerprint/info-only observation, and whether individually complete
-    positive rows in a partial scan qualify. Supported positive assertions must
-    publish without an additional LLM or analyst confirmation gate. Analyst
-    assessment remains null. Distinguish operation execution/input failures from
-    existing FND-R210 per-item publication rejections: retain their ordinary
-    receipt/error without rewriting the scanner outcome.
-  eligibility_recommendation: >-
-    Proposed, not a settled user decision: select explicit problem-producing
-    rules through pinned provider-adapter policy; severity or a nonempty match
-    alone is insufficient. Fingerprints and information-only observations do
-    not publish as Findings; they contribute supported metadata to sitemap under
-    the user's follow-up decision. Severity info alone does not classify a match
-    as harmless or as a problem. Accept an individually complete positive from a partial scan
-    with its limitations, without claiming scan completeness. The simpler
-    alternative admits only wholly successful scans and a narrower pinned rule
-    set; it loses valid positives when unrelated work times out. Freeze the
-    selected policy/version in normalized input and test both allowed and
-    excluded matches. Server validates common eligibility facts, not provider tags.
+  eligibility_decision: >-
+    User accepted on 2026-11-08: use Nuclei's own severity without a separate
+    configurable eligibility policy, template allowlist or semantic classifier.
+    Complete evidenced low/medium/high/critical matches publish Findings with null
+    analyst assessment. Info, unknown and missing severity do not publish Findings;
+    preserve explicit skipped reasons. Supported factual sitemap metadata is
+    collected independently at every severity, so one match may produce both.
+    The adapter inherits template-author classification; reconsider only if real
+    supported templates demonstrate an unacceptable routing error.
+    Publish individually complete positive results from partial scans while
+    retaining scanner failure and explicit incompleteness. Never rescan to repair
+    publication; independent publication errors keep their ordinary receipts.
   paths_to_cover: >-
     Nuclei installed-template and exact rulepack execution, including existing
     controlled HTTP execution; SQLMap URL and prepared request_ref modes;
@@ -197,7 +200,7 @@ requirements:
       An invalid batch envelope fails before mutation; independent item publication
       rejections retain their receipts and allow valid siblings to proceed. Report
       published, replayed, rejected and skipped counts and completeness separately
-      from Stage success. If an accepted partial scan is eligible, explicit Workflow
+      from Stage success. For eligible complete rows from a partial scan, explicit Workflow
       transitions must reach publication after that scanner outcome without turning
       the original failure into success or re-running its target requests.
   - id: R6
@@ -241,7 +244,7 @@ requirements:
       GET/200 or a concrete member from a match lacking that evidence. Unsupported
       metadata records a bounded omission and remains inspectable in its Run report.
       A match may contribute both valid surface metadata and a problem Finding;
-      severity alone is not the routing rule. Ship enabled collection policy for
+      severity selects Finding eligibility; sitemap facts are independent. Ship enabled collection policy for
       the composed scanner presets. Sitemap collection retains its existing
       best-effort failure semantics independently of Finding publication, adds no
       target traffic and exports no reports to Audit. If this requires a broader
@@ -256,7 +259,7 @@ failure_outcomes:
 cardinality:
   - collection: Candidates, exact evidence descriptors and publication output
     expected: A few findings per invocation.
-    maximum: Proposed batch cap of 100 candidates and 512 KiB normalized JSON; existing per-Finding evidence limits, 4096 receipts per source Run and 64 KiB Stage summary remain upper bounds. Pin aggregate selected-evidence byte/ref and transaction-row limits in the shared limits registry before implementation.
+    maximum: 100 candidates and 512 KiB normalized JSON plus 512 KiB exact evidence per batch; at most 16 pairs through a flat 32-reference material selection. Publication summaries and Audit Task canonical results retain at most 128 references with explicit truncation. Existing per-Finding evidence limits, 4096 receipts per source Run and 64 KiB Stage summary remain upper bounds; shared registry entries LIM-FND-55 through LIM-FND-57 pin these additional limits.
     bound: Validate bytes/rows before mutation, use bounded batches/pages and explicit quota/truncation outcomes; no recursive Artifact traversal or unbounded per-row tasks. Scan-plan aggregation cannot bypass per-batch or per-Run bounds. Test exact limits and one over; summaries may bound detail but never omit outcome counts or pretend a truncated scan is complete.
 lifecycle:
   - entity: Canonical Finding and retained scanner source material
@@ -300,12 +303,18 @@ tests:
     covers: [A1, A3, A4, A5, A7]
   - command: make test-runtime
     covers: [A1, A3, A4, A5, A7]
-  - command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -race -count=1 ./internal/operations/... ./internal/findingintake ./internal/auditimport ./internal/auditscan ./internal/scheduler ./internal/config ./internal/projectsitemap
+  - command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=integration -race -count=1 ./internal/operations/... ./internal/findingintake ./internal/auditimport ./internal/auditscan ./internal/scheduler ./internal/config ./internal/projectsitemap
     covers: [A1, A2, A3, A4, A5, A6, A7]
   - command: make test-scan-e2e test-findings-e2e test-web-scan-ui-stack
     covers: [A1, A2, A3, A4, A5, A6, A7]
   - command: make test-project-sitemap-tools-e2e test-project-sitemap-postgres
     covers: [A5, A7]
+  - command: CONTRACTOR_SCAN_BROWSER=1 go test -tags=e2e -count=1 -timeout=15m ./tests/e2e -run '^TestScannerFindingsAcrossProductionProcesses$'
+    covers: [A1, A2, A3, A4, A5, A7]
+  - command: make test-nuclei-web-e2e test-nuclei-web-installed
+    covers: [A1, A4, A5, A7]
+  - command: cd ui && corepack pnpm exec vitest run --maxWorkers=2
+    covers: [A1, A5, A7]
   - command: make verify-public-api test-wire-cross-language
     covers: [A1, A2, A4, A6, A7]
   - command: make lint

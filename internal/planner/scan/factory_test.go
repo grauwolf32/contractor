@@ -663,6 +663,19 @@ func (w *factoryInvoker) Invoke(ctx context.Context, binding string, _ contracts
 			return contracts.WorkerCompletion{}, err
 		}
 	}
+	outputs := map[string]contracts.ArtifactRef{"report": ref}
+	for _, name := range []string{"candidates", "evidence"} {
+		target, selected := request.ResultArtifacts[name]
+		if !selected {
+			continue
+		}
+		media := "application/vnd.contractor.finding-" + name + "+json"
+		exact, err := w.artifacts.Create(ctx, "run-scan", target, artifacts.Payload{MediaType: media, Data: []byte(`{}`)})
+		if err != nil {
+			return contracts.WorkerCompletion{}, err
+		}
+		outputs[name] = exact
+	}
 	if w.failureCode != "" {
 		return contracts.WorkerCompletion{
 			APIVersion: contracts.APIVersion, InvocationID: "worker-invocation", StateRevision: 1,
@@ -672,7 +685,7 @@ func (w *factoryInvoker) Invoke(ctx context.Context, binding string, _ contracts
 	return contracts.WorkerCompletion{
 		APIVersion: contracts.APIVersion, InvocationID: "worker-invocation", StateRevision: 1,
 		Result: &contracts.WorkerResult{
-			SubtaskID: request.SubtaskID, Result: "Scanner output persisted", Artifacts: map[string]contracts.ArtifactRef{"report": ref},
+			SubtaskID: request.SubtaskID, Result: "Scanner output persisted", Artifacts: outputs,
 			Observations: contracts.WorkerObservations{Profile: contracts.WorkerObservationProfileLeanV1, Tools: map[string]contracts.ToolObservationCount{tool: {Calls: 1}}, Truncated: w.truncated},
 		},
 	}, nil

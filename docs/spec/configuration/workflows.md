@@ -1123,3 +1123,10 @@ reference expansion, numbered slot adapter or new Run execution type is used.
 The rewritten local JSON has its own exact digest and size. Trusted context
 describes that local revision; result collection verifies its ordinary input
 lineage before translating evidence back to the accepted source.
+
+
+**WFL-R97.** `on.succeeded` may explicitly select `fail: {}` to complete a Run
+with failure after a successful cleanup or publication Stage. This does not
+rewrite either Stage outcome. Scanner presets use a separate publication branch
+after a failed/interrupted scan, preserving the Run's failure while retaining
+complete positive Findings. The transition performs no scanner retry.

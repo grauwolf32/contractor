@@ -1,0 +1,394 @@
+{
+  "schemaVersion": 1,
+  "candidateLimit": 100,
+  "batchByteLimit": 524288,
+  "evidenceByteLimit": 524288,
+  "cases": [
+    {
+      "name": "positive",
+      "valid": true,
+      "batch": {
+        "schema": "contractor.finding.candidates.v1",
+        "complete": true,
+        "candidates": [
+          {
+            "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "producer": "nuclei",
+            "rule": "git-config",
+            "title": "Exposed Git configuration",
+            "assertion": "The selected rule matched a Git configuration.",
+            "subject": "https://target.test/.git/config",
+            "method": "GET",
+            "severity": "medium",
+            "qualifiedKey": [
+              "nuclei",
+              "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "git-config",
+              "https://target.test/.git/config",
+              "GET",
+              ""
+            ]
+          }
+        ],
+        "skipped": {},
+        "evidence": {
+          "ref": {
+            "namespace": "scanner",
+            "name": "evidence",
+            "revision": "r1"
+          },
+          "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "mediaType": "application/vnd.contractor.finding-evidence+json",
+          "sizeBytes": 1024
+        }
+      }
+    },
+    {
+      "name": "empty_information",
+      "valid": true,
+      "batch": {
+        "schema": "contractor.finding.candidates.v1",
+        "complete": true,
+        "candidates": [],
+        "skipped": {
+          "informational": 1
+        },
+        "evidence": {
+          "ref": {
+            "namespace": "scanner",
+            "name": "evidence",
+            "revision": "r1"
+          },
+          "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "mediaType": "application/vnd.contractor.finding-evidence+json",
+          "sizeBytes": 1024
+        }
+      }
+    },
+    {
+      "name": "unqualified_partial_positive",
+      "valid": true,
+      "batch": {
+        "schema": "contractor.finding.candidates.v1",
+        "complete": false,
+        "candidates": [
+          {
+            "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "producer": "nuclei",
+            "rule": "git-config",
+            "title": "Exposed Git configuration",
+            "assertion": "The selected rule matched a Git configuration.",
+            "subject": "https://target.test/.git/config",
+            "method": "",
+            "severity": "medium",
+            "qualifiedKey": null
+          }
+        ],
+        "skipped": {},
+        "evidence": {
+          "ref": {
+            "namespace": "scanner",
+            "name": "evidence",
+            "revision": "r1"
+          },
+          "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "mediaType": "application/vnd.contractor.finding-evidence+json",
+          "sizeBytes": 1024
+        }
+      }
+    },
+    {
+      "name": "invalid_severity_info",
+      "valid": false,
+      "batch": {
+        "schema": "contractor.finding.candidates.v1",
+        "complete": true,
+        "candidates": [
+          {
+            "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "producer": "nuclei",
+            "rule": "git-config",
+            "title": "Exposed Git configuration",
+            "assertion": "The selected rule matched a Git configuration.",
+            "subject": "https://target.test/.git/config",
+            "method": "GET",
+            "severity": "info",
+            "qualifiedKey": [
+              "nuclei",
+              "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "git-config",
+              "https://target.test/.git/config",
+              "GET",
+              ""
+            ]
+          }
+        ],
+        "skipped": {},
+        "evidence": {
+          "ref": {
+            "namespace": "scanner",
+            "name": "evidence",
+            "revision": "r1"
+          },
+          "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "mediaType": "application/vnd.contractor.finding-evidence+json",
+          "sizeBytes": 1024
+        }
+      }
+    },
+    {
+      "name": "invalid_severity_unknown",
+      "valid": false,
+      "batch": {
+        "schema": "contractor.finding.candidates.v1",
+        "complete": true,
+        "candidates": [
+          {
+            "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "producer": "nuclei",
+            "rule": "git-config",
+            "title": "Exposed Git configuration",
+            "assertion": "The selected rule matched a Git configuration.",
+            "subject": "https://target.test/.git/config",
+            "method": "GET",
+            "severity": "unknown",
+            "qualifiedKey": [
+              "nuclei",
+              "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "git-config",
+              "https://target.test/.git/config",
+              "GET",
+              ""
+            ]
+          }
+        ],
+        "skipped": {},
+        "evidence": {
+          "ref": {
+            "namespace": "scanner",
+            "name": "evidence",
+            "revision": "r1"
+          },
+          "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "mediaType": "application/vnd.contractor.finding-evidence+json",
+          "sizeBytes": 1024
+        }
+      }
+    },
+    {
+      "name": "invalid_method_get",
+      "valid": false,
+      "batch": {
+        "schema": "contractor.finding.candidates.v1",
+        "complete": true,
+        "candidates": [
+          {
+            "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "producer": "nuclei",
+            "rule": "git-config",
+            "title": "Exposed Git configuration",
+            "assertion": "The selected rule matched a Git configuration.",
+            "subject": "https://target.test/.git/config",
+            "method": "get",
+            "severity": "medium",
+            "qualifiedKey": [
+              "nuclei",
+              "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "git-config",
+              "https://target.test/.git/config",
+              "GET",
+              ""
+            ]
+          }
+        ],
+        "skipped": {},
+        "evidence": {
+          "ref": {
+            "namespace": "scanner",
+            "name": "evidence",
+            "revision": "r1"
+          },
+          "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "mediaType": "application/vnd.contractor.finding-evidence+json",
+          "sizeBytes": 1024
+        }
+      }
+    },
+    {
+      "name": "invalid_assertion_",
+      "valid": false,
+      "batch": {
+        "schema": "contractor.finding.candidates.v1",
+        "complete": true,
+        "candidates": [
+          {
+            "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "producer": "nuclei",
+            "rule": "git-config",
+            "title": "Exposed Git configuration",
+            "assertion": "",
+            "subject": "https://target.test/.git/config",
+            "method": "GET",
+            "severity": "medium",
+            "qualifiedKey": [
+              "nuclei",
+              "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "git-config",
+              "https://target.test/.git/config",
+              "GET",
+              ""
+            ]
+          }
+        ],
+        "skipped": {},
+        "evidence": {
+          "ref": {
+            "namespace": "scanner",
+            "name": "evidence",
+            "revision": "r1"
+          },
+          "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "mediaType": "application/vnd.contractor.finding-evidence+json",
+          "sizeBytes": 1024
+        }
+      }
+    },
+    {
+      "name": "invalid_foreignProject_project-other",
+      "valid": false,
+      "batch": {
+        "schema": "contractor.finding.candidates.v1",
+        "complete": true,
+        "candidates": [
+          {
+            "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "producer": "nuclei",
+            "rule": "git-config",
+            "title": "Exposed Git configuration",
+            "assertion": "The selected rule matched a Git configuration.",
+            "subject": "https://target.test/.git/config",
+            "method": "GET",
+            "severity": "medium",
+            "qualifiedKey": [
+              "nuclei",
+              "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "git-config",
+              "https://target.test/.git/config",
+              "GET",
+              ""
+            ],
+            "foreignProject": "project-other"
+          }
+        ],
+        "skipped": {},
+        "evidence": {
+          "ref": {
+            "namespace": "scanner",
+            "name": "evidence",
+            "revision": "r1"
+          },
+          "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "mediaType": "application/vnd.contractor.finding-evidence+json",
+          "sizeBytes": 1024
+        }
+      }
+    },
+    {
+      "name": "payload_authority",
+      "valid": false,
+      "batch": {
+        "schema": "contractor.finding.candidates.v1",
+        "complete": true,
+        "candidates": [
+          {
+            "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "producer": "nuclei",
+            "rule": "git-config",
+            "title": "Exposed Git configuration",
+            "assertion": "The selected rule matched a Git configuration.",
+            "subject": "https://target.test/.git/config",
+            "method": "GET",
+            "severity": "medium",
+            "qualifiedKey": [
+              "nuclei",
+              "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "git-config",
+              "https://target.test/.git/config",
+              "GET",
+              ""
+            ]
+          }
+        ],
+        "skipped": {},
+        "evidence": {
+          "ref": {
+            "namespace": "scanner",
+            "name": "evidence",
+            "revision": "r1"
+          },
+          "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "mediaType": "application/vnd.contractor.finding-evidence+json",
+          "sizeBytes": 1024
+        },
+        "ownerId": "attacker"
+      }
+    },
+    {
+      "name": "duplicate_key",
+      "valid": false,
+      "batch": {
+        "schema": "contractor.finding.candidates.v1",
+        "complete": true,
+        "candidates": [
+          {
+            "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "producer": "nuclei",
+            "rule": "git-config",
+            "title": "Exposed Git configuration",
+            "assertion": "The selected rule matched a Git configuration.",
+            "subject": "https://target.test/.git/config",
+            "method": "GET",
+            "severity": "medium",
+            "qualifiedKey": [
+              "nuclei",
+              "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "git-config",
+              "https://target.test/.git/config",
+              "GET",
+              ""
+            ]
+          },
+          {
+            "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "producer": "nuclei",
+            "rule": "git-config",
+            "title": "Exposed Git configuration",
+            "assertion": "The selected rule matched a Git configuration.",
+            "subject": "https://target.test/.git/config",
+            "method": "GET",
+            "severity": "medium",
+            "qualifiedKey": [
+              "nuclei",
+              "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "git-config",
+              "https://target.test/.git/config",
+              "GET",
+              ""
+            ]
+          }
+        ],
+        "skipped": {},
+        "evidence": {
+          "ref": {
+            "namespace": "scanner",
+            "name": "evidence",
+            "revision": "r1"
+          },
+          "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "mediaType": "application/vnd.contractor.finding-evidence+json",
+          "sizeBytes": 1024
+        }
+      }
+    }
+  ]
+}

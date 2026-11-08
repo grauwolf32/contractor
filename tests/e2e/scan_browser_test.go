@@ -32,6 +32,10 @@ func configureScanBrowser(t *testing.T, h *scanProcessHarness) {
 }
 
 func runScanBrowser(t *testing.T, h *scanProcessHarness) {
+	runScanBrowserSpec(t, h, "e2e/scan-tools.spec.ts", nil)
+}
+
+func runScanBrowserSpec(t *testing.T, h *scanProcessHarness, spec string, extra map[string]string) {
 	t.Helper()
 	uiRoot := filepath.Join(h.repositoryRoot, "ui")
 	if _, err := os.Stat(filepath.Join(uiRoot, "node_modules", ".bin", "playwright")); err != nil {
@@ -72,7 +76,7 @@ func runScanBrowser(t *testing.T, h *scanProcessHarness) {
 	if err := os.MkdirAll(evidence, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	runChecked(t, uiRoot, map[string]string{
+	environment := map[string]string{
 		"CONTRACTOR_SCAN_BROWSER":      "1",
 		"CONTRACTOR_UI_E2E_BASE_URL":   h.browserBaseURL,
 		"CONTRACTOR_UI_E2E_API_URL":    h.browserAPIURL,
@@ -81,6 +85,10 @@ func runScanBrowser(t *testing.T, h *scanProcessHarness) {
 		"CONTRACTOR_SCAN_TARGET_URL":   h.targetURL,
 		"CONTRACTOR_SCAN_EVIDENCE_DIR": evidence,
 		"CONTRACTOR_UI_E2E_OUTPUT_DIR": filepath.Join(evidence, "playwright"),
-	}, "node", "node_modules/@playwright/test/cli.js", "test", "e2e/scan-tools.spec.ts")
+	}
+	for key, value := range extra {
+		environment[key] = value
+	}
+	runChecked(t, uiRoot, environment, "node", "node_modules/@playwright/test/cli.js", "test", spec)
 	t.Logf("real scanner browser evidence: %s", evidence)
 }

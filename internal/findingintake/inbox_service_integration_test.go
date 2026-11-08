@@ -97,7 +97,7 @@ func tryInsertInboxReceipt(t *testing.T, f deletionImportFixture, owner, runID, 
 	receiptID := clientKey + "-receipt"
 	return persistencepostgres.InTx(f.ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		return insertReceipt(f.ctx, tx, receiptID, clientKey+"-proposal", canonical, fingerprint, proposal,
-			[]ExactArtifact{}, origin, owner, &project, grant, nil, nil, "")
+			[]ExactArtifact{}, origin, owner, &project, &grant, nil, nil, "")
 	})
 }
 

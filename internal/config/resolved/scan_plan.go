@@ -124,8 +124,20 @@ func ValidateScanPlanStage(stage ResolvedStage) error {
 			}
 		}
 	}
-	if len(stage.Result.Artifacts) != 1 {
-		return fmt.Errorf("scan-plan@1 requires exactly one aggregate report result")
+	if len(stage.Result.Artifacts) != 1 && len(stage.Result.Artifacts) != 2 {
+		return fmt.Errorf("scan-plan@1 requires an aggregate report and optional normalized materials")
+	}
+	if materials, ok := stage.Result.Artifacts["materials"]; ok {
+		if !materials.Required || materials.From == nil || len(materials.MediaTypes) != 1 || materials.MediaTypes[0] != "application/json" || stage.ScanPlan.MaxJobs > contracts.MaxSelectedMaterials/2 {
+			return fmt.Errorf("normalized scan materials require a bound JSON output and at most 16 jobs")
+		}
+		for _, binding := range stage.Agents {
+			if binding.Template.Execution.Tool != "scan_nuclei" && binding.Template.Execution.Tool != "scan_sqlmap" {
+				return fmt.Errorf("normalized candidate outputs require a Finding-capable scan adapter")
+			}
+		}
+	} else if len(stage.Result.Artifacts) != 1 {
+		return fmt.Errorf("unknown scan-plan output")
 	}
 	report, exists := stage.Result.Artifacts["report"]
 	reportMedia := "application/json"

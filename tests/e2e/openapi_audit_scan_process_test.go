@@ -12,8 +12,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+	"github.com/grauwolf32/contractor/internal/auditscan"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	"github.com/grauwolf32/contractor/internal/planner"
+	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
+	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
 func scanFixtureRequests(h *scanProcessHarness) []scanHTTPRequest {
@@ -92,9 +98,10 @@ type retainedWebScanReport struct {
 	Limitations        []string              `json:"limitations"`
 	Attempts           []planner.ScanAttempt `json:"attempts"`
 	Artifacts          []struct {
-		Kind   string `json:"kind"`
-		Digest string `json:"digest"`
-		Data   []byte `json:"data_base64"`
+		Kind   string                `json:"kind"`
+		Digest string                `json:"digest"`
+		Ref    contracts.ArtifactRef `json:"ref"`
+		Data   []byte                `json:"-"`
 	} `json:"artifacts"`
 }
 
@@ -120,7 +127,7 @@ func assertWebAuditRetention(t *testing.T, h *scanProcessHarness, audit auditPro
 	if err := h.pool.QueryRow(h.ctx, `SELECT run_id FROM audit_executions WHERE execution_id=$1`, *task.LastExecution).Scan(&runID); err != nil {
 		t.Fatal(err)
 	}
-	if task.Result == nil {
+	if task.Findings == nil {
 		if completed || task.GapCode == nil {
 			t.Fatalf("missing retained report or explicit gap: %+v", task)
 		}
@@ -132,6 +139,39 @@ func assertWebAuditRetention(t *testing.T, h *scanProcessHarness, audit auditPro
 		if material.ScopeKind != "audit" || material.ScopeID != audit.AuditID || material.Ref.Revision == nil || !strings.HasPrefix(material.Digest, "sha256:") {
 			t.Fatalf("exact assigned %s lost: %+v", slot, material)
 		}
+	}
+	// Lost completion and cancellation may leave only the concrete Run journal
+	// and scanner report. Inspect that truthful technical history without creating
+	// a substitute Audit Artifact or turning it into a canonical Finding.
+	var acceptedReport bool
+	if err := h.pool.QueryRow(h.ctx, `SELECT EXISTS(SELECT 1 FROM stage_executions WHERE run_id=$1 AND accepted_stage_result->'artifacts' ? 'report')`, runID).Scan(&acceptedReport); err != nil {
+		t.Fatal(err)
+	}
+	if !acceptedReport {
+		if completed || task.Findings == nil || task.GapCode == nil || task.Result != nil {
+			t.Fatalf("missing execution result or explicit gap: %+v", task)
+		}
+		history, err := plannersession.ReadAuditScanHistory(h.ctx, runstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage()), runID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		technical, err := auditscan.BuildResult(h.ctx, auditscan.ResultInput{RunID: runID, Scanner: "nuclei", Runnable: true, Attempts: history}, func(_ context.Context, ref contracts.ArtifactRef, _ int) (artifacts.Payload, error) {
+			data, media := download(t, h.client, h.baseURL+"/v1/runs/"+runID+"/artifacts/"+ref.Namespace+"/"+ref.Name+"?revision="+*ref.Revision)
+			return artifacts.Payload{MediaType: media, Data: data}, nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var result retainedWebScanReport
+		if err := json.Unmarshal(technical.Data, &result); err != nil {
+			t.Fatal(err)
+		}
+		var copied int
+		if err := h.pool.QueryRow(h.ctx, `SELECT count(*) FROM audit_artifact_links WHERE audit_id=$1 AND logical_key LIKE $2`, audit.AuditID, "execution/"+*task.LastExecution+"/%").Scan(&copied); err != nil || copied != 0 {
+			t.Fatalf("technical recovery exported Audit report: %d %v", copied, err)
+		}
+		deleteASVSBacktraceRun(t, h.ctx, h.client, h.baseURL, runID)
+		return result
 	}
 	data := commonScanArtifact(t, h, audit.AuditID, task)
 	var report retainedWebScanReport
@@ -149,7 +189,9 @@ func assertWebAuditRetention(t *testing.T, h *scanProcessHarness, audit auditPro
 	if jobs > 1 || completed && jobs != 1 {
 		t.Fatalf("scanner jobs=%d completed=%v", jobs, completed)
 	}
-	for _, artifact := range report.Artifacts {
+	for index := range report.Artifacts {
+		artifact := &report.Artifacts[index]
+		artifact.Data = sourceScanArtifact(t, h, runID, artifact.Ref)
 		if contentdigest.Bytes(artifact.Data) != artifact.Digest {
 			t.Fatal("retained report bytes changed")
 		}
@@ -163,7 +205,8 @@ func assertWebAuditRetention(t *testing.T, h *scanProcessHarness, audit auditPro
 	}
 	before := len(scanFixtureRequests(h))
 	deleteASVSBacktraceRun(t, h.ctx, h.client, h.baseURL, runID)
-	if after := commonScanArtifact(t, h, audit.AuditID, task); !bytes.Equal(data, after) || before != len(scanFixtureRequests(h)) {
+	afterTask := scanAuditTask(t, h, audit.AuditID)
+	if afterTask.Findings == nil || before != len(scanFixtureRequests(h)) {
 		t.Fatal("source Run deletion changed exact report or repeated target work")
 	}
 	var receipts int

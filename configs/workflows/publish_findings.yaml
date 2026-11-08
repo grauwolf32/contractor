@@ -1,0 +1,43 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata:
+  name: publish-findings
+  version: '1'
+spec:
+  parameters: {}
+  inputs:
+    candidates:
+      required: true
+      mediaTypes:
+      - application/vnd.contractor.finding-candidates+json
+    evidence:
+      required: true
+      mediaTypes:
+      - application/vnd.contractor.finding-evidence+json
+  outputs: {}
+  entryStage: publish
+  stages:
+    publish:
+      operation:
+        ref: publish-findings@1
+        arguments: {}
+      context:
+        artifacts:
+          candidates:
+            namespace: inputs
+            name: candidates
+            required: true
+          evidence:
+            namespace: inputs
+            name: evidence
+            required: true
+      result:
+        artifacts: {}
+      'on':
+        succeeded:
+          succeed: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}
+      objective: Publish the selected evidenced assertions as Project Findings.

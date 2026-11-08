@@ -265,6 +265,13 @@ func (p *execution) materialize(ctx context.Context, job scanplan.ScanJob) (map[
 
 func (p *execution) request(job scanplan.ScanJob, record planner.ScanJobRecord, deadline time.Time) (contracts.StageContentRequest, error) {
 	request := contracts.StageContentRequest{APIVersion: contracts.APIVersion, SubtaskID: job.ID, Objective: p.invocation.Stage.Objective, Instructions: p.invocation.Stage.Instructions.Text, Parameters: job.Parameters, Artifacts: record.InputArtifacts, ResultArtifacts: map[string]contracts.ArtifactRef{job.Execution.ResultArtifact: p.jobOutput(job)}, Deadline: deadline}
+	if _, selected := p.invocation.Stage.Result.Artifacts["materials"]; selected {
+		for _, name := range []string{"candidates", "evidence"} {
+			ref := p.jobOutput(job)
+			ref.Name += "." + name
+			request.ResultArtifacts[name] = ref
+		}
+	}
 	if err := request.Validate(); err != nil {
 		return contracts.StageContentRequest{}, err
 	}

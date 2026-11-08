@@ -59,8 +59,8 @@ WITH scope_ready AS (
 ), blob_ready AS (
     SELECT 1 FROM inserted_blob
 ), inserted_version AS (
-    INSERT INTO artifact_versions (version_id, blob_sha256, media_type)
-    SELECT $7, $8, $11 FROM claimed_binding, blob_ready
+    INSERT INTO artifact_versions (version_id, blob_sha256, media_type, execution_origin)
+    SELECT $7, $8, $11, $20::jsonb FROM claimed_binding, blob_ready
     RETURNING version_id
 ), inserted_revision AS (
     INSERT INTO artifact_binding_revisions (

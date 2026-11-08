@@ -4341,7 +4341,12 @@ export interface components {
             execution_id?: components["schemas"]["ResourceId"];
             output?: components["schemas"]["AuditTaskMaterial"];
         };
+        AuditTaskFindings: {
+            ids: components["schemas"]["ResourceId"][];
+            truncated: boolean;
+        };
         AuditTask: {
+            findings?: components["schemas"]["AuditTaskFindings"];
             hypothesis_snapshot?: components["schemas"]["AuditHypothesisDocument"];
             attention: boolean;
             document: components["schemas"]["AuditTaskDocument"];
@@ -4453,6 +4458,19 @@ export interface components {
             sourceDigest: components["schemas"]["Digest"];
             report: components["schemas"]["FindingExactArtifact"];
             source: components["schemas"]["FindingExactArtifact"];
+            recordLocator: string;
+        } | {
+            /** @constant */
+            schema: "contractor.finding.fingerprint-projection.v1";
+            /** @constant */
+            availability: "available";
+            /** @constant */
+            algorithm: "contractor/producer-issue/v1";
+            value: string;
+            /** @constant */
+            adapter: "normalized-candidate/v1";
+            ruleId: string;
+            report: components["schemas"]["FindingExactArtifact"];
             recordLocator: string;
         };
         FindingAnchorContext: {
@@ -4679,14 +4697,24 @@ export interface components {
             };
         };
         FindingOrigin: {
+            /** @constant */
+            operation?: "publish-findings@1";
+            scan?: components["schemas"]["FindingScanOrigin"];
             runId: components["schemas"]["ResourceId"];
             stageExecutionId: components["schemas"]["ResourceId"];
-            allocationId: components["schemas"]["ResourceId"];
+            allocationId?: components["schemas"]["ResourceId"];
             invocationId: components["schemas"]["ResourceId"];
-            logicalAgentName: components["schemas"]["ArtifactName"];
+            logicalAgentName?: components["schemas"]["ArtifactName"];
             workflow: components["schemas"]["FindingWorkflowOrigin"];
             audit?: components["schemas"]["FindingAuditOrigin"];
             runDeleted: boolean;
+        };
+        FindingScanOrigin: {
+            artifact: components["schemas"]["ExactArtifactRef"];
+            runId: components["schemas"]["ResourceId"];
+            stageExecutionId: components["schemas"]["ResourceId"];
+            allocationId: components["schemas"]["ResourceId"];
+            logicalAgentName: components["schemas"]["ArtifactName"];
         };
         FindingAuditHold: {
             auditId: components["schemas"]["ResourceId"];
@@ -5942,7 +5970,7 @@ export interface components {
         });
         ServerOperationConfig: {
             /** @enum {string} */
-            ref: "sitemap-openapi-join@1" | "sitemap-apply-openapi@1" | "openapi-prepare-work@1";
+            ref: "sitemap-openapi-join@1" | "sitemap-apply-openapi@1" | "openapi-prepare-work@1" | "publish-findings@1";
             arguments: {
                 [key: string]: components["schemas"]["ArgumentBinding"] & unknown;
             };

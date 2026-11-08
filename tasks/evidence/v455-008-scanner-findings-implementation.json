@@ -1,0 +1,48 @@
+{
+  "task_id": "V455-008",
+  "verified_on": "2026-11-09",
+  "branch": "codex/v455-008-scanner-findings",
+  "base_revision": "6d85dbe92b7d88d51339ed22ba4dca247f033e1e",
+  "implementation": {
+    "publication": "Explicit publish-findings@1 Server operation over exact normalized candidate/evidence inputs or a flat material selection; no model, Runtime allocation or target traffic during publication.",
+    "routing": "Evidenced Nuclei low/medium/high/critical matches become Findings with null analyst assessment. Info/unknown/missing severity have explicit skips. Supported sitemap facts are collected independently, including technology/version annotations; no separate eligibility policy.",
+    "sqlmap": "Only actual vulnerable Parameter/Type blocks produce candidates, preserving parameter place and name. Both URL and exact request modes retain private invocation evidence; tested but unconfirmed parameters produce no Finding.",
+    "recovery": "Existing receipts use immutable source Artifact version plus candidate key. Exact-input replay works after source Run purge, including candidates without qualified equality; independent scans preserve separate sources. Partial results preserve committed receipts and original scanner failure.",
+    "audit": "Scanner Task results contain bounded canonical Finding IDs, including explicit empty results; no report or Finding-package Audit Artifact. Original reports remain accessible through their concrete Run. Accepted evidence and original execution provenance follow Project Finding retention.",
+    "bounds": "100 candidates and 512 KiB batch plus 512 KiB exact evidence; at most 16 pairs/32 materials; summaries and Task results expose at most 128 references with explicit truncation. Exact-limit and one-over regressions are shared across readers."
+  },
+  "acceptance_evidence": {
+    "A1": "Actual installed Nuclei git-config and actual SQLMap SQLite injection in URL and request modes, followed by explicit publication; fixed controls create none. API and actual Playwright browser inspect canonical Findings, exact evidence and source Run reports.",
+    "A2": "Production-process publication-only execution after Runtime stop, zero target requests/model calls/allocations, exact replay after original Run purge. PostgreSQL tests additionally cover unqualified candidates, forged-origin rejection and stale claims.",
+    "A3": "Duplicate matches, qualified semantic equality across independent scans, SQLMap parameter isolation and preserved analyst assessment are covered by Runtime and real-store tests.",
+    "A4": "Strict common envelopes, malformed/oversized/missing evidence, exact limits and one over, empty/info-only outcomes, partial scans, publication acknowledgement loss, recreated Worker replay and claim/cancellation/deletion cases are exercised without rescanning.",
+    "A5": "Real positive/fixed Audit scans expose canonical/empty Task results and zero Audit report exports. Playwright follows source Run navigation and loads the original scanner report. Source purge retains accepted Finding evidence. Existing ffuf/Katana sitemap process scenarios pass.",
+    "A6": "Multi-item Audit PostgreSQL regression interrupts after a committed source, resumes the remaining members, verifies hypothesis/incidental membership, retains exact inputs and replays from a different Run without assigning new historical membership. Both direct pair and material-set forms are covered.",
+    "A7": "An actual informational Nuclei fingerprint adds nginx/version metadata to sitemap without a Finding. Reducer tests retain source-owned and manual annotations across replay; supported problem matches may contribute both sitemap facts and a Finding."
+  },
+  "verification": {
+    "postgresql_and_race": "Touched Go domain, operation, scheduler, planner/session, Artifact, private API, Audit, app and architecture packages tested against isolated real PostgreSQL; app lease tests use TCP and an isolated database. The final Finding intake and operation race run passed after the partial material-set correction (Finding intake 197.063 seconds).",
+    "partial_result_regression": "The new material-set interruption case failed before the correction: zero published/sources and complete=true despite one committed source. After the correction, the full PostgreSQL/race suite preserves the committed source, resumes remaining members and rejects historical reassignment.",
+    "process_gates": [
+      "make test-scan-e2e",
+      "make test-findings-e2e",
+      "make test-web-scan-ui-stack",
+      "make test-project-sitemap-tools-e2e",
+      "make test-project-sitemap-postgres",
+      "make test-nuclei-web-e2e test-nuclei-web-installed",
+      "CONTRACTOR_SCAN_BROWSER=1 go test -tags=e2e -count=1 -timeout=15m ./tests/e2e -run '^TestScannerFindingsAcrossProductionProcesses$'"
+    ],
+    "sitemap": "17 complete PostgreSQL packages, 38 mandatory cases passed, one optional disk-heavy skip; four mandatory tool-process scenarios with zero skips.",
+    "wire": "make verify-public-api and make test-wire-cross-language passed; 375 fixtures with 422 Go and 268 Python shared readers. One optional disk-heavy case does not count as passing coverage.",
+    "ui": "Typecheck, full Vitest with --maxWorkers=2 (220 files, 2483 tests passed, one expected failure), 17 Node server tests and production build passed. Actual scanner Findings and existing web-scan browser process checks passed.",
+    "generated_and_architecture": "OpenAPI clients, shared schemas, ERD and dependency graph generated with their owning tools; release graph check passed with 12 stages, 124 race packages, 50 process gates, 11 fixture gates and 312 selections.",
+    "lint": "UV_OFFLINE=1 make lint passed, including generated checks, public API, deployment fixtures, Ruff/import layers, Go vet/staticcheck, UI lint/style checks, task/spec and database ERD checks. Shipped config validation passed: 31 Workflows, 32 AgentTemplates."
+  },
+  "environment_findings": [
+    "Independent E2E Server stacks need separate disposable databases because the single-active Server lease spans schemas.",
+    "An initial app lease run used a Unix socket URL, which cannot be interrupted by the TCP fault proxy; the full app race package passed on its isolated TCP database.",
+    "Full UI default concurrency timed out existing heavy fixtures under concurrent machine load; the unchanged full suite passed with two workers.",
+    "Ansible lint uses the cached exact locked packages with UV_OFFLINE=1; no dependency or validation check was removed."
+  ],
+  "scope": "Local implementation and verification only. No main merge, push, live model change or deployment. Optional platform/disk-heavy tests are explicitly excluded from acceptance coverage."
+}
