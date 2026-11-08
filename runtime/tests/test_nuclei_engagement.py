@@ -194,20 +194,20 @@ def test_real_nuclei_scope_refuses_target_bytes(tmp_path, denied):
     asyncio.run(scenario())
 
 
-def test_real_nuclei_and_http_tools_share_request_allowance(tmp_path):
+def test_real_nuclei_and_http_tools_share_transport_without_total_quota(tmp_path):
     async def scenario():
         async with SocketTarget() as target:
             literal_origin(target)
             spec = socket_spec(target)
-            spec.engagement.http.limits = HTTPLimits(targetRequests=1)
+            spec.engagement.http.limits = HTTPLimits(requestsPerSecond=1000)
             tool, owner, _ = await scanner(tmp_path, target, spec=spec)
             tools, _ = await tools_for(owner)
             try:
                 await tools["http_request"](target.origin + "/allowed")
                 assert len(target.requests) == 1
                 result = await tool(target.origin + "/allowed", timeout_seconds=30)
-                assert result["status"] == "failed", result
-                assert len(target.requests) == owner._request_count == 1
+                assert result["status"] == "completed", result
+                assert len(target.requests) == owner._request_count == 2
             finally:
                 await tool.close()
                 await owner.close()
@@ -483,6 +483,69 @@ def test_real_nuclei_process_and_socket_join_on_owner_termination(tmp_path, monk
             finally:
                 task.cancel()
                 await asyncio.gather(task, return_exceptions=True)
+                await tool.close()
+                await owner.close()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("failure", ["bridge", "lease"])
+def test_real_nuclei_preserves_fatal_transport_signals(tmp_path, monkeypatch, failure):
+    from contractor_runtime.core.tool_errors import ToolExecutionError
+
+    async def scenario():
+        async with SocketTarget() as target:
+            literal_origin(target)
+            tool, owner, _ = await scanner(tmp_path, target)
+            try:
+                if failure == "lease":
+                    owner.configure(authority_deadline=lambda: 0.0)
+                else:
+                    await owner._initialize()
+                    original = owner._engine.handle_hook
+
+                    async def broken(pool, hook):
+                        if hook.name == "requestheaders":
+                            raise RuntimeError("private-scanner-bridge-canary")
+                        return await original(pool, hook)
+
+                    monkeypatch.setattr(owner._engine, "handle_hook", broken)
+                with pytest.raises(ToolExecutionError) as raised:
+                    await tool(target.origin + "/allowed", timeout_seconds=30)
+                assert raised.value.code == (
+                    "http_allocation_closed" if failure == "lease" else "http_bridge_failed"
+                )
+                assert not owner._tasks
+            finally:
+                await tool.close()
+                await owner.close()
+
+    asyncio.run(scenario())
+
+
+def test_real_nuclei_proxy_listener_startup_failure_is_fatal(tmp_path, monkeypatch):
+    from contractor_runtime.core.tool_errors import ToolExecutionError
+
+    async def scenario():
+        async with SocketTarget() as target:
+            literal_origin(target)
+            tool, owner, _ = await scanner(tmp_path, target)
+            try:
+                await owner._initialize()
+
+                async def fail_bind(*_args, **_kwargs):
+                    raise OSError(24, "private-listener-startup-canary")
+
+                monkeypatch.setattr(asyncio, "start_server", fail_bind)
+                with pytest.raises(ToolExecutionError) as raised:
+                    await tool(target.origin + "/allowed", timeout_seconds=30)
+                assert raised.value.code == "http_bridge_failed"
+                assert "private-listener-startup-canary" not in str(raised.value)
+                assert not owner._tasks
+                assert not owner._engine.ingresses
+                assert not target.requests
+                assert not list((tmp_path / "workspace").iterdir())
+            finally:
                 await tool.close()
                 await owner.close()
 

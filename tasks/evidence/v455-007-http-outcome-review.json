@@ -1,0 +1,43 @@
+{
+  "task": "V455-007",
+  "reviewed_revision": "9bbe820fea0b9b06ab66cd159afdcdc6fa0ebb16",
+  "implementation_commit": "6685ef2331c0b321390a55031e809daa1dd168e5",
+  "branch": "codex/v455-005-http-outcomes",
+  "regressions": {
+    "baseline": {"failed": 6, "passed": 0},
+    "fixed": {"failed": 0, "passed": 6},
+    "cases": [
+      "POST followed by redirect DNS failure retains whole-call possible-send=true without replay",
+      "session queue expiry returns http_timeout and sends no second request",
+      "session queue wait consumes the remaining transport timeout",
+      "native bridge failure with a parallel tool preserves http_bridge_failed and drains Worker",
+      "lease loss with a parallel tool preserves http_allocation_closed and drains Worker",
+      "scanner local listener bind failure raises http_bridge_failed after joined cleanup"
+    ],
+    "execution": "Real native sockets, controlled tools, ADK Worker and installed scanner preparation; fault injection only at DNS, bridge hook and local listener bind boundaries",
+    "mandatory_matrix": "scripts/engagement-http-matrix.json"
+  },
+  "checks": [
+    {
+      "command": "make test-runtime",
+      "exit_code": 0,
+      "tests": 6121,
+      "passed": 5986,
+      "skipped": 135,
+      "failures": 0,
+      "errors": 0,
+      "seconds": 421.38,
+      "report_verification": "passed"
+    },
+    {"command": "make lint", "exit_code": 0},
+    {"command": "make tasks-backlog docs-dependencies", "exit_code": 0},
+    {"command": "git diff --check", "exit_code": 0}
+  ],
+  "cleanup": {
+    "test_database_created": false,
+    "native_transport_and_scanner_cleanup": "asserted by real-path regressions",
+    "paid_model_run": false,
+    "deployment": false,
+    "merged_into_main": false
+  }
+}

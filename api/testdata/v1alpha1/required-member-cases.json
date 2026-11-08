@@ -2807,7 +2807,6 @@
         "/engagement/http/limits/requestBodyBytes",
         "/engagement/http/limits/requestsPerSecond",
         "/engagement/http/limits/responseBodyBytes",
-        "/engagement/http/limits/targetRequests",
         "/engagement/http/protectedDestinations",
         "/engagement/http/protectedDestinations/0/addresses",
         "/engagement/http/protectedDestinations/0/hostname",

@@ -7,10 +7,11 @@ import ssl
 import time
 from collections.abc import Callable
 from contextlib import nullcontext
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from urllib.parse import urlsplit
 
 from contractor_runtime.adapters.bridge import BridgeFailure
+from contractor_runtime.adapters.bridge.errors import BridgeInfrastructureError
 from contractor_runtime.adapters.http_policy import HTTPRoutePolicy
 from contractor_runtime.adapters.http_session import IdentitySession
 from contractor_runtime.adapters.http_stream import RequestBoundary
@@ -19,6 +20,7 @@ from contractor_runtime.contracts.engagement import MAX_URL_BYTES, HTTPLimits, r
 from contractor_runtime.core.http_limits import MAX_CONTROLLED_HEADER_BYTES, MAX_HEADERS
 from contractor_runtime.core.http_session import basic_authorization
 from contractor_runtime.core.target_policy import Resolver, TargetDenied, TargetUnresolved
+from contractor_runtime.core.tool_errors import ToolExecutionError
 from contractor_runtime.shared_config import get_shared_config
 from contractor_runtime.threads import to_thread_until_done
 
@@ -26,16 +28,15 @@ TARGET_ADAPTER = "http-target@1"
 REDIRECT_STATUSES = {301, 302, 303, 307, 308}
 
 
-class HTTPTransportError(RuntimeError):
-    def __init__(self, code: str):
-        self.code = code
-        super().__init__(code)
+class HTTPTransportError(ToolExecutionError):
+    """Allocation authority is unavailable; the Worker must stop."""
 
 
 @dataclass(frozen=True, slots=True)
 class HTTPOutcome:
     kind: str
     reason: str = ""
+    request_may_have_been_sent: bool = False
 
 
 class HTTPTransportFactory:
@@ -163,6 +164,37 @@ class HTTPTransport:
         """Allocation teardown also erases model-facing response buffers."""
         self._response_cleanup.append(cleanup)
 
+    def model_scope(self) -> dict:
+        """Project authorized public scope without infrastructure or secrets."""
+        assignment = self._assignment
+        if assignment is None:
+            raise HTTPTransportError("http_allocation_closed")
+
+        def routes(values):
+            return [
+                {
+                    "origin": r.origin,
+                    "methods": list(r.methods),
+                    "path_prefixes": list(r.path_prefixes),
+                }
+                for r in values
+            ]
+
+        return {
+            "allowed_origins": sorted({r.origin for r in assignment.routes}),
+            "routes": routes(assignment.routes),
+            "exclusions": routes(assignment.exclusions),
+            "identities": [
+                {
+                    "credential_id": s.identity.credential.credential_id
+                    if s.identity.credential
+                    else None,
+                    "origins": list(s.identity.origins),
+                }
+                for s in self._sessions
+            ],
+        }
+
     def own_invocation(self) -> bool:
         self._require_authority()
         task = asyncio.current_task()
@@ -183,7 +215,10 @@ class HTTPTransport:
         async with self._initialize_lock:
             if self._initialized:
                 return
-            await self._policy.initialize(self._settings)
+            try:
+                await self._policy.initialize(self._settings)
+            except (TimeoutError, OSError, TargetUnresolved):
+                raise BridgeInfrastructureError() from None
             if self._engine is None:
                 from contractor_runtime.adapters.bridge.mitmproxy import MitmproxyEngine
 
@@ -192,9 +227,12 @@ class HTTPTransport:
                 )
                 try:
                     await self._engine.start()
-                except BaseException:
+                except asyncio.CancelledError:
                     await self._close_transport()
                     raise
+                except Exception:
+                    await self._close_transport()
+                    raise BridgeInfrastructureError() from None
             self._initialized = True
 
     async def open_proxy(self):
@@ -293,8 +331,11 @@ class HTTPTransport:
 
     async def request(self, url: str, *, credential_id: str | None = None, **options):
         """Execute one explicit tool call; preparation never invokes this method."""
+        self._require_authority()
         session = self._session(credential_id)
-        if session.state == "blocked" or not session.allows_origin(url):
+        if not session.allows_origin(url):
+            return HTTPOutcome(kind="denied", reason="policy_denied"), None
+        if session.state == "blocked":
             raise ValueError("selected credential does not authorize this origin")
         if (
             self._http_limits.request_body_bytes is not None
@@ -308,22 +349,37 @@ class HTTPTransport:
         added = self.own_invocation()
         timeout = min(options.pop("timeout", 30), 120)
         deadline = min(self._require_authority(), self._clock() + timeout)
+        boundaries: list[RequestBoundary] = []
         try:
             async with asyncio.timeout(max(0, deadline - self._clock())):
                 async with self._semaphore:
                     await self._initialize()
-                    return await self._request_chain(session, url, deadline=deadline, **options)
+                    outcome, response = await self._request_chain(
+                        session, url, deadline=deadline, boundaries=boundaries, **options
+                    )
+                    self._require_authority()
+                    if outcome.kind != "completed":
+                        outcome = replace(
+                            outcome,
+                            request_may_have_been_sent=any(b.request_started for b in boundaries),
+                        )
+                    return outcome, response
+        except TimeoutError:
+            self._require_authority()
+            capture = options.get("capture")
+            if capture is not None and boundaries:
+                capture.finish(boundaries[-1].response, "timeout")
+            return HTTPOutcome(
+                kind="failed",
+                reason="timeout",
+                request_may_have_been_sent=any(b.request_started for b in boundaries),
+            ), None
         finally:
             self.finish_invocation(added)
 
     async def _admit_request(self) -> None:
         async with self._rate_lock:
             self._require_authority()
-            if (
-                self._http_limits.target_requests is not None
-                and self._request_count >= self._http_limits.target_requests
-            ):
-                raise HTTPTransportError("http_limit_exceeded")
             delay = self._next_request_at - self._clock()
             if delay > 0:
                 await self._sleep(delay)
@@ -362,6 +418,7 @@ class HTTPTransport:
         follow_redirects=True,
         deadline=None,
         capture=None,
+        boundaries=None,
     ):
         if deadline is None:
             deadline = min(self._require_authority(), self._clock() + 30)
@@ -387,8 +444,7 @@ class HTTPTransport:
             private_request.follow_redirects = follow_redirects
             private_request.headers = [*headers, *private_request.headers]
             private_request.headers = self._wire_headers(url, private_request)
-            # Scope is checked before local budget admission, and every retry
-            # and redirect obtains its own slot request allowance.
+            # Every redirect and permitted retry passes scope and RPS admission.
             try:
                 await to_thread_until_done(
                     self._policy.for_url,
@@ -406,6 +462,8 @@ class HTTPTransport:
                 monotonic=self._clock,
                 require_session=require_session,
             )
+            if boundaries is not None:
+                boundaries.append(boundary)
             next_url = None
             response = None
             if capture is not None:
@@ -427,10 +485,10 @@ class HTTPTransport:
             except BridgeFailure as error:
                 outcome = self._failure(boundary, error.reason)
             except TargetUnresolved:
-                outcome = self._failure(boundary, "connect_failed")
+                outcome = self._failure(boundary, "dns_failed")
             except ssl.SSLError:
                 outcome = self._failure(boundary, "tls_failed")
-            except (HTTPTransportError, ValueError, OSError):
+            except OSError:
                 outcome = self._failure(boundary, "transport_failed")
             if capture is not None:
                 capture.finish(
@@ -492,7 +550,11 @@ class HTTPTransport:
 
     @staticmethod
     def _failure(boundary, reason):
-        return HTTPOutcome(kind="denied" if reason == "policy_denied" else "failed", reason=reason)
+        return HTTPOutcome(
+            kind="denied" if reason == "policy_denied" else "failed",
+            reason=reason,
+            request_may_have_been_sent=boundary.request_started,
+        )
 
     async def _request(self, url, boundary, session, request):
         policy = await to_thread_until_done(

@@ -52,7 +52,7 @@ func TestNucleiEngagementAcrossProductionProcesses(t *testing.T) {
 	f := newEngagementIdentityAudit(t, h, []string{target.server.URL}, nil)
 	f.document.Egress.Routes = []engagementcontract.Route{engagementRoute(target.server.URL, "/allowed")}
 	requests := uint32(2)
-	f.document.Limits.TargetRequests = &requests
+	f.document.Limits.RequestsPerSecond = &requests
 	f.addIdentity(t, "scanner", "bearer", credential)
 	draft := f.draft(t)
 	stage := engagementRequestStage(nil)
@@ -67,7 +67,7 @@ func TestNucleiEngagementAcrossProductionProcesses(t *testing.T) {
 			"credential_id": credential.CredentialID, "timeout_seconds": 30,
 		})),
 		toolGatewayStep("http_request", fixedArguments(map[string]any{
-			"url": target.server.URL + "/allowed/exhausted", "credential_id": credential.CredentialID,
+			"url": target.server.URL + "/allowed/next", "credential_id": credential.CredentialID,
 		})),
 		stage.steps[len(stage.steps)-2], stage.steps[len(stage.steps)-1],
 	)
@@ -88,8 +88,8 @@ func TestNucleiEngagementAcrossProductionProcesses(t *testing.T) {
 	h.gateway.releaseBlockedRequest()
 	waitForAuditProgram(t, h.ctx, h.server, h.runtimeProcess, h.gateway, h.client,
 		h.baseURL, draft.AuditID, 1)
-	if got := target.requests(); !slices.Equal(got, []string{"/allowed/http", "/allowed/nuclei"}) {
-		t.Fatalf("HTTP tool and Nuclei did not share the allocation allowance: %v", got)
+	if got := target.requests(); !slices.Equal(got, []string{"/allowed/http", "/allowed/nuclei", "/allowed/next"}) {
+		t.Fatalf("HTTP tool and Nuclei did not share the authorized transport: %v", got)
 	}
 	if invalidHeaders.Load() != 0 {
 		t.Fatal("assigned credential or private proxy header isolation failed")

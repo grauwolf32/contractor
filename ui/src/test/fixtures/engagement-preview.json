@@ -74,7 +74,6 @@
     }
   ],
   "limits": {
-    "targetRequests": 5000,
     "requestsPerSecond": 5,
     "concurrentRequests": 3,
     "requestBodyBytes": 65536,

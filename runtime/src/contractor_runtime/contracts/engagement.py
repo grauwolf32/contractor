@@ -283,7 +283,6 @@ class Identity(_EngagementModel):
 
 
 class HTTPLimits(_EngagementModel):
-    target_requests: Annotated[int, Field(ge=1, le=4294967295)] | None = None
     requests_per_second: Annotated[int, Field(ge=1, le=4294967295)] | None = None
     concurrent_requests: Annotated[int, Field(ge=1, le=4294967295)] | None = None
     request_body_bytes: Annotated[int, Field(ge=1, le=4294967295)] | None = None

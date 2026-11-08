@@ -262,9 +262,7 @@
     {
       "name": "http-limit-targetRequests-positive",
       "text": "{\"schema\":\"contractor.engagement.v1\",\"identities\":[{\"id\":\"anonymous\",\"kind\":\"anonymous\",\"origins\":[\"https://example.test\"]}],\"egress\":{\"routes\":[{\"origin\":\"https://example.test\",\"pathPrefixes\":[\"/api\"],\"methods\":[\"GET\",\"POST\"],\"addressRanges\":[\"192.0.2.0/24\",\"2001:db8::/32\"]}],\"exclusions\":[]},\"limits\":{\"targetRequests\":3}}",
-      "valid": true,
-      "canonical": "{\"egress\":{\"exclusions\":[],\"routes\":[{\"addressRanges\":[\"192.0.2.0/24\",\"2001:db8::/32\"],\"methods\":[\"GET\",\"POST\"],\"origin\":\"https://example.test\",\"pathPrefixes\":[\"/api\"]}]},\"identities\":[{\"id\":\"anonymous\",\"kind\":\"anonymous\",\"origins\":[\"https://example.test\"]}],\"limits\":{\"targetRequests\":3},\"schema\":\"contractor.engagement.v1\"}",
-      "digest": "sha256:4f817224774aa6d8618fc940daabb0510ffcf0dcc828be126031abf19cf247f1"
+      "valid": false
     },
     {
       "name": "http-limit-targetRequests-zero",

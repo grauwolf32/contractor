@@ -21,7 +21,6 @@ export interface EngagementDocument {
     credential?: { credentialId: string; kind: string };
   }[];
   limits?: {
-    targetRequests?: number;
     requestsPerSecond?: number;
     concurrentRequests?: number;
     requestBodyBytes?: number;

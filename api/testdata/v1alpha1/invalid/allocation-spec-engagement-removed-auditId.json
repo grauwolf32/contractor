@@ -62,8 +62,7 @@
         "concurrentRequests": 2,
         "requestBodyBytes": 65536,
         "requestsPerSecond": 5,
-        "responseBodyBytes": 262144,
-        "targetRequests": 100
+        "responseBodyBytes": 262144
       },
       "protectedDestinations": [
         {

@@ -9,6 +9,7 @@ import secrets
 import time
 from typing import TYPE_CHECKING
 
+from contractor_runtime.adapters.bridge.errors import BridgeInfrastructureError
 from contractor_runtime.core.async_tasks import join_owned_task
 from contractor_runtime.redaction import redact_private_values
 from contractor_runtime.threads import consume_task_exception
@@ -63,7 +64,10 @@ class HTTPProxyBridge:
         self._engine = await self._transport.open_proxy()
         self._engine.ingresses.add(self)
         try:
-            self._server = await asyncio.start_server(self._accept, "127.0.0.1", 0)
+            try:
+                self._server = await asyncio.start_server(self._accept, "127.0.0.1", 0)
+            except OSError:
+                raise BridgeInfrastructureError() from None
             port = self._server.sockets[0].getsockname()[1]
             self._proxy_url = f"http://runtime:{self._token}@127.0.0.1:{port}"
             return self
