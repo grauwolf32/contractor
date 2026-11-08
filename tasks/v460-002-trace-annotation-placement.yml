@@ -1,0 +1,40 @@
+schema_version: '1.0'
+id: V460-002
+title: Validate trace annotation syntax and placement before publishing evidence
+milestone: findings-tools
+epic: findings
+kind: defect
+introduced_by: V460-001
+priority: P2
+status: in_progress
+depends_on: [V460-001]
+languages: [python, markdown]
+goal: Trace findings reject inserted literal content and other unsupported edits before saving proof or calling finding intake.
+context:
+  authority: 'User review 2026-11-09: repair the two reproduced trace finding defects before the already authorized main merge.'
+  specification: [docs/spec/findings/findings.md, docs/spec/tools/code-analysis.md]
+  severity: medium
+  finding: runtime/src/contractor_runtime/toolsets/common/trace_source.py:34 accepts any annotation-shaped inserted line, including Python multiline string content that changes program behavior.
+  siblings: Both taint and OpenAPI trace use the same facade. Check all nineteen supported languages, their comment markers, decorators/attributes, multiple annotations, CRLF and imported overlay edits. Unchanged files require no annotation parse.
+  boundary: Share source language/name resolution and annotation target parsing through toolsets.common; the workspace owns capture and ordinary finding publication remains unchanged.
+scope:
+  in:
+  - Reuse the structured annotation target parser and canonical grammar to validate inserted comments and their placement.
+  - Reject unverifiable language, syntax or placement with ToolInputError before proof write and intake.
+  - Add regressions through the real annotation and finding tool path, and retain the real process finding gate.
+  out:
+  - Prompt changes, semantic reconciliation of source edits and new persistence mechanisms.
+acceptance_criteria:
+- id: A1
+  text: Insertions inside multiline literals, wrong-language markers, malformed annotations and unsupported placements fail before proof writes and intake.
+- id: A2
+  text: Valid annotations in every supported language, multiple annotations, decorated declarations and CRLF retain exact coordinates and evidence; unchanged files skip parsing.
+- id: A3
+  text: Shared parsing has one owner in toolsets.common and the complete affected Runtime families plus the real process finding gate pass.
+tests:
+- command: cd runtime && uv run pytest tests/test_trace_findings.py tests/test_taint_annotations.py tests/test_taint_annotations_regressions.py tests/test_taint_annotations_hardening.py tests/test_code_analysis.py tests/test_code_analysis_faults.py tests/test_capabilities.py
+  covers: [A1, A2, A3]
+- command: python3 scripts/test-findings-e2e.py
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A1, A2, A3]
