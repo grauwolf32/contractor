@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractor.local/schema/v1alpha1/llm-cost.schema.json",
+  "title": "Bounded LLM cost observations",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["currency", "calls", "groups"],
+  "properties": {
+    "currency": {"const": "USD"},
+    "calls": {"$ref": "performance.schema.json#/$defs/resourceInteger"},
+    "groups": {
+      "type": "array", "maxItems": 64,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["model", "phase", "source", "calls", "amount"],
+        "properties": {
+          "model": {"type": "string", "minLength": 1, "maxLength": 256, "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f-\\u009f]*\\S)?$"},
+          "phase": {"enum": ["main", "compaction", "finalization", "summarization"]},
+          "source": {"enum": ["provider", "gateway"]},
+          "calls": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+          "amount": {"type": "string", "pattern": "^(0|[1-9][0-9]{0,17})(\\.[0-9]{0,17}[1-9])?$"}
+        }
+      }
+    }
+  }
+}

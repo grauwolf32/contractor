@@ -352,6 +352,37 @@ bounded LLM error path (FAIL-OBS-2).
 independently enforced, because they bound one Planner or Worker execution
 rather than account consumption.
 
+**OBS-R120.** Execution metrics may contain `llmCost`: USD monetary
+observations from the existing Gateway transport, separate from token and
+logical model-call counters. Its `calls` covers observed transport attempts,
+with the logical model-call count as an unpriced lower bound when transport
+observations are unavailable;
+`groups` partitions the priced subset by selected model, phase (`main`,
+`compaction`, `finalization`, `summarization`) and source (`provider`,
+`gateway`). A provider cost forwarded by LiteLLM retains provider provenance;
+a LiteLLM tariff calculation is a Gateway estimate. Header and body totals
+describe the same charge and are never added together; cached and reasoning
+components are already included. These are operational observations, not an
+invoice or an enforced spending ceiling.
+
+**OBS-R121.** Monetary amounts are canonical nonnegative decimal strings,
+with at most 18 integer and 18 fractional digits, no exponent, redundant zero
+prefix or trailing fractional zero (LIM-OBS-25). `0` is known zero. Each report permits at
+most 64 unique model/phase/source groups (LIM-OBS-23); a model is at most 256 UTF-8 bytes (LIM-OBS-24),
+and all call counts obey LIM-OBS-17. The sum of priced group calls cannot exceed
+physical calls. Unsupported currency, malformed or contradictory observations,
+overflow and excess groups leave the affected calls unpriced. An absent
+monetary observation never establishes a free call. Shared cost fixtures pin
+the Go and Python validators and normalization boundary.
+
+**OBS-R122.** Capture cost before provider adaptation discards headers or
+usage extensions, once per actual transport attempt, including unsuccessful,
+retried and received-but-rejected responses. Auxiliary calls belong to the
+existing allocation or Planner report. Cost metadata must not change model
+selection, inference success, cancellation, limits or retry policy. No model
+call is repeated to recover accounting. Only the closed metadata above is
+retained; credentials, raw headers, prompts and responses are excluded.
+
 ### Report content
 
 **OBS-R19.** `complete` describes report completeness, not

@@ -12,6 +12,24 @@ import (
 
 const recognizableSecret = "telemetry-secret-that-must-not-survive"
 
+func TestMetricsPolicyClonesCostAndDropsPrivateModelAttribution(t *testing.T) {
+	report := reporting.ExecutionReport{ReportID: "cost-report", Complete: true, ToolCalls: []reporting.ToolCallRecord{}, Errors: []reporting.ExecutionError{}, Metrics: reporting.ExecutionMetrics{Tools: map[string]reporting.ToolMetrics{}, LLMCost: &reporting.LLMCost{Currency: "USD", Calls: 2, Groups: []reporting.LLMCostGroup{
+		{Model: "safe-model", Phase: "main", Source: "provider", Calls: 1, Amount: "0.1"},
+		{Model: "model-" + recognizableSecret, Phase: "main", Source: "provider", Calls: 1, Amount: "0.2"},
+	}}}}
+	got, err := NewPolicy(recognizableSecret).NormalizeExecutionReport(report, MaxReportJSONBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Metrics.LLMCost.Calls != 2 || len(got.Metrics.LLMCost.Groups) != 1 {
+		t.Fatalf("cost=%+v", got.Metrics.LLMCost)
+	}
+	got.Metrics.LLMCost.Groups[0].Amount = "99"
+	if report.Metrics.LLMCost.Groups[0].Amount != "0.1" || len(report.Metrics.LLMCost.Groups) != 2 {
+		t.Fatal("policy mutated source cost")
+	}
+}
+
 func TestMetricsPolicyKeepsCompactUTF8ArgumentsAndReports(t *testing.T) {
 	path := strings.Repeat("<>&\u2028\u2029", 300)
 	arguments := map[string]any{"path": path}

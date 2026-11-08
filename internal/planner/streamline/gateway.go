@@ -67,6 +67,7 @@ func (m *openAICompatibleModel) GenerateContent(
 // failure signatures; Recovery retries a transient one, and a reported
 // failure is a *gatewayrecovery.FailureError.
 func (m *openAICompatibleModel) send(ctx context.Context, request *model.LLMRequest) ([]byte, error) {
+	ctx = gatewayrecovery.WithLLMCostModel(ctx, m.settings.Model)
 	payload, err := encodeChatRequest(request, m.settings.Model, m.settings.MaxOutputTokens)
 	if err != nil || len(payload) > maxGatewayRequestBytes {
 		if err == nil {
@@ -110,6 +111,7 @@ type compactionModel interface {
 }
 
 func (m *openAICompatibleModel) compact(ctx context.Context, request *model.LLMRequest) (compactorReply, error) {
+	ctx = gatewayrecovery.WithLLMCostPhase(ctx, "compaction")
 	body, err := m.send(ctx, request)
 	if err != nil {
 		return compactorReply{}, err

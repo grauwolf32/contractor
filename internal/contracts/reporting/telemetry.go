@@ -50,6 +50,7 @@ type WorkerSummarizerMetrics struct {
 }
 
 type ExecutionMetrics struct {
+	LLMCost      *LLMCost                 `json:"llmCost,omitempty"`
 	DurationMS   *int64                   `json:"durationMs,omitempty"`
 	ModelCalls   *int64                   `json:"modelCalls,omitempty"`
 	InputTokens  *int64                   `json:"inputTokens,omitempty"`
@@ -402,6 +403,11 @@ func (r ExecutionReport) validate(received bool) error {
 // between 0 and 2^53-1 (OBS-R111), and the Worker budget and the summarizer
 // aggregate are consistent.
 func (m ExecutionMetrics) Validate() error {
+	if m.LLMCost != nil {
+		if err := m.LLMCost.Validate(); err != nil {
+			return err
+		}
+	}
 	if m.Tools == nil {
 		return contracts.Invalidf("execution metrics tools must not be null")
 	}

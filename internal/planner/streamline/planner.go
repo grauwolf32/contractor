@@ -70,6 +70,7 @@ func (p *streamlinePlanner) Run(
 	startedAt := time.Now()
 	defer p.stateViews.Close()
 	state := newExecutionState(p.limits)
+	ctx = gatewayrecovery.WithLLMCostCollector(ctx, &state.cost)
 	var identity planner.SessionIdentity
 	defer func() {
 		var returned *planner.Failure
