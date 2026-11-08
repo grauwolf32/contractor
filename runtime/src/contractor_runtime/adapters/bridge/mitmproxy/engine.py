@@ -25,7 +25,7 @@ from mitmproxy.proxy import commands, events, server
 from mitmproxy.proxy.context import Context
 from mitmproxy.proxy.layers.http import HttpErrorHook, HttpResponseHook
 
-from contractor_runtime.adapters.bridge import BridgeFailure
+from contractor_runtime.adapters.bridge.errors import BridgeInfrastructureError
 from contractor_runtime.adapters.bridge.mitmproxy.lifecycle import OwnedHandler
 from contractor_runtime.adapters.bridge.mitmproxy.messages import native_url, request_message
 from contractor_runtime.adapters.bridge.mitmproxy.protocol import (
@@ -221,8 +221,7 @@ class _Pool(OwnedHandler, server.ConnectionHandler):
             elif isinstance(error, OSError) and not callback:
                 exchange.reason = exchange.reason or "transport_failed"
             else:
-                source = "callback" if callback else "dispatch"
-                exchange.exception = RuntimeError(f"native HTTP engine {source} failed")
+                exchange.exception = BridgeInfrastructureError()
             exchange.finish()
         for connection in tuple(self.transports):
             self.close_connection(connection)
@@ -353,7 +352,7 @@ class _Pool(OwnedHandler, server.ConnectionHandler):
 
     async def submit(self, exchange: Exchange):
         if self.closed:
-            raise BridgeFailure("transport_failed")
+            raise BridgeInfrastructureError()
         exchange.stream_id = self.next_stream
         self.next_stream += 2
         exchange.flow = http.HTTPFlow(self.client, Server(address=(self.host, self.port)))

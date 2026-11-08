@@ -443,8 +443,12 @@ invocation. Its code is the exception's own identifier code, or
 exception declares itself retryable, so an unclassified exception is
 non-retryable; and its message names only the tool and the exception class,
 as in `list_symbols failed (TypeError)`, never the exception text. Only a tool
-input validation error replaces that message with its bounded Runtime-authored
-diagnostic.
+input validation error or explicit safe tool-result diagnostic replaces that
+message with bounded Runtime-authored text. Controlled HTTP reasons and model-only
+scope/send details follow HTP-R154/155; safe reason codes remain retained while
+HTTP arguments/results keep their mandatory metadata-only telemetry policy.
+Fatal execution signals under HTP-R156 unwind the Worker after recording the
+failed call; they are not returned to the model.
 
 ### Runtime adapter metrics
 

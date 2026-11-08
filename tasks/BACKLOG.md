@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-68 open tasks: 9 in progress, 46 pending, 13 deferred. 1512 finished: 1494 completed, 18 archived.
+68 open tasks: 10 in progress, 45 pending, 13 deferred. 1512 finished: 1494 completed, 18 archived.
 
 ## In progress
 
@@ -20,6 +20,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Accept merged isolated Worker context compaction |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V455-005](v455-005-http-error-pacing.yml) | http-tools | defect | P1 | Remove total HTTP quotas and expose actionable controlled HTTP outcomes |
 
 ## Pending
 
@@ -48,7 +49,6 @@ the epics are in [epics.yml](epics.yml).
 | [V410-037](v410-037-allocation-openvpn-bridge-egress.yml) | feature | P2 | — | Route bridge egress through an allocation-owned OpenVPN tunnel |
 | [V412-001](v412-001-managed-pentest-browser.yml) | feature | P2 | — | Add allocation-owned browser investigation with explicit network authority |
 | [V412-004](v412-004-trusted-pentest-callback-proof.yml) | feature | P2 | V411-015, V411-016 | Use existing Interactsh tools as bounded HTTP investigation evidence |
-| [V455-005](v455-005-http-error-pacing.yml) | defect | P1 | — | Remove total HTTP quotas and expose actionable controlled HTTP outcomes |
 
 ### Scanner tool Workers and scan planning (`scan-tools`)
 

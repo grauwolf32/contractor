@@ -1,0 +1,45 @@
+{
+  "task": "V455-005",
+  "policy_authority": "User decisions in the 2026-11-08 V455-005 discussion",
+  "task_definition_merge": "8cada27e100fe1847e206fe2fe42e0ad759c5751",
+  "implementation_branch": "codex/v455-005-http-outcomes",
+  "observed": {
+    "native_requests_without_total_quota": 45,
+    "rps": 2,
+    "injected_rps_waits_seconds": {
+      "value": 0.5,
+      "count": 44
+    },
+    "scope": "Actual ADK function declaration includes explicit origins, methods, paths, exclusions and credential-origin restrictions. A denied request returns the same scope and sends nothing.",
+    "network_errors": {
+      "dns": "http_dns_failed",
+      "tls": "http_tls_failed",
+      "connection": "http_connection_failed",
+      "timeout": "http_timeout"
+    },
+    "may_have_been_sent": {
+      "pre_send_dns": false,
+      "pre_send_tls": false,
+      "refused_connection": false,
+      "timeout_after_send": true
+    },
+    "model_result": "Actual ADK continuation receives DNS resolution failed and the false send-state fact.",
+    "telemetry": "Instrumented tool span retains error.code=http_dns_failed; target origin is absent from span attributes and retained metrics. Existing sensitive HTTP suppression remains enabled.",
+    "fatal_execution": "Native callback failure and ended lease each stop the actual Worker after one scripted model call. Cancellation joins the in-flight request without a model continuation.",
+    "pending_rps_termination": "Cancellation, original call deadline and ended authority each prevent a second physical send.",
+    "scanner": "Installed Nuclei and HTTP tools share the quota-free transport; Nuclei preserves both fatal bridge and authority signals. Ordinary non-controlled HTTP retains its separate bounded retry policy."
+  },
+  "validation": {
+    "make_test_runtime": "pending final report",
+    "make_test_wire_cross_language": "passed; 374 shared fixtures, 420 Go and 266 Python shared tests; one optional disk-heavy test skipped",
+    "make_ui_verify": "passed; 220 test files, 2483 passed and one expected-failure case; generation, lint, type checks, server tests and production build passed",
+    "make_lint": "passed; includes Go vet/static checks, source/task/spec checks, Ruff and four import-layer contracts",
+    "affected_go_services": "go test -count=1 ./internal/contracts/... ./internal/auditservice ./internal/runservice passed with an isolated PostgreSQL database",
+    "affected_go_fixtures": "go test -count=1 ./tests/e2e ./tests/eval/audit_programs passed with PostgreSQL",
+    "production_processes": "TestEngagementOrdinaryRunAcrossProcesses and TestNucleiEngagementAcrossProductionProcesses passed",
+    "latest_real_path_regressions": "63 cases passed across test_controlled_http_outcomes.py, test_http_engine.py and test_nuclei_engagement.py",
+    "ordinary_http_isolation": "187 cases passed across test_http_toolset.py, test_finding_facades.py, test_sitemap_collection.py, test_controlled_http_outcomes.py and test_nuclei_engagement.py; ordinary HTTP error handling is unchanged.",
+    "mandatory_regression_matrix": "Updated the renamed RPS regression and registered all twelve new native/ADK controlled HTTP cases in scripts/engagement-http-matrix.json."
+  },
+  "limits": "No paid model, demo target, deployment, token-efficiency claim, new backoff or blanket delay. Historical allowance exhaustion remains an unconfirmed incident hypothesis; its configured quota is removed."
+}

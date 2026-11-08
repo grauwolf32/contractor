@@ -39,6 +39,7 @@ from contractor_runtime.contracts import (
     WorkerSessionMode,
 )
 from contractor_runtime.core.async_tasks import join_owned_task
+from contractor_runtime.core.tool_errors import ToolExecutionError
 from contractor_runtime.core.worker_completion import (
     ContinueCompletion,
     WorkerCompletionError,
@@ -490,6 +491,11 @@ class AdkWorkerRuntime:
                 )
             elif gateway_error is not None:
                 outcome = _gateway_worker_failure(gateway_error)
+            elif (tool_error := _chained_error(error, ToolExecutionError)) is not None:
+                self._accepting = False
+                outcome = _failure(
+                    tool_error.code, "HTTP execution infrastructure unavailable", False
+                )
             else:
                 outcome = _failure("worker_execution_failed", "Worker execution failed", True)
             self._metrics.record_outcome("failed")

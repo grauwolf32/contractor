@@ -51,7 +51,7 @@ func testEngagementStartToPrivateAllocationPins(t *testing.T, authenticated bool
 	document := f.document("http://127.0.0.1")
 	if authenticated {
 		requests := uint32(17)
-		document.Limits = &engagementcontract.HTTPLimits{TargetRequests: &requests}
+		document.Limits = &engagementcontract.HTTPLimits{RequestsPerSecond: &requests}
 		f.credential(t, "allocated-account", f.project.OwnerID)
 		document.Identities = append(document.Identities, engagementcontract.Identity{ID: "account-a", Kind: "bearer", Origins: document.Identities[0].Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "allocated-account", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
 	}
@@ -153,7 +153,7 @@ func testEngagementStartToPrivateAllocationPins(t *testing.T, authenticated bool
 			if first.HTTP.Limits != nil {
 				t.Fatal("omitted limits acquired a default")
 			}
-		} else if first.HTTP.Limits == nil || first.HTTP.Limits.TargetRequests == nil || *first.HTTP.Limits.TargetRequests != *document.Limits.TargetRequests {
+		} else if first.HTTP.Limits == nil || first.HTTP.Limits.RequestsPerSecond == nil || *first.HTTP.Limits.RequestsPerSecond != *document.Limits.RequestsPerSecond {
 			t.Fatal("allocation lost the engagement's explicit HTTP limit")
 		}
 	}
@@ -195,7 +195,7 @@ func testEngagementStartToPrivateAllocationPins(t *testing.T, authenticated bool
 		first.HTTP.Routes[0].PathPrefixes[0] = "/changed"
 		first.HTTP.Identities[0].Origins[0] = "http://changed.invalid"
 		if first.HTTP.Limits != nil {
-			*first.HTTP.Limits.TargetRequests = 99
+			*first.HTTP.Limits.RequestsPerSecond = 99
 		}
 		if authenticated {
 			first.HTTP.Identities[1].Credential.CredentialID = "changed"

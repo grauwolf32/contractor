@@ -20,7 +20,6 @@ import "./engagement.css";
 
 const PAGE_SIZE = 50; // LIM-UI-23, over the ordinary bounded Artifact preview.
 const LIMITS = [
-  { key: "targetRequests", label: "Target requests", unit: "requests" },
   {
     key: "requestsPerSecond",
     label: "Requests per second",

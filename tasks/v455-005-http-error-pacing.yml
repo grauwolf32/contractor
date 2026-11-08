@@ -6,7 +6,7 @@ epic: http-tools
 kind: defect
 introduced_by: V422-002
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages: [python, go, typescript, json, markdown]
 goal: >-
@@ -32,12 +32,16 @@ context:
     - docs/spec/tools/http-caido.md#HTP-R120
     - docs/spec/tools/http-caido.md#HTP-R122
     - docs/spec/tools/http-caido.md#HTP-R145
+    - docs/spec/tools/http-caido.md#HTP-R154
+    - docs/spec/tools/http-caido.md#HTP-R155
+    - docs/spec/tools/http-caido.md#HTP-R156
     - docs/spec/platform/limits.md#LIM-HTP-43
     - docs/spec/platform/errors.md#ERR-R13
     - docs/spec/platform/observability.md#OBS-R32
   severity: high
   source_revision: 9d8bc588ca3c1f8829756d329f7cc5f8b1b09e04
   evidence: tasks/evidence/v455-005-http-error-pacing.json
+  implementation_evidence: tasks/evidence/v455-005-http-outcomes.json
   incident: >-
     Invoice Lab Run run_bb89459d503a5096536a7b4b173e94e1, Audit
     audit_d220eabdf35b48e9fbb9cceb18f21feb, 2026-11-07 22:38:03-22:44:59

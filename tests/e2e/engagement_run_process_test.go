@@ -18,7 +18,7 @@ func TestEngagementOrdinaryRunAcrossProcesses(t *testing.T) {
 	observer := newEngagementHTTPObserver(t, engagementFixtureIP(t, target))
 	const token = "ordinary-run-private-bearer-canary"
 	observer.setHandler(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/ok" || r.Header.Get("Authorization") != "Bearer "+token {
+		if (r.URL.Path != "/api/ok" && r.URL.Path != "/api/next") || r.Header.Get("Authorization") != "Bearer "+token {
 			t.Error("ordinary Run violated selected route or identity")
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -44,14 +44,14 @@ func TestEngagementOrdinaryRunAcrossProcesses(t *testing.T) {
 		Identities: []engagementcontract.Identity{
 			{ID: "anonymous", Kind: "anonymous", Origins: []string{observer.server.URL}},
 			{ID: "account", Kind: "bearer", Origins: []string{observer.server.URL}, Credential: credential},
-		}, Limits: &engagementcontract.HTTPLimits{TargetRequests: &limit}}
+		}, Limits: &engagementcontract.HTTPLimits{RequestsPerSecond: &limit}}
 	body, err := json.Marshal(document)
 	if err != nil {
 		t.Fatal(err)
 	}
 	policy := uploadProjectArtifact(t, h.client, h.baseURL, "ordinary-policy", engagementcontract.MediaType, body)
 	steps := []domainGatewayStep{toolGatewayStep("http_credentials", fixedArguments(map[string]any{}))}
-	for _, path := range []string{"/forbidden", "/api/ok", "/api/over-limit"} {
+	for _, path := range []string{"/forbidden", "/api/ok", "/api/next"} {
 		steps = append(steps, toolGatewayStep("http_request", fixedArguments(map[string]any{"url": observer.server.URL + path, "credential_id": credential.CredentialID})))
 	}
 	steps = append(steps, toolGatewayStep("write_artifact", fixedArguments(map[string]any{
@@ -92,7 +92,7 @@ func TestEngagementOrdinaryRunAcrossProcesses(t *testing.T) {
 		return released
 	})
 	requests := observer.requests()
-	if len(requests) != 1 || requests[0] != "/api/ok" {
+	if len(requests) != 2 || requests[0] != "/api/ok" || requests[1] != "/api/next" {
 		t.Fatalf("policy admitted unexpected requests: %v", requests)
 	}
 	deleteCredential(http.StatusNoContent)

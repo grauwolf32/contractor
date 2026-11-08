@@ -17,6 +17,7 @@ from contractor_runtime.adapters.content import capture_span_content, model_requ
 from contractor_runtime.adapters.genai import usage_attributes
 from contractor_runtime.adapters.instrumentation import end_isolated_span, start_isolated_span
 from contractor_runtime.core.input_errors import ToolInputError
+from contractor_runtime.core.tool_errors import ToolExecutionError, ToolResultDiagnostic
 from contractor_runtime.llm.response import output_limit_reached
 from contractor_runtime.observations import WorkspaceToolObservation
 from contractor_runtime.telemetry.invocations import InvocationMetricsReducer
@@ -601,7 +602,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
             if pending is None:
                 # A duplicate/error cleanup callback cannot create another
                 # semantic attempt, metric or span after its owner settled.
-                if cancelled:
+                if cancelled or isinstance(safe_error, ToolExecutionError):
                     raise error
                 raw_name = getattr(tool, "name", None)
                 known = isinstance(raw_name, str) and raw_name in self._allowed_tool_names
@@ -631,7 +632,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
                     result=None,
                     cancelled=cancelled,
                 )
-        if cancelled:
+        if cancelled or isinstance(safe_error, ToolExecutionError):
             raise error
         return response
 
@@ -794,7 +795,9 @@ class WorkerInstrumentationPlugin(BasePlugin):
             pending.span,
             outcome="cancelled" if cancelled else "failed" if failed else "succeeded",
             attributes=(
-                {"error.type": span_error_type(error)} if failed and error is not None else None
+                {"error.type": span_error_type(error), "error.code": safe_error_code(error)}
+                if failed and error is not None
+                else None
             ),
         )
         self._metrics.release_tool_correlation(pending.correlation_id)
@@ -913,10 +916,10 @@ def _install_session_snapshot(context: Any | None, snapshot: dict[str, Any]) -> 
 def _safe_tool_response(tool_name: str, error: Exception) -> dict[str, Any]:
     message = (
         error.diagnostic_message
-        if isinstance(error, ToolInputError)
+        if isinstance(error, ToolInputError | ToolResultDiagnostic)
         else f"{tool_name} failed ({type(error).__name__})"
     )
-    return {
+    response = {
         "ok": False,
         "error": {
             "code": safe_error_code(error),
@@ -926,6 +929,9 @@ def _safe_tool_response(tool_name: str, error: Exception) -> dict[str, Any]:
             "retryable": bool(getattr(error, "retryable", False)),
         },
     }
+    if isinstance(error, ToolResultDiagnostic):
+        response["error"].update(error.model_details)
+    return response
 
 
 def _result_is_failure(result: Any) -> bool:

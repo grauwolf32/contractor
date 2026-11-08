@@ -1063,7 +1063,9 @@ Toolset call counters and Runtime adapter metrics remain the only ones.
   `http_response_too_large`, `http_body_not_found`, `http_cookie_state_invalid`,
   `http_cookie_state_conflict`, `http_cookie_write_denied` (all non-retryable),
   `http_request_failed` and `http_cookie_storage_unavailable` (retryable,
-  HTP-R30, HTP-R131), together with `http_target_denied`, which the
+  HTP-R30, HTP-R131), together with `http_dns_failed`, `http_tls_failed`,
+  `http_connection_failed`, `http_timeout` (non-retryable controlled outcomes)
+  and `http_target_denied`, which the
   [target policy](../platform/security.md) owns;
 - `caido_not_configured`, `caido_request_invalid`, `caido_request_failed`,
   `caido_response_invalid` and `caido_response_too_large`.
@@ -1429,11 +1431,11 @@ material for a later allocation; no login or refresh runs.
 identity/URL sweep. The model chooses requests from its materials/tools. Runtime
 uses the optional HTTP limits carried in this engagement's allocation, under
 LIM-HTP-43. Omitted fields impose no engagement limit; there are no process/env
-quota settings or quota defaults. Counters/rate state are constant-size and
-allocation-local. Each attempted connection, redirect and retry consumes the
-configured request allowance; denied route admission consumes none. No global
-Audit request quota is maintained (AUX-R106). Fresh allocations start fresh
-counters and jars. Interactive bodies, history and read_body remain bounded
+quota settings or quota defaults. Rate state is constant-size and allocation-local.
+Each attempted connection, redirect and permitted retry passes the configured
+RPS admission. Engagement has no total request quota. Ordinary Run/Audit/Worker
+budgets bound execution (AUD-R242, AUX-R106). Fresh allocations start fresh
+rate state and jars. Interactive bodies, history and read_body remain bounded
 private allocation buffers until explicit selection under HTP-R150. Capture
 provenance does not establish a vulnerability or machine proof. There is no
 startup result, identity-summary or request-journal RPC.
@@ -1507,3 +1509,34 @@ Ordinary result collection validates exact frozen capture content and provenance
 adds it only to its owning member's trusted evidence set, and retains it through
 ordinary Audit Artifact forks. Finding selection uses the same envelope and
 Artifact owner; its receipt remains independent. No traffic archive or spool exists.
+
+**HTP-R154.** Controlled HTTP exposes the exact authorized origin whitelist in the
+request tool description before the first request and in a `http_target_denied`
+result. Its scope projection includes route methods/path prefixes, exclusions and
+identity/credential origin restrictions; it omits credential values, protected
+infrastructure destinations and private address rules. DNS/IP checks remain
+mandatory and are never delegated to the model. Scope comes only from the pinned
+allocation, within LIM-AUD-32/33 bounds; it never broadens authority. Invalid tool
+arguments and credential choices carry bounded Runtime-authored repair guidance.
+
+**HTP-R155.** Controlled HTTP distinguishes DNS resolution (`http_dns_failed`),
+TLS (`http_tls_failed`), connection/interrupted exchange (`http_connection_failed`),
+timeout (`http_timeout`) and malformed target response (`http_response_invalid`).
+The model gets the concrete safe reason and `request_may_have_been_sent`; an
+uncertain result is a property of the failure, never an extra retry category.
+Pre-send DNS failure is false; a timeout after send is true. Messages contain
+Runtime-authored text, never native/provider exception text. Existing bounded
+pre-send safe-method retries are internal; no automatic replay follows a possible
+send. Controlled failures are non-retryable hints, not authority to resend.
+HTTP status responses, including 401/403/404/429/5xx, remain ordinary response data.
+The ordinary non-controlled client keeps its existing status retry policy.
+
+**HTP-R156.** Fatal native bridge infrastructure failure (`http_bridge_failed`)
+and ended allocation authority (`http_allocation_closed`) unwind Worker execution
+as non-retryable failures, with no ordinary model tool result or subsequent model
+call. Native target network failures remain HTP-R155 outcomes. Cancellation uses
+the existing joined lifecycle and is re-raised, never a retryable model result.
+Shared scanner proxy ingress preserves fatal transport signals to its caller.
+RPS waits keep the current call pending, honor its original deadline and
+cancellation, and recheck authority before sending; no blanket error sleep,
+response backoff or repeated-error threshold is introduced.

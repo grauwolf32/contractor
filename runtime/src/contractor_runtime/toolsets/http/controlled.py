@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import secrets
 import time
 from collections import deque
@@ -11,11 +12,12 @@ import httpx
 
 from contractor_runtime.adapters.http_transport import HTTPTransport, HTTPTransportError
 from contractor_runtime.core.http_limits import MAX_HISTORY
+from contractor_runtime.core.tool_errors import ToolResultDiagnostic
 from contractor_runtime.threads import to_thread_until_done
 from contractor_runtime.toolsets.common.credentials import RUNTIME_CREDENTIAL
 from contractor_runtime.toolsets.common.http_capture import HTTPObservation, RecentHTTPCaptures
 from contractor_runtime.toolsets.http.capture import CapturedAttempt, CapturedExchange
-from contractor_runtime.toolsets.http.errors import HTTPToolError
+from contractor_runtime.toolsets.http.errors import HTTPToolError, controlled_http_message
 from contractor_runtime.toolsets.http.headers import body_headers, merge_headers, validate_headers
 from contractor_runtime.toolsets.http.tools import (
     _encode_body,
@@ -24,15 +26,27 @@ from contractor_runtime.toolsets.http.tools import (
     _request_body,
     _RequestRecord,
     _response_headers,
-    _timeout,
     _url_with_query,
 )
 
 
-class ControlledHTTPError(HTTPToolError):
-    def __init__(self, code: str):
+class ControlledHTTPError(HTTPToolError, ToolResultDiagnostic):
+    def __init__(self, code: str, *, message=None, scope=None, may_have_been_sent=None):
         super().__init__(code)
         self.retryable = False
+        self.diagnostic_message = controlled_http_message(self.code)
+        self.model_details = {}
+        if message is not None:
+            self.diagnostic_message = message
+        if scope is not None:
+            self.model_details["scope"] = scope
+        if may_have_been_sent is not None:
+            self.model_details["request_may_have_been_sent"] = may_have_been_sent
+            if may_have_been_sent:
+                self.diagnostic_message += (
+                    " The request may have executed; its result is unknown."
+                    " Do not repeat it automatically."
+                )
 
 
 class ControlledHTTPSession(_HTTPSession):
@@ -59,30 +73,34 @@ class ControlledHTTPSession(_HTTPSession):
     def metric_secrets(self) -> tuple[str, ...]:
         return self._transport.private_values()
 
+    @property
+    def scope_description(self) -> str:
+        return "\nAuthorized HTTP scope (DNS/IP restrictions are also enforced): " + json.dumps(
+            self._transport.model_scope(), separators=(",", ":"), ensure_ascii=True
+        )
+
     def credential_catalog(self):
-        try:
-            return self._transport.credentials()
-        except HTTPTransportError:
-            raise ControlledHTTPError("http_credential_unavailable") from None
+        return self._transport.credentials()
+
+    def _require_open(self):
+        if self._closed:
+            raise HTTPTransportError("http_allocation_closed")
 
     def credential_values(self, credential_id):
         try:
             return self._transport.read_credential(credential_id)
-        except (ValueError, HTTPTransportError):
+        except ValueError:
             raise ControlledHTTPError("http_credential_unavailable") from None
 
     async def request(self, **options):
         self._require_open()
-        timeout = _timeout(options.get("timeout_seconds"), self._timeout_cap_seconds)
+        added = self._transport.own_invocation()
         try:
-            added = self._transport.own_invocation()
-        except HTTPTransportError:
-            raise ControlledHTTPError("http_target_denied") from None
-        try:
-            async with asyncio.timeout(timeout):
-                return await self._request(**options)
-        except TimeoutError:
-            raise ControlledHTTPError("http_request_failed") from None
+            return await self._request(**options)
+        except ControlledHTTPError:
+            raise
+        except HTTPToolError as error:
+            raise ControlledHTTPError(error.code) from None
         finally:
             self._transport.finish_invocation(added)
 
@@ -100,22 +118,44 @@ class ControlledHTTPSession(_HTTPSession):
         invocation_id=None,
         credential_id=None,
     ):
-        selected_method = _method(method)
+        try:
+            selected_method = _method(method)
+        except HTTPToolError:
+            raise ControlledHTTPError(
+                "http_request_invalid",
+                message="Use a supported HTTP method from the authorized scope.",
+            ) from None
         if credential_id is not None and credential_id not in {
             entry["credential_id"] for entry in self.credential_catalog()
         }:
             raise ControlledHTTPError("http_credential_unavailable")
-        selected_url = _url_with_query(url, query)
-        payload, content_type = _request_body(body_type, body)
+        try:
+            selected_url = _url_with_query(url, query)
+        except HTTPToolError:
+            raise ControlledHTTPError(
+                "http_request_invalid", message="Use an absolute HTTP(S) URL and a query mapping."
+            ) from None
+        try:
+            payload, content_type = _request_body(body_type, body)
+        except HTTPToolError:
+            raise ControlledHTTPError(
+                "http_request_invalid",
+                message="Match body to body_type: none, json, form (mapping), or text (string).",
+            ) from None
         if type(follow_redirects) is not bool:
-            raise ControlledHTTPError("http_request_invalid")
+            raise ControlledHTTPError(
+                "http_request_invalid", message="follow_redirects must be a boolean."
+            )
         if timeout_seconds is None:
             timeout_seconds = self._timeout_cap_seconds
         if (
             type(timeout_seconds) not in {int, float}
             or not 0 < timeout_seconds <= self._timeout_cap_seconds
         ):
-            raise ControlledHTTPError("http_request_invalid")
+            raise ControlledHTTPError(
+                "http_request_invalid",
+                message="timeout must be a positive number within the configured Runtime cap.",
+            )
         async with self._lock:
             self._require_open()
             selected_headers = body_headers(
@@ -145,14 +185,6 @@ class ControlledHTTPSession(_HTTPSession):
                 completed = response is not None and outcome.kind == "completed"
             except ValueError:
                 raise ControlledHTTPError("http_request_invalid") from None
-            except TimeoutError:
-                raise ControlledHTTPError("http_request_failed") from None
-            except HTTPTransportError as error:
-                raise ControlledHTTPError(
-                    "http_target_denied"
-                    if error.code == "http_scope_denied"
-                    else "http_request_failed"
-                ) from None
             finally:
                 if capture.exchange.attempts:
                     if not completed:
@@ -186,12 +218,20 @@ class ControlledHTTPSession(_HTTPSession):
                         ),
                     )
             if response is None or outcome.kind != "completed":
-                code = (
-                    "http_target_denied"
-                    if outcome.reason == "policy_denied"
-                    else "http_request_failed"
+                code = {
+                    "policy_denied": "http_target_denied",
+                    "dns_failed": "http_dns_failed",
+                    "tls_failed": "http_tls_failed",
+                    "connect_failed": "http_connection_failed",
+                    "transport_failed": "http_connection_failed",
+                    "timeout": "http_timeout",
+                    "response_invalid": "http_response_invalid",
+                }.get(outcome.reason, "http_request_failed")
+                raise ControlledHTTPError(
+                    code,
+                    scope=self._transport.model_scope() if code == "http_target_denied" else None,
+                    may_have_been_sent=outcome.request_may_have_been_sent,
                 )
-                raise ControlledHTTPError(code)
             message = httpx.Response(
                 response.status, headers=response.headers, content=response.body
             )
