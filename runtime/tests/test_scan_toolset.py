@@ -805,7 +805,9 @@ def package_pin(source, destination):
     return snapshot_package(source, destination, time.monotonic() + 30).digest
 
 
-def install_pin_scanner(tmp_path, monkeypatch, *, mode="completed", mutate=False, ready=None):
+def install_pin_scanner(
+    tmp_path, monkeypatch, *, mode="completed", mutate=False, ready=None, result=None
+):
     marker = tmp_path / "scans"
     pid = tmp_path / "scan.pid"
     source = (
@@ -831,6 +833,8 @@ def install_pin_scanner(tmp_path, monkeypatch, *, mode="completed", mutate=False
         source += "    print('scanner-ready', flush=True)\n    time.sleep(120)\n"
     elif mode == "failed":
         source += "    sys.exit(2)\n"
+    elif result is not None:
+        source += f"    print({json.dumps(result)!r})\n"
     else:
         source += "    print(json.dumps({'privateBytes': next(root.glob('*.yaml')).read_text()}))\n"
     binary = executable(tmp_path, "nuclei", source)
@@ -1027,6 +1031,91 @@ def test_shared_nuclei_large_package_manifest_survives_worker_and_replay(tmp_pat
         recreated = await worker(tmp_path, store, tool, spec=spec)
         replay = await recreated.invoke(value)
         assert replay.result.artifacts == completion.result.artifacts
+        assert marker.read_text() == "scan\n"
+        await tool.close()
+        assert not list((tmp_path / "workspace").iterdir())
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("name_padding,id_padding", [(64, 100), (100, 140)])
+def test_shared_nuclei_large_rulepack_publishes_only_matching_manifest_evidence(
+    tmp_path, monkeypatch, name_padding, id_padding
+):
+    import hashlib
+
+    from test_tool_worker import ArtifactStore, request, tool_spec, worker
+
+    from contractor_runtime.artifacts import ArtifactClient
+    from contractor_runtime.contracts import ArtifactRef
+    from contractor_runtime.contracts.tool_execution import ToolArgumentBinding
+    from contractor_runtime.digests import _agent_template_digest
+    from contractor_runtime.toolsets.scan.findings import MAX_EVIDENCE_BYTES
+    from contractor_runtime.toolsets.scan.nuclei_rulepack import RULEPACK_MEDIA_TYPE
+
+    entries = []
+    for index in range(1000):
+        rule = f"rule-{index:04d}-" + "y" * id_padding
+        name = f"rule-{index:04d}-" + "x" * name_padding + ".yaml"
+        entries.append((name, NUCLEI_PIN_FIXTURE.replace("contractor-pin-fixture", rule)))
+    matched_rule = "rule-0000-" + "y" * id_padding
+    marker, _ = install_pin_scanner(
+        tmp_path,
+        monkeypatch,
+        result={
+            "template-id": matched_rule,
+            "info": {"name": "Observed problem", "severity": "medium"},
+            "matched-at": "http://target.invalid/",
+            "request": "GET / HTTP/1.1\r\nHost: target.invalid\r\n\r\n",
+        },
+    )
+
+    async def scenario():
+        tools, _ = await make_tools(tmp_path, selected=["scan_nuclei"])
+        tool = tools["scan_nuclei"]
+        store, spec = ArtifactStore(), tool_spec()
+        pack = rulepack_zip(entries)
+        store.values[("inputs", "rulepack")] = (pack, RULEPACK_MEDIA_TYPE, "exact-pack")
+        tool._session.artifact_client = ArtifactClient(spec.allocation_id, store)
+        tool._session.namespace = spec.namespace
+        spec.agent_template.execution.arguments["rulepack_ref"] = ToolArgumentBinding(
+            source="artifact", name="rulepack"
+        )
+        spec.agent_template.ref.digest = _agent_template_digest(spec.agent_template)
+        value = request(spec, target="http://target.invalid/")
+        value.artifacts["rulepack"] = ArtifactRef(
+            namespace="inputs", name="rulepack", revision="exact-pack"
+        )
+        for name in ("candidates", "evidence"):
+            value.result_artifacts[name] = ArtifactRef(namespace=spec.namespace, name=name)
+        runtime = await worker(tmp_path, store, tool, spec=spec)
+        completion = await runtime.invoke(value)
+        assert completion.failure is None, completion
+        manifest_bytes, media, revision = store.values[(spec.namespace, "template-manifest")]
+        assert len(b64encode(manifest_bytes)) > MAX_EVIDENCE_BYTES
+        assert (len(manifest_bytes) > MAX_EVIDENCE_BYTES) == (name_padding == 100)
+        manifest = json.loads(manifest_bytes)
+        assert len(manifest["selectedTemplates"]) == len(manifest["files"]) == 1000
+        evidence = store.values[(spec.namespace, "evidence")][0]
+        assert len(evidence) < MAX_EVIDENCE_BYTES
+        snapshot = json.loads(evidence)["inputs"][0]
+        assert snapshot["kind"] == "nuclei-manifest-selection"
+        assert snapshot["manifest"] == {
+            "ref": {"namespace": spec.namespace, "name": "template-manifest", "revision": revision},
+            "digest": "sha256:" + hashlib.sha256(manifest_bytes).hexdigest(),
+            "mediaType": media,
+            "sizeBytes": len(manifest_bytes),
+        }
+        assert snapshot["packageDigest"] == manifest["packageDigest"]
+        assert snapshot["source"] == manifest["source"]
+        assert snapshot["engineVersion"] == manifest["engineVersion"]
+        assert snapshot["selectedTemplateCount"] == 1000
+        assert snapshot["templates"] == [manifest["selectedTemplates"][0]]
+        batch = json.loads(store.values[(spec.namespace, "candidates")][0])
+        assert len(batch["candidates"]) == 1
+        assert batch["candidates"][0]["rule"] == matched_rule
+        recreated = await worker(tmp_path, store, tool, spec=spec)
+        assert (await recreated.invoke(value)).result.artifacts == completion.result.artifacts
         assert marker.read_text() == "scan\n"
         await tool.close()
         assert not list((tmp_path / "workspace").iterdir())

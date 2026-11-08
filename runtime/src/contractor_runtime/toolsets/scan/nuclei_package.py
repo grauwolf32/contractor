@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import re
 import stat
@@ -227,6 +228,35 @@ def selected_manifest(
         return data, len(selected)
     except (OSError, UnicodeError, ValueError, KeyError):
         raise PackageError("nuclei_selection_invalid") from None
+
+
+def finding_manifest_input(data: bytes, ref: dict, rules: set[str]) -> dict:
+    """Retain matching rule records and exact full-manifest provenance, not inventory."""
+    manifest = json.loads(data)
+    if manifest["schemaVersion"] != 2 or manifest["source"]["kind"] not in {
+        "installed",
+        "rulepack",
+    }:
+        raise ValueError("invalid selected Nuclei manifest")
+    templates = [row for row in manifest.get("selectedTemplates", []) if row["id"] in rules]
+    if manifest["source"]["kind"] == "rulepack" and (
+        {row["id"] for row in templates} != rules or len(templates) != len(rules)
+    ):
+        raise ValueError("candidate rule is absent from selected Nuclei manifest")
+    return {
+        "kind": "nuclei-manifest-selection",
+        "manifest": {
+            "ref": ref,
+            "digest": "sha256:" + hashlib.sha256(data).hexdigest(),
+            "mediaType": MANIFEST_MEDIA_TYPE,
+            "sizeBytes": len(data),
+        },
+        "packageDigest": manifest["packageDigest"],
+        "engineVersion": manifest["engineVersion"],
+        "source": manifest["source"],
+        "selectedTemplateCount": manifest["selectedTemplateCount"],
+        "templates": templates,
+    }
 
 
 def main() -> None:

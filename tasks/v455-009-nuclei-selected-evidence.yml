@@ -1,0 +1,55 @@
+schema_version: '1.0'
+id: V455-009
+title: Bound Finding evidence to matching Nuclei manifest records
+milestone: scan-tools-followups
+epic: scan-tools
+kind: defect
+introduced_by: V455-008
+priority: P2
+status: in_progress
+depends_on: [V455-008]
+languages: [python, go, markdown]
+goal: >-
+  A valid large Nuclei rulepack with a small number of positive matches publishes
+  Findings without copying the entire rule inventory into bounded evidence.
+context:
+  authority: User review 2026-11-09 requests fixing the large-rulepack evidence overflow and adding a regression.
+  severity: medium
+  finding: >-
+    runtime/src/contractor_runtime/toolsets/scan/tools.py:890-905 reads the full
+    selected manifest using the 512 KiB evidence bound and embeds it in Base64.
+    A valid 1000-template manifest of 468204 bytes expands to 624272 bytes before
+    other evidence, so one positive fails with tool_report_failed and no candidates.
+  siblings: >-
+    Both installed and custom Nuclei manifest inputs use this selector. SQLMap
+    invocation/request snapshots have a separate bounded input and are unchanged.
+    Empty candidate batches already avoid reading the manifest. Full Run manifest
+    publication and its 16 MiB bound remain owned by scanner preparation.
+  specification:
+    - docs/spec/tools/scanners.md#SCN-R230
+    - docs/spec/tools/scanners.md#SCN-R264
+    - docs/spec/tools/scanners.md#SCN-R265
+    - docs/spec/findings/findings.md#FND-R230
+    - docs/spec/findings/findings.md#FND-R232
+scope:
+  in:
+    - Keep only matching selected-template records in durable Finding evidence.
+    - Preserve exact manifest descriptor, package digest, engine and rulepack origin.
+    - Read the manifest under its own bound and keep existing evidence admission unchanged.
+    - Cover a valid 1000-template pack through Worker publication and real scanner Finding intake.
+  out:
+    - New evidence stores, limits, eligibility policies, main merge or deployment.
+acceptance_criteria:
+  - id: A1
+    text: A valid 1000-template rulepack with one positive writes candidates/evidence below 512 KiB and creates a Finding through explicit publication.
+  - id: A2
+    text: Retained evidence names the exact original manifest ref/digest/size, package and source, and includes only candidate-related selected records, so unrelated files do not consume its budget.
+  - id: A3
+    text: Installed manifests, empty batches, multiple candidates per rule and missing selected custom rules behave deterministically; replay does not rescan, and the large-rulepack regression fails before the fix.
+tests:
+  - command: make test-runtime
+    covers: [A1, A2, A3]
+  - command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=e2e -count=1 -timeout=15m ./tests/e2e -run '^TestScannerFindingsAcrossProductionProcesses$'
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]

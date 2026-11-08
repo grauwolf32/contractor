@@ -1867,6 +1867,14 @@ published before additional output publication, so an output failure uses the
 existing durable `tool_report_failed` class and cannot erase the original scanner
 outcome. Recreated Workers replay that failure from the same receipt. Provider adapters own
 normalization once; Server operations never parse native scanner formats.
+Nuclei evidence retains a candidate-related manifest selection: the original
+exact manifest descriptor (ref, digest, media type and size), package digest,
+engine version, source and only the selected-template records named by problem
+candidates. The full manifest is read under LIM-SCN-72 and stays Run-local;
+unrelated inventory is not embedded or Base64-expanded into Finding evidence.
+Installed manifests retain their compact package provenance without inventing
+per-template records. A custom candidate missing from the selected manifest
+fails output publication. Existing evidence limits apply to the retained selection.
 
 **SCN-R265.** Nuclei follows its template severity: evidenced low/medium/high/
 critical matches become problem candidates, while info, unknown and absent

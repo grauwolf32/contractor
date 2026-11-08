@@ -16,6 +16,7 @@ from contractor_runtime.toolsets.scan.findings import (
     sqlmap_candidates,
     sqlmap_points,
 )
+from contractor_runtime.toolsets.scan.nuclei_package import finding_manifest_input
 from contractor_runtime.toolsets.scan.tools import NucleiTool
 
 
@@ -144,8 +145,16 @@ def test_explicit_output_binding_materializes_candidates_without_implicit_public
         class Client:
             async def read_artifact(self, ref, **kwargs):
                 return SimpleNamespace(
-                    data=b'{"schemaVersion":2,"selectedTemplateCount":1}',
-                    media_type="application/json",
+                    data=json.dumps(
+                        {
+                            "schemaVersion": 2,
+                            "selectedTemplateCount": 1,
+                            "source": {"kind": "installed"},
+                            "packageDigest": "sha256:" + "a" * 64,
+                            "engineVersion": "v3.11.1",
+                        }
+                    ).encode(),
+                    media_type="application/vnd.contractor.nuclei-manifest+json",
                 )
 
             async def write_artifact(self, ref, **kwargs):
@@ -189,6 +198,63 @@ def test_nuclei_exact_template_method_supports_omitted_raw_messages():
     result = nuclei_candidates(observation(row), methods={"nginx-detect": "HEAD"})
     assert result["surface"][0]["method"] == "HEAD"
     assert result["surface"][0]["status"] is None
+
+
+def test_nuclei_manifest_selection_deduplicates_rules_and_rejects_unselected_rule():
+    manifest = {
+        "schemaVersion": 2,
+        "packageDigest": "sha256:" + "a" * 64,
+        "engineVersion": "v3.11.1",
+        "selectedTemplateCount": 2,
+        "source": {
+            "kind": "rulepack",
+            "artifact": {"namespace": "inputs", "name": "pack", "revision": "exact"},
+            "contentDigest": "sha256:" + "b" * 64,
+        },
+        "selectedTemplates": [
+            {"id": "git-config", "path": "git.yaml", "digest": "sha256:" + "c" * 64, "size": 123},
+            {"id": "other", "path": "other.yaml", "digest": "sha256:" + "d" * 64, "size": 456},
+        ],
+    }
+    batch = nuclei_candidates(observation(match(), match(url="https://target.test/other")))
+    assert len(batch["candidates"]) == 2
+    rules = {candidate["rule"] for candidate in batch["candidates"]}
+    selected = finding_manifest_input(
+        json.dumps(manifest).encode(),
+        {"namespace": "scanner", "name": "manifest", "revision": "exact"},
+        rules,
+    )
+    assert selected["templates"] == manifest["selectedTemplates"][:1]
+    with pytest.raises(ValueError, match="absent"):
+        finding_manifest_input(json.dumps(manifest).encode(), {}, {"not-selected"})
+
+
+def test_empty_nuclei_candidates_do_not_read_or_retain_manifest():
+    async def scenario():
+        writes = []
+
+        class Client:
+            async def read_artifact(self, *args, **kwargs):
+                pytest.fail("empty batch must not read a manifest")
+
+            async def write_artifact(self, ref, **kwargs):
+                writes.append(kwargs["data"])
+                return SimpleNamespace(artifact=ref.model_copy(update={"revision": "exact"}))
+
+        tool = NucleiTool(SimpleNamespace(artifact_client=Client()), None)
+        await tool.publish_outputs(
+            {"findingCandidates": nuclei_candidates(observation())},
+            {
+                name: ArtifactRef(namespace="scanner", name=name)
+                for name in ("candidates", "evidence")
+            },
+        )
+        assert json.loads(writes[0]) == {
+            "schema": "contractor.finding.scanner-evidence.v1",
+            "records": [],
+        }
+
+    asyncio.run(scenario())
 
 
 def test_nuclei_report_projection_bounds_bytes_and_records_lost_candidates():

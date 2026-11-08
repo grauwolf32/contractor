@@ -53,7 +53,6 @@ from contractor_runtime.toolsets.scan.ffuf import (
 from contractor_runtime.toolsets.scan.findings import (
     CANDIDATE_MEDIA_TYPE,
     EVIDENCE_MEDIA_TYPE,
-    MAX_EVIDENCE_BYTES,
     nuclei_candidates,
     sqlmap_candidates,
     sqlmap_points,
@@ -83,6 +82,7 @@ from contractor_runtime.toolsets.scan.nuclei_package import (
     MANIFEST_MEDIA_TYPE,
     MAX_MANIFEST_BYTES,
     PackageError,
+    finding_manifest_input,
     selected_manifest,
     snapshot_package,
 )
@@ -892,15 +892,18 @@ class NucleiTool(JSONLinesScanTool):
         if selected is None:
             raise ValueError("selected Nuclei manifest is unavailable")
         ref = ArtifactRef.model_validate(selected).require_exact()
-        read = await self._session.artifact_client.read_artifact(ref, max_bytes=MAX_EVIDENCE_BYTES)
+        read = await self._session.artifact_client.read_artifact(ref, max_bytes=MAX_MANIFEST_BYTES)
+        if read.media_type != MANIFEST_MEDIA_TYPE:
+            raise ValueError("selected Nuclei manifest has invalid media type")
+        rules = {candidate["rule"] for candidate in observation["findingCandidates"]["candidates"]}
         return [
-            {
-                "kind": "nuclei-manifest",
-                "ref": ref.model_dump(by_alias=True),
-                "mediaType": read.media_type,
-                "digest": "sha256:" + hashlib.sha256(read.data).hexdigest(),
-                "dataBase64": base64.b64encode(read.data).decode("ascii"),
-            }
+            await threads.to_thread_until_done(
+                finding_manifest_input,
+                read.data,
+                ref.model_dump(by_alias=True),
+                rules,
+                name="nuclei-finding-manifest-selection",
+            )
         ]
 
     async def __call__(

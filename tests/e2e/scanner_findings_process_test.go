@@ -3,6 +3,7 @@
 package e2e
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -185,6 +186,7 @@ http:
 	if items := scannerFindingPage(t, h, project.ProjectID); len(items) != 2 {
 		t.Fatal("informational match fabricated a Finding")
 	}
+	assertScannerLargeRulepackFinding(t, h, target)
 
 	// Current public source detail exposes actual scan and publishing Stage provenance.
 	var receiptID string
@@ -259,6 +261,78 @@ http:
 		t.Fatal("source Run purge lost Findings")
 	}
 
+}
+
+func assertScannerLargeRulepackFinding(t *testing.T, h *scanProcessHarness, target string) {
+	t.Helper()
+	create, err := http.NewRequest(http.MethodPost, h.baseURL+"/v1/projects", strings.NewReader(`{"kind":"project","name":"Large Nuclei rulepack"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	create.Header.Set("Authorization", "Bearer "+publicToken)
+	create.Header.Set("Content-Type", "application/json")
+	create.Header.Set("Idempotency-Key", "scanner-large-rulepack-project")
+	response := do(t, h.client, create, http.StatusCreated)
+	defer response.Body.Close()
+	var project projectResourceResponse
+	decodeResponse(t, response, &project)
+	var archive bytes.Buffer
+	pack := zip.NewWriter(&archive)
+	matchedRule := ""
+	for index := 0; index < 1000; index++ {
+		rule := fmt.Sprintf("rule-%04d-", index) + strings.Repeat("y", 100)
+		name := fmt.Sprintf("rule-%04d-", index) + strings.Repeat("x", 64) + ".yaml"
+		word := fmt.Sprintf("absent-rule-%04d", index)
+		if index == 0 {
+			matchedRule, word = rule, "repositoryformatversion"
+		}
+		entry, err := pack.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		data := fmt.Sprintf("id: %s\ninfo:\n  name: Rule fixture\n  author: contractor\n  severity: medium\nhttp:\n  - method: GET\n    path: [\"{{BaseURL}}/.git/config\"]\n    matchers:\n      - type: word\n        words: [%q]\n", rule, word)
+		if _, err := entry.Write([]byte(data)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := pack.Close(); err != nil {
+		t.Fatal(err)
+	}
+	input := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "scanner-inputs", "large-rulepack", "application/vnd.contractor.nuclei-rulepack+zip", archive.Bytes())
+	body, err := json.Marshal(map[string]any{"workflow": "project-nuclei-scan@1", "parameters": map[string]string{"target": target}, "artifacts": map[string]artifactRef{"rulepack": input}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	run := postProjectRun(t, h.client, h.baseURL, project.ProjectID, "large-rulepack", body, false)
+	h.terminal(t, run, "succeeded")
+	if items := scannerFindingPage(t, h, project.ProjectID); len(items) != 1 {
+		t.Fatalf("large valid rulepack did not publish one Finding: %s", items)
+	}
+	manifest, _ := download(t, h.client, h.baseURL+"/v1/runs/"+run+"/artifacts/scanner/template-manifest")
+	if len(manifest)*4/3 <= 512<<10 {
+		t.Fatalf("manifest does not reproduce Base64 overflow: %d bytes", len(manifest))
+	}
+	evidence, _ := download(t, h.client, h.baseURL+"/v1/runs/"+run+"/artifacts/scanner/evidence")
+	var proof struct {
+		Inputs []struct {
+			Kind     string `json:"kind"`
+			Manifest struct {
+				Digest    string `json:"digest"`
+				SizeBytes int    `json:"sizeBytes"`
+			} `json:"manifest"`
+			Templates []struct {
+				ID string `json:"id"`
+			} `json:"templates"`
+		} `json:"inputs"`
+	}
+	if err := json.Unmarshal(evidence, &proof); err != nil || len(evidence) > 512<<10 || len(proof.Inputs) != 1 {
+		t.Fatalf("invalid bounded evidence: bytes=%d %v", len(evidence), err)
+	}
+	selected := proof.Inputs[0]
+	if selected.Kind != "nuclei-manifest-selection" || selected.Manifest.Digest != contentdigest.Bytes(manifest) || selected.Manifest.SizeBytes != len(manifest) || len(selected.Templates) != 1 || selected.Templates[0].ID != matchedRule {
+		t.Fatalf("selected manifest evidence lost exact origin: %+v", selected)
+	}
+	t.Logf("large rulepack: 1000 selected templates, manifest=%d bytes, evidence=%d bytes, one real Finding", len(manifest), len(evidence))
 }
 
 func scannerFindingGET(t *testing.T, h *scanProcessHarness, path string) []byte {
