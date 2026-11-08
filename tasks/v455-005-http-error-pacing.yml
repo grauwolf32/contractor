@@ -16,8 +16,11 @@ goal: >-
 context:
   authority: >-
     User request 2026-11-08: document the observed problem; think through whether
-    artificial delays should be introduced. This is documentation and decision
-    preparation, not approval of a delay policy, implementation or another demo run.
+    artificial delays should be introduced. Follow-up requests authorize checking
+    the real path and evaluating bridge-level waits; the user proposes bridge as
+    the owner because the LLM has no wait tool. The user prefers one shared
+    bridge policy over duplication in every HTTP tool. Exact delay semantics remain open.
+    This is investigation, not approval of a blanket delay or another demo run.
   specification:
     - docs/spec/tools/http-caido.md#HTP-R120
     - docs/spec/tools/http-caido.md#HTP-R122
@@ -44,10 +47,12 @@ context:
     before sending when the allocation's total request allowance is exhausted.
     toolsets/http/controlled.py:150-155 preserves only http_scope_denied and
     maps every other transport code to http_request_failed.
-    toolsets/http/errors.py:5-28 marks http_request_failed retryable=true;
-    worker/instrumentation.py:913-927 passes that flag to the model.
+    ControlledHTTPError at toolsets/http/controlled.py:32-35 overrides the base
+    registry with retryable=false; worker/instrumentation.py:913-927 forwards it.
     These paths are under runtime/src/contractor_runtime/ in source_revision.
-    The permanent limit reason is therefore lost and represented as retryable.
+    The permanent limit reason is lost, but the model-facing failure remains
+    non-retryable. The earlier explanation claiming retryable=true was incorrect
+    and is explicitly superseded by this direct inspection of the deployed code.
     controlled.py:156-185 only records exchanges with physical attempts, so
     admission rejection cannot be recovered by repeatedly reading HTTP history.
   evidence_limits: >-
@@ -56,8 +61,8 @@ context:
     failures, not a recovered fact: their original transport code and exact
     physical request count were not retained. 39 successful tool calls do not
     establish 39 physical sends; redirects and permitted retries can add sends.
-    Retained diagnostic retryable=false is a different projection from the
-    model-facing retryable=true established by code. Sensitive HTTP content
+    Retained diagnostic retryable=false agrees with the controlled exception
+    and model-response code. Sensitive HTTP content
     suppression prevents replaying the exact model-visible responses here.
     Millisecond tool duration does not mean the whole model/tool loop ran at
     that rate; model calls between tools also consumed time and tokens.
@@ -65,8 +70,8 @@ context:
     git blame identifies 41f6fb79e184f820e42f67ba845a2691c1863055
     (V422-002 engagement simplification) as introducing allocation-local
     http_limit_exceeded and the transport-code mapping at controlled.py:150-155.
-    The generic retryability registry predates it; generic transport failure
-    being retryable is not by itself evidence of that earlier task's defect.
+    The generic retryability registry predates it and is overridden in the
+    controlled path; it is not the cause of the observed model repetition.
   siblings: >-
     Review raised HTTPTransportError and non-completed transport outcomes,
     HTTP tool error normalization, model-facing safe responses, retained Worker
@@ -95,6 +100,74 @@ context:
     rejection needs deterministic prevention or a completion path rather than
     relying on the model to honor retryable=false; do not silently introduce a
     global repeated-error threshold. No option has been approved by the user.
+  investigation_2026_11_08:
+    evidence: tasks/evidence/v455-005-http-pacing-probe.json
+    method: >-
+      Six bounded probes through actual Controlled HTTP tools, native mitmproxy
+      bridge and a temporary local TCP target; time is injected for deterministic
+      delay comparisons. One pre-send connection failure is injected at engine
+      entry. No paid model or demo target is invoked. Relevant transport, tool,
+      instrumentation, bridge and ingress files are identical between deployed
+      9d8bc588ca3c and inspected main 80d8336e3.
+    results: >-
+      With targetRequests=2, two sends succeed and 79 subsequent tool calls
+      fail before entering the native bridge. Both no-delay and a simulated
+      one-second engine-entry delay yield zero bridge entries/waits for those
+      failures; advancing time by 30 seconds does not replenish the allowance.
+      The real safe model response has code http_request_failed and retryable=false;
+      history still contains only two physical exchanges. requestsPerSecond=2
+      already waits 0.5 seconds between three sends at transport admission.
+      A 429 with Retry-After=2 returns as an ordinary response; the next explicit
+      call is not delayed. One injected pre-send connect failure retries a safe
+      GET once without backoff when no rate limit is configured. Cancelling a
+      pending admission wait prevents a second send and leaves no owned tasks.
+    actual_run_timing: >-
+      The 79 failed http_request spans span 332.829 seconds. Consecutive failed
+      request start times are 1.031-27.075 seconds apart, median 3.708 seconds.
+      Tool duration of 1-3 ms must not be confused with model-loop frequency.
+    recommendation: >-
+      Put any approved pacing/cooldown in allocation-owned HTTPTransport, the
+      shared request path used by controlled model tools and scanner bridge
+      ingress (adapters/bridge/mitmproxy/ingress.py:234). A wait keeps the current
+      tool call pending; the LLM needs no separate wait tool or extra model call.
+      Low-level MitmproxyEngine.request is below limit admission and is the wrong
+      sole owner for preventing this incident's repeated local rejections.
+      Preserve existing physical-send pacing at _admit_request. If approved,
+      observe transient responses in _request_chain and apply bounded cooldown
+      before the next explicitly requested physical send, with an explicit
+      scope (for example allocation plus origin), without replaying that response.
+      Combine cooldown with existing rate eligibility using the later timestamp,
+      rather than adding two sleeps. Respect the original call/authority deadline,
+      cancellation, fresh authority checks and allocation cleanup; scope denial
+      and total allowance exhaustion remain immediate permanent failures.
+      Safe pre-send connection retry backoff belongs with that same transport's
+      existing bounded retry decision, not a generic Worker/tool error delay.
+      Exact Retry-After/status policy, maximum wait, clock handling and cooldown
+      scope remain proposals. Correct limit classification and a useful completion
+      path still need separate treatment; sleeping cannot replenish total allowance.
+    compatibility_boundary: >-
+      The ordinary non-controlled HTTP session in toolsets/http/tools.py already
+      has a separate bounded status/Retry-After retry implementation, covered by
+      test_http_retries.py. Those tests do not establish controlled-path behavior.
+      Do not add blanket retries to the controlled path or weaken its pre-send-only
+      automatic retry rule. Raw bridge protocol code should not own engagement
+      budgets, model-loop progress or per-tool error throttling.
+    shared_owner_requirement: >-
+      Implement any approved common wait policy once at the shared outbound
+      transport boundary; do not copy sleeps into each tool. Controlled HTTP
+      tools and scanner proxy ingress already converge on HTTPTransport.request.
+      Inventory every claimed consumer before promising coverage of all HTTP:
+      the non-controlled HTTP factory branch uses _HTTPSession directly and
+      does not currently pass through that transport. Decide its integration
+      explicitly if universal coverage is required; do not silently broaden
+      this task into migrating all external HTTP clients or Caido internals.
+    checks: >-
+      All six probes passed. Existing test_engagement_target.py,
+      test_audit_http_credentials.py and test_engagement_socket_conformance.py
+      passed with real socket cases. Task/spec checks and full make lint passed
+      for the initial documentation commit; later evidence/doc corrections are
+      checked with task/spec consistency and git diff --check. No fix or cooldown
+      has been deployed; the task remains pending for the policy decision.
 scope:
   in:
     - Reproduce permanent HTTP limit rejection through the real transport and instrumented tool boundary.

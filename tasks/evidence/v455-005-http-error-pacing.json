@@ -86,7 +86,7 @@
     "3": 2,
     "2": 5
   },
-  "confirmed_code_defect": "Transport http_limit_exceeded is mapped to http_request_failed, whose HTTPToolError retryability is true; the instrumented model response forwards that flag.",
+  "confirmed_code_defect": "Transport http_limit_exceeded is mapped to generic http_request_failed. ControlledHTTPError overrides base retryability to false, and the instrumented model response forwards false. The prior true claim was incorrect.",
   "incident_cause_status": "Unconfirmed: original transport reason and exact physical send count are absent from retained incident telemetry. Exhausted targetRequests=40 is a hypothesis.",
   "delay_policy_status": "Open user question on 2026-11-08; no delay or runtime behavior changed."
 }
