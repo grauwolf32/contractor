@@ -5,7 +5,8 @@ milestone: llm-cost-reporting-2026-11
 epic: operations
 kind: feature
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: b0f67d9b1adab4ef44a01f0999866310f2849baa
 depends_on: []
 languages: [go, python, markdown, json]
 goal: Preserve monetary cost already returned by the configured Gateway together with its source, model, phase and coverage, without changing inference or the configured model.
@@ -14,6 +15,7 @@ context:
   authority: 'User decisions 2026-11-07/08 request research, approve the Audit/Project cost design and authorize implementation. A bounded live request on 2026-11-08 verified equal OpenRouter usage.cost and LiteLLM cost headers on installed LiteLLM 1.85.0. Implementation proposals: canonical USD decimals with up to 18 fractional/integer digits; at most 64 model/phase/source groups per report, with unavailable coverage for rejected or overflowing observations.'
   specification: docs/spec/platform/observability.md#usage-attribution
   design: 'Approved conversation mockups: audit-llm-cost-proposal and audit-project-cost-context, 2026-11-08. V417-007 and V420-004 remain independently unassigned phase/state diagnostics; this feature adds money without claiming their acceptance.'
+  verification: 'All listed gates passed on 2026-11-08. Full Runtime: 5991 passed, 135 declared platform/live/heavy skips; skips are not passing coverage. Shared wire gate: 375 fixtures, 422 Go and 267 Python shared tests; one optional heavy-IO test skipped. Full reporting/Gateway/Streamline/telemetry Go packages passed with a dedicated real PostgreSQL database. Full lint passed with UV_OFFLINE=true using the installed locked dependencies after PyPI timed out. The lane database remains allocated for V458-002 and will be dropped after the lane finishes.'
 scope:
   in:
   - Shared Go/Python ExecutionMetrics cost contract and shared golden cases.

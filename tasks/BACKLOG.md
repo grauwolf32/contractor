@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-70 open tasks: 10 in progress, 47 pending, 13 deferred. 1514 finished: 1496 completed, 18 archived.
+69 open tasks: 9 in progress, 47 pending, 13 deferred. 1515 finished: 1497 completed, 18 archived.
 
 ## In progress
 
@@ -20,7 +20,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Accept merged isolated Worker context compaction |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V458-001](v458-001-llm-cost-observations.yml) | operations | feature | P1 | Preserve bounded provider and Gateway costs in execution reports |
 
 ## Pending
 
@@ -109,7 +108,7 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V458-002](v458-002-durable-llm-cost-summaries.yml) | feature | P1 | V458-001 | Serve durable attributed Run Audit and Project LLM costs |
+| [V458-002](v458-002-durable-llm-cost-summaries.yml) | feature | P1 | — | Serve durable attributed Run Audit and Project LLM costs |
 
 ### Public API and wire contracts (`api-contracts`)
 
@@ -177,7 +176,7 @@ tasks in `introduced_by`.
 | Evaluations (`evals`) | 5 | 22 | 41 | 17 | 50 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
 | Web UI (`ui`) | 2 | 52 | 79 | 28 | 76 |
-| Operations, authentication, CLI and deployment (`operations`) | 2 | 20 | 47 | 9 | 22 |
+| Operations, authentication, CLI and deployment (`operations`) | 1 | 20 | 47 | 9 | 22 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 42 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 50 | 18 |
 | Quality, CI and process (`quality`) | 11 | 1 | 33 | 140 | 30 |
