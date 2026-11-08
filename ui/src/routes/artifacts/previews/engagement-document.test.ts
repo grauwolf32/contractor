@@ -34,6 +34,7 @@ describe("Saved engagement presentation", () => {
       "missing-anonymous",
       "unknown-identity-kind",
       "empty-cidr",
+      "http-limit-targetRequests-positive",
     ]);
     for (const source of [
       "{",

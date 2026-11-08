@@ -1,5 +1,5 @@
 schema_version: '1.0'
-id: V455-007
+id: V455-008
 title: Publish Nuclei and SQLMap results through a separate Finding operation
 milestone: scan-tools-followups
 epic: scan-tools
@@ -20,6 +20,10 @@ demonstration: >-
   API/UI with evidence; fixed controls produce none. A publication-only Workflow
   works from retained normalized inputs while Runtime/Gateway are unavailable.
 context:
+  previous_id: V455-007
+  renumbering: >-
+    Renumbered on 2026-11-08 during main integration because V455-007 was
+    independently assigned to the completed HTTP outcome review. Scope is unchanged.
   authority: >-
     User direction 2026-11-08: ffuf updates sitemap, Nuclei must create Findings;
     SQLMap needs the same integration. The user requested this task and proposed
@@ -33,7 +37,7 @@ context:
     Review follow-up: fingerprints and information-only observations belong in
     Project sitemap, not discarded merely because they are not problem Findings.
   source_revision: 8cada27e100fe1847e206fe2fe42e0ad759c5751
-  evidence: tasks/evidence/v455-007-scanner-findings-gap.json
+  evidence: tasks/evidence/v455-008-scanner-findings-gap.json
   specification:
     - docs/spec/execution/server-operations.md#SOP-R1
     - docs/spec/execution/server-operations.md#SOP-R4

@@ -210,7 +210,7 @@ func TestEngagementAuditPinsOneAttemptAndHTTPLimits(t *testing.T) {
 	f := newEngagementFixture(t)
 	document := f.document("http://127.0.0.1")
 	requests := uint32(7)
-	document.Limits = &engagementcontract.HTTPLimits{TargetRequests: &requests}
+	document.Limits = &engagementcontract.HTTPLimits{RequestsPerSecond: &requests}
 	draft, err := f.create(t, "single-attempt", document)
 	if err != nil {
 		t.Fatal(err)
@@ -230,7 +230,7 @@ func TestEngagementAuditPinsOneAttemptAndHTTPLimits(t *testing.T) {
 		t.Fatal(err)
 	}
 	baseline, err := DecodeBaseline(started.Audit.BaselineSnapshot)
-	if err != nil || baseline.Engagement.Document.Limits.TargetRequests == nil || *baseline.Engagement.Document.Limits.TargetRequests != requests {
+	if err != nil || baseline.Engagement.Document.Limits.RequestsPerSecond == nil || *baseline.Engagement.Document.Limits.RequestsPerSecond != requests {
 		t.Fatalf("HTTP limits not pinned: %v", err)
 	}
 	decoded, err := DecodeBaseline(started.Audit.BaselineSnapshot)
@@ -238,8 +238,8 @@ func TestEngagementAuditPinsOneAttemptAndHTTPLimits(t *testing.T) {
 		t.Fatal(err)
 	}
 	clone := decoded.Engagement
-	*clone.Document.Limits.TargetRequests = 99
-	if *baseline.Engagement.Document.Limits.TargetRequests != requests {
+	*clone.Document.Limits.RequestsPerSecond = 99
+	if *baseline.Engagement.Document.Limits.RequestsPerSecond != requests {
 		t.Fatal("cloned HTTP limits alias the baseline")
 	}
 }

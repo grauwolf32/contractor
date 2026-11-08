@@ -248,6 +248,8 @@ the retryability of the codes not classified here, are owned by
 
 **ERR-R13.** Stable HTTP and Caido tool errors include:
 
+- `http_dns_failed`, `http_tls_failed`, `http_connection_failed`, `http_timeout`
+  (non-retryable controlled network outcomes with send uncertainty, HTP-R155);
 - `http_request_invalid`, `http_target_denied`,
   `http_response_invalid`, `http_response_too_large`, `http_body_not_found`,
   `http_cookie_state_invalid`, `http_cookie_state_conflict`, `http_cookie_write_denied`
@@ -260,6 +262,10 @@ The target-policy denials that raise the non-retryable `http_target_denied`
 are owned by [Security](security.md) (SEC-R78). The conditions that raise the
 other codes and their retryability are owned by
 [HTTP and Caido tools](../tools/http-caido.md).
+
+Fatal controlled HTTP execution codes `http_bridge_failed` and
+`http_allocation_closed` terminate Worker execution under HTP-R156; they are not
+ordinary model-facing tool results. Scope projection follows HTP-R154.
 
 ### Interactsh tool errors
 
@@ -595,6 +601,12 @@ Assembled from every document.
 | `finish_rejected` | — | yes only when the candidate artifacts could not be verified; otherwise no | A Streamline or Router `finish` call was rejected: its candidate violates the Stage result contract, including a result artifact reference the RunScope rejects, the plan does not permit the outcome, or the Planner already has a terminal decision; the model may correct it within its budget. | [PLN-R72](../execution/planners.md), [PLN-R118](../execution/planners.md) |
 | `history_cursor_invalid` | — | no | Tool error of `read_context_history` for a cursor that is foreign, stale after a new result or checkpoint, already consumed or evicted; no data is returned and the Planner may restart without a cursor. | [PLN-R131](../execution/planners.md) |
 | `history_unavailable` | — | yes | Tool error of `read_context_history` when its next cursor could not be issued; no data is returned. | [PLN-R131](../execution/planners.md) |
+| `http_allocation_closed` | — | no | Fatal ended allocation authority; terminates Worker execution without a model tool result. | [HTP-R156](../tools/http-caido.md) |
+| `http_bridge_failed` | — | no | Fatal native HTTP bridge infrastructure failure; terminates Worker execution. | [HTP-R156](../tools/http-caido.md) |
+| `http_connection_failed` | — | no | Controlled target connection or interrupted exchange failure, with a possible-send fact. | [HTP-R155](../tools/http-caido.md) |
+| `http_dns_failed` | — | no | Controlled target DNS resolution failure before sending. | [HTP-R155](../tools/http-caido.md) |
+| `http_tls_failed` | — | no | Controlled target TLS connection failure, with a possible-send fact. | [HTP-R155](../tools/http-caido.md) |
+| `http_timeout` | — | no | Controlled HTTP call deadline expired, with a possible-send fact. | [HTP-R155](../tools/http-caido.md) |
 | `http_body_not_found` | — | no | `http_read_body` found the stored body missing, invalid or oversized (HTP-R69) | [ERR-R13](errors.md), [HTP-R69](../tools/http-caido.md) |
 | `http_cookie_state_invalid` | — | no | Cookie payload is malformed, incompatible with the target, or over its bounds | [ERR-R13](errors.md), [HTP-R127](../tools/http-caido.md) |
 | `http_cookie_state_conflict` | — | no | Different current cookie revision; explicit session inspection resolves it without repeating HTTP | [ERR-R13](errors.md), [HTP-R130](../tools/http-caido.md) |

@@ -9,7 +9,6 @@ from fakes.engagement_engine import Results, reply
 from fakes.engagement_engine import transport as HTTPTransport
 
 from contractor_runtime.adapters.bridge import BridgeFailure
-from contractor_runtime.adapters.http_transport import HTTPTransportError
 from contractor_runtime.contracts.engagement import HTTPLimits
 from contractor_runtime.core.target_policy import TargetPolicyConfig, TargetUnresolved
 
@@ -104,7 +103,7 @@ def test_http_status_does_not_trigger_automatic_retry(status):
     asyncio.run(scenario())
 
 
-def test_slot_budget_and_rate_reset_with_each_new_owner():
+def test_rate_resets_with_each_new_owner_without_total_quota():
     class Clock:
         def __init__(self):
             self.now = 100.0
@@ -119,18 +118,16 @@ def test_slot_budget_and_rate_reset_with_each_new_owner():
 
     async def scenario():
         clock = Clock()
-        limits = HTTPLimits(targetRequests=3, requestsPerSecond=2)
+        limits = HTTPLimits(requestsPerSecond=2)
         for _ in range(2):
             resource = owner(Results(), limits=limits, monotonic=clock, sleep=clock.sleep)
-            for _ in range(3):
+            for _ in range(45):
                 assert (await resource.request("http://target.example/start"))[
                     0
                 ].kind == "completed"
-            with pytest.raises(HTTPTransportError, match="http_limit_exceeded"):
-                await resource.request("http://target.example/start")
-            assert resource._request_count == 3
+            assert resource._request_count == 45
             await resource.close()
-        assert clock.waits == [0.5] * 4
+        assert clock.waits == [0.5] * 88
 
     asyncio.run(scenario())
 

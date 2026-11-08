@@ -206,7 +206,7 @@ def test_native_startup_failure_restores_context_and_allows_clean_next_allocatio
         async with SocketTarget() as target, preflight(target) as (owner, _):
             owner.configure(authority_deadline=lambda: time.monotonic() + 60)
             monkeypatch.setattr(TlsConfig, "configure", refuse)
-            with pytest.raises(RuntimeError, match="injected native startup failure"):
+            with pytest.raises(RuntimeError, match="http_bridge_failed"):
                 await owner.request(target.origin + "/allowed")
             assert mitmproxy_engine._active is None and owner._engine is None
             assert all(not directory.exists() for directory in directories)
@@ -324,7 +324,7 @@ def test_native_callback_bug_fails_closed_without_logging_content(monkeypatch, c
         monkeypatch.setattr(MitmproxyEngine, "handle_hook", fail)
         async with SocketTarget() as target, preflight(target) as (owner, _):
             owner.configure(authority_deadline=lambda: time.monotonic() + 60)
-            with pytest.raises(RuntimeError, match="native HTTP engine callback failed") as caught:
+            with pytest.raises(RuntimeError, match="http_bridge_failed") as caught:
                 await owner.request(target.origin + "/allowed")
             assert "private-callback-canary" not in str(caught.value)
             assert target.written == b""

@@ -1,5 +1,5 @@
 {
-  "task_id": "V455-007",
+  "task_id": "V455-008",
   "source_revision": "8cada27e100fe1847e206fe2fe42e0ad759c5751",
   "observed_on": "2026-11-08",
   "nuclei_run": {
@@ -58,5 +58,6 @@
     "source_observation": "Current normalized report importer supports ffuf/Katana; HTTP observation rows lack technology/version fields. Existing sitemap members have source-owned annotations.",
     "required_outcome": "Runtime adapter contributes supported informational metadata through existing sitemap ownership; explicit operation publishes evidenced problems. Severity alone does not route results. Raw reports remain Run-local.",
     "still_proposed": "Publish individually complete positive assertions from partial scans with explicit limitations; freeze deterministic rule eligibility policy."
-  }
+  },
+  "previous_task_id": "V455-007"
 }

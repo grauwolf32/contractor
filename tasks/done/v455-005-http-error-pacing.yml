@@ -6,7 +6,8 @@ epic: http-tools
 kind: defect
 introduced_by: V422-002
 priority: P1
-status: pending
+status: completed
+implementation_commit: 76e7e96a159fc5b4d5a36f7494386647f6a6fb1d
 depends_on: []
 languages: [python, go, typescript, json, markdown]
 goal: >-
@@ -32,12 +33,16 @@ context:
     - docs/spec/tools/http-caido.md#HTP-R120
     - docs/spec/tools/http-caido.md#HTP-R122
     - docs/spec/tools/http-caido.md#HTP-R145
+    - docs/spec/tools/http-caido.md#HTP-R154
+    - docs/spec/tools/http-caido.md#HTP-R155
+    - docs/spec/tools/http-caido.md#HTP-R156
     - docs/spec/platform/limits.md#LIM-HTP-43
     - docs/spec/platform/errors.md#ERR-R13
     - docs/spec/platform/observability.md#OBS-R32
   severity: high
   source_revision: 9d8bc588ca3c1f8829756d329f7cc5f8b1b09e04
   evidence: tasks/evidence/v455-005-http-error-pacing.json
+  implementation_evidence: tasks/evidence/v455-005-http-outcomes.json
   incident: >-
     Invoice Lab Run run_bb89459d503a5096536a7b4b173e94e1, Audit
     audit_d220eabdf35b48e9fbb9cceb18f21feb, 2026-11-07 22:38:03-22:44:59
@@ -169,7 +174,18 @@ tests:
   - command: make lint
     covers: [A1, A2, A3, A4]
 verification_notes: >-
-  Pending implementation on a separate branch after the task-definition merge.
-  Extend real-path regressions and run affected Go packages including their
-  PostgreSQL suites when applicable. Historical probes establish old behavior,
-  not acceptance of the changed contract. No model efficiency claim is required.
+  Completed on codex/v455-005-http-outcomes after task-definition merge
+  8cada27e100fe1847e206fe2fe42e0ad759c5751 into main. Evidence is recorded in
+  tasks/evidence/v455-005-http-outcomes.json. A1 removes the quota end to end,
+  rejects the removed field and permits 45 native sends with injected RPS waits.
+  A2/A3 exercise actual ADK tool declarations/results, safe network diagnoses,
+  send uncertainty and content-free retained metrics/spans. A4 exercises actual
+  Worker termination, joined cancellation, pending RPS deadline/lease expiry and
+  installed Nuclei fatal-signal propagation. The ordinary HTTP client retains
+  its prior errors and retry policy. All listed gates passed: Runtime 5980 passed
+  and 135 skipped, mandatory report verification, wire, UI and lint. Additional
+  PostgreSQL Go packages and both changed production-process scenarios passed;
+  63 real-path and 187 HTTP-isolation cases passed. Optional heavy I/O stayed
+  disabled; skips are not passing coverage. The owned database was dropped.
+  The implementation remains on its separate branch; no deployment or paid
+  model run was performed.

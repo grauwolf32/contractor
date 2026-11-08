@@ -21,7 +21,7 @@ from contractor_runtime import threads
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.bridge import HTTPProxyBridge
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
-from contractor_runtime.adapters.http_transport import HTTPTransport, HTTPTransportError
+from contractor_runtime.adapters.http_transport import HTTPTransport
 from contractor_runtime.artifacts import ArtifactAPIError
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.core.input_errors import ToolInputError
@@ -289,7 +289,7 @@ class _ScanSession:
                     )
             except TimeoutError:
                 return ProcessResult(None, error_code="scan_timeout")
-            except (HTTPTransportError, OSError, ValueError):
+            except (OSError, ValueError):
                 return ProcessResult(None, error_code="scan_request_failed")
 
     async def require_destination(self, host: str, ports: tuple[int, ...]) -> None:
@@ -523,7 +523,7 @@ class _NucleiPreparation:
                     item["credential_id"] == self.credential_id for item in catalog
                 ):
                     raise ValueError
-            except (ValueError, HTTPTransportError):
+            except ValueError:
                 raise ScanInputError("credential is not assigned to this allocation") from None
         try:
             validate_nuclei_arguments(values)
