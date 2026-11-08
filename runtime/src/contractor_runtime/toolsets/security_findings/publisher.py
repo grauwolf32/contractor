@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from contextlib import nullcontext
 from typing import Any
 
 from google.adk.tools.tool_context import ToolContext
@@ -73,10 +74,20 @@ class FindingPublisher:
         publish_problem: bool = False,
         item_key: str | None = None,
         incidental: bool = False,
+        _call: RecordedToolCall | None = None,
     ) -> dict[str, Any]:
-        with RecordedToolCall(
-            self.metrics, "finding", {}, secrets=self.secrets, bound_error=_bounded_finding_error
-        ) as call:
+        recording = (
+            nullcontext(_call)
+            if _call is not None
+            else RecordedToolCall(
+                self.metrics,
+                "finding",
+                {},
+                secrets=self.secrets,
+                bound_error=_bounded_finding_error,
+            )
+        )
+        with recording as call:
             normalized = normalize_locations(locations)
             # ADK leaves the whole list as raw values if any model item fails
             # conversion. The submission validator supplies bounded repair text.

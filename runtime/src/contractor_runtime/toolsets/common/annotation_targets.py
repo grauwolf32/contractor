@@ -9,7 +9,8 @@ from types import MappingProxyType
 from tree_sitter import Node, Parser
 
 from contractor_runtime.core.lines import line_byte_starts
-from contractor_runtime.toolsets.code_analysis.languages import Language, extract_node_name
+from contractor_runtime.toolsets.common.source_languages import Language
+from contractor_runtime.toolsets.common.source_names import extract_node_name
 
 
 @dataclass(frozen=True, slots=True)

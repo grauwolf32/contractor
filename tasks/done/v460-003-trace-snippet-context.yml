@@ -1,0 +1,48 @@
+schema_version: '1.0'
+id: V460-003
+title: Reserve the selected trace range before adding optional snippet context
+milestone: findings-tools
+epic: findings
+kind: defect
+introduced_by: V460-001
+priority: P2
+status: completed
+depends_on: [V460-001]
+languages: [python, go, markdown]
+goal: A short selected trace range remains publishable when preceding optional context exceeds the snippet budget.
+context:
+  authority: 'User review 2026-11-09: repair the two reproduced trace finding defects before the already authorized main merge.'
+  specification: [docs/spec/findings/findings.md]
+  severity: medium
+  finding: runtime/src/contractor_runtime/toolsets/common/trace_source.py:48 spends the byte budget on automatic preceding context and rejects a short valid selected line after a long comment.
+  siblings: The shared trace facade covers taint and OpenAPI. Cover one oversized prior line, aggregate context overflow, UTF-8 bytes, exact boundaries, selected-range overflow and the existing line limit.
+scope:
+  in:
+  - Reserve the complete selected range, then prepend up to eight nearest whole lines within remaining byte and line budgets.
+  - Preserve a continuous exact window and report its actual coordinates.
+  - Verify evidence through the real finding tool path and the existing process gate.
+  out:
+  - Changes to the shared filesystem window contract, size limits or model-facing tool arguments.
+acceptance_criteria:
+- id: A1
+  text: Optional context is shortened at whole-line boundaries without blocking any selected range that fits the 400-line and 128-KiB limits.
+- id: A2
+  text: A selected range exceeding either limit fails before proof writes and intake; UTF-8 bytes and actual snippet coordinates are correct.
+- id: A3
+  text: Regression cases pass through the trace evidence builder and finding facade, with the real process finding gate and lint passing.
+tests:
+- command: cd runtime && uv run pytest tests/test_trace_findings.py tests/test_finding_facades.py tests/test_finding_anchors.py
+  covers: [A1, A2, A3]
+- command: python3 scripts/test-findings-e2e.py
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A1, A2, A3]
+verification:
+  date: 2026-11-09
+  results:
+  - The exact focused Runtime command passed 173 tests; the complete Runtime suite passed 6055 tests with 135 declared skips.
+  - Oversized prior lines and aggregate UTF-8 context shorten only the optional window; selected ranges at exact line/byte boundaries succeed and oversized ranges fail before proof writes or intake.
+  - The real Server/Runtime/PostgreSQL regression publishes an annotated finding after a comment exceeding 128 KiB, preserves original coordinates and reports snippetStartLine 2; Project evidence survives Run deletion.
+  - python3 scripts/test-findings-e2e.py passed all 16 required process cases and Runtime contracts; UV_OFFLINE=1 make lint passed.
+  - The owned disposable database was explicitly dropped after the test processes stopped; its PostgreSQL cluster and files were removed.
+implementation_commit: 764306815380eab7cf6911652d57ac45e0d96e80

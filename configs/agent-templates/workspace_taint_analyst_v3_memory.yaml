@@ -38,6 +38,8 @@ spec:
         - attack_surface
         - complexity_hotspots
         - functions_that_raise
+    - ref: security-findings-trace@1
+      tools: [finding]
     - ref: taint-annotations@1
       tools: [annotate_trace, annotate_validate, annotate_sink]
     - ref: workspace-changes@1

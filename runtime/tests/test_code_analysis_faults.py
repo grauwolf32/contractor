@@ -18,8 +18,9 @@ from test_code_analysis_child_lifecycle import (
     through_term_grace,
 )
 
-import contractor_runtime.toolsets.code_analysis.languages as code_analysis_languages
 import contractor_runtime.toolsets.code_analysis.tools as code_analysis
+import contractor_runtime.toolsets.common.source_languages as source_languages
+import contractor_runtime.toolsets.common.source_names as source_names
 from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.projectfs.storage import (
     ManagedWorkspaceTree,
@@ -232,21 +233,21 @@ def test_memory_exhaustion_reaches_the_model_as_non_retryable_capacity(tmp_path:
 
 def _fail_first_parser_acquisition(monkeypatch: pytest.MonkeyPatch) -> list[int]:
     calls = [0]
-    original = code_analysis_languages.load_parser
+    original = source_languages.load_parser
 
-    def load_parser(language: code_analysis_languages.Language) -> Any:
+    def load_parser(language: source_languages.Language) -> Any:
         calls[0] += 1
         if calls[0] == 1:
             raise TypeError(f"parser factory defect {DEFECT_CANARY}")
         return original(language)
 
-    monkeypatch.setattr(code_analysis_languages, "load_parser", load_parser)
+    monkeypatch.setattr(source_languages, "load_parser", load_parser)
     return calls
 
 
 def _fail_first_name_extraction(monkeypatch: pytest.MonkeyPatch) -> list[int]:
     calls = [0]
-    original = code_analysis_languages._extract_name
+    original = source_names.extract_node_name
 
     def extract_name(node: Any, source: bytes, preferred_field: str = "") -> str | None:
         calls[0] += 1
@@ -254,7 +255,7 @@ def _fail_first_name_extraction(monkeypatch: pytest.MonkeyPatch) -> list[int]:
             raise TypeError(f"extraction defect {DEFECT_CANARY}")
         return original(node, source, preferred_field)
 
-    monkeypatch.setattr(code_analysis_languages, "_extract_name", extract_name)
+    monkeypatch.setattr(code_analysis.language_support, "extract_node_name", extract_name)
     return calls
 
 

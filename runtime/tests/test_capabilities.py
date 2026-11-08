@@ -11,7 +11,7 @@ from typing import Literal
 import pytest
 from fakes.worker_runtime import StubADKWorkerRuntimeFactory
 
-import contractor_runtime.toolsets.code_analysis.languages as code_analysis_languages
+import contractor_runtime.toolsets.common.source_languages as code_analysis_languages
 import contractor_runtime.toolsets.likec4.tools as likec4
 import contractor_runtime.toolsets.openapi.tools as openapi
 import contractor_runtime.toolsets.taint_annotations.tools as taint_annotations

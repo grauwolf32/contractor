@@ -176,6 +176,17 @@
       "findingProposalTools": ["finding"],
       "requiredWorkflowInputs": {}
     },
+    "security-findings-trace@1": {
+      "tools": ["finding"],
+      "infrastructureChannels": {},
+      "requiresWorkspace": true,
+      "workspaceObservationTools": [],
+      "requiredSandboxProfiles": [],
+      "activeCheckTools": [],
+      "sandboxActiveCheckTools": {},
+      "findingProposalTools": ["finding"],
+      "requiredWorkflowInputs": {}
+    },
     "security-findings-http@1": {
       "tools": ["finding"],
       "infrastructureChannels": {},

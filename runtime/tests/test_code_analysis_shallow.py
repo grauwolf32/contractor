@@ -17,6 +17,7 @@ from test_projectfs_zip import settings as workspace_settings
 
 import contractor_runtime.toolsets.code_analysis.languages as code_analysis_languages
 import contractor_runtime.toolsets.code_analysis.tools as code_analysis
+import contractor_runtime.toolsets.common.source_languages as source_languages
 from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.projectfs import (
     LocalWorkspaceProvider,
@@ -28,10 +29,7 @@ from contractor_runtime.projectfs import (
 )
 from contractor_runtime.telemetry.metrics import MetricsState
 from contractor_runtime.toolsets.code_analysis.languages import (
-    EXTENSION_LANGUAGES,
     PARSE_CHUNK_BYTES,
-    Language,
-    load_parser,
     parse_symbols,
 )
 from contractor_runtime.toolsets.code_analysis.tools import (
@@ -42,6 +40,11 @@ from contractor_runtime.toolsets.code_analysis.tools import (
     CodeAnalysisToolsetFactory,
 )
 from contractor_runtime.toolsets.common.resources import ToolResources
+from contractor_runtime.toolsets.common.source_languages import (
+    EXTENSION_LANGUAGES,
+    Language,
+    load_parser,
+)
 from contractor_runtime.workspace import AllocationWorkspace
 
 LANGUAGE_SAMPLES = {
@@ -355,8 +358,8 @@ def test_c_family_headers_keep_the_snapshot_language(tmp_path: Path) -> None:
 def test_header_language_follows_the_snapshot_c_family_majority(
     paths: tuple[str, ...], expected: Language
 ) -> None:
-    assert code_analysis_languages.header_language(paths) is expected
-    assert code_analysis_languages.detect_language("a/b.H", header=expected) is expected
+    assert source_languages.header_language(paths) is expected
+    assert source_languages.detect_language("a/b.H", header=expected) is expected
 
 
 def test_c_project_with_a_vendored_cpp_file_keeps_c_headers(tmp_path: Path) -> None:
@@ -481,7 +484,7 @@ def test_malformed_cpp_header_keeps_parse_error_coverage(tmp_path: Path) -> None
 
 
 def test_c_family_source_sets_name_exactly_their_shallow_and_graph_grammars() -> None:
-    assert {".c"} == code_analysis_languages.C_SOURCE_EXTENSIONS
+    assert {".c"} == source_languages.C_SOURCE_EXTENSIONS
     assert {
         ".cc",
         ".cpp",
@@ -489,11 +492,11 @@ def test_c_family_source_sets_name_exactly_their_shallow_and_graph_grammars() ->
         ".hh",
         ".hpp",
         ".hxx",
-    } == code_analysis_languages.CPP_SOURCE_EXTENSIONS
-    header = code_analysis_languages.HEADER_EXTENSION
+    } == source_languages.CPP_SOURCE_EXTENSIONS
+    header = source_languages.HEADER_EXTENSION
     claimed = {
-        **dict.fromkeys(code_analysis_languages.C_SOURCE_EXTENSIONS, Language.C),
-        **dict.fromkeys(code_analysis_languages.CPP_SOURCE_EXTENSIONS, Language.CPP),
+        **dict.fromkeys(source_languages.C_SOURCE_EXTENSIONS, Language.C),
+        **dict.fromkeys(source_languages.CPP_SOURCE_EXTENSIONS, Language.CPP),
     }
     assert header not in claimed
     for extension, language in claimed.items():
@@ -502,7 +505,7 @@ def test_c_family_source_sets_name_exactly_their_shallow_and_graph_grammars() ->
         assert extension not in code_analysis_languages.GRAPH_ONLY_SOURCE_EXTENSIONS
         for header_choice in (Language.C, Language.CPP):
             for path in (f"src/file{extension}", f"src/FILE{extension.upper()}"):
-                detected = code_analysis_languages.detect_language(path, header=header_choice)
+                detected = source_languages.detect_language(path, header=header_choice)
                 assert detected is language
     # Graph-only extensions stay deliberately outside the shallow surface.
     assert {".m", ".mm", ".sol", ".proto"} <= code_analysis_languages.GRAPH_ONLY_SOURCE_EXTENSIONS
@@ -1318,7 +1321,7 @@ def test_real_four_mib_parse_runs_on_a_worker_in_bounded_yielding_chunks(
     source = unit * ((4 << 20) // len(unit))
     source += b"#" * ((4 << 20) - len(source))
     parsers: list[_RecordingParser] = []
-    real_load_parser = code_analysis_languages.load_parser
+    real_load_parser = source_languages.load_parser
 
     def load_parser(language: Any) -> _RecordingParser:
         parsers.append(_RecordingParser(real_load_parser(language)))
@@ -1332,7 +1335,7 @@ def test_real_four_mib_parse_runs_on_a_worker_in_bounded_yielding_chunks(
         return real_parse(*args, **kwargs)
 
     yields: list[float] = []
-    monkeypatch.setattr(code_analysis_languages, "load_parser", load_parser)
+    monkeypatch.setattr(source_languages, "load_parser", load_parser)
     monkeypatch.setattr(code_analysis_languages, "parse_symbols", parse_symbols)
     monkeypatch.setattr(code_analysis_languages, "time", SimpleNamespace(sleep=yields.append))
 

@@ -409,6 +409,16 @@ class AllocationPreparation:
         if workspace is None:
             return None
         access = getattr(factory, "workspace_access", None)
+        if access == "source":
+            try:
+                return workspace.source_view()
+            except WorkspaceStorageError:
+                raise AllocationError(
+                    "workspace_mode_unsupported",
+                    "Trace findings require overlay workspace mode",
+                    retryable=False,
+                    status_code=422,
+                ) from None
         if access == "read":
             return workspace.reader_view()
         if access == "write":
