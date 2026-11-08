@@ -5,7 +5,7 @@ milestone: findings-tools
 epic: findings
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [python, go, yaml, markdown]
 goal: Taint and OpenAPI tracing publish ordinary Project findings with retained annotated evidence and coordinates in the pinned original source, without asking the model to translate line numbers.
@@ -76,3 +76,12 @@ tests:
   covers: [A1, A2, A3]
 - command: make lint
   covers: [A1, A2, A3]
+verification:
+  date: 2026-11-08
+  results:
+  - The complete Runtime suite passed with declared platform/optional skips; the final targeted Runtime command passed 219 cases after the proof-reconciliation refinement.
+  - The Findings gate passed all 16 required process cases and Runtime contracts, including actual Server/Runtime/PostgreSQL coordinate translation and retained annotated proof after source Run deletion.
+  - Go configuration packages and the shipped configuration validation passed; shared descriptor parity, annotation-only mapping, rollback/import/checkpoints, malformed proofs and ambiguous acknowledgements are covered.
+  - UV_OFFLINE=1 make lint passed all stages with cached pinned dependencies; instruction and Skill files were unchanged.
+  - The owned test database and disposable PostgreSQL cluster were removed after all processes and pools stopped; no child test databases remained.
+implementation_commit: 358fe834de02f072b7b7ea94f2959350962eeea0
