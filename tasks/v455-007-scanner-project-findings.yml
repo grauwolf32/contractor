@@ -1,0 +1,234 @@
+schema_version: '1.0'
+id: V455-007
+title: Publish Nuclei and SQLMap results through a separate Finding operation
+milestone: scan-tools-followups
+epic: scan-tools
+kind: feature
+priority: P1
+status: pending
+depends_on: [V55-003, V64-014, V64-026]
+languages: [python, go, json, markdown]
+goal: >-
+  Supported positive Nuclei and SQLMap results appear in Project Findings through
+  an explicit deterministic operation after scanning. Publication can be retried
+  from exact retained normalized inputs without another scan, target request,
+  model call or Runtime allocation.
+demonstration: >-
+  A Project Workflow scans an isolated target, retains normalized candidates and
+  evidence, then executes a publication operation Stage. Real Nuclei git-config
+  detection and SQLMap injection produce Findings readable through existing
+  API/UI with evidence; fixed controls produce none. A publication-only Workflow
+  works from retained normalized inputs while Runtime/Gateway are unavailable.
+context:
+  authority: >-
+    User direction 2026-11-08: ffuf updates sitemap, Nuclei must create Findings;
+    SQLMap needs the same integration. The user requested this task and proposed
+    a separate operation. This task adopts that direction through the existing
+    Server-operation Stage path. Exact operation/schema names are agent proposals.
+    This request prepares the task; implementation and deployment remain unassigned.
+    It supersedes the initial draft's implicit scanner-publication side effect.
+    Further user decision: scanner reports stay on their concrete Run and are not
+    added to Audit artifacts. Audit scanner results contain canonical Findings,
+    not Finding/report artifacts; users inspect reports through the source Run.
+  source_revision: 8cada27e100fe1847e206fe2fe42e0ad759c5751
+  evidence: tasks/evidence/v455-007-scanner-findings-gap.json
+  specification:
+    - docs/spec/execution/server-operations.md#SOP-R1
+    - docs/spec/execution/server-operations.md#SOP-R4
+    - docs/spec/execution/server-operations.md#SOP-R5
+    - docs/spec/execution/server-operations.md#SOP-R7
+    - docs/spec/configuration/workflows.md#WFL-R89
+    - docs/spec/tools/scanners.md#SCN-R41
+    - docs/spec/tools/scanners.md#SCN-R50
+    - docs/spec/findings/findings.md#FND-R210
+    - docs/spec/findings/findings.md#FND-R211
+    - docs/spec/findings/findings.md#FND-R214
+    - docs/spec/audits/scans.md#ASC-R130
+    - docs/spec/audits/scans.md#ASC-R134
+    - docs/spec/artifacts/project-sitemap.md#SMT-R25
+  current_gap: >-
+    runtime/src/contractor_runtime/worker/tool_runtime.py:480-497 publishes the
+    ordinary report and notifies an optional subscriber. Allocation composition
+    at allocation/preparation.py:170-192 wires the sitemap collector;
+    toolsets/common/report_observations.py:29 supports ffuf/Katana reports.
+    Neither scanner has a Finding producer. SQLMap request mode at
+    toolsets/scan/tools.py:1008-1024 retains reported/unknown and technique names.
+    Direct tool calls can lack durable evidence. Reconcile scanners.md's existing
+    generic tool-Worker Finding-publication non-goal with explicit operation
+    composition; do not quietly add publication to that optional callback.
+  incident: >-
+    Invoice Lab Nuclei Run run_bb2cdfdd61621eb2ffd489fcfe204f04 succeeded on
+    2026-11-08 and retained one medium git-config detection for /.git/config,
+    but created no Project Finding. Sibling ffuf Run
+    run_e646c140cbfd55edc7abd6ea6a1f1a6e retained two paths. ffuf sitemap
+    collection already exists; the demo template omitted its policy. No live
+    SQLMap run occurred in this investigation; its gap is established by source.
+  ownership: >-
+    Runtime provider adapters parse scanner output and materialize a bounded,
+    provider-neutral candidate Artifact and exact evidence descriptors. Finding
+    domain services own publication of that existing Artifact. A module under
+    internal/operations adapts the declared Stage inputs/outputs to the existing
+    service; composition registers it and Scheduler dispatches it generically.
+    Server validates the common normalized contract and derives authority,
+    identity, receipts and retention. It does not branch on raw Nuclei/SQLMap
+    JSON. Extend common intake for a claim-bound operation caller if needed;
+    do not forge allocations, Worker sessions or source origins.
+  operation_contract:
+    ref: publish-findings@1
+    inputs: Exact current-Run candidate batch and its explicitly selected exact evidence Artifacts, pinned by ordinary Stage context.
+    arguments: Bounded common literal/parameter arguments; no owner, foreign Project, arbitrary scope or command.
+    outputs: Ordinary bounded Stage summary with canonical Finding/source refs and classified gaps/errors; no required report or Finding-package Artifact. Any necessary technical receipt stays Run-local and is not an Audit result.
+    execution: Existing model-free operation Stage lane, original deadline and trusted Run/Stage/claim; no Runtime, Planner or model.
+    intent: Selecting the publication Stage explicitly requests problem publication; existing observation-only scanning remains available.
+  composition: >-
+    Ship Project presets with scan -> publish stages and a publication-only
+    Workflow for retained normalized inputs. Audit consumers select linked canonical
+    Findings and source-Run navigation. Raw reports remain at the scanner Run;
+    do not embed or copy them into Audit collections or result artifacts. Ordinary scan calls keep their own
+    semantics and do not silently mutate Findings. Audit child Runs and scan-plan
+    outputs use the same normalized contract and explicit operation composition.
+    A separate Stage defines sequence, not provider-parser ownership. Do not add
+    a Runtime round trip merely to publish already normalized input.
+  decision_needed: >-
+    Before implementation settle which Nuclei matches assert a problem rather
+    than fingerprint/info-only observation, and whether individually complete
+    positive rows in a partial scan qualify. Supported positive assertions must
+    publish without an additional LLM or analyst confirmation gate. Analyst
+    assessment remains null. Distinguish operation execution/input failures from
+    existing FND-R210 per-item publication rejections: retain their ordinary
+    receipt/error without rewriting the scanner outcome.
+scope:
+  in:
+    - Provider-owned Nuclei/SQLMap normalization into durable candidate/evidence Artifacts.
+    - One reusable registered publication operation using existing Finding intake and Project retention.
+    - Composed scanner/publish presets and a publication-only Workflow with explicit inputs/outputs.
+    - Qualified deduplication, replay, cancellation, claim fencing and Project deletion handling.
+    - Existing Findings API/UI visibility and real-process positive, fixed and replay verification.
+    - Audit scanner result collection/presentation uses canonical Finding links, with source Run access for reports and no report/Findings Artifact export.
+    - Reconcile affected scanner, Finding, Workflow, operation and Audit contracts and shared fixtures.
+  out:
+    - Implicit Finding writes inside scanners, sitemap callbacks or report notification hooks.
+    - Raw scanner parsing in Server/Scheduler, new public scanner endpoints, import queues or receipt stores.
+    - Copying or embedding scanner reports in Audit artifacts/results, or publishing canonical Findings as JSON/ZIP artifacts.
+    - ffuf discoveries becoming vulnerability Findings, automatic analyst verdicts and new review workflows.
+    - New scanner modes, target expansion, model changes, mandatory LLM verification or rescanning for publication recovery.
+requirements:
+  - id: R1
+    text: >-
+      A versioned common candidate contract carries a nonempty problem assertion,
+      affected subject, severity suggestion, qualified producer identity and exact
+      evidence descriptors. Use ordinary Artifact validation/pinning, not a raw or
+      legacy report fallback. Artifact content cannot grant publication authority
+      or choose owner/Project/Run. Scanner metadata is data, never instructions.
+  - id: R2
+    text: >-
+      Nuclei retains rule/template/manifest provenance and the actual matched
+      subject. SQLMap ties reported techniques to the exact prepared request and
+      genuinely identified injectable parameter when available. Technique-only
+      output must not create a Finding for every tested parameter. Never invent
+      a CWE, parameter, HTTP capture or security verdict from process exit.
+  - id: R3
+    text: >-
+      Publish supported assertions automatically with exact evidence and explicit
+      operation intent. Preserve null analyst assessment, existing analyst edits,
+      canonical qualified equality and independent sources. Duplicate rows,
+      concurrent imports and acknowledgement-loss recovery must not duplicate the
+      same source; a new actual scan may contribute an independent source.
+  - id: R4
+    text: >-
+      Preserve selected Finding evidence and original scan provenance through
+      existing internal Project evidence retention before execution holds are
+      released. Raw scanner reports stay on their concrete Run; retaining evidence
+      must not export those reports into Audit artifacts/results. A publication-only Run
+      preserves both original scan and publishing Stage provenance through trusted
+      exact material/lineage, not IDs supplied inside the document. Source Run/Audit
+      purge must leave evidence readable. Exclude credentials from summaries,
+      keys and diagnostic traces; retain existing owner evidence authorization.
+  - id: R5
+    text: >-
+      Empty/unknown/info-only, malformed, missing or partial evidence follows the
+      settled eligibility contract with explicit gaps. Successful scanning does
+      not imply successful publication. Expose operation failures separately and
+      per-item receipts/errors under FND-R210; partial commits reconcile on replay
+      without silent omission. Neither publication nor recovery issues target traffic.
+  - id: R6
+    text: >-
+      Reuse the operation registry, Stage result, Scheduler claim and Finding
+      mutation fence. No synthetic Worker/Planner is recorded. Existing ffuf/Katana
+      best-effort sitemap collection remains independent; this operation does not
+      convert discovered paths into vulnerability Findings.
+  - id: R7
+    text: >-
+      Canonical Findings are domain records, not an output artifact collection.
+      Audit scanner results expose only their linked Findings, including when
+      no Findings exist; no report is substituted for an empty result. Reports
+      remain inspectable on the source Run. Existing report/plan embedding in
+      internal/auditscan and Audit import/collection must be reconciled for these
+      scanner Workflows, rather than merely hiding a report copied to Audit.
+      Compact technical status/diagnostics remain execution data and never become
+      fake Findings. Evidence storage behind Finding sources keeps existing
+      authorization/retention without a new Audit report or findings package.
+failure_outcomes:
+  - operation: Read an exact normalized batch and publish Project Finding sources
+    permanent: Reject malformed/unauthorized input; preserve ordinary per-item receipts/errors and original scanner report without fabricated publication success.
+    retryable: Existing bounded storage/intake retries retain original Stage deadline and unchanged intent.
+    ambiguous: Reconcile domain receipts and exact outputs; never rescan or create a fresh publication identity to recover an acknowledgement.
+    cancelled: Join work under Stage cancellation; mutation transactions verify live Run/Stage/claim/Project before committing.
+    timeout: Preserve committed receipts/material and classify the operation timeout; recovery processes remaining work without duplicate commits.
+cardinality:
+  - collection: Candidates, exact evidence descriptors and publication output
+    expected: A few findings per invocation.
+    maximum: Existing 512 KiB scanner report bound, scanner result caps, Finding intake/evidence quotas and bounded Stage summary; pin finite common candidate/output limits.
+    bound: Validate bytes/rows before mutation, use bounded batches/pages and explicit quota/truncation outcomes; no recursive Artifact traversal or unbounded per-row tasks.
+lifecycle:
+  - entity: Canonical Finding and retained scanner source material
+    delete: Existing owner commands and Project cleanup; source Run/Audit purge does not delete accepted Findings/evidence.
+    cascade: Project deletion releases ordinary sources/receipts/material and rejects new publication.
+    retention: Existing Project Artifact freezing and evidence ownership; no scanner-private store.
+acceptance_criteria:
+  - id: A1
+    given: Real supported Nuclei/SQLMap positives followed by a publication operation Stage
+    when: Composed Project scanner Workflows finish
+    then: Findings appear in existing API/UI with null analyst assessment, original scan/publishing provenance and exact evidence; fixed controls create none.
+  - id: A2
+    given: Exact retained normalized inputs with Runtime and Gateway unavailable
+    when: A publication-only Workflow executes and an interrupted or acknowledgement-lost call is replayed
+    then: Server operation execution publishes with zero target requests/model calls/allocations and no duplicate accepted source or lost remaining item.
+  - id: A3
+    given: Duplicate rows, concurrent scans, multiple tested SQLMap parameters and existing analyst edits
+    when: Normalization and publication execute
+    then: Correct subjects and qualified equality retain one problem with independent actual scan sources; replay/refresh preserves analyst state.
+  - id: A4
+    given: Empty/unknown/info-only, malformed, missing, oversized and partial evidence plus permission/quota/claim-loss/cancel/deletion cases
+    when: Candidate validation or the operation runs
+    then: Outcomes are bounded/classified, no unsupported Finding or clean verdict is fabricated, and the scanner is not restarted to repair publication.
+  - id: A5
+    given: Findings from ordinary and Audit scan/publish composition
+    when: Audit results/artifacts and the source Run report are inspected, then source execution data is purged
+    then: Audit results contain canonical Findings with no report or Finding-package Artifact; reports are available at the concrete Run while it exists, selected evidence/provenance survives in Finding sources after purge, and ffuf/Katana sitemap imports still pass.
+tests:
+  - command: >-
+      cd runtime && uv run pytest -W error tests/test_scan_findings.py
+      tests/test_scan_toolset.py tests/test_scan_sqlmap_request.py
+      tests/test_tool_report_publication.py tests/test_shared_finding_facades.py
+    covers: [A1, A3, A4, A5]
+  - command: make test-runtime
+    covers: [A1, A3, A4, A5]
+  - command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -race -count=1 ./internal/operations/... ./internal/findingintake ./internal/auditimport ./internal/auditscan ./internal/scheduler ./internal/config ./internal/projectsitemap
+    covers: [A1, A2, A3, A4, A5]
+  - command: make test-scan-e2e test-findings-e2e test-web-scan-ui-stack
+    covers: [A1, A2, A3, A4, A5]
+  - command: make verify-public-api test-wire-cross-language
+    covers: [A1, A2, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4, A5]
+verification_requirements: >-
+  Extend existing real process gates with pinned actual scanners, isolated targets
+  and disposable PostgreSQL, plus existing browser Finding/evidence checks.
+  Assert via both API and UI that reports are absent from Audit artifacts/results
+  and available through the source Run; a hidden copied report does not pass.
+  test_scan_findings.py is a required new regression module, not an existing
+  passing suite. Missing binaries, zero selections or skipped required scenarios
+  do not count as acceptance. Prove operation replay/claim fencing on real
+  storage. Task creation records no implementation, live SQLMap execution or
+  acceptance pass.
