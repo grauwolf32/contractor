@@ -150,6 +150,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
         self._projection_failed = False
         self._model_output_limited = False
         self._tool_cancellation_observed = False
+        self._tool_execution_error_code: str | None = None
         self._closed = False
 
     def prepare_invocation(self, *, invocation_id: str, subtask_id: str) -> None:
@@ -159,6 +160,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
             raise RuntimeError("Worker instrumentation already has an invocation")
         self._projection_failed = False
         self._tool_cancellation_observed = False
+        self._tool_execution_error_code = None
         self._prepared = (invocation_id, subtask_id)
 
     def prepare_continuation(self, *, invocation_id: str, sdk_invocation_id: str) -> None:
@@ -598,6 +600,11 @@ class WorkerInstrumentationPlugin(BasePlugin):
             self._require_sdk_context(tool_context)
             if cancelled:
                 self._tool_cancellation_observed = True
+            if isinstance(safe_error, ToolExecutionError):
+                # Keep only the safe code, never a private transport traceback.
+                # ADK cancels sibling tools after this callback raises; those
+                # secondary cancellations must not replace the owning failure.
+                self._tool_execution_error_code = self._tool_execution_error_code or safe_error.code
             pending = self._pending_tools.pop(id(tool_context), None)
             if pending is None:
                 # A duplicate/error cleanup callback cannot create another
@@ -750,6 +757,11 @@ class WorkerInstrumentationPlugin(BasePlugin):
     def tool_cancellation_observed(self) -> bool:
         """An authorized native tool callback observed cancellation in this turn."""
         return self._tool_cancellation_observed
+
+    @property
+    def tool_execution_error_code(self) -> str | None:
+        """Fatal code observed in this invocation, independent of sibling cancellation."""
+        return self._tool_execution_error_code
 
     @property
     def model_output_limited(self) -> bool:

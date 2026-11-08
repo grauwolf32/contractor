@@ -26,6 +26,7 @@ from contractor_runtime.toolsets.http.tools import (
     _request_body,
     _RequestRecord,
     _response_headers,
+    _timeout,
     _url_with_query,
 )
 
@@ -96,7 +97,8 @@ class ControlledHTTPSession(_HTTPSession):
         self._require_open()
         added = self._transport.own_invocation()
         try:
-            return await self._request(**options)
+            timeout = _timeout(options.pop("timeout_seconds", None), self._timeout_cap_seconds)
+            return await self._request(deadline=time.monotonic() + timeout, **options)
         except ControlledHTTPError:
             raise
         except HTTPToolError as error:
@@ -113,7 +115,7 @@ class ControlledHTTPSession(_HTTPSession):
         query,
         body_type,
         body,
-        timeout_seconds,
+        deadline,
         follow_redirects,
         invocation_id=None,
         credential_id=None,
@@ -146,17 +148,15 @@ class ControlledHTTPSession(_HTTPSession):
             raise ControlledHTTPError(
                 "http_request_invalid", message="follow_redirects must be a boolean."
             )
-        if timeout_seconds is None:
-            timeout_seconds = self._timeout_cap_seconds
-        if (
-            type(timeout_seconds) not in {int, float}
-            or not 0 < timeout_seconds <= self._timeout_cap_seconds
-        ):
-            raise ControlledHTTPError(
-                "http_request_invalid",
-                message="timeout must be a positive number within the configured Runtime cap.",
-            )
-        async with self._lock:
+        try:
+            async with asyncio.timeout_at(deadline):
+                await self._lock.acquire()
+        except TimeoutError:
+            # No transport attempt can exist before this session owns its lock.
+            # Authority loss still belongs to Worker lifecycle, not the model.
+            self._transport.own_invocation()
+            raise ControlledHTTPError("http_timeout", may_have_been_sent=False) from None
+        try:
             self._require_open()
             selected_headers = body_headers(
                 self._default_headers, validate_headers(headers), content_type
@@ -178,7 +178,7 @@ class ControlledHTTPSession(_HTTPSession):
                         for name, value in selected_headers.items()
                     ],
                     body=payload,
-                    timeout=timeout_seconds,
+                    timeout=max(0, deadline - time.monotonic()),
                     follow_redirects=follow_redirects,
                     capture=capture,
                 )
@@ -262,6 +262,8 @@ class ControlledHTTPSession(_HTTPSession):
             if not response.session_valid:
                 result["session_error"] = "http_cookie_state_invalid"
             return result
+        finally:
+            self._lock.release()
 
     async def get_session(self):
         async with self._lock:

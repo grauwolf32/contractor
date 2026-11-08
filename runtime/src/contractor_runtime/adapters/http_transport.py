@@ -7,7 +7,7 @@ import ssl
 import time
 from collections.abc import Callable
 from contextlib import nullcontext
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from urllib.parse import urlsplit
 
 from contractor_runtime.adapters.bridge import BridgeFailure
@@ -354,11 +354,16 @@ class HTTPTransport:
             async with asyncio.timeout(max(0, deadline - self._clock())):
                 async with self._semaphore:
                     await self._initialize()
-                    result = await self._request_chain(
+                    outcome, response = await self._request_chain(
                         session, url, deadline=deadline, boundaries=boundaries, **options
                     )
                     self._require_authority()
-                    return result
+                    if outcome.kind != "completed":
+                        outcome = replace(
+                            outcome,
+                            request_may_have_been_sent=any(b.request_started for b in boundaries),
+                        )
+                    return outcome, response
         except TimeoutError:
             self._require_authority()
             capture = options.get("capture")

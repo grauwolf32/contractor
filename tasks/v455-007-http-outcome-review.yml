@@ -1,0 +1,77 @@
+schema_version: '1.0'
+id: V455-007
+title: Preserve HTTP failure ownership across queues, redirects and parallel tools
+milestone: autonomous-http-pentest-2026-10
+epic: http-tools
+kind: defect
+introduced_by: V455-005
+priority: P1
+status: in_progress
+depends_on: [V455-005]
+languages: [python, markdown]
+goal: >-
+  Controlled HTTP reports conservative send uncertainty across redirects, honors
+  the original request deadline while queued, and terminates Worker execution
+  with the owning infrastructure failure even when sibling tools are cancelled.
+context:
+  authority: >-
+    User request 2026-11-08 authorizes fixing all four reproduced review findings
+    directly on codex/v455-005-http-outcomes. The implementation remains on this
+    separate branch; no merge or deployment is requested.
+  severity: high
+  finding: >-
+    Review of 9bbe820fea0b9b06ab66cd159afdcdc6fa0ebb16 reproduced four defects:
+    worker/instrumentation.py:635 rethrows a fatal tool failure but ADK sibling
+    cancellation makes worker/runtime.py:913 replace it with CancelledError and
+    leave Worker accepting; adapters/http_transport.py:547 uses only the final
+    redirect hop's send flag after a completed POST; toolsets/http/controlled.py:95
+    leaves the session lock outside the request timeout; toolsets/scan/tools.py:292
+    converts local proxy listener startup failure to scan_request_failed.
+    All source paths are under runtime/src/contractor_runtime/.
+  specification:
+    - docs/spec/tools/http-caido.md#HTP-R138
+    - docs/spec/tools/http-caido.md#HTP-R139
+    - docs/spec/tools/http-caido.md#HTP-R155
+    - docs/spec/tools/http-caido.md#HTP-R156
+  siblings: >-
+    Apply send-state aggregation to every returned controlled chain failure,
+    retaining pre-send false and outer-timeout aggregation. Shared transport
+    serves both model HTTP and scanner ingress. Preserve real caller cancellation
+    and existing budget-owned sibling cancellation. Local scanner listener startup
+    joins cleanup and emits the same fatal signal as native bridge failures.
+    Ordinary HTTP and unrelated scanner process errors retain their owners.
+scope:
+  in:
+    - Preserve a safe fatal tool code through joined ADK sibling cancellation.
+    - Aggregate possible-send state across the whole logical HTTP request.
+    - Bound controlled session queue wait by the original request deadline.
+    - Classify local scanner proxy startup failure as fatal bridge infrastructure failure.
+    - Add real socket, scanner and ADK Worker regressions for the four findings.
+  out:
+    - New retries, backoff, execution budgets, model calls or deployment.
+acceptance_criteria:
+  - id: A1
+    text: >-
+      A fatal HTTP tool failure with a parallel pending tool yields the original
+      non-retryable Worker failure, joins the cancelled sibling, accepts no new
+      work and makes no subsequent model call. Caller cancellation stays cancellation.
+  - id: A2
+    text: >-
+      A POST followed by a redirect whose DNS fails reports http_dns_failed and
+      request_may_have_been_sent=true with no POST replay. A pre-send DNS failure
+      remains false and the same aggregation applies to other chain failures.
+  - id: A3
+    text: >-
+      A controlled HTTP call waiting behind another session call expires at its
+      original deadline with http_timeout and possible-send=false; releasing the
+      queue never sends the expired request. Queue wait consumes the send budget.
+  - id: A4
+    text: >-
+      Failure to bind the scanner's local proxy listener raises http_bridge_failed,
+      joins cleanup, sends no target bytes and produces no ordinary failed scan
+      result. The regressions fail on the reviewed revision and all required gates pass.
+tests:
+  - command: make test-runtime
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]

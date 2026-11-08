@@ -211,6 +211,12 @@
     "tests.test_controlled_http_outcomes::test_actual_adk_model_receives_scope_and_safe_network_reason",
     "tests.test_controlled_http_outcomes::test_pending_native_rps_wait_never_sends_after_termination[cancel]",
     "tests.test_controlled_http_outcomes::test_pending_native_rps_wait_never_sends_after_termination[deadline]",
-    "tests.test_controlled_http_outcomes::test_pending_native_rps_wait_never_sends_after_termination[lease]"
+    "tests.test_controlled_http_outcomes::test_pending_native_rps_wait_never_sends_after_termination[lease]",
+    "tests.test_controlled_http_outcomes::test_native_redirect_dns_failure_retains_prior_post_send_state",
+    "tests.test_controlled_http_outcomes::test_controlled_session_queue_uses_original_request_deadline[expires]",
+    "tests.test_controlled_http_outcomes::test_controlled_session_queue_uses_original_request_deadline[consumes_budget]",
+    "tests.test_controlled_http_outcomes::test_parallel_tool_cancellation_preserves_native_fatal_worker_failure[bridge]",
+    "tests.test_controlled_http_outcomes::test_parallel_tool_cancellation_preserves_native_fatal_worker_failure[lease]",
+    "tests.test_nuclei_engagement::test_real_nuclei_proxy_listener_startup_failure_is_fatal"
   ]
 }

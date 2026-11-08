@@ -521,3 +521,32 @@ def test_real_nuclei_preserves_fatal_transport_signals(tmp_path, monkeypatch, fa
                 await owner.close()
 
     asyncio.run(scenario())
+
+
+def test_real_nuclei_proxy_listener_startup_failure_is_fatal(tmp_path, monkeypatch):
+    from contractor_runtime.core.tool_errors import ToolExecutionError
+
+    async def scenario():
+        async with SocketTarget() as target:
+            literal_origin(target)
+            tool, owner, _ = await scanner(tmp_path, target)
+            try:
+                await owner._initialize()
+
+                async def fail_bind(*_args, **_kwargs):
+                    raise OSError(24, "private-listener-startup-canary")
+
+                monkeypatch.setattr(asyncio, "start_server", fail_bind)
+                with pytest.raises(ToolExecutionError) as raised:
+                    await tool(target.origin + "/allowed", timeout_seconds=30)
+                assert raised.value.code == "http_bridge_failed"
+                assert "private-listener-startup-canary" not in str(raised.value)
+                assert not owner._tasks
+                assert not owner._engine.ingresses
+                assert not target.requests
+                assert not list((tmp_path / "workspace").iterdir())
+            finally:
+                await tool.close()
+                await owner.close()
+
+    asyncio.run(scenario())

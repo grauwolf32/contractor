@@ -910,6 +910,8 @@ class AdkWorkerRuntime:
         self._raise_observed_tool_cancellation()
 
     def _raise_observed_tool_cancellation(self) -> None:
+        if self._plugin.tool_execution_error_code is not None:
+            raise ToolExecutionError(self._plugin.tool_execution_error_code)
         if not self._plugin.tool_cancellation_observed:
             return
         self._resources.execution.check()

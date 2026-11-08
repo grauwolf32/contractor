@@ -1307,7 +1307,8 @@ connected peer. It never silently uses a proxy or ordinary HTTP fallback.
 connect/TLS/read/write and immediately before the first application write.
 TLS negotiation is not an application request. A local first-write flag is set
 before entering the write, because an exception may follow a partial write;
-it only prevents automatic retry and is never published or persisted. The
+it prevents automatic retry and supplies the conservative call-level Boolean
+in HTP-R155 without exposing native exchange state. The
 controlled engine supports HTTP/1.1 keepalive and HTTP/2 multiplexing; HTTP/1.0
 responses are rejected and HTTP/3 is not advertised. A reused connection belongs
 to one credential identity and exact origin. Every attempt, including reuse,
@@ -1355,7 +1356,8 @@ canonical path/query for transmission. One logical request permits five redirect
 and at most one retry for GET, HEAD or OPTIONS after a proven pre-send connect/TLS
 failure. A write method, any entered application write and every received HTTP
 status preclude automatic transport retry. The whole call includes queue wait,
-redirects and body read. Common HTTP framing/buffering bounds still apply;
+redirects and body read. Its original deadline covers the controlled session lock;
+obtaining the lock never restarts the network timeout. Common HTTP framing/buffering bounds still apply;
 configured request/response-body limits may tighten them. Do not decompress or
 re-encode bodies: native messages carry raw bytes and preserve Content-Encoding.
 Native target equality uses exact path/query components (including an empty `?`)
@@ -1524,7 +1526,9 @@ TLS (`http_tls_failed`), connection/interrupted exchange (`http_connection_faile
 timeout (`http_timeout`) and malformed target response (`http_response_invalid`).
 The model gets the concrete safe reason and `request_may_have_been_sent`; an
 uncertain result is a property of the failure, never an extra retry category.
-Pre-send DNS failure is false; a timeout after send is true. Messages contain
+The Boolean covers the whole logical call: DNS failure is false only when no
+earlier redirect/retry attempt entered an application write; a failed redirect
+after a sent POST remains true. A timeout after send is true. Messages contain
 Runtime-authored text, never native/provider exception text. Existing bounded
 pre-send safe-method retries are internal; no automatic replay follows a possible
 send. Controlled failures are non-retryable hints, not authority to resend.
@@ -1534,7 +1538,10 @@ The ordinary non-controlled client keeps its existing status retry policy.
 **HTP-R156.** Fatal native bridge infrastructure failure (`http_bridge_failed`)
 and ended allocation authority (`http_allocation_closed`) unwind Worker execution
 as non-retryable failures, with no ordinary model tool result or subsequent model
-call. Native target network failures remain HTP-R155 outcomes. Cancellation uses
+call. Secondary cancellation of parallel tools preserves the originating fatal
+code and the Worker stops accepting work after joined cleanup. Failure to start
+the scanner's local proxy listener is also `http_bridge_failed`.
+Native target network failures remain HTP-R155 outcomes. Cancellation uses
 the existing joined lifecycle and is re-raised, never a retryable model result.
 Shared scanner proxy ingress preserves fatal transport signals to its caller.
 RPS waits keep the current call pending, honor its original deadline and

@@ -6,7 +6,7 @@ import ssl
 import time
 
 import pytest
-from fakes.engagement_socket import SocketTarget, preflight, resolver_for, tls_contexts
+from fakes.engagement_socket import SocketTarget, preflight, resolver_for, socket_spec, tls_contexts
 from fakes.model import scripted_model, text_result, tool_call
 from test_adk_runtime import create_runtime, stage_request
 from test_audit_http_credentials import tools_for
@@ -59,6 +59,164 @@ def test_native_rps_allows_more_than_forty_requests_and_denial_exposes_scope():
                     assert response["code"] == "http_target_denied"
                     assert response["scope"]["allowed_origins"] == [target.origin]
                     assert len(target.requests) == 45
+
+    asyncio.run(scenario())
+
+
+def test_native_redirect_dns_failure_retains_prior_post_send_state():
+    async def scenario():
+        async def respond(_target, _reader, writer, _message):
+            writer.write(
+                b"HTTP/1.1 303 See Other\r\nLocation: http://unresolved.example/final\r\n"
+                b"Content-Length: 0\r\n\r\n"
+            )
+            await writer.drain()
+
+        async with SocketTarget(respond) as target:
+            spec = socket_spec(target)
+            assignment = spec.engagement.http
+            assignment.routes.append(
+                assignment.routes[0].model_copy(update={"origin": "http://unresolved.example"})
+            )
+            assignment.identities[0].origins.append("http://unresolved.example")
+            config = resolver_for(target)
+            original = config.resolver
+
+            async def resolve(host, port):
+                if host == "unresolved.example":
+                    raise TargetUnresolved
+                return await original(host, port)
+
+            async with preflight(target, spec=spec, config=type(config)(resolver=resolve)) as (
+                owner,
+                _,
+            ):
+                owner.configure(authority_deadline=lambda: time.monotonic() + 60)
+                tools, _state = await tools_for(owner)
+                with pytest.raises(HTTPToolError) as raised:
+                    await tools["http_request"](
+                        target.origin + "/write", method="POST", body_type="text", body="change"
+                    )
+                error = _safe_tool_response("http_request", raised.value)["error"]
+                assert error["code"] == "http_dns_failed"
+                assert error["request_may_have_been_sent"] is True
+                assert "Do not repeat" in error["message"]
+                assert len(target.requests) == 1
+                assert target.requests[0].startswith(b"POST /write ")
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("queue", ["expires", "consumes_budget"])
+def test_controlled_session_queue_uses_original_request_deadline(queue):
+    async def scenario():
+        release = asyncio.Event()
+        second_received = asyncio.Event()
+
+        async def respond(_target, _reader, writer, message):
+            if message.startswith(b"GET /first "):
+                await release.wait()
+            else:
+                second_received.set()
+                await asyncio.sleep(0.6)
+            writer.write(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")
+            await writer.drain()
+
+        async with SocketTarget(respond) as target, preflight(target) as (owner, _):
+            owner.configure(authority_deadline=lambda: time.monotonic() + 60)
+            tools, _state = await tools_for(owner)
+            first = asyncio.create_task(tools["http_request"](target.origin + "/first", timeout=5))
+            async with asyncio.timeout(5):
+                await target.request_received.wait()
+            second = asyncio.create_task(
+                tools["http_request"](target.origin + "/second", timeout=1)
+            )
+            try:
+                if queue == "consumes_budget":
+                    await asyncio.sleep(0.6)
+                    release.set()
+                async with asyncio.timeout(2):
+                    with pytest.raises(HTTPToolError) as raised:
+                        await second
+                error = _safe_tool_response("http_request", raised.value)["error"]
+                assert error["code"] == "http_timeout"
+                assert error["request_may_have_been_sent"] == (queue == "consumes_budget")
+            finally:
+                release.set()
+                await first
+                if not second.done():
+                    second.cancel()
+                await asyncio.gather(second, return_exceptions=True)
+            assert len(target.requests) == (2 if queue == "consumes_budget" else 1)
+            assert second_received.is_set() == (queue == "consumes_budget")
+            assert not owner._tasks
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("failure", ["bridge", "lease"])
+def test_parallel_tool_cancellation_preserves_native_fatal_worker_failure(
+    tmp_path, monkeypatch, failure
+):
+    async def scenario():
+        async with SocketTarget() as target, preflight(target) as (owner, _):
+            owner.configure(authority_deadline=lambda: time.monotonic() + 60)
+            tools, state = await tools_for(owner)
+            await owner._initialize()
+            original = owner._engine.handle_hook
+            pending = asyncio.Event()
+            joined = asyncio.Event()
+
+            async def pending_tool() -> dict:
+                """Perform a pending local operation."""
+                pending.set()
+                try:
+                    await asyncio.Event().wait()
+                finally:
+                    joined.set()
+                return {}
+
+            async def broken(pool, hook):
+                if hook.name == "requestheaders":
+                    await pending.wait()
+                    if failure == "bridge":
+                        raise RuntimeError("private-parallel-bridge-canary")
+                    owner.configure(authority_deadline=lambda: 0.0)
+                return await original(pool, hook)
+
+            monkeypatch.setattr(owner._engine, "handle_hook", broken)
+            response = tool_call(
+                "http_request", {"url": target.origin + "/allowed"}, call_id="http-1"
+            )
+            response.content.parts.extend(
+                tool_call("pending_tool", {}, call_id="pending-1").content.parts
+            )
+            model = scripted_model([response, text_result("Must not be requested")])
+            worker = await create_runtime(
+                tmp_path,
+                state,
+                {"http_request": tools["http_request"], "pending_tool": pending_tool},
+                model,
+            )
+            try:
+                completion = await worker.invoke(stage_request())
+                assert completion.failure is not None
+                assert completion.failure.code == (
+                    "http_bridge_failed" if failure == "bridge" else "http_allocation_closed"
+                )
+                assert not completion.failure.retryable
+                assert joined.is_set()
+                assert not owner._tasks
+                assert "private-parallel-bridge-canary" not in completion.model_dump_json()
+                refused = await worker.invoke(
+                    stage_request().model_copy(update={"subtask_id": "1"})
+                )
+                assert refused.failure is not None and refused.failure.code == "worker_draining"
+                assert len(model.requests) == 1
+            finally:
+                from datetime import UTC, datetime, timedelta
+
+                await worker.abort(datetime.now(UTC) + timedelta(seconds=10))
 
     asyncio.run(scenario())
 
