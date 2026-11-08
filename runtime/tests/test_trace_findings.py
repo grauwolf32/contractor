@@ -310,3 +310,35 @@ def test_saved_proof_is_strict_and_cannot_trigger_new_submission(mutation):
         await session.close()
 
     asyncio.run(scenario())
+
+
+def test_ambiguous_proof_read_failure_preserves_transport_error_and_replay():
+    async def scenario():
+        session, tool, annotations, client, transport = await prepare("")
+        await annotations["annotate_trace"](path="app.py", symbol="first", target="route")
+        read = client.read_artifact
+        unavailable = True
+
+        async def failed_read(ref, **kwargs):
+            if unavailable and client.writes and ref.name.startswith("trace-proof-"):
+                raise ArtifactTransportError("proof acknowledgement is unavailable")
+            return await read(ref, **kwargs)
+
+        client.read_artifact = failed_read
+        client.lose_response = True
+        context = FakeToolContext("ambiguous-proof")
+        arguments = dict(title="Problem", description="Evidence", file="app.py", line=3)
+        with pytest.raises(ArtifactTransportError):
+            await tool(**arguments, tool_context=context)
+        assert client.writes == 1 and transport.requests == []
+        unavailable = False
+        await session.rollback_changes()
+        await tool(**arguments, tool_context=context)
+        assert client.writes == 1
+        assert transport.requests[0]["proposal"]["locations"] == [{"file": "app.py", "line": 2}]
+        await tool.close()
+        for annotation in annotations.values():
+            await annotation.close()
+        await session.close()
+
+    asyncio.run(scenario())

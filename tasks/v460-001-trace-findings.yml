@@ -72,5 +72,7 @@ tests:
   covers: [A3]
 - command: go test -tags=e2e -count=1 ./tests/e2e -run '^TestTraceFindingCoordinatesAcrossProcesses$'
   covers: [A1, A2, A3]
+- command: python3 scripts/test-findings-e2e.py
+  covers: [A1, A2, A3]
 - command: make lint
   covers: [A1, A2, A3]

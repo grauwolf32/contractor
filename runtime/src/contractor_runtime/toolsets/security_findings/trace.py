@@ -9,7 +9,7 @@ from pydantic import Field, ValidationError, model_validator
 from contractor_runtime import threads
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
-from contractor_runtime.artifacts import ArtifactAPIError
+from contractor_runtime.artifacts import ArtifactAPIError, ArtifactTransportError
 from contractor_runtime.contracts import DIGEST_PATTERN, ArtifactRef, RuntimeSettings
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.tool_metrics import RecordedToolCall
@@ -190,7 +190,13 @@ class TraceFindingPublisher(FindingPublisher):
                         definite_write_rejection(error) and error.code != "artifact_conflict"
                     ),
                 )
-            except ArtifactReconciliationFailed:
+            except ArtifactReconciliationFailed as error:
+                if error.read_error is not None:
+                    raise error.read_error from None
+                if error.current is None:
+                    raise ArtifactTransportError(
+                        "trace finding proof write is unresolved"
+                    ) from None
                 raise ToolInputError("trace finding proof conflicts with this tool call") from None
         else:
             if saved.media_type != "application/json":
