@@ -5,7 +5,7 @@ milestone: llm-cost-reporting-2026-11
 epic: operations
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V458-001]
 languages: [go, sql, markdown, yaml]
 goal: Provide durable exact cost summaries for Run, Audit and Project that preserve unsuccessful attempts and remain honest after telemetry expiry or child Run deletion.
@@ -75,3 +75,12 @@ tests:
   covers: [A2, A3]
 - command: make lint
   covers: [A1, A2, A3]
+
+implementation_commit: 6c25a56bb868dfbcae4b98f2183ccd78d781bb24
+verification:
+  results:
+  - Full reporting, persistence/postgres, telemetry, runservice, runstore, projectstore, auditstore, auditservice, projectlifecycle, public handlers and app suites passed against the owned disposable PostgreSQL database.
+  - make verify-public-api, make verify-public-api-postgres, make docs-erd and UV_OFFLINE=true make lint passed. ERD remains 60 tables and 70 foreign keys. Heavy IO was not enabled.
+  - Real-store regressions cover concurrent replay, incomplete replacement, rollback of a failed parent write, retention expiry, child deletion, Audit purge, owner visibility, unchanged Audit revisions and migration preservation with no new tables.
+  - Initial socket and macOS symlink-temp test failures were resolved by using TCP to the same disposable database and TMPDIR=/private/tmp. The genuine Run HOT regression was fixed by compact known-empty defaults and its full package passed.
+  - No demo migration, business-data reset, merge or deployment was performed. V458-003 owns the production UI.
