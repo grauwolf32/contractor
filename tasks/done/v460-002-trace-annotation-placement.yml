@@ -6,7 +6,7 @@ epic: findings
 kind: defect
 introduced_by: V460-001
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V460-001]
 languages: [python, markdown]
 goal: Trace findings reject inserted literal content and other unsupported edits before saving proof or calling finding intake.
@@ -38,3 +38,11 @@ tests:
   covers: [A1, A2, A3]
 - command: make lint
   covers: [A1, A2, A3]
+verification:
+  date: 2026-11-09
+  results:
+  - The exact affected Runtime family command passed 554 tests with one declared platform skip.
+  - All nineteen supported languages use the same target parser and canonical annotation grammar; valid multi-annotation blocks, decorators, attributes, CRLF and C/C++ headers pass.
+  - Multiline literal content, wrong markers, noncanonical annotations and unsupported placement fail through the finding facade after overlay import with zero proof writes and zero intake calls.
+  - The real Server/Runtime/PostgreSQL findings gate passed all 16 required process cases and Runtime contracts; UV_OFFLINE=1 make lint passed, including import-layer contracts.
+implementation_commit: 1287ad09ee58f1109497d96d45077ab75136aa86

@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-70 open tasks: 11 in progress, 46 pending, 13 deferred. 1515 finished: 1497 completed, 18 archived.
+69 open tasks: 10 in progress, 46 pending, 13 deferred. 1516 finished: 1498 completed, 18 archived.
 
 ## In progress
 
@@ -20,7 +20,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Accept merged isolated Worker context compaction |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V460-002](v460-002-trace-annotation-placement.yml) | findings | defect | P2 | Validate trace annotation syntax and placement before publishing evidence |
 | [V460-003](v460-003-trace-snippet-context.yml) | findings | defect | P2 | Reserve the selected trace range before adding optional snippet context |
 
 ## Pending
@@ -165,7 +164,7 @@ tasks in `introduced_by`.
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 5 | 24 | 34 | 15 | 36 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 4 | 18 | 10 | 10 | 21 |
-| Findings tools and collections (`findings`) | 2 | 18 | 14 | 11 | 21 |
+| Findings tools and collections (`findings`) | 1 | 18 | 14 | 11 | 21 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 23 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 39 | 19 | 69 |
 | Audits (`audits`) | 10 | 69 | 97 | 42 | 167 |
