@@ -501,3 +501,95 @@ def test_annotations_inside_multiline_literals_are_not_comments(path, original, 
         trace_source(
             capture(original, current, path), len(current.splitlines()), len(current.splitlines())
         )
+
+
+@pytest.mark.parametrize(
+    "context,start_line",
+    [
+        (["#" + "x" * (128 * 1024) + "\n", "def first():\n"], 2),
+        (["#" + "x" * (24 * 1024) + "\n"] * 8, 4),
+        (["#" + "я" * (32 * 1024) + "\n"] * 2, 2),
+    ],
+)
+def test_optional_context_uses_only_the_remaining_utf8_budget(context, start_line):
+    selected = "    sink(value)\n"
+    source = "".join(context) + selected
+    line = len(context) + 1
+    workspace = trace_source(capture(source, source), line, line)["workspace"]
+    assert workspace["snippetStartLine"] == start_line
+    assert workspace["snippetEndLine"] == line
+    assert workspace["text"] == "".join([*context, selected][start_line - 1 :])
+    assert len(workspace["text"].encode()) <= 128 * 1024
+    assert workspace["text"].endswith(selected)
+
+
+@pytest.mark.parametrize("size", [128 * 1024 - 1, 128 * 1024])
+def test_selected_range_can_fill_the_byte_budget_without_context(size):
+    source = "# optional\n" + "x" * size
+    workspace = trace_source(capture(source, source), 2, 2)["workspace"]
+    assert workspace["snippetStartLine"] == 2
+    assert workspace["snippetEndLine"] == 2
+    assert workspace["text"] == "x" * size
+
+
+def test_selected_range_can_fill_the_line_budget_without_context():
+    source = "# optional\n" + "x\n" * 400
+    workspace = trace_source(capture(source, source), 2, 401)["workspace"]
+    assert workspace["snippetStartLine"] == 2
+    assert workspace["text"] == "x\n" * 400
+
+
+@pytest.mark.parametrize(
+    "source,start,end",
+    [
+        ("x" * (128 * 1024 + 1), 1, 1),
+        ("я" * (64 * 1024 + 1), 1, 1),
+        ("x" * (64 * 1024) + "\n" + "y" * (64 * 1024), 1, 2),
+        ("x\n" * 401, 1, 401),
+    ],
+)
+def test_oversized_selected_range_fails_before_proof_write_and_intake(source, start, end):
+    async def scenario():
+        session, tool, annotations, client, transport = await prepare("", source=source)
+        with pytest.raises(ToolInputError):
+            await tool(
+                title="Problem",
+                description="Evidence",
+                file="app.py",
+                range={"start_line": start, "end_line": end},
+                tool_context=FakeToolContext("oversized-range"),
+            )
+        assert client.writes == 0 and transport.requests == []
+        await tool.close()
+        for annotation in annotations.values():
+            await annotation.close()
+        await session.close()
+
+    asyncio.run(scenario())
+
+
+def test_finding_after_large_context_publishes_complete_selected_line():
+    async def scenario():
+        source = "#" + "x" * (128 * 1024) + "\ndef first():\n    sink(value)\n"
+        session, tool, annotations, client, transport = await prepare("", source=source)
+        await tool(
+            title="Problem",
+            description="Evidence",
+            file="app.py",
+            line=3,
+            tool_context=FakeToolContext("large-context"),
+        )
+        assert client.writes == 1 and len(transport.requests) == 1
+        proof = json.loads(
+            next(v.data for v in client.values.values() if v.media_type == "application/json")
+        )
+        assert proof["workspace"]["snippetStartLine"] == 2
+        assert proof["workspace"]["snippetEndLine"] == 3
+        assert proof["workspace"]["text"] == "def first():\n    sink(value)\n"
+        assert transport.requests[0]["proposal"]["locations"] == [{"file": "app.py", "line": 3}]
+        await tool.close()
+        for annotation in annotations.values():
+            await annotation.close()
+        await session.close()
+
+    asyncio.run(scenario())

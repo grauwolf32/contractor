@@ -90,16 +90,26 @@ def trace_source(capture: WorkspaceSourceFile, start: int, end: int) -> dict:
     if base != len(original) or translated_end is None or translated_end > base:
         raise ToolInputError("trace finding source coordinates are unavailable")
     _validate_insertions(capture, original, current, inserted)
-    # Include nearby annotations/context while keeping one bounded exact window.
-    window_start = max(1, start - min(8, MAX_TRACE_LINES - (end - start + 1)))
+    # The required range owns the budget. Optional preceding context may shrink
+    # only at whole-line boundaries and must never make that range unpublishable.
     text, window_end, partial = bounded_line_window(
         current,
-        start_line=window_start,
-        max_lines=end - window_start + 1,
+        start_line=start,
+        max_lines=end - start + 1,
         max_bytes=MAX_TRACE_BYTES,
     )
     if partial or window_end < end:
         raise ToolInputError("trace finding evidence exceeds the snippet byte limit")
+    size = len(text.encode())
+    window_start = start
+    earliest = max(1, start - min(8, MAX_TRACE_LINES - (end - start + 1)))
+    while window_start > earliest:
+        previous_size = len(current[window_start - 2].encode())
+        if size + previous_size > MAX_TRACE_BYTES:
+            break
+        window_start -= 1
+        size += previous_size
+    text = "".join(current[window_start - 1 : end])
     return {
         "schema": "contractor.trace-finding-evidence.v1",
         "source": {

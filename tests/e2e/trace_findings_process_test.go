@@ -18,7 +18,7 @@ func TestTraceFindingCoordinatesAcrossProcesses(t *testing.T) {
 		toolGatewayStep("annotate_trace", fixedArguments(map[string]any{"path": "app.py", "symbol": "lookup", "target": "route"})),
 		toolGatewayStep("finding", fixedArguments(map[string]any{
 			"title": "Uncontrolled query", "description": "The inspected source passes input to the database.",
-			"file": "app.py", "line": 6, "publish_problem": true,
+			"file": "app.py", "line": 7, "publish_problem": true,
 		})),
 		toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{"name": "result", "text": "Trace finding recorded", "media_type": "text/plain"})),
 		finalGatewayStep("Trace finding complete", map[string]domainArtifactBinding{"result": {namespace: "audit-check", name: "result"}}),
@@ -36,7 +36,7 @@ func TestTraceFindingCoordinatesAcrossProcesses(t *testing.T) {
 		}
 	})
 	project := createProjectResource(t, h.client, h.baseURL)
-	payload := auditProgramZip(t, map[string][]byte{"app.py": []byte("def handle(value):\n    return lookup(value)\n\ndef lookup(value):\n    return db.execute(value)\n")})
+	payload := auditProgramZip(t, map[string][]byte{"app.py": []byte("#" + strings.Repeat("x", 128*1024) + "\n" + "def handle(value):\n    return lookup(value)\n\ndef lookup(value):\n    return db.execute(value)\n")})
 	source := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "sources", "trace-source", "application/zip", payload)
 	run := runOrdinaryFindingProducer(t, h, project.ProjectID, source, payload, artifactRef{}, nil)
 	receipts := findingsReceipts(t, h, run)
@@ -44,7 +44,7 @@ func TestTraceFindingCoordinatesAcrossProcesses(t *testing.T) {
 		t.Fatalf("trace finding publication = %+v", receipts)
 	}
 	receipt := receipts[0]
-	if len(receipt.Document.Locations) != 1 || receipt.Document.Locations[0].File != "app.py" || receipt.Document.Locations[0].Line == nil || *receipt.Document.Locations[0].Line != 5 {
+	if len(receipt.Document.Locations) != 1 || receipt.Document.Locations[0].File != "app.py" || receipt.Document.Locations[0].Line == nil || *receipt.Document.Locations[0].Line != 6 {
 		t.Fatalf("original source coordinate = %+v", receipt.Document.Locations)
 	}
 	// Project-held evidence must survive ordinary Run deletion.
@@ -61,14 +61,15 @@ func TestTraceFindingCoordinatesAcrossProcesses(t *testing.T) {
 				StartLine int `json:"startLine"`
 			} `json:"source"`
 			Workspace struct {
-				StartLine int    `json:"startLine"`
-				Text      string `json:"text"`
+				StartLine        int    `json:"startLine"`
+				SnippetStartLine int    `json:"snippetStartLine"`
+				Text             string `json:"text"`
 			} `json:"workspace"`
 		}
 		if err := json.Unmarshal(raw, &proof); err != nil {
 			t.Fatal(err)
 		}
-		if proof.Source.StartLine != 5 || proof.Workspace.StartLine != 6 || !strings.Contains(proof.Workspace.Text, "# @trace target=route") {
+		if proof.Source.StartLine != 6 || proof.Workspace.StartLine != 7 || proof.Workspace.SnippetStartLine != 2 || !strings.Contains(proof.Workspace.Text, "# @trace target=route") {
 			t.Fatalf("retained trace proof = %s", raw)
 		}
 		foundProof = true
