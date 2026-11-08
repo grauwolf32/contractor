@@ -1,0 +1,174 @@
+/* Shared operational cost presentation; loaded once alongside UI primitives. */
+.llm-cost-panel,
+.llm-cost-card {
+  min-width: 0;
+}
+.llm-cost-card {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4) var(--space-5);
+  display: grid;
+  gap: var(--space-3);
+}
+.llm-cost-shell {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.llm-cost-card h2,
+.llm-cost-card h3,
+.llm-cost-card p {
+  margin: 0;
+}
+.llm-cost-head,
+.llm-cost-main,
+.llm-cost-detail-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  min-width: 0;
+}
+.llm-cost-card .llm-cost-head h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.llm-cost-head h2 .app-icon {
+  color: var(--muted);
+}
+.llm-cost-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.llm-cost-main > div {
+  min-width: 0;
+}
+.llm-cost-total {
+  font-size: 1.875rem;
+  line-height: 1.2;
+  font-weight: 750;
+  letter-spacing: -0.035em;
+  margin-bottom: var(--space-1);
+}
+.llm-cost-amount {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.llm-cost-main .ui-btn {
+  margin-left: auto;
+}
+.llm-cost-coverage {
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-3);
+}
+.llm-cost-split {
+  margin: 0;
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--line);
+}
+.llm-cost-split > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+}
+.llm-cost-split dt small {
+  display: block;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  margin-top: var(--space-1);
+}
+.llm-cost-split dd {
+  margin: 0;
+  font-weight: 650;
+  text-align: right;
+  min-width: 0;
+}
+.llm-cost-details {
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-4);
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.llm-cost-card .llm-cost-detail-title h3 {
+  font-size: var(--text-sm);
+}
+.llm-cost-exact {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  display: grid;
+  gap: var(--space-1);
+}
+.llm-cost-exact code {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.llm-cost-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  border-bottom: 1px solid var(--line);
+  padding-bottom: var(--space-2);
+}
+.llm-cost-modes .ui-btn[aria-pressed="true"] {
+  background: var(--surface-raised);
+  color: var(--text);
+}
+.llm-cost-rows {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+}
+.llm-cost-rows li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto);
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--line);
+}
+.llm-cost-rows li > div {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+.llm-cost-rows li > div:last-child {
+  text-align: right;
+}
+.llm-cost-rows small,
+.llm-cost-rows code {
+  font-size: var(--text-2xs);
+  color: var(--muted);
+}
+.llm-cost-source {
+  display: grid;
+  gap: var(--space-2);
+  line-height: 1.6;
+}
+@media (max-width: 480px) {
+  .llm-cost-card {
+    padding: var(--space-4);
+  }
+  .llm-cost-total {
+    font-size: 1.75rem;
+  }
+  .llm-cost-rows li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+  .llm-cost-rows li > div:last-child {
+    text-align: left;
+  }
+}

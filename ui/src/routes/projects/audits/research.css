@@ -89,6 +89,38 @@
   border-radius: var(--radius-lg);
   background: var(--surface);
 }
+.research-summary-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 0.7fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+.research-summary-grid > div {
+  min-width: 0;
+}
+.research-attempt-cost {
+  display: block;
+  margin-top: var(--space-2);
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.research-attempt-cost .llm-cost-amount {
+  color: var(--text);
+  font-weight: 650;
+}
+.research-summary-grid .research-progress {
+  min-height: 9.5rem;
+}
+@container (max-width: 48rem) {
+  .research-summary-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 820px) {
+  .research-summary-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .research-progress header {
   display: flex;
   align-items: center;
@@ -614,5 +646,44 @@
   }
   .research-panes .ui-detail-header-actions {
     flex-wrap: wrap;
+  }
+}
+
+/* The reviewed Check layout opens the breakdown across the full workspace. */
+.research-summary-grid > .llm-cost-panel,
+.research-summary-grid .llm-cost-card {
+  display: contents;
+}
+.research-summary-grid .llm-cost-shell {
+  grid-column: 2;
+  grid-row: 1;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  padding: var(--space-4) var(--space-5);
+}
+.research-summary-grid .llm-cost-details {
+  grid-column: 1 / -1;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  padding: var(--space-5);
+}
+@container (max-width: 48rem) {
+  .research-summary-grid .research-progress {
+    min-height: 0;
+  }
+  .research-summary-grid .llm-cost-shell {
+    grid-column: auto;
+    grid-row: auto;
+  }
+}
+@media (max-width: 820px) {
+  .research-summary-grid .research-progress {
+    min-height: 0;
+  }
+  .research-summary-grid .llm-cost-shell {
+    grid-column: auto;
+    grid-row: auto;
   }
 }

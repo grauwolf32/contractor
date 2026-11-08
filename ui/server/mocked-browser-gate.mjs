@@ -5,6 +5,7 @@ import { checkBrowserSpecs, runBrowserGate } from "./browser-gate.mjs";
 // Every self-contained API-mocked spec belongs here. The remaining spec files
 // run against a real process stack in tests/ui-stack or tests/e2e.
 const mockedSpecs = [
+  "e2e/llm-cost.spec.ts",
   "e2e/archive-preview.spec.ts",
   "e2e/artifact-preview.spec.ts",
   "e2e/material-detail-design.spec.ts",

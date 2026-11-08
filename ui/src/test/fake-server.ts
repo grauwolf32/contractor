@@ -10,7 +10,7 @@ import { TEST_SHARED_CONFIG } from "./shared-config";
 
 import { responseViolation, type ResponseOperation } from "../api/contract";
 import { RESPONSE_SCHEMAS } from "../api/generated/response-schemas";
-import { failure, json, operationOf } from "./responses";
+import { failure, json, operationOf, unavailableCostForURL } from "./responses";
 
 /** Responses a route built on purpose to break the contract. */
 const unchecked = new WeakSet<Response>();
@@ -134,6 +134,10 @@ export function fakeServer(
         response = await route({ request, url, params: matched.params });
       } else {
         response = await fallback?.(request, url);
+      }
+      if (response === undefined) {
+        const cost = unavailableCostForURL(request.method, url);
+        if (cost) response = json(cost);
       }
       if (response === undefined) {
         return failure(404, "not_found", `No fake route for ${label}`);

@@ -115,6 +115,8 @@ export function page<T>(
  * operation's schema rejects.
  */
 export function emptyPageOrNotFound(request: Request, url: URL): Response {
+  const cost = unavailableCostForURL(request.method, url);
+  if (cost) return json(cost);
   if (
     request.method === "GET" &&
     url.pathname === "/v1/operations/settings/models"
@@ -130,6 +132,47 @@ export function emptyPageOrNotFound(request: Request, url: URL): Response {
         "not_found",
         `No fake route for ${request.method} ${url.pathname}`,
       );
+}
+
+/** Unrelated fixtures have no monetary producer: keep that absence explicit. */
+export function unavailableCostForURL(
+  method: string,
+  url: URL,
+): components["schemas"]["LLMCostSummary"] | undefined {
+  const match = /^\/v1\/(runs|audits|projects)\/([^/]+)\/llm-cost$/.exec(
+    url.pathname,
+  );
+  if (method !== "GET" || !match) return undefined;
+  const scope =
+    match[1] === "runs" ? "run" : match[1] === "audits" ? "audit" : "project";
+  return {
+    scope,
+    scopeId: decodeURIComponent(match[2]!),
+    currency: "USD",
+    amount: null,
+    calls: "0",
+    pricedCalls: "0",
+    reports: "0",
+    unknownReports: "0",
+    basis: "none",
+    coverage: "unavailable",
+    pending: false,
+    historicalGap: true,
+    asOf: "2026-11-08T12:00:00Z",
+    updatedAt: null,
+    checksAmount: null,
+    standaloneAmount: null,
+    activity: [],
+    models: [],
+    executions: url.searchParams.getAll("executionId").map((executionId) => ({
+      executionId,
+      runId: null,
+      amount: null,
+      basis: "none",
+      coverage: "unavailable",
+      pending: false,
+    })),
+  };
 }
 
 interface CompiledRoute {

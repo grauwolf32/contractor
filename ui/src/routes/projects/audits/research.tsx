@@ -16,6 +16,7 @@ import { CursorControls } from "../../../app/cursor-controls";
 import { useDocumentTitle } from "../../../app/document-title";
 import { formatNumber } from "../../../app/format";
 import { Icon } from "../../../app/icon";
+import { LLMCostPanel } from "../../../app/llm-cost";
 import { useURLCursorStack } from "../../../app/pagination";
 import { pollInterval } from "../../../app/polling";
 import { QueryView } from "../../../app/query-view";
@@ -393,63 +394,75 @@ export function ResearchAudit({ audit }: { audit: Audit }) {
               </section>
             ) : null}
             {audit.state !== "draft" ? (
-              <QueryView
-                query={workspace}
-                loading={<p role="status">Loading progress…</p>}
-              >
-                {(snapshot) => (
-                  <section
-                    className="research-progress"
-                    aria-label="Task collection progress"
+              <div className="research-summary-grid">
+                <div>
+                  <QueryView
+                    query={workspace}
+                    loading={<p role="status">Loading progress…</p>}
                   >
-                    <header>
-                      <h2>Work progress</h2>
-                      <span>
-                        {formatNumber(snapshot.totalTasks)} accepted tasks
-                      </span>
-                    </header>
-                    <div
-                      className="research-progress-track"
-                      role="img"
-                      aria-label={`${snapshot.completedTasks} completed, ${snapshot.gaps} technical gaps, ${snapshot.pendingTasks} pending`}
-                    >
-                      {[
-                        ["done", snapshot.completedTasks],
-                        ["gap", snapshot.gaps],
-                        ["pending", snapshot.pendingTasks],
-                      ].map(([key, count]) => (
-                        <span
-                          key={key}
-                          data-kind={key}
-                          style={{
-                            width: `${snapshot.totalTasks === 0 ? 0 : (Number(count) * 100) / snapshot.totalTasks}%`,
-                          }}
-                        />
-                      ))}
-                    </div>
-                    <div className="research-progress-legend">
-                      <Link to={href(audit, "work")}>
-                        <StatusGlyph tone="info" />
-                        {snapshot.completedTasks} completed
-                      </Link>
-                      <Link to={`${href(audit, "work")}?work=gap`}>
-                        <StatusGlyph tone="warning" />
-                        {snapshot.gaps} technical gaps
-                      </Link>
-                      <Link to={`${href(audit, "work")}?work=pending`}>
-                        <StatusGlyph tone="idle" />
-                        {snapshot.pendingTasks} pending
-                      </Link>
-                      <span>{snapshot.outstandingRuns} Runs in progress</span>
-                    </div>
-                    {snapshot.auditRevision < audit.revision ? (
-                      <p className="ui-caption" role="status">
-                        Progress is from an earlier snapshot; refreshing…
-                      </p>
-                    ) : null}
-                  </section>
-                )}
-              </QueryView>
+                    {(snapshot) => (
+                      <section
+                        className="research-progress"
+                        aria-label="Task collection progress"
+                      >
+                        <header>
+                          <h2>Work progress</h2>
+                          <span>
+                            {formatNumber(snapshot.totalTasks)} accepted tasks
+                          </span>
+                        </header>
+                        <div
+                          className="research-progress-track"
+                          role="img"
+                          aria-label={`${snapshot.completedTasks} completed, ${snapshot.gaps} technical gaps, ${snapshot.pendingTasks} pending`}
+                        >
+                          {[
+                            ["done", snapshot.completedTasks],
+                            ["gap", snapshot.gaps],
+                            ["pending", snapshot.pendingTasks],
+                          ].map(([key, count]) => (
+                            <span
+                              key={key}
+                              data-kind={key}
+                              style={{
+                                width: `${snapshot.totalTasks === 0 ? 0 : (Number(count) * 100) / snapshot.totalTasks}%`,
+                              }}
+                            />
+                          ))}
+                        </div>
+                        <div className="research-progress-legend">
+                          <Link to={href(audit, "work")}>
+                            <StatusGlyph tone="info" />
+                            {snapshot.completedTasks} completed
+                          </Link>
+                          <Link to={`${href(audit, "work")}?work=gap`}>
+                            <StatusGlyph tone="warning" />
+                            {snapshot.gaps} technical gaps
+                          </Link>
+                          <Link to={`${href(audit, "work")}?work=pending`}>
+                            <StatusGlyph tone="idle" />
+                            {snapshot.pendingTasks} pending
+                          </Link>
+                          <span>
+                            {snapshot.outstandingRuns} Runs in progress
+                          </span>
+                        </div>
+                        {snapshot.auditRevision < audit.revision ? (
+                          <p className="ui-caption" role="status">
+                            Progress is from an earlier snapshot; refreshing…
+                          </p>
+                        ) : null}
+                      </section>
+                    )}
+                  </QueryView>
+                </div>
+                <LLMCostPanel
+                  scope="audit"
+                  id={audit.auditId}
+                  active={auditPollInterval([audit]) !== false}
+                  refreshKey={`${audit.revision}:${audit.state}:${audit.outstandingRunCount}:${audit.collectionPending}`}
+                />
+              </div>
             ) : (
               <p className="ui-caption">
                 Draft check · work is created after Start.

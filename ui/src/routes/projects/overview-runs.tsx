@@ -332,7 +332,7 @@ export function RecentResults({
           isEmpty={(data) => data.items.length === 0}
           empty={
             <p className="ui-caption">
-              No successful Runs yet. Published results appear here.
+              No successful Runs to show. Published results appear here.
             </p>
           }
         >
@@ -388,7 +388,7 @@ export function RecentRuns({
           isEmpty={(data) => data.items.length === 0}
           empty={
             <p className="ui-caption">
-              No Runs yet. Checks and Workflows start Runs.
+              No Runs to show. Checks and Workflows start Runs.
             </p>
           }
         >

@@ -22,6 +22,7 @@ import {
 } from "../../api/runs";
 import { useDocumentTitle } from "../../app/document-title";
 import { ErrorNotice } from "../../app/error-notice";
+import { LLMCostPanel } from "../../app/llm-cost";
 import {
   compactId,
   formatElapsed,
@@ -396,6 +397,12 @@ function RunBody({
         </div>
       )}
       <RunTriageSummary run={run} triage={triage} onOpenAttempt={openAttempt} />
+      <LLMCostPanel
+        scope="run"
+        id={run.runId}
+        active={!isTerminalRunState(run.state)}
+        refreshKey={`${run.state}:${run.updatedAt}`}
+      />
       <RunOutputGallery run={run} />
       <RunOutputPublications run={run} />
       <section
@@ -455,6 +462,7 @@ function RunBody({
 /** One Run, from its first read until the user leaves it. */
 function RunPage({ runId }: { runId: string }) {
   const api = usePublicAPI();
+  const queryClient = useQueryClient();
   const query = useQuery(runStatusQuery(api, runId));
   useDocumentTitle(
     query.data === undefined ? "Run" : `${query.data.workflow} · Run`,
@@ -477,7 +485,12 @@ function RunPage({ runId }: { runId: string }) {
       className="runs-icon-button"
       size="sm"
       isFetching={query.isFetching}
-      onRefresh={() => void query.refetch()}
+      onRefresh={() => {
+        void query.refetch();
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.llmCost("run", runId),
+        });
+      }}
     />
   );
   return (
