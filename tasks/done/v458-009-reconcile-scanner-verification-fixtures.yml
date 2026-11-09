@@ -6,7 +6,7 @@ epic: operations
 kind: defect
 introduced_by: V461-003
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V461-003, V455-008]
 languages: [go, javascript, yaml]
 goal: Existing scan history and browser verification execute their intended cases against the current scanner workflow graph.
@@ -40,3 +40,8 @@ tests:
     covers: [A2]
   - command: make lint
     covers: [A1, A2]
+implementation_commit: 6755ac4d6c7aa600b5a4de6cfa52c7d93d7f4dc2
+verification:
+  - The original composed graph failed three scan-history tests on missing publish stages; the full Planner session package passed with race detection and real PostgreSQL after local terminal edges were restored.
+  - The complete mocked browser gate passed 221 cases across 33 specs with no skips or retries. The two real scanner-stack specs are registered only in the process inventory and are not claimed as mocked executions.
+  - UV_OFFLINE=true make lint passed on the combined tree. No production workflow or scanner behavior changed.
