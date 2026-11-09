@@ -20,6 +20,7 @@ import {
 import { LoadedArtifactPreview } from "../../artifacts/loaded-preview";
 import type { ResearchTask } from "./research-data";
 import { checkPath } from "./check-links";
+import { issuePath } from "../../issues/links";
 import { scopedTaskResult, taskResultPreview } from "./task-result";
 
 function ReadResult({ audit, task }: { audit: Audit; task: ResearchTask }) {
@@ -159,6 +160,30 @@ export function TaskResultView({
     },
     onSuccess: (data) => saveBlob(data.blob, `${task.document.task_id}.result`),
   });
+  if (task.findings)
+    return (
+      <section
+        className="research-finding-results"
+        aria-label="Finding results"
+      >
+        {task.findings.ids.length ? (
+          <ul>
+            {task.findings.ids.map((id) => (
+              <li key={id}>
+                <Link to={issuePath(audit.projectId, id)}>{id}</Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="ui-caption">No Findings recorded for this check.</p>
+        )}
+        {task.findings.truncated ? (
+          <p className="ui-caption">
+            More Findings are available in the check’s Findings list.
+          </p>
+        ) : null}
+      </section>
+    );
   if (!result) return <p className="ui-caption">No collected result yet.</p>;
   return (
     <div className="research-saved-result">

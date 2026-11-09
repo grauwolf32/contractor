@@ -49,7 +49,19 @@ func (s Scope) ID() string { return s.id }
 
 type ArtifactRef = contracts.ArtifactRef
 
+// ExecutionOrigin is assigned by authenticated Server composition, never by
+// Artifact JSON. Immutable versions preserve it across ordinary forks and purge.
+type ExecutionOrigin struct {
+	Artifact         contracts.ArtifactRef `json:"artifact" strictjson:"required"`
+	RunID            string                `json:"runId"`
+	StageExecutionID string                `json:"stageExecutionId"`
+	AllocationID     string                `json:"allocationId"`
+	LogicalAgentName string                `json:"logicalAgentName"`
+}
+
 type Payload struct {
+	ExecutionOrigin *ExecutionOrigin `json:"-"`
+
 	MediaType string
 	Data      []byte
 	// Prepared is trusted internal state and never comes from wire JSON.

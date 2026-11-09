@@ -1,9 +1,11 @@
 package scan
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	"os"
 	"path/filepath"
 	"slices"
@@ -114,9 +116,10 @@ type scanFixtureReport struct {
 	ExecutionCompleted bool     `json:"execution_completed"`
 	Limitations        []string `json:"limitations"`
 	Artifacts          []struct {
-		Kind   string `json:"kind"`
-		Digest string `json:"digest"`
-		Data   []byte `json:"data_base64"`
+		Kind      string                `json:"kind"`
+		Digest    string                `json:"digest"`
+		Ref       contracts.ArtifactRef `json:"ref"`
+		SizeBytes int                   `json:"size_bytes"`
 	} `json:"artifacts"`
 }
 
@@ -128,10 +131,14 @@ func auditFactoryResult(t *testing.T, h *factoryHarness, result stageresult.Stag
 		t.Fatalf("ordinary report: %+v %v", payload, err)
 	}
 	for _, artifact := range report.Artifacts {
-		if auditdomain.DigestBytes(artifact.Data) != artifact.Digest {
-			t.Fatal("embedded evidence bytes differ")
+		if artifact.Ref.ValidateExact() != nil || !contentdigest.Valid(artifact.Digest) || artifact.SizeBytes < 1 {
+			t.Fatal("invalid exact source descriptor")
 		}
 	}
+	if bytes.Contains(payload.Data, []byte("data_base64")) {
+		t.Fatal("report bytes embedded in aggregate")
+	}
+
 	return report
 }
 

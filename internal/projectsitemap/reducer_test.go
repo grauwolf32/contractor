@@ -309,3 +309,39 @@ func TestReducerSourceCanonicalizationDoesNotMutateIntent(t *testing.T) {
 		t.Fatalf("reducer published an unreadable strict document: %v", err)
 	}
 }
+
+func TestCollectedAnnotationsPreserveManualNotesAndSuppression(t *testing.T) {
+	source := httpAuthority("scanner-source")
+	source.Kind = "nuclei"
+	first := observation("/login")
+	first.Note = "Technology: nginx"
+	d := applyObservations(t, Empty(), source, first)
+	member := d.Groups[0].Members[0].ID
+	owner := Authority{OwnerID: "owner", ProjectID: "project", SourceID: OwnerSourceID, Kind: "manual"}
+	var err error
+	d, _, err = Reduce(d, Mutation{Operation: "annotate", MemberIDs: []string{member}, Note: "Owner's investigation note"}, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, _, err = Reduce(d, Mutation{Operation: "remove", MemberIDs: []string{member}, MarkerID: "hidden-login"}, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	repeated := first
+	repeated.Note = "Technology: nginx; reported versions: 1.24.0"
+	for range 3 {
+		d = applyObservations(t, d, source, repeated)
+	}
+	m := d.Groups[0].Members[0]
+	if len(m.Annotations) != 2 || len(d.Markers) != 1 || len(m.Summaries) != 1 {
+		t.Fatalf("metadata or suppression duplicated: %+v", d)
+	}
+	for _, a := range m.Annotations {
+		if a.Provenance.SourceID == OwnerSourceID && a.Note != "Owner's investigation note" {
+			t.Fatal("manual note was overwritten")
+		}
+		if a.Provenance.SourceID == source.SourceID && a.Note != "Technology: nginx\nTechnology: nginx; reported versions: 1.24.0" {
+			t.Fatalf("source note: %q", a.Note)
+		}
+	}
+}

@@ -1,0 +1,47 @@
+schema_version: '1.0'
+id: V455-010
+title: Integrate scanner Finding publication and large-rulepack correction into main
+milestone: scan-tools-followups
+epic: scan-tools
+kind: chore
+priority: P2
+status: in_progress
+depends_on: [V455-008, V455-009, V460-001, V460-002, V460-003]
+languages: [go, python, yaml, markdown]
+goal: >-
+  Main includes verified explicit Nuclei/SQLMap Finding publication and bounded
+  Nuclei rulepack evidence together with its current trace Finding implementation.
+context:
+  authority: User request 2026-11-09 explicitly authorizes merging the completed scanner branch into main; remote push and deployment are not assigned.
+  main_before: 5247be937e21fda34b478f75f0c606030f1ba1e1
+  source_head: aec86fb19e82dc123302e306dcce2ba04ea429d0
+  decision: Prepare a no-fast-forward merge on an isolated branch with main as its first parent; preserve main-only trace work and unrelated primary edits, regenerate combined documentation and backlog, then fast-forward the clean main checkout after verification.
+  spec_collision_resolution: Main retains trace FND-R230/R231 and LIM-FND-55. Imported scanner requirements receive unused FND-R232 through FND-R234 and LIM-FND-56 through LIM-FND-58; owning requirements and task references are updated together. No runtime limits or behavior change.
+scope:
+  in:
+    - Reconcile overlapping Finding specifications, limits and Workflow validation without changing either producer's authority.
+    - Regenerate shared dependency documentation and task bookkeeping from both parents.
+    - Verify combined real PostgreSQL intake, Runtime, process, shared contract and lint paths before advancing main.
+    - Record both parent revisions and verify primary file hashes, modes and staged index remain unchanged.
+  out:
+    - New behavior, dependency upgrades, remote push, deployment and unrelated user edits.
+acceptance_criteria:
+  - id: A1
+    text: Main contains both exact parent revisions through a no-fast-forward merge; scanner publication, its large-rulepack correction and current trace publication coexist.
+  - id: A2
+    text: Combined PostgreSQL/race, full Runtime, actual scanner Finding process, trace Finding process, wire/API, shipped configuration and lint checks pass with optional skips recorded explicitly.
+  - id: A3
+    text: Six unrelated primary files and the staged index preserve exact hashes and modes, disposable databases are removed, and delivery ancestry is recorded.
+tests:
+  - command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=integration -race -count=1 ./internal/findingintake ./internal/auditimport ./internal/auditscan ./internal/auditdomain ./internal/config/... ./internal/planner/scan ./internal/planner/session ./internal/persistence/...
+    covers: [A1, A2]
+  - command: make test-runtime
+    covers: [A1, A2]
+  - command: make test-findings-e2e
+    covers: [A1, A2]
+  - command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=e2e -count=1 -timeout=15m ./tests/e2e -run '^TestScannerFindingsAcrossProductionProcesses$'
+    covers: [A1, A2]
+  - command: make verify-public-api test-wire-cross-language test-config
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2, A3]

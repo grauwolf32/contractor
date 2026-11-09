@@ -19,12 +19,7 @@ spec:
       mediaTypes:
       - application/yaml
       - application/vnd.contractor.nuclei-rulepack+zip
-  outputs:
-    result:
-      required: true
-      primary: true
-      mediaTypes:
-      - application/json
+  outputs: {}
   entryStage: scan
   stages:
     scan:
@@ -67,23 +62,62 @@ spec:
             from:
               namespace: scan-results
               name: operation-report
-      workflowOutputs:
-        result: report
+          materials:
+            required: true
+            mediaTypes:
+            - application/json
+            from:
+              namespace: scan-results
+              name: finding-materials
       'on':
         succeeded:
-          succeed: {}
+          next: publish
         failed:
-          retry:
-            maxAttempts: 2
-            then:
-              fail: {}
+          next: publish-partial
         interrupted:
-          retry:
-            maxAttempts: 2
-            then:
-              fail: {}
+          next: publish-partial
       scanPreparation:
         scanner: nuclei
         settingsArtifact: settings
         unknownOutcome: retain-gap
         kind: web-target
+    publish:
+      operation:
+        ref: publish-findings@1
+        arguments: {}
+      context:
+        artifacts:
+          materials:
+            namespace: scan-results
+            name: finding-materials
+            required: true
+      result:
+        artifacts: {}
+      'on':
+        succeeded:
+          succeed: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}
+      objective: Publish the selected evidenced assertions as Project Findings.
+    publish-partial:
+      operation:
+        ref: publish-findings@1
+        arguments: {}
+      context:
+        artifacts:
+          materials:
+            namespace: scan-results
+            name: finding-materials
+            required: true
+      result:
+        artifacts: {}
+      'on':
+        succeeded:
+          fail: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}
+      objective: Publish complete scanner assertions while preserving scan failure.

@@ -44,8 +44,7 @@ spec:
         openapi:
           source: task-input
       parameters: {}
-      outputs:
-        scan_report: result
+      outputs: {}
   hypotheses: {}
   initial_work:
   - key: prepare-operations

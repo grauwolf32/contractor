@@ -168,3 +168,74 @@ def test_shared_report_accepts_one_hundred_results_and_empty_report_without_inve
         project("ffuf", envelope)
     report["results"] = []
     assert project("ffuf", envelope) == {"kind": "ffuf", "observations": []}
+
+
+def test_nuclei_normalized_surface_independent_of_problem_severity():
+    from contractor_runtime.toolsets.scan.findings import nuclei_candidates
+
+    raw = {
+        "schemaVersion": 1,
+        "tool": "scan_nuclei",
+        "inputDigest": "sha256:" + "a" * 64,
+        "inputArtifacts": {},
+        "observation": {
+            "status": "completed",
+            "results": [
+                {
+                    "template-id": "nginx-detect",
+                    "info": {"name": "nginx", "severity": "info", "metadata": {"product": "nginx"}},
+                    "matched-at": "https://example.test/",
+                },
+            ],
+        },
+    }
+    raw["observation"]["findingCandidates"] = nuclei_candidates(
+        raw["observation"], methods={"nginx-detect": "HEAD"}
+    )
+    value = project_report(encoded(raw), "nuclei-report@1", AT)
+    assert value == {
+        "kind": "nuclei",
+        "observations": [
+            {
+                "url": "https://example.test/",
+                "method": "HEAD",
+                "status": 0,
+                "outcome": "attempt",
+                "at": AT,
+                "note": "Technology: nginx",
+            },
+        ],
+    }
+    raw["observation"]["findingCandidates"]["surface"][0]["method"] = ""
+    value = project_report(encoded(raw), "nuclei-report@1", AT)
+    assert value == {
+        "kind": "nuclei",
+        "observations": [],
+        "gaps": [{"reason": "projection", "count": 1}],
+    }
+
+
+def test_nuclei_unsupported_technology_metadata_records_projection_omission():
+    from contractor_runtime.toolsets.scan.findings import nuclei_candidates
+
+    row = {
+        "template-id": "fingerprint",
+        "matched-at": "https://target.test/",
+        "info": {
+            "name": "Technology",
+            "severity": "info",
+            "metadata": {"cpe": "unsupported:metadata"},
+        },
+        "request": "HEAD / HTTP/1.1\r\n\r\n",
+    }
+    observation = {"status": "completed", "results": [row]}
+    report = {
+        "schemaVersion": 1,
+        "tool": "scan_nuclei",
+        "inputDigest": "sha256:" + "a" * 64,
+        "inputArtifacts": {},
+        "observation": {**observation, "findingCandidates": nuclei_candidates(observation)},
+    }
+    value = project_report(encoded(report), "nuclei-report@1", AT)
+    assert value["observations"][0]["method"] == "HEAD"
+    assert value["gaps"] == [{"reason": "projection", "count": 1}]

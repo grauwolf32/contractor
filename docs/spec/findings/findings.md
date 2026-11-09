@@ -2053,3 +2053,43 @@ Artifact owner and allocation. See FAIL-FND-3/4/5/9 and LIFE-FND-2/3.
 **FND-R231.** Each trace call saves one immutable ordinary JSON proof with the exact original source descriptor/path/digest, translated range and an annotated workspace snippet with its current coordinates and digest. The selected range and context window follow the existing filesystem window bounds. The complete selected range reserves the line and UTF-8 byte budget first; only a selected range that exceeds those bounds fails. Up to eight nearest preceding whole lines then consume the remaining budget, stopping at the first line that does not fit. The resulting window is continuous and its snippet coordinates describe the saved text. The escaped JSON envelope follows LIM-FND-55. Evidence includes the original exact source and proof. Ordinary receipts, publication intent, Audit membership and Project retention apply. Saved proof names derive from logical invocation and tool-call identity; replay checks identical arguments and uses the saved proof before reading mutable workspace. Existing exact Artifact write reconciliation owns ambiguous writes.
 
 Boundary decision (user, 2026-11-08): keep coordinate interpretation in a separately selected trace facade named `finding` for the model. Reuse ordinary FindingPublisher rather than changing general/code/HTTP tool semantics or imposing a reporting-before-annotation sequence. Workspace owns atomic source/current reads; the trace facade owns bounded translation/evidence. Reopen for a concrete consumer requiring substantive source edits, renamed files or semantic reconciliation.
+
+
+## Explicit normalized candidate publication
+
+**FND-R232.** `publish-findings@1` accepts exact current-Run `candidates` and
+`evidence` inputs, or their explicitly selected flat common material set
+(SOP-R11, LIM-FND-58). Runtime adapters own provider interpretation. The closed
+`contractor.finding.candidates.v1` document and its selected exact evidence are
+bounded by LIM-FND-56/57. Invalid envelopes, unavailable evidence or missing
+trusted execution origin fail before the first mutation. Every accepted item
+uses ordinary intake, immutable receipts, Project retention and the existing
+Finding correlation fence. Operation authority derives from the live
+Run/Stage/Scheduler claim, without synthetic Worker/Runtime/allocation fields.
+The source separately preserves the authenticated original scan execution.
+
+**FND-R233.** Candidate source identity derives from the immutable Artifact
+version and candidate key. Ordinary exact forks preserve that version; independent
+writes of identical bytes have different identities. A replay in a new Run adds
+no source even when canonical problem equality is unavailable. Uploaded copies
+have no original execution provenance. Selected input bytes cannot choose an
+owner, Project, Run, Task or publication authority. The adapter's qualified key
+components use the existing producer-issue algorithm with
+`normalized-candidate/v1`; unavailable equality leaves independent problems.
+Nuclei equality includes exact package/content digest, rule ID, sanitized
+endpoint, evidenced method and matcher identity; missing method/package leaves
+an unavailable key. SQLMap equality includes sanitized endpoint, request method,
+actual parameter location and name (JSON body location remains distinct from
+GET/POST). Query values and credentials never enter these keys. Candidate
+identity and original exact evidence descriptors remain distinct from problem
+equality and the publishing Stage identity.
+Analyst assessment remains null until an explicit owner command.
+
+**FND-R234.** A partial scan may publish individually complete positive results
+with `scanner_incomplete` limitations. Operation counts include published,
+replayed, rejected and skipped items and scan completeness independently of
+publication Stage success. Retained exact evidence and original scan provenance
+survive source Run/Audit purge. A later publication Run still requires explicitly
+retained candidate/evidence inputs; accepted sources do not promise indefinite
+retention of unpublished candidates. Neither publication nor recovery calls the
+scanner, target, model or Runtime.

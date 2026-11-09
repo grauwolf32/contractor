@@ -3283,6 +3283,21 @@ func (e FindingHTTPAttemptError) Valid() bool {
 	}
 }
 
+// Defines values for FindingOriginOperation.
+const (
+	FindingOriginOperationPublishFindings1 FindingOriginOperation = "publish-findings@1"
+)
+
+// Valid indicates whether the value is a known member of the FindingOriginOperation enum.
+func (e FindingOriginOperation) Valid() bool {
+	switch e {
+	case FindingOriginOperationPublishFindings1:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FindingProposalDocumentSchema.
 const (
 	ContractorAuditFindingProposalV1 FindingProposalDocumentSchema = "contractor.audit.finding-proposal.v1"
@@ -4935,19 +4950,22 @@ func (e ServerOperationConfigArguments3Source) Valid() bool {
 
 // Defines values for ServerOperationConfigRef.
 const (
-	OpenapiPrepareWork1  ServerOperationConfigRef = "openapi-prepare-work@1"
-	SitemapApplyOpenapi1 ServerOperationConfigRef = "sitemap-apply-openapi@1"
-	SitemapOpenapiJoin1  ServerOperationConfigRef = "sitemap-openapi-join@1"
+	ServerOperationConfigRefOpenapiPrepareWork1  ServerOperationConfigRef = "openapi-prepare-work@1"
+	ServerOperationConfigRefPublishFindings1     ServerOperationConfigRef = "publish-findings@1"
+	ServerOperationConfigRefSitemapApplyOpenapi1 ServerOperationConfigRef = "sitemap-apply-openapi@1"
+	ServerOperationConfigRefSitemapOpenapiJoin1  ServerOperationConfigRef = "sitemap-openapi-join@1"
 )
 
 // Valid indicates whether the value is a known member of the ServerOperationConfigRef enum.
 func (e ServerOperationConfigRef) Valid() bool {
 	switch e {
-	case OpenapiPrepareWork1:
+	case ServerOperationConfigRefOpenapiPrepareWork1:
 		return true
-	case SitemapApplyOpenapi1:
+	case ServerOperationConfigRefPublishFindings1:
 		return true
-	case SitemapOpenapiJoin1:
+	case ServerOperationConfigRefSitemapApplyOpenapi1:
+		return true
+	case ServerOperationConfigRefSitemapOpenapiJoin1:
 		return true
 	default:
 		return false
@@ -7201,6 +7219,7 @@ type AuditTask struct {
 	Attention          bool                     `json:"attention"`
 	CreatedAt          time.Time                `json:"created_at"`
 	Document           AuditTaskDocument        `json:"document"`
+	Findings           *AuditTaskFindings       `json:"findings,omitempty"`
 	GapCode            *string                  `json:"gap_code,omitempty"`
 	HypothesisSnapshot *AuditHypothesisDocument `json:"hypothesis_snapshot,omitempty"`
 	Iteration          int                      `json:"iteration"`
@@ -7261,6 +7280,12 @@ type AuditTaskDocument struct {
 
 // AuditTaskDocumentSchema defines model for AuditTaskDocument.Schema.
 type AuditTaskDocumentSchema string
+
+// AuditTaskFindings defines model for AuditTaskFindings.
+type AuditTaskFindings struct {
+	Ids       []ResourceId `json:"ids"`
+	Truncated bool         `json:"truncated"`
+}
 
 // AuditTaskHypothesisRef defines model for AuditTaskHypothesisRef.
 type AuditTaskHypothesisRef struct {
@@ -9196,15 +9221,20 @@ type FindingLocation struct {
 
 // FindingOrigin defines model for FindingOrigin.
 type FindingOrigin struct {
-	AllocationId     ResourceId            `json:"allocationId"`
-	Audit            *FindingAuditOrigin   `json:"audit,omitempty"`
-	InvocationId     ResourceId            `json:"invocationId"`
-	LogicalAgentName ArtifactName          `json:"logicalAgentName"`
-	RunDeleted       bool                  `json:"runDeleted"`
-	RunId            ResourceId            `json:"runId"`
-	StageExecutionId ResourceId            `json:"stageExecutionId"`
-	Workflow         FindingWorkflowOrigin `json:"workflow"`
+	AllocationId     *ResourceId             `json:"allocationId,omitempty"`
+	Audit            *FindingAuditOrigin     `json:"audit,omitempty"`
+	InvocationId     ResourceId              `json:"invocationId"`
+	LogicalAgentName *ArtifactName           `json:"logicalAgentName,omitempty"`
+	Operation        *FindingOriginOperation `json:"operation,omitempty"`
+	RunDeleted       bool                    `json:"runDeleted"`
+	RunId            ResourceId              `json:"runId"`
+	Scan             *FindingScanOrigin      `json:"scan,omitempty"`
+	StageExecutionId ResourceId              `json:"stageExecutionId"`
+	Workflow         FindingWorkflowOrigin   `json:"workflow"`
 }
+
+// FindingOriginOperation defines model for FindingOrigin.Operation.
+type FindingOriginOperation string
 
 // FindingProposalDocument defines model for FindingProposalDocument.
 type FindingProposalDocument struct {
@@ -9273,6 +9303,15 @@ type FindingProposalReceiptRetention string
 type FindingProposedCheck struct {
 	Method    string `json:"method"`
 	Objective string `json:"objective"`
+}
+
+// FindingScanOrigin defines model for FindingScanOrigin.
+type FindingScanOrigin struct {
+	AllocationId     ResourceId       `json:"allocationId"`
+	Artifact         ExactArtifactRef `json:"artifact"`
+	LogicalAgentName ArtifactName     `json:"logicalAgentName"`
+	RunId            ResourceId       `json:"runId"`
+	StageExecutionId ResourceId       `json:"stageExecutionId"`
 }
 
 // FindingSeverity defines model for FindingSeverity.

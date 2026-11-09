@@ -179,7 +179,7 @@ func ValidateWorkflowGraph(workflow ResolvedWorkflow) error {
 		for _, check := range stage.On.Actions() {
 			allowed := map[TransitionKind]bool{TransitionNext: true, TransitionRetry: true, TransitionEscalate: true, TransitionFail: true}
 			if check.Outcome == "succeeded" {
-				allowed = map[TransitionKind]bool{TransitionNext: true, TransitionSucceed: true}
+				allowed = map[TransitionKind]bool{TransitionNext: true, TransitionSucceed: true, TransitionFail: true}
 			} else if check.Outcome == "summarized" {
 				allowed = map[TransitionKind]bool{TransitionEscalate: true}
 			}

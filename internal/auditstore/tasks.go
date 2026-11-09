@@ -30,7 +30,14 @@ const (
 
 // Task retains one immutable accepted document and its source identity. The
 // source key reconciles the same producer/list/entry without creating work.
+type CanonicalFindingResult struct {
+	IDs       []string `json:"ids" strictjson:"required"`
+	Truncated bool     `json:"truncated" strictjson:"required"`
+}
+
+// A non-nil empty result records a completed collection with no Findings.
 type Task struct {
+	Findings      *CanonicalFindingResult
 	Attention     bool
 	Hypothesis    *auditcontract.Hypothesis
 	Document      auditcontract.Task
@@ -126,6 +133,7 @@ type SelectTasksParams struct {
 // TaskCollection records the retained ordinary output or a truthful gap of
 // one attempt. Run technical outcome remains on its execution/Run association.
 type TaskCollection struct {
+	Findings        *CanonicalFindingResult `json:"findings,omitempty"`
 	ExecutionItemID string                  `json:"execution_item_id"`
 	TaskID          string                  `json:"task_id"`
 	Result          *auditcontract.Material `json:"task_result,omitempty"`

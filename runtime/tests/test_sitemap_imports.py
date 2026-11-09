@@ -109,7 +109,7 @@ def test_shared_one_queue_preserves_source_order_and_imports_only_supported_repo
         await collector.receive_report("scan_ffuf", report_ref())
         other = _SourceObservationSink(collector, "custom-provider")
         await other.receive([observation(3), observation(4)])
-        await collector.receive_report("scan_nuclei", report_ref("unselected"))
+        await collector.receive_report("scan_naabu", report_ref("unselected"))
         await collector.receive_report("scan_katana", report_ref("crawl"))
         await collector.receive_source("http", [observation(5)])
         assert not transport.requests and len(collector._pending) == 7

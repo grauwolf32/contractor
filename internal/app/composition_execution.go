@@ -12,11 +12,13 @@ import (
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	plannermemory "github.com/grauwolf32/contractor/internal/memory"
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/operations"
 	"github.com/grauwolf32/contractor/internal/operations/openapiwork"
+	"github.com/grauwolf32/contractor/internal/operations/publishfindings"
 	"github.com/grauwolf32/contractor/internal/operations/sitemapjoin"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannera2a "github.com/grauwolf32/contractor/internal/planner/a2a"
@@ -58,6 +60,7 @@ func (workflowServices) Format(state fmt.State, _ rune) {
 func configureExecutors(
 	pool *pgxpool.Pool,
 	artifactService *artifacts.Service,
+	findings *findingintake.Service,
 	runtimeClient *controlplane.RuntimeControlClient,
 	cfg Config,
 	storage *artifactpostgres.Storage,
@@ -107,7 +110,7 @@ func configureExecutors(
 	if err != nil {
 		return executorServices{}, err
 	}
-	operationRegistry, err := operations.NewRegistry(sitemapjoin.NewJoin(projectsitemap.NewService(pool, storage)), sitemapjoin.NewApply(projectsitemap.NewService(pool, storage)), openapiwork.New(pool, storage))
+	operationRegistry, err := operations.NewRegistry(sitemapjoin.NewJoin(projectsitemap.NewService(pool, storage)), sitemapjoin.NewApply(projectsitemap.NewService(pool, storage)), openapiwork.New(pool, storage), publishfindings.New(findings))
 	if err != nil {
 		return executorServices{}, err
 	}
@@ -201,7 +204,7 @@ func configureWorkflows(
 	if err != nil {
 		return workflowServices{}, err
 	}
-	planners, err := configureExecutors(pool, catalogs.artifacts, control.runtimeClient, cfg, storage)
+	planners, err := configureExecutors(pool, catalogs.artifacts, catalogs.findings, control.runtimeClient, cfg, storage)
 	if err != nil {
 		return workflowServices{}, err
 	}

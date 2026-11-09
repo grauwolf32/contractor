@@ -1661,9 +1661,15 @@ ordinary scans without changing their code or meaning.
 #### Results and coverage
 
 **SCN-R209.** The Stage publishes one required `application/json` aggregate
-`report`, in a namespace separate from the Workers. It references the exact
+`report` and may explicitly select an additional `application/json` `materials`
+output for Finding candidates, in a namespace separate from the Workers. It references the exact
 plan and the per-job reports and accounts for selected, skipped and terminal
-job outcomes.
+job outcomes. An explicitly selected `materials` output requests the common
+candidates/evidence pair from each Nuclei/SQLMap job. It contains a flat
+`contractor.material-set.v1` of exact current-Run descriptors, at most 32 materials
+(16 jobs); incomplete jobs without a complete pair contribute no material.
+The job journal retains accepted exact pairs. This selection never parses raw
+provider reports and never embeds them in another Artifact.
 
 **SCN-R210.** Aggregate and per-job report bindings include the Stage execution
 identity, to avoid collisions between Stages or retries with different semantic
@@ -1696,10 +1702,13 @@ ordinary nonzero scanner exit remains `failed`.
 table](../../../api/testdata/scan/worker-error-codes.json) fixes the outcome
 of every reported `errorCode`; an unlisted code is an invalid report.
 
-**SCN-R217.** When `tool_execution_failed` omits the report reference, the
-Planner resolves only that job's own deterministic report binding for
-classification; a failure whose report binding cannot be resolved remains
-failed.
+**SCN-R217.** When `tool_execution_failed` or `tool_report_failed` omits the
+report reference, the Planner resolves only that job's own deterministic report
+binding. A missing execution-failure report remains failed; a missing publication
+report remains unknown. A retained original report and complete exact normalized
+pair survive output acknowledgement failure and may proceed to explicit
+publication, while the scan Stage retains its incomplete outcome. No branch
+repeats scanner traffic.
 
 **SCN-R218.** Scanner error reports and interrupted results remain separate
 from completed coverage; missing or invalid reports do not become successful
@@ -1843,6 +1852,42 @@ inputs:
 - A SQLMap request artifact describing more than one request: request v1
   represents a single request, not a RequestSet or a scanner proxy-log format.
 - A general OpenAPI-to-RequestSet Artifact exporter.
-- Generic finding publication by tool Workers and raw unbounded log artifacts.
+- Implicit Finding publication by tool Workers and raw unbounded log artifacts.
+  Explicit normalized outputs followed by `publish-findings@1` use SCN-R264–R266.
 - Exactly-once remote scanner execution across an acknowledgement failure:
   scan-plan recovery provides conservative recovery accounting only.
+
+
+## Normalized problem and surface outputs
+
+**SCN-R264.** Explicit tool Worker `candidates` and `evidence` result bindings
+materialize provider-neutral `contractor.finding.candidates.v1` and selected
+normalized evidence. Direct tool calls remain observations. A scanner report is
+published before additional output publication, so an output failure uses the
+existing durable `tool_report_failed` class and cannot erase the original scanner
+outcome. Recreated Workers replay that failure from the same receipt. Provider adapters own
+normalization once; Server operations never parse native scanner formats.
+Nuclei evidence retains a candidate-related manifest selection: the original
+exact manifest descriptor (ref, digest, media type and size), package digest,
+engine version, source and only the selected-template records named by problem
+candidates. The full manifest is read under LIM-SCN-72 and stays Run-local;
+unrelated inventory is not embedded or Base64-expanded into Finding evidence.
+Installed manifests retain their compact package provenance without inventing
+per-template records. A custom candidate missing from the selected manifest
+fails output publication. Existing evidence limits apply to the retained selection.
+
+**SCN-R265.** Nuclei follows its template severity: evidenced low/medium/high/
+critical matches become problem candidates, while info, unknown and absent
+severity remain explicit skipped outcomes. There is no separate configurable
+rule policy, allowlist or classifier. Useful factual sitemap metadata is
+independent at every severity. The adapter inherits template-author
+classification; revisit only for demonstrated unacceptable routing errors.
+Methods derive from emitted actual requests or unambiguous explicit methods in
+exact selected templates. Missing method/status never fabricates GET/200.
+
+**SCN-R266.** SQLMap problem candidates require actual reported injectable
+Parameter/Type blocks tied to the exact prepared request or URL invocation.
+Technique-only output cannot create a Finding for every tested parameter. Keys
+separate endpoints, methods, parameter locations and names. A missing supported
+parameter is an explicit gap, never a clean verdict. Partial scans preserve
+individually complete positives and explicit incompleteness.

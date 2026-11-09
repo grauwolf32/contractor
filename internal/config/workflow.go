@@ -589,7 +589,7 @@ func (l *loader) resolveTransitions(source *stageTransitionsSource, stages map[s
 		return resolved.StageTransitions{}, fmt.Errorf("on must contain succeeded, failed, and interrupted")
 	}
 	succeeded, err := l.resolveTransitionAction("on.succeeded", source.Succeeded, stages, map[resolved.TransitionKind]bool{
-		resolved.TransitionNext: true, resolved.TransitionSucceed: true,
+		resolved.TransitionNext: true, resolved.TransitionSucceed: true, resolved.TransitionFail: true,
 	})
 	if err != nil {
 		return resolved.StageTransitions{}, err

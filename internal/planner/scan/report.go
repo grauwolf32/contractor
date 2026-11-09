@@ -52,14 +52,15 @@ func (p *execution) observe(ctx context.Context, job scanplan.ScanJob, request c
 		record.Status, record.Code = planner.ScanJobUnknown, "scan_invalid_worker_result"
 		return record
 	}
-	failedReport := completion.Failure != nil && completion.Failure.Code == "tool_execution_failed"
+	publicationFailed := completion.Failure != nil && completion.Failure.Code == "tool_report_failed"
+	failedReport := completion.Failure != nil && (completion.Failure.Code == "tool_execution_failed" || publicationFailed)
 	if completion.Failure != nil && !failedReport {
 		switch completion.Failure.Code {
 		case "worker_busy", "worker_draining", "worker_unavailable", "scan_unavailable":
 			record.Status, record.Code = planner.ScanJobUnavailable, "scan_worker_unavailable"
 		case "tool_timeout", "tool_cancelled", "tool_output_invalid":
 			record.Status, record.Code = planner.ScanJobIncomplete, "scan_incomplete"
-		case "tool_outcome_unknown", "tool_report_failed", "tool_input_conflict":
+		case "tool_outcome_unknown", "tool_input_conflict":
 			record.Status, record.Code = planner.ScanJobUnknown, "scan_outcome_unknown"
 		default:
 			record.Status, record.Code = planner.ScanJobFailed, "scan_failed"
@@ -74,6 +75,10 @@ func (p *execution) observe(ctx context.Context, job scanplan.ScanJob, request c
 		var err error
 		ref, err = p.factory.artifacts.Resolve(readCtx, p.invocation.RunID, target)
 		if err != nil {
+			if publicationFailed {
+				record.Status, record.Code = planner.ScanJobUnknown, "scan_outcome_unknown"
+				return record
+			}
 			record.Status, record.Code = planner.ScanJobFailed, "scan_failed"
 			return record
 		}
@@ -81,7 +86,7 @@ func (p *execution) observe(ctx context.Context, job scanplan.ScanJob, request c
 		result := completion.Result
 		var ok bool
 		ref, ok = result.Artifacts[job.Execution.ResultArtifact]
-		if !ok || len(result.Artifacts) != 1 {
+		if !ok || len(result.Artifacts) != len(request.ResultArtifacts) {
 			record.Status, record.Code = planner.ScanJobUnknown, "scan_invalid_worker_result"
 			return record
 		}
@@ -102,8 +107,23 @@ func (p *execution) observe(ctx context.Context, job scanplan.ScanJob, request c
 	}
 	exact := ref.Clone()
 	record.Report = &exact
+	if len(request.ResultArtifacts) > 1 {
+		outputs := map[string]contracts.ArtifactRef{}
+		for _, name := range []string{"candidates", "evidence"} {
+			target := request.ResultArtifacts[name]
+			selected, err := p.factory.artifacts.Resolve(readCtx, p.invocation.RunID, target)
+			if err != nil || selected.ValidateExact() != nil {
+				record.Status, record.Code = planner.ScanJobIncomplete, "scan_report_unavailable"
+				return record
+			}
+			outputs[name] = selected
+		}
+		record.Outputs = outputs
+	}
 	record.Status, record.Code = observationStatus(report.Observation)
-	if failedReport && record.Status == planner.ScanJobCompleted {
+	if publicationFailed {
+		record.Status, record.Code = planner.ScanJobIncomplete, "scan_incomplete"
+	} else if failedReport && record.Status == planner.ScanJobCompleted {
 		record.Status, record.Code = planner.ScanJobUnknown, "scan_invalid_worker_result"
 	}
 	if completion.Result != nil && completion.Result.Observations.Truncated && record.Status == planner.ScanJobCompleted {
@@ -277,6 +297,9 @@ func (p *execution) finish(ctx context.Context, identity planner.ScanSessionIden
 	if coverage.Selected == 0 || coverage.Completed != coverage.Selected {
 		result.Outcome = stageresult.StageFailed
 		result.Error = &contracts.TerminationError{Code: "scan_incomplete", Message: "The scan plan did not complete all selected jobs", Retryable: false}
+	}
+	if err := p.selectNormalizedMaterials(buildCtx, state.Jobs, &result); err != nil {
+		return empty, err
 	}
 	if validation := planner.ValidateCandidate(buildCtx, p.invocation.RunID, p.invocation.Stage.Result.Artifacts, result, p.factory.inspector); validation != nil {
 		return empty, p.resultError(validation)

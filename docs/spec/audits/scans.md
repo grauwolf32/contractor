@@ -805,15 +805,15 @@ completion, not a clean security verdict.
 **ASC-R130.** Nuclei findings are scanner observations. An
 empty result does not establish that the operation is secure.
 
-**ASC-R131.** URL-only limitations must reach the Audit report
-even if scanner execution succeeds.
+**ASC-R131.** URL-only limitations remain in the concrete Run report even if
+scanner execution succeeds; Finding sources retain applicable limitations.
 
 **ASC-R132.** The importer accepts `not-tested`, `blocked` or
 `inconclusive` for scan tasks.
 
-**ASC-R133.** Completed execution requires a retained
-`scanner-report` evidence item and a runnable accepted task; it still yields
-inconclusive security coverage.
+**ASC-R133.** Completed scanner execution requires an exact `scanner-report`
+reference on the concrete child Run and a runnable accepted Task. Execution
+completion does not establish a security assessment.
 
 **ASC-R134.** Scanner observations can be retained without
 declaring a verified violation. Conclusive assessments belong to a separate
@@ -834,8 +834,9 @@ Stage execution identity and protects recovery of that execution, not a new
 Stage or Audit item attempt, while the Audit importer treats a failed Run as
 retryable ([execution](execution.md), AUX-R32).
 
-**ASC-R138.** The adapter must not impose a blanket one-attempt
-limit or disable ordinary Workflow retries.
+**ASC-R138.** Scanner retries are explicit Workflow choices. Composed
+scan/publication presets never retry target traffic to repair publication or
+collection. An operator can start a new scan as independent work.
 
 **ASC-R139.** Failures known to precede scanner invocation and
 known failed executions may use the bounded retry policy, with each execution
@@ -862,9 +863,17 @@ explicit in the pinned execution policy before activation.
 ([worker completion](worker-completion.md)) is not applied to a multi-stage
 or tool-only Worker.
 
-**ASC-R145.** Trusted result assembly must retain reports for
-failures as well as for successful execution, and must be tested at the
-interruption between scanner completion and package publication (FAIL-ASC-7).
+**ASC-R145.** Scanner reports and plan aggregates remain on their concrete Run
+for failed and successful execution. Aggregates carry exact descriptors and
+technical status; they never embed report bytes. Composed scanner Workflows
+export no result/report Artifacts into Audit. Task collection stores only
+canonical Finding IDs (at most 128, with explicit truncation), including a
+non-null empty collection. Source receipt origin selects each Task through its
+immutable execution membership; another Task's results are not included.
+Collection reconciles committed sources after publication failure/cancellation,
+without rescanning. Exact selected Finding evidence remains Project-retained
+after Run/Audit purge. A task's `findings` field links current domain records;
+it never snapshots analyst assessments or substitutes a report for no Findings.
 
 ### Direct-target Web scan Audits
 

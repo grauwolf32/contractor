@@ -558,6 +558,39 @@ func observe(d *Document, o Observation, a Authority) error {
 		addGap(d, a.SourceID, "members", 1)
 		return nil
 	}
+	if o.Note != "" || len(o.Tags) > 0 {
+		annotation, err := projectAnnotation(o.Note, o.Tags, a)
+		if err != nil {
+			return err
+		}
+		index := slices.IndexFunc(m.Annotations, func(value Annotation) bool { return value.Provenance == a.provenance() })
+		if index >= 0 {
+			previous := m.Annotations[index]
+			notes := strings.Split(previous.Note, "\n")
+			if annotation.Note != "" && !slices.Contains(notes, annotation.Note) {
+				notes = append(notes, annotation.Note)
+			}
+			slices.Sort(notes)
+			merged := strings.Trim(strings.Join(notes, "\n"), "\n")
+			if len(merged) > MaxNoteBytes {
+				addGap(d, a.SourceID, "projection", 1)
+				merged = previous.Note
+			}
+			annotation.Note = merged
+			annotation.Tags = append(annotation.Tags, previous.Tags...)
+			slices.Sort(annotation.Tags)
+			annotation.Tags = slices.Compact(annotation.Tags)
+			if len(annotation.Tags) > MaxTags {
+				addGap(d, a.SourceID, "projection", 1)
+				annotation.Tags = annotation.Tags[:MaxTags]
+			}
+			m.Annotations[index] = annotation
+		} else if len(m.Annotations) < MaxSources {
+			m.Annotations = append(m.Annotations, annotation)
+		} else {
+			addGap(d, a.SourceID, "projection", 1)
+		}
+	}
 	summary := Summary{Provenance: a.provenance(), Outcome: o.Outcome, Status: o.Status, Parameters: parameters, First: o.At, Last: o.At}
 	for i := range m.Summaries {
 		if summaryKey(m.Summaries[i]) == summaryKey(summary) {

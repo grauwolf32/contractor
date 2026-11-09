@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "contractor.finding.candidates.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "complete",
+    "candidates",
+    "skipped",
+    "evidence"
+  ],
+  "properties": {
+    "schema": {
+      "const": "contractor.finding.candidates.v1"
+    },
+    "complete": {
+      "type": "boolean"
+    },
+    "candidates": {
+      "type": "array",
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "producer",
+          "rule",
+          "title",
+          "assertion",
+          "subject",
+          "method",
+          "severity",
+          "qualifiedKey"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "producer": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "rule": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "assertion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192
+          },
+          "subject": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192
+          },
+          "method": {
+            "type": "string",
+            "pattern": "^(|[A-Z]{1,16})$"
+          },
+          "severity": {
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ]
+          },
+          "qualifiedKey": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "maxItems": 8,
+            "items": {
+              "type": "string",
+              "maxLength": 8192
+            }
+          },
+          "itemKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "incidental": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "skipped": {
+      "type": "object",
+      "maxProperties": 16,
+      "propertyNames": {
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 100
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ref",
+        "digest",
+        "mediaType",
+        "sizeBytes"
+      ],
+      "properties": {
+        "ref": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "namespace",
+            "name",
+            "revision"
+          ],
+          "properties": {
+            "namespace": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            },
+            "revision": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          }
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "mediaType": {
+          "const": "application/vnd.contractor.finding-evidence+json"
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 524288
+        }
+      }
+    }
+  }
+}

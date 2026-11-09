@@ -48,6 +48,14 @@ func ValidateStageExecutor(stage ResolvedStage) error {
 			return fmt.Errorf("Server operation output requires an ordinary explicit artifact binding")
 		}
 	}
+	if operation.Ref == contracts.PublishFindingsOperation {
+		pair := len(stage.Context.Artifacts) == 2 && stage.Context.Artifacts["candidates"].Required && stage.Context.Artifacts["evidence"].Required
+		set := len(stage.Context.Artifacts) == 1 && stage.Context.Artifacts["materials"].Required
+		if len(operation.Arguments) != 0 || (!pair && !set) || stage.Result.Artifacts == nil || len(stage.Result.Artifacts) != 0 {
+			return fmt.Errorf("Finding publication requires exactly candidates and evidence inputs and no Artifact outputs")
+		}
+		return nil
+	}
 	if operation.Ref == contracts.OpenAPIPrepareWorkOperation {
 		return validateOpenAPIWorkStage(stage)
 	}

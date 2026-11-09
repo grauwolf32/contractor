@@ -18,8 +18,8 @@ import (
 
 func scanTask(row scanner, extra ...any) (auditstore.Task, error) {
 	var task auditstore.Task
-	var document, source, result, hypothesis json.RawMessage
-	values := []any{&document, &task.SourceKey, &source, &task.Ordinal, &task.Iteration, &task.BatchDigest, &task.State, &task.Attempts, &task.LastExecution, &result, &task.GapCode, &task.CreatedAt, &task.UpdatedAt, &hypothesis, &task.Attention}
+	var document, source, result, hypothesis, findings json.RawMessage
+	values := []any{&document, &task.SourceKey, &source, &task.Ordinal, &task.Iteration, &task.BatchDigest, &task.State, &task.Attempts, &task.LastExecution, &result, &task.GapCode, &task.CreatedAt, &task.UpdatedAt, &hypothesis, &task.Attention, &findings}
 	if err := row.Scan(append(values, extra...)...); err != nil {
 		return auditstore.Task{}, err
 	}
@@ -42,6 +42,12 @@ func scanTask(row scanner, extra ...any) (auditstore.Task, error) {
 	if err != nil || batchErr != nil || sourceKey != task.SourceKey || batch != task.BatchDigest {
 		return auditstore.Task{}, errStoredTask
 	}
+	if findings != nil {
+		task.Findings = &auditstore.CanonicalFindingResult{}
+		if strictjson.Decode(findings, task.Findings) != nil || !validCanonicalFindingResult(task.Findings) || result != nil || task.State != auditstore.TaskSettled {
+			return auditstore.Task{}, errStoredTask
+		}
+	}
 	if result != nil {
 		task.Result = &auditcontract.Material{}
 		if strictjson.Decode(result, task.Result) != nil || task.Result.ScopeKind != "audit" || task.Result.ScopeID != task.Document.AuditID {
@@ -57,7 +63,7 @@ func scanTask(row scanner, extra ...any) (auditstore.Task, error) {
 			return auditstore.Task{}, errStoredTask
 		}
 	}
-	if task.Ordinal > auditprofile.MaxAuditItemsTotal || task.Iteration > auditprofile.MaxAuditRounds || task.Attempts > auditprofile.MaxAuditRunAttempts || task.LastExecution != nil && !contracts.ValidResourceID(*task.LastExecution) || task.Attempts > 0 && task.LastExecution == nil || task.Attempts == 0 && task.LastExecution != nil || task.State == auditstore.TaskSelected && task.Attempts == 0 || task.State != auditstore.TaskSettled && (task.Result != nil || task.GapCode != nil) || task.GapCode != nil && validateText("stored Task gap", *task.GapCode, 128, true) != nil || task.State == auditstore.TaskSettled && task.Result == nil && task.GapCode == nil {
+	if task.Ordinal > auditprofile.MaxAuditItemsTotal || task.Iteration > auditprofile.MaxAuditRounds || task.Attempts > auditprofile.MaxAuditRunAttempts || task.LastExecution != nil && !contracts.ValidResourceID(*task.LastExecution) || task.Attempts > 0 && task.LastExecution == nil || task.Attempts == 0 && task.LastExecution != nil || task.State == auditstore.TaskSelected && task.Attempts == 0 || task.State != auditstore.TaskSettled && (task.Result != nil || task.GapCode != nil) || task.GapCode != nil && validateText("stored Task gap", *task.GapCode, 128, true) != nil || task.State == auditstore.TaskSettled && task.Result == nil && task.GapCode == nil && task.Findings == nil {
 		return auditstore.Task{}, errStoredTask
 	}
 	return task, nil
