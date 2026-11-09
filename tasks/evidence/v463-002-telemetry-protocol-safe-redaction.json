@@ -1,0 +1,70 @@
+{
+  "task_id": "V463-002",
+  "date": "2026-11-09",
+  "base_commit": "247f69eecfe4d89e165ce9a1fcd546e99085e08e",
+  "introduced_by": "V463-001",
+  "behavior": {
+    "status": "OTLP status derives from the validated original outcome. Outcome and fixed GenAI vocabulary bypass replacement.",
+    "pipeline": "Normalize a bounded JSON copy of SDK values; project GenAI; mask payload string values; serialize and bound final fields; queue sanitized bytes.",
+    "structure": "Mapping keys, message roles, part types, finish reasons and fixed GenAI operation/provider attributes are preserved.",
+    "isolation": "Model/tool inputs remain unchanged. A failed optional input does not suppress valid output. No raw fallback.",
+    "bounds": "100000 visited JSON values, depth 64, 256 KiB per captured content field; existing queue/retry/lifetime bounds unchanged.",
+    "non_goals": "No credential heuristics/discovery, new capture switch, compatibility adapter, deployment or main merge."
+  },
+  "regression_evidence": {
+    "original_python_failing_cases": 6,
+    "original_go_failing_genai_scenarios": 3,
+    "baseline_python_log": "../v463002-baseline-python.log",
+    "baseline_go_log": "../v463002-baseline-go.log",
+    "shared_content_scenarios": 14,
+    "examples": [
+      "s / succeeded",
+      "name / SDK tool declaration",
+      "GenAI text, function, assistant, unknown and reasoning",
+      "JSON-escaped Unicode credential in fallback content",
+      "scalar/null tool content",
+      "oversized SDK request retains separate tool definitions",
+      "independent capture failures and traversal bounds"
+    ]
+  },
+  "verification": [
+    {
+      "command": "go test -race -count=1 ./internal/telemetry/...",
+      "exit_code": 0,
+      "postgres": "Dedicated contractor_v463002_20261109 database used and dropped after successful database checks.",
+      "log": "../v463002-go-race-final.log"
+    },
+    {
+      "command": "pytest tests/test_telemetry_redaction.py tests/test_shared_genai_telemetry.py tests/test_telemetry_content.py tests/test_otlp_adapter.py tests/test_otlp_streaming.py tests/test_instrumentation.py tests/test_adk_runtime.py",
+      "exit_code": 0,
+      "passed": 306
+    },
+    {
+      "command": "make test-runtime",
+      "log": "../v463002-runtime-final.log",
+      "exit_code": 0,
+      "passed": 6140,
+      "skipped": 135,
+      "notes": "Declared platform/infrastructure skips are not passing coverage; final mandatory Runtime-report validation passed."
+    },
+    {
+      "command": "make test-wire-cross-language",
+      "log": "../v463002-wire-final.log",
+      "exit_code": 0,
+      "shared_fixtures": 380,
+      "go_shared_tests": 433,
+      "python_shared_tests": 277,
+      "notes": "One explicitly optional disk-heavy test skipped; it is not passing coverage."
+    },
+    {
+      "command": "make lint",
+      "log": "../v463002-lint-final.log",
+      "exit_code": 0
+    }
+  ],
+  "delivery": {
+    "branch": "codex/debug-telemetry-known-secrets",
+    "merged_to_main": false,
+    "deployed": false
+  }
+}

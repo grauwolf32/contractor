@@ -19,7 +19,7 @@ from opentelemetry.proto.resource.v1.resource_pb2 import Resource
 from opentelemetry.proto.trace.v1.trace_pb2 import ResourceSpans, ScopeSpans, Span, Status
 
 from contractor_runtime import __version__
-from contractor_runtime.adapters.content import MAX_CONTENT_BYTES, encode_content
+from contractor_runtime.adapters.content import MAX_CONTENT_BYTES
 from contractor_runtime.adapters.genai import content_attributes
 from contractor_runtime.adapters.host import (
     AdapterFactoryError,
@@ -132,18 +132,18 @@ class _OTLPSpan(RuntimeSpan):
         self._ended = False
         self._content: dict[str, str] = {}
 
-    def encode_content(self, value: object) -> str:
-        return encode_content(self._instrumentation._redactor.value(value))
-
-    def set_content(self, field: str, value: str) -> None:
-        if (
-            not self._ended
-            and field in {"input", "output"}
-            and len(value.encode("utf-8")) <= MAX_CONTENT_BYTES
-        ):
-            self._content.update(
-                content_attributes(field, value, model=self._name == "contractor.worker.model")
+    def capture_content(self, field: str, value: object) -> None:
+        if self._ended or field not in {"input", "output"}:
+            return
+        redactor = self._instrumentation._redactor
+        # Normalize SDK models without changing their structure, then project
+        # GenAI before masking payload data and applying final byte bounds.
+        value = redactor.value(value, redact=False)
+        self._content.update(
+            content_attributes(
+                field, value, model=self._name == "contractor.worker.model", redact=redactor.value
             )
+        )
 
     def end(
         self,
@@ -249,12 +249,16 @@ class OTLPInstrumentation(RuntimeInstrumentation):
             self._metrics.record_dropped_spans("shutdown", 1)
             return
         try:
+            outcome = attributes.get("outcome", "failed")
+            if outcome not in _SAFE_OUTCOMES:
+                outcome = "failed"
             safe_attributes = _safe_attributes(
-                {k: self._redactor.value(v) for k, v in attributes.items()}, self._secret_values
+                {k: self._redactor.value(v) for k, v in attributes.items() if k != "outcome"},
+                self._secret_values,
             )
+            safe_attributes["outcome"] = outcome
             if name == "contractor.worker.a2a_task":
                 safe_attributes.update(self._run_metadata_attributes)
-            outcome = safe_attributes.get("outcome", "failed")
             allowed_keys = _ALLOWED_SPAN_ATTRIBUTES
             if name == "contractor.worker.a2a_task":
                 allowed_keys = allowed_keys | frozenset(self._run_metadata_attributes)
@@ -710,6 +714,8 @@ def _safe_attribute_value(
     if isinstance(value, int):
         return max(-(2**63), min(2**63 - 1, value))
     if isinstance(value, str):
+        if key == "outcome":
+            return value if value in _SAFE_OUTCOMES else "failed"
         if contains_private_value(value, secrets):
             return None
         selected = _truncate_utf8(value, MAX_STRING_ATTRIBUTE_BYTES)

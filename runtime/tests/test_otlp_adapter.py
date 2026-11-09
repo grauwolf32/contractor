@@ -15,6 +15,7 @@ from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
     ExportTraceServiceRequest,
     ExportTraceServiceResponse,
 )
+from opentelemetry.proto.trace.v1.trace_pb2 import Status
 
 from contractor_runtime.adapters.host import RuntimeAdapterBuildContext
 from contractor_runtime.adapters.otlp_http import (
@@ -245,10 +246,10 @@ def test_otlp_content_queue_retains_late_spans_beyond_two_mib() -> None:
     )
     for _ in range(16):
         span = instrumentation.start_span("contractor.worker.model", attributes={})
-        span.set_content("input", '"' + "x" * (192 * 1024) + '"')
+        span.capture_content("input", "x" * (192 * 1024))
         span.end(outcome="succeeded")
     last = instrumentation.start_span("contractor.worker.a2a_task", attributes={})
-    last.set_content("output", '"late-finish-canary"')
+    last.capture_content("output", "late-finish-canary")
     last.end(outcome="succeeded")
     assert instrumentation.pending_spans == 17
     assert 2 * 1024 * 1024 < instrumentation.pending_bytes <= MAX_PENDING_BYTES
@@ -509,3 +510,23 @@ def _metrics() -> Any:
     from contractor_runtime.adapters import RuntimeAdapterMetricsState
 
     return RuntimeAdapterMetricsState()
+
+
+@pytest.mark.parametrize("secret", ["s", "succeeded", "failed", "unavailable"])
+@pytest.mark.parametrize("outcome", ["succeeded", "failed", "unavailable", "invalid"])
+def test_otlp_status_uses_original_protocol_outcome(secret: str, outcome: str) -> None:
+    instrumentation = OTLPInstrumentation(
+        _metrics(),
+        {"service.name": "test"},
+        secret_values=(secret,),
+        max_pending_spans=MAX_PENDING_SPANS,
+        max_pending_bytes=MAX_PENDING_BYTES,
+    )
+    instrumentation.start_span("contractor.worker.model").end(outcome=outcome)
+    batch = ExportTraceServiceRequest.FromString(instrumentation.export_request())
+    span = batch.resource_spans[0].scope_spans[0].spans[0]
+    attrs = _attributes(span.attributes)
+    assert attrs["outcome"] == ("failed" if outcome == "invalid" else outcome)
+    assert span.status.code == (
+        Status.STATUS_CODE_OK if outcome == "succeeded" else Status.STATUS_CODE_ERROR
+    )

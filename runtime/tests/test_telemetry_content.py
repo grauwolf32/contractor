@@ -128,7 +128,7 @@ def test_disabled_capture_never_evaluates_content() -> None:
 
 
 def test_content_serialization_failure_is_optional() -> None:
-    span = SimpleNamespace(set_content=lambda *_: None)
+    span = SimpleNamespace(capture_content=lambda _, value: encode_content(value))
     capture_span_content(span, input=lambda: object())
 
 

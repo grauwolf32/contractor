@@ -155,16 +155,24 @@ func (o *otlpPlannerSpan) Format(state fmt.State, _ rune) {
 	_, _ = io.WriteString(state, "telemetry.otlpPlannerSpan([REDACTED])")
 }
 
-func (s *otlpPlannerSpan) setContent(field, value string) {
+func (s *otlpPlannerSpan) captureContent(field string, value any) {
 	s.contentMu.Lock()
 	defer s.contentMu.Unlock()
-	if s.ended || len(value) > MaxContentBytes {
+	if s.ended || (field != "input" && field != "output") {
 		return
 	}
+	value, err := copyPlannerContent(value)
+	if err != nil {
+		return
+	}
+	s.owner.mu.Lock()
+	redactText := s.owner.redactText
+	s.owner.mu.Unlock()
+	redact := func(item any) (any, error) { return transformContentStrings(item, redactText) }
 	if s.content == nil {
 		s.content = map[string]string{}
 	}
-	for key, encoded := range genAIContent(field, value, s.name == PlannerSpanModel) {
+	for key, encoded := range genAIContent(field, value, s.name == PlannerSpanModel, redact) {
 		s.content[key] = encoded
 	}
 }
@@ -226,6 +234,11 @@ func (o *otlpHTTPPlannerTelemetry) enqueue(
 	redactText := o.redactText
 	o.mu.Unlock()
 	values := plannerAttributeValues(attributes, secrets)
+	for key, value := range values {
+		if text, ok := value.(string); ok {
+			values[key] = redactText(text)
+		}
+	}
 	if name == PlannerSpanModel {
 		values["gen_ai.operation.name"] = "chat"
 		values["gen_ai.provider.name"] = "contractor.gateway"
@@ -242,11 +255,6 @@ func (o *otlpHTTPPlannerTelemetry) enqueue(
 		}
 		if model, ok := values["model.alias"]; ok {
 			values["gen_ai.request.model"] = model
-		}
-	}
-	for key, value := range values {
-		if text, ok := value.(string); ok {
-			values[key] = redactText(text)
 		}
 	}
 	for key, value := range content {

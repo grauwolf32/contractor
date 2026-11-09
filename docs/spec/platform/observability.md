@@ -750,7 +750,14 @@ values with `[REDACTED]` in exported content and data attributes before encoding
 truncation and queueing. Every nonempty value matches case-sensitively, including
 short embedded values. Equal-start overlapping matches prefer the longest
 original value; replacement text is never matched again. JSON escaping is a
-serialization concern: replacement acts on string values and keys first.
+serialization concern: replacement acts on data string values first. JSON keys
+and protocol vocabulary (outcomes, GenAI roles, part types, finish reasons and
+fixed operation/provider attributes) are never replacement targets. Span status
+comes from the validated original execution outcome, independently of redaction.
+SDK requests/responses are projected into GenAI before their data fields are
+masked; final serialization, per-field byte bounds and queueing follow masking.
+This keeps tool declarations and messages available even when a known value is
+`name`, `s` or another fragment of the protocol.
 
 **OBS-R55.** Credentials come only from existing execution-scoped resolution:
 model, telemetry, proxy, target and assigned identity credentials known to that
@@ -766,9 +773,10 @@ evidence are not modified by telemetry preparation.
 **OBS-R57.** Replacement performs no field-name inference, HTTP parsing,
 dynamic-secret discovery or matching of encoded/transformed values. Unknown
 secrets remain outside its guarantee. Content transformation/encoding failure
-omits the affected content; there is no raw fallback. A masked-key collision
-also omits content instead of silently overwriting data. Preparation visits at
-most 100,000 values at depth 64 (LIM-OBS-28). Replacement shares
+omits only the affected input or output; there is no raw fallback. An input
+capture failure does not suppress an independently valid output. Mapping keys
+remain unchanged, so replacement cannot introduce key collisions. Preparation
+visits at most 100,000 values at depth 64 (LIM-OBS-28). Replacement shares
 Go/Python examples in `api/testdata/telemetry-credential-redaction.json`.
 
 **OBS-R58.** Captured model input includes conversation messages,

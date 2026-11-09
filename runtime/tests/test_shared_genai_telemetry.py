@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
 import httpx
 from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
+from opentelemetry.proto.trace.v1.trace_pb2 import Status
 from test_otlp_adapter import adapter_context, telemetry_settings
 
 from contractor_runtime.adapters.content import capture_span_content
@@ -32,7 +34,8 @@ def test_shared_genai_telemetry() -> None:
 
             settings = telemetry_settings().model_copy(update={})
             adapter = await OTLPHTTPAdapterFactory(httpx.MockTransport(collector)).create(
-                adapter_context(), settings
+                replace(adapter_context(), known_credentials=tuple(case.get("secrets", []))),
+                settings,
             )
             span = adapter.handles.instrumentation.start_span(
                 "contractor.worker.model" if case["model"] else "contractor.worker.tool",
@@ -48,6 +51,12 @@ def test_shared_genai_telemetry() -> None:
                 .scope_spans[0]
                 .spans[0]
             )
+            assert emitted.status.code == Status.STATUS_CODE_OK, case["name"]
+            protocol = {a.key: a.value.string_value for a in emitted.attributes}
+            assert protocol["outcome"] == "succeeded", case["name"]
+            if case["model"]:
+                assert protocol["gen_ai.operation.name"] == "chat"
+                assert protocol["gen_ai.provider.name"] == "contractor.gateway"
             actual = {}
             for attr in emitted.attributes:
                 assert not attr.key.startswith(("langfuse.", "openinference."))

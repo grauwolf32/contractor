@@ -42,18 +42,17 @@ def capture_span_content(
     input: Callable[[], Any] | None = None,
     output: Callable[[], Any] | None = None,
 ) -> None:
-    # Lazy access is important: disabled capture must not inspect/serialize data.
-    if not callable(getattr(span, "set_content", None)):
+    capture = getattr(span, "capture_content", None)
+    if not callable(capture):
         return
-    try:
-        encode = getattr(span, "encode_content", encode_content)
-        if input is not None:
-            span.set_content("input", encode(input()))
-        if output is not None:
-            span.set_content("output", encode(output()))
-    except Exception:
-        # Optional telemetry cannot change model/tool execution outcomes.
-        return
+    for field, source in (("input", input), ("output", output)):
+        if source is None:
+            continue
+        try:
+            capture(field, source())
+        except Exception:
+            # A failed optional input must not suppress an independent output.
+            continue
 
 
 def model_request_content(request: Any) -> dict[str, Any]:

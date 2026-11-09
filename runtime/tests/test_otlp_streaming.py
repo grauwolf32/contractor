@@ -41,7 +41,7 @@ def _span(instrumentation: OTLPInstrumentation, number: int, *, size: int = 2048
     span = instrumentation.start_span(
         "contractor.worker.model", attributes={"model.alias": f"model-{number}"}
     )
-    span.set_content("input", '"' + "x" * (size - 2) + '"')
+    span.capture_content("input", "x" * (size - 2))
     span.end(outcome="succeeded")
 
 

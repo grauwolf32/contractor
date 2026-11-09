@@ -5,12 +5,8 @@ import (
 	"errors"
 )
 
-// encodeContent makes a JSON copy before masking, keeping escaping out of
-// credential matching. The ordinary content byte bound is applied afterwards.
-func (s *otlpPlannerSpan) encodeContent(value any) ([]byte, error) {
-	s.owner.mu.Lock()
-	redactText := s.owner.redactText
-	s.owner.mu.Unlock()
+// copyPlannerContent normalizes SDK values before interpreting their schema.
+func copyPlannerContent(value any) (any, error) {
 	raw, err := json.Marshal(value)
 	if err != nil {
 		return nil, err
@@ -19,6 +15,12 @@ func (s *otlpPlannerSpan) encodeContent(value any) ([]byte, error) {
 	if err = json.Unmarshal(raw, &decoded); err != nil {
 		return nil, err
 	}
+	return transformContentStrings(decoded, func(text string) string { return text })
+}
+
+// transformContentStrings keeps JSON keys intact. Protocol fields are excluded
+// by the owning GenAI projection; only its data payloads reach this function.
+func transformContentStrings(value any, redactText func(string) string) (any, error) {
 	remaining := 100000
 	var visit func(any, int) (any, error)
 	visit = func(item any, depth int) (any, error) {
@@ -40,23 +42,15 @@ func (s *otlpPlannerSpan) encodeContent(value any) ([]byte, error) {
 		case map[string]any:
 			result := make(map[string]any, len(v))
 			for key, child := range v {
-				maskedKey := redactText(key)
-				if _, exists := result[maskedKey]; exists {
-					return nil, errors.New("telemetry content has colliding masked keys")
-				}
 				masked, e := visit(child, depth+1)
 				if e != nil {
 					return nil, e
 				}
-				result[maskedKey] = masked
+				result[key] = masked
 			}
 			return result, nil
 		}
 		return item, nil
 	}
-	masked, err := visit(decoded, 0)
-	if err != nil {
-		return nil, err
-	}
-	return json.Marshal(masked)
+	return visit(value, 0)
 }

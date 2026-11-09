@@ -38,6 +38,7 @@ from contractor_runtime.adapters import (
     RuntimeSpan,
     TelemetryAttribute,
 )
+from contractor_runtime.adapters.content import encode_content
 from contractor_runtime.artifacts import ArtifactValue
 from contractor_runtime.contracts import (
     API_VERSION,
@@ -4207,8 +4208,8 @@ class CapturingSpan(RecordingSpan):
         super().__init__(name, attributes)
         self._content = content
 
-    def set_content(self, kind: str, value: str) -> None:
-        self._content.append((kind, value))
+    def capture_content(self, kind: str, value: Any) -> None:
+        self._content.append((kind, encode_content(value)))
 
 
 class DeclaredSensitiveTool:

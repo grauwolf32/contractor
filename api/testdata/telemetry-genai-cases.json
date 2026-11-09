@@ -35,7 +35,276 @@
     {"name": "invalid-request", "model": true, "field": "input", "value": {"contents": 12}, "expected": {}},
     {"name": "no-response", "model": true, "field": "output", "value": null, "expected": {}},
     {"name": "tool-input", "model": false, "field": "input", "value": {"path": "file.go"}, "expected": {"contractor.input": {"path": "file.go"}}},
-    {"name": "orchestration-output", "model": false, "field": "output", "value": {"result": "done"}, "expected": {"contractor.output": {"result": "done"}}}
+    {"name": "orchestration-output", "model": false, "field": "output", "value": {"result": "done"}, "expected": {"contractor.output": {"result": "done"}}},
+    {
+      "name": "credential-name-preserves-sdk-declarations",
+      "model": true,
+      "field": "input",
+      "secrets": [
+        "name"
+      ],
+      "value": {
+        "systemInstruction": {
+          "parts": [
+            {
+              "text": "name"
+            }
+          ]
+        },
+        "contents": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "text": "name"
+              },
+              {
+                "functionCall": {
+                  "name": "lookup",
+                  "args": {
+                    "name": "name"
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "tools": [
+          {
+            "functionDeclarations": [
+              {
+                "name": "lookup",
+                "description": "name",
+                "parametersJsonSchema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "integer",
+                      "default": "name"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "gen_ai.system_instructions": [
+          {
+            "type": "text",
+            "content": "[REDACTED]"
+          }
+        ],
+        "gen_ai.input.messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "content": "[REDACTED]"
+              },
+              {
+                "type": "tool_call",
+                "name": "lookup",
+                "arguments": {
+                  "name": "[REDACTED]"
+                }
+              }
+            ]
+          }
+        ],
+        "gen_ai.tool.definitions": [
+          {
+            "type": "function",
+            "name": "lookup",
+            "description": "[REDACTED]",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "integer",
+                  "default": "[REDACTED]"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "short-credential-keeps-genai-protocol",
+      "model": true,
+      "field": "input",
+      "secrets": [
+        "s",
+        "text",
+        "function",
+        "chat",
+        "contractor.gateway"
+      ],
+      "value": {
+        "systemInstruction": {
+          "parts": [
+            {
+              "text": "s"
+            }
+          ]
+        },
+        "contents": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "text": "s"
+              },
+              {
+                "functionCall": {
+                  "name": "lookup",
+                  "args": {
+                    "s": "succeeded"
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "tools": [
+          {
+            "functionDeclarations": [
+              {
+                "name": "lookup",
+                "description": "s"
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "gen_ai.system_instructions": [
+          {
+            "type": "text",
+            "content": "[REDACTED]"
+          }
+        ],
+        "gen_ai.input.messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "content": "[REDACTED]"
+              },
+              {
+                "type": "tool_call",
+                "name": "lookup",
+                "arguments": {
+                  "s": "[REDACTED]ucceeded"
+                }
+              }
+            ]
+          }
+        ],
+        "gen_ai.tool.definitions": [
+          {
+            "type": "function",
+            "name": "lookup",
+            "description": "[REDACTED]"
+          }
+        ]
+      }
+    },
+    {
+      "name": "output-protocol-is-not-payload",
+      "model": true,
+      "field": "output",
+      "secrets": [
+        "assistant",
+        "unknown",
+        "reasoning",
+        "text",
+        "s"
+      ],
+      "value": {
+        "role": "model",
+        "parts": [
+          {
+            "text": "s",
+            "thought": true
+          },
+          {
+            "text": "s"
+          }
+        ]
+      },
+      "expected": {
+        "gen_ai.output.messages": [
+          {
+            "role": "assistant",
+            "finish_reason": "unknown",
+            "parts": [
+              {
+                "type": "reasoning",
+                "content": "[REDACTED]"
+              },
+              {
+                "type": "text",
+                "content": "[REDACTED]"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "escaped-credential-in-fallback-part",
+      "model": true,
+      "field": "output",
+      "secrets": [
+        "pw\"\\\nключ",
+        "RED"
+      ],
+      "value": {
+        "nested": [
+          "pw\"\\\nключ"
+        ]
+      },
+      "expected": {
+        "gen_ai.output.messages": [
+          {
+            "role": "assistant",
+            "finish_reason": "unknown",
+            "parts": [
+              {
+                "type": "text",
+                "content": "{\"nested\":[\"[REDACTED]\"]}"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "tool-string-remains-json",
+      "model": false,
+      "field": "input",
+      "secrets": [
+        "name"
+      ],
+      "value": "name \"quoted\"",
+      "expected": {
+        "contractor.input": "[REDACTED] \"quoted\""
+      }
+    },
+    {
+      "name": "tool-null-remains-json",
+      "model": false,
+      "field": "output",
+      "value": null,
+      "expected": {
+        "contractor.output": null
+      }
+    }
   ],
   "usage": [
     {"name": "reported", "input": 11, "output": 7, "cached": 3, "expected": {"gen_ai.usage.input_tokens": 11, "gen_ai.usage.output_tokens": 7, "gen_ai.usage.cache_read.input_tokens": 3}},

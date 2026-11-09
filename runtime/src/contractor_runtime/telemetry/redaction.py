@@ -42,8 +42,8 @@ class TelemetryRedactor:
         parts.append(value[cursor:])
         return "".join(parts)
 
-    def value(self, value: Any) -> Any:
-        """Build a sanitized JSON copy; never mutate the model/tool value."""
+    def value(self, value: Any, *, redact: bool = True) -> Any:
+        """Copy JSON data with bounded traversal; keys are structure, not data."""
         remaining = 100000
 
         def visit(item: Any, depth: int = 0) -> Any:
@@ -52,17 +52,9 @@ class TelemetryRedactor:
             if depth > 64 or remaining < 0:
                 raise ValueError("telemetry content exceeds traversal bound")
             if isinstance(item, str):
-                return self.text(item)
+                return self.text(item) if redact else item
             if isinstance(item, dict):
-                result = {}
-                for key, child in item.items():
-                    # JSON itself accepts primitive non-string keys. Preserve
-                    # that contract, but do not silently overwrite masked keys.
-                    masked = self.text(key) if isinstance(key, str) else key
-                    if masked in result:
-                        raise ValueError("telemetry content has colliding masked keys")
-                    result[masked] = visit(child, depth + 1)
-                return result
+                return {key: visit(child, depth + 1) for key, child in item.items()}
             if isinstance(item, (list, tuple)):
                 return [visit(child, depth + 1) for child in item]
             dump = getattr(item, "model_dump", None)
