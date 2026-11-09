@@ -1,6 +1,12 @@
-/** Sections of the check page, the last path segment of its URL. */
-type CheckSection =
-  "overview" | "work" | "hypotheses" | "findings" | "materials" | "activity";
+export const CHECK_SECTIONS = [
+  ["overview", "Overview"],
+  ["work", "Work"],
+  ["hypotheses", "Hypotheses"],
+  ["findings", "Possible issues"],
+  ["materials", "Materials"],
+  ["activity", "Activity"],
+] as const;
+export type CheckSection = (typeof CHECK_SECTIONS)[number][0];
 
 /** /projects/:projectId/audits/:auditId */
 export function checkPath(projectId: string, auditId: string): string {

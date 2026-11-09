@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { researchFixture } from "../../src/test/audit-research-fixtures";
+import { json, page as responsePage } from "../../src/test/responses";
 import {
   fulfillContent,
   fulfillEmptyPageOrNotFound,
@@ -11,13 +12,18 @@ export async function installResearchAPI(page: Page, state = "normal") {
   const fixture = researchFixture(state);
   await mockAPI(page, async (route, request, url) => {
     const body = request.postData();
-    const response = await fixture.respond(
-      new Request(url, {
-        method: request.method(),
-        headers: request.headers(),
-        ...(body === null ? {} : { body }),
-      }),
-    );
+    const response =
+      url.pathname === "/v1/audits"
+        ? json(responsePage([fixture.audit]))
+        : url.pathname === "/v1/projects"
+          ? json(responsePage([fixture.project]))
+          : await fixture.respond(
+              new Request(url, {
+                method: request.method(),
+                headers: request.headers(),
+                ...(body === null ? {} : { body }),
+              }),
+            );
     if (!response) return fulfillEmptyPageOrNotFound(route);
     const headers: Record<string, string> = {};
     response.headers.forEach((value, key) => {
