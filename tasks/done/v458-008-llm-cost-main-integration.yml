@@ -5,7 +5,7 @@ milestone: llm-cost-reporting-2026-11
 epic: operations
 kind: chore
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V458-001, V458-002, V458-003, V458-004, V458-005, V458-006, V458-007]
 languages: [go, python, sql, typescript, markdown, yaml]
 goal: Main includes the verified attributed Run Audit and Project LLM cost feature while preserving current scanner engagement and credential behavior.
@@ -37,7 +37,9 @@ acceptance_criteria:
   - id: A3
     text: Main is merged without changing the dirty primary checkout; task evidence records the immutable implementation and local merge status without claiming deployment or a full release gate.
 tests:
-  - command: go test -race -count=1 ./internal/planner/session ./internal/auditdomain
+  - command: go test -race -count=1 ./internal/planner/session
+    covers: [A1, A2]
+  - command: go test -race -count=1 ./internal/auditdomain
     covers: [A1, A2]
   - command: make test-runtime
     covers: [A1, A2]
@@ -62,4 +64,12 @@ verification:
   - make ui-verify passed 223 files and 2503 tests plus one existing expected failure, all 17 static server cases, typecheck and build. The complete mocked browser gate passed 221 tests in 33 specs with no skips or retries, including cost views in three themes at 390 and 1440 pixels.
   - make verify-public-api, make verify-public-api-postgres, make test-wire-cross-language and UV_OFFLINE=true make lint passed. The shared gate verified 379 fixtures with 432 Go and 271 Python shared tests; one optional disk-heavy case was explicitly skipped.
   - Six unrelated primary working-tree files retain exact hashes and modes and the staged index and HEAD remain identical to the preservation snapshot. The owned database contractor_llm_cost_merge_20261109 was dropped and its absence verified.
-  - No remote push, live model, demo deployment or complete release gate was run. Main delivery remains the final step after this verified preparation.
+  - Main was updated through no-fast-forward merge 26dc491cd70c43a701b8e0668fd0bca48e569a53 after rechecking its expected head and clean checkout. Its tree is identical to the verified integration head 73bcf84efeeb2bce23e8a76ba39e978c30c96391. No remote push, live model, demo deployment or complete release gate was run.
+implementation_commit: 26dc491cd70c43a701b8e0668fd0bca48e569a53
+delivery:
+  date: '2026-11-09'
+  merged_into_main: true
+  merge_commit: 26dc491cd70c43a701b8e0668fd0bca48e569a53
+  main_first_parent: e3291ab0c67f0b0b7bd2ced40bef343464633fa4
+  feature_head: 61916812e24f3b5c9c295d507df4510433ada099
+  verified_integration_head: 73bcf84efeeb2bce23e8a76ba39e978c30c96391
