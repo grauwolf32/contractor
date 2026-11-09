@@ -6,7 +6,8 @@ epic: scan-tools
 kind: defect
 introduced_by: V461-001
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 66172fd04a627ba8d48e0937405ff9005124d904
 depends_on: []
 languages: [python]
 goal: A controlled HTTP failure promptly stops the native scanner and preserves already received stdout/stderr for partial Findings and evidence without changing allocation cancellation semantics.
@@ -32,3 +33,15 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+
+decisions:
+  - "Use an explicit stop event in the existing bounded process owner. Stop and join the group, drain already received pipe bytes under the existing combined bound, and preserve caller cancellation as cancellation. No second process lifecycle or output buffer is introduced."
+  - "The shared Nuclei/SQLMap wrapper overlays the authoritative bridge error on the retained process result. Partial output is parsed and published without claiming completed coverage."
+verification:
+  date: "2026-11-09"
+  regression: "Original wrapper failed all three regressions: simultaneous completed-result/bridge failure and two running-process cases with retained stdout/stderr. Corrected cases pass."
+  focused: "Full process/scanner/Nuclei/SQLMap/HTTP bridge suites: 218 passed, including real child-group cleanup, output bounds, timeout and repeated cancellation controls."
+  native: "Actual Nuclei emits a medium-severity match before a later local HTTP transport failure; the failed observation retains that match and publishes nonempty candidates and selected evidence. Real SQLMap engagement tests passed through the same process wrapper."
+  runtime: "make test-runtime passed: 6115 passed, 135 declared optional/environment skips; release Runtime report validation passed."
+  lint: "make lint passed."
+  delivery: "Committed on codex/audit-engagement; not merged or deployed."
