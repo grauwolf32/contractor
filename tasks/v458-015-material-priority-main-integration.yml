@@ -1,0 +1,63 @@
+schema_version: '1.0'
+id: V458-015
+title: Integrate Project material priority with current archive visibility in main
+milestone: ui-consolidation-2026-10
+epic: ui
+kind: chore
+priority: P2
+status: in_progress
+depends_on: [V458-014]
+languages: [go, sql, typescript, markdown, yaml]
+goal: Main shows named material categories first while retaining the current default archive filter and preserving unrelated primary checkout changes.
+context:
+  authority: User request 2026-11-10 explicitly authorizes merging the reviewed material priority feature into main; demo deployment and remote publication are not requested.
+  specification:
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/ui/ui.md
+  finding: >-
+    Feature d5a93b049c5be64c3aa517e894e093e490aa7bc0 and main
+    7f37af0117ab441163bb72440b997e414c18b680 overlap in Artifact list
+    metadata queries and filters, generated clients and documentation. Main
+    already owns migration 000005_project_materials_index.sql and UI 0.11.32.
+    The primary main checkout retains six unrelated changed/untracked files,
+    including its generated task backlog.
+  design: >-
+    Reconcile on an isolated branch. Keep main's archive index migration exact,
+    renumber unshipped material priority as 000006 and publish UI 0.11.33.
+    The default priority page uses the current-material partial index that
+    excludes both Audit-managed and historical namespaces. Explicit namespace
+    selection keeps archived artifacts readable through the namespace rank
+    index. Both default order variants select a bounded page before metadata
+    hydration. Retain exact main-only Runtime/configuration sources and validate
+    their shared contracts, rather than changing them. Install a verified
+    no-fast-forward merge using the existing clean-path/index-base/CAS approach;
+    preserve primary changed file bytes modes and staged delta exactly.
+scope:
+  in:
+  - Reconcile completed priority and archive visibility behaviors and migration numbering without new product behavior.
+  - Verify combined PostgreSQL pagination archive exclusion exact reads and cursor scope, public clients, UI and shared contracts.
+  - Merge into local main and record immutable verification and primary preservation evidence.
+  out:
+  - New Runtime or workflow behavior, demo deployment, business-data changes, new tables and remote push.
+acceptance_criteria:
+  - id: A1
+    text: Main includes priority V458-014 and archive visibility V465-001 with indexed bounded pages, preserved explicit archive reads, sequential migrations 000005/000006 and fresh public clients at UI 0.11.33.
+  - id: A2
+    text: Combined complete affected Go/PostgreSQL suites, shared fixture and public API gates, UI verification, full mocked browser gate and lint pass; owned test resources are removed.
+  - id: A3
+    text: A no-fast-forward main merge contains both histories and the tested production tree; all six primary changed files keep exact hashes modes and staged delta, with no deployment claim.
+tests:
+  - command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/artifacts/... ./internal/persistence/postgres ./internal/httpapi/public ./internal/config ./internal/configtest
+    covers: [A1, A2]
+  - command: make verify-public-api generate-public-client-check
+    covers: [A1, A2]
+  - command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> make test-wire-cross-language
+    covers: [A1, A2]
+  - command: VITEST_MAX_WORKERS=2 make ui-verify
+    covers: [A1, A2]
+  - command: make ui-browser-mocked
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]
+  - command: python3 .local/audit-llm-cost-research-20261107/material-priority-merge/install-main.py --verify-only
+    covers: [A3]
