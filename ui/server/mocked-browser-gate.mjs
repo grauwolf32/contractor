@@ -41,6 +41,8 @@ const mockedSpecs = [
 ];
 
 const processSpecs = [
+  "e2e/scanner-findings.spec.ts",
+  "e2e/web-engagement.spec.ts",
   "e2e/audits.spec.ts",
   "e2e/evals-stack.spec.ts",
   "e2e/lifecycle-controls.spec.ts",
