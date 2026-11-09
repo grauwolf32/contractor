@@ -156,7 +156,7 @@
     },
     "scan@1": {
       "tools": ["scan_ffuf", "scan_katana", "scan_naabu", "scan_nuclei", "scan_sqlmap"],
-      "infrastructureChannels": {"scan_ffuf": ["runtime-subprocess-launcher"], "scan_katana": ["runtime-subprocess-launcher"], "scan_naabu": ["runtime-subprocess-launcher"], "scan_nuclei": ["runtime-http-client", "runtime-subprocess-launcher"], "scan_sqlmap": ["runtime-subprocess-launcher"]},
+      "infrastructureChannels": {"scan_ffuf": ["runtime-subprocess-launcher"], "scan_katana": ["runtime-subprocess-launcher"], "scan_naabu": ["runtime-subprocess-launcher"], "scan_nuclei": ["runtime-http-client", "runtime-subprocess-launcher"], "scan_sqlmap": ["runtime-http-client", "runtime-subprocess-launcher"]},
       "requiresWorkspace": false,
       "workspaceObservationTools": [],
       "requiredSandboxProfiles": [],

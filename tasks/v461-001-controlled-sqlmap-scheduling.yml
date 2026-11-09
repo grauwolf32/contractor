@@ -60,7 +60,7 @@ acceptance_criteria:
     when: The scanner runs or terminates
     then: Native scheduling fits configured limits, shared limits hold, failures are explicit and resources are joined.
 tests:
-  - command: cd runtime && uv run pytest tests/test_nuclei_engagement.py tests/test_sqlmap_engagement.py tests/test_scan_sqlmap_request.py tests/test_scan_sqlmap_live.py tests/test_scan_toolset.py
+  - command: cd runtime && uv run pytest tests/test_nuclei_engagement.py tests/test_sqlmap_engagement.py tests/test_http_proxy_bridge.py tests/test_scan_sqlmap_request.py tests/test_scan_sqlmap_live.py tests/test_scan_toolset.py -q --tb=short
     covers: [A1, A2]
   - command: go test ./internal/config/resolved
     covers: [A1, A2]

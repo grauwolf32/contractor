@@ -5,6 +5,7 @@ import base64
 import json
 import shutil
 import time
+from itertools import pairwise
 from pathlib import Path
 
 import pytest
@@ -545,6 +546,48 @@ def test_real_nuclei_proxy_listener_startup_failure_is_fatal(tmp_path, monkeypat
                 assert not owner._engine.ingresses
                 assert not target.requests
                 assert not list((tmp_path / "workspace").iterdir())
+            finally:
+                await tool.close()
+                await owner.close()
+
+    asyncio.run(scenario())
+
+
+def test_native_nuclei_paces_requests_from_engagement(tmp_path, monkeypatch):
+    from contractor_runtime.toolsets.scan import tools as scan
+
+    native = scan.run_process
+    commands, arrivals = [], []
+
+    async def run(command, directory, timeout):
+        commands.append(command)
+        return await native(command, directory, timeout)
+
+    monkeypatch.setattr(scan, "run_process", run)
+
+    async def respond(_, __, writer, ___):
+        arrivals.append(time.monotonic())
+        writer.write(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")
+        await writer.drain()
+
+    async def scenario():
+        async with SocketTarget(respond) as target:
+            literal_origin(target)
+            spec = socket_spec(target)
+            spec.engagement.http.limits = HTTPLimits(requestsPerSecond=2, concurrentRequests=1)
+            rule = template()
+            rule["http"][0]["path"] = [f"{{{{RootURL}}}}/allowed/{i}" for i in range(3)]
+            tool, owner, _ = await scanner(tmp_path, target, spec=spec, templates=[rule])
+            try:
+                result = await tool(target.origin + "/allowed", rate_limit=999, timeout_seconds=30)
+                assert result["status"] == "completed", result
+                assert len(arrivals) == 3
+                assert all(b - a >= 0.45 for a, b in pairwise(arrivals))
+                launch = next(command for command in commands if "-config" in command)
+                assert launch[launch.index("-rate-limit") + 1] == "2"
+                assert launch[launch.index("-concurrency") + 1] == "1"
+                assert launch[launch.index("-retries") + 1] == "0"
+                assert result["httpLimits"] == {"requestsPerSecond": 2, "concurrentRequests": 1}
             finally:
                 await tool.close()
                 await owner.close()

@@ -529,9 +529,13 @@ proxy credentials stay in a private mode-0600 config file and never enter argv,
 environment, metrics or retained Artifacts. The ordinary scoped-Artifact policy
 for target observations remains SCN-R219.
 
-**SCN-R262.** Controlled Nuclei sets scanner retries and its native request-rate
-limiter to zero. Only the shared transport enforces optional request count,
-RPS, concurrency and body limits from the engagement (HTP-R145), together with
+**SCN-R262.** Controlled Nuclei disables scanner retries and sets its native
+request rate to the engagement RPS when configured (zero otherwise). Template
+concurrency is at most five, further capped by configured concurrency and RPS;
+payload concurrency and target batch size are one. This paces request production
+before the proxy rather than relying on transport queueing. The shared transport
+remains authoritative for aggregate RPS, concurrency and body limits from the
+engagement (HTP-R145), together with
 ordinary HTTP framing/buffering bounds. Thus HTTP tools and Nuclei consume the
 same allocation allowance. An omitted engagement limit stays absent. The
 `rate_limit` argument continues to configure standalone scans; controlled scans
@@ -1891,3 +1895,22 @@ Technique-only output cannot create a Finding for every tested parameter. Keys
 separate endpoints, methods, parameter locations and names. A missing supported
 parameter is an explicit gap, never a clean verdict. Partial scans preserve
 individually complete positives and explicit incompleteness.
+
+
+**SCN-R267.** Controlled SQLMap uses the same authenticated per-invocation HTTP
+bridge and allocation transport as Nuclei. Both URL and prepared-request modes
+accept an explicit assigned `credential_id`; omission selects the anonymous
+identity. Proxy address and authentication are written only to private mode-0600
+scratch configuration. Native retries, redirects, preconnections and learned
+scanner cookies are disabled. Runtime owns cookies, TLS verification, egress
+and aggregate limits. Explicit SQLMap Cookie input is preserved for anonymous
+requests; conflicts with a selected credential fail before target traffic.
+
+SQLMap detection stays single-threaded, within every positive engagement
+concurrency bound. Configured RPS becomes native `--delay=1/RPS` because its
+delay applies per thread; absent RPS adds no delay. This is native pacing, not
+an additional Runtime sleep. Target response timing still includes contention
+with other tools sharing the allocation, so timing evidence is not a promise
+of exclusive target capacity. Refused, failed or truncated exchanges fail the
+scan even after a zero native exit. Preparation, process, proxy and temporary
+files follow the existing invocation deadline and joined cleanup.
