@@ -49,7 +49,7 @@
     "A6": "Three concrete real-socket/allocation regressions were run with the original production files restored in the isolated worktree, failed for the investigated defect, and pass with the corrected production files. No external LLM or live deployment was used."
   },
   "boundary": "The existing shared native lifecycle owns close confirmation and connection task outcomes. Request parsing/retry rules and AllocationService fatal policy retain their current owners.",
-  "scope": "No migrations, API changes, catalog/model changes, live target or demo deployment. Main checkout changes are preserved; delivery remains on codex/v463-004-http-cleanup.",
+  "scope": "No migrations, API changes, catalog/model changes, live target or demo deployment. User request 2026-11-10 authorizes local no-fast-forward integration into main; primary checkout work is preserved.",
   "sibling_regression_before_fix": {
     "test": "test_scanner_reset_before_handler_start_retires_the_exact_writer",
     "exit_code": 1,
@@ -104,5 +104,10 @@
     }
   ],
   "runtime_skips_are_passing_coverage": false,
-  "implementation_commit": "76286a135bd5c6e24adeef42c0a32dd96a7e3892"
+  "implementation_commit": "76286a135bd5c6e24adeef42c0a32dd96a7e3892",
+  "integration_verification": {
+    "main_base": "16d3d638589ffbf13ec7f38108c60b70335c8770",
+    "verified_feature_head": "dc4ca4b82",
+    "method": "Reuse full Runtime/lint results only for the unchanged verified source tree; verify the merge tree equals the integration branch and all pre-existing dirty file bytes/modes and staged changes are preserved."
+  }
 }
