@@ -762,9 +762,12 @@ freezing, Scheduler transitions or Run success.
 for Project Workflow recommendations and create-only publication; how a
 Project uses it is owned by [PRJ-R48 to PRJ-R50 and PRJ-R102](../artifacts/projects.md).
 
-**WFL-R69.** Internal handoff outputs such as `workspace_state` and
-`workspace_diff` normally remain non-primary; in built-in generator Workflows
-they are not primary.
+**WFL-R69.** Internal handoff artifacts such as `workspace_state` and
+`workspace_diff` remain Stage results for hydration and continuation. Shipped
+document-generation and operation-trace Workflows do not declare or map them
+as Workflow outputs: they publish their domain documents and validation reports.
+Checkpoint inspection remains available in the Run's technical artifacts.
+An explicitly authored Workflow may publish a checkpoint as a non-primary output.
 
 **WFL-R70.** Each `workflowOutputs` key must name a declared Workflow
 output, and its value must name a result artifact declared by the same Stage.

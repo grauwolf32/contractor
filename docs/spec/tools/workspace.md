@@ -863,6 +863,8 @@ state `S -> F` and the diff `B -> F`.
 
 **WSP-R146.** Third, the Runtime writes state and diff to
 `AllocationSpec.namespace` through the current allocation Artifact API.
+These Stage checkpoints are distinct from user-visible Workflow outputs
+([WFL-R69](../configuration/workflows.md)).
 
 **WSP-R147.** Fourth, the Runtime injects both exact returned refs into their
 reserved result slots after the ordinary observed-ref projection.

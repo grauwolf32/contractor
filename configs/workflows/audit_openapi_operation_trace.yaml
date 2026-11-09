@@ -30,14 +30,6 @@ spec:
       primary: true
       mediaTypes:
       - application/json
-    workspace_state:
-      required: true
-      mediaTypes: &id001
-      - application/vnd.contractor.workspace-overlay+json
-    workspace_diff:
-      required: true
-      mediaTypes: &id002
-      - text/x-diff
   executionConfig:
     workers:
       llmGateway: local-litellm@1
@@ -92,14 +84,14 @@ spec:
               name: result
           workspace_state:
             required: true
-            mediaTypes: *id001
+            mediaTypes:
+            - application/vnd.contractor.workspace-overlay+json
           workspace_diff:
             required: true
-            mediaTypes: *id002
+            mediaTypes:
+            - text/x-diff
       workflowOutputs:
         result: result
-        workspace_state: workspace_state
-        workspace_diff: workspace_diff
       'on':
         succeeded:
           succeed: {}
