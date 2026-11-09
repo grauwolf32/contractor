@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-67 open tasks: 9 in progress, 45 pending, 13 deferred. 1521 finished: 1503 completed, 18 archived.
+68 open tasks: 10 in progress, 45 pending, 13 deferred. 1521 finished: 1503 completed, 18 archived.
 
 ## In progress
 
@@ -20,6 +20,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Accept merged isolated Worker context compaction |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V458-008](v458-008-llm-cost-main-integration.yml) | operations | chore | P1 | Integrate retained LLM cost accounting and UI into current main |
 
 ## Pending
 
@@ -169,7 +170,7 @@ tasks in `introduced_by`.
 | Evaluations (`evals`) | 5 | 22 | 41 | 17 | 50 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
 | Web UI (`ui`) | 1 | 52 | 79 | 29 | 76 |
-| Operations, authentication, CLI and deployment (`operations`) | 0 | 20 | 50 | 9 | 25 |
+| Operations, authentication, CLI and deployment (`operations`) | 1 | 20 | 50 | 10 | 25 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 42 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 50 | 18 |
 | Quality, CI and process (`quality`) | 11 | 1 | 33 | 140 | 30 |
