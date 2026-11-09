@@ -16626,7 +16626,6 @@ components:
         planner: {$ref: '#/components/schemas/ConsumerExecutionConfig'}
         agents:
           type: object
-          minProperties: 1
           additionalProperties: {$ref: '#/components/schemas/ConsumerExecutionConfig'}
     StageAttempt:
       type: object
@@ -17186,6 +17185,7 @@ components:
       oneOf:
         - {$ref: '#/components/schemas/WorkflowNextTransition'}
         - {$ref: '#/components/schemas/WorkflowSucceedTransition'}
+        - {$ref: '#/components/schemas/WorkflowFailTransition'}
     WorkflowSummaryTransition:
       type: object
       additionalProperties: false

@@ -1,0 +1,75 @@
+schema_version: '1.0'
+id: V462-001
+title: Accept valid operation Stage attempts and successful fail transitions in public responses
+milestone: httpapi-review-cleanup-2026-11
+epic: api-contracts
+kind: defect
+introduced_by: V64-026
+priority: P1
+status: in_progress
+depends_on: [V64-026, V461-003]
+languages: [go, typescript, yaml]
+goal: The Inbox can read ordinary Runs with Server operation attempts and scanner Workflows that fail after successful partial-result publication.
+context:
+  authority: User request 2026-11-09 authorizes both public contract fixes, regenerated clients, regression checks and updating the demo; existing demo data and selected models remain preserved.
+  specification:
+    - docs/spec/api/public-api.md#API-R1
+    - docs/spec/configuration/workflows.md#WFL-R89
+    - docs/spec/configuration/workflows.md#WFL-R97
+  severity: medium
+  finding: >-
+    api/openapi/contractor-public-v1.yaml:16629 requires at least one agent in
+    StageExecutionConfig, rejecting the empty agents object of an ordinary
+    Server operation attempt. At :17185 WorkflowSucceededTransition excludes
+    the valid fail branch used by project-nuclei-scan publication after a failed
+    scan. Both endpoints return 200 but generated UI response validation rejects
+    them and the Inbox reports incomplete reads.
+  provenance: >-
+    V64-026 introduced model-free operation Stages while the earlier public
+    Stage-attempt response still required a Worker. WFL-R97 and the scanner
+    publication branch later exercised the existing fail-on-success domain
+    transition without expanding its public response union.
+  siblings: >-
+    Cover StageAttempt/RunStatus, WorkflowResource/WorkflowStageContract,
+    TypeScript public response schemas and consumers, and the generated Go
+    public client. ResolvedStageExecutionConfig already accepts empty agents;
+    operation/Planner authority remains enforced by the existing graph validator.
+    Worker Stage declarations must still require their agent bindings. No private
+    Runtime wire or request-authority changes are needed.
+scope:
+  in:
+    - Correct the two owning OpenAPI response schemas and regenerate both public clients.
+    - Exercise actual operation Workflow projections and PostgreSQL-backed Run detail HTTP responses.
+    - Check strict UI getRun/getWorkflow consumers including negative malformed cases.
+    - Release the corrected UI to the demo and verify the actual Inbox.
+  out:
+    - Runtime execution, scanner retry behavior, model selection, historical data rewriting and schema migrations.
+acceptance_criteria:
+  - id: A1
+    text: A persisted operation Stage attempt with an empty agents object is readable through the public Run endpoint and the strict UI client; missing or null agents remain invalid.
+  - id: A2
+    text: An actual operation Workflow with succeeded fail validates through the public projection and strict UI client; unsupported success branches and invalid Planner/operation mixtures remain rejected.
+  - id: A3
+    text: The two regressions fail on the original generated schema, all generated clients are fresh, relevant complete package/UI/public API gates pass and the demo Inbox loads without the incomplete-read banner.
+tests:
+  - command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/httpapi/public
+    covers: [A1, A2, A3]
+  - command: make verify-public-api
+    covers: [A1, A2, A3]
+  - command: make generate-public-client-check
+    covers: [A2, A3]
+  - command: make ui-verify
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_tasks.py
+    covers: [A3]
+  - command: python3 scripts/check_spec.py
+    covers: [A3]
+notes:
+  - The two new Go regressions failed on the original OpenAPI at the success transition and the PostgreSQL-backed empty operation agents object.
+  - The strict UI getRun/getWorkflow regressions both failed on the original generated schemas; all 35 API consumer cases pass after generation.
+  - All 28 previously captured real Inbox responses conform to the corrected schema; the captured bodies remain private operational files outside the repository.
+  - Full UI verification passes 2512 tests with one declared expected failure, all 17 static-service tests, lint, typecheck, generation freshness and production build.
+  - Full public HTTP package passes with disposable PostgreSQL. Two initial filesystem fixture failures were resolved by using canonical TMPDIR=/private/tmp on macOS; neither failed filesystem case was skipped or weakened.
+  - Public API verification, Go client freshness, full make lint, task checks and specification checks pass. Demo verification remains pending.

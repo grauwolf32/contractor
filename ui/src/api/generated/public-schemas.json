@@ -10275,7 +10275,6 @@
         },
         "agents": {
           "type": "object",
-          "minProperties": 1,
           "additionalProperties": {
             "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ConsumerExecutionConfig"
           }
@@ -11316,6 +11315,9 @@
         },
         {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/WorkflowSucceedTransition"
+        },
+        {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/WorkflowFailTransition"
         }
       ]
     },
