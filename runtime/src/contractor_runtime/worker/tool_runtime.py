@@ -463,48 +463,7 @@ class ToolWorkerRuntime:
                     if name.endswith("Truncated")
                 )
                 publisher = getattr(self._tool, "publish_outputs", None)
-                try:
-                    artifacts = self._additional_artifacts(
-                        observation.get("artifacts", {}),
-                        request,
-                        complete=observation["status"] == "completed" and publisher is None,
-                    )
-                    payload = _json(
-                        {
-                            "schemaVersion": 1,
-                            "tool": self._execution.tool,
-                            "inputDigest": digest,
-                            "inputArtifacts": {
-                                name: ref.model_dump(by_alias=True)
-                                for name, ref in request.artifacts.items()
-                            },
-                            "observation": observation,
-                        }
-                    )
-                    if len(payload) > MAX_REPORT_BYTES:
-                        raise ValueError
-                except (ValueError, TypeError, RecursionError):
-                    tool_failed = True
-                    raise ToolWorkerError("tool_output_invalid") from None
-                try:
-                    # Publication follows the semantic outcome. It has its
-                    # own finite budget, never the expired invocation timer.
-                    async with asyncio.timeout(
-                        self._context.runtime_settings.request_timeout_seconds
-                    ):
-                        await self._verify_additional_artifacts(artifacts)
-                        published = await self._client.write_artifact(
-                            target,
-                            data=payload,
-                            media_type="application/json",
-                            expected_revision=None,
-                        )
-                        report = published.artifact
-                except Exception:
-                    raise ToolWorkerError("tool_report_failed") from None
-                await notify_report_publication(
-                    self._resources.report_publication_sink, self._execution.tool, report
-                )
+                publication_failed = False
                 if publisher is not None:
                     try:
                         async with asyncio.timeout(
@@ -520,7 +479,65 @@ class ToolWorkerRuntime:
                             )
                             await self._verify_additional_artifacts(artifacts)
                     except Exception:
-                        raise ToolWorkerError("tool_report_failed") from None
+                        # Retain the observed scanner outcome even when an
+                        # additional output could not be confirmed. The report
+                        # must not claim a ref from a partial publication.
+                        publication_failed = True
+                        observation = {
+                            key: value for key, value in observation.items() if key != "artifacts"
+                        }
+                        observation["outputPublicationError"] = "tool_report_failed"
+                try:
+                    artifacts = self._additional_artifacts(
+                        observation.get("artifacts", {}),
+                        request,
+                        complete=observation["status"] == "completed" and not publication_failed,
+                    )
+                    projector = getattr(self._tool, "report_observation", None)
+                    report_observation = (
+                        projector(observation, request.result_artifacts)
+                        if projector is not None
+                        else observation
+                    )
+                    payload = _json(
+                        {
+                            "schemaVersion": 1,
+                            "tool": self._execution.tool,
+                            "inputDigest": digest,
+                            "inputArtifacts": {
+                                name: ref.model_dump(by_alias=True)
+                                for name, ref in request.artifacts.items()
+                            },
+                            "observation": report_observation,
+                        }
+                    )
+                    if len(payload) > MAX_REPORT_BYTES:
+                        raise ValueError
+                except (ValueError, TypeError, RecursionError):
+                    tool_failed = True
+                    raise ToolWorkerError("tool_output_invalid") from None
+                try:
+                    # Publication follows the semantic outcome. It has its
+                    # own finite budget, never the expired invocation timer.
+                    async with asyncio.timeout(
+                        self._context.runtime_settings.request_timeout_seconds
+                    ):
+                        if publisher is None:
+                            await self._verify_additional_artifacts(artifacts)
+                        published = await self._client.write_artifact(
+                            target,
+                            data=payload,
+                            media_type="application/json",
+                            expected_revision=None,
+                        )
+                        report = published.artifact
+                except Exception:
+                    raise ToolWorkerError("tool_report_failed") from None
+                await notify_report_publication(
+                    self._resources.report_publication_sink, self._execution.tool, report
+                )
+                if publication_failed:
+                    raise ToolWorkerError("tool_report_failed")
                 if observation["status"] == "failed":
                     raise ToolWorkerError("tool_execution_failed")
         except asyncio.CancelledError:

@@ -1,0 +1,59 @@
+schema_version: '1.0'
+id: V465-002
+title: Keep workspace checkpoints internal to document-generation Runs
+milestone: artifact-release-cleanup-2026-11
+epic: workflows
+kind: defect
+introduced_by: V48-004
+priority: P2
+status: completed
+depends_on: []
+languages: [yaml, markdown]
+goal: Publish generated documents and validation reports as Workflow results while keeping workspace checkpoints in Run technical artifacts.
+context:
+  authority: >-
+    User request 2026-11-09 authorizes removal of unnecessary outputs on a separate
+    branch while preserving Runs, execution history and access through Run details.
+  finding: >-
+    configs/workflows/openapi_from_workspace_v7_memory.yaml:29 and its LikeC4,
+    Streamline and operation-trace siblings publish workspace_state/workspace_diff
+    as Workflow outputs even when the state is unchanged and the diff is empty.
+  siblings: >-
+    All eight shipped production Workflows promoting overlay checkpoints are in scope. Intermediate Stage result
+    checkpoints remain necessary for hydration and continuation. Eval-only catalogs
+    are frozen experiment inputs and do not define the shipped defaults. The workspace-roundtrip E2E catalog intentionally exports checkpoints to verify the transport contract.
+  specification:
+    - docs/spec/configuration/workflows.md
+    - docs/spec/tools/workspace.md
+scope:
+  in:
+    - Remove checkpoint Workflow output declarations and mappings from all shipped overlay Workflows while retaining Stage exports and exact context handoffs.
+    - Document the distinction between internal Stage checkpoints and user-visible document outputs.
+  out:
+    - Changing the Runtime workspace export protocol, deleting existing checkpoints, altering Eval experiments, and deployment.
+acceptance_criteria:
+  - id: A1
+    text: Every shipped overlay Workflow publishes only domain results, with no workspace_state/workspace_diff Workflow outputs.
+  - id: A2
+    text: Intermediate checkpoints, continuation and workspace hydration retain their required exact Stage results and the shipped catalog validates.
+tests:
+  - command: go run ./cmd/contractor-server config validate --root ./configs
+    covers: [A1, A2]
+  - command: go test -count=1 ./internal/config ./internal/configtest
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]
+
+implementation_commit: 7ace105ff206641e418faab16b6f8c54e42bd8e5
+verification_results:
+  - "2026-11-09: strict shipped configuration validation passed for 31 Workflows after all eight production checkpoint publishers were corrected. Full internal/config and internal/configtest package checks passed again after the final three sibling edits."
+  - "Internal Stage exports and exact hydration/continuation inputs remain. The E2E workspace-roundtrip fixture intentionally keeps its checkpoint outputs because its transport test consumes them."
+  - "make lint passed; model-config-check, docs-dependencies-check and check_spec.py also passed on the final sibling catalog and WFL-R69 wording. The dependency HTML was regenerated."
+  - "No migration of existing snapshots or stored results was performed. This task is delivered only on codex/artifact-cleanup, with no main merge or demo deployment."
+delivery:
+  date: '2026-11-09'
+  branch: codex/artifact-cleanup
+  merged_into_main: true
+  merge_commit: bbd795db9688c192b9b38136fd9adb0105ddc78d
+  integrated_at: '2026-11-10'
+  integration_task: V465-004

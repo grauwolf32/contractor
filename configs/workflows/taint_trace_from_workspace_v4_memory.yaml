@@ -24,12 +24,6 @@ spec:
       required: true
       primary: true
       mediaTypes: [text/markdown]
-    workspace_state:
-      required: true
-      mediaTypes: [application/vnd.contractor.workspace-overlay+json]
-    workspace_diff:
-      required: true
-      mediaTypes: [text/x-diff]
 
   executionConfig:
     workers:
@@ -81,8 +75,6 @@ spec:
             mediaTypes: [text/x-diff]
       workflowOutputs:
         taint_report: report
-        workspace_state: workspace_state
-        workspace_diff: workspace_diff
       on:
         succeeded:
           succeed: {}

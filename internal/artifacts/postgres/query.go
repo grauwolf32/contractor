@@ -50,9 +50,15 @@ func (r *Repository) ListMetadata(
 			query.AfterNamespace, query.AfterName, query.Limit)
 	} else if query.NamePrefix != "" {
 		rows, err = r.db.Query(ctx, listProjectPrefixMetadataSQL, scope.ID(), *query.Namespace, query.NamePrefix, query.AfterName, query.Limit)
-	} else if scope.Kind() == artifacts.ScopeUser && query.HiddenNamespace == artifactpolicy.AuditStandardCatalogNamespace && query.ExcludeNamespacePrefix == "" {
+	} else if scope.Kind() == artifacts.ScopeUser && query.HiddenNamespace == artifactpolicy.AuditStandardCatalogNamespace && query.ExcludeNamespacePrefix == "" && query.HiddenNamespacePrefix == "" {
 		rows, err = r.db.Query(ctx, listUserMetadataSQL, scope.ID(), query.Namespace, query.ExcludeNamespace, query.AfterNamespace, query.AfterName, query.Limit, query.HiddenNamespace)
 	} else if scope.Kind() == artifacts.ScopeProject &&
+		query.ExcludeNamespacePrefix == artifactpolicy.AuditManagedProjectNamespacePrefix &&
+		query.HiddenNamespacePrefix == artifactpolicy.HistoricalProjectNamespacePrefix {
+		rows, err = r.db.Query(ctx, listProjectMaterialsSQL, scope.ID(), query.Namespace,
+			query.ExcludeNamespace, query.AfterNamespace, query.AfterName, query.Limit,
+			query.HiddenNamespace)
+	} else if scope.Kind() == artifacts.ScopeProject && query.HiddenNamespacePrefix == "" &&
 		query.ExcludeNamespacePrefix == artifactpolicy.AuditManagedProjectNamespacePrefix {
 		// The generic Project listing skips the Audit-managed namespaces by
 		// index; a prefix filter would read every Audit binding (ART-R115).
@@ -62,7 +68,7 @@ func (r *Repository) ListMetadata(
 	} else {
 		rows, err = r.db.Query(ctx, listMetadataSQL, scope.Kind(), scope.ID(), query.Namespace,
 			query.ExcludeNamespace, query.ExcludeNamespacePrefix, query.AfterNamespace,
-			query.AfterName, query.Limit, query.HiddenNamespace)
+			query.AfterName, query.Limit, query.HiddenNamespace, query.HiddenNamespacePrefix)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("list artifact metadata: %w", err)

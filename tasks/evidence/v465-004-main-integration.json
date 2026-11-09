@@ -1,0 +1,62 @@
+{
+  "schema_version": "1.0",
+  "date": "2026-11-10",
+  "main_before": "ee53d96ab7f6e07fd098973d6996aefdf4165d9f",
+  "feature_head": "53364d7d3bd9ceb38d9d6857fd20bee8279bc433",
+  "merge_commit": "bbd795db9688c192b9b38136fd9adb0105ddc78d",
+  "merge_parents": [
+    "ee53d96ab7f6e07fd098973d6996aefdf4165d9f",
+    "53364d7d3bd9ceb38d9d6857fd20bee8279bc433"
+  ],
+  "same_tree_as_verified_feature": true,
+  "runtime_tests": {
+    "passed": 772,
+    "skipped": 0,
+    "failed": 0
+  },
+  "make_lint": "passed",
+  "primary_files": [
+    {
+      "path": "tasks/BACKLOG.md",
+      "status": " M",
+      "sha256": "15a143a107a5e927020bf18b87ab6769c0c8dc0c10efa5f5fbc298519242124e",
+      "mode": 420
+    },
+    {
+      "path": "tasks/v411-015-http-pentest-workflow-presets.yml",
+      "status": " M",
+      "sha256": "870fd0a720021000fc1a482378040472a19fc3693ba277066a363907b98d8c7a",
+      "mode": 420
+    },
+    {
+      "path": "tests/eval/pentest/playground.lock.json",
+      "status": " M",
+      "sha256": "a4b98bfdde6b68720803eecb9f8639f22687af8d623c63c3ce15b787dcfa1a70",
+      "mode": 420
+    },
+    {
+      "path": "tasks/done/v455-003-invoice-lab-http11.yml",
+      "status": "??",
+      "sha256": "d0e3bd9576a545836ded18b0c9740a1e244749991aab9cf453181836ed5fd408",
+      "mode": 420
+    },
+    {
+      "path": "tasks/evidence/v411-015-demo-20261107.json",
+      "status": "??",
+      "sha256": "2c11d00c3cfb45dc66f2f1ac7fcc3ceef0547840644e0faabc213695729466ea",
+      "mode": 420
+    },
+    {
+      "path": "tasks/evidence/v455-003-invoice-http11-20261107.json",
+      "status": "??",
+      "sha256": "641c4123c5f5d85189118536de27d6023b0a50dedfd7b259a6ef47dec41f2d47",
+      "mode": 420
+    }
+  ],
+  "staged_patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "primary_files_and_modes_preserved": true,
+  "staged_delta_preserved": true,
+  "verification_command": "python3 /private/tmp/artifact-cleanup-install-main.py --verify-only",
+  "remote_push": false,
+  "demo_deployment": false
+}

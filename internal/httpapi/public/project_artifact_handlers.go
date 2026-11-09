@@ -19,6 +19,7 @@ func (h *artifactHandlers) listProjectArtifacts(w http.ResponseWriter, r *http.R
 			uploadsAllowed:         project.Lifecycle != projectstore.LifecycleDeleting,
 			cursorPrefix:           "project-artifacts:" + project.ProjectID,
 			excludeNamespacePrefix: artifactpolicy.AuditManagedProjectNamespacePrefix,
+			hideProjectArchives:    true,
 		},
 	)
 }

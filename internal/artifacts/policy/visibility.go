@@ -20,6 +20,7 @@ const (
 	FindingMaterialsNamespace          = "finding-materials"
 	FindingHistoryNamespace            = "finding-history"
 	HistoricalAuditsNamespace          = "historical-audits"
+	HistoricalProjectNamespacePrefix   = "historical-"
 	// AuditContextNamespace holds frozen, authorized Run-local Audit context.
 	// Models may read its exact refs; only the trusted materializer writes it.
 	AuditContextNamespace = "audit-context"

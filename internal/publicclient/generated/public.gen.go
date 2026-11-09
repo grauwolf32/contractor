@@ -18951,6 +18951,9 @@ type ClientInterface interface {
 	// takes precedence, then the suggested namespace, then purpose-specific
 	// media type. Priority is applied before the limit. Cursors bind the
 	// Project, namespace filter and order; they do not pin a snapshot.
+	// Without a namespace filter, historical-* migration archives are hidden
+	// before pagination. Select an archive namespace explicitly to list it.
+	// Audit-managed namespaces remain hidden.
 	//
 	// Corresponds with GET /v1/projects/{projectId}/artifacts (the `ListProjectArtifacts` operationId).
 	ListProjectArtifacts(ctx context.Context, projectId ProjectId, params *ListProjectArtifactsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -21687,6 +21690,9 @@ func (c *Client) UpdateProject(ctx context.Context, projectId ProjectId, params 
 // takes precedence, then the suggested namespace, then purpose-specific
 // media type. Priority is applied before the limit. Cursors bind the
 // Project, namespace filter and order; they do not pin a snapshot.
+// Without a namespace filter, historical-* migration archives are hidden
+// before pagination. Select an archive namespace explicitly to list it.
+// Audit-managed namespaces remain hidden.
 //
 // Corresponds with GET /v1/projects/{projectId}/artifacts (the `ListProjectArtifacts` operationId).
 func (c *Client) ListProjectArtifacts(ctx context.Context, projectId ProjectId, params *ListProjectArtifactsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -35287,6 +35293,9 @@ type ClientWithResponsesInterface interface {
 	// takes precedence, then the suggested namespace, then purpose-specific
 	// media type. Priority is applied before the limit. Cursors bind the
 	// Project, namespace filter and order; they do not pin a snapshot.
+	// Without a namespace filter, historical-* migration archives are hidden
+	// before pagination. Select an archive namespace explicitly to list it.
+	// Audit-managed namespaces remain hidden.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -60784,6 +60793,9 @@ func (c *ClientWithResponses) UpdateProjectWithResponse(ctx context.Context, pro
 // takes precedence, then the suggested namespace, then purpose-specific
 // media type. Priority is applied before the limit. Cursors bind the
 // Project, namespace filter and order; they do not pin a snapshot.
+// Without a namespace filter, historical-* migration archives are hidden
+// before pagination. Select an archive namespace explicitly to list it.
+// Audit-managed namespaces remain hidden.
 //
 // Returns a wrapper object for the known response body format(s).
 //

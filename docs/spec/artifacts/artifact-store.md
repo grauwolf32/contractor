@@ -345,6 +345,12 @@ staging, artifact links and crash replay are owned by
 **ART-R115.** The generic Project list reads its pages from an index of
 exactly the listable Project bindings, those outside the reserved prefix, so
 a page never reads an Audit-managed binding however many an Audit holds.
+Without an explicit namespace filter, it also hides migration archives under
+`historical-*`, before the page limit through a
+matching partial index. Selecting an archive namespace explicitly lists it;
+ordinary owner-authorized exact reads remain available. This presentation
+filter grants no mutation or deletion authority. Existing Run technical details
+continue to list that Run's artifacts through the ordinary Run endpoint.
 
 Rationale: a key range on the primary key cannot replace the prefix filter.
 In a linguistic database collation such as `en_US` punctuation is ignored at
@@ -1676,7 +1682,9 @@ to the UI picker and grouping rules.
 ArtifactStore maintains an indexed derived rank on ordinary bindings during
 upload, advance, fork, replacement and same-transaction Git import. A priority
 page seeks this key before hydrating at most `limit+1` metadata rows, without
-reading payloads or scanning Audit-managed bindings. The namespace-filtered
+reading payloads or scanning Audit-managed bindings. Default priority pages
+also exclude historical namespaces under ART-R115 before the limit; archived
+materials remain available through an explicit namespace filter. The namespace-filtered
 path has its own index. The sealed cursor retains rank, namespace and name and
 binds order, Project and filters. Listings are current views rather than pinned
 snapshots: a later revision can change its binding's category. Removing the

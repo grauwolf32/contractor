@@ -720,6 +720,9 @@ export interface paths {
          *     takes precedence, then the suggested namespace, then purpose-specific
          *     media type. Priority is applied before the limit. Cursors bind the
          *     Project, namespace filter and order; they do not pin a snapshot.
+         *     Without a namespace filter, historical-* migration archives are hidden
+         *     before pagination. Select an archive namespace explicitly to list it.
+         *     Audit-managed namespaces remain hidden.
          */
         get: operations["listProjectArtifacts"];
         put?: never;

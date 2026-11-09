@@ -30,6 +30,7 @@ func TestPostgresPublicProjectMaterialOrderBindsCursorAndFilters(t *testing.T) {
 		{"sources", "code", "application/zip"},
 		{"z-output", "api", "application/vnd.oai.openapi+json"},
 		{"docs", "guide", "text/markdown"},
+		{"historical-results", "old-api", "application/vnd.oai.openapi+json"},
 	} {
 		if _, err := store.Write(ctx, artifacts.ArtifactRef{Namespace: entry.ns, Name: entry.name}, artifacts.Payload{MediaType: entry.media, Data: []byte(entry.name)}, nil); err != nil {
 			t.Fatal(err)
@@ -78,5 +79,9 @@ func TestPostgresPublicProjectMaterialOrderBindsCursorAndFilters(t *testing.T) {
 	filtered := get(base+"?order=material&namespace=z-output", 200)
 	if len(filtered.Items) != 1 || filtered.Items[0].Ref.Name != "api" {
 		t.Fatal("namespace filter changed")
+	}
+	archived := get(base+"?order=material&namespace=historical-results", 200)
+	if len(archived.Items) != 1 || archived.Items[0].Ref.Name != "old-api" {
+		t.Fatalf("explicit archive material order: %+v", archived)
 	}
 }

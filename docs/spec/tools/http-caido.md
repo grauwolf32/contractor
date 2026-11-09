@@ -1349,6 +1349,28 @@ files. A failed join or deletion retains the exact cleanup handles and exclusive
 process ownership for a later close retry; another allocation cannot acquire the
 engine's process state before cleanup succeeds.
 
+Socket termination and resource cleanup are separate outcomes. A peer reset or
+broken pipe returned by the joined close wait is confirmed cleanup only when
+the owned socket descriptor is closed. A closing flag alone is insufficient.
+The lifecycle owner then retires that exact writer and continues erasure;
+repeated or concurrent close joins the same in-flight close. Native connection
+tasks remain owned through retirement even after removal from the transport
+registry, and their outcomes are retrieved. Successful/cancelled tasks are
+released immediately; a failed task remains until its error is delivered to
+its joining owner. Already delivered errors do not poison a later cleanup retry.
+Other close/callback errors, unconfirmed joins, timeout and file-removal failure
+retain the existing fencing and fatal-stop policy. A completed HTTP response
+survives a later reset; an incomplete response remains a classified failure,
+and neither outcome grants permission to replay a possibly sent request.
+
+Rationale: a completed asyncio close waiter may retain the peer's reset even
+after the socket closes. Broad error suppression or checking only is_closing
+could discard live resources; requiring an error-free wait forever could retain
+a dead socket forever. Keep this classification at the common native lifecycle
+owner for outgoing connections and scanner ingress. Revisit the completion
+proof when changing the pinned transport/runtime implementation; real-socket
+cleanup and same-process allocation reuse remain the acceptance boundary.
+
 **HTP-R139.** Each redirect and retry passes fresh local scope/DNS admission
 and consumes the allocation's configured request/rate/concurrency allowance.
 Validate raw Location before resolution can erase forbidden syntax. Preserve the

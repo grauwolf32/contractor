@@ -96,7 +96,26 @@ func TestPostgresProjectMaterialOrderPagesBeforeHydration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	query := BindingPageQuery{MaterialOrder: true, ExcludeNamespacePrefix: "audit-", Limit: 3}
+	// High-priority archived API specs must not crowd current material pages.
+	archive := write("historical-results", "typed-archive", "application/vnd.oai.openapi+json")
+	for _, statement := range []string{`
+INSERT INTO artifact_binding_revisions(scope_kind,scope_id,namespace,name,revision,version_id)
+SELECT 'project',$1,'historical-results','arch-'||i,'archive-'||i,
+ (SELECT version_id FROM artifact_binding_revisions WHERE scope_kind='project' AND scope_id=$1 AND namespace='historical-results' AND name='typed-archive' AND revision=$2)
+FROM generate_series(1,2000) i`, `
+INSERT INTO artifact_bindings(scope_kind,scope_id,namespace,name,current_revision,frozen,retained_revisions,retained_bytes,material_rank)
+SELECT scope_kind,scope_id,namespace,name,revision,true,1,$3,1
+FROM artifact_binding_revisions WHERE scope_kind='project' AND scope_id=$1
+ AND namespace='historical-results' AND revision<>$2`} {
+		args := []any{id, *archive.Ref.Revision}
+		if strings.Contains(statement, "$3") {
+			args = append(args, archive.Size)
+		}
+		if _, err := pool.Exec(ctx, statement, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	query := BindingPageQuery{MaterialOrder: true, ExcludeNamespacePrefix: "audit-", HiddenNamespacePrefix: "historical-", Limit: 3}
 	var listed []string
 	for {
 		page, err := project.ListMetadata(ctx, query)
@@ -131,13 +150,21 @@ func TestPostgresProjectMaterialOrderPagesBeforeHydration(t *testing.T) {
 	if generic[0].Ref.Namespace != "a-generated" {
 		t.Fatal("default order changed")
 	}
+	namespace := "historical-results"
+	archived, err := project.ListMetadata(ctx, BindingPageQuery{MaterialOrder: true, Namespace: &namespace, ExcludeNamespacePrefix: "audit-", Limit: 3})
+	if err != nil || len(archived) != 3 || archived[0].MaterialRank != 1 {
+		t.Fatalf("explicit ordered archive page: %+v %v", archived, err)
+	}
+	if _, err := project.Read(ctx, archived[0].Ref); err != nil {
+		t.Fatal(err)
+	}
 
 	// Changing the current format must replace the indexed rank atomically.
 	original := write("z-output", "mutable", "application/json")
 	if _, err := project.Write(ctx, ArtifactRef{Namespace: "z-output", Name: "mutable"}, Payload{MediaType: "application/vnd.oai.openapi+yaml", Data: []byte("api")}, original.Ref.Revision); err != nil {
 		t.Fatal(err)
 	}
-	first, err := project.ListMetadata(ctx, BindingPageQuery{MaterialOrder: true, ExcludeNamespacePrefix: "audit-", Limit: 5})
+	first, err := project.ListMetadata(ctx, BindingPageQuery{MaterialOrder: true, ExcludeNamespacePrefix: "audit-", HiddenNamespacePrefix: "historical-", Limit: 5})
 	if err != nil {
 		t.Fatal(err)
 	}

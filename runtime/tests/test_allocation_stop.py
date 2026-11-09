@@ -32,7 +32,9 @@ from contractor_runtime.workspace import LocalWorkdirFactory
 STATE_PATH = "/private/v1/allocations/allocation-1/agent-state"
 
 
-async def make_adk_service(root: Path, *, controlled_http: bool = False):
+async def make_adk_service(root: Path, *, controlled_http: bool = False, target=None):
+    from fakes.engagement_socket import resolver_for, socket_spec
+
     client = FakeArtifactClient()
     registry = FactoryRegistry(
         worker_runtimes={
@@ -40,7 +42,11 @@ async def make_adk_service(root: Path, *, controlled_http: bool = False):
         },
         toolsets={"run-artifacts@1": RunArtifactsToolsetFactory(lambda *_: client)},
         sandbox_profiles={"local-workdir@1": LocalWorkdirFactory(root)},
-        http_transport_factory=HTTPTransportFactory() if controlled_http else None,
+        http_transport_factory=(
+            HTTPTransportFactory(resolver=resolver_for(target).resolver if target else None)
+            if controlled_http
+            else None
+        ),
     )
     capabilities = CapabilitySnapshot.create(
         runtimes=registry.worker_runtimes,
@@ -58,7 +64,13 @@ async def make_adk_service(root: Path, *, controlled_http: bool = False):
         a2a_base_url="https://runtime.example",
         force_exit=exits.append,
     )
-    await service.prepare(preflight_spec() if controlled_http else allocation_spec())
+    await service.prepare(
+        socket_spec(target)
+        if target
+        else preflight_spec()
+        if controlled_http
+        else allocation_spec()
+    )
     assert isinstance(service._context.worker, AdkWorkerRuntime)
     return state, service, exits
 
@@ -371,5 +383,153 @@ def test_release_queued_before_the_final_state_check_cannot_deadlock_or_retain_s
                     *(task for task in (reader, stopping, releasing, io_task) if task is not None),
                     return_exceptions=True,
                 )
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("stop", ["finalize", "abort", "lease"])
+def test_peer_reset_preserves_worker_report_and_next_allocation(tmp_path, stop):
+    from fakes.bridge_reset import EarlyDenial
+    from fakes.engagement_socket import SocketTarget, socket_spec
+
+    from contractor_runtime.adapters.bridge.mitmproxy import engine as engine_module
+    from contractor_runtime.contracts import (
+        AbortAllocationRequest,
+        FinalizeAllocationRequest,
+        TerminationError,
+    )
+
+    async def scenario():
+        async with EarlyDenial() as target:
+            state, service, exits = await make_adk_service(
+                tmp_path, controlled_http=True, target=target
+            )
+            context = service._context
+            transport = context.http_transport
+            transport.configure(authority_deadline=lambda: asyncio.get_running_loop().time() + 60)
+            outcome, response = await transport.request(
+                target.origin + "/allowed", method="POST", body=b'{"amount":1}'
+            )
+            assert outcome.kind == "completed" and response.status == 404
+            await target.task
+            sessions = tuple(transport._sessions)
+            assert any(session.cookie_summary()["cookie_count"] == 1 for session in sessions)
+            context.worker_state.metrics.record_worker_budget_exhausted("tool_calls")
+            completion = await context.worker.failure_completion(
+                "worker_budget_exhausted", "Worker tool-call budget exhausted", retryable=True
+            )
+            assert completion.failure.code == "worker_budget_exhausted"
+            metrics = context.worker_state.metrics
+            expected_metrics = dict(metrics.counters)
+            engine = transport._engine
+            directory = Path(engine.directory.name)
+            deadline = datetime.now(UTC) + timedelta(seconds=30)
+            if stop == "finalize":
+                request = FinalizeAllocationRequest(
+                    apiVersion=API_VERSION,
+                    allocationId="allocation-1",
+                    finalizationId="finalize-1",
+                    deadline=deadline,
+                )
+                result = await service.finalize(request)
+                assert await service.finalize(request) == result
+            else:
+                if stop == "lease":
+                    await service.expire_control_lease(30)
+                    assert (await state.snapshot()).process_state is ProcessState.FENCED
+                request = AbortAllocationRequest(
+                    apiVersion=API_VERSION,
+                    allocationId="allocation-1",
+                    abortId="abort-1",
+                    deadline=deadline,
+                    reason=TerminationError(
+                        code="run_cancelled",
+                        message="Cancelled",
+                        retryable=False,
+                    ),
+                )
+                result = await service.abort(request)
+                assert await service.abort(request) == result
+            assert result.report.worker.complete and result.report.runtime.complete
+            assert metrics.counters == expected_metrics
+            assert metrics.final_outcome == "failed"
+            assert completion.failure.code == "worker_budget_exhausted"
+            assert result.report.allocation_id == "allocation-1"
+            assert any(
+                error.code == "worker_budget_exhausted" for error in result.report.worker.errors
+            )
+            assert engine.closed and engine_module._active is None and not directory.exists()
+            assert transport._settings is None and transport._sessions == []
+            assert all(not session.cookies for session in sessions)
+            assert exits == []
+            await release(service)
+            assert (await state.snapshot()).process_state is ProcessState.IDLE
+            assert await service.snapshot() is None
+        async with SocketTarget() as target:
+            await service.prepare(socket_spec(target))
+            transport = service._context.http_transport
+            transport.configure(authority_deadline=lambda: asyncio.get_running_loop().time() + 60)
+            outcome, response = await transport.request(target.origin + "/allowed")
+            assert outcome.kind == "completed" and response.body == b"ok"
+            assert service._context.worker_state.metrics.counters.get("outcomes.failed", 0) == 0
+            assert b"cookie:" not in target.written.lower()
+            await service.expire_control_lease(30)
+            await release(service)
+            assert exits == [] and engine_module._active is None
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("failure", ["writer", "files", "callback"])
+def test_real_http_cleanup_defects_still_fence_and_request_exit(tmp_path, monkeypatch, failure):
+    from fakes.engagement_socket import SocketTarget
+
+    from contractor_runtime.adapters.bridge.mitmproxy import engine as engine_module
+
+    async def scenario():
+        async with SocketTarget() as target:
+            state, service, exits = await make_adk_service(
+                tmp_path, controlled_http=True, target=target
+            )
+            transport = service._context.http_transport
+            transport.configure(authority_deadline=lambda: asyncio.get_running_loop().time() + 60)
+            await transport.request(target.origin + "/allowed")
+            engine = transport._engine
+            pool = next(iter(engine.pools.values()))
+            directory = Path(engine.directory.name)
+            with monkeypatch.context() as patch:
+                if failure == "writer":
+                    writer = next(io.writer.inner for io in pool.transports.values() if io.writer)
+
+                    async def reject():
+                        raise RuntimeError("injected writer defect")
+
+                    patch.setattr(writer, "wait_closed", reject)
+                elif failure == "files":
+
+                    def reject():
+                        raise OSError("injected file-removal defect")
+
+                    patch.setattr(engine.directory, "cleanup", reject)
+                else:
+                    original = pool._release_connection
+
+                    async def reject(connection):
+                        await original(connection)
+                        raise OSError("injected retirement callback defect")
+
+                    patch.setattr(pool, "_release_connection", reject)
+                with pytest.raises((RuntimeError, OSError), match="injected"):
+                    await service.expire_control_lease(30)
+                assert exits == [70]
+                assert (await state.snapshot()).process_state is ProcessState.FENCED
+                assert engine_module._active is engine and directory.exists() and not engine.closed
+                if failure == "writer":
+                    assert pool.writers
+            # force_exit is captured by the test. Join all remaining test-owned
+            # resources using the ordinary cleanup retry after removing the fault.
+            await service.expire_control_lease(30)
+            await release(service)
+            assert engine_module._active is None and not directory.exists()
 
     asyncio.run(scenario())

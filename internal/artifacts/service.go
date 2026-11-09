@@ -220,12 +220,16 @@ func validateBindingPageQuery(query BindingPageQuery) error {
 		(query.MaterialOrder && (query.NamePrefix != "" || query.ExcludeNamespace != nil || query.HiddenNamespace != "" || query.ExcludeNamespacePrefix != artifactpolicy.AuditManagedProjectNamespacePrefix)) {
 		return ErrInvalidName
 	}
+	if query.MaterialOrder && ((query.Namespace == nil && query.HiddenNamespacePrefix != artifactpolicy.HistoricalProjectNamespacePrefix) ||
+		(query.Namespace != nil && query.HiddenNamespacePrefix != "")) {
+		return ErrInvalidName
+	}
 	if !pagelimit.ValidFetch(query.Limit) {
 		return ErrInvalidName
 	}
 	if query.NamePrefix != "" {
 		if ValidateComponent(query.NamePrefix) != nil || query.Namespace == nil ||
-			query.ExcludeNamespace != nil || query.ExcludeNamespacePrefix != "" || query.HiddenNamespace != "" ||
+			query.ExcludeNamespace != nil || query.ExcludeNamespacePrefix != "" || query.HiddenNamespace != "" || query.HiddenNamespacePrefix != "" ||
 			(query.AfterName != "" && !strings.HasPrefix(query.AfterName, query.NamePrefix)) ||
 			(query.AfterNamespace != "" && query.AfterNamespace != *query.Namespace) {
 			return ErrInvalidName
@@ -248,6 +252,11 @@ func validateBindingPageQuery(query BindingPageQuery) error {
 	}
 	if query.ExcludeNamespacePrefix != "" {
 		if err := ValidateComponent(query.ExcludeNamespacePrefix + "x"); err != nil {
+			return err
+		}
+	}
+	if query.HiddenNamespacePrefix != "" {
+		if err := ValidateComponent(query.HiddenNamespacePrefix + "x"); err != nil {
 			return err
 		}
 	}

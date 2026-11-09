@@ -1,0 +1,113 @@
+{
+  "task_id": "V463-004",
+  "date": "2026-11-09",
+  "status": "verified",
+  "base_commit": "16d3d638589ffbf13ec7f38108c60b70335c8770",
+  "investigated_commit": "a5fb26d39598afe6895cbd7a04acf7eb4baf6ec7",
+  "baseline_source_equivalence": "engine.py and lifecycle.py are unchanged between the investigated commit and the implementation base.",
+  "baseline_regressions": [
+    {
+      "test": "test_early_404_with_unread_post_body_closes_and_reuses_process",
+      "exit_code": 1,
+      "observed": "ConnectionResetError prevents owner.close after a complete 404"
+    },
+    {
+      "test": "test_target_tcp_reset_preserves_response_outcome_and_never_replays[complete-http]",
+      "exit_code": 1,
+      "observed": "Native handler returns ConnectionResetError after a complete response"
+    },
+    {
+      "test": "test_peer_reset_preserves_worker_report_and_next_allocation[finalize]",
+      "exit_code": 1,
+      "observed": "HTTP cleanup fails with ConnectionResetError and AllocationService requests exit 70"
+    }
+  ],
+  "checks": [
+    {
+      "command": "cd runtime && uv run pytest tests/test_bridge_reset.py tests/test_bridge_lifecycle.py tests/test_bridge_retirement.py tests/test_bridge_establishment.py tests/test_bridge_ingress.py tests/test_http_proxy_bridge.py tests/test_allocation_stop.py",
+      "exit_code": 0,
+      "passed": 114
+    },
+    {
+      "command": "make test-runtime",
+      "exit_code": 0,
+      "passed": 6181,
+      "skipped": 135,
+      "report_guard": "scripts/release_test_reports.py verify-runtime passed"
+    },
+    {
+      "command": "make lint",
+      "exit_code": 0
+    }
+  ],
+  "acceptance": {
+    "A1": "Natural early HTTP 404 leaves the real POST body unread in the kernel; joined close succeeds, repeated/concurrent close succeeds, no unhandled native task exception remains, and the process is reused.",
+    "A2": "Six outgoing real TCP reset cases cover complete/partial responses across plain HTTP, verified TLS/HTTP1.1 and verified TLS/HTTP2. Six ingress cases reset the scanner before/after its response across plain/TLS/HTTP2; request counts prohibit replay. Existing HTTP2 isolation and establishment gates pass.",
+    "A3": "Repeated cancellation and concurrent close join one held real reset-socket close. Fifty sequential HTTP1.1 and HTTP2 retirements leave no owned native task or writer-close history. Finalize, abort and lease-loss cases erase learned cookie/private settings and temporary native material before a second allocation. Scanner reset before its handler starts also retires the exact outer writer without repeating the raw close waiter.",
+    "A4": "Real AllocationService, ADK Worker, HTTPTransport and native engine preserve a deterministic worker_budget_exhausted completion and report after the reset; finalize/abort replay returns the same report and a second allocation succeeds without process restart.",
+    "A5": "Live-descriptor reset/broken-pipe exceptions and other closed-descriptor errors remain failures. Writer, file-removal and retirement callback defects retain native ownership and request exit 70. Existing failed cleanup retry, TLS thread join and original stop-deadline tests remain in the passing focused gate.",
+    "A6": "Three concrete real-socket/allocation regressions were run with the original production files restored in the isolated worktree, failed for the investigated defect, and pass with the corrected production files. No external LLM or live deployment was used."
+  },
+  "boundary": "The existing shared native lifecycle owns close confirmation and connection task outcomes. Request parsing/retry rules and AllocationService fatal policy retain their current owners.",
+  "scope": "No migrations, API changes, catalog/model changes, live target or demo deployment. User request 2026-11-10 authorizes local no-fast-forward integration into main; primary checkout work is preserved.",
+  "sibling_regression_before_fix": {
+    "test": "test_scanner_reset_before_handler_start_retires_the_exact_writer",
+    "exit_code": 1,
+    "source_state": "Core lifecycle fix present, original HTTPProxyBridge._close still present",
+    "observed": "Native handler.join confirms closed reset socket, then outer bridge repeats writer.wait_closed and raises ConnectionResetError",
+    "correction": "Keep the exact handler-to-writer association and retire the outer writer when its native handler join succeeds."
+  },
+  "runtime_skips": [
+    {
+      "reason": "launched by make test-audit-completion-e2e with a real Go Artifact API",
+      "count": 1
+    },
+    {
+      "reason": "OPS-R1: Linux byte-exact filename/long-path fixture; excluded from macOS acceptance",
+      "count": 2
+    },
+    {
+      "reason": "run make test-interactsh-protocol for the pinned upstream server",
+      "count": 1
+    },
+    {
+      "reason": "live LLM Gateway environment is not configured",
+      "count": 3
+    },
+    {
+      "reason": "OPS-R1: the allocation-scoped Podman backend needs Linux host capabilities (AF_UNIX SOCK_SEQPACKET socket pairs, pidfd_open)",
+      "count": 94
+    },
+    {
+      "reason": "explicit real-rootless startup capability gate",
+      "count": 2
+    },
+    {
+      "reason": "explicit real-rootless deployment/workflow gate",
+      "count": 1
+    },
+    {
+      "reason": "explicit real-rootless command execution gate",
+      "count": 12
+    },
+    {
+      "reason": "explicit real-rootless owner-process gate",
+      "count": 3
+    },
+    {
+      "reason": "explicit real Podman release gate",
+      "count": 5
+    },
+    {
+      "reason": "explicit real gate: make test-podman-supervisor",
+      "count": 11
+    }
+  ],
+  "runtime_skips_are_passing_coverage": false,
+  "implementation_commit": "76286a135bd5c6e24adeef42c0a32dd96a7e3892",
+  "integration_verification": {
+    "main_base": "16d3d638589ffbf13ec7f38108c60b70335c8770",
+    "verified_feature_head": "dc4ca4b82",
+    "method": "Reuse full Runtime/lint results only for the unchanged verified source tree; verify the merge tree equals the integration branch and all pre-existing dirty file bytes/modes and staged changes are preserved."
+  }
+}

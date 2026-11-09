@@ -17,7 +17,7 @@ func TestPostgresMaterialOrderMigrationPreservesExistingBindings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := applyMigrations(ctx, pool, MigrationBudgets{}, available[:4]); err != nil {
+	if _, err := applyMigrations(ctx, pool, MigrationBudgets{}, available[:5]); err != nil {
 		t.Fatal(err)
 	}
 	for _, sql := range []string{

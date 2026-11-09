@@ -33,7 +33,8 @@ WHERE revision.scope_kind = binding.scope_kind AND revision.scope_id = binding.s
 
 CREATE INDEX artifact_bindings_project_material_order_idx
 ON artifact_bindings (scope_id, material_rank, namespace, name)
-WHERE scope_kind = 'project' AND namespace NOT LIKE 'audit-%';
+WHERE scope_kind = 'project' AND namespace NOT LIKE 'audit-%'
+  AND namespace NOT LIKE 'historical-%';
 
 CREATE INDEX artifact_bindings_project_material_namespace_order_idx
 ON artifact_bindings (scope_id, namespace, material_rank, name)

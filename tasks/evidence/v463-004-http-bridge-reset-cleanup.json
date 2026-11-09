@@ -1,0 +1,140 @@
+{
+  "date": "2026-11-09",
+  "status": "cause_confirmed",
+  "production_source_changed": false,
+  "source_commit": "a5fb26d39598afe6895cbd7a04acf7eb4baf6ec7",
+  "introduced_by": {
+    "task": "V410-030",
+    "commit": "fb127850b6e73fe38deed027be45e33cd84ab62e",
+    "date": "2026-11-04"
+  },
+  "live": {
+    "audit_id": "audit_de86925ee0fb79685515a5adcd1be2d3",
+    "run_id": "run_fe3a40640c992ad626d2e36f9d74245e",
+    "runtime": "runtime-local-3",
+    "target": "http://10.77.0.11:18081",
+    "events_utc": [
+      {
+        "time": "2026-11-09T19:36:13.179623+00:00",
+        "event": "Unretrieved ConnectionResetError during POST /invoices/101/refund; HTTP 404 completed"
+      },
+      {
+        "time": "2026-11-09T19:36:16.369217+00:00",
+        "event": "Unretrieved ConnectionResetError during POST /invoices/101/note; HTTP 404 completed"
+      },
+      {
+        "time": "2026-11-09T19:36:25.342578+00:00",
+        "event": "Worker tool-call budget exhausted"
+      },
+      {
+        "time": "2026-11-09T19:36:26.826271+00:00",
+        "event": "Allocation cleanup phase=http fails with ConnectionResetError"
+      },
+      {
+        "time": "2026-11-09T19:36:26.890065+00:00",
+        "event": "Runtime requests process exit 70"
+      }
+    ],
+    "impact": "Local Runtime process disappears, allocation execution report unavailable and public metrics partial. Emergency telemetry flush did preserve all 404 spans.",
+    "recovery": "Existing manage.py runtime 3 restored the same configured Runtime; all four local and two cloud agents were idle afterwards."
+  },
+  "root_cause": [
+    "An early HTTP response closes the target connection while the POST body remains unread. This can produce an ordinary TCP reset after the response is complete.",
+    "CPython StreamReaderProtocol.connection_lost stores ConnectionResetError in its completed close waiter and closes the socket. Every later StreamWriter.wait_closed awaits that same completed Future and raises the same exception object.",
+    "OwnedHandler.close_writer calls task.result before discarding the writer. That exception therefore retains a physically closed writer in self.writers.",
+    "The native connection task can already have been removed from transports before wrapper cleanup raises, producing Task exception was never retrieved.",
+    "OwnedHandler.join retries close_writer for retained writers outside its gather-result OSError filter. The cached reset poisons every subsequent cleanup attempt.",
+    "MitmproxyEngine never reaches final process-state restoration; allocation lifecycle treats cleanup as unconfirmed and deliberately fences and exits with code 70."
+  ],
+  "code_locations": {
+    "writer_close": "runtime/src/contractor_runtime/adapters/bridge/mitmproxy/lifecycle.py:44",
+    "writer_join": "runtime/src/contractor_runtime/adapters/bridge/mitmproxy/lifecycle.py:56",
+    "native_connection": "runtime/src/contractor_runtime/adapters/bridge/mitmproxy/engine.py:318",
+    "allocation_fatal_policy": "runtime/src/contractor_runtime/allocation/service.py:163",
+    "shared_ingress_owner": "runtime/src/contractor_runtime/adapters/bridge/mitmproxy/ingress.py:117",
+    "target_early_denial": "/Users/ruslan/src/contractor-playground/invoice_lab.py:191",
+    "target_close": "/Users/ruslan/src/contractor-playground/invoice_lab.py:47"
+  },
+  "reproduction": {
+    "forced_tcp_reset": {
+      "script": "tasks/evidence/v463-004-reset-reproduce.py",
+      "result": {
+        "request": {
+          "outcome": "completed",
+          "status": 404
+        },
+        "native_handler_exception": "ConnectionResetError",
+        "native_handler_traceback": "Traceback (most recent call last):\n  File \"runtime/src/contractor_runtime/adapters/bridge/mitmproxy/engine.py\", line 323, in open_connection\n    await super().open_connection(command)\n  File \"runtime/.venv/lib/python3.13/site-packages/mitmproxy/proxy/server.py\", line 259, in open_connection\n    await self.handle_connection(command.connection)\n  File \"runtime/src/contractor_runtime/adapters/bridge/mitmproxy/lifecycle.py\", line 42, in handle_connection\n    await self.close_writer(writer)\n  File \"runtime/src/contractor_runtime/adapters/bridge/mitmproxy/lifecycle.py\", line 51, in close_writer\n    task.result()\n    ~~~~~~~~~~~^^\n  File \"runtime/src/contractor_runtime/adapters/bridge/mitmproxy/lifecycle.py\", line 47, in close\n    await writer.wait_closed()\n  File \"/Users/ruslan/.local/share/uv/python/cpython-3.13.16-macos-aarch64-none/lib/python3.13/asyncio/streams.py\", line 358, in wait_closed\n    await self._protocol._get_close_waiter(self)\n  File \"/Users/ruslan/.local/share/uv/python/cpython-3.13.16-macos-aarch64-none/lib/python3.13/asyncio/selector_events.py\", line 1011, in _read_ready__data_received\n    data = self._sock.recv(self.max_size)\nConnectionResetError: [Errno 54] Connection reset by peer\n",
+        "socket_after_handler": {
+          "is_closing": true,
+          "fileno": -1,
+          "reader_at_eof": false
+        },
+        "repeated_wait_closed": [
+          "ConnectionResetError",
+          "ConnectionResetError"
+        ],
+        "same_exception_object": true,
+        "retained_after_reset": {
+          "writers": 1,
+          "transports": 0,
+          "parsers": 0
+        },
+        "close_attempts": [
+          "ConnectionResetError",
+          "ConnectionResetError"
+        ],
+        "cleanup_traceback": "Traceback (most recent call last):\n  File \"research/bridge-close-reset/reproduce.py\", line 51, in scenario\n    try:await owner.close();result['close_attempts'].append('succeeded')\n        ^^^^^^^^^^^^^^^^^^^\n  File \"runtime/src/contractor_runtime/adapters/http_transport.py\", line 133, in close\n    await self._close_transport()\n  File \"runtime/src/contractor_runtime/adapters/http_transport.py\", line 211, in _close_transport\n    await self._engine.close()\n  File \"runtime/src/contractor_runtime/adapters/bridge/mitmproxy/engine.py\", line 639, in close\n    self.close_task.result()\n    ~~~~~~~~~~~~~~~~~~~~~~^^\n  File \"runtime/src/contractor_runtime/adapters/bridge/mitmproxy/engine.py\", line 647, in _close\n    await pool.close()\n  File \"runtime/src/contractor_runtime/adapters/bridge/mitmproxy/engine.py\", line 388, in close\n    await self.join()\n  File \"runtime/src/contractor_runtime/adapters/bridge/mitmproxy/lifecycle.py\", line 66, in join\n    await self.close_writer(writer)\n  File \"runtime/src/contractor_runtime/adapters/bridge/mitmproxy/lifecycle.py\", line 51, in close_writer\n    task.result()\n    ~~~~~~~~~~~^^\n  File \"runtime/src/contractor_runtime/adapters/bridge/mitmproxy/lifecycle.py\", line 47, in close\n    await writer.wait_closed()\n  File \"/Users/ruslan/.local/share/uv/python/cpython-3.13.16-macos-aarch64-none/lib/python3.13/asyncio/streams.py\", line 358, in wait_closed\n    await self._protocol._get_close_waiter(self)\nConnectionResetError: [Errno 54] Connection reset by peer\n",
+        "engine_closed_after_retries": false,
+        "exclusive_process_owner_retained": true,
+        "after_closed_reset_classification": {
+          "engine_closed": true,
+          "exclusive_owner_released": true,
+          "writers": 0
+        }
+      },
+      "command": "PYTHONPATH=runtime/tests:runtime/src runtime/.venv/bin/python tasks/evidence/v463-004-reset-reproduce.py"
+    },
+    "natural_early_http_denial": {
+      "script": "tasks/evidence/v463-004-unread-body-reproduce.py",
+      "result": {
+        "unread_body_present": true,
+        "target_closed": true,
+        "request": {
+          "outcome": "completed",
+          "status": 404
+        },
+        "cleanup": "ConnectionResetError",
+        "retained_closed_writers": [
+          {
+            "is_closing": true,
+            "fileno": -1
+          }
+        ],
+        "classification_cleared_owner": true,
+        "unhandled_native_tasks": [
+          {
+            "message": "Task exception was never retrieved",
+            "exception": "ConnectionResetError"
+          }
+        ]
+      },
+      "no_forced_rst": true,
+      "no_mocked_network_io": true,
+      "command": "PYTHONPATH=runtime/tests:runtime/src runtime/.venv/bin/python tasks/evidence/v463-004-unread-body-reproduce.py"
+    },
+    "control_tests": {
+      "command": ".venv/bin/pytest -q tests/test_bridge_lifecycle.py tests/test_bridge_retirement.py",
+      "exit_code": 0,
+      "cases": 21,
+      "notes": "Existing graceful closure and genuine writer/file failure tests pass; missing real TCP-reset close coverage explains the gap."
+    }
+  },
+  "proposed_correction": [
+    "Distinguish a completed socket close carrying a network termination error from a genuinely unconfirmed cleanup failure; retire the writer after the former.",
+    "Keep native task outcomes owned/observed and ensure expected peer resets do not escape as unhandled task errors.",
+    "Preserve fail-closed behavior for genuinely unjoined I/O, timeout, callback bugs or file-removal failures; do not globally swallow Exception or disable exit 70.",
+    "Cover programmatic HTTP and scanner ingress using the shared OwnedHandler, plain/TLS paths, completed-response and mid-response resets, cancellation, no replay, full erasure and next-allocation reuse."
+  ],
+  "task_id": "V463-004"
+}

@@ -139,6 +139,9 @@ type BindingPageQuery struct {
 	// hides besides the caller's ExcludeNamespace, such as the reserved
 	// audit-standards catalog (ART-R25).
 	HiddenNamespace string
+	// HiddenNamespacePrefix is a trusted default-view filter. An explicit
+	// namespace selection can expose archived materials without changing reads.
+	HiddenNamespacePrefix string
 	// ExcludeNamespacePrefix is used by trusted presentation layers to hide
 	// purpose-managed Project bindings that have their own acceptance API.
 	ExcludeNamespacePrefix string

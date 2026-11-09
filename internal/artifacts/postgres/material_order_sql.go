@@ -18,5 +18,5 @@ FROM selected AS binding` + currentMetadataJoinsSQL + `
 ORDER BY binding.material_rank,binding.namespace,binding.name`
 }
 
-var listProjectMaterialMetadataSQL = projectMaterialPageSQL("AND $2::text IS NULL")
+var listProjectMaterialMetadataSQL = projectMaterialPageSQL("AND $2::text IS NULL AND namespace NOT LIKE 'historical-%'")
 var listProjectNamespaceMaterialMetadataSQL = projectMaterialPageSQL("AND namespace=$2::text")
