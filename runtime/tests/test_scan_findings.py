@@ -17,7 +17,7 @@ from contractor_runtime.toolsets.scan.findings import (
     sqlmap_points,
 )
 from contractor_runtime.toolsets.scan.nuclei_package import finding_manifest_input
-from contractor_runtime.toolsets.scan.tools import NucleiTool
+from contractor_runtime.toolsets.scan.tools import NucleiTool, ScanTool
 
 
 def match(severity="medium", *, rule="git-config", url="https://target.test/.git/config"):
@@ -283,12 +283,103 @@ def test_shared_output_publication_failure_keeps_original_scanner_report(tmp_pat
         runtime = await worker(tmp_path, store, tool, spec=spec)
         result = await runtime.invoke(request(spec))
         assert result.failure.code == "tool_report_failed"
-        assert json.loads(store.values[(spec.namespace, "report")][0])["observation"] == tool.result
+        saved = json.loads(store.values[(spec.namespace, "report")][0])["observation"]
+        assert saved == {**tool.result, "outputPublicationError": "tool_report_failed"}
         assert await runtime.invoke(request(spec)) == result and len(tool.calls) == 1
         recreated = await worker(tmp_path, store, tool, spec=spec)
         assert (await recreated.invoke(request(spec))).failure.code == "tool_report_failed"
         assert len(tool.calls) == 1
         await recreated.finalize(spec.lease_expires_at)
+        await runtime.finalize(spec.lease_expires_at)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "outcome",
+    [
+        "completed",
+        "failed",
+        "publication_failed",
+        "publication_ambiguous",
+        "unavailable_output",
+        "no_outputs",
+    ],
+)
+def test_shared_tool_worker_retains_compact_normalized_reports_and_exact_replay(tmp_path, outcome):
+    from test_tool_worker import ArtifactStore, FixtureTool, request, tool_spec, worker
+
+    from contractor_runtime.artifacts import ArtifactClient, ArtifactTransportError
+    from contractor_runtime.toolsets.common.report_observations import project_report
+
+    class Store(ArtifactStore):
+        async def request(self, method, path, **kwargs):
+            if outcome == "publication_failed" and method == "PUT" and path.endswith("/candidates"):
+                return self.response(403, {"code": "write_forbidden", "retryable": False})
+            if outcome == "unavailable_output" and method == "GET" and "/evidence" in path:
+                return self.response(404, {"code": "not_found", "retryable": False})
+            response = await super().request(method, path, **kwargs)
+            if (
+                outcome == "publication_ambiguous"
+                and method == "PUT"
+                and path.endswith("/candidates")
+            ):
+                raise ArtifactTransportError("lost publication acknowledgement")
+            return response
+
+    class Tool(FixtureTool):
+        publish_outputs = ScanTool.publish_outputs
+        report_observation = staticmethod(ScanTool.report_observation)
+
+    async def scenario():
+        store, spec, tool = Store(), tool_spec(), Tool()
+        tool._session = SimpleNamespace(artifact_client=ArtifactClient(spec.allocation_id, store))
+        status = "failed" if outcome == "failed" else "completed"
+        observed = observation(match(), status=status)
+        tool.result = {**observed, "findingCandidates": nuclei_candidates(observed)}
+        stage_request = request(spec)
+        if outcome != "no_outputs":
+            for slot in ("candidates", "evidence"):
+                stage_request.result_artifacts[slot] = ArtifactRef(
+                    namespace=spec.namespace, name=slot
+                )
+        runtime = await worker(tmp_path, store, tool, spec=spec)
+        result = await runtime.invoke(stage_request)
+        saved_bytes = store.values[(spec.namespace, "report")][0]
+        saved = json.loads(saved_bytes)["observation"]
+        assert saved["status"] == status
+        assert saved["findingSummary"]["candidateCount"] == 1
+        assert saved["findingSummary"]["evidenceCount"] == 1
+        assert (
+            project_report(saved_bytes, "nuclei-report@1", "2026-11-09T12:00:00Z")["observations"][
+                0
+            ]["status"]
+            == 200
+        )
+        if outcome not in {"completed", "failed"}:
+            assert "findingCandidates" in saved and "results" in saved
+        else:
+            assert "findingCandidates" not in saved and "results" not in saved
+            assert len(saved_bytes) < len(json.dumps(tool.result).encode())
+        if outcome in {"publication_failed", "publication_ambiguous", "unavailable_output"}:
+            assert result.failure.code == "tool_report_failed"
+            assert "artifacts" not in saved
+            assert saved["outputPublicationError"] == "tool_report_failed"
+        elif outcome == "failed":
+            assert result.failure.code == "tool_execution_failed"
+        else:
+            assert result.failure is None
+        if outcome in {"completed", "failed"}:
+            for slot in ("candidates", "evidence"):
+                assert (
+                    saved["artifacts"][slot]["revision"] == store.values[(spec.namespace, slot)][2]
+                )
+        assert await runtime.invoke(stage_request) == result
+        replacement = await worker(tmp_path, store, tool, spec=spec)
+        replay = await replacement.invoke(stage_request)
+        assert replay.failure == result.failure
+        assert len(tool.calls) == 1
+        await replacement.finalize(spec.lease_expires_at)
         await runtime.finalize(spec.lease_expires_at)
 
     asyncio.run(scenario())

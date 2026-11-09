@@ -390,11 +390,8 @@ def _validate_katana(report: _Katana, at: str) -> None:
 
 def _project_nuclei_surface(observation: dict, at: str) -> dict:
     """Consume already-normalized adapter facts; never parse native Nuclei fields."""
-    normalized = observation.get("findingCandidates")
-    if (
-        not isinstance(normalized, dict)
-        or normalized.get("schema") != "contractor.finding.candidates.v1"
-    ):
+    normalized = observation.get("findingSummary")
+    if not isinstance(normalized, dict):
         raise ValueError("normalized Nuclei surface is unavailable")
     surface = normalized.get("surface")
     if not isinstance(surface, list) or len(surface) > MAX_RESULTS:

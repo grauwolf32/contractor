@@ -432,6 +432,28 @@ class ScanTool:
     async def close(self) -> None:
         await self._session.close()
 
+    @staticmethod
+    def report_observation(observation: dict, outputs: dict[str, ArtifactRef]) -> dict:
+        """Keep normalized surface facts and reference separately selected findings."""
+        normalized = observation.get("findingCandidates")
+        if normalized is None:
+            return observation
+        summary = {
+            key: value
+            for key, value in normalized.items()
+            if key not in {"schema", "candidates", "evidence"}
+        }
+        summary["candidateCount"] = len(normalized["candidates"])
+        summary["evidenceCount"] = len(normalized["evidence"]["records"])
+        compact = {**observation, "findingSummary": summary}
+        selected = {"candidates", "evidence"}
+        if selected <= outputs.keys() and selected <= observation.get("artifacts", {}).keys():
+            del compact["findingCandidates"]
+            # Native rows are already normalized into the selected candidates,
+            # evidence and surface facts; retaining them repeats the same data.
+            compact.pop("results", None)
+        return compact
+
     def prepare(self, directory: Path, templates: Path) -> list[str]:
         """Create private files and return additional argv before process launch."""
         return []

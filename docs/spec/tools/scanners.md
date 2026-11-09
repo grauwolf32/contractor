@@ -63,7 +63,7 @@ Terms are defined once in the [glossary](../glossary.md).
 | Execution key | The SHA-256 of canonical JSON of `runId`, `stageExecutionId`, `logicalAgentName` and `subtaskId` that identifies one tool invocation. |
 | Invocation receipt | The Runtime-owned `tool-invocation.<hex-key>` artifact that records the phase of one tool invocation. |
 | Input digest | The digest of the template ref, resolved arguments and output bindings of one tool invocation. |
-| Tool Worker report | The bounded `application/json` artifact that carries a tool invocation's unchanged observation. |
+| Tool Worker report | The bounded `application/json` artifact that carries a tool invocation's observation, with adapter-owned compact projections for separately published findings. |
 | ScanToolset | The `scan@1` Toolset exporting `scan_nuclei`, `scan_sqlmap`, `scan_naabu` and `scan_ffuf`. |
 | SQLMap request artifact | The six-field JSON description of one HTTP request that `scan_sqlmap` request mode accepts. |
 | Scanner wordlist | A `text/vnd.contractor.wordlist` (or `text/plain`) artifact holding one scanner payload per line. |
@@ -345,7 +345,9 @@ fields.
 
 **SCN-R41.** The report is `application/json`, at most 512 KiB (LIM-SCN-10),
 and contains `schemaVersion` 1, `tool`, `inputDigest`, the exact
-`inputArtifacts` and the unchanged bounded tool response under `observation`.
+`inputArtifacts` and the bounded tool response under `observation`. A scanner
+adapter projects separately selected normalized findings as specified in SCN-R264;
+the common Worker does not interpret provider fields.
 After ordinary publication the tool Worker may notify a generic optional report
 subscriber with the tool name and exact ref, including when the report describes
 a failed invocation. Subscriber failure never replaces the report or tool outcome;
@@ -1882,9 +1884,17 @@ inputs:
 **SCN-R264.** Explicit tool Worker `candidates` and `evidence` result bindings
 materialize provider-neutral `contractor.finding.candidates.v1` and selected
 normalized evidence. Direct tool calls remain observations. A scanner report is
-published before additional output publication, so an output failure uses the
-existing durable `tool_report_failed` class and cannot erase the original scanner
-outcome. Recreated Workers replay that failure from the same receipt. Provider adapters own
+published after attempting additional output publication. The adapter's report
+projection retains `findingSummary` with candidate/evidence counts, completion,
+skipped outcomes and bounded surface facts. Once explicit candidates/evidence
+outputs are confirmed it omits the repeated `findingCandidates` body and
+native result rows;
+successfully confirmed exact output refs remain under `observation.artifacts`.
+Without those outputs the original finding payload stays in the report, since
+there is no separately retained copy. An output failure still publishes the
+original diagnostic payload without claiming unconfirmed output refs, then uses
+the durable `tool_report_failed` class. Recreated Workers replay that failure
+from the same receipt. Provider adapters own
 normalization once; Server operations never parse native scanner formats.
 Nuclei evidence retains a candidate-related manifest selection: the original
 exact manifest descriptor (ref, digest, media type and size), package digest,

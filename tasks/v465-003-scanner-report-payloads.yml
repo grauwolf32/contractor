@@ -1,0 +1,48 @@
+schema_version: '1.0'
+id: V465-003
+title: Reference normalized finding outputs from compact scanner reports
+milestone: artifact-release-cleanup-2026-11
+epic: scan-tools
+kind: defect
+introduced_by: V455-008
+priority: P2
+status: in_progress
+depends_on: []
+languages: [python, typescript, markdown]
+goal: Store scanner candidates and evidence once while retaining readable diagnostics, exact output references and HTTP surface collection.
+context:
+  authority: >-
+    User request 2026-11-09 authorizes removal of duplicate scanner payloads while
+    retaining Runs, their technical artifacts, accepted findings and evidence.
+  finding: >-
+    runtime/src/contractor_runtime/worker/tool_runtime.py:472 serializes full
+    findingCandidates before scan/tools.py:394 publishes candidates and evidence
+    separately. Reports therefore retain a second independent copy of those bytes.
+  siblings: >-
+    Nuclei and SQLMap normalized findings, no-output scanner invocations, failed
+    scans and failed/ambiguous output publication, report readers, UI summaries and
+    the independent normalized HTTP surface collector are included.
+  specification:
+    - docs/spec/tools/scanners.md
+    - docs/spec/execution/worker.md
+scope:
+  in:
+    - Let the scanner adapter project compact reports that reference successfully published exact normalized outputs, retain bounded counts/surface metadata and omit duplicate candidate/evidence bodies.
+    - Preserve durable diagnostic reports on normalized-output failure, invocation receipt replay, classified publication failure and HTTP surface collection.
+    - Align Runtime report readers, UI previews and real Worker regression tests without legacy fallback readers.
+  out:
+    - Changing normalized finding schemas, generic Artifact retention or existing saved bytes, adding another store, and deployment.
+acceptance_criteria:
+  - id: A1
+    text: A real Tool Worker publishes normalized outputs once and saves a smaller report containing exact refs and no repeated candidate/evidence body.
+  - id: A2
+    text: Failed scans and normalized-output publication failures retain truthful diagnostic reports; receipt replay never reruns the tool.
+  - id: A3
+    text: Scanner report summaries and HTTP surface projection consume the compact contract, with no hidden fallback to native scanner fields.
+tests:
+  - command: cd runtime && uv run pytest -W error tests/test_tool_worker.py tests/test_tool_worker_deadline.py tests/test_scan*.py tests/test_sitemap*.py
+    covers: [A1, A2, A3]
+  - command: make ui-verify
+    covers: [A3]
+  - command: make lint
+    covers: [A1, A2, A3]
