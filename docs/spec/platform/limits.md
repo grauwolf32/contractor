@@ -225,9 +225,9 @@ its owning requirement.
 | `LIM-ASC-8` | at most 1 accepted attempt | Each prepare role | Audit Controller (atomic acceptance of preparation outputs) | [ASC-R37](../audits/scans.md) |
 | `LIM-ASC-9` | 1 assigned item and 1 scanner Worker | The openapi-scan@1 and web-scan@1 executor Stage named by auditTask.stage | Configuration catalog validation of the selected executor | [ASC-R75](../audits/scans.md) |
 | `LIM-ASC-10` | 1 source operation | Each accepted OpenAPI scan item | auditdomain.BuildOpenAPIScanInventory and PrepareOpenAPIScanTask | [ASC-R85](../audits/scans.md) |
-| `LIM-ASC-11` | 256 KiB | Scan settings artifact (contractor.audit.openapi-scan-settings.v1) | scanplan.DecodeAuditScanSettings | [ASC-R95](../audits/scans.md) |
-| `LIM-ASC-12` | 1,000 operations | operations map of the scan settings artifact | scanplan.DecodeAuditScanSettings | [ASC-R99](../audits/scans.md) |
-| `LIM-ASC-13` | 1..64 distinct names | SQLMap testParameters list in the scan settings artifact | scanplan.DecodeAuditScanSettings | [ASC-R101](../audits/scans.md) |
+| `LIM-ASC-11` | 256 KiB | Optional request_values JSON material | scanplan.CompileAuditSelection | [ASC-R95](../audits/scans.md) |
+| `LIM-ASC-12` | 1,000 operations | operations selection (also bounded by 4,096 parameter bytes; shipped profiles allow sixteen) | scanplan.CompileAuditSelection | [ASC-R99](../audits/scans.md) |
+| `LIM-ASC-13` | 1..64 distinct names | SQLMap test_parameters JSON array parameter | scanplan.CompileAuditSelection | [ASC-R101](../audits/scans.md) |
 | `LIM-ASC-14` | 256 KiB each | Source root and consumer descriptor encoded bytes | Audit snapshot/Run input materialization owner | [ASC-R157](../audits/scans.md) |
 | `LIM-ASC-15` | 256 KiB / 128 items / 512 descriptors | One settled-Round metadata page | Audit snapshot/Run input materialization owner | [ASC-R157](../audits/scans.md) |
 | `LIM-ASC-16` | 256 | Pages of one complete settled-Round snapshot | Audit snapshot/Run input materialization owner | [ASC-R157](../audits/scans.md) |

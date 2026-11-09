@@ -4899,16 +4899,12 @@
         }
       }
     },
-    "AuditWebScanSettings": {
+    "NucleiRuleSelection": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["schema", "templateIds", "tags", "severity", "rateLimit"],
+      "required": ["template_ids", "tags", "severity"],
       "properties": {
-        "schema": {
-          "type": "string",
-          "const": "contractor.audit.web-scan-settings.v1"
-        },
-        "templateIds": {
+        "template_ids": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/NucleiRuleFilter"
         },
         "tags": {
@@ -4918,8 +4914,7 @@
           "type": "string",
           "maxLength": 2048,
           "pattern": "^(|(info|low|medium|high|critical|unknown)(,(info|low|medium|high|critical|unknown))*)$"
-        },
-        "rateLimit": { "type": "integer", "minimum": 1, "maximum": 1000 }
+        }
       }
     },
     "NucleiRuleFilter": {
@@ -5167,6 +5162,16 @@
         "limits": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditProgramLimits"
         },
+        "parameters": {
+          "additionalProperties": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditProgramParameter"
+          },
+          "maxProperties": 128,
+          "propertyNames": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCommonKey"
+          },
+          "type": "object"
+        },
         "policy": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditProgramPolicy"
         },
@@ -5358,6 +5363,12 @@
       ],
       "type": "object"
     },
+    "AuditProgramParameter": {
+      "additionalProperties": false,
+      "properties": { "required": { "type": "boolean" } },
+      "required": ["required"],
+      "type": "object"
+    },
     "AuditProgramPolicy": {
       "additionalProperties": false,
       "properties": {
@@ -5440,6 +5451,16 @@
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditProgramAttemptLimit"
         },
         "outputs": {
+          "additionalProperties": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCommonKey"
+          },
+          "maxProperties": 128,
+          "propertyNames": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCommonKey"
+          },
+          "type": "object"
+        },
+        "parameter_inputs": {
           "additionalProperties": {
             "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCommonKey"
           },
@@ -5587,11 +5608,26 @@
         }
       }
     },
+    "AuditLaunchParameters": {
+      "type": "object",
+      "maxProperties": 128,
+      "propertyNames": {
+        "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCommonKey"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 4096,
+        "x-max-utf8-bytes": 4096
+      }
+    },
     "CreateAuditRequest": {
       "type": "object",
       "additionalProperties": false,
       "required": ["profile", "inputs"],
       "properties": {
+        "parameters": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditLaunchParameters"
+        },
         "labels": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditLabels"
         },
@@ -5714,6 +5750,9 @@
         "standards"
       ],
       "properties": {
+        "parameters": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditLaunchParameters"
+        },
         "labels": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditLabels"
         },
@@ -5856,6 +5895,9 @@
         "updatedAt"
       ],
       "properties": {
+        "parameters": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditLaunchParameters"
+        },
         "labels": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditLabels"
         },
@@ -11636,6 +11678,7 @@
           "required": ["source", "name"],
           "properties": {
             "source": { "type": "string", "const": "parameter" },
+            "optional": { "type": "boolean", "const": true },
             "name": { "type": "string", "minLength": 1, "maxLength": 128 },
             "default": {
               "type": "string",
@@ -11650,6 +11693,7 @@
           "required": ["source", "name", "parse"],
           "properties": {
             "source": { "type": "string", "const": "parameter" },
+            "optional": { "type": "boolean", "const": true },
             "name": { "type": "string", "minLength": 1, "maxLength": 128 },
             "parse": { "type": "string", "const": "integer" },
             "default": {

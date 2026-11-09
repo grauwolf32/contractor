@@ -64,9 +64,17 @@ decisions:
   - "Audit launch values are explicitly declared by the Program and bound only to named Workflow parameters. Existing baseline JSON and ExecutionProgram derivation pin them; no new store or arbitrary Workflow override is introduced."
   - "The existing engagement document retains egress, identity references and optional HTTP limits. Scan filters, operation selection, server choice and SQLMap test parameters remain ordinary execution parameters."
   - "Optional request_values material contains only per-operation parameter/body data under the existing 256-KiB options bound; it carries neither scanner configuration nor authentication/traffic policy. Values embedded in OpenAPI examples remain usable."
+  - "OpenAPI source validation is local-only: Vacuum uses internal references, an empty private config, remote resolution disabled and update checks disabled. The tool no longer requests a network subprocess adapter. Real validation and bounded/cancelled subprocess behavior remain tested."
   - "Prepared operation work retains exact source and value-material provenance; dispatch reproduces the selected request and verifies its preparation identity before scanning."
+  - "Integrated normalized Findings expose a retry conflict in the old create-only material-set binding. The existing Artifact revision CAS advances only the observed downstream binding; previous exact attempts remain immutable, and identical recovery reuses the current revision."
 tests:
   - command: make verify-public-api test-wire-cross-language ui-verify lint
     covers: [A1, A2, A3]
   - command: make test-nuclei-web-e2e test-nuclei-engagement
+    covers: [A1, A2, A3]
+  - command: go test -tags=e2e ./tests/e2e -run '^(TestAuditCommonScanProfilesAcrossProductionProcesses|TestAuditCommonSourcePreparationAcrossProductionProcesses)$' -count=1 -timeout=15m
+    covers: [A1, A2, A3]
+  - command: CONTRACTOR_SCAN_BROWSER=1 go test -tags=e2e ./tests/e2e -run '^(TestNucleiWebWithDeterministicScannerAcrossProcesses|TestAuditCompositionAcrossProductionProcesses)$' -count=1 -timeout=20m
+    covers: [A1, A2, A3]
+  - command: CONTRACTOR_SCAN_BROWSER=1 go test -tags=e2e ./tests/e2e -run '^TestScannerFindingsAcrossProductionProcesses$' -count=1 -timeout=15m
     covers: [A1, A2, A3]

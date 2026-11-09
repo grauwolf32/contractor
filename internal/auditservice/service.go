@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"sort"
 	"strings"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -112,6 +114,9 @@ func (s *Service) CreateDraft(
 		}
 		return auditstore.Audit{}, false, ErrProfileNotFound
 	}
+	if _, err := profile.Program.BindParameters(params.Parameters); err != nil {
+		return auditstore.Audit{}, false, ErrInvalid
+	}
 	selectedProfile := profile
 	if params.PinnedProfile == nil && params.ExpectedProfileSHA256 != "" {
 		selectedProfile, err = s.profiles.AuditProfile(selector)
@@ -183,7 +188,7 @@ func (s *Service) CreateDraft(
 	selection, err := encodeDraftSelection(DraftSelection{
 		Labels:                  metadata,
 		RequiredPlacementLabels: placement,
-		Schema:                  DraftSelectionSchema, Inputs: inputs,
+		Schema:                  DraftSelectionSchema, Inputs: inputs, Parameters: maps.Clone(params.Parameters),
 		RuntimeLabels: labels, Scope: scope,
 	})
 	if err != nil {
@@ -329,6 +334,9 @@ func (s *Service) selectDraftInputs(
 }
 
 func validateCreateParams(params CreateDraftParams) error {
+	if auditcontract.ValidateParameters(params.Parameters) != nil {
+		return ErrInvalid
+	}
 	if params.AuditID == "" || params.OwnerID == "" || params.ProjectID == "" ||
 		!utf8.ValidString(params.OwnerID) || len([]byte(params.OwnerID)) > 256 ||
 		params.IdempotencyKey == "" || !contentdigest.Valid(params.RequestDigest) {

@@ -131,3 +131,16 @@ func lifecycle(action string, seconds *int) func() (string, error) {
 }
 
 func timeLimit(value int) *int { return &value }
+
+func TestCreateDraftDigestBindsLaunchParameters(t *testing.T) {
+	request := CreateDraftParams{ProjectID: "project", Parameters: map[string]string{"server": "https://one.test"}}
+	first, err := CreateDraftRequestDigest(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Parameters["server"] = "https://two.test"
+	second, err := CreateDraftRequestDigest(request)
+	if err != nil || first == second {
+		t.Fatal("launch parameters not pinned by receipt")
+	}
+}

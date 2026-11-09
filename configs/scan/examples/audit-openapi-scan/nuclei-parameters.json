@@ -1,0 +1,7 @@
+{
+  "server": "http://192.168.56.10:8080/api",
+  "operations": "[\"#/paths/~1pets~1{id}/post\"]",
+  "template_ids": "http-missing-security-headers",
+  "tags": "",
+  "severity": ""
+}

@@ -423,6 +423,14 @@
       ],
       "maxBytes": 8192,
       "rule": "LIM-RCF-32"
+    },
+    {
+      "schema": "AuditLaunchParameters",
+      "path": [
+        "additionalProperties"
+      ],
+      "maxBytes": 4096,
+      "rule": "LIM-ACT-3"
     }
   ]
 }

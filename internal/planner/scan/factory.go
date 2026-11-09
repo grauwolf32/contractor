@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -80,7 +81,7 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 	}
 	invocation.Stage = stage
 	invocation.Workers = workers
-	invocation.Context = planner.StageContext{Parameters: map[string]string{}, Artifacts: contextArtifacts}
+	invocation.Context = planner.StageContext{Parameters: maps.Clone(invocation.Context.Parameters), Artifacts: contextArtifacts}
 	return &execution{factory: f, invocation: invocation}, nil
 }
 

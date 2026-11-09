@@ -115,12 +115,20 @@ def _validate_program(program):
     ):
         raise ValueError("Audit program bounds")
     bindings = program["workflows"]
+    parameters = program.get("parameters", {})
+    used_parameters = set()
     for binding in bindings.values():
+        for name in binding.get("parameter_inputs", {}).values():
+            if name not in parameters:
+                raise ValueError("Audit parameter alias")
+            used_parameters.add(name)
         if binding.get("max_attempts", limits["max_attempts"]) > limits["max_attempts"]:
             raise ValueError("Audit binding attempt budget")
         for source in binding["inputs"].values():
             if source["source"] == "audit-input" and source["name"] not in program["inputs"]:
                 raise ValueError("Audit input alias")
+    if used_parameters != set(parameters):
+        raise ValueError("Audit parameter has no Workflow binding")
     seen = set()
     for item in program["initial_work"]:
         if item["key"] in seen or item["workflow"] not in bindings:

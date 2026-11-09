@@ -20,9 +20,30 @@ type ArtifactStore interface {
 	Read(context.Context, string, contracts.ArtifactRef, int) (artifacts.Payload, error)
 	Resolve(context.Context, string, contracts.ArtifactRef) (contracts.ArtifactRef, error)
 	Create(context.Context, string, contracts.ArtifactRef, artifacts.Payload) (contracts.ArtifactRef, error)
+	Replace(context.Context, string, contracts.ArtifactRef, artifacts.Payload, string) (contracts.ArtifactRef, error)
 }
 
 type ServiceArtifacts struct{ service *artifacts.Service }
+
+// Replace advances only an already observed result binding. Exact revisions
+// retained by previous Stage attempts remain immutable and readable.
+func (s *ServiceArtifacts) Replace(ctx context.Context, runID string, target contracts.ArtifactRef, payload artifacts.Payload, expected string) (contracts.ArtifactRef, error) {
+	if target.Validate() != nil || target.Revision != nil || expected == "" {
+		return contracts.ArtifactRef{}, fmt.Errorf("invalid scan result replacement: %w", contracts.ErrValidation)
+	}
+	if len(payload.Data) > planner.MaxScanArtifactBytes {
+		return contracts.ArtifactRef{}, blob.ErrTooLarge
+	}
+	store, err := s.service.Run(runID)
+	if err != nil {
+		return contracts.ArtifactRef{}, err
+	}
+	written, err := store.Write(ctx, target, payload, &expected)
+	if err != nil {
+		return contracts.ArtifactRef{}, err
+	}
+	return written.Ref.Clone(), nil
+}
 
 func NewServiceArtifacts(service *artifacts.Service) (*ServiceArtifacts, error) {
 	if service == nil {

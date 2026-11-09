@@ -254,9 +254,6 @@ func builtInDescriptors() descriptorTable {
 					"set_openapi_servers", "set_openapi_tags", "upsert_openapi_component", "upsert_openapi_path",
 					"validate_openapi",
 				},
-				InfrastructureChannels: map[string][]infrastructureChannel{
-					"validate_openapi": {channelRuntimeSubprocessLauncher},
-				},
 			},
 			"run-artifacts@1": {
 				Tools: []string{"list_artifacts", "read_artifact", "write_artifact"},

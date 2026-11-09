@@ -179,7 +179,7 @@ func validatePlanBindings(policy scan.ScanPlanPolicy, bindings map[string]ToolBi
 		}
 		for name, arg := range e.Arguments {
 			if _, ok := dynamic[name]; !ok && arg.Source != "literal" &&
-				!(e.Tool == "scan_nuclei" && scan.IsNucleiSelectionBinding(name, arg)) {
+				!(e.Tool == "scan_nuclei" && scan.IsNucleiSelectionBinding(name, arg)) && !scan.IsScanCredentialBinding(e.Tool, name, arg) {
 				return failure("invalid_scan_tool_binding")
 			}
 		}
@@ -246,11 +246,14 @@ func planJob(source planSourceInput, p scan.ScanToolPolicy, b ToolBinding, wordl
 	e := *b.Template.Execution
 	job := ScanJob{Worker: p.Worker, Tool: e.Tool, Namespace: b.Namespace, TemplateRef: b.Template.Ref.TemplateID + "@" + b.Template.Ref.Version, TemplateDigest: b.Template.Ref.Digest, Execution: e, TimeoutSeconds: e.TimeoutSeconds, Parameters: map[string]string{}, Artifacts: map[string]contracts.ArtifactRef{}}
 	for name, argument := range e.Arguments {
-		if e.Tool != "scan_nuclei" || !scan.IsNucleiSelectionBinding(name, argument) {
+		if !(e.Tool == "scan_nuclei" && scan.IsNucleiSelectionBinding(name, argument)) && !scan.IsScanCredentialBinding(e.Tool, name, argument) {
 			continue
 		}
 		if argument.Source == "parameter" {
 			value, exists := b.Parameters[argument.Name]
+			if !exists && argument.Optional {
+				continue
+			}
 			if !exists {
 				return job, "invalid_scan_parameters"
 			}

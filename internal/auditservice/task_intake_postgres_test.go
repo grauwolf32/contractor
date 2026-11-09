@@ -33,7 +33,7 @@ func TestSharedCommonInitialAndPreparedTaskIntake(t *testing.T) {
 				producer.Inputs["context"] = auditcontract.InputMapping{Source: "task-context"}
 				producer.Outputs = map[string]string{"work": "result"}
 				program.Workflows["inspect"] = producer
-				program.Workflows["check"] = auditcontract.ProgramWorkflow{Ref: "audit-prepared-check@1", Inputs: map[string]auditcontract.InputMapping{"operation": {Source: "task-input"}, "openapi": {Source: "task-input"}, "settings": {Source: "task-input"}}, Parameters: map[string]string{}, Outputs: map[string]string{"material": "result"}}
+				program.Workflows["check"] = auditcontract.ProgramWorkflow{Ref: "audit-prepared-check@1", Inputs: map[string]auditcontract.InputMapping{"operation": {Source: "task-input"}, "openapi": {Source: "task-input"}, "request_values": {Source: "task-input"}}, Parameters: map[string]string{}, Outputs: map[string]string{"material": "result"}}
 			}, func(workflow *resolved.ResolvedWorkflow) {
 				if native {
 					if slot, found := workflow.Inputs["operation"]; found {

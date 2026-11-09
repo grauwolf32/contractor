@@ -45,16 +45,20 @@ func normalizeTaskRunCreate(intent auditstore.RunCreationIntent, p AuditCreatePa
 		return auditRunCreate{}, nil, ErrInvalid
 	}
 	alias := intent.Execution.WorkflowRole
-	binding, ok := pinned.Program.Workflows[alias]
-	if !ok {
-		return auditRunCreate{}, nil, ErrInvalid
-	}
 	workflow, ok := pinned.Workflows[alias]
 	if !ok {
 		return auditRunCreate{}, nil, ErrInvalid
 	}
 	var baseline auditbaseline.BaselineSnapshot
 	if strictjson.Decode(intent.BaselineSnapshot, &baseline) != nil || baseline.Schema != auditbaseline.Schema || baseline.RuntimeConfig.Validate() != nil {
+		return auditRunCreate{}, nil, ErrInvalid
+	}
+	pinned.Program, err = pinned.Program.BindParameters(baseline.Parameters)
+	if err != nil {
+		return auditRunCreate{}, nil, ErrInvalid
+	}
+	binding, ok := pinned.Program.Workflows[alias]
+	if !ok {
 		return auditRunCreate{}, nil, ErrInvalid
 	}
 	result := auditRunCreate{AuditCreateParams: AuditCreateParams{Claim: p.Claim, ExecutionID: p.ExecutionID, TaskIDs: slices.Clone(p.TaskIDs), RequestDigest: p.RequestDigest, NewRunID: p.NewRunID},

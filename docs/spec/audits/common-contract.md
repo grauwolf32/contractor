@@ -71,6 +71,16 @@ object paths, per-provider parsing, second Workflow graph or automatic
 cross-Workflow dependencies are interpreted by this validator. Workflow closures
 are pinned by the accepted task owner, not by model output.
 
+Programs may declare a closed `parameters` map with a required flag per name.
+A Workflow `parameter_inputs` map binds only declared launch names to declared
+Workflow parameters. Required Workflow parameters need a literal or a required
+launch binding. CreateAuditRequest accepts only declared string values, at most
+128 entries and 4,096 UTF-8 bytes per value, with no NUL. Explicit null and null
+members are invalid. The baseline pins values; Task acceptance and Run creation
+both derive the same effective parameters from that baseline. Missing optional
+values retain authored literals; an explicitly supplied empty string overrides
+them. Resume never rereads mutable selection or catalog values.
+
 A `task-input` mapping has no `name` or future dependency. It declares a slot
 whose already available material must be selected explicitly at task acceptance.
 An unused checking binding therefore needs no fabricated initial Audit input.

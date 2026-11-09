@@ -4,13 +4,21 @@ metadata:
   name: audit-web-nuclei-scan
   version: '1'
 spec:
-  parameters: {}
+  parameters:
+    credential_id:
+      required: false
+    template_ids:
+      required: true
+    tags:
+      required: true
+    severity:
+      required: true
   inputs:
-    target:
+    engagement:
       required: true
       mediaTypes:
-      - application/json
-    settings:
+      - application/vnd.contractor.engagement+json
+    target:
       required: true
       mediaTypes:
       - application/json
@@ -45,10 +53,6 @@ spec:
             namespace: inputs
             name: target
             required: true
-          settings:
-            namespace: inputs
-            name: settings
-            required: true
           rulepack:
             namespace: inputs
             name: rulepack
@@ -78,7 +82,6 @@ spec:
           next: publish-partial
       scanPreparation:
         scanner: nuclei
-        settingsArtifact: settings
         unknownOutcome: retain-gap
         kind: web-target
     publish:

@@ -375,7 +375,7 @@ describe("Start a check: materials", () => {
     expect(
       within(needs).getByRole("link", { name: "Nuclei scan" }).closest("li"),
     ).toHaveTextContent(
-      "Missing: Another material for API spec or scan settings",
+      "Missing: Another material for API spec or request values",
     );
     const materials = within(setup()).getByRole("region", {
       name: "Materials",
@@ -383,25 +383,25 @@ describe("Start a check: materials", () => {
     const specSelect = within(materials).getByRole("combobox", {
       name: "Material for API spec",
     });
-    const settingsSelect = within(materials).getByRole("combobox", {
-      name: "Material for Scan settings",
+    const valuesSelect = within(materials).getByRole("combobox", {
+      name: "Material for Request values",
     });
     expect(specSelect).toHaveValue("");
-    expect(settingsSelect).toHaveValue("");
+    expect(valuesSelect).toHaveValue("");
     expect(startButton()).toBeDisabled();
     const option = within(specSelect).getByRole("option", {
       name: /^sources\/openapi@openapi-r1/,
     });
     await user.selectOptions(specSelect, option);
     await user.selectOptions(
-      settingsSelect,
-      within(settingsSelect).getByRole("option", {
+      valuesSelect,
+      within(valuesSelect).getByRole("option", {
         name: /^sources\/openapi@openapi-r1/,
       }),
     );
     expect(
       within(materials).getByText(
-        /The same material is attached to API spec and scan settings\./,
+        /The same material is attached to API spec and request values\./,
       ),
     ).toBeVisible();
     expect(startButton()).toBeEnabled();

@@ -83,7 +83,9 @@ func waitScanAudit(t *testing.T, h *scanProcessHarness, auditID string, runs int
 			return false
 		}
 		if audit.SubmittedRunCount != runs || audit.OutstandingRuns != 0 {
-			t.Fatalf("unexpected cross-Run counters: %+v", audit)
+			var tasks json.RawMessage
+			_ = auditProgramTryGET(h.ctx, h.client, h.baseURL+"/v1/audits/"+auditID+"/tasks", &tasks)
+			t.Fatalf("unexpected cross-Run counters: %+v; tasks: %s", audit, tasks)
 		}
 		return true
 	})
@@ -134,7 +136,7 @@ func assertWebAuditRetention(t *testing.T, h *scanProcessHarness, audit auditPro
 		deleteASVSBacktraceRun(t, h.ctx, h.client, h.baseURL, runID)
 		return retainedWebScanReport{Limitations: []string{*task.GapCode}}
 	}
-	for _, slot := range []string{"target", "settings"} {
+	for _, slot := range []string{"target"} {
 		material := task.Document.Inputs[slot]
 		if material.ScopeKind != "audit" || material.ScopeID != audit.AuditID || material.Ref.Revision == nil || !strings.HasPrefix(material.Digest, "sha256:") {
 			t.Fatalf("exact assigned %s lost: %+v", slot, material)

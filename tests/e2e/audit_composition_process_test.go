@@ -13,6 +13,7 @@ func TestAuditCompositionAcrossProductionProcesses(t *testing.T) {
 	}
 	t.Setenv("CONTRACTOR_SCAN_BROWSER", "1")
 	h := startConfiguredScanStackWithBudget(t, 8*time.Minute, "", func(h *scanProcessHarness, root string) {
+		h.targetURL = startEngagementScanTarget(t, h.fixture).URL
 		stageCommonScanAuditCatalog(t, h, root)
 	}, "nuclei")
 	t.Run("common_tasks_and_retention", func(t *testing.T) { runCompositionBrowser(t, h) })

@@ -11,44 +11,67 @@ spec:
       media_types:
       - application/json
       - application/yaml
-    settings:
+    engagement:
       required: true
+      media_types:
+      - application/vnd.contractor.engagement+json
+    request_values:
+      required: false
       media_types:
       - application/json
   workflows:
     prepare:
       ref: openapi-prepare-work@1
       inputs:
+        engagement:
+          source: audit-input
+          name: engagement
         openapi:
           source: audit-input
           name: openapi
-        settings:
+        request_values:
           source: audit-input
-          name: settings
+          name: request_values
       parameters:
         checking_workflow: scan
         selection: scan-requests
         max_items: '16'
+        credential_id: ''
+        scanner: sqlmap
       outputs:
         work: work
+      parameter_inputs:
+        credential_id: credential_id
+        server: server
+        operations: operations
+        test_parameters: test_parameters
     scan:
       ref: audit-openapi-sqlmap-scan@1
       inputs:
-        settings:
+        engagement:
           source: audit-input
-          name: settings
+          name: engagement
         operation:
           source: task-input
         openapi:
           source: task-input
-      parameters: {}
-      outputs:
-        scan_report: result
+        request_values:
+          source: audit-input
+          name: request_values
+      parameters:
+        credential_id: ''
+      outputs: {}
+      parameter_inputs:
+        credential_id: credential_id
+        server: server
+        operations: operations
+        test_parameters: test_parameters
   hypotheses: {}
   initial_work:
   - key: prepare-operations
     workflow: prepare
-    objective: Prepare bounded independent operation work from the exact selected contract and settings
+    objective: Prepare bounded independent operation work from the exact selected contract and execution
+      parameters
   limits:
     max_tasks: 17
     max_iterations: 1
@@ -63,3 +86,12 @@ spec:
     max_hypothesis_bytes: 32768
   policy:
     active_operations: allowed
+  parameters:
+    credential_id:
+      required: false
+    server:
+      required: true
+    operations:
+      required: true
+    test_parameters:
+      required: true

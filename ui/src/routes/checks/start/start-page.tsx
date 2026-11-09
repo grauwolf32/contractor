@@ -1,3 +1,5 @@
+import { MaterialsCard } from "./materials";
+import { ExecutionParameters } from "./execution-parameters";
 import { useState, useSyncExternalStore } from "react";
 import { useLocation, useNavigate } from "react-router";
 
@@ -128,6 +130,8 @@ export function StartCheckPage({
             >
               {model.webScan !== undefined ? (
                 <>
+                  <MaterialsCard model={model} />
+                  <ExecutionParameters model={model} />
                   <WebScanSetup
                     model={model.webScan}
                     materials={model.materials}

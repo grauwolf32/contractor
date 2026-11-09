@@ -124,6 +124,7 @@ func (p PinnedProgram) Clone() PinnedProgram {
 	for alias, workflow := range p.Workflows {
 		p.Workflows[alias] = workflow.Clone()
 	}
+	p.Program.Parameters = maps.Clone(p.Program.Parameters)
 	p.Program.Inputs = maps.Clone(p.Program.Inputs)
 	for name, input := range p.Program.Inputs {
 		input.MediaTypes = slices.Clone(input.MediaTypes)
@@ -135,6 +136,7 @@ func (p PinnedProgram) Clone() PinnedProgram {
 			ceiling := *binding.MaxAttempts
 			binding.MaxAttempts = &ceiling
 		}
+		binding.ParameterInputs = maps.Clone(binding.ParameterInputs)
 		binding.Inputs, binding.Parameters, binding.Outputs = maps.Clone(binding.Inputs), maps.Clone(binding.Parameters), maps.Clone(binding.Outputs)
 		p.Program.Workflows[alias] = binding
 	}

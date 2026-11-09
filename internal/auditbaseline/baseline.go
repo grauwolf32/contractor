@@ -22,6 +22,7 @@ type Scope struct {
 }
 
 type BaselineSnapshot struct {
+	Parameters              map[string]string                    `json:"parameters,omitempty"`
 	InitialAssertions       *auditcontract.InitialAssertions     `json:"initial_assertions,omitempty"`
 	Engagement              *EngagementSnapshot                  `json:"engagement,omitempty"`
 	Labels                  runlabels.RunMetadataLabels          `json:"labels"`

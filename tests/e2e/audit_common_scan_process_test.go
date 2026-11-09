@@ -4,7 +4,10 @@ package e2e
 
 import (
 	"encoding/json"
+	"net"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -15,12 +18,13 @@ import (
 )
 
 // Real scanner binaries, real Runtime adapters, public API and PostgreSQL.
-// Only the installed Nuclei package selection is pinned to the loopback fixture.
+// Only the installed Nuclei package selection is pinned to the private-interface fixture.
 func TestAuditCommonScanProfilesAcrossProductionProcesses(t *testing.T) {
 	if testing.Short() {
 		t.Fatal("common scan process gate cannot run in short mode")
 	}
 	h := startConfiguredScanStack(t, "", func(h *scanProcessHarness, root string) {
+		h.targetURL = startEngagementScanTarget(t, h.fixture).URL
 		stageCommonScanAuditCatalog(t, h, root)
 	}, "nuclei", "sqlmap")
 	for _, scanner := range []string{"sqlmap", "nuclei", "web"} {
@@ -28,36 +32,47 @@ func TestAuditCommonScanProfilesAcrossProductionProcesses(t *testing.T) {
 			var project projectResourceResponse
 			scanAuditPOST(t, h, "/v1/projects", map[string]string{"kind": "project", "name": "Common scan fixture", "activeChecks": "automatic"}, 0, http.StatusCreated, &project)
 			profile := "openapi-" + scanner + "-scan"
+			parameters := map[string]string{}
 			inputs := map[string]artifactRef{}
+			inputs["engagement"] = uploadScanEngagement(t, h.client, h.baseURL, project.ProjectID, h.targetURL, scanner == "sqlmap")
 			expectedTasks, expectedRuns := 2, 2
 			if scanner == "web" {
 				profile = "web-scan"
 				expectedTasks, expectedRuns = 1, 1
 				target, _ := json.Marshal(map[string]any{"schema": "contractor.audit.web-target.v1", "url": h.targetURL})
-				settings, _ := json.Marshal(map[string]any{"schema": "contractor.audit.web-scan-settings.v1", "templateIds": "contractor-local-fixture", "tags": "", "severity": "info", "rateLimit": 5})
+				parameters = map[string]string{"template_ids": "contractor-local-fixture", "tags": "", "severity": "info"}
 				inputs["target"] = uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "fixture", "target", "application/json", target)
-				inputs["settings"] = uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "fixture", "settings", "application/json", settings)
 			} else {
 				root := filepath.Join(h.repositoryRoot, "configs/scan/examples/audit-openapi-scan")
 				source, err := os.ReadFile(filepath.Join(root, "openapi.json"))
 				if err != nil {
 					t.Fatal(err)
 				}
-				data, err := os.ReadFile(filepath.Join(root, scanner+"-settings.json"))
+				data, err := os.ReadFile(filepath.Join(root, scanner+"-parameters.json"))
 				if err != nil {
 					t.Fatal(err)
 				}
-				var settings map[string]any
-				if err := json.Unmarshal(data, &settings); err != nil {
+				if err := json.Unmarshal(data, &parameters); err != nil {
 					t.Fatal(err)
 				}
-				settings["server"] = h.targetURL + "/api"
-				data, _ = json.Marshal(settings)
+				parameters["server"] = h.targetURL + "/api"
+				if scanner == "nuclei" {
+					parameters["template_ids"] = "contractor-local-fixture"
+				}
+				values, err := os.ReadFile(filepath.Join(root, scanner+"-request-values.json"))
+				if err != nil {
+					t.Fatal(err)
+				}
 				inputs["openapi"] = uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "fixture", "openapi", "application/json", source)
-				inputs["settings"] = uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "fixture", "settings", "application/json", data)
+				inputs["request_values"] = uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "fixture", "request-values", "application/json", values)
+				if scanner == "sqlmap" {
+					var credential map[string]any
+					scanAuditPOST(t, h, "/v1/operations/runtime-credentials", map[string]any{"credentialId": "fixture-credential", "kind": "target-bearer@1", "material": map[string]string{"token": "local-fixture-token"}}, 0, http.StatusCreated, &credential)
+				}
+
 			}
 			var draft auditProgramAudit
-			scanAuditPOST(t, h, "/v1/projects/"+project.ProjectID+"/audits", map[string]any{"profile": map[string]string{"name": profile, "version": "1"}, "inputs": inputs, "scope": map[string]string{"objective": "Inspect the exact controlled target"}}, 0, http.StatusCreated, &draft)
+			scanAuditPOST(t, h, "/v1/projects/"+project.ProjectID+"/audits", map[string]any{"profile": map[string]string{"name": profile, "version": "1"}, "inputs": inputs, "parameters": parameters, "scope": map[string]string{"objective": "Inspect the exact controlled target"}}, 0, http.StatusCreated, &draft)
 			var started struct {
 				Audit auditProgramAudit `json:"audit"`
 			}
@@ -80,6 +95,13 @@ func TestAuditCommonScanProfilesAcrossProductionProcesses(t *testing.T) {
 				}
 				var diagnostics []byte
 				_ = h.pool.QueryRow(h.ctx, `SELECT jsonb_agg(jsonb_build_object('name',s.stage_name,'state',s.state,'reason',s.state_reason_code,'error',s.accepted_stage_result->'error','termination',s.stage_termination)) FROM stage_executions s JOIN audit_executions e USING(run_id) WHERE e.execution_id=$1`, *task.LastExecution).Scan(&diagnostics)
+				var failureReport retainedWebScanReport
+				_ = json.Unmarshal(commonScanArtifact(t, h, draft.AuditID, task), &failureReport)
+				for _, artifact := range failureReport.Artifacts {
+					if artifact.Kind == "scanner-report" {
+						t.Logf("scanner report=%s", sourceScanArtifact(t, h, failureReport.RunID, artifact.Ref))
+					}
+				}
 				t.Fatalf("scan Task=%+v stages=%s", task, diagnostics)
 			}
 			if scanner != "web" {
@@ -174,7 +196,7 @@ func stageCommonScanAuditCatalog(t *testing.T, h *scanProcessHarness, root strin
 			t.Fatal(err)
 		}
 	}
-	replaceScanConfig(t, filepath.Join(root, "agent-templates/audit_nuclei_scan.yaml"), "http-missing-security-headers", "contractor-local-fixture")
+	replaceScanConfig(t, filepath.Join(root, "audit-profiles/openapi_nuclei_scan.yaml"), "http-missing-security-headers", "contractor-local-fixture")
 	data, err := os.ReadFile(filepath.Join(h.temporaryRoot, "nuclei-templates/fixture.yaml"))
 	if err != nil {
 		t.Fatal(err)
@@ -184,4 +206,36 @@ func stageCommonScanAuditCatalog(t *testing.T, h *scanProcessHarness, root strin
 		t.Fatal(err)
 	}
 	replaceScanConfig(t, filepath.Join(root, "agent-templates/audit_web_nuclei_scan.yaml"), "sha256:51a3bd4eef14e95bdeb0bad14ca4bd9bd455479a7044b244b76dee8f6dba5014", contentdigest.Bytes(manifest))
+}
+
+func uploadScanEngagement(t *testing.T, client *http.Client, baseURL, projectID, target string, authenticated bool) artifactRef {
+	t.Helper()
+	parsed, err := url.Parse(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	origin := parsed.Scheme + "://" + parsed.Host
+	identities := []map[string]any{{"id": "anonymous", "kind": "anonymous", "origins": []string{origin}}}
+	if authenticated {
+		identities = append(identities, map[string]any{"id": "scanner", "kind": "bearer", "origins": []string{origin}, "credential": map[string]string{"credentialId": "fixture-credential", "kind": "target-bearer@1"}})
+	}
+	data, err := json.Marshal(map[string]any{"schema": "contractor.engagement.v1", "egress": map[string]any{"routes": []map[string]any{{"origin": origin, "methods": []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}, "pathPrefixes": []string{"/"}, "addressRanges": []string{parsed.Hostname() + "/32"}}}, "exclusions": []any{}}, "identities": identities})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return uploadProjectScopeArtifact(t, client, baseURL, projectID, "fixture", "engagement", "application/vnd.contractor.engagement+json", data)
+}
+
+func startEngagementScanTarget(t *testing.T, handler http.Handler) *httptest.Server {
+	t.Helper()
+	listener, err := net.Listen("tcp", net.JoinHostPort(engagementFixtureBindIP(t).String(), "0"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := httptest.NewUnstartedServer(handler)
+	_ = target.Listener.Close()
+	target.Listener = listener
+	target.Start()
+	t.Cleanup(target.Close)
+	return target
 }

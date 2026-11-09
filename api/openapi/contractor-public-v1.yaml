@@ -13398,19 +13398,17 @@ components:
       properties:
         schema: {type: string, const: contractor.audit.web-target.v1}
         url: {type: string, minLength: 1, maxLength: 8192, pattern: '^https?://[^\s]+$'}
-    AuditWebScanSettings:
+    NucleiRuleSelection:
       type: object
       additionalProperties: false
-      required: [schema, templateIds, tags, severity, rateLimit]
+      required: [template_ids, tags, severity]
       properties:
-        schema: {type: string, const: contractor.audit.web-scan-settings.v1}
-        templateIds: {$ref: '#/components/schemas/NucleiRuleFilter'}
+        template_ids: {$ref: '#/components/schemas/NucleiRuleFilter'}
         tags: {$ref: '#/components/schemas/NucleiRuleFilter'}
         severity:
           type: string
           maxLength: 2048
           pattern: '^(|(info|low|medium|high|critical|unknown)(,(info|low|medium|high|critical|unknown))*)$'
-        rateLimit: {type: integer, minimum: 1, maximum: 1000}
     NucleiRuleFilter:
       type: string
       maxLength: 2048
@@ -13614,6 +13612,13 @@ components:
           type: object
         limits:
           $ref: '#/components/schemas/AuditProgramLimits'
+        parameters:
+          additionalProperties:
+            $ref: '#/components/schemas/AuditProgramParameter'
+          maxProperties: 128
+          propertyNames:
+            $ref: '#/components/schemas/AuditCommonKey'
+          type: object
         policy:
           $ref: '#/components/schemas/AuditProgramPolicy'
         schema:
@@ -13786,6 +13791,14 @@ components:
       - max_hypothesis_revisions
       - max_hypothesis_bytes
       type: object
+    AuditProgramParameter:
+      additionalProperties: false
+      properties:
+        required:
+          type: boolean
+      required:
+      - required
+      type: object
     AuditProgramPolicy:
       additionalProperties: false
       properties:
@@ -13861,6 +13874,13 @@ components:
         max_attempts:
           $ref: '#/components/schemas/AuditProgramAttemptLimit'
         outputs:
+          additionalProperties:
+            $ref: '#/components/schemas/AuditCommonKey'
+          maxProperties: 128
+          propertyNames:
+            $ref: '#/components/schemas/AuditCommonKey'
+          type: object
+        parameter_inputs:
           additionalProperties:
             $ref: '#/components/schemas/AuditCommonKey'
           maxProperties: 128
@@ -13960,11 +13980,21 @@ components:
         objective: {type: string, maxLength: 65536, x-max-utf8-bytes: 65536}
         target: {type: string, maxLength: 65536, x-max-utf8-bytes: 65536}
         authorizationScope: {type: string, maxLength: 65536, x-max-utf8-bytes: 65536}
+    AuditLaunchParameters:
+      type: object
+      maxProperties: 128
+      propertyNames: {$ref: '#/components/schemas/AuditCommonKey'}
+      additionalProperties:
+        type: string
+        maxLength: 4096
+        x-max-utf8-bytes: 4096
+      description: Explicit values for the parameters declared by the selected Audit Program; only its named Workflow bindings consume these values.
     CreateAuditRequest:
       type: object
       additionalProperties: false
       required: [profile, inputs]
       properties:
+        parameters: {$ref: '#/components/schemas/AuditLaunchParameters'}
         labels: {$ref: '#/components/schemas/AuditLabels'}
         profile: {$ref: '#/components/schemas/AuditProfileSelector'}
         inputs:
@@ -14032,6 +14062,7 @@ components:
       additionalProperties: false
       required: [inputs, scope, activeChecks, runtimeLabels, runtimeConfig, skills, standards]
       properties:
+        parameters: {$ref: '#/components/schemas/AuditLaunchParameters'}
         labels: {$ref: '#/components/schemas/AuditLabels'}
         requiredPlacementLabels: {$ref: '#/components/schemas/PlacementLabels'}
         activeChecks: {$ref: '#/components/schemas/ActiveChecksPolicy'}
@@ -14087,6 +14118,7 @@ components:
       additionalProperties: false
       required: [auditId, projectId, profile, inputs, scope, runtimeLabels, state, taskCount, iteration, revision, dispatchState, holdState, limits, reservedRunCount, submittedRunCount, outstandingRunCount, collectionPending, retainedEvidenceBytes, eventSequence, createdAt, updatedAt]
       properties:
+        parameters: {$ref: '#/components/schemas/AuditLaunchParameters'}
         labels: {$ref: '#/components/schemas/AuditLabels'}
         requiredPlacementLabels: {$ref: '#/components/schemas/PlacementLabels'}
         auditId: {$ref: '#/components/schemas/ResourceId'}
@@ -17340,6 +17372,7 @@ components:
           required: [source, name]
           properties:
             source: {type: string, const: parameter}
+            optional: {type: boolean, const: true}
             name: {type: string, minLength: 1, maxLength: 128}
             default: {type: string, maxLength: 8192, x-maxBytes: 8192}
         - type: object
@@ -17347,6 +17380,7 @@ components:
           required: [source, name, parse]
           properties:
             source: {type: string, const: parameter}
+            optional: {type: boolean, const: true}
             name: {type: string, minLength: 1, maxLength: 128}
             parse: {type: string, const: integer}
             default: {type: integer, minimum: 0, maximum: 9007199254740991}

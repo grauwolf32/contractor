@@ -137,7 +137,7 @@ func TestAuditResultInvalidRetainedContentStaysPermanent(t *testing.T) {
 func TestScanStorageCodeRetryScopeAndCause(t *testing.T) {
 	preDispatch := []string{"scan_plan_write_failed", "scan_input_write_failed", "scan_plan_record_failed"}
 	auditOnly := []string{
-		"audit_scan_source_unavailable", "audit_scan_settings_unavailable",
+		"audit_scan_source_unavailable", "audit_scan_request_values_unavailable",
 		"audit_scan_operation_unavailable", "audit_scan_preparation_write_failed", "scan_history_unavailable",
 		"audit_scan_result_unavailable", "audit_scan_result_write_failed", "scan_completion_write_failed",
 		"scan_session_unavailable", "scan_source_unavailable", "scan_job_claim_unavailable", "scan_job_result_unavailable",
@@ -181,7 +181,7 @@ func TestAuditStorageFailuresKeepCauseOnRunPath(t *testing.T) {
 	}{
 		{"operation", "audit_scan_operation_unavailable"},
 		{"openapi", "audit_scan_source_unavailable"},
-		{"settings", "audit_scan_settings_unavailable"},
+		{"request_values", "audit_scan_request_values_unavailable"},
 		{"prepared", "audit_scan_preparation_write_failed"},
 		{"history", "scan_history_unavailable"},
 		{"report", "audit_scan_result_write_failed"},

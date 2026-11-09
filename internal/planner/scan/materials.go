@@ -1,7 +1,9 @@
 package scan
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
@@ -37,7 +39,20 @@ func (p *execution) selectNormalizedMaterials(ctx context.Context, jobs []planne
 	if err != nil {
 		return err
 	}
-	ref, err := p.factory.artifacts.Create(ctx, p.invocation.RunID, contracts.ArtifactRef{Namespace: slot.From.Namespace, Name: slot.From.Name}, artifacts.Payload{MediaType: "application/json", Data: data})
+	// The downstream Stage resolves this declared binding. A new attempt may
+	// advance it with CAS, while all previous exact result revisions survive.
+	target := contracts.ArtifactRef{Namespace: slot.From.Namespace, Name: slot.From.Name}
+	payload := artifacts.Payload{MediaType: "application/json", Data: data}
+	ref, err := p.factory.artifacts.Resolve(ctx, p.invocation.RunID, target)
+	if errors.Is(err, artifacts.ErrArtifactNotFound) {
+		ref, err = p.factory.artifacts.Create(ctx, p.invocation.RunID, target, payload)
+	} else if err == nil {
+		var current artifacts.Payload
+		current, err = p.factory.artifacts.Read(ctx, p.invocation.RunID, ref, planner.MaxScanArtifactBytes)
+		if err == nil && (current.MediaType != payload.MediaType || !bytes.Equal(current.Data, data)) {
+			ref, err = p.factory.artifacts.Replace(ctx, p.invocation.RunID, target, payload, *ref.Revision)
+		}
+	}
 	if err != nil {
 		return p.scanError("scan_report_write_failed", err)
 	}

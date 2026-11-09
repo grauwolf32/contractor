@@ -27,11 +27,12 @@ func (e *PreparationError) Error() string { return "request preparation: " + e.C
 func failure(code string) error           { return &PreparationError{Code: code} }
 
 type Options struct {
-	Server          string                            `json:"server"`
-	ServerVariables map[string]string                 `json:"serverVariables"`
-	Authentication  map[string]contracts.SecretString `json:"authentication"`
-	Operations      map[string]OperationInput         `json:"operations"`
-	MaxRequests     int                               `json:"maxRequests"`
+	EngagementCredential string                            `json:"engagementCredential,omitempty"`
+	Server               string                            `json:"server"`
+	ServerVariables      map[string]string                 `json:"serverVariables"`
+	Authentication       map[string]contracts.SecretString `json:"authentication"`
+	Operations           map[string]OperationInput         `json:"operations"`
+	MaxRequests          int                               `json:"maxRequests"`
 }
 
 type OperationInput struct {

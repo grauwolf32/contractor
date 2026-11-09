@@ -17,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
+	"github.com/grauwolf32/contractor/internal/stageresult"
 )
 
 func TestPostgresScanArtifactReadsUseTheCallerInputBudget(t *testing.T) {
@@ -70,5 +71,59 @@ func TestPostgresScanArtifactReadsUseTheCallerInputBudget(t *testing.T) {
 				t.Fatalf("creation ceiling widened: %v", err)
 			}
 		})
+	}
+}
+
+func TestPostgresScanMaterialSelectionAdvancesBindingAndRetainsAttempts(t *testing.T) {
+	ctx := t.Context()
+	pool := isolatedScanPool(t, ctx)
+	storage := artifactpgtest.NewStorage()
+	_, err := runstoretest.CreateRun(ctx, runstore.NewPostgresStore(pool, storage), runstore.CreateRunParams{
+		LaneClass: resolved.LaneClassTool, RunID: "run-material-retry", OwnerID: "owner", WorkflowName: "scan", WorkflowVersion: "1", WorkflowSchemaVersion: contracts.APIVersion,
+		WorkflowSnapshot: json.RawMessage(`{"name":"scan"}`), Parameters: map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	adapter, err := NewServiceArtifacts(artifacts.NewService(storage.Repository(pool)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := newFactoryHarness(t, 1)
+	h.invocation.RunID = "run-material-retry"
+	h.factory.artifacts = adapter
+	h.invocation.Stage.Result.Artifacts["materials"] = resolved.ArtifactSlot{Required: true, From: &resolved.ArtifactBinding{Namespace: "scan-results", Name: "finding-materials"}}
+	p := &execution{factory: h.factory, invocation: h.invocation}
+	var first contracts.ArtifactRef
+	var firstData []byte
+	for _, name := range []string{"attempt-one", "attempt-two"} {
+		output, err := adapter.Create(ctx, h.invocation.RunID, contracts.ArtifactRef{Namespace: "scanner", Name: name}, artifacts.Payload{MediaType: "application/json", Data: []byte(`{"items":[]}`)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		jobs := []planner.ScanJobRecord{{Outputs: map[string]contracts.ArtifactRef{"candidates": output}}}
+		result := stageresult.StageContentResult{Artifacts: map[string]contracts.ArtifactRef{}}
+		if err := p.selectNormalizedMaterials(ctx, jobs, &result); err != nil {
+			t.Fatal(err)
+		}
+		ref := result.Artifacts["materials"]
+		payload, err := adapter.Read(ctx, h.invocation.RunID, ref, planner.MaxScanArtifactBytes)
+		if err != nil || ref.Name != "finding-materials" {
+			t.Fatalf("downstream binding: %+v %v", ref, err)
+		}
+		if name == "attempt-one" {
+			first, firstData = ref, payload.Data
+		} else {
+			old, err := adapter.Read(ctx, h.invocation.RunID, first, planner.MaxScanArtifactBytes)
+			if err != nil || !bytes.Equal(old.Data, firstData) || first.SameExact(ref) {
+				t.Fatal("new attempt changed the previous exact result")
+			}
+			if _, err := adapter.Replace(ctx, h.invocation.RunID, contracts.ArtifactRef{Namespace: ref.Namespace, Name: ref.Name}, payload, *first.Revision); !errors.Is(err, artifacts.ErrArtifactConflict) {
+				t.Fatalf("stale attempt overwrote current selection: %v", err)
+			}
+		}
+		if err := p.selectNormalizedMaterials(ctx, jobs, &result); err != nil || !result.Artifacts["materials"].SameExact(ref) {
+			t.Fatalf("acknowledgement recovery changed exact selection: %v", err)
+		}
 	}
 }

@@ -18,10 +18,10 @@ func TestScanPreparationIsAnOrdinaryWorkflowCapability(t *testing.T) {
 			}
 			workflow := pin.Workflows["scan"]
 			stage := workflow.Stages[workflow.EntryStage]
-			if stage.ScanPreparation == nil || stage.ScanPreparation.SettingsArtifact == "" {
+			if stage.ScanPreparation == nil || !workflow.Inputs["engagement"].Required {
 				t.Fatal("missing ordinary scan preparation")
 			}
-			if workflow.AuditTask != nil || pin.Program.Workflows["scan"].Outputs["scan_report"] != "result" {
+			if workflow.AuditTask != nil || len(pin.Program.Workflows["scan"].Outputs) != 0 {
 				t.Fatal("retired task execution survived")
 			}
 			data, _ := json.Marshal(pin)

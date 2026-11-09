@@ -65,14 +65,14 @@ const SUGGESTION_RULES: readonly SuggestionRule[] = [
     checkTypes: ["openapi-sqlmap-scan"],
     words: /\b(?:sqlmap|sql[- ]?injections?|sqli)\b/i,
     reason:
-      "Your objective mentions SQL injection, and this check type runs SQLMap on the endpoints your scan settings select.",
+      "Your objective mentions SQL injection, and this check type runs SQLMap on the endpoints your execution parameters select.",
   },
   {
     id: "nuclei",
     checkTypes: ["openapi-nuclei-scan"],
     words: /\b(?:nuclei|misconfigurations?|security headers?)\b/i,
     reason:
-      "Your objective mentions Nuclei, misconfiguration or security headers, and this check type runs Nuclei on the endpoints your scan settings select.",
+      "Your objective mentions Nuclei, misconfiguration or security headers, and this check type runs Nuclei on the endpoints your execution parameters select.",
   },
   {
     id: "api-access",

@@ -336,7 +336,7 @@ def test_proxy_async_child_outcomes_reach_the_caller_unwrapped(
 
 
 @pytest.mark.parametrize("outcome", ["timeout", "oversized"])
-def test_proxied_validators_report_timeout_and_oversized_output(
+def test_validators_report_timeout_and_oversized_output(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, outcome: str
 ) -> None:
     body = "import time; time.sleep(60)" if outcome == "timeout" else "print('x' * 3_000_000)"
@@ -346,13 +346,16 @@ def test_proxied_validators_report_timeout_and_oversized_output(
     monkeypatch.setattr(openapi_module.shutil, "which", lambda _name: str(executable))
     monkeypatch.setattr(likec4_module.shutil, "which", lambda _name: str(executable))
     monkeypatch.setattr(openapi_module, "MAX_VACUUM_OUTPUT_BYTES", 1000)
+    monkeypatch.setattr(
+        openapi_module, "VACUUM_TIMEOUT_SECONDS", 0.5 if outcome == "timeout" else 60
+    )
     monkeypatch.setattr(likec4_module, "MAX_VALIDATOR_OUTPUT_BYTES", 1000)
 
     async def scenario() -> None:
         # The sleeping validator always outlives 0.5 s. The oversized one must
         # start and write before its timeout, so it gets one no host exhausts.
         launcher = _launcher(timeout_seconds=0.5 if outcome == "timeout" else 60)
-        vacuum = await openapi_module._run_vacuum("openapi: 3.0.3", launcher)
+        vacuum = await openapi_module._run_vacuum("openapi: 3.0.3")
         likec4 = await likec4_module._run_likec4("model {}", tmp_path, launcher)
         await launcher.aclose()
         return vacuum, likec4

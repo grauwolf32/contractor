@@ -5,6 +5,7 @@ package e2e
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -359,11 +360,15 @@ http:
 		"CONTRACTOR_LOCAL_AUTH_FILE":     writeE2ELocalAuth(t, h.temporaryRoot, h.userID), "CONTRACTOR_BROWSER_ORIGINS": h.browserBaseURL,
 		"CONTRACTOR_LLM_GATEWAY_TOKEN": h.gatewayToken,
 	}
+	masterKeyFile := filepath.Join(h.temporaryRoot, "credential-master-key")
+	if err := os.WriteFile(masterKeyFile, []byte(base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{0x5a}, 32))), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	h.restartServer = func() {
 		if h.server != nil {
 			h.server.stop(t)
 		}
-		h.server = startProcess(t, "Go Scan Server", h.repositoryRoot, serverEnvironment, serverBinary, "serve")
+		h.server = startProcess(t, "Go Scan Server", h.repositoryRoot, serverEnvironment, serverBinary, "serve", "--credential-master-key-file", masterKeyFile)
 		waitForHTTP(t, ctx, h.server, h.client, h.baseURL+"/readyz", http.StatusOK)
 	}
 	h.restartServer()
@@ -391,6 +396,8 @@ http:
 			"--ca-file", caPaths.Certificate, "--certificate-file", identity.Certificate, "--private-key-file", identity.PrivateKey,
 			"--listen", address, "--work-root", filepath.Join(h.temporaryRoot, name), "--request-timeout-seconds", "10", "--shutdown-grace-seconds", "5",
 			"--allowed-target-network", "127.0.0.0/8"}
+		selectedTarget, _ := url.Parse(h.targetURL)
+		arguments = append(arguments, "--allowed-target-network", selectedTarget.Hostname()+"/32")
 		if h.workspaceStorageLocal {
 			arguments = append(arguments, "--workspace-storage", "local", "--workspace-work-root", filepath.Join(h.temporaryRoot, name+"-workspaces"))
 		}

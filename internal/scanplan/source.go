@@ -14,7 +14,7 @@ import (
 // and an index from each canonical path-item pointer to its key in paths.
 //
 // Lifetime and bounds (SCN-R256): one value serves one preparation call, either
-// one operation or the operations of one AuditScanSettings.PrepareOperations
+// one operation or the operations of one AuditSelection.PrepareOperations
 // batch, and nothing caches it across calls, settings or Runs. It holds one
 // source within the document bounds (LIM-SCN-39, LIM-SCN-41, LIM-SCN-42) and
 // an index with one entry per non-extension path key, which the node bound

@@ -3,7 +3,9 @@ package auditdomain
 import (
 	"bytes"
 	"encoding/json"
+	"maps"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -11,8 +13,25 @@ import (
 )
 
 func scanWorkTestInput(source, settings []byte) PreparedOpenAPIInput {
-	m := preparedSource("settings", settings)
-	return PreparedOpenAPIInput{Source: preparedSource("openapi", source), Data: source, Settings: &m, SettingsData: settings, Options: auditcontract.OpenAPIWorkArguments{Workflow: "scan", Selection: "scan-requests", MaxItems: 256}}
+	var fixture struct {
+		Scanner        string
+		Server         string
+		CredentialID   string `json:"credential_id"`
+		Operations     map[string]json.RawMessage
+		TestParameters []string
+	}
+	if err := json.Unmarshal(settings, &fixture); err != nil {
+		panic(err)
+	}
+	pointers, _ := json.Marshal(slices.Sorted(maps.Keys(fixture.Operations)))
+	params := map[string]string{"server": fixture.Server, "operations": string(pointers), "credential_id": fixture.CredentialID}
+	if fixture.TestParameters != nil {
+		raw, _ := json.Marshal(fixture.TestParameters)
+		params["test_parameters"] = string(raw)
+	}
+	values, _ := json.Marshal(fixture.Operations)
+	m := preparedSource("request_values", values)
+	return PreparedOpenAPIInput{Source: preparedSource("openapi", source), Data: source, Values: &m, ValuesData: values, Options: auditcontract.OpenAPIWorkArguments{Workflow: "scan", Selection: "scan-requests", MaxItems: 256, Scanner: fixture.Scanner, Parameters: params}}
 }
 func TestPreparedOpenAPIScanFixtureRequests(t *testing.T) {
 	for _, scanner := range []string{"sqlmap", "nuclei"} {
@@ -22,16 +41,25 @@ func TestPreparedOpenAPIScanFixtureRequests(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			settings, err := os.ReadFile(root + scanner + "-settings.json")
+			parameters, err := os.ReadFile(root + scanner + "-parameters.json")
 			if err != nil {
 				t.Fatal(err)
 			}
-			input := scanWorkTestInput(source, settings)
+			values, err := os.ReadFile(root + scanner + "-request-values.json")
+			if err != nil {
+				t.Fatal(err)
+			}
+			params := map[string]string{}
+			if err := json.Unmarshal(parameters, &params); err != nil {
+				t.Fatal(err)
+			}
+			material := preparedSource("request_values", values)
+			input := PreparedOpenAPIInput{Source: preparedSource("openapi", source), Data: source, Values: &material, ValuesData: values, Options: auditcontract.OpenAPIWorkArguments{Workflow: "scan", Selection: "scan-requests", MaxItems: 16, Scanner: scanner, Parameters: params}}
 			work, err := BuildPreparedOpenAPIWork(t.Context(), input)
 			if err != nil || len(work.Items) != 1 {
 				t.Fatalf("work=%+v err=%v", work, err)
 			}
-			scan, prepared, err := PrepareOpenAPIScanOperation(work.Items[0].Data, source, settings, "application/json")
+			scan, prepared, err := PrepareOpenAPIScanOperation(work.Items[0].Data, source, input.ValuesData, "application/json", input.Options.Scanner, input.Options.Parameters)
 			if err != nil || !prepared.Runnable || scan.Scanner != scanner {
 				t.Fatalf("ordinary operation=%+v %v", prepared, err)
 			}
@@ -60,12 +88,12 @@ func TestPreparedOpenAPIScanSettingsPinsGapsAndNoCredentialsInMaterial(t *testin
 	}
 	first := decodePreparedTestItem(t, work.Items[0])
 	revision := "different-exact-settings"
-	input.Settings.Ref.Revision = &revision
+	input.Values.Ref.Revision = &revision
 	second, err := BuildPreparedOpenAPIWork(t.Context(), input)
 	if err != nil || work.Items[0].Key == second.Items[0].Key {
 		t.Fatal("exact settings identity was lost")
 	}
-	if first.Scan == nil || first.Scan.Settings.Digest != input.Settings.Digest {
+	if first.Scan == nil || first.Values == nil || first.Values.Digest != input.Values.Digest {
 		t.Fatal("settings digest missing")
 	}
 	input = scanWorkTestInput([]byte(scanSource), []byte(nucleiSettings))
@@ -97,7 +125,7 @@ func TestPreparedOpenAPIScanRepreparationRejectsChangedBytes(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, alter := range []string{"source", "settings", "material"} {
-		source, settings, item := input.Data, input.SettingsData, work.Items[0].Data
+		source, settings, item := input.Data, input.ValuesData, work.Items[0].Data
 		switch alter {
 		case "source":
 			source = append(append([]byte{}, source...), ' ')
@@ -111,7 +139,7 @@ func TestPreparedOpenAPIScanRepreparationRejectsChangedBytes(t *testing.T) {
 			d.Scan.PreparationDigest = strings.Repeat("x", 71)
 			item, _ = json.Marshal(d)
 		}
-		if _, _, err := PrepareOpenAPIScanOperation(item, source, settings, "application/json"); err == nil {
+		if _, _, err := PrepareOpenAPIScanOperation(item, source, settings, "application/json", input.Options.Scanner, input.Options.Parameters); err == nil {
 			t.Fatalf("%s changed trusted exact selection", alter)
 		}
 	}
