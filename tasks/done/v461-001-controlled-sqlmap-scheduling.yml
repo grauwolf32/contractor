@@ -5,7 +5,8 @@ milestone: audit-scanners-engagement-2026-11
 epic: scan-tools
 kind: feature
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 030b5857d84c77c4659e4cf79a8f08ac27050900
 depends_on: []
 languages: [go, python, typescript]
 context:
@@ -66,3 +67,9 @@ tests:
     covers: [A1, A2]
   - command: make lint
     covers: [A1, A2]
+verification:
+  date: "2026-11-09"
+  runtime: 234 scanner and proxy tests passed, including real installed Nuclei and SQLMap HTTP/HTTPS processes.
+  go: go test ./internal/config/resolved passed.
+  lint: make lint passed, including generated dependency graph, descriptor parity and layer checks.
+  delivery: Implemented on codex/audit-engagement; not merged into main.
