@@ -5,7 +5,7 @@ milestone: ui-consolidation-2026-10
 epic: ui
 kind: chore
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V458-014]
 languages: [go, sql, python, typescript, markdown, yaml]
 goal: Main shows named material categories first while retaining the current default archive filter and preserving unrelated primary checkout changes.
@@ -61,3 +61,21 @@ tests:
     covers: [A1, A2]
   - command: python3 tasks/evidence/v458-015-primary-preservation.py --verify-only
     covers: [A3]
+implementation_commit: a0ccfee0a5ff1fd5b35bebc5e07fd01edcf038cb
+verification:
+  results:
+  - Reconciled material priority with main's default archive visibility. Ordinary and priority current-material pages select a bounded binding page before metadata hydration; explicit historical namespace selections keep ordered pages and exact reads. UI release is 0.11.33.
+  - Main migration 000005_project_materials_index.sql remains byte-identical. Unshipped category projection became 000006_project_material_order.sql; its current-material rank index excludes historical and Audit-managed bindings, while its namespace index retains explicit archive access. Migration backfill preserves existing fields and bytes.
+  - Complete Go suites for internal/artifacts/... internal/persistence/postgres internal/httpapi/public and internal/config passed against the disposable PostgreSQL database; internal/configtest compiled as a helper package. Combined regressions page 1207 current materials among 2001 high-priority archived materials, preserve explicit ordered archive access and cursor scope, and retain the existing 8000 archive and 6000 Audit-managed binding read budgets.
+  - make verify-public-api and make generate-public-client-check passed. The shared fixture gate passed 382 fixtures with 434 Go and 278 Python shared tests. One explicitly disabled optional disk-heavy case remains a skip rather than passing coverage.
+  - VITEST_MAX_WORKERS=2 make ui-verify passed 223 files and 2515 tests plus one existing expected failure, all 17 static-service cases, generation freshness, lint, typecheck and build. The complete mocked browser gate passed 239 cases in 33 specs without skips or retries. make lint passed on the combined revision.
+  - All 39 independent main-only paths retain exact contents and modes; the entire Runtime and configuration trees remain identical to main. ERD and dependency graph were regenerated through their owning generators; the schema remains 60 tables and 70 foreign keys at migration 000006.
+  - Created two-parent no-fast-forward merge a0ccfee0a5ff1fd5b35bebc5e07fd01edcf038cb from main 7f37af0117ab441163bb72440b997e414c18b680 and tested integration 19b556982db31db61f331b8d45663b8e27d3ec60. Its tree equals the tested integration tree. The guarded clean-path/index-base/CAS installer updated main and verified all six primary changed files' exact SHA-256 modes and original staged delta.
+  - The owned database contractor_material_priority_merge_20261110 was dropped after all test processes completed; its absence was verified. No demo migration deployment remote push live model calls business-data deletion or full release gate was performed.
+delivery:
+  date: '2026-11-10'
+  merged_into_main: true
+  merge_commit: a0ccfee0a5ff1fd5b35bebc5e07fd01edcf038cb
+  main_first_parent: 7f37af0117ab441163bb72440b997e414c18b680
+  verified_integration_head: 19b556982db31db61f331b8d45663b8e27d3ec60
+  ui_version: 0.11.33

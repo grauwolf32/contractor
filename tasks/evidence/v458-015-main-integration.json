@@ -33,5 +33,27 @@
     }
   ],
   "staged_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "checkout": "/Users/ruslan/src/contractor"
+  "checkout": "/Users/ruslan/src/contractor",
+  "merge_commit": "a0ccfee0a5ff1fd5b35bebc5e07fd01edcf038cb",
+  "verified_integration_head": "19b556982db31db61f331b8d45663b8e27d3ec60",
+  "verified_at": "2026-11-10T00:39:07.274898+03:00",
+  "ui_version": "0.11.33",
+  "schema_version": 6,
+  "checks": {
+    "go_postgres": true,
+    "public_api": true,
+    "generated_clients": true,
+    "shared_fixtures": 382,
+    "shared_go_tests": 434,
+    "shared_python_tests": 278,
+    "optional_heavy_shared_skips": 1,
+    "ui_passed": 2515,
+    "ui_expected_failure": 1,
+    "static_server_passed": 17,
+    "browser_passed": 239,
+    "lint": true,
+    "primary_preserved": true,
+    "owned_database_removed": true
+  },
+  "deployed": false
 }

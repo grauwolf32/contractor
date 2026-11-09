@@ -87,6 +87,10 @@ implementation_commit: 357bc6c5b429b8b70c228f2ab678fb4a1a758d04
 delivery:
   date: '2026-11-10'
   branch: codex/project-material-priority
-  merged_into_main: false
-  ui_version: 0.11.32
-  migration: 000005_project_material_order.sql
+  merged_into_main: true
+  source_ui_version: 0.11.32
+  ui_version: 0.11.33
+  migration: 000006_project_material_order.sql
+  merge_commit: a0ccfee0a5ff1fd5b35bebc5e07fd01edcf038cb
+  integrated_at: '2026-11-10'
+  integration_task: V458-015
