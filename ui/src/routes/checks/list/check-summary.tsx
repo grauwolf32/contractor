@@ -165,7 +165,7 @@ function Summary({
         }
         errorContext="The check could not be read again; its controls are unavailable."
       >
-        {() => <AuditControls audit={audit} projectName={projectName} menu />}
+        {() => <AuditControls audit={audit} projectName={projectName} />}
       </QueryView>
       <TechnicalDetails description="Check type version, runs and dates.">
         <Facts

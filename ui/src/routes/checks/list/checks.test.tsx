@@ -367,7 +367,13 @@ describe("Checks list", () => {
         within(list).getByRole("button", { name: "Stopped / failed 2" }),
       ).toBeVisible(),
     );
-    await user.click(within(detail).getByLabelText("Check actions"));
+    expect(
+      within(detail).queryByLabelText("Check actions"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(detail).getByRole("button", { name: "Delete check" }),
+    ).toBeVisible();
+    expect(requests.some((request) => request.method === "DELETE")).toBe(false);
     await user.click(
       within(detail).getByRole("button", { name: "Delete check" }),
     );
@@ -392,6 +398,9 @@ describe("Checks list", () => {
         screen.getByRole("region", { name: "Selected check" }),
       ).findByText("Deleting"),
     ).toBeVisible();
+    expect(
+      within(detail).getByRole("button", { name: "Delete check" }),
+    ).toBeDisabled();
   });
 
   it("starts a draft through the time limit dialog", async () => {

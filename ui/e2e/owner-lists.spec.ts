@@ -33,6 +33,77 @@ const checks = Array.from({ length: 201 }, (_, i) =>
   }),
 );
 
+for (const theme of ["light", "dark", "black"])
+  for (const width of [1440, 390]) {
+    test(`Check deletion stays visible in both views · ${theme} · ${width}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.addInitScript(
+        (value) => localStorage.setItem("contractor.theme", value),
+        theme,
+      );
+      const owner = project("project_delete", { name: "Delete review" });
+      const selected = audit(owner.projectId, "audit_delete", "draft");
+      let deletions = 0;
+      await mockAPI(page, async (route, request, url) => {
+        if (request.method() === "DELETE") deletions++;
+        const list = ownerListResponse(url, {
+          projects: [owner],
+          audits: [selected],
+        });
+        if (list) return fulfillResponse(route, list);
+        if (url.pathname === "/v1/projects")
+          return fulfillJSON(route, {
+            items: [owner],
+            page: { hasMore: false },
+          });
+        if (url.pathname === `/v1/projects/${owner.projectId}`)
+          return fulfillJSON(route, owner, 200, { ETag: '"1"' });
+        if (url.pathname === `/v1/projects/${owner.projectId}/audits`)
+          return fulfillJSON(route, {
+            items: [selected],
+            page: { hasMore: false },
+          });
+        if (url.pathname === `/v1/audits/${selected.auditId}`)
+          return fulfillJSON(route, selected, 200, {
+            ETag: `"${selected.revision}"`,
+          });
+        return fulfillEmptyPageOrNotFound(route);
+      });
+      for (const path of [
+        `/checks?state=all&check=${selected.auditId}`,
+        `/projects/${owner.projectId}/audits/${selected.auditId}`,
+      ]) {
+        await page.goto(path);
+        const deletion = page.getByRole("button", {
+          name: "Delete check",
+          exact: true,
+        });
+        await expect(deletion).toBeVisible();
+        await expect(
+          page.getByLabel("Check actions", { exact: true }),
+        ).toHaveCount(0);
+        await expect
+          .poll(() =>
+            page.evaluate(
+              () => document.documentElement.scrollWidth <= innerWidth,
+            ),
+          )
+          .toBe(true);
+        await deletion.click();
+        await expect(
+          page.getByRole("alertdialog", { name: "Delete this check?" }),
+        ).toBeVisible();
+        expect(deletions).toBe(0);
+        await page
+          .getByRole("button", { name: "Keep the check", exact: true })
+          .click();
+        expect(deletions).toBe(0);
+      }
+    });
+  }
+
 test("Inbox badge describes a failed findings continuation as a lower bound", async ({
   page,
 }) => {
