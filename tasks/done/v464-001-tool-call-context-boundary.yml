@@ -1,5 +1,5 @@
 schema_version: "1.0"
-id: V456-001
+id: V464-001
 title: Route Worker tool-call limits through the selected context strategy
 milestone: worker-context-compaction-2026-10
 epic: planner-worker
@@ -23,6 +23,7 @@ context:
     while retaining overall model, token and deadline bounds. User clarification
     2026-11-09 explicitly requires updating the tool-call counter after compaction
     and checking whether the ADK default 500-call counter also resets.
+  task_identity: "Renamed from V456-001 during main integration; current main uses that ID for the release baseline. Implementation history is unchanged."
   boundary: >-
     Runtime owns tool admission and safe context transitions. Existing wire/config
     fields and strategy selection are reused. Planner limits remain cumulative;
