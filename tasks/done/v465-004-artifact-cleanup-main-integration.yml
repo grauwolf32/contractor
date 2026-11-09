@@ -6,7 +6,7 @@ epic: projects-artifacts
 kind: chore
 introduced_by: V465-001
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V465-001, V465-002, V465-003]
 languages: [python, go, markdown]
 goal: Land the artifact cleanup in main with its verified behavior and the primary checkout's unrelated work preserved.
@@ -42,3 +42,16 @@ tests:
     covers: [A1]
   - command: python3 /private/tmp/artifact-cleanup-install-main.py --verify-only
     covers: [A3]
+
+implementation_commit: bbd795db9688c192b9b38136fd9adb0105ddc78d
+verification_results:
+  - "2026-11-10: reconciled current main ee53d96ab through e05ef07b6. The only conflict was generated tasks/BACKLOG.md, rebuilt with make tasks-backlog; no production source conflict occurred."
+  - "The combined Tool Worker/scanner/sitemap/bridge-reset/bridge-retirement/allocation-stop Runtime selection passed all 772 tests, without skips. make lint passed all checks on the reconciled code."
+  - "Compared internal/, ui/, configs/ and api/ against the previously verified artifact head d06da7b33: all trees are unchanged. The earlier real-PostgreSQL, full UI, API, configuration and 21 browser-test evidence remains applicable; these suites were not rerun for the metadata/Runtime-only reconciliation."
+  - "Created no-fast-forward merge bbd795db9688c192b9b38136fd9adb0105ddc78d with previous main and verified feature head as its two parents. Its tree equals the verified feature tree. Installed it in local main through a compare-and-swap ref advance after updating only clean working paths and the committed base of the user backlog."
+  - "The snapshot verifier passed after main advanced: all six original primary changed/untracked files retain their exact SHA-256 and mode, and the staged binary patch remains byte-identical. Durable verification metadata is tasks/evidence/v465-004-main-integration.json."
+  - "No new database, remote publication or demo deployment was needed. Existing Runs, snapshots and demo business data were not changed."
+delivery:
+  date: '2026-11-10'
+  merged_into_main: true
+  merge_commit: bbd795db9688c192b9b38136fd9adb0105ddc78d

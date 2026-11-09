@@ -57,4 +57,7 @@ verification_results:
 delivery:
   date: '2026-11-09'
   branch: codex/artifact-cleanup
-  merged_into_main: false
+  merged_into_main: true
+  merge_commit: bbd795db9688c192b9b38136fd9adb0105ddc78d
+  integrated_at: '2026-11-10'
+  integration_task: V465-004
