@@ -5,7 +5,8 @@ milestone: audit-scanners-engagement-2026-11
 epic: scan-tools
 kind: feature
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 63cdc7d6af42d7e8184bb13c69054ff99450f9da
 depends_on: [V461-001, V461-002]
 languages: [go, python, typescript]
 context:
@@ -78,3 +79,15 @@ tests:
     covers: [A1, A2, A3]
   - command: CONTRACTOR_SCAN_BROWSER=1 go test -tags=e2e ./tests/e2e -run '^TestScannerFindingsAcrossProductionProcesses$' -count=1 -timeout=15m
     covers: [A1, A2, A3]
+verification:
+  date: "2026-11-09"
+  runtime: "Full Runtime suite passed: 6104 cases passed and 135 declared optional/environment skips. After the final optional/default binding correction, the complete Tool Worker suite passed all 52 cases."
+  go: "Full touched Go package suites passed against real PostgreSQL, including pinned launch parameter admission and replay. The full scan Planner suite passed after the retry correction, including real-store CAS, exact prior revision retention and identical acknowledgement recovery."
+  contracts: "make verify-public-api and test-wire-cross-language passed: 378 shared fixtures, 425 Go and 270 Python shared tests. One optional disk-heavy shared test skipped; heavy I/O stayed disabled."
+  process: "All four shipped scan profiles passed through actual Server, Runtime, Nuclei/SQLMap and PostgreSQL. Nuclei web and engagement gates passed, including cancellation and conservative lost-outcome recovery."
+  browser: "Real browser-created web and OpenAPI scans passed without settings artifacts. OpenAPI Tasks retained canonical results after source Run deletion. The real scanner Findings gate passed positive/fixed controls, selected evidence, Runtime-free publication replay and browser source/evidence views."
+  ui: "make ui-verify passed: 221 test files, 2487 tests passed and one expected failure; all 17 static-server tests passed and the production build succeeded. Six Chromium web-form checks passed at 390/1440px in light/dark/black themes; screenshots were inspected."
+  config: "Shipped catalog validation passed: 31 Workflows, 32 AgentTemplates and 15 Audit profiles."
+  lint: "Final make docs-dependencies lint passed, including generated contracts/clients, strict shared fixtures, task/spec checks, Go/Python layers, release graph and UI gates."
+  cleanup: "Owned Vite process stopped and contractor_v461_01a1bca1 dropped after all process/store gates completed."
+  delivery: "Implemented on codex/audit-engagement; not merged into main or deployed."
