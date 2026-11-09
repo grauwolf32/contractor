@@ -41,3 +41,10 @@ tests:
     covers: [A2, A3]
   - command: git merge-base --is-ancestor 82a022b70 main
     covers: [A1]
+verification_results:
+  - "2026-11-09: combined make test-runtime passed: 6151 passed, 135 declared skips, no failures; mandatory report verification passed (436.56 seconds)."
+  - "2026-11-09: go test ./internal/contracts/... passed all packages, including regenerated shared fixtures and current cost/report fields."
+  - "2026-11-09: combined make lint passed: generated clients, UI/script/Go checks, tasks/specifications, ERD and Python/import boundaries."
+  - "Source files merged automatically. Fixture index entries were combined; generated fixtures, backlog and dependency graph were regenerated. V456-001 collision was resolved by renaming this lane to V464-001."
+  - "The six dirty primary files retained their exact SHA-256 hashes and modes; the primary branch and staged changes were not modified."
+  - "UI and other unrelated source paths match current main; no deployment or remote publication is included."
