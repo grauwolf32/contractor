@@ -5,7 +5,7 @@ milestone: ui-consolidation-2026-10
 epic: ui
 kind: chore
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V458-011, V458-012]
 languages: [typescript, markdown, yaml]
 goal: Main contains the approved full Check workspace and direct Delete control alongside the current operation response contract corrections.
@@ -49,3 +49,19 @@ tests:
     covers: [A2, A3]
   - command: python3 scripts/check_spec.py
     covers: [A2, A3]
+implementation_commit: d0ac8ac562197c1380221615de449e8bac76512c
+verification:
+  results:
+  - Main-only API contracts and generated clients retain exact contents and modes across all nine independent paths. All 21 approved feature paths retain their exact contents; UI release remains 0.11.30. The generated task backlog was regenerated after reconciliation.
+  - Combined make ui-verify passed 223 files with 2513 passing tests and one existing expected failure, all 17 static-service tests, generation freshness, lint, typecheck and production build.
+  - The complete make ui-browser-mocked gate passed 233 cases across 33 specs without skips or retries, including full global Check navigation and direct deletion across light dark and black themes at 390 and 1440 pixels.
+  - make verify-public-api and make generate-public-client-check passed. Task and specification checks passed for 1607 tasks and 51 documents. The initial sandboxed gate could not bind local test HTTP servers or access the Go build cache; rerunning with the necessary execution permissions passed without code changes.
+  - Main was updated through no-fast-forward merge d0ac8ac562197c1380221615de449e8bac76512c after checking its clean checkout and expected head. Its tree matches the tested integration revision exactly.
+  - All six unrelated primary working-tree files retain exact hashes and modes; its staged index and HEAD remain unchanged. No database resources were created and no remote push, demo deployment, live inference or full release gate was performed.
+delivery:
+  date: '2026-11-09'
+  merged_into_main: true
+  merge_commit: d0ac8ac562197c1380221615de449e8bac76512c
+  main_first_parent: 097c023cccb3a88b663e20a585c0734bada75df4
+  feature_head: 04cb5d32c0aba3b9d9fa58129db30378617c51e5
+  verified_integration_head: 2e6ae83adaadbdd392fb41269ba1b676181bec8e
