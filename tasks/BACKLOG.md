@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-67 open tasks: 9 in progress, 45 pending, 13 deferred. 1523 finished: 1505 completed, 18 archived.
+70 open tasks: 10 in progress, 47 pending, 13 deferred. 1523 finished: 1505 completed, 18 archived.
 
 ## In progress
 
@@ -20,6 +20,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Accept merged isolated Worker context compaction |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V461-004](v461-004-credential-evidence-redaction.yml) | http-tools | defect | P1 | Redact every injected credential header before HTTP evidence capture |
 
 ## Pending
 
@@ -56,6 +57,7 @@ the epics are in [epics.yml](epics.yml).
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
 | [V410-026](v410-026-sitemap-source-comparison.yml) | chore | P2 | — | Compare transport observations and scanner report projections for sitemap |
 | [V412-005](v412-005-controlled-scanner-pentest-integration.yml) | feature | P2 | — | Run ffuf through the existing allocation-local engagement authority |
+| [V461-005](v461-005-scanner-partial-output.yml) | defect | P2 | — | Preserve bounded scanner output when controlled HTTP stops execution |
 
 ### Workflow catalog and document workflows (`workflows`)
 
@@ -90,6 +92,7 @@ the epics are in [epics.yml](epics.yml).
 | [V411-021](v411-021-pentest-frozen-live-quality-evaluation.yml) | chore | P2 | V411-020 | Evaluate HTTP investigation quality with frozen repeated comparisons |
 | [V417-008](v417-008-context-compaction-eval-harness.yml) | chore | P2 | V417-001, V417-003 | Build frozen context-compaction evaluation fixtures and an opt-in harness |
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | chore | P2 | V417-008, V417-009 | Measure compaction and reasoning choices with repeated frozen live experiments |
+| [V461-006](v461-006-eval-audit-parameters.yml) | defect | P2 | — | Pin Audit launch parameters in Managed Eval creation and replay |
 
 ### Podman sandbox (`sandbox`)
 
@@ -160,13 +163,13 @@ tasks in `introduced_by`.
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 15 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
-| HTTP and Caido tools (`http-tools`) | 5 | 24 | 34 | 15 | 36 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 3 | 21 | 11 | 11 | 22 |
+| HTTP and Caido tools (`http-tools`) | 6 | 24 | 35 | 15 | 36 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 4 | 21 | 12 | 11 | 25 |
 | Findings tools and collections (`findings`) | 0 | 18 | 14 | 11 | 21 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 23 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 39 | 19 | 69 |
 | Audits (`audits`) | 10 | 69 | 97 | 42 | 167 |
-| Evaluations (`evals`) | 5 | 22 | 41 | 17 | 50 |
+| Evaluations (`evals`) | 6 | 22 | 42 | 17 | 50 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
 | Web UI (`ui`) | 1 | 51 | 79 | 28 | 76 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 47 | 9 | 22 |

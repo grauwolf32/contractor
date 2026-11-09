@@ -1,0 +1,34 @@
+schema_version: "1.0"
+id: V461-006
+title: Pin Audit launch parameters in Managed Eval creation and replay
+milestone: audit-scanners-engagement-2026-11
+epic: evals
+kind: defect
+introduced_by: V461-003
+priority: P2
+status: pending
+depends_on: []
+languages: [go]
+goal: Managed Eval validates declared Audit Program parameters and pins/forwards them through draft creation and lost-response recovery, alongside the existing Audit scope.
+context:
+  authority: "User review supplied 2026-11-09 for codex/audit-engagement at 3d5156c5b authorizes fixing the three reported regressions."
+  finding: >-
+    internal/evalservice/preflight_cases.go:63 accepts only three scope fields; audit_adapter.go:101 does not pass Parameters to CreateDraftParams, so the new scan Audit profiles cannot launch through Managed Eval.
+  siblings: >-
+    Audit preflight, case/variant mapping, durable audit-create intent, recovery and actual Audit baseline/Workflow binding; ordinary Workflow Eval and objective/target/authorizationScope behavior remain intact.
+  specification: docs/spec/evals/managed-evals.md
+scope:
+  in: [shared boundary correction, regression through the actual publication/process/store path, required owning-package verification]
+  out: [unrelated cleanup, new scanner capabilities, deployment, compatibility shims]
+acceptance_criteria:
+  - id: A1
+    text: The reported defect reproduces on the original implementation and does not reproduce after the correction.
+  - id: A2
+    text: Sibling callers and legitimate controls retain their specified behavior, bounds and cancellation or replay guarantees.
+  - id: A3
+    text: Owning package suites and repository lint pass; any optional skips are reported explicitly.
+tests:
+  - command: go test -count=1 ./internal/evalservice ./internal/auditservice ./internal/contracts/auditcontract
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]

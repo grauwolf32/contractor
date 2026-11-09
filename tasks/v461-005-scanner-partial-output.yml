@@ -1,0 +1,34 @@
+schema_version: "1.0"
+id: V461-005
+title: Preserve bounded scanner output when controlled HTTP stops execution
+milestone: audit-scanners-engagement-2026-11
+epic: scan-tools
+kind: defect
+introduced_by: V461-001
+priority: P2
+status: pending
+depends_on: []
+languages: [python]
+goal: A controlled HTTP failure promptly stops the native scanner and preserves already received stdout/stderr for partial Findings and evidence without changing allocation cancellation semantics.
+context:
+  authority: "User review supplied 2026-11-09 for codex/audit-engagement at 3d5156c5b authorizes fixing the three reported regressions."
+  finding: >-
+    runtime/src/contractor_runtime/toolsets/scan/tools.py:360 returns a fresh empty ProcessResult when bridge.error_code is present, dropping finished or buffered scanner output before provider parsing.
+  siblings: >-
+    Both Nuclei and SQLMap use the same controlled-process wrapper. Cover completed/error races, running process stop, bounded output, process group cleanup, timeout and caller cancellation; unrelated subprocess callers must keep their cancellation behavior.
+  specification: docs/spec/tools/scanners.md
+scope:
+  in: [shared boundary correction, regression through the actual publication/process/store path, required owning-package verification]
+  out: [unrelated cleanup, new scanner capabilities, deployment, compatibility shims]
+acceptance_criteria:
+  - id: A1
+    text: The reported defect reproduces on the original implementation and does not reproduce after the correction.
+  - id: A2
+    text: Sibling callers and legitimate controls retain their specified behavior, bounds and cancellation or replay guarantees.
+  - id: A3
+    text: Owning package suites and repository lint pass; any optional skips are reported explicitly.
+tests:
+  - command: cd runtime && uv run pytest -W error tests/test_scan_toolset.py tests/test_nuclei_engagement.py tests/test_sqlmap_engagement.py tests/test_http_proxy_bridge.py
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
