@@ -492,6 +492,9 @@ work is stopped first and the deletion intent kept
 ([REV-R163](../audits/review-and-reports.md)), also during the report decision
 ([AUD-R222](../audits/audits.md)). The confirmation says when deleting stops
 running work first.
+The selected Checks workspace and Project Check workspace show Delete directly
+among the lifecycle controls, rather than hiding that single action in an
+overflow menu. Compact Project Check rows keep a named Delete icon.
 
 #### Finding detail
 

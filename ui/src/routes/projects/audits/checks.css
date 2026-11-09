@@ -189,86 +189,6 @@
   outline: none;
 }
 
-/* ---------- Check page: detail header ---------- */
-
-/* On one-pane screens the list (with the title) is hidden. */
-
-.checks-progress-count {
-  margin: 0;
-  font-size: var(--text-base);
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  white-space: nowrap;
-}
-
-.checks-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-4);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.checks-legend a {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1-5);
-  border-radius: var(--radius-sm);
-  color: var(--text);
-  font-size: var(--text-sm);
-  text-decoration: none;
-}
-
-.checks-legend a:hover > span:nth-child(2) {
-  text-decoration: underline;
-}
-
-.checks-swatch {
-  flex: none;
-  width: 0.625rem;
-  height: 0.625rem;
-  border-radius: var(--radius-xs);
-  background: var(--m-idle);
-}
-
-.checks-swatch:is([data-tone="done"], [data-tone="success"]) {
-  background: var(--m-done);
-}
-
-.checks-swatch:is(
-  [data-tone="partial"],
-  [data-tone="review"],
-  [data-tone="warning"]
-) {
-  background: var(--m-partial);
-}
-
-.checks-swatch:is([data-tone="progress"], [data-tone="info"]) {
-  background: var(--m-progress);
-}
-
-.checks-swatch[data-tone="blocked"] {
-  background: var(--m-blocked);
-}
-
-.checks-legend-count {
-  color: var(--muted);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  font-weight: 600;
-}
-
-.checks-progress-id {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1-5);
-  min-width: 0;
-  color: var(--muted);
-  font-size: var(--text-sm);
-}
-
 /* ---------- Check page: All activity ---------- */
 
 /* ---------- Check page: Decisions and Runs ---------- */
@@ -336,19 +256,6 @@
 
 .checks-row-progress > .ui-segments {
   flex: 1 1 8rem;
-}
-
-.checks-summary-objective {
-  margin: 0;
-  max-width: 72ch;
-  font-size: var(--text-base);
-  line-height: 1.55;
-}
-
-.checks-summary-progress {
-  display: grid;
-  gap: var(--space-2);
-  max-width: 36rem;
 }
 
 .checks-task-json {

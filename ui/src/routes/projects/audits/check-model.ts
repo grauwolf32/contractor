@@ -1,14 +1,11 @@
 import type { AuditWorkspace } from "../../../api/audits";
 import { formatNumber } from "../../../app/format";
 import type { StatusTone } from "../../../app/status-tone";
-import { type Group } from "./assessments";
 
 /** One legend entry: a status, its tone, how many items have it. */
-export interface LegendEntry {
+interface LegendEntry {
   label: string;
   tone: StatusTone;
-  /** The result filter its link opens; "all" when no one filter holds it. */
-  group: Group;
   count: number;
 }
 
@@ -40,17 +37,15 @@ export function workCounts(workspace: AuditWorkspace): WorkCounts {
 export function countLegend(counts: WorkCounts): LegendEntry[] {
   return [
     // Done also holds not applicable work: no one filter.
-    { label: "Done", tone: "done", group: "all", count: counts.done },
+    { label: "Done", tone: "done", count: counts.done },
     {
       label: "Gaps",
       tone: "partial",
-      group: "uncertain",
       count: counts.followUp,
     },
     {
       label: "Pending",
       tone: "idle",
-      group: "not-tested",
       count: counts.unchecked,
     },
   ];

@@ -1007,12 +1007,16 @@ no retained copy has no fabricated link.
 
 ### Audits
 
-**UI-R139.** The existing Checks list keeps its filters, compact selected-check
-summary, progress and keyboard navigation. A check opens Overview / Work /
-Hypotheses / Possible issues / Materials / Activity, with a link to its exact
-report. The contextual Project check list and return navigation retain the
-source list context. Work preserves the list/detail pattern over accepted Tasks;
-it does not restore the removed Round/item executor.
+**UI-R139.** The Checks list keeps its filters, progress and keyboard navigation.
+Selecting a Check immediately opens its complete workspace alongside that list,
+with no intermediate summary or Open check action. Global selection and section
+live in `/checks?state=…&project=…&check=…&section=…`; section navigation retains
+the list filters, switching Checks clears child selection and cursors, and mobile
+Back returns to the same filtered list. The global entry and canonical Project
+Check route share one full detail component: Overview / Work / Hypotheses /
+Possible issues / Materials / Activity, with a link to the exact report.
+Work preserves the list/detail pattern over accepted Tasks; it does not restore
+the removed Round/item executor.
 
 **UI-R140.** Audit pages display technical Run outcome separately from semantic
 assessment, and proposed findings separately from confirmed findings.

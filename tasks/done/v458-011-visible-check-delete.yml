@@ -1,0 +1,45 @@
+schema_version: '1.0'
+id: V458-011
+title: Keep Check deletion visible in every Check view
+milestone: ui-consolidation-2026-10
+epic: ui
+kind: defect
+priority: P2
+status: completed
+depends_on: []
+languages: [typescript, json, markdown, yaml]
+goal: Users can find Delete check directly in both the selected Checks summary and the full Check workspace at desktop and mobile widths.
+context:
+  severity: low
+  authority: User correction 2026-11-09 reiterates the earlier accepted design decision that the single deletion action must not be hidden behind an ellipsis.
+  finding: ui/src/routes/checks/list/check-summary.tsx:168 still selects AuditControls menu mode, while the full research workspace renders deletion directly. That mode contains only Delete check and creates inconsistent controls for the same object.
+  origin: The hidden-delete mode originated in untracked V3B implementation commit 74b2dbe27f2b570a18d84cac2fbbe14f0c2627cb; later V385-001 refactoring preserved it. No original owning task is identifiable, so no inferred introduced_by task is assigned.
+  siblings: Global selected Check summary, full Project Check workspace and compact Project Check rows share AuditControls; remove the obsolete menu variant across this component while preserving lifecycle gates and compact labeled icons.
+  specification: docs/spec/ui/journeys.md#UIJ-R111
+scope:
+  in:
+  - Remove the single-action overflow mode and show direct deletion consistently with existing confirmation and deleting-state behavior.
+  - Preserve all mutation authority, CAS, idempotency, invalidation and error handling.
+  - Update existing mutation coverage and verify both real production views at 390 and 1440 pixels in all three themes.
+  out:
+  - New server operations, broad Check redesign, deletion of business data and deployment or merge.
+acceptance_criteria:
+  - id: A1
+    text: Both Check views show Delete check without opening a menu; no hidden-delete mode remains in the shared component.
+  - id: A2
+    text: Clicking deletion opens the existing confirmation and sends no DELETE before confirmation; deleting state remains disabled and all other lifecycle behavior is preserved.
+  - id: A3
+    text: Direct actions remain visible and fit at 390 and 1440 pixels in light dark and black themes, using existing shared buttons and tokens.
+tests:
+  - command: make ui-verify
+    covers: [A1, A2, A3]
+  - command: make ui-browser-mocked
+    covers: [A1, A2, A3]
+verification:
+  results:
+  - The updated selected-check mutation regression failed on the original component because Delete check was hidden. The final complete UI gate passed with direct visibility, no DELETE before confirmation and disabled deletion after the Server reports deleting.
+  - make ui-verify passed 223 files and 2503 tests plus one existing expected failure, all 17 Node server cases, generation check, lint, typecheck and build. UI release is 0.11.29.
+  - The full mocked browser gate passed 227 cases across 33 specs with no skips or retries. Six added cases cover both selected-summary and full-workspace views at 390 and 1440 pixels in light dark and black themes, including confirmation dismissal without mutation and no horizontal overflow.
+  - Native production-component preview was also inspected at 390 pixels with the paused Check fixture; Delete is a visible labeled action and opening then dismissing its confirmation leaves data unchanged. Preview writes are disabled; its source and screenshot remain in ignored local review files.
+  - Specification and task checks passed. No server or database change, business-data deletion, merge, deployment or full release gate was performed.
+implementation_commit: 26e0d13d64e9c1f19c8682a306c6aeb37d2516cd
