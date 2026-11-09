@@ -75,7 +75,7 @@ export const nuclei = profileFixture("openapi-nuclei-scan", {
       required: true,
       media_types: ["application/json", "application/yaml"],
     },
-    settings: { required: true, media_types: ["application/json"] },
+    request_values: { required: true, media_types: ["application/json"] },
   },
   limits: limits(16),
   policy: { active_operations: "allowed" },
@@ -91,20 +91,26 @@ export const checklist = profileFixture("selected-materials", {
   limits: limits(128),
 });
 export const unsupported = profileFixture("custom-inspection");
-export const webScanProfile = profileFixture("web-scan", {
-  inputs: {
-    target: { required: true, media_types: ["application/json"] },
-    settings: { required: true, media_types: ["application/json"] },
-    rulepack: {
-      required: false,
-      media_types: [
-        "application/yaml",
-        "application/vnd.contractor.nuclei-rulepack+zip",
-      ],
+export const webScanProfile = withExecutionParameters(
+  profileFixture("web-scan", {
+    inputs: {
+      target: { required: true, media_types: ["application/json"] },
+      engagement: {
+        required: true,
+        media_types: ["application/vnd.contractor.engagement+json"],
+      },
+      rulepack: {
+        required: false,
+        media_types: [
+          "application/yaml",
+          "application/vnd.contractor.nuclei-rulepack+zip",
+        ],
+      },
     },
-  },
-  policy: { active_operations: "allowed" },
-});
+    policy: { active_operations: "allowed" },
+  }),
+  { credential_id: { required: false } },
+);
 
 export function materialFixture(
   name: string,
@@ -182,4 +188,76 @@ export function startedAudit(draft: Audit): Audit {
 export function startResponse(draft: Audit) {
   const audit = startedAudit(draft);
   return build.conforming("AuditStartResponse", { audit });
+}
+
+/** A current common assertion program, independent of the shipped catalog. */
+export function assertionProfileFixture(): AuditProfile {
+  const profile = profileFixture("source-checklist", {
+    inputs: checklist.inputs,
+    limits: limits(128),
+  });
+  return build.conforming("AuditProfile", {
+    ...profile,
+    program: {
+      schema: "contractor.audit.program.v1",
+      inputs: profile.inputs,
+      workflows: {
+        check: {
+          ref: "source-check@1",
+          inputs: {
+            source: { source: "audit-input", name: "source" },
+            context: { source: "task-context" },
+          },
+          parameters: {},
+          outputs: { result: "result" },
+        },
+      },
+      hypotheses: {},
+      initial_work: [],
+      seed_source: { workflow: "check", input: "checklist" },
+      limits: profile.limits,
+      policy: profile.policy,
+    },
+  });
+}
+
+export const engagementMaterial = materialFixture(
+  "engagement",
+  "application/vnd.contractor.engagement+json",
+);
+
+export function withExecutionParameters(
+  profile: AuditProfile,
+  parameters: Record<string, { required: boolean }>,
+): AuditProfile {
+  return build.conforming("AuditProfile", {
+    ...profile,
+    program: {
+      schema: "contractor.audit.program.v1",
+      inputs: profile.inputs,
+      parameters,
+      workflows: {
+        scan: {
+          ref: "fixture-scan@1",
+          inputs: Object.fromEntries(
+            Object.keys(profile.inputs).map((name) => [
+              name,
+              { source: "audit-input", name },
+            ]),
+          ),
+          parameters: {},
+          parameter_inputs: Object.fromEntries(
+            Object.keys(parameters).map((name) => [name, name]),
+          ),
+          outputs: {},
+        },
+      },
+      hypotheses: {},
+      initial_work: [
+        { key: "scan", workflow: "scan", objective: "Run fixture scan" },
+      ],
+      limits: profile.limits,
+      policy: profile.policy,
+    },
+  });
 }

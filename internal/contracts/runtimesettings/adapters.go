@@ -22,6 +22,7 @@ const (
 	RuntimeCredentialTargetBasic   RuntimeCredentialKind = "target-basic@1"
 	RuntimeCredentialTargetBearer  RuntimeCredentialKind = "target-bearer@1"
 	RuntimeCredentialTargetCookies RuntimeCredentialKind = "target-cookies@1"
+	RuntimeCredentialTargetAPIKeys RuntimeCredentialKind = "target-api-keys@1"
 )
 
 type RuntimeAdapterRef string
@@ -44,7 +45,7 @@ func (k RuntimeCredentialKind) Validate() error {
 	switch k {
 	case RuntimeCredentialOTLPHeaders, RuntimeCredentialProxyBasic, RuntimeCredentialProxyBearer,
 		RuntimeCredentialCaidoBearer, RuntimeCredentialInteractshToken, RuntimeCredentialOriginBasic, RuntimeCredentialOriginBearer,
-		RuntimeCredentialTargetBasic, RuntimeCredentialTargetBearer, RuntimeCredentialTargetCookies:
+		RuntimeCredentialTargetBasic, RuntimeCredentialTargetBearer, RuntimeCredentialTargetCookies, RuntimeCredentialTargetAPIKeys:
 		return nil
 	default:
 		return contracts.Invalidf("unknown Runtime credential kind")

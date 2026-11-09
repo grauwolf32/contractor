@@ -49,7 +49,7 @@ export function useAuditReport(
   const queryKey = queryKeys.audits.report(audit.auditId);
   const report = useQuery({
     queryKey,
-    queryFn: () => getAuditReport(api, audit.auditId),
+    queryFn: ({ signal }) => getAuditReport(api, audit.auditId, signal),
     refetchInterval: pollInterval<AuditReport>({
       interval: 1_000,
       settled: () => settled(audit),

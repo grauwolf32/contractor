@@ -161,6 +161,38 @@ function serve(
 }
 
 describe("Checks list", () => {
+  it("retains a workspace section when filtering and resets child selection on another Check", async () => {
+    const { api } = serve(fixture());
+    const { router } = renderApplication(
+      "/checks?state=running&project=project_a&check=a_running&section=work&task=task_1&tasksCursor=next-page",
+      { api },
+    );
+    const user = userEvent.setup();
+    const list = await screen.findByRole("region", { name: "Checks" });
+    await screen.findByRole("navigation", { name: "Check sections" });
+    const detail = screen.getByRole("region", { name: "Selected check" });
+    detail.scrollTop = 400;
+    await user.selectOptions(
+      within(list).getByRole("combobox", { name: "Project" }),
+      "project_b",
+    );
+    expect(router.state.location.search).toContain(
+      "section=work&task=task_1&tasksCursor=next-page",
+    );
+    await user.click(
+      await within(list).findByRole("link", {
+        name: "OWASP Top 10 · Source risks · Payment service",
+      }),
+    );
+    expect(router.state.location.search).toBe(
+      "?state=running&project=project_b&check=b_waiting",
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Work progress" }),
+    ).toBeVisible();
+    expect(detail.scrollTop).toBe(0);
+    expect(document.title).toBe("Checks · Contractor");
+  });
   it("lists every project's checks and filters them by state and project in the URL", async () => {
     const { api } = serve(fixture());
     const { router } = renderApplication("/checks", { api });
@@ -216,7 +248,7 @@ describe("Checks list", () => {
     ).toHaveAttribute("href", "/checks/new?project=project_a");
   });
 
-  it("shows the selected check with progress, what waits for the user and the way in", async () => {
+  it("opens the full workspace directly alongside the source Checks list", async () => {
     const { api } = serve(fixture());
     const { router } = renderApplication("/checks", { api });
     const user = userEvent.setup();
@@ -238,22 +270,24 @@ describe("Checks list", () => {
       within(detail).getByRole("link", { name: "Payment service" }),
     ).toHaveAttribute("href", "/projects/project_b");
     expect(
-      within(detail).getByRole("button", { name: "Copy check ID" }),
-    ).toBeVisible();
-    expect(
-      within(detail).getByRole("link", { name: "Open check" }),
-    ).toHaveAttribute("href", "/projects/project_b/audits/b_waiting");
-    expect(await within(detail).findByText("1 of 3 done")).toBeVisible();
-    // Waiting checks send decisions to the Inbox; possible issues to Issues.
-    expect(
-      within(detail).queryByRole("link", { name: /decision waiting/ }),
+      within(detail).queryByRole("link", { name: "Open check" }),
     ).toBeNull();
     expect(
-      within(detail).getByRole("link", { name: "2 possible issues to review" }),
-    ).toHaveAttribute("href", "/issues?project=project_b");
+      within(detail).getByRole("navigation", { name: "Check sections" }),
+    ).toBeVisible();
+    expect(await within(detail).findByText("3 accepted tasks")).toBeVisible();
     expect(
-      within(detail).getByRole("link", { name: "Gaps: 1" }),
-    ).toHaveAttribute("href", "/projects/project_b/audits/b_waiting");
+      within(detail).getByRole("link", { name: "1 technical gaps" }),
+    ).toHaveAttribute("href", "/checks?check=b_waiting&section=work&work=gap");
+    await user.click(
+      within(
+        within(detail).getByRole("navigation", { name: "Check sections" }),
+      ).getByRole("link", { name: /^Work/ }),
+    );
+    expect(router.state.location.search).toBe("?check=b_waiting&section=work");
+    expect(
+      within(list).getByRole("group", { name: "Filter checks by state" }),
+    ).toBeVisible();
     await user.click(
       within(list).getByRole("link", {
         name: "WSTG 4.2 · Source review · crapi-workshop",
@@ -269,7 +303,7 @@ describe("Checks list", () => {
     expect(screen.queryByText("role_execution_not_retryable")).toBeNull();
   });
 
-  it("moves the selection with J and K and opens the check with Enter", async () => {
+  it("moves through full Check workspaces with J K and Enter", async () => {
     const { api } = serve(fixture());
     const { router } = renderApplication("/checks?state=all", { api });
     const user = userEvent.setup();
@@ -310,9 +344,9 @@ describe("Checks list", () => {
       .focus();
     await user.keyboard("{Enter}");
     await waitFor(() =>
-      expect(router.state.location.pathname).toBe(
-        "/projects/project_a/audits/a_running",
-      ),
+      expect(
+        router.state.location.pathname + router.state.location.search,
+      ).toBe("/checks?check=a_running"),
     );
   });
 
@@ -367,7 +401,13 @@ describe("Checks list", () => {
         within(list).getByRole("button", { name: "Stopped / failed 2" }),
       ).toBeVisible(),
     );
-    await user.click(within(detail).getByLabelText("Check actions"));
+    expect(
+      within(detail).queryByLabelText("Check actions"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(detail).getByRole("button", { name: "Delete check" }),
+    ).toBeVisible();
+    expect(requests.some((request) => request.method === "DELETE")).toBe(false);
     await user.click(
       within(detail).getByRole("button", { name: "Delete check" }),
     );
@@ -392,6 +432,9 @@ describe("Checks list", () => {
         screen.getByRole("region", { name: "Selected check" }),
       ).findByText("Deleting"),
     ).toBeVisible();
+    expect(
+      within(detail).getByRole("button", { name: "Delete check" }),
+    ).toBeDisabled();
   });
 
   it("starts a draft through the time limit dialog", async () => {
@@ -401,9 +444,7 @@ describe("Checks list", () => {
     const detail = await screen.findByRole("region", {
       name: "Selected check",
     });
-    expect(
-      await within(detail).findByText(/This check is a draft/u),
-    ).toBeVisible();
+    expect(await within(detail).findByText(/Draft check/u)).toBeVisible();
     await user.click(
       await within(detail).findByRole("button", { name: "Start check" }),
     );

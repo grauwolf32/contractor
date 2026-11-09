@@ -12,11 +12,13 @@ import (
 	artifactpostgres "github.com/grauwolf32/contractor/internal/artifacts/postgres"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	plannermemory "github.com/grauwolf32/contractor/internal/memory"
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/operations"
 	"github.com/grauwolf32/contractor/internal/operations/openapiwork"
+	"github.com/grauwolf32/contractor/internal/operations/publishfindings"
 	"github.com/grauwolf32/contractor/internal/operations/sitemapjoin"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannera2a "github.com/grauwolf32/contractor/internal/planner/a2a"
@@ -26,7 +28,9 @@ import (
 	"github.com/grauwolf32/contractor/internal/planner/streamline"
 	"github.com/grauwolf32/contractor/internal/projectlifecycle"
 	"github.com/grauwolf32/contractor/internal/projectsitemap"
+	"github.com/grauwolf32/contractor/internal/runcost"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
+	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/scheduler"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
@@ -58,6 +62,7 @@ func (workflowServices) Format(state fmt.State, _ rune) {
 func configureExecutors(
 	pool *pgxpool.Pool,
 	artifactService *artifacts.Service,
+	findings *findingintake.Service,
 	runtimeClient *controlplane.RuntimeControlClient,
 	cfg Config,
 	storage *artifactpostgres.Storage,
@@ -75,7 +80,7 @@ func configureExecutors(
 		planner.DefaultCompletionWriteTimeout,
 		cfg.Operations.Database.AcquireTimeout+cfg.Operations.Database.LockTimeout+time.Second,
 	)
-	plannerSessions, err := plannersession.New(runstore.NewPostgresStore(pool, storage), plannersession.Options{
+	plannerSessions, err := plannersession.New(runcost.NewParticipants(pool, storage), plannersession.Options{
 		CompletionWriteTimeout: completionWriteTimeout,
 	})
 	if err != nil {
@@ -107,7 +112,7 @@ func configureExecutors(
 	if err != nil {
 		return executorServices{}, err
 	}
-	operationRegistry, err := operations.NewRegistry(sitemapjoin.NewJoin(projectsitemap.NewService(pool, storage)), sitemapjoin.NewApply(projectsitemap.NewService(pool, storage)), openapiwork.New(pool, storage))
+	operationRegistry, err := operations.NewRegistry(sitemapjoin.NewJoin(projectsitemap.NewService(pool, storage)), sitemapjoin.NewApply(projectsitemap.NewService(pool, storage)), openapiwork.New(pool, storage), publishfindings.New(findings))
 	if err != nil {
 		return executorServices{}, err
 	}
@@ -201,7 +206,7 @@ func configureWorkflows(
 	if err != nil {
 		return workflowServices{}, err
 	}
-	planners, err := configureExecutors(pool, catalogs.artifacts, control.runtimeClient, cfg, storage)
+	planners, err := configureExecutors(pool, catalogs.artifacts, catalogs.findings, control.runtimeClient, cfg, storage)
 	if err != nil {
 		return workflowServices{}, err
 	}
@@ -220,7 +225,7 @@ func configureWorkflows(
 		RequestTimeoutSeconds: int(cfg.WorkerRequestTimeout / time.Second),
 	}
 	schedulerSettings := settingsstore.NewPostgresStore(pool)
-	telemetryReports := telemetry.NewRepository(pool)
+	telemetryReports := runservice.NewCostReports(pool)
 	workflowScheduler, err := scheduler.New(
 		runstore.NewPostgresStore(pool, storage),
 		transactions,
@@ -259,7 +264,7 @@ func configureWorkflows(
 	// Expired telemetry is removed by its own loop outside the Scheduler lanes;
 	// a cleanup pass keeps the Scheduler store-operation budget it ran under.
 	telemetryRetention, err := telemetry.NewRetention(
-		telemetryReports, cfg.Operations.Scheduler.OperationTimeout, logger,
+		telemetryReports.Repository, cfg.Operations.Scheduler.OperationTimeout, logger,
 	)
 	if err != nil {
 		return workflowServices{}, fmt.Errorf("configure telemetry retention: %w", err)

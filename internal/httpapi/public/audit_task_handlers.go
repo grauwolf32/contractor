@@ -19,30 +19,31 @@ type auditTaskCreationRequest struct {
 }
 
 type auditTaskResponse struct {
-	Hypothesis    *auditcontract.Hypothesis `json:"hypothesis_snapshot,omitempty"`
-	Attention     bool                      `json:"attention"`
-	Document      auditcontract.Task        `json:"document"`
-	Source        auditstore.TaskSource     `json:"source"`
-	Ordinal       int                       `json:"ordinal"`
-	Iteration     int                       `json:"iteration"`
-	State         auditstore.TaskState      `json:"state"`
-	Attempts      int                       `json:"attempts"`
-	LastExecution *string                   `json:"last_execution_id,omitempty"`
-	Result        *auditcontract.Material   `json:"result,omitempty"`
-	GapCode       *string                   `json:"gap_code,omitempty"`
-	CreatedAt     time.Time                 `json:"created_at"`
-	UpdatedAt     time.Time                 `json:"updated_at"`
+	Findings      *auditstore.CanonicalFindingResult `json:"findings,omitempty"`
+	Hypothesis    *auditcontract.Hypothesis          `json:"hypothesis_snapshot,omitempty"`
+	Attention     bool                               `json:"attention"`
+	Document      auditcontract.Task                 `json:"document"`
+	Source        auditstore.TaskSource              `json:"source"`
+	Ordinal       int                                `json:"ordinal"`
+	Iteration     int                                `json:"iteration"`
+	State         auditstore.TaskState               `json:"state"`
+	Attempts      int                                `json:"attempts"`
+	LastExecution *string                            `json:"last_execution_id,omitempty"`
+	Result        *auditcontract.Material            `json:"result,omitempty"`
+	GapCode       *string                            `json:"gap_code,omitempty"`
+	CreatedAt     time.Time                          `json:"created_at"`
+	UpdatedAt     time.Time                          `json:"updated_at"`
 }
 
 func auditTaskReadModel(task auditstore.Task) auditTaskResponse {
-	return auditTaskResponse{Hypothesis: task.Hypothesis, Attention: task.Attention, Document: task.Document, Source: task.Source, Ordinal: task.Ordinal,
+	return auditTaskResponse{Findings: task.Findings, Hypothesis: task.Hypothesis, Attention: task.Attention, Document: task.Document, Source: task.Source, Ordinal: task.Ordinal,
 		Iteration: task.Iteration, State: task.State, Attempts: task.Attempts, LastExecution: task.LastExecution,
 		Result: task.Result, GapCode: task.GapCode, CreatedAt: task.CreatedAt, UpdatedAt: task.UpdatedAt}
 }
 
 // Task pages budget canonical metadata. Preserve that encoding at the HTTP
 // boundary: HTML escaping could otherwise expand accepted text sixfold.
-// The store reserves 8 KiB per row for result/progress and page framing.
+// The store reserves 48 KiB per row for result/progress and page framing.
 func writeAuditTaskJSON(w http.ResponseWriter, value any) error {
 	data, err := strictjson.Canonical(value)
 	if err != nil {

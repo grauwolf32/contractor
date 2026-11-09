@@ -90,6 +90,36 @@ export function useResearchTasks(audit: Audit, hypothesis?: string) {
   return { query, pages };
 }
 
+/** The URL-selected Task when its row is outside the current list page. */
+export function useResearchTask(
+  audit: Audit,
+  taskId: string | null,
+  enabled: boolean,
+) {
+  const api = usePublicAPI();
+  const queryKey = [...queryKeys.audits.detail(audit.auditId), "task", taskId];
+  const query = useQuery({
+    queryKey,
+    enabled: enabled && taskId !== null,
+    queryFn: async ({ signal }) =>
+      requireData(
+        await api.request((client) =>
+          client.GET("/v1/audits/{auditId}/tasks/{taskId}", {
+            signal,
+            params: { path: { auditId: audit.auditId, taskId: taskId! } },
+          }),
+        ),
+      ),
+    refetchInterval: pollInterval<ResearchTask>({
+      interval: 5000,
+      settled: (task) =>
+        task.state === "settled" || auditPollInterval([audit]) === false,
+    }),
+  });
+  useAuditProjectionRefresh(audit, queryKey, enabled && taskId !== null);
+  return query;
+}
+
 export function useResearchHypotheses(audit: Audit, enabled = true) {
   const api = usePublicAPI();
   const pages = useURLCursorStack({

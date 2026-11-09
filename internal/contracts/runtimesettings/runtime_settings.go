@@ -47,7 +47,6 @@ type TelemetrySettings struct {
 	Adapter             RuntimeAdapterRef                 `json:"adapter" strictjson:"required"`
 	Endpoint            string                            `json:"endpoint" strictjson:"required"`
 	Headers             map[string]contracts.SecretString `json:"headers" strictjson:"required"`
-	CaptureContent      bool                              `json:"captureContent" strictjson:"required"`
 	FlushTimeoutSeconds int                               `json:"flushTimeoutSeconds" strictjson:"required"`
 	Export              *TelemetryExport                  `json:"export" strictjson:"required"`
 }

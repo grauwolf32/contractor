@@ -393,6 +393,11 @@ profiles:
     initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
 operations:
 - method: get
+  path: /v1/audits/{auditId}/llm-cost
+  action: preserve
+  owner: V458-002
+  facts: Owner-authorized bounded retained cost summary and selected execution costs, with independent freshness and coverage; no Audit lifecycle or draft revision authority.
+- method: get
   path: /v1/audits/{auditId}/materials
   action: preserve
   owner: V64-008

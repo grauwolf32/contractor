@@ -240,17 +240,17 @@ func TestLabelDrivenRuntimeConfigurationAcrossProcesses(t *testing.T) {
 	runDebug := operations.publishRuntimeConfig("debug-run", "1", map[string]any{
 		"planner": map[string]any{"telemetry": map[string]any{
 			"adapter": "otlp-http@1", "endpoint": runCollector.URL(),
-			"credential": "otel-run", "captureContent": false, "flushTimeoutSeconds": 2,
+			"credential": "otel-run", "flushTimeoutSeconds": 2,
 		}},
 		"worker": map[string]any{"telemetry": map[string]any{
 			"adapter": "otlp-http@1", "endpoint": runCollector.URL(),
-			"credential": "otel-run", "captureContent": false, "flushTimeoutSeconds": 2,
+			"credential": "otel-run", "flushTimeoutSeconds": 2,
 		}},
 	})
 	agentDebug := operations.publishRuntimeConfig("debug-agent", "1", map[string]any{
 		"worker": map[string]any{"telemetry": map[string]any{
 			"adapter": "otlp-http@1", "endpoint": agentCollector.URL(),
-			"credential": "otel-agent", "captureContent": false, "flushTimeoutSeconds": 2,
+			"credential": "otel-agent", "flushTimeoutSeconds": 2,
 		}},
 	})
 	operations.createRuntimeLabel("debug", runDebug)

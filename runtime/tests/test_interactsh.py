@@ -500,8 +500,6 @@ def test_factory_requires_private_channel_and_exposes_only_selected_tools(tmp_pa
             **args, adapter_handles=AdapterHandles(interactsh=handle)
         )
         assert set(selected) == {"interactsh_poll"}
-        assert selected["interactsh_poll"].contractor_sensitive_output
-        assert factory.sensitive_output_tools == factory.exported_tools
         await selected["interactsh_poll"].close()
         await handle.close()
 

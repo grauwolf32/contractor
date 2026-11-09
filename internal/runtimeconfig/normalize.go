@@ -75,7 +75,6 @@ type telemetrySource struct {
 	Adapter             string                          `json:"adapter"`
 	Endpoint            string                          `json:"endpoint"`
 	Credential          optional[string]                `json:"credential"`
-	CaptureContent      optional[bool]                  `json:"captureContent"`
 	FlushTimeoutSeconds optional[int]                   `json:"flushTimeoutSeconds"`
 	Export              optional[telemetryExportSource] `json:"export"`
 }
@@ -458,13 +457,6 @@ func materializeTelemetry(path string, source optional[telemetrySource]) (Atomic
 			return AtomicPatch[TelemetryConfig]{}, nil, err
 		}
 	}
-	capture := false
-	if value.CaptureContent.present {
-		if value.CaptureContent.null {
-			return AtomicPatch[TelemetryConfig]{}, nil, invalid("%s.captureContent must be a boolean", path)
-		}
-		capture = value.CaptureContent.value
-	}
 	flush := 10
 	if value.FlushTimeoutSeconds.present {
 		if value.FlushTimeoutSeconds.null || value.FlushTimeoutSeconds.value < 1 || value.FlushTimeoutSeconds.value > 10 {
@@ -472,8 +464,8 @@ func materializeTelemetry(path string, source optional[telemetrySource]) (Atomic
 		}
 		flush = value.FlushTimeoutSeconds.value
 	}
-	patch.Value = TelemetryConfig{Adapter: value.Adapter, Endpoint: endpoint, Credential: value.Credential.value, CaptureContent: capture, FlushTimeoutSeconds: flush}
-	canonical := map[string]any{"adapter": value.Adapter, "endpoint": endpoint, "captureContent": capture, "flushTimeoutSeconds": flush}
+	patch.Value = TelemetryConfig{Adapter: value.Adapter, Endpoint: endpoint, Credential: value.Credential.value, FlushTimeoutSeconds: flush}
+	canonical := map[string]any{"adapter": value.Adapter, "endpoint": endpoint, "flushTimeoutSeconds": flush}
 	if value.Credential.present {
 		canonical["credential"] = value.Credential.value
 	}

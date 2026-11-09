@@ -13,7 +13,6 @@ spec:
       adapter: otlp-http@1
       endpoint: https://langfuse.example/v1/traces
       credential: otel-debug
-      captureContent: false
       flushTimeoutSeconds: 10
       export:
         batchSizeBytes: 8388608
@@ -32,7 +31,6 @@ spec:
       adapter: otlp-http@1
       endpoint: https://langfuse-local.example/v1/traces
       credential: otel-agent-local
-      captureContent: false
       flushTimeoutSeconds: 10
       export:
         batchSizeBytes: 8388608

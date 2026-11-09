@@ -647,13 +647,12 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   await invokeControl(request, controlURL, controlToken, "release-worker");
 
   await page.goto(`/runs/${streamlineRunID}`);
-  // The triage region is named by its outcome title, which reads
-  // "Run completed successfully" only for a succeeded Run.
+  // Successful Runs lead directly to results; their visible header chip owns
+  // the state instead of a repeated triage summary.
   await expect(
-    page.getByRole("region", {
-      name: "Run completed successfully",
-      exact: true,
-    }),
+    page
+      .locator(".ui-detail-header .ui-status-chip")
+      .filter({ hasText: /^Succeeded$/ }),
   ).toBeVisible({
     timeout: 45_000,
   });
@@ -832,10 +831,9 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   await page.goto(`/runs/${openAPIRunID}`);
   try {
     await expect(
-      page.getByRole("region", {
-        name: "Run completed successfully",
-        exact: true,
-      }),
+      page
+        .locator(".ui-detail-header .ui-status-chip")
+        .filter({ hasText: /^Succeeded$/ }),
     ).toBeVisible({
       timeout: 180_000,
     });
@@ -910,8 +908,9 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
 
   await page.goto("/operations/configurations");
   const workerRow = page
-    .getByRole("row")
+    .locator("details.ops-resource-row")
     .filter({ has: page.getByText("worker@2", { exact: true }) });
+  await openDetails(workerRow);
   await workerRow.getByRole("link", { name: "Inspect / clone" }).click();
   await page.getByRole("button", { name: "Clone to new version" }).click();
   await page.getByLabel("New version").fill("ui-stack-1");
@@ -931,7 +930,9 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     0,
   );
   await page.getByRole("link", { name: "Credentials" }).click();
-  await openDetails(page.locator("details.configuration-clone"));
+  await page
+    .getByRole("button", { name: "Create LLM credential", exact: true })
+    .click();
   const credentialForm = page.locator("form.credential-create-form");
   await credentialForm.getByLabel("Credential ID").fill("ui-stack-key");
   await openDetails(credentialForm.locator("details.optional-settings"));
@@ -995,7 +996,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
 
   await page.goto("/operations/configuration");
   await expect(
-    page.getByRole("heading", { name: "RuntimeConfig versions" }),
+    page.getByRole("heading", { name: "Runtime configuration", exact: true }),
   ).toBeVisible();
   await page
     .getByRole("button", { name: "Add Runtime credential", exact: true })
@@ -1176,11 +1177,48 @@ test("widget: launches a Web scan Audit with custom project rules through the re
       body: JSON.stringify({
         kind: "project",
         name: "Web scan Project",
+        activeChecks: "automatic",
       }),
     });
     if (response.status !== 201)
       throw new Error(`Could not create test Project: ${response.status}`);
     const body = (await response.json()) as { projectId: string };
+    const policy = await fetch(
+      `${origin}/v1/projects/${body.projectId}/artifacts/fixture/engagement`,
+      {
+        method: "PUT",
+        credentials: "include",
+        headers: {
+          "X-CSRF-Token": session.csrfToken,
+          "Idempotency-Key": crypto.randomUUID(),
+          "If-None-Match": "*",
+          "Content-Type": "application/vnd.contractor.engagement+json",
+        },
+        body: JSON.stringify({
+          schema: "contractor.engagement.v1",
+          egress: {
+            routes: [
+              {
+                origin: "http://127.0.0.1:1",
+                methods: ["GET"],
+                pathPrefixes: ["/"],
+                addressRanges: ["127.0.0.0/8"],
+              },
+            ],
+            exclusions: [],
+          },
+          identities: [
+            {
+              id: "anonymous",
+              kind: "anonymous",
+              origins: ["http://127.0.0.1:1"],
+            },
+          ],
+        }),
+      },
+    );
+    if (policy.status !== 201)
+      throw new Error(`Could not create engagement: ${policy.status}`);
     return body.projectId;
   }, apiURL);
   await page.goto(`/checks/new?project=${projectId}&type=web-scan`);
@@ -1229,8 +1267,8 @@ test("widget: launches a Web scan Audit with custom project rules through the re
   expect(audit.labels).toEqual({ cloud: "aws" });
   expect(audit.runtimeLabels).toEqual(["webscan-test"]);
   expect(Object.keys(audit.inputs).sort()).toEqual([
+    "engagement",
     "rulepack",
-    "settings",
     "target",
   ]);
   expect(audit.inputs.rulepack?.ref.namespace).toBe("scan-inputs");

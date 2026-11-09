@@ -1,0 +1,37 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata:
+  name: project-nuclei-scan
+  version: '1'
+spec:
+  runtime: tool@1
+  sandboxProfile: local-workdir@1
+  toolsets:
+  - ref: scan@1
+    tools:
+    - scan_nuclei
+  execution:
+    arguments:
+      url:
+        source: parameter
+        name: target
+      templates_digest:
+        source: literal
+        value: sha256:51a3bd4eef14e95bdeb0bad14ca4bd9bd455479a7044b244b76dee8f6dba5014
+      rulepack_ref:
+        source: artifact
+        name: rulepack
+        optional: true
+      rate_limit:
+        source: literal
+        value: 10
+      timeout_seconds:
+        source: literal
+        value: 300
+    resultArtifact: report
+    timeoutSeconds: 330
+    tool: scan_nuclei
+  description: Scan one target and materialize explicitly selected Finding candidates.
+  sitemap:
+    version: sitemap-access@1
+    collectObservations: true

@@ -1,0 +1,53 @@
+{
+  "normalization": [
+    {"raw":"0", "amount":"0"},
+    {"raw":"0.0000062500", "amount":"0.00000625"},
+    {"raw":"6.25e-06", "amount":"0.00000625"},
+    {"raw":"1E+2", "amount":"100"},
+    {"raw":"1e-18", "amount":"0.000000000000000001"},
+    {"raw":"999999999999999999.999999999999999999", "amount":"999999999999999999.999999999999999999"},
+    {"raw":"0e-99", "amount":"0"},
+    {"raw":"1e-19", "amount":null},
+    {"raw":"1e18", "amount":null},
+    {"raw":"-0", "amount":null},
+    {"raw":"-0.1", "amount":null},
+    {"raw":"01.5", "amount":null},
+    {"raw":" 0.1", "amount":null},
+    {"raw":"NaN", "amount":null},
+    {"raw":"Infinity", "amount":null},
+    {"raw":"", "amount":null}
+  ],
+  "observations": [
+    {"name":"OpenRouter body and forwarded header agree", "model":"openrouter/test", "headers":{"llm_provider-x-litellm-response-cost":"6.25e-06","x-litellm-response-cost":"6.25e-06"}, "body":"{\"usage\":{\"cost\":0.00000625,\"is_byok\":false}}", "source":"provider", "amount":"0.00000625"},
+    {"name":"body without headers", "model":"openrouter/test", "headers":{}, "body":"{\"usage\":{\"cost\":0.1}}", "source":"provider", "amount":"0.1"},
+    {"name":"known zero", "model":"openrouter/test", "headers":{}, "body":"{\"usage\":{\"cost\":0}}", "source":"provider", "amount":"0"},
+    {"name":"tariff estimate", "model":"worker-model", "headers":{"x-litellm-response-cost":"0.2"}, "body":"{}", "source":"gateway", "amount":"0.2"},
+    {"name":"forwarded provider cost on rejected body", "model":"worker-model", "headers":{"llm_provider-x-litellm-response-cost":"0.3"}, "body":"invalid", "source":"provider", "amount":"0.3"},
+    {"name":"provider inference before gateway margin", "model":"openrouter/test", "headers":{"llm_provider-x-litellm-response-cost":"0.1","x-litellm-response-cost":"0.12"}, "body":"{\"usage\":{\"cost\":0.1}}", "source":"provider", "amount":"0.1"},
+    {"name":"missing", "model":"openrouter/test", "headers":{}, "body":"{\"usage\":{\"total_tokens\":12}}", "source":null, "amount":null},
+    {"name":"unknown provider unit", "model":"custom/test", "headers":{}, "body":"{\"usage\":{\"cost\":1}}", "source":null, "amount":null},
+    {"name":"conflict", "model":"openrouter/test", "headers":{"llm_provider-x-litellm-response-cost":"0.1"}, "body":"{\"usage\":{\"cost\":0.2}}", "source":null, "amount":null},
+    {"name":"negative", "model":"openrouter/test", "headers":{}, "body":"{\"usage\":{\"cost\":-0.1}}", "source":null, "amount":null},
+    {"name":"string body amount", "model":"openrouter/test", "headers":{}, "body":"{\"usage\":{\"cost\":\"0.1\"}}", "source":null, "amount":null},
+    {"name":"boolean body amount", "model":"openrouter/test", "headers":{}, "body":"{\"usage\":{\"cost\":true}}", "source":null, "amount":null},
+    {"name":"BYOK distinct scopes", "model":"openrouter/test", "headers":{"x-litellm-response-cost":"0.1"}, "body":"{\"usage\":{\"cost\":0.1,\"is_byok\":true}}", "source":null, "amount":null},
+    {"name":"duplicate body keys are not accounting evidence", "model":"openrouter/test", "headers":{}, "body":"{\"usage\":{\"cost\":0.1,\"cost\":0.2}}", "source":null, "amount":null}
+  ],
+  "reports": [
+    {"name":"no calls", "cost":{"currency":"USD","calls":0,"groups":[]}, "valid":true},
+    {"name":"unpriced calls", "cost":{"currency":"USD","calls":2,"groups":[]}, "valid":true},
+    {"name":"partial paid and free", "cost":{"currency":"USD","calls":3,"groups":[{"model":"worker-model","phase":"main","source":"provider","calls":1,"amount":"0.00000625"},{"model":"worker-model","phase":"compaction","source":"gateway","calls":1,"amount":"0"}]}, "valid":true},
+    {"name":"currency unsupported", "cost":{"currency":"EUR","calls":0,"groups":[]}, "valid":false},
+    {"name":"negative calls", "cost":{"currency":"USD","calls":-1,"groups":[]}, "valid":false},
+    {"name":"fractional calls", "cost":{"currency":"USD","calls":0.5,"groups":[]}, "valid":false},
+    {"name":"unsafe calls", "cost":{"currency":"USD","calls":9007199254740992,"groups":[]}, "valid":false},
+    {"name":"null groups", "cost":{"currency":"USD","calls":0,"groups":null}, "valid":false},
+    {"name":"numeric amount", "cost":{"currency":"USD","calls":1,"groups":[{"model":"worker-model","phase":"main","source":"provider","calls":1,"amount":0.1}]}, "valid":false},
+    {"name":"noncanonical amount", "cost":{"currency":"USD","calls":1,"groups":[{"model":"worker-model","phase":"main","source":"provider","calls":1,"amount":"0.10"}]}, "valid":false},
+    {"name":"invalid phase", "cost":{"currency":"USD","calls":1,"groups":[{"model":"worker-model","phase":"internal","source":"provider","calls":1,"amount":"0.1"}]}, "valid":false},
+    {"name":"invalid source", "cost":{"currency":"USD","calls":1,"groups":[{"model":"worker-model","phase":"main","source":"invoice","calls":1,"amount":"0.1"}]}, "valid":false},
+    {"name":"more priced than observed", "cost":{"currency":"USD","calls":1,"groups":[{"model":"worker-model","phase":"main","source":"provider","calls":2,"amount":"0.1"}]}, "valid":false,"schemaValid":true},
+    {"name":"duplicate groups", "cost":{"currency":"USD","calls":2,"groups":[{"model":"worker-model","phase":"main","source":"provider","calls":1,"amount":"0.1"},{"model":"worker-model","phase":"main","source":"provider","calls":1,"amount":"0.1"}]}, "valid":false,"schemaValid":true},
+    {"name":"unknown field", "cost":{"currency":"USD","calls":0,"groups":[],"secret":"must-not-be-accepted"}, "valid":false}
+  ]
+}

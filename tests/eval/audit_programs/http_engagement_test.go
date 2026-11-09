@@ -86,7 +86,7 @@ func TestWSTGHTTPProgramsStartWithTrustedEngagement(t *testing.T) {
 			t.Cleanup(target.Close)
 			document := engagementcontract.Document{Schema: engagementcontract.Schema, Egress: engagementcontract.Egress{Routes: []engagementcontract.Route{{Origin: target.URL, PathPrefixes: []string{"/api"}, Methods: []string{"GET"}, AddressRanges: []string{"127.0.0.0/8"}}}, Exclusions: []engagementcontract.Route{}},
 				Identities: []engagementcontract.Identity{{ID: "anonymous", Kind: "anonymous", Origins: []string{target.URL}}},
-				Limits:     &engagementcontract.HTTPLimits{TargetRequests: &requests}}
+				Limits:     &engagementcontract.HTTPLimits{RequestsPerSecond: &requests}}
 			data, err := json.Marshal(document)
 			if err != nil {
 				t.Fatal(err)

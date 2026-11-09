@@ -54,7 +54,8 @@ describe("common check types", () => {
     });
   });
   it("uses published task limits and operation policy", () => {
-    expect(scopeSummary(trace).size).toContain("256");
+    expect(scopeSummary(trace)?.size).toBe("Selected API endpoints");
+    expect(scopeSummary(profileFixture("source-checklist"))).toBeUndefined();
     expect(scopeFieldsUsed(trace).size).toBe(0);
     expect(
       scopeFieldsUsed(

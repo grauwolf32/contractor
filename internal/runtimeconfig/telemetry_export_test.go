@@ -43,7 +43,7 @@ func TestNormalizeWorkerTelemetryExportSettings(t *testing.T) {
 }
 
 func TestTelemetryExportPreservesLegacyStoredConfiguration(t *testing.T) {
-	document := []byte(`{"apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig","metadata":{"name":"debug","version":"1"},"spec":{"worker":{"telemetry":{"adapter":"otlp-http@1","captureContent":false,"endpoint":"https://otel.example/v1/traces","flushTimeoutSeconds":3}}}}`)
+	document := []byte(`{"apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig","metadata":{"name":"debug","version":"1"},"spec":{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://otel.example/v1/traces","flushTimeoutSeconds":3}}}}`)
 	stored, err := DecodeStoredDocument(document)
 	if err != nil {
 		t.Fatal(err)

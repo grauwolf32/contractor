@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+MAX_READ_LINES = 400
+MAX_READ_BYTES = 128 * 1024
+
 
 def bounded_line_window(
     lines: Sequence[str],

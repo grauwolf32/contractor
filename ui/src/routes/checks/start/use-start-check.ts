@@ -6,7 +6,7 @@ import { isWebScanProfile } from "./web-scan-contract";
  * else the first ready check type), the form, and what still keeps the
  * check from starting.
  */
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { auditLabels } from "../../../api/audit-labels";
 import type { LabelEntry } from "../../../ui";
@@ -142,6 +142,12 @@ const NO_CHOICES: Readonly<Record<string, string>> = {};
 
 export interface StartCheck {
   readonly webScan: WebScanDraft | undefined;
+  readonly parameterFields: readonly {
+    name: string;
+    required: boolean;
+    value: string;
+  }[];
+  readonly setParameter: (name: string, value: string) => void;
   readonly labels: readonly LabelEntry[];
   readonly setLabels: (value: LabelEntry[]) => void;
   readonly labelError: string | undefined;
@@ -178,6 +184,7 @@ export interface StartCheck {
   readonly isReady: (checkType: string) => boolean;
   readonly slots: readonly InputSlot[];
   readonly chooseMaterial: (input: string, value: string) => void;
+  readonly setChecklistEditorOpen: (open: boolean) => void;
   readonly registerAuthoredMaterial: (
     input: string,
     material: ArtifactMetadata,
@@ -239,6 +246,10 @@ export function useStartCheck(
           ],
   };
 
+  const [checklistEditor, setChecklistEditor] = useState({
+    context: "",
+    open: false,
+  });
   const [objective, setObjective] = useState(initialObjective);
   const [versions, setVersions] = useState<Readonly<Record<string, string>>>(
     {},
@@ -248,6 +259,9 @@ export function useStartCheck(
     values: Readonly<Record<string, string>>;
   }>({ contract: "", values: NO_CHOICES });
   const [target, setTarget] = useState<string>();
+  const [parameterDrafts, setParameterDrafts] = useState<
+    Record<string, Record<string, string>>
+  >({});
   const [authorizationScope, setAuthorizationScope] = useState("");
   const [runtimeLabels, setRuntimeLabels] = useState("");
   const [labels, setLabels] = useState<LabelEntry[]>([]);
@@ -376,6 +390,18 @@ export function useStartCheck(
           presentation: presentCheckType(selectedProfile),
         };
 
+  const editorContext = `${projectId}:${selectedProfile === undefined ? "" : versionKey(selectedProfile)}`;
+  const setChecklistEditorOpen = useCallback(
+    (open: boolean) => {
+      setChecklistEditor((current) =>
+        !open && current.context !== editorContext
+          ? current
+          : { context: editorContext, open },
+      );
+    },
+    [editorContext],
+  );
+
   const detail = useProfileDetail(selectedProfile);
   const exact =
     detail.data !== undefined &&
@@ -395,6 +421,35 @@ export function useStartCheck(
   );
   const webScan = usesWebScan ? scanInputs : undefined;
   const contractProfile = exact ?? selectedProfile;
+  const parameterKey = `${projectId}:${exact === undefined ? "" : versionKey(exact)}`;
+  const declaredParameters = exact?.program?.parameters ?? {};
+  const parameterFields = Object.entries(declaredParameters)
+    .filter(([name]) => webScan === undefined || name === "credential_id")
+    .map(([name, slot]) => ({
+      name,
+      required: slot.required,
+      value: parameterDrafts[parameterKey]?.[name] ?? "",
+    }));
+  const executionParameters = Object.fromEntries(
+    parameterFields
+      .filter((field) => field.value !== "")
+      .map((field) => [field.name, field.value]),
+  );
+  const missingParameter = parameterFields.find(
+    (field) => field.required && field.value.trim() === "",
+  );
+  const invalidParameter = parameterFields.find(
+    (field) =>
+      new TextEncoder().encode(field.value).length > 4096 ||
+      field.value.includes("\0"),
+  );
+  function setParameter(name: string, value: string) {
+    setParameterDrafts((previous) => ({
+      ...previous,
+      [parameterKey]: { ...previous[parameterKey], [name]: value },
+    }));
+  }
+
   const scopeFields = useMemo(
     () =>
       exact === undefined ? new Set<ScopeField>() : scopeFieldsUsed(exact),
@@ -415,16 +470,18 @@ export function useStartCheck(
     contractProfile === undefined
       ? ""
       : JSON.stringify(
-          orderedInputs(contractProfile).map(([name, input]) => [
-            name,
-            input.required,
-            input.media_types,
-          ]),
+          orderedInputs(contractProfile)
+            .filter(([name]) => !usesWebScan || name === "engagement")
+            .map(([name, input]) => [name, input.required, input.media_types]),
         );
   const explicitChoices =
     choices.contract === contract ? choices.values : NO_CHOICES;
   const contractInputs =
-    contractProfile === undefined ? [] : orderedInputs(contractProfile);
+    contractProfile === undefined
+      ? []
+      : orderedInputs(contractProfile).filter(
+          ([name]) => !usesWebScan || name === "engagement",
+        );
   // A slot gets its only format match automatically, once every page is
   // read. A material that is the only match of several slots is ambiguous
   // and waits for a choice.
@@ -481,6 +538,9 @@ export function useStartCheck(
     (slot) => slot.input.required && slot.selected === undefined,
   );
   if (selection === undefined) draftBlocker = "Choose a check type.";
+  else if (checklistEditor.context === editorContext && checklistEditor.open)
+    draftBlocker =
+      "Save and attach your checklist, or close the editor to use the selected material.";
   else if (project?.lifecycle === "deleting")
     draftBlocker = "This project is being deleted.";
   else if (exact === undefined)
@@ -490,18 +550,22 @@ export function useStartCheck(
         : "The check type could not be loaded.";
   else if (webScan !== undefined && webScan.blocker !== undefined)
     draftBlocker = webScan.blocker;
-  else if (webScan === undefined && materialItems === undefined)
+  else if (materialItems === undefined)
     draftBlocker =
       materials.error === null
         ? "Loading the project's materials…"
         : "The project's materials could not be loaded.";
-  else if (webScan === undefined && materials.loading)
-    draftBlocker = "Loading the project's materials…";
-  else if (webScan === undefined && missingSlot !== undefined)
+  else if (materials.loading) draftBlocker = "Loading the project's materials…";
+  else if (missingSlot !== undefined)
     draftBlocker =
       missingSlot.candidates.length === 0
         ? `Add ${inSentence(missingSlot.label)} (${missingSlot.formats}) to the project first.`
         : `Choose the ${inSentence(missingSlot.label)} material.`;
+  else if (missingParameter !== undefined)
+    draftBlocker = `Enter ${missingParameter.name.replaceAll("_", " ")}.`;
+  else if (invalidParameter !== undefined)
+    draftBlocker =
+      "Execution values must be at most 4096 UTF-8 bytes and contain no null characters.";
   else if (scopeFields.has("objective") && objective.trim() === "")
     draftBlocker = "Write your objective; this check type uses it.";
   else if (webScan === undefined && usesTarget && effectiveTarget.trim() === "")
@@ -524,7 +588,15 @@ export function useStartCheck(
     if (exact === undefined) throw new Error("The check type is not loaded");
     return createRequest({
       profile: exact.ref,
-      inputs,
+      inputs: {
+        ...Object.fromEntries(
+          slots
+            .filter((slot) => slot.selected !== undefined)
+            .map((slot) => [slot.name, slot.selected!.artifact]),
+        ),
+        ...inputs,
+      },
+      parameters: { ...executionParameters, ...webScan?.parameters },
       objective,
       target: webScan?.target ?? effectiveTarget,
       authorizationScope,
@@ -601,6 +673,8 @@ export function useStartCheck(
 
   return {
     webScan,
+    parameterFields,
+    setParameter,
     projectId,
     project,
     href: (changes) => hrefWith(params, changes),
@@ -633,6 +707,7 @@ export function useStartCheck(
     suggestions,
     isReady,
     slots,
+    setChecklistEditorOpen,
     registerAuthoredMaterial(input, material) {
       setAuthored({
         projectId,

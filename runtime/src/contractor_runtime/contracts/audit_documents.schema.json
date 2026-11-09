@@ -607,6 +607,18 @@
       ],
       "type": "object"
     },
+    "parameter": {
+      "additionalProperties": false,
+      "properties": {
+        "required": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "required"
+      ],
+      "type": "object"
+    },
     "program": {
       "additionalProperties": false,
       "allOf": [
@@ -670,6 +682,16 @@
         },
         "limits": {
           "$ref": "#/$defs/limits"
+        },
+        "parameters": {
+          "additionalProperties": {
+            "$ref": "#/$defs/parameter"
+          },
+          "maxProperties": 128,
+          "propertyNames": {
+            "$ref": "#/$defs/key"
+          },
+          "type": "object"
         },
         "policy": {
           "additionalProperties": false,
@@ -1015,6 +1037,16 @@
           "$ref": "#/$defs/attempt_limit"
         },
         "outputs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/key"
+          },
+          "maxProperties": 128,
+          "propertyNames": {
+            "$ref": "#/$defs/key"
+          },
+          "type": "object"
+        },
+        "parameter_inputs": {
           "additionalProperties": {
             "$ref": "#/$defs/key"
           },

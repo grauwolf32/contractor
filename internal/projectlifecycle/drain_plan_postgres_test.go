@@ -155,7 +155,7 @@ INSERT INTO audits (
     audit_id, owner_id, project_id, profile_name, profile_version, profile_digest,
     profile_snapshot, input_selection, baseline_snapshot, state, dispatch_state, hold_state,
     max_rounds, batch_size, max_items_per_round, max_items_total, max_submitted_runs,
-    max_item_run_attempts, max_evidence_bytes, created_at, updated_at, started_at, finished_at, phase
+    max_item_run_attempts, max_evidence_bytes, created_at, updated_at, started_at, finished_at
 )
 SELECT 'audit-' || i, project.owner_id, project.project_id,
        'profile', '1', 'sha256:' || repeat('b', 64), '{}'::jsonb, '{}'::jsonb, '{}'::jsonb,
@@ -163,7 +163,7 @@ SELECT 'audit-' || i, project.owner_id, project.project_id,
        CASE WHEN audit.running THEN 'open' ELSE 'closed' END,
        CASE WHEN audit.running THEN 'held' ELSE 'released' END,
        1, 1, 1, 1, 1, 1, 1024, audit.created_at, audit.created_at, audit.created_at,
-       CASE WHEN NOT audit.running THEN audit.created_at + interval '1 hour' END, 'rounds'
+       CASE WHEN NOT audit.running THEN audit.created_at + interval '1 hour' END
 FROM generate_series($1::integer, $2::integer) AS i
 JOIN projects AS project
   ON project.project_id = ($3::text[])[i % cardinality($3::text[]) + 1]

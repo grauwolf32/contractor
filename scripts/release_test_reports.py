@@ -24,6 +24,11 @@ import disk_heavy_policy
 
 ROOT = Path(__file__).resolve().parents[1]
 CLEANUP_GRACE_SECONDS = 5
+TRACE_DELIVERY_CASES = frozenset(
+    f"test_worker_budget_failure_exports_before_normal_or_forced_exit[{fault}-{operation}]"
+    for fault in ("none", "worker", "http", "tool", "execution")
+    for operation in ("finalize", "abort", "lease", "reconcile")
+)
 
 
 class GateError(ValueError):
@@ -329,6 +334,16 @@ def capture(
 def verify_runtime(report: Path) -> None:
     """Retain each gate's exact module scope and minimum parametrized case counts."""
     source = ET.parse(report).getroot()
+    traces = {
+        case.get("name"): case
+        for case in source.iter("testcase")
+        if case.get("classname") == "tests.test_runtime_trace_delivery_process"
+    }
+    if missing := TRACE_DELIVERY_CASES - traces.keys():
+        raise GateError("mandatory Python trace delivery cases did not execute: " + ", ".join(sorted(missing)))
+    for name in TRACE_DELIVERY_CASES:
+        if any(traces[name].find(tag) is not None for tag in ("skipped", "failure", "error")):
+            raise GateError("Python trace delivery case did not pass: " + name)
     audit = gate("test-audit-completion-e2e.py")
     findings = gate("test-findings-e2e.py")
     engagement = gate("test-engagement-http-process.py")

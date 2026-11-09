@@ -116,6 +116,21 @@ func (p Policy) NormalizeExecutionReport(
 	}
 	result := source
 	result.Metrics.Tools = cloneToolMetrics(source.Metrics.Tools)
+	if source.Metrics.LLMCost != nil {
+		if err := source.Metrics.LLMCost.Validate(); err != nil {
+			return reporting.ExecutionReport{}, err
+		}
+		cost := *source.Metrics.LLMCost
+		cost.Groups = make([]reporting.LLMCostGroup, 0, len(cost.Groups))
+		for _, group := range source.Metrics.LLMCost.Groups {
+			// A secret-bearing alias is not safe diagnostic metadata. Keep the
+			// physical attempt but leave its monetary attribution unavailable.
+			if p.redactText(group.Model) == group.Model {
+				cost.Groups = append(cost.Groups, group)
+			}
+		}
+		result.Metrics.LLMCost = &cost
+	}
 	if source.Completion != nil {
 		value := *source.Completion
 		result.Completion = &value

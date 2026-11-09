@@ -15,7 +15,6 @@ from contractor_runtime.sandbox.contracts import (
     SandboxErrorCode,
 )
 from contractor_runtime.sandbox.podman.settings import PodmanSettings
-from contractor_runtime.telemetry.execution import ContentFreeInstrumentation
 from contractor_runtime.toolsets.code_execution.tools import (
     CodeExecutionToolsetFactory,
     ExecCommandTool,
@@ -165,26 +164,6 @@ def test_fatal_observation_blocks_further_calls(code):
         assert len(executor.calls) == 1
 
     asyncio.run(scenario())
-
-
-def test_content_free_wrapper_does_not_forward_optional_content_authority():
-    class Sink:
-        capture_content = True
-
-        def start_span(self, name, *, attributes=None):
-            return self
-
-        def set_content(self, *args):
-            pytest.fail("execution content escaped to telemetry")
-
-        def end(self, **kwargs):
-            self.ended = kwargs
-
-    sink = Sink()
-    span = ContentFreeInstrumentation(sink).start_span("tool", attributes={"count": 1})
-    assert not getattr(span, "capture_content", False)
-    span.end(outcome="succeeded")
-    assert sink.ended["outcome"] == "succeeded"
 
 
 def test_adk_fatal_execution_stops_model_finalizer_and_later_invocations(tmp_path):

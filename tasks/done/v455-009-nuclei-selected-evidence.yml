@@ -1,0 +1,84 @@
+schema_version: '1.0'
+id: V455-009
+title: Bound Finding evidence to matching Nuclei manifest records
+milestone: scan-tools-followups
+epic: scan-tools
+kind: defect
+introduced_by: V455-008
+priority: P2
+status: completed
+implementation_commit: 9a86dd97ec305f689baaaf1930f251d7c2699b22
+depends_on: [V455-008]
+languages: [python, go, markdown]
+goal: >-
+  A valid large Nuclei rulepack with a small number of positive matches publishes
+  Findings without copying the entire rule inventory into bounded evidence.
+context:
+  authority: User review 2026-11-09 requests fixing the large-rulepack evidence overflow and adding a regression.
+  severity: medium
+  finding: >-
+    runtime/src/contractor_runtime/toolsets/scan/tools.py:890-905 reads the full
+    selected manifest using the 512 KiB evidence bound and embeds it in Base64.
+    A valid 1000-template manifest of 468204 bytes expands to 624272 bytes before
+    other evidence, so one positive fails with tool_report_failed and no candidates.
+  siblings: >-
+    Both installed and custom Nuclei manifest inputs use this selector. SQLMap
+    invocation/request snapshots have a separate bounded input and are unchanged.
+    Empty candidate batches already avoid reading the manifest. Full Run manifest
+    publication and its 16 MiB bound remain owned by scanner preparation.
+  specification:
+    - docs/spec/tools/scanners.md#SCN-R230
+    - docs/spec/tools/scanners.md#SCN-R264
+    - docs/spec/tools/scanners.md#SCN-R265
+    - docs/spec/findings/findings.md#FND-R232
+    - docs/spec/findings/findings.md#FND-R234
+scope:
+  in:
+    - Keep only matching selected-template records in durable Finding evidence.
+    - Preserve exact manifest descriptor, package digest, engine and rulepack origin.
+    - Read the manifest under its own bound and keep existing evidence admission unchanged.
+    - Cover a valid 1000-template pack through Worker publication and real scanner Finding intake.
+  out:
+    - New evidence stores, limits, eligibility policies, main merge or deployment.
+acceptance_criteria:
+  - id: A1
+    text: A valid 1000-template rulepack with one positive writes candidates/evidence below 512 KiB and creates a Finding through explicit publication.
+  - id: A2
+    text: Retained evidence names the exact original manifest ref/digest/size, package and source, and includes only candidate-related selected records, so unrelated files do not consume its budget.
+  - id: A3
+    text: Installed manifests, empty batches, multiple candidates per rule and missing selected custom rules behave deterministically; replay does not rescan, and the large-rulepack regression fails before the fix.
+tests:
+  - command: make test-runtime
+    covers: [A1, A2, A3]
+  - command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=e2e -count=1 -timeout=15m ./tests/e2e -run '^TestScannerFindingsAcrossProductionProcesses$'
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+verification_notes: >-
+  Fixed on codex/v455-008-scanner-findings. Both new shared Worker regressions
+  failed on the original implementation with tool_report_failed; they now pass
+  with valid 1000-template packs whose manifests respectively exceed 512 KiB
+  after Base64 and already before encoding. Complete scanner/ToolWorker modules
+  passed 226 tests. Selection tests cover repeated candidates for one rule,
+  installed provenance, empty batches without a manifest read and rejection of
+  an unselected custom rule. Actual installed Nuclei plus Server/Runtime and
+  disposable PostgreSQL selected 1000 custom templates, retained a 488417-byte
+  manifest and 1851-byte evidence, and published exactly one Finding. The exact
+  manifest descriptor/digest/size and candidate-related template record were
+  asserted; the complete production-process scenario passed in 177.605 seconds,
+  including existing SQLMap, Audit and no-rescan replay checks. make lint passed;
+  after correcting the test-only Project idempotency key, Go vet and staticcheck
+  also passed on the final E2E fixture. Full isolated make test-runtime passed
+  6011 tests, zero failures/errors and 135 optional/platform skips in 431.14
+  seconds, and Runtime report verification passed. The earlier parallel run hit
+  an existing LikeC4 three-second process-readiness timeout; its unchanged full
+  module passed 12 isolated cases before the successful full rerun. Skips are
+  not acceptance coverage. The owned disposable database was removed. Evidence
+  limits remain unchanged; no new evidence store. Feature verification performed
+  no push or deployment; subsequent main integration is recorded below.
+delivery:
+  date: '2026-11-09'
+  merged_into_main: true
+  merge_commit: c712379f69e251fcbd353c0a0722a679f34af0b3
+  integration_task: V455-010
+  pushed: false

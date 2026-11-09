@@ -167,7 +167,9 @@ func send(
 		}
 	}}
 	response, sendErr := client.Do(request.WithContext(httptrace.WithClientTrace(request.Context(), trace)))
-	return readResponse(response, sendErr, delivered.Load(), limit, signatures)
+	return readResponse(response, sendErr, delivered.Load(), limit, signatures, func(headers http.Header, body []byte) {
+		observeLLMCost(request.Context(), headers, body)
+	})
 }
 
 func (p *Participant) acquire(ctx context.Context, requestID string) (Decision, error) {
@@ -188,7 +190,18 @@ func (p *Participant) acquire(ctx context.Context, requestID string) (Decision, 
 
 func readResponse(
 	response *http.Response, sendErr error, delivered bool, limit int64, signatures llmgateway.GatewayFailureSignatures,
+	observers ...func(http.Header, []byte),
 ) ([]byte, *Failure, float64) {
+	var observedBody []byte
+	defer func() {
+		var headers http.Header
+		if response != nil {
+			headers = response.Header
+		}
+		for _, observe := range observers {
+			observe(headers, observedBody)
+		}
+	}()
 	if sendErr != nil {
 		var netError net.Error
 		if errors.Is(sendErr, context.DeadlineExceeded) || errors.As(sendErr, &netError) && netError.Timeout() {
@@ -204,6 +217,7 @@ func readResponse(
 	if len(body) > int(limit) {
 		return nil, &Failure{Code: "invalid_gateway_response", Retryable: false}, 0
 	}
+	observedBody = body
 	if response.StatusCode >= 200 && response.StatusCode < 300 {
 		return body, nil, 0
 	}

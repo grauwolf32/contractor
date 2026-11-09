@@ -1,0 +1,48 @@
+schema_version: "1.0"
+id: V461-006
+title: Pin Audit launch parameters in Managed Eval creation and replay
+milestone: audit-scanners-engagement-2026-11
+epic: evals
+kind: defect
+introduced_by: V461-003
+priority: P2
+status: completed
+implementation_commit: 78bd2710171239fa28d59cb8cc9d951000c724d5
+depends_on: []
+languages: [go]
+goal: Managed Eval validates declared Audit Program parameters and pins/forwards them through draft creation and lost-response recovery, alongside the existing Audit scope.
+context:
+  authority: "User review supplied 2026-11-09 for codex/audit-engagement at 3d5156c5b authorizes fixing the three reported regressions."
+  finding: >-
+    internal/evalservice/preflight_cases.go:63 accepts only three scope fields; audit_adapter.go:101 does not pass Parameters to CreateDraftParams, so the new scan Audit profiles cannot launch through Managed Eval.
+  siblings: >-
+    Audit preflight, case/variant mapping, durable audit-create intent, recovery and actual Audit baseline/Workflow binding; ordinary Workflow Eval and objective/target/authorizationScope behavior remain intact.
+  specification: docs/spec/evals/managed-evals.md
+scope:
+  in: [shared boundary correction, regression through the actual publication/process/store path, required owning-package verification]
+  out: [unrelated cleanup, new scanner capabilities, deployment, compatibility shims]
+acceptance_criteria:
+  - id: A1
+    text: The reported defect reproduces on the original implementation and does not reproduce after the correction.
+  - id: A2
+    text: Sibling callers and legitimate controls retain their specified behavior, bounds and cancellation or replay guarantees.
+  - id: A3
+    text: Owning package suites and repository lint pass; any optional skips are reported explicitly.
+tests:
+  - command: go test -count=1 ./internal/evalservice ./internal/auditservice ./internal/contracts/auditcontract
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+
+decisions:
+  - "One mapping helper serves both preflight and creation. Program.BindParameters owns required names, unknown-name rejection and value bounds; no Eval copy of those domain rules is introduced."
+  - "Scope extraction remains unchanged. A name explicitly declared by the Program also binds its launch parameter; variant values retain precedence over case values. Existing Eval authoring key grammar is unchanged."
+  - "Persist launch values in the existing audit-create suboperation and replay its original body/key/digest. Ordinary Audit creation retains values in its baseline and derives Workflow bindings. No new receipt or compatibility path is added."
+verification:
+  date: "2026-11-09"
+  regression: "Original preflight rejected valid required/optional Program values in unit cases and the PostgreSQL-backed preparation path. Corrected cases pass, including absent required values, unknown names, oversized/NUL values and scope-name overlap."
+  postgres: "Real PostgreSQL test lost the first accepted CreateDraft response, recreated the coordinator, and verified the original intent parameters/key/digest, one Audit, replayed creation receipt, exact baseline values and derived Workflow bindings. Exact objective substitution and variant precedence passed."
+  suites: "go test -count=1 ./internal/evalservice ./internal/auditservice ./internal/contracts/auditcontract passed with CONTRACTOR_TEST_DATABASE_URL set. Final focused replay assertion also passed."
+  lint: "make lint passed."
+  cleanup: "Owned disposable database contractor_v461_review_01a1bca1 was dropped after all Go database tests finished."
+  delivery: "Committed on codex/audit-engagement; not merged or deployed."

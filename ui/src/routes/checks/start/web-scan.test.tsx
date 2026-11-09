@@ -9,14 +9,28 @@ import {
   top10,
   sourceZip,
   webScanProfile,
+  engagementMaterial,
 } from "./test-fixtures";
-import { renderStart } from "./test-support";
+import {
+  renderStart as renderBaseStart,
+  type FakeStartServer,
+} from "./test-support";
 import { renderWithAPI } from "../../../test/render";
 import { useWebScanDraft, type WebScanDraft } from "./web-scan-state";
-import settingsCases from "../../../../../api/testdata/audit-web-scan-settings.json";
+import selectionCases from "../../../../../api/testdata/audit-web-scan-parameters.json";
 import { conformsTo } from "../../../api/contract";
 import { deferred } from "../../../test/deferred";
 import { artifactMetadata, artifactWrite } from "../../../test/builders";
+
+function renderStart(path: string, server: FakeStartServer = {}) {
+  return renderBaseStart(path, {
+    ...server,
+    materials:
+      typeof server.materials === "function"
+        ? server.materials
+        : [engagementMaterial, ...(server.materials ?? [])],
+  });
+}
 
 beforeAll(() => vi.stubGlobal("crypto", webcrypto));
 afterAll(() => vi.unstubAllGlobals());
@@ -25,6 +39,18 @@ const start = "/checks/new?project=project_shop&type=web-scan";
 const project = projectFixture({ httpTarget: { url: "https://shop.test/" } });
 
 describe("Web scan Audit", () => {
+  it("requires an engagement before preparing target artifacts", async () => {
+    const view = renderBaseStart(start, {
+      profiles: [webScanProfile],
+      project,
+      materials: [],
+    });
+    await screen.findByLabelText(/Target URL/);
+    expect(screen.getByRole("button", { name: "Start check" })).toBeDisabled();
+    expect(
+      view.requests.filter((r) => r.method === "PUT" || r.method === "POST"),
+    ).toHaveLength(0);
+  });
   it.each([
     { name: "rules.yaml", size: 1048577, limit: "1 MiB" },
     { name: "rules.zip", size: 16777217, limit: "16 MiB" },
@@ -138,7 +164,7 @@ describe("Web scan Audit", () => {
               index === 4
                 ? [tooBig]
                 : index === 0
-                  ? [pack]
+                  ? [pack, engagementMaterial]
                   : [
                       artifactMetadata("other", `page-${index}`, {
                         mediaType: "text/plain",
@@ -158,6 +184,14 @@ describe("Web scan Audit", () => {
       await view.user.upload(
         screen.getByLabelText("Upload Nuclei rules"),
         file,
+      );
+      await view.user.selectOptions(
+        screen.getByLabelText("Material for Engagement"),
+        JSON.stringify([
+          engagementMaterial.artifact.namespace,
+          engagementMaterial.artifact.name,
+          engagementMaterial.artifact.revision,
+        ]),
       );
       expect(screen.getByRole("button", { name: "Start check" })).toBeEnabled();
       expect(
@@ -417,14 +451,15 @@ describe("Web scan Audit", () => {
     );
     expect(
       view.requests.filter((request) => request.method === "PUT"),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
   });
   it("agrees with the Server on the shared Nuclei selection fixtures", () => {
-    expect(settingsCases.length).toBeGreaterThan(0);
-    for (const test of settingsCases)
-      expect(conformsTo("AuditWebScanSettings", test.settings), test.name).toBe(
-        test.valid,
-      );
+    expect(selectionCases.length).toBeGreaterThan(0);
+    for (const test of selectionCases)
+      expect(
+        conformsTo("NucleiRuleSelection", test.parameters),
+        test.name,
+      ).toBe(test.valid);
   });
   it("starts a real Audit from a URL without uploaded OpenAPI or source", async () => {
     const view = renderStart(start, { profiles: [webScanProfile], project });
@@ -439,8 +474,17 @@ describe("Web scan Audit", () => {
     await waitFor(() => expect(view.sent("POST", "/audits")).toHaveLength(1));
     const request = await view.sent("POST", "/audits")[0]!.json();
     expect(request.profile).toEqual({ name: "web-scan", version: "1" });
-    expect(Object.keys(request.inputs).sort()).toEqual(["settings", "target"]);
+    expect(Object.keys(request.inputs).sort()).toEqual([
+      "engagement",
+      "target",
+    ]);
     expect(request.scope).toEqual({ target: "https://shop.test/" });
+    expect(request.parameters).toEqual({
+      template_ids: "",
+      tags: "",
+      severity: "",
+    });
+    expect(request.inputs.engagement).toEqual(engagementMaterial.artifact);
     await waitFor(() => expect(view.sent("POST", "/start")).toHaveLength(1));
     expect(view.sent("POST", "/runs")).toHaveLength(0);
     await waitFor(() =>
@@ -468,7 +512,7 @@ describe("Web scan Audit", () => {
     const request = await view.sent("POST", "/audits")[0]!.json();
     expect(request.inputs.rulepack.namespace).toBe("scan-inputs");
     const writes = view.requests.filter((request) => request.method === "PUT");
-    expect(writes).toHaveLength(3);
+    expect(writes).toHaveLength(2);
     expect(
       writes.every((request) =>
         new URL(request.url).pathname.startsWith(
@@ -476,7 +520,7 @@ describe("Web scan Audit", () => {
         ),
       ),
     ).toBe(true);
-    expect(await writes[2]!.text()).toBe("id: project-only-rule\n");
+    expect(await writes[1]!.text()).toBe("id: project-only-rule\n");
     expect(view.sent("POST", "/scan-sweeps")).toHaveLength(0);
   });
 
@@ -504,7 +548,7 @@ describe("Web scan Audit", () => {
     );
     expect(
       view.requests.filter((request) => request.method === "PUT"),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
   });
 
   it("keeps upload failures visible and never creates an Audit without its inputs", async () => {

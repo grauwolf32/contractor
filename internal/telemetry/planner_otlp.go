@@ -81,24 +81,24 @@ func (*OTLPHTTPPlannerAdapterFactory) Create(
 		return nil, errors.New("Planner telemetry identity is unavailable")
 	}
 	secrets := make([]string, 0, len(settings.Headers)+1)
-	secrets = append(secrets, settings.Endpoint)
+	for _, value := range settings.KnownCredentials {
+		secrets = append(secrets, value.Reveal())
+	}
 	for _, value := range settings.Headers {
 		secrets = append(secrets, value.Reveal())
 	}
 	result := &otlpHTTPPlannerTelemetry{
-		captureContent: settings.CaptureContent,
-		endpoint:       settings.Endpoint, headers: settings.Headers,
+		endpoint: settings.Endpoint, headers: settings.Headers,
 		flushTimeout: settings.FlushTimeout, resource: settings.Resource.clone(),
 		runMetadataLabels: settings.RunMetadataLabels.Clone(),
 		client:            client, ownedTransport: true, traceID: traceID,
-		secretValues: secrets, spans: make([]*tracev1.Span, 0, 32),
+		secretValues: secrets, redactText: secretmatch.ExactReplacer(secrets), spans: make([]*tracev1.Span, 0, 32),
 	}
 	result.pendingBytes = proto.Size(result.resourceProto())
 	return result, nil
 }
 
 type otlpHTTPPlannerTelemetry struct {
-	captureContent    bool
 	mu                sync.Mutex
 	flushMu           sync.Mutex
 	endpoint          string
@@ -109,6 +109,7 @@ type otlpHTTPPlannerTelemetry struct {
 	client            *http.Client
 	ownedTransport    bool
 	traceID           []byte
+	redactText        func(string) string
 	secretValues      []string
 	spans             []*tracev1.Span
 	pendingBytes      int
@@ -154,17 +155,24 @@ func (o *otlpPlannerSpan) Format(state fmt.State, _ rune) {
 	_, _ = io.WriteString(state, "telemetry.otlpPlannerSpan([REDACTED])")
 }
 
-func (s *otlpPlannerSpan) capturesContent() bool { return s.owner.captureContent }
-func (s *otlpPlannerSpan) setContent(field, value string) {
+func (s *otlpPlannerSpan) captureContent(field string, value any) {
 	s.contentMu.Lock()
 	defer s.contentMu.Unlock()
-	if s.ended || !s.owner.captureContent || len(value) > MaxContentBytes {
+	if s.ended || (field != "input" && field != "output") {
 		return
 	}
+	value, err := copyPlannerContent(value)
+	if err != nil {
+		return
+	}
+	s.owner.mu.Lock()
+	redactText := s.owner.redactText
+	s.owner.mu.Unlock()
+	redact := func(item any) (any, error) { return transformContentStrings(item, redactText) }
 	if s.content == nil {
 		s.content = map[string]string{}
 	}
-	for key, encoded := range genAIContent(field, value, s.name == PlannerSpanModel) {
+	for key, encoded := range genAIContent(field, value, s.name == PlannerSpanModel, redact) {
 		s.content[key] = encoded
 	}
 }
@@ -223,8 +231,14 @@ func (o *otlpHTTPPlannerTelemetry) enqueue(
 	traceID := append([]byte(nil), o.traceID...)
 	secrets := append([]string(nil), o.secretValues...)
 	metadataLabels := o.runMetadataLabels.Clone()
+	redactText := o.redactText
 	o.mu.Unlock()
 	values := plannerAttributeValues(attributes, secrets)
+	for key, value := range values {
+		if text, ok := value.(string); ok {
+			values[key] = redactText(text)
+		}
+	}
 	if name == PlannerSpanModel {
 		values["gen_ai.operation.name"] = "chat"
 		values["gen_ai.provider.name"] = "contractor.gateway"
@@ -243,16 +257,18 @@ func (o *otlpHTTPPlannerTelemetry) enqueue(
 			values["gen_ai.request.model"] = model
 		}
 	}
-	if o.captureContent {
-		for key, value := range content {
-			if len(value) <= MaxContentBytes {
-				values[key] = value
-			}
+	for key, value := range content {
+		if len(value) <= MaxContentBytes {
+			values[key] = value
 		}
 	}
 	if name == PlannerSpanInvocation {
 		for key, value := range plannerRunMetadataLabelAttributes(metadataLabels, secrets) {
-			values[key] = value
+			if text, ok := value.(string); ok {
+				values[key] = redactText(text)
+			} else {
+				values[key] = value
+			}
 		}
 	}
 	values["outcome"] = outcome
@@ -403,6 +419,7 @@ func (o *otlpHTTPPlannerTelemetry) Close() {
 	}
 	o.endpoint = ""
 	o.secretValues = nil
+	o.redactText = secretmatch.ExactReplacer(nil)
 	o.traceID = nil
 	o.spans = nil
 	o.resource = PlannerResource{}
@@ -435,6 +452,16 @@ func (o *otlpHTTPPlannerTelemetry) resourceProto() *resourcev1.Resource {
 	}
 	if o.resource.RuntimeCredentialID != "" {
 		values["contractor.runtime_credential.id"] = o.resource.RuntimeCredentialID
+	}
+	for key, value := range values {
+		switch typed := value.(type) {
+		case string:
+			values[key] = o.redactText(typed)
+		case []string:
+			for i, text := range typed {
+				typed[i] = o.redactText(text)
+			}
+		}
 	}
 	return &resourcev1.Resource{Attributes: keyValues(safeMap(values, o.secretValues))}
 }

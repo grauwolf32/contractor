@@ -372,7 +372,7 @@ export function useListNavigation({
     reveal.current = null;
     const selected = root.querySelector<HTMLElement>('[aria-current="true"]');
     if (selected === null) return;
-    if (pending.focus) selected.focus();
+    if (pending.focus) selected.focus({ preventScroll: true });
     if (typeof selected.scrollIntoView === "function") {
       selected.scrollIntoView({ block: "nearest" });
     }

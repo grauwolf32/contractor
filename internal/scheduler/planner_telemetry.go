@@ -106,11 +106,21 @@ func (s *Scheduler) newPlannerTelemetry(
 			resource.LLMCredentialID = modelAccess.Credential.CredentialID
 		}
 	}
+	knownCredentials := []contracts.SecretString{}
+	if modelAccess != nil && modelAccess.Token.Reveal() != "" {
+		knownCredentials = append(knownCredentials, modelAccess.Token)
+	}
+	for _, reservation := range reservations {
+		if values, ok := s.preparedSecrets.lookup(execution.StageExecutionID, reservation.Grant.AllocationID); ok {
+			for _, value := range values {
+				knownCredentials = append(knownCredentials, contracts.NewSecretString(value))
+			}
+		}
+	}
 	created, err := s.options.PlannerTelemetry.Create(configuration.Adapter, telemetry.PlannerAdapterSettings{
-		Endpoint: configuration.Endpoint, Headers: headers,
-		CaptureContent: configuration.CaptureContent,
-		FlushTimeout:   time.Duration(configuration.FlushTimeoutSeconds) * time.Second,
-		Resource:       resource, RunMetadataLabels: run.MetadataLabels.Clone(),
+		Endpoint: configuration.Endpoint, Headers: headers, KnownCredentials: knownCredentials,
+		FlushTimeout: time.Duration(configuration.FlushTimeoutSeconds) * time.Second,
+		Resource:     resource, RunMetadataLabels: run.MetadataLabels.Clone(),
 	})
 	for name := range headers {
 		delete(headers, name)

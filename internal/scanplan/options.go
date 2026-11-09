@@ -18,6 +18,9 @@ var (
 // authentication slot may contain SecretString; generic values are JSON data.
 func validateOptionsValues(options Options) bool {
 	r := optionValues{types: make(map[reflect.Type]bool)}
+	if options.EngagementCredential != "" && !r.field("engagementCredential", options.EngagementCredential, 2) {
+		return false
+	}
 	if !r.node(1) || !r.field("server", options.Server, 2) ||
 		!r.field("serverVariables", options.ServerVariables, 2) ||
 		!r.text("authentication", 2) || !r.node(2) {

@@ -294,11 +294,29 @@ func TestSharedPostgresCommonTaskCollectsOrdinaryOutputWhilePaused(t *testing.T)
 	}
 }
 
-func newCommonTaskRunFixture(t *testing.T, contextInput bool, memberCounts ...int) taskRunFixture {
+func newCommonTaskRunFixture(t testing.TB, contextInput bool, memberCounts ...int) taskRunFixture {
 	t.Helper()
 	return newCommonTaskRunFixtureWithWorkflow(t, contextInput, nil, memberCounts...)
 }
-func newCommonTaskRunFixtureWithWorkflow(t *testing.T, contextInput bool, configure func(*resolved.ResolvedWorkflow), memberCounts ...int) taskRunFixture {
+func newCommonTaskRunFixtureWithWorkflow(t testing.TB, contextInput bool, configure func(*resolved.ResolvedWorkflow), memberCounts ...int) taskRunFixture {
+	t.Helper()
+	var fixture struct{ Cases []struct{ Document string } }
+	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "audit-common", "programs.json"), &fixture); err != nil {
+		t.Fatal(err)
+	}
+	program, err := auditcontract.DecodeProgram([]byte(fixture.Cases[0].Document))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return newCommonTaskRunFixtureWithProgram(t, program, contextInput, configure, memberCounts...)
+}
+
+func newCommonTaskRunFixtureWithProgram(t testing.TB, program auditcontract.Program, contextInput bool, configure func(*resolved.ResolvedWorkflow), memberCounts ...int) taskRunFixture {
+	t.Helper()
+	return newCommonTaskRunFixtureWithLaunchParameters(t, program, nil, contextInput, configure, memberCounts...)
+}
+
+func newCommonTaskRunFixtureWithLaunchParameters(t testing.TB, program auditcontract.Program, parameters map[string]string, contextInput bool, configure func(*resolved.ResolvedWorkflow), memberCounts ...int) taskRunFixture {
 	t.Helper()
 	ctx := t.Context()
 	pool := postgrestest.NewPool(t, ctx, "", postgrestest.Options{Configure: func(config *pgxpool.Config) { config.MaxConns = 1 }})
@@ -310,14 +328,6 @@ func newCommonTaskRunFixtureWithWorkflow(t *testing.T, contextInput bool, config
 		t.Fatal(err)
 	}
 	catalog, _, err := configload.LoadUnionReadOnly(root, filepath.Join(t.TempDir(), "managed"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var fixture struct{ Cases []struct{ Document string } }
-	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "audit-common", "programs.json"), &fixture); err != nil {
-		t.Fatal(err)
-	}
-	program, err := auditcontract.DecodeProgram([]byte(fixture.Cases[0].Document))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -373,7 +383,7 @@ func newCommonTaskRunFixtureWithWorkflow(t *testing.T, contextInput bool, config
 	if err != nil {
 		t.Fatal(err)
 	}
-	baseline, _ := json.Marshal(auditbaseline.BaselineSnapshot{Schema: auditbaseline.Schema, Labels: map[string]string{}, RequiredPlacementLabels: []string{}, Inputs: map[string]auditstore.ExactArtifact{"source": source}, ActiveChecks: contracts.ActiveChecksProhibited, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(), RuntimeLabels: []string{}, Skills: []agentskills.RunSkillSnapshot{}, LLMCredentialIDs: []string{}, RuntimeCredentialIDs: []string{}, Standards: []auditstandards.PinnedPackage{}})
+	baseline, _ := json.Marshal(auditbaseline.BaselineSnapshot{Schema: auditbaseline.Schema, Parameters: parameters, Labels: map[string]string{}, RequiredPlacementLabels: []string{}, Inputs: map[string]auditstore.ExactArtifact{"source": source}, ActiveChecks: contracts.ActiveChecksProhibited, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(), RuntimeLabels: []string{}, Skills: []agentskills.RunSkillSnapshot{}, LLMCredentialIDs: []string{}, RuntimeCredentialIDs: []string{}, Standards: []auditstandards.PinnedPackage{}})
 	if _, err := pool.Exec(ctx, `UPDATE audits SET state='active',started_at=clock_timestamp(),baseline_snapshot=$2 WHERE audit_id=$1`, audit.AuditID, baseline); err != nil {
 		t.Fatal(err)
 	}
@@ -384,7 +394,11 @@ func newCommonTaskRunFixtureWithWorkflow(t *testing.T, contextInput bool, config
 		t.Fatal(err)
 	}
 	material := auditcontract.Material{ScopeKind: "audit", ScopeID: audit.AuditID, Ref: fork.TargetRef, Digest: source.Digest, MediaType: source.MediaType, SizeBytes: source.SizeBytes}
-	document := auditcontract.Task{Schema: auditcontract.TaskSchema, AuditID: audit.AuditID, TaskID: "ordinary-task", Workflow: "inspect", Inputs: map[string]auditcontract.Material{"source": material}, Parameters: map[string]string{}, Objective: "Inspect exact source"}
+	effective, err := program.BindParameters(parameters)
+	if err != nil {
+		t.Fatal(err)
+	}
+	document := auditcontract.Task{Schema: auditcontract.TaskSchema, AuditID: audit.AuditID, TaskID: "ordinary-task", Workflow: "inspect", Inputs: map[string]auditcontract.Material{"source": material}, Parameters: effective.Workflows["inspect"].Parameters, Objective: "Inspect exact source"}
 	members := []auditstore.AcceptedTask{{Document: document, Source: auditstore.TaskSource{Kind: "manual", Key: "first"}}}
 	if len(memberCounts) > 0 {
 		for index := 1; index < memberCounts[0]; index++ {
@@ -595,5 +609,34 @@ func TestSharedPostgresCommonTaskRunCreationRespectsPause(t *testing.T) {
 	}
 	if _, err := runstore.NewPostgresStore(f.pool, artifactpgtest.NewStorage()).GetRun(t.Context(), "ordinary-task-run"); !errors.Is(err, runstore.ErrNotFound) {
 		t.Fatalf("partial Run committed: %v", err)
+	}
+}
+
+func TestSharedPostgresTaskRunUsesPinnedLaunchParameters(t *testing.T) {
+	var fixture struct{ Cases []struct{ Document string } }
+	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "audit-common", "programs.json"), &fixture); err != nil {
+		t.Fatal(err)
+	}
+	program, err := auditcontract.DecodeProgram([]byte(fixture.Cases[0].Document))
+	if err != nil {
+		t.Fatal(err)
+	}
+	program.Parameters = map[string]auditcontract.ProgramParameter{"server": {Required: true}}
+	binding := program.Workflows["inspect"]
+	binding.ParameterInputs = map[string]string{"server": "server"}
+	program.Workflows["inspect"] = binding
+	f := newCommonTaskRunFixtureWithLaunchParameters(t, program, map[string]string{"server": "https://selected.example"}, false, func(w *resolved.ResolvedWorkflow) {
+		w.Parameters = map[string]resolved.ParameterSlot{"server": {Required: true}}
+	})
+	created, err := f.service.CreateAudit(t.Context(), f.params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.Run.Parameters["server"] != "https://selected.example" {
+		t.Fatalf("Run lost baseline parameters: %+v", created.Run.Parameters)
+	}
+	replay, err := f.service.CreateAudit(t.Context(), f.params)
+	if err != nil || replay.Run.RunID != created.Run.RunID {
+		t.Fatalf("parameterized replay: %+v %v", replay, err)
 	}
 }

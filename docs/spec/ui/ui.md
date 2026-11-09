@@ -361,6 +361,18 @@ status, safe Markdown and downloads. A completed check without an aggregate
 report links to its ordinary task results. Inbox retains its queue navigation
 and return context, without a duplicate Run/capacity summary.
 
+**UI-R238.** Reports resolves availability for at most twenty report-capable
+checks on the selected page (LIM-UI-24), after applying the Project filter.
+Previous and Next reach other pages of the loaded check inventory. Page and
+filter context survive report selection and return; counts describe only the
+selected page, and a page without a ready report does not claim that other pages
+are empty. Availability reads use the existing shared two-slot report transfer
+queue. Leaving a page cancels its active reads and removes its queued reads.
+Reports and Inbox availability caches retain status only; selected detail owns
+the complete report. Inbox keeps its existing seven-day eligibility window.
+The existing report API still transmits content with availability, so page
+bounds limit that work without adding a separate endpoint.
+
 **UI-R40.** An Audit page under `/projects/:projectId/audits/:auditId` marks
 Checks as current in the rail.
 
@@ -380,7 +392,7 @@ loads directly.
 **UI-R45.** The UI supports an extensible catalog of security checks and
 supporting analyses.
 
-**UI-R46.** Project artifact tiles may provide familiar OpenAPI, LikeC4,
+**UI-R46.** Project artifact tiles may provide familiar OpenAPI, Engagement, LikeC4,
 source, documentation and diff icons, but they are shortcuts over arbitrary
 ArtifactRefs rather than hard-coded Server modes. The shortcut set and its
 presentation-only classification are owned by
@@ -447,6 +459,61 @@ Rationale: the renderer builds every operation of an untagged document at
 once, and none of its settings bounds that work: at 1 MiB it held the page
 for over a second, and the YAML parse alone for about 0.3 s. Reopen the limit
 when the renderer can render operations on demand.
+
+**UI-R236.** An exact material with media type
+`application/vnd.contractor.project-sitemap+json` uses a read-only sitemap
+Preview beside Source, within the common LIM-UI-12 byte ceiling. The generated
+public `SitemapDocument` schema owns its shape and versions; malformed content,
+repeated JSON members and ambiguous selection identities show an invalid or
+unsupported notice, never a valid empty map. Source and the existing exact
+download remain available.
+
+The browser presents saved origins, routes and methods with search and filters,
+then concrete members, recorded outcomes/statuses/parameter names/timestamps,
+declarations, provenance, notes, tags and available exact evidence references.
+Saved suppression and omission facts stay visible. Observations and declarations
+remain distinct and establish no current reachability, authentication identity,
+physical request count, complete coverage or security verdict (SMT-R14).
+No referenced bytes, source files or target URLs are fetched automatically;
+existing owner-authorized readers handle an explicitly followed evidence link.
+
+Local navigation and larger detail collections mount at most LIM-UI-22 rows
+per page over the already-loaded bounded document; search reaches all loaded
+routes. Domain grouping and identities remain unchanged. Selection follows
+UI-R231; phone layouts offer a Browse routes disclosure and use the same
+typography, theme tokens and shared controls as other material previews.
+
+Rationale: this is a presentation over ordinary exact Artifact bytes, with no
+new sitemap read API, mutable editor, retention hold or background collection.
+Larger documents retain the ordinary download path. Reopen the byte ceiling
+only with a separately bounded reader requirement.
+
+**UI-R237.** Add material includes an Engagement shortcut (PRJ-R15), opening the
+ordinary Artifact upload form with a shared icon, `engagement` namespace and
+`application/vnd.contractor.engagement+json` media type. Suggestions remain
+editable and the existing upload, cancellation, validation and exact-result
+navigation own publication; the shortcut creates no implicit policy or check.
+
+That exact media type has a read-only Preview beside Source in the common
+Material reader. The existing shared `engagement.schema.json` owns the closed
+document shape, enums and collection bounds. Malformed JSON, repeated members,
+unsupported versions and structurally invalid content show an invalid/unsupported
+notice while retaining Source and download. This display does not replace
+Server-owned canonical network, identity cross-field or credential/admission
+validation (AUD-R241–243).
+
+Preview distinguishes allowed egress from exclusions and shows saved methods,
+path prefixes and address ranges. Identities show their actual anonymous, Basic,
+Bearer or cookies kind, origins, declared role/tenant and non-secret credential
+references. No credential values or target URLs are fetched. Optional HTTP
+limits are shown individually as configured or Not set; no default is invented
+and Run/Audit budgets remain separate (AUD-R242).
+
+Route navigation and nested lists mount at most LIM-UI-23 rows per page, with
+search over the bounded loaded document, stable keyboard selection and a phone
+Browse disclosure. Shared typography, theme tokens and 390px layouts follow the
+other Material readers. The existing LIM-UI-12 ceiling and exact Artifact
+authorization, revisions, download and retention remain unchanged.
 
 **UI-R55.** Workflow logical Worker bindings link to the exact AgentTemplate
 version.
@@ -940,12 +1007,16 @@ no retained copy has no fabricated link.
 
 ### Audits
 
-**UI-R139.** The existing Checks list keeps its filters, compact selected-check
-summary, progress and keyboard navigation. A check opens Overview / Work /
-Hypotheses / Possible issues / Materials / Activity, with a link to its exact
-report. The contextual Project check list and return navigation retain the
-source list context. Work preserves the list/detail pattern over accepted Tasks;
-it does not restore the removed Round/item executor.
+**UI-R139.** The Checks list keeps its filters, progress and keyboard navigation.
+Selecting a Check immediately opens its complete workspace alongside that list,
+with no intermediate summary or Open check action. Global selection and section
+live in `/checks?state=…&project=…&check=…&section=…`; section navigation retains
+the list filters, switching Checks clears child selection and cursors, and mobile
+Back returns to the same filtered list. The global entry and canonical Project
+Check route share one full detail component: Overview / Work / Hypotheses /
+Possible issues / Materials / Activity, with a link to the exact report.
+Work preserves the list/detail pattern over accepted Tasks; it does not restore
+the removed Round/item executor.
 
 **UI-R140.** Audit pages display technical Run outcome separately from semantic
 assessment, and proposed findings separately from confirmed findings.
@@ -1474,9 +1545,13 @@ or copying ratings. Changing selection or option starts an explicit new
 publication intent; retrying an unchanged ambiguous or retryable publication
 uses the original exact body and client key, with no automatic mutation retry.
 
-**UI-R212.** A changed page or selected revision and a publication conflict
-require explicit clear/refresh; refetching cannot silently replace selected
-revisions. Publication controls remain disabled in flight. After publication,
+**UI-R212.** A changed page or selected revision requires explicit clear/refresh
+before creating a new export; refetching cannot silently replace selected
+revisions. An unchanged retained publication request can still be retried after
+an ambiguous or retryable failure while live reads are stale, pending or failed,
+using its original body and key (FND-R200). A publication conflict requires
+explicit clear/refresh and cannot be retried. Publication controls remain
+disabled in flight. After publication,
 **Download SARIF** reads the saved export ID; failed downloads can be repeated
 without another publication. Snapshot and diagnostics downloads and the saved
 time remain under Technical details. Each part is streamed under its public
@@ -1626,44 +1701,59 @@ the chooser folds above setup and the summary follows it. No pinned mobile actio
 area covers fields. Shared font, theme, icon, field and button primitives apply.
 Existing generic, preparation and Web scan controls, catalog/material pagination,
 read failures and keyboard navigation remain available. Ctrl/Command+Enter starts
-from setup, but not from a link or the type chooser. Standard coverage variants
-remain exact profile choices under Advanced options, not separate source Scope.
+from setup, but not from a link or the type chooser. Exact published profiles remain selectable without presenting task limits as source Scope.
 
-**UI-R228.** A `checklist@1` inventory whose audit-input source accepts JSON
-permits inline checklist authoring. The composer starts with one empty item;
-Apply validates and snapshots a local `contractor.audit.checklist.v1` document,
-without claiming persistence. Keys are stable through edits/removals; changing
-an applied statement advances that item's version. New entries use version 1,
-`always`, `static`, no required evidence and `automatic` review. Defaults are
-explained in Advanced options. Empty/dirty/invalid drafts block launch and save.
-The composer allows at most 128 entries or the lower profile item limit
-(LIM-UI-20), with existing 64 KiB UTF-8 text/8 MiB document bounds (AUD-R141)
-and the Server artifact payload limit. Larger existing checklists retain the
-ordinary material-selection path; YAML-only inputs do not get a JSON writer.
+**UI-R228.** A common program whose `seed_source.input` selects a JSON-capable
+assertion input permits inline checklist authoring using
+`contractor.audit.assertions.v1`. The composer starts with one empty check;
+Add/remove preserves each surviving item's key. A shared required rationale and
+optional conditions, evidence requirements and explicit version use the current
+assertion schema. Conditions/evidence/version are disclosed on demand. Blank
+checks, absent rationale or invalid schema prevent saving. An open checklist draft
+blocks Start/Save draft until explicitly saved and attached or closed; an older
+selected material is never silently used in place of that draft. Bounds come from the
+common assertion source schema; this is not the retired inventory checklist codec.
 
-**UI-R229.** Start/Save retains an applied checklist as an ordinary Project
-Artifact under `check-inputs`, named `checklist.<SHA-256 of exact bytes>`, through
-existing create-only Artifact CAS. This shares Web scan's retention path: an
-unsuccessful write is reused only after metadata, media type, size and downloaded
-exact bytes/digest agree. A different binding is never overwritten. Launch then
-uses the Server's exact revision through the existing preparation/context fence,
-create/start request keys and stale-revision/ambiguous-outcome handling. Retention
-failure preserves the local draft and sends no create/start. Leaving its form
-context prevents subsequent launch; an already retained material follows normal
-Project Artifact lifecycle. Retention freezes the submitted material choices so
-its new JSON binding cannot change another input's automatic selection.
+**UI-R229.** Explicit Save and attach retains the exact assertion document as an
+ordinary Project Artifact through the existing content-derived create-only CAS
+owner, then attaches the returned exact revision. An uncertain write is reconciled
+only by matching metadata and complete bytes/digest. A different binding is never
+overwritten. Failed retention preserves the editor draft; opening or editing it
+creates no material or Audit. Existing context fences stop abandoned forms from
+continuing to attach or launch. Start/Save draft keeps the ordinary Audit request
+keys and stale-revision handling. Material deletion/retention stays Project-owned.
 
-**UI-R230.** New check Scope is a descriptive projection of its inventory source,
-not authorization, an execution worklist or proof of coverage. Source archives
-have no separate file-scope control. API/checklist counts come from the selected
-exact material; referenced/invalid/unavailable content does not claim complete
-endpoint counts. API parsing reuses the Material Preview parser without fetching
-references; lists page 50 inline endpoints. Automatic reads cover at most one
-inventory source and one declared Engagement, each at most 128 KiB (LIM-UI-21),
-with exact-revision query keys, cancellation and no automatic retries/polling.
-Larger/unsupported content keeps an exact Material Preview link. Errors offer
-explicit retry without changing ordinary launch readiness. Engagement inputs
-explicitly declaring `application/vnd.contractor.engagement+json` move under
-Scope and project saved target/routes/exclusions/identities/HTTP limits through the
-canonical schema. All declared inputs remain selectable; unsupported profiles
-remain blocked and Server validation/authorization remains authoritative.
+**UI-R230.** New check Scope describes selected exact API, target or explicitly
+typed engagement inputs. Source-only checks have no separate Scope card or summary
+row. Task limits never claim endpoint counts, coverage or authorization. Until
+preparation records the worklist, the UI explains that the accepted endpoint set
+is established at start. Selected exact materials link to their ordinary reader;
+this descriptive presentation adds no automatic content reads. Known shipped
+check types use concise names and distinct shared glyphs; unknown programs keep
+a neutral label without inferred capabilities. Exact profiles remain individually
+selectable; presentation does not reconstruct retired inventory/variant semantics.
+
+**UI-R231.** Context-list and API operation selection keeps its navigation and
+outer page stable. Shared scroll containers reserve their scrollbar gutter;
+keyboard row focus avoids scrolling ancestors before revealing the row. The
+embedded API renderer updates its configuration without remounting for each
+operation. Intentional anchors, local references, mobile list/detail transitions
+and the existing keyboard focus contract remain available.
+
+
+**UI-R232.** Run, Check and Project show the Server-prepared retained LLM cost
+from their independently fresh cost resource (OBS-R123–R125). The Check card
+sits beside Work progress; Project shows its lifetime known total split into
+Checks (their child Runs included) and standalone Runs. Work's Run-attempt
+section requests the visible execution IDs in one bounded read, including
+retained snapshots after source Run deletion. The browser never fans out over
+Run history, reprices tokens or sums child Runs into a Project total.
+Source (Reported, Estimate, Mixed sources) is independent from coverage
+(complete, partial, pending, unavailable). Missing amounts are a dash; known
+zero is explicit. Positive amounts below a cent display `<$0.01`, with the
+exact decimal available in details. Details switch between activity and model
+breakdown and explain historical gaps. Monetary arithmetic uses exact decimal
+strings and integer units; display rounding never changes totals. Failed reads
+keep last-known data, back off under the common polling rule, and offer retry.
+Settled work stops polling after an independent terminal refresh. Shared fonts,
+colours and controls apply in light, dark and black themes at 390 px and above.

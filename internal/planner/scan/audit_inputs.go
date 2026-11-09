@@ -12,9 +12,8 @@ import (
 )
 
 type auditScanInputs struct {
-	task      auditdomain.ScanTask
-	prepared  scanplan.PreparedAuditOperation
-	selection *auditdomain.WebScanSettings
+	task     auditdomain.ScanTask
+	prepared scanplan.PreparedAuditOperation
 }
 
 func (p *execution) loadAuditInputs(ctx context.Context) error {
@@ -22,39 +21,36 @@ func (p *execution) loadAuditInputs(ctx context.Context) error {
 	if err != nil {
 		return p.scanError("audit_scan_source_unavailable", err)
 	}
-	settings, err := p.readAuditInput(ctx, p.invocation.Stage.ScanPreparation.SettingsArtifact, scanplan.MaxOptionsBytes)
-	if err != nil {
-		return p.scanError("audit_scan_settings_unavailable", err)
-	}
-	if settings.MediaType != "application/json" {
-		return p.scanError("audit_scan_input_invalid", nil)
+	config := p.invocation.Stage.ScanPreparation
+	var values []byte
+	if config.ValuesArtifact != "" && p.invocation.Context.Artifacts[config.ValuesArtifact] != nil {
+		payload, readErr := p.readAuditInput(ctx, config.ValuesArtifact, scanplan.MaxOptionsBytes)
+		if readErr != nil {
+			return p.scanError("audit_scan_request_values_unavailable", readErr)
+		}
+		if payload.MediaType != "application/json" {
+			return p.scanError("audit_scan_input_invalid", nil)
+		}
+		values = payload.Data
 	}
 	var task auditdomain.ScanTask
 	var prepared scanplan.PreparedAuditOperation
-	var selection *auditdomain.WebScanSettings
-	config := p.invocation.Stage.ScanPreparation
 	if config.Kind == "web-target" {
 		if source.MediaType != "application/json" {
 			return p.scanError("audit_scan_input_invalid", nil)
 		}
-		ref := p.invocation.Context.Artifacts[config.SettingsArtifact]
-		var value auditdomain.WebScanSettings
-		task, prepared, value, err = auditdomain.PrepareWebTarget(source.Data, settings.Data, auditdomain.ExactInput{Name: config.SettingsArtifact, Ref: ref.Clone(), Digest: auditdomain.DigestBytes(settings.Data)})
-		selection = &value
+		task, prepared, err = auditdomain.PrepareWebTarget(source.Data, p.invocation.Context.Parameters)
 	} else {
 		operation, readErr := p.readAuditInput(ctx, config.OperationArtifact, auditdomain.MaximumDocumentBytes)
-		if readErr != nil {
+		if readErr != nil || operation.MediaType != "application/json" {
 			return p.scanError("audit_scan_operation_unavailable", readErr)
 		}
-		if operation.MediaType != "application/json" {
-			return p.scanError("audit_scan_input_invalid", nil)
-		}
-		task, prepared, err = auditdomain.PrepareOpenAPIScanOperation(operation.Data, source.Data, settings.Data, source.MediaType)
+		task, prepared, err = auditdomain.PrepareOpenAPIScanOperation(operation.Data, source.Data, values, source.MediaType, config.Scanner, p.invocation.Context.Parameters)
 	}
 	if err != nil || task.Scanner != config.Scanner {
 		return p.scanError("audit_scan_preparation_invalid", err)
 	}
-	p.audit = &auditScanInputs{task: task, prepared: prepared, selection: selection}
+	p.audit = &auditScanInputs{task: task, prepared: prepared}
 	return nil
 }
 

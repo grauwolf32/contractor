@@ -22,6 +22,7 @@ from contractor_runtime.contracts import (
     RuntimeSettings,
     TelemetrySettings,
 )
+from contractor_runtime.redaction import runtime_secrets
 from contractor_runtime.threads import consume_task_exception
 
 UINT64_MAX = 2**64 - 1
@@ -105,7 +106,7 @@ EMPTY_ADAPTER_HANDLES = AdapterHandles()
 
 @dataclass(frozen=True, slots=True)
 class RuntimeAdapterBuildContext:
-    """Safe allocation identity; secret-bearing settings are passed separately."""
+    """Allocation identity; only the telemetry factory receives known credentials."""
 
     allocation_id: str
     run_id: str
@@ -119,6 +120,7 @@ class RuntimeAdapterBuildContext:
     run_metadata_labels: Mapping[str, str]
     runtime_adapter_refs: tuple[str, ...]
     private_bypass_hosts: tuple[str, ...]
+    known_credentials: tuple[str, ...] = field(default=(), repr=False)
 
 
 class AdapterFactoryError(RuntimeError):
@@ -310,6 +312,7 @@ class AllocationAdapterHost:
                             replace(
                                 context,
                                 run_metadata_labels=run_metadata_labels,
+                                known_credentials=runtime_secrets(spec.runtime_settings),
                             )
                             if isinstance(settings, TelemetrySettings)
                             else context
@@ -386,15 +389,29 @@ class AllocationAdapterHost:
     def report_metrics(self) -> dict[RuntimeAdapterRef, RuntimeAdapterMetrics]:
         return {ref: self._metrics[ref].snapshot() for ref in sorted(self._metrics)}
 
-    async def terminate(
+    @property
+    def flush_timeout_seconds(self) -> float:
+        """Configured cap for a still-unattempted telemetry flush, or zero."""
+
+        return max(
+            (
+                hosted.flush_timeout_seconds
+                for hosted in self._hosted.values()
+                if hosted.flush_timeout_seconds is not None
+                and hosted.adapter.metrics.flush_attempted is None
+            ),
+            default=0.0,
+        )
+
+    async def flush(
         self,
         *,
         deadline: datetime,
         now: Callable[[], datetime],
-    ) -> None:
-        if self._closed:
-            return
-        close_failed = False
+    ) -> bool:
+        """Flush without closing producer handles; return cancellation settlement."""
+
+        confirmed = True
         for ref in reversed(tuple(self._hosted)):
             hosted = self._hosted[ref]
             if (
@@ -412,10 +429,22 @@ class AllocationAdapterHost:
                     hosted.adapter.metrics.record_flush(succeeded=False, error_code="flush_timeout")
                 elif outcome == "cancel_unconfirmed":
                     hosted.adapter.metrics.record_flush(succeeded=False, error_code="flush_timeout")
-                    close_failed = True
+                    confirmed = False
                 else:
                     hosted.adapter.metrics.record_flush(succeeded=False, error_code="flush_failed")
+        return confirmed
 
+    async def terminate(
+        self,
+        *,
+        deadline: datetime,
+        now: Callable[[], datetime],
+    ) -> None:
+        if self._closed:
+            return
+        close_failed = not await self.flush(deadline=deadline, now=now)
+        for ref in reversed(tuple(self._hosted)):
+            hosted = self._hosted[ref]
             remaining = (deadline - now()).total_seconds()
             outcome = await _bounded_call(hosted.adapter.close(), timeout=max(0.0, remaining))
             if outcome == "succeeded":

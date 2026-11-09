@@ -271,6 +271,7 @@ class Identity(_EngagementModel):
                 "basic": "target-basic@1",
                 "bearer": "target-bearer@1",
                 "cookies": "target-cookies@1",
+                "api-keys": "target-api-keys@1",
             }
             if (
                 self.id == "anonymous"
@@ -283,7 +284,6 @@ class Identity(_EngagementModel):
 
 
 class HTTPLimits(_EngagementModel):
-    target_requests: Annotated[int, Field(ge=1, le=4294967295)] | None = None
     requests_per_second: Annotated[int, Field(ge=1, le=4294967295)] | None = None
     concurrent_requests: Annotated[int, Field(ge=1, le=4294967295)] | None = None
     request_body_bytes: Annotated[int, Field(ge=1, le=4294967295)] | None = None

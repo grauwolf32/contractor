@@ -1,0 +1,85 @@
+schema_version: "1.0"
+id: V457-016
+title: "Reject permanently invalid Audit Eval assertion sources and drain members"
+milestone: eval-admission-recovery-2026-10
+epic: evals
+kind: defect
+introduced_by: V64-012
+priority: P1
+status: completed
+depends_on: []
+languages: [go]
+goal: "An unusable exact Audit assertion source rejects its Eval member, releases capacity and lets the experiment finish."
+context:
+  authority: "User request 2026-11-07 authorizes release review fixes on a separate branch; the coordinating agent assigned this confirmed production defect."
+  specification: [docs/spec/evals/managed-evals.md, docs/spec/audits/common-contract.md]
+  finding: >-
+    internal/evalservice/execution_operations.go:82 ignores the permanent
+    audit_document_invalid returned by actual Audit Start when a current
+    contractor.audit.assertions.v1 source omits required grounds. Both native
+    and external managed submissions keep their audit-start intent and capacity
+    indefinitely despite a definite local rejection before acceptance.
+    internal/auditservice/assertion_sources.go:63 introduced the source parser
+    in d6bbd3c759c1133f09643c7f8e2f69aca3458356 (V64-012).
+  siblings: >-
+    Strict source parsing can return an auditdomain.ValidationError or the raw
+    auditcontract codec's audit_document_invalid kind. Both belong to local
+    Audit Start validation. Native and external members share the Audit adapter.
+    Workflow operations, unrelated HTTP 422 errors, unknown storage/I/O failures
+    and timeouts do not establish non-acceptance and keep the original intent.
+  decision: >-
+    EVM-R250 uses existing eval_not_ready for a document/configuration that
+    cannot execute although its exact bytes and pins match. Only audit-start
+    classifies the owning Audit domain validation type and the codec's exact
+    audit_document_invalid kind. The existing rejected-start draft deletion,
+    tombstone reconciliation and member settlement path owns cleanup. We add no
+    permissive parser, new diagnostic, queue or retry mechanism. The alternative
+    of classifying every nonretryable 422 is rejected because HTTP status alone
+    does not prove local non-acceptance at this owner boundary.
+  integration_verification: >-
+    Acceptance verified on 2026-11-08. The full integrated unit gate passed 3090 Go
+    tests and the complete Runtime/configuration/shared-fixture checks. The
+    actual-service native/external eight-member invalid-source, draft purge/capacity,
+    same-key uncertainty and accepted-response replay regressions pass. The full
+    evalservice package passed 75 tests ordinarily and 75 with race detection, zero
+    skips. Final release-verify-lint passed; no broad HTTP-status classification or
+    parser leniency was added.
+scope:
+  in:
+    - "Narrow permanent Audit Start validation classification shared by native and external Eval submissions."
+    - "Actual Audit service and PostgreSQL regressions for current-schema invalid sources, draft deletion, member settlement and capacity release."
+    - "Regression proof that timeout, unknown I/O and accepted response loss retain the same start key for replay."
+  out:
+    - "Legacy source formats, input leniency, new retry frameworks, fixture producer repair and broad HTTP error classification."
+acceptance_criteria:
+  - id: A1
+    text: "Current assertions with missing grounds and sibling domain validation failures reject Audit start with safe eval_not_ready."
+  - id: A2
+    text: "Native and external members settle through ordinary draft purge; capacity is released and the experiment can finish without child Runs."
+  - id: A3
+    text: "Unknown I/O, timeout and ambiguous accepted responses keep intent and replay the same start key; unrelated 422 and Workflow errors are not reclassified."
+  - id: A4
+    text: "The real-store invalid-source regression fails on the original production classification."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/evalservice"
+    covers: [A1, A2, A3, A4]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -race -count=1 ./internal/evalservice"
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+verification: >-
+  The complete evalservice package passed against the owned PostgreSQL 17
+  data-lane database: 75 top-level tests, zero skips, both ordinary (33.552 s)
+  and race-enabled (77.419 s). The native/external invalid-source regression
+  exercises eight members at capacity one for each raw-codec and typed-domain
+  rejection, observing eight rejected starts/submissions, no unresolved intents
+  and no remaining Audits or child Runs. Timeout, unknown I/O, unrelated 422
+  and accepted-response loss retain identical StartParams/key; accepted replay
+  returns the same Audit receipt. Workflow operations do not reinterpret Audit
+  validation. Restoring only the original production classifier makes the
+  native current-schema missing-grounds regression fail with
+  audit_document_invalid; fixed bytes were restored afterward. Independent
+  business-lane read-only review found no actionable concerns. Diff whitespace
+  checks pass; the task checker reports only the expected stale generated
+  BACKLOG, whose regeneration is reserved for the coordinating lane. Final integrated verification passed as recorded in context.integration_verification.
+implementation_commit: 91f15114687285201d46aa917bbb6acccff88abf

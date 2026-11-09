@@ -309,7 +309,7 @@ func newFindingImportFixture(t *testing.T, direct bool, auditChild ...bool) dele
 		t.Fatal(err)
 	}
 	if err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		return insertReceipt(ctx, tx, receiptID, "proposal", canonical, fingerprint, proposal, []ExactArtifact{}, origin, owner, &project, grant, nil, nil, "")
+		return insertReceipt(ctx, tx, receiptID, "proposal", canonical, fingerprint, proposal, []ExactArtifact{}, origin, owner, &project, &grant, nil, nil, "")
 	}); err != nil {
 		t.Fatal(err)
 	}

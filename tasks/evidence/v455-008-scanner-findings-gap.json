@@ -1,0 +1,63 @@
+{
+  "task_id": "V455-008",
+  "source_revision": "8cada27e100fe1847e206fe2fe42e0ad759c5751",
+  "observed_on": "2026-11-08",
+  "nuclei_run": {
+    "id": "run_bb2cdfdd61621eb2ffd489fcfe204f04",
+    "state": "succeeded",
+    "results": [
+      {
+        "template_id": "git-config",
+        "url": "http://10.77.0.11:18081/.git/config",
+        "status": null,
+        "severity": "medium"
+      }
+    ],
+    "output_report_ref": {
+      "namespace": "outputs",
+      "name": "report",
+      "revision": "rev_fe0251451812d9e4b4993a8dc17329e0"
+    },
+    "automatic_project_finding_producer": "absent from deployed tool@1 and scanner composition"
+  },
+  "ffuf_run": {
+    "id": "run_e646c140cbfd55edc7abd6ea6a1f1a6e",
+    "state": "succeeded",
+    "result_count": 2,
+    "existing_sitemap_integration": "implemented; omitted collection policy in the demo template"
+  },
+  "sqlmap_evidence": {
+    "method": "static inspection; no live SQLMap execution in this investigation",
+    "path": "runtime/src/contractor_runtime/toolsets/scan/tools.py",
+    "request_mode_fields": [
+      "injectionOutcome",
+      "injectionTechniques",
+      "requestArtifact"
+    ],
+    "output": "normalized report through shared tool runtime; no automatic Finding producer"
+  },
+  "related_tasks": {
+    "V455-006": "playground scanner traps only, separate branch",
+    "V412-005": "controlled ffuf transport; does not implement Findings",
+    "V410-004": "implemented ffuf/Katana sitemap imports; does not implement Findings"
+  },
+  "design_direction": {
+    "user_followup": "Prefer a separate operation for publication",
+    "proposal": "Runtime provider adapters retain normalized candidate/evidence Artifacts; a separate registered Server operation publishes them through existing Finding intake",
+    "recovery": "Publication-only execution over exact normalized inputs; no Runtime/model/target traffic",
+    "automatic_integration": "Explicit scan -> publish composition in shipped Project Workflows"
+  },
+  "audit_result_policy": {
+    "user_decision": "Audit scanner results contain canonical Findings, not report or Finding artifacts",
+    "raw_scanner_reports": "Remain on the concrete Run and are accessed there on demand",
+    "audit_artifacts": "Do not copy/embed scanner reports or export canonical Findings as artifacts",
+    "finding_evidence": "Preserve selected evidence via existing internal Finding source retention and origin links"
+  },
+  "review_followup": {
+    "user_decision": "Fingerprints and information-only observations belong in Project sitemap",
+    "source_observation": "Current normalized report importer supports ffuf/Katana; HTTP observation rows lack technology/version fields. Existing sitemap members have source-owned annotations.",
+    "required_outcome": "Runtime adapter contributes supported informational metadata through existing sitemap ownership; explicit operation publishes evidenced problems. Severity alone does not route results. Raw reports remain Run-local.",
+    "still_proposed": "Publish individually complete positive assertions from partial scans with explicit limitations; freeze deterministic rule eligibility policy."
+  },
+  "previous_task_id": "V455-007"
+}

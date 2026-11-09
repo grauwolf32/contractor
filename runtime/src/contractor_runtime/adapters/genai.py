@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from typing import Any
 
-from contractor_runtime.adapters.content import MAX_CONTENT_BYTES
+from contractor_runtime.adapters.content import MAX_CONTENT_BYTES, encode_content
 
 
 def usage_attributes(usage: Any | None) -> dict[str, int]:
@@ -25,7 +26,9 @@ def usage_attributes(usage: Any | None) -> dict[str, int]:
 def _text(value: Any) -> str:
     if isinstance(value, str):
         return value
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return json.dumps(
+        value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
+    )
 
 
 def _parts(value: Any) -> list[dict[str, Any]]:
@@ -34,7 +37,7 @@ def _parts(value: Any) -> list[dict[str, Any]]:
     if isinstance(value, dict) and value.get("truncated") is True:
         return [{"type": "text", "content": value.get("preview", ""), "truncated": True}]
     if not isinstance(value, dict) or not isinstance(value.get("parts"), list):
-        return [{"type": "text", "content": _text(value)}]
+        return [{"type": "text", "content": value}]
     result = []
     for part in value["parts"]:
         if not isinstance(part, dict):
@@ -79,7 +82,7 @@ def _message(value: Any, default_role: str) -> dict[str, Any]:
 
 
 def _bounded(key: str, value: Any) -> str:
-    encoded = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    encoded = json.dumps(value, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
     if len(encoded.encode()) <= MAX_CONTENT_BYTES:
         return encoded
     preview = encoded.encode()[:MAX_CONTENT_BYTES].decode("utf-8", errors="ignore")
@@ -98,7 +101,7 @@ def _bounded(key: str, value: Any) -> str:
             if key == "gen_ai.output.messages":
                 message["finish_reason"] = "unknown"
             bounded = [message]
-        encoded = json.dumps(bounded, ensure_ascii=False, separators=(",", ":"))
+        encoded = json.dumps(bounded, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
         if len(encoded.encode()) <= MAX_CONTENT_BYTES:
             return encoded
         excess = len(encoded.encode()) - MAX_CONTENT_BYTES + 16
@@ -107,11 +110,12 @@ def _bounded(key: str, value: Any) -> str:
         )
 
 
-def content_attributes(field: str, raw: str, *, model: bool) -> dict[str, str]:
-    """Project one already bounded, opted-in SDK payload into collector-neutral attributes."""
+def content_attributes(
+    field: str, value: Any, *, model: bool, redact: Callable[[Any], Any]
+) -> dict[str, str]:
+    """Project SDK content, mask data, then encode and bound each final field."""
     if not model:
-        return {"contractor." + field: raw}
-    value = json.loads(raw)
+        return {"contractor." + field: encode_content(redact(value))}
     if value is None:
         return {}
     if field == "output":
@@ -139,4 +143,19 @@ def content_attributes(field: str, raw: str, *, model: bool) -> dict[str, str]:
             values["gen_ai.tool.definitions"] = tools
     else:
         values = {"gen_ai.input.messages": [_message(value, "user")]}
+    for key, items in values.items():
+        if key == "gen_ai.tool.definitions":
+            for definition in items:
+                for name in definition.keys() - {"type"}:
+                    definition[name] = redact(definition[name])
+        else:
+            parts = (
+                items
+                if key == "gen_ai.system_instructions"
+                else (part for message in items for part in message["parts"])
+            )
+            for part in parts:
+                for name in part.keys() - {"type", "truncated"}:
+                    masked = redact(part[name])
+                    part[name] = _text(masked) if name == "content" else masked
     return {key: _bounded(key, item) for key, item in values.items()}

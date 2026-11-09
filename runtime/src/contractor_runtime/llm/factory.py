@@ -21,7 +21,9 @@ class ModelFactory(Protocol):
 
 def gateway_model(context: WorkerBuildContext) -> BaseLlm:
     policy = context.model_policy
+    client = build_gateway_client(context)
+    client.cost_observer = context.state.metrics.llm_cost.observe
     return OpenAICompatibleGatewayLlm(
         model=policy.model,
-        client_handle=build_gateway_client(context),
+        client_handle=client,
     )

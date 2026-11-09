@@ -1,4 +1,10 @@
+import {
+  materialDisplayName,
+  materialDisplayRef,
+} from "../artifacts/display-name";
 import { useId, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "../../api/query-keys";
 import { Link, useLocation, useSearchParams } from "react-router";
 
 import { AUDIT_PAGE_SIZE, type Audit, type AuditState } from "../../api/audits";
@@ -7,6 +13,9 @@ import type { RunSummary } from "../../api/runs";
 import { ContextLink } from "../../app/context-navigation";
 import { ErrorNotice } from "../../app/error-notice";
 import { Icon } from "../../app/icon";
+import { LLMCostPanel } from "../../app/llm-cost";
+import { auditPollInterval } from "../../api/audits";
+import { isTerminalRunState } from "../../api/runs";
 import { RecordedTime } from "../../app/recorded-time";
 import { RefreshButton } from "../../app/refresh-button";
 import { checkStateLabel } from "../../app/vocabulary";
@@ -105,16 +114,18 @@ function MaterialChips({
                 className="projects-material-item"
                 returnLabel="Project Overview"
                 title={exact}
+                aria-label={`${materialKindLabel(item)} · ${exact} · ${materialFormat(item)}`}
                 to={artifactDetailPath(
                   { kind: "project", id: projectId },
                   item.artifact,
                 )}
               >
                 <strong>
-                  {materialKindLabel(item)} · {item.artifact.name} ·{" "}
+                  {materialKindLabel(item)} ·{" "}
+                  {materialDisplayName(item.artifact.name)} ·{" "}
                   {materialFormat(item)}
                 </strong>
-                <code>{exact}</code>
+                <code>{materialDisplayRef(item.artifact)}</code>
               </ContextLink>
             </li>
           );
@@ -403,6 +414,7 @@ function Attention({
  * counts say when they cover only the newest checks.
  */
 export function ProjectOverview({ project }: { project: Project }) {
+  const queryClient = useQueryClient();
   const projectId = project.projectId;
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -444,6 +456,9 @@ export function ProjectOverview({ project }: { project: Project }) {
           size="sm"
           isFetching={fetching}
           onRefresh={() => {
+            void queryClient.invalidateQueries({
+              queryKey: queryKeys.llmCost("project", projectId),
+            });
             void issues.refetch();
             void checks.refetch();
             void runs.refetch();
@@ -486,6 +501,28 @@ export function ProjectOverview({ project }: { project: Project }) {
           className="projects-overview-support"
           aria-label="Project context"
         >
+          <LLMCostPanel
+            scope="project"
+            id={projectId}
+            active={
+              auditPollInterval(checkItems) !== false ||
+              (runs.data?.items ?? []).some(
+                (run) => !isTerminalRunState(run.state),
+              )
+            }
+            refreshKey={JSON.stringify([
+              checkItems.map((check) => [
+                check.auditId,
+                check.state,
+                check.revision,
+              ]),
+              runs.data?.items.map((run) => [
+                run.runId,
+                run.state,
+                run.updatedAt,
+              ]),
+            ])}
+          />
           <GlanceStrip
             project={project}
             checks={checkItems}

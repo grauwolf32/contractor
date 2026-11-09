@@ -327,7 +327,6 @@ class CaidoToolsetFactory:
     )
     # Every tool's result carries captured HTTP traffic or HTTP session
     # material, including tools added later.
-    sensitive_output_tools = exported_tools
 
     def __init__(
         self,

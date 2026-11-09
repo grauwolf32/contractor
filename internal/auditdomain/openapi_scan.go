@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/scan"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	"github.com/grauwolf32/contractor/internal/scanplan"
@@ -15,15 +16,15 @@ import (
 // Concrete request bytes and credentials stay in the exact supplied inputs.
 // Re-preparation must match this identity before a scanner can be invoked.
 type ScanTask struct {
-	Scanner           string     `json:"scanner"`
-	Operation         string     `json:"operation"`
-	Settings          ExactInput `json:"settings"`
-	PreparationDigest string     `json:"preparation_digest"`
-	Runnable          bool       `json:"runnable"`
-	RequestDigest     string     `json:"request_digest,omitempty"`
-	TargetURL         string     `json:"target_url,omitempty"`
-	TestParameters    []string   `json:"test_parameters"`
-	Gaps              []string   `json:"gaps"`
+	Scanner           string   `json:"scanner"`
+	Operation         string   `json:"operation"`
+	SelectionDigest   string   `json:"selection_digest"`
+	PreparationDigest string   `json:"preparation_digest"`
+	Runnable          bool     `json:"runnable"`
+	RequestDigest     string   `json:"request_digest,omitempty"`
+	TargetURL         string   `json:"target_url,omitempty"`
+	TestParameters    []string `json:"test_parameters"`
+	Gaps              []string `json:"gaps"`
 }
 
 func (s ScanTask) CoverageRequirement() string {
@@ -33,20 +34,11 @@ func (s ScanTask) CoverageRequirement() string {
 	return "sqlmap-request-scan"
 }
 
-func openAPIScanSubjects(source []byte, sourceMediaType string, settingsData []byte, settingsInput ExactInput, options InventoryOptions, maxItems int) (inventoryBasis, []inventorySubject, error) {
-	if settingsInput.Name == options.SourceInputName ||
-		validateIdentifier(settingsInput.Name, "settings.name") != nil || settingsInput.Ref.ValidateExact() != nil ||
-		settingsInput.Digest != DigestBytes(settingsData) {
-		return inventoryBasis{}, nil, invalid(CodeInventoryInvalid, "scan.settings")
-	}
-	settings, err := scanplan.DecodeAuditScanSettings(settingsData)
-	if err != nil {
-		return inventoryBasis{}, nil, invalid(CodeInventoryInvalid, "scan.settings")
-	}
+func openAPIScanSubjects(source []byte, sourceMediaType string, selection scanplan.AuditSelection, values *auditcontract.Material, options InventoryOptions, maxItems int) (inventoryBasis, []inventorySubject, error) {
 	basis := inventoryBasis{Schema: InventoryBasisSchema, Kind: "openapi-scans", Subjects: []map[string]any{}, Gaps: []string{}}
 	subjects := []inventorySubject{}
 	// One parse and one source digest serve every selected operation (SCN-R256).
-	for prepared, err := range settings.PrepareOperations(source, normalizedMediaType(sourceMediaType), options.SourceRef) {
+	for prepared, err := range selection.PrepareOperations(source, normalizedMediaType(sourceMediaType), options.SourceRef) {
 		if err != nil {
 			var failure *scanplan.PreparationError
 			if errors.As(err, &failure) {
@@ -57,10 +49,10 @@ func openAPIScanSubjects(source []byte, sourceMediaType string, settingsData []b
 		if len(subjects) >= maxItems {
 			return inventoryBasis{}, nil, invalid(CodeLimitExceeded, "scan.operations")
 		}
-		task := openAPIScanTask(settings, settingsInput, prepared)
+		task := openAPIScanTask(selection, prepared)
 		subjects = append(subjects, inventorySubject{kind: "openapi-scan", scan: &task,
 			requested: []string{task.CoverageRequirement()}, gaps: task.Gaps})
-		basis.Subjects = append(basis.Subjects, map[string]any{"scan": task})
+		basis.Subjects = append(basis.Subjects, map[string]any{"scan": task, "request_values": values})
 	}
 	canonical, err := canonicalJSON(basis)
 	if err != nil {
@@ -74,11 +66,10 @@ func openAPIScanSubjects(source []byte, sourceMediaType string, settingsData []b
 	return basis, subjects, nil
 }
 
-func openAPIScanTask(settings scanplan.AuditScanSettings, input ExactInput, prepared scanplan.PreparedAuditOperation) ScanTask {
-	input.Ref = input.Ref.Clone()
-	task := ScanTask{Scanner: settings.Scanner(), Operation: prepared.Operation, Settings: input,
+func openAPIScanTask(selection scanplan.AuditSelection, prepared scanplan.PreparedAuditOperation) ScanTask {
+	task := ScanTask{Scanner: selection.Scanner(), Operation: prepared.Operation, SelectionDigest: selection.Digest(),
 		PreparationDigest: prepared.PreparationDigest, Runnable: prepared.Runnable,
-		TestParameters: settings.TestParameters(), Gaps: []string{}}
+		TestParameters: selection.TestParameters(), Gaps: []string{}}
 	if prepared.RequestSet != nil && len(prepared.RequestSet.Requests) == 1 {
 		task.RequestDigest = prepared.RequestSet.Requests[0].ContentDigest
 	}
@@ -106,8 +97,7 @@ func validateScanTask(value ScanTask, web bool) error {
 		operationValid = value.Scanner == "nuclei" && value.Operation == "target" && value.Runnable
 	}
 	if value.Scanner != "sqlmap" && value.Scanner != "nuclei" || !operationValid ||
-		validateIdentifier(value.Settings.Name, "scan.settings.name") != nil || value.Settings.Ref.ValidateExact() != nil ||
-		!contentdigest.Valid(value.Settings.Digest) || !contentdigest.Valid(value.PreparationDigest) ||
+		!contentdigest.Valid(value.SelectionDigest) || !contentdigest.Valid(value.PreparationDigest) ||
 		validateSortedStrings(value.Gaps, MaximumCoverageValues, "scan.gaps", false) != nil ||
 		value.TestParameters == nil || !sort.StringsAreSorted(value.TestParameters) ||
 		!value.Runnable && len(value.Gaps) == 0 {

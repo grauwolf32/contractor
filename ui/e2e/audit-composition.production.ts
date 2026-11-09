@@ -13,7 +13,7 @@ function required(name: string) {
   return v;
 }
 
-test("common preparation and retained scanner result survive Run deletion", async ({
+test("common preparation and canonical scanner Findings survive Run deletion", async ({
   page,
 }) => {
   const api = required("CONTRACTOR_UI_E2E_API_URL"),
@@ -49,14 +49,18 @@ test("common preparation and retained scanner result survive Run deletion", asyn
   });
   expect(project.status()).toBe(201);
   const { projectId } = (await project.json()) as { projectId: string };
-  async function upload(name: string, content: Buffer): Promise<Ref> {
+  async function upload(
+    name: string,
+    content: Buffer,
+    mediaType = "application/json",
+  ): Promise<Ref> {
     const response = await page.request.put(
       api + `/v1/projects/${projectId}/artifacts/fixture/${name}`,
       {
         headers: {
           ...headers(),
           "If-None-Match": "*",
-          "Content-Type": "application/json",
+          "Content-Type": mediaType,
         },
         data: content,
       },
@@ -68,20 +72,40 @@ test("common preparation and retained scanner result survive Run deletion", asyn
     "openapi",
     await readFile(required("CONTRACTOR_COMPOSITION_OPENAPI")),
   );
-  const settings = await upload(
-    "settings",
+  const values = await upload(
+    "request-values",
     Buffer.from(
       JSON.stringify({
-        schema: "contractor.audit.openapi-scan-settings.v1",
-        scanner: "nuclei",
-        server: required("CONTRACTOR_COMPOSITION_TARGET") + "/api",
-        operations: {
-          "#/paths/~1pets~1{id}/post": {
-            parameters: { "path:id": 7, "query:search": "Milo" },
-          },
+        "#/paths/~1pets~1{id}/post": {
+          parameters: { "path:id": 7, "query:search": "Milo" },
         },
       }),
     ),
+  );
+  const targetOrigin = new URL(required("CONTRACTOR_COMPOSITION_TARGET"))
+    .origin;
+  const engagement = await upload(
+    "engagement",
+    Buffer.from(
+      JSON.stringify({
+        schema: "contractor.engagement.v1",
+        egress: {
+          routes: [
+            {
+              origin: targetOrigin,
+              methods: ["GET", "POST"],
+              pathPrefixes: ["/"],
+              addressRanges: [new URL(targetOrigin).hostname + "/32"],
+            },
+          ],
+          exclusions: [],
+        },
+        identities: [
+          { id: "anonymous", kind: "anonymous", origins: [targetOrigin] },
+        ],
+      }),
+    ),
+    "application/vnd.contractor.engagement+json",
   );
   await page.goto(`/checks/new?project=${projectId}&type=openapi-nuclei-scan`);
   await page
@@ -89,7 +113,7 @@ test("common preparation and retained scanner result survive Run deletion", asyn
     .fill("Inspect the exact controlled API target.");
   for (const [label, name] of [
     ["API spec", "openapi"],
-    ["Scan settings", "settings"],
+    ["Request values", "request-values"],
   ]) {
     const select = page.getByRole("combobox", {
       name: "Material for " + label,
@@ -100,6 +124,12 @@ test("common preparation and retained scanner result survive Run deletion", asyn
       )!,
     });
   }
+  await page
+    .getByLabel("API server URL", { exact: false })
+    .fill(required("CONTRACTOR_COMPOSITION_TARGET") + "/api");
+  await page
+    .getByLabel("Selected operations", { exact: false })
+    .fill('["#/paths/~1pets~1{id}/post"]');
   await page.getByRole("button", { name: "Start check", exact: true }).click();
   await expect(page).toHaveURL(/\/audits\/audit_[A-Za-z0-9_-]+/);
   const auditId = new URL(page.url()).pathname.split("/").at(-1)!;
@@ -115,7 +145,8 @@ test("common preparation and retained scanner result survive Run deletion", asyn
   expect(audit.taskCount).toBe(2);
   expect(audit.submittedRunCount).toBe(2);
   expect(audit.inputs.openapi?.ref).toEqual(openapi);
-  expect(audit.inputs.settings?.ref).toEqual(settings);
+  expect(audit.inputs.request_values?.ref).toEqual(values);
+  expect(audit.inputs.engagement?.ref).toEqual(engagement);
   const tasksResponse = await page.request.get(
     api + `/v1/audits/${auditId}/tasks?limit=64`,
   );
@@ -126,11 +157,13 @@ test("common preparation and retained scanner result survive Run deletion", asyn
     tasks.every(
       (task) =>
         task.state === "settled" &&
-        task.result !== undefined &&
+        (task.result !== undefined || task.findings !== undefined) &&
         task.gap_code === undefined,
     ),
   ).toBe(true);
   const scan = tasks.find((task) => task.document.workflow === "scan")!;
+  expect(scan.result).toBeUndefined();
+  expect(scan.findings).toBeDefined();
   expect(scan.document.hypothesis).toBeUndefined();
   const events = await page.request.get(
     api + `/v1/audits/${auditId}/events?limit=100`,
@@ -162,17 +195,29 @@ test("common preparation and retained scanner result survive Run deletion", asyn
     });
     expect(deleted.status()).toBe(204);
   }
-  await page.reload();
-  const card = page
-    .getByRole("heading", { name: scan.document.objective, exact: true })
-    .locator("..");
-  await card.getByRole("button", { name: "Read saved result" }).click();
+  const retainedResponse = await page.request.get(
+    api + `/v1/audits/${auditId}/tasks?limit=64`,
+  );
+  expect(retainedResponse.status()).toBe(200);
+  const retained = (await retainedResponse.json()) as { items: Task[] };
+  expect(
+    retained.items.find((task) => task.document.workflow === "scan")?.findings,
+  ).toEqual(scan.findings);
+  await page.goto(
+    `/projects/${projectId}/audits/${auditId}/work?task=${encodeURIComponent(scan.document.task_id)}`,
+  );
+  const card = page.getByRole("article").filter({
+    has: page.getByRole("heading", {
+      name: scan.document.objective,
+      exact: true,
+    }),
+  });
   await expect(
-    card.getByText(/contractor.scan.operation-report.v1/),
+    card.getByRole("region", { name: "Finding results", exact: true }),
   ).toBeVisible();
   await expect(
     card.getByRole("button", { name: "Download complete Run result" }),
-  ).toBeVisible();
+  ).toHaveCount(0);
   await page.screenshot({
     path: path.join(directory, "common-retained-after-run-deletion.png"),
     fullPage: true,

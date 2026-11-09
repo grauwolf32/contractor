@@ -1028,13 +1028,24 @@ deadline bounds the call, and each request also obeys the Server's Planner
 Gateway request timeout, the same as a main model request.
 
 **PLN-R128.** Before transport, the complete serialized compactor request in
-bytes, plus a framing reserve of 1,024 tokens (1,024 + 128 per message above
-eight messages) and the compactor `maxOutputTokens`, must fit both the
+bytes (including its response schema), plus a framing reserve of 1,024 tokens
+(1,024 + 128 per message above eight messages) and the compactor
+`maxOutputTokens`, must fit both the
 compactor `contextWindowTokens` and its `maxTotalTokens`, and the request must
 fit the 4 MiB Gateway request bound; otherwise the invocation ends with
 `planner_compaction_failed` (input_capacity), without truncating a group or
-substituting a model. The reply is accepted only when it finished with `stop`,
-called no tool, reports usage within the compactor limits and is exactly one
+substituting a model. The compactor is a separate tool-free ADK `LlmAgent`
+with `OutputSchema` requiring an object with one string `summary`, a private
+in-memory session and a model wrapper allowing exactly one provider call.
+It is not a Scheduler Worker and does not inherit the main Planner's tools or
+session history. Admission uses the final ADK-built request, including SDK
+instructions and the schema. The Gateway adapter transmits the ADK response
+schema as strict JSON Schema through `response_format`, requiring `summary`
+and forbidding additional properties;
+the instruction alone is not the format contract. A Gateway rejection keeps
+the ordinary failure classification, with no schema-free retry. The reply is
+accepted only when it finished with `stop`, called no tool, reports usage
+within the compactor limits and is exactly one
 JSON object `{"summary": …}` whose trimmed, non-empty UTF-8 summary is at most
 16 KiB (LIM-PLN-13) and smaller than the source it replaces. Any other reply
 ends the invocation with `planner_compaction_failed` and a bounded reason:
@@ -1085,8 +1096,10 @@ oldest is evicted first (LIM-PLN-18). A foreign, stale, consumed or evicted
 cursor returns the tool error `history_cursor_invalid` without data, a cursor
 that cannot be issued `history_unavailable`, and an unknown `worker_name`
 `planner_worker_unknown` (PLN-R122). The reader exists only in the live
-invocation's memory; it adds no HTTP endpoint and is released with the
-Planner.
+invocation's memory; it adds no HTTP endpoint. The owner releases the raw
+ledger, summary, index and cursors before `Run` returns, after joining the
+Runner, model calls and session writes (LIFE-PLN-4). Retaining the Planner to
+read its execution report does not retain this invocation context.
 
 ### Cross-Stage state
 

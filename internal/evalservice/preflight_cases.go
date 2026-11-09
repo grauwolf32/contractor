@@ -60,10 +60,8 @@ func caseEligibility(c evaldomain.Case, v evaldomain.Variant, s BindingSnapshot,
 		for name, output := range auditOutputContracts {
 			outputs[name] = resolved.ArtifactSlot{MediaTypes: []string{output.mediaType}}
 		}
-		for name := range MapParameters(c, v) {
-			if name != "objective" && name != "target" && name != "authorizationScope" {
-				return unavailable("The Audit scope has an unsupported parameter.")
-			}
+		if _, _, err := mapAuditParameters(c, v, s.Audit.Program); err != nil {
+			return unavailable("The Audit launch parameters do not match the selected Program.")
 		}
 	}
 	for name, ref := range inputs {

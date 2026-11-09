@@ -132,7 +132,7 @@ func runPolicyDocument() engagementcontract.Document {
 	return engagementcontract.Document{Schema: engagementcontract.Schema,
 		Egress:     engagementcontract.Egress{Routes: []engagementcontract.Route{{Origin: "https://target.example", PathPrefixes: []string{"/api"}, Methods: []string{"GET"}, AddressRanges: []string{"10.20.0.0/16"}}}, Exclusions: []engagementcontract.Route{}},
 		Identities: []engagementcontract.Identity{{ID: "anonymous", Kind: "anonymous", Origins: []string{"https://target.example"}}},
-		Limits:     &engagementcontract.HTTPLimits{TargetRequests: &limit}}
+		Limits:     &engagementcontract.HTTPLimits{RequestsPerSecond: &limit}}
 }
 func (f *runEngagementFixture) addCredential(t *testing.T, doc *engagementcontract.Document, id, owner string, kind runtimesettings.RuntimeCredentialKind) {
 	t.Helper()

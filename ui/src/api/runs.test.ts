@@ -1,5 +1,6 @@
 import { ARTIFACT_STORAGE_TIMESTAMPS } from "../test/builders";
 import { describe, expect, it, vi } from "vitest";
+import { runStatus } from "../test/builders-execution";
 
 import type { RuntimeConfig } from "../config/runtime-config";
 import { TestPublicAPI as PublicAPI } from "../test/shared-config";
@@ -43,6 +44,46 @@ function response(
 }
 
 describe("Run API", () => {
+  it.each([
+    {
+      label: "empty object",
+      config: { variant: "base", agents: {} },
+      valid: true,
+    },
+    { label: "missing", config: { variant: "base" }, valid: false },
+    { label: "null", config: { variant: "base", agents: null }, valid: false },
+    { label: "array", config: { variant: "base", agents: [] }, valid: false },
+  ])(
+    "validates operation attempt agents: $label",
+    async ({ config, valid }) => {
+      const payload = {
+        ...runStatus("run-operation"),
+        attempts: [
+          {
+            stageExecutionId: "stage-operation",
+            stage: "publish",
+            attempt: 1,
+            executionConfig: config,
+            state: "succeeded",
+          },
+        ],
+      };
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async () => response(payload)),
+      );
+      const result = getRun(api, "run-operation");
+      if (valid)
+        await expect(result).resolves.toMatchObject({
+          attempts: [{ executionConfig: { agents: {} } }],
+        });
+      else
+        await expect(result).rejects.toMatchObject({
+          code: "invalid_api_response",
+        });
+    },
+  );
+
   it.each([
     { origin: { layer: "workflow_execution_config" }, readable: true },
     {

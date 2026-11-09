@@ -18,6 +18,12 @@ type HTTPIdentityMaterial struct {
 var targetIdentityPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,63}$`)
 
 func (m HTTPIdentityMaterial) Validate() error {
+	if m.Credential.Kind == RuntimeCredentialTargetAPIKeys {
+		if m.Credential.Validate() != nil {
+			return contracts.Invalidf("engagement identity material is invalid")
+		}
+		return ValidateAPIKeyFields(m.Fields)
+	}
 	if m.Credential.Validate() != nil || len(m.Fields) < 1 || len(m.Fields) > 128 {
 		return contracts.Invalidf("engagement identity material is invalid")
 	}
@@ -70,4 +76,50 @@ func validTargetMaterialValue(kind RuntimeCredentialKind, value string) bool {
 		}
 	}
 	return true
+}
+
+// ValidateAPIKeyFields is shared by encrypted credential creation and private
+// allocation validation. Prefixes identify placement; every value stays private.
+func ValidateAPIKeyFields(fields map[string]contracts.SecretString) error {
+	invalid := func() error { return contracts.Invalidf("engagement API key material is invalid") }
+	if len(fields) < 1 || len(fields) > 128 {
+		return invalid()
+	}
+	total := 0
+	headers := map[string]bool{}
+	for qualified, secret := range fields {
+		location, name, found := strings.Cut(qualified, ":")
+		value := secret.Reveal()
+		if !found || len(name) < 1 || len(name) > 256 || len(value) < 1 || len(value) > 8192 || !utf8.ValidString(name) || !utf8.ValidString(value) {
+			return invalid()
+		}
+		total += len(qualified) + len(value)
+		if total > 16*1024 {
+			return invalid()
+		}
+		switch location {
+		case "header":
+			lower := strings.ToLower(name)
+			_, forbidden := forbiddenRuntimeHeaderNames[lower]
+			if !headerNamePattern.MatchString(name) || forbidden || lower == "cookie" || lower == "set-cookie" || headers[lower] || !contracts.ValidCredentialFieldValue(value) {
+				return invalid()
+			}
+			headers[lower] = true
+		case "cookie":
+			if !contracts.ValidCookieName(name) || !contracts.ValidCookieValue(value) {
+				return invalid()
+			}
+		case "query":
+			for _, text := range []string{name, value} {
+				for _, c := range text {
+					if c < 32 || c == 127 {
+						return invalid()
+					}
+				}
+			}
+		default:
+			return invalid()
+		}
+	}
+	return nil
 }

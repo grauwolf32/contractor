@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -50,20 +51,43 @@ func managedEvalGatewayMessage(request map[string]any) (map[string]any, string, 
 			return call("read_audit_task", map[string]any{})
 		}
 		if !completed["submit_check_result"] {
-			var coverage []any
+			var tasks []any
 			walkJSON(request, func(object map[string]any) {
-				if value, ok := object["requestedCoverage"].([]any); ok {
-					coverage = value
+				if value, ok := object["tasks"].([]any); ok {
+					tasks = value
 				}
 			})
-			if len(coverage) == 0 {
-				return nil, "", model, errors.New("Audit task coverage missing")
+			if len(tasks) == 0 {
+				return nil, "", model, errors.New("Audit tasks missing")
 			}
-			results := make([]any, 0, len(coverage))
-			for _, requested := range coverage {
-				results = append(results, map[string]any{"assessment": "satisfied",
-					"summary": "Deterministic retained fixture evidence", "completed": requested,
-					"gaps": []string{}, "evidence": []map[string]string{{"kind": "source-trace", "summary": "Fixture evidence"}}})
+			results := make([]any, 0, len(tasks))
+			for _, raw := range tasks {
+				task, ok := raw.(map[string]any)
+				if !ok || task["item_key"] == nil {
+					return nil, "", model, errors.New("Audit task key missing")
+				}
+				evidence := []string{}
+				materials, _ := task["evidence"].([]any)
+				for _, raw := range materials {
+					material, _ := raw.(map[string]any)
+					handle, _ := material["handle"].(string)
+					if handle == "" {
+						return nil, "", model, errors.New("Audit evidence handle missing")
+					}
+					evidence = append(evidence, handle)
+				}
+				result := map[string]any{
+					"rationale":         "Deterministic retained fixture evidence",
+					"tested_conditions": []string{"Selected authored fixture and retained source only"},
+					"limitations":       []string{}, "evidence": evidence,
+				}
+				if task["hypothesis"] != nil {
+					if len(evidence) == 0 {
+						return nil, "", model, errors.New("Audit hypothesis evidence missing")
+					}
+					result["verdict"] = "supported"
+				}
+				results = append(results, result)
 			}
 			return call("submit_check_result", map[string]any{"results": results})
 		}
@@ -91,9 +115,8 @@ func stageManagedEvalConfiguration(t *testing.T, root, target string) {
 			t.Fatal(err)
 		}
 		value := strings.Replace(string(raw), "name: "+oldName, "name: "+newName, 1)
-		value = strings.ReplaceAll(value, "artifact_builder@1", "artifact_builder@2")
-		if directory == "audit-profiles" {
-			value = strings.Replace(value, "batchSize: 2", "batchSize: 1", 1)
+		if directory == "workflows" {
+			value = string(adaptUIStackCopyWorkflow(t, []byte(value)))
 		}
 		if err = os.WriteFile(filepath.Join(target, directory, newName+".yaml"), []byte(value), 0600); err != nil {
 			t.Fatal(err)
@@ -101,6 +124,8 @@ func stageManagedEvalConfiguration(t *testing.T, root, target string) {
 	}
 	for _, arm := range []string{"a", "b"} {
 		copyVariant("configs/e2e/workflows/artifact_copy.yaml", "workflows", "artifact-copy", "eval-copy-"+arm)
+		// Keep the current Program's two-assertion batch, including both exact
+		// item results in the ordinary Audit-owned child Run.
 		copyVariant("configs/audit-profiles/source_checklist.yaml", "audit-profiles", "source-checklist", "eval-audit-"+arm)
 	}
 	// The fixture uses no Skills uploaded by the Operations browser journey.
@@ -135,9 +160,29 @@ func TestManagedEvalGatewayHasIndependentHistories(t *testing.T) {
 }
 
 func TestUIStackConfigurationClosure(t *testing.T) {
+	root := repoRoot(t)
+	fixture, _, err := configload.LoadUnionReadOnly(filepath.Join(root, "configs", "e2e"), filepath.Join(t.TempDir(), "fixture-managed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	worker, err := fixture.ModelPolicy("worker@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	production, _, err := configload.LoadUnionReadOnly(filepath.Join(root, "configs"), filepath.Join(t.TempDir(), "production-managed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	productionWorker, err := production.ModelPolicy("worker@2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	summarizer, err := production.ModelPolicy("summarizer@1")
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, managedEvals := range []bool{false, true} {
 		t.Run(fmt.Sprintf("managed_evals_%t", managedEvals), func(t *testing.T) {
-			root := repoRoot(t)
 			target := stageUIStackConfiguration(t, root, filepath.Join(t.TempDir(), "configs"),
 				"http://127.0.0.1:9999/v1", "http://127.0.0.1:9998")
 			if managedEvals {
@@ -147,6 +192,15 @@ func TestUIStackConfigurationClosure(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			stagedWorker, err := snapshot.ModelPolicy("worker@1")
+			if err != nil || !reflect.DeepEqual(stagedWorker, worker) {
+				t.Fatalf("staged Worker fixture model or budgets changed: %v", err)
+			}
+			stagedProductionWorker, err := snapshot.ModelPolicy("worker@2")
+			if err != nil || !reflect.DeepEqual(stagedProductionWorker, productionWorker) {
+				t.Fatalf("staging replaced the production Worker policy: %v", err)
+			}
+			fixtureWorkflows := []string{"streamline-copy@1"}
 			for _, selector := range []string{"streamline-copy@1", "openapi-from-workspace@7"} {
 				if _, err := snapshot.Workflow(selector); err != nil {
 					t.Fatal(err)
@@ -154,12 +208,27 @@ func TestUIStackConfigurationClosure(t *testing.T) {
 			}
 			if managedEvals {
 				for _, arm := range []string{"a", "b"} {
-					if _, err := snapshot.Workflow("eval-copy-" + arm + "@1"); err != nil {
+					fixtureWorkflows = append(fixtureWorkflows, "eval-copy-"+arm+"@1")
+					profile, err := snapshot.AuditProfile("eval-audit-" + arm + "@1")
+					if err != nil {
 						t.Fatal(err)
 					}
-					if _, err := snapshot.AuditProfile("eval-audit-" + arm + "@1"); err != nil {
-						t.Fatal(err)
+					if profile.Program.Limits.BatchSize != 2 {
+						t.Fatal("managed Eval fixture must retain the current two-assertion batch")
 					}
+				}
+			}
+			for _, selector := range fixtureWorkflows {
+				workflow, err := snapshot.Workflow(selector)
+				if err != nil {
+					t.Fatal(err)
+				}
+				selection := workflow.Stages["copy"].ExecutionConfig.Agents["builder"]
+				if !reflect.DeepEqual(selection.ModelPolicy, worker) {
+					t.Fatalf("%s must keep its exact fixture Worker model and budgets", selector)
+				}
+				if selection.SummarizerModelPolicy == nil || !reflect.DeepEqual(*selection.SummarizerModelPolicy, summarizer) {
+					t.Fatalf("%s must keep the adapted template's original summarizer model and budgets", selector)
 				}
 			}
 		})

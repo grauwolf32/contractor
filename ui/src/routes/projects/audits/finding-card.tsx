@@ -128,6 +128,15 @@ function SourceDetail({
         {value.origin.runDeleted ? " · Run deleted" : ""} ·{" "}
         {value.origin.workflow.name}@{value.origin.workflow.version}
       </p>
+      {value.origin.scan === undefined ? null : (
+        <p className="ui-caption">
+          Original scan:{" "}
+          <Link to={`/runs/${encodeURIComponent(value.origin.scan.runId)}`}>
+            {value.origin.scan.runId}
+          </Link>{" "}
+          · {value.origin.scan.stageExecutionId}
+        </p>
+      )}
       {value.origin.audit === undefined ? null : (
         <p className="ui-caption">
           Original check: {value.origin.audit.auditId}

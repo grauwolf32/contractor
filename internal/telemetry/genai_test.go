@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
@@ -17,7 +18,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func captureGenAISpan(t *testing.T, name PlannerSpanName, field string, value any, usage *PlannerModelUsage, ack any) (*tracev1.Span, PlannerExportResult) {
+func captureGenAISpan(t *testing.T, name PlannerSpanName, field string, value any, usage *PlannerModelUsage, ack any, secrets ...string) (*tracev1.Span, PlannerExportResult) {
 	t.Helper()
 	var payload []byte
 	collector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -26,8 +27,12 @@ func captureGenAISpan(t *testing.T, name PlannerSpanName, field string, value an
 		_ = json.NewEncoder(w).Encode(ack)
 	}))
 	t.Cleanup(collector.Close)
+	known := make([]contracts.SecretString, len(secrets))
+	for i, secret := range secrets {
+		known[i] = contracts.NewSecretString(secret)
+	}
 	registry, _ := NewBuiltinPlannerAdapterRegistry()
-	adapter, err := registry.Create(PlannerAdapterOTLPHTTP, PlannerAdapterSettings{Endpoint: collector.URL, FlushTimeout: time.Second, CaptureContent: true, RunMetadataLabels: runlabels.RunMetadataLabels{}, Resource: PlannerResource{RunID: "fixture-run", StageExecutionID: "fixture-stage", PlannerRef: "streamline@1"}})
+	adapter, err := registry.Create(PlannerAdapterOTLPHTTP, PlannerAdapterSettings{KnownCredentials: known, Endpoint: collector.URL, FlushTimeout: time.Second, RunMetadataLabels: runlabels.RunMetadataLabels{}, Resource: PlannerResource{RunID: "fixture-run", StageExecutionID: "fixture-stage", PlannerRef: "streamline@1"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,6 +57,7 @@ func TestSharedGenAITelemetry(t *testing.T) {
 	var corpus struct {
 		Content []struct {
 			Name     string
+			Secrets  []string
 			Model    bool
 			Field    string
 			Value    any
@@ -78,9 +84,22 @@ func TestSharedGenAITelemetry(t *testing.T) {
 			if !tc.Model {
 				name = PlannerSpanWorker
 			}
-			span, result := captureGenAISpan(t, name, tc.Field, tc.Value, nil, map[string]any{})
+			span, result := captureGenAISpan(t, name, tc.Field, tc.Value, nil, map[string]any{}, tc.Secrets...)
 			if !result.Succeeded {
 				t.Fatalf("delivery: %+v", result)
+			}
+			if span.Status.Code != tracev1.Status_STATUS_CODE_OK {
+				t.Fatal("successful span became an error")
+			}
+			protocol := map[string]string{}
+			for _, attr := range span.Attributes {
+				protocol[attr.Key] = attr.Value.GetStringValue()
+			}
+			if protocol["outcome"] != "succeeded" {
+				t.Fatal("outcome was redacted")
+			}
+			if tc.Model && (protocol["gen_ai.operation.name"] != "chat" || protocol["gen_ai.provider.name"] != "contractor.gateway") {
+				t.Fatal("GenAI protocol attributes were redacted")
 			}
 			actual := map[string]any{}
 			for _, attr := range span.Attributes {

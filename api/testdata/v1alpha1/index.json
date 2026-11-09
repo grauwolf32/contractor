@@ -189,6 +189,10 @@
       "type": "SharedConfig",
       "schema": "shared-config.schema.json"
     },
+    "engagement-allocation-api-keys.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json"
+    },
     "agent-state-compacted-tool-budget.json": {
       "type": "AgentStateSnapshot",
       "schema": "agent-state.schema.json"
@@ -690,6 +694,16 @@
       "type": "AllocationSpec",
       "schema": "allocation.schema.json",
       "strict": true
+    },
+    "engagement-api-keys-empty-value.json": {
+      "type": "AllocationSpec",
+      "strict": true,
+      "schema": "allocation.schema.json"
+    },
+    "engagement-api-keys-bad-location.json": {
+      "type": "AllocationSpec",
+      "strict": true,
+      "schema": "allocation.schema.json"
     }
   }
 }

@@ -12,6 +12,7 @@ from fakes.worker_state import WorkerState
 from test_engagement_identity import owner_for
 
 from contractor_runtime.adapters.bridge import BridgeFailure
+from contractor_runtime.adapters.http_transport import HTTPTransportError
 from contractor_runtime.toolsets.http.errors import HTTPToolError
 from contractor_runtime.toolsets.http.tools import HTTPRequestTool, HTTPToolsetFactory
 
@@ -90,7 +91,7 @@ def test_failed_write_is_nonretryable_and_never_sent_twice():
             await tools["http_request"](
                 "http://target.example/write", method="POST", body_type="text", body="model body"
             )
-        assert error.value.code == "http_request_failed" and (not error.value.retryable)
+        assert error.value.code == "http_connection_failed" and (not error.value.retryable)
         assert len(results.attempts) == 1
         await tools["http_request"]._session.close()
 
@@ -234,7 +235,7 @@ def test_stop_joins_tool_processing_and_erases_response_buffer(monkeypatch):
         assert tools["http_request"]._session._closed
         assert not tools["http_request"]._session._captures.contains("http", "1")
         assert not tools["http_request"]._session._history
-        with pytest.raises(HTTPToolError):
+        with pytest.raises(HTTPTransportError, match="http_allocation_closed"):
             await tools["http_read_body"](request_id=1)
 
     asyncio.run(scenario())

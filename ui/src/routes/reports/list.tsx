@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 
 import {
@@ -24,6 +23,7 @@ import {
 import { auditProfileLabel } from "../projects/audits/labels";
 import {
   PROJECT_PARAM,
+  PAGE_PARAM,
   reportPath,
   STATUS_PARAM,
   type ReportFilter,
@@ -147,17 +147,12 @@ export function ReportsList({
 }) {
   const navigate = useNavigate();
   const [, setParams] = useSearchParams();
-  const reports = useAllReports();
+  const reports = useAllReports({
+    projectId: filters.project,
+    page: filters.page,
+  });
   const index = useProjectsIndex();
-  const scoped = useMemo(
-    () =>
-      filters.project === null
-        ? reports.reports
-        : reports.reports.filter(
-            (entry) => entry.project.projectId === filters.project,
-          ),
-    [filters.project, reports.reports],
-  );
+  const scoped = reports.reports;
   const counts = {
     ready: countOf(scoped, "ready"),
   };
@@ -184,7 +179,13 @@ export function ReportsList({
     setParams(
       (previous) => {
         const next = new URLSearchParams(previous);
-        if (value === "" || value === "all") next.delete(key);
+        if (key !== PAGE_PARAM) next.delete(PAGE_PARAM);
+        if (
+          value === "" ||
+          value === "all" ||
+          (key === PAGE_PARAM && value === "0")
+        )
+          next.delete(key);
         else next.set(key, value);
         return next;
       },
@@ -197,11 +198,21 @@ export function ReportsList({
   const indexError = reports.error;
   const settled = !reports.isPending && indexError === null;
   const empty = emptyCopy(filters);
+  const paged = reports.page.count > 1;
+  const pageStart = reports.page.index * reports.page.size + 1;
+  const pageEnd = Math.min(
+    pageStart + reports.page.size - 1,
+    reports.page.totalChecks,
+  );
   return (
     <ListPane
       title="Reports"
       subtitle={
-        indexError === null ? subtitle(counts, reports.isPending) : undefined
+        indexError === null
+          ? paged && !reports.isPending
+            ? `${counts.ready} ready in this page of checks.`
+            : subtitle(counts, reports.isPending)
+          : undefined
       }
       toolbar={
         <div className="reports-filters">
@@ -230,10 +241,46 @@ export function ReportsList({
         </div>
       }
       footer={
-        rows.length > 1 ? (
-          <span>
-            <Kbd>J</Kbd> <Kbd>K</Kbd> move between reports
-          </span>
+        paged || rows.length > 1 ? (
+          <>
+            {paged ? (
+              <div className="ui-stack">
+                <p className="ui-caption">
+                  Reports from checks {pageStart}–{pageEnd} of{" "}
+                  {reports.page.totalChecks} loaded checks. Counts describe this
+                  page.
+                </p>
+                <nav className="pagination" aria-label="Report pages">
+                  <Button
+                    size="sm"
+                    disabled={reports.page.index === 0}
+                    onClick={() =>
+                      setFilter(PAGE_PARAM, String(reports.page.index - 1))
+                    }
+                  >
+                    Previous
+                  </Button>
+                  <span className="ui-caption">
+                    Page {reports.page.index + 1} of {reports.page.count}
+                  </span>
+                  <Button
+                    size="sm"
+                    disabled={!reports.page.hasNext}
+                    onClick={() =>
+                      setFilter(PAGE_PARAM, String(reports.page.index + 1))
+                    }
+                  >
+                    Next
+                  </Button>
+                </nav>
+              </div>
+            ) : null}
+            {rows.length > 1 ? (
+              <span>
+                <Kbd>J</Kbd> <Kbd>K</Kbd> move between reports
+              </span>
+            ) : null}
+          </>
         ) : undefined
       }
     >
@@ -276,14 +323,18 @@ export function ReportsList({
               </p>
             ) : (
               <EmptyState
-                title={empty.title}
+                title={paged ? "No ready reports in these checks" : empty.title}
                 action={
                   filters.status === "all" && filters.project === null ? (
                     <Link to="/checks">Go to checks</Link>
                   ) : undefined
                 }
               >
-                <p>{empty.body}</p>
+                <p>
+                  {paged
+                    ? "Use Previous or Next to inspect reports from another page of checks."
+                    : empty.body}
+                </p>
               </EmptyState>
             )
           ) : (

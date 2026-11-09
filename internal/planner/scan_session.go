@@ -40,6 +40,7 @@ type ScanJobRecord struct {
 	Status         string                           `json:"status"`
 	Code           string                           `json:"code,omitempty"`
 	InputArtifacts map[string]contracts.ArtifactRef `json:"inputArtifacts"`
+	Outputs        map[string]contracts.ArtifactRef `json:"outputs,omitempty"`
 	Report         *contracts.ArtifactRef           `json:"report,omitempty"`
 }
 

@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Iterable
 from dataclasses import dataclass
-from enum import StrEnum
 from pathlib import PurePosixPath
 from types import MappingProxyType
 
 from tree_sitter import Node, Parser
-from tree_sitter_language_pack import get_parser
+
+from contractor_runtime.toolsets.common.source_languages import EXTENSION_LANGUAGES, Language
+from contractor_runtime.toolsets.common.source_names import extract_node_name
 
 MAX_SYMBOL_NAME_CHARS = 256
 # The C parser holds the GIL. A callback yields between bounded input chunks
@@ -18,87 +18,6 @@ MAX_SYMBOL_NAME_CHARS = 256
 COOPERATIVE_PARSE_THRESHOLD = 64 << 10
 PARSE_CHUNK_BYTES = 8 << 10
 
-
-class Language(StrEnum):
-    PYTHON = "python"
-    JAVASCRIPT = "javascript"
-    TYPESCRIPT = "typescript"
-    TSX = "tsx"
-    GO = "go"
-    RUST = "rust"
-    JAVA = "java"
-    KOTLIN = "kotlin"
-    C = "c"
-    CPP = "cpp"
-    C_SHARP = "c_sharp"
-    RUBY = "ruby"
-    PHP = "php"
-    SCALA = "scala"
-    SWIFT = "swift"
-    LUA = "lua"
-    ELIXIR = "elixir"
-    HASKELL = "haskell"
-    BASH = "bash"
-
-
-PARSER_NAMES = MappingProxyType(
-    {
-        language: "csharp" if language is Language.C_SHARP else language.value
-        for language in Language
-    }
-)
-
-EXTENSION_LANGUAGES = MappingProxyType(
-    {
-        ".py": Language.PYTHON,
-        ".js": Language.JAVASCRIPT,
-        ".mjs": Language.JAVASCRIPT,
-        ".cjs": Language.JAVASCRIPT,
-        ".jsx": Language.JAVASCRIPT,
-        ".ts": Language.TYPESCRIPT,
-        ".tsx": Language.TSX,
-        ".go": Language.GO,
-        ".rs": Language.RUST,
-        ".java": Language.JAVA,
-        ".kt": Language.KOTLIN,
-        ".kts": Language.KOTLIN,
-        ".c": Language.C,
-        ".h": Language.C,
-        ".cpp": Language.CPP,
-        ".cc": Language.CPP,
-        ".cxx": Language.CPP,
-        ".hpp": Language.CPP,
-        ".hh": Language.CPP,
-        ".hxx": Language.CPP,
-        ".cs": Language.C_SHARP,
-        ".rb": Language.RUBY,
-        ".php": Language.PHP,
-        ".scala": Language.SCALA,
-        ".sc": Language.SCALA,
-        ".swift": Language.SWIFT,
-        ".lua": Language.LUA,
-        ".ex": Language.ELIXIR,
-        ".exs": Language.ELIXIR,
-        ".hs": Language.HASKELL,
-        ".lhs": Language.HASKELL,
-        ".sh": Language.BASH,
-        ".bash": Language.BASH,
-    }
-)
-
-# A ".h" header is valid C and C++ alike; header_language() picks one grammar
-# for all of a snapshot's headers from its unambiguous C and C++ files. Those
-# are derived from the shallow mapping, so every extension that votes for a
-# grammar is also parsed with it.
-HEADER_EXTENSION = ".h"
-C_SOURCE_EXTENSIONS = frozenset(
-    extension
-    for extension, language in EXTENSION_LANGUAGES.items()
-    if language is Language.C and extension != HEADER_EXTENSION
-)
-CPP_SOURCE_EXTENSIONS = frozenset(
-    extension for extension, language in EXTENSION_LANGUAGES.items() if language is Language.CPP
-)
 
 # Reviewed extension table for Trailmark 0.5.0 auto-detection plus parser-walk
 # headers. Its parser walk matches these suffixes case-sensitively. Its C and
@@ -374,32 +293,6 @@ NODE_SPECS = MappingProxyType(
 )
 
 
-# C and C++ nest a declared name below pointer, reference, function, array,
-# parenthesized, attributed and initializer declarators. Reference,
-# parenthesized and attributed declarators hold their inner declarator in a
-# child without a field name.
-_C_DECLARATOR_WRAPPERS = frozenset(
-    {
-        "array_declarator",
-        "attributed_declarator",
-        "function_declarator",
-        "init_declarator",
-        "parenthesized_declarator",
-        "pointer_declarator",
-        "reference_declarator",
-    }
-)
-# C++ name nodes whose source text is not one plain identifier.
-_CPP_NAME_NODES = frozenset(
-    {"destructor_name", "operator_name", "qualified_identifier", "template_function"}
-)
-_C_DECLARATOR_CHILDREN = (
-    _C_DECLARATOR_WRAPPERS
-    | _CPP_NAME_NODES
-    | frozenset({"field_identifier", "identifier", "type_identifier"})
-)
-
-
 @dataclass(frozen=True, slots=True)
 class SymbolRecord:
     name: str
@@ -421,45 +314,6 @@ class ParseResult:
     long_names_skipped: bool = False
 
 
-def detect_language(path: str, *, header: Language) -> Language | None:
-    """Return the shallow language of ``path``; a ``.h`` header uses ``header``.
-
-    Suffixes match case-insensitively, so ``Tool.PY`` is Python source.
-    """
-
-    suffix = PurePosixPath(path).suffix.lower()
-    if suffix == HEADER_EXTENSION:
-        return header
-    return EXTENSION_LANGUAGES.get(suffix)
-
-
-def is_header(path: str) -> bool:
-    return PurePosixPath(path).suffix.lower() == HEADER_EXTENSION
-
-
-def header_language(paths: Iterable[str]) -> Language:
-    """Return the one grammar for every ``.h`` header of a snapshot.
-
-    Shallow analysis, graph admission and taint annotation all call this with
-    the snapshot's managed text paths, so they agree on every header. Headers
-    are C++ when the snapshot has at least as many unambiguous C++ files as C
-    sources, so a C project with a vendored C++ file keeps C. Ties favor C++:
-    its grammar parses nearly every C header, while the C grammar rejects
-    every class, namespace, template and reference. Without either kind of
-    file, headers are C.
-    """
-
-    c_files = 0
-    cpp_files = 0
-    for path in paths:
-        suffix = PurePosixPath(path).suffix.lower()
-        if suffix in C_SOURCE_EXTENSIONS:
-            c_files += 1
-        elif suffix in CPP_SOURCE_EXTENSIONS:
-            cpp_files += 1
-    return Language.CPP if cpp_files and cpp_files >= c_files else Language.C
-
-
 def graph_only_source(path: str) -> bool:
     return PurePosixPath(path).suffix.lower() in GRAPH_ONLY_SOURCE_EXTENSIONS
 
@@ -471,21 +325,6 @@ def graph_walk_excluded(path: str) -> bool:
         part in GRAPH_EXCLUDED_DIRECTORIES or part.startswith(".")
         for part in PurePosixPath(path).parts[:-1]
     )
-
-
-def load_parser(language: Language) -> Parser:
-    return get_parser(PARSER_NAMES[language])
-
-
-def probe_all_parsers() -> bool:
-    try:
-        for language in Language:
-            tree = load_parser(language).parse(b"")
-            if tree.root_node is None:
-                return False
-        return True
-    except Exception:
-        return False
 
 
 def parse_symbols(
@@ -514,7 +353,7 @@ def parse_symbols(
         current = stack.pop()
         spec = spec_map.get(current.type)
         if spec is not None:
-            name = _extract_name(current, source, spec.name_field)
+            name = extract_node_name(current, source, spec.name_field)
             if name:
                 if len(name) > MAX_SYMBOL_NAME_CHARS:
                     long_names_skipped = True
@@ -538,196 +377,3 @@ def parse_symbols(
         for index in range(current.child_count - 1, -1, -1):
             stack.append(current.children[index])
     return ParseResult(tuple(symbols), root.has_error, symbol_limit_reached, long_names_skipped)
-
-
-def extract_node_name(node: Node, source: bytes, preferred_field: str = "") -> str | None:
-    """Extract one reviewed structural name for another Tree-sitter Toolset."""
-
-    return _extract_name(node, source, preferred_field)
-
-
-def _extract_text(node: Node, source: bytes) -> str:
-    return source[node.start_byte : node.end_byte].decode("utf-8", errors="strict").strip()
-
-
-def _extract_field(node: Node, source: bytes, field_name: str) -> str | None:
-    if not field_name:
-        return None
-    child = node.child_by_field_name(field_name)
-    if child is None:
-        return None
-    if child.type in _C_DECLARATOR_WRAPPERS or child.type in _CPP_NAME_NODES:
-        return _c_declarator_name(child, source)
-    if child.type in {
-        "async_function_definition",
-        "class_definition",
-        "function_definition",
-    }:
-        return _extract_name(child, source)
-    return _clean_identifier(_extract_text(child, source))
-
-
-def _extract_name(node: Node, source: bytes, preferred_field: str = "") -> str | None:
-    preferred = _extract_field(node, source, preferred_field)
-    if preferred:
-        return preferred
-
-    # An unnamed function expression has no definition name of its own; a
-    # binding's variable_declarator supplies it.
-    if node.type == "function_expression":
-        return None
-
-    if node.type == "call" and node.child_count >= 2:
-        keyword = _extract_text(node.children[0], source)
-        if keyword not in {"def", "defimpl", "defmacro", "defmodule", "defp", "defprotocol"}:
-            return None
-        arguments = node.children[1]
-        if arguments.child_count:
-            return _clean_identifier(_extract_text(arguments.children[0], source))
-        return None
-
-    if node.type in {"function", "signature"} and node.child_count:
-        return _extract_text(node.children[0], source) or None
-
-    if node.type in {
-        "class_declaration",
-        "data_declaration",
-        "instance_declaration",
-        "newtype_declaration",
-        "type_synonym_declaration",
-    }:
-        for child in node.children:
-            if child.type == "name" or child.is_named:
-                text = _extract_text(child, source)
-                if text and text not in {
-                    "class",
-                    "data",
-                    "instance",
-                    "newtype",
-                    "type",
-                    "where",
-                }:
-                    return text
-        return None
-
-    if node.type == "export_statement":
-        for child in node.children:
-            if child.type in {
-                "abstract_class_declaration",
-                "class_declaration",
-                "enum_declaration",
-                "function_declaration",
-                "interface_declaration",
-                "lexical_declaration",
-                "type_alias_declaration",
-                "variable_declaration",
-            }:
-                return _extract_name(child, source)
-        return None
-
-    if node.type in {"lexical_declaration", "variable_declaration"}:
-        for child in node.children:
-            if child.type == "variable_declarator":
-                return _extract_name(child, source)
-        return None
-
-    if node.type == "variable_declarator":
-        return _extract_field(node, source, "name")
-
-    if node.type == "property_declaration":
-        for child in node.children:
-            if child.type in {"identifier", "simple_identifier"}:
-                return _extract_text(child, source) or None
-        return None
-
-    if node.type == "secondary_constructor":
-        return "constructor"
-    if node.type == "extension_declaration":
-        for child in node.children:
-            if child.type in {"type_identifier", "user_type"}:
-                return _extract_text(child, source) or None
-        return None
-    if node.type == "init_declaration":
-        return "init"
-    if node.type == "subscript_declaration":
-        return "subscript"
-    if node.type == "computed_property":
-        return None
-
-    if node.type == "assignment_statement":
-        variable = node.child_by_field_name("variable")
-        return _extract_text(variable, source) if variable is not None else None
-    if node.type == "local_variable_declaration":
-        name = node.child_by_field_name("name")
-        return _extract_text(name, source) if name is not None else None
-
-    if node.type in {"impl_item", "template_declaration"}:
-        first_line = _extract_text(node, source).splitlines()[0].strip()
-        return first_line[:80] or None
-
-    for field_name in ("name", "declarator", "pattern", "definition"):
-        extracted = _extract_field(node, source, field_name)
-        if extracted:
-            return extracted
-    for child in node.children:
-        if child.type in {"identifier", "simple_identifier", "type_identifier"}:
-            return _extract_text(child, source) or None
-    return None
-
-
-def _c_declarator_name(node: Node, source: bytes) -> str | None:
-    """Return the name a C or C++ declarator declares below its wrappers."""
-
-    current: Node | None = node
-    while current is not None and current.type in _C_DECLARATOR_WRAPPERS:
-        inner = current.child_by_field_name("declarator")
-        if inner is None:
-            inner = next(
-                (child for child in current.named_children if child.type in _C_DECLARATOR_CHILDREN),
-                None,
-            )
-        current = inner
-    if current is None:
-        return None
-    if current.type == "qualified_identifier":
-        return _cpp_qualified_name(current, source)
-    if current.type in {"destructor_name", "operator_name"}:
-        # Keep the written text: operator()/operator[] would lose their
-        # operator in _clean_identifier, and search_def's text prefilter needs
-        # every bare definition name to occur in its source.
-        return _extract_text(current, source) or None
-    if current.type == "template_function":
-        name = current.child_by_field_name("name")
-        return _c_declarator_name(name, source) if name is not None else None
-    return _clean_identifier(_extract_text(current, source))
-
-
-def _cpp_qualified_name(node: Node, source: bytes) -> str | None:
-    """Join scopes without template arguments: ``Box<T>::get`` is ``Box::get``."""
-
-    parts: list[str] = []
-    current = node
-    while current.type == "qualified_identifier":
-        scope = current.child_by_field_name("scope")
-        name = current.child_by_field_name("name")
-        if name is None:
-            return None
-        if scope is None:
-            # A global qualifier keeps its leading "::".
-            parts.append("")
-        else:
-            scope_name = _clean_identifier(_extract_text(scope, source))
-            if scope_name is None:
-                return None
-            parts.append(scope_name)
-        current = name
-    terminal = _c_declarator_name(current, source)
-    if terminal is None:
-        return None
-    parts.append(terminal)
-    return "::".join(parts)
-
-
-def _clean_identifier(value: str) -> str | None:
-    identifier = value.split("(", 1)[0].split("<", 1)[0].split("[", 1)[0].strip()
-    return identifier or None

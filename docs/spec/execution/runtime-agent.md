@@ -599,6 +599,11 @@ client and adds no proxied endpoint.
 **RTA-R58.** Finalization and abort close adapters after a bounded
 best-effort telemetry flush (FAIL-RTA-9); release idempotently ensures that
 they remain closed and erases their retained settings secrets (LIFE-RTA-6).
+Teardown reserves final-export time inside its original stop deadline before
+producer cleanup. Producer cleanup failure fences the allocation and attempts
+the same bounded flush before controlled exit, retaining adapters until their
+producers are confirmed stopped or the process exits. The reservation,
+cancellation behavior and safe diagnostics are [OBS-R87](../platform/observability.md).
 
 **RTA-R59.** HTTP proxy configuration is never applied through
 process-global environment, global certificate stores or module-global

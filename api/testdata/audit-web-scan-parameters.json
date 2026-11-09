@@ -1,0 +1,29 @@
+[
+  {
+    "name": "installed-defaults",
+    "parameters": {
+      "template_ids": "",
+      "tags": "",
+      "severity": ""
+    },
+    "valid": true
+  },
+  {
+    "name": "bad-filter",
+    "parameters": {
+      "template_ids": "a, b",
+      "tags": "",
+      "severity": ""
+    },
+    "valid": false
+  },
+  {
+    "name": "bad-severity",
+    "parameters": {
+      "template_ids": "",
+      "tags": "",
+      "severity": "HIGH"
+    },
+    "valid": false
+  }
+]

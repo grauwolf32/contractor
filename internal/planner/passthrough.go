@@ -205,6 +205,7 @@ func (p *passthroughPlanner) finishReport(
 		ReportID: reportID,
 		Complete: true,
 		Metrics: reporting.ExecutionMetrics{
+			LLMCost:      &reporting.LLMCost{Currency: "USD", Groups: []reporting.LLMCostGroup{}},
 			DurationMS:   int64Pointer(durationMS),
 			ModelCalls:   int64Pointer(0),
 			InputTokens:  int64Pointer(0),

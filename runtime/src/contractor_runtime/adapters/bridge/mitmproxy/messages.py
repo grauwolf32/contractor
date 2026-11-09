@@ -53,7 +53,9 @@ def request_message(url: str, request: PrivateRequest) -> http.Request:
         method=request.method.encode("ascii"),
         scheme=parsed.scheme.encode("ascii"),
         authority=b"",
-        path=request_target(url),
+        # Query credentials affect only the wire target. Exchange provenance,
+        # authority, DNS and response URLs retain the admitted logical URL.
+        path=request_target(request.url or url),
         http_version=b"HTTP/1.1",
         headers=http.Headers(request.headers),
         content=request.body,

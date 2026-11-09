@@ -2,6 +2,8 @@ import { act, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import type { ArtifactMetadata } from "../../api/artifacts";
+import { ENGAGEMENT_MEDIA_TYPE } from "../../api/artifacts";
+import engagement from "../../test/fixtures/engagement-preview.json";
 import {
   artifactMetadata,
   artifactWrite,
@@ -215,6 +217,7 @@ describe("Project materials", () => {
       "Import Git repository",
       "Source code ZIP",
       "OpenAPI",
+      "Engagement",
       "LikeC4",
       "Docs",
       "Diffs",
@@ -247,6 +250,66 @@ describe("Project materials", () => {
     );
     await waitFor(() => expect(add).toHaveFocus());
     expect(router.state.location.search).toBe("?artifactsNamespace=docs");
+  });
+
+  it("uploads an engagement with its typed suggestion and exact-result link", async () => {
+    const content = JSON.stringify(engagement);
+    let stored = false;
+    const created = material("engagement", "staging", ENGAGEMENT_MEDIA_TYPE, {
+      size: content.length,
+    });
+    const { user, sent } = renderRegion(
+      {
+        [LIST_READ]: () => listOf(stored ? [created] : []),
+        [WRITE]: ({ params }) => {
+          expect(params).toMatchObject({
+            namespace: "engagement",
+            name: "staging",
+          });
+          stored = true;
+          return json(artifactWrite(created), 201, {
+            ETag: `"${created.artifact.revision}"`,
+          });
+        },
+      },
+      `/projects/${PROJECT}/artifacts?add=artifact`,
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Add material" });
+    await user.click(within(sheet).getByRole("button", { name: "Engagement" }));
+    const upload = screen.getByRole("dialog", {
+      name: "Engagement",
+    });
+    expect(within(upload).getByLabelText("Namespace")).toHaveValue(
+      "engagement",
+    );
+    expect(within(upload).getByLabelText("Media type")).toHaveValue(
+      ENGAGEMENT_MEDIA_TYPE,
+    );
+    await user.upload(
+      within(upload).getByLabelText("Drop a file here"),
+      new File([content], "staging.json", { type: "application/json" }),
+    );
+    expect(within(upload).getByLabelText("Media type")).toHaveValue(
+      ENGAGEMENT_MEDIA_TYPE,
+    );
+    await user.click(
+      within(upload).getByRole("button", {
+        name: "Create binding",
+      }),
+    );
+    const notice = await screen.findByRole("status", {
+      name: "Material added to this project",
+    });
+    expect(
+      within(notice).getByRole("link", { name: "Open material" }),
+    ).toHaveAttribute(
+      "href",
+      `/projects/${PROJECT}/artifacts/engagement/staging?revision=staging-r1`,
+    );
+    const [request] = sent("PUT", "/artifacts/engagement/staging");
+    expect(request).toBeDefined();
+    expect(request!.headers.get("Content-Type")).toBe(ENGAGEMENT_MEDIA_TYPE);
+    await expect(request!.text()).resolves.toBe(content);
   });
 
   it("uploads a material with its kind's suggestions and announces the next steps", async () => {

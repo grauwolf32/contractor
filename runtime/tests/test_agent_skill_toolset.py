@@ -934,7 +934,6 @@ def build_context(
         resources=state.resources,
         a2a_base_url="https://runtime.example",
         runtime_settings=runtime_settings(),
-        sensitive_output_tools=frozenset(),
         resolved_skills=(selected,),
     )
 

@@ -23,7 +23,11 @@ import {
 import { RESPONSE_SCHEMAS } from "../../src/api/generated/response-schemas";
 import type { components } from "../../src/api/generated/public";
 import { conforming } from "../../src/test/builders";
-import { errorRetryable, operationOf } from "../../src/test/responses";
+import {
+  errorRetryable,
+  operationOf,
+  unavailableCostForURL,
+} from "../../src/test/responses";
 
 type Schemas = components["schemas"];
 
@@ -186,6 +190,11 @@ export async function fulfillEmptyPageOrNotFound(
   message = "not found",
 ): Promise<void> {
   const request = route.request();
+  const cost = unavailableCostForURL(request.method(), new URL(request.url()));
+  if (cost) {
+    await fulfillJSON(route, cost);
+    return;
+  }
   if (
     request.method() === "GET" &&
     new URL(request.url()).pathname === "/v1/operations/settings/models"
@@ -327,6 +336,8 @@ export async function mockAPI(
   await page.route(`${options.apiOrigin ?? "**"}/v1/**`, async (route) => {
     const request = route.request();
     const url = new URL(request.url());
+    // Vite serves repository schemas under /@fs/.../v1/... as modules.
+    if (!url.pathname.startsWith("/v1/")) return route.continue();
     if (request.method() === "OPTIONS") {
       await route.fulfill({
         status: 204,

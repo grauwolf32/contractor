@@ -1376,6 +1376,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/runs/{runId}/llm-cost": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: components["parameters"]["RunId"];
+            };
+            cookie?: never;
+        };
+        /** Read retained LLM cost for one owned Run */
+        get: operations["getRunLLMCost"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/audits/{auditId}/llm-cost": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        /** Read retained LLM cost across an owned Audit's child Runs */
+        get: operations["getAuditLLMCost"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/projects/{projectId}/llm-cost": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        /** Read known Project lifetime LLM cost without counting child Runs twice */
+        get: operations["getProjectLLMCost"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/audits/{auditId}/workspace": {
         parameters: {
             query?: never;
@@ -3917,13 +3974,10 @@ export interface components {
             schema: "contractor.audit.web-target.v1";
             url: string;
         };
-        AuditWebScanSettings: {
-            /** @constant */
-            schema: "contractor.audit.web-scan-settings.v1";
-            templateIds: components["schemas"]["NucleiRuleFilter"];
+        NucleiRuleSelection: {
+            template_ids: components["schemas"]["NucleiRuleFilter"];
             tags: components["schemas"]["NucleiRuleFilter"];
             severity: string;
-            rateLimit: number;
         };
         NucleiRuleFilter: string;
         /** @enum {string} */
@@ -3983,6 +4037,9 @@ export interface components {
                 [key: string]: components["schemas"]["AuditProgramInput"];
             };
             limits: components["schemas"]["AuditProgramLimits"];
+            parameters?: {
+                [key: string]: components["schemas"]["AuditProgramParameter"];
+            };
             policy: components["schemas"]["AuditProgramPolicy"];
             /** @constant */
             schema: "contractor.audit.program.v1";
@@ -4034,6 +4091,9 @@ export interface components {
             max_tasks: number;
             max_tasks_per_iteration: number;
         };
+        AuditProgramParameter: {
+            required: boolean;
+        };
         AuditProgramPolicy: {
             /** @enum {string} */
             active_operations: "allowed" | "prohibited";
@@ -4054,6 +4114,9 @@ export interface components {
             };
             max_attempts?: components["schemas"]["AuditProgramAttemptLimit"];
             outputs: {
+                [key: string]: components["schemas"]["AuditCommonKey"];
+            };
+            parameter_inputs?: {
                 [key: string]: components["schemas"]["AuditCommonKey"];
             };
             parameters: {
@@ -4094,7 +4157,12 @@ export interface components {
             target?: string;
             authorizationScope?: string;
         };
+        /** @description Explicit values for the parameters declared by the selected Audit Program; only its named Workflow bindings consume these values. */
+        AuditLaunchParameters: {
+            [key: string]: string;
+        };
         CreateAuditRequest: {
+            parameters?: components["schemas"]["AuditLaunchParameters"];
             labels?: components["schemas"]["AuditLabels"];
             profile: components["schemas"]["AuditProfileSelector"];
             inputs: {
@@ -4132,6 +4200,7 @@ export interface components {
             sourceSize: number;
         };
         AuditBaseline: {
+            parameters?: components["schemas"]["AuditLaunchParameters"];
             labels?: components["schemas"]["AuditLabels"];
             requiredPlacementLabels?: components["schemas"]["PlacementLabels"];
             activeChecks: components["schemas"]["ActiveChecksPolicy"];
@@ -4166,6 +4235,7 @@ export interface components {
             message: string;
         };
         Audit: {
+            parameters?: components["schemas"]["AuditLaunchParameters"];
             labels?: components["schemas"]["AuditLabels"];
             requiredPlacementLabels?: components["schemas"]["PlacementLabels"];
             auditId: components["schemas"]["ResourceId"];
@@ -4341,7 +4411,12 @@ export interface components {
             execution_id?: components["schemas"]["ResourceId"];
             output?: components["schemas"]["AuditTaskMaterial"];
         };
+        AuditTaskFindings: {
+            ids: components["schemas"]["ResourceId"][];
+            truncated: boolean;
+        };
         AuditTask: {
+            findings?: components["schemas"]["AuditTaskFindings"];
             hypothesis_snapshot?: components["schemas"]["AuditHypothesisDocument"];
             attention: boolean;
             document: components["schemas"]["AuditTaskDocument"];
@@ -4453,6 +4528,19 @@ export interface components {
             sourceDigest: components["schemas"]["Digest"];
             report: components["schemas"]["FindingExactArtifact"];
             source: components["schemas"]["FindingExactArtifact"];
+            recordLocator: string;
+        } | {
+            /** @constant */
+            schema: "contractor.finding.fingerprint-projection.v1";
+            /** @constant */
+            availability: "available";
+            /** @constant */
+            algorithm: "contractor/producer-issue/v1";
+            value: string;
+            /** @constant */
+            adapter: "normalized-candidate/v1";
+            ruleId: string;
+            report: components["schemas"]["FindingExactArtifact"];
             recordLocator: string;
         };
         FindingAnchorContext: {
@@ -4679,14 +4767,24 @@ export interface components {
             };
         };
         FindingOrigin: {
+            /** @constant */
+            operation?: "publish-findings@1";
+            scan?: components["schemas"]["FindingScanOrigin"];
             runId: components["schemas"]["ResourceId"];
             stageExecutionId: components["schemas"]["ResourceId"];
-            allocationId: components["schemas"]["ResourceId"];
+            allocationId?: components["schemas"]["ResourceId"];
             invocationId: components["schemas"]["ResourceId"];
-            logicalAgentName: components["schemas"]["ArtifactName"];
+            logicalAgentName?: components["schemas"]["ArtifactName"];
             workflow: components["schemas"]["FindingWorkflowOrigin"];
             audit?: components["schemas"]["FindingAuditOrigin"];
             runDeleted: boolean;
+        };
+        FindingScanOrigin: {
+            artifact: components["schemas"]["ExactArtifactRef"];
+            runId: components["schemas"]["ResourceId"];
+            stageExecutionId: components["schemas"]["ResourceId"];
+            allocationId: components["schemas"]["ResourceId"];
+            logicalAgentName: components["schemas"]["ArtifactName"];
         };
         FindingAuditHold: {
             auditId: components["schemas"]["ResourceId"];
@@ -5039,6 +5137,58 @@ export interface components {
             requestedBy?: components["schemas"]["ConfigId"];
             reason?: string;
         };
+        /** @description Exact nonnegative aggregate call/report count. */
+        CostCounter: string;
+        /** @description Exact canonical USD decimal; no binary floating-point accounting. */
+        USDAmount: string;
+        NullableUSDAmount: components["schemas"]["USDAmount"] | null;
+        CostBreakdownRow: {
+            key: string;
+            label: string;
+            calls: components["schemas"]["CostCounter"];
+            amount: components["schemas"]["USDAmount"];
+            /** @enum {string} */
+            basis: "reported" | "estimated" | "mixed";
+        };
+        LLMCostExecution: {
+            executionId: components["schemas"]["ResourceId"];
+            runId: string | null;
+            amount: components["schemas"]["NullableUSDAmount"];
+            /** @enum {string} */
+            basis: "none" | "reported" | "estimated" | "mixed";
+            /** @enum {string} */
+            coverage: "complete" | "partial" | "pending" | "unavailable";
+            pending: boolean;
+        };
+        LLMCostSummary: {
+            /** @enum {string} */
+            scope: "run" | "audit" | "project";
+            scopeId: components["schemas"]["ResourceId"];
+            /** @constant */
+            currency: "USD";
+            amount: components["schemas"]["NullableUSDAmount"];
+            calls: components["schemas"]["CostCounter"];
+            pricedCalls: components["schemas"]["CostCounter"];
+            /** @description Expected Worker and Planner report slots, including unreceived reports and retained slots from deleted children. */
+            reports: components["schemas"]["CostCounter"];
+            /** @description Participants with no report, an incomplete report, or no cost metadata. Retained after child deletion. */
+            unknownReports: components["schemas"]["CostCounter"];
+            /** @enum {string} */
+            basis: "none" | "reported" | "estimated" | "mixed";
+            /** @enum {string} */
+            coverage: "complete" | "partial" | "pending" | "unavailable";
+            pending: boolean;
+            historicalGap: boolean;
+            /** Format: date-time */
+            asOf: string;
+            /** Format: date-time */
+            updatedAt: string | null;
+            checksAmount: components["schemas"]["NullableUSDAmount"];
+            standaloneAmount: components["schemas"]["NullableUSDAmount"];
+            activity: components["schemas"]["CostBreakdownRow"][];
+            models: components["schemas"]["CostBreakdownRow"][];
+            executions: components["schemas"]["LLMCostExecution"][];
+        };
         MetricsSummary: {
             reportsComplete: boolean;
             modelCalls: number;
@@ -5179,8 +5329,6 @@ export interface components {
             /** Format: uri */
             endpoint: string;
             credential?: components["schemas"]["RuntimeCredentialId"];
-            /** @description Explicitly trust the telemetry sink with unredacted model and tool inputs/outputs. Disabled by default. */
-            captureContent?: boolean;
             /** @description Defaults to 10 seconds. */
             flushTimeoutSeconds?: number;
             export?: components["schemas"]["WorkerTelemetryExportConfig"];
@@ -5315,7 +5463,7 @@ export interface components {
             config: components["schemas"]["RuntimeConfigRef"];
         };
         /** @enum {string} */
-        RuntimeCredentialKind: "otlp-headers@1" | "http-proxy-basic@1" | "http-proxy-bearer@1" | "caido-bearer@1" | "interactsh-token@1" | "http-origin-basic@1" | "http-origin-bearer@1" | "target-basic@1" | "target-bearer@1" | "target-cookies@1";
+        RuntimeCredentialKind: "otlp-headers@1" | "http-proxy-basic@1" | "http-proxy-bearer@1" | "caido-bearer@1" | "interactsh-token@1" | "http-origin-basic@1" | "http-origin-bearer@1" | "target-basic@1" | "target-bearer@1" | "target-cookies@1" | "target-api-keys@1";
         RuntimeCredentialMetadata: {
             credentialId: components["schemas"]["RuntimeCredentialId"];
             kind: components["schemas"]["RuntimeCredentialKind"];
@@ -5374,6 +5522,12 @@ export interface components {
                 [key: string]: string;
             };
         };
+        TargetAPIKeysMaterial: {
+            /** @description API keys applied together through one engagement identity. Names use header:NAME, query:NAME or cookie:NAME. At most 256 UTF-8 bytes per unqualified name and 16 KiB of qualified names and values combined. Headers follow HTTP token/credential-field rules, cookies follow the cookie grammar, and query names/values forbid controls. Header names are case insensitive and cannot repeat or control HTTP framing. */
+            fields: {
+                [key: string]: string;
+            };
+        };
         CreateRuntimeCredentialRequest: {
             credentialId: components["schemas"]["RuntimeCredentialId"];
             /** @constant */
@@ -5424,6 +5578,11 @@ export interface components {
             /** @constant */
             kind: "target-cookies@1";
             material: components["schemas"]["TargetCookiesMaterial"];
+        } | {
+            credentialId: components["schemas"]["RuntimeCredentialId"];
+            /** @constant */
+            kind: "target-api-keys@1";
+            material: components["schemas"]["TargetAPIKeysMaterial"];
         };
         PinnedRuntimeConfig: {
             label: components["schemas"]["ConfigId"];
@@ -5884,7 +6043,7 @@ export interface components {
             executionConfig: components["schemas"]["WorkflowEscalationConfig"];
             then: components["schemas"]["WorkflowNextOrFailTransition"];
         };
-        WorkflowSucceededTransition: components["schemas"]["WorkflowNextTransition"] | components["schemas"]["WorkflowSucceedTransition"];
+        WorkflowSucceededTransition: components["schemas"]["WorkflowNextTransition"] | components["schemas"]["WorkflowSucceedTransition"] | components["schemas"]["WorkflowFailTransition"];
         WorkflowSummaryTransition: {
             plannerContextManagement?: components["schemas"]["PlannerContextManagement"];
             /** @constant */
@@ -5942,7 +6101,7 @@ export interface components {
         });
         ServerOperationConfig: {
             /** @enum {string} */
-            ref: "sitemap-openapi-join@1" | "sitemap-apply-openapi@1" | "openapi-prepare-work@1";
+            ref: "sitemap-openapi-join@1" | "sitemap-apply-openapi@1" | "openapi-prepare-work@1" | "publish-findings@1";
             arguments: {
                 [key: string]: components["schemas"]["ArgumentBinding"] & unknown;
             };
@@ -6162,11 +6321,15 @@ export interface components {
         ArgumentBinding: {
             /** @constant */
             source: "parameter";
+            /** @constant */
+            optional?: true;
             name: string;
             default?: string;
         } | {
             /** @constant */
             source: "parameter";
+            /** @constant */
+            optional?: true;
             name: string;
             /** @constant */
             parse: "integer";
@@ -7028,6 +7191,17 @@ export interface components {
             };
             content: {
                 "*/*": string;
+            };
+        };
+        /** @description Bounded prepared monetary observations with independent freshness; missing historical data is explicit. */
+        LLMCostResponse: {
+            headers: {
+                "X-Request-ID": components["headers"]["RequestId"];
+                "Cache-Control": components["headers"]["NoStore"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["LLMCostSummary"];
             };
         };
         BadRequest: {
@@ -11019,6 +11193,66 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
+    getRunLLMCost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: components["parameters"]["RunId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["LLMCostResponse"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
+    getAuditLLMCost: {
+        parameters: {
+            query?: {
+                /** @description Optional explicitly selected Run attempts; retained costs survive source Run deletion. */
+                executionId?: components["schemas"]["ResourceId"][];
+            };
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["LLMCostResponse"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
+    getProjectLLMCost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["LLMCostResponse"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["StorageTransactionConflict"];
         };

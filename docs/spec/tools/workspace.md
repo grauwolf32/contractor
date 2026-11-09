@@ -737,7 +737,7 @@ operations. It cannot name an artifact, host path or backend, change workspace
 mode, or request persistence outside declared Stage result slots.
 
 **WSP-R128.** Tool implementations receive narrow `WorkspaceReader`,
-`WorkspaceWriter` and `WorkspaceChanges` handles, never raw fsspec objects or
+`WorkspaceWriter`, `WorkspaceChanges` and `WorkspaceSourceReader` handles, never raw fsspec objects or
 host paths.
 
 **WSP-R129.** `openapi@1` requires read access for provenance checks.
@@ -1306,3 +1306,7 @@ run_workdir/
   join operation of overlay states is defined; a future join must consume exact
   state artifacts explicitly and define conflict semantics separately.
 - UI browsing or editing of workspace contents.
+
+## Atomic original and effective source capture
+
+**WSP-R180.** An overlay provides an allocation-owned read-only source capture for one normalized text-file path: immutable hydrated text and exact source Artifact/path, plus current text captured under the same session lock. The immutable base is independent of export checkpoints, rollback and imported overlay changes. Missing, binary, deleted or newly created files without an original source fail explicitly. Captures read only the selected file and retain existing workspace byte bounds. Finding coordinate interpretation belongs to the trace finding facade (FND-R230 in the Findings specification).

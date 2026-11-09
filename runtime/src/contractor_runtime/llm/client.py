@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import uuid
 from asyncio import sleep
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from email.utils import mktime_tz, parsedate_tz
 from math import isfinite
@@ -89,6 +91,7 @@ class GatewayClientHandle:
     operation_timeout_seconds: float
     max_retries: int = GATEWAY_MAX_RETRIES
     recovery: GatewayRecoveryClient | None = None
+    cost_observer: Callable[[str, Mapping[str, str], bytes], None] | None = None
     failure_signatures: GatewayFailureSignatures = field(
         default_factory=default_gateway_failure_signatures
     )
@@ -145,8 +148,11 @@ class GatewayClientHandle:
                 error = GatewayRequestError("InvalidGatewayResponse", retryable=False)
                 should_retry = False
             except asyncio.CancelledError:
-                if response is not None:
-                    await _close_response(response, interrupted_read=True)
+                try:
+                    await self._observe_cost(payload, response, body)
+                finally:
+                    if response is not None:
+                        await _close_response(response, interrupted_read=True)
                 raise
             except (httpx.ConnectTimeout, httpx.PoolTimeout, httpx.WriteTimeout):
                 # The Gateway never received the whole request.
@@ -168,6 +174,7 @@ class GatewayClientHandle:
                 )
             if response is not None:
                 try:
+                    await self._observe_cost(payload, response, body)
                     if error is not None:
                         pass
                     elif response.is_success:
@@ -196,6 +203,8 @@ class GatewayClientHandle:
                             error.retry_after_seconds = max(0, retry_after)
                 finally:
                     await _close_response(response)
+            else:
+                await self._observe_cost(payload, response, body)
             # Release request/response buffers before a retry delay or failure.
             del request, response, body
             if error is None:
@@ -206,6 +215,24 @@ class GatewayClientHandle:
                 raise error from None
             await sleep(_retry_delay(attempt, retry_after))
         raise RuntimeError("LLM gateway retry limit is invalid")
+
+    async def _observe_cost(self, payload, response, body) -> None:
+        if self.cost_observer is None:
+            return
+        headers = {
+            name: response.headers[name]
+            for name in ("llm_provider-x-litellm-response-cost", "x-litellm-response-cost")
+            if response is not None and name in response.headers
+        }
+        # Accounting must never fail or retry an inference request.
+        with contextlib.suppress(Exception):
+            await to_thread_until_done(
+                self.cost_observer,
+                str(payload.get("model", "")),
+                headers,
+                body,
+                name="gateway-cost-observation",
+            )
 
     async def _complete_with_recovery(self, payload: dict[str, Any]) -> Any:
         """Keep one logical model call alive; previously executed tools never replay."""

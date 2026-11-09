@@ -3,17 +3,21 @@ package telemetry
 import (
 	"bytes"
 	"encoding/json"
+	"slices"
 	"strings"
 )
 
 // Content follows OpenTelemetry GenAI semantic conventions v1.41.1. Collector
 // implementations own any conversion into their native UI representation.
-func genAIContent(field, raw string, model bool) map[string]string {
+func genAIContent(field string, value any, model bool, redact func(any) (any, error)) map[string]string {
 	if !model {
-		return map[string]string{"contractor." + field: raw}
+		masked, err := redact(value)
+		if err != nil {
+			return nil
+		}
+		return map[string]string{"contractor." + field: boundedContent(masked)}
 	}
-	var value any
-	if json.Unmarshal([]byte(raw), &value) != nil || value == nil {
+	if value == nil {
 		return nil
 	}
 	values := map[string]any{}
@@ -64,11 +68,75 @@ func genAIContent(field, raw string, model bool) map[string]string {
 	} else {
 		values["gen_ai.input.messages"] = []any{genAIMessage(value, "user")}
 	}
+	// Projection owns the protocol envelope. Only payload fields are masked;
+	// roles, part types and finish reasons never pass through replacement.
+	for key, item := range values {
+		if key == "gen_ai.tool.definitions" {
+			for _, entry := range item.([]any) {
+				definition := entry.(map[string]any)
+				if !redactGenAIFields(definition, redact, "type") {
+					return nil
+				}
+			}
+		} else if key == "gen_ai.system_instructions" {
+			if !redactGenAIParts(item.([]any), redact) {
+				return nil
+			}
+		} else {
+			for _, entry := range item.([]any) {
+				if !redactGenAIParts(entry.(map[string]any)["parts"].([]any), redact) {
+					return nil
+				}
+			}
+		}
+	}
 	result := map[string]string{}
 	for key, item := range values {
 		result[key] = boundedGenAI(key, item)
 	}
 	return result
+}
+
+func redactGenAIFields(value map[string]any, redact func(any) (any, error), protocol ...string) bool {
+	for key, item := range value {
+		if slices.Contains(protocol, key) {
+			continue
+		}
+		masked, err := redact(item)
+		if err != nil {
+			return false
+		}
+		value[key] = masked
+	}
+	return true
+}
+
+func redactGenAIParts(parts []any, redact func(any) (any, error)) bool {
+	for _, part := range parts {
+		value := part.(map[string]any)
+		if !redactGenAIFields(value, redact, "type", "truncated") {
+			return false
+		}
+		if content, ok := value["content"]; ok {
+			value["content"] = genAIText(content)
+		}
+	}
+	return true
+}
+
+func boundedContent(value any) string {
+	encoded := genAIJSON(value)
+	if len(encoded) <= MaxContentBytes {
+		return encoded
+	}
+	preview := strings.ToValidUTF8(encoded[:MaxContentBytes], "")
+	for {
+		encoded = genAIText(map[string]any{"truncated": true, "preview": preview})
+		if len(encoded) <= MaxContentBytes {
+			return encoded
+		}
+		preview = strings.ToValidUTF8(preview[:len(preview)/2], "")
+	}
 }
 
 func genAIRequest(value any) (map[string]any, bool) {
@@ -84,6 +152,10 @@ func genAIText(value any) string {
 	if text, ok := value.(string); ok {
 		return text
 	}
+	return genAIJSON(value)
+}
+
+func genAIJSON(value any) string {
 	var buffer bytes.Buffer
 	encoder := json.NewEncoder(&buffer)
 	encoder.SetEscapeHTML(false)
@@ -100,7 +172,7 @@ func genAIParts(value any) []any {
 	}
 	parts, ok := content["parts"].([]any)
 	if !ok {
-		return []any{map[string]any{"type": "text", "content": genAIText(value)}}
+		return []any{map[string]any{"type": "text", "content": value}}
 	}
 	result := []any{}
 	for _, entry := range parts {

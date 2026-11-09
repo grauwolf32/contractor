@@ -46,7 +46,15 @@ func MaterializeHTTPIdentities(ctx context.Context, resolver engagementMaterialR
 			if kind != ref.Kind {
 				return contracts.Invalidf("engagement identity material is invalid")
 			}
-			if kind == runtimesettings.RuntimeCredentialTargetCookies {
+			if kind == runtimesettings.RuntimeCredentialTargetAPIKeys {
+				var body struct {
+					Fields map[string]contracts.SecretString `json:"fields" strictjson:"required"`
+				}
+				if strictjson.DecodeNonNull(data, &body) != nil {
+					return contracts.Invalidf("engagement identity material is invalid")
+				}
+				material.Fields = body.Fields
+			} else if kind == runtimesettings.RuntimeCredentialTargetCookies {
 				var body struct {
 					Cookies map[string]contracts.SecretString `json:"cookies" strictjson:"required"`
 				}

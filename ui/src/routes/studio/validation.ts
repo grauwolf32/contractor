@@ -240,6 +240,7 @@ export function validateDraft(draft: Draft): Problem[] {
             "sitemap-openapi-join@1",
             "sitemap-apply-openapi@1",
             "openapi-prepare-work@1",
+            "publish-findings@1",
           ].includes(textValue(record(stage.operation).ref))
         )
           error(
@@ -384,7 +385,7 @@ export function validateDraft(draft: Draft): Problem[] {
           transitions[outcome],
           [...p, "on", outcome],
           outcome === "succeeded"
-            ? ["next", "succeed"]
+            ? ["next", "succeed", "fail"]
             : ["next", "retry", "escalate", "fail"],
         );
       adjacency.set(

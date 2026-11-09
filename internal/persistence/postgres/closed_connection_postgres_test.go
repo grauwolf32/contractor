@@ -44,7 +44,7 @@ func TestClosedConnectionAfterLostCommitReplyIsUnavailable(t *testing.T) {
 	effects := 0
 	err = InTxWithRetry(ctx, losingPool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		attempts++
-		if !AfterCommit(tx, func() { effects++ }) {
+		if !AfterCommit(tx, func(context.Context) { effects++ }, nil) {
 			t.Fatal("transaction does not support commit effects")
 		}
 		if _, err := tx.Exec(ctx, `INSERT INTO lost_commit_probe (id) VALUES (1)`); err != nil {

@@ -97,6 +97,8 @@ eval_view_pairs                      internal/evalstore               evals
 contractor_schema_migrations         internal/persistence/postgres    -
 
 [reads]
+internal/projectstore workflow_runs LLM cost reads probe indexed Project work/liveness; amounts come from the prepared Project field.
+internal/projectstore audits LLM cost polling observes the Project's active Audits without scanning their reports or child costs.
 internal/findingintake project_findings Source selection authorizes canonical Project identities without hydrating claims.
 internal/findingintake project_finding_sources Receipt/source pages and collection capture reuse immutable source membership.
 internal/findingintake project_finding_audits Audit collection selection checks genuine canonical execution membership.

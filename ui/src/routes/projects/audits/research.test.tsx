@@ -20,6 +20,22 @@ function render(section = "", state = "normal") {
 }
 
 describe("combined Checks research workspace", () => {
+  it("offers Audit-local SARIF export beside canonical Project findings", async () => {
+    render("/findings");
+    const summary = await screen.findByText("Export SARIF", {
+      selector: "summary",
+    });
+    await userEvent.click(summary);
+    expect(
+      screen.getByRole("button", { name: "Create SARIF export" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("checkbox", { name: "Include duplicates" }),
+    ).not.toBeChecked();
+    expect(
+      screen.getByRole("link", { name: "All Project issues →" }),
+    ).toHaveAttribute("href", `/projects/${RESEARCH_PROJECT}/findings`);
+  });
   it("moves selection and focus together with the existing list keyboard controls", async () => {
     render("/work");
     await userEvent.click(

@@ -109,14 +109,16 @@ type AuditOrigin struct {
 }
 
 type Origin struct {
-	RunID            string         `json:"runId"`
-	StageExecutionID string         `json:"stageExecutionId"`
-	AllocationID     string         `json:"allocationId"`
-	InvocationID     string         `json:"invocationId"`
-	LogicalAgentName string         `json:"logicalAgentName"`
-	Workflow         WorkflowOrigin `json:"workflow"`
-	Audit            *AuditOrigin   `json:"audit,omitempty"`
-	RunDeleted       bool           `json:"runDeleted"`
+	Operation        string                     `json:"operation,omitempty"`
+	Scan             *artifacts.ExecutionOrigin `json:"scan,omitempty"`
+	RunID            string                     `json:"runId"`
+	StageExecutionID string                     `json:"stageExecutionId"`
+	AllocationID     string                     `json:"allocationId,omitempty"`
+	InvocationID     string                     `json:"invocationId"`
+	LogicalAgentName string                     `json:"logicalAgentName,omitempty"`
+	Workflow         WorkflowOrigin             `json:"workflow"`
+	Audit            *AuditOrigin               `json:"audit,omitempty"`
+	RunDeleted       bool                       `json:"runDeleted"`
 }
 
 // RetentionState is what keeps a stored receipt's proposal: its source Run,

@@ -29,7 +29,6 @@ export const emptyConfigDraft = () => ({
   workerTelemetryEndpoint: "",
   workerTelemetryCredential: "",
   workerTelemetryTimeout: "10",
-  workerTelemetryCaptureContent: false,
   workerTelemetryBatchSize: "8",
   workerTelemetryMaxAttempts: "2",
   workerTelemetryMaxPendingSpans: "2048",
@@ -38,7 +37,6 @@ export const emptyConfigDraft = () => ({
   plannerTelemetryEndpoint: "",
   plannerTelemetryCredential: "",
   plannerTelemetryTimeout: "10",
-  plannerTelemetryCaptureContent: false,
   interactsh: false,
   interactshClear: false,
   interactshEndpoint: "",
@@ -160,12 +158,10 @@ function telemetry(
   endpoint: string,
   credential: string,
   timeout: string,
-  captureContent: boolean,
 ): Telemetry {
   return {
     adapter: "otlp-http@1",
     endpoint,
-    captureContent,
     ...(credential === "" ? {} : { credential }),
     ...(timeout === "" ? {} : { flushTimeoutSeconds: Number(timeout) }),
   };
@@ -313,7 +309,6 @@ export function buildDocument(
               draft.workerTelemetryEndpoint,
               draft.workerTelemetryCredential,
               draft.workerTelemetryTimeout,
-              draft.workerTelemetryCaptureContent,
             ),
             export: {
               batchSizeBytes: Number(draft.workerTelemetryBatchSize) * MiB,
@@ -354,7 +349,6 @@ export function buildDocument(
                   draft.plannerTelemetryEndpoint,
                   draft.plannerTelemetryCredential,
                   draft.plannerTelemetryTimeout,
-                  draft.plannerTelemetryCaptureContent,
                 ),
               },
             }

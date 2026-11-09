@@ -123,7 +123,9 @@ function setup(
 }
 
 /** Operations whose Runtime credential creation answers safe metadata. */
-function setupWithCreate() {
+function setupWithCreate(
+  kind: Schemas["RuntimeCredentialKind"] = "target-cookies@1",
+) {
   const view = renderApplication("/operations/configuration", {
     capabilities: ["user", "operations"],
     server: {
@@ -135,7 +137,7 @@ function setupWithCreate() {
         json(
           conforming("RuntimeCredentialMetadata", {
             credentialId: "alice-cookies",
-            kind: "target-cookies@1",
+            kind,
             createdBy: "user_local",
             createdAt: CREATED,
           }),
@@ -465,6 +467,68 @@ describe("Runtime configuration hub navigation", () => {
       kind: "target-cookies@1",
       material: { cookies: { session: secret } },
     });
+  });
+
+  it("creates combined API keys and clears every secret after submit", async () => {
+    const { user, server } = setupWithCreate("target-api-keys@1");
+    await user.click(
+      await screen.findByRole("button", { name: "Add Runtime credential" }),
+    );
+    const dialog = screen.getByRole("dialog", {
+      name: "Create Runtime credential",
+    });
+    await user.type(
+      within(dialog).getByLabelText("Runtime credential ID"),
+      "alice-cookies",
+    );
+    await user.selectOptions(
+      within(dialog).getByLabelText("Credential kind"),
+      "HTTP target API keys",
+    );
+    const entries = [
+      { location: "header", name: "X-API-Key", value: "header-canary" },
+      { location: "query", name: "token", value: "query-canary" },
+      { location: "cookie", name: "client", value: "cookie-canary" },
+    ];
+    for (const [index, entry] of entries.entries()) {
+      if (index)
+        await user.click(
+          within(dialog).getByRole("button", { name: "Add api key" }),
+        );
+      await user.selectOptions(
+        within(dialog).getAllByLabelText("API key location")[index]!,
+        entry.location,
+      );
+      const name = within(dialog).getAllByLabelText("API key name")[index]!;
+      await user.clear(name);
+      await user.type(name, entry.name);
+      await user.type(
+        within(dialog).getAllByLabelText(/API key value/)[index]!,
+        entry.value,
+      );
+    }
+    await user.click(
+      within(dialog).getByRole("button", {
+        name: "Create active Runtime credential",
+      }),
+    );
+    expect(
+      await within(dialog).findByText(/Created safe metadata/),
+    ).toBeInTheDocument();
+    const [sent] = server.sent("POST", "/v1/operations/runtime-credentials");
+    expect(await sent!.json()).toEqual({
+      credentialId: "alice-cookies",
+      kind: "target-api-keys@1",
+      material: {
+        fields: Object.fromEntries(
+          entries.map((e) => [`${e.location}:${e.name}`, e.value]),
+        ),
+      },
+    });
+    for (const value of within(dialog).getAllByLabelText(/API key value/))
+      expect(value).toHaveValue("");
+    for (const entry of entries)
+      expect(document.body.textContent).not.toContain(entry.value);
   });
 
   it("replays a lost Runtime credential response and rejects a changed secret under its original key", async () => {

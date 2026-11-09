@@ -119,13 +119,25 @@ func ValidateScanPlanStage(stage ResolvedStage) error {
 		}
 		for name, source := range execution.Arguments {
 			if _, dynamic := expected[name]; !dynamic && source.Source != "literal" &&
-				!(stage.ScanPreparation != nil && execution.Tool == "scan_nuclei" && scan.IsNucleiSelectionBinding(name, source)) {
+				!(stage.ScanPreparation != nil && (execution.Tool == "scan_nuclei" && scan.IsNucleiSelectionBinding(name, source) || scan.IsScanCredentialBinding(execution.Tool, name, source))) {
 				return fmt.Errorf("scanPlan additional Worker arguments must be literals")
 			}
 		}
 	}
-	if len(stage.Result.Artifacts) != 1 {
-		return fmt.Errorf("scan-plan@1 requires exactly one aggregate report result")
+	if len(stage.Result.Artifacts) != 1 && len(stage.Result.Artifacts) != 2 {
+		return fmt.Errorf("scan-plan@1 requires an aggregate report and optional normalized materials")
+	}
+	if materials, ok := stage.Result.Artifacts["materials"]; ok {
+		if !materials.Required || materials.From == nil || len(materials.MediaTypes) != 1 || materials.MediaTypes[0] != "application/json" || stage.ScanPlan.MaxJobs > contracts.MaxSelectedMaterials/2 {
+			return fmt.Errorf("normalized scan materials require a bound JSON output and at most 16 jobs")
+		}
+		for _, binding := range stage.Agents {
+			if binding.Template.Execution.Tool != "scan_nuclei" && binding.Template.Execution.Tool != "scan_sqlmap" {
+				return fmt.Errorf("normalized candidate outputs require a Finding-capable scan adapter")
+			}
+		}
+	} else if len(stage.Result.Artifacts) != 1 {
+		return fmt.Errorf("unknown scan-plan output")
 	}
 	report, exists := stage.Result.Artifacts["report"]
 	reportMedia := "application/json"
@@ -194,11 +206,11 @@ func validateScanPlanInputMedia(workflow ResolvedWorkflow, stage ResolvedStage) 
 	inputMedia := []string{scan.HTTPRequestSetMediaType, "text/vnd.contractor.target-list"}
 	if stage.ScanPreparation != nil {
 		inputMedia = []string{"application/json", "application/yaml", "application/zip"}
-		for name, media := range map[string][]string{
-			stage.ScanPreparation.SettingsArtifact: {"application/json"},
-		} {
-			if err := validate(name, media); err != nil {
-				return err
+		if name := stage.ScanPreparation.ValuesArtifact; name != "" {
+			context, exists := stage.Context.Artifacts[name]
+			slot, declared := workflow.Inputs[context.Name]
+			if !exists || !declared || context.Namespace != "inputs" || slot.Required != context.Required || len(slot.MediaTypes) != 1 || slot.MediaTypes[0] != "application/json" {
+				return fmt.Errorf("invalid request values input")
 			}
 		}
 		if stage.ScanPreparation.OperationArtifact != "" {

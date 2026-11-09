@@ -46,7 +46,6 @@ type Identity struct {
 // HTTPLimits are optional ceilings enforced independently by each allocation.
 // Absence means the corresponding engagement limit is not configured.
 type HTTPLimits struct {
-	TargetRequests     *uint32 `json:"targetRequests,omitempty"`
 	RequestsPerSecond  *uint32 `json:"requestsPerSecond,omitempty"`
 	ConcurrentRequests *uint32 `json:"concurrentRequests,omitempty"`
 	RequestBodyBytes   *uint32 `json:"requestBodyBytes,omitempty"`
@@ -54,7 +53,7 @@ type HTTPLimits struct {
 }
 
 func (l HTTPLimits) Validate() error {
-	for _, value := range []*uint32{l.TargetRequests, l.RequestsPerSecond, l.ConcurrentRequests, l.RequestBodyBytes, l.ResponseBodyBytes} {
+	for _, value := range []*uint32{l.RequestsPerSecond, l.ConcurrentRequests, l.RequestBodyBytes, l.ResponseBodyBytes} {
 		if value != nil && *value == 0 {
 			return invalid()
 		}
@@ -159,6 +158,8 @@ func (i Identity) Validate() error {
 		kind = runtimesettings.RuntimeCredentialTargetBearer
 	case "cookies":
 		kind = runtimesettings.RuntimeCredentialTargetCookies
+	case "api-keys":
+		kind = runtimesettings.RuntimeCredentialTargetAPIKeys
 	default:
 		return invalid()
 	}

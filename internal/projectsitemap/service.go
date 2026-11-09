@@ -283,6 +283,11 @@ func projectIntent(m Mutation, a Authority, rules []Rule) (Mutation, projectedRe
 		}
 		slices.Sort(parameters)
 		o.Parameters = slices.Compact(parameters)
+		annotation, err := projectAnnotation(o.Note, o.Tags, a)
+		if err != nil {
+			return Mutation{}, projectedRequest{}, nil, err
+		}
+		o.Note, o.Tags = annotation.Note, annotation.Tags
 		copy.Observations[i] = o
 		statuses[i] = status
 	}

@@ -45,10 +45,6 @@ func normalizeTaskRunCreate(intent auditstore.RunCreationIntent, p AuditCreatePa
 		return auditRunCreate{}, nil, ErrInvalid
 	}
 	alias := intent.Execution.WorkflowRole
-	binding, ok := pinned.Program.Workflows[alias]
-	if !ok {
-		return auditRunCreate{}, nil, ErrInvalid
-	}
 	workflow, ok := pinned.Workflows[alias]
 	if !ok {
 		return auditRunCreate{}, nil, ErrInvalid
@@ -57,8 +53,16 @@ func normalizeTaskRunCreate(intent auditstore.RunCreationIntent, p AuditCreatePa
 	if strictjson.Decode(intent.BaselineSnapshot, &baseline) != nil || baseline.Schema != auditbaseline.Schema || baseline.RuntimeConfig.Validate() != nil {
 		return auditRunCreate{}, nil, ErrInvalid
 	}
+	pinned.Program, err = pinned.Program.BindParameters(baseline.Parameters)
+	if err != nil {
+		return auditRunCreate{}, nil, ErrInvalid
+	}
+	binding, ok := pinned.Program.Workflows[alias]
+	if !ok {
+		return auditRunCreate{}, nil, ErrInvalid
+	}
 	result := auditRunCreate{AuditCreateParams: AuditCreateParams{Claim: p.Claim, ExecutionID: p.ExecutionID, TaskIDs: slices.Clone(p.TaskIDs), RequestDigest: p.RequestDigest, NewRunID: p.NewRunID},
-		Workflow: workflow.Clone(), RuntimeConfig: baseline.RuntimeConfig, ProjectHTTPTarget: baseline.ProjectHTTPTarget.Clone(), RequiredPlacementLabels: slices.Clone(intent.RequiredPlacementLabels),
+		Program: pinned.Program, Workflow: workflow.Clone(), RuntimeConfig: baseline.RuntimeConfig, ProjectHTTPTarget: baseline.ProjectHTTPTarget.Clone(), RequiredPlacementLabels: slices.Clone(intent.RequiredPlacementLabels),
 		Inputs: map[string]auditstore.ExactArtifact{}, Parameters: maps.Clone(binding.Parameters)}
 	for slot, material := range intent.Tasks[0].Document.Inputs {
 		result.Inputs[slot] = contracts.ExactArtifact{Ref: material.Ref.Clone(), Digest: material.Digest, MediaType: material.MediaType, SizeBytes: material.SizeBytes}
@@ -90,20 +94,16 @@ func normalizeTaskRunCreate(intent auditstore.RunCreationIntent, p AuditCreatePa
 	if result.ProjectHTTPTarget != nil && result.ProjectHTTPTarget.Validate() != nil {
 		return auditRunCreate{}, nil, ErrInvalid
 	}
-	if err := validateTaskRunIntent(intent, result); err != nil {
+	if err := validateTaskRunIntent(intent, result, pinned); err != nil {
 		return auditRunCreate{}, nil, err
 	}
 	snapshot, err := resolved.EncodeResolvedWorkflowSnapshot(result.Workflow)
 	return result, snapshot, err
 }
 
-func validateTaskRunIntent(intent auditstore.RunCreationIntent, p auditRunCreate) error {
+func validateTaskRunIntent(intent auditstore.RunCreationIntent, p auditRunCreate, pinned auditprofile.PinnedProgram) error {
 	if !validTaskRunIdentity(p.AuditCreateParams) || intent.Execution.AuditID != p.Claim.AuditID || intent.Execution.ExecutionID != p.ExecutionID || intent.Execution.RequestDigest != p.RequestDigest || len(intent.Tasks) != len(p.TaskIDs) {
 		return auditstore.ErrConflict
-	}
-	pinned, err := auditprofile.DecodePinnedProgram(intent.ProgramSnapshot)
-	if err != nil {
-		return ErrInvalid
 	}
 	binding, exists := pinned.Program.Workflows[intent.Execution.WorkflowRole]
 	if !exists {
@@ -145,11 +145,7 @@ func validateTaskRunIntent(intent auditstore.RunCreationIntent, p auditRunCreate
 // Context is authored after the real Run ID and input forks exist, in the same
 // creation transaction. Its evidence grants access only to those local inputs.
 func materializeTaskRunContext(ctx context.Context, service *artifacts.Service, intent auditstore.RunCreationIntent, p auditRunCreate, runID string, prepared *artifacts.PreparedInputs) error {
-	pinned, err := auditprofile.DecodePinnedProgram(intent.ProgramSnapshot)
-	if err != nil {
-		return err
-	}
-	binding := pinned.Program.Workflows[intent.Execution.WorkflowRole]
+	binding := p.Program.Workflows[intent.Execution.WorkflowRole]
 	scope, err := artifacts.RunScope(runID)
 	if err != nil {
 		return err
@@ -196,7 +192,7 @@ func materializeTaskRunContext(ctx context.Context, service *artifacts.Service, 
 		}
 		prepared.Inputs[slot] = contracts.ExactContent(written.Ref, written.MediaType, data)
 	}
-	if err := materializeProposalContext(ctx, service, intent, p, pinned, runID, prepared); err != nil {
+	if err := materializeProposalContext(ctx, service, intent, p, runID, prepared); err != nil {
 		return err
 	}
 	return validateWorkflowInputs(p.Workflow, p.Parameters, prepared.Refs())

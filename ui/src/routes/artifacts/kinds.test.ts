@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   HTTP_EXCHANGE_MEDIA_TYPE,
+  ENGAGEMENT_MEDIA_TYPE,
   type ArtifactMetadata,
 } from "../../api/artifacts";
 import { SKILL_ARCHIVE_MEDIA_TYPE } from "./artifact-file";
@@ -96,6 +97,19 @@ describe("material kinds", () => {
     expect(materialKindOf(item("toString", "text/plain"))).toBe("other");
   });
 
+  it("labels an engagement by its typed media and suggested namespace", () => {
+    expect(materialKindOf(item("engagement", ENGAGEMENT_MEDIA_TYPE))).toBe(
+      "engagement",
+    );
+    expect(materialKindOf(item("inputs", ENGAGEMENT_MEDIA_TYPE))).toBe(
+      "engagement",
+    );
+    expect(materialKindLabel(item("inputs", ENGAGEMENT_MEDIA_TYPE))).toBe(
+      "Engagement",
+    );
+    expect(formatLabel(ENGAGEMENT_MEDIA_TYPE)).toBe("Engagement");
+  });
+
   it("labels kinds and Skill packages", () => {
     expect(
       materialKindLabel(item("finding-proposals", HTTP_EXCHANGE_MEDIA_TYPE)),
@@ -146,6 +160,7 @@ describe("material kinds", () => {
     expect(MATERIAL_UPLOAD_KINDS.map((kind) => kind.label)).toEqual([
       "Source code ZIP",
       "OpenAPI",
+      "Engagement",
       "LikeC4",
       "Docs",
       "Diffs",

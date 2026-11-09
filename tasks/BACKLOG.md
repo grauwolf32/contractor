@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-69 open tasks: 11 in progress, 45 pending, 13 deferred. 1482 finished: 1464 completed, 18 archived.
+68 open tasks: 10 in progress, 45 pending, 13 deferred. 1544 finished: 1526 completed, 18 archived.
 
 ## In progress
 
@@ -16,10 +16,9 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | quality | chore | P3 | Make the Runtime suite pass on macOS: declare the Linux-only Podman tests, make the other tests portable and file the macOS defects |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
-| [V417-001](v417-001-terminal-summarizer-include-reasoning.yml) | planner-worker | feature | P1 | Make terminal summarizer reasoning input explicitly configurable |
-| [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Continue an isolated Worker through workflow-selected context compaction |
-| [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
-| [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
+| [V417-001](v417-001-terminal-summarizer-include-reasoning.yml) | planner-worker | feature | P1 | Accept merged terminal summarizer reasoning selection |
+| [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Accept merged isolated Worker context compaction |
+| [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V464-002](v464-002-tool-call-context-main-integration.yml) | planner-worker | chore | P1 | Integrate tool-call context transitions into current main |
 
@@ -36,10 +35,10 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V417-004](v417-004-shared-session-context-compaction.yml) | feature | P1 | V417-003 | Preserve compacted context across shared-session invocations |
-| [V417-006](v417-006-compactor-model-policy-selection.yml) | feature | P1 | V417-003 | Resolve reference-only compactor model policy overrides |
+| [V417-006](v417-006-compactor-model-policy-selection.yml) | feature | P1 | V417-003 | Select Worker compactor models only through Workflow executionConfig |
 | [V417-007](v417-007-context-compaction-state-and-ui.yml) | feature | P1 | V417-003 | Report compaction progress and costs without exposing context content |
-| [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | V420-002 | Verify Planner compaction persistence cancellation and scale boundaries |
-| [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | V420-002 | Expose bounded truthful Planner compaction diagnostics |
+| [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | — | Verify Planner compaction persistence cancellation and scale boundaries |
+| [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | — | Expose bounded truthful Planner compaction diagnostics |
 
 ### HTTP and Caido tools (`http-tools`)
 
@@ -155,23 +154,23 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 2 | 49 | 68 | 39 | 104 |
-| Planners and the Worker model boundary (`planner-worker`) | 10 | 36 | 53 | 34 | 83 |
+| Run execution core (`execution-core`) | 2 | 49 | 68 | 39 | 105 |
+| Planners and the Worker model boundary (`planner-worker`) | 9 | 36 | 54 | 34 | 86 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 15 | 5 | 47 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 3 | 14 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 15 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
-| HTTP and Caido tools (`http-tools`) | 5 | 24 | 32 | 15 | 35 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 3 | 17 | 10 | 10 | 21 |
-| Findings tools and collections (`findings`) | 0 | 17 | 10 | 11 | 17 |
-| Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 21 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 39 | 17 | 67 |
-| Audits (`audits`) | 10 | 69 | 96 | 41 | 156 |
-| Evaluations (`evals`) | 5 | 22 | 40 | 17 | 50 |
+| HTTP and Caido tools (`http-tools`) | 5 | 24 | 35 | 15 | 37 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 3 | 21 | 12 | 11 | 26 |
+| Findings tools and collections (`findings`) | 0 | 18 | 14 | 11 | 21 |
+| Workflow catalog and document workflows (`workflows`) | 6 | 19 | 16 | 16 | 23 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 39 | 19 | 69 |
+| Audits (`audits`) | 10 | 69 | 97 | 42 | 168 |
+| Evaluations (`evals`) | 5 | 22 | 42 | 17 | 50 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
-| Web UI (`ui`) | 1 | 49 | 74 | 28 | 74 |
-| Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 46 | 9 | 22 |
-| Public API and wire contracts (`api-contracts`) | 1 | 2 | 42 | 30 | 21 |
-| PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 47 | 18 |
-| Quality, CI and process (`quality`) | 11 | 1 | 29 | 133 | 28 |
+| Web UI (`ui`) | 1 | 53 | 80 | 30 | 76 |
+| Operations, authentication, CLI and deployment (`operations`) | 0 | 21 | 53 | 11 | 28 |
+| Public API and wire contracts (`api-contracts`) | 1 | 2 | 43 | 30 | 21 |
+| PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 50 | 18 |
+| Quality, CI and process (`quality`) | 11 | 1 | 33 | 140 | 30 |

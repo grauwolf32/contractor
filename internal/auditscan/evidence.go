@@ -2,7 +2,6 @@ package auditscan
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 
@@ -31,12 +30,11 @@ func (b *resultBuilder) readRetained(ctx context.Context, ref contracts.Artifact
 func (b *resultBuilder) addEvidence(id, kind string, ref contracts.ArtifactRef, data []byte) bool {
 	// Reserve 1 MiB for the bounded Run journal and exact descriptors. A final
 	// canonical-byte check also covers JSON escaping and metadata overhead.
-	if b.evidenceBytes+base64.StdEncoding.EncodedLen(len(data)) > MaxResultBytes-(1<<20) || len(b.artifacts) >= 256 {
+	if len(b.artifacts) >= 256 {
 		b.gaps["scan_evidence_budget_exceeded"] = true
 		return false
 	}
-	b.evidenceBytes += base64.StdEncoding.EncodedLen(len(data))
-	b.artifacts = append(b.artifacts, retainedArtifact{ID: id, Kind: kind, Ref: ref.Clone(), Digest: contentdigest.Bytes(data), Data: append([]byte(nil), data...)})
+	b.artifacts = append(b.artifacts, retainedArtifact{ID: id, Kind: kind, Ref: ref.Clone(), Digest: contentdigest.Bytes(data), SizeBytes: len(data)})
 	return true
 }
 

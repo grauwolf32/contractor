@@ -70,6 +70,7 @@ func (p *streamlinePlanner) Run(
 	startedAt := time.Now()
 	defer p.stateViews.Close()
 	state := newExecutionState(p.limits)
+	ctx = gatewayrecovery.WithLLMCostCollector(ctx, &state.cost)
 	var identity planner.SessionIdentity
 	defer func() {
 		var returned *planner.Failure
@@ -110,6 +111,10 @@ func (p *streamlinePlanner) Run(
 
 	if p.compactionSettings != nil {
 		p.compaction = newContextCompaction(*p.compactionSettings)
+		// Run joins every Runner/model/session operation before returning. Drop
+		// its invocation-local transcript, summary, index and cursors even when
+		// the caller retains the Planner to read its execution report.
+		defer func() { p.compaction = nil }()
 	}
 	tools, allowed, err := p.buildTools(state, identity)
 	if err != nil {

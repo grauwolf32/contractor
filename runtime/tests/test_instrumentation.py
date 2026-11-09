@@ -10,6 +10,7 @@ import pytest
 from fakes.worker_state import WorkerStateStore
 
 from contractor_runtime.adapters import RuntimeSpan, TelemetryAttribute
+from contractor_runtime.adapters.content import encode_content
 from contractor_runtime.core.tool_metrics import RecordedToolCall
 from contractor_runtime.telemetry.invocations import InvocationMetricsReducer
 from contractor_runtime.telemetry.metrics import MetricsState
@@ -1058,14 +1059,12 @@ def test_after_model_assigns_owned_ids_only_to_missing_function_call_ids() -> No
 
 def test_unknown_tool_before_callback_is_one_bounded_attempt_without_content() -> None:
     class CapturedSpan(RecordingSpan):
-        capture_content = True
-
         def __init__(self, name: str, attributes: dict[str, TelemetryAttribute]) -> None:
             super().__init__(name, attributes)
             self.content: dict[str, str] = {}
 
-        def set_content(self, kind: str, value: str) -> None:
-            self.content[kind] = value
+        def capture_content(self, kind: str, value: Any) -> None:
+            self.content[kind] = encode_content(value)
 
     class CapturingInstrumentation(RecordingInstrumentation):
         def start_span(self, name: str, *, attributes=None) -> CapturedSpan:

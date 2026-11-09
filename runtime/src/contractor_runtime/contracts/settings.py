@@ -400,7 +400,6 @@ class TelemetrySettings(WireModel):
     adapter: RuntimeAdapterRef
     endpoint: str
     headers: dict[str, SecretStr]
-    capture_content: bool
     flush_timeout_seconds: int = Field(ge=1, le=10)
     export: TelemetryExportSettings
 
@@ -610,6 +609,40 @@ def default_source_archive_limits() -> SourceArchiveLimits:
     )
 
 
+def _validate_api_key_fields(values: dict[str, str]) -> None:
+    headers = set()
+    total = 0
+    for qualified, value in values.items():
+        location, separator, name = qualified.partition(":")
+        if (
+            not separator
+            or not 1 <= len(name.encode()) <= 256
+            or not 1 <= len(value.encode()) <= 8192
+        ):
+            raise ValueError("engagement API key material is invalid")
+        total += len(qualified.encode()) + len(value.encode())
+        if total > 16384:
+            raise ValueError("engagement API key material exceeds its byte bound")
+        if location == "header":
+            lower = name.lower()
+            if (
+                _HEADER_NAME_PATTERN.fullmatch(name) is None
+                or lower in _FORBIDDEN_RUNTIME_HEADERS | {"cookie", "set-cookie"}
+                or lower in headers
+                or not is_credential_field_value(value)
+            ):
+                raise ValueError("engagement API key header is invalid")
+            headers.add(lower)
+        elif location == "cookie":
+            if not valid_cookie_name(name) or not valid_cookie_value(value):
+                raise ValueError("engagement API key cookie is invalid")
+        elif location == "query":
+            if any(ord(c) < 32 or ord(c) == 127 for c in name + value):
+                raise ValueError("engagement API key query field is invalid")
+        else:
+            raise ValueError("engagement API key location is invalid")
+
+
 class HTTPIdentityMaterial(WireModel):
     credential: RuntimeCredentialRef
     fields: dict[str, SecretStr] = Field(min_length=1, max_length=128)
@@ -617,6 +650,9 @@ class HTTPIdentityMaterial(WireModel):
     @model_validator(mode="after")
     def validate_material(self) -> Self:
         values = {name: field.get_secret_value() for name, field in self.fields.items()}
+        if self.credential.kind == "target-api-keys@1":
+            _validate_api_key_fields(values)
+            return self
         if self.credential.kind == "target-cookies@1":
             if (
                 any(

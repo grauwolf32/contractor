@@ -28,6 +28,7 @@ from contractor_runtime.contracts.base import (
     _require_text,
     _require_tool_arguments,
 )
+from contractor_runtime.contracts.llm_cost import LLMCost
 
 # Every integer of RuntimeResources and of ExecutionMetrics, with its tools,
 # workerBudget and summarizer members, lies between 0 and MAX_EXACT_INTEGER
@@ -197,6 +198,7 @@ class RuntimeAdapterMetrics(WireModel):
 
 
 class ExecutionMetrics(WireModel):
+    llm_cost: LLMCost | None = None
     duration_ms: ReportInteger | None = None
     model_calls: ReportInteger | None = None
     input_tokens: ReportInteger | None = None

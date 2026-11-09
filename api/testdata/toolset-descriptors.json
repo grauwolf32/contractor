@@ -134,7 +134,7 @@
     },
     "openapi@1": {
       "tools": ["get_openapi_component", "get_openapi_info", "get_openapi_path", "initialize_openapi", "list_openapi_components", "list_openapi_paths", "list_openapi_servers", "list_openapi_tags", "load_openapi", "read_openapi_document", "remove_openapi_component", "remove_openapi_path", "set_openapi_info", "set_openapi_servers", "set_openapi_tags", "upsert_openapi_component", "upsert_openapi_path", "validate_openapi"],
-      "infrastructureChannels": {"validate_openapi": ["runtime-subprocess-launcher"]},
+      "infrastructureChannels": {},
       "requiresWorkspace": true,
       "workspaceObservationTools": [],
       "requiredSandboxProfiles": [],
@@ -156,7 +156,7 @@
     },
     "scan@1": {
       "tools": ["scan_ffuf", "scan_katana", "scan_naabu", "scan_nuclei", "scan_sqlmap"],
-      "infrastructureChannels": {"scan_ffuf": ["runtime-subprocess-launcher"], "scan_katana": ["runtime-subprocess-launcher"], "scan_naabu": ["runtime-subprocess-launcher"], "scan_nuclei": ["runtime-http-client", "runtime-subprocess-launcher"], "scan_sqlmap": ["runtime-subprocess-launcher"]},
+      "infrastructureChannels": {"scan_ffuf": ["runtime-subprocess-launcher"], "scan_katana": ["runtime-subprocess-launcher"], "scan_naabu": ["runtime-subprocess-launcher"], "scan_nuclei": ["runtime-http-client", "runtime-subprocess-launcher"], "scan_sqlmap": ["runtime-http-client", "runtime-subprocess-launcher"]},
       "requiresWorkspace": false,
       "workspaceObservationTools": [],
       "requiredSandboxProfiles": [],
@@ -169,6 +169,17 @@
       "tools": ["finding"],
       "infrastructureChannels": {},
       "requiresWorkspace": false,
+      "workspaceObservationTools": [],
+      "requiredSandboxProfiles": [],
+      "activeCheckTools": [],
+      "sandboxActiveCheckTools": {},
+      "findingProposalTools": ["finding"],
+      "requiredWorkflowInputs": {}
+    },
+    "security-findings-trace@1": {
+      "tools": ["finding"],
+      "infrastructureChannels": {},
+      "requiresWorkspace": true,
       "workspaceObservationTools": [],
       "requiredSandboxProfiles": [],
       "activeCheckTools": [],

@@ -43,6 +43,11 @@ func TestSnapshotAccessorResultsShareNoMemoryWithSnapshot(t *testing.T) {
 		"                  modelPolicy: test-strong-worker@1\n                  llmGateway: local-litellm@1\n                  credential: development-worker")
 	replaceFile(t, path, "        interrupted: {fail: {}}",
 		"        interrupted:\n          escalate:\n            maxAttempts: 1\n            executionConfig:\n              agents:\n                validator: {credential: null}\n            then: {fail: {}}")
+	// SeedSource was added after the profile clone: exercise its nested
+	// pointer and slice through every accessor that returns a profile.
+	replaceFile(t, filepath.Join(root, "audit-profiles/source_checklist.yaml"),
+		`"schema": "contractor.audit.program.v1",`,
+		`"schema": "contractor.audit.program.v1", "seed_source": {"workflow":"check","standard":{"scheme":"example","version":"1"},"entry_ids":["EX-1"]},`)
 	snapshot := mustLoad(t, root)
 	owned := newSpanIndex(mutableSpans(reflect.ValueOf(snapshot).Elem(), "Snapshot"))
 

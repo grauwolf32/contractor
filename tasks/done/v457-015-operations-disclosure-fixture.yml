@@ -1,0 +1,65 @@
+schema_version: "1.0"
+id: V457-015
+title: Follow Configuration disclosures in the real Operations journey
+milestone: release-gate-2026-10
+epic: quality
+kind: chore
+introduced_by: V429-028
+priority: P1
+status: completed
+depends_on: []
+languages: [typescript]
+goal: The real Operations journey reaches the unchanged clone and credential checks through the current Configuration disclosure UI.
+context:
+  authority: >-
+    User request 2026-11-07 authorizes reported release fixes and narrow full-gate
+    prerequisites on a separate branch. This task repairs the browser fixture
+    only; production UI and catalog behavior remain unchanged.
+  finding: >-
+    ui/e2e/stack.spec.ts:912-915 looks for a table row containing worker@2 before
+    clicking Inspect / clone. V429-028 changed the Configuration inventory to
+    native details.ops-resource-row disclosures in
+    71041cac9766a340665e0281e31708218c9ac4de. The real Operations run on combined
+    revision 89d9632b7c10f0234f8becf2bb9d4f499dcfefb3 passed 107 browser cases
+    but this journey timed out waiting for the obsolete row selector.
+  siblings: >-
+    Check the same journey's Operations credential and RuntimeConfig paths for
+    obsolete row selectors. Retain all clone, publish, credential, secret-boundary,
+    Runtime configuration and binding assertions. The later RuntimeConfig row
+    already uses the current resource disclosure and opens its summary.
+  verification: >-
+    Initial real-stack failure is preserved in work/polish-logs/ui-operations-retry.log
+    and its copied browser report outside the repository. Both existing UI
+    configuration tests pass, e2e TypeScript checking passes, and ESLint/Prettier
+    accept the changed spec. Task validation passes for all 1,562 task records.
+    Final integrated verification passed as recorded in context.integration_verification.
+  integration_verification: >-
+    Acceptance verified on 2026-11-08. The complete real Operations journey passed all
+    108 executed cases with zero skips/unexpected/flaky cases, including exact policy
+    clone/publication, credentials, Runtime configuration, Run ownership and secret
+    boundaries. The configuration component suite, both TypeScript configurations and
+    full ui-verify passed. Final release-verify-lint passed.
+scope:
+  in:
+    - Select the exact worker@2 Configuration disclosure and open it with the existing helper before inspecting it.
+    - Rule out analogous stale table-row selectors in this journey's Operations paths.
+  out:
+    - Production UI, Server, catalog or Runtime changes.
+    - Weaker clone, credential, RuntimeConfig or secret-boundary assertions.
+acceptance_criteria:
+  - id: A1
+    text: The exact worker@2 disclosure opens before the existing Inspect / clone and immutable publication actions.
+  - id: A2
+    text: All existing journey assertions remain and sibling Operations paths use current resource markup.
+  - id: A3
+    text: The configuration UI tests, e2e TypeScript check and integrated real Operations browser journey pass.
+tests:
+  - command: cd ui && corepack pnpm test --run src/routes/operations/llm-configurations/configurations.test.tsx
+    covers: [A1, A2]
+  - command: cd ui && corepack pnpm exec tsc --project tsconfig.e2e.json --noEmit
+    covers: [A1, A2]
+  - command: go test -tags=e2e -count=1 -timeout=12m ./tests/ui-stack -run '^TestBrowserOperationsStack$'
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+implementation_commit: 227f824f1e99fa6850b299b236eac48005222df3

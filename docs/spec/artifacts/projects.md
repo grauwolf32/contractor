@@ -233,6 +233,7 @@ suggested field remains reviewable before upload. The upload journey is in
 |---|---|---|
 | Sources | `sources` | `application/zip`, source text |
 | OpenAPI | `openapi` | `application/yaml`, `application/json` |
+| Engagement | `engagement` | `application/vnd.contractor.engagement+json` |
 | LikeC4 | `likec4` | LikeC4/plain UTF-8 text |
 | Docs | `docs` | Markdown, text, PDF |
 | Diffs | `diffs` | unified text diff |

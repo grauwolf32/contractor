@@ -1,0 +1,191 @@
+schema_version: '1.0'
+id: V455-005
+title: Remove total HTTP quotas and expose actionable controlled HTTP outcomes
+milestone: autonomous-http-pentest-2026-10
+epic: http-tools
+kind: defect
+introduced_by: V422-002
+priority: P1
+status: completed
+implementation_commit: 76e7e96a159fc5b4d5a36f7494386647f6a6fb1d
+depends_on: []
+languages: [python, go, typescript, json, markdown]
+goal: >-
+  Engagement constrains HTTP send rate and authorized scope without an arbitrary
+  total request quota. The model knows its allowed targets and receives concrete
+  target/network outcomes; infrastructure and allocation failures terminate
+  execution through Runtime rather than becoming a model troubleshooting loop.
+context:
+  authority: >-
+    User decisions 2026-11-08 in the V455-005 discussion supersede the original
+    open delay/allowance decision: remove targetRequests end to end; retain RPS;
+    expose the explicit allowed-origin whitelist to the model; preserve concrete
+    DNS, TLS, connection and timeout reasons. A possibly completed request is a
+    property of its network failure, not a separate failure category. Bridge
+    infrastructure failure, lost allocation/lease and cancellation belong to
+    Runtime/Worker lifecycle and must not be returned as ordinary model errors.
+    User authorizes updating this task, merging the task definition into main,
+    then implementing on a separate branch. No deployment or paid model run is
+    requested. No blanket sleep, new retry policy or repeated-error threshold
+    is approved.
+  specification:
+    - docs/spec/audits/audits.md#AUD-R242
+    - docs/spec/tools/http-caido.md#HTP-R120
+    - docs/spec/tools/http-caido.md#HTP-R122
+    - docs/spec/tools/http-caido.md#HTP-R145
+    - docs/spec/tools/http-caido.md#HTP-R154
+    - docs/spec/tools/http-caido.md#HTP-R155
+    - docs/spec/tools/http-caido.md#HTP-R156
+    - docs/spec/platform/limits.md#LIM-HTP-43
+    - docs/spec/platform/errors.md#ERR-R13
+    - docs/spec/platform/observability.md#OBS-R32
+  severity: high
+  source_revision: 9d8bc588ca3c1f8829756d329f7cc5f8b1b09e04
+  evidence: tasks/evidence/v455-005-http-error-pacing.json
+  implementation_evidence: tasks/evidence/v455-005-http-outcomes.json
+  incident: >-
+    Invoice Lab Run run_bb89459d503a5096536a7b4b173e94e1, Audit
+    audit_d220eabdf35b48e9fbb9cceb18f21feb, 2026-11-07 22:38:03-22:44:59
+    Europe/Moscow. Worker made 199 model calls and 200 tool calls: 118
+    http_request (39 succeeded, 79 failed), 75 http_history, two
+    http_credential_read, one http_credentials, three read_text_artifact and
+    one read_audit_task. No finding or check result was published. Repeated
+    failed requests and history reads ended in worker_budget_exhausted(tool_calls).
+    All 79 failed HTTP tool spans contain only ControlledHTTPError, with
+    durations 1-3 ms; the retained error is tool_http_request_failed.
+    All 405 spans arrived, flush succeeded, drop counters are zero and Runtime
+    finalized normally. This incident is not missing trace delivery or a crash.
+  finding: >-
+    adapters/http_transport.py:319-329 raises HTTPTransportError(http_limit_exceeded)
+    before sending when the allocation's total request allowance is exhausted.
+    toolsets/http/controlled.py:150-155 preserves only http_scope_denied and
+    maps every other transport code to http_request_failed.
+    ControlledHTTPError at toolsets/http/controlled.py:32-35 overrides the base
+    registry with retryable=false; worker/instrumentation.py:913-927 forwards it.
+    These paths are under runtime/src/contractor_runtime/ in source_revision.
+    The permanent limit reason is lost, but the model-facing failure remains
+    non-retryable. The earlier explanation claiming retryable=true was incorrect
+    and is explicitly superseded by this direct inspection of the deployed code.
+    controlled.py:156-185 only records exchanges with physical attempts, so
+    admission rejection cannot be recovered by repeatedly reading HTTP history.
+  evidence_limits: >-
+    The engagement allowance is 40 physical requests, 2 requests/second and
+    one concurrent request. Exhaustion is a plausible explanation of the 79
+    failures, not a recovered fact: their original transport code and exact
+    physical request count were not retained. 39 successful tool calls do not
+    establish 39 physical sends; redirects and permitted retries can add sends.
+    Retained diagnostic retryable=false agrees with the controlled exception
+    and model-response code. Sensitive HTTP content
+    suppression prevents replaying the exact model-visible responses here.
+    Millisecond tool duration does not mean the whole model/tool loop ran at
+    that rate; model calls between tools also consumed time and tokens.
+  provenance: >-
+    git blame identifies 41f6fb79e184f820e42f67ba845a2691c1863055
+    (V422-002 engagement simplification) as introducing allocation-local
+    http_limit_exceeded and the transport-code mapping at controlled.py:150-155.
+    The generic retryability registry predates it and is overridden in the
+    controlled path; it is not the cause of the observed model repetition.
+  historical_probe: >-
+    tasks/evidence/v455-005-http-pacing-probe.json records six actual controlled
+    tool/native bridge/local socket probes. Historical targetRequests=2 exhausted
+    before bridge entry; waiting did not replenish it. Existing RPS=2 already
+    paced physical sends by 0.5 seconds with injected time. A 429 was ordinary
+    response data. Those probes explain the old implementation; total-allowance
+    tests and completion guidance are superseded by the user's removal decision.
+  boundary: >-
+    Engagement owns authorized routes and optional RPS/concurrency/body bounds.
+    HTTPTransport owns shared physical-send admission for controlled tools and
+    scanner proxy ingress, bounded pre-send safe retries and send-state facts.
+    Controlled tool adaptation owns bounded Runtime-authored model diagnostics.
+    Worker/lifecycle owns fatal infrastructure and authority failures. Retained
+    diagnostics/telemetry preserve safe reason codes without URLs, credentials,
+    request/response content or exception text. Model results may contain the
+    authorized public scope; sensitive HTTP telemetry remains metadata-only.
+  selected_policy: >-
+    Remove targetRequests from schemas, validators, contracts, Runtime enforcement,
+    UI previews, configurations and active fixtures, rejecting the removed field
+    as unknown. Keep existing RPS waits pending within the same call, respecting
+    deadline/cancellation and rechecking authority before send. No added delays
+    or new automatic response retries. Provide allowed origins proactively in
+    the HTTP tool surface and on target-denied responses, including applicable
+    method/path/exclusion and credential-origin restrictions so the projection
+    does not imply broader authority. Never expose protected infrastructure or
+    private credential values. DNS/TLS/connect/timeout failures return a concrete
+    safe reason and a conservative request-may-have-been-sent fact; no automatic
+    replay after a possible send. HTTP status responses including 4xx/5xx remain
+    ordinary data. Invalid model arguments/credential choices return actionable
+    corrections. Fatal bridge infrastructure errors stop Worker execution, while
+    lease loss/cancellation use existing lifecycle termination without a subsequent
+    model call. Distinguish target network failures from bridge failures at source.
+  siblings: >-
+    Inventory controlled HTTP tools, scanner proxy ingress, ordinary non-controlled
+    HTTP tools, Worker instrumentation and native bridge error adaptation. Shared
+    transport changes apply to tools and scanner ingress. The ordinary HTTP client
+    has separate status retries; do not silently change its retry behavior or
+    migrate unrelated HTTP clients. Reconcile error registries, specifications,
+    shared Go/Python wire fixtures and engagement UI readers in the same change.
+scope:
+  in:
+    - Remove total-request quota from all active engagement surfaces and strict readers.
+    - Project authorized HTTP scope to the model and provide actionable safe tool errors.
+    - Preserve network failure reasons and possible-send facts through model/diagnostic boundaries.
+    - Route fatal infrastructure/authority failures through existing Worker termination.
+    - Verify real transport/tool/instrumentation paths and shared scanner consumers.
+  out:
+    - New backoff/cooldown policies, blanket delays or repeated-error thresholds.
+    - Changing execution budgets/models, deployment or a paid demo/model comparison.
+    - Replaying unsafe or possibly sent requests, exposing secrets or weakening telemetry suppression.
+acceptance_criteria:
+  - id: A1
+    text: >-
+      Engagement accepts RPS without a total request count; more than forty
+      physical sends can complete subject to ordinary execution budgets. Removed
+      targetRequests is rejected by strict Go/Python/schema/UI readers. Contracts,
+      fixtures and specs agree. RPS applies to sends, redirects and permitted retries
+      through the shared transport; cancellation/deadline prevents later sends.
+  - id: A2
+    text: >-
+      Before choosing an HTTP request, the model can see the explicit allowed
+      origins and applicable route/credential restrictions. An out-of-scope call
+      sends nothing and returns a safe target-denied result with the whitelist.
+      Invalid arguments identify the correction. HTTP 4xx/5xx responses remain data.
+  - id: A3
+    text: >-
+      Deterministic regressions through real controlled transport and instrumented
+      tools distinguish DNS, TLS, connection and timeout failures, retain matching
+      safe internal reasons and report conservative send uncertainty. Pre-send DNS
+      failure is not marked possibly sent; timeout after send is. Unsafe or possibly
+      sent requests are never automatically replayed. No sensitive content leaks
+      into diagnostics, errors or telemetry.
+  - id: A4
+    text: >-
+      Fatal bridge failure, allocation/lease loss and cancellation stop through
+      existing Worker/lifecycle ownership, join owned work and cannot produce
+      another ordinary model/tool loop. Target network failures remain usable
+      request outcomes. Shared scanner ingress remains compatible, and applicability
+      of the separate ordinary HTTP implementation is recorded explicitly.
+tests:
+  - command: make test-wire-cross-language
+    covers: [A1]
+  - command: make test-runtime
+    covers: [A1, A2, A3, A4]
+  - command: make ui-verify
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+verification_notes: >-
+  Completed on codex/v455-005-http-outcomes after task-definition merge
+  8cada27e100fe1847e206fe2fe42e0ad759c5751 into main. Evidence is recorded in
+  tasks/evidence/v455-005-http-outcomes.json. A1 removes the quota end to end,
+  rejects the removed field and permits 45 native sends with injected RPS waits.
+  A2/A3 exercise actual ADK tool declarations/results, safe network diagnoses,
+  send uncertainty and content-free retained metrics/spans. A4 exercises actual
+  Worker termination, joined cancellation, pending RPS deadline/lease expiry and
+  installed Nuclei fatal-signal propagation. The ordinary HTTP client retains
+  its prior errors and retry policy. All listed gates passed: Runtime 5980 passed
+  and 135 skipped, mandatory report verification, wire, UI and lint. Additional
+  PostgreSQL Go packages and both changed production-process scenarios passed;
+  63 real-path and 187 HTTP-isolation cases passed. Optional heavy I/O stayed
+  disabled; skips are not passing coverage. The owned database was dropped.
+  The implementation remains on its separate branch; no deployment or paid
+  model run was performed.

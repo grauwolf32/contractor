@@ -1822,11 +1822,12 @@ owns their cleanup.
 
 **AUD-R242.** Ordinary Audit limits and Start/Resume deadlines own execution
 budgets independently of engagement. The engagement's optional `limits` may supply
-optional `targetRequests`, `requestsPerSecond`, `concurrentRequests`,
+optional `requestsPerSecond`, `concurrentRequests`,
 `requestBodyBytes` and `responseBodyBytes`. These fields
 are projected into `allocation.engagement.http.limits` and enforced
 locally by Runtime under HTP-R145. Each omitted limit is absent; process/env
 settings and implied defaults cannot supply it. Each allocation starts fresh.
+Engagement has no total HTTP request quota; ordinary execution budgets bound work.
 An engagement Audit has `maxItemRunAttempts: 1`, irrespective of a larger profile
 value. Tool selection and limits never authorize traffic outside egress scope.
 

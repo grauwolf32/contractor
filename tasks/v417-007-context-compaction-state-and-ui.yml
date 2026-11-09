@@ -25,6 +25,10 @@ context:
   - docs/spec/api/public-api.md
   - docs/spec/ui/ui.md
   - docs/spec/ui/journeys.md
+  - docs/spec/execution/worker.md#WRK-R118
+  - docs/spec/execution/worker.md#WRK-R119
+  - docs/spec/execution/worker.md#WRK-R121
+  - docs/spec/execution/worker.md#WRK-R160
   implementation_boundary: Update numbered owning specifications, limits/errors/failure/lifecycle registries,
     strict schemas, fixtures and every affected reader/writer together with implemented behavior. Generated
     clients are regenerated through their tools. No legacy readers, unsupported accepted configuration,
@@ -32,6 +36,15 @@ context:
   adk_migration: V418-007 accepts the exact ADK 2.13.0 lock before V417-002 establishes compaction integration.
     Internal SDK turns are not new logical Contractor invocations; use the accepted migration contract,
     not 2.8 callback/identity assumptions.
+  replanning_authority: 'User request 2026-11-07: reconcile the compaction backlog with merged refactors
+    before implementation. This edit updates task scope and acceptance only; it does not start implementation,
+    run live experiments or claim task completion.'
+  review_baseline: Local main 1142c2681d6520baa8c04bb0a90ca8fd224deb29. Current owning specifications
+    and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
+    and verification history. Recheck affected contracts if main changes before execution.
+  current_state: Basic compaction spans and model.phase=context_compactor already exist; public numeric
+    State/report/UI diagnostics remain this task. V452-002 already optimizes conditional Worker State
+    reads, and V452-001 separates State projection from allocation stop ownership.
 scope:
   in:
   - Bounded numeric compaction State and report/telemetry breakdown, strict schemas and shared fixtures,
@@ -71,9 +84,11 @@ requirements:
     SDK skip/None, abort, error or an uncommitted marker cannot produce applied or the continuing-success
     message.
 - id: R6
-  text: Use existing bounded read models/events and snapshot retention; evolve strict versioned state/report
-    shape coherently without legacy readers. Regenerate clients, update public/private schemas, numeric
-    limits/error fixtures and editor/runtime projections together.
+  text: Extend existing bounded State/report shapes and revision ownership coherently. Every compaction
+    State mutation invalidates conditional-read eligibility; a fresh revision is strictly wire-validated
+    and an unchanged validated revision retains the existing cheap 304 path. Reuse V452 State/stop ownership;
+    add no polling cache, parallel lifecycle lock or public transcript. Update affected schemas, fixtures
+    and generated readers together.
 - id: R7
   text: Validate the UI at 390 px and in light/dark/black themes using existing tokens/components. Expose
     implementation details only where the user needs them; no whole transcript or unbounded phase timeline.
@@ -111,7 +126,8 @@ acceptance_criteria:
   when: Runtime emits State/reports and public readers/UI refresh
   then: Phases and bounded counters agree; no terminal summarizer state reset, premature completion or
     duplicate usage occurs. Repeated callbacks do not inflate counters; a native skip or failure never
-    appears as applied.
+    appears as applied. Compaction mutations invalidate the prior State revision; matching reads of a
+    newly validated unchanged revision retain the existing no-copy 304 behavior.
 - id: A2
   given: A successful checkpoint with no next main usage, and then actual next usage
   when: Metrics are projected before and after the response
@@ -176,3 +192,6 @@ test_prerequisites:
   work counters for assertions, not wall-clock thresholds.
 - Run integration acceptance on the exact ADK 2.13.0 closure accepted by V418-007; record Runtime revision
   and lock digest. No separate old-SDK compaction implementation or version-switching production path.
+- Follow the current Linux/platform and disk-heavy test policies (V433-007 and AGENTS.md). Do not enable
+  CONTRACTOR_TEST_HEAVY_IO implicitly or count declared optional skips as passing coverage. Record exact
+  revision, executed cases and exclusions; this backlog review ran no feature acceptance suites.

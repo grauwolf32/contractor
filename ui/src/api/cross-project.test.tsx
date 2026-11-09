@@ -23,6 +23,7 @@ import {
 } from "./cross-project";
 import type { Project } from "./projects";
 import * as build from "../test/builders";
+import { deferred } from "../test/deferred";
 
 // LIM-UI-15 in docs/spec/platform/limits.md.
 const MAXIMUM_LOADED_PAGES = 20;
@@ -83,6 +84,7 @@ interface ServerState {
   reports?: Record<string, AuditReport>;
   failures?: Record<string, boolean>;
   continuationFails?: string;
+  reportGate?: Promise<void>;
 }
 
 function json(value: unknown, status = 200): Response {
@@ -96,6 +98,8 @@ function json(value: unknown, status = 200): Response {
 }
 function setup(state: ServerState) {
   const requests: URL[] = [];
+  let activeReports = 0;
+  let maximumReports = 0;
   const fetch = vi.fn(async (input: RequestInfo | URL) => {
     const url = new URL(input instanceof Request ? input.url : String(input));
     requests.push(url);
@@ -137,17 +141,24 @@ function setup(state: ServerState) {
     else {
       const match = /^\/v1\/audits\/([^/]+)\/report$/.exec(url.pathname);
       const found = match === null ? undefined : state.reports?.[match[1]!];
-      return found === undefined
-        ? json(
-            {
-              code: "not_found",
-              message: "Not found",
-              retryable: false,
-              requestId: "req_test",
-            },
-            404,
-          )
-        : json(found);
+      activeReports++;
+      maximumReports = Math.max(maximumReports, activeReports);
+      try {
+        await state.reportGate;
+        return found === undefined
+          ? json(
+              {
+                code: "not_found",
+                message: "Not found",
+                retryable: false,
+                requestId: "req_test",
+              },
+              404,
+            )
+          : json(found);
+      } finally {
+        activeReports--;
+      }
     }
     const limit = Number(url.searchParams.get("limit") ?? 50);
     const start = Number(url.searchParams.get("cursor") ?? 0);
@@ -178,7 +189,13 @@ function setup(state: ServerState) {
   );
   const count = (path: string) =>
     requests.filter((url) => url.pathname === path).length;
-  return { requests, queryClient, wrapper, count };
+  return {
+    requests,
+    queryClient,
+    wrapper,
+    count,
+    maximumReports: () => maximumReports,
+  };
 }
 async function settled(result: { current: { isPending: boolean } }) {
   await waitFor(() => expect(result.current.isPending).toBe(false));
@@ -386,6 +403,44 @@ describe("owner-wide lists", () => {
         ?.searchParams.get("severity"),
     ).toBe("high");
   });
+  it("keeps the Inbox count a lower bound beyond the findings page cap", async () => {
+    const state = base();
+    const one = finding("project_a", "finding_0");
+    const pageSize = 200;
+    state.findings = {
+      audit_a: Array.from(
+        { length: MAXIMUM_LOADED_PAGES * pageSize + 1 },
+        (_, index) => ({ ...one, findingId: `finding_${index}` }),
+      ),
+    };
+    const server = setup(state);
+    const { result } = renderHook(() => useInboxSummary(), {
+      wrapper: server.wrapper,
+    });
+    await waitFor(() =>
+      expect(result.current.needsDecision).toBe(
+        MAXIMUM_LOADED_PAGES * pageSize,
+      ),
+    );
+    expect(result.current).toMatchObject({ truncated: true, partial: false });
+    expect(server.count("/v1/findings")).toBe(MAXIMUM_LOADED_PAGES + 1);
+  });
+  it("keeps the Inbox count partial after a failed findings continuation", async () => {
+    const state = base();
+    const one = finding("project_a", "finding_0");
+    state.findings = {
+      audit_a: Array.from({ length: 201 }, (_, index) => ({
+        ...one,
+        findingId: `finding_${index}`,
+      })),
+    };
+    state.continuationFails = "/v1/findings";
+    const { result } = renderHook(() => useInboxSummary(), {
+      wrapper: setup(state).wrapper,
+    });
+    await waitFor(() => expect(result.current.needsDecision).toBe(200));
+    expect(result.current).toMatchObject({ partial: true, truncated: false });
+  });
   it("does not request an impossible unreviewed severity pair", async () => {
     const server = setup(base());
     const { result } = renderHook(
@@ -426,6 +481,83 @@ describe("owner-wide lists", () => {
     await waitFor(() =>
       expect(server.count("/v1/audits/audit_b/report")).toBe(2),
     );
+  });
+  it("bounds a thousand-check report inventory to one twenty-check window and two transfers", async () => {
+    const state = base();
+    state.audits = {
+      project_a: Array.from({ length: 1000 }, (_, index) =>
+        audit("project_a", `audit_${index}`, "completed"),
+      ),
+    };
+    state.reports = Object.fromEntries(
+      state.audits.project_a!.map((check) => [
+        check.auditId,
+        build.report(check.auditId, "ready", { summary: "x".repeat(32_768) }),
+      ]),
+    );
+    const gate = deferred();
+    state.reportGate = gate.promise;
+    const server = setup(state);
+    const { result, rerender } = renderHook(
+      ({ page }) => useAllReports({ page }),
+      { wrapper: server.wrapper, initialProps: { page: 0 } },
+    );
+    await waitFor(() =>
+      expect(
+        server.requests.filter((url) => url.pathname.endsWith("/report")),
+      ).toHaveLength(2),
+    );
+    expect(server.maximumReports()).toBe(2);
+    expect(
+      server.queryClient
+        .getQueryCache()
+        .findAll({ queryKey: ["cross-project", "report"] }),
+    ).toHaveLength(20);
+    gate.resolve();
+    await settled(result);
+    expect(result.current.reports).toHaveLength(20);
+    expect(
+      server.requests.filter((url) => url.pathname.endsWith("/report")),
+    ).toHaveLength(20);
+    expect(result.current.page).toMatchObject({
+      index: 0,
+      totalChecks: 1000,
+      count: 50,
+      hasNext: true,
+    });
+    for (const entry of server.queryClient
+      .getQueryCache()
+      .findAll({ queryKey: ["cross-project", "report"] }))
+      expect(entry.state.data).toEqual({ status: "ready" });
+    rerender({ page: 1 });
+    await settled(result);
+    expect(result.current.reports).toHaveLength(20);
+    expect(
+      server.requests.filter((url) => url.pathname.endsWith("/report")),
+    ).toHaveLength(40);
+    expect(server.maximumReports()).toBe(2);
+  });
+  it("filters a Project before reading any report payload", async () => {
+    const state = base();
+    state.audits = {
+      project_a: Array.from({ length: 50 }, (_, index) =>
+        audit("project_a", `audit_a_${index}`, "completed"),
+      ),
+      project_b: [audit("project_b", "audit_b", "completed")],
+    };
+    state.reports = { audit_b: report("ready") };
+    const server = setup(state);
+    const { result } = renderHook(
+      () => useAllReports({ projectId: "project_b" }),
+      { wrapper: server.wrapper },
+    );
+    await settled(result);
+    expect(result.current.reports).toHaveLength(1);
+    expect(
+      server.requests
+        .filter((url) => url.pathname.endsWith("/report"))
+        .map((url) => url.pathname),
+    ).toEqual(["/v1/audits/audit_b/report"]);
   });
   it("keeps other reports when a payload fails and treats missing reports as normal", async () => {
     const state = base();

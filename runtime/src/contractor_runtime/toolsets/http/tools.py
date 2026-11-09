@@ -149,7 +149,6 @@ class HTTPToolsetFactory:
     infrastructure_channels = MappingProxyType({"http_request": frozenset({"runtime-http-client"})})
     # Every tool's result carries captured HTTP traffic or HTTP session
     # material, including tools added later.
-    sensitive_output_tools = exported_tools
 
     def __init__(
         self,
@@ -1089,6 +1088,8 @@ class _HTTPTool:
         self._metrics = metrics
         self.__name__ = self.name
         self.__doc__ = self.description
+        if self.name == "http_request":
+            self.__doc__ += getattr(session, "scope_description", "")
 
     async def close(self) -> None:
         await self._session.close()
@@ -1123,8 +1124,9 @@ class HTTPRequestTool(_HTTPTool):
     Controlled Audit HTTP keeps a private response buffer; it does not create trusted
     engagement proof. Configured allocation limits may tighten the common HTTP buffer bounds.
     Audit calls use only explicit credential_id, never Project target credentials.
-    http_request_unknown_outcome is nonretryable: report the gap without repeating
-    the request. Audit cookie state is allocation-only, without artifact checkpoints.
+    Controlled HTTP failures report DNS, TLS, connection or timeout reasons. If a request
+    may have been sent, report the unknown result without repeating the request.
+    Audit cookie state is allocation-only, without artifact checkpoints.
     Request bodies are limited to 1 MiB and response
     bodies to 16 MiB. Target cookies persist within the same Run and Namespace.
     If cookie_checkpoint is unconfirmed, keep this HTTP outcome and call

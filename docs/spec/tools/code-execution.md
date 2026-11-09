@@ -34,7 +34,7 @@ It leaves to other documents:
 - the HTTP and Caido Toolsets: [HTTP and Caido](http-caido.md);
 - the write fence: [Artifact store](../artifacts/artifact-store.md);
 - the Worker failure and termination path: [Worker](../execution/worker.md);
-- telemetry content capture and the shared sensitive-output tool attribute:
+- telemetry content capture and known credential replacement:
   [Observability](../platform/observability.md);
 - the exact CLI and environment spelling of the Podman settings, the
   implementation ceilings and the concrete host guardian protocol: [Runtime
@@ -763,12 +763,10 @@ cleanup outcomes.
 secrets. Bounded command and output content belongs only to the existing
 authorized tool observation surfaces.
 
-**EXE-R119.** Execution-enabled Workers use metadata-only instrumentation even
-when an operator has opted into content capture, because later model requests,
-result finalizers and summaries may contain earlier command or output content
-too. `exec_command` declares this through the shared sensitive-output tool
-attribute (`contractor_sensitive_output`, [OBS-R56 and
-OBS-R57](../platform/observability.md)).
+**EXE-R119.** A configured Worker telemetry exporter captures bounded command
+and output content under OBS-R53–OBS-R57. Exact known credentials are replaced
+before export. Selecting `exec_command` does not suppress other Worker content.
+
 
 ## Interfaces
 
@@ -860,10 +858,10 @@ Runtime host trust boundary for same-UID processes is described with
 
 ## Observability
 
-Metrics, log content and the metadata-only instrumentation of
+Metrics, log content and bounded telemetry content of
 execution-enabled Workers are EXE-R117 to EXE-R119; allocation-owned
-diagnostic state is EXE-R25. Content capture and the sensitive-output
-attribute are owned by [Observability](../platform/observability.md).
+diagnostic state is EXE-R25. Content capture and known credential replacement
+are owned by [Observability](../platform/observability.md).
 
 ## Invariants
 

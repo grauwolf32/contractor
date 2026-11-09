@@ -79,7 +79,7 @@ func postgresAuditTransaction(pool *pgxpool.Pool) AuditTransaction {
 }
 
 func writeExact(
-	t *testing.T,
+	t testing.TB,
 	ctx context.Context,
 	store artifacts.ScopedStore,
 	namespace string,

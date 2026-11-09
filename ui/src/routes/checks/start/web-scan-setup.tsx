@@ -37,9 +37,10 @@ export function WebScanSetup({
           <h3>Scan this project's website</h3>
         </div>
         <p className="ui-caption start-tight">
-          Nuclei checks one HTTP or HTTPS target using the rules you select.
-          Progress, evidence and results are saved in this project's check
-          history.
+          Nuclei runs HTTP rules against one HTTP or HTTPS target. Network
+          access, credentials and request limits come from the selected
+          engagement. Progress, evidence and results are saved in this project's
+          check history.
         </p>
         <Field
           label="Target URL"
@@ -177,8 +178,7 @@ export function WebScanSetup({
       </section>
       <details className="start-advanced">
         <summary>
-          Scan options{" "}
-          <span className="ui-caption">Rule filters and request rate</span>
+          Scan options <span className="ui-caption">Rule filters</span>
         </summary>
         <div className="start-advanced-body start-fields">
           <Field
@@ -216,39 +216,15 @@ export function WebScanSetup({
               />
             )}
           </Field>
-          <Field
-            label="Requests per second"
-            hint="Default 10. Applies to this scan."
-          >
-            {(control) => (
-              <input
-                {...control}
-                type="number"
-                inputMode="numeric"
-                min={schemaLimit(
-                  "AuditWebScanSettings",
-                  "minimum",
-                  "properties",
-                  "rateLimit",
-                )}
-                max={schemaLimit(
-                  "AuditWebScanSettings",
-                  "maximum",
-                  "properties",
-                  "rateLimit",
-                )}
-                step={1}
-                value={model.rate}
-                onChange={(event) => model.setRate(event.target.value)}
-              />
-            )}
-          </Field>
         </div>
       </details>
       <p className="ui-caption">
-        The scan sends live requests and follows this project's active-check
-        policy. Its target and rule inputs are fixed at start. Results record
-        what ran and any gaps; scanner observations still need review.
+        Only controlled HTTP templates are supported. Raw requests, JavaScript,
+        flow, out-of-band callbacks and other unsupported constructs fail
+        explicitly before scanning. The scan sends live requests and follows
+        this project's active-check policy. Its target and rule inputs are fixed
+        at start. Results record what ran and any gaps; scanner observations
+        still need review.
       </p>
       <TechnicalDetails>
         <p>Web scan · web-scan@1 · Nuclei · no model required</p>

@@ -20,6 +20,8 @@ func TestFindingFacadesAndOperationSelection(t *testing.T) {
 		{"security-findings@1", []string{"list_findings"}, true},
 		{"security-findings@1", []string{"finding", "list_findings"}, true},
 		{"security-findings-code@1", []string{"finding"}, true},
+		{"security-findings-trace@1", []string{"finding"}, true},
+		{"security-findings-trace@1", []string{"list_findings"}, false},
 		{"security-findings-http@1", []string{"finding"}, true},
 		{"security-findings-code@1", []string{"list_findings"}, false},
 		{"security-findings@2", []string{"finding"}, false},

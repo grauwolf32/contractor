@@ -429,7 +429,7 @@ func recordAuditChildReceipt(
 		t.Fatal(err)
 	}
 	if err := persistencepostgres.InTx(f.ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		return insertReceipt(f.ctx, tx, receiptID, clientKey+"-proposal", canonical, fingerprint, proposal, evidence, origin, f.request.OwnerID, &project, grant, nil, nil, "")
+		return insertReceipt(f.ctx, tx, receiptID, clientKey+"-proposal", canonical, fingerprint, proposal, evidence, origin, f.request.OwnerID, &project, &grant, nil, nil, "")
 	}); err != nil {
 		return Receipt{}, err
 	}

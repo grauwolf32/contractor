@@ -27,7 +27,7 @@ func TestWebAuditExecutorRetainsInstalledAndCustomRules(t *testing.T) {
 				t.Fatalf("execution: %v", err)
 			}
 			call := h.invoker.calls[0].request
-			if call.Parameters["target"] != "https://target.test/api?view=all" || call.Parameters["template_ids"] != "fixture-*" || call.Parameters["tags"] != "http" || call.Parameters["severity"] != "high,critical" || call.Parameters["rate_limit"] != "7" {
+			if call.Parameters["target"] != "https://target.test/api?view=all" || call.Parameters["template_ids"] != "fixture-*" || call.Parameters["tags"] != "http" || call.Parameters["severity"] != "high,critical" || call.Parameters["rate_limit"] != "" {
 				t.Fatalf("exact selection lost: %+v", call.Parameters)
 			}
 			_, pack := call.Artifacts["rulepack"]

@@ -64,7 +64,7 @@ func TestPostgresDatabaseKeepsBudgetsFromOtherSessionsSnapshots(t *testing.T) {
 	}
 	var name string
 	t.Run("fixture", func(t *testing.T) {
-		own := Database(t, ctx, databaseURL, func(ctx context.Context, pool *pgxpool.Pool) error {
+		own := Database(t, ctx, "", func(ctx context.Context, pool *pgxpool.Pool) error {
 			_, err := pool.Exec(ctx, `CREATE TABLE settings (id integer PRIMARY KEY)`)
 			return err
 		})

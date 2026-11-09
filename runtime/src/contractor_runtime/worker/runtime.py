@@ -39,11 +39,13 @@ from contractor_runtime.contracts import (
     WorkerSessionMode,
 )
 from contractor_runtime.core.async_tasks import join_owned_task
+from contractor_runtime.core.tool_errors import ToolExecutionError
 from contractor_runtime.core.worker_completion import (
     ContinueCompletion,
     WorkerCompletionError,
     bind_worker_completion,
 )
+from contractor_runtime.llm.cost import model_cost_phase
 from contractor_runtime.llm.factory import ModelFactory, gateway_model
 from contractor_runtime.llm.openai import (
     GatewayModelError,
@@ -53,10 +55,6 @@ from contractor_runtime.llm.response import output_limit_reached
 from contractor_runtime.projectfs import (
     WorkspaceAutoExporter,
     WorkspaceExportError,
-)
-from contractor_runtime.telemetry.execution import (
-    ContentFreeInstrumentation,
-    declares_sensitive_output,
 )
 from contractor_runtime.worker.adk_features import require_supported_adk_features
 from contractor_runtime.worker.adk_turn import AdkTurnRunner
@@ -108,23 +106,6 @@ if TYPE_CHECKING:
 MAX_STAGE_REQUEST_JSON_BYTES = 256 * 1024
 
 
-def requires_content_free_telemetry(
-    tools: Mapping[str, Any], *, sensitive_output_tools: frozenset[str]
-) -> bool:
-    """Whether any selected tool makes the whole Worker's telemetry content-free.
-
-    ``sensitive_output_tools`` are the tool names that the registered toolset
-    factories declare as returning captured HTTP traffic or HTTP session
-    material (every http-tools@1 and Caido tool, including tools added later).
-    A tool may also declare ``contractor_sensitive_output`` itself.
-    """
-
-    return any(
-        name in sensitive_output_tools or declares_sensitive_output(tool)
-        for name, tool in tools.items()
-    )
-
-
 class AdkWorkerRuntime:
     def __init__(
         self,
@@ -147,10 +128,6 @@ class AdkWorkerRuntime:
         self._model_factory = model_factory
         self._metrics = context.state.metrics
         self._instrumentation = context.adapter_handles.instrumentation
-        if self._instrumentation is not None and requires_content_free_telemetry(
-            context.tools, sensitive_output_tools=context.sensitive_output_tools
-        ):
-            self._instrumentation = ContentFreeInstrumentation(self._instrumentation)
         self._app_name = "contractor_runtime_worker"
         self._user_id = "contractor_control_plane"
         self._session_lifecycle = WorkerSessionLifecycle(
@@ -490,6 +467,11 @@ class AdkWorkerRuntime:
                 )
             elif gateway_error is not None:
                 outcome = _gateway_worker_failure(gateway_error)
+            elif (tool_error := _chained_error(error, ToolExecutionError)) is not None:
+                self._accepting = False
+                outcome = _failure(
+                    tool_error.code, "HTTP execution infrastructure unavailable", False
+                )
             else:
                 outcome = _failure("worker_execution_failed", "Worker execution failed", True)
             self._metrics.record_outcome("failed")
@@ -827,13 +809,14 @@ class AdkWorkerRuntime:
             if model is self._model:
                 raise WorkerCompactionError.failed("model_not_isolated")
             try:
-                candidate = await run_compactor(
-                    model=model,
-                    config=compaction.config,
-                    document=plan.document,
-                    invocation_id=invocation_id,
-                    observer=self._plugin,
-                )
+                with model_cost_phase("compaction"):
+                    candidate = await run_compactor(
+                        model=model,
+                        config=compaction.config,
+                        document=plan.document,
+                        invocation_id=invocation_id,
+                        observer=self._plugin,
+                    )
             except WorkerCompactionError:
                 raise
             except Exception as error:
@@ -905,6 +888,8 @@ class AdkWorkerRuntime:
         self._raise_observed_tool_cancellation()
 
     def _raise_observed_tool_cancellation(self) -> None:
+        if self._plugin.tool_execution_error_code is not None:
+            raise ToolExecutionError(self._plugin.tool_execution_error_code)
         if not self._plugin.tool_cancellation_observed:
             return
         self._resources.execution.check()

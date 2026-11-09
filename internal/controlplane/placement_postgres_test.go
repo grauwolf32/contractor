@@ -25,6 +25,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/persistence/postgrestest"
+	"github.com/grauwolf32/contractor/internal/runcost"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -63,6 +64,33 @@ func TestPlacementPostgresUsesCandidateAdaptersAndPinsBeforeExposure(t *testing.
 	if allocations[0].RuntimeConfiguration.Provenance.AgentLabels == nil ||
 		allocations[0].RuntimeConfiguration.Provenance.RunLabels[0].Label != "debug" {
 		t.Fatalf("durable provenance = %+v", allocations[0].RuntimeConfiguration)
+	}
+	cost, _, _, err := runstore.NewPostgresStore(pool, nil).ReadLLMCost(ctx, "user-placement", fixture.runID)
+	if err != nil || cost.Reports != "1" || cost.UnknownReports != "1" {
+		t.Fatalf("allocation exposed without expected cost report: %+v %v", cost, err)
+	}
+}
+
+func TestPlacementRollsBackBeforeExposureWhenExpectedReportCannotPersist(t *testing.T) {
+	ctx := t.Context()
+	pool := isolatedPlacementPool(t, ctx)
+	f := newPlacementFixture(t, ctx, pool, nil)
+	f.registerCandidate(t, ctx, "runtime-cost", "1", []runtimesettings.RuntimeAdapterRef{runtimesettings.RuntimeAdapterOTLPHTTP})
+	if _, err := pool.Exec(ctx, `UPDATE workflow_runs SET llm_cost='{"currency":"EUR"}'::jsonb WHERE run_id=$1`, f.runID); err != nil {
+		t.Fatal(err)
+	}
+	if reservations, err := f.allocator.ReserveAllContext(ctx, f.request()); err == nil || len(reservations) != 0 {
+		t.Fatalf("exposed unaccounted allocation: %+v %v", reservations, err)
+	}
+	allocations, err := runstore.NewPostgresStore(pool, nil).ListStageAllocations(ctx, f.stageExecutionID)
+	if err != nil || len(allocations) != 0 {
+		t.Fatalf("failed placement retained allocation: %+v %v", allocations, err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE workflow_runs SET llm_cost='{}'::jsonb WHERE run_id=$1`, f.runID); err != nil {
+		t.Fatal(err)
+	}
+	if reservations, err := f.allocator.ReserveAllContext(ctx, f.request()); err != nil || len(reservations) != 1 {
+		t.Fatalf("failed placement did not release reservation: %+v %v", reservations, err)
 	}
 }
 
@@ -631,7 +659,8 @@ func newPlacementFixture(
 		t.Fatal(err)
 	}
 	allocator, err := NewPlacementAllocator(PlacementAllocatorOptions{Storage: artifactpgtest.NewStorage(),
-		Pool: pool, Registry: registry,
+		Allocations: runcost.NewParticipants(pool, artifactpgtest.NewStorage()),
+		Pool:        pool, Registry: registry,
 		Gateways:       placementGatewayLookup{gateway: *selection.LLMGateway},
 		LLMCredentials: llmCredentials, RuntimeCredentials: placementRuntimeCredentialLookup{},
 		TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(

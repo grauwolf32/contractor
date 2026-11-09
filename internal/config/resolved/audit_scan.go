@@ -12,7 +12,7 @@ import (
 type ScanPreparationConfig struct {
 	Kind              string `json:"kind" yaml:"kind"`
 	Scanner           string `json:"scanner" yaml:"scanner"`
-	SettingsArtifact  string `json:"settingsArtifact" yaml:"settingsArtifact"`
+	ValuesArtifact    string `json:"valuesArtifact,omitempty" yaml:"valuesArtifact,omitempty"`
 	OperationArtifact string `json:"operationArtifact,omitempty" yaml:"operationArtifact,omitempty"`
 	UnknownOutcome    string `json:"unknownOutcome" yaml:"unknownOutcome"`
 }
@@ -48,22 +48,22 @@ func validateScanPreparationStage(stage ResolvedStage) error {
 	tool := stage.ScanPlan.Tools[0]
 	binding, ok := stage.Agents[tool.Worker]
 	if !ok || binding.Template.Execution == nil || binding.Template.Execution.Tool != "scan_"+value.Scanner || tool.MaxJobs != 1 || len(tool.TestParameters) != 0 || tool.WordlistArtifact != "" {
-		return fmt.Errorf("scanPreparation Worker must match the exact scanner settings")
+		return fmt.Errorf("scanPreparation Worker must match the selected scanner")
 	}
 	if value.Scanner == "nuclei" {
 		templates, ok := binding.Template.Execution.Arguments["template_ids"]
 		text, isString := templates.Value.(string)
 		if !ok || !(templates.Source == "literal" && isString && text != "" || scan.IsNucleiSelectionBinding("template_ids", templates)) {
-			return fmt.Errorf("Nuclei preparation requires a literal or exact-settings template selection")
+			return fmt.Errorf("Nuclei preparation requires a literal or parameter template selection")
 		}
 	}
 	if value.Kind == "web-target" {
 		if value.Scanner != "nuclei" {
 			return fmt.Errorf("web target preparation requires Nuclei")
 		}
-		for _, name := range []string{"template_ids", "tags", "severity", "rate_limit"} {
+		for _, name := range []string{"template_ids", "tags", "severity"} {
 			if !scan.IsNucleiSelectionBinding(name, binding.Template.Execution.Arguments[name]) {
-				return fmt.Errorf("web target preparation requires exact-settings selection bindings")
+				return fmt.Errorf("web target preparation requires parameter selection bindings")
 			}
 		}
 		pin := binding.Template.Execution.Arguments["templates_digest"]
@@ -77,7 +77,10 @@ func validateScanPreparationStage(stage ResolvedStage) error {
 
 func validateScanPreparationContext(stage ResolvedStage) error {
 	value := stage.ScanPreparation
-	slots := []string{stage.ScanPlan.InputArtifact, value.SettingsArtifact}
+	slots := []string{stage.ScanPlan.InputArtifact}
+	if value.ValuesArtifact != "" {
+		slots = append(slots, value.ValuesArtifact)
+	}
 	if value.OperationArtifact != "" {
 		slots = append(slots, value.OperationArtifact)
 	}
@@ -96,7 +99,7 @@ func validateScanPreparationContext(stage ResolvedStage) error {
 		if !exists {
 			return fmt.Errorf("scanPreparation context input is absent")
 		}
-		if name == "rulepack" && !input.Required {
+		if (name == "rulepack" || name == value.ValuesArtifact) && !input.Required {
 			if ValidateArtifactComponent("rulepack context", input.Name) != nil {
 				return fmt.Errorf("invalid rulepack context")
 			}
@@ -108,7 +111,7 @@ func validateScanPreparationContext(stage ResolvedStage) error {
 		}
 	}
 	if len(stage.Context.Artifacts) != len(slots) || stage.Context.Workspace != nil {
-		return fmt.Errorf("scanPreparation accepts only its declared source, operation, settings and rulepack")
+		return fmt.Errorf("scanPreparation accepts only its declared source, operation, request values and rulepack")
 	}
 	return nil
 }

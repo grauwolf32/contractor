@@ -1,3 +1,4 @@
+import { materialDisplayName } from "../artifacts/display-name";
 import { type ReactNode } from "react";
 
 import type { ArtifactMetadata } from "../../api/artifacts";
@@ -169,24 +170,20 @@ function materialEvent(
     kind: "materials",
     time: material.createdAt,
     tone: "neutral",
-    title: materialKindLabel(material),
-    text: (
-      <>
-        <ContextLink
-          returnLabel="Project Overview"
-          to={artifactDetailPath(
-            { kind: "project", id: projectId },
-            {
-              namespace,
-              name,
-            },
-          )}
-        >
-          {namespace}/{name}
-        </ContextLink>{" "}
-        saved.
-      </>
+    title: (
+      <ContextLink
+        returnLabel="Project Overview"
+        title={`${namespace}/${name}`}
+        aria-label={`${namespace}/${name}`}
+        to={artifactDetailPath(
+          { kind: "project", id: projectId },
+          { namespace, name },
+        )}
+      >
+        {materialDisplayName(name)}
+      </ContextLink>
     ),
+    text: ` · ${materialKindLabel(material)} saved.`,
   };
 }
 

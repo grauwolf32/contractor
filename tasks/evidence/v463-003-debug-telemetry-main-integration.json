@@ -1,0 +1,71 @@
+{
+  "task_id": "V463-003",
+  "date": "2026-11-09",
+  "feature_head": "61ccaf570",
+  "main_before": "fc64128447024c33728fbed8c9cf6694a5cd5504",
+  "tested_integration_commit": "1524eab125f4976b499c615a074fe75d5101ea23",
+  "integration": {
+    "conflicts": [
+      "tasks/BACKLOG.md (regenerated)"
+    ],
+    "generated": [
+      "tasks/BACKLOG.md",
+      "docs/spec/audit-workflow-dependencies.html"
+    ],
+    "ui_version": "0.11.31",
+    "check_workspace": "Check routes, Audit routes and e2e files match current main exactly."
+  },
+  "unchanged_source_trees": {
+    "runtime": "db6cb6315389969803b5a1a59702567571687ab1",
+    "internal": "29b83745c898046c4efb164baec0daa121b8cd90",
+    "api": "cafe271379c9a08563f323599fa3436d15092072"
+  },
+  "reused_verification": {
+    "source_task": "V463-002",
+    "runtime": {
+      "passed": 6140,
+      "skipped": 135
+    },
+    "go": "Full telemetry race suite with PostgreSQL passed; dedicated database dropped.",
+    "wire": "380 shared fixtures, 433 Go and 277 Python shared tests; optional heavy-I/O skip is not passing coverage.",
+    "feature_scope": "V463-001 also verified RuntimeConfig/Scheduler/secret matcher, full UI, public API/wire and lint before the protocol fix; current main changed only UI and tasks."
+  },
+  "verification": [
+    {
+      "command": "make ui-generate-check ui-lint ui-typecheck ui-build",
+      "exit_code": 0,
+      "log": "../v463003-ui-gates.log"
+    },
+    {
+      "command": "cd ui && corepack pnpm test --run --maxWorkers=1",
+      "log": "../v463003-ui-tests.log",
+      "exit_code": 0,
+      "files_passed": 223,
+      "passed": 2513,
+      "expected_failure": 1
+    },
+    {
+      "command": "cd ui && corepack pnpm test:server",
+      "exit_code": 0,
+      "passed": 17,
+      "log": "../v463003-ui-server.log"
+    },
+    {
+      "command": "make lint",
+      "log": "../v463003-lint.log",
+      "exit_code": 0
+    }
+  ],
+  "delivery": {
+    "merged_to_main": true,
+    "remote_push": false,
+    "deployed": false,
+    "main_merge": "92edcb1cf4a8b19fb787cd8b4f738f36e0261ae5",
+    "main_parents": [
+      "fc64128447024c33728fbed8c9cf6694a5cd5504",
+      "ec97da863947106cc5619d5a4b5a169a9dabaf3e"
+    ],
+    "merged_tree_matches_verified_branch": true
+  },
+  "implementation_commit": "92edcb1cf4a8b19fb787cd8b4f738f36e0261ae5"
+}

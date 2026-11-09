@@ -252,3 +252,23 @@ export function compareVersions(left: string, right: string): number {
     (left < right ? -1 : left > right ? 1 : 0)
   );
 }
+
+/** Exact fixed-point units are shared by validation and presentation. */
+export function usdUnits(amount: string): bigint {
+  const [whole = "0", fraction = ""] = amount.split(".");
+  return BigInt(whole) * 10n ** 18n + BigInt(fraction.padEnd(18, "0"));
+}
+
+/** Display rounding only: all totals and exact details stay decimal strings. */
+export function formatUSD(amount: string | null): string {
+  if (amount === null) return "—";
+  const units = usdUnits(amount);
+  if (units > 0n && units < 10n ** 16n) return "<$0.01";
+  const cents = (units + 5n * 10n ** 15n) / 10n ** 16n;
+  return (
+    "$" +
+    (cents / 100n).toLocaleString("en-US") +
+    "." +
+    (cents % 100n).toString().padStart(2, "0")
+  );
+}

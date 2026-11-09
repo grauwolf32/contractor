@@ -31,9 +31,10 @@ actual Langfuse host; the complete trace path is `/api/public/otel/v1/traces`.
 The loopback example assumes both Server and Runtime run on the host. A
 containerized process needs an address reachable from its container.
 
-Set `captureContent: true` to capture prompts and responses. Existing sensitive
-tool suppression and redaction remain in force. Existing Runs retain their
-pinned configuration.
+Select the `debug` Runtime label bound to this telemetry configuration to
+capture bounded prompts, responses and tool content. Exact known credentials
+are replaced before export; unknown or transformed secrets are not detected.
+Existing Runs retain their pinned configuration.
 
 OTLP/JSON decoding ignores unknown message fields, as required by the
 [OTLP specification](https://opentelemetry.io/docs/specs/otlp/#json-protobuf-encoding).

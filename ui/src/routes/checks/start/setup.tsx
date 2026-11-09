@@ -1,3 +1,4 @@
+import { ExecutionParameters } from "./execution-parameters";
 import { useId, useRef } from "react";
 import { Link } from "react-router";
 
@@ -117,7 +118,7 @@ function TypeSection({ model }: { model: StartCheck }) {
     <section className="start-type" aria-labelledby={headingId}>
       <div className="start-selection-head">
         <span className="start-selection-icon">
-          <Icon name={checkTypeIcon()} size={20} />
+          <Icon name={checkTypeIcon(profile)} size={20} />
         </span>
         <div className="start-selection-copy">
           <h2 id={headingId}>{selection.presentation.label}</h2>
@@ -281,6 +282,7 @@ export function SetupBody({ model }: { model: StartCheck }) {
     <>
       <TypeSection model={model} />
       <MaterialsCard model={model} />
+      <ExecutionParameters model={model} />
       <ScopeCard model={model} />
       <LiveTargetFields model={model} />
       <SetupOptions model={model} />
@@ -506,6 +508,7 @@ export function SetupFooter({ model }: { model: StartCheck }) {
     (slot) => slot.selected !== undefined,
   ).length;
   const ready = model.startBlocker === undefined;
+  const scope = scopeSummary(profile);
   return (
     <aside className="start-summary-card" aria-label="Your check">
       <h3>Your check</h3>
@@ -520,13 +523,15 @@ export function SetupFooter({ model }: { model: StartCheck }) {
           <dd>
             {model.webScan === undefined
               ? `${selected} of ${model.slots.length} selected`
-              : "Target and scan settings"}
+              : "Target, rules and engagement"}
           </dd>
         </div>
-        <div>
-          <dt>Scope</dt>
-          <dd>{scopeSummary(profile).size}</dd>
-        </div>
+        {scope === undefined ? null : (
+          <div>
+            <dt>Scope</dt>
+            <dd>{scope.size}</dd>
+          </div>
+        )}
         <div>
           <dt>Time limit</dt>
           <dd>

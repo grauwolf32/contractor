@@ -152,6 +152,9 @@
         "tools"
       ],
       "properties": {
+        "llmCost": {
+          "$ref": "llm-cost.schema.json"
+        },
         "durationMs": {
           "$ref": "performance.schema.json#/$defs/resourceInteger"
         },
@@ -610,7 +613,9 @@
             }
           },
           "then": {
-            "required": ["summarizerModelPolicy"],
+            "required": [
+              "summarizerModelPolicy"
+            ],
             "properties": {
               "agentTemplate": {
                 "required": [
@@ -1173,7 +1178,8 @@
             "otlp-headers@1",
             "target-basic@1",
             "target-bearer@1",
-            "target-cookies@1"
+            "target-cookies@1",
+            "target-api-keys@1"
           ],
           "title": "Kind",
           "type": "string"
@@ -1413,7 +1419,8 @@
                         "enum": [
                           "target-basic@1",
                           "target-bearer@1",
-                          "target-cookies@1"
+                          "target-cookies@1",
+                          "target-api-keys@1"
                         ]
                       }
                     }
@@ -1424,13 +1431,6 @@
                 "type": "object",
                 "minProperties": 1,
                 "maxProperties": 128,
-                "propertyNames": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 256,
-                  "x-maxBytes": 256,
-                  "pattern": "^[!#$%&'*+.^_`|~0-9A-Za-z-]{1,256}$"
-                },
                 "additionalProperties": {
                   "type": "string",
                   "minLength": 0,
@@ -1442,6 +1442,50 @@
             "required": [
               "credential",
               "fields"
+            ],
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "credential": {
+                      "properties": {
+                        "kind": {
+                          "const": "target-api-keys@1"
+                        }
+                      }
+                    }
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "fields": {
+                      "propertyNames": {
+                        "type": "string",
+                        "minLength": 7,
+                        "maxLength": 263,
+                        "pattern": "^(header|query|cookie):[^\\u0000-\\u001f\\u007f]+$",
+                        "x-maxBytes": 263
+                      },
+                      "additionalProperties": {
+                        "minLength": 1
+                      }
+                    }
+                  }
+                },
+                "else": {
+                  "properties": {
+                    "fields": {
+                      "propertyNames": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256,
+                        "x-maxBytes": 256,
+                        "pattern": "^[!#$%&'*+.^_`|~0-9A-Za-z-]{1,256}$"
+                      }
+                    }
+                  }
+                }
+              }
             ]
           }
         }
@@ -1513,10 +1557,6 @@
           "title": "Headers",
           "type": "object"
         },
-        "captureContent": {
-          "title": "Capturecontent",
-          "type": "boolean"
-        },
         "flushTimeoutSeconds": {
           "maximum": 10,
           "minimum": 1,
@@ -1531,7 +1571,6 @@
         "adapter",
         "endpoint",
         "headers",
-        "captureContent",
         "flushTimeoutSeconds",
         "export"
       ],

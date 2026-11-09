@@ -85,6 +85,7 @@ func configureHTTP(
 		return credentialSet.runtime.ValidateRuntimeCredentialUse(ctx, credentials.RuntimeCredentialUser{UserID: ownerID, Operations: operations}, credentialID, kind)
 	})
 	publicHandler, err := publicapi.NewHandler(publicapi.Dependencies{
+		Costs:        publicapi.CostDependencies{Costs: runservice.NewCostReports(pool)},
 		BearerToken:  cfg.PublicBearerToken,
 		NewRequestID: func() (string, error) { return randomid.New("request_") },
 		Logger:       logger,

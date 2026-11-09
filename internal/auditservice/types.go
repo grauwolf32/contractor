@@ -76,6 +76,7 @@ type ProfileSelector struct {
 type Scope = auditbaseline.Scope
 
 type DraftSelection struct {
+	Parameters              map[string]string                   `json:"parameters,omitempty"`
 	Labels                  runlabels.RunMetadataLabels         `json:"labels"`
 	RequiredPlacementLabels []string                            `json:"requiredPlacementLabels"`
 	Schema                  string                              `json:"schema"`
@@ -91,6 +92,7 @@ type ProfileProjection struct {
 }
 
 type CreateDraftParams struct {
+	Parameters          map[string]string
 	OperationsPrincipal bool
 	Labels              runlabels.RunMetadataLabels
 	// PinnedProfile is trusted server-side Eval preparation, never a public field.

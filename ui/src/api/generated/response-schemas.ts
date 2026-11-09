@@ -180,7 +180,7 @@ export type PublicSchemaName =
   | "AuditStandardExactPackage"
   | "AuditPinnedStandard"
   | "AuditWebTarget"
-  | "AuditWebScanSettings"
+  | "NucleiRuleSelection"
   | "NucleiRuleFilter"
   | "AuditCompatibilityReason"
   | "AuditAssertionScope"
@@ -195,6 +195,7 @@ export type PublicSchemaName =
   | "AuditProgramInput"
   | "AuditProgramInputMapping"
   | "AuditProgramLimits"
+  | "AuditProgramParameter"
   | "AuditProgramPolicy"
   | "AuditProgramSeedSource"
   | "AuditProgramSelector"
@@ -204,6 +205,7 @@ export type PublicSchemaName =
   | "AuditProfile"
   | "AuditProfilePage"
   | "AuditScope"
+  | "AuditLaunchParameters"
   | "CreateAuditRequest"
   | "AuditExactArtifact"
   | "AuditProfileIdentity"
@@ -238,6 +240,7 @@ export type PublicSchemaName =
   | "AuditTaskCreationRequest"
   | "AuditTaskAcceptance"
   | "AuditTaskSource"
+  | "AuditTaskFindings"
   | "AuditTask"
   | "AuditTaskPage"
   | "AuditExecutionItemState"
@@ -286,6 +289,7 @@ export type PublicSchemaName =
   | "FindingWorkflowOrigin"
   | "FindingAuditOrigin"
   | "FindingOrigin"
+  | "FindingScanOrigin"
   | "FindingAuditHold"
   | "FindingProposalReceipt"
   | "FindingProposalPage"
@@ -342,6 +346,12 @@ export type PublicSchemaName =
   | "StageContentResult"
   | "StageTermination"
   | "Cancellation"
+  | "CostCounter"
+  | "USDAmount"
+  | "NullableUSDAmount"
+  | "CostBreakdownRow"
+  | "LLMCostExecution"
+  | "LLMCostSummary"
   | "MetricsSummary"
   | "WorkerCompletionDiagnostics"
   | "AttemptDiagnostic"
@@ -395,6 +405,7 @@ export type PublicSchemaName =
   | "TargetBasicMaterial"
   | "TargetBearerMaterial"
   | "TargetCookiesMaterial"
+  | "TargetAPIKeysMaterial"
   | "CreateRuntimeCredentialRequest"
   | "PinnedRuntimeConfig"
   | "RunRuntimeConfiguration"
@@ -1473,6 +1484,30 @@ export const RESPONSE_SCHEMAS = {
     "401": "Error",
     "404": "Error",
     "409": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "GET /v1/runs/{runId}/llm-cost": {
+    "200": "LLMCostSummary",
+    "400": "Error",
+    "401": "Error",
+    "404": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "GET /v1/audits/{auditId}/llm-cost": {
+    "200": "LLMCostSummary",
+    "400": "Error",
+    "401": "Error",
+    "404": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "GET /v1/projects/{projectId}/llm-cost": {
+    "200": "LLMCostSummary",
+    "400": "Error",
+    "401": "Error",
+    "404": "Error",
     "500": "Error",
     "503": "Error",
   },

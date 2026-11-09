@@ -460,6 +460,9 @@ func TestPassthroughPlannerReportsZeroModelUsageWhenItsSessionFails(t *testing.T
 // every passthrough report states (EVM-R81).
 func assertZeroModelUsage(t *testing.T, report reporting.ExecutionReport) {
 	t.Helper()
+	if cost := report.Metrics.LLMCost; cost == nil || cost.Validate() != nil || cost.Calls != 0 || len(cost.Groups) != 0 {
+		t.Fatal("model-free Planner did not report its known zero LLM cost")
+	}
 	for name, counter := range map[string]*int64{
 		"model calls": report.Metrics.ModelCalls, "input tokens": report.Metrics.InputTokens,
 		"output tokens": report.Metrics.OutputTokens, "total tokens": report.Metrics.TotalTokens,

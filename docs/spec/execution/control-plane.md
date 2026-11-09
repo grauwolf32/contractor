@@ -317,7 +317,7 @@ from the selected Runtime advertisement; this requirement
 is independent of RuntimeConfig adapter provenance. Both wire validators and
 Runtime prepare reject an execution assignment whose enforcement is absent.
 The assignment requires `identities`; non-anonymous entries select exact held
-Basic, Bearer or supplied-cookie credentials.
+Basic, Bearer, supplied-cookie or combined API-key credentials.
 The private projection carries no Audit ID; Run/Stage ownership already belongs
 to AllocationSpec. After placement and trusted policy resolution, composition decrypts only the
 exact held references through the existing synchronous credential consumer,

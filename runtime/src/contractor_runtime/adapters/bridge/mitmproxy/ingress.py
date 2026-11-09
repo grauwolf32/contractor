@@ -13,6 +13,7 @@ from mitmproxy.proxy.layers import http as native_http
 from mitmproxy.proxy.layers.http import _http1, _http2
 from mitmproxy.proxy.mode_specs import ProxyMode
 
+from contractor_runtime.adapters.bridge.errors import BridgeInfrastructureError
 from contractor_runtime.adapters.bridge.mitmproxy.framing import BoundedHttp1Body
 from contractor_runtime.adapters.bridge.mitmproxy.lifecycle import OwnedHandler
 from contractor_runtime.adapters.bridge.mitmproxy.messages import (
@@ -21,9 +22,9 @@ from contractor_runtime.adapters.bridge.mitmproxy.messages import (
     request_target,
     response_message,
 )
-from contractor_runtime.adapters.http_transport import HTTPTransportError
 from contractor_runtime.contracts.engagement import canonical_url
 from contractor_runtime.core.http_limits import MAX_HEADERS, request_header_max_bytes
+from contractor_runtime.core.tool_errors import ToolExecutionError
 from contractor_runtime.shared_config import get_shared_config
 from contractor_runtime.threads import to_thread_until_done
 
@@ -126,7 +127,7 @@ class Ingress(OwnedHandler, server.LiveConnectionHandler):
 
     def log(self, message, level=logging.INFO, exc_info=None):
         if exc_info:
-            self.bridge._exception = RuntimeError("native HTTP ingress dispatch failed")
+            self.bridge._exception = BridgeInfrastructureError()
             self.bridge.error_code = "scan_request_failed"
             for io in self.transports.values():
                 if io.handler is not None:
@@ -167,12 +168,17 @@ class Ingress(OwnedHandler, server.LiveConnectionHandler):
                 await self.flow_hook(hook.name, data)
         except asyncio.CancelledError:
             raise
-        except (HTTPTransportError, TimeoutError, OSError, ValueError):
+        except ToolExecutionError as error:
+            self.bridge._exception = error
+            self.bridge.error_code = "scan_request_failed"
+            if isinstance(data, http.HTTPFlow):
+                data.kill()
+        except (TimeoutError, OSError, ValueError):
             self.bridge.error_code = self.bridge.error_code or "scan_request_failed"
             if isinstance(data, http.HTTPFlow):
                 data.kill()
         except Exception:
-            self.bridge._exception = RuntimeError("native HTTP ingress callback failed")
+            self.bridge._exception = BridgeInfrastructureError()
             self.bridge.error_code = "scan_request_failed"
             if isinstance(data, http.HTTPFlow):
                 data.kill()
@@ -229,7 +235,8 @@ class Ingress(OwnedHandler, server.LiveConnectionHandler):
             headers = [
                 (k, v)
                 for k, v in end_to_end(request.headers.fields)
-                if k.lower() not in {b"host", b"content-length", b"cookie"}
+                if k.lower() not in {b"host", b"content-length"}
+                and not (self.bridge.strip_cookies and k.lower() == b"cookie")
             ]
             outcome, response = await self.bridge._transport.request(
                 url,

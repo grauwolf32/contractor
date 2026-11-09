@@ -1,3 +1,4 @@
+import { materialDisplayRef } from "../../artifacts/display-name";
 import { AssertionMaterialEditor } from "./assertion-material-editor";
 import { useId, type ReactNode } from "react";
 import { Link } from "react-router";
@@ -31,7 +32,9 @@ function exactName(material: ArtifactMetadata): string {
 function MaterialRef({ material }: { material: ArtifactMetadata }) {
   return (
     <span className="start-material-ref">
-      <code>{exactName(material)}</code>
+      <code title={exactName(material)} aria-label={exactName(material)}>
+        {materialDisplayRef(material.artifact)}
+      </code>
       <span>
         {formatName(material.mediaType)}, {formatBytes(material.size)}
       </span>
@@ -93,7 +96,7 @@ function MaterialSlot({
                 key={materialKey(candidate)}
                 value={materialKey(candidate)}
               >
-                {exactName(candidate)} · {candidate.mediaType}
+                {materialDisplayRef(candidate.artifact)} · {candidate.mediaType}
               </option>
             ))}
           </select>

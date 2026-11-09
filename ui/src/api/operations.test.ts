@@ -648,7 +648,7 @@ describe("Operations API", () => {
           telemetry: {
             adapter: "otlp-http@1" as const,
             endpoint: "https://otel.example/v1/traces",
-            captureContent: false as const,
+
             flushTimeoutSeconds: 5,
             export: {
               batchSizeBytes: 1048576,

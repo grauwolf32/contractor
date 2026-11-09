@@ -15,15 +15,15 @@ const scanSource = `{
 }`
 
 const sqlmapSettings = `{
- "schema":"contractor.audit.openapi-scan-settings.v1","scanner":"sqlmap","server":"https://target.test/api",
- "authentication":{"bearer":"never-copy-credential"},"testParameters":["q"],
+ "scanner":"sqlmap","server":"https://target.test/api",
+ "credential_id":"fixture-credential","testParameters":["q"],
  "operations":{"#/paths/~1pets~1{id}/post":{
   "parameters":{"path:id":7},"body":{"mediaType":"application/json","value":{"q":"abc"}}
  }}
 }`
 
 const nucleiSettings = `{
- "schema":"contractor.audit.openapi-scan-settings.v1","scanner":"nuclei","server":"https://target.test/api",
+ "scanner":"nuclei","server":"https://target.test/api",
  "operations":{
   "#/paths/~1pets~1{id}/post":{"parameters":{"path:id":7}},
   "#/paths/~1missing~1{id}/get":{}

@@ -25,6 +25,7 @@ from contractor_runtime.contracts import (
 )
 from contractor_runtime.contracts.base import ARGUMENT_NUMBER_MARKER, argument_number_in_range
 from contractor_runtime.core.input_errors import ToolInputError
+from contractor_runtime.llm.cost import CostCollector
 from contractor_runtime.llm.errors import GatewayFailure
 from contractor_runtime.llm.usage import project_token_usage
 from contractor_runtime.redaction import redact_private_values, substring_values
@@ -109,6 +110,7 @@ class MetricsState:
     """
 
     counters: dict[str, int] = field(default_factory=dict)
+    llm_cost: CostCollector = field(default_factory=CostCollector, repr=False)
     final_outcome: str | None = None
     truncated: bool = False
     _tool_calls: list[ToolCallRecord] = field(default_factory=list)
@@ -513,6 +515,7 @@ class MetricsState:
             "summarizer": self._summarizer,
         }
         metrics = ExecutionMetrics(
+            llmCost=self.llm_cost.snapshot(self._report_counter("llm_calls") or 0),
             durationMs=_report_integer(max(0, duration_ms)),
             modelCalls=self._report_counter("llm_calls") or 0,
             tools=tools,

@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strconv"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -136,10 +135,13 @@ func (p *execution) prepare(ctx context.Context, start planner.ScanSessionStart)
 	bindings := map[string]scanplan.ToolBinding{}
 	for name, binding := range p.invocation.Stage.Agents {
 		tool := scanplan.ToolBinding{Namespace: binding.Namespace, Template: binding.Template}
-		if p.audit != nil && p.audit.selection != nil {
-			selection := p.audit.selection
-			tool.Parameters = map[string]string{"template_ids": selection.TemplateIDs, "tags": selection.Tags,
-				"severity": selection.Severity, "rate_limit": strconv.Itoa(selection.RateLimit)}
+		if p.audit != nil {
+			tool.Parameters = map[string]string{}
+			for name, value := range p.invocation.Context.Parameters {
+				if name != "credential_id" || value != "" {
+					tool.Parameters[name] = value
+				}
+			}
 			if argument, exists := binding.Template.Execution.Arguments["rulepack_ref"]; exists {
 				ref := p.invocation.Context.Artifacts[argument.Name]
 				if ref == nil && !argument.Optional {
@@ -265,6 +267,13 @@ func (p *execution) materialize(ctx context.Context, job scanplan.ScanJob) (map[
 
 func (p *execution) request(job scanplan.ScanJob, record planner.ScanJobRecord, deadline time.Time) (contracts.StageContentRequest, error) {
 	request := contracts.StageContentRequest{APIVersion: contracts.APIVersion, SubtaskID: job.ID, Objective: p.invocation.Stage.Objective, Instructions: p.invocation.Stage.Instructions.Text, Parameters: job.Parameters, Artifacts: record.InputArtifacts, ResultArtifacts: map[string]contracts.ArtifactRef{job.Execution.ResultArtifact: p.jobOutput(job)}, Deadline: deadline}
+	if _, selected := p.invocation.Stage.Result.Artifacts["materials"]; selected {
+		for _, name := range []string{"candidates", "evidence"} {
+			ref := p.jobOutput(job)
+			ref.Name += "." + name
+			request.ResultArtifacts[name] = ref
+		}
+	}
 	if err := request.Validate(); err != nil {
 		return contracts.StageContentRequest{}, err
 	}

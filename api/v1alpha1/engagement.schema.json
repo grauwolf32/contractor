@@ -13,7 +13,8 @@
             "anonymous",
             "basic",
             "bearer",
-            "cookies"
+            "cookies",
+            "api-keys"
           ]
         },
         "origins": {
@@ -130,7 +131,8 @@
             "otlp-headers@1",
             "target-basic@1",
             "target-bearer@1",
-            "target-cookies@1"
+            "target-cookies@1",
+            "target-api-keys@1"
           ],
           "type": "string"
         }
@@ -145,11 +147,6 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "targetRequests": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 4294967295
-        },
         "requestsPerSecond": {
           "type": "integer",
           "minimum": 1,

@@ -9,6 +9,7 @@ import secrets
 import time
 from typing import TYPE_CHECKING
 
+from contractor_runtime.adapters.bridge.errors import BridgeInfrastructureError
 from contractor_runtime.core.async_tasks import join_owned_task
 from contractor_runtime.redaction import redact_private_values
 from contractor_runtime.threads import consume_task_exception
@@ -24,10 +25,12 @@ class HTTPProxyBridge:
         *,
         credential_id: str | None,
         deadline: float,
+        strip_cookies: bool = True,
     ) -> None:
         self._transport = transport
         self._credential_id = credential_id
         self._deadline = deadline
+        self.strip_cookies = strip_cookies
         self._token = secrets.token_hex(32)
         encoded = base64.b64encode(("runtime:" + self._token).encode()).decode()
         self._authorization = ("Basic " + encoded).encode()
@@ -50,9 +53,19 @@ class HTTPProxyBridge:
         self._engine = None
         self._exception = None
         self._close_task = None
-        self.error_code: str | None = None
+        self._error_code: str | None = None
+        self.failed = asyncio.Event()
         self.requests = 0
         self._proxy_url = ""
+
+    @property
+    def error_code(self) -> str | None:
+        return self._error_code
+
+    @error_code.setter
+    def error_code(self, value: str) -> None:
+        self._error_code = self._error_code or value
+        self.failed.set()
 
     async def __aenter__(self):
         catalog = self._transport.credentials()
@@ -63,7 +76,10 @@ class HTTPProxyBridge:
         self._engine = await self._transport.open_proxy()
         self._engine.ingresses.add(self)
         try:
-            self._server = await asyncio.start_server(self._accept, "127.0.0.1", 0)
+            try:
+                self._server = await asyncio.start_server(self._accept, "127.0.0.1", 0)
+            except OSError:
+                raise BridgeInfrastructureError() from None
             port = self._server.sockets[0].getsockname()[1]
             self._proxy_url = f"http://runtime:{self._token}@127.0.0.1:{port}"
             return self

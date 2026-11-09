@@ -353,6 +353,9 @@ func (c *contextCompaction) prepareMain(
 	for _, group := range c.groups[c.covered:] {
 		tail += group.bytes
 	}
+	if tail > maxCompactionTailBytes {
+		return compactionLimit("tail")
+	}
 	projected := c.protectedBytes + int64(len(checkpoint.Parts[0].Text)) + tail
 	if c.retainedLocked()+projected > maxCompactionPeakBytes {
 		return compactionLimit("peak")
@@ -488,27 +491,13 @@ type compactorInput struct {
 	History         []*genai.Content   `json:"history"`
 }
 
-func (p *streamlinePlanner) compactorRequest(selection compactionSelection) (*model.LLMRequest, error) {
-	encoded, err := json.Marshal(compactorInput{
-		Objective: p.request.Objective, PreviousSummary: selection.summary,
-		Plan: planView(p.plan.Snapshot()), History: selection.history,
-	})
-	if err != nil {
-		return nil, err
+// compactorOutputSchema is the tool-free auxiliary agent's output contract.
+func compactorOutputSchema() *genai.Schema {
+	return &genai.Schema{
+		Type:       genai.TypeObject,
+		Properties: map[string]*genai.Schema{"summary": {Type: genai.TypeString}},
+		Required:   []string{"summary"},
 	}
-	config := &genai.GenerateContentConfig{
-		SystemInstruction: genai.NewContentFromText(
-			compactorContract+"\n\nCompaction guidance:\n"+p.compaction.settings.instructions, genai.RoleUser,
-		),
-	}
-	if selected := p.compaction.settings.compactor.Temperature; selected != nil {
-		value := float32(*selected)
-		config.Temperature = &value
-	}
-	return &model.LLMRequest{
-		Contents: []*genai.Content{genai.NewContentFromText(string(encoded), genai.RoleUser)},
-		Config:   config,
-	}, nil
 }
 
 // admitCompactorRequest applies the PLN-R128 capacity rule before transport:
@@ -615,22 +604,22 @@ func (p *streamlinePlanner) compactContext(
 	if failure != nil {
 		return state.setExternalFailure(failure)
 	}
-	request, err := p.compactorRequest(selection)
-	if err != nil {
-		return state.setExternalFailure(compactionFailed(compactionReasonInputCapacity))
-	}
 	policy := compaction.settings.compactor
-	if failure := admitCompactorRequest(request, policy, selection.retained); failure != nil {
-		return state.setExternalFailure(failure)
-	}
-	if failure := state.beforeModel(); failure != nil {
-		return failure
-	}
-	span := planner.InvocationInstrumentation(p.invocation).StartSpan(
-		telemetry.PlannerSpanModel,
-		telemetry.PlannerSpanAttributes{Operation: "model.compact", ModelAlias: policy.Model},
-	)
-	reply, err := p.compactor.compact(runContext, request)
+	var span telemetry.PlannerSpan
+	reply, err := p.runCompactor(runContext, selection, func(request *model.LLMRequest) error {
+		// Admit the final ADK request, including its schema and SDK instructions.
+		if failure := admitCompactorRequest(request, policy, selection.retained); failure != nil {
+			return failure
+		}
+		if failure := state.beforeModel(); failure != nil {
+			return failure
+		}
+		span = planner.InvocationInstrumentation(p.invocation).StartSpan(
+			telemetry.PlannerSpanModel,
+			telemetry.PlannerSpanAttributes{Operation: "model.compact", ModelAlias: policy.Model},
+		)
+		return nil
+	})
 	if err != nil {
 		var failure *planner.Error
 		var rejected *gatewayResponseRejected
@@ -638,6 +627,7 @@ func (p *streamlinePlanner) compactContext(
 		switch {
 		case runContext.Err() != nil:
 			failure = stoppedPlannerError(ctx, runContext)
+		case errors.As(err, &failure):
 		case errors.As(err, &rejected):
 			failure = state.rejectedGatewayResponse(rejected)
 		case errors.As(err, &gatewayFailure) && !gatewayFailure.Failure.Retryable:
@@ -649,7 +639,9 @@ func (p *streamlinePlanner) compactContext(
 		if rejected != nil && rejected.usage != nil {
 			attributes.ModelUsage = compactorSpanUsage(rejected.usage)
 		}
-		span.End("failed", attributes)
+		if span != nil {
+			span.End("failed", attributes)
+		}
 		return state.setExternalFailure(failure)
 	}
 	usage := compactorSpanUsage(reply.usage)

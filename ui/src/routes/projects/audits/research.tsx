@@ -1,7 +1,7 @@
 import type { components } from "../../../api/generated/public";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useLocation, useParams, useSearchParams } from "react-router";
+import { Link, useLocation, useSearchParams } from "react-router";
 import {
   auditPollInterval,
   listProjectAudits,
@@ -9,7 +9,6 @@ import {
 } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
 import { conformsTo } from "../../../api/contract";
-import { requireData } from "../../../api/error";
 import { getProject } from "../../../api/projects";
 import { queryKeys } from "../../../api/query-keys";
 import { ContextLink, ReturnLink } from "../../../app/context-navigation";
@@ -17,6 +16,7 @@ import { CursorControls } from "../../../app/cursor-controls";
 import { useDocumentTitle } from "../../../app/document-title";
 import { formatNumber } from "../../../app/format";
 import { Icon } from "../../../app/icon";
+import { LLMCostPanel } from "../../../app/llm-cost";
 import { useURLCursorStack } from "../../../app/pagination";
 import { pollInterval } from "../../../app/polling";
 import { QueryView } from "../../../app/query-view";
@@ -37,17 +37,17 @@ import {
   StatusGlyph,
   TechnicalDetails,
 } from "../../../ui";
-import { IssueRow } from "../../issues/issue-row";
 import { useCheckWorkspace } from "./check-data";
 import { timeLimitText } from "./check-format";
-import { checkPath } from "./check-links";
+import { checkPath, CHECK_SECTIONS } from "./check-links";
+import { useCheckNavigation } from "./check-navigation";
 import { AuditControls } from "./controls";
+import { AuditFindings } from "./audit-findings";
 import { AuditHypotheses } from "./hypotheses";
 import { AuditActivity } from "./activity";
 import { auditProfileLabel } from "./labels";
 import { ResearchMaterialCard } from "./material-card";
 import { StopReasonBanner } from "./progress";
-import { useAuditProjectionRefresh } from "./projection-refresh";
 import {
   useResearchHypotheses,
   useResearchMaterials,
@@ -57,22 +57,6 @@ import {
 import { ResearchTaskTimeline, ResearchWork } from "./research-work";
 import "./checks.css";
 import "./research.css";
-
-const SECTIONS = [
-  ["overview", "Overview"],
-  ["work", "Work"],
-  ["hypotheses", "Hypotheses"],
-  ["findings", "Possible issues"],
-  ["materials", "Materials"],
-  ["activity", "Activity"],
-] as const;
-type Section = (typeof SECTIONS)[number][0];
-function href(audit: Audit, section: Section) {
-  return (
-    checkPath(audit.projectId, audit.auditId) +
-    (section === "overview" ? "" : `/${section}`)
-  );
-}
 
 function CheckContext({
   audit,
@@ -240,80 +224,6 @@ function Materials({ audit }: { audit: Audit }) {
   );
 }
 
-function PossibleIssues({ audit }: { audit: Audit }) {
-  const api = usePublicAPI();
-  const pages = useURLCursorStack({ param: "findingsCursor" });
-  const key = [
-    ...queryKeys.audits.allFindings(audit.auditId),
-    "research",
-    pages.cursor,
-  ];
-  const query = useQuery({
-    queryKey: key,
-    queryFn: async ({ signal }) =>
-      requireData(
-        await api.request((client) =>
-          client.GET("/v1/audits/{auditId}/findings", {
-            signal,
-            params: {
-              path: { auditId: audit.auditId },
-              query: {
-                limit: 50,
-                ...(pages.cursor ? { cursor: pages.cursor } : {}),
-              },
-            },
-          }),
-        ),
-      ),
-    refetchInterval: pollInterval<components["schemas"]["AuditFindingPage"]>({
-      interval: 5000,
-      settled: () => auditPollInterval([audit]) === false,
-    }),
-  });
-  useAuditProjectionRefresh(audit, key);
-  return (
-    <section className="research-section">
-      <header className="research-section-head">
-        <div>
-          <p className="eyebrow">Canonical Project findings</p>
-          <h2>Possible issues</h2>
-        </div>
-        <Link to={`/projects/${encodeURIComponent(audit.projectId)}/findings`}>
-          All Project issues →
-        </Link>
-      </header>
-      <QueryView query={query}>
-        {(data) => (
-          <>
-            {data.items.length === 0 ? (
-              <EmptyState title="No possible issues recorded">
-                Collected work can still contain observations, refutations and
-                gaps.
-              </EmptyState>
-            ) : (
-              <ListSection>
-                {data.items.map((finding) => (
-                  <IssueRow
-                    key={finding.findingId}
-                    finding={finding}
-                    to={`/issues/${encodeURIComponent(finding.projectId)}/${encodeURIComponent(finding.findingId)}`}
-                    severityBadges
-                    context={auditProfileLabel(audit)}
-                  />
-                ))}
-              </ListSection>
-            )}
-            <CursorControls
-              label="Possible issue pages"
-              {...pages.controls(data.page)}
-            />
-          </>
-        )}
-      </QueryView>
-    </section>
-  );
-}
-
 function ProgramDetails({ audit }: { audit: Audit }) {
   const query = useResearchProgram(audit);
   return (
@@ -349,28 +259,12 @@ function ProgramDetails({ audit }: { audit: Audit }) {
 }
 
 export function ResearchAudit({ audit }: { audit: Audit }) {
-  const { section: rawSection } = useParams();
-  const section = rawSection ?? "overview";
+  useDocumentTitle(auditProfileLabel(audit));
   const api = usePublicAPI();
-  const [programOpen, setProgramOpen] = useState(false);
   const project = useQuery({
     queryKey: queryKeys.projects.detail(audit.projectId),
     queryFn: () => getProject(api, audit.projectId),
   });
-  const workspace = useCheckWorkspace(audit, audit.state !== "draft");
-  const tasks = useResearchTasks(audit);
-  const hypotheses = useResearchHypotheses(
-    audit,
-    section === "overview" || section === "hypotheses",
-  );
-  const state = checkStateLabel(audit.state);
-  const title = auditProfileLabel(audit);
-  useDocumentTitle(title);
-  const current =
-    tasks.query.data?.items.filter((task) => task.state !== "settled") ?? [];
-  const collected =
-    tasks.query.data?.items.filter((task) => task.state === "settled") ?? [];
-  const valid = SECTIONS.some(([key]) => key === section);
   return (
     <PaneLayout
       className="research-panes"
@@ -387,88 +281,120 @@ export function ResearchAudit({ audit }: { audit: Audit }) {
           projectName={project.data?.name ?? audit.projectId}
         />
       }
-      detail={
-        <DetailPane
-          header={
-            <DetailHeader
-              titleAs="h1"
-              title={title}
-              eyebrow="Check research"
-              breadcrumb={[
-                {
-                  label: project.data?.name ?? audit.projectId,
-                  to: `/projects/${encodeURIComponent(audit.projectId)}`,
-                },
-                {
-                  label: "Checks",
-                  to: `/checks?project=${encodeURIComponent(audit.projectId)}`,
-                },
-              ]}
-              status={<StatusChip tone={state.tone}>{state.label}</StatusChip>}
-              meta={
-                <>
-                  <span>
-                    {audit.startedAt ? "Started" : "Created"}{" "}
-                    <RecordedTime value={audit.startedAt ?? audit.createdAt} />
-                  </span>
-                  {timeLimitText(audit) ? (
-                    <span>{timeLimitText(audit)}</span>
-                  ) : null}
-                  <ContextLink
-                    returnLabel="Check"
-                    to={`/reports/${encodeURIComponent(audit.auditId)}`}
-                  >
-                    Report →
-                  </ContextLink>
-                </>
-              }
-              actions={
-                <AuditControls audit={audit} projectName={project.data?.name} />
-              }
-            />
-          }
-        >
-          <div className="research-body">
-            <StopReasonBanner audit={audit} />
-            {audit.state === "paused" ? (
-              <p className="research-pause-note">
-                New Audit Runs are paused. Admitted work can finish and collect;
-                accepted tasks remain for Continue.
-              </p>
-            ) : null}
-            {audit.scope.objective ? (
-              <section
-                className="research-goal"
-                aria-label="Research objective"
+      detail={<ResearchAuditDetail audit={audit} />}
+    />
+  );
+}
+
+/** One complete detail pane, shared by global Checks and Project entries. */
+export function ResearchAuditDetail({ audit }: { audit: Audit }) {
+  const api = usePublicAPI();
+  const { section, sectionHref: href, listHref } = useCheckNavigation(audit);
+  const [programOpen, setProgramOpen] = useState(false);
+  const heading = useRef<HTMLHeadingElement>(null);
+  useLayoutEffect(() => {
+    const pane = heading.current?.closest(".ui-panes-detail");
+    if (pane) pane.scrollTop = 0;
+  }, [audit.auditId]);
+  const project = useQuery({
+    queryKey: queryKeys.projects.detail(audit.projectId),
+    queryFn: () => getProject(api, audit.projectId),
+  });
+  const workspace = useCheckWorkspace(audit, audit.state !== "draft");
+  const tasks = useResearchTasks(audit);
+  const hypotheses = useResearchHypotheses(
+    audit,
+    section === "overview" || section === "hypotheses",
+  );
+  const state = checkStateLabel(audit.state);
+  const title = auditProfileLabel(audit);
+  const current =
+    tasks.query.data?.items.filter((task) => task.state !== "settled") ?? [];
+  const collected =
+    tasks.query.data?.items.filter((task) => task.state === "settled") ?? [];
+  const valid = CHECK_SECTIONS.some(([key]) => key === section);
+  return (
+    <DetailPane
+      header={
+        <DetailHeader
+          titleAs="h1"
+          titleRef={heading}
+          title={title}
+          eyebrow="Check research"
+          breadcrumb={[
+            {
+              label: project.data?.name ?? audit.projectId,
+              to: `/projects/${encodeURIComponent(audit.projectId)}`,
+            },
+            {
+              label: "Checks",
+              to: listHref,
+            },
+          ]}
+          status={<StatusChip tone={state.tone}>{state.label}</StatusChip>}
+          meta={
+            <>
+              <span>
+                {audit.startedAt ? "Started" : "Created"}{" "}
+                <RecordedTime value={audit.startedAt ?? audit.createdAt} />
+              </span>
+              {timeLimitText(audit) ? (
+                <span>{timeLimitText(audit)}</span>
+              ) : null}
+              <ContextLink
+                returnLabel="Check"
+                to={`/reports/${encodeURIComponent(audit.auditId)}`}
               >
-                <span className="research-symbol">
-                  <Icon name="evals" />
-                </span>
-                <div>
-                  <p className="eyebrow">Research objective</p>
-                  <p>{audit.scope.objective}</p>
-                  {audit.scope.target ? (
-                    <p className="ui-caption">{audit.scope.target}</p>
-                  ) : null}
-                </div>
-                <TechnicalDetails
-                  summary="Scope"
-                  defaultOpen={audit.state === "draft"}
-                >
-                  <Facts
-                    layout="list"
-                    items={[
-                      { term: "Target", value: audit.scope.target },
-                      {
-                        term: "Authorization",
-                        value: audit.scope.authorizationScope,
-                      },
-                    ]}
-                  />
-                </TechnicalDetails>
-              </section>
-            ) : null}
-            {audit.state !== "draft" ? (
+                Report →
+              </ContextLink>
+            </>
+          }
+          actions={
+            <AuditControls audit={audit} projectName={project.data?.name} />
+          }
+        />
+      }
+    >
+      <div className="research-body">
+        <StopReasonBanner audit={audit} />
+        {audit.state === "paused" ? (
+          <p className="research-pause-note">
+            New Audit Runs are paused. Admitted work can finish and collect;
+            accepted tasks remain for Continue.
+          </p>
+        ) : null}
+        {audit.scope.objective ? (
+          <section className="research-goal" aria-label="Research objective">
+            <span className="research-symbol">
+              <Icon name="evals" />
+            </span>
+            <div>
+              <p className="eyebrow">Research objective</p>
+              <p>{audit.scope.objective}</p>
+              {audit.scope.target ? (
+                <p className="ui-caption">{audit.scope.target}</p>
+              ) : null}
+            </div>
+            <TechnicalDetails
+              summary="Scope"
+              defaultOpen={audit.state === "draft"}
+            >
+              <Facts
+                layout="list"
+                items={[
+                  { term: "Target", value: audit.scope.target },
+                  {
+                    term: "Authorization",
+                    value: audit.scope.authorizationScope,
+                  },
+                ]}
+              />
+            </TechnicalDetails>
+          </section>
+        ) : null}
+        {audit.state !== "draft" ? (
+          <div className="research-summary-grid">
+            <div>
               <QueryView
                 query={workspace}
                 loading={<p role="status">Loading progress…</p>}
@@ -504,15 +430,15 @@ export function ResearchAudit({ audit }: { audit: Audit }) {
                       ))}
                     </div>
                     <div className="research-progress-legend">
-                      <Link to={href(audit, "work")}>
+                      <Link to={href("work")}>
                         <StatusGlyph tone="info" />
                         {snapshot.completedTasks} completed
                       </Link>
-                      <Link to={`${href(audit, "work")}?work=gap`}>
+                      <Link to={href("work", { work: "gap" })}>
                         <StatusGlyph tone="warning" />
                         {snapshot.gaps} technical gaps
                       </Link>
-                      <Link to={`${href(audit, "work")}?work=pending`}>
+                      <Link to={href("work", { work: "pending" })}>
                         <StatusGlyph tone="idle" />
                         {snapshot.pendingTasks} pending
                       </Link>
@@ -526,202 +452,199 @@ export function ResearchAudit({ audit }: { audit: Audit }) {
                   </section>
                 )}
               </QueryView>
-            ) : (
-              <p className="ui-caption">
-                Draft check · work is created after Start.
-              </p>
-            )}
-            <nav
-              className="research-tabs section-navigation"
-              aria-label="Check sections"
-            >
-              {SECTIONS.map(([key, label]) => (
-                <Link
-                  key={key}
-                  to={href(audit, key)}
-                  aria-current={section === key ? "page" : undefined}
-                >
-                  {label}
-                  {key === "work" ? <span>{audit.taskCount}</span> : null}
-                </Link>
-              ))}
-            </nav>
-            {!valid ? (
-              <EmptyState title="Unknown check section">
-                <Link to={href(audit, "overview")}>Overview</Link>
-              </EmptyState>
-            ) : null}
-            {section === "overview" ? (
-              <div className="research-overview">
-                <div>
-                  <QueryView
-                    query={tasks.query}
-                    loading={<p role="status">Loading tasks…</p>}
-                  >
-                    {(data) => (
-                      <>
-                        <section className="research-section">
-                          <header className="research-section-head">
-                            <div>
-                              <p className="eyebrow">In progress</p>
-                              <h2>Current work</h2>
-                            </div>
-                            <Link to={href(audit, "work")}>All tasks →</Link>
-                          </header>
-                          {current.length ? (
-                            <ResearchTaskTimeline
-                              audit={audit}
-                              tasks={current.slice(0, 3)}
-                            />
-                          ) : (
-                            <p className="ui-caption">
-                              No pending work on this page.
-                            </p>
-                          )}
-                        </section>
-                        <section className="research-section">
-                          <header className="research-section-head">
-                            <div>
-                              <p className="eyebrow">Collected work</p>
-                              <h2>Results &amp; observations</h2>
-                            </div>
-                          </header>
-                          <ResearchTaskTimeline
-                            audit={audit}
-                            tasks={collected.slice(0, 4)}
-                          />
-                          {collected.length === 0 ? (
-                            <p className="ui-caption">
-                              No collected results on this page.
-                            </p>
-                          ) : null}
-                        </section>
-                        <p className="ui-caption">
-                          Showing the current task page
-                          {data.page.hasMore
-                            ? "; more pages are available"
-                            : ""}
-                          . Collection progress is separate from a security
-                          verdict.
-                        </p>
-                        <CursorControls
-                          label="Task pages"
-                          {...tasks.pages.controls(data.page)}
-                        />
-                      </>
-                    )}
-                  </QueryView>
-                </div>
-                <aside className="research-support">
-                  <section className="research-coverage">
-                    <p className="eyebrow">Fixed checklist</p>
-                    <QueryView query={hypotheses.query}>
-                      {(page) => (
-                        <>
-                          <h2>
-                            {page.fixed_denominator} original requirements
-                          </h2>
-                          <p>
-                            {page.pending_fixed_count
-                              ? `${page.pending_fixed_count} awaiting admission; they remain unchecked.`
-                              : "The original denominator is retained."}
-                          </p>
-                          <p className="ui-caption">
-                            Generated and manual hypotheses are additional.
-                            Per-hypothesis checks show their recorded results
-                            and tested conditions.
-                          </p>
-                          <Link to={href(audit, "hypotheses")}>
-                            View hypotheses →
-                          </Link>
-                        </>
-                      )}
-                    </QueryView>
-                  </section>
-                  <section className="research-finding-summary">
-                    <span className="research-symbol" data-tone="warning">
-                      <Icon name="issues" />
-                    </span>
-                    <div>
-                      <p className="eyebrow">Possible issues</p>
-                      <h2>
-                        {workspace.data
-                          ? `${workspace.data.unreviewedFindings} need review`
-                          : "Project findings"}
-                      </h2>
-                      <p className="ui-caption">
-                        Independent origins and analyst decisions stay with the
-                        Project issue.
-                      </p>
-                      <Link to={href(audit, "findings")}>Inspect issues →</Link>
-                    </div>
-                  </section>
-                  {workspace.data?.gaps ? (
-                    <section className="research-gaps">
-                      <h3>What is still unknown</h3>
-                      <p>
-                        {workspace.data.gaps} tasks have technical gaps. Inspect
-                        their recorded causes and any retained results.
-                      </p>
-                      <Link to={`${href(audit, "work")}?work=gap`}>
-                        Inspect gaps →
-                      </Link>
-                    </section>
-                  ) : null}
-                  <TechnicalDetails
-                    summary="Program & selected materials"
-                    onToggle={setProgramOpen}
-                  >
-                    {programOpen ? <ProgramDetails audit={audit} /> : null}
-                  </TechnicalDetails>
-                </aside>
-              </div>
-            ) : null}
-            {section === "work" ? <ResearchWork audit={audit} /> : null}
-            <div hidden={section !== "hypotheses"}>
-              <AuditHypotheses
-                audit={audit}
-                expanded
-                active={section === "hypotheses"}
-              />
             </div>
-            {section === "findings" ? <PossibleIssues audit={audit} /> : null}
-            {section === "materials" ? <Materials audit={audit} /> : null}
-            {section === "activity" ? (
-              <AuditActivity audit={audit} expanded />
-            ) : null}
-            <TechnicalDetails description="Exact check identity, baseline and configuration.">
-              <Facts
-                size="sm"
-                layout="list"
-                items={[
-                  {
-                    term: "Check ID",
-                    value: <IdChip value={audit.auditId} label="check ID" />,
-                  },
-                  {
-                    term: "Version",
-                    value: `${audit.profile.name}@${audit.profile.version}`,
-                  },
-                  {
-                    term: "Digest",
-                    value: <code>{audit.profile.digest}</code>,
-                  },
-                  { term: "Submitted Runs", value: audit.submittedRunCount },
-                  { term: "Iteration", value: audit.iteration },
-                  { term: "Revision", value: audit.revision },
-                ]}
-              />
-            </TechnicalDetails>
-            <Link
-              className="research-project-issues"
-              to={`/projects/${encodeURIComponent(audit.projectId)}/findings`}
-            >
-              Project possible issues
-            </Link>
+            <LLMCostPanel
+              scope="audit"
+              id={audit.auditId}
+              active={auditPollInterval([audit]) !== false}
+              refreshKey={`${audit.revision}:${audit.state}:${audit.outstandingRunCount}:${audit.collectionPending}`}
+            />
           </div>
-        </DetailPane>
-      }
-    />
+        ) : (
+          <p className="ui-caption">
+            Draft check · work is created after Start.
+          </p>
+        )}
+        <nav
+          className="research-tabs section-navigation"
+          aria-label="Check sections"
+        >
+          {CHECK_SECTIONS.map(([key, label]) => (
+            <Link
+              key={key}
+              to={href(key)}
+              aria-current={section === key ? "page" : undefined}
+            >
+              {label}
+              {key === "work" ? <span>{audit.taskCount}</span> : null}
+            </Link>
+          ))}
+        </nav>
+        {!valid ? (
+          <EmptyState title="Unknown check section">
+            <Link to={href("overview")}>Overview</Link>
+          </EmptyState>
+        ) : null}
+        {section === "overview" ? (
+          <div className="research-overview">
+            <div>
+              <QueryView
+                query={tasks.query}
+                loading={<p role="status">Loading tasks…</p>}
+              >
+                {(data) => (
+                  <>
+                    <section className="research-section">
+                      <header className="research-section-head">
+                        <div>
+                          <p className="eyebrow">In progress</p>
+                          <h2>Current work</h2>
+                        </div>
+                        <Link to={href("work")}>All tasks →</Link>
+                      </header>
+                      {current.length ? (
+                        <ResearchTaskTimeline
+                          audit={audit}
+                          tasks={current.slice(0, 3)}
+                        />
+                      ) : (
+                        <p className="ui-caption">
+                          No pending work on this page.
+                        </p>
+                      )}
+                    </section>
+                    <section className="research-section">
+                      <header className="research-section-head">
+                        <div>
+                          <p className="eyebrow">Collected work</p>
+                          <h2>Results &amp; observations</h2>
+                        </div>
+                      </header>
+                      <ResearchTaskTimeline
+                        audit={audit}
+                        tasks={collected.slice(0, 4)}
+                      />
+                      {collected.length === 0 ? (
+                        <p className="ui-caption">
+                          No collected results on this page.
+                        </p>
+                      ) : null}
+                    </section>
+                    <p className="ui-caption">
+                      Showing the current task page
+                      {data.page.hasMore ? "; more pages are available" : ""}.
+                      Collection progress is separate from a security verdict.
+                    </p>
+                    <CursorControls
+                      label="Task pages"
+                      {...tasks.pages.controls(data.page)}
+                    />
+                  </>
+                )}
+              </QueryView>
+            </div>
+            <aside className="research-support">
+              <section className="research-coverage">
+                <p className="eyebrow">Fixed checklist</p>
+                <QueryView query={hypotheses.query}>
+                  {(page) => (
+                    <>
+                      <h2>{page.fixed_denominator} original requirements</h2>
+                      <p>
+                        {page.pending_fixed_count
+                          ? `${page.pending_fixed_count} awaiting admission; they remain unchecked.`
+                          : "The original denominator is retained."}
+                      </p>
+                      <p className="ui-caption">
+                        Generated and manual hypotheses are additional.
+                        Per-hypothesis checks show their recorded results and
+                        tested conditions.
+                      </p>
+                      <Link to={href("hypotheses")}>View hypotheses →</Link>
+                    </>
+                  )}
+                </QueryView>
+              </section>
+              <section className="research-finding-summary">
+                <span className="research-symbol" data-tone="warning">
+                  <Icon name="issues" />
+                </span>
+                <div>
+                  <p className="eyebrow">Possible issues</p>
+                  <h2>
+                    {workspace.data
+                      ? `${workspace.data.unreviewedFindings} need review`
+                      : "Project findings"}
+                  </h2>
+                  <p className="ui-caption">
+                    Independent origins and analyst decisions stay with the
+                    Project issue.
+                  </p>
+                  <Link to={href("findings")}>Inspect issues →</Link>
+                </div>
+              </section>
+              {workspace.data?.gaps ? (
+                <section className="research-gaps">
+                  <h3>What is still unknown</h3>
+                  <p>
+                    {workspace.data.gaps} tasks have technical gaps. Inspect
+                    their recorded causes and any retained results.
+                  </p>
+                  <Link to={href("work", { work: "gap" })}>Inspect gaps →</Link>
+                </section>
+              ) : null}
+              <TechnicalDetails
+                summary="Program & selected materials"
+                onToggle={setProgramOpen}
+              >
+                {programOpen ? <ProgramDetails audit={audit} /> : null}
+              </TechnicalDetails>
+            </aside>
+          </div>
+        ) : null}
+        {section === "work" ? <ResearchWork audit={audit} /> : null}
+        <div hidden={section !== "hypotheses"}>
+          <AuditHypotheses
+            audit={audit}
+            expanded
+            active={section === "hypotheses"}
+          />
+        </div>
+        {section === "findings" ? <AuditFindings audit={audit} /> : null}
+        {section === "materials" ? <Materials audit={audit} /> : null}
+        {section === "activity" ? (
+          <AuditActivity audit={audit} expanded />
+        ) : null}
+        <TechnicalDetails description="Exact check identity, baseline and configuration.">
+          <Facts
+            size="sm"
+            layout="list"
+            items={[
+              {
+                term: "Check ID",
+                value: <IdChip value={audit.auditId} label="check ID" />,
+              },
+              {
+                term: "Version",
+                value: `${audit.profile.name}@${audit.profile.version}`,
+              },
+              {
+                term: "Digest",
+                value: <code>{audit.profile.digest}</code>,
+              },
+              { term: "Submitted Runs", value: audit.submittedRunCount },
+              { term: "Iteration", value: audit.iteration },
+              { term: "Revision", value: audit.revision },
+            ]}
+          />
+        </TechnicalDetails>
+        <Link
+          className="research-project-issues"
+          to={`/projects/${encodeURIComponent(audit.projectId)}/findings`}
+        >
+          Project possible issues
+        </Link>
+      </div>
+    </DetailPane>
   );
 }

@@ -76,7 +76,7 @@ class HTTPAssignment(StrictWireModel):
         if len(ids) != len(self.identities) or "anonymous" not in ids:
             raise ValueError("controlled HTTP identities are invalid")
         for identity in self.identities:
-            if identity.kind not in {"anonymous", "basic", "bearer", "cookies"}:
+            if identity.kind not in {"anonymous", "basic", "bearer", "cookies", "api-keys"}:
                 raise ValueError("engagement identity kind is unavailable")
         return self
 

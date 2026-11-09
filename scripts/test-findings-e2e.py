@@ -22,6 +22,7 @@ PROCESS_TESTS = (
     "TestFindingsCollectionsRetainOrdinaryAndAuditReceipts",
     "TestFindingsReaderBoundariesAcrossProcesses",
     "TestFindingLocationsAcrossProcesses",
+    "TestTraceFindingCoordinatesAcrossProcesses",
 )
 REQUIRED_TESTS = frozenset(
     (
@@ -53,6 +54,7 @@ PYTHON_FILES = (
     "tests/test_security_findings_toolset.py",
     "tests/test_findings_reader_toolset.py",
     "tests/test_finding_facades.py",
+    "tests/test_trace_findings.py",
     "tests/test_shared_finding_facades.py",
     "tests/test_numbered_file_reads.py",
 )

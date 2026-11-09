@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
@@ -40,6 +41,7 @@ from contractor_runtime.contracts import (
     ReleaseAllocationRequest,
     TerminationError,
 )
+from contractor_runtime.core.async_tasks import join_owned_task
 from contractor_runtime.factories import (
     FactoryRegistry,
     SandboxFactory,
@@ -47,6 +49,7 @@ from contractor_runtime.factories import (
     WorkerRuntime,
     WorkerRuntimeFactory,
 )
+from contractor_runtime.log import MAX_LOG_EXTRA_TEXT
 from contractor_runtime.projectfs import (
     DirectWorkspaceSession,
     WorkspacePreparationError,
@@ -60,6 +63,8 @@ from contractor_runtime.toolsets.http.errors import HTTPToolError
 from contractor_runtime.toolsets.security_findings.collection import FindingsError
 from contractor_runtime.worker.adk_caches import release_adk_tool_caches
 from contractor_runtime.workspace import AllocationWorkspace
+
+logger = logging.getLogger(__name__)
 
 
 def _preparation_error(error: Exception) -> AllocationError:
@@ -144,7 +149,44 @@ class AllocationService:
             self._context.execution.reject()
         if self._context is not None and self._context.resource_metrics is not None:
             self._context.resource_metrics.close()
+        logger.error("Runtime process exit requested: code=%d", code)
         return self._exit_process(code)
+
+    def _reserve_stop_flush(self, context: _AllocationContext, deadline: datetime) -> datetime:
+        """Reserve the existing flush cap inside this stop's original deadline."""
+
+        timeout = context.adapter_host.flush_timeout_seconds
+        if timeout <= 0:
+            return deadline
+        context.stop_deadline = min(context.stop_deadline or deadline, deadline)
+        remaining = max(0.0, (context.stop_deadline - self._now()).total_seconds())
+        return context.stop_deadline - timedelta(seconds=min(timeout, remaining / 2))
+
+    async def _exit_after_stop_failure(
+        self, context: _AllocationContext, *, phase: str, error: BaseException
+    ) -> None:
+        await self._state.fence_allocation(context.allocation_id)
+        # Never format the exception message: it can contain credentials or a
+        # provider response. The original Worker error remains in its spans.
+        logger.error(
+            "Allocation cleanup failed: phase=%s exception=%s",
+            phase,
+            type(error).__name__[:MAX_LOG_EXTRA_TEXT],
+        )
+        if context.stop_deadline is not None:
+            # Reuse the bounded flush while producer handles remain valid.
+            # Repeated caller cancellation cannot skip it or cancel its sender.
+            task = asyncio.create_task(
+                context.adapter_host.flush(deadline=context.stop_deadline, now=self._now),
+                name="allocation-emergency-trace-flush",
+            )
+            await join_owned_task(task)
+            try:
+                if not task.result():
+                    logger.error("Trace flush cancellation before process exit was unconfirmed")
+            except BaseException:
+                logger.error("Trace flush before process exit did not settle")
+        self._force_exit(70)
 
     def _start_resources(self, spec: AllocationSpec) -> ResourceCollector | None:
         if spec.performance_metrics is None:
@@ -528,6 +570,7 @@ class AllocationService:
                 await self._lock.acquire()
         except TimeoutError:
             await self._state.fence_control_lease()
+            logger.error("Allocation cleanup failed: phase=lifecycle_lock exception=TimeoutError")
             self._force_exit(70)
             raise AllocationError(
                 "worker_stop_unconfirmed",
@@ -616,17 +659,20 @@ class AllocationService:
             if context.execution is not None:
                 context.execution.reject()
             await self._state.begin_draining(allocation_id)
-            await self._close_http_or_exit(context, deadline)
+            producer_deadline = self._reserve_stop_flush(context, deadline)
+            await self._close_http_or_exit(context, producer_deadline)
             worker = context.worker
             if worker is None:
                 raise _conflict("allocation Worker is already absent")
-            remaining = (deadline - self._now()).total_seconds()
+            remaining = (producer_deadline - self._now()).total_seconds()
             stop_task: asyncio.Task[None] | None = None
             try:
                 if remaining <= 0:
                     raise TimeoutError
                 operation = (
-                    worker.finalize(deadline) if kind == "finalize" else worker.abort(deadline)
+                    worker.finalize(producer_deadline)
+                    if kind == "finalize"
+                    else worker.abort(producer_deadline)
                 )
                 stop_task = asyncio.create_task(operation, name=f"worker-{kind}-{allocation_id}")
                 done, _ = await asyncio.wait({stop_task}, timeout=remaining)
@@ -635,16 +681,14 @@ class AllocationService:
                     stop_task.add_done_callback(consume_task_exception)
                     raise TimeoutError
                 await stop_task
-            except asyncio.CancelledError:
+            except asyncio.CancelledError as error:
                 if stop_task is not None and not stop_task.done():
                     stop_task.cancel()
                     stop_task.add_done_callback(consume_task_exception)
-                await self._state.fence_allocation(allocation_id)
-                self._force_exit(70)
+                await self._exit_after_stop_failure(context, phase="worker", error=error)
                 raise
             except Exception as error:
-                await self._state.fence_allocation(allocation_id)
-                self._force_exit(70)
+                await self._exit_after_stop_failure(context, phase="worker", error=error)
                 raise AllocationError(
                     "worker_stop_unconfirmed",
                     f"in-process Worker stop could not be guaranteed ({type(error).__name__})",
@@ -653,8 +697,8 @@ class AllocationService:
                 ) from None
 
             context.worker = None
-            await self._stop_tools_or_exit(context, deadline)
-            await self._stop_execution_or_exit(context, deadline)
+            await self._stop_tools_or_exit(context, producer_deadline)
+            await self._stop_execution_or_exit(context, producer_deadline)
             await self._stop_adapters_or_exit(context, deadline)
             if kind == "abort":
                 await self._discard_project_workspace_or_exit(context, deadline)
@@ -678,12 +722,13 @@ class AllocationService:
         state = await self._state.snapshot()
         if state.process_state is ProcessState.ALLOCATED:
             await self._state.begin_draining(context.allocation_id)
-        await self._close_http_or_exit(context, deadline)
+        producer_deadline = self._reserve_stop_flush(context, deadline)
+        await self._close_http_or_exit(context, producer_deadline)
         if context.worker is None:
             if context.release_cleanup_task is not None:
                 await self._state.fence_allocation(context.allocation_id)
                 return
-            await self._stop_tools_or_exit(context, deadline)
+            await self._stop_tools_or_exit(context, producer_deadline)
             await self._stop_adapters_or_exit(context, deadline)
             await self._discard_project_workspace_or_exit(context, deadline)
             await self._state.fence_allocation(context.allocation_id)
@@ -692,15 +737,15 @@ class AllocationService:
         worker = context.worker
         try:
             await _await_before_deadline(
-                lambda: worker.abort(deadline), deadline=deadline, now=self._now
+                lambda: worker.abort(producer_deadline),
+                deadline=producer_deadline,
+                now=self._now,
             )
-        except asyncio.CancelledError:
-            await self._state.fence_allocation(context.allocation_id)
-            self._force_exit(70)
+        except asyncio.CancelledError as error:
+            await self._exit_after_stop_failure(context, phase="worker", error=error)
             raise
         except Exception as error:
-            await self._state.fence_allocation(context.allocation_id)
-            self._force_exit(70)
+            await self._exit_after_stop_failure(context, phase="worker", error=error)
             raise AllocationError(
                 "worker_stop_unconfirmed",
                 f"in-process Worker stop could not be guaranteed ({type(error).__name__})",
@@ -709,7 +754,8 @@ class AllocationService:
             ) from None
 
         context.worker = None
-        await self._stop_tools_or_exit(context, deadline)
+        await self._stop_tools_or_exit(context, producer_deadline)
+        await self._stop_execution_or_exit(context, producer_deadline)
         await self._stop_adapters_or_exit(context, deadline)
         await self._discard_project_workspace_or_exit(context, deadline)
         context.termination_kind = "lease"
@@ -727,9 +773,8 @@ class AllocationService:
             await _await_before_deadline(
                 context.http_transport.close, deadline=deadline, now=self._now
             )
-        except BaseException:
-            await self._state.fence_allocation(context.allocation_id)
-            self._force_exit(70)
+        except BaseException as error:
+            await self._exit_after_stop_failure(context, phase="http", error=error)
             raise
 
     async def _stop_tools_or_exit(
@@ -743,13 +788,11 @@ class AllocationService:
                 deadline=deadline,
                 now=self._now,
             )
-        except asyncio.CancelledError:
-            await self._state.fence_allocation(context.allocation_id)
-            self._force_exit(70)
+        except asyncio.CancelledError as error:
+            await self._exit_after_stop_failure(context, phase="tool", error=error)
             raise
-        except Exception:
-            await self._state.fence_allocation(context.allocation_id)
-            self._force_exit(70)
+        except Exception as error:
+            await self._exit_after_stop_failure(context, phase="tool", error=error)
             raise AllocationError(
                 "tool_cleanup_unconfirmed",
                 "allocation Toolset cleanup could not be guaranteed",
@@ -764,13 +807,11 @@ class AllocationService:
     ) -> None:
         try:
             await context.adapter_host.terminate(deadline=deadline, now=self._now)
-        except asyncio.CancelledError:
-            await self._state.fence_allocation(context.allocation_id)
-            self._force_exit(70)
+        except asyncio.CancelledError as error:
+            await self._exit_after_stop_failure(context, phase="adapter", error=error)
             raise
-        except Exception:
-            await self._state.fence_allocation(context.allocation_id)
-            self._force_exit(70)
+        except Exception as error:
+            await self._exit_after_stop_failure(context, phase="adapter", error=error)
             raise AllocationError(
                 "runtime_adapter_close_unconfirmed",
                 "allocation Runtime adapter close could not be guaranteed",
@@ -793,13 +834,11 @@ class AllocationService:
                 deadline=deadline,
                 now=self._now,
             )
-        except asyncio.CancelledError:
-            await self._state.fence_allocation(context.allocation_id)
-            self._force_exit(70)
+        except asyncio.CancelledError as error:
+            await self._exit_after_stop_failure(context, phase="workspace", error=error)
             raise
-        except Exception:
-            await self._state.fence_allocation(context.allocation_id)
-            self._force_exit(70)
+        except Exception as error:
+            await self._exit_after_stop_failure(context, phase="workspace", error=error)
             raise AllocationError(
                 "workspace_cleanup_unconfirmed",
                 "allocation project workspace cleanup could not be guaranteed",
@@ -820,8 +859,7 @@ class AllocationService:
                 lambda: operation(deadline=deadline), deadline=deadline, now=self._now
             )
         except BaseException as error:
-            await self._state.fence_allocation(context.allocation_id)
-            self._force_exit(70)
+            await self._exit_after_stop_failure(context, phase="execution", error=error)
             if isinstance(error, asyncio.CancelledError):
                 raise
             raise AllocationError(

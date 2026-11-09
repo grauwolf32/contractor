@@ -90,6 +90,44 @@ function response(value: unknown, options: ResponseInit = {}): Response {
 }
 
 describe("Audit API", () => {
+  it("removes an abandoned queued report before it takes a transfer slot", async () => {
+    const started: string[] = [];
+    const finish: Array<() => void> = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        started.push(new URL(request.url).pathname);
+        await new Promise<void>((resolve) => finish.push(resolve));
+        return response({ status: "pending" });
+      }),
+    );
+    const first = getAuditReport(api, "audit_first");
+    const second = getAuditReport(api, "audit_second");
+    const controller = new AbortController();
+    const abandoned = getAuditReport(api, "audit_abandoned", controller.signal);
+    const rejected = expect(abandoned).rejects.toMatchObject({
+      name: "AbortError",
+    });
+    const last = getAuditReport(api, "audit_last");
+    controller.abort();
+    await rejected;
+    await vi.waitFor(() => expect(started).toHaveLength(2));
+    finish[0]!();
+    await first;
+    await vi.waitFor(() => expect(started).toHaveLength(3));
+    expect(started[2]).toBe("/v1/audits/audit_last/report");
+    finish[1]!();
+    finish[2]!();
+    await Promise.all([second, last]);
+    const alreadyAborted = new AbortController();
+    alreadyAborted.abort();
+    await expect(
+      getAuditReport(api, "audit_never", alreadyAborted.signal),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(started).toHaveLength(3);
+  });
+
   it("queues report reads in order without exhausting file transfer capacity", async () => {
     const started: string[] = [];
     const finish: Array<() => void> = [];
@@ -126,6 +164,37 @@ describe("Audit API", () => {
         (_, index) => `/v1/audits/audit_${index}/report`,
       ),
     );
+  });
+  it("forwards active cancellation and makes the released report slot reusable", async () => {
+    const signals: AbortSignal[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        signals.push(request.signal);
+        if (signals.length === 1) {
+          await new Promise<void>((_resolve, reject) =>
+            request.signal.addEventListener(
+              "abort",
+              () => reject(request.signal.reason),
+              { once: true },
+            ),
+          );
+        }
+        return response({ status: "pending" });
+      }),
+    );
+    const controller = new AbortController();
+    const first = getAuditReport(api, "audit_first", controller.signal).catch(
+      (error: unknown) => error,
+    );
+    await vi.waitFor(() => expect(signals).toHaveLength(1));
+    controller.abort();
+    await first;
+    expect(signals[0]!.aborted).toBe(true);
+    await expect(getAuditReport(api, "audit_next")).resolves.toEqual({
+      status: "pending",
+    });
   });
 
   it("releases report slots after failure and isolates API clients", async () => {

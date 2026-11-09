@@ -4899,16 +4899,12 @@
         }
       }
     },
-    "AuditWebScanSettings": {
+    "NucleiRuleSelection": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["schema", "templateIds", "tags", "severity", "rateLimit"],
+      "required": ["template_ids", "tags", "severity"],
       "properties": {
-        "schema": {
-          "type": "string",
-          "const": "contractor.audit.web-scan-settings.v1"
-        },
-        "templateIds": {
+        "template_ids": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/NucleiRuleFilter"
         },
         "tags": {
@@ -4918,8 +4914,7 @@
           "type": "string",
           "maxLength": 2048,
           "pattern": "^(|(info|low|medium|high|critical|unknown)(,(info|low|medium|high|critical|unknown))*)$"
-        },
-        "rateLimit": { "type": "integer", "minimum": 1, "maximum": 1000 }
+        }
       }
     },
     "NucleiRuleFilter": {
@@ -5167,6 +5162,16 @@
         "limits": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditProgramLimits"
         },
+        "parameters": {
+          "additionalProperties": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditProgramParameter"
+          },
+          "maxProperties": 128,
+          "propertyNames": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCommonKey"
+          },
+          "type": "object"
+        },
         "policy": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditProgramPolicy"
         },
@@ -5358,6 +5363,12 @@
       ],
       "type": "object"
     },
+    "AuditProgramParameter": {
+      "additionalProperties": false,
+      "properties": { "required": { "type": "boolean" } },
+      "required": ["required"],
+      "type": "object"
+    },
     "AuditProgramPolicy": {
       "additionalProperties": false,
       "properties": {
@@ -5440,6 +5451,16 @@
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditProgramAttemptLimit"
         },
         "outputs": {
+          "additionalProperties": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCommonKey"
+          },
+          "maxProperties": 128,
+          "propertyNames": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCommonKey"
+          },
+          "type": "object"
+        },
+        "parameter_inputs": {
           "additionalProperties": {
             "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCommonKey"
           },
@@ -5587,11 +5608,26 @@
         }
       }
     },
+    "AuditLaunchParameters": {
+      "type": "object",
+      "maxProperties": 128,
+      "propertyNames": {
+        "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCommonKey"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 4096,
+        "x-max-utf8-bytes": 4096
+      }
+    },
     "CreateAuditRequest": {
       "type": "object",
       "additionalProperties": false,
       "required": ["profile", "inputs"],
       "properties": {
+        "parameters": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditLaunchParameters"
+        },
         "labels": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditLabels"
         },
@@ -5714,6 +5750,9 @@
         "standards"
       ],
       "properties": {
+        "parameters": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditLaunchParameters"
+        },
         "labels": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditLabels"
         },
@@ -5856,6 +5895,9 @@
         "updatedAt"
       ],
       "properties": {
+        "parameters": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditLaunchParameters"
+        },
         "labels": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditLabels"
         },
@@ -6373,6 +6415,22 @@
         }
       }
     },
+    "AuditTaskFindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ids", "truncated"],
+      "properties": {
+        "ids": {
+          "type": "array",
+          "maxItems": 128,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+          }
+        },
+        "truncated": { "type": "boolean" }
+      }
+    },
     "AuditTask": {
       "type": "object",
       "additionalProperties": false,
@@ -6388,6 +6446,9 @@
         "updated_at"
       ],
       "properties": {
+        "findings": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditTaskFindings"
+        },
         "hypothesis_snapshot": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditHypothesisDocument"
         },
@@ -6696,6 +6757,44 @@
             "recordLocator": {
               "type": "string",
               "pattern": "^/runs/[0-9]+/results/[0-9]+$"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "schema",
+            "availability",
+            "algorithm",
+            "value",
+            "adapter",
+            "ruleId",
+            "report",
+            "recordLocator"
+          ],
+          "properties": {
+            "schema": {
+              "type": "string",
+              "const": "contractor.finding.fingerprint-projection.v1"
+            },
+            "availability": { "type": "string", "const": "available" },
+            "algorithm": {
+              "type": "string",
+              "const": "contractor/producer-issue/v1"
+            },
+            "value": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "adapter": { "type": "string", "const": "normalized-candidate/v1" },
+            "ruleId": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,159}$"
+            },
+            "report": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingExactArtifact"
+            },
+            "recordLocator": {
+              "type": "string",
+              "pattern": "^/candidates/[0-9]{1,3}$"
             }
           }
         }
@@ -7394,13 +7493,15 @@
       "required": [
         "runId",
         "stageExecutionId",
-        "allocationId",
         "invocationId",
-        "logicalAgentName",
         "workflow",
         "runDeleted"
       ],
       "properties": {
+        "operation": { "type": "string", "const": "publish-findings@1" },
+        "scan": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingScanOrigin"
+        },
         "runId": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
         },
@@ -7423,6 +7524,34 @@
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingAuditOrigin"
         },
         "runDeleted": { "type": "boolean" }
+      }
+    },
+    "FindingScanOrigin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runId",
+        "stageExecutionId",
+        "allocationId",
+        "logicalAgentName",
+        "artifact"
+      ],
+      "properties": {
+        "artifact": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ExactArtifactRef"
+        },
+        "runId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "stageExecutionId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "allocationId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "logicalAgentName": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArtifactName"
+        }
       }
     },
     "FindingAuditHold": {
@@ -8454,6 +8583,157 @@
         }
       }
     },
+    "CostCounter": { "type": "string", "pattern": "^(0|[1-9][0-9]{0,37})$" },
+    "USDAmount": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]{0,37})(\\.[0-9]{0,17}[1-9])?$"
+    },
+    "NullableUSDAmount": {
+      "oneOf": [
+        {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/USDAmount"
+        },
+        { "type": "null" }
+      ]
+    },
+    "CostBreakdownRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "label", "calls", "amount", "basis"],
+      "properties": {
+        "key": { "type": "string", "minLength": 1, "maxLength": 262 },
+        "label": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "calls": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/CostCounter"
+        },
+        "amount": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/USDAmount"
+        },
+        "basis": {
+          "type": "string",
+          "enum": ["reported", "estimated", "mixed"]
+        }
+      }
+    },
+    "LLMCostExecution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "executionId",
+        "runId",
+        "amount",
+        "basis",
+        "coverage",
+        "pending"
+      ],
+      "properties": {
+        "executionId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "runId": {
+          "type": ["string", "null"],
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$"
+        },
+        "amount": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/NullableUSDAmount"
+        },
+        "basis": {
+          "type": "string",
+          "enum": ["none", "reported", "estimated", "mixed"]
+        },
+        "coverage": {
+          "type": "string",
+          "enum": ["complete", "partial", "pending", "unavailable"]
+        },
+        "pending": { "type": "boolean" }
+      }
+    },
+    "LLMCostSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "scopeId",
+        "currency",
+        "amount",
+        "calls",
+        "pricedCalls",
+        "reports",
+        "unknownReports",
+        "basis",
+        "coverage",
+        "pending",
+        "historicalGap",
+        "asOf",
+        "updatedAt",
+        "checksAmount",
+        "standaloneAmount",
+        "activity",
+        "models",
+        "executions"
+      ],
+      "properties": {
+        "scope": { "type": "string", "enum": ["run", "audit", "project"] },
+        "scopeId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "currency": { "type": "string", "const": "USD" },
+        "amount": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/NullableUSDAmount"
+        },
+        "calls": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/CostCounter"
+        },
+        "pricedCalls": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/CostCounter"
+        },
+        "reports": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/CostCounter"
+        },
+        "unknownReports": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/CostCounter"
+        },
+        "basis": {
+          "type": "string",
+          "enum": ["none", "reported", "estimated", "mixed"]
+        },
+        "coverage": {
+          "type": "string",
+          "enum": ["complete", "partial", "pending", "unavailable"]
+        },
+        "pending": { "type": "boolean" },
+        "historicalGap": { "type": "boolean" },
+        "asOf": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": ["string", "null"], "format": "date-time" },
+        "checksAmount": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/NullableUSDAmount"
+        },
+        "standaloneAmount": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/NullableUSDAmount"
+        },
+        "activity": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/CostBreakdownRow"
+          }
+        },
+        "models": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/CostBreakdownRow"
+          }
+        },
+        "executions": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/LLMCostExecution"
+          }
+        }
+      }
+    },
     "MetricsSummary": {
       "type": "object",
       "additionalProperties": false,
@@ -8905,7 +9185,6 @@
         "credential": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/RuntimeCredentialId"
         },
-        "captureContent": { "type": "boolean" },
         "flushTimeoutSeconds": {
           "type": "integer",
           "minimum": 1,
@@ -9337,7 +9616,8 @@
         "http-origin-bearer@1",
         "target-basic@1",
         "target-bearer@1",
-        "target-cookies@1"
+        "target-cookies@1",
+        "target-api-keys@1"
       ]
     },
     "RuntimeCredentialMetadata": {
@@ -9543,6 +9823,33 @@
         }
       }
     },
+    "TargetAPIKeysMaterial": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fields"],
+      "properties": {
+        "fields": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 128,
+          "propertyNames": {
+            "type": "string",
+            "minLength": 7,
+            "maxLength": 263,
+            "x-max-utf8-bytes": 263,
+            "pattern": "^(header|query|cookie):[^\\x00-\\x1F\\x7F]+$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192,
+            "x-max-utf8-bytes": 8192,
+            "writeOnly": true
+          },
+          "writeOnly": true
+        }
+      }
+    },
     "CreateRuntimeCredentialRequest": {
       "oneOf": [
         {
@@ -9691,6 +9998,21 @@
             "kind": { "type": "string", "const": "target-cookies@1" },
             "material": {
               "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/TargetCookiesMaterial",
+              "writeOnly": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["credentialId", "kind", "material"],
+          "properties": {
+            "credentialId": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/RuntimeCredentialId"
+            },
+            "kind": { "type": "string", "const": "target-api-keys@1" },
+            "material": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/TargetAPIKeysMaterial",
               "writeOnly": true
             }
           }
@@ -9952,7 +10274,6 @@
         },
         "agents": {
           "type": "object",
-          "minProperties": 1,
           "additionalProperties": {
             "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ConsumerExecutionConfig"
           }
@@ -10993,6 +11314,9 @@
         },
         {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/WorkflowSucceedTransition"
+        },
+        {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/WorkflowFailTransition"
         }
       ]
     },
@@ -11161,7 +11485,8 @@
           "enum": [
             "sitemap-openapi-join@1",
             "sitemap-apply-openapi@1",
-            "openapi-prepare-work@1"
+            "openapi-prepare-work@1",
+            "publish-findings@1"
           ]
         },
         "arguments": {
@@ -11505,6 +11830,7 @@
           "required": ["source", "name"],
           "properties": {
             "source": { "type": "string", "const": "parameter" },
+            "optional": { "type": "boolean", "const": true },
             "name": { "type": "string", "minLength": 1, "maxLength": 128 },
             "default": {
               "type": "string",
@@ -11519,6 +11845,7 @@
           "required": ["source", "name", "parse"],
           "properties": {
             "source": { "type": "string", "const": "parameter" },
+            "optional": { "type": "boolean", "const": true },
             "name": { "type": "string", "minLength": 1, "maxLength": 128 },
             "parse": { "type": "string", "const": "integer" },
             "default": {

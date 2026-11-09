@@ -1,0 +1,61 @@
+schema_version: '1.0'
+id: V463-003
+title: Integrate verified debug telemetry and protocol redaction into main
+milestone: runtime-telemetry-2026-10
+epic: operations
+kind: chore
+introduced_by: V463-001
+priority: P1
+status: completed
+implementation_commit: 92edcb1cf4a8b19fb787cd8b4f738f36e0261ae5
+depends_on: [V463-001, V463-002]
+languages: [yaml, markdown, json]
+goal: >-
+  Main contains the verified debug telemetry implementation and both redaction
+  corrections while preserving the independently delivered full Check workspace.
+context:
+  authority: >-
+    User request 2026-11-09: merge the completed telemetry branch into main.
+    This authorizes local no-fast-forward integration; deployment is not requested.
+  evidence: tasks/evidence/v463-003-debug-telemetry-main-integration.json
+  feature_head: 61ccaf570
+  main_base: fc64128447024c33728fbed8c9cf6694a5cd5504
+  ownership: >-
+    Reconcile the current main in the owned telemetry worktree before changing
+    main. Preserve unrelated check-workspace changes. Regenerate generated backlog
+    and dependency graph rather than resolving those files manually. Reuse Runtime,
+    Go/PostgreSQL and wire results only if their source trees remain identical.
+scope:
+  in:
+    - Combine telemetry and current main, resolving generated task/dependency metadata and UI version coherently.
+    - Verify combined UI, generated clients, static checks and unchanged Runtime/Go/API source trees.
+    - Merge the verified combined tree into clean main using --no-ff and record delivery.
+  out:
+    - Deployment, live configuration republication and Invoice Lab reruns.
+    - New features, user working-tree modifications and remote publication.
+acceptance_criteria:
+  - id: A1
+    text: Main contains V463-001 and V463-002 through a no-fast-forward merge.
+  - id: A2
+    text: Current Check workspace changes survive and combined UI verification passes.
+  - id: A3
+    text: Task/spec/generated checks pass, prior Runtime/Go/API evidence remains applicable and main is clean after delivery.
+tests:
+  - command: make ui-generate-check ui-lint ui-typecheck ui-build
+    covers: [A2, A3]
+  - command: cd ui && corepack pnpm test --run --maxWorkers=1
+    covers: [A2]
+  - command: cd ui && corepack pnpm test:server
+    covers: [A2]
+  - command: make lint
+    covers: [A2, A3]
+  - command: git merge-base --is-ancestor 61ccaf570 main
+    covers: [A1]
+
+verification_results:
+  - Combined UI generation, lint, typecheck and production build passed.
+  - All 223 UI test files passed; 2513 tests passed and one pre-existing expected failure remained, plus 17 UI server tests passed.
+  - make lint passed on the reconciled tree, including generated dependencies, task/spec checks and Runtime import boundaries.
+  - Runtime, Go/internal and API source tree hashes match verified V463-002 exactly; Check/Audit routes and browser tests match prior main exactly.
+  - Runtime 6140 passed and 135 declared skips, telemetry race/PostgreSQL and shared fixture results are reused from V463-002; optional skips are not passing coverage.
+  - Main no-fast-forward merge is 92edcb1cf4a8b19fb787cd8b4f738f36e0261ae5; the merged tree exactly matches the verified integration branch. No remote push or deployment was performed.

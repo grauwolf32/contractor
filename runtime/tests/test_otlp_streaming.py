@@ -34,14 +34,14 @@ def _settings(batch_size_bytes: int = 8 * 1024 * 1024) -> TelemetrySettings:
     # Tiny batches keep transport race tests cheap; public validation is tested
     # separately with the supported 1 MiB minimum.
     export = SERVER_EXPORT.model_copy(update={"batch_size_bytes": batch_size_bytes})
-    return telemetry_settings().model_copy(update={"capture_content": True, "export": export})
+    return telemetry_settings().model_copy(update={"export": export})
 
 
 def _span(instrumentation: OTLPInstrumentation, number: int, *, size: int = 2048) -> None:
     span = instrumentation.start_span(
         "contractor.worker.model", attributes={"model.alias": f"model-{number}"}
     )
-    span.set_content("input", '"' + "x" * (size - 2) + '"')
+    span.capture_content("input", "x" * (size - 2))
     span.end(outcome="succeeded")
 
 
@@ -66,7 +66,7 @@ def test_configured_export_limits_and_attempts_control_background_delivery() -> 
         # Validate the actual private wire boundary, with non-default values.
         settings = TelemetrySettings.model_validate_json(
             '{"adapter":"otlp-http@1","endpoint":"https://collector.example/v1/traces",'
-            '"headers":{},"captureContent":true,"flushTimeoutSeconds":10,'
+            '"headers":{},"flushTimeoutSeconds":10,'
             '"export":{"batchSizeBytes":1048576,"maxAttempts":3,'
             '"maxPendingSpans":16,"maxPendingBytes":2097152,'
             '"retry":{"initialBackoffMilliseconds":100,"maxBackoffMilliseconds":1000}}}'
@@ -109,9 +109,7 @@ def test_byte_capacity_flushes_even_when_next_span_cannot_fit() -> None:
             maxAttempts=1,
             retry=SERVER_EXPORT.retry,
         )
-        settings = telemetry_settings().model_copy(
-            update={"capture_content": True, "export": export}
-        )
+        settings = telemetry_settings().model_copy(update={"export": export})
         adapter = await OTLPHTTPAdapterFactory(httpx.MockTransport(collector)).create(
             adapter_context(), settings
         )

@@ -23,6 +23,7 @@ const (
 var fingerprintID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/-]{0,159}$`)
 var fingerprintHex = regexp.MustCompile(`^[0-9a-f]{64}$`)
 var fingerprintCommit = regexp.MustCompile(`^[0-9a-f]{40}$`)
+var candidateFingerprintLocator = regexp.MustCompile(`^/candidates/[0-9]{1,3}$`)
 var fingerprintLocator = regexp.MustCompile(`^/runs/[0-9]+/results/[0-9]+$`)
 
 // FindingFingerprint is immutable derived evidence, separate from the model
@@ -78,7 +79,7 @@ func DecodeFindingFingerprint(data []byte) (FindingFingerprint, error) {
 	if err := strictjson.Decode(data, &value); err != nil {
 		return value, err
 	}
-	if (value.Availability == "unavailable" && len(members) != 3) || (value.Availability == "available" && len(members) != 12) {
+	if (value.Availability == "unavailable" && len(members) != 3) || (value.Availability == "available" && value.Adapter != "normalized-candidate/v1" && len(members) != 12) || (value.Availability == "available" && value.Adapter == "normalized-candidate/v1" && len(members) != 8) {
 		return value, invalid(CodeInvalid, "fingerprint")
 	}
 	return value, validateFindingFingerprint(value)
@@ -92,6 +93,12 @@ func validateFindingFingerprint(value FindingFingerprint) error {
 		allowed := map[string]bool{"not_recorded": true, "not_provided": true, "input_limit": true, "producer_key_unavailable": true, "producer_report_invalid": true, "producer_record_ambiguous": true, "asset_unavailable": true, "discarded": true}
 		if !allowed[value.Reason] || value.Algorithm != "" || value.Value != "" || value.Adapter != "" || value.RuleID != "" || value.Repository != "" || value.Commit != "" || value.SourceDigest != "" || value.Report != nil || value.Source != nil || value.RecordLocator != "" {
 			return invalid(CodeInvalid, "fingerprint.unavailable")
+		}
+		return nil
+	}
+	if value.Availability == "available" && value.Adapter == "normalized-candidate/v1" {
+		if value.Reason != "" || value.Algorithm != "contractor/producer-issue/v1" || !fingerprintHex.MatchString(value.Value) || !fingerprintID.MatchString(value.RuleID) || value.Report == nil || value.Report.Validate() != nil || !value.Report.HasMetadata() || value.Report.MediaType != "application/vnd.contractor.finding-candidates+json" || value.Report.SizeBytes > 512<<10 || !candidateFingerprintLocator.MatchString(value.RecordLocator) || value.Repository != "" || value.Commit != "" || value.SourceDigest != "" || value.Source != nil {
+			return invalid(CodeInvalid, "fingerprint")
 		}
 		return nil
 	}

@@ -1,0 +1,30 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata:
+  name: project-sqlmap-url-scan
+  version: '1'
+spec:
+  runtime: tool@1
+  sandboxProfile: local-workdir@1
+  toolsets:
+  - ref: scan@1
+    tools:
+    - scan_sqlmap
+  execution:
+    arguments:
+      url:
+        source: parameter
+        name: target
+      level:
+        source: literal
+        value: 1
+      risk:
+        source: literal
+        value: 1
+      timeout_seconds:
+        source: literal
+        value: 300
+    resultArtifact: report
+    timeoutSeconds: 330
+    tool: scan_sqlmap
+  description: Check one URL for SQL injection and materialize explicit Finding candidates.

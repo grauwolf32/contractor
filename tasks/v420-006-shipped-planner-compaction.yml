@@ -1,20 +1,19 @@
 schema_version: '1.0'
 id: V420-006
-title: Enable shared Planner compaction and reuse native YAML in shipped Workflows
+title: Accept shipped Planner compaction and native YAML reuse
 milestone: planner-context-compaction-2026-10
 epic: planner-worker
 kind: feature
 priority: P1
 status: in_progress
-depends_on: []
+depends_on:
+- V420-002
+- V425-042
 languages: [go, typescript, yaml]
-goal: >-
-  Shipped Streamline/Router Planners, including continuations after a terminal
-  Worker summary, use Workflow-selected compact@1 with the existing compactor@1
-  ModelPolicy. Operators maintain one generated compactor policy instead of a
-  separate hand-written Planner example. Review all 24 production Workflows
-  and remove meaningful repeated YAML through native anchors/aliases while
-  preserving their expanded behavior. Worker behavior stays unchanged.
+goal: Shipped Streamline/Router Planners, including terminal-summary continuations, use Workflow-selected
+  compact@1 and generated compactor@1 through executionConfig. Verify meaningful native YAML reuse and
+  unchanged effective Worker settings across the current production catalog; retain the historical 24-Workflow
+  rollout evidence.
 demonstration: >-
   Validate the shipped catalog, then run a real Server/Runtime/PostgreSQL
   terminal-summary continuation whose Planner compacts and completes with the
@@ -50,24 +49,41 @@ context:
     StageSpec and preserves it on retry/resume. Existing Planner code owns
     compaction. Reuse the existing transition, execution-selection, digest and
     Stage snapshot mechanisms. No new receipt, store or Runtime capability.
+  replanning_authority: 'User request 2026-11-07: reconcile the compaction backlog with merged refactors
+    before implementation. This edit updates task scope and acceptance only; it does not start implementation,
+    run live experiments or claim task completion.'
+  review_baseline: Local main 1142c2681d6520baa8c04bb0a90ca8fd224deb29. Current owning specifications
+    and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
+    and verification history. Recheck affected contracts if main changes before execution.
+  current_state: Catalog activation and summary-continuation wiring are merged through f4c34afeb; V425-042
+    subsequently migrated model selection to Workflow executionConfig. The recorded rollout covered
+    24 Workflows, eight direct Stages and sixteen continuation Planners at that revision. V425-020/021
+    removed the historical lint blockers.
+  dependency_update: The 2026-11-07 review adds explicit acceptance dependencies on the already-merged
+    Planner slice and completed policy-source migration. This does not undo the authorized October rollout;
+    it prevents closing its catalog acceptance ahead of the core contract it consumes.
 scope:
   in:
-  - The eight direct modelled Planner Stages and sixteen summary-continuation targets in configs/workflows.
+  - Every current shipped direct modeled Planner Stage and summary-continuation target in configs/workflows;
+    record the current inventory alongside the historical rollout counts.
   - Planner examples using the shared compactor@1; removal of the duplicate policy example.
-  - Strict optional plannerContextManagement on on.summarized.escalate, resolved and pinned like the ordinary Stage branch.
-  - Summary-continuation Stage creation, retries/resume, public read projection, schemas/clients and focused real-process proof.
-  - Review all 24 production Workflow files for repeated contexts, result slots and transition policies; deduplicate with native YAML references where useful.
+  - Strict optional plannerContextManagement on on.summarized.escalate, resolved and pinned like the ordinary
+    Stage branch.
+  - Summary-continuation Stage creation, retries/resume, public read projection, schemas/clients and focused
+    real-process proof.
+  - Review all current production Workflow files for repeated contexts, result slots and transition policies;
+    deduplicate with native YAML references where useful.
   - Reconcile superseded Planner task decisions, owning specs and catalog documentation.
   out:
   - Changes to Worker bindings, AgentTemplates, summarizer configuration or Runtime code.
-  - New deployment model-selection roles, changes to live models, or enabling compaction on deterministic passthrough/scan-plan Stages.
+  - New deployment model-selection roles, changes to live models, or enabling compaction on deterministic
+    passthrough/scan-plan Stages.
   - Changing deliberately uncompacted test fixtures en masse or fixing unrelated baseline gate defects.
 requirements:
 - id: R1
-  text: >-
-    Every shipped modelled Planner and summary-continuation target explicitly
-    selects compact@1 with compactor@1 and instructions/planner-compaction.md.
-    Existing per-Stage Planner factories and Worker definitions remain intact.
+  text: Every shipped modelled Planner and summary-continuation target explicitly selects compact@1 with
+    compactor@1 and instructions/planner-compaction.md. Existing per-Stage Planner factories and Worker
+    definitions remain intact.
 - id: R2
   text: >-
     Summary escalation accepts the existing closed Planner context union;
@@ -211,3 +227,12 @@ verification_results:
   preceding generated/model/graph/UI/format/go-vet checks passed. This task stays
   in_progress until its required lint gate passes; the unrelated baseline defect
   is not silently included in the Workflow rollout.
+test_prerequisites:
+- Follow the current Linux/platform and disk-heavy test policies (V433-007 and AGENTS.md). Do not enable
+  CONTRACTOR_TEST_HEAVY_IO implicitly or count declared optional skips as passing coverage. Record exact
+  revision, executed cases and exclusions; this backlog review ran no feature acceptance suites.
+remaining_work:
+- Verify the current catalog inventory and normalized behavior, rather than freezing the historical count
+  of 24 as a future requirement.
+- Reconcile recorded process/config/API/UI evidence with the current revision and complete required acceptance;
+  retain independent Worker strategies and the native YAML reuse.

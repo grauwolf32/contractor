@@ -42,7 +42,7 @@ func TestTelemetryRetryPublicationAndDetachedResolution(t *testing.T) {
 }
 
 func TestTelemetryRetryDoesNotRewriteStoredExportBlocks(t *testing.T) {
-	source := []byte(`{"apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig","metadata":{"name":"debug","version":"1"},"spec":{"worker":{"telemetry":{"adapter":"otlp-http@1","captureContent":false,"endpoint":"https://otel.example/v1/traces","flushTimeoutSeconds":3,"export":{"batchSizeBytes":1048576,"maxAttempts":2,"maxPendingSpans":16,"maxPendingBytes":2097152}}}}}`)
+	source := []byte(`{"apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig","metadata":{"name":"debug","version":"1"},"spec":{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://otel.example/v1/traces","flushTimeoutSeconds":3,"export":{"batchSizeBytes":1048576,"maxAttempts":2,"maxPendingSpans":16,"maxPendingBytes":2097152}}}}}`)
 	var document any
 	if err := json.Unmarshal(source, &document); err != nil {
 		t.Fatal(err)

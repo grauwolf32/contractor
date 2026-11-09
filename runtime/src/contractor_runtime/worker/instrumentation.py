@@ -17,6 +17,7 @@ from contractor_runtime.adapters.content import capture_span_content, model_requ
 from contractor_runtime.adapters.genai import usage_attributes
 from contractor_runtime.adapters.instrumentation import end_isolated_span, start_isolated_span
 from contractor_runtime.core.input_errors import ToolInputError
+from contractor_runtime.core.tool_errors import ToolExecutionError, ToolResultDiagnostic
 from contractor_runtime.llm.response import output_limit_reached
 from contractor_runtime.observations import WorkspaceToolObservation
 from contractor_runtime.telemetry.invocations import InvocationMetricsReducer
@@ -151,6 +152,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
         self._projection_failed = False
         self._model_output_limited = False
         self._tool_cancellation_observed = False
+        self._tool_execution_error_code: str | None = None
         self._closed = False
 
     def prepare_invocation(self, *, invocation_id: str, subtask_id: str) -> None:
@@ -160,6 +162,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
             raise RuntimeError("Worker instrumentation already has an invocation")
         self._projection_failed = False
         self._tool_cancellation_observed = False
+        self._tool_execution_error_code = None
         self._prepared = (invocation_id, subtask_id)
 
     def prepare_continuation(self, *, invocation_id: str, sdk_invocation_id: str) -> None:
@@ -618,11 +621,16 @@ class WorkerInstrumentationPlugin(BasePlugin):
             self._require_sdk_context(tool_context)
             if cancelled:
                 self._tool_cancellation_observed = True
+            if isinstance(safe_error, ToolExecutionError):
+                # Keep only the safe code, never a private transport traceback.
+                # ADK cancels sibling tools after this callback raises; those
+                # secondary cancellations must not replace the owning failure.
+                self._tool_execution_error_code = self._tool_execution_error_code or safe_error.code
             pending = self._pending_tools.pop(id(tool_context), None)
             if pending is None:
                 # A duplicate/error cleanup callback cannot create another
                 # semantic attempt, metric or span after its owner settled.
-                if cancelled:
+                if cancelled or isinstance(safe_error, ToolExecutionError):
                     raise error
                 raw_name = getattr(tool, "name", None)
                 known = isinstance(raw_name, str) and raw_name in self._allowed_tool_names
@@ -652,7 +660,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
                     result=None,
                     cancelled=cancelled,
                 )
-        if cancelled:
+        if cancelled or isinstance(safe_error, ToolExecutionError):
             raise error
         return response
 
@@ -772,6 +780,11 @@ class WorkerInstrumentationPlugin(BasePlugin):
         return self._tool_cancellation_observed
 
     @property
+    def tool_execution_error_code(self) -> str | None:
+        """Fatal code observed in this invocation, independent of sibling cancellation."""
+        return self._tool_execution_error_code
+
+    @property
     def model_output_limited(self) -> bool:
         """Remember a limited response even when ADK emits no corresponding event."""
         return self._model_output_limited
@@ -815,7 +828,9 @@ class WorkerInstrumentationPlugin(BasePlugin):
             pending.span,
             outcome="cancelled" if cancelled else "failed" if failed else "succeeded",
             attributes=(
-                {"error.type": span_error_type(error)} if failed and error is not None else None
+                {"error.type": span_error_type(error), "error.code": safe_error_code(error)}
+                if failed and error is not None
+                else None
             ),
         )
         self._metrics.release_tool_correlation(pending.correlation_id)
@@ -934,10 +949,10 @@ def _install_session_snapshot(context: Any | None, snapshot: dict[str, Any]) -> 
 def _safe_tool_response(tool_name: str, error: Exception) -> dict[str, Any]:
     message = (
         error.diagnostic_message
-        if isinstance(error, ToolInputError)
+        if isinstance(error, ToolInputError | ToolResultDiagnostic)
         else f"{tool_name} failed ({type(error).__name__})"
     )
-    return {
+    response = {
         "ok": False,
         "error": {
             "code": safe_error_code(error),
@@ -947,6 +962,9 @@ def _safe_tool_response(tool_name: str, error: Exception) -> dict[str, Any]:
             "retryable": bool(getattr(error, "retryable", False)),
         },
     }
+    if isinstance(error, ToolResultDiagnostic):
+        response["error"].update(error.model_details)
+    return response
 
 
 def _result_is_failure(result: Any) -> bool:

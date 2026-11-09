@@ -55,6 +55,11 @@ func newScanHistoryFixture(t *testing.T) *scanHistoryTestStore {
 	before.WorkflowOutputs = map[string]string{}
 	before.On.Succeeded = resolved.TransitionAction{Kind: resolved.TransitionNext, NextStage: "check-request"}
 	scan := workflow.Stages["scan"]
+	// This fixture deliberately omits the shipped publication stages. Finish
+	// each scanner outcome locally instead of retaining edges outside its graph.
+	scan.On.Succeeded = resolved.TransitionAction{Kind: resolved.TransitionSucceed}
+	scan.On.Failed = resolved.TransitionAction{Kind: resolved.TransitionFail}
+	scan.On.Interrupted = resolved.TransitionAction{Kind: resolved.TransitionFail}
 	workflow.Stages = map[string]resolved.ResolvedStage{"prepare": before, "check-request": scan}
 	// The composed Workflow declares the parameter its ordinary Stage consumes.
 	workflow.Parameters = ordinary.Parameters

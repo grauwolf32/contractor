@@ -58,6 +58,7 @@ from contractor_runtime.toolsets.security_findings.facades import (
     GeneralFindingsToolsetFactory,
     HTTPFindingsToolsetFactory,
 )
+from contractor_runtime.toolsets.security_findings.trace import TraceFindingsToolsetFactory
 from contractor_runtime.toolsets.sitemap.tools import SitemapToolsetFactory, import_sitemap_report
 from contractor_runtime.toolsets.source_analysis.tools import SourceAnalysisToolsetFactory
 from contractor_runtime.toolsets.taint_annotations.tools import TaintAnnotationsToolsetFactory
@@ -74,6 +75,7 @@ if TYPE_CHECKING:
     from contractor_runtime.projectfs.storage import (
         WorkspaceChanges,
         WorkspaceReader,
+        WorkspaceSourceReader,
         WorkspaceWriter,
     )
     from contractor_runtime.worker.state import WorkerStateStore
@@ -115,11 +117,6 @@ class WorkerBuildContext:
     resources: ToolResources
     a2a_base_url: str
     runtime_settings: RuntimeSettings = field(repr=False)
-    # Tool names that the registered toolset factories declare as returning
-    # captured HTTP traffic or HTTP session material
-    # (FactoryRegistry.sensitive_output_tools). Required, so a Worker is never
-    # built without the declaration.
-    sensitive_output_tools: frozenset[str]
     gateway_recovery: GatewayRecoveryClient | None = field(default=None, repr=False)
     execution: ToolExecutionConfig | None = None
     template_ref: AgentTemplateRef | None = None
@@ -139,10 +136,6 @@ class WorkerBuildContext:
     def __post_init__(self) -> None:
         if self.resources.metrics is not self.state.metrics:
             raise TypeError("Worker State and tool resources must share allocation metrics")
-        if not isinstance(self.sensitive_output_tools, frozenset) or not all(
-            isinstance(name, str) for name in self.sensitive_output_tools
-        ):
-            raise TypeError("sensitive_output_tools must be a frozenset of tool names")
         if self.summarizer is not None and self.compaction is not None:
             raise TypeError("a Worker has at most one context-management branch")
 
@@ -162,12 +155,6 @@ class ToolsetFactory(Protocol):
     ref: str
     exported_tools: frozenset[str]
     infrastructure_channels: Mapping[str, frozenset[InfrastructureChannel]]
-    # Exported tools whose results carry captured HTTP traffic or HTTP session
-    # material. A Worker that selects any of them keeps its telemetry
-    # content-free. Optional: a factory that does not set it declares none
-    # (read through declared_sensitive_output_tools). Tools may also declare
-    # contractor_sensitive_output themselves.
-    sensitive_output_tools: frozenset[str] = frozenset()
     # Exported tools whose successful calls report a workspace observation
     # through their contractor_observation. Optional: a factory that does not
     # set it declares none. The Server reads the same set (TLS-R38), and
@@ -187,7 +174,11 @@ class ToolsetFactory(Protocol):
         workspace: AllocationWorkspace,
         resources: ToolResources,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
-        project_workspace: WorkspaceReader | WorkspaceWriter | WorkspaceChanges | None = None,
+        project_workspace: WorkspaceReader
+        | WorkspaceWriter
+        | WorkspaceChanges
+        | WorkspaceSourceReader
+        | None = None,
     ) -> Mapping[str, ToolInstance]: ...
 
 
@@ -237,17 +228,8 @@ class FactoryRegistry:
         _validate_registry("Toolset", self.toolsets)
         for ref, factory in self.toolsets.items():
             _validate_toolset_channels(ref, factory)
-            declared_sensitive_output_tools(factory)
         _validate_registry("SandboxProfile", self.sandbox_profiles)
         _validate_registry("RuntimeAdapter", self.runtime_adapters, allow_empty=True)
-
-    @property
-    def sensitive_output_tools(self) -> frozenset[str]:
-        """Every tool name that a registered toolset declares sensitive output for."""
-
-        return frozenset().union(
-            *(declared_sensitive_output_tools(factory) for factory in self.toolsets.values())
-        )
 
 
 def built_in_factories(
@@ -333,6 +315,7 @@ def built_in_factories(
                 artifact_client_factory
             ),
             CodeFindingsToolsetFactory.ref: CodeFindingsToolsetFactory(artifact_client_factory),
+            TraceFindingsToolsetFactory.ref: TraceFindingsToolsetFactory(artifact_client_factory),
             HTTPFindingsToolsetFactory.ref: HTTPFindingsToolsetFactory(artifact_client_factory),
             caido_toolset.ref: caido_toolset,
             interactsh_toolset.ref: interactsh_toolset,
@@ -409,19 +392,6 @@ def _validate_registry(kind: str, entries: Mapping[str, Any], *, allow_empty: bo
     for ref, factory in entries.items():
         if ref != factory.ref:
             raise ValueError(f"{kind} registry key {ref!r} does not match descriptor ref")
-
-
-def declared_sensitive_output_tools(factory: ToolsetFactory) -> frozenset[str]:
-    """Return a toolset's sensitive-output declaration (empty when it sets none)."""
-
-    declared = getattr(factory, "sensitive_output_tools", frozenset())
-    if (
-        not isinstance(declared, frozenset)
-        or not all(isinstance(name, str) for name in declared)
-        or not declared <= factory.exported_tools
-    ):
-        raise ValueError(f"Toolset {factory.ref!r} declares invalid sensitive-output tools")
-    return declared
 
 
 def _validate_toolset_channels(ref: str, factory: ToolsetFactory) -> None:

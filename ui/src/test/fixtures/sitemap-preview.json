@@ -1,0 +1,567 @@
+{
+  "version": "project-sitemap@1",
+  "projection": "sitemap-safe-projection@1",
+  "groups": [
+    {
+      "id": "2b2ff0f27d3b93c87966b811cee0c313d8aa71179e025fd2856c78bc117f3973",
+      "origin": "https://api.shop.test",
+      "method": "GET",
+      "route": "/v2/export",
+      "structural": [],
+      "members": [
+        {
+          "id": "f29ba899e5743519df6c97ff675373d542317991799415197adb20f3a89b4c7b",
+          "path": "/v2/export",
+          "summaries": [],
+          "examples": ["GET https://api.shop.test/v2/export"],
+          "evidence": [],
+          "annotations": [],
+          "omitted": 0
+        }
+      ],
+      "declarations": [
+        {
+          "rule": true,
+          "provenance": {
+            "sourceId": "api-spec",
+            "kind": "openapi"
+          },
+          "pointer": "#/paths/~1v2~1export/get",
+          "parameters": ["expand"]
+        }
+      ],
+      "omitted": 0
+    },
+    {
+      "id": "3748acdfff04ba6f922519436e3dacb9d42ebb25a0d18523a904e5171413f90b",
+      "origin": "https://api.shop.test",
+      "method": "GET",
+      "route": "/v1/products",
+      "structural": [],
+      "members": [
+        {
+          "id": "7f08d8ee3017dfc9db727decd8be84ab2ed427ce49dcc35b8b1ad5ba85c15c49",
+          "path": "/v1/products",
+          "summaries": [
+            {
+              "provenance": {
+                "sourceId": "http-capture",
+                "kind": "http",
+                "deployment": "staging"
+              },
+              "outcome": "response",
+              "status": 200,
+              "parameters": ["expand", "locale"],
+              "first": "2026-11-06T09:12:00Z",
+              "last": "2026-11-07T11:04:00Z"
+            }
+          ],
+          "examples": ["GET https://api.shop.test/v1/products"],
+          "evidence": [],
+          "annotations": [],
+          "omitted": 0
+        }
+      ],
+      "declarations": [
+        {
+          "rule": true,
+          "provenance": {
+            "sourceId": "api-spec",
+            "kind": "openapi"
+          },
+          "pointer": "#/paths/~1v1~1products/get",
+          "parameters": ["expand"]
+        }
+      ],
+      "omitted": 0
+    },
+    {
+      "id": "50f14287052364778184e5c6577f215303e5c00822e52f7a712a26cd07d6aa12",
+      "origin": "https://api.shop.test",
+      "method": "PATCH",
+      "route": "/v1/profile",
+      "structural": [],
+      "members": [
+        {
+          "id": "61286872afb309ecbae9453065603c9c0ec4c95a9c266837ca9633d86e63c1cb",
+          "path": "/v1/profile",
+          "summaries": [
+            {
+              "provenance": {
+                "sourceId": "http-capture",
+                "kind": "http",
+                "deployment": "staging"
+              },
+              "outcome": "response",
+              "status": 204,
+              "parameters": ["expand", "locale"],
+              "first": "2026-11-06T09:12:00Z",
+              "last": "2026-11-07T11:04:00Z"
+            }
+          ],
+          "examples": ["PATCH https://api.shop.test/v1/profile"],
+          "evidence": [],
+          "annotations": [],
+          "omitted": 0
+        }
+      ],
+      "declarations": [
+        {
+          "rule": true,
+          "provenance": {
+            "sourceId": "api-spec",
+            "kind": "openapi"
+          },
+          "pointer": "#/paths/~1v1~1profile/patch",
+          "parameters": ["expand"]
+        }
+      ],
+      "omitted": 0
+    },
+    {
+      "id": "67592587ec2ef6eeec4099211dbdc5ddf22769a06bed7087ef16668ce0615c4f",
+      "origin": "https://api.shop.test",
+      "method": "DELETE",
+      "route": "/v1/orders/{id}",
+      "structural": [],
+      "members": [
+        {
+          "id": "ef07bf0e59c004538890446e5f8fd601c77a10fd0965a34b9af5c0e42ddf6df4",
+          "path": "/v1/orders/42",
+          "summaries": [],
+          "examples": ["DELETE https://api.shop.test/v1/orders/42"],
+          "evidence": [],
+          "annotations": [],
+          "omitted": 0
+        }
+      ],
+      "declarations": [
+        {
+          "rule": true,
+          "provenance": {
+            "sourceId": "api-spec",
+            "kind": "openapi"
+          },
+          "pointer": "#/paths/~1v1~1orders~1{id}/delete",
+          "parameters": ["expand"]
+        }
+      ],
+      "omitted": 0
+    },
+    {
+      "id": "7c333b46410af2d74663d5df11dbb86c9c93854a6acbf3c6ab54e4e4adc63253",
+      "origin": "https://api.shop.test",
+      "method": "GET",
+      "route": "/v1/orders",
+      "structural": [],
+      "members": [
+        {
+          "id": "d7ae6b1ad8ec5f14f8154359a53f48e55216a749cf7967910b42a236c6fb3f18",
+          "path": "/v1/orders",
+          "summaries": [
+            {
+              "provenance": {
+                "sourceId": "http-capture",
+                "kind": "http",
+                "deployment": "staging"
+              },
+              "outcome": "response",
+              "status": 200,
+              "parameters": ["expand", "locale"],
+              "first": "2026-11-06T09:12:00Z",
+              "last": "2026-11-07T11:04:00Z"
+            }
+          ],
+          "examples": ["GET https://api.shop.test/v1/orders"],
+          "evidence": [],
+          "annotations": [],
+          "omitted": 0
+        }
+      ],
+      "declarations": [
+        {
+          "rule": true,
+          "provenance": {
+            "sourceId": "api-spec",
+            "kind": "openapi"
+          },
+          "pointer": "#/paths/~1v1~1orders/get",
+          "parameters": ["expand"]
+        }
+      ],
+      "omitted": 0
+    },
+    {
+      "id": "9786b1a1edd45664c60ec07496e5ebcd99f3f2d10ecaa2f72d7f6b0bf2ebc948",
+      "origin": "https://api.shop.test",
+      "method": "GET",
+      "route": "/v1/orders/{id}",
+      "structural": [],
+      "members": [
+        {
+          "id": "92c46cd31c427f711f4a6800cbb81e3e7c2b5601c921d71379405e7d352743e7",
+          "path": "/v1/orders/73",
+          "summaries": [
+            {
+              "provenance": {
+                "sourceId": "http-capture",
+                "kind": "http",
+                "deployment": "staging"
+              },
+              "outcome": "response",
+              "status": 403,
+              "parameters": ["expand", "locale"],
+              "first": "2026-11-06T09:12:00Z",
+              "last": "2026-11-07T11:04:00Z"
+            }
+          ],
+          "examples": ["GET https://api.shop.test/v1/orders/73"],
+          "evidence": [],
+          "annotations": [],
+          "omitted": 0
+        },
+        {
+          "id": "e126f1fef3d459bdea7fc7d0a0e97a7faaf6e4970784dd71ce8372d6471eefbc",
+          "path": "/v1/orders/42",
+          "summaries": [
+            {
+              "provenance": {
+                "sourceId": "http-capture",
+                "kind": "http",
+                "deployment": "staging"
+              },
+              "outcome": "response",
+              "status": 200,
+              "parameters": ["expand", "locale"],
+              "first": "2026-11-06T09:12:00Z",
+              "last": "2026-11-07T11:04:00Z"
+            },
+            {
+              "provenance": {
+                "sourceId": "caido-history",
+                "kind": "caido",
+                "deployment": "staging"
+              },
+              "outcome": "response",
+              "status": 200,
+              "parameters": ["expand", "locale"],
+              "first": "2026-11-06T09:12:00Z",
+              "last": "2026-11-07T11:04:00Z"
+            }
+          ],
+          "examples": ["GET https://api.shop.test/v1/orders/42"],
+          "evidence": [
+            {
+              "runId": "run_sitemap_demo",
+              "artifact": {
+                "ref": {
+                  "namespace": "evidence",
+                  "name": "order-42",
+                  "revision": "order-r1"
+                },
+                "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }
+            }
+          ],
+          "annotations": [
+            {
+              "provenance": {
+                "sourceId": "owner",
+                "kind": "manual"
+              },
+              "note": "Order detail endpoint; include both recorded paths when reviewing object access. This is synthetic preview data.",
+              "tags": ["object-access", "orders"]
+            }
+          ],
+          "omitted": 0
+        }
+      ],
+      "declarations": [
+        {
+          "rule": true,
+          "provenance": {
+            "sourceId": "api-spec",
+            "kind": "openapi"
+          },
+          "pointer": "#/paths/~1v1~1orders~1{id}/get",
+          "parameters": ["expand"]
+        }
+      ],
+      "omitted": 2
+    },
+    {
+      "id": "a5bcc642e29ff4e9451d324b371eb689a88d378284b1abc769009cc5cdc10722",
+      "origin": "https://static.shop.test",
+      "method": "HEAD",
+      "route": "/assets/app.css",
+      "structural": [],
+      "members": [
+        {
+          "id": "e509771889c93beb26a607590e64afdfa88261f20bf48da74a62b1374741fd84",
+          "path": "/assets/app.css",
+          "summaries": [
+            {
+              "provenance": {
+                "sourceId": "http-capture",
+                "kind": "http",
+                "deployment": "staging"
+              },
+              "outcome": "response",
+              "status": 200,
+              "parameters": ["expand", "locale"],
+              "first": "2026-11-06T09:12:00Z",
+              "last": "2026-11-07T11:04:00Z"
+            }
+          ],
+          "examples": ["HEAD https://static.shop.test/assets/app.css"],
+          "evidence": [],
+          "annotations": [],
+          "omitted": 0
+        }
+      ],
+      "declarations": [],
+      "omitted": 0
+    },
+    {
+      "id": "bfa573e88b946339971cc8f008c09f875ea1dea8efc731e2bef7ae74cf1de513",
+      "origin": "https://api.shop.test",
+      "method": "POST",
+      "route": "/v1/orders",
+      "structural": [],
+      "members": [
+        {
+          "id": "6bfca8f0f71d6404038be7103343186c950fc5a441d8c7d94183bd4f445b5c2a",
+          "path": "/v1/orders",
+          "summaries": [
+            {
+              "provenance": {
+                "sourceId": "http-capture",
+                "kind": "http",
+                "deployment": "staging"
+              },
+              "outcome": "response",
+              "status": 201,
+              "parameters": ["expand", "locale"],
+              "first": "2026-11-06T09:12:00Z",
+              "last": "2026-11-07T11:04:00Z"
+            }
+          ],
+          "examples": ["POST https://api.shop.test/v1/orders"],
+          "evidence": [],
+          "annotations": [],
+          "omitted": 0
+        }
+      ],
+      "declarations": [
+        {
+          "rule": true,
+          "provenance": {
+            "sourceId": "api-spec",
+            "kind": "openapi"
+          },
+          "pointer": "#/paths/~1v1~1orders/post",
+          "parameters": ["expand"]
+        }
+      ],
+      "omitted": 0
+    },
+    {
+      "id": "e2f06b07e3b5e3dec6db7fac31f0fc1ca76c22a7d8876bbec94fca4443a797e2",
+      "origin": "https://admin.shop.test",
+      "method": "GET",
+      "route": "/admin/login",
+      "structural": [],
+      "members": [
+        {
+          "id": "a56e9a01ab708757cdd743f3616e291e87108b83060f816ba71221d4c69b8357",
+          "path": "/admin/login",
+          "summaries": [
+            {
+              "provenance": {
+                "sourceId": "http-capture",
+                "kind": "http",
+                "deployment": "staging"
+              },
+              "outcome": "timeout",
+              "status": 0,
+              "parameters": [],
+              "first": "2026-11-06T09:12:00Z",
+              "last": "2026-11-07T11:04:00Z"
+            }
+          ],
+          "examples": ["GET https://admin.shop.test/admin/login"],
+          "evidence": [],
+          "annotations": [],
+          "omitted": 0
+        }
+      ],
+      "declarations": [],
+      "omitted": 0
+    },
+    {
+      "id": "f782e082594655ed7dc6c584471e24935e01b07be418d58340a8d73520e7cb5d",
+      "origin": "https://admin.shop.test",
+      "method": "GET",
+      "route": "/admin/users/{id}",
+      "structural": [],
+      "members": [
+        {
+          "id": "b5a80a1918183f4d9e6f8986c729988d53b6b38be30f1235655daed103b095ca",
+          "path": "/admin/users/13",
+          "summaries": [
+            {
+              "provenance": {
+                "sourceId": "http-capture",
+                "kind": "http",
+                "deployment": "staging"
+              },
+              "outcome": "response",
+              "status": 200,
+              "parameters": ["expand", "locale"],
+              "first": "2026-11-06T09:12:00Z",
+              "last": "2026-11-07T11:04:00Z"
+            }
+          ],
+          "examples": ["GET https://admin.shop.test/admin/users/13"],
+          "evidence": [],
+          "annotations": [],
+          "omitted": 0
+        }
+      ],
+      "declarations": [
+        {
+          "rule": true,
+          "provenance": {
+            "sourceId": "api-spec",
+            "kind": "openapi"
+          },
+          "pointer": "#/paths/~1admin~1users~1{id}/get",
+          "parameters": ["expand"]
+        }
+      ],
+      "omitted": 0
+    },
+    {
+      "id": "fb6a8e46a4854c2e192954c47b450b1df441eea0675eaa0236a35e6e664722f3",
+      "origin": "https://api.shop.test",
+      "method": "GET",
+      "route": "/v1/health",
+      "structural": [],
+      "members": [
+        {
+          "id": "1ed20693db1cd6256304e166972d5eee04bf45b92389be380126a0f9495e4fdc",
+          "path": "/v1/health",
+          "summaries": [
+            {
+              "provenance": {
+                "sourceId": "http-capture",
+                "kind": "http",
+                "deployment": "staging"
+              },
+              "outcome": "response",
+              "status": 200,
+              "parameters": ["expand", "locale"],
+              "first": "2026-11-06T09:12:00Z",
+              "last": "2026-11-07T11:04:00Z"
+            }
+          ],
+          "examples": ["GET https://api.shop.test/v1/health"],
+          "evidence": [],
+          "annotations": [],
+          "omitted": 0
+        }
+      ],
+      "declarations": [],
+      "omitted": 0
+    },
+    {
+      "id": "fe55167d4a2bee96029066849de6ef9f4ffa45d67680b71467313b167272be09",
+      "origin": "https://static.shop.test",
+      "method": "GET",
+      "route": "/assets/app.js",
+      "structural": [],
+      "members": [
+        {
+          "id": "f733353d89d01641705fca67f4c05fb2bd22fc18d4e50ffeb1161d15a8c1bed8",
+          "path": "/assets/app.js",
+          "summaries": [
+            {
+              "provenance": {
+                "sourceId": "http-capture",
+                "kind": "http",
+                "deployment": "staging"
+              },
+              "outcome": "response",
+              "status": 304,
+              "parameters": ["expand", "locale"],
+              "first": "2026-11-06T09:12:00Z",
+              "last": "2026-11-07T11:04:00Z"
+            }
+          ],
+          "examples": ["GET https://static.shop.test/assets/app.js"],
+          "evidence": [],
+          "annotations": [],
+          "omitted": 0
+        }
+      ],
+      "declarations": [],
+      "omitted": 0
+    }
+  ],
+  "sources": [
+    {
+      "provenance": {
+        "sourceId": "api-spec",
+        "kind": "openapi"
+      },
+      "generation": 1,
+      "policyDigest": "08ac1b2a1974afe85a88b2d5acc60870b399032ecaff5afbbb37156939b44de3"
+    },
+    {
+      "provenance": {
+        "sourceId": "caido-history",
+        "kind": "caido",
+        "deployment": "staging"
+      },
+      "generation": 1,
+      "policyDigest": "08ac1b2a1974afe85a88b2d5acc60870b399032ecaff5afbbb37156939b44de3"
+    },
+    {
+      "provenance": {
+        "sourceId": "http-capture",
+        "kind": "http",
+        "deployment": "staging"
+      },
+      "generation": 1,
+      "policyDigest": "08ac1b2a1974afe85a88b2d5acc60870b399032ecaff5afbbb37156939b44de3"
+    },
+    {
+      "provenance": {
+        "sourceId": "owner",
+        "kind": "manual"
+      },
+      "generation": 1,
+      "policyDigest": "08ac1b2a1974afe85a88b2d5acc60870b399032ecaff5afbbb37156939b44de3"
+    }
+  ],
+  "rules": [],
+  "markers": [
+    {
+      "id": "marker-demo-suppressed",
+      "members": [
+        "b5a80a1918183f4d9e6f8986c729988d53b6b38be30f1235655daed103b095ca"
+      ],
+      "provenance": {
+        "sourceId": "owner",
+        "kind": "manual"
+      }
+    }
+  ],
+  "gaps": [
+    {
+      "sourceId": "caido-history",
+      "reason": "report-truncated",
+      "count": 4
+    }
+  ]
+}

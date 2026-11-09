@@ -1,8 +1,8 @@
 /**
  * Owner-wide V3B lists. Checks, findings and pending decisions use Server
  * keysets, following every page sequentially. The shared project index also
- * follows all pages. Heads poll while visible; report payloads remain pinned
- * to each check revision. Failed continuations keep their settled pages and
+ * follows all pages. Heads poll while visible; Reports resolves availability
+ * only for its selected check page. Failed continuations keep their settled pages and
  * mark the result partial; no collection is silently capped at 50 records.
  */
 import {
@@ -36,6 +36,7 @@ import { listProjects, type Project } from "./projects";
 import { queryKeys } from "./query-keys";
 import { REPORT_AUDIT_STATES } from "./states";
 import { loadAllPages, type LoadedPages } from "./pages";
+import { pollInterval } from "../app/polling";
 
 /** Page size is enforced by the Server; collections have no fixed cap. */
 export const CROSS_PROJECT_LIMITS = { pollMs: 20_000 } as const;
@@ -60,7 +61,7 @@ export interface CrossProjectIssue {
 
 /** A check's report with the check and project. */
 export interface CrossProjectReport extends CrossProjectCheck {
-  report: AuditReport;
+  report: Pick<AuditReport, "status">;
 }
 
 /**
@@ -332,7 +333,7 @@ interface CheckRead<T> {
   check: CrossProjectCheck;
   /** Key prefix; the check revision is appended as the last element. */
   key: QueryKey;
-  load: () => Promise<T>;
+  load: (signal: AbortSignal) => Promise<T>;
 }
 
 interface SettledRead<T> {
@@ -387,15 +388,17 @@ function useCheckReads<T, R>(
       const placeholder = previous?.get(hashKey(read.key));
       return {
         queryKey: [...read.key, read.check.audit.revision],
-        queryFn: read.load,
+        queryFn: ({ signal }: { signal: AbortSignal }) => read.load(signal),
         enabled,
         // A revision of a check never changes, so a read that has data is
         // never refetched: not on mount, invalidation or refresh. A read
         // without data (failed, or not loaded yet) can still be fetched.
         staleTime: (query: Query<T, Error, T, QueryKey>) =>
           query.state.data === undefined ? 0 : ("static" as const),
-        refetchInterval: (query: Query<T, Error, T, QueryKey>) =>
-          query.state.status === "error" ? CROSS_PROJECT_LIMITS.pollMs : false,
+        refetchInterval: pollInterval<T>({
+          interval: CROSS_PROJECT_LIMITS.pollMs,
+          settled: () => true,
+        }),
         refetchIntervalInBackground: false,
         refetchOnWindowFocus: false,
         retry: false,
@@ -627,19 +630,35 @@ interface AllReportsOptions {
   statuses?: readonly AuditReportStatus[];
   /** False keeps every read idle (and `isPending` true). */
   enabled?: boolean;
+  /** Scope before resolving any report availability. */
+  projectId?: string | null;
+  /** Zero-based window of report-capable checks, not a global report count. */
+  page?: number;
 }
 
 interface AllReports extends CrossProjectStatus {
   /** Reports in the order of their checks: newest check first. */
   reports: CrossProjectReport[];
+  page: {
+    index: number;
+    size: number;
+    count: number;
+    totalChecks: number;
+    hasNext: boolean;
+  };
 }
+
+const REPORT_WINDOW_SIZE = 20;
 
 async function loadReport(
   api: PublicAPI,
   auditId: string,
-): Promise<AuditReport | null> {
+  signal: AbortSignal,
+): Promise<Pick<AuditReport, "status"> | null> {
   try {
-    return await getAuditReport(api, auditId);
+    const report = await getAuditReport(api, auditId, signal);
+    // List rows never retain report bodies. The selected detail owns content.
+    return { status: report.status };
   } catch (error) {
     // A check deleted since its project's page was read has no report.
     if (error instanceof PublicAPIError && error.status === 404) return null;
@@ -649,7 +668,7 @@ async function loadReport(
 
 function reportMerger(statusKey: string) {
   const statuses = statusKey === "" ? undefined : new Set(statusKey.split(","));
-  return (settled: SettledRead<AuditReport | null>[]) => ({
+  return (settled: SettledRead<Pick<AuditReport, "status"> | null>[]) => ({
     reports: settled.flatMap(({ check, data }): CrossProjectReport[] =>
       data !== null && (statuses === undefined || statuses.has(data.status))
         ? [{ project: check.project, audit: check.audit, report: data }]
@@ -669,23 +688,48 @@ export function useAllReports(options: AllReportsOptions = {}): AllReports {
   const statusKey = filterKey(options.statuses ?? DEFAULT_REPORT_STATUSES);
   const api = usePublicAPI();
   const checks = useAllChecks({ states: REPORT_CHECK_STATES, enabled });
+  const projectId = options.projectId ?? null;
+  const requestedPage = options.page ?? 0;
+  const scoped = useMemo(
+    () =>
+      projectId === null
+        ? checks.checks
+        : checks.checks.filter(
+            (check) => check.project.projectId === projectId,
+          ),
+    [checks.checks, projectId],
+  );
+  const count = Math.max(1, Math.ceil(scoped.length / REPORT_WINDOW_SIZE));
+  const pageIndex = Math.min(Math.max(0, requestedPage), count - 1);
   const reads = useMemo(
     () =>
-      checks.checks.map((check): CheckRead<AuditReport | null> => ({
-        check,
-        key: queryKeys.crossProject.reportOf(check.audit.auditId),
-        load: () => loadReport(api, check.audit.auditId),
-      })),
-    [api, checks.checks],
+      scoped
+        .slice(
+          pageIndex * REPORT_WINDOW_SIZE,
+          (pageIndex + 1) * REPORT_WINDOW_SIZE,
+        )
+        .map((check): CheckRead<Pick<AuditReport, "status"> | null> => ({
+          check,
+          key: queryKeys.crossProject.reportOf(check.audit.auditId),
+          load: (signal) => loadReport(api, check.audit.auditId, signal),
+        })),
+    [api, scoped, pageIndex],
   );
   const merge = useMemo(() => reportMerger(statusKey), [statusKey]);
-  const reports = useCheckReads(reads, enabled, merge);
+  const reports = useCheckReads(reads, enabled && !checks.isPending, merge);
   return useMemo(
     () => ({
       ...statusOf(checks, reports, false),
       reports: reports.merged.reports,
+      page: {
+        index: pageIndex,
+        size: REPORT_WINDOW_SIZE,
+        count,
+        totalChecks: scoped.length,
+        hasNext: pageIndex + 1 < count,
+      },
     }),
-    [checks, reports],
+    [checks, reports, pageIndex, count, scoped.length],
   );
 }
 
@@ -717,7 +761,7 @@ export function useInboxSummary(): InboxSummary {
       needsDecision: possibleIssues,
       possibleIssues,
       partial: checks.partial || findings.errors.length > 0,
-      truncated: checks.truncated,
+      truncated: checks.truncated || findings.merged.truncated,
     };
   }, [checks, findings]);
 }

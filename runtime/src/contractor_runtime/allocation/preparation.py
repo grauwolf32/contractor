@@ -238,7 +238,6 @@ class AllocationPreparation:
                 resources=self.resources,
                 a2a_base_url=self._a2a_base_url,
                 runtime_settings=worker_settings,
-                sensitive_output_tools=self._factories.sensitive_output_tools,
                 summarizer=_effective_summarizer(spec),
                 compaction=(
                     spec.context_management
@@ -409,6 +408,16 @@ class AllocationPreparation:
         if workspace is None:
             return None
         access = getattr(factory, "workspace_access", None)
+        if access == "source":
+            try:
+                return workspace.source_view()
+            except WorkspaceStorageError:
+                raise AllocationError(
+                    "workspace_mode_unsupported",
+                    "Trace findings require overlay workspace mode",
+                    retryable=False,
+                    status_code=422,
+                ) from None
         if access == "read":
             return workspace.reader_view()
         if access == "write":

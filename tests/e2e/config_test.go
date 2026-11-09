@@ -81,6 +81,10 @@ func installOrdinaryFindingFixture(t *testing.T, root, templateFile, workflowFil
 		return string(data)
 	}
 	template := read("agent-templates", templateFile)
+	// This fixture tests the generic finding facade independently of tracing.
+	template = strings.ReplaceAll(template, "security-findings-trace@1", "security-findings-code@1")
+	template = strings.ReplaceAll(template, "    - ref: taint-annotations@1\n      tools: [annotate_trace, annotate_validate, annotate_sink]\n", "")
+	template = strings.ReplaceAll(template, "    - ref: workspace-changes@1\n      tools: [changed_paths, diff, rollback_changes]\n", "")
 	template = strings.Replace(template, "  name: "+templateFile+"\n", "  name: "+name+"\n", 1)
 	template = strings.Replace(template, "    - ref: audit-results@2\n      tools: [read_audit_task, submit_check_result]\n", "", 1)
 	if !strings.Contains(template, "ref: text-artifacts@1") {
@@ -99,6 +103,10 @@ func installOrdinaryFindingFixture(t *testing.T, root, templateFile, workflowFil
 	stage := spec["stages"].(map[string]any)["check"].(map[string]any)
 	context := stage["context"].(map[string]any)
 	context["artifacts"] = map[string]any{"source": map[string]any{"namespace": "inputs", "name": "source", "required": true}}
+	if workspace, ok := context["workspace"].(map[string]any); ok {
+		delete(workspace, "export")
+	}
+	stage["workflowOutputs"] = map[string]string{"result": "result"}
 	stage["result"] = map[string]any{"artifacts": map[string]any{"result": map[string]any{"required": true, "mediaTypes": []string{"text/plain"}, "from": map[string]string{"namespace": "audit-check", "name": "result"}}}}
 	encoded, err := yaml.Marshal(document)
 	if err != nil {

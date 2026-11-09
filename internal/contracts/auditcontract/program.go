@@ -5,15 +5,20 @@ import "github.com/grauwolf32/contractor/internal/helpers/strictjson"
 // Program is the authored common program. Its selected Workflow closures and
 // exact materials are pinned by the Audit owner; none is inferred from outputs.
 type Program struct {
-	SeedSource   *SeedSource                `json:"seed_source,omitempty" yaml:"seed_source,omitempty"`
-	Schema       string                     `json:"schema" yaml:"schema"`
-	Inputs       map[string]ProgramInput    `json:"inputs" yaml:"inputs"`
-	Workflows    map[string]ProgramWorkflow `json:"workflows" yaml:"workflows"`
-	Hypotheses   map[string]HypothesisSeed  `json:"hypotheses" yaml:"hypotheses"`
-	InitialWork  []InitialWork              `json:"initial_work" yaml:"initial_work"`
-	Continuation *Continuation              `json:"continuation,omitempty" yaml:"continuation,omitempty"`
-	Limits       ProgramLimits              `json:"limits" yaml:"limits"`
-	Policy       OperationPolicy            `json:"policy" yaml:"policy"`
+	Parameters   map[string]ProgramParameter `json:"parameters,omitempty" yaml:"parameters,omitempty"`
+	SeedSource   *SeedSource                 `json:"seed_source,omitempty" yaml:"seed_source,omitempty"`
+	Schema       string                      `json:"schema" yaml:"schema"`
+	Inputs       map[string]ProgramInput     `json:"inputs" yaml:"inputs"`
+	Workflows    map[string]ProgramWorkflow  `json:"workflows" yaml:"workflows"`
+	Hypotheses   map[string]HypothesisSeed   `json:"hypotheses" yaml:"hypotheses"`
+	InitialWork  []InitialWork               `json:"initial_work" yaml:"initial_work"`
+	Continuation *Continuation               `json:"continuation,omitempty" yaml:"continuation,omitempty"`
+	Limits       ProgramLimits               `json:"limits" yaml:"limits"`
+	Policy       OperationPolicy             `json:"policy" yaml:"policy"`
+}
+
+type ProgramParameter struct {
+	Required bool `json:"required" yaml:"required"`
 }
 
 type ProgramInput struct {
@@ -22,11 +27,12 @@ type ProgramInput struct {
 }
 
 type ProgramWorkflow struct {
-	MaxAttempts *int                    `json:"max_attempts,omitempty" yaml:"max_attempts,omitempty"`
-	Ref         string                  `json:"ref" yaml:"ref"`
-	Inputs      map[string]InputMapping `json:"inputs" yaml:"inputs"`
-	Parameters  map[string]string       `json:"parameters" yaml:"parameters"`
-	Outputs     map[string]string       `json:"outputs" yaml:"outputs"`
+	ParameterInputs map[string]string       `json:"parameter_inputs,omitempty" yaml:"parameter_inputs,omitempty"`
+	MaxAttempts     *int                    `json:"max_attempts,omitempty" yaml:"max_attempts,omitempty"`
+	Ref             string                  `json:"ref" yaml:"ref"`
+	Inputs          map[string]InputMapping `json:"inputs" yaml:"inputs"`
+	Parameters      map[string]string       `json:"parameters" yaml:"parameters"`
+	Outputs         map[string]string       `json:"outputs" yaml:"outputs"`
 }
 
 // AttemptLimit keeps an authored binding's tighter ceiling within the

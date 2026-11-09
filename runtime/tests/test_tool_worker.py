@@ -200,7 +200,6 @@ async def worker(tmp_path, store, tool, *, spec=None):
         resources=state.resources,
         a2a_base_url="https://runtime.invalid",
         runtime_settings=spec.runtime_settings,
-        sensitive_output_tools=frozenset(),
     )
     factory = ToolWorkerRuntimeFactory(
         lambda allocation, settings: ArtifactClient(allocation, store)
@@ -1243,9 +1242,36 @@ def test_shared_optional_artifact_binding_omits_callable_argument_and_checks_def
         result = await runtime.invoke(request(spec))
         assert result.failure is None, result
         assert tool.calls == [None]
-        with pytest.raises(
-            ValueError, match="optional artifact binding requires a callable default"
-        ):
+        with pytest.raises(ValueError, match="optional binding requires a callable default"):
             await worker(tmp_path, ArtifactStore(), FixtureTool(), spec=spec)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("binding_default, expected", [(None, 10), (7, 7)])
+def test_shared_optional_parameter_binding_omits_callable_argument(
+    tmp_path, binding_default, expected
+):
+    class OptionalTool(FixtureTool):
+        async def __call__(self, url: str, rate_limit: int = 10) -> dict:
+            self.calls.append(rate_limit)
+            return self.result
+
+    async def scenario():
+        store, tool, spec = ArtifactStore(), OptionalTool(), tool_spec()
+        spec.agent_template.execution.arguments["rate_limit"] = ToolArgumentBinding(
+            source="parameter",
+            name="absent_rate",
+            optional=True,
+            **(
+                {"parse": "integer", "default": binding_default}
+                if binding_default is not None
+                else {}
+            ),
+        )
+        runtime = await worker(tmp_path, store, tool, spec=spec)
+        result = await runtime.invoke(request(spec))
+        assert result.failure is None, result
+        assert tool.calls == [expected]
 
     asyncio.run(scenario())

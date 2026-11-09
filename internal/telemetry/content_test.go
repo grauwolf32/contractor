@@ -27,12 +27,15 @@ func TestPlannerTrustedContentOptIn(t *testing.T) {
 			}))
 			defer server.Close()
 			registry, _ := NewBuiltinPlannerAdapterRegistry()
-			adapter, err := registry.Create(PlannerAdapterOTLPHTTP, PlannerAdapterSettings{Endpoint: server.URL, FlushTimeout: time.Second, CaptureContent: enabled, RunMetadataLabels: runlabels.RunMetadataLabels{}, Resource: PlannerResource{RunID: "run-test", StageExecutionID: "stage-test", PlannerRef: "router@1"}})
+			adapter, err := registry.Create(PlannerAdapterOTLPHTTP, PlannerAdapterSettings{Endpoint: server.URL, FlushTimeout: time.Second, RunMetadataLabels: runlabels.RunMetadataLabels{}, Resource: PlannerResource{RunID: "run-test", StageExecutionID: "stage-test", PlannerRef: "router@1"}})
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer adapter.Close()
-			span := adapter.Instrumentation().StartSpan(PlannerSpanModel, PlannerSpanAttributes{ModelAlias: "test-model"})
+			var span PlannerSpan = noopSpan{}
+			if enabled {
+				span = adapter.Instrumentation().StartSpan(PlannerSpanModel, PlannerSpanAttributes{ModelAlias: "test-model"})
+			}
 			calls := 0
 			CapturePlannerInput(span, func() any { calls++; return map[string]string{"prompt": "raw-secret-canary"} })
 			CapturePlannerOutput(span, func() any { return strings.Repeat("界", MaxContentBytes) })
@@ -75,7 +78,7 @@ func TestPlannerContentQueueRetainsLateSpansBeyondTwoMiB(t *testing.T) {
 	defer server.Close()
 	registry, _ := NewBuiltinPlannerAdapterRegistry()
 	adapter, err := registry.Create(PlannerAdapterOTLPHTTP, PlannerAdapterSettings{
-		Endpoint: server.URL, FlushTimeout: time.Second, CaptureContent: true,
+		Endpoint: server.URL, FlushTimeout: time.Second,
 		RunMetadataLabels: runlabels.RunMetadataLabels{},
 		Resource:          PlannerResource{RunID: "run-test", StageExecutionID: "stage-test", PlannerRef: "streamline@1"},
 	})

@@ -16,13 +16,12 @@ import contractor_runtime.toolsets.taint_annotations.tools as taint_annotations
 from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.projectfs import MemoryWorkspaceProvider, hydrate_workspace
 from contractor_runtime.projectfs.storage import WorkspaceStorageError
+from contractor_runtime.toolsets.common.annotation_syntax import MAX_LIST_ENTRIES, MAX_TOKEN_CHARS
 from contractor_runtime.toolsets.edit_files.tools import EditFilesToolsetFactory
 from contractor_runtime.toolsets.taint_annotations.tools import (
     MAX_ANNOTATION_BYTES,
     MAX_DEFINITION_LINE,
-    MAX_LIST_ENTRIES,
     MAX_SOURCE_FILE_BYTES,
-    MAX_TOKEN_CHARS,
     TaintAnnotationError,
 )
 from contractor_runtime.workspace import AllocationWorkspace

@@ -477,6 +477,14 @@ func (s *factoryArtifacts) Create(ctx context.Context, _ string, target contract
 	return s.put(target, payload), nil
 }
 
+func (s *factoryArtifacts) Replace(ctx context.Context, _ string, target contracts.ArtifactRef, payload artifacts.Payload, expected string) (contracts.ArtifactRef, error) {
+	ref, exists := s.current[factoryRefKey(target)]
+	if ctx.Err() != nil || target.Revision != nil || !exists || ref.Revision == nil || *ref.Revision != expected {
+		return contracts.ArtifactRef{}, artifacts.ErrArtifactConflict
+	}
+	return s.put(target, payload), nil
+}
+
 func (s *factoryArtifacts) Inspect(_ context.Context, _ string, ref contracts.ArtifactRef) (planner.ArtifactMetadata, error) {
 	payload, exists := s.values[factoryRefKey(ref)]
 	if !exists || ref.ValidateExact() != nil {
@@ -487,7 +495,10 @@ func (s *factoryArtifacts) Inspect(_ context.Context, _ string, ref contracts.Ar
 
 func (s *factoryArtifacts) Resolve(ctx context.Context, _ string, target contracts.ArtifactRef) (contracts.ArtifactRef, error) {
 	ref, exists := s.current[factoryRefKey(target)]
-	if !exists || target.Revision != nil || ctx.Err() != nil {
+	if !exists {
+		return contracts.ArtifactRef{}, artifacts.ErrArtifactNotFound
+	}
+	if target.Revision != nil || ctx.Err() != nil {
 		return contracts.ArtifactRef{}, errors.New("report metadata unavailable")
 	}
 	return ref.Clone(), nil
@@ -663,6 +674,19 @@ func (w *factoryInvoker) Invoke(ctx context.Context, binding string, _ contracts
 			return contracts.WorkerCompletion{}, err
 		}
 	}
+	outputs := map[string]contracts.ArtifactRef{"report": ref}
+	for _, name := range []string{"candidates", "evidence"} {
+		target, selected := request.ResultArtifacts[name]
+		if !selected {
+			continue
+		}
+		media := "application/vnd.contractor.finding-" + name + "+json"
+		exact, err := w.artifacts.Create(ctx, "run-scan", target, artifacts.Payload{MediaType: media, Data: []byte(`{}`)})
+		if err != nil {
+			return contracts.WorkerCompletion{}, err
+		}
+		outputs[name] = exact
+	}
 	if w.failureCode != "" {
 		return contracts.WorkerCompletion{
 			APIVersion: contracts.APIVersion, InvocationID: "worker-invocation", StateRevision: 1,
@@ -672,7 +696,7 @@ func (w *factoryInvoker) Invoke(ctx context.Context, binding string, _ contracts
 	return contracts.WorkerCompletion{
 		APIVersion: contracts.APIVersion, InvocationID: "worker-invocation", StateRevision: 1,
 		Result: &contracts.WorkerResult{
-			SubtaskID: request.SubtaskID, Result: "Scanner output persisted", Artifacts: map[string]contracts.ArtifactRef{"report": ref},
+			SubtaskID: request.SubtaskID, Result: "Scanner output persisted", Artifacts: outputs,
 			Observations: contracts.WorkerObservations{Profile: contracts.WorkerObservationProfileLeanV1, Tools: map[string]contracts.ToolObservationCount{tool: {Calls: 1}}, Truncated: w.truncated},
 		},
 	}, nil

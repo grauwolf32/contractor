@@ -3,14 +3,29 @@ package evalservice
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strconv"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
 )
+
+// Audit Start interprets its pinned inputs before activation. Only its owning
+// domain validation errors (including the common codec's private sentinel)
+// prove local non-acceptance; an arbitrary HTTP status does not.
+func auditStartValidationError(cause error) bool {
+	var validation *auditdomain.ValidationError
+	if errors.As(cause, &validation) {
+		return true
+	}
+	classified, ok := apierror.Of(cause)
+	return ok && classified.ErrorKind() == apierror.AuditDocumentInvalid
+}
 
 type auditAdapter struct {
 	operations *executionOperations
@@ -22,6 +37,7 @@ type auditRequest struct {
 	ID, ProjectID, ProfileSHA256 string
 	Profile                      auditservice.ProfileSelector
 	Inputs                       map[string]contracts.ArtifactRef
+	Parameters                   map[string]string
 	Scope                        auditservice.Scope
 }
 
@@ -52,10 +68,9 @@ func (d *auditAdapter) Create(ctx context.Context, e evalstore.Experiment, m eva
 		if err != nil {
 			return auditRequest{}, err
 		}
-		params := MapParameters(memberCase(m), m.Recipe.Variant)
-		objective := m.Recipe.Case.Task.Objective
-		if value, ok := params["objective"]; ok {
-			objective = value
+		scope, parameters, err := mapAuditParameters(memberCase(m), m.Recipe.Variant, snapshot.Audit.Program)
+		if err != nil {
+			return auditRequest{}, evaldomain.Failure("eval_invalid")
 		}
 		return auditRequest{
 			ID:            "audit-" + m.SubmissionKey,
@@ -63,7 +78,8 @@ func (d *auditAdapter) Create(ctx context.Context, e evalstore.Experiment, m eva
 			ProfileSHA256: digest,
 			Profile:       auditservice.ProfileSelector{Name: snapshot.Audit.Ref.Name, Version: snapshot.Audit.Ref.Version},
 			Inputs:        inputs,
-			Scope:         auditservice.Scope{Objective: objective, Target: params["target"], AuthorizationScope: params["authorizationScope"]},
+			Parameters:    parameters,
+			Scope:         scope,
 		}, nil
 	})
 	if err != nil {
@@ -90,6 +106,7 @@ func (d *auditAdapter) Create(ctx context.Context, e evalstore.Experiment, m eva
 		AuditID:               request.ID,
 		Profile:               request.Profile,
 		Inputs:                request.Inputs,
+		Parameters:            request.Parameters,
 		RuntimeLabels:         m.Recipe.Variant.RuntimeLabels,
 		Scope:                 request.Scope,
 		IdempotencyKey:        op.Key,

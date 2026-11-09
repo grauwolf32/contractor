@@ -139,7 +139,7 @@ def test_real_gateway_roles_preserve_schemas_reasoning_and_serialized_capture_po
 
     async def scenario():
         adapter = await OTLPHTTPAdapterFactory(httpx.MockTransport(collector)).create(
-            adapter_context(), telemetry_settings().model_copy(update={"capture_content": capture})
+            adapter_context(), telemetry_settings().model_copy(update={})
         )
         async with httpx.AsyncClient(transport=httpx.MockTransport(gateway)) as http:
             normal = gateway_model(http)
@@ -151,7 +151,7 @@ def test_real_gateway_roles_preserve_schemas_reasoning_and_serialized_capture_po
                 {"probe": probe},
                 normal,
                 instruction=INSTRUCTION,
-                instrumentation=adapter.handles.instrumentation,
+                instrumentation=adapter.handles.instrumentation if capture else None,
                 summary_model=terminal,
                 summary_instructions=(
                     "Preserve {unset_summary} literally. summary-instruction-canary"
@@ -216,7 +216,7 @@ def test_real_gateway_roles_preserve_schemas_reasoning_and_serialized_capture_po
     ):
         assert forbidden.encode() not in serialized
         assert forbidden not in caplog.text
-    visible = capture and not sensitive
+    visible = capture
     for canary in (
         REASONING,
         RESULT,
@@ -232,6 +232,9 @@ def test_real_gateway_roles_preserve_schemas_reasoning_and_serialized_capture_po
         for scope in resource.scope_spans
         for span in scope.spans
     ]
+    if not capture:
+        assert not spans
+        return
     assert len({span.span_id for span in spans}) == len(spans)
     assert {span.name for span in spans} == {
         "contractor.worker.model",
@@ -633,13 +636,15 @@ def test_native_skill_content_reaches_only_the_authorized_serialized_sink(
         selected, value = resolved_value(skill_package())
         client, state = FakeSkillClient({"demo": value}), WorkerState()
         adapter = await OTLPHTTPAdapterFactory(httpx.MockTransport(collector)).create(
-            adapter_context(), telemetry_settings().model_copy(update={"capture_content": capture})
+            adapter_context(), telemetry_settings().model_copy(update={})
         )
         async with httpx.AsyncClient(transport=httpx.MockTransport(gateway)) as http:
             context = replace(
                 skill_context(tmp_path, state, selected),
                 tools={"selected_sensitive_tool": selected_sensitive_tool},
-                adapter_handles=AdapterHandles(instrumentation=adapter.handles.instrumentation),
+                adapter_handles=AdapterHandles(
+                    instrumentation=adapter.handles.instrumentation if capture else None
+                ),
             )
             runtime = await AdkWorkerRuntimeFactory(
                 lambda _: gateway_model(http), lambda _allocation, _settings: client
@@ -661,7 +666,7 @@ def test_native_skill_content_reaches_only_the_authorized_serialized_sink(
     asyncio.run(scenario())
     serialized = b"".join(exports)
     for canary in (b"Follow the exact demo procedure", b"Reference contents"):
-        assert (canary in serialized) is (capture and not sensitive)
+        assert (canary in serialized) is capture
     assert HEADER_SECRET.encode() not in serialized
     assert GATEWAY_CREDENTIAL.encode() not in serialized
     assert GATEWAY_URL.encode() not in serialized
