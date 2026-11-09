@@ -38,6 +38,7 @@ from contractor_runtime.adapters import (
     RuntimeSpan,
     TelemetryAttribute,
 )
+from contractor_runtime.adapters.content import encode_content
 from contractor_runtime.artifacts import ArtifactValue
 from contractor_runtime.contracts import (
     API_VERSION,
@@ -64,7 +65,7 @@ from contractor_runtime.contracts import (
     WorkerSessionMode,
     WorkerSummarizerConfig,
 )
-from contractor_runtime.factories import WorkerBuildContext, built_in_factories
+from contractor_runtime.factories import WorkerBuildContext
 from contractor_runtime.llm.client import new_gateway_client
 from contractor_runtime.llm.factory import gateway_model
 from contractor_runtime.llm.openai import (
@@ -737,47 +738,15 @@ def test_runtime_signals_are_found_through_callback_wrappers(signal: Exception) 
     assert _chained_error(first, kind) is None
 
 
-def test_sensitive_output_registry_and_declared_attribute_select_content_free_telemetry(
-    tmp_path: Path,
-) -> None:
-    from google.adk.tools import FunctionTool
-
-    from contractor_runtime.toolsets.caido.tools import CAIDO_TOOL_NAMES
-    from contractor_runtime.toolsets.code_execution.tools import ExecCommandTool
-    from contractor_runtime.toolsets.http.tools import HTTPToolsetFactory
-    from contractor_runtime.worker.runtime import requires_content_free_telemetry
-
-    async def plain() -> dict[str, bool]:
-        return {"ok": True}
-
-    declared = DeclaredSensitiveTool()
-    registered = built_in_factories(tmp_path).sensitive_output_tools
-
-    def content_free(tools: dict[str, Any]) -> bool:
-        return requires_content_free_telemetry(tools, sensitive_output_tools=registered)
-
-    assert not content_free({})
-    assert not content_free({"plain": plain, "read_artifact": plain})
-    assert content_free({"declared_probe": declared})
-    assert content_free({"wrapped": FunctionTool(declared)})
-    assert ExecCommandTool.contractor_sensitive_output is True
-    for name in HTTPToolsetFactory.exported_tools | CAIDO_TOOL_NAMES:
-        assert content_free({"plain": plain, name: plain})
-        # The decision follows the registered declaration, not a Worker-side list.
-        assert not requires_content_free_telemetry(
-            {"plain": plain, name: plain}, sensitive_output_tools=frozenset()
-        )
-
-
 @pytest.mark.parametrize("tool_name", ["http_request", "caido_replay", "declared_probe", "probe"])
-def test_adk_worker_suppresses_captured_content_for_sensitive_output_tools(
+def test_adk_worker_preserves_content_for_all_selected_tools(
     tmp_path: Path, tool_name: str
 ) -> None:
     async def probe() -> dict[str, str]:
         return {"traffic": "tool-output-canary"}
 
+    probe.__name__ = tool_name
     tool = DeclaredSensitiveTool() if tool_name == "declared_probe" else probe
-    sensitive = tool_name != "probe"
 
     async def scenario() -> None:
         instrumentation = CapturingInstrumentation()
@@ -796,8 +765,8 @@ def test_adk_worker_suppresses_captured_content_for_sensitive_output_tools(
         assert completion.result is not None
         assert any(span.name == "contractor.worker.tool" for span in instrumentation.spans)
         captured = repr(instrumentation.content)
-        assert ("tool-output-canary" in captured) is not sensitive
-        assert bool(instrumentation.content) is not sensitive
+        assert "tool-output-canary" in captured
+        assert instrumentation.content
         await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
@@ -859,7 +828,6 @@ def private_runtime_settings() -> RuntimeSettings:
                 adapter="otlp-http@1",
                 endpoint="https://telemetry.example/v1/traces",
                 headers={"Authorization": TELEMETRY_HEADER},
-                captureContent=False,
                 flushTimeoutSeconds=1,
                 export=SERVER_EXPORT,
             ),
@@ -4019,7 +3987,6 @@ def build_context(
         a2a_base_url="https://runtime.example",
         runtime_settings=runtime_settings(),
         # What AllocationService passes for the production registry.
-        sensitive_output_tools=built_in_factories(tmp_path).sensitive_output_tools,
     )
 
 
@@ -4232,8 +4199,6 @@ class CapturingInstrumentation(RecordingInstrumentation):
 
 
 class CapturingSpan(RecordingSpan):
-    capture_content = True
-
     def __init__(
         self,
         name: str,
@@ -4243,13 +4208,11 @@ class CapturingSpan(RecordingSpan):
         super().__init__(name, attributes)
         self._content = content
 
-    def set_content(self, kind: str, value: str) -> None:
-        self._content.append((kind, value))
+    def capture_content(self, kind: str, value: Any) -> None:
+        self._content.append((kind, encode_content(value)))
 
 
 class DeclaredSensitiveTool:
-    contractor_sensitive_output = True
-
     def __init__(self) -> None:
         self.__name__ = "declared_probe"
         self.__doc__ = "Return captured traffic."

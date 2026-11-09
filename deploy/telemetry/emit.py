@@ -31,7 +31,6 @@ async def emit_runtime(endpoint, headers):
     settings = TelemetrySettings(
         adapter="otlp-http@1",
         endpoint=endpoint,
-        captureContent=True,
         headers=headers,
         flushTimeoutSeconds=10,
         export={

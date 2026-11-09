@@ -230,7 +230,7 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Confirmed control lease** — The liveness lease that advances only through a new heartbeat request, acknowledgement and echo round trip. Owner: [Control Plane](execution/control-plane.md).
 
-**Content capture** — The opt-in captureContent=true mode in which prompts, responses and tool arguments and results are exported, unredacted, to the telemetry sink. Owner: [Observability](platform/observability.md).
+**Content capture** — Bounded model and tool content exported by a configured telemetry exporter after replacement of exact known credential values. Owner: [Observability](platform/observability.md).
 
 **Context artifact** — A Stage-local name bound in `context.artifacts` to a versionless RunScope `(namespace, name)` with a `required` flag. Owner: [Workflows](configuration/workflows.md).
 
@@ -587,8 +587,6 @@ Terms used across the specification. Each entry names the document that owns the
 **Merge unit** — A leaf or atomic block of RuntimeConfig that a higher precedence layer replaces as a whole and on which same-layer labels conflict. Owner: [Runtime configuration, labels, credentials and Gateways](configuration/runtime-config.md).
 
 **Metadata labels** — The immutable `labels` key/value string map that identifies, groups and queries one WorkflowRun without affecting its execution. Owner: [Runs](execution/runs.md).
-
-**Metadata-only instrumentation** — Instrumentation that exports no content whatever the content-capture setting, used for a whole allocation whose Worker selects a sensitive-output tool. Owner: [Observability](platform/observability.md).
 
 **Migration budget** — The operation budget of a migration run: the statement and lock timeouts the operator chooses per run of `contractor server migrate`, the fixed idle-in-transaction timeout, the client deadlines and the deadline of the whole run. Owner: [Persistence](platform/persistence.md).
 
@@ -980,7 +978,6 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Selector** — The compact `<id>@<version>` authoring and API lookup value, never the complete durable execution identity. Owner: [Configuration catalog](configuration/catalog.md).
 
-**Sensitive-output tool** — A tool that declares contractor_sensitive_output because its results carry command output, captured HTTP traffic or HTTP session material. Owner: [Observability](platform/observability.md).
 
 **Server generation** — The identity of one Server boot in performance history; counters from different generations are never subtracted. Owner: [Operations](operations/operations.md).
 
@@ -1120,7 +1117,7 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Trusted Server envelope** — The identities, attribution and correlation metadata that the Server binds to a report from its own records, never from the report payload. Owner: [Observability](platform/observability.md).
 
-**Trusted sink** — A telemetry backend that content capture trusts with unredacted content. Owner: [Observability](platform/observability.md).
+**Trusted sink** — A configured telemetry backend receiving bounded model and tool content after exact known credential replacement. Owner: [Observability](platform/observability.md).
 
 **Two-phase release** — Release in which the Runtime first confirms cleanup while staying fenced and a later heartbeat release action lets it become idle. Owner: [Control Plane](execution/control-plane.md).
 

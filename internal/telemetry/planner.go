@@ -93,7 +93,7 @@ func (r PlannerResource) clone() PlannerResource {
 }
 
 type PlannerAdapterSettings struct {
-	CaptureContent    bool
+	KnownCredentials  []contracts.SecretString
 	Endpoint          string
 	Headers           map[string]contracts.SecretString
 	FlushTimeout      time.Duration
@@ -103,6 +103,7 @@ type PlannerAdapterSettings struct {
 
 func (s PlannerAdapterSettings) clone() PlannerAdapterSettings {
 	result := s
+	result.KnownCredentials = append([]contracts.SecretString(nil), s.KnownCredentials...)
 	result.Headers = make(map[string]contracts.SecretString, len(s.Headers))
 	for name, value := range s.Headers {
 		result.Headers[name] = value

@@ -56,10 +56,6 @@ from contractor_runtime.projectfs import (
     WorkspaceAutoExporter,
     WorkspaceExportError,
 )
-from contractor_runtime.telemetry.execution import (
-    ContentFreeInstrumentation,
-    declares_sensitive_output,
-)
 from contractor_runtime.worker.adk_features import require_supported_adk_features
 from contractor_runtime.worker.adk_turn import AdkTurnRunner
 from contractor_runtime.worker.budget import WorkerBudgetExceeded, _InvocationBudget
@@ -110,23 +106,6 @@ if TYPE_CHECKING:
 MAX_STAGE_REQUEST_JSON_BYTES = 256 * 1024
 
 
-def requires_content_free_telemetry(
-    tools: Mapping[str, Any], *, sensitive_output_tools: frozenset[str]
-) -> bool:
-    """Whether any selected tool makes the whole Worker's telemetry content-free.
-
-    ``sensitive_output_tools`` are the tool names that the registered toolset
-    factories declare as returning captured HTTP traffic or HTTP session
-    material (every http-tools@1 and Caido tool, including tools added later).
-    A tool may also declare ``contractor_sensitive_output`` itself.
-    """
-
-    return any(
-        name in sensitive_output_tools or declares_sensitive_output(tool)
-        for name, tool in tools.items()
-    )
-
-
 class AdkWorkerRuntime:
     def __init__(
         self,
@@ -149,10 +128,6 @@ class AdkWorkerRuntime:
         self._model_factory = model_factory
         self._metrics = context.state.metrics
         self._instrumentation = context.adapter_handles.instrumentation
-        if self._instrumentation is not None and requires_content_free_telemetry(
-            context.tools, sensitive_output_tools=context.sensitive_output_tools
-        ):
-            self._instrumentation = ContentFreeInstrumentation(self._instrumentation)
         self._app_name = "contractor_runtime_worker"
         self._user_id = "contractor_control_plane"
         self._session_lifecycle = WorkerSessionLifecycle(

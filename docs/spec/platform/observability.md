@@ -14,7 +14,7 @@ This document owns the observability rules that every domain relies on:
   redaction of tool arguments and errors with the shared secret-substitution
   policy, report bounds and the retention of durable telemetry;
 - external trace export through `otlp-http@1`: span and attribute content,
-  content capture and sensitive-output tools, the Worker exporter's queue,
+  content capture and known credential replacement, the Worker exporter's queue,
   batching, retry, acknowledgement and flush behaviour, its dropped-span
   counters, and Planner telemetry built in the Server;
 - propagation of WorkflowRun metadata labels into telemetry.
@@ -80,15 +80,11 @@ following ones.
   terminal, retained without changing the frozen terminal facts.
 - **Runtime adapter metrics.** Per-adapter counters in a Runtime report, keyed
   by the exact RuntimeAdapter ref.
-- **Content capture.** The opt-in `captureContent=true` mode in which prompts,
+- **Content capture.** The configured-exporter mode in which prompts,
   responses and tool arguments and results are exported to the telemetry sink.
 - **Trusted sink.** A telemetry backend that content capture trusts with
-  unredacted content.
-- **Sensitive-output tool.** A tool that declares `contractor_sensitive_output`
-  because its results carry command output, captured HTTP traffic or HTTP
-  session material.
-- **Metadata-only instrumentation.** Instrumentation that exports no content,
-  whatever the content-capture setting.
+  bounded content after known credential replacement.
+
 - **Local discard.** A span that the Worker exporter itself drops, counted in
   `droppedSpans`.
 - **PlannerTelemetryAdapter registry.** The Server-owned, versioned registry of
@@ -743,34 +739,45 @@ durable lifecycle remains authoritative (LIFE-OBS-3).
 
 ### Content capture
 
-**OBS-R53.** Content capture is off by default
-(`captureContent=false`): prompts, model responses, artifact bytes and content,
-tool arguments and results and RuntimeSettings secrets are absent from exported
-telemetry.
+**OBS-R53.** External tracing is disabled when no telemetry exporter is
+configured. Selecting a RuntimeConfig with telemetry (normally through the
+`debug` Runtime label on a Run or Audit) enables bounded content export. There
+is no independent content-capture switch. Ordinary status, metrics and durable
+report contracts remain independent of external tracing.
 
-**OBS-R54.** Setting `captureContent=true`, independently on Worker
-telemetry, Planner telemetry or both, explicitly trusts the configured sink with
-unredacted content. No secret-content filter is applied to captured content.
-With capture enabled, content may itself contain secrets and
-is not filtered, so secrets included in messages or tool results can be
-exported.
+**OBS-R54.** Worker and Planner exporters replace exact known credential
+values with `[REDACTED]` in exported content and data attributes before encoding,
+truncation and queueing. Every nonempty value matches case-sensitively, including
+short embedded values. Equal-start overlapping matches prefer the longest
+original value; replacement text is never matched again. JSON escaping is a
+serialization concern: replacement acts on data string values first. JSON keys
+and protocol vocabulary (outcomes, GenAI roles, part types, finish reasons and
+fixed operation/provider attributes) are never replacement targets. Span status
+comes from the validated original execution outcome, independently of redaction.
+SDK requests/responses are projected into GenAI before their data fields are
+masked; final serialization, per-field byte bounds and queueing follow masking.
+This keeps tool declarations and messages available even when a known value is
+`name`, `s` or another fragment of the protocol.
 
-**OBS-R55.** Content capture does not include automatic export of
-client configuration or authentication headers.
+**OBS-R55.** Credentials come only from existing execution-scoped resolution:
+model, telemetry, proxy, target and assigned identity credentials known to that
+execution. The match set stays in memory and is released with its owning
+allocation or Planner. Client configuration and authentication headers are not
+automatically exported. Endpoints are not credentials.
 
-**OBS-R56.** Tools whose results carry command output, captured
-HTTP traffic or HTTP session material declare sensitive output
-(`contractor_sensitive_output`). A Worker that selects any such tool uses
-metadata-only instrumentation for the whole allocation, even when
-`captureContent=true`.
+**OBS-R56.** Selected tools never suppress an entire Worker's content. HTTP,
+Caido, Interactsh and command output use the same exporter replacement path as
+model messages, summaries and finalizers. Model inputs, tool outputs and retained
+evidence are not modified by telemetry preparation.
 
-Rationale: later model requests, result finalizers and summaries can repeat the
-earlier output.
-
-**OBS-R57.** `exec_command` declares sensitive output on the tool. The
-`http-tools@1` and `caido@1` toolset factories declare it for every tool they
-export (`sensitive_output_tools`); the Runtime derives the set from the
-registered toolsets and passes it to the Worker.
+**OBS-R57.** Replacement performs no field-name inference, HTTP parsing,
+dynamic-secret discovery or matching of encoded/transformed values. Unknown
+secrets remain outside its guarantee. Content transformation/encoding failure
+omits only the affected input or output; there is no raw fallback. An input
+capture failure does not suppress an independently valid output. Mapping keys
+remain unchanged, so replacement cannot introduce key collisions. Preparation
+visits at most 100,000 values at depth 64 (LIM-OBS-28). Replacement shares
+Go/Python examples in `api/testdata/telemetry-credential-redaction.json`.
 
 **OBS-R58.** Captured model input includes conversation messages,
 system instructions and tool declarations; captured output includes the model
@@ -814,7 +821,7 @@ retained capacity, and serialization and transport may need additional memory.
 ordinary logs or metrics.
 
 **OBS-R63.** Existing Runs keep their pinned configuration; enabling
-capture affects only new Runs resolved against the new RuntimeConfig version.
+export configuration affects only new Runs resolved against the new RuntimeConfig version.
 
 ### Worker export scheduling
 
@@ -1082,7 +1089,7 @@ correlation IDs and trace attributes are sufficient for detailed drill-down.
   namespace `contractor.run.label.*` (OBS-R107).
 - Configuration consumed here and specified in
   [Runtime configuration](../configuration/runtime-config.md):
-  `worker.telemetry` and `planner.telemetry` with `captureContent` and
+  `worker.telemetry` and `planner.telemetry` with configured exporters and
   `flushTimeoutSeconds`; `worker.telemetry.export` (`batchSizeBytes`,
   `maxAttempts`, `maxPendingSpans`, `maxPendingBytes`;
   [RCF-R99](../configuration/runtime-config.md)) and its `retry` object
@@ -1169,9 +1176,8 @@ and `tool_call_failed` (OBS-R32).
   Server persistence boundary, known secrets are removed from tool arguments
   and errors, and one secret-matching policy covers metrics, allocation checks
   and Worker results (OBS-R27 to OBS-R32).
-- Exported telemetry is content-free unless content capture explicitly trusts
-  the sink, and sensitive-output tools force metadata-only instrumentation
-  (OBS-R53, OBS-R54, OBS-R56).
+- Configured exporters include bounded content with exact known credential
+  replacement (OBS-R53, OBS-R54, OBS-R56).
 - Metadata labels never reach a model (OBS-R106).
 - Trust boundaries, mTLS identity and the handling of RuntimeSettings secrets
   are in [Security](security.md).
@@ -1284,7 +1290,7 @@ never change execution results, aggregate counters or Eval usage.
 | Workspace metric content | [WSP-R176](../tools/workspace.md), [WSP-R177](../tools/workspace.md) |
 | HTTP and Caido metric content and the durable metrics planes | [HTTP and Caido tools](../tools/http-caido.md) |
 | Code-analysis and taint-annotation metric content | [CAN-R141](../tools/code-analysis.md) to [CAN-R145](../tools/code-analysis.md) |
-| Podman sandbox metrics and metadata-only instrumentation of execution-enabled Workers | [Code execution](../tools/code-execution.md) |
+| Podman sandbox metrics and bounded telemetry of execution-enabled Workers | [Code execution](../tools/code-execution.md) |
 | Performance collection, `RuntimeReport.resources`, Server and database performance history, HTTP listener dimensions; performance telemetry never affects placement, outcomes, leases, fencing or release | [OPS-R69](../operations/operations.md), [OPS-R70](../operations/operations.md), [OPS-R99](../operations/operations.md), [OPS-R100](../operations/operations.md) |
 | Closing allocation adapters after the flush and keeping them closed at release | [RTA-R58](../execution/runtime-agent.md) |
 | Eval purge progress records: pass count, rows, bytes and age of each experiment and Project purge | [EVM-R243](../evals/managed-evals.md) |
@@ -1308,12 +1314,11 @@ These properties follow from the cited requirements, which are authoritative.
    `test_plugin_close_records_pending_tool_calls_as_cancelled` in
    [`runtime/tests/test_instrumentation.py`](../../../runtime/tests/test_instrumentation.py).
 4. Exported spans contain no prompts, responses, artifact content or tool
-   arguments and results unless content capture is enabled for that telemetry
-   and, for a Worker, the Worker selected no sensitive-output tool (OBS-R53,
+   arguments and results unless that telemetry exporter is configured (OBS-R53,
    OBS-R54, OBS-R56); tests
    `test_otlp_protobuf_is_bounded_content_free_and_header_scoped` in
    [`runtime/tests/test_otlp_adapter.py`](../../../runtime/tests/test_otlp_adapter.py)
-   and `test_adk_worker_suppresses_captured_content_for_sensitive_output_tools`
+   and `test_adk_worker_preserves_content_for_all_selected_tools`
    in [`runtime/tests/test_adk_runtime.py`](../../../runtime/tests/test_adk_runtime.py).
 5. A permanent export failure is never retried, and no retry extends a batch
    deadline (OBS-R74, OBS-R70, OBS-R76); tests
@@ -1363,7 +1368,7 @@ These properties follow from the cited requirements, which are authoritative.
 
 - Incremental report delivery per A2A Task. It could reduce data loss from a
   hard Worker crash without changing the terminal report schema.
-- Secret filtering of captured content and a separate retention policy for it;
+- Detection of unknown or transformed secrets and a separate content retention policy;
   neither is a prerequisite for the trusted-sink mode (OBS-R54).
 - Export of OpenTelemetry metrics or logs, a durable exporter spool and infinite
   retry (OBS-R45, OBS-R52).

@@ -89,7 +89,6 @@ _DESCRIPTION = """Run a shell command in the allocation container.
 
 class ExecCommandTool:
     name = "exec_command"
-    contractor_sensitive_output = True
 
     def __init__(
         self, executor, resources: ToolResources, *, settings: PodmanSettings | None = None

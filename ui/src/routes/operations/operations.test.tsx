@@ -1036,10 +1036,6 @@ describe("Operations routes", () => {
         name: /Worker telemetry/,
       }),
     );
-    const captureContent = within(telemetryGroup).getByRole("checkbox", {
-      name: /Capture content/,
-    });
-    expect(captureContent).not.toBeChecked();
     await user.click(screen.getByText("Optional settings"));
     expect(
       screen.getByLabelText("Worker telemetry flush timeout (seconds)"),
@@ -1049,7 +1045,6 @@ describe("Operations routes", () => {
     );
     await user.clear(attempts);
     await user.type(attempts, "3");
-    await user.click(captureContent);
     await user.type(
       within(telemetryGroup).getByLabelText("OTLP traces endpoint"),
       "https://otel.example/v1/traces",
@@ -1073,7 +1068,6 @@ describe("Operations routes", () => {
           gateway: { gatewayId: "local-litellm", version: "1", digest },
         },
         telemetry: {
-          captureContent: true,
           flushTimeoutSeconds: 10,
           export: {
             batchSizeBytes: 8388608,

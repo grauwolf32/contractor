@@ -594,6 +594,7 @@ its owning requirement.
 | `LIM-OBS-25` | at most 18 integer and 18 fractional decimal digits | one reported USD amount | Go/Python normalization, report validators and private schema | [OBS-R121](observability.md) |
 | `LIM-OBS-26` | 64 groups: 48 explicit and at most 16 combined phase/role/source groups | one prepared cost aggregate | Server aggregate replacement and reads | [OBS-R125](observability.md) |
 | `LIM-OBS-27` | 38 integer decimal digits; at most 18 fractional digits for USD amounts | prepared cost counters and amounts | Server aggregate validation and public schema | [OBS-R125](observability.md) |
+| `LIM-OBS-28` | 100,000 JSON values and nesting depth 64 | One content field prepared for telemetry credential replacement | Worker and Planner exporter preparation omits affected content on overflow before enqueueing | [OBS-R57](observability.md) |
 | `LIM-OPS-1` | 15 s sampling interval | Server process, HTTP snapshot and pgx pool sampling; NVIDIA GPU sampling | Server performance samplers | [OPS-R86](../operations/operations.md) |
 | `LIM-OPS-2` | 60 minutes | In-memory fine history of Server process/HTTP/pool and GPU frames | Server performance sampler buffers | [OPS-R86](../operations/operations.md) |
 | `LIM-OPS-3` | 60 s | PostgreSQL activity and cumulative statistics collection | Server PostgreSQL performance collector | [OPS-R86](../operations/operations.md) |

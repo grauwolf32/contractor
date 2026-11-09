@@ -1,0 +1,80 @@
+schema_version: '1.0'
+id: V463-002
+title: Preserve telemetry status and GenAI structure during credential replacement
+milestone: runtime-telemetry-2026-10
+epic: operations
+kind: defect
+introduced_by: V463-001
+priority: P2
+status: completed
+implementation_commit: 58ddb1c2d7ae7b5cf52e65c359fbcd8255cc7387
+depends_on: [V463-001]
+languages: [go, python, json, markdown, yaml]
+goal: >-
+  Short known credentials do not turn successful spans into failures or remove
+  model input; Worker and Planner preserve GenAI structure while masking data.
+context:
+  authority: >-
+    User review and implementation authorization 2026-11-09: compute status from
+    the original outcome, exclude protocol vocabulary from replacement, normalize
+    SDK content before masking and apply byte bounds only after masking. Keep
+    the existing lightweight exact-known-value matcher.
+  severity: medium
+  evidence: tasks/evidence/v463-002-telemetry-protocol-safe-redaction.json
+  finding: >-
+    Python OTLP enqueue masks outcome before deriving status: secret s changes
+    succeeded into an error. Python and Go mask SDK declaration keys before GenAI
+    projection: secret name removes a required name key, dropping Python input
+    and producing incomplete Go declarations.
+  siblings: >-
+    Both Worker Python and Planner Go content pipelines are corrected. Go already
+    computes status from original outcome, but currently masks fixed GenAI
+    operation/provider attributes. Generic tool content and model input/output
+    must use the same pre-queue masking and post-masking byte bounds.
+  specification:
+    - docs/spec/platform/observability.md#OBS-R54
+    - docs/spec/platform/observability.md#OBS-R57
+  ownership: >-
+    Exporters own capture. GenAI adapters own projection and distinguish protocol
+    fields from payload. Exact replacement acts on data string values; JSON keys
+    and fixed protocol values are structure. This supersedes V463-001's broader
+    string-key masking requirement and avoids masked-key collisions entirely.
+scope:
+  in:
+    - Derive span status from the validated original execution outcome.
+    - Normalize SDK payloads before redacting data, encoding and bounding content.
+    - Preserve JSON keys and GenAI roles, part types, finish reasons and fixed attributes.
+    - Exercise real OTLP queues and collectors using shared Go/Python regressions.
+  out:
+    - Credential discovery, heuristics, encoded-secret matching and new capture settings.
+    - Deployment, main merge and live pentest execution.
+acceptance_criteria:
+  - id: A1
+    text: Known s preserves succeeded outcome and OK status; genuine failure stays ERROR.
+  - id: A2
+    text: Known name preserves model messages and complete tool declarations in both exporters.
+  - id: A3
+    text: GenAI protocol values and keys survive while nested data strings are masked before truncation and enqueueing; original execution values remain unchanged.
+  - id: A4
+    text: Optional capture failures never export raw content or affect execution and existing size and traversal bounds remain enforced.
+tests:
+  - command: go test -race -count=1 ./internal/telemetry/...
+    covers: [A1, A2, A3, A4]
+  - command: make test-runtime
+    covers: [A1, A2, A3, A4]
+  - command: make test-wire-cross-language
+    covers: [A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+
+implementation_notes:
+  - Both exporters project SDK content before masking payload values and applying final per-field byte bounds.
+  - JSON keys and GenAI envelope vocabulary remain intact; no pre-projection masking, raw JSON compatibility path or new matching mechanism remains.
+  - Fallback model text is serialized only after masking its nested JSON data, preventing escaping from bypassing exact matches.
+verification_results:
+  - New regressions reproduced six Python failures and three Go GenAI failures on the original implementation.
+  - Runtime 6140 passed and 135 declared skips; final mandatory report validation passed.
+  - Full telemetry package passed with race detector and dedicated PostgreSQL database; that database was dropped.
+  - Shared gate passed with 380 fixtures, 433 Go and 277 Python shared tests; one optional disk-heavy skip is not passing coverage.
+  - make lint passed, including the regenerated dependency graph, source guards, strict task/spec checks and import layers.
+  - This implementation remains on codex/debug-telemetry-known-secrets; main merge and deployment are not performed.

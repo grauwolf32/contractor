@@ -735,8 +735,9 @@ The schema fixes those bounds so that publication is independently testable:
   (LIM-RCF-8), has no query unless the adapter schema explicitly permits one,
   and is normalized without resolving DNS or contacting it.
 - **RCF-R84.** `flushTimeoutSeconds` is an integer from 1 through 10 and
-  defaults to 10 (LIM-RCF-9). Omitted `captureContent` is `false`; `true`
-  explicitly opts into unredacted content export to a trusted telemetry sink.
+  defaults to 10 (LIM-RCF-9). A configured telemetry block enables bounded
+  content export with known credential replacement (OBS-R53–OBS-R57); the
+  obsolete `captureContent` member is rejected.
 - **RCF-R85.** Proxy `targets` is a unique non-empty subset of `llm-gateway`,
   `tool-http` and `tool-subprocess` (LIM-RCF-10).
 - **RCF-R86.** `caBundlePem` is at most 64 KiB and contains one through eight
@@ -759,7 +760,7 @@ The schema fixes those bounds so that publication is independently testable:
   block.
 
 **RCF-R89.** Normalization materializes schema defaults such as
-`captureContent: false` and `flushTimeoutSeconds: 10`, sorts set-valued
+`flushTimeoutSeconds: 10`, sorts set-valued
 `targets`, rejects duplicate object keys before decoding and otherwise
 preserves scalar bytes under RFC 8785. Omitting a default and spelling it
 explicitly therefore produce the same digest, while a semantic endpoint,
@@ -798,7 +799,7 @@ The typed leaves of `spec` are:
   existing `LLMGatewayConfig` ref, a matching LLM credential ref, or both.
   After all precedence layers the resulting Worker route must be complete.
 - **RCF-R94.** `worker.telemetry`: one exact Runtime adapter, OTLP endpoint,
-  optional typed credential, safe capture policy and bounded flush timeout, or
+  optional typed credential and bounded flush timeout, or
   explicit null in an overlay.
 - **RCF-R95.** `worker.httpProxy`: one exact Runtime adapter, proxy endpoint,
   optional typed credential, optional bounded CA bundle and an explicit
@@ -1268,7 +1269,7 @@ depth:
 - `worker.telemetry`, `worker.httpProxy`, `worker.caido`, `worker.interactsh` and
   `planner.telemetry` are atomic blocks. A higher layer replaces the complete
   block or clears it with JSON `null`, so endpoints, credentials and trust or
-  capture policy cannot be assembled accidentally from different deployments
+  export settings cannot be assembled accidentally from different deployments
   and fields from two configs are never mixed. Omission inherits the block;
 - two labels in one layer that provide the same atomic block must provide
   byte-equivalent normalized values or conflict.
@@ -1510,7 +1511,6 @@ RuntimeSettings
     adapter                          exact RuntimeAdapterRef
     endpoint
     headers                          secret map resolved from credential
-    captureContent                   boolean; false by default, true trusts sink
     flushTimeoutSeconds
     export?                          Worker-only, pinned batch/queue/attempt settings
       batchSizeBytes
@@ -1773,7 +1773,6 @@ spec:
       adapter: otlp-http@1
       endpoint: https://telemetry.internal/v1/traces
       credential: langfuse-otel
-      captureContent: false
       flushTimeoutSeconds: 10
       export:
         batchSizeBytes: 8388608
@@ -1794,7 +1793,6 @@ spec:
       adapter: otlp-http@1
       endpoint: https://telemetry.internal/v1/traces
       credential: langfuse-otel
-      captureContent: false
       flushTimeoutSeconds: 10
 ```
 

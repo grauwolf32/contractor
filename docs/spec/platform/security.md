@@ -123,8 +123,8 @@ flowchart LR
   Gateway with the LLM Gateway settings supplied in its RuntimeSettings
   (SEC-R13, SEC-R29).
 - **Content channels.** The selected LLM Gateway receives the model
-  conversation ([Memory](../tools/memory.md)), and a telemetry sink with content
-  capture enabled is trusted with unredacted content
+  conversation ([Memory](../tools/memory.md)), and a configured telemetry sink receives bounded content after exact
+  known credential replacement
   ([Observability](observability.md)).
 - **Configuration trust.** Trust in configuration comes from the configured
   catalog boundary and the mTLS control channel
@@ -701,7 +701,7 @@ to one domain are owned by that domain's document:
 | RuntimeSettings secrets outside ADK Session, State, events and model context | [Worker](../execution/worker.md), WRK-R78, WRK-R79 |
 | Worker result secret scan (`unsafe_worker_result`) | [Worker](../execution/worker.md), WRK-R60, WRK-R61 |
 | Summarizer input redaction | [Worker](../execution/worker.md), WRK-R146 |
-| `X-Request-ID` trust, server-side 5xx diagnostic content, tool-argument redaction, the shared secret-substitution policy and telemetry `captureContent` | [Observability](observability.md) |
+| `X-Request-ID` trust, server-side 5xx diagnostic content, tool-argument redaction, the shared secret-substitution policy and telemetry credential replacement | [Observability](observability.md) |
 | Node UI deployment boundary (`/runtime-config.json`, `apiBaseUrl`) and the UI invariants on key material, passwords, session cookies and CSRF tokens | [UI](../ui/ui.md) |
 | Stored secrets are never returned; credential ID grammar, Gateway token bounds and AES-256-GCM encryption; master key required at startup when credential rows exist; decryption failure; Gateway admin bindings | [Runtime configuration](../configuration/runtime-config.md), RCF-R179, RCF-R37, RCF-R39 to RCF-R47, RCF-R58 to RCF-R60 |
 | Runtime labels are not authorization roles | [Runtime configuration](../configuration/runtime-config.md), RCF-R5, RCF-R6 |

@@ -673,7 +673,6 @@ def configured_spec(
             adapter="otlp-http@1",
             endpoint="https://telemetry.example/v1/traces",
             headers={"Authorization": TELEMETRY_SECRET},
-            captureContent=False,
             flushTimeoutSeconds=1,
             export=SERVER_EXPORT,
         )

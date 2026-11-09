@@ -11296,12 +11296,9 @@ type RuntimeResourceSummary1Status string
 
 // RuntimeTelemetryConfig defines model for RuntimeTelemetryConfig.
 type RuntimeTelemetryConfig struct {
-	Adapter RuntimeTelemetryConfigAdapter `json:"adapter"`
-
-	// CaptureContent Explicitly trust the telemetry sink with unredacted model and tool inputs/outputs. Disabled by default.
-	CaptureContent *bool                `json:"captureContent,omitempty"`
-	Credential     *RuntimeCredentialId `json:"credential,omitempty"`
-	Endpoint       string               `json:"endpoint"`
+	Adapter    RuntimeTelemetryConfigAdapter `json:"adapter"`
+	Credential *RuntimeCredentialId          `json:"credential,omitempty"`
+	Endpoint   string                        `json:"endpoint"`
 
 	// Export Worker telemetry export settings. Not supported under planner.telemetry. The pending byte limit must cover the batch size.
 	Export *WorkerTelemetryExportConfig `json:"export,omitempty"`

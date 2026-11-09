@@ -48,6 +48,7 @@ from contractor_runtime.contracts import (
 from contractor_runtime.http_body import BOUNDED_ACCEPT_ENCODING, HTTP_TRANSPORT_ERRORS
 from contractor_runtime.redaction import contains_private_value
 from contractor_runtime.shared_config import get_shared_config
+from contractor_runtime.telemetry.redaction import TelemetryRedactor
 
 MAX_SPAN_ATTRIBUTES = 64
 MAX_STRING_ATTRIBUTE_BYTES = 256
@@ -129,19 +130,20 @@ class _OTLPSpan(RuntimeSpan):
         self._started_unix_ns = started_unix_ns
         self._started_monotonic_ns = started_monotonic_ns
         self._ended = False
-        self.capture_content = instrumentation.capture_content
         self._content: dict[str, str] = {}
 
-    def set_content(self, field: str, value: str) -> None:
-        if (
-            self.capture_content
-            and not self._ended
-            and field in {"input", "output"}
-            and len(value.encode("utf-8")) <= MAX_CONTENT_BYTES
-        ):
-            self._content.update(
-                content_attributes(field, value, model=self._name == "contractor.worker.model")
+    def capture_content(self, field: str, value: object) -> None:
+        if self._ended or field not in {"input", "output"}:
+            return
+        redactor = self._instrumentation._redactor
+        # Normalize SDK models without changing their structure, then project
+        # GenAI before masking payload data and applying final byte bounds.
+        value = redactor.value(value, redact=False)
+        self._content.update(
+            content_attributes(
+                field, value, model=self._name == "contractor.worker.model", redact=redactor.value
             )
+        )
 
     def end(
         self,
@@ -187,12 +189,11 @@ class OTLPInstrumentation(RuntimeInstrumentation):
         run_metadata_labels: Mapping[str, str] | None = None,
         wall_time_ns: Callable[[], int] = time.time_ns,
         monotonic_ns: Callable[[], int] = time.perf_counter_ns,
-        capture_content: bool = False,
         on_enqueue: Callable[[], None] | None = None,
     ) -> None:
-        self.capture_content = capture_content
         self._metrics = metrics
         self._secret_values = tuple(value for value in secret_values if value)
+        self._redactor = TelemetryRedactor(self._secret_values)
         self._wall_time_ns = wall_time_ns
         self.monotonic_ns = monotonic_ns
         # The bounds come from the export settings the Server sends (RCF-R102).
@@ -201,11 +202,14 @@ class OTLPInstrumentation(RuntimeInstrumentation):
         self._on_enqueue = on_enqueue
         self._trace_id = os.urandom(16)
         self._run_metadata_attributes = MappingProxyType(
-            _run_metadata_attributes(run_metadata_labels or {}, self._secret_values)
+            _run_metadata_attributes(
+                {k: self._redactor.text(v) for k, v in (run_metadata_labels or {}).items()},
+                self._secret_values,
+            )
         )
         self._resource = Resource(
             attributes=_key_values(
-                resource_attributes,
+                {k: self._redactor.value(v) for k, v in resource_attributes.items()},
                 allowed_keys=frozenset(resource_attributes),
                 secrets=self._secret_values,
             )
@@ -223,7 +227,7 @@ class OTLPInstrumentation(RuntimeInstrumentation):
         attributes: Mapping[str, TelemetryAttribute] | None = None,
     ) -> RuntimeSpan:
         selected_name = name if name in _ALLOWED_SPAN_NAMES else "contractor.worker.error"
-        selected = _safe_attributes(attributes or {}, self._secret_values)
+        selected = dict(attributes or {})
         return _OTLPSpan(
             self,
             selected_name,
@@ -245,10 +249,16 @@ class OTLPInstrumentation(RuntimeInstrumentation):
             self._metrics.record_dropped_spans("shutdown", 1)
             return
         try:
-            safe_attributes = _safe_attributes(attributes, self._secret_values)
+            outcome = attributes.get("outcome", "failed")
+            if outcome not in _SAFE_OUTCOMES:
+                outcome = "failed"
+            safe_attributes = _safe_attributes(
+                {k: self._redactor.value(v) for k, v in attributes.items() if k != "outcome"},
+                self._secret_values,
+            )
+            safe_attributes["outcome"] = outcome
             if name == "contractor.worker.a2a_task":
                 safe_attributes.update(self._run_metadata_attributes)
-            outcome = safe_attributes.get("outcome", "failed")
             allowed_keys = _ALLOWED_SPAN_ATTRIBUTES
             if name == "contractor.worker.a2a_task":
                 allowed_keys = allowed_keys | frozenset(self._run_metadata_attributes)
@@ -285,23 +295,21 @@ class OTLPInstrumentation(RuntimeInstrumentation):
                         key="gen_ai.request.model",
                         value=AnyValue(string_value=str(safe_attributes["model.alias"])),
                     )
-            if self.capture_content:
-                for key, value in (content or {}).items():
-                    if (
-                        key
-                        in {
-                            "gen_ai.input.messages",
-                            "gen_ai.output.messages",
-                            "gen_ai.system_instructions",
-                            "gen_ai.tool.definitions",
-                            "contractor.input",
-                            "contractor.output",
-                        }
-                        and len(value.encode("utf-8")) <= MAX_CONTENT_BYTES
-                    ):
-                        # Content goes directly to the explicitly trusted sink,
-                        # never through metadata sanitization or log fields.
-                        span.attributes.add(key=key, value=AnyValue(string_value=value))
+            for key, value in (content or {}).items():
+                if (
+                    key
+                    in {
+                        "gen_ai.input.messages",
+                        "gen_ai.output.messages",
+                        "gen_ai.system_instructions",
+                        "gen_ai.tool.definitions",
+                        "contractor.input",
+                        "contractor.output",
+                    }
+                    and len(value.encode("utf-8")) <= MAX_CONTENT_BYTES
+                ):
+                    # Content was credential-masked before bounded serialization.
+                    span.attributes.add(key=key, value=AnyValue(string_value=value))
             encoded = span.SerializeToString()
         except Exception:
             self._metrics.record_operation(succeeded=False, error_code="request_failed")
@@ -360,6 +368,7 @@ class OTLPInstrumentation(RuntimeInstrumentation):
         self.clear()
         self._on_enqueue = None
         self._secret_values = ()
+        self._redactor = TelemetryRedactor(())
         self._trace_id = b""
         self._run_metadata_attributes = MappingProxyType({})
         self._closed = True
@@ -435,7 +444,7 @@ class OTLPHTTPAdapter:
         secret_headers = {
             name: value.get_secret_value() for name, value in settings.headers.items()
         }
-        secret_values = (*secret_headers.values(), settings.endpoint)
+        secret_values = (*secret_headers.values(), *context.known_credentials)
         resource_attributes: dict[str, TelemetryAttribute] = {
             "service.name": "contractor-runtime-worker",
             "service.version": __version__,
@@ -454,7 +463,6 @@ class OTLPHTTPAdapter:
             resource_attributes,
             secret_values=secret_values,
             run_metadata_labels=context.run_metadata_labels,
-            capture_content=settings.capture_content,
             on_enqueue=self._schedule_export,
             max_pending_spans=self._export_settings.max_pending_spans,
             max_pending_bytes=self._export_settings.max_pending_bytes,
@@ -706,6 +714,8 @@ def _safe_attribute_value(
     if isinstance(value, int):
         return max(-(2**63), min(2**63 - 1, value))
     if isinstance(value, str):
+        if key == "outcome":
+            return value if value in _SAFE_OUTCOMES else "failed"
         if contains_private_value(value, secrets):
             return None
         selected = _truncate_utf8(value, MAX_STRING_ATTRIBUTE_BYTES)

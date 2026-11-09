@@ -400,7 +400,6 @@ class TelemetrySettings(WireModel):
     adapter: RuntimeAdapterRef
     endpoint: str
     headers: dict[str, SecretStr]
-    capture_content: bool
     flush_timeout_seconds: int = Field(ge=1, le=10)
     export: TelemetryExportSettings
 

@@ -196,7 +196,7 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 	skillTelemetry := operations.publishRuntimeConfig("agent-skills-debug", "1", map[string]any{
 		"worker": map[string]any{"telemetry": map[string]any{
 			"adapter": "otlp-http@1", "endpoint": otlpCollector.URL(),
-			"credential": "agent-skills-otel", "captureContent": false,
+			"credential":          "agent-skills-otel",
 			"flushTimeoutSeconds": 2,
 		}},
 	})

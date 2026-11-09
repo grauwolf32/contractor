@@ -682,7 +682,7 @@ func TestSchedulerAppliesPinnedPlannerTelemetryWithoutAgentInfluence(t *testing.
 				!bytes.Contains(bodies[0], []byte("metadata-eval-id-canary")) {
 				t.Fatalf("Planner OTLP selection leaked or missed provenance: requests=%d header=%q body=%q", len(bodies), header, bodies)
 			}
-			if recordingRegistry.creates != 1 || len(recordingRegistry.resources) != 1 ||
+			if !recordingRegistry.preparedCredentialSeen || recordingRegistry.creates != 1 || len(recordingRegistry.resources) != 1 ||
 				len(recordingRegistry.metadataLabels) != 1 ||
 				!equalRunMetadataLabels(
 					recordingRegistry.metadataLabels[0], harness.store.run.MetadataLabels,
@@ -3471,10 +3471,11 @@ func (f runtimeCredentialResolverFunc) UsePlaintext(
 }
 
 type recordingPlannerTelemetryRegistry struct {
-	inner          *telemetry.PlannerAdapterRegistry
-	creates        int
-	resources      []telemetry.PlannerResource
-	metadataLabels []runlabels.RunMetadataLabels
+	preparedCredentialSeen bool
+	inner                  *telemetry.PlannerAdapterRegistry
+	creates                int
+	resources              []telemetry.PlannerResource
+	metadataLabels         []runlabels.RunMetadataLabels
 }
 
 func (r *recordingPlannerTelemetryRegistry) Create(
@@ -3482,6 +3483,11 @@ func (r *recordingPlannerTelemetryRegistry) Create(
 	settings telemetry.PlannerAdapterSettings,
 ) (telemetry.PlannerTelemetry, error) {
 	r.creates++
+	for _, value := range settings.KnownCredentials {
+		if value.Reveal() == "test-token" {
+			r.preparedCredentialSeen = true
+		}
+	}
 	r.resources = append(r.resources, settings.Resource)
 	r.metadataLabels = append(r.metadataLabels, settings.RunMetadataLabels.Clone())
 	return r.inner.Create(ref, settings)

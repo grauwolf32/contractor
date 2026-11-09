@@ -79,19 +79,19 @@ def duplicate(value):
 	taintExpectedDiff = `--- a/private-taint-path-canary/app.py
 +++ b/private-taint-path-canary/app.py
 @@ -2,13 +2,16 @@
- 
+
  SOURCE_MARKER = "TAINT_SOURCE_CONTENT_CANARY"
- 
+
 +# @trace target=TAINT_TARGET_VALUE_CANARY args=req:tainted calls=validate_input,query_db
  @app.get("/items/{item_id}")
  def handler(req):
      checked = validate_input(req)
      return query_db(checked)
- 
+
 +# @validate arg=value kind=schema
  def validate_input(value):
      return value if value.isdigit() else ""
- 
+
 +# @sink kind=db.query arg=value
  def query_db(value):
      return database.execute("SELECT value FROM items WHERE id = ?", [value])
@@ -100,7 +100,7 @@ def duplicate(value):
 @@ -1,5 +1,6 @@
  def duplicate(value):
      return value
- 
+
 +# @trace target=TAINT_TARGET_VALUE_CANARY
  def duplicate(value):
      return value + "!"
@@ -203,7 +203,7 @@ func TestTaintAnnotationsAcrossRealRuntimeProcess(t *testing.T) {
 	debugConfig := operations.publishRuntimeConfig("taint-debug", "1", map[string]any{
 		"worker": map[string]any{"telemetry": map[string]any{
 			"adapter": "otlp-http@1", "endpoint": collector.URL(),
-			"credential": "taint-otel", "captureContent": false, "flushTimeoutSeconds": 2,
+			"credential": "taint-otel", "flushTimeoutSeconds": 2,
 		}},
 	})
 	operations.createRuntimeLabel("taint-debug", debugConfig)

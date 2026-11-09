@@ -5329,8 +5329,6 @@ export interface components {
             /** Format: uri */
             endpoint: string;
             credential?: components["schemas"]["RuntimeCredentialId"];
-            /** @description Explicitly trust the telemetry sink with unredacted model and tool inputs/outputs. Disabled by default. */
-            captureContent?: boolean;
             /** @description Defaults to 10 seconds. */
             flushTimeoutSeconds?: number;
             export?: components["schemas"]["WorkerTelemetryExportConfig"];

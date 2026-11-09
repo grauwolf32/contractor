@@ -152,7 +152,9 @@
         "tools"
       ],
       "properties": {
-        "llmCost": {"$ref": "llm-cost.schema.json"},
+        "llmCost": {
+          "$ref": "llm-cost.schema.json"
+        },
         "durationMs": {
           "$ref": "performance.schema.json#/$defs/resourceInteger"
         },
@@ -577,7 +579,9 @@
       "allOf": [
         {
           "if": {
-            "required": ["summarizerModelPolicy"]
+            "required": [
+              "summarizerModelPolicy"
+            ]
           },
           "then": {
             "properties": {
@@ -609,7 +613,9 @@
             }
           },
           "then": {
-            "required": ["summarizerModelPolicy"],
+            "required": [
+              "summarizerModelPolicy"
+            ],
             "properties": {
               "agentTemplate": {
                 "required": [
@@ -1551,10 +1557,6 @@
           "title": "Headers",
           "type": "object"
         },
-        "captureContent": {
-          "title": "Capturecontent",
-          "type": "boolean"
-        },
         "flushTimeoutSeconds": {
           "maximum": 10,
           "minimum": 1,
@@ -1569,7 +1571,6 @@
         "adapter",
         "endpoint",
         "headers",
-        "captureContent",
         "flushTimeoutSeconds",
         "export"
       ],

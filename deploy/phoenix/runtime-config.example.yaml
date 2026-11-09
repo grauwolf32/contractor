@@ -8,11 +8,9 @@ spec:
     telemetry:
       adapter: otlp-http@1
       endpoint: http://127.0.0.1:6006/v1/traces
-      captureContent: false
       flushTimeoutSeconds: 10
   planner:
     telemetry:
       adapter: otlp-http@1
       endpoint: http://127.0.0.1:6006/v1/traces
-      captureContent: false
       flushTimeoutSeconds: 10

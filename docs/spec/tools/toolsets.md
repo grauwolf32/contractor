@@ -29,7 +29,7 @@ It leaves to other documents:
 - Runtime labels, proxy targets and Runtime adapters:
   [Runtime configuration](../configuration/runtime-config.md).
 - Tool-call telemetry, redaction of tool arguments and errors, and
-  sensitive-output instrumentation: [Observability](../platform/observability.md)
+  known credential replacement for exported content: [Observability](../platform/observability.md)
   and [Security](../platform/security.md).
 - Tool-error codes and the bounds of individual tools: the
   [errors registry](../platform/errors.md), the [limits registry](../platform/limits.md)
@@ -405,8 +405,7 @@ Tool-call telemetry is specified in
 tool call and the cancellation code `tool_call_cancelled`; the redaction and
 bounding of tool arguments and errors, including the stricter projections for
 MemoryTools and Agent Skill tools; the default non-retention of full tool
-results; and the sensitive-output declaration `contractor_sensitive_output`
-with the metadata-only instrumentation it triggers. Provenance of proxied tool
+results; and bounded exporter content with exact known credential replacement. Provenance of proxied tool
 channels follows from TLS-R28.
 
 ## Invariants
