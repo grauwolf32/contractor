@@ -5,7 +5,7 @@ milestone: worker-context-compaction-2026-10
 epic: planner-worker
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [python, go]
 goal: >-
@@ -85,4 +85,7 @@ verification_results:
   - "2026-11-09: make lint passed; specification and dependency-graph checks passed again after a wording clarification."
   - "2026-11-09: go test ./internal/contracts/... passed all ten packages, including shared fixture/schema/decoder checks."
   - "2026-11-09: 46 Worker compaction tests passed; production ADK counters across three turns were 1,2 / 1,2 / 1 while Contractor recorded eight cumulative model calls."
-  - "The first full Runtime attempt lacked Go on PATH and was interrupted; the corrected run had 5951 passed, 135 skipped and one LikeC4 cancellation-cleanup timeout. All 12 tests in that unchanged process-test file then passed separately; a complete rerun is pending."
+  - "The first full Runtime attempt lacked Go on PATH and was interrupted; the corrected run had 5951 passed, 135 skipped and one LikeC4 cancellation-cleanup timeout. All 12 tests in that unchanged process-test file then passed separately, followed by the successful full rerun below."
+  - "2026-11-09: final make test-runtime passed its report verification: 5952 passed, 135 skipped, no failures, in 392.39 seconds. Skips are explicit Linux/Podman/live-Gateway/separate-process gates, not passing coverage."
+
+implementation_commit: 1c83c9c4f7698230180702387e52c6c9d9e974f6
