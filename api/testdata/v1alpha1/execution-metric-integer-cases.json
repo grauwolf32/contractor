@@ -179,6 +179,27 @@
         "/report/worker/metrics/summarizer/failureCodes/summarizer_failed": 9007199254740992
       },
       "valid": false
+    },
+    {
+      "name": "Worker cumulative tool calls exceed one context window",
+      "set": {
+        "/report/worker/metrics/workerBudget/observedToolCalls": 20000
+      },
+      "valid": true
+    },
+    {
+      "name": "Worker cumulative tool calls at exact integer bound",
+      "set": {
+        "/report/worker/metrics/workerBudget/observedToolCalls": 9007199254740991
+      },
+      "valid": true
+    },
+    {
+      "name": "Worker cumulative tool calls above exact integer bound",
+      "set": {
+        "/report/worker/metrics/workerBudget/observedToolCalls": 9007199254740992
+      },
+      "valid": false
     }
   ]
 }

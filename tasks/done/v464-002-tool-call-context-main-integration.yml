@@ -1,0 +1,53 @@
+schema_version: "1.0"
+id: V464-002
+title: Integrate tool-call context transitions into current main
+milestone: worker-context-compaction-2026-10
+epic: planner-worker
+kind: chore
+introduced_by: V464-001
+priority: P1
+status: completed
+depends_on: [V464-001]
+languages: [python, go, yaml, markdown, json]
+goal: Main contains verified strategy-driven tool-call boundaries alongside current telemetry and cost accounting.
+context:
+  authority: "User request 2026-11-09: merge the completed change into main. Local no-fast-forward integration is authorized."
+  feature_head: 82a022b709e3792d4fed664ae770c08242c0a84a
+  main_base: a5fb26d39598afe6895cbd7a04acf7eb4baf6ec7
+  boundary: >-
+    Reconcile main in the owned worktree before moving main. Preserve the current
+    telemetry, redaction and cost fields. Regenerate generated fixtures, backlog
+    and dependency graph. Rename this lane's colliding V456-001 to V464-001.
+scope:
+  in:
+    - Reconcile current main and the completed Worker boundary feature.
+    - Verify combined Runtime, Go contracts and lint before no-fast-forward delivery.
+    - Preserve the primary checkout's exact dirty file bytes and modes.
+  out:
+    - Deployment, remote push, database migrations and unrelated feature changes.
+acceptance_criteria:
+  - id: A1
+    text: Main includes the completed feature via a no-fast-forward merge and matches the verified integration tree.
+  - id: A2
+    text: Combined Runtime and Go contract suites and lint pass, including telemetry and context transition regressions.
+  - id: A3
+    text: Task identifiers are unique, generated artifacts are current, and unrelated primary files remain unchanged.
+tests:
+  - command: make test-runtime
+    covers: [A2]
+  - command: go test ./internal/contracts/...
+    covers: [A2]
+  - command: make lint
+    covers: [A2, A3]
+  - command: git merge-base --is-ancestor 82a022b70 main
+    covers: [A1]
+verification_results:
+  - "2026-11-09: combined make test-runtime passed: 6151 passed, 135 declared skips, no failures; mandatory report verification passed (436.56 seconds)."
+  - "2026-11-09: go test ./internal/contracts/... passed all packages, including regenerated shared fixtures and current cost/report fields."
+  - "2026-11-09: combined make lint passed: generated clients, UI/script/Go checks, tasks/specifications, ERD and Python/import boundaries."
+  - "Source files merged automatically. Fixture index entries were combined; generated fixtures, backlog and dependency graph were regenerated. V456-001 collision was resolved by renaming this lane to V464-001."
+  - "The six dirty primary files retained their exact SHA-256 hashes and modes; the primary branch and staged changes were not modified."
+  - "UI and other unrelated source paths match current main; no deployment or remote publication is included."
+  - "Local main was merged with --no-ff as 88ca62c2b02a0c6ba5ace83fb8742835e4b1dff9; its tree exactly matches verified integration tree e871f1398f2fc6cb29bf05a124edc497d429101f."
+
+implementation_commit: 88ca62c2b02a0c6ba5ace83fb8742835e4b1dff9

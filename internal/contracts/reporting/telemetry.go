@@ -436,7 +436,7 @@ func (m ExecutionMetrics) Validate() error {
 			return contracts.Invalidf("worker budget limits are invalid")
 		}
 		if budget.ObservedModelCalls < 0 || budget.ObservedModelCalls > budget.MaxModelCalls ||
-			budget.ObservedToolCalls < 0 || budget.ObservedToolCalls > budget.MaxToolCalls ||
+			!metricIntegerInRange(budget.ObservedToolCalls) ||
 			!metricIntegerInRange(budget.ObservedTotalTokens) ||
 			!metricIntegerInRange(budget.TokenUsageUnavailable) {
 			return contracts.Invalidf("worker budget observations are invalid")

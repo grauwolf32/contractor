@@ -28,6 +28,7 @@ class _InvocationBudget:
     summary_prompt_boundary: int | None = None
     model_calls: int = 0
     tool_calls: int = 0
+    checkpoint_tool_calls: int = 0
     total_tokens: int = 0
     token_usage_unavailable: int = 0
     latest_prompt_tokens: int | None = None
@@ -54,10 +55,18 @@ class _InvocationBudget:
 
     def before_tool_call(self) -> None:
         self._require_token_capacity()
-        if self.tool_calls >= self.max_tool_calls:
+        if self.tool_limit_reached():
             raise self._exhausted("tool_calls", self.max_tool_calls, self.tool_calls)
         self.tool_calls += 1
         self._sync()
+
+    def tool_limit_reached(self) -> bool:
+        return self.tool_calls - self.checkpoint_tool_calls >= self.max_tool_calls
+
+    def commit_tool_checkpoint(self) -> None:
+        """Open a new tool window only after the context checkpoint is committed."""
+
+        self.checkpoint_tool_calls = self.tool_calls
 
     def after_model_response(self, usage: Any | None, *, record_prompt: bool = True) -> None:
         """Charge one response; only the main model measures the prompt (WRK-R185)."""

@@ -440,7 +440,9 @@ It records the exact configured ceilings, the operations actually started, the
 sum of available provider token usage, the count of responses without usage and
 at most one exhausted dimension (LIM-OBS-2). `max_tool_calls` is absent only
 for a compatible tool-free policy. `worker_budget` contains no prompt, response
-or tool payload.
+or tool payload. The tool ceiling describes one context window for `compact@1`;
+observed tool calls remain cumulative across committed checkpoints and may
+exceed that ceiling (WRK-R185 in [Worker](../execution/worker.md)).
 
 **OBS-R23.** Every started tool call is recorded exactly once (FAIL-OBS-3).
 

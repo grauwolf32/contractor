@@ -125,14 +125,14 @@ flowchart TD
     text -- yes --> fin["Tool-free result finalizer: exact subtask ID + exact terminal text"]
     fin --> val["Runtime: exact-copy validation, observations, trusted artifacts"]
     val --> res1["WorkerResult, summarized=false"]
-    text -- no --> soft{"Summarizer enabled and context boundary or cumulative budget reached?"}
+    text -- no --> soft{"Summarizer enabled and context, cumulative-token or tool-call boundary reached?"}
     soft -- no --> next["Next normal model call"]
     next --> resp
     soft -- yes --> sum["Terminal summarizer: one tool-free call"]
     sum --> val2["Runtime: same checks and projection"]
     val2 --> res2["WorkerResult, summarized=true"]
     resp -.->|"token ceiling crossed"| fail["WorkerFailure"]
-    tools -.->|"tool-call ceiling reached"| fail
+    tools -.->|"tool-call ceiling reached, strategy none"| fail
     next -.->|"model-call or token ceiling reached"| fail
     fin -. failure .-> fail
     val -. failure .-> fail
@@ -443,8 +443,11 @@ failure (FAIL-WRK-2).
 ### Worker budgets
 
 **WRK-R22.** Each prepared Python ADK Worker independently
-enforces the cumulative model-call, tool-call and provider-reported token
-ceilings embedded in its exact ModelPolicy. Each main SDK run receives an explicit
+enforces the model-call, tool-call and provider-reported token
+ceilings embedded in its exact ModelPolicy. Model and token ceilings are cumulative
+per invocation. Tool capacity is per context window for `compact@1` (WRK-R185);
+`terminal@1` uses it as a terminal summary trigger (WRK-R140), while `none`
+keeps a hard cumulative tool ceiling. Each main SDK run receives an explicit
 finite call ceiling from that policy; SDK defaults or environment overrides cannot
 shorten or enlarge the logical budget. Auxiliary one-shot sessions also receive an
 explicit finite SDK ceiling, allowing their owned wrapper to classify a refused
@@ -461,13 +464,15 @@ ceiling permits a valid structured semantic result but no later operation.
 **WRK-R24.** Missing token usage is recorded explicitly and
 never disables the independent model-call and tool-call ceilings.
 
-**WRK-R25.** Exhaustion stops before the next side effect.
+**WRK-R25.** Hard exhaustion stops before the next side effect.
 Runtime then constructs one safe `WorkerFailure` with code
 `worker_budget_exhausted`, the exhausted dimension in bounded metrics, and
 `retryable: true`; the model does not serialize that failure. It is neither a
 Planner budget termination nor a direct StageExecution write: Passthrough
 supplies a normal failed candidate to Scheduler, whose Workflow transition
-owns whole-Stage retry.
+owns whole-Stage retry. Reaching tool capacity with `terminal@1` or `compact@1`
+instead follows the selected context strategy at the safe boundary
+(WRK-R140, WRK-R185).
 
 ### Result layers and the wire contract
 
@@ -1320,8 +1325,9 @@ input. Runtime then drops that response's token counters closed, increments
 `tokenUsageUnavailable`, and lets the independent model-call and tool-call
 limits continue to bound execution.
 
-**WRK-R139.** Independent model, tool and hard-token budgets remain
-mandatory alongside the soft triggers.
+**WRK-R139.** Independent model and hard-token budgets and a tool-call
+window remain mandatory alongside the token triggers. A full tool window
+requests the selected context strategy even when provider token usage is missing.
 
 Rationale: the context rule observes the last completed valid provider prompt,
 not an exact tokenization of the prospective prompt after new tool results. Its
@@ -1335,13 +1341,15 @@ These trigger rules apply to the ordinary completion strategy; the
 **WRK-R140.** The trigger is checked at a safe boundary:
 
 1. a model response completes;
-2. every tool call selected by that response either completes or fails;
+2. admitted tool calls selected by that response complete or fail; any calls
+   beyond the tool window receive a `tool_call_not_executed` response without
+   execution or charge, and do not cancel admitted siblings;
 3. if the main Worker response contains ordinary terminal semantic text,
    Runtime completes it through the mandatory result finalizer and returns it
    with `summarized: false`;
-4. otherwise, before starting another normal model call, reaching either the
-   derived context boundary or the optional cumulative budget requests terminal
-   summarization.
+4. otherwise, before starting another normal model call, reaching the
+   derived context boundary, the optional cumulative budget or `maxToolCalls`
+   requests terminal summarization.
 
 **WRK-R141.** No in-flight tool is cancelled merely because a
 completed response crossed a soft threshold, and no new normal tool or model
@@ -1541,9 +1549,16 @@ maxOutputTokens)` of the effective main Worker policy. Before each main model
 request, Runtime compares the provider-reported prompt tokens of the latest
 main model response of the invocation with the boundary; when it is reached,
 the request is not sent or charged and a checkpoint starts instead. Missing
-usage never triggers a checkpoint and is never estimated from bytes. After a
-committed checkpoint the measurement is cleared, so the next decision waits
-for the first main response in the new context.
+usage never triggers a token-based checkpoint and is never estimated from bytes.
+Independently, reaching `maxToolCalls` admitted tools since invocation start or
+the last committed checkpoint requests compaction at the same safe boundary,
+even with missing token usage. Overflow calls in a parallel batch receive
+`tool_call_not_executed` without execution or charge; admitted siblings finish
+before compaction. Only a committed checkpoint clears the prompt measurement and
+opens a new tool window. Cumulative tool telemetry, model/token budgets, the
+absolute deadline and history/compaction bounds are not reset. A checkpoint with
+no eligible history still fails as `ineffective` (WRK-R187); it never grants
+tool capacity without compression. There is no fallback to another strategy.
 
 **WRK-R186.** The compactor is one tool-free, one-shot model call per
 checkpoint through its own model client, built from the pinned compactor
@@ -1638,8 +1653,9 @@ labelled as model-written historical data with unverified references, and a
 continuation hint, followed by the retained uncompacted events with thought
 parts removed. Markers and compacted events are omitted; an unknown event in
 the session returns `worker_compaction_failed` (`foreign_event`). The
-continuation keeps the invocation's deadline, budgets, tool history,
-observations and artifact authority. A valid result after compaction is an
+continuation keeps the invocation's deadline, model/token budgets, tool history,
+observations and artifact authority; the tool window resets only as WRK-R185
+specifies. A valid result after compaction is an
 ordinary `WorkerResult` with `summarized: false`, finalized as usual
 (WRK-R46).
 

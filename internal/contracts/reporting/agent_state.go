@@ -231,7 +231,7 @@ func (b WorkerStateBudget) validate() error {
 	if b.MaxModelCalls == 0 || b.MaxModelCalls > contracts.MaxWorkerModelCalls ||
 		b.MaxToolCalls == 0 || b.MaxToolCalls > contracts.MaxWorkerToolCalls ||
 		b.MaxTotalTokens == 0 || b.MaxTotalTokens > contracts.MaxWorkerTotalTokens ||
-		b.ObservedModelCalls > b.MaxModelCalls || b.ObservedToolCalls > b.MaxToolCalls {
+		b.ObservedModelCalls > b.MaxModelCalls {
 		return contracts.Invalidf("Worker State budget is invalid")
 	}
 	if b.Exhausted == nil {
