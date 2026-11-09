@@ -5,9 +5,10 @@ milestone: scan-tools-followups
 epic: scan-tools
 kind: chore
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: c712379f69e251fcbd353c0a0722a679f34af0b3
 depends_on: [V455-008, V455-009, V460-001, V460-002, V460-003]
-languages: [go, python, yaml, markdown]
+languages: [go, python, sql, typescript, yaml, json, markdown]
 goal: >-
   Main includes verified explicit Nuclei/SQLMap Finding publication and bounded
   Nuclei rulepack evidence together with its current trace Finding implementation.
@@ -33,7 +34,7 @@ acceptance_criteria:
   - id: A3
     text: Six unrelated primary files and the staged index preserve exact hashes and modes, disposable databases are removed, and delivery ancestry is recorded.
 tests:
-  - command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=integration -race -count=1 ./internal/findingintake ./internal/auditimport ./internal/auditscan ./internal/auditdomain ./internal/config/... ./internal/planner/scan ./internal/planner/session ./internal/persistence/...
+  - command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=integration -p=2 -race -count=1 ./internal/findingintake ./internal/auditimport ./internal/auditscan ./internal/auditdomain ./internal/config/... ./internal/planner/scan ./internal/planner/session ./internal/persistence/...
     covers: [A1, A2]
   - command: make test-runtime
     covers: [A1, A2]
@@ -45,3 +46,31 @@ tests:
     covers: [A1, A2]
   - command: make lint
     covers: [A1, A2, A3]
+verification_notes: >-
+  Verified and merged on 2026-11-09. The two-parent merge preserves all 42
+  main-only paths byte-for-byte and all 121 scanner-only paths byte-for-byte or
+  as the original deletion, apart from three recorded reference-only remaps.
+  Both main trace workspace validation and scanner success-to-failure transitions
+  survive the automatic Go merge. All declared PostgreSQL/race packages passed;
+  Finding intake completed in 181.046 seconds. Findings process gate passed all
+  16 mandatory cases, including actual trace coordinates, and its 285 Runtime
+  contracts. Actual installed Nuclei/SQLMap scanner Finding acceptance passed
+  in 175.840 seconds: the 1000-template pack retained a 488417-byte manifest,
+  1851-byte evidence and exactly one Finding. Combined wire/API/config checks
+  passed 375 fixtures with 422 Go and 269 Python shared tests, 390 contract-model
+  cases and all shipped configurations. One optional disk-heavy wire case was
+  skipped and is not passing coverage. make lint passed. The full isolated Runtime
+  gate passed 6080 tests, zero failures/errors and 135 optional/platform skips
+  in 403.95 seconds; Runtime report verification passed. Main was fast-forwarded
+  to the verified merge only after all checks passed and after validating its
+  expected previous head and clean checkout. Six unrelated primary file hashes,
+  modes and staged-index hash match the preservation snapshot before and after
+  advancing main. All three owned disposable databases were removed. Remote
+  push, live models and deployment were not run.
+delivery:
+  date: '2026-11-09'
+  merged_into_main: true
+  merge_commit: c712379f69e251fcbd353c0a0722a679f34af0b3
+  main_first_parent: 5247be937e21fda34b478f75f0c606030f1ba1e1
+  source_head: aec86fb19e82dc123302e306dcce2ba04ea429d0
+  pushed: false

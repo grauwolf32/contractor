@@ -74,4 +74,11 @@ verification_notes: >-
   an existing LikeC4 three-second process-readiness timeout; its unchanged full
   module passed 12 isolated cases before the successful full rerun. Skips are
   not acceptance coverage. The owned disposable database was removed. Evidence
-  limits remain unchanged; no new evidence store, main merge or deployment.
+  limits remain unchanged; no new evidence store. Feature verification performed
+  no push or deployment; subsequent main integration is recorded below.
+delivery:
+  date: '2026-11-09'
+  merged_into_main: true
+  merge_commit: c712379f69e251fcbd353c0a0722a679f34af0b3
+  integration_task: V455-010
+  pushed: false

@@ -355,5 +355,11 @@ verification_notes: >-
   220 files/2483 tests with two workers and one expected failure; typecheck,
   Node server tests and production build passed. Generated contracts, ERD,
   dependency graph and task/spec checks pass. Four owned disposable databases
-  were removed; implementation worktree is retained. No main merge, push or
-  deployment was performed.
+  were removed; implementation worktree is retained. Feature verification
+  performed no push or deployment; subsequent main integration is recorded below.
+delivery:
+  date: '2026-11-09'
+  merged_into_main: true
+  merge_commit: c712379f69e251fcbd353c0a0722a679f34af0b3
+  integration_task: V455-010
+  pushed: false
