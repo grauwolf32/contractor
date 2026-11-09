@@ -7,7 +7,7 @@ kind: chore
 priority: P2
 status: in_progress
 depends_on: [V458-014]
-languages: [go, sql, typescript, markdown, yaml]
+languages: [go, sql, python, typescript, markdown, yaml]
 goal: Main shows named material categories first while retaining the current default archive filter and preserving unrelated primary checkout changes.
 context:
   authority: User request 2026-11-10 explicitly authorizes merging the reviewed material priority feature into main; demo deployment and remote publication are not requested.
@@ -59,5 +59,5 @@ tests:
     covers: [A1, A2]
   - command: make lint
     covers: [A1, A2]
-  - command: python3 .local/audit-llm-cost-research-20261107/material-priority-merge/install-main.py --verify-only
+  - command: python3 tasks/evidence/v458-015-primary-preservation.py --verify-only
     covers: [A3]

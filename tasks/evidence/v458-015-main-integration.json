@@ -1,0 +1,37 @@
+{
+  "head": "7f37af0117ab441163bb72440b997e414c18b680",
+  "files": [
+    {
+      "path": "tasks/BACKLOG.md",
+      "sha256": "15a143a107a5e927020bf18b87ab6769c0c8dc0c10efa5f5fbc298519242124e",
+      "mode": 420
+    },
+    {
+      "path": "tasks/v411-015-http-pentest-workflow-presets.yml",
+      "sha256": "870fd0a720021000fc1a482378040472a19fc3693ba277066a363907b98d8c7a",
+      "mode": 420
+    },
+    {
+      "path": "tests/eval/pentest/playground.lock.json",
+      "sha256": "a4b98bfdde6b68720803eecb9f8639f22687af8d623c63c3ce15b787dcfa1a70",
+      "mode": 420
+    },
+    {
+      "path": "tasks/done/v455-003-invoice-lab-http11.yml",
+      "sha256": "d0e3bd9576a545836ded18b0c9740a1e244749991aab9cf453181836ed5fd408",
+      "mode": 420
+    },
+    {
+      "path": "tasks/evidence/v411-015-demo-20261107.json",
+      "sha256": "2c11d00c3cfb45dc66f2f1ac7fcc3ceef0547840644e0faabc213695729466ea",
+      "mode": 420
+    },
+    {
+      "path": "tasks/evidence/v455-003-invoice-http11-20261107.json",
+      "sha256": "641c4123c5f5d85189118536de27d6023b0a50dedfd7b259a6ef47dec41f2d47",
+      "mode": 420
+    }
+  ],
+  "staged_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "checkout": "/Users/ruslan/src/contractor"
+}
