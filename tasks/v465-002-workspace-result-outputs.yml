@@ -19,9 +19,9 @@ context:
     Streamline and operation-trace siblings publish workspace_state/workspace_diff
     as Workflow outputs even when the state is unchanged and the diff is empty.
   siblings: >-
-    All five shipped overlay Workflows are in scope. Intermediate Stage result
+    All eight shipped production Workflows promoting overlay checkpoints are in scope. Intermediate Stage result
     checkpoints remain necessary for hydration and continuation. Eval-only catalogs
-    are frozen experiment inputs and do not define the shipped defaults.
+    are frozen experiment inputs and do not define the shipped defaults. The workspace-roundtrip E2E catalog intentionally exports checkpoints to verify the transport contract.
   specification:
     - docs/spec/configuration/workflows.md
     - docs/spec/tools/workspace.md

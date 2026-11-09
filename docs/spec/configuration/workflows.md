@@ -764,7 +764,7 @@ Project uses it is owned by [PRJ-R48 to PRJ-R50 and PRJ-R102](../artifacts/proje
 
 **WFL-R69.** Internal handoff artifacts such as `workspace_state` and
 `workspace_diff` remain Stage results for hydration and continuation. Shipped
-document-generation and operation-trace Workflows do not declare or map them
+production Workflows do not declare or map them
 as Workflow outputs: they publish their domain documents and validation reports.
 Checkpoint inspection remains available in the Run's technical artifacts.
 An explicitly authored Workflow may publish a checkpoint as a non-primary output.

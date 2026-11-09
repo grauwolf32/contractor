@@ -50,14 +50,6 @@ spec:
       required: true
       mediaTypes:
       - text/markdown
-    workspace_state:
-      required: true
-      mediaTypes:
-      - application/vnd.contractor.workspace-overlay+json
-    workspace_diff:
-      required: true
-      mediaTypes:
-      - text/x-diff
     work:
       required: true
       primary: true
@@ -387,8 +379,6 @@ spec:
       workflowOutputs:
         openapi: openapi
         openapi_validation_report: validation_report
-        workspace_state: workspace_state
-        workspace_diff: workspace_diff
       'on':
         succeeded:
           next: prepare_work
