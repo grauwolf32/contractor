@@ -90,3 +90,10 @@ verification_results:
   - "2026-11-09: final make test-runtime passed its report verification: 5952 passed, 135 skipped, no failures, in 392.39 seconds. Skips are explicit Linux/Podman/live-Gateway/separate-process gates, not passing coverage."
 
 implementation_commit: 1c83c9c4f7698230180702387e52c6c9d9e974f6
+
+delivery:
+  date: '2026-11-09'
+  merged_into_main: true
+  integration_task: V464-002
+  merge_commit: 88ca62c2b02a0c6ba5ace83fb8742835e4b1dff9
+  verification: "Combined main passed make test-runtime (6151 passed, 135 declared skips), all Go contracts and make lint."
