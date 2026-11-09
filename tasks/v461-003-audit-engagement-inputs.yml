@@ -5,7 +5,7 @@ milestone: audit-scanners-engagement-2026-11
 epic: scan-tools
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on: [V461-001, V461-002]
 languages: [go, python, typescript]
 context:
@@ -60,6 +60,11 @@ acceptance_criteria:
     given: The integrated branch and real process fixtures
     when: Public/wire/config/UI/process/lint gates run
     then: Required gates pass and optional skips are reported honestly.
+decisions:
+  - "Audit launch values are explicitly declared by the Program and bound only to named Workflow parameters. Existing baseline JSON and ExecutionProgram derivation pin them; no new store or arbitrary Workflow override is introduced."
+  - "The existing engagement document retains egress, identity references and optional HTTP limits. Scan filters, operation selection, server choice and SQLMap test parameters remain ordinary execution parameters."
+  - "Optional request_values material contains only per-operation parameter/body data under the existing 256-KiB options bound; it carries neither scanner configuration nor authentication/traffic policy. Values embedded in OpenAPI examples remain usable."
+  - "Prepared operation work retains exact source and value-material provenance; dispatch reproduces the selected request and verifies its preparation identity before scanning."
 tests:
   - command: make verify-public-api test-wire-cross-language ui-verify lint
     covers: [A1, A2, A3]
