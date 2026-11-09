@@ -473,6 +473,12 @@ receipt and its key with a corrected body is a new request.
 **EVM-R52.** The executable catalog consumes the current Workflow and
 AuditProfile contracts and the supported execution override contracts.
 
+Audit preflight binds mapped case/variant values using the selected Program's
+parameter contract, including required names, unknown-name rejection and value
+bounds. Variant values override case values. `objective`, `target` and
+`authorizationScope` retain their Audit scope meaning; when the Program also
+declares one of those names, the same mapped value binds both destinations.
+
 **EVM-R53.** Each arm uses one exact binding (LIM-EVM-16), and the arms use
 matching binding kinds.
 
@@ -878,6 +884,10 @@ a replay returns the same Run ID or Audit ID (FAIL-EVM-5).
 
 **EVM-R127.** Audit create and start use distinct durable suboperations and
 retain both receipts. A crash between them resumes the same Audit (FAIL-EVM-5).
+The creation intent retains the exact launch parameters alongside inputs and
+scope, and supplies them to ordinary Audit creation on every attempt. A lost
+response replays those values with the original key and request digest; the
+accepted Audit baseline and Workflow bindings retain them.
 
 **EVM-R128.** No synthetic child Run, checklist truth substitution or bypass of
 importer authority is allowed.

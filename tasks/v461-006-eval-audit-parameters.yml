@@ -6,7 +6,7 @@ epic: evals
 kind: defect
 introduced_by: V461-003
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: Managed Eval validates declared Audit Program parameters and pins/forwards them through draft creation and lost-response recovery, alongside the existing Audit scope.

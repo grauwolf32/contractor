@@ -37,6 +37,7 @@ type auditRequest struct {
 	ID, ProjectID, ProfileSHA256 string
 	Profile                      auditservice.ProfileSelector
 	Inputs                       map[string]contracts.ArtifactRef
+	Parameters                   map[string]string
 	Scope                        auditservice.Scope
 }
 
@@ -67,10 +68,9 @@ func (d *auditAdapter) Create(ctx context.Context, e evalstore.Experiment, m eva
 		if err != nil {
 			return auditRequest{}, err
 		}
-		params := MapParameters(memberCase(m), m.Recipe.Variant)
-		objective := m.Recipe.Case.Task.Objective
-		if value, ok := params["objective"]; ok {
-			objective = value
+		scope, parameters, err := mapAuditParameters(memberCase(m), m.Recipe.Variant, snapshot.Audit.Program)
+		if err != nil {
+			return auditRequest{}, evaldomain.Failure("eval_invalid")
 		}
 		return auditRequest{
 			ID:            "audit-" + m.SubmissionKey,
@@ -78,7 +78,8 @@ func (d *auditAdapter) Create(ctx context.Context, e evalstore.Experiment, m eva
 			ProfileSHA256: digest,
 			Profile:       auditservice.ProfileSelector{Name: snapshot.Audit.Ref.Name, Version: snapshot.Audit.Ref.Version},
 			Inputs:        inputs,
-			Scope:         auditservice.Scope{Objective: objective, Target: params["target"], AuthorizationScope: params["authorizationScope"]},
+			Parameters:    parameters,
+			Scope:         scope,
 		}, nil
 	})
 	if err != nil {
@@ -105,6 +106,7 @@ func (d *auditAdapter) Create(ctx context.Context, e evalstore.Experiment, m eva
 		AuditID:               request.ID,
 		Profile:               request.Profile,
 		Inputs:                request.Inputs,
+		Parameters:            request.Parameters,
 		RuntimeLabels:         m.Recipe.Variant.RuntimeLabels,
 		Scope:                 request.Scope,
 		IdempotencyKey:        op.Key,
