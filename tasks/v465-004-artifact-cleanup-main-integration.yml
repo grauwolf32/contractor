@@ -38,5 +38,7 @@ tests:
     covers: [A2]
   - command: make lint
     covers: [A2]
-  - command: Verify main merge parents and the recorded primary snapshot against final file hashes, modes and staged patch.
-    covers: [A1, A3]
+  - command: git merge-base --is-ancestor codex/artifact-cleanup main
+    covers: [A1]
+  - command: python3 /private/tmp/artifact-cleanup-install-main.py --verify-only
+    covers: [A3]
