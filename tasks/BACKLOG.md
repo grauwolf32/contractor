@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-69 open tasks: 10 in progress, 46 pending, 13 deferred. 1547 finished: 1529 completed, 18 archived.
+68 open tasks: 9 in progress, 46 pending, 13 deferred. 1548 finished: 1530 completed, 18 archived.
 
 ## In progress
 
@@ -20,7 +20,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Accept merged isolated Worker context compaction |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V465-003](v465-003-scanner-report-payloads.yml) | scan-tools | defect | P2 | Reference normalized finding outputs from compact scanner reports |
 
 ## Pending
 
@@ -163,7 +162,7 @@ tasks in `introduced_by`.
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 15 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 6 | 24 | 36 | 15 | 38 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 4 | 21 | 13 | 11 | 27 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 3 | 21 | 13 | 11 | 27 |
 | Findings tools and collections (`findings`) | 0 | 18 | 14 | 11 | 21 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 17 | 16 | 23 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 40 | 19 | 69 |

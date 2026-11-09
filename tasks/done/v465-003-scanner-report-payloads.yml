@@ -6,7 +6,7 @@ epic: scan-tools
 kind: defect
 introduced_by: V455-008
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [python, typescript, markdown]
 goal: Store scanner candidates and evidence once while retaining readable diagnostics, exact output references and HTTP surface collection.
@@ -46,3 +46,15 @@ tests:
     covers: [A3]
   - command: make lint
     covers: [A1, A2, A3]
+
+implementation_commit: 4608aa2effbdf0e01a07032a8e98e671c51539e5
+verification_results:
+  - "2026-11-09: the broad Tool Worker/scanner/sitemap Runtime selection passed 721 tests without skips. After preserving original diagnostics for unconfirmed publication, all 134 tests in test_scan_findings.py, test_tool_worker.py, test_tool_worker_deadline.py and test_sitemap_report_projection.py passed again."
+  - "Real Tool Worker regressions cover completed and failed scans, definite rejection after partial publication, a lost acknowledgement after commit, an unavailable exact output, no declared normalized outputs, completed-delivery replay and recreated-Worker receipt replay. Every replay preserves one scanner call."
+  - "Confirmed candidate/evidence outputs are referenced by exact revisions from compact reports; HTTP surface projection still reads the adapter-owned summary. Unconfirmed outputs keep the original diagnostic payload and never claim missing refs."
+  - "VITEST_MAX_WORKERS=2 make ui-verify and make lint passed. Existing UI previews consume the unchanged execution fields and require no new candidate parser or fallback."
+  - "The full Runtime/release gate and live-model quality checks were not run; no saved artifact bytes were rewritten."
+delivery:
+  date: '2026-11-09'
+  branch: codex/artifact-cleanup
+  merged_into_main: false
