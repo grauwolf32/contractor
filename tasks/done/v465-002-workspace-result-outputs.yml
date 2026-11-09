@@ -6,7 +6,7 @@ epic: workflows
 kind: defect
 introduced_by: V48-004
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [yaml, markdown]
 goal: Publish generated documents and validation reports as Workflow results while keeping workspace checkpoints in Run technical artifacts.
@@ -43,3 +43,14 @@ tests:
     covers: [A1, A2]
   - command: make lint
     covers: [A1, A2]
+
+implementation_commit: 7ace105ff206641e418faab16b6f8c54e42bd8e5
+verification_results:
+  - "2026-11-09: strict shipped configuration validation passed for 31 Workflows after all eight production checkpoint publishers were corrected. Full internal/config and internal/configtest package checks passed again after the final three sibling edits."
+  - "Internal Stage exports and exact hydration/continuation inputs remain. The E2E workspace-roundtrip fixture intentionally keeps its checkpoint outputs because its transport test consumes them."
+  - "make lint passed; model-config-check, docs-dependencies-check and check_spec.py also passed on the final sibling catalog and WFL-R69 wording. The dependency HTML was regenerated."
+  - "No migration of existing snapshots or stored results was performed. This task is delivered only on codex/artifact-cleanup, with no main merge or demo deployment."
+delivery:
+  date: '2026-11-09'
+  branch: codex/artifact-cleanup
+  merged_into_main: false
