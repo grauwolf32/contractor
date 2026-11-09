@@ -5,7 +5,7 @@ milestone: ui-consolidation-2026-10
 epic: ui
 kind: defect
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [typescript, json, markdown, yaml]
 goal: Users can find Delete check directly in both the selected Checks summary and the full Check workspace at desktop and mobile widths.
@@ -42,3 +42,4 @@ verification:
   - The full mocked browser gate passed 227 cases across 33 specs with no skips or retries. Six added cases cover both selected-summary and full-workspace views at 390 and 1440 pixels in light dark and black themes, including confirmation dismissal without mutation and no horizontal overflow.
   - Native production-component preview was also inspected at 390 pixels with the paused Check fixture; Delete is a visible labeled action and opening then dismissing its confirmation leaves data unchanged. Preview writes are disabled; its source and screenshot remain in ignored local review files.
   - Specification and task checks passed. No server or database change, business-data deletion, merge, deployment or full release gate was performed.
+implementation_commit: 26e0d13d64e9c1f19c8682a306c6aeb37d2516cd
