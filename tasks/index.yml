@@ -286,6 +286,9 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
+  - id: audit-scanners-engagement-2026-11
+    exit_task: V461-003
+    outcome: All four shipped scan Audits use engagement credentials and HTTP authority without settings artifacts, with aligned native scanner traffic and preserved Project Findings and evidence.
   - id: standalone-run-engagement
     exit_task: V449-001
     outcome: Ordinary projectless and Project Runs apply a pinned typed engagement input with validated credentials and controlled allocation-local HTTP execution, verified through real PostgreSQL and Server/Runtime traffic.

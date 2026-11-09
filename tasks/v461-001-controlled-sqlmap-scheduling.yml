@@ -1,0 +1,68 @@
+schema_version: "1.0"
+id: V461-001
+title: Route SQLMap through engagement and align native scanner scheduling
+milestone: audit-scanners-engagement-2026-11
+epic: scan-tools
+kind: feature
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go, python, typescript]
+context:
+  authority: >-
+    User decision 2026-11-09: remove Audit scan settings inputs, use engagement
+    for egress, identities and traffic limits without turning it into a scan
+    configuration; extend credentials to preserve authentication; run only HTTP
+    Nuclei rules; align native Nuclei and, where possible, SQLMap scheduling to
+    engagement to minimize transport-induced waits. Implementation is authorized.
+  specification: docs/spec/tools/scanners.md
+goal: >-
+  SQLMap and Nuclei honor the same allocation HTTP authority and prepare their
+  native traffic to fit its configured rate and concurrency without redundant retries.
+demonstration: >-
+  A real installed SQLMap process sends a prepared request through the existing
+  authenticated loopback bridge to a local HTTP/TLS fixture; target scope,
+  credentials, limits and cancellation remain owned by HTTPTransport (A1/A2).
+scope:
+  in: [SQLMap HTTP proxy integration, native scanner rate and concurrency alignment, capability declarations, real process regressions]
+  out: [credential extensions owned by V461-002, Audit input replacement owned by V461-003, database dumping, non-HTTP Nuclei protocols]
+requirements:
+  - id: R1
+    text: Reuse HTTPProxyBridge and HTTPTransport for controlled SQLMap; proxy credentials stay in private scratch, with no alternate outbound path.
+  - id: R2
+    text: Derive Nuclei rate and concurrency from engagement; use SQLMap bounded threads and native delay where possible, disable scanner retries in controlled mode, and retain aggregate transport enforcement.
+  - id: R3
+    text: Preserve prepared method, body, selected parameters and normalized Findings; unsupported or refused exchanges fail explicitly and never become successful negatives.
+failure_outcomes:
+  - operation: Native scanner execution through the existing proxy
+    permanent: Invalid arguments fail before launch; scope and request failures produce existing nonretryable scan outcomes.
+    retryable: No scanner request retry in controlled mode; existing transport permits only definite pre-send retry.
+    ambiguous: Never replay a possibly sent target request automatically.
+    cancelled: Scan session cancels and joins subprocess, proxy and transport before scratch cleanup.
+    timeout: Existing invocation deadline owns preparation, process and bridge lifetime.
+cardinality:
+  - collection: Scanner requests
+    expected: One target with bounded scanner-selected probes
+    maximum: Existing invocation deadline and scanner scheduling bounds
+    bound: Existing HTTP body/header limits and scanner output ceilings remain authoritative.
+lifecycle:
+  - entity: Per-invocation proxy and scratch
+    delete: Joined cleanup at invocation termination
+    cascade: Private config, native scanner session and bridge listeners
+    retention: Existing explicit result and evidence artifacts only
+acceptance_criteria:
+  - id: A1
+    given: An assigned engagement and real installed scanner
+    when: HTTP and HTTPS scans execute
+    then: Requests cross the shared transport with preserved method/body/identity, correct results and no direct egress.
+  - id: A2
+    given: Rate/concurrency limits, denied targets, failed requests or cancellation
+    when: The scanner runs or terminates
+    then: Native scheduling fits configured limits, shared limits hold, failures are explicit and resources are joined.
+tests:
+  - command: cd runtime && uv run pytest tests/test_nuclei_engagement.py tests/test_sqlmap_engagement.py tests/test_scan_sqlmap_request.py tests/test_scan_sqlmap_live.py tests/test_scan_toolset.py
+    covers: [A1, A2]
+  - command: go test ./internal/config/resolved
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]
