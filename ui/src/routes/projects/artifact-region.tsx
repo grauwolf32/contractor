@@ -138,7 +138,9 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
         <p className="materials-region-intro">
           Source code, API specs, architecture models and docs for checks and
           Runs. Each check and Run reads one exact version, so a new version
-          never changes earlier results.
+          never changes earlier results. Historical archives appear only when
+          their namespace is selected. Execution details are available in each
+          Run.
         </p>
         <div className="ui-toolbar">
           <Button

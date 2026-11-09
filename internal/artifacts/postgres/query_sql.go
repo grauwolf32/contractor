@@ -99,6 +99,7 @@ WHERE binding.scope_kind = $1 AND binding.scope_id = $2
   AND ($5::text = '' OR left(binding.namespace, length($5)) <> $5)
   AND ($6::text = '' OR (binding.namespace, binding.name) > ($6, $7))
   AND ($9::text = '' OR binding.namespace <> $9)
+  AND ($10::text = '' OR left(binding.namespace, length($10)) <> $10)
 ORDER BY binding.namespace, binding.name
 LIMIT $8`
 
@@ -116,6 +117,19 @@ LIMIT $8`
 var listProjectMetadataSQL = currentMetadataPageSQL + `
 WHERE binding.scope_kind = 'project' AND binding.scope_id = $1
   AND binding.namespace NOT LIKE 'audit-%'
+  AND ($2::text IS NULL OR binding.namespace = $2)
+  AND ($3::text IS NULL OR binding.namespace <> $3)
+  AND ($4::text = '' OR (binding.namespace, binding.name) > ($4, $5))
+  AND ($7::text = '' OR binding.namespace <> $7)
+ORDER BY binding.namespace, binding.name
+LIMIT $6`
+
+// listProjectMaterialsSQL matches artifact_bindings_project_materials_idx:
+// default material pages never scan archived or Audit-managed bindings.
+var listProjectMaterialsSQL = currentMetadataPageSQL + `
+WHERE binding.scope_kind = 'project' AND binding.scope_id = $1
+  AND binding.namespace NOT LIKE 'audit-%'
+  AND binding.namespace NOT LIKE 'historical-%'
   AND ($2::text IS NULL OR binding.namespace = $2)
   AND ($3::text IS NULL OR binding.namespace <> $3)
   AND ($4::text = '' OR (binding.namespace, binding.name) > ($4, $5))

@@ -10,6 +10,8 @@ import (
 // listing query.
 var ListProjectMetadataSQL = listProjectMetadataSQL
 
+var ListProjectMaterialsSQL = listProjectMaterialsSQL
+
 // PurgeBatchSize reports the purge batch bound (LIM-DEL-2) that external tests
 // measure purge statements against.
 func PurgeBatchSize() int { return purgeBatchSize }

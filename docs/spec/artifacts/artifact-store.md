@@ -345,6 +345,12 @@ staging, artifact links and crash replay are owned by
 **ART-R115.** The generic Project list reads its pages from an index of
 exactly the listable Project bindings, those outside the reserved prefix, so
 a page never reads an Audit-managed binding however many an Audit holds.
+Without an explicit namespace filter, it also hides migration archives under
+`historical-*`, before the page limit through a
+matching partial index. Selecting an archive namespace explicitly lists it;
+ordinary owner-authorized exact reads remain available. This presentation
+filter grants no mutation or deletion authority. Existing Run technical details
+continue to list that Run's artifacts through the ordinary Run endpoint.
 
 Rationale: a key range on the primary key cannot replace the prefix filter.
 In a linguistic database collation such as `en_US` punctuation is ignored at

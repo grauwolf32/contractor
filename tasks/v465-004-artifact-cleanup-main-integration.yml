@@ -1,0 +1,44 @@
+schema_version: '1.0'
+id: V465-004
+title: Integrate verified artifact cleanup into current main
+milestone: artifact-release-cleanup-2026-11
+epic: projects-artifacts
+kind: chore
+introduced_by: V465-001
+priority: P2
+status: in_progress
+depends_on: [V465-001, V465-002, V465-003]
+languages: [python, go, markdown]
+goal: Land the artifact cleanup in main with its verified behavior and the primary checkout's unrelated work preserved.
+context:
+  authority: >-
+    User request 2026-11-10 explicitly authorizes merging codex/artifact-cleanup
+    into main. Runs and execution history remain retained; deployment is not assigned.
+  finding: >-
+    Main advanced to ee53d96ab7f6e07fd098973d6996aefdf4165d9f with the completed
+    V463-004 HTTP bridge cleanup. The branches overlap only in generated backlog
+    metadata. The primary checkout retains six unrelated modified/untracked files,
+    including its own uncommitted tasks/BACKLOG.md.
+scope:
+  in:
+    - Reconcile current main in the isolated checkout and regenerate backlog metadata.
+    - Verify the Runtime composition and lint, create a no-fast-forward main merge and preserve the primary files and staged delta exactly.
+    - Record merge identity and verification in this task and the delivered artifact tasks.
+  out:
+    - New feature work, demo deployment, data deletion and remote publication.
+acceptance_criteria:
+  - id: A1
+    text: Main contains the verified artifact cleanup through a merge with the previous main and the feature branch as parents.
+  - id: A2
+    text: Current bridge cleanup and scanner report changes pass their combined Runtime suites; lint and task/spec/generated consistency checks pass.
+  - id: A3
+    text: All six primary changed files retain their exact bytes and modes, and the staged patch remains byte-identical.
+tests:
+  - command: cd runtime && uv run pytest -W error tests/test_tool_worker.py tests/test_tool_worker_deadline.py tests/test_scan*.py tests/test_sitemap*.py tests/test_bridge_reset.py tests/test_bridge_retirement.py tests/test_allocation_stop.py
+    covers: [A2]
+  - command: make lint
+    covers: [A2]
+  - command: git merge-base --is-ancestor codex/artifact-cleanup main
+    covers: [A1]
+  - command: python3 /private/tmp/artifact-cleanup-install-main.py --verify-only
+    covers: [A3]

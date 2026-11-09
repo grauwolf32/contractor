@@ -192,6 +192,9 @@ def test_nuclei_normalized_surface_independent_of_problem_severity():
     raw["observation"]["findingCandidates"] = nuclei_candidates(
         raw["observation"], methods={"nginx-detect": "HEAD"}
     )
+    from contractor_runtime.toolsets.scan.tools import ScanTool
+
+    raw["observation"] = ScanTool.report_observation(raw["observation"], {})
     value = project_report(encoded(raw), "nuclei-report@1", AT)
     assert value == {
         "kind": "nuclei",
@@ -206,7 +209,7 @@ def test_nuclei_normalized_surface_independent_of_problem_severity():
             },
         ],
     }
-    raw["observation"]["findingCandidates"]["surface"][0]["method"] = ""
+    raw["observation"]["findingSummary"]["surface"][0]["method"] = ""
     value = project_report(encoded(raw), "nuclei-report@1", AT)
     assert value == {
         "kind": "nuclei",
@@ -236,6 +239,9 @@ def test_nuclei_unsupported_technology_metadata_records_projection_omission():
         "inputArtifacts": {},
         "observation": {**observation, "findingCandidates": nuclei_candidates(observation)},
     }
+    from contractor_runtime.toolsets.scan.tools import ScanTool
+
+    report["observation"] = ScanTool.report_observation(report["observation"], {})
     value = project_report(encoded(report), "nuclei-report@1", AT)
     assert value["observations"][0]["method"] == "HEAD"
     assert value["gaps"] == [{"reason": "projection", "count": 1}]

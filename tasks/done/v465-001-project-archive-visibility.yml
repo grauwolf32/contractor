@@ -1,0 +1,65 @@
+schema_version: '1.0'
+id: V465-001
+title: Hide historical Project artifacts from the default materials list
+milestone: artifact-release-cleanup-2026-11
+epic: projects-artifacts
+kind: defect
+introduced_by: V64-014
+priority: P2
+status: completed
+depends_on: []
+languages: [go, sql, typescript, markdown]
+goal: Show current Project materials by default while keeping historical artifacts readable through an explicit namespace selection.
+context:
+  authority: >-
+    User request 2026-11-09 authorizes the artifact review corrections on a separate branch.
+    User selected preservation of Runs and execution history, removal of unnecessary outputs
+    and duplicate payloads, and hiding archives by default. Run technical details remain
+    the place for existing Run artifacts; no separate archive toggle is required.
+  finding: >-
+    internal/httpapi/public/project_artifact_handlers.go:17 lists historical-audits,
+    historical-materials and historical-results among ordinary Project materials.
+    On the demo, 533 of 538 visible VulnyAPI materials are historical entries.
+  siblings: >-
+    Project material pickers consume the same endpoint. Explicit namespace listing,
+    exact reads and existing Run artifact listings must remain available. Audit-managed
+    namespaces remain inaccessible through generic Project endpoints.
+  specification:
+    - docs/spec/artifacts/artifact-store.md
+    - docs/spec/ui/ui.md
+    - docs/spec/api/public-api.md
+scope:
+  in:
+    - Exclude historical namespaces before pagination on the default Project list, with an indexed real-store regression at realistic cardinality.
+    - Keep exact namespace selection and direct reads available, bind cursors to the effective filter, and explain the default view in the UI and API specification.
+  out:
+    - Deleting data, changing retention limits, resurrecting deleted historical Runs, and deployment.
+acceptance_criteria:
+  - id: A1
+    text: The default Project materials list excludes archived namespaces before pagination without scanning all archive bindings.
+  - id: A2
+    text: Explicit namespace selection returns archived artifacts and exact reads remain available; foreign owners and reserved Audit namespaces retain existing protections.
+  - id: A3
+    text: The UI explains current materials and existing Run technical details; API and specification agree.
+tests:
+  - command: go test -count=1 ./internal/artifacts/... ./internal/httpapi/public
+    covers: [A1, A2]
+  - command: make verify-public-api
+    covers: [A2, A3]
+  - command: make ui-verify
+    covers: [A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+
+implementation_commit: eb84ff4ac75a00c9a8cbb939ea2fd13802e24cdb
+verification_results:
+  - "2026-11-09: full Go packages internal/artifacts/..., internal/httpapi/public, internal/config, internal/configtest and internal/persistence/postgres passed with the owned disposable PostgreSQL database. The complete public package passed again after cursor framing was tightened."
+  - "The real-store regression pages current materials among 8000 archived bindings with at most 12 binding reads. Explicit archive namespace listing and exact reads passed, and cross-filter cursors were rejected."
+  - "make verify-public-api passed. Both public clients, the dependency model and schemaVersion 000005 ERD were regenerated with their owning generators."
+  - "VITEST_MAX_WORKERS=2 make ui-verify passed: 223 files, 2513 tests, one existing expected failure, 17 static-server tests and the production build. Two earlier default-parallel runs hit the existing 5-second source-evidence test timeout; its four tests passed separately and the complete bounded-worker rerun passed without changing timeouts."
+  - "The existing production browser harness passed 21 git-artifacts/project-material-names Chromium tests, including 390px in light, dark and black. make lint passed."
+  - "Runs, historical bytes and retention limits were preserved. The full release gate and demo deployment were not run; optional heavy-I/O fixtures were not opted into."
+delivery:
+  date: '2026-11-09'
+  branch: codex/artifact-cleanup
+  merged_into_main: false

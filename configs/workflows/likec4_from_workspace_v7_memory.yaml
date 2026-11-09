@@ -26,12 +26,6 @@ spec:
     likec4_validation_report:
       required: true
       mediaTypes: [text/markdown]
-    workspace_state: &workspace_state_output
-      required: true
-      mediaTypes: [application/vnd.contractor.workspace-overlay+json]
-    workspace_diff: &workspace_diff_output
-      required: true
-      mediaTypes: [text/x-diff]
 
   executionConfig:
     workers:
@@ -87,8 +81,12 @@ spec:
             required: true
             mediaTypes: [text/markdown]
             from: {namespace: analysis, name: dependencies}
-          workspace_state: *workspace_state_output
-          workspace_diff: *workspace_diff_output
+          workspace_state: &workspace_state_output
+            required: true
+            mediaTypes: [application/vnd.contractor.workspace-overlay+json]
+          workspace_diff: &workspace_diff_output
+            required: true
+            mediaTypes: [text/x-diff]
       on:
         succeeded:
           next: project_discovery
@@ -253,8 +251,6 @@ spec:
       workflowOutputs:
         likec4: architecture
         likec4_validation_report: validation_report
-        workspace_state: workspace_state
-        workspace_diff: workspace_diff
       on:
         succeeded:
           succeed: {}
