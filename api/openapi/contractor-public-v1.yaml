@@ -15724,8 +15724,12 @@ components:
         amount: {$ref: '#/components/schemas/NullableUSDAmount'}
         calls: {$ref: '#/components/schemas/CostCounter'}
         pricedCalls: {$ref: '#/components/schemas/CostCounter'}
-        reports: {$ref: '#/components/schemas/CostCounter'}
-        unknownReports: {$ref: '#/components/schemas/CostCounter'}
+        reports:
+          $ref: '#/components/schemas/CostCounter'
+          description: Expected Worker and Planner report slots, including unreceived reports and retained slots from deleted children.
+        unknownReports:
+          $ref: '#/components/schemas/CostCounter'
+          description: Participants with no report, an incomplete report, or no cost metadata. Retained after child deletion.
         basis: {type: string, enum: [none, reported, estimated, mixed]}
         coverage: {type: string, enum: [complete, partial, pending, unavailable]}
         pending: {type: boolean}

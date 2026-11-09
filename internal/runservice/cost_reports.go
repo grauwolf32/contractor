@@ -4,10 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
-	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/runcost"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5"
@@ -37,7 +36,7 @@ func (s *CostReports) RecordAllocationReport(ctx context.Context, e telemetry.Al
 		if err != nil {
 			return err
 		}
-		return applyCostReport(ctx, tx, runstore.LLMCostReport{StageExecutionID: e.StageExecutionID, AllocationID: e.AllocationID, Contribution: reportCostContribution(e.Report.ReportID, e.ReceivedAt, normalized)})
+		return runcost.ApplyReport(ctx, tx, runstore.LLMCostReport{StageExecutionID: e.StageExecutionID, AllocationID: e.AllocationID, Contribution: reportCostContribution(e.Report.ReportID, e.ReceivedAt, normalized)})
 	})
 }
 
@@ -53,7 +52,7 @@ func (s *CostReports) RecordPlannerReport(ctx context.Context, e telemetry.Plann
 		if err != nil {
 			return err
 		}
-		return applyCostReport(ctx, tx, runstore.LLMCostReport{StageExecutionID: e.StageExecutionID, Contribution: reportCostContribution(e.Report.ReportID, e.ReceivedAt, normalized)})
+		return runcost.ApplyReport(ctx, tx, runstore.LLMCostReport{StageExecutionID: e.StageExecutionID, Contribution: reportCostContribution(e.Report.ReportID, e.ReceivedAt, normalized)})
 	})
 }
 
@@ -63,20 +62,4 @@ func reportCostContribution(id string, received time.Time, report reporting.Exec
 		calls = *report.Metrics.ModelCalls
 	}
 	return reporting.CostContribution{ReportID: id, ReceivedAt: received, Complete: report.Complete, ModelCalls: calls, Cost: report.Metrics.LLMCost}
-}
-
-func applyCostReport(ctx context.Context, tx pgx.Tx, p runstore.LLMCostReport) error {
-	change, err := runstore.NewPostgresStore(tx, nil).ApplyLLMCostReport(ctx, p)
-	if err != nil || !change.Changed {
-		return err
-	}
-	if change.AuditExecutionID != nil {
-		if err := hookstore.NewRunCostsTx(tx).Apply(ctx, *change.AuditExecutionID, change.RunID, change.Role, change.Previous, &change.Next, change.RunTotal); err != nil {
-			return err
-		}
-	}
-	if change.ProjectID != nil {
-		return projectstore.NewPostgresStore(tx).ApplyLLMCost(ctx, change.OwnerID, *change.ProjectID, change.Role, change.AuditExecutionID != nil, change.Previous, &change.Next)
-	}
-	return nil
 }

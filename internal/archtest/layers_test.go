@@ -207,6 +207,7 @@ var layers = []layerSpec{
 			"internal/operations/openapiwork",
 			"internal/rundeletion",
 			"internal/runservice",
+			"internal/runcost",
 		},
 	},
 	{

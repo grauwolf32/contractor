@@ -5128,7 +5128,9 @@ export interface components {
             amount: components["schemas"]["NullableUSDAmount"];
             calls: components["schemas"]["CostCounter"];
             pricedCalls: components["schemas"]["CostCounter"];
+            /** @description Expected Worker and Planner report slots, including unreceived reports and retained slots from deleted children. */
             reports: components["schemas"]["CostCounter"];
+            /** @description Participants with no report, an incomplete report, or no cost metadata. Retained after child deletion. */
             unknownReports: components["schemas"]["CostCounter"];
             /** @enum {string} */
             basis: "none" | "reported" | "estimated" | "mixed";

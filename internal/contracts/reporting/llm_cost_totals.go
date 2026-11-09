@@ -13,8 +13,9 @@ import (
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
-// CostContribution is the last counted report in its existing allocation or
-// Stage record. It survives diagnostic retention, but has no independent life.
+// CostContribution is the expected report slot in its existing allocation or
+// Stage record. Empty ReportID means no report was received, with no observed
+// calls or cost. It survives diagnostic retention, but has no independent life.
 type CostContribution struct {
 	ReportID   string    `json:"reportId" strictjson:"required"`
 	ReceivedAt time.Time `json:"receivedAt" strictjson:"required"`
@@ -134,7 +135,8 @@ func DecodeCostContribution(raw []byte) (*CostContribution, error) {
 }
 
 func (c CostContribution) Validate() error {
-	if c.ReportID == "" || len(c.ReportID) > 256 || c.ReceivedAt.IsZero() || !metricIntegerInRange(c.ModelCalls) {
+	if len(c.ReportID) > 256 || c.ReceivedAt.IsZero() || !metricIntegerInRange(c.ModelCalls) ||
+		(c.ReportID == "" && (c.Complete || c.ModelCalls != 0 || c.Cost != nil)) {
 		return contracts.Invalidf("cost contribution identity is invalid")
 	}
 	if c.Cost != nil {
@@ -154,6 +156,14 @@ func CostContributionChanged(old *CostContribution, next CostContribution) (bool
 	}
 	if err := old.Validate(); err != nil {
 		return false, err
+	}
+	// Registration replay never replaces an observation. Conversely, a report
+	// always fills an unreceived slot, even if its supplied time predates start.
+	if next.ReportID == "" {
+		return false, nil
+	}
+	if old.ReportID == "" {
+		return true, nil
 	}
 	if old.Complete && !next.Complete {
 		return false, nil
@@ -304,7 +314,10 @@ func (t *LLMCostTotals) ReplaceCostContribution(old, next *CostContribution, rol
 			}
 		}
 	}
-	if t.UpdatedAt == nil || now.After(*t.UpdatedAt) {
+	// Expecting a report is not an execution observation. Keep the UI's last
+	// observation absent until a real report arrives, and monotone thereafter.
+	observed := (next != nil && next.ReportID != "") || (old != nil && old.ReportID != "")
+	if observed && (t.UpdatedAt == nil || now.After(*t.UpdatedAt)) {
 		t.UpdatedAt = &now
 	}
 	sort.Slice(t.Groups, func(i, j int) bool { return costGroupKey(t.Groups[i]) < costGroupKey(t.Groups[j]) })

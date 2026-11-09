@@ -395,9 +395,22 @@ participant replacement and all parent deltas commit in one existing transaction
 with each store writing only its owned records. Replay and an obsolete
 incomplete report cannot charge again.
 
+Before a Planner starts or a Worker allocation is admitted, its creation
+transaction registers an expected report slot in that participant's existing
+cost field and projects it into all owning parent totals. An unreceived slot
+has an empty report identity, no observed calls or cost, and contributes one
+unknown report. `reports` counts participant slots; `unknownReports` includes
+missing as well as incomplete reports. A received report replaces the slot
+regardless of its timestamp; registration replay cannot replace an observation.
+Registration does not invent or advance the last execution-observation time.
+Failure to persist the slot or any parent delta rolls participant creation back.
+Best-effort diagnostic delivery cannot turn a missing report into complete
+coverage, even when every received report has complete cost metadata.
+
 **OBS-R124.** Full diagnostics still expire under OBS-R43. Compact participant
 metadata follows its Stage/Run lifetime; deleting a child removes its detail,
 without subtracting the already observed cost from its living Audit or Project.
+Missing-report counts are retained alongside the known subtotal after deletion.
 Parent totals follow the parent lifetime. Earlier absent monetary observations
 remain a historical gap, not an inferred price or a zero. No data is reset and
 current tariffs are never applied to historical token counts.

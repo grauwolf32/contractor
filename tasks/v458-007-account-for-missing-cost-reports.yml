@@ -1,0 +1,65 @@
+schema_version: '1.0'
+id: V458-007
+title: Retain cost coverage gaps for participants whose reports are lost
+milestone: llm-cost-reporting-2026-11
+epic: operations
+kind: defect
+introduced_by: V458-002
+priority: P2
+status: in_progress
+depends_on: [V458-002]
+languages: [go, markdown, yaml]
+goal: Run, Audit and Project cost summaries remain incomplete when any started participant loses its report, including after child deletion.
+context:
+  authority: User review 2026-11-09 requires expected participants to contribute durable coverage gaps before report delivery, with no additional tables.
+  severity: medium
+  finding: >-
+    internal/contracts/reporting/llm_cost_summary.go:64 only sees persisted contributions.
+    Scheduler report writes are best effort, so a lost Worker report and a complete
+    Planner report produce a falsely complete known subtotal on Run and Project.
+  siblings: >-
+    Worker placement and Planner session start are the two production participant
+    creation paths. Cover standalone and Audit child Runs, retained Audit execution
+    snapshots, Audit and Project totals, concurrent report replay, incomplete
+    replacement, report retention and ordinary Run/Audit deletion.
+  specification: docs/spec/platform/observability.md#usage-attribution
+  design: >-
+    Register a missing contribution in the existing allocation or Stage cost field
+    atomically with allocation pinning or Planner start, before work can execute.
+    Product composition in internal/runcost calls the existing owning stores in
+    the same transaction to project its unknown count into Run, Audit execution,
+    Audit and Project.
+    An empty report identity denotes only an unreceived, zero-call, unpriced slot;
+    a real report replaces it regardless of arrival timestamp. Registration replay
+    cannot overwrite received reports. Prefer this to best-effort completion repair
+    or read-time history scans, which cannot preserve gaps reliably after deletion.
+scope:
+  in:
+  - Required participant creation composition and durable expected report slots using existing fields and replacement deltas.
+  - Real PostgreSQL regressions for missing/all-lost reports, replay, rollback, late delivery, terminal coverage and child deletion.
+  - Clarify the expected-participant meaning of report coverage counters in the normative specification.
+  out:
+  - New tables, model changes, inferred prices, report retries, demo deployment and merge.
+acceptance_criteria:
+  - id: A1
+    text: A saved Planner cost of 0.2 and failed Worker report of 0.1 yields known 0.2 and incomplete coverage with one unknown report on Run, Audit and Project; all-lost reports yield unavailable cost.
+  - id: A2
+    text: Expected slots commit with participant creation; parent projection failure rolls creation back, registration replay cannot duplicate a slot or overwrite a report, and late reports replace the slot exactly once.
+  - id: A3
+    text: Terminal Runs, telemetry expiry, ordinary child Run deletion and Audit purge retain the same known subtotal and missing-report count in surviving parents, without history scans or new tables.
+tests:
+  - command: go test -count=1 ./internal/contracts/reporting ./internal/runservice ./internal/telemetry ./internal/controlplane ./internal/planner/session ./internal/runstore ./internal/projectstore ./internal/auditstore/... ./internal/rundeletion ./internal/runcost ./internal/app ./internal/scheduler
+    covers: [A1, A2, A3]
+  - command: make verify-public-api
+    covers: [A1, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+verification:
+  results:
+  - All listed Go package suites passed with CONTRACTOR_TEST_DATABASE_URL set to the owned disposable PostgreSQL database; optional heavy I/O stayed disabled and its skips are not passing coverage.
+  - go test -race -count=1 ./internal/runservice ./internal/contracts/reporting passed on the final code, including concurrent allocation registration and report delivery.
+  - make verify-public-api and UV_OFFLINE=true make lint passed. Both generated clients were regenerated through their normal targets; no new table or migration was added.
+  - The two focused Vitest files passed all 16 cases for the cost card and strict API parser.
+  - Real PostgreSQL regressions preserve known 0.2 with partial coverage and one missing report through terminal completion, telemetry expiry, ordinary Audit child Run deletion and retained execution reads. Losing both reports remains unavailable with two missing reports. Audit purge retains the gap on Project.
+  - Registration failure rolls back Planner start and Worker admission; replay and late reports replace one slot exactly once, and registration does not invent an execution-observation timestamp.
+  - The owned database contractor_llm_cost_20261109 was dropped and its absence verified. Full release verification, demo deployment and merge were not performed.

@@ -26,6 +26,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/planner/streamline"
 	"github.com/grauwolf32/contractor/internal/projectlifecycle"
 	"github.com/grauwolf32/contractor/internal/projectsitemap"
+	"github.com/grauwolf32/contractor/internal/runcost"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -76,7 +77,7 @@ func configureExecutors(
 		planner.DefaultCompletionWriteTimeout,
 		cfg.Operations.Database.AcquireTimeout+cfg.Operations.Database.LockTimeout+time.Second,
 	)
-	plannerSessions, err := plannersession.New(runstore.NewPostgresStore(pool, storage), plannersession.Options{
+	plannerSessions, err := plannersession.New(runcost.NewParticipants(pool, storage), plannersession.Options{
 		CompletionWriteTimeout: completionWriteTimeout,
 	})
 	if err != nil {

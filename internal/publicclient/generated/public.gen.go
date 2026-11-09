@@ -9682,13 +9682,13 @@ type LLMCostSummary struct {
 	// PricedCalls Exact nonnegative aggregate call/report count.
 	PricedCalls CostCounter `json:"pricedCalls"`
 
-	// Reports Exact nonnegative aggregate call/report count.
+	// Reports Expected Worker and Planner report slots, including unreceived reports and retained slots from deleted children.
 	Reports          CostCounter                          `json:"reports"`
 	Scope            LLMCostSummaryScope                  `json:"scope"`
 	ScopeId          ResourceId                           `json:"scopeId"`
 	StandaloneAmount nullable.Nullable[NullableUSDAmount] `json:"standaloneAmount"`
 
-	// UnknownReports Exact nonnegative aggregate call/report count.
+	// UnknownReports Participants with no report, an incomplete report, or no cost metadata. Retained after child deletion.
 	UnknownReports CostCounter                  `json:"unknownReports"`
 	UpdatedAt      nullable.Nullable[time.Time] `json:"updatedAt"`
 }

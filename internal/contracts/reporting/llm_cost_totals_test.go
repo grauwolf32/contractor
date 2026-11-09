@@ -10,6 +10,57 @@ func costTestContribution(id, amount string, complete bool) *CostContribution {
 	return &CostContribution{ReportID: id, ReceivedAt: time.Date(2026, 11, 8, 0, 0, 0, 0, time.UTC), Complete: complete, ModelCalls: 1, Cost: &LLMCost{Currency: "USD", Calls: 1, Groups: []LLMCostGroup{{Model: "model", Phase: "main", Source: "provider", Calls: 1, Amount: amount}}}}
 }
 
+func TestExpectedCostReportSlotCannotHideLostOrLateReports(t *testing.T) {
+	now := time.Now().UTC()
+	expected := CostContribution{ReceivedAt: now}
+	total := NewLLMCostTotals(false)
+	if err := total.ReplaceCostContribution(nil, &expected, "worker", false, now); err != nil {
+		t.Fatal(err)
+	}
+	if total.UpdatedAt != nil {
+		t.Fatal("registration invented an execution observation time")
+	}
+	if got := BuildLLMCostSummary("run", "run", total, false, true, now); got.Amount != nil || got.Coverage != "unavailable" || got.Reports != "1" || got.UnknownReports != "1" {
+		t.Fatalf("unreceived report claimed free work: %+v", got)
+	}
+	planner := costTestContribution("planner", "0.2", true)
+	if err := total.ReplaceCostContribution(nil, planner, "planner", false, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := total.ReplaceCostContribution(nil, &expected, "worker", false, now.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if total.UpdatedAt == nil || !total.UpdatedAt.Equal(now) {
+		t.Fatal("registration advanced last execution observation")
+	}
+	if err := total.ReplaceCostContribution(&expected, nil, "worker", false, now); err != nil {
+		t.Fatal(err)
+	}
+	if got := BuildLLMCostSummary("run", "run", total, false, true, now); got.Amount == nil || *got.Amount != "0.2" || got.Coverage != "partial" || got.UnknownReports != "1" {
+		t.Fatalf("complete Planner hid missing Worker: %+v", got)
+	}
+	for _, complete := range []bool{false, true} {
+		report := costTestContribution("worker", "0.1", complete) // Deliberately earlier than registration.
+		if changed, err := CostContributionChanged(&expected, *report); err != nil || !changed {
+			t.Fatalf("late report not accepted: %v %v", changed, err)
+		}
+		if changed, err := CostContributionChanged(report, expected); err != nil || changed {
+			t.Fatalf("registration replaced observation: %v %v", changed, err)
+		}
+	}
+	if changed, err := CostContributionChanged(&expected, CostContribution{ReceivedAt: now.Add(time.Hour)}); err != nil || changed {
+		t.Fatalf("registration replay added a slot: %v %v", changed, err)
+	}
+	for _, invalid := range []CostContribution{
+		{ReceivedAt: now, Complete: true}, {ReceivedAt: now, ModelCalls: 1},
+		{ReceivedAt: now, Cost: &LLMCost{Currency: "USD", Groups: []LLMCostGroup{}}},
+	} {
+		if err := invalid.Validate(); err == nil {
+			t.Fatalf("unreceived slot accepted observation: %+v", invalid)
+		}
+	}
+}
+
 func TestLLMCostTotalsReplaceAndPreparedBreakdowns(t *testing.T) {
 	total := NewLLMCostTotals(false)
 	first := costTestContribution("partial", "0.1", false)
