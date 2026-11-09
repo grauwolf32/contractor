@@ -30,6 +30,71 @@ function response(value: unknown, status = 200): Response {
 }
 
 describe("Workflow API", () => {
+  it.each([
+    { transition: { kind: "fail" }, valid: true },
+    {
+      transition: { kind: "retry", maxAttempts: 2, then: { kind: "fail" } },
+      valid: false,
+    },
+    {
+      transition: {
+        kind: "escalate",
+        maxAttempts: 2,
+        executionConfig: { effective: { agents: {} } },
+        then: { kind: "fail" },
+      },
+      valid: false,
+    },
+    { transition: { kind: "unknown" }, valid: false },
+  ])(
+    "validates successful publication transition $transition.kind",
+    async ({ transition, valid }) => {
+      const workflow = workflowResource("partial-publication");
+      const stage = {
+        operation: { ref: "publish-findings@1", arguments: {} },
+        objective: "Publish available findings",
+        session: "isolated",
+        agents: {},
+        executionConfig: { agents: {} },
+        contextArtifacts: {},
+        resultArtifacts: {},
+        workflowOutputs: {},
+        on: {
+          succeeded: transition,
+          failed: { kind: "fail" },
+          interrupted: { kind: "fail" },
+        },
+      };
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async () =>
+          response({ ...workflow, stages: { execute: stage } }),
+        ),
+      );
+      const result = getWorkflow(api, "partial-publication", "1");
+      if (valid)
+        await expect(result).resolves.toMatchObject({
+          stages: { execute: { on: { succeeded: { kind: "fail" } } } },
+        });
+      else
+        await expect(result).rejects.toMatchObject({
+          code: "invalid_api_response",
+        });
+    },
+  );
+
+  it("still rejects Planner Stage declarations without agents", async () => {
+    const workflow = workflowResource("planner-workflow");
+    workflow.stages.execute!.agents = {};
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () => response(workflow)),
+    );
+    await expect(
+      getWorkflow(api, "planner-workflow", "1"),
+    ).rejects.toMatchObject({ code: "invalid_api_response" });
+  });
+
   it("uses generated exact and cursor query operations", async () => {
     const requests: Request[] = [];
     const abort = new AbortController();

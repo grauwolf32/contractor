@@ -17885,6 +17885,32 @@ func (t *WorkflowSucceededTransition) MergeWorkflowSucceedTransition(v WorkflowS
 	return err
 }
 
+// AsWorkflowFailTransition returns the union data inside the WorkflowSucceededTransition as a WorkflowFailTransition
+func (t WorkflowSucceededTransition) AsWorkflowFailTransition() (WorkflowFailTransition, error) {
+	var body WorkflowFailTransition
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromWorkflowFailTransition overwrites any union data inside the WorkflowSucceededTransition as the provided WorkflowFailTransition
+func (t *WorkflowSucceededTransition) FromWorkflowFailTransition(v WorkflowFailTransition) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeWorkflowFailTransition performs a merge with any union data inside the WorkflowSucceededTransition, using the provided WorkflowFailTransition
+func (t *WorkflowSucceededTransition) MergeWorkflowFailTransition(v WorkflowFailTransition) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
 func (t WorkflowSucceededTransition) MarshalJSON() ([]byte, error) {
 	b, err := t.union.MarshalJSON()
 	return b, err
