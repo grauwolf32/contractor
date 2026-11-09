@@ -1727,6 +1727,13 @@ from completed coverage; missing or invalid reports do not become successful
 scans. The aggregate preserves preparation gaps and candidate selection reasons
 through its exact plan reference.
 
+Controlled HTTP failure promptly stops and joins the scanner process group while
+retaining already received stdout/stderr within the ordinary combined output
+limit. Provider parsing and Finding/evidence publication still consume that
+partial output, including when process completion races with transport failure;
+the report retains the transport error and never claims completed coverage.
+Allocation/caller cancellation still propagates after child cleanup.
+
 **SCN-R221.** Both selection accounting and execution outcomes must be
 inspected before a security report is interpreted.
 

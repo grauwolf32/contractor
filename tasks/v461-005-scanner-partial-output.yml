@@ -6,7 +6,7 @@ epic: scan-tools
 kind: defect
 introduced_by: V461-001
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [python]
 goal: A controlled HTTP failure promptly stops the native scanner and preserves already received stdout/stderr for partial Findings and evidence without changing allocation cancellation semantics.
@@ -28,7 +28,7 @@ acceptance_criteria:
   - id: A3
     text: Owning package suites and repository lint pass; any optional skips are reported explicitly.
 tests:
-  - command: cd runtime && uv run pytest -W error tests/test_scan_toolset.py tests/test_nuclei_engagement.py tests/test_sqlmap_engagement.py tests/test_http_proxy_bridge.py
+  - command: cd runtime && uv run pytest -W error tests/test_tool_process.py tests/test_controlled_scan_process.py tests/test_scan_toolset.py tests/test_nuclei_engagement.py tests/test_sqlmap_engagement.py tests/test_http_proxy_bridge.py
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]

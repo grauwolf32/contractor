@@ -55,8 +55,9 @@ def test_bounded_process_transfers_stdin_and_does_not_inherit_environment(monkey
 
 
 @pytest.mark.parametrize("phase", ["spawn", "cleanup"])
+@pytest.mark.parametrize("controlled", [False, True])
 def test_repeated_cancellation_joins_child_even_during_spawn_or_cleanup(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, phase: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, phase: str, controlled: bool
 ) -> None:
     async def scenario() -> None:
         started, finish = asyncio.Event(), asyncio.Event()
@@ -87,6 +88,7 @@ def test_repeated_cancellation_joins_child_even_during_spawn_or_cleanup(
                 cwd=tmp_path,
                 timeout=30,
                 max_output_bytes=1024,
+                stop_event=asyncio.Event() if controlled else None,
             )
         )
         try:

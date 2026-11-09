@@ -18,6 +18,7 @@ from test_tool_worker import ArtifactStore
 
 from contractor_runtime.adapters.http_transport import HTTPTransport
 from contractor_runtime.artifacts import ArtifactClient
+from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.contracts.engagement import HTTPLimits
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.toolsets.scan.tools import ScanToolsetFactory
@@ -92,6 +93,59 @@ def test_real_nuclei_delegates_to_allocation_http(tmp_path):
                 await tool.close()
                 await owner.close()
         assert not list((tmp_path / "workspace").iterdir())
+
+    asyncio.run(scenario())
+
+
+def test_real_nuclei_keeps_published_finding_before_later_transport_failure(tmp_path, monkeypatch):
+    async def scenario():
+        matched = asyncio.Event()
+        original_read = asyncio.StreamReader.read
+
+        async def read(self, n=-1):
+            data = await original_read(self, n)
+            if b'"template-id":"scoped-http"' in data:
+                matched.set()
+            return data
+
+        monkeypatch.setattr(asyncio.StreamReader, "read", read)
+
+        async def respond(_, __, writer, request):
+            if b"/allowed/fail " in request:
+                await asyncio.wait_for(matched.wait(), 20)
+                writer.close()
+            else:
+                writer.write(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")
+                await writer.drain()
+
+        async with SocketTarget(respond) as target:
+            literal_origin(target)
+            bad = template(path="{{RootURL}}/allowed/fail")
+            bad["id"] = "later-failure"
+            finding = template()
+            finding["info"]["severity"] = "medium"
+            tool, owner, store = await scanner(tmp_path, target, templates=[finding, bad])
+            try:
+                result = await tool(target.origin + "/allowed", timeout_seconds=30)
+                assert matched.is_set(), result
+                assert result["status"] == "failed", result
+                assert result["errorCode"] == "scan_request_failed"
+                assert [row["template-id"] for row in result["results"]] == ["scoped-http"]
+                published = await tool.publish_outputs(
+                    result,
+                    {
+                        name: ArtifactRef(namespace="scanner", name=name)
+                        for name in ("candidates", "evidence")
+                    },
+                )
+                batch = json.loads(store.values[("scanner", "candidates")][0])
+                assert [row["rule"] for row in batch["candidates"]] == ["scoped-http"]
+                evidence = store.values[("scanner", "evidence")][0]
+                assert b"scoped-http" in evidence
+                assert published["status"] == "failed"
+            finally:
+                await tool.close()
+                await owner.close()
 
     asyncio.run(scenario())
 
@@ -566,9 +620,9 @@ def test_native_nuclei_paces_requests_from_engagement(tmp_path, monkeypatch):
     native = scan.run_process
     commands, arrivals = [], []
 
-    async def run(command, directory, timeout):
+    async def run(command, directory, timeout, **kwargs):
         commands.append(command)
-        return await native(command, directory, timeout)
+        return await native(command, directory, timeout, **kwargs)
 
     monkeypatch.setattr(scan, "run_process", run)
 

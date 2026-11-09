@@ -113,7 +113,7 @@ def test_sqlmap_native_pacing_and_shared_response_bound(tmp_path, monkeypatch):
     native = scan.run_process
     commands = []
 
-    async def run(command, directory, timeout):
+    async def run(command, directory, timeout, **kwargs):
         commands.append(command)
         if "-c" in command:
             from pathlib import Path
@@ -122,7 +122,7 @@ def test_sqlmap_native_pacing_and_shared_response_bound(tmp_path, monkeypatch):
             assert config.stat().st_mode & 0o777 == 0o600
             assert "proxyCred = runtime:" in config.read_text()
         assert not any("runtime:" in arg for arg in command)
-        return await native(command, directory, timeout)
+        return await native(command, directory, timeout, **kwargs)
 
     monkeypatch.setattr(scan, "run_process", run)
 

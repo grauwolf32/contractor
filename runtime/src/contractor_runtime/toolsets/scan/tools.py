@@ -26,7 +26,6 @@ from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.adapters.http_transport import HTTPTransport
 from contractor_runtime.artifacts import ArtifactAPIError
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
-from contractor_runtime.core.async_tasks import join_owned_task
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.process import (
     ProcessOutputLimitError,
@@ -360,21 +359,8 @@ class _ScanSession:
 async def _run_controlled_process(
     bridge: HTTPProxyBridge, command: list[str], directory: Path, timeout: float
 ) -> ProcessResult:
-    process = asyncio.create_task(run_process(command, directory, timeout), name="scanner-process")
-    failed = asyncio.create_task(bridge.failed.wait(), name="scanner-http-failure")
-    try:
-        await asyncio.wait({process, failed}, return_when=asyncio.FIRST_COMPLETED)
-        if bridge.error_code is not None:
-            return ProcessResult(None, error_code=bridge.error_code)
-        return process.result()
-    finally:
-        process.cancel()
-        failed.cancel()
-        joined = asyncio.gather(process, failed, return_exceptions=True)
-        interrupted = await join_owned_task(joined)
-        joined.result()
-        if interrupted:
-            raise asyncio.CancelledError
+    result = await run_process(command, directory, timeout, stop_event=bridge.failed)
+    return replace(result, error_code=bridge.error_code or result.error_code)
 
 
 class ScanTool:
