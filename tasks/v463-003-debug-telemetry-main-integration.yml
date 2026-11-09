@@ -16,6 +16,7 @@ context:
   authority: >-
     User request 2026-11-09: merge the completed telemetry branch into main.
     This authorizes local no-fast-forward integration; deployment is not requested.
+  evidence: tasks/evidence/v463-003-debug-telemetry-main-integration.json
   feature_head: 61ccaf570
   main_base: fc64128447024c33728fbed8c9cf6694a5cd5504
   ownership: >-
@@ -49,3 +50,10 @@ tests:
     covers: [A2, A3]
   - command: git merge-base --is-ancestor 61ccaf570 main
     covers: [A1]
+
+verification_results:
+  - Combined UI generation, lint, typecheck and production build passed.
+  - All 223 UI test files passed; 2513 tests passed and one pre-existing expected failure remained, plus 17 UI server tests passed.
+  - make lint passed on the reconciled tree, including generated dependencies, task/spec checks and Runtime import boundaries.
+  - Runtime, Go/internal and API source tree hashes match verified V463-002 exactly; Check/Audit routes and browser tests match prior main exactly.
+  - Runtime 6140 passed and 135 declared skips, telemetry race/PostgreSQL and shared fixture results are reused from V463-002; optional skips are not passing coverage.
