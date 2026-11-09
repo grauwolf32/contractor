@@ -1,0 +1,88 @@
+schema_version: "1.0"
+id: V456-001
+title: Route Worker tool-call limits through the selected context strategy
+milestone: worker-context-compaction-2026-10
+epic: planner-worker
+kind: feature
+priority: P1
+status: in_progress
+depends_on: []
+languages: [python, go]
+goal: >-
+  Workers reaching maxToolCalls summarize or compact according to their selected
+  context strategy instead of failing solely because the tool window is full.
+demonstration: >-
+  Production ADK Runner executes tools up to the boundary, settles parallel results,
+  then returns a terminal summary or commits a checkpoint and resumes the same task.
+context:
+  specification: docs/spec/execution/worker.md#WRK-R185
+  authority: >-
+    User request 2026-11-09: reaching the tool-call limit should trigger summarization
+    or compaction according to the selected strategy; implement in ~/src/contractor.
+    The accepted direction resets the context-window count after successful compaction
+    while retaining overall model, token and deadline bounds. User clarification
+    2026-11-09 explicitly requires updating the tool-call counter after compaction
+    and checking whether the ADK default 500-call counter also resets.
+  boundary: >-
+    Runtime owns tool admission and safe context transitions. Existing wire/config
+    fields and strategy selection are reused. Planner limits remain cumulative;
+    terminal@1 remains terminal. No extra budget or recovery mechanism is added.
+scope:
+  in:
+    - Tool-limit triggers for terminal@1 and isolated compact@1 Workers.
+    - Safe parallel overflow responses, cumulative telemetry, successful-checkpoint reset.
+    - Owning specifications and regressions through the production ADK Runner.
+    - Python and Go report/State validation of cumulative tool counts above a window.
+  out:
+    - Planner context strategy changes, shared compaction, Audit compaction, new config fields.
+requirements:
+  - id: R1
+    text: At a safe model boundary, maxToolCalls requests the selected context strategy even without token usage.
+  - id: R2
+    text: Admit at most maxToolCalls tools per window; finish admitted siblings and answer excess calls as not executed.
+  - id: R3
+    text: Only a committed checkpoint resets the tool window; telemetry, model/token budgets, deadline and compaction bounds remain cumulative.
+  - id: R4
+    text: Strategy none retains worker_budget_exhausted; existing compactor/summarizer failures remain classified without fallback.
+failure_outcomes:
+  - operation: Existing summarizer or compactor call and checkpoint commit
+    permanent: Existing context/history bounds and unsafe-history classifications remain authoritative.
+    retryable: Existing worker_compaction_failed and worker_summarization_failed; no internal retry added.
+    ambiguous: Existing marker receipt and session fencing remain authoritative; no counter reset before commit.
+    cancelled: ADK joins tools before settlement; cancellation prevents auxiliary work and continuation.
+    timeout: Existing absolute invocation deadline covers all phases and is never reset.
+cardinality:
+  - collection: Admitted tools in one context window
+    expected: At most configured maxToolCalls
+    maximum: 10000 per window, bounded cumulatively by existing history and compaction limits
+    bound: No tool beyond the window is executed; retained history byte/group/call limits stay in force.
+lifecycle:
+  - entity: Invocation-local tool window
+    delete: Released with invocation state
+    cascade: No durable entity added
+    retention: Cumulative tool telemetry survives window reset; local boundary ends with invocation
+acceptance_criteria:
+  - id: A1
+    given: terminal@1 with token thresholds unreached or unavailable
+    when: Tool calls reach the window boundary, including a parallel batch exceeding it
+    then: Admitted tools finish once, excess calls do not execute, and one summary returns complete evidence.
+  - id: A2
+    given: compact@1 with sufficient eligible history
+    when: One or multiple tool windows fill
+    then: Checkpoints permit more tools and final completion; telemetry and hard budgets remain cumulative.
+  - id: A3
+    given: Strategy none, failed compaction, hard exhaustion or cancellation
+    when: A tool boundary is encountered
+    then: Existing classified failure or cancellation wins without fallback, overshoot or unbounded retries.
+tests:
+  - command: make test-runtime
+    covers: [A1, A2, A3]
+  - command: go test ./internal/contracts/...
+    covers: [A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+verification_results:
+  - "2026-11-09: make lint passed; specification and dependency-graph checks passed again after a wording clarification."
+  - "2026-11-09: go test ./internal/contracts/... passed all ten packages, including shared fixture/schema/decoder checks."
+  - "2026-11-09: 46 Worker compaction tests passed; production ADK counters across three turns were 1,2 / 1,2 / 1 while Contractor recorded eight cumulative model calls."
+  - "The first full Runtime attempt lacked Go on PATH and was interrupted; the corrected run had 5951 passed, 135 skipped and one LikeC4 cancellation-cleanup timeout. All 12 tests in that unchanged process-test file then passed separately; a complete rerun is pending."

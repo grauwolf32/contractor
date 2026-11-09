@@ -672,6 +672,9 @@ def test_finalizer_startup_owns_partial_registration(monkeypatch: pytest.MonkeyP
 
 
 class CountingBudget:
+    def tool_limit_reached(self) -> bool:
+        return False
+
     def __init__(self, *, summarize: bool = False) -> None:
         self.model_calls = 0
         self.tool_calls = 0

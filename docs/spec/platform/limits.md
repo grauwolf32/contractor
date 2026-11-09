@@ -897,7 +897,7 @@ its owning requirement.
 | `LIM-TPL-1` | 1 to 64 characters | Agent Skill `name` in AgentTemplate `spec.skills` (lowercase ASCII letters, digits, hyphen-separated components) | AgentTemplateCatalog (syntax validation at configuration load) | [TPL-R13](../configuration/agent-templates.md) |
 | `LIM-TPL-2` | maxOutputTokens < contextWindowTokens (tokens), when both are present | ModelPolicy `maxOutputTokens` | ModelPolicyCatalog | [TPL-R23](../configuration/agent-templates.md) |
 | `LIM-TPL-3` | 1 to 1,000 model calls (positive integer) | ModelPolicy `maxModelCalls`, cumulative per Planner or Worker invocation | ModelPolicyCatalog | [TPL-R25](../configuration/agent-templates.md) |
-| `LIM-TPL-4` | 1 to 10,000 tool calls (positive integer) | ModelPolicy `maxToolCalls`, cumulative per Worker invocation | ModelPolicyCatalog | [TPL-R25](../configuration/agent-templates.md) |
+| `LIM-TPL-4` | 1 to 10,000 tool calls (positive integer) | ModelPolicy `maxToolCalls`, per Worker context window with `compact@1`, terminal summary trigger with `terminal@1`, otherwise cumulative | ModelPolicyCatalog | [TPL-R25](../configuration/agent-templates.md) |
 | `LIM-TPL-5` | 1 to 10,000 Worker calls (positive integer) | ModelPolicy `maxWorkerCalls`, cumulative per Planner invocation | ModelPolicyCatalog | [TPL-R25](../configuration/agent-templates.md) |
 | `LIM-TPL-6` | 1 to 100,000,000 tokens (positive integer) | ModelPolicy `maxTotalTokens`, cumulative per Planner or Worker invocation | ModelPolicyCatalog | [TPL-R25](../configuration/agent-templates.md) |
 | `LIM-TPL-7` | 1 to 100,000,000 tokens (positive integer) | ModelPolicy `contextWindowTokens` (pinned input-plus-output context capacity) | ModelPolicyCatalog | [TPL-R25](../configuration/agent-templates.md) |
