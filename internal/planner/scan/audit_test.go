@@ -1,9 +1,11 @@
 package scan
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	"os"
 	"path/filepath"
 	"slices"
@@ -68,7 +70,8 @@ func newAuditFactoryHarness(t *testing.T, scanner string) (*factoryHarness, *aud
 		}
 		return data
 	}
-	var source, settings []byte
+	var source, values []byte
+	h.invocation.Context.Parameters = map[string]string{}
 	sourceSlot := "openapi"
 	if scanner == "web" {
 		var readErr error
@@ -76,22 +79,30 @@ func newAuditFactoryHarness(t *testing.T, scanner string) (*factoryHarness, *aud
 		if readErr != nil {
 			t.Fatal(readErr)
 		}
-		settings, readErr = os.ReadFile("../../../testdata/configs-scan/audit-web-scan/settings.json")
+		parameters, readErr := os.ReadFile("../../../testdata/configs-scan/audit-web-scan/parameters.json")
 		if readErr != nil {
 			t.Fatal(readErr)
 		}
+		if err := json.Unmarshal(parameters, &h.invocation.Context.Parameters); err != nil {
+			t.Fatal(err)
+		}
 		sourceSlot = "target"
 	} else {
-		source, settings = read("openapi.json"), read(scanner+"-settings.json")
+		source, values = read("openapi.json"), read(scanner+"-request-values.json")
+		if err := json.Unmarshal(read(scanner+"-parameters.json"), &h.invocation.Context.Parameters); err != nil {
+			t.Fatal(err)
+		}
 	}
+
 	material := func(slot string, data []byte) auditcontract.Material {
 		ref := h.artifacts.put(contracts.ArtifactRef{Namespace: "inputs", Name: slot}, artifacts.Payload{MediaType: auditdomain.JSONMediaType, Data: data})
 		h.invocation.Context.Artifacts[slot] = &ref
 		return auditcontract.Material{ScopeKind: "run", ScopeID: h.invocation.RunID, Ref: ref, Digest: auditdomain.DigestBytes(data), MediaType: auditdomain.JSONMediaType, SizeBytes: int64(len(data))}
 	}
-	sourceMaterial, settingsMaterial := material(sourceSlot, source), material("settings", settings)
+	sourceMaterial := material(sourceSlot, source)
 	if scanner != "web" {
-		prepared, err := auditdomain.BuildPreparedOpenAPIWork(t.Context(), auditdomain.PreparedOpenAPIInput{Source: sourceMaterial, Data: source, Settings: &settingsMaterial, SettingsData: settings, Options: auditcontract.OpenAPIWorkArguments{Workflow: "scan", Selection: "scan-requests", MaxItems: 16}})
+		valuesMaterial := material("request_values", values)
+		prepared, err := auditdomain.BuildPreparedOpenAPIWork(t.Context(), auditdomain.PreparedOpenAPIInput{Source: sourceMaterial, Data: source, Values: &valuesMaterial, ValuesData: values, Options: auditcontract.OpenAPIWorkArguments{Workflow: "scan", Selection: "scan-requests", MaxItems: 16, Scanner: scanner, Parameters: h.invocation.Context.Parameters}})
 		if err != nil || len(prepared.Items) != 1 {
 			t.Fatalf("ordinary preparation: %+v %v", prepared, err)
 		}
@@ -114,9 +125,10 @@ type scanFixtureReport struct {
 	ExecutionCompleted bool     `json:"execution_completed"`
 	Limitations        []string `json:"limitations"`
 	Artifacts          []struct {
-		Kind   string `json:"kind"`
-		Digest string `json:"digest"`
-		Data   []byte `json:"data_base64"`
+		Kind      string                `json:"kind"`
+		Digest    string                `json:"digest"`
+		Ref       contracts.ArtifactRef `json:"ref"`
+		SizeBytes int                   `json:"size_bytes"`
 	} `json:"artifacts"`
 }
 
@@ -128,10 +140,14 @@ func auditFactoryResult(t *testing.T, h *factoryHarness, result stageresult.Stag
 		t.Fatalf("ordinary report: %+v %v", payload, err)
 	}
 	for _, artifact := range report.Artifacts {
-		if auditdomain.DigestBytes(artifact.Data) != artifact.Digest {
-			t.Fatal("embedded evidence bytes differ")
+		if artifact.Ref.ValidateExact() != nil || !contentdigest.Valid(artifact.Digest) || artifact.SizeBytes < 1 {
+			t.Fatal("invalid exact source descriptor")
 		}
 	}
+	if bytes.Contains(payload.Data, []byte("data_base64")) {
+		t.Fatal("report bytes embedded in aggregate")
+	}
+
 	return report
 }
 
@@ -161,15 +177,15 @@ func TestAuditExecutorRetainsAssignedRequestAndURL(t *testing.T) {
 				if request.Method != "POST" || request.Body != `{"name":"Milo"}` || !slices.Contains(request.TestParameters, "name") {
 					t.Fatalf("request changed: %+v", request)
 				}
-				if !slices.Contains(request.Headers, contractscan.HTTPRequestHeader{Name: "authorization", Value: "Bearer local-fixture-token"}) {
-					t.Fatal("authentication lost")
+				if slices.Contains(request.Headers, contractscan.HTTPRequestHeader{Name: "authorization", Value: "Bearer local-fixture-token"}) || call.Parameters["credential_id"] != "fixture-credential" {
+					t.Fatal("credential leaked into request or reference lost")
 				}
 			} else {
 				if call.Parameters["target"] != "http://127.0.0.1:8080/api/pets/7?search=Milo" || !slices.Contains(check.Limitations, "url_template_scan_only") {
 					t.Fatalf("fixed URL or limits lost: %+v %+v", call, check)
 				}
 				plan, err := scanplan.DecodePlan(h.artifacts.payload(*h.sessions.state.Plan).Data)
-				if err != nil || plan.Jobs[0].Execution.Arguments["template_ids"].Value != "http-missing-security-headers" {
+				if err != nil || plan.Jobs[0].Parameters["template_ids"] != "http-missing-security-headers" {
 					t.Fatalf("template selection changed: %v", err)
 				}
 			}
@@ -189,7 +205,7 @@ func TestAuditExecutorRetryUsesOutcomeInsteadOfStageIdentity(t *testing.T) {
 			case "lost-journal-write":
 				h.sessions.finishErr = errors.New("write acknowledgement lost")
 			}
-			_, err := h.instance(t).Run(t.Context())
+			first, err := h.instance(t).Run(t.Context())
 			if (err != nil) != (outcome == "lost-journal-write") {
 				t.Fatalf("first attempt: %v", err)
 			}
@@ -204,6 +220,9 @@ func TestAuditExecutorRetryUsesOutcomeInsteadOfStageIdentity(t *testing.T) {
 			wantCalls := 1
 			if outcome == "failed" {
 				wantCalls = 2
+				if first.Artifacts["materials"].SameExact(result.Artifacts["materials"]) {
+					t.Fatal("retry reused the previous attempt's immutable material set")
+				}
 			}
 			if len(h.invoker.calls) != wantCalls {
 				t.Fatalf("scanner calls = %d, want %d", len(h.invoker.calls), wantCalls)
@@ -218,7 +237,7 @@ func TestAuditExecutorRetryUsesOutcomeInsteadOfStageIdentity(t *testing.T) {
 }
 
 func TestAuditExecutorRejectsChangedPinnedBytesAndUnavailableHistory(t *testing.T) {
-	for _, fault := range []string{"openapi", "settings", "operation", "history"} {
+	for _, fault := range []string{"openapi", "request_values", "operation", "history"} {
 		t.Run(fault, func(t *testing.T) {
 			h, history := newAuditFactoryHarness(t, "sqlmap")
 			if fault == "history" {

@@ -36,7 +36,11 @@ spec:
         - functions_that_raise
     - ref: text-artifacts@1
       tools: [write_text_artifact]
-    - ref: security-findings-code@1
+    - ref: taint-annotations@1
+      tools: [annotate_trace, annotate_validate, annotate_sink]
+    - ref: workspace-changes@1
+      tools: [changed_paths, diff, rollback_changes]
+    - ref: security-findings-trace@1
       tools: [finding]
     - ref: audit-results@2
       tools: [read_audit_task, submit_check_result]

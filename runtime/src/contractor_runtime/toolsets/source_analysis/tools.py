@@ -43,7 +43,13 @@ from contractor_runtime.toolsets.common.artifacts import (
     _reject_unconfigured_client,
 )
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
-from contractor_runtime.toolsets.common.line_window import bounded_line_window
+from contractor_runtime.toolsets.common.line_window import (
+    MAX_READ_BYTES as MAX_VISIBLE_READ_BYTES,
+)
+from contractor_runtime.toolsets.common.line_window import (
+    MAX_READ_LINES,
+    bounded_line_window,
+)
 from contractor_runtime.toolsets.common.resources import ToolResources
 from contractor_runtime.toolsets.common.tool_base import SessionArtifactTool
 from contractor_runtime.workspace import AllocationWorkspace
@@ -60,9 +66,7 @@ MAX_SEARCH_SCANNED_BYTES = 32 * 1024 * 1024
 MAX_SEARCH_SNIPPET_CHARS = 500
 MAX_SEARCH_SECONDS = 2.0
 REGEX_LINE_TIMEOUT_SECONDS = 0.01
-MAX_READ_LINES = 400
 DEFAULT_READ_LINES = 200
-MAX_VISIBLE_READ_BYTES = 128 * 1024
 
 IGNORED_DIRECTORY_NAMES = frozenset(
     {

@@ -85,13 +85,6 @@ type OperationTask struct {
 	Gaps        []string       `json:"gaps"`
 }
 
-// ExactInput pins scan settings selected by deterministic preparation.
-type ExactInput struct {
-	Name   string                `json:"name"`
-	Ref    contracts.ArtifactRef `json:"ref"`
-	Digest string                `json:"digest"`
-}
-
 // DirectVerificationSet describes findings that were both discovered and
 // checked by the same Workflow invocation. The Runtime-generated invocation
 // identity and proposal-local key bind each entry to a trusted finding receipt;

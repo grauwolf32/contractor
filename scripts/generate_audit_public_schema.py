@@ -12,6 +12,7 @@ OUTPUT = ROOT / "api/openapi/contractor-public-v1.yaml"
 START = "    # BEGIN GENERATED COMMON AUDIT PROGRAM\n"
 END = "    # END GENERATED COMMON AUDIT PROGRAM\n"
 NAMES = {
+    "parameter": "AuditProgramParameter",
     "program": "AuditProgram", "input": "AuditProgramInput", "limits": "AuditProgramLimits",
     "workflow": "AuditProgramWorkflow", "input_mapping": "AuditProgramInputMapping",
     "seed": "AuditProgramHypothesisSeed", "initial": "AuditProgramInitialWork",

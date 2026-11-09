@@ -339,6 +339,8 @@ func validBytes(value any) bool {
 }
 
 func validProgram(v map[string]any) bool {
+	parameters, _ := v["parameters"].(map[string]any)
+	usedParameters := map[string]bool{}
 	workflows := v["workflows"].(map[string]any)
 	inputs := v["inputs"].(map[string]any)
 	hypotheses := v["hypotheses"].(map[string]any)
@@ -353,6 +355,14 @@ func validProgram(v map[string]any) bool {
 	}
 	for _, raw := range workflows {
 		binding := raw.(map[string]any)
+		parameterInputs, _ := binding["parameter_inputs"].(map[string]any)
+		for _, raw := range parameterInputs {
+			name := raw.(string)
+			if _, exists := parameters[name]; !exists {
+				return false
+			}
+			usedParameters[name] = true
+		}
 		if ceiling, exists := binding["max_attempts"]; exists && ceiling.(float64) > limits["max_attempts"].(float64) {
 			return false
 		}
@@ -364,6 +374,9 @@ func validProgram(v map[string]any) bool {
 				}
 			}
 		}
+	}
+	if len(usedParameters) != len(parameters) {
+		return false
 	}
 	if source, exists := v["seed_source"].(map[string]any); exists {
 		binding, found := workflows[source["workflow"].(string)].(map[string]any)

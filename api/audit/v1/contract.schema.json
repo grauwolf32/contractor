@@ -230,6 +230,16 @@
         },
         "max_attempts": {
           "$ref": "#/$defs/attempt_limit"
+        },
+        "parameter_inputs": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/key"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/key"
+          },
+          "maxProperties": 128
         }
       },
       "required": [
@@ -432,6 +442,16 @@
         },
         "seed_source": {
           "$ref": "#/$defs/seed_source"
+        },
+        "parameters": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/key"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/parameter"
+          },
+          "maxProperties": 128
         }
       },
       "required": [
@@ -1551,6 +1571,18 @@
           "$ref": "https://contractor.local/schema/v1alpha1/common.schema.json#/$defs/artifactRef"
         }
       }
+    },
+    "parameter": {
+      "type": "object",
+      "properties": {
+        "required": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "required"
+      ],
+      "additionalProperties": false
     }
   },
   "x-maxEncodedBytes": 8388608

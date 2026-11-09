@@ -1,0 +1,87 @@
+schema_version: '1.0'
+id: V460-001
+title: Publish trace findings from annotated workspace coordinates
+milestone: findings-tools
+epic: findings
+kind: feature
+priority: P1
+status: completed
+depends_on: []
+languages: [python, go, yaml, markdown]
+goal: Taint and OpenAPI tracing publish ordinary Project findings with retained annotated evidence and coordinates in the pinned original source, without asking the model to translate line numbers.
+demonstration: Insert annotations above a source defect, call the model-visible finding with workspace coordinates, and verify the existing intake receives original-source coordinates plus exact saved evidence; repeat after rollback and across an exported checkpoint.
+context:
+  authority: 'User decision 2026-11-08: implement a trace-specific finding wrapper, exposed to the LLM as finding, which captures overlay evidence, translates coordinates and reuses the existing publisher. Connect standalone taint and OpenAPI trace, including annotation tools in the latter. Preserve existing instruction order.'
+  specification:
+  - docs/spec/findings/findings.md
+  - docs/spec/tools/workspace.md
+  - docs/spec/tools/code-analysis.md
+  - docs/spec/tools/toolsets.md
+  boundary: Workspace owns atomic original/current file reads; trace findings own bounded coordinate interpretation and evidence assembly; ordinary FindingPublisher owns submission, receipts, Project publication and Audit association. No new persistence or execution lifecycle.
+scope:
+  in:
+  - Add an explicitly selected security-findings-trace@1 facade with model-visible name finding.
+  - Retain exact annotated snippets through ordinary Artifact APIs and translate insertion-only annotations to pinned source coordinates.
+  - Register Server/Runtime descriptors and connect both standalone taint variants and OpenAPI operation trace.
+  - Add OpenAPI trace annotation/change tools and export their ordinary workspace state/diff.
+  out:
+  - General code-edit reconciliation, semantic finding matching, UI changes and additional model stages.
+requirements:
+- id: R1
+  text: Read one file's immutable base and current content atomically; mapping uses the hydration base, not the export checkpoint. Only inserted annotation lines are accepted; unsupported or ambiguous mappings fail before finding submission.
+- id: R2
+  text: Preserve annotated snippet bytes and metadata as immutable ordinary artifacts, using a stable call-derived binding and existing exact write reconciliation. Submit through the ordinary code finding facade with unchanged logical tool-call identity.
+- id: R3
+  text: The LLM supplies current-workspace coordinates. Added annotation locations resolve to the annotated source declaration; ranges map both endpoints. Existing code/general/HTTP finding variants retain their contracts.
+failure_outcomes:
+- operation: Capture, evidence write and ordinary finding publication
+  permanent: Invalid coordinates, unsupported edits or unavailable source return a tool input error without finding submission; ordinary publication errors retain existing semantics.
+  retryable: Reuse ordinary Artifact and finding transport classifications; no independent retry loop.
+  ambiguous: Stable call-derived evidence identity reconciles exact bytes; ordinary intake reconciles the existing tool-call key.
+  cancelled: CPU work joins before release; cancellation propagates and ordinary Artifact retention owns saved but unsubmitted evidence.
+  timeout: Existing allocation/tool/Artifact operation deadlines apply.
+cardinality:
+- collection: Source capture and snippet
+  expected: One selected file and a short line range.
+  maximum: Existing workspace file bound and 400 lines / 128 KiB per saved snippet; one evidence artifact per call.
+  bound: Linear file comparison off the event loop; read only the selected path, never hydrate the entire workspace or source collection.
+lifecycle:
+- entity: Trace proof artifact
+  delete: Ordinary Run deletion and Project finding retention rules.
+  cascade: Existing Artifact and finding material cleanup.
+  retention: Project publication retains exact evidence through existing intake; no separate store.
+acceptance_criteria:
+- id: A1
+  given: A source file with inserted annotations above a defect.
+  when: A trace finding supplies current workspace line/range.
+  then: The saved evidence contains the annotated snippet, while the ordinary finding uses matching original-source coordinates and preserves publication/Audit arguments.
+- id: A2
+  given: Repeated annotations, rollback, exported checkpoints, invalid locations or substantive code edits.
+  when: Trace capture runs or a call is replayed.
+  then: Original coordinates remain correct, identical proof publication is replayable and invalid mappings produce no finding submission.
+- id: A3
+  given: The shipped catalog and shared toolset descriptors.
+  when: Configuration, Runtime and lint checks run.
+  then: The trace tool is selected in both taint variants and OpenAPI tracing, has one model-visible finding name and agrees across Server and Runtime.
+tests:
+- command: cd runtime && uv run pytest tests/test_trace_findings.py tests/test_finding_facades.py tests/test_finding_anchors.py tests/test_projectfs_overlay.py tests/test_capabilities.py tests/test_allocation.py
+  covers: [A1, A2, A3]
+- command: go test ./internal/config/...
+  covers: [A3]
+- command: go run ./cmd/contractor-server config validate --root ./configs
+  covers: [A3]
+- command: go test -tags=e2e -count=1 ./tests/e2e -run '^TestTraceFindingCoordinatesAcrossProcesses$'
+  covers: [A1, A2, A3]
+- command: python3 scripts/test-findings-e2e.py
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A1, A2, A3]
+verification:
+  date: 2026-11-08
+  results:
+  - The complete Runtime suite passed with declared platform/optional skips; the final targeted Runtime command passed 219 cases after the proof-reconciliation refinement.
+  - The Findings gate passed all 16 required process cases and Runtime contracts, including actual Server/Runtime/PostgreSQL coordinate translation and retained annotated proof after source Run deletion.
+  - Go configuration packages and the shipped configuration validation passed; shared descriptor parity, annotation-only mapping, rollback/import/checkpoints, malformed proofs and ambiguous acknowledgements are covered.
+  - UV_OFFLINE=1 make lint passed all stages with cached pinned dependencies; instruction and Skill files were unchanged.
+  - The owned test database and disposable PostgreSQL cluster were removed after all processes and pools stopped; no child test databases remained.
+implementation_commit: 358fe834de02f072b7b7ea94f2959350962eeea0

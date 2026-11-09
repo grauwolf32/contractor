@@ -70,8 +70,8 @@ func reuseDocument() map[string]any {
 	}
 }
 
-const reuseSQLMapSettings = `{"schema":"contractor.audit.openapi-scan-settings.v1","scanner":"sqlmap","server":"https://target.test/api",
- "authentication":{"bearer":"golden-credential"},"testParameters":["q"],
+const reuseSQLMapSettings = `{"scanner":"sqlmap","server":"https://target.test/api",
+ "credential_id":"fixture-credential","testParameters":["q"],
  "operations":{
   "#/paths/~1pets~1{id}/get":{"parameters":{"path:id":7}},
   "#/paths/~1pets~1{id}/post":{"parameters":{"path:id":8}},
@@ -80,7 +80,7 @@ const reuseSQLMapSettings = `{"schema":"contractor.audit.openapi-scan-settings.v
   "#/paths/~1wide~1b/post":{}
  }}`
 
-const reuseNucleiSettings = `{"schema":"contractor.audit.openapi-scan-settings.v1","scanner":"nuclei","server":"https://target.test/api",
+const reuseNucleiSettings = `{"scanner":"nuclei","server":"https://target.test/api",
  "operations":{
   "#/paths/~1pets~1{id}/get":{"parameters":{"path:id":7}},
   "#/paths/~1pets~1{id}/post":{"parameters":{"path:id":8}},
@@ -163,7 +163,7 @@ func inventorySourceRef(revision string) contracts.ArtifactRef {
 
 func prepareScanBatch(t testing.TB, source []byte, mediaType string, ref contracts.ArtifactRef, settingsText string) ([]scanplan.PreparedAuditOperation, error) {
 	t.Helper()
-	settings, err := scanplan.DecodeAuditScanSettings([]byte(settingsText))
+	settings, err := compileSelectionFixture([]byte(settingsText))
 	if err != nil {
 		return nil, err
 	}
@@ -232,8 +232,8 @@ func largeSettings(t testing.TB, scanner string) string {
 		operations[fmt.Sprintf("#/paths/~1r%04d~1{id}/get", i)] = input
 	}
 	settings := map[string]any{
-		"schema": scanplan.AuditScanSettingsSchema, "scanner": scanner,
-		"server": "https://target.test/api", "operations": operations,
+		"scanner": scanner,
+		"server":  "https://target.test/api", "operations": operations,
 	}
 	if scanner == "sqlmap" {
 		settings["testParameters"] = []string{"q"}
@@ -243,4 +243,37 @@ func largeSettings(t testing.TB, scanner string) string {
 		t.Fatal(err)
 	}
 	return string(data)
+}
+
+// compileSelectionFixture is test data assembly, not a production wire format.
+func compileSelectionFixture(data []byte) (scanplan.AuditSelection, error) {
+	var fixture struct {
+		Scanner        string
+		Server         string
+		CredentialID   string `json:"credential_id"`
+		Operations     map[string]scanplan.OperationInput
+		TestParameters []string
+	}
+	if err := json.Unmarshal(data, &fixture); err != nil {
+		return scanplan.AuditSelection{}, err
+	}
+	pointers, _ := json.Marshal(slices.Sorted(maps.Keys(fixture.Operations)))
+	parameters := map[string]string{"server": fixture.Server, "operations": string(pointers), "credential_id": fixture.CredentialID}
+	if fixture.TestParameters != nil {
+		value, _ := json.Marshal(fixture.TestParameters)
+		parameters["test_parameters"] = string(value)
+	}
+	values, _ := json.Marshal(fixture.Operations)
+	// Empty optional members in typed fixtures are omitted like authored JSON.
+	var raw map[string]map[string]any
+	_ = json.Unmarshal(values, &raw)
+	for _, input := range raw {
+		for name, value := range input {
+			if value == nil {
+				delete(input, name)
+			}
+		}
+	}
+	values, _ = json.Marshal(raw)
+	return scanplan.CompileAuditSelection(fixture.Scanner, parameters, values)
 }

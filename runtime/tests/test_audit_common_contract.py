@@ -164,6 +164,14 @@ def _validate_case(case):
         return
     if value["schema"] == "contractor.audit.program.v1":
         bindings, limits = value["workflows"], value["limits"]
+        declared = set(value.get("parameters", {}))
+        referenced = {
+            name
+            for binding in bindings.values()
+            for name in binding.get("parameter_inputs", {}).values()
+        }
+        if declared != referenced:
+            raise ValueError("unknown or unused launch parameter")
         if source := value.get("seed_source"):
             binding = bindings.get(source["workflow"])
             if (

@@ -25,10 +25,12 @@ class HTTPProxyBridge:
         *,
         credential_id: str | None,
         deadline: float,
+        strip_cookies: bool = True,
     ) -> None:
         self._transport = transport
         self._credential_id = credential_id
         self._deadline = deadline
+        self.strip_cookies = strip_cookies
         self._token = secrets.token_hex(32)
         encoded = base64.b64encode(("runtime:" + self._token).encode()).decode()
         self._authorization = ("Basic " + encoded).encode()
@@ -51,9 +53,19 @@ class HTTPProxyBridge:
         self._engine = None
         self._exception = None
         self._close_task = None
-        self.error_code: str | None = None
+        self._error_code: str | None = None
+        self.failed = asyncio.Event()
         self.requests = 0
         self._proxy_url = ""
+
+    @property
+    def error_code(self) -> str | None:
+        return self._error_code
+
+    @error_code.setter
+    def error_code(self, value: str) -> None:
+        self._error_code = self._error_code or value
+        self.failed.set()
 
     async def __aenter__(self):
         catalog = self._transport.credentials()

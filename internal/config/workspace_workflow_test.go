@@ -154,6 +154,9 @@ func TestWorkspaceToolsetAndResultCrossValidation(t *testing.T) {
 	if err := resolved.ValidateStageWorkspace(direct, resolved.StageResultContract{}, workspaceAgents("workspace-changes")); err == nil {
 		t.Fatal("workspace-changes@1 with direct mode was accepted")
 	}
+	if err := resolved.ValidateStageWorkspace(direct, resolved.StageResultContract{}, workspaceAgents("security-findings-trace")); err == nil {
+		t.Fatal("trace findings with direct mode were accepted")
+	}
 	badResult := validResult
 	badResult.Artifacts = resolved.CloneArtifactSlots(validResult.Artifacts)
 	badResult.Artifacts["state"] = resolved.ArtifactSlot{MediaTypes: []string{"application/json"}}

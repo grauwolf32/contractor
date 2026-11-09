@@ -235,7 +235,8 @@ class Ingress(OwnedHandler, server.LiveConnectionHandler):
             headers = [
                 (k, v)
                 for k, v in end_to_end(request.headers.fields)
-                if k.lower() not in {b"host", b"content-length", b"cookie"}
+                if k.lower() not in {b"host", b"content-length"}
+                and not (self.bridge.strip_cookies and k.lower() == b"cookie")
             ]
             outcome, response = await self.bridge._transport.request(
                 url,

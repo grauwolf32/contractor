@@ -13,28 +13,16 @@ The original OpenAPI domain selection, conditions and gaps remain with their
 domain parser; provider adaptation remains with the owning Runtime adapter.
 
 The former role/inventory/dependency-manifest authoring described below is
-retired as an execution contract. Its independent source/settings/domain
-constraints remain applicable through their owning parser and ordinary Workflow
-inputs; none permits a second profile reader or executor.
+retired as an execution contract. Only its source/domain constraints remain applicable through their owning
+parser and ordinary Workflow inputs. The scan settings artifact is removed;
+current launch parameters, request values and engagement are specified below; none permits a second profile reader or executor.
 
-This document owns:
-
-- the preparation contract of an AuditProfile: `prepare` Workflow roles, the
-  mapping sources that inventories, prepare roles and Round consumers may use,
-  the `inventory.source` and `inventory.settings` references, the prepare-role
-  attempt bound and the per-profile bounds on roles, baseline inputs, mappings,
-  accepted output descriptors and retained output sizes;
-- preparation attempts, accepted preparation outputs and the public
-  `preparation.roles` projection;
-- exact retained item dependency manifests and the declared
-  `retained-dependency` check input source;
-- the `inventory` phase of a prepared Audit, the atomic acceptance of its first
-  Round, and owner controls and Controller outcomes before the first Round;
-- the OpenAPI Audit scan adapter: the `openapi-scans@1` inventory builder, the
-  `openapi-scan@1` task contract and its `auditTask` executor declaration, the
-  scan settings artifact, pinned scan tasks, the Audit use of SQLMap requests,
-  fixed Nuclei URL targets, scan coverage and semantic results, and scan retry
-  and completion.
+This document owns deterministic OpenAPI operation preparation, exact source
+and request-value provenance, scan selection, fixed Nuclei URL targets, SQLMap
+requests, scan coverage and retry/completion constraints. Current execution
+uses common Tasks and ordinary Workflows. The numbered role/inventory rules
+below preserve the retired design's source constraints; they do not authorize
+the former profile fields, settings schema or public projections.
 
 It leaves to other documents:
 
@@ -91,9 +79,9 @@ document owns are:
   declares and that a consuming Workflow's executor Stage implements.
 - **Scan executor Stage.** The Workflow Stage named by `auditTask.stage`, which
   executes one assigned `openapi-scan` task with one scanner Worker.
-- **Scan settings artifact.** The JSON document with schema
-  `contractor.audit.openapi-scan-settings.v1` that selects the scanner, target
-  server, operations and their bindings.
+- **Scan selection.** Baseline-bound execution parameters selecting a server,
+  operations, tested parameters and rule filters, plus optional exact
+  request-value material. Engagement supplies network policy and identities.
 - **`OperationTarget`.** The in-process fixed URL target that
   `scanplan.PrepareOperationTarget` produces for Nuclei.
 - **URL-only limitation.** A limitation code that records which declared
@@ -101,7 +89,7 @@ document owns are:
 
 ## Model
 
-### Prepare role status
+### Retired prepare role status
 
 Each prepare role reports one status in `preparation.roles`
 (ASC-R42).
@@ -117,7 +105,7 @@ stateDiagram-v2
     failed --> [*]
 ```
 
-### From start to the first Round
+### Retired path from start to the first Round
 
 A prepare profile reaches its first Round through the `preparing` and
 `inventory` phases. Pause, deadline, cancel and delete are described in
@@ -137,14 +125,14 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    OAS["Exact OpenAPI revision: audit-input or accepted prepare-output"] --> B["openapi-scans@1 builder: auditdomain.BuildOpenAPIScanInventory"]
-    SET["Scan settings artifact: contractor.audit.openapi-scan-settings.v1"] --> B
-    B --> T["openapi-scan task items: pinned operation, digests, runnable state, gap codes"]
-    T --> D["Before dispatch: PrepareOpenAPIScanTask reproduces the accepted preparation"]
-    D --> X["Executor Stage named by auditTask.stage, one item, one scanner Worker"]
-    X -->|"scanner sqlmap"| SQ["scanplan.PrepareOperation RequestSet, scan planner, pinned scanner request artifact"]
-    X -->|"scanner nuclei"| NU["scanplan.PrepareOperationTarget OperationTarget, target-list artifact with provenance and limitations, Nuclei planner"]
-    SQ --> RES["Trusted assembly: canonical check-result with scanner-report evidence"]
+    OAS["Exact OpenAPI revision"] --> B["Ordinary preparation Workflow: BuildPreparedOpenAPIWork"]
+    PAR["Pinned execution parameters and optional request values"] --> B
+    B --> T["Common work: one Task per selected operation"]
+    T --> D["PrepareOpenAPIScanOperation verifies exact inputs and preparation"]
+    D --> X["Scan Workflow with engagement"]
+    X -->|"sqlmap"| SQ["Prepared request and selected test parameters"]
+    X -->|"nuclei"| NU["Fixed URL and HTTP rule selection"]
+    SQ --> RES["Normalized Project Findings and evidence; technical report stays on Run"]
     NU --> RES
 ```
 
@@ -518,23 +506,16 @@ changing these minimal contracts.
 
 ### OpenAPI scan profiles
 
-**ASC-R65.** The supplied-input scan profile takes an exact
-supplied OpenAPI document and explicit scan settings, and runs SQLMap request
-checks and Nuclei URL checks through the scanner Workers
-([scanners](../tools/scanners.md)) and the Scheduler.
+**ASC-R65.** The supplied-input profiles accept exact OpenAPI and engagement materials, explicit launch parameters and optional request values. They run SQLMap requests or Nuclei HTTP rules through ordinary scanner Workflows.
+
 
 **ASC-R66.** Source preparation, which generates the
 OpenAPI document through a `prepare` role such as `openapi-from-workspace@7`,
 is a separate capability governed by the preparation contract of this
 document and is not a prerequisite for the supplied-input scan profile.
 
-**ASC-R67.** The runnable
-[`source-openapi-sqlmap-scan@1`](../../../configs/audit-profiles/source_openapi_sqlmap_scan.yaml)
-preset accepts an exact source archive and the same explicit scan settings.
-One `openapi-from-workspace@7` prepare role produces the OpenAPI document and
-validation diagnostics; the Server retains both, constructs the inventory from
-the accepted OpenAPI revision with the scan adapter, and forks that revision
-into each check Run.
+**ASC-R67.** The runnable `source-openapi-sqlmap-scan@1` profile accepts a source ZIP, engagement, the same launch parameters and optional request values. Its ordinary `source-openapi-prepare-work@1` Run generates and validates OpenAPI, then publishes bounded work. Accepted exact OpenAPI revisions are retained and forked into separate scan Runs.
+
 
 **ASC-R68.** The `source-openapi-sqlmap-scan@1` preset keeps the
 same explicit operation denominator, active-check policy, scanner arguments
@@ -587,15 +568,14 @@ execution and result contract.
 **ASC-R78.** Inventory construction does not inspect the executor's
 scanner or entry Stage.
 
-**ASC-R79.** After construction, both input preview and Audit
-start check the actual task requirements against the declared executor;
-SQLMap settings cannot be dispatched to a Nuclei Worker.
+**ASC-R79.** Prepared work identifies its scanner explicitly. SQLMap work cannot be dispatched to a Nuclei Worker.
+
 
 **ASC-R80.** During dispatch the manifest uses Workflow input
 aliases; the task retains the original producer input identities.
 
-**ASC-R81.** Additional exact inputs for surrounding Stages do
-not change the scanner's assigned source or settings.
+**ASC-R81.** Additional exact inputs for surrounding Stages do not change the assigned source, request values or baseline parameters.
+
 
 **ASC-R82.** The complete `auditTask` declaration is cloned
 and retained in immutable Workflow and profile snapshots.
@@ -635,89 +615,69 @@ remain authoritative.
 by the resolved profile and Worker configuration, not by arbitrary strings
 returned by a model.
 
-### Scan settings
+### Execution parameters, request values and engagement
 
-**ASC-R92.** Concrete values are supplied with operation bindings
-using the `scanplan.Options` contract ([scanners](../tools/scanners.md)):
-`path:name`, `query:name`, and for SQLMap also header, cookie, body and
-authentication bindings.
+**ASC-R92.** Concrete request data uses `scanplan.Options` operation bindings: `path:name`, `query:name`, and for SQLMap also header, cookie and body values. Authentication comes only from engagement identities and private credentials, never from a scan settings artifact.
+
 
 **ASC-R93.** Examples and defaults follow
 [preparation policy 2](../tools/scanners.md#input-and-selection-policy); types
 alone never invent values. Unsupported or missing data produce gaps.
 
-**ASC-R94.** The settings artifact is strictly validated and
-pinned before inventory creation. Missing values require a corrected new
-Audit; resume cannot rewrite the accepted input snapshot.
+**ASC-R94.** Launch parameters and exact materials are pinned in the baseline before preparation. Resume cannot change them; corrected selection requires a new Audit.
 
-**ASC-R95.** `scanplan.DecodeAuditScanSettings` accepts JSON with
-schema `contractor.audit.openapi-scan-settings.v1`, up to 256 KiB
-(LIM-ASC-11).
 
-**ASC-R96.** The required fields are `schema`, `scanner`
-(`sqlmap` or `nuclei`), `server` and a nonempty `operations`.
+**ASC-R95.** `scanplan.CompileAuditSelection` compiles ordinary Workflow string parameters and an optional `request_values` JSON material of at most 256 KiB (LIM-ASC-11). No settings schema or settings artifact reader exists.
+
+
+**ASC-R96.** The authored Workflow fixes `scanner` to `sqlmap` or `nuclei`. Required Audit parameters are `server` and `operations`; SQLMap also requires `test_parameters`. Optional `credential_id` chooses one credential assigned by engagement. Nuclei additionally accepts `template_ids`, `tags` and `severity` filters.
+
 
 **ASC-R97.** `server` is a concrete absolute HTTP(S) URL without
 credentials, template variables, query or fragment.
 
-**ASC-R98.** `operations` maps canonical operation pointers to
-objects with optional `parameters` and `body`, using the binding types of
-`scanplan.Options`. Only listed operations enter the inventory; there is no
-implicit whole-document scan.
+**ASC-R98.** `operations` is a JSON array of distinct canonical operation pointers. The optional `request_values` material maps only selected pointers to objects containing optional `parameters` and `body`. Only explicitly selected operations enter common work; there is no implicit whole-document scan.
 
-**ASC-R99.** At most 1,000 operations are accepted (LIM-ASC-12).
+
+**ASC-R99.** The domain parser accepts at most 1,000 operations (LIM-ASC-12). The 4,096-byte common parameter bound also applies. Shipped profiles further bound preparation to sixteen operations.
+
 
 **ASC-R100.** A body contains both `mediaType` and `value`; an explicit
 JSON-null value is data, not an absent body.
 
-**ASC-R101.** SQLMap requires a nonempty `testParameters` list
-of up to 64 distinct names (LIM-ASC-13) and allows `authentication` keyed by
-declared security scheme.
+**ASC-R101.** SQLMap requires a nonempty `test_parameters` JSON array of at most 64 distinct names (LIM-ASC-13). A declared security requirement can be satisfied by the selected engagement credential; secret values are injected only by Runtime transport.
 
-**ASC-R102.** Nuclei forbids nonempty test parameters or
-authentication and any body, header or cookie binding. Explicit
-authentication, body, header or cookie bindings are rejected for the fixed URL
-interface so that supplied request data cannot be silently discarded.
+
+**ASC-R102.** Nuclei accepts only HTTP templates in engagement mode. The fixed URL preparation accepts path/query bindings; operation bodies, header/cookie bindings and nonempty SQLMap test parameters are rejected. Authentication may use `credential_id`. Unsupported HTTP template constructs fail explicitly before target traffic; the UI describes the supported subset.
+
 
 **ASC-R103.** Unknown fields, case aliases, duplicate keys, null
 structural fields and unsafe numbers are rejected with fixed diagnostics
 (FAIL-ASC-4).
 
-**ASC-R104.** Scanner arguments, templates and execution budgets
-are not accepted through the settings artifact.
+**ASC-R104.** `request_values` carries only concrete operation data. Scanner selection, rule filters, test-parameter selection and credential IDs are bounded execution parameters; egress, identities, cookies and HTTP limits belong to engagement and its transport.
 
 ### Scan inventory and tasks
 
-**ASC-R105.** `auditdomain.BuildOpenAPIScanInventory` creates an
-`openapi-scans` inventory with `openapi-scan` task items. It requires
-the effective operation policy pinned in the Audit baseline. It prepares the
-selected operations from one parse of the source
-([SCN-R256](../tools/scanners.md)).
+**ASC-R105.** `auditdomain.BuildPreparedOpenAPIWork` builds bounded common work for the declared checking Workflow, under the operation policy pinned in the Audit baseline. It prepares all selected operations from one parse of the exact source (SCN-R256).
 
-**ASC-R106.** Each task pins the exact source and settings refs and
-byte digests, the selected operation, the preparation digest, the SQLMap
-request digest or the Nuclei URL, explicit test parameters, the runnable state
-and the preparation gap codes.
 
-**ASC-R107.** Settings are an additional exact
-execution-manifest input.
+**ASC-R106.** Each operation material pins the exact source descriptor, selection digest, operation pointer, preparation digest, SQLMap request digest or Nuclei URL, explicit test parameters, runnable state and gap codes. Common work also retains the exact optional request-values descriptor.
+
+
+**ASC-R107.** `request_values`, when supplied, is an ordinary exact input retained and forked through common Task/Run input ownership. Changing its exact reference changes the prepared work identity.
+
 
 **ASC-R108.** Credentials and request bodies are not copied into
 task documents. URL query values are retained as part of a Nuclei target.
 
-**ASC-R109.** Correctly formed settings with unavailable path,
-body or authentication data or unavailable SQLMap parameters retain a
-non-runnable item with gaps. Missing operations or malformed settings reject
-the inventory atomically (FAIL-ASC-4).
+**ASC-R109.** Well-formed selection with unavailable path/body/security data or SQLMap parameters retains a non-runnable operation with gaps. Missing operations or malformed parameters/values reject preparation atomically (FAIL-ASC-4).
 
-**ASC-R110.** Before dispatch, `PrepareOpenAPIScanTask` checks the
-source and settings bytes and reproduces the accepted preparation. A different
-operation, request, target, parameters, preparation identity or gap set fails
-this check (FAIL-ASC-5).
 
-**ASC-R111.** The caller of `PrepareOpenAPIScanTask` still
-verifies artifact ownership, trusted manifest membership and the
-Project-to-Run fork mapping.
+**ASC-R110.** Before scanning, `PrepareOpenAPIScanOperation` verifies source and optional values and reproduces the accepted preparation from baseline-bound parameters. Any changed operation, request, URL, preparation digest or gap set fails (FAIL-ASC-5).
+
+
+**ASC-R111.** The caller verifies artifact ownership, exact selected-material membership and the Audit-to-Run fork mapping before re-preparation.
 
 ### SQLMap requests
 
@@ -805,15 +765,15 @@ completion, not a clean security verdict.
 **ASC-R130.** Nuclei findings are scanner observations. An
 empty result does not establish that the operation is secure.
 
-**ASC-R131.** URL-only limitations must reach the Audit report
-even if scanner execution succeeds.
+**ASC-R131.** URL-only limitations remain in the concrete Run report even if
+scanner execution succeeds; Finding sources retain applicable limitations.
 
 **ASC-R132.** The importer accepts `not-tested`, `blocked` or
 `inconclusive` for scan tasks.
 
-**ASC-R133.** Completed execution requires a retained
-`scanner-report` evidence item and a runnable accepted task; it still yields
-inconclusive security coverage.
+**ASC-R133.** Completed scanner execution requires an exact `scanner-report`
+reference on the concrete child Run and a runnable accepted Task. Execution
+completion does not establish a security assessment.
 
 **ASC-R134.** Scanner observations can be retained without
 declaring a verified violation. Conclusive assessments belong to a separate
@@ -834,8 +794,9 @@ Stage execution identity and protects recovery of that execution, not a new
 Stage or Audit item attempt, while the Audit importer treats a failed Run as
 retryable ([execution](execution.md), AUX-R32).
 
-**ASC-R138.** The adapter must not impose a blanket one-attempt
-limit or disable ordinary Workflow retries.
+**ASC-R138.** Scanner retries are explicit Workflow choices. Composed
+scan/publication presets never retry target traffic to repair publication or
+collection. An operator can start a new scan as independent work.
 
 **ASC-R139.** Failures known to precede scanner invocation and
 known failed executions may use the bounded retry policy, with each execution
@@ -862,30 +823,31 @@ explicit in the pinned execution policy before activation.
 ([worker completion](worker-completion.md)) is not applied to a multi-stage
 or tool-only Worker.
 
-**ASC-R145.** Trusted result assembly must retain reports for
-failures as well as for successful execution, and must be tested at the
-interruption between scanner completion and package publication (FAIL-ASC-7).
+**ASC-R145.** Scanner reports and plan aggregates remain on their concrete Run
+for failed and successful execution. Aggregates carry exact descriptors and
+technical status; they never embed report bytes. Composed scanner Workflows
+export no result/report Artifacts into Audit. Task collection stores only
+canonical Finding IDs (at most 128, with explicit truncation), including a
+non-null empty collection. Source receipt origin selects each Task through its
+immutable execution membership; another Task's results are not included.
+Collection reconciles committed sources after publication failure/cancellation,
+without rescanning. Exact selected Finding evidence remains Project-retained
+after Run/Audit purge. A task's `findings` field links current domain records;
+it never snapshots analyst assessments or substitutes a report for no Findings.
 
 ### Direct-target Web scan Audits
 
-**ASC-R151.** `web-scans@1` produces one `web-scan@1` task for an explicit
-HTTP(S) URL. Its source is strict JSON `contractor.audit.web-target.v1` with
-required `schema` and `url`. Its distinct settings input is strict JSON
-`contractor.audit.web-scan-settings.v1`, with required `schema`, `templateIds`,
-`tags`, `severity` strings and integer `rateLimit`. Unknown, duplicate, aliased,
-null, omitted or invalid fields fail inventory admission before traffic. Both
-inputs use the scan options byte ceiling; the shared Nuclei argument validator
-owns URL, filter, severity and rate validation. The public component schemas
-and shared fixtures describe these artifact documents.
+**ASC-R151.** The `web-scan@1` profile creates one initial Task for an explicit HTTP(S) target. The exact source is strict JSON `contractor.audit.web-target.v1` with required `schema` and `url`. Rule selection uses ordinary `template_ids`, `tags` and `severity` string parameters. Engagement is required; its transport owns HTTP limits. No settings artifact is accepted or produced. The shared Nuclei argument validator owns URL/filter validation.
+
 
 **ASC-R152.** The bundled `web-scan@1` AuditProfile runs one target through
 `audit-web-nuclei-scan@1` without a model, source archive or OpenAPI document.
 It accepts an optional exact Project rulepack input. Absence selects the pinned
 installed Nuclei package; presence selects only the supplied YAML/ZIP through
 the existing custom-rulepack adapter, with no installed-rule fallback. Rule
-selection is pinned in the exact settings; the installed package digest stays
+selection is pinned in baseline parameters; the installed package digest stays
 in the resolved template. The task uses kind `web-scan`, operation `target`
-and the existing scan coverage/result shape. Source, settings and baseline
+and the existing scan coverage/result shape. Source, request values and baseline
 retain their exact identities. Dispatch re-prepares and compares the entire
 assignment before any scanner invocation.
 
@@ -912,17 +874,7 @@ Permanent refusal follows the existing dispatch-contract failure path; read
 failures preserve their classification. Independently retained materials are
 not deleted by either refusal. Runtime still owns YAML/ZIP content validation.
 
-**ASC-R153.** The trusted scan executor supports a closed set of Nuclei
-parameter bindings (`template_ids`, `tags`, `severity`, integer-parsed
-`rate_limit`) and the optional `rulepack_ref` artifact binding. Only exact
-Audit settings and forked inputs supply them. Plans retain those parameters
-and exact input refs and validate their resolved Nuclei arguments before
-execution. Run/Stage journals, ambiguous-outcome recovery, deadlines,
-active-check policy, cancellation, evidence collection, inconclusive
-scanner coverage and Audit deletion reuse the ordinary scanner Audit path.
-No new controller, persistence table, receipt or lease is introduced. The
-Web scan profile bounds its inventory to one item, one job per attempt and
-three item attempts, within the existing scanner and Audit limits.
+**ASC-R153.** The trusted scanner binds Nuclei filters through `template_ids`, `tags`, `severity`, an optional `credential_id` parameter and optional exact `rulepack_ref` artifact. Runtime derives native rate/concurrency from engagement; the profile does not author a second rate limit. SQLMap uses the same policy with one native thread, retries disabled and native pacing when an explicit rate exists. Journals, cancellation, deadlines, ambiguous outcomes and selected evidence retain their existing owners. The web profile runs one target/job and engagement admission bounds active attempts without automatic request replay.
 
 ### Complete settled-Round inputs
 
@@ -1170,22 +1122,13 @@ initialization fences apply before execution.
 
 ## Interfaces
 
-- AuditProfile fields owned here: `inventory.source` and `inventory.settings`
-  (ASC-R11 to ASC-R16),
-  `inventory.implementation: openapi-scans@1` (ASC-R69) and a prepare
-  role's `maxRunAttempts` (ASC-R20). The remaining AuditProfile
-  fields are specified in [audits](audits.md).
-- Workflow field owned here: `auditTask` with `contract` and `stage`
-  (ASC-R72 to ASC-R84); the rest of the Workflow
-  definition is specified in [workflows](../configuration/workflows.md).
-- Public Audit projection: `preparation.roles` (ASC-R41 to
-  ASC-R45) on the Audit and on preparing and inventory list items
-  (ASC-R150), with the schemas `AuditPreparation`,
-  `AuditPreparationRole` and `AuditPreparationOutput` in
-  [contractor-public-v1.yaml](../../../api/openapi/contractor-public-v1.yaml).
-- The start response before the first Round (ASC-R53).
-- The scan settings artifact `contractor.audit.openapi-scan-settings.v1`
-  (ASC-R95 to ASC-R104).
+- Common Audit Program inputs, launch parameter bindings and prepared work:
+  [common contract](common-contract.md).
+- Ordinary Workflow inputs and scan preparation configuration:
+  [workflows](../configuration/workflows.md) and [scanners](../tools/scanners.md).
+- Scan execution parameters and optional request values (ASC-R95 to ASC-R104).
+- Engagement is the ordinary typed input of preparation and scan Tasks;
+  its document retains egress, identities and HTTP limits.
 
 ## Limits, failures and errors
 
@@ -1217,10 +1160,10 @@ Registry entries owned by this document:
   per scan executor (ASC-R75).
 - [LIM-ASC-10](../platform/limits.md): one source operation per accepted scan
   item (ASC-R85).
-- [LIM-ASC-11](../platform/limits.md): scan settings artifact up to 256 KiB
+- [LIM-ASC-11](../platform/limits.md): request values material up to 256 KiB
   (ASC-R95).
 - [LIM-ASC-12](../platform/limits.md): at most 1,000 operations in scan
-  settings (ASC-R99).
+  selection (ASC-R99).
 - [LIM-ASC-13](../platform/limits.md): SQLMap `testParameters` nonempty, up to
   64 distinct names (ASC-R101).
 - [FAIL-ASC-1](../platform/failure-model.md): preparation attempt Run
@@ -1230,7 +1173,7 @@ Registry entries owned by this document:
   preparation outputs (ASC-R32, ASC-R33).
 - [FAIL-ASC-3](../platform/failure-model.md): inventory phase and first-Round
   acceptance (ASC-R48, ASC-R51).
-- [FAIL-ASC-4](../platform/failure-model.md): OpenAPI scan settings decoding
+- [FAIL-ASC-4](../platform/failure-model.md): OpenAPI scan selection compilation
   and scan inventory construction (ASC-R103,
   ASC-R109).
 - [FAIL-ASC-5](../platform/failure-model.md): pre-dispatch reproduction of the
@@ -1268,7 +1211,7 @@ server is an explicit pre-start override rather than a generated OpenAPI server
 (ASC-R89, ASC-R97); scope and active-check policy stay
 authoritative and the scan inventory uses the effective pinned active-check policy
 (ASC-R90, ASC-R105); scanner arguments and templates are
-pinned by configuration, never by model output or the settings artifact
+pinned by configuration, never by model output
 (ASC-R91, ASC-R104); credentials and request bodies
 stay out of task documents (ASC-R108); and fixed URL scans never
 silently discard supplied request data or count as authenticated testing
@@ -1289,11 +1232,18 @@ workflows:
     ref: source-openapi-prepare-work@1
     inputs:
       source: {source: audit-input, name: source}
-      settings: {source: audit-input, name: settings}
+      engagement: {source: audit-input, name: engagement}
+      request_values: {source: audit-input, name: request_values}
     parameters:
       checking_workflow: scan
       selection: scan-requests
       max_items: '16'
+      scanner: sqlmap
+    parameter_inputs:
+      server: server
+      operations: operations
+      test_parameters: test_parameters
+      credential_id: credential_id
     outputs:
       work: work
       api: openapi

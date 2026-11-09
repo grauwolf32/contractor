@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -81,7 +82,17 @@ func (r *Repository) write(
 		discardFreshCandidate()
 		return artifacts.WriteResult{}, err
 	}
+	var origin []byte
+	if payload.ExecutionOrigin != nil {
+		source := *payload.ExecutionOrigin
+		source.Artifact = artifactExactRef(target.Namespace, target.Name, revision)
+		origin, err = json.Marshal(source)
+		if err != nil {
+			return artifacts.WriteResult{}, err
+		}
+	}
 	write := writeStatement{
+		origin: origin,
 		arguments: []any{
 			scope.Kind(), scope.ID(), target.Namespace, target.Name, revision, expectedRevision,
 			versionID, candidate.Digest, candidate.Inline, candidate.Size, payload.MediaType, string(candidate.Backend),
@@ -127,6 +138,7 @@ func (r *Repository) write(
 
 // writeStatement is one execution of writeSQL with its arguments.
 type writeStatement struct {
+	origin    []byte
 	arguments []any
 	size      int64
 	policy    HistoryPolicy
@@ -154,7 +166,7 @@ func (w writeStatement) exec(
 	}
 	var row writeRow
 	arguments := append(append([]any(nil), w.arguments...),
-		w.policy.MaxRevisions(), w.policy.MaxBytes(), removedRevisions, removedBytes)
+		w.policy.MaxRevisions(), w.policy.MaxBytes(), removedRevisions, removedBytes, w.origin)
 	err := db.QueryRow(ctx, writeSQL, arguments...).Scan(
 		&row.revision, &row.mediaType, &row.size, &row.bindingCreatedAt, &row.revisionCreatedAt, &row.objectKey)
 	return row, err

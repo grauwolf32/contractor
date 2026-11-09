@@ -1544,7 +1544,16 @@ def test_vacuum_adapter_bounds_and_orders_serious_issues(
     assert [item["severity"] for item in result["issues"]] == [0, 1]
     assert [item["snippet"] for item in result["issues"]] == ["alpha", "beta"]
     assert all("range" not in item for item in result["issues"])
-    assert calls[0][0] == ["/opt/bin/vacuum", "spectral-report", "-i", "-o"]
+    assert calls[0][0][:7] == [
+        "/opt/bin/vacuum",
+        "spectral-report",
+        "-i",
+        "-o",
+        "--remote=false",
+        "--no-update-check",
+        "--config",
+    ]
+    assert str(calls[0][1]["cwd"]) in calls[0][0][7]
     assert calls[0][1]["input"] == b"alpha\nbeta\n"
     assert calls[0][1]["timeout"] == 30
     assert "shell" not in calls[0][1]
@@ -2468,3 +2477,14 @@ class MemoryArtifactClient:
     def _remember(self, ref: ArtifactRef) -> None:
         assert ref.revision is not None
         self._known[(ref.namespace, ref.name, ref.revision)] = ref
+
+
+@pytest.mark.parametrize(
+    "reference", ["https://example.test/schema", "file:///etc/passwd", "../schema.yaml"]
+)
+def test_local_validation_rejects_external_references(reference: str) -> None:
+    with pytest.raises(ToolInputError, match="only internal references"):
+        openapi_module._require_internal_references(
+            {"components": {"nested": [{"$ref": reference}]}}
+        )
+    openapi_module._require_internal_references({"$ref": "#/components/schemas/Item"})

@@ -3,6 +3,7 @@ package auditservice
 import (
 	"context"
 	"fmt"
+	"maps"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
@@ -166,7 +167,7 @@ func (s *Service) Start(ctx context.Context, p StartParams) (StartedAudit, error
 				return err
 			}
 
-			baseline := BaselineSnapshot{Schema: BaselineSchema, Labels: selection.Labels.Clone(), RequiredPlacementLabels: append([]string{}, selection.RequiredPlacementLabels...), Inputs: contracts.CloneExactArtifacts(selection.Inputs), Scope: selection.Scope, ActiveChecks: policy, RuntimeLabels: append([]string{}, selection.RuntimeLabels...), RuntimeConfig: runtimeSnapshot, Skills: append([]agentskills.RunSkillSnapshot{}, skills...), LLMCredentialIDs: mergeIDs(workflowIDs, runtimeSnapshot.LLMCredentialIDs), RuntimeCredentialIDs: mergeIDs(runtimeSnapshot.RuntimeCredentialIDs, targetIDs), ProjectHTTPTarget: target, Standards: []auditstandards.PinnedPackage{}}
+			baseline := BaselineSnapshot{Parameters: maps.Clone(selection.Parameters), Schema: BaselineSchema, Labels: selection.Labels.Clone(), RequiredPlacementLabels: append([]string{}, selection.RequiredPlacementLabels...), Inputs: contracts.CloneExactArtifacts(selection.Inputs), Scope: selection.Scope, ActiveChecks: policy, RuntimeLabels: append([]string{}, selection.RuntimeLabels...), RuntimeConfig: runtimeSnapshot, Skills: append([]agentskills.RunSkillSnapshot{}, skills...), LLMCredentialIDs: mergeIDs(workflowIDs, runtimeSnapshot.LLMCredentialIDs), RuntimeCredentialIDs: mergeIDs(runtimeSnapshot.RuntimeCredentialIDs, targetIDs), ProjectHTTPTarget: target, Standards: []auditstandards.PinnedPackage{}}
 			if err := pinAssertionSource(ctx, art, audit, profile, &baseline); err != nil {
 				return err
 			}

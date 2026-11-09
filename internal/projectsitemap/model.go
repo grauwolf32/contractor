@@ -190,6 +190,8 @@ type SourceUpdate struct {
 // Observation is unprojected ingress. It deliberately accepts no headers or
 // body values. Projection runs before any persisted ID or digest is computed.
 type Observation struct {
+	Note       string   `json:"note,omitempty"`
+	Tags       []string `json:"tags,omitempty"`
 	URL        string   `json:"url" strictjson:"required"`
 	Method     string   `json:"method" strictjson:"required"`
 	Outcome    string   `json:"outcome" strictjson:"required"`

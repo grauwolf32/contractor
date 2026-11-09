@@ -5,6 +5,7 @@ import base64
 import json
 import shutil
 import time
+from itertools import pairwise
 from pathlib import Path
 
 import pytest
@@ -17,6 +18,7 @@ from test_tool_worker import ArtifactStore
 
 from contractor_runtime.adapters.http_transport import HTTPTransport
 from contractor_runtime.artifacts import ArtifactClient
+from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.contracts.engagement import HTTPLimits
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.toolsets.scan.tools import ScanToolsetFactory
@@ -91,6 +93,59 @@ def test_real_nuclei_delegates_to_allocation_http(tmp_path):
                 await tool.close()
                 await owner.close()
         assert not list((tmp_path / "workspace").iterdir())
+
+    asyncio.run(scenario())
+
+
+def test_real_nuclei_keeps_published_finding_before_later_transport_failure(tmp_path, monkeypatch):
+    async def scenario():
+        matched = asyncio.Event()
+        original_read = asyncio.StreamReader.read
+
+        async def read(self, n=-1):
+            data = await original_read(self, n)
+            if b'"template-id":"scoped-http"' in data:
+                matched.set()
+            return data
+
+        monkeypatch.setattr(asyncio.StreamReader, "read", read)
+
+        async def respond(_, __, writer, request):
+            if b"/allowed/fail " in request:
+                await asyncio.wait_for(matched.wait(), 20)
+                writer.close()
+            else:
+                writer.write(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")
+                await writer.drain()
+
+        async with SocketTarget(respond) as target:
+            literal_origin(target)
+            bad = template(path="{{RootURL}}/allowed/fail")
+            bad["id"] = "later-failure"
+            finding = template()
+            finding["info"]["severity"] = "medium"
+            tool, owner, store = await scanner(tmp_path, target, templates=[finding, bad])
+            try:
+                result = await tool(target.origin + "/allowed", timeout_seconds=30)
+                assert matched.is_set(), result
+                assert result["status"] == "failed", result
+                assert result["errorCode"] == "scan_request_failed"
+                assert [row["template-id"] for row in result["results"]] == ["scoped-http"]
+                published = await tool.publish_outputs(
+                    result,
+                    {
+                        name: ArtifactRef(namespace="scanner", name=name)
+                        for name in ("candidates", "evidence")
+                    },
+                )
+                batch = json.loads(store.values[("scanner", "candidates")][0])
+                assert [row["rule"] for row in batch["candidates"]] == ["scoped-http"]
+                evidence = store.values[("scanner", "evidence")][0]
+                assert b"scoped-http" in evidence
+                assert published["status"] == "failed"
+            finally:
+                await tool.close()
+                await owner.close()
 
     asyncio.run(scenario())
 
@@ -367,7 +422,7 @@ def test_real_nuclei_unsupported_features_fail_before_any_target_request(tmp_pat
     asyncio.run(scenario())
 
 
-@pytest.mark.parametrize("kind", ["basic", "bearer", "cookies"])
+@pytest.mark.parametrize("kind", ["basic", "bearer", "cookies", "api-keys"])
 def test_real_nuclei_uses_private_credentials_and_runtime_cookie_state(tmp_path, monkeypatch, kind):
     secret = "private-assigned-nuclei-credential-canary"
     observed = []
@@ -404,6 +459,8 @@ def test_real_nuclei_uses_private_credentials_and_runtime_cookie_state(tmp_path,
                 else {"token": secret}
                 if kind == "bearer"
                 else {"session": secret}
+                if kind == "cookies"
+                else {"header:X-API-Key": secret, "query:api_key": secret, "cookie:client": secret}
             )
             spec = identity_spec(target, [("account", kind, fields, None)])
             rule = template()
@@ -427,8 +484,13 @@ def test_real_nuclei_uses_private_credentials_and_runtime_cookie_state(tmp_path,
                     else b"Authorization: Bearer " + secret.encode()
                     if kind == "bearer"
                     else b"Cookie: session=" + secret.encode()
+                    if kind == "cookies"
+                    else b"X-API-Key: " + secret.encode()
                 )
                 assert all(expected.lower() in raw.lower() for raw in observed)
+                if kind == "api-keys":
+                    assert all(b"?api_key=" + secret.encode() in raw for raw in observed)
+                    assert all(b"client=" + secret.encode() in raw for raw in observed)
                 assert b"learned=runtime-jar" in observed[1]
                 assert secret not in json.dumps(result)
                 assert all(secret.encode() not in value[0] for value in store.values.values())
@@ -545,6 +607,48 @@ def test_real_nuclei_proxy_listener_startup_failure_is_fatal(tmp_path, monkeypat
                 assert not owner._engine.ingresses
                 assert not target.requests
                 assert not list((tmp_path / "workspace").iterdir())
+            finally:
+                await tool.close()
+                await owner.close()
+
+    asyncio.run(scenario())
+
+
+def test_native_nuclei_paces_requests_from_engagement(tmp_path, monkeypatch):
+    from contractor_runtime.toolsets.scan import tools as scan
+
+    native = scan.run_process
+    commands, arrivals = [], []
+
+    async def run(command, directory, timeout, **kwargs):
+        commands.append(command)
+        return await native(command, directory, timeout, **kwargs)
+
+    monkeypatch.setattr(scan, "run_process", run)
+
+    async def respond(_, __, writer, ___):
+        arrivals.append(time.monotonic())
+        writer.write(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")
+        await writer.drain()
+
+    async def scenario():
+        async with SocketTarget(respond) as target:
+            literal_origin(target)
+            spec = socket_spec(target)
+            spec.engagement.http.limits = HTTPLimits(requestsPerSecond=2, concurrentRequests=1)
+            rule = template()
+            rule["http"][0]["path"] = [f"{{{{RootURL}}}}/allowed/{i}" for i in range(3)]
+            tool, owner, _ = await scanner(tmp_path, target, spec=spec, templates=[rule])
+            try:
+                result = await tool(target.origin + "/allowed", rate_limit=999, timeout_seconds=30)
+                assert result["status"] == "completed", result
+                assert len(arrivals) == 3
+                assert all(b - a >= 0.45 for a, b in pairwise(arrivals))
+                launch = next(command for command in commands if "-config" in command)
+                assert launch[launch.index("-rate-limit") + 1] == "2"
+                assert launch[launch.index("-concurrency") + 1] == "1"
+                assert launch[launch.index("-retries") + 1] == "0"
+                assert result["httpLimits"] == {"requestsPerSecond": 2, "concurrentRequests": 1}
             finally:
                 await tool.close()
                 await owner.close()

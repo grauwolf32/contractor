@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 )
 
@@ -137,12 +138,13 @@ func TestAuditBasicExactHandoffAcrossProductionProcesses(t *testing.T) {
 }
 
 type basicTask struct {
-	Document      auditcontract.Task      `json:"document"`
-	State         string                  `json:"state"`
-	Attempts      int                     `json:"attempts"`
-	LastExecution *string                 `json:"last_execution_id"`
-	Result        *auditcontract.Material `json:"result"`
-	GapCode       *string                 `json:"gap_code"`
+	Findings      *auditstore.CanonicalFindingResult `json:"findings"`
+	Document      auditcontract.Task                 `json:"document"`
+	State         string                             `json:"state"`
+	Attempts      int                                `json:"attempts"`
+	LastExecution *string                            `json:"last_execution_id"`
+	Result        *auditcontract.Material            `json:"result"`
+	GapCode       *string                            `json:"gap_code"`
 }
 
 func basicCopyStage() domainGatewayStage { return artifactCopyGatewayStage("basic-copy") }

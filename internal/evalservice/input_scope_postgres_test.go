@@ -38,15 +38,19 @@ func scopeDataset(t *testing.T, h *serviceHarness, sourceScope, kind string) (ev
 		if kind == "audit" {
 			data.Cases[i].Inputs = map[string]evaldomain.Artifact{}
 			for name, payload := range map[string]string{
-				"target":   `{"schema":"contractor.audit.web-target.v1","url":"https://example.test/"}`,
-				"settings": `{"schema":"contractor.audit.web-scan-settings.v1","templateIds":"","tags":"","severity":"","rateLimit":10}`,
+				"target":     `{"schema":"contractor.audit.web-target.v1","url":"https://example.test/"}`,
+				"engagement": `{"schema":"contractor.engagement.v1","egress":{"routes":[{"origin":"https://example.test","methods":["GET"],"pathPrefixes":["/"],"addressRanges":["192.168.56.0/24"]}],"exclusions":[]},"identities":[{"id":"anonymous","kind":"anonymous","origins":["https://example.test"]}]}`,
 			} {
-				write, err := source.Write(t.Context(), contracts.ArtifactRef{Namespace: "fixtures", Name: name + data.Cases[i].ID}, artifacts.Payload{MediaType: "application/json", Data: []byte(payload)}, nil)
+				media := "application/json"
+				if name == "engagement" {
+					media = "application/vnd.contractor.engagement+json"
+				}
+				write, err := source.Write(t.Context(), contracts.ArtifactRef{Namespace: "fixtures", Name: name + data.Cases[i].ID}, artifacts.Payload{MediaType: media, Data: []byte(payload)}, nil)
 				if err != nil {
 					t.Fatal(err)
 				}
 				data.Cases[i].Inputs[name] = evaldomain.Artifact{Scope: sourceScope, ScopeID: scopeID, Namespace: write.Ref.Namespace, Name: write.Ref.Name, Revision: *write.Ref.Revision,
-					SHA256: evaldomain.Digest([]byte(payload)), MediaType: "application/json", SizeBytes: int64(len(payload))}
+					SHA256: evaldomain.Digest([]byte(payload)), MediaType: media, SizeBytes: int64(len(payload))}
 			}
 		}
 		if sourceScope != "absent" {

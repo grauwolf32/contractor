@@ -271,6 +271,7 @@ class Identity(_EngagementModel):
                 "basic": "target-basic@1",
                 "bearer": "target-bearer@1",
                 "cookies": "target-cookies@1",
+                "api-keys": "target-api-keys@1",
             }
             if (
                 self.id == "anonymous"

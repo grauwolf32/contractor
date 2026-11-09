@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from tree_sitter_language_pack import prefetch
 
-from contractor_runtime.toolsets.code_analysis.languages import PARSER_NAMES
+from contractor_runtime.toolsets.common.source_languages import PARSER_NAMES
 
 
 def main() -> None:

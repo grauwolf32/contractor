@@ -347,7 +347,7 @@
         "name": "target",
         "optional": true
       },
-      "valid": false
+      "valid": true
     },
     {
       "name": "optional-parameter-false",

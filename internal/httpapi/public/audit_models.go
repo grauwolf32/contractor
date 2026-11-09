@@ -27,6 +27,7 @@ func auditReadModel(source auditstore.Audit) (auditResponse, error) {
 		return auditResponse{}, err
 	}
 	result := auditResponse{
+		Parameters:              selection.Parameters,
 		Labels:                  selection.Labels.Clone(),
 		RequiredPlacementLabels: append([]string{}, selection.RequiredPlacementLabels...),
 		AuditID:                 source.AuditID, ProjectID: source.ProjectID,
@@ -67,6 +68,7 @@ func auditReadModel(source auditstore.Audit) (auditResponse, error) {
 			})
 		}
 		result.Baseline = &auditBaselineResponse{
+			Parameters:              baseline.Parameters,
 			Labels:                  baseline.Labels.Clone(),
 			RequiredPlacementLabels: append([]string{}, baseline.RequiredPlacementLabels...),
 			ActiveChecks:            baseline.ActiveChecks,

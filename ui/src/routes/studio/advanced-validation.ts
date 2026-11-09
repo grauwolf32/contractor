@@ -313,7 +313,7 @@ export function validateAdvanced(draft: Draft): Problem[] {
               parameter = arg.source === "parameter",
               keys = Object.keys(arg),
               allowed = parameter
-                ? ["source", "name", "parse", "default"]
+                ? ["source", "name", "parse", "default", "optional"]
                 : arg.source === "artifact"
                   ? ["source", "name", "optional"]
                   : ["source", literal ? "value" : "name"];
@@ -324,15 +324,16 @@ export function validateAdvanced(draft: Draft): Problem[] {
             )
               error(
                 p,
-                "Each argument needs exactly a source and its payload; parameters accept parse/default, artifacts accept optional true.",
+                "Each argument needs exactly a source and its payload; parameters accept parse/default; parameter and artifact bindings accept optional true.",
               );
             if (
               keys.includes("optional") &&
-              (arg.source !== "artifact" || arg.optional !== true)
+              (!["artifact", "parameter"].includes(String(arg.source)) ||
+                arg.optional !== true)
             )
               error(
                 [...p, "optional"],
-                "Only artifact bindings accept optional true.",
+                "Only parameter and artifact bindings accept optional true.",
               );
             if (parameter) {
               if (keys.includes("parse") && arg.parse !== "integer")

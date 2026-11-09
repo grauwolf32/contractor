@@ -1,3 +1,4 @@
+import { ExecutionParameters } from "./execution-parameters";
 import { useId, useRef } from "react";
 import { Link } from "react-router";
 
@@ -281,6 +282,7 @@ export function SetupBody({ model }: { model: StartCheck }) {
     <>
       <TypeSection model={model} />
       <MaterialsCard model={model} />
+      <ExecutionParameters model={model} />
       <ScopeCard model={model} />
       <LiveTargetFields model={model} />
       <SetupOptions model={model} />
@@ -521,7 +523,7 @@ export function SetupFooter({ model }: { model: StartCheck }) {
           <dd>
             {model.webScan === undefined
               ? `${selected} of ${model.slots.length} selected`
-              : "Target and scan settings"}
+              : "Target, rules and engagement"}
           </dd>
         </div>
         {scope === undefined ? null : (

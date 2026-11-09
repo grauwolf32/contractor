@@ -18,9 +18,13 @@ func ValidateCollect(p auditstore.CollectParams) error {
 	if validateClaimIdentity(p.Claim) != nil || !contracts.ValidResourceID(p.ReceiptID) || !contracts.ValidResourceID(p.ExecutionID) || !p.Disposition.Valid() || !contentdigest.Valid(p.RequestDigest) || len(p.Tasks) > auditstore.MaxCollectionItems || len(p.Retained) > auditstore.MaxArtifactLinksPerCall {
 		return auditstore.ErrInvalid
 	}
-	if (p.Disposition == auditstore.CollectionAccepted || p.Disposition == auditstore.CollectionInvalidResult) != (p.SourceOutput != nil) {
+	if p.SourceOutput != nil && p.Disposition != auditstore.CollectionAccepted && p.Disposition != auditstore.CollectionInvalidResult {
 		return auditstore.ErrInvalid
 	}
+	if p.SourceOutput == nil && (p.Disposition == auditstore.CollectionAccepted || p.Disposition == auditstore.CollectionInvalidResult) && !(p.Disposition == auditstore.CollectionAccepted && canonicalFindingCollection(p)) {
+		return auditstore.ErrInvalid
+	}
+
 	if p.SourceOutput != nil && validateExactArtifact("source output", *p.SourceOutput, true) != nil {
 		return auditstore.ErrInvalid
 	}
@@ -47,7 +51,10 @@ func ValidateCollect(p auditstore.CollectParams) error {
 		if task.GapCode != nil && validateText("gap code", *task.GapCode, 128, true) != nil {
 			return auditstore.ErrInvalid
 		}
-		if task.Result == nil && task.GapCode == nil {
+		if task.Result == nil && task.GapCode == nil && task.Findings == nil {
+			return auditstore.ErrInvalid
+		}
+		if task.Findings != nil && (!validCanonicalFindingResult(task.Findings) || task.Result != nil || task.Retryable) {
 			return auditstore.ErrInvalid
 		}
 		if task.Result != nil {
@@ -78,7 +85,7 @@ func ValidateCollect(p auditstore.CollectParams) error {
 func prepareTaskCollection(p auditstore.CollectParams) json.RawMessage {
 	items := make([]map[string]any, 0, len(p.Tasks))
 	for _, task := range p.Tasks {
-		item := map[string]any{"execution_item_id": task.ExecutionItemID, "task_id": task.TaskID, "disposition": p.Disposition, "retryable": task.Retryable, "gap_code": task.GapCode}
+		item := map[string]any{"execution_item_id": task.ExecutionItemID, "task_id": task.TaskID, "disposition": p.Disposition, "retryable": task.Retryable, "gap_code": task.GapCode, "finding_result": task.Findings}
 		if task.Result != nil {
 			item["task_result"] = task.Result
 			if p.Disposition == auditstore.CollectionAccepted {
@@ -90,4 +97,29 @@ func prepareTaskCollection(p auditstore.CollectParams) json.RawMessage {
 	}
 	encoded, _ := json.Marshal(items)
 	return encoded
+}
+
+func validCanonicalFindingResult(value *auditstore.CanonicalFindingResult) bool {
+	if value.IDs == nil || len(value.IDs) > auditcontract.MaxFindingReferences {
+		return false
+	}
+	seen := map[string]bool{}
+	for _, id := range value.IDs {
+		if !contracts.ValidResourceID(id) || seen[id] {
+			return false
+		}
+		seen[id] = true
+	}
+	return true
+}
+func canonicalFindingCollection(p auditstore.CollectParams) bool {
+	if p.SourceOutput != nil || len(p.Retained) != 0 || len(p.Tasks) == 0 {
+		return false
+	}
+	for _, task := range p.Tasks {
+		if task.Findings == nil {
+			return false
+		}
+	}
+	return true
 }

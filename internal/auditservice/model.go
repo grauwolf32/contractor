@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
@@ -27,6 +28,9 @@ func encodeDraftSelection(value DraftSelection) (json.RawMessage, error) {
 }
 
 func DecodeDraftSelection(data []byte) (DraftSelection, error) {
+	if invalidParametersJSON(data) {
+		return DraftSelection{}, ErrInvalid
+	}
 	var result DraftSelection
 	if err := strictjson.Decode(data, &result); err != nil || validateDraftSelection(result) != nil {
 		return DraftSelection{}, fmt.Errorf("%w: stored Audit input selection is invalid", ErrInvalid)
@@ -42,6 +46,9 @@ func EncodeBaseline(value BaselineSnapshot) (json.RawMessage, error) {
 }
 
 func DecodeBaseline(data []byte) (BaselineSnapshot, error) {
+	if invalidParametersJSON(data) {
+		return BaselineSnapshot{}, ErrInvalid
+	}
 	var fields map[string]json.RawMessage
 	if err := strictjson.Decode(data, &fields); err != nil {
 		return BaselineSnapshot{}, fmt.Errorf("%w: stored Audit baseline is invalid", ErrInvalid)
@@ -73,6 +80,9 @@ func DecodeBaseline(data []byte) (BaselineSnapshot, error) {
 }
 
 func validateDraftSelection(value DraftSelection) error {
+	if auditcontract.ValidateParameters(value.Parameters) != nil {
+		return ErrInvalid
+	}
 	if err := validateAuditLabels(value.Labels, value.RequiredPlacementLabels); err != nil {
 		return err
 	}
@@ -94,6 +104,9 @@ func validateDraftSelection(value DraftSelection) error {
 }
 
 func ValidateBaseline(value BaselineSnapshot) error {
+	if auditcontract.ValidateParameters(value.Parameters) != nil {
+		return ErrInvalid
+	}
 	if value.InitialAssertions != nil && auditdomain.ValidateInitialAssertions(*value.InitialAssertions) != nil {
 		return fmt.Errorf("%w: Audit assertion selection is invalid", ErrInvalid)
 	}
@@ -218,4 +231,17 @@ func validateAuditLabels(labels runlabels.RunMetadataLabels, required []string) 
 		return fmt.Errorf("%w: Audit placement requirements differ from labels", ErrInvalid)
 	}
 	return nil
+}
+
+// Omission means no launch values; explicit null and null map members do not.
+func invalidParametersJSON(data []byte) bool {
+	var fields map[string]json.RawMessage
+	if strictjson.Decode(data, &fields) != nil {
+		return true
+	}
+	if raw, exists := fields["parameters"]; exists {
+		var values map[string]string
+		return strictjson.DecodeNonNull(raw, &values) != nil
+	}
+	return false
 }

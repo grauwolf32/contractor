@@ -10,8 +10,10 @@ import (
 // ReceiptReferences is a bounded result projection; the complete source origin
 // remains readable through Project Finding sources when a result reaches 128.
 type ReceiptReferences struct {
-	IDs       []string
-	Truncated bool
+	FindingsTruncated bool
+	FindingIDs        []string
+	IDs               []string
+	Truncated         bool
 }
 
 func (s *Service) AuditExecutionReceiptReferences(ctx context.Context, ownerID, auditID, executionID, runID string) (map[string]ReceiptReferences, error) {
@@ -31,7 +33,8 @@ func (s *Service) AuditExecutionReceiptReferences(ctx context.Context, ownerID, 
 			return nil, fmt.Errorf("%w: Run proposal quota", ErrInvalid)
 		}
 		var taskID, receiptID string
-		if err := rows.Scan(&taskID, &receiptID); err != nil {
+		var findingID *string
+		if err := rows.Scan(&taskID, &receiptID, &findingID); err != nil {
 			return nil, err
 		}
 		value := result[taskID]
@@ -39,6 +42,17 @@ func (s *Service) AuditExecutionReceiptReferences(ctx context.Context, ownerID, 
 			value.IDs = append(value.IDs, receiptID)
 		} else {
 			value.Truncated = true
+		}
+		if findingID != nil {
+			found := false
+			for _, id := range value.FindingIDs {
+				found = found || id == *findingID
+			}
+			if !found && len(value.FindingIDs) < auditcontract.MaxFindingReferences {
+				value.FindingIDs = append(value.FindingIDs, *findingID)
+			} else if !found {
+				value.FindingsTruncated = true
+			}
 		}
 		result[taskID] = value
 	}

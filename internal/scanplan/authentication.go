@@ -56,13 +56,23 @@ func (p *preparer) authenticate(op map[string]any, headers map[string]string, qu
 			}
 			kind, _ := scheme["type"].(string)
 			httpScheme, _ := scheme["scheme"].(string)
-			if kind != "apiKey" && !(kind == "http" && strings.EqualFold(httpScheme, "bearer")) {
+			if kind != "apiKey" && !(kind == "http" && (strings.EqualFold(httpScheme, "bearer") || p.options.EngagementCredential != "" && strings.EqualFold(httpScheme, "basic"))) {
 				reason = "unsupported_authentication"
 				valid = false
 				break
 			}
 			if len(scopes) != 0 {
 				return "invalid_security"
+			}
+			if p.options.EngagementCredential != "" {
+				if kind == "apiKey" {
+					field, nameOK := scheme["name"].(string)
+					location, locationOK := scheme["in"].(string)
+					if !nameOK || field == "" || !locationOK || (location != "header" && location != "query" && location != "cookie") {
+						return "invalid_security"
+					}
+				}
+				continue // The engagement transport applies private credentials.
 			}
 			binding, exists := p.options.Authentication[name]
 			value := binding.Reveal()

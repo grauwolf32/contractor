@@ -61,8 +61,8 @@ func TestSharedOpenAPIDocumentBoundsMatchAuthoringAndPreparation(t *testing.T) {
 				// The shared path-template cases exercise source parsing; URL and operation
 				// pointer bounds of actual scan preparation remain separate contracts.
 				if tc.String != nil && tc.String.Kind != "path" {
-					settings := []byte(`{"schema":"contractor.audit.openapi-scan-settings.v1","scanner":"nuclei","server":"https://target.test","operations":{"#/paths/~1bounds/get":{}}}`)
-					input := scanWorkTestInput(source, settings)
+					selection := []byte(`{"scanner":"nuclei","server":"https://target.test","operations":{"#/paths/~1bounds/get":{}}}`)
+					input := scanWorkTestInput(source, selection)
 					input.Source.MediaType = mediaType
 					if _, err := BuildPreparedOpenAPIWork(t.Context(), input); err != nil {
 						t.Fatal(err)

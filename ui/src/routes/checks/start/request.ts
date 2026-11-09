@@ -55,6 +55,7 @@ export function parseRuntimeLabels(text: string): ParsedRuntimeLabels {
 }
 
 interface CreateRequestDraft {
+  parameters?: Readonly<Record<string, string>>;
   labels?: Readonly<Record<string, string>>;
   profile: Pick<AuditProfile["ref"], "name" | "version">;
   /** Chosen material per input name. */
@@ -78,6 +79,10 @@ export function createRequest(draft: CreateRequestDraft): CreateAuditRequest {
       .filter(([, value]) => value !== ""),
   );
   return {
+    ...(draft.parameters === undefined ||
+    Object.keys(draft.parameters).length === 0
+      ? {}
+      : { parameters: { ...draft.parameters } }),
     ...(draft.labels === undefined || Object.keys(draft.labels).length === 0
       ? {}
       : { labels: { ...draft.labels } }),

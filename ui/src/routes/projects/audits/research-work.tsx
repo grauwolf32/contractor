@@ -245,7 +245,7 @@ export function ResearchTaskTimeline({
               {task.gap_code ? (
                 <p className="ui-caption">{readableValue(task.gap_code)}</p>
               ) : null}
-              {task.result ? (
+              {task.result || task.findings ? (
                 <TaskResultView audit={audit} task={task} />
               ) : null}
             </div>

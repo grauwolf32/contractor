@@ -50,7 +50,7 @@ func (b *ToolArgumentBinding) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	if value.Source == "parameter" {
-		if fields["name"] == nil || fields["value"] != nil || fields["optional"] != nil ||
+		if fields["name"] == nil || fields["value"] != nil || (fields["optional"] != nil && strings.TrimSpace(string(fields["optional"])) != "true") ||
 			(fields["default"] != nil && value.Default == nil) ||
 			(fields["parse"] != nil && value.Parse == "") {
 			return Invalidf("parameter tool argument requires name and forbids null default or value")
@@ -112,8 +112,8 @@ func (b ToolArgumentBinding) ResolveParameter(parameters map[string]string) (any
 }
 
 func (b ToolArgumentBinding) validateParameterOptions() error {
-	if b.Optional && b.Source != "artifact" {
-		return Invalidf("optional requires an artifact binding")
+	if b.Optional && b.Source != "artifact" && b.Source != "parameter" {
+		return Invalidf("optional requires an artifact or parameter binding")
 	}
 	if b.Source != "parameter" {
 		if b.Parse != "" || b.Default != nil {

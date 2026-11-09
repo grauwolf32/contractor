@@ -82,7 +82,7 @@ func ValidateStageWorkspace(
 ) error {
 	registered := registeredDescriptors()
 	workspaceToolsets := false
-	changesToolset := false
+	overlayToolset := ""
 	for _, agent := range agents {
 		if err := sandboxToolCompatibility(registered, agent.Template); err != nil {
 			return err
@@ -97,16 +97,16 @@ func ValidateStageWorkspace(
 			if registered.Toolsets[ref].RequiresWorkspace {
 				workspaceToolsets = true
 			}
-			if ref == "workspace-changes@1" {
-				changesToolset = true
+			if ref == "workspace-changes@1" || ref == "security-findings-trace@1" {
+				overlayToolset = ref
 			}
 		}
 	}
 	if workspaceToolsets && context.Workspace == nil {
 		return fmt.Errorf("workspace-dependent Toolsets require context.workspace")
 	}
-	if changesToolset && context.Workspace != nil && context.Workspace.Mode != contracts.WorkspaceModeOverlay {
-		return fmt.Errorf("workspace-changes@1 requires context.workspace.mode overlay")
+	if overlayToolset != "" && context.Workspace != nil && context.Workspace.Mode != contracts.WorkspaceModeOverlay {
+		return fmt.Errorf("%s requires context.workspace.mode overlay", overlayToolset)
 	}
 	if context.Workspace == nil || context.Workspace.Export == nil {
 		return nil
@@ -179,7 +179,7 @@ func ValidateWorkflowGraph(workflow ResolvedWorkflow) error {
 		for _, check := range stage.On.Actions() {
 			allowed := map[TransitionKind]bool{TransitionNext: true, TransitionRetry: true, TransitionEscalate: true, TransitionFail: true}
 			if check.Outcome == "succeeded" {
-				allowed = map[TransitionKind]bool{TransitionNext: true, TransitionSucceed: true}
+				allowed = map[TransitionKind]bool{TransitionNext: true, TransitionSucceed: true, TransitionFail: true}
 			} else if check.Outcome == "summarized" {
 				allowed = map[TransitionKind]bool{TransitionEscalate: true}
 			}

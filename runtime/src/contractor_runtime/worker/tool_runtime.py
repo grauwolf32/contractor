@@ -156,10 +156,12 @@ class ToolWorkerRuntime:
             "ToolWorkerInput", __config__=ConfigDict(strict=True, extra="forbid"), **fields
         )
         for name, binding in execution.arguments.items():
-            if binding.optional and (
-                name not in fields or self._input.model_fields[name].is_required()
+            if (
+                binding.optional
+                and "default" not in binding.model_fields_set
+                and (name not in fields or self._input.model_fields[name].is_required())
             ):
-                raise ValueError("optional artifact binding requires a callable default")
+                raise ValueError("optional binding requires a callable default")
         self._resources = context.resources
         self._state = context.state
         self.allocation_id = context.allocation_id
@@ -196,7 +198,14 @@ class ToolWorkerRuntime:
         omitted = set()
         for name, binding in self._execution.arguments.items():
             if binding.source == "parameter":
-                arguments[name] = binding.resolve_parameter(request.parameters)
+                if (
+                    binding.optional
+                    and "default" not in binding.model_fields_set
+                    and binding.name not in request.parameters
+                ):
+                    omitted.add(name)
+                else:
+                    arguments[name] = binding.resolve_parameter(request.parameters)
             elif binding.source == "artifact":
                 if binding.optional and binding.name not in request.artifacts:
                     omitted.add(name)
@@ -453,11 +462,12 @@ class ToolWorkerRuntime:
                     for name, value in observation.items()
                     if name.endswith("Truncated")
                 )
+                publisher = getattr(self._tool, "publish_outputs", None)
                 try:
                     artifacts = self._additional_artifacts(
                         observation.get("artifacts", {}),
                         request,
-                        complete=observation["status"] == "completed",
+                        complete=observation["status"] == "completed" and publisher is None,
                     )
                     payload = _json(
                         {
@@ -495,6 +505,22 @@ class ToolWorkerRuntime:
                 await notify_report_publication(
                     self._resources.report_publication_sink, self._execution.tool, report
                 )
+                if publisher is not None:
+                    try:
+                        async with asyncio.timeout(
+                            self._context.runtime_settings.request_timeout_seconds
+                        ):
+                            observation = await publisher(
+                                observation, request.result_artifacts, arguments
+                            )
+                            artifacts = self._additional_artifacts(
+                                observation.get("artifacts", {}),
+                                request,
+                                complete=observation["status"] == "completed",
+                            )
+                            await self._verify_additional_artifacts(artifacts)
+                    except Exception:
+                        raise ToolWorkerError("tool_report_failed") from None
                 if observation["status"] == "failed":
                     raise ToolWorkerError("tool_execution_failed")
         except asyncio.CancelledError:

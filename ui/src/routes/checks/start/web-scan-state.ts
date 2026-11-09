@@ -23,7 +23,6 @@ export function useWebScanDraft(
   const [templateIds, setTemplateIds] = useState("");
   const [tags, setTags] = useState("");
   const [severity, setSeverity] = useState("");
-  const [rate, setRate] = useState("10");
   const [pack, setPack] = useState<ArtifactMetadata>();
   const [fileSelection, setFileSelection] = useState<{
     file: File;
@@ -41,19 +40,17 @@ export function useWebScanDraft(
     inputs: CreateAuditRequest["inputs"];
   }>();
   const url = target ?? project?.httpTarget?.url ?? "";
-  const settings: components["schemas"]["AuditWebScanSettings"] = {
-    schema: "contractor.audit.web-scan-settings.v1",
-    templateIds,
+  const parameters: components["schemas"]["NucleiRuleSelection"] = {
+    template_ids: templateIds,
     tags,
     severity,
-    rateLimit: Number(rate),
   };
   const targetDocument = { schema: "contractor.audit.web-target.v1", url };
   const canonical = JSON.stringify({
     projectId,
     profile: profile?.ref,
     targetDocument,
-    settings,
+    parameters,
     custom,
     pack: custom && file === undefined ? pack?.artifact : undefined,
     file:
@@ -69,11 +66,8 @@ export function useWebScanDraft(
     blocker = "Active checks are prohibited in this project's settings.";
   else if (!conformsTo("AuditWebTarget", targetDocument))
     blocker = "Enter an HTTP or HTTPS target URL.";
-  else if (
-    !conformsTo("AuditWebScanSettings", settings) ||
-    !/^[1-9][0-9]*$/.test(rate)
-  )
-    blocker = "Review the rule filters and request rate.";
+  else if (!conformsTo("NucleiRuleSelection", parameters))
+    blocker = "Review the rule filters.";
   else if (custom && file === undefined && pack === undefined)
     blocker = "Choose or upload your Nuclei YAML or ZIP rulepack.";
   else if (custom && file !== undefined && !/\.(ya?ml|zip)$/i.test(file.name))
@@ -103,7 +97,7 @@ export function useWebScanDraft(
   async function prepare(ensureCurrent: () => void) {
     ensureCurrent();
     // Guard the preparation boundary as well as the visible controls: no
-    // target/settings writes or file read may precede input admission.
+    // target writes or file read may precede input admission.
     if (blocker !== undefined) throw new Error(blocker);
     let inputs =
       prepared?.canonical === canonical ? prepared.inputs : undefined;
@@ -113,11 +107,6 @@ export function useWebScanDraft(
         new Blob([JSON.stringify(targetDocument)], {
           type: "application/json",
         }),
-        ensureCurrent,
-      );
-      const settingsRef = await retain(
-        "settings",
-        new Blob([JSON.stringify(settings)], { type: "application/json" }),
         ensureCurrent,
       );
       let rulepack = custom ? pack?.artifact : undefined;
@@ -133,7 +122,6 @@ export function useWebScanDraft(
       }
       inputs = {
         target: targetRef,
-        settings: settingsRef,
         ...(rulepack === undefined ? {} : { rulepack }),
       };
       ensureCurrent();
@@ -154,8 +142,7 @@ export function useWebScanDraft(
     setTags,
     severity,
     setSeverity,
-    rate,
-    setRate,
+    parameters,
     pack,
     setPack,
     file,

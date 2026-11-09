@@ -58,7 +58,7 @@ func TestWebScanAuditPinsOneProjectWithoutModelOrOpenAPI(t *testing.T) {
 				inputs[name] = value.Ref
 			}
 			write("target", "application/json", `{"schema":"contractor.audit.web-target.v1","url":"https://target.test/"}`)
-			write("settings", "application/json", `{"schema":"contractor.audit.web-scan-settings.v1","templateIds":"","tags":"","severity":"","rateLimit":10}`)
+			write("engagement", "application/vnd.contractor.engagement+json", `{"schema":"contractor.engagement.v1","egress":{"routes":[{"origin":"https://target.test","pathPrefixes":["/"],"methods":["GET"],"addressRanges":["127.0.0.0/8"]}],"exclusions":[]},"identities":[{"id":"anonymous","kind":"anonymous","origins":["https://target.test"]}]}`)
 			if mode == "custom" {
 				write("rulepack", "application/yaml", "id: fixture-rule\n")
 			}

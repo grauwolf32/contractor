@@ -203,7 +203,7 @@ func TestBuildResultUnknownOutcomeDoesNotAuthorizeTrafficRetry(t *testing.T) {
 		})
 	}
 }
-func TestBuildResultBoundsEmbeddedEvidenceAndRemainsSelfContained(t *testing.T) {
+func TestBuildResultRetainsOnlyExactReferencesOnSourceRun(t *testing.T) {
 	scan := newRetainedScan(t)
 	scan.payloads[scan.report.Name] = artifacts.Payload{MediaType: "application/json", Data: append(append([]byte(`{"tool":"scan_sqlmap","observations":"`), bytes.Repeat([]byte("x"), MaxScannerReportBytes-100)...), []byte(`"}`)...)}
 	for i := 0; i < 5; i++ {
@@ -222,12 +222,15 @@ func TestBuildResultBoundsEmbeddedEvidenceAndRemainsSelfContained(t *testing.T) 
 	if err := json.Unmarshal(result.Data, &report); err != nil {
 		t.Fatal(err)
 	}
-	if len(report.Artifacts) != 2 || !slices.Contains(report.Limitations, "scan_evidence_budget_exceeded") {
-		t.Fatalf("evidence count=%d gaps=%v", len(report.Artifacts), report.Limitations)
+	if len(report.Artifacts) != 6 {
+		t.Fatalf("exact references=%d", len(report.Artifacts))
+	}
+	if bytes.Contains(result.Data, []byte("data_base64")) || bytes.Contains(result.Data, bytes.Repeat([]byte("x"), 100)) {
+		t.Fatal("scanner report embedded in aggregate")
 	}
 	for _, artifact := range report.Artifacts {
-		if contentdigest.Bytes(artifact.Data) != artifact.Digest {
-			t.Fatal("embedded exact bytes changed")
+		if artifact.Digest == "" || artifact.SizeBytes == 0 || artifact.Ref.ValidateExact() != nil {
+			t.Fatal("missing exact source descriptor")
 		}
 	}
 }

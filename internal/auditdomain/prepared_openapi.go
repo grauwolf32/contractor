@@ -13,11 +13,11 @@ import (
 
 // PreparedOpenAPIInput contains exact ordinary material, not Audit authority.
 type PreparedOpenAPIInput struct {
-	Source       auditcontract.Material
-	Data         []byte
-	Settings     *auditcontract.Material
-	SettingsData []byte
-	Options      auditcontract.OpenAPIWorkArguments
+	Source     auditcontract.Material
+	Data       []byte
+	Values     *auditcontract.Material
+	ValuesData []byte
+	Options    auditcontract.OpenAPIWorkArguments
 }
 
 type PreparedOpenAPIItem struct {
@@ -36,7 +36,7 @@ type PreparedOpenAPIWork struct {
 type PreparedOpenAPIOperation struct {
 	Schema    string                  `json:"schema"`
 	Source    auditcontract.Material  `json:"source"`
-	Settings  *auditcontract.Material `json:"settings,omitempty"`
+	Values    *auditcontract.Material `json:"request_values,omitempty"`
 	Operation *OperationTask          `json:"operation,omitempty"`
 	Scan      *ScanTask               `json:"scan,omitempty"`
 }
@@ -44,22 +44,28 @@ type PreparedOpenAPIOperation struct {
 // PrepareOpenAPIScanOperation reproduces the selected request from exact bytes.
 // Run forks have different refs; the retained source descriptors bind their
 // bytes, media and sizes while the caller enforces Artifact authority.
-func PrepareOpenAPIScanOperation(operation, source, settingsData []byte, sourceMediaType string) (ScanTask, scanplan.PreparedAuditOperation, error) {
+func PrepareOpenAPIScanOperation(operation, source, valuesData []byte, sourceMediaType, scanner string, parameters map[string]string) (ScanTask, scanplan.PreparedAuditOperation, error) {
 	var work PreparedOpenAPIOperation
-	if len(operation) > MaximumDocumentBytes || strictjson.DecodeNonNull(operation, &work) != nil || work.Schema != "contractor.audit.openapi-work-item.v1" || work.Scan == nil || work.Operation != nil || work.Settings == nil ||
-		!validPreparedSource(work.Source, source) || work.Source.MediaType != sourceMediaType || !validPreparedSource(*work.Settings, settingsData) || work.Settings.MediaType != JSONMediaType ||
-		validateScanTask(*work.Scan, false) != nil || work.Scan.Settings.Ref.ValidateExact() != nil || work.Scan.Settings.Digest != work.Settings.Digest || !sameCanonicalValue(work.Scan.Settings.Ref, work.Settings.Ref) {
+	if len(operation) > MaximumDocumentBytes || strictjson.DecodeNonNull(operation, &work) != nil || work.Schema != "contractor.audit.openapi-work-item.v1" || work.Scan == nil || work.Operation != nil ||
+		!validPreparedSource(work.Source, source) || work.Source.MediaType != sourceMediaType || !validRequestValues(work.Values, valuesData, work.Source.ScopeID) || validateScanTask(*work.Scan, false) != nil {
 		return ScanTask{}, scanplan.PreparedAuditOperation{}, invalid(CodeInventoryInvalid, "scan.inputs")
 	}
-	settings, err := scanplan.DecodeAuditScanSettings(settingsData)
+	selection, err := scanplan.CompileAuditSelection(scanner, parameters, valuesData)
 	if err != nil {
-		return ScanTask{}, scanplan.PreparedAuditOperation{}, invalid(CodeInventoryInvalid, "scan.settings")
+		return ScanTask{}, scanplan.PreparedAuditOperation{}, invalid(CodeInventoryInvalid, "scan.selection")
 	}
-	prepared, err := settings.PrepareOperation(source, sourceMediaType, work.Source.Ref, work.Scan.Operation)
-	if err != nil || !sameCanonicalValue(work.Scan, openAPIScanTask(settings, work.Scan.Settings, prepared)) {
+	prepared, err := selection.PrepareOperation(source, sourceMediaType, work.Source.Ref, work.Scan.Operation)
+	if err != nil || !sameCanonicalValue(work.Scan, openAPIScanTask(selection, prepared)) {
 		return ScanTask{}, scanplan.PreparedAuditOperation{}, invalid(CodeInventoryInvalid, "scan.preparation")
 	}
 	return *work.Scan, prepared, nil
+}
+
+func validRequestValues(values *auditcontract.Material, data []byte, scopeID string) bool {
+	if values == nil {
+		return len(data) == 0
+	}
+	return validPreparedSource(*values, data) && values.ScopeID == scopeID && values.MediaType == JSONMediaType
 }
 
 // BuildPreparedOpenAPIWork reuses the owning operation/request selection rules.
@@ -77,8 +83,8 @@ func BuildPreparedOpenAPIWork(ctx context.Context, input PreparedOpenAPIInput) (
 	var err error
 	switch input.Options.Selection {
 	case "operations":
-		if input.Settings != nil || len(input.SettingsData) != 0 {
-			return PreparedOpenAPIWork{}, invalid(CodeInventoryInvalid, "prepared.settings")
+		if input.Values != nil || len(input.ValuesData) != 0 {
+			return PreparedOpenAPIWork{}, invalid(CodeInventoryInvalid, "prepared.request_values")
 		}
 		var source openAPISource
 		if normalizedMediaType(input.Source.MediaType) == PackageMediaType {
@@ -92,10 +98,14 @@ func BuildPreparedOpenAPIWork(ctx context.Context, input PreparedOpenAPIInput) (
 			basis, subjects, err = openAPISubjects(source, input.Options.MaxItems)
 		}
 	case "scan-requests":
-		if input.Settings == nil || !validPreparedSource(*input.Settings, input.SettingsData) || input.Settings.ScopeID != input.Source.ScopeID || input.Settings.MediaType != JSONMediaType {
-			return PreparedOpenAPIWork{}, invalid(CodeInventoryInvalid, "prepared.settings")
+		if !validRequestValues(input.Values, input.ValuesData, input.Source.ScopeID) {
+			return PreparedOpenAPIWork{}, invalid(CodeInventoryInvalid, "prepared.request_values")
 		}
-		basis, subjects, err = openAPIScanSubjects(input.Data, input.Source.MediaType, input.SettingsData, ExactInput{Name: "settings", Ref: input.Settings.Ref, Digest: input.Settings.Digest}, InventoryOptions{SourceInputName: "openapi", SourceRef: input.Source.Ref}, input.Options.MaxItems)
+		var selection scanplan.AuditSelection
+		selection, err = scanplan.CompileAuditSelection(input.Options.Scanner, input.Options.Parameters, input.ValuesData)
+		if err == nil {
+			basis, subjects, err = openAPIScanSubjects(input.Data, input.Source.MediaType, selection, input.Values, InventoryOptions{SourceInputName: "openapi", SourceRef: input.Source.Ref}, input.Options.MaxItems)
+		}
 	default:
 		return PreparedOpenAPIWork{}, invalid(CodeInventoryInvalid, "prepared.selection")
 	}
@@ -108,7 +118,7 @@ func BuildPreparedOpenAPIWork(ctx context.Context, input PreparedOpenAPIInput) (
 		if err := ctx.Err(); err != nil {
 			return PreparedOpenAPIWork{}, err
 		}
-		material := PreparedOpenAPIOperation{"contractor.audit.openapi-work-item.v1", input.Source, input.Settings, subject.operation, subject.scan}
+		material := PreparedOpenAPIOperation{"contractor.audit.openapi-work-item.v1", input.Source, input.Values, subject.operation, subject.scan}
 		data, err := canonicalOpenAPIJSON(material)
 		if err != nil || len(data) > MaximumDocumentBytes {
 			return PreparedOpenAPIWork{}, invalid(CodeLimitExceeded, "prepared.material")

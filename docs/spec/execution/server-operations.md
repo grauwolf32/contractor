@@ -119,3 +119,15 @@ bindings reconcile their original exact versions; collisions fail permanently.
 Interrupted intermediate material remains owner-local and normally purgeable.
 The existing Stage deadline/cancellation owns all work; no new journal, receipt
 or cleanup controller is introduced (FAIL-ACT-2, LIFE-ACT-2).
+
+
+**SOP-R11.** `publish-findings@1` binds either exactly `candidates` and `evidence`
+current-Run context inputs, or one exact `materials` input containing a flat
+common material set with at most 16 candidate/evidence pairs. It accepts no
+arguments and declares no Artifact outputs. Every selected envelope is validated
+before the first mutation; the live claim and exact selection are fenced for
+each item. The Finding
+owner consumes the normalized contract under FND-R232/R233/R234. The operation
+returns bounded JSON counts and source/Finding references in its ordinary Stage
+summary. Complete domain detail uses the existing paginated Finding/source
+readers. Scanner reports remain on their concrete Run.

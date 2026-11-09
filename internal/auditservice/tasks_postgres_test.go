@@ -38,6 +38,11 @@ type commonTaskServiceFixture struct {
 
 func newCommonTaskServiceFixture(t *testing.T, configure func(*auditcontract.Program), workflowChanges ...func(*resolved.ResolvedWorkflow)) commonTaskServiceFixture {
 	t.Helper()
+	return commonTaskServiceFixtureWithParameters(t, configure, nil, workflowChanges...)
+}
+
+func commonTaskServiceFixtureWithParameters(t *testing.T, configure func(*auditcontract.Program), parameters map[string]string, workflowChanges ...func(*resolved.ResolvedWorkflow)) commonTaskServiceFixture {
+	t.Helper()
 	ctx := t.Context()
 	pool := postgrestest.NewPool(t, ctx, "", postgrestest.Options{Configure: func(config *pgxpool.Config) { config.MaxConns = 1 }})
 	if _, err := postgres.ApplyMigrations(ctx, pool, postgres.MigrationBudgets{}); err != nil {
@@ -97,7 +102,7 @@ func newCommonTaskServiceFixture(t *testing.T, configure func(*auditcontract.Pro
 	if err != nil {
 		t.Fatal(err)
 	}
-	baseline, err := EncodeBaseline(BaselineSnapshot{Schema: BaselineSchema, ActiveChecks: contracts.ActiveChecksProhibited, Labels: runlabels.RunMetadataLabels{}, RequiredPlacementLabels: []string{}, Inputs: map[string]auditstore.ExactArtifact{"source": metadata.Exact()}, RuntimeLabels: []string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(), Skills: []agentskills.RunSkillSnapshot{}, LLMCredentialIDs: []string{}, RuntimeCredentialIDs: []string{}, Standards: []auditstandards.PinnedPackage{}})
+	baseline, err := EncodeBaseline(BaselineSnapshot{Schema: BaselineSchema, Parameters: parameters, ActiveChecks: contracts.ActiveChecksProhibited, Labels: runlabels.RunMetadataLabels{}, RequiredPlacementLabels: []string{}, Inputs: map[string]auditstore.ExactArtifact{"source": metadata.Exact()}, RuntimeLabels: []string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(), Skills: []agentskills.RunSkillSnapshot{}, LLMCredentialIDs: []string{}, RuntimeCredentialIDs: []string{}, Standards: []auditstandards.PinnedPackage{}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,5 +148,27 @@ func TestSharedCommonTaskServiceAcceptsDefaultsAndExactOverrides(t *testing.T) {
 	page, err := service.Tasks(ctx, auditstore.ListTasksParams{OwnerID: "owner", AuditID: audit.AuditID, Limit: 10})
 	if err != nil || len(page.Tasks) != 2 || !page.Tasks[0].Document.Inputs["source"].Ref.SameExact(page.Tasks[1].Document.Inputs["source"].Ref) {
 		t.Fatalf("retention did not converge: %+v %v", page, err)
+	}
+}
+
+func TestSharedAuditLaunchParametersPersistIntoAcceptedTask(t *testing.T) {
+	values := map[string]string{"target": "https://target.test/api"}
+	f := commonTaskServiceFixtureWithParameters(t, func(p *auditcontract.Program) {
+		p.Parameters = map[string]auditcontract.ProgramParameter{"target": {Required: true}}
+		b := p.Workflows["inspect"]
+		b.ParameterInputs = map[string]string{"server": "target"}
+		p.Workflows["inspect"] = b
+	}, values, func(w *resolved.ResolvedWorkflow) { w.Parameters["server"] = resolved.ParameterSlot{Required: true} })
+	values["target"] = "mutated"
+	result, err := f.service.CreateTasks(t.Context(), TaskCreationParams{OwnerID: "owner", AuditID: f.audit.AuditID, ExpectedRevision: f.audit.Revision, IdempotencyKey: "parameters", RequestDigest: contentdigest.Bytes([]byte("parameters")), Work: []auditcontract.PreparedSelection{{Key: "parameter-task", Workflow: "inspect", Objective: "Inspect with pinned parameters", Inputs: map[string]auditcontract.Material{}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := f.service.Task(t.Context(), "owner", f.audit.AuditID, result.Acceptance.TaskIDs[0])
+	if err != nil || task.Document.Parameters["server"] != "https://target.test/api" {
+		t.Fatalf("durable task parameters: %+v %v", task, err)
+	}
+	if _, exists := f.pinned.Program.Workflows["inspect"].Parameters["server"]; exists {
+		t.Fatal("catalog program changed")
 	}
 }

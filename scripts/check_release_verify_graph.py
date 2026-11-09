@@ -133,6 +133,10 @@ OPT_IN_E2E_TESTS = {
         "test-podman-e2e",
         "requires rootless Podman and a preinstalled digest-pinned image",
     ),
+    "TestScannerFindingsAcrossProductionProcesses": (
+        "test-scan-e2e",
+        "requires real Nuclei and SQLMap plus isolated loopback targets",
+    ),
     "TestScanToolsAcrossProductionProcesses": (
         "test-scan-e2e",
         "requires the real nuclei, naabu, sqlmap, ffuf and katana scanners on PATH",

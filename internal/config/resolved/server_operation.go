@@ -48,6 +48,14 @@ func ValidateStageExecutor(stage ResolvedStage) error {
 			return fmt.Errorf("Server operation output requires an ordinary explicit artifact binding")
 		}
 	}
+	if operation.Ref == contracts.PublishFindingsOperation {
+		pair := len(stage.Context.Artifacts) == 2 && stage.Context.Artifacts["candidates"].Required && stage.Context.Artifacts["evidence"].Required
+		set := len(stage.Context.Artifacts) == 1 && stage.Context.Artifacts["materials"].Required
+		if len(operation.Arguments) != 0 || (!pair && !set) || stage.Result.Artifacts == nil || len(stage.Result.Artifacts) != 0 {
+			return fmt.Errorf("Finding publication requires exactly candidates and evidence inputs and no Artifact outputs")
+		}
+		return nil
+	}
 	if operation.Ref == contracts.OpenAPIPrepareWorkOperation {
 		return validateOpenAPIWorkStage(stage)
 	}
@@ -87,10 +95,13 @@ func ValidateStageExecutor(stage ResolvedStage) error {
 
 func validateOpenAPIWorkStage(stage ResolvedStage) error {
 	values := map[string]any{"workflow": "check", "selection": "operations", "max_items": strconv.Itoa(auditcontract.MaxPreparedWork)}
-	if len(stage.Operation.Arguments) != len(values) {
+	if len(stage.Operation.Arguments) < len(values) || len(stage.Operation.Arguments) > 8 {
 		return fmt.Errorf("OpenAPI preparation requires workflow, selection and max_items arguments")
 	}
 	for name, binding := range stage.Operation.Arguments {
+		if name == "scanner" || name == "server" || name == "operations" || name == "test_parameters" || name == "credential_id" {
+			values[name] = ""
+		}
 		if _, exists := values[name]; !exists || binding.Parse != "" {
 			return fmt.Errorf("invalid OpenAPI preparation argument")
 		}
@@ -98,7 +109,7 @@ func validateOpenAPIWorkStage(stage ResolvedStage) error {
 			values[name] = binding.Value
 		}
 	}
-	options, err := auditcontract.OpenAPIWorkOptions(values)
+	_, err := auditcontract.OpenAPIWorkOptions(values)
 	if err != nil {
 		return fmt.Errorf("invalid OpenAPI preparation choices")
 	}
@@ -106,12 +117,9 @@ func validateOpenAPIWorkStage(stage ResolvedStage) error {
 		return fmt.Errorf("OpenAPI preparation requires an exact openapi context input")
 	}
 	for name := range stage.Context.Artifacts {
-		if name != "openapi" && name != "settings" {
+		if name != "openapi" && name != "request_values" {
 			return fmt.Errorf("unknown OpenAPI preparation context input")
 		}
-	}
-	if options.Selection == "scan-requests" && !stage.Context.Artifacts["settings"].Required {
-		return fmt.Errorf("scan preparation requires a settings context input")
 	}
 	output, exists := stage.Result.Artifacts["work"]
 	if !exists || len(stage.Result.Artifacts) != 1 || !output.Required || len(output.MediaTypes) != 1 || output.MediaTypes[0] != "application/json" {

@@ -205,6 +205,7 @@ var layers = []layerSpec{
 			"internal/projectsitemap",
 			"internal/operations/sitemapjoin",
 			"internal/operations/openapiwork",
+			"internal/operations/publishfindings",
 			"internal/rundeletion",
 			"internal/runservice",
 			"internal/runcost",

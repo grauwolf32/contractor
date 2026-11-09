@@ -50,3 +50,18 @@ func TestEngagementMaterialFailureIsRedactedAndCancellationRetained(t *testing.T
 		t.Fatal("cancellation was lost")
 	}
 }
+
+func TestEngagementAPIKeyMaterialRetainsQualifiedFields(t *testing.T) {
+	ref := runtimesettings.RuntimeCredentialRef{CredentialID: "held-api", Kind: runtimesettings.RuntimeCredentialTargetAPIKeys}
+	projection := &engagementcontract.AllocationProjection{HTTP: &engagementcontract.HTTPAssignment{Identities: []engagementcontract.Identity{{ID: "api", Kind: "api-keys", Credential: &ref}}}}
+	resolver := privateMaterialFixture(func(_ context.Context, id string, kinds []runtimesettings.RuntimeCredentialKind, consume func(runtimesettings.RuntimeCredentialKind, []byte) error) error {
+		if id != ref.CredentialID || len(kinds) != 1 || kinds[0] != ref.Kind {
+			t.Fatal("unassigned credential lookup")
+		}
+		return consume(ref.Kind, []byte(`{"fields":{"header:X-Key":"header-canary","query:key":"query-canary","cookie:api":"cookie-canary"}}`))
+	})
+	material, err := MaterializeHTTPIdentities(t.Context(), resolver, projection)
+	if err != nil || len(material["api"].Fields) != 3 || material["api"].Fields["query:key"].Reveal() != "query-canary" {
+		t.Fatalf("API key materialization failed: %v", err)
+	}
+}

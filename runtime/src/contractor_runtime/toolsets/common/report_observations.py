@@ -26,7 +26,11 @@ from contractor_runtime.contracts.base import (
 from contractor_runtime.strict_json import strict_json_loads
 from contractor_runtime.toolsets.common.observation_metadata import normalize_http_observation
 
-REPORT_FORMATS = {"scan_ffuf": "ffuf-report@1", "scan_katana": "katana-report@1"}
+REPORT_FORMATS = {
+    "scan_ffuf": "ffuf-report@1",
+    "scan_katana": "katana-report@1",
+    "scan_nuclei": "nuclei-report@1",
+}
 MAX_REPORT_BYTES = 512 << 10
 MAX_RESULT_BYTES = 128 << 10
 MAX_RESULTS = 100
@@ -218,6 +222,8 @@ def project_report(data: bytes, format_: str, at: str) -> dict:
         if NAME_PATTERN.fullmatch(name) is None:
             raise ValueError("report input name is invalid")
         ref.require_exact()
+    if kind == "nuclei":
+        return _project_nuclei_surface(envelope.observation, at)
     report = (_FFUF if kind == "ffuf" else _Katana).model_validate(envelope.observation)
     rows = envelope.observation["results"]
     if (
@@ -380,3 +386,53 @@ def _validate_katana(report: _Katana, at: str) -> None:
         or report.artifact_error_code is not None
     ):
         raise ValueError("report target ref differs from published artifacts")
+
+
+def _project_nuclei_surface(observation: dict, at: str) -> dict:
+    """Consume already-normalized adapter facts; never parse native Nuclei fields."""
+    normalized = observation.get("findingCandidates")
+    if (
+        not isinstance(normalized, dict)
+        or normalized.get("schema") != "contractor.finding.candidates.v1"
+    ):
+        raise ValueError("normalized Nuclei surface is unavailable")
+    surface = normalized.get("surface")
+    if not isinstance(surface, list) or len(surface) > MAX_RESULTS:
+        raise ValueError("invalid bounded surface metadata")
+    rows = []
+    omitted = normalized.get("surfaceOmissions", 0) + normalized.get("skipped", {}).get(
+        "invalid_row", 0
+    )
+    if (
+        not isinstance(omitted, int)
+        or isinstance(omitted, bool)
+        or not 0 <= omitted <= 2 * MAX_RESULTS
+    ):
+        raise ValueError("invalid bounded surface omissions")
+    for fact in surface:
+        if not isinstance(fact, dict) or set(fact) != {"url", "method", "status", "note"}:
+            raise ValueError("invalid surface fact")
+        method, status, note = fact["method"], fact["status"], fact["note"]
+        if not method:
+            omitted += 1
+            continue
+        row = normalize_http_observation(
+            {
+                "url": fact["url"],
+                "method": method,
+                "status": status or 0,
+                "outcome": "response" if status is not None else "attempt",
+                "at": at,
+            }
+        )
+        if row is None or not isinstance(note, str) or len(note.encode()) > 4096:
+            raise ValueError("invalid normalized surface observation")
+        if note:
+            row["note"] = note
+        rows.append(row)
+    gaps = []
+    if omitted:
+        gaps.append({"reason": "projection", "count": omitted})
+    if normalized.get("complete") is not True:
+        gaps.append({"reason": "incomplete", "count": 1})
+    return {"kind": "nuclei", "observations": rows, **({"gaps": gaps} if gaps else {})}

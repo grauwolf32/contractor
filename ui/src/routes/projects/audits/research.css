@@ -687,3 +687,7 @@
     grid-row: auto;
   }
 }
+.research-finding-results {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

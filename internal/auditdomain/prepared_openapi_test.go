@@ -25,10 +25,7 @@ func TestPreparedOpenAPIPreservesDomainSelectionWithoutPackages(t *testing.T) {
 			input := PreparedOpenAPIInput{Source: preparedSource("openapi", data), Data: data, Options: auditcontract.OpenAPIWorkArguments{Workflow: "check", Selection: selection, MaxItems: 256}}
 			expected := 3
 			if selection == "scan-requests" {
-				settings := []byte(nucleiSettings)
-				material := preparedSource("settings", settings)
-				input.Settings = &material
-				input.SettingsData = settings
+				input = scanWorkTestInput(data, []byte(nucleiSettings))
 				expected = 2
 			}
 			work, err := BuildPreparedOpenAPIWork(t.Context(), input)
@@ -47,10 +44,10 @@ func TestPreparedOpenAPIPreservesDomainSelectionWithoutPackages(t *testing.T) {
 						t.Fatal("missing operation")
 					}
 				} else {
-					if decoded.Scan == nil || decoded.Operation != nil || !reflect.DeepEqual(decoded.Settings, input.Settings) {
+					if decoded.Scan == nil || decoded.Operation != nil || !reflect.DeepEqual(decoded.Values, input.Values) {
 						t.Fatal("settings selection changed")
 					}
-					_, prepared, err := PrepareOpenAPIScanOperation(item.Data, data, input.SettingsData, input.Source.MediaType)
+					_, prepared, err := PrepareOpenAPIScanOperation(item.Data, data, input.ValuesData, input.Source.MediaType, input.Options.Scanner, input.Options.Parameters)
 					if err != nil || prepared.Operation != decoded.Scan.Operation {
 						t.Fatalf("ordinary scan re-preparation = %v", err)
 					}

@@ -12,15 +12,22 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
 type createAuditRequest struct {
+	Parameters    map[string]string                `json:"parameters,omitempty"`
 	Labels        runMetadataLabels                `json:"labels,omitempty"`
 	Profile       auditProfileSelectorRequest      `json:"profile"`
 	Inputs        map[string]contracts.ArtifactRef `json:"inputs"`
 	RuntimeLabels []string                         `json:"runtimeLabels,omitempty"`
 	Scope         auditservice.Scope               `json:"scope"`
+}
+
+func (r *createAuditRequest) UnmarshalJSON(data []byte) error {
+	type plain createAuditRequest
+	return strictjson.DecodeNonNull(data, (*plain)(r))
 }
 
 type auditProfileSelectorRequest struct {
@@ -47,6 +54,7 @@ type auditRuntimeSnapshotResponse struct {
 }
 
 type auditBaselineResponse struct {
+	Parameters              map[string]string                    `json:"parameters,omitempty"`
 	Labels                  runlabels.RunMetadataLabels          `json:"labels"`
 	RequiredPlacementLabels []string                             `json:"requiredPlacementLabels"`
 	ActiveChecks            contracts.ActiveChecksPolicy         `json:"activeChecks"`
@@ -78,6 +86,7 @@ type auditStopReasonResponse struct {
 }
 
 type auditResponse struct {
+	Parameters              map[string]string                   `json:"parameters,omitempty"`
 	TaskCount               int                                 `json:"taskCount"`
 	Iteration               int                                 `json:"iteration"`
 	Labels                  runlabels.RunMetadataLabels         `json:"labels"`

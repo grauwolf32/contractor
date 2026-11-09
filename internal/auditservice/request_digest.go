@@ -28,13 +28,14 @@ func CreateDraftRequestDigest(params CreateDraftParams) (string, error) {
 		return "", fmt.Errorf("%w: invalid Audit labels: %v", ErrInvalid, err)
 	}
 	digest, err := contentdigest.JSON(struct {
+		Parameters    map[string]string                `json:"parameters,omitempty"`
 		Labels        runlabels.RunMetadataLabels      `json:"labels,omitempty"`
 		ProjectID     string                           `json:"projectId"`
 		Profile       ProfileSelector                  `json:"profile"`
 		Inputs        map[string]contracts.ArtifactRef `json:"inputs"`
 		RuntimeLabels []string                         `json:"runtimeLabels"`
 		Scope         Scope                            `json:"scope"`
-	}{metadata, params.ProjectID, params.Profile, params.Inputs, labels, params.Scope})
+	}{params.Parameters, metadata, params.ProjectID, params.Profile, params.Inputs, labels, params.Scope})
 	if err != nil {
 		return "", fmt.Errorf("encode Audit creation request: %w", err)
 	}

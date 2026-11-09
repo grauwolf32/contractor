@@ -107,7 +107,7 @@ func (m *Module) readInputs(ctx context.Context, call operations.Call, options a
 				return err
 			}
 			limit := scanplan.MaxSourceBytes
-			if name == "settings" {
+			if name == "request_values" {
 				limit = scanplan.MaxOptionsBytes
 				if metadata.MediaType != "application/json" {
 					return invalid()
@@ -124,9 +124,9 @@ func (m *Module) readInputs(ctx context.Context, call operations.Call, options a
 				return err
 			}
 			material := descriptor(call.RunID, metadata)
-			if name == "settings" {
-				input.Settings = &material
-				input.SettingsData = payload.Payload.Data
+			if name == "request_values" {
+				input.Values = &material
+				input.ValuesData = payload.Payload.Data
 			} else {
 				input.Source = material
 				input.Data = payload.Payload.Data

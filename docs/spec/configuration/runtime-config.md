@@ -933,7 +933,7 @@ requires detaching it from every Project ([Projects](../artifacts/projects.md),
 PRJ-R79).
 
 The same store holds the engagement target identity kinds `target-basic@1`,
-`target-bearer@1` and `target-cookies@1` (RCF-R184).
+`target-bearer@1`, `target-cookies@1` and `target-api-keys@1` (RCF-R184).
 
 **RCF-R112.** One encrypted runtime-credential plaintext is canonical JSON of
 at most 32 KiB (LIM-RCF-18). Creation material is one JSON object of at most
@@ -977,7 +977,17 @@ token that is a credential field value (RCF-R114); and `target-cookies@1`, a
 tokens of 1–256 bytes. Values contain zero to 8192 ASCII RFC 6265 cookie-octets,
 excluding whitespace, controls, quote, comma, semicolon and backslash. Combined
 name/value bytes total at most 16 KiB (LIM-RCF-31), with canonical JSON
-within RCF-R112. A runtime credential is create-only and its ID is never
+within RCF-R112. `target-api-keys@1` carries a `fields` object of 1–128
+entries applied together by an `api-keys` engagement identity. Each name uses
+`header:NAME`, `query:NAME` or `cookie:NAME`; the unqualified name is 1–256
+UTF-8 bytes and the value is 1–8192 bytes (LIM-RCF-32). Header names are HTTP
+tokens, unique ignoring case, and cannot override framing/hop headers or
+Cookie/Set-Cookie; values follow RCF-R114. Cookie names/values follow the
+supplied-cookie grammar above. Query names and values are UTF-8 without C0/DEL
+controls; the transport URL-encodes them. Combined qualified name/value bytes
+are at most 16 KiB (LIM-RCF-31). This permits API-key combinations and an
+Authorization header without putting secrets into engagement or scan inputs.
+A runtime credential is create-only and its ID is never
 reused after deletion, so its credential ID with its kind, the private
 `RuntimeCredentialRef` and the `credentialId` and `kind` of its public
 metadata, is the exact reference to one immutable revision. There is no
@@ -997,7 +1007,8 @@ and the public API are held to these rules by
 Target identity material is delivered only after placement through the existing
 private allocation settings (CTL-R168). Basic fields retain their UTF-8 secret
 grammar, Bearer uses the HTTP field-value grammar, and cookie fields retain the
-same cookie grammar on this wire. The private consumer checks the exact selected
+same cookie grammar on this wire. API key qualified fields retain their location
+and the same validation bounds. The private consumer checks the exact selected
 kind and preserves immutable credential references independently of RuntimeConfig
 labels. Audit Start and ordinary Run creation validate credential metadata
 without decrypting it. Ordinary Run dependency accounting follows RUN-R115;
@@ -1590,8 +1601,9 @@ Limits ([registry](../platform/limits.md)):
 - LIM-RCF-29 — `tpmLimit`, `rpmLimit` and `maxParallelRequests` of at most
   2^31-1 (RCF-R63).
 - LIM-RCF-30 — `target-cookies@1` of 1–128 cookie pairs (RCF-R184).
-- LIM-RCF-31 — `target-cookies@1` names and values of at most 16 KiB in total
-  (RCF-R184).
+- LIM-RCF-31 — supplied-cookie names/values and API-key qualified names/values
+  of at most 16 KiB in total (RCF-R184).
+- LIM-RCF-32 — API-key field count, qualified name and value bounds (RCF-R184).
 - Telemetry span, attribute, string and content bounds belong to
   [Observability](../platform/observability.md); the `worker.caido` endpoint
   and request-timeout bounds to [HTTP and Caido tools](../tools/http-caido.md).

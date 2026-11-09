@@ -13,7 +13,7 @@ var collectAuditExecutionSQL = `
 WITH collection_input AS MATERIALIZED (
     SELECT * FROM jsonb_to_recordset($10::jsonb) AS item(
         execution_item_id text, disposition text, result_ref jsonb,
-        result_digest text, retryable boolean, task_id text, task_result jsonb, gap_code text
+        result_digest text, retryable boolean, task_id text, task_result jsonb, gap_code text, finding_result jsonb
     )
 ), ` + collectionLinkStateCTEs("$11") + `, live_claim AS MATERIALIZED (
     ` + auditClaims.LiveClaimSQL("$1", "$2", "$3") + `
@@ -74,7 +74,7 @@ WITH collection_input AS MATERIALIZED (
 ), settled_attempts AS (
     UPDATE audit_execution_items AS member
        SET state = 'settled', collection_disposition = input.disposition,
-           result_ref = input.result_ref, result_digest = input.result_digest,
+           result_ref = input.result_ref, result_digest = input.result_digest, finding_result=input.finding_result,
            collected_at = clock_timestamp()
       FROM collection_input AS input, inserted_receipt AS receipt
      WHERE member.execution_id = receipt.execution_id
@@ -83,7 +83,7 @@ WITH collection_input AS MATERIALIZED (
     RETURNING member.execution_item_id, member.item_attempt, member.task_id
 ), task_settlement AS MATERIALIZED (
     SELECT attempt.task_id, receipt.audit_id, receipt.execution_id,
-           input.task_result,input.gap_code,
+           input.task_result,input.gap_code,input.finding_result,
            CASE WHEN input.retryable AND attempt.item_attempt<LEAST(advanced.max_item_run_attempts,
                     COALESCE((audit.profile_snapshot #>> ARRAY['program','workflows',selected.workflow_alias,'max_attempts'])::integer,advanced.max_item_run_attempts))
                   AND receipt.disposition='execution-failed'
@@ -97,6 +97,7 @@ WITH collection_input AS MATERIALIZED (
 ), settled_tasks AS (
     UPDATE audit_tasks AS task
        SET state=input.next_state,
+           finding_result=input.finding_result,
            result=CASE WHEN input.next_state='ready' THEN NULL ELSE input.task_result::json END,
            gap_code=CASE WHEN input.next_state='ready' THEN NULL ELSE input.gap_code END,
            updated_at=clock_timestamp()

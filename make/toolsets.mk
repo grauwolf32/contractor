@@ -25,7 +25,7 @@
 # binaries in addition to the release gate's usual database and Runtime.
 test-scan-e2e: require-database runtime-venv ui-install
 	@for tool in nuclei naabu sqlmap ffuf katana; do command -v "$$tool" >/dev/null || { echo "real scanner $$tool is required on PATH" >&2; exit 1; }; done
-	$(call run-family-test,go test -tags=e2e -count=1 -timeout=15m ./tests/e2e -run '^(TestKatanaDiscoveryAcrossProductionProcesses|TestScanToolsAcrossProductionProcesses)$$')
+	$(call run-family-test,go test -tags=e2e -count=1 -timeout=15m ./tests/e2e -run '^(TestKatanaDiscoveryAcrossProductionProcesses|TestScanToolsAcrossProductionProcesses|TestScannerFindingsAcrossProductionProcesses)$$')
 
 test-code-analysis-matrix: test-hardening-matrices
 

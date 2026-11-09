@@ -61,12 +61,16 @@ func (m *Module) prepare(ctx context.Context, call operations.Call) (stageresult
 	if !exists || output.Validate() != nil || output.Revision != nil || artifactpolicy.IsPurposeReservedNamespace(output.Namespace) {
 		return empty, invalid()
 	}
-	inputs := 1
-	if options.Selection == "scan-requests" {
-		inputs = 2
-	}
-	if len(call.Inputs) != inputs || call.Inputs["openapi"].ValidateExact() != nil || inputs == 2 && call.Inputs["settings"].ValidateExact() != nil {
+	if len(call.Inputs) < 1 || len(call.Inputs) > 2 || call.Inputs["openapi"].ValidateExact() != nil {
 		return empty, invalid()
+	}
+	for name, ref := range call.Inputs {
+		if name == "openapi" {
+			continue
+		}
+		if name != "request_values" || options.Selection != "scan-requests" || ref.ValidateExact() != nil {
+			return empty, invalid()
+		}
 	}
 	if m.pool == nil || m.storage == nil {
 		return empty, &operations.Failure{Code: "server_operation_unavailable", Message: "OpenAPI preparation storage is unavailable"}
@@ -93,8 +97,8 @@ func (m *Module) prepare(ctx context.Context, call operations.Call) (stageresult
 			return empty, err
 		}
 		selected := map[string]auditcontract.Material{"operation": material, "openapi": input.Source}
-		if input.Settings != nil {
-			selected["settings"] = *input.Settings
+		if input.Values != nil {
+			selected["request_values"] = *input.Values
 		}
 		list.Work = append(list.Work, auditcontract.PreparedSelection{Key: item.Key, Workflow: options.Workflow, Objective: item.Objective, Inputs: selected})
 	}

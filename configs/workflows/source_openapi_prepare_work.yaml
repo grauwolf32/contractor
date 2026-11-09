@@ -13,7 +13,21 @@ spec:
       required: true
     max_items:
       required: true
+    scanner:
+      required: false
+    server:
+      required: false
+    operations:
+      required: false
+    test_parameters:
+      required: false
+    credential_id:
+      required: false
   inputs:
+    engagement:
+      required: false
+      mediaTypes:
+      - application/vnd.contractor.engagement+json
     source:
       required: true
       mediaTypes:
@@ -23,8 +37,8 @@ spec:
       mediaTypes:
       - application/yaml
       - application/json
-    settings:
-      required: true
+    request_values:
+      required: false
       mediaTypes:
       - application/json
   outputs:
@@ -36,11 +50,11 @@ spec:
       required: true
       mediaTypes:
       - text/markdown
-    workspace_state: &id001
+    workspace_state:
       required: true
       mediaTypes:
       - application/vnd.contractor.workspace-overlay+json
-    workspace_diff: &id002
+    workspace_diff:
       required: true
       mediaTypes:
       - text/x-diff
@@ -84,7 +98,7 @@ spec:
           namespace: analysis
       context:
         artifacts:
-          source: &id004
+          source:
             namespace: inputs
             name: source
             required: true
@@ -105,19 +119,29 @@ spec:
             from:
               namespace: analysis
               name: dependencies
-          workspace_state: *id001
-          workspace_diff: *id002
+          workspace_state:
+            required: true
+            mediaTypes:
+            - application/vnd.contractor.workspace-overlay+json
+          workspace_diff:
+            required: true
+            mediaTypes:
+            - text/x-diff
       'on':
         succeeded:
           next: project_discovery
-        failed: &id003
+        failed:
           retry:
             maxAttempts: 2
             then:
               fail: {}
-        interrupted: *id003
+        interrupted:
+          retry:
+            maxAttempts: 2
+            then:
+              fail: {}
         summarized:
-          escalate: &id005
+          escalate:
             maxAttempts: 1
             planner: streamline@1
             plannerContextManagement:
@@ -142,7 +166,10 @@ spec:
           namespace: analysis
       context:
         artifacts:
-          source: *id004
+          source:
+            namespace: inputs
+            name: source
+            required: true
           dependency_report:
             namespace: analysis
             name: dependencies
@@ -151,7 +178,7 @@ spec:
             namespace: analysis
             name: workspace_state
             required: true
-        workspace: &id006
+        workspace:
           mode: overlay
           sources:
           - artifact: source
@@ -170,15 +197,42 @@ spec:
             from:
               namespace: analysis
               name: project
-          workspace_state: *id001
-          workspace_diff: *id002
+          workspace_state:
+            required: true
+            mediaTypes:
+            - application/vnd.contractor.workspace-overlay+json
+          workspace_diff:
+            required: true
+            mediaTypes:
+            - text/x-diff
       'on':
         succeeded:
           next: openapi_build
-        failed: *id003
-        interrupted: *id003
+        failed:
+          retry:
+            maxAttempts: 2
+            then:
+              fail: {}
+        interrupted:
+          retry:
+            maxAttempts: 2
+            then:
+              fail: {}
         summarized:
-          escalate: *id005
+          escalate:
+            maxAttempts: 1
+            planner: streamline@1
+            plannerContextManagement:
+              strategy: compact@1
+              instructions:
+                ref: instructions/planner-compaction.md
+            deadlineSeconds: 1800
+            executionConfig:
+              planner:
+                modelPolicy: planner@2
+                compactorModelPolicy: compactor@1
+                llmGateway: local-litellm@1
+                credential: development-planner
     openapi_build:
       objective: Build an evidence-linked OpenAPI document for the implemented inbound HTTP API
       instructions:
@@ -190,7 +244,10 @@ spec:
           namespace: openapi
       context:
         artifacts:
-          source: *id004
+          source:
+            namespace: inputs
+            name: source
+            required: true
           dependency_report:
             namespace: analysis
             name: dependencies
@@ -207,7 +264,16 @@ spec:
             namespace: analysis
             name: workspace_state
             required: true
-        workspace: *id006
+        workspace:
+          mode: overlay
+          sources:
+          - artifact: source
+            target: ''
+          state:
+            artifact: prior_workspace_state
+          export:
+            state: workspace_state
+            diff: workspace_diff
       result:
         artifacts:
           openapi:
@@ -217,19 +283,42 @@ spec:
             from:
               namespace: openapi
               name: openapi
-          workspace_state: *id001
-          workspace_diff: *id002
+          workspace_state:
+            required: true
+            mediaTypes:
+            - application/vnd.contractor.workspace-overlay+json
+          workspace_diff:
+            required: true
+            mediaTypes:
+            - text/x-diff
       'on':
         succeeded:
           next: openapi_validate
-        failed: &id007
+        failed:
           retry:
             maxAttempts: 4
             then:
               fail: {}
-        interrupted: *id007
+        interrupted:
+          retry:
+            maxAttempts: 4
+            then:
+              fail: {}
         summarized:
-          escalate: *id005
+          escalate:
+            maxAttempts: 1
+            planner: streamline@1
+            plannerContextManagement:
+              strategy: compact@1
+              instructions:
+                ref: instructions/planner-compaction.md
+            deadlineSeconds: 1800
+            executionConfig:
+              planner:
+                modelPolicy: planner@2
+                compactorModelPolicy: compactor@1
+                llmGateway: local-litellm@1
+                credential: development-planner
     openapi_validate:
       objective: Validate and minimally repair the candidate OpenAPI document against source evidence
       instructions:
@@ -241,7 +330,10 @@ spec:
           namespace: openapi
       context:
         artifacts:
-          source: *id004
+          source:
+            namespace: inputs
+            name: source
+            required: true
           dependency_report:
             namespace: analysis
             name: dependencies
@@ -258,7 +350,16 @@ spec:
             namespace: openapi
             name: workspace_state
             required: true
-        workspace: *id006
+        workspace:
+          mode: overlay
+          sources:
+          - artifact: source
+            target: ''
+          state:
+            artifact: prior_workspace_state
+          export:
+            state: workspace_state
+            diff: workspace_diff
       result:
         artifacts:
           openapi:
@@ -275,8 +376,14 @@ spec:
             from:
               namespace: openapi
               name: validation-report
-          workspace_state: *id001
-          workspace_diff: *id002
+          workspace_state:
+            required: true
+            mediaTypes:
+            - application/vnd.contractor.workspace-overlay+json
+          workspace_diff:
+            required: true
+            mediaTypes:
+            - text/x-diff
       workflowOutputs:
         openapi: openapi
         openapi_validation_report: validation_report
@@ -285,12 +392,34 @@ spec:
       'on':
         succeeded:
           next: prepare_work
-        failed: *id003
-        interrupted: *id003
+        failed:
+          retry:
+            maxAttempts: 2
+            then:
+              fail: {}
+        interrupted:
+          retry:
+            maxAttempts: 2
+            then:
+              fail: {}
         summarized:
-          escalate: *id005
+          escalate:
+            maxAttempts: 1
+            planner: streamline@1
+            plannerContextManagement:
+              strategy: compact@1
+              instructions:
+                ref: instructions/planner-compaction.md
+            deadlineSeconds: 1800
+            executionConfig:
+              planner:
+                modelPolicy: planner@2
+                compactorModelPolicy: compactor@1
+                llmGateway: local-litellm@1
+                credential: development-planner
     prepare_work:
-      objective: Prepare bounded independent scan work from the generated exact OpenAPI and selected settings
+      objective: Prepare bounded independent scan work from the generated exact OpenAPI and selected execution
+        parameters
       operation:
         ref: openapi-prepare-work@1
         arguments:
@@ -303,16 +432,36 @@ spec:
           max_items:
             source: parameter
             name: max_items
+          scanner:
+            source: parameter
+            name: scanner
+            default: ''
+          server:
+            source: parameter
+            name: server
+            default: ''
+          operations:
+            source: parameter
+            name: operations
+            default: ''
+          test_parameters:
+            source: parameter
+            name: test_parameters
+            default: ''
+          credential_id:
+            source: parameter
+            name: credential_id
+            default: ''
       context:
         artifacts:
           openapi:
             namespace: openapi
             name: openapi
             required: true
-          settings:
+          request_values:
             namespace: inputs
-            name: settings
-            required: true
+            name: request_values
+            required: false
       result:
         artifacts:
           work:

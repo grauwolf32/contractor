@@ -17,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
@@ -53,6 +54,7 @@ func (i *Importer) collectTasks(ctx context.Context, claim auditstore.Controller
 		return false, err
 	}
 	params := auditstore.CollectParams{Claim: claim, ExecutionID: execution.ExecutionID, ReceiptID: auditdomain.DeterministicID("receipt", execution.ExecutionID), RequestDigest: digest, Disposition: auditstore.CollectionAccepted, Retained: []auditstore.ArtifactLink{}}
+	findingResults := map[string]*auditstore.CanonicalFindingResult{}
 	commit := func(code string, retryable bool, result *auditcontract.Material) (bool, error) {
 		params.Tasks = make([]auditstore.TaskCollection, 0, len(tasks))
 		for _, task := range tasks {
@@ -61,7 +63,7 @@ func (i *Importer) collectTasks(ctx context.Context, claim auditstore.Controller
 				value := code
 				gap = &value
 			}
-			params.Tasks = append(params.Tasks, auditstore.TaskCollection{ExecutionItemID: auditdomain.DeterministicID("attempt", execution.ExecutionID, task.Document.TaskID), TaskID: task.Document.TaskID, Result: result, GapCode: gap, Retryable: retryable})
+			params.Tasks = append(params.Tasks, auditstore.TaskCollection{ExecutionItemID: auditdomain.DeterministicID("attempt", execution.ExecutionID, task.Document.TaskID), TaskID: task.Document.TaskID, Findings: findingResults[task.Document.TaskID], Result: result, GapCode: gap, Retryable: retryable})
 		}
 		if code != "" {
 			params.ErrorCode = &code
@@ -136,6 +138,26 @@ func (i *Importer) collectTasks(ctx context.Context, claim auditstore.Controller
 	if !exists {
 		params.Disposition = auditstore.CollectionContractInvalid
 		return commit("collection-contract-invalid", false, nil)
+	}
+	// Explicit publication Workflows collect domain references only. This also
+	// reconciles committed positives after failed/cancelled publication stages.
+	if canonicalScannerWorkflow(pinned.Workflows[execution.WorkflowRole]) {
+		if i.findings == nil {
+			return false, fmt.Errorf("Finding collector unavailable")
+		}
+		references, err := i.findings.AuditExecutionReceiptReferences(ctx, snapshot.Audit.OwnerID, execution.AuditID, execution.ExecutionID, *execution.RunID)
+		if err != nil {
+			return false, err
+		}
+		for _, task := range tasks {
+			refs := references[task.Document.TaskID]
+			ids := refs.FindingIDs
+			if ids == nil {
+				ids = []string{}
+			}
+			findingResults[task.Document.TaskID] = &auditstore.CanonicalFindingResult{IDs: ids, Truncated: refs.FindingsTruncated}
+		}
+		return commit(gapCode, false, nil)
 	}
 	recovered, nonrepeatable, err := i.recoverTaskScan(ctx, snapshot, execution, pinned)
 	if errors.Is(err, ErrPermanent) {
@@ -529,4 +551,18 @@ func (i *Importer) normalizeTaskResult(ctx context.Context, audit auditstore.Aud
 		return invalid()
 	}
 	return normalized, nil
+}
+
+// Contract comes from the immutable resolved Workflow, never scanner labels or
+// an empty-output heuristic. Canonical scanner results cannot export reports.
+func canonicalScannerWorkflow(workflow resolved.ResolvedWorkflow) bool {
+	if len(workflow.Outputs) != 0 {
+		return false
+	}
+	for _, stage := range workflow.Stages {
+		if stage.Operation != nil && stage.Operation.Ref == contracts.PublishFindingsOperation {
+			return true
+		}
+	}
+	return false
 }

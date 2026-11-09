@@ -133,6 +133,9 @@ func auditSubmissionGrant(
 func auditSubmissionGrantWithBaseline(
 	t *testing.T, ctx context.Context, pool *pgxpool.Pool, ownerID, projectID, runID string, configureBaseline func(map[string]any), memberCounts ...int,
 ) (controlplane.AllocationGrant, *AuditOrigin) {
+	return auditSubmissionGrantWithWorkflow(t, ctx, pool, ownerID, projectID, runID, configureBaseline, nil, memberCounts...)
+}
+func auditSubmissionGrantWithWorkflow(t *testing.T, ctx context.Context, pool *pgxpool.Pool, ownerID, projectID, runID string, configureBaseline func(map[string]any), configureWorkflow func(*resolved.ResolvedWorkflow), memberCounts ...int) (controlplane.AllocationGrant, *AuditOrigin) {
 	t.Helper()
 	snapshot, _, err := configload.LoadUnionReadOnly("../config/testdata/valid", filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
@@ -162,6 +165,9 @@ func auditSubmissionGrantWithBaseline(
 			stage.Result.Artifacts[key] = result
 		}
 		workflow.Stages[workflow.EntryStage] = stage
+	}
+	if configureWorkflow != nil {
+		configureWorkflow(&workflow)
 	}
 	workflowJSON, err := json.Marshal(workflow)
 	if err != nil {

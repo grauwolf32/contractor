@@ -3974,13 +3974,10 @@ export interface components {
             schema: "contractor.audit.web-target.v1";
             url: string;
         };
-        AuditWebScanSettings: {
-            /** @constant */
-            schema: "contractor.audit.web-scan-settings.v1";
-            templateIds: components["schemas"]["NucleiRuleFilter"];
+        NucleiRuleSelection: {
+            template_ids: components["schemas"]["NucleiRuleFilter"];
             tags: components["schemas"]["NucleiRuleFilter"];
             severity: string;
-            rateLimit: number;
         };
         NucleiRuleFilter: string;
         /** @enum {string} */
@@ -4040,6 +4037,9 @@ export interface components {
                 [key: string]: components["schemas"]["AuditProgramInput"];
             };
             limits: components["schemas"]["AuditProgramLimits"];
+            parameters?: {
+                [key: string]: components["schemas"]["AuditProgramParameter"];
+            };
             policy: components["schemas"]["AuditProgramPolicy"];
             /** @constant */
             schema: "contractor.audit.program.v1";
@@ -4091,6 +4091,9 @@ export interface components {
             max_tasks: number;
             max_tasks_per_iteration: number;
         };
+        AuditProgramParameter: {
+            required: boolean;
+        };
         AuditProgramPolicy: {
             /** @enum {string} */
             active_operations: "allowed" | "prohibited";
@@ -4111,6 +4114,9 @@ export interface components {
             };
             max_attempts?: components["schemas"]["AuditProgramAttemptLimit"];
             outputs: {
+                [key: string]: components["schemas"]["AuditCommonKey"];
+            };
+            parameter_inputs?: {
                 [key: string]: components["schemas"]["AuditCommonKey"];
             };
             parameters: {
@@ -4151,7 +4157,12 @@ export interface components {
             target?: string;
             authorizationScope?: string;
         };
+        /** @description Explicit values for the parameters declared by the selected Audit Program; only its named Workflow bindings consume these values. */
+        AuditLaunchParameters: {
+            [key: string]: string;
+        };
         CreateAuditRequest: {
+            parameters?: components["schemas"]["AuditLaunchParameters"];
             labels?: components["schemas"]["AuditLabels"];
             profile: components["schemas"]["AuditProfileSelector"];
             inputs: {
@@ -4189,6 +4200,7 @@ export interface components {
             sourceSize: number;
         };
         AuditBaseline: {
+            parameters?: components["schemas"]["AuditLaunchParameters"];
             labels?: components["schemas"]["AuditLabels"];
             requiredPlacementLabels?: components["schemas"]["PlacementLabels"];
             activeChecks: components["schemas"]["ActiveChecksPolicy"];
@@ -4223,6 +4235,7 @@ export interface components {
             message: string;
         };
         Audit: {
+            parameters?: components["schemas"]["AuditLaunchParameters"];
             labels?: components["schemas"]["AuditLabels"];
             requiredPlacementLabels?: components["schemas"]["PlacementLabels"];
             auditId: components["schemas"]["ResourceId"];
@@ -4398,7 +4411,12 @@ export interface components {
             execution_id?: components["schemas"]["ResourceId"];
             output?: components["schemas"]["AuditTaskMaterial"];
         };
+        AuditTaskFindings: {
+            ids: components["schemas"]["ResourceId"][];
+            truncated: boolean;
+        };
         AuditTask: {
+            findings?: components["schemas"]["AuditTaskFindings"];
             hypothesis_snapshot?: components["schemas"]["AuditHypothesisDocument"];
             attention: boolean;
             document: components["schemas"]["AuditTaskDocument"];
@@ -4510,6 +4528,19 @@ export interface components {
             sourceDigest: components["schemas"]["Digest"];
             report: components["schemas"]["FindingExactArtifact"];
             source: components["schemas"]["FindingExactArtifact"];
+            recordLocator: string;
+        } | {
+            /** @constant */
+            schema: "contractor.finding.fingerprint-projection.v1";
+            /** @constant */
+            availability: "available";
+            /** @constant */
+            algorithm: "contractor/producer-issue/v1";
+            value: string;
+            /** @constant */
+            adapter: "normalized-candidate/v1";
+            ruleId: string;
+            report: components["schemas"]["FindingExactArtifact"];
             recordLocator: string;
         };
         FindingAnchorContext: {
@@ -4736,14 +4767,24 @@ export interface components {
             };
         };
         FindingOrigin: {
+            /** @constant */
+            operation?: "publish-findings@1";
+            scan?: components["schemas"]["FindingScanOrigin"];
             runId: components["schemas"]["ResourceId"];
             stageExecutionId: components["schemas"]["ResourceId"];
-            allocationId: components["schemas"]["ResourceId"];
+            allocationId?: components["schemas"]["ResourceId"];
             invocationId: components["schemas"]["ResourceId"];
-            logicalAgentName: components["schemas"]["ArtifactName"];
+            logicalAgentName?: components["schemas"]["ArtifactName"];
             workflow: components["schemas"]["FindingWorkflowOrigin"];
             audit?: components["schemas"]["FindingAuditOrigin"];
             runDeleted: boolean;
+        };
+        FindingScanOrigin: {
+            artifact: components["schemas"]["ExactArtifactRef"];
+            runId: components["schemas"]["ResourceId"];
+            stageExecutionId: components["schemas"]["ResourceId"];
+            allocationId: components["schemas"]["ResourceId"];
+            logicalAgentName: components["schemas"]["ArtifactName"];
         };
         FindingAuditHold: {
             auditId: components["schemas"]["ResourceId"];
@@ -5424,7 +5465,7 @@ export interface components {
             config: components["schemas"]["RuntimeConfigRef"];
         };
         /** @enum {string} */
-        RuntimeCredentialKind: "otlp-headers@1" | "http-proxy-basic@1" | "http-proxy-bearer@1" | "caido-bearer@1" | "interactsh-token@1" | "http-origin-basic@1" | "http-origin-bearer@1" | "target-basic@1" | "target-bearer@1" | "target-cookies@1";
+        RuntimeCredentialKind: "otlp-headers@1" | "http-proxy-basic@1" | "http-proxy-bearer@1" | "caido-bearer@1" | "interactsh-token@1" | "http-origin-basic@1" | "http-origin-bearer@1" | "target-basic@1" | "target-bearer@1" | "target-cookies@1" | "target-api-keys@1";
         RuntimeCredentialMetadata: {
             credentialId: components["schemas"]["RuntimeCredentialId"];
             kind: components["schemas"]["RuntimeCredentialKind"];
@@ -5483,6 +5524,12 @@ export interface components {
                 [key: string]: string;
             };
         };
+        TargetAPIKeysMaterial: {
+            /** @description API keys applied together through one engagement identity. Names use header:NAME, query:NAME or cookie:NAME. At most 256 UTF-8 bytes per unqualified name and 16 KiB of qualified names and values combined. Headers follow HTTP token/credential-field rules, cookies follow the cookie grammar, and query names/values forbid controls. Header names are case insensitive and cannot repeat or control HTTP framing. */
+            fields: {
+                [key: string]: string;
+            };
+        };
         CreateRuntimeCredentialRequest: {
             credentialId: components["schemas"]["RuntimeCredentialId"];
             /** @constant */
@@ -5533,6 +5580,11 @@ export interface components {
             /** @constant */
             kind: "target-cookies@1";
             material: components["schemas"]["TargetCookiesMaterial"];
+        } | {
+            credentialId: components["schemas"]["RuntimeCredentialId"];
+            /** @constant */
+            kind: "target-api-keys@1";
+            material: components["schemas"]["TargetAPIKeysMaterial"];
         };
         PinnedRuntimeConfig: {
             label: components["schemas"]["ConfigId"];
@@ -6051,7 +6103,7 @@ export interface components {
         });
         ServerOperationConfig: {
             /** @enum {string} */
-            ref: "sitemap-openapi-join@1" | "sitemap-apply-openapi@1" | "openapi-prepare-work@1";
+            ref: "sitemap-openapi-join@1" | "sitemap-apply-openapi@1" | "openapi-prepare-work@1" | "publish-findings@1";
             arguments: {
                 [key: string]: components["schemas"]["ArgumentBinding"] & unknown;
             };
@@ -6271,11 +6323,15 @@ export interface components {
         ArgumentBinding: {
             /** @constant */
             source: "parameter";
+            /** @constant */
+            optional?: true;
             name: string;
             default?: string;
         } | {
             /** @constant */
             source: "parameter";
+            /** @constant */
+            optional?: true;
             name: string;
             /** @constant */
             parse: "integer";

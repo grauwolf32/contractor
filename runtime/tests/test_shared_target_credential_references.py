@@ -3,8 +3,8 @@
 api/testdata/v1alpha1/target-credential-cases.json holds the RuntimeCredentialRef
 texts that name one immutable target credential revision (RCF-R184). The Go
 Server reads the same cases (internal/contracts/target_credential_ref_test.go);
-make test-wire-cross-language runs both sides. The material cases of the same
-file are read by the Server only: no target material reaches the Runtime yet.
+make test-wire-cross-language runs both sides. The same material cases validate
+supplied cookies and API key fields at the allocation-private Runtime boundary.
 """
 
 from __future__ import annotations
@@ -28,29 +28,30 @@ FIXTURE = (
     / "v1alpha1"
     / "target-credential-cases.json"
 )
-TARGET_KINDS = {"target-basic@1", "target-bearer@1", "target-cookies@1"}
+TARGET_KINDS = {"target-basic@1", "target-bearer@1", "target-cookies@1", "target-api-keys@1"}
 
 
-def test_shared_target_cookie_material_cases():
+def test_shared_target_cookie_and_api_key_material_cases():
     from contractor_runtime.contracts.settings import HTTPIdentityMaterial
     from contractor_runtime.strict_json import strict_json_loads
 
     cases = json.loads(FIXTURE.read_text())["materials"]
-    selected = [case for case in cases if case["kind"] == "target-cookies@1"]
+    selected = [case for case in cases if case["kind"] in {"target-cookies@1", "target-api-keys@1"}]
     assert selected
     for case in selected:
         try:
             material = (
                 strict_json_loads(case["text"].encode()) if "text" in case else case["material"]
             )
-            if not isinstance(material, dict) or set(material) != {"cookies"}:
+            key = "fields" if case["kind"] == "target-api-keys@1" else "cookies"
+            if not isinstance(material, dict) or set(material) != {key}:
                 raise ValueError("cookie material shape differs")
             decode_private(
                 HTTPIdentityMaterial,
                 json.dumps(
                     {
-                        "credential": {"credentialId": "fixture", "kind": "target-cookies@1"},
-                        "fields": material["cookies"],
+                        "credential": {"credentialId": "fixture", "kind": case["kind"]},
+                        "fields": material[key],
                     }
                 ).encode(),
             )

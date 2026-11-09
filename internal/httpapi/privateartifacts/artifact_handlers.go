@@ -241,6 +241,10 @@ func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
 				}
 				return storeErr
 			}
+			preparedPayload.ExecutionOrigin = &artifacts.ExecutionOrigin{
+				RunID: grant.RunID, StageExecutionID: grant.StageExecutionID,
+				AllocationID: grant.AllocationID, LogicalAgentName: grant.LogicalAgentName,
+			}
 			result, storeErr = store.Write(ctx, ref, preparedPayload, expectedRevision)
 			return storeErr
 		},

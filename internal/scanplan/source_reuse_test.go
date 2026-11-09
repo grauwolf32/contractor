@@ -42,7 +42,7 @@ func TestSingleOperationPreparationParsesItsOwnSource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	settings, err := scanplan.DecodeAuditScanSettings([]byte(reuseSQLMapSettings))
+	settings, err := compileSelectionFixture([]byte(reuseSQLMapSettings))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func reuseInputs(t *testing.T) []sourceInput {
 	}
 }
 
-func collectBatch(settings scanplan.AuditScanSettings, input sourceInput) ([]scanplan.PreparedAuditOperation, error) {
+func collectBatch(settings scanplan.AuditSelection, input sourceInput) ([]scanplan.PreparedAuditOperation, error) {
 	results := []scanplan.PreparedAuditOperation{}
 	for prepared, err := range settings.PrepareOperations(input.data, input.mediaType, input.ref) {
 		if err != nil {
@@ -94,7 +94,7 @@ func collectBatch(settings scanplan.AuditScanSettings, input sourceInput) ([]sca
 
 func TestPrepareOperationsUsesTheSourceOfEachCall(t *testing.T) {
 	for _, settingsText := range []string{reuseSQLMapSettings, reuseNucleiSettings} {
-		settings, err := scanplan.DecodeAuditScanSettings([]byte(settingsText))
+		settings, err := compileSelectionFixture([]byte(settingsText))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -152,7 +152,7 @@ func sourceOf(prepared scanplan.PreparedAuditOperation) (source struct {
 // Concurrent batches with the same settings and different sources produce the
 // sequential results, and no two results share a source identity's storage.
 func TestPrepareOperationsConcurrentBatchesShareNoMutableState(t *testing.T) {
-	settings, err := scanplan.DecodeAuditScanSettings([]byte(reuseSQLMapSettings))
+	settings, err := compileSelectionFixture([]byte(reuseSQLMapSettings))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +201,7 @@ func TestPrepareOperationsConcurrentBatchesShareNoMutableState(t *testing.T) {
 
 // Stopping the sequence early stops preparation; it never prepares the rest.
 func TestPrepareOperationsStopsWhenTheCallerStops(t *testing.T) {
-	settings, err := scanplan.DecodeAuditScanSettings([]byte(reuseSQLMapSettings))
+	settings, err := compileSelectionFixture([]byte(reuseSQLMapSettings))
 	if err != nil {
 		t.Fatal(err)
 	}

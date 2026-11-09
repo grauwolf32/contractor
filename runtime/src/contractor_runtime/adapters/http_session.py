@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import httpx
 
-from contractor_runtime.contracts.engagement import Identity
-from contractor_runtime.contracts.fields import is_field_value
+from contractor_runtime.contracts.engagement import MAX_URL_BYTES, Identity
+from contractor_runtime.contracts.fields import (
+    is_field_value,
+    valid_cookie_name,
+    valid_cookie_value,
+)
 from contractor_runtime.contracts.settings import HTTPIdentityMaterial
 from contractor_runtime.core.http_limits import MAX_CONTROLLED_HEADER_BYTES
 from contractor_runtime.core.http_session import (
@@ -46,6 +50,7 @@ class PrivateRequest:
     method: str = "GET"
     body: bytes = b""
     follow_redirects: bool = True
+    url: str = ""
 
 
 class IdentitySession:
@@ -60,14 +65,26 @@ class IdentitySession:
         self.epoch = object()
         self.state = "anonymous" if identity.kind == "anonymous" else "credential_configured"
         self.cookies: dict[str, httpx.Cookies] = {}
-        if identity.kind == "cookies" and material is not None:
+        supplied = {}
+        if material is not None:
+            supplied = (
+                material.fields
+                if identity.kind == "cookies"
+                else {
+                    name.removeprefix("cookie:"): value
+                    for name, value in material.fields.items()
+                    if identity.kind == "api-keys" and name.startswith("cookie:")
+                }
+            )
+        self.supplied_cookies = bool(supplied)
+        if supplied:
             for origin in identity.origins:
                 jar = httpx.Cookies()
                 host = urlsplit(origin).hostname
                 if ":" in host:
                     # CookieJar uses the bracketed effective host for IPv6.
                     host = f"[{host}].local"
-                for name, value in material.fields.items():
+                for name, value in supplied.items():
                     jar.set(name, value.get_secret_value(), domain=host, path="/")
                 for cookie in jar.jar:
                     cookie.domain_specified = False
@@ -107,8 +124,8 @@ class IdentitySession:
         origin = origin_of(url)
         return origin in self.identity.origins
 
-    def request(self, url: str) -> PrivateRequest:
-        request = PrivateRequest()
+    def request(self, url: str, explicit_headers=()) -> PrivateRequest:
+        request = PrivateRequest(url=url)
         headers: dict[str, tuple[str, str]] = {}
         if self.material is not None and self.identity.kind in {"basic", "bearer"}:
             values = self.material.fields
@@ -120,6 +137,27 @@ class IdentitySession:
             else:
                 authorization = "Bearer " + values["token"].get_secret_value()
             headers["authorization"] = ("Authorization", authorization)
+        if self.material is not None and self.identity.kind == "api-keys":
+            query = {}
+            for qualified, field in self.material.fields.items():
+                location, name = qualified.split(":", 1)
+                if location == "header":
+                    if any(
+                        key.decode("ascii").lower() == name.lower() for key, _ in explicit_headers
+                    ):
+                        raise ValueError("selected credential conflicts with an explicit header")
+                    headers[name.lower()] = (name, field.get_secret_value())
+                elif location == "query":
+                    query[name] = field.get_secret_value()
+            parsed = urlsplit(url)
+            names = {name for name, _ in parse_qsl(parsed.query, keep_blank_values=True)}
+            if names.intersection(query):
+                raise ValueError("selected credential conflicts with an explicit query field")
+            if query:
+                combined = parsed.query + ("&" if parsed.query else "") + urlencode(query)
+                request.url = urlunsplit((parsed.scheme, parsed.netloc, parsed.path, combined, ""))
+                if len(request.url.encode()) > MAX_URL_BYTES:
+                    raise ValueError("engagement expanded URL exceeds bound")
         jar = self.cookies.get(origin_of(url))
         if jar is not None:
             discard_expired_cookies(jar, time.time())
@@ -128,9 +166,40 @@ class IdentitySession:
             value = cookie_request.headers.get("cookie")
             if value:
                 headers["cookie"] = ("Cookie", value)
+        supplied_sendable = "cookie" in headers
+        if self.identity.kind == "api-keys":
+            # Retain explicitly selected non-auth cookie parameters. Never let a
+            # scanner replace a configured or learned credential cookie.
+            supplied_names = {
+                key.removeprefix("cookie:")
+                for key in self.material.fields
+                if key.startswith("cookie:")
+            }
+            learned_names = {cookie.name for cookie in jar.jar} if jar is not None else set()
+            explicit = {}
+            for key, raw in explicit_headers:
+                if key.lower() != b"cookie":
+                    continue
+                for pair in raw.decode("ascii").split(";"):
+                    name, separator, value = pair.strip().partition("=")
+                    if (
+                        not separator
+                        or not valid_cookie_name(name)
+                        or not valid_cookie_value(value)
+                        or name in explicit
+                        or name in supplied_names
+                        or name in learned_names
+                    ):
+                        raise ValueError("selected credential conflicts with an explicit cookie")
+                    explicit[name] = value
+            if explicit:
+                value = "; ".join(f"{name}={value}" for name, value in explicit.items())
+                if "cookie" in headers:
+                    value += "; " + headers["cookie"][1]
+                headers["cookie"] = ("Cookie", value)
         if any(not is_field_value(value) for _, value in headers.values()):
             raise ValueError("engagement expanded header is invalid")
-        if self.identity.kind == "cookies" and "cookie" not in headers:
+        if self.supplied_cookies and not supplied_sendable:
             self.state = "blocked"
             raise ValueError("engagement supplied session has no sendable cookies")
         request.headers = [

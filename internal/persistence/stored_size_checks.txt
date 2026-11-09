@@ -140,3 +140,7 @@ audit_hypotheses_source_key_check                         LIM-API-20
 audit_hypothesis_revisions_document_check                  LIM-ACT-1
 audit_tasks_hypothesis_snapshot_check                      LIM-ACT-1
 finding_proposal_receipts_hypothesis_snapshot_check         LIM-FND-51
+artifact_versions_execution_origin_check                   invariant: Server-assigned authenticated execution tuple of bounded wire identifiers and one exact Artifact ref, without caller-authored prose
+finding_receipt_execution_lane                            invariant: authenticated operation/Worker lane with the same bounded original execution tuple and exact Artifact ref
+audit_item_findings_check                                 invariant: system-derived canonical result projection of at most 128 bounded Finding identifiers and one truncation boolean
+audit_task_findings_check                                 invariant: the same canonical ID projection retained on its settled Task, without report or assessment content

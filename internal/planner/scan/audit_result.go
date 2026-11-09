@@ -35,9 +35,16 @@ func (p *execution) finishAudit(ctx context.Context, identity planner.ScanSessio
 		return stageresult.StageContentResult{}, p.scanError("audit_scan_result_write_failed", err)
 	}
 	result := stageresult.StageContentResult{APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded, Summary: assembled.Summary, Artifacts: map[string]contracts.ArtifactRef{"report": ref}}
-	if assembled.Retryable {
+	if !assembled.ExecutionCompleted {
 		result.Outcome = stageresult.StageFailed
-		result.Error = &contracts.TerminationError{Code: "scan_failed", Message: "The scanner failed with a known outcome", Retryable: true}
+		result.Error = &contracts.TerminationError{Code: "scan_failed", Message: "The scanner did not complete all selected work", Retryable: assembled.Retryable}
+	}
+	jobs := []planner.ScanJobRecord{}
+	for _, attempt := range history {
+		jobs = append(jobs, attempt.State.Jobs...)
+	}
+	if err := p.selectNormalizedMaterials(buildCtx, jobs, &result); err != nil {
+		return stageresult.StageContentResult{}, err
 	}
 	if err := planner.ValidateCandidate(buildCtx, p.invocation.RunID, p.invocation.Stage.Result.Artifacts, result, p.factory.inspector); err != nil {
 		return stageresult.StageContentResult{}, err

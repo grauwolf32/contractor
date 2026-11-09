@@ -42,9 +42,11 @@ const KIND_LABELS: Record<CredentialKind, string> = {
   "target-basic@1": "HTTP target basic auth",
   "target-bearer@1": "HTTP target bearer token",
   "target-cookies@1": "HTTP target cookies",
+  "target-api-keys@1": "HTTP target API keys",
 };
 
 interface HeaderDraft {
+  location?: "header" | "query" | "cookie";
   id: number;
   name: string;
   value: string;
@@ -82,8 +84,14 @@ export function RuntimeCredentialCreateForm({
     kind === "http-proxy-basic@1" ||
     kind === "http-origin-basic@1" ||
     kind === "target-basic@1";
-  const named = kind === "otlp-headers@1" || kind === "target-cookies@1";
-  const fieldNoun = kind === "target-cookies@1" ? "Cookie" : "Header";
+  const apiKeys = kind === "target-api-keys@1";
+  const named =
+    kind === "otlp-headers@1" || kind === "target-cookies@1" || apiKeys;
+  const fieldNoun = apiKeys
+    ? "API key"
+    : kind === "target-cookies@1"
+      ? "Cookie"
+      : "Header";
   const basicNoun =
     kind === "http-origin-basic@1"
       ? "Origin"
@@ -124,6 +132,31 @@ export function RuntimeCredentialCreateForm({
         )
         ? new Error("Provide unique non-empty OTLP header names and values.")
         : { credentialId, kind, material: { headers: material } };
+    }
+    if (kind === "target-api-keys@1") {
+      const entries = headers.map(
+        (row) =>
+          [
+            `${row.location ?? "header"}:${row.name.trim()}`,
+            row.value,
+          ] as const,
+      );
+      const unique = new Set(
+        entries.map(([key]) =>
+          key.startsWith("header:") ? key.toLowerCase() : key,
+        ),
+      );
+      return headers.length === 0 ||
+        unique.size !== headers.length ||
+        headers.some((row) => row.name.trim() === "" || row.value === "")
+        ? new Error(
+            "Provide unique API key names, locations and non-empty values.",
+          )
+        : {
+            credentialId,
+            kind,
+            material: { fields: Object.fromEntries(entries) },
+          };
     }
     if (kind === "target-cookies@1") {
       const material = Object.fromEntries(
@@ -241,7 +274,9 @@ export function RuntimeCredentialCreateForm({
                   setHeaders(
                     (next === "target-cookies@1"
                       ? ["session"]
-                      : ["Authorization"]
+                      : next === "target-api-keys@1"
+                        ? ["X-API-Key"]
+                        : ["Authorization"]
                     ).map((name) => ({
                       id: nextHeaderID.current++,
                       name,
@@ -263,7 +298,31 @@ export function RuntimeCredentialCreateForm({
         {named ? (
           <div className="ops-secret-rows">
             {headers.map((header) => (
-              <div className="ops-secret-row" key={header.id}>
+              <div
+                className="ops-secret-row"
+                data-api-keys={apiKeys || undefined}
+                key={header.id}
+              >
+                {apiKeys ? (
+                  <Field label="API key location">
+                    {(control) => (
+                      <select
+                        {...control}
+                        value={header.location ?? "header"}
+                        onChange={(event) =>
+                          updateHeader(header.id, {
+                            location: event.target.value as
+                              "header" | "query" | "cookie",
+                          })
+                        }
+                      >
+                        <option value="header">Header</option>
+                        <option value="query">Query</option>
+                        <option value="cookie">Cookie</option>
+                      </select>
+                    )}
+                  </Field>
+                ) : null}
                 <Field label={`${fieldNoun} name`}>
                   {(control) => (
                     <input

@@ -143,8 +143,9 @@ func (h *auditHandlers) createAudit(w http.ResponseWriter, r *http.Request) erro
 		return err
 	}
 	params := auditservice.CreateDraftParams{
-		Labels:  runlabels.RunMetadataLabels(request.Labels).Clone(),
-		OwnerID: principalUserID(r.Context()), ProjectID: r.PathValue("projectId"),
+		Parameters: request.Parameters,
+		Labels:     runlabels.RunMetadataLabels(request.Labels).Clone(),
+		OwnerID:    principalUserID(r.Context()), ProjectID: r.PathValue("projectId"),
 		OperationsPrincipal: runtimeCredentialUser(r.Context()).Operations,
 		Profile:             auditservice.ProfileSelector{Name: request.Profile.Name, Version: request.Profile.Version},
 		Inputs:              request.Inputs, RuntimeLabels: request.RuntimeLabels, Scope: request.Scope,

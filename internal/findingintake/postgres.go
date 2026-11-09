@@ -32,8 +32,8 @@ type querier interface {
 const receiptProjection = `
 receipt.receipt_id, receipt.proposal_id, receipt.request_digest,
 receipt.client_key,
-receipt.run_id, receipt.stage_execution_id, receipt.allocation_id,
-receipt.logical_agent_name, receipt.invocation_id,
+receipt.run_id, receipt.stage_execution_id, coalesce(receipt.allocation_id,''),
+coalesce(receipt.logical_agent_name,''), receipt.invocation_id,
 receipt.workflow_name, receipt.workflow_version, receipt.workflow_schema_version,
 receipt.workflow_configuration_ref, receipt.workflow_closure_digest,
 receipt.audit_id, receipt.audit_execution_id, receipt.audit_task_id,receipt.audit_hypothesis,receipt.audit_hypothesis_snapshot,
@@ -41,7 +41,7 @@ receipt.proposal_ref, receipt.proposal_digest, receipt.proposal_media_type,
 receipt.proposal_size_bytes, receipt.evidence,
 receipt.retention_state, receipt.source_run_deleted_at, receipt.created_at, receipt.fingerprint_projection, receipt.anchor_projection,
 receipt.publication_requested, receipt.publication_error, receipt.project_proposal, receipt.project_evidence,
-(SELECT source.finding_id FROM project_finding_sources AS source WHERE source.receipt_id=receipt.receipt_id),receipt.project_id`
+(SELECT source.finding_id FROM project_finding_sources AS source WHERE source.receipt_id=receipt.receipt_id),receipt.project_id,receipt.operation_ref,receipt.scan_origin`
 
 func readReceiptBySubmission(
 	ctx context.Context,
@@ -67,7 +67,7 @@ func scanReceipt(ctx context.Context, db querier, row pgx.Row) (Receipt, error) 
 func scanReceiptRow(row pgx.Row) (Receipt, error) {
 	var result Receipt
 	var configurationRef, proposalRef, evidenceJSON, fingerprintJSON, anchorJSON []byte
-	var projectProposalJSON, projectEvidenceJSON []byte
+	var projectProposalJSON, projectEvidenceJSON, scanOrigin []byte
 	var auditID, auditExecutionID, auditTaskID *string
 	var hypothesis, hypothesisSnapshot []byte
 	var sourceDeletedAt *time.Time
@@ -84,10 +84,17 @@ func scanReceiptRow(row pgx.Row) (Receipt, error) {
 		&result.Proposal.SizeBytes, &evidenceJSON,
 		&result.Retention, &sourceDeletedAt, &result.CreatedAt, &fingerprintJSON, &anchorJSON,
 		&result.PublicationRequested, &result.PublicationError, &projectProposalJSON, &projectEvidenceJSON, &result.FindingID,
-		&result.ProjectID,
+		&result.ProjectID, &result.Origin.Operation, &scanOrigin,
 	)
 	if err != nil {
 		return Receipt{}, err
+	}
+	if scanOrigin != nil {
+		var origin artifacts.ExecutionOrigin
+		if strictjson.Decode(scanOrigin, &origin) != nil {
+			return Receipt{}, blob.ErrIntegrity
+		}
+		result.Origin.Scan = &origin
 	}
 	if projectProposalJSON != nil {
 		var retained ExactArtifact

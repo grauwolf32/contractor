@@ -75,7 +75,7 @@ func ownedOperation(t *testing.T) (*Module, operations.Call, *pgxpool.Pool) {
 		t.Fatal(err)
 	}
 	stage, _ := json.Marshal(workflow.Stages[workflow.EntryStage])
-	if _, err := store.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{StageExecutionID: "prepare-stage", RunID: "producer", StageName: workflow.EntryStage, Attempt: 1, LaneClass: resolved.LaneClassTool, StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stage, StageContextSchemaVersion: contracts.APIVersion, StageContext: runstore.StageContextSnapshot{Parameters: parameters, Artifacts: map[string]runstore.PinnedContextArtifact{"openapi": {Required: true, Artifact: &source.Ref}, "settings": {Required: false}}}}); err != nil {
+	if _, err := store.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{StageExecutionID: "prepare-stage", RunID: "producer", StageName: workflow.EntryStage, Attempt: 1, LaneClass: resolved.LaneClassTool, StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stage, StageContextSchemaVersion: contracts.APIVersion, StageContext: runstore.StageContextSnapshot{Parameters: parameters, Artifacts: map[string]runstore.PinnedContextArtifact{"openapi": {Required: true, Artifact: &source.Ref}, "request_values": {Required: false}}}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := postgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
@@ -94,7 +94,7 @@ func ownedOperation(t *testing.T) (*Module, operations.Call, *pgxpool.Pool) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	return New(pool, artifactpgtest.NewStorage()), operations.Call{RunID: "producer", StageExecutionID: "prepare-stage", ClaimID: "claim", Arguments: map[string]any{"workflow": "check", "selection": "operations", "max_items": "256"}, Inputs: map[string]contracts.ArtifactRef{"openapi": source.Ref}, Outputs: map[string]contracts.ArtifactRef{"work": {Namespace: "prepared-work", Name: "work"}}}, pool
+	return New(pool, artifactpgtest.NewStorage()), operations.Call{RunID: "producer", StageExecutionID: "prepare-stage", ClaimID: "claim", Arguments: map[string]any{"workflow": "check", "selection": "operations", "max_items": "256", "scanner": "", "server": "", "operations": "", "test_parameters": "", "credential_id": ""}, Inputs: map[string]contracts.ArtifactRef{"openapi": source.Ref}, Outputs: map[string]contracts.ArtifactRef{"work": {Namespace: "prepared-work", Name: "work"}}}, pool
 }
 
 func TestPostgresPreparedWorkPublicationReplayAndCollision(t *testing.T) {
