@@ -334,6 +334,96 @@ def test_controlled_capture_redacts_only_runtime_injected_credentials(kind, fiel
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize(
+    "header_name, secret", [("X-API-Key", "k"), ("x-PaRtNeR-ToKeN", "private-header-canary")]
+)
+@pytest.mark.parametrize("redirect", [False, True])
+def test_selected_api_key_evidence_masks_injected_headers(header_name, secret, redirect):
+    async def scenario():
+        from test_engagement_identity import identity_spec
+
+        async def respond(target, reader, writer, message):
+            if redirect and message.startswith(b"GET /allowed?"):
+                writer.write(
+                    b"HTTP/1.1 302 Found\r\nLocation: /allowed/final\r\nContent-Length: 0\r\n\r\n"
+                )
+            else:
+                writer.write(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok")
+            await writer.drain()
+
+        captures = RecentHTTPCaptures()
+        collector, tool, published, _, _ = result_tool(captures)
+        async with SocketTarget(respond) as target:
+            fields = {
+                "header:" + header_name: secret,
+                "header:X-Second-Key": "private-second-canary",
+                "query:api_key": "private-query-canary",
+                "cookie:session": "private-cookie-canary",
+            }
+            spec = identity_spec(target, [("account-a", "api-keys", fields, None)])
+            async with preflight(target, spec=spec) as (owner, _):
+                owner.configure(authority_deadline=lambda: asyncio.get_running_loop().time() + 60)
+                session = ControlledHTTPSession(owner, 5, captures=captures)
+                options = dict(
+                    url=target.origin + "/allowed",
+                    method="GET",
+                    headers={"X-Public": "caller-value"},
+                    query=None,
+                    body_type="none",
+                    body=None,
+                    timeout_seconds=5,
+                    follow_redirects=True,
+                    invocation_id="invocation-1",
+                )
+                result = await session.request(**options, credential_id="credential-account-a")
+                selected = await tool(
+                    SimpleNamespace(invocation_id="invocation-1"),
+                    rationale="Record the selected exchange.",
+                    tested_conditions=["Selected credential"],
+                    limitations=["A single exchange does not establish a verdict."],
+                    evidence=[],
+                    verdict="inconclusive",
+                    http_request_ids=[result["request_id"]],
+                )
+                assert selected["status"] == "recorded", selected
+                assert len(published.values) == 1
+                payload = next(iter(published.values.values()))
+                document = json.loads(payload)
+                attempts = document["capture"]["attempts"]
+                assert len(attempts) == (2 if redirect else 1)
+                for attempt, wire in zip(attempts, target.requests, strict=True):
+                    recorded = {
+                        row["name"].lower(): row["value"]
+                        for row in attempt["request"]["message"]["headers"]
+                    }
+                    for private in (header_name.lower(), "x-second-key", "cookie"):
+                        assert recorded[private] == "[runtime-credential]"
+                    assert recorded["x-public"] == "caller-value"
+                    assert (header_name + ": " + secret).lower().encode() in wire.lower()
+                    assert b"api_key=private-query-canary" in wire
+                    assert b"session=private-cookie-canary" in wire
+                for value in list(fields.values())[1:]:
+                    assert value.encode() not in payload
+                if len(secret) > 1:
+                    assert secret.encode() not in payload
+                # The same arbitrary name supplied by the caller is ordinary
+                # evidence when no Runtime credential was selected.
+                plain = await session.request(
+                    **{**options, "headers": {header_name: "caller-owned"}}
+                )
+                captured = await captures.get(
+                    "http", str(plain["request_id"]), invocation_id="invocation-1"
+                )
+                headers = captured["attempts"][0]["request"]["message"]["headers"]
+                assert {row["name"].lower(): row["value"] for row in headers}[
+                    header_name.lower()
+                ] == "caller-owned"
+                await session.close()
+        await collector.discard()
+
+    asyncio.run(scenario())
+
+
 def test_failed_and_truncated_actual_exchanges_remain_selectable_as_inconclusive():
     async def scenario():
         from contractor_runtime.contracts.engagement import HTTPLimits

@@ -1386,6 +1386,10 @@ manual Cookie. API-key identities reject caller headers, query names (after URL
 decoding) and cookies that collide with configured fields or learned cookies;
 disjoint explicit cookie parameters remain usable. API keys are injected only at
 the private send boundary; URL provenance retains the caller's logical URL.
+Every captured attempt replaces each header identified by the transport as
+Runtime-injected with `[runtime-credential]`, regardless of its name, case or
+value length. Result and Finding evidence consume this same masked capture;
+caller-owned header values remain unchanged.
 Scanner diagnostics redact raw and URL-encoded query secrets. Missing/foreign IDs fail before
 target bytes, without fallback. HTTP tools share the
 allocation-owned controlled transport and isolate jars by credential and exact
