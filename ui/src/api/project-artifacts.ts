@@ -21,6 +21,7 @@ import { requireData } from "./error";
 import { requireProjectID } from "./projects";
 
 interface ProjectArtifactPageRequest extends ArtifactPageRequest {
+  order?: "material";
   limit?: number;
   projectId: string;
 }
@@ -68,6 +69,8 @@ export async function listProjectArtifacts(
   request: ProjectArtifactPageRequest,
 ): Promise<ArtifactPage> {
   requireProjectID(request.projectId);
+  if (request.order !== undefined && request.order !== "material")
+    throw new TypeError("Project Artifact order is invalid");
   if (
     request.limit !== undefined &&
     (!Number.isInteger(request.limit) ||
@@ -87,6 +90,7 @@ export async function listProjectArtifacts(
         path: { projectId: request.projectId },
         query: {
           limit: request.limit ?? ARTIFACT_PAGE_SIZE,
+          ...(request.order === undefined ? {} : { order: request.order }),
           ...(request.namespace === undefined
             ? {}
             : { namespace: request.namespace }),

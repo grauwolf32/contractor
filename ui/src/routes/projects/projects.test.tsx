@@ -40,6 +40,8 @@ describe("Project routes", () => {
       );
     await waitFor(() => expect(reads("artifacts")).toHaveLength(3));
     // Bounded samples only (S06): no complete material or Workflow inventory.
+    expect(reads("artifacts")).toHaveLength(3);
+    expect(reads("artifacts")[0]!.searchParams.get("order")).toBe("material");
     expect(
       reads("artifacts").map((url) => url.searchParams.get("namespace")),
     ).toEqual(expect.arrayContaining([null, "sources", "openapi"]));

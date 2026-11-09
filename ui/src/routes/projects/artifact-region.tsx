@@ -50,10 +50,16 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
   >(null);
   const cursor = pages.cursor;
   const query = useQuery({
-    queryKey: queryKeys.projects.artifacts.list(projectId, namespace, cursor),
+    queryKey: queryKeys.projects.artifacts.list(
+      projectId,
+      namespace,
+      cursor,
+      "material",
+    ),
     queryFn: () =>
       listProjectArtifacts(api, {
         projectId,
+        order: "material",
         ...(namespace === undefined ? {} : { namespace }),
         ...(cursor === undefined ? {} : { cursor }),
       }),
@@ -191,8 +197,8 @@ export function ProjectArtifactRegion({ projectId }: { projectId: string }) {
               <>
                 {onePage ? null : (
                   <p className="ui-caption materials-page-note">
-                    Grouped by kind within this page. Other pages can hold more
-                    materials of each kind.
+                    Materials are ordered by kind across all pages. Group counts
+                    below are for this page.
                   </p>
                 )}
                 {groupMaterialsByKind(data.items).map((group) => (

@@ -1663,3 +1663,23 @@ Agent namespaces and result targets cannot mint or advance these bindings. The
 same owner write fence is rechecked immediately before publication. Reads remain
 ordinary exact allocation-authorized Artifact reads. No new endpoint or receipt
 store is introduced.
+
+**ART-R145.** The ordinary Project Artifact collection accepts opt-in
+`order=material`. Current bindings are ordered by source code, API spec,
+engagement, architecture, docs, diffs and Other, then namespace and name.
+Git provenance selects source code first; otherwise suggested namespaces
+(`sources`, `openapi`, `engagement`, `likec4`, `docs`, `diffs`) take precedence
+over purpose-specific media types. Generic JSON, YAML, ZIP and text do not
+establish a category. Shared material-kind fixtures pin this classification
+to the UI picker and grouping rules.
+
+ArtifactStore maintains an indexed derived rank on ordinary bindings during
+upload, advance, fork, replacement and same-transaction Git import. A priority
+page seeks this key before hydrating at most `limit+1` metadata rows, without
+reading payloads or scanning Audit-managed bindings. The namespace-filtered
+path has its own index. The sealed cursor retains rank, namespace and name and
+binds order, Project and filters. Listings are current views rather than pinned
+snapshots: a later revision can change its binding's category. Removing the
+cursor binding does not invalidate continuation. Absent `order=material`, all
+existing scope lists retain namespace/name order. No extra store or table is
+introduced; ordinary lifecycle and retention remain authoritative.

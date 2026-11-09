@@ -113,7 +113,9 @@ LIMIT $8`
 // Audit-managed binding (ART-R115); a test pins that literal prefix to
 // artifactpolicy.AuditManagedProjectNamespacePrefix. Used by
 // Repository.ListMetadata.
-var listProjectMetadataSQL = currentMetadataPageSQL + `
+var listProjectMetadataSQL = `
+WITH selected AS MATERIALIZED (
+SELECT * FROM artifact_bindings AS binding
 WHERE binding.scope_kind = 'project' AND binding.scope_id = $1
   AND binding.namespace NOT LIKE 'audit-%'
   AND ($2::text IS NULL OR binding.namespace = $2)
@@ -121,7 +123,11 @@ WHERE binding.scope_kind = 'project' AND binding.scope_id = $1
   AND ($4::text = '' OR (binding.namespace, binding.name) > ($4, $5))
   AND ($7::text = '' OR binding.namespace <> $7)
 ORDER BY binding.namespace, binding.name
-LIMIT $6`
+LIMIT $6
+)
+SELECT binding.namespace,binding.name,revision.revision,` + metadataPageColumnsSQL("true") + `
+FROM selected AS binding` + currentMetadataJoinsSQL + `
+ORDER BY binding.namespace,binding.name`
 
 // listVersionsSQL returns one page of the revisions of binding $3/$4 in scope
 // ($1, $2), newest first, each with its namespace and name and the metadata

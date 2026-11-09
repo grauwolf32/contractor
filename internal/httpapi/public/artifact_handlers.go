@@ -3,6 +3,7 @@ package public
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -137,6 +138,7 @@ func (h *artifactHandlers) ownedRunArtifactStore(r *http.Request) (artifacts.Sco
 }
 
 type artifactListOptions struct {
+	allowMaterialOrder      bool
 	uploadsAllowed          bool
 	cursorPrefix            string
 	allowNamespaceExclusion bool
@@ -148,6 +150,9 @@ func (h *artifactHandlers) listArtifactBindings(
 	w http.ResponseWriter, r *http.Request, store artifacts.ScopedStore, options artifactListOptions,
 ) error {
 	allowedQuery := []string{"namespace"}
+	if options.allowMaterialOrder {
+		allowedQuery = append(allowedQuery, "order")
+	}
 	if options.allowNamespaceExclusion {
 		allowedQuery = append(allowedQuery, "excludeNamespace")
 	}
@@ -164,6 +169,14 @@ func (h *artifactHandlers) listArtifactBindings(
 		namespace = &value
 	}
 	cursorKind := options.cursorPrefix
+	materialOrder := false
+	if values, present := query["order"]; present {
+		if values[0] != "material" {
+			return fmt.Errorf("%w: unsupported Artifact order", errInvalidRequest)
+		}
+		materialOrder = true
+		cursorKind += ":order:material"
+	}
 	if namespace != nil {
 		cursorKind += ":" + *namespace
 	}
@@ -179,22 +192,37 @@ func (h *artifactHandlers) listArtifactBindings(
 	if options.hiddenNamespace != "" {
 		cursorKind += ":hidden:" + options.hiddenNamespace
 	}
-	cursor, err := h.cursors.decodePageCursor(encodedCursor, cursorKind, 2)
+	valuesCount := 2
+	if materialOrder {
+		valuesCount = 3
+	}
+	cursor, err := h.cursors.decodePageCursor(encodedCursor, cursorKind, valuesCount)
 	if err != nil {
 		return err
 	}
 	pageQuery := artifacts.BindingPageQuery{
-		Namespace: namespace, ExcludeNamespace: excludeNamespace, HiddenNamespace: options.hiddenNamespace,
+		MaterialOrder: materialOrder,
+		Namespace:     namespace, ExcludeNamespace: excludeNamespace, HiddenNamespace: options.hiddenNamespace,
 		ExcludeNamespacePrefix: options.excludeNamespacePrefix, Limit: pagelimit.FetchRows(limit),
 	}
 	if len(cursor) != 0 {
 		pageQuery.AfterNamespace, pageQuery.AfterName = cursor[0], cursor[1]
+		if materialOrder {
+			rank, parseErr := strconv.Atoi(cursor[2])
+			if parseErr != nil || rank < 0 || rank > 6 {
+				return fmt.Errorf("%w: invalid material order cursor", errInvalidRequest)
+			}
+			pageQuery.AfterMaterialRank = rank
+		}
 	}
 	items, err := store.ListMetadata(r.Context(), pageQuery)
 	if err != nil {
 		return err
 	}
 	items, page, err := paginate(h.cursors, items, limit, cursorKind, func(last artifacts.Metadata) []string {
+		if materialOrder {
+			return []string{last.Ref.Namespace, last.Ref.Name, strconv.Itoa(last.MaterialRank)}
+		}
 		return []string{last.Ref.Namespace, last.Ref.Name}
 	})
 	if err != nil {

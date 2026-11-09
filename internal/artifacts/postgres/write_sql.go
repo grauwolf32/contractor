@@ -19,6 +19,7 @@ WITH scope_ready AS (
 ), updated_binding AS (
     UPDATE artifact_bindings
     SET current_revision = $5, updated_at = clock_timestamp(),
+        material_rank = contractor_material_rank($3, $11, false),
         retained_revisions = retained_revisions + 1 - $18::bigint,
         retained_bytes = retained_bytes + $10 - $19::bigint
     WHERE scope_kind = $1 AND scope_id = $2 AND namespace = $3 AND name = $4
@@ -30,9 +31,9 @@ WITH scope_ready AS (
 ), created_binding AS (
     INSERT INTO artifact_bindings (
         scope_kind, scope_id, namespace, name, current_revision, frozen,
-        retained_revisions, retained_bytes
+        retained_revisions, retained_bytes, material_rank
     )
-    SELECT $1, $2, $3, $4, $5, $15::boolean, 1, $10 FROM scope_ready
+    SELECT $1, $2, $3, $4, $5, $15::boolean, 1, $10, contractor_material_rank($3, $11, false) FROM scope_ready
     WHERE $6::text IS NULL
     ON CONFLICT DO NOTHING
     RETURNING created_at

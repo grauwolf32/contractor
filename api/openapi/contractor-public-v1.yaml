@@ -3565,7 +3565,18 @@ paths:
       operationId: listProjectArtifacts
       tags: [Projects, Artifacts]
       summary: List current Artifact bindings in one owned ProjectScope
+      description: |
+        Default order is namespace and name. With `order=material`, current
+        bindings follow source code, API spec, engagement, architecture, docs,
+        diffs, then Other, with namespace/name tie breakers. Git provenance
+        takes precedence, then the suggested namespace, then purpose-specific
+        media type. Priority is applied before the limit. Cursors bind the
+        Project, namespace filter and order; they do not pin a snapshot.
       parameters:
+        - name: order
+          in: query
+          required: false
+          schema: {type: string, enum: [material]}
         - name: namespace
           in: query
           required: false

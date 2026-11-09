@@ -41,7 +41,14 @@ func (r *Repository) ListMetadata(
 ) ([]artifacts.Metadata, error) {
 	var rows pgx.Rows
 	var err error
-	if query.NamePrefix != "" {
+	if query.MaterialOrder {
+		statement := listProjectMaterialMetadataSQL
+		if query.Namespace != nil {
+			statement = listProjectNamespaceMaterialMetadataSQL
+		}
+		rows, err = r.db.Query(ctx, statement, scope.ID(), query.Namespace, query.AfterMaterialRank,
+			query.AfterNamespace, query.AfterName, query.Limit)
+	} else if query.NamePrefix != "" {
 		rows, err = r.db.Query(ctx, listProjectPrefixMetadataSQL, scope.ID(), *query.Namespace, query.NamePrefix, query.AfterName, query.Limit)
 	} else if scope.Kind() == artifacts.ScopeUser && query.HiddenNamespace == artifactpolicy.AuditStandardCatalogNamespace && query.ExcludeNamespacePrefix == "" {
 		rows, err = r.db.Query(ctx, listUserMetadataSQL, scope.ID(), query.Namespace, query.ExcludeNamespace, query.AfterNamespace, query.AfterName, query.Limit, query.HiddenNamespace)
@@ -61,7 +68,7 @@ func (r *Repository) ListMetadata(
 		return nil, fmt.Errorf("list artifact metadata: %w", err)
 	}
 	result, err := pgx.AppendRows(make([]artifacts.Metadata, 0, query.Limit), rows, func(row pgx.CollectableRow) (artifacts.Metadata, error) {
-		return scanMetadata(row)
+		return scanMetadataRow(row, query.MaterialOrder)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("iterate artifact metadata: %w", err)
@@ -127,14 +134,22 @@ type metadataRowScanner interface {
 }
 
 func scanMetadata(row metadataRowScanner) (artifacts.Metadata, error) {
+	return scanMetadataRow(row, false)
+}
+
+func scanMetadataRow(row metadataRowScanner, materialOrder bool) (artifacts.Metadata, error) {
 	var result artifacts.Metadata
 	var revision string
-	if err := row.Scan(
+	destinations := []any{
 		&result.Ref.Namespace, &result.Ref.Name, &revision,
 		&result.MediaType, &result.Size, &result.Current, &result.Frozen, &result.BindingCreatedAt, &result.CreatedAt, &result.StorageTimestamps.ScopeCreatedAt,
 		&result.StorageTimestamps.BlobCreatedAt, &result.StorageTimestamps.VersionCreatedAt,
 		&result.StorageTimestamps.BindingUpdatedAt, &result.GitSource,
-	); err != nil {
+	}
+	if materialOrder {
+		destinations = append(destinations, &result.MaterialRank)
+	}
+	if err := row.Scan(destinations...); err != nil {
 		return artifacts.Metadata{}, err
 	}
 	result.Ref.Revision = &revision

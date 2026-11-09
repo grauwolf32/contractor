@@ -10,6 +10,10 @@ import (
 // listing query.
 var ListProjectMetadataSQL = listProjectMetadataSQL
 
+// Material page statements let external tests verify bounded index seeks.
+var ListProjectMaterialMetadataSQL = listProjectMaterialMetadataSQL
+var ListProjectNamespaceMaterialMetadataSQL = listProjectNamespaceMaterialMetadataSQL
+
 // PurgeBatchSize reports the purge batch bound (LIM-DEL-2) that external tests
 // measure purge statements against.
 func PurgeBatchSize() int { return purgeBatchSize }

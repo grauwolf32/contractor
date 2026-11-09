@@ -27,6 +27,8 @@ var replaceForkSourceSQL = `
 var replaceForkSQL = `
 WITH changed AS (
     UPDATE artifact_bindings SET current_revision=$6, updated_at=clock_timestamp(),
+        material_rank=(SELECT contractor_material_rank($3,media_type,git_resolved_commit IS NOT NULL)
+                       FROM artifact_versions WHERE version_id=$7),
         retained_revisions=retained_revisions+1-$11,
         retained_bytes=retained_bytes+$8-$12
     WHERE scope_kind=$1 AND scope_id=$2 AND namespace=$3 AND name=$4

@@ -712,7 +712,15 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** List current Artifact bindings in one owned ProjectScope */
+        /**
+         * List current Artifact bindings in one owned ProjectScope
+         * @description Default order is namespace and name. With `order=material`, current
+         *     bindings follow source code, API spec, engagement, architecture, docs,
+         *     diffs, then Other, with namespace/name tie breakers. Git provenance
+         *     takes precedence, then the suggested namespace, then purpose-specific
+         *     media type. Priority is applied before the limit. Cursors bind the
+         *     Project, namespace filter and order; they do not pin a snapshot.
+         */
         get: operations["listProjectArtifacts"];
         put?: never;
         post?: never;
@@ -9800,6 +9808,7 @@ export interface operations {
     listProjectArtifacts: {
         parameters: {
             query?: {
+                order?: "material";
                 namespace?: components["schemas"]["ArtifactName"];
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];

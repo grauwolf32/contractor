@@ -1,0 +1,247 @@
+[
+  {
+    "namespace": "sources",
+    "mediaType": "application/zip",
+    "gitSource": false,
+    "kind": "source",
+    "rank": 0
+  },
+  {
+    "namespace": "sources",
+    "mediaType": "text/markdown",
+    "gitSource": false,
+    "kind": "source",
+    "rank": 0
+  },
+  {
+    "namespace": "sources",
+    "mediaType": "application/json",
+    "gitSource": true,
+    "kind": "source",
+    "rank": 0
+  },
+  {
+    "namespace": "openapi",
+    "mediaType": "application/zip",
+    "gitSource": false,
+    "kind": "api",
+    "rank": 1
+  },
+  {
+    "namespace": "openapi",
+    "mediaType": "text/markdown",
+    "gitSource": false,
+    "kind": "api",
+    "rank": 1
+  },
+  {
+    "namespace": "openapi",
+    "mediaType": "application/json",
+    "gitSource": true,
+    "kind": "source",
+    "rank": 0
+  },
+  {
+    "namespace": "engagement",
+    "mediaType": "application/zip",
+    "gitSource": false,
+    "kind": "engagement",
+    "rank": 2
+  },
+  {
+    "namespace": "engagement",
+    "mediaType": "text/markdown",
+    "gitSource": false,
+    "kind": "engagement",
+    "rank": 2
+  },
+  {
+    "namespace": "engagement",
+    "mediaType": "application/json",
+    "gitSource": true,
+    "kind": "source",
+    "rank": 0
+  },
+  {
+    "namespace": "likec4",
+    "mediaType": "application/zip",
+    "gitSource": false,
+    "kind": "architecture",
+    "rank": 3
+  },
+  {
+    "namespace": "likec4",
+    "mediaType": "text/markdown",
+    "gitSource": false,
+    "kind": "architecture",
+    "rank": 3
+  },
+  {
+    "namespace": "likec4",
+    "mediaType": "application/json",
+    "gitSource": true,
+    "kind": "source",
+    "rank": 0
+  },
+  {
+    "namespace": "docs",
+    "mediaType": "application/zip",
+    "gitSource": false,
+    "kind": "docs",
+    "rank": 4
+  },
+  {
+    "namespace": "docs",
+    "mediaType": "application/vnd.oai.openapi+json",
+    "gitSource": false,
+    "kind": "docs",
+    "rank": 4
+  },
+  {
+    "namespace": "docs",
+    "mediaType": "application/json",
+    "gitSource": true,
+    "kind": "source",
+    "rank": 0
+  },
+  {
+    "namespace": "diffs",
+    "mediaType": "application/zip",
+    "gitSource": false,
+    "kind": "diffs",
+    "rank": 5
+  },
+  {
+    "namespace": "diffs",
+    "mediaType": "text/markdown",
+    "gitSource": false,
+    "kind": "diffs",
+    "rank": 5
+  },
+  {
+    "namespace": "diffs",
+    "mediaType": "application/json",
+    "gitSource": true,
+    "kind": "source",
+    "rank": 0
+  },
+  {
+    "namespace": "outputs",
+    "mediaType": "application/vnd.oai.openapi",
+    "gitSource": false,
+    "kind": "api",
+    "rank": 1
+  },
+  {
+    "namespace": "outputs",
+    "mediaType": "application/vnd.oai.openapi+json",
+    "gitSource": false,
+    "kind": "api",
+    "rank": 1
+  },
+  {
+    "namespace": "outputs",
+    "mediaType": "application/vnd.oai.openapi+yaml",
+    "gitSource": false,
+    "kind": "api",
+    "rank": 1
+  },
+  {
+    "namespace": "outputs",
+    "mediaType": "application/vnd.contractor.engagement+json",
+    "gitSource": false,
+    "kind": "engagement",
+    "rank": 2
+  },
+  {
+    "namespace": "outputs",
+    "mediaType": "text/vnd.likec4",
+    "gitSource": false,
+    "kind": "architecture",
+    "rank": 3
+  },
+  {
+    "namespace": "outputs",
+    "mediaType": "text/markdown",
+    "gitSource": false,
+    "kind": "docs",
+    "rank": 4
+  },
+  {
+    "namespace": "outputs",
+    "mediaType": "text/x-markdown",
+    "gitSource": false,
+    "kind": "docs",
+    "rank": 4
+  },
+  {
+    "namespace": "outputs",
+    "mediaType": "application/pdf",
+    "gitSource": false,
+    "kind": "docs",
+    "rank": 4
+  },
+  {
+    "namespace": "outputs",
+    "mediaType": "text/x-diff",
+    "gitSource": false,
+    "kind": "diffs",
+    "rank": 5
+  },
+  {
+    "namespace": "finding-materials",
+    "mediaType": "application/json",
+    "gitSource": false,
+    "kind": "other",
+    "rank": 6
+  },
+  {
+    "namespace": "finding-materials",
+    "mediaType": "application/yaml",
+    "gitSource": false,
+    "kind": "other",
+    "rank": 6
+  },
+  {
+    "namespace": "finding-materials",
+    "mediaType": "application/zip",
+    "gitSource": false,
+    "kind": "other",
+    "rank": 6
+  },
+  {
+    "namespace": "finding-materials",
+    "mediaType": "text/plain",
+    "gitSource": false,
+    "kind": "other",
+    "rank": 6
+  },
+  {
+    "namespace": "finding-materials",
+    "mediaType": "application/vnd.contractor.http-exchange+json",
+    "gitSource": false,
+    "kind": "other",
+    "rank": 6
+  },
+  {
+    "namespace": "finding-materials",
+    "mediaType": "application/vnd.contractor.project-sitemap+json",
+    "gitSource": false,
+    "kind": "other",
+    "rank": 6
+  },
+  {
+    "namespace": "imports",
+    "mediaType": "application/zip",
+    "gitSource": true,
+    "kind": "source",
+    "rank": 0
+  },
+  {
+    "namespace": "constructor",
+    "mediaType": "text/plain",
+    "gitSource": false,
+    "kind": "other",
+    "rank": 6
+  }
+]

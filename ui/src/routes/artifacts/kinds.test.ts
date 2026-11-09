@@ -1,5 +1,6 @@
 import { ARTIFACT_STORAGE_TIMESTAMPS } from "../../test/builders";
 import { describe, expect, it } from "vitest";
+import materialKindCases from "../../../../api/testdata/material-kind-order.json";
 
 import {
   HTTP_EXCHANGE_MEDIA_TYPE,
@@ -43,6 +44,19 @@ const gitSource = {
 };
 
 describe("material kinds", () => {
+  it("matches the shared storage order for every named and generic format", () => {
+    for (const entry of materialKindCases) {
+      const kind = materialKindOf(
+        item(
+          entry.namespace,
+          entry.mediaType,
+          entry.gitSource ? { gitSource } : {},
+        ),
+      );
+      expect(kind).toBe(entry.kind);
+      expect(MATERIAL_KIND_ORDER.indexOf(kind)).toBe(entry.rank);
+    }
+  });
   it("reads the kind from the namespace first", () => {
     expect(materialKindOf(item("sources", "text/plain"))).toBe("source");
     expect(materialKindOf(item("openapi", "application/json"))).toBe("api");

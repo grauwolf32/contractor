@@ -42,6 +42,7 @@ export const queryKeys = {
         projectId: string,
         namespace: string | undefined,
         cursor: string | undefined,
+        order?: "material",
       ) =>
         [
           "projects",
@@ -51,6 +52,7 @@ export const queryKeys = {
           "list",
           namespace ?? null,
           cursor ?? null,
+          order ?? null,
         ] as const,
       metadata: (
         projectId: string,
