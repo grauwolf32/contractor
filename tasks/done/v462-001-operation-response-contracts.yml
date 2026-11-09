@@ -6,7 +6,7 @@ epic: api-contracts
 kind: defect
 introduced_by: V64-026
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V64-026, V461-003]
 languages: [go, typescript, yaml]
 goal: The Inbox can read ordinary Runs with Server operation attempts and scanner Workflows that fail after successful partial-result publication.
@@ -72,4 +72,15 @@ notes:
   - All 28 previously captured real Inbox responses conform to the corrected schema; the captured bodies remain private operational files outside the repository.
   - Full UI verification passes 2512 tests with one declared expected failure, all 17 static-service tests, lint, typecheck, generation freshness and production build.
   - Full public HTTP package passes with disposable PostgreSQL. Two initial filesystem fixture failures were resolved by using canonical TMPDIR=/private/tmp on macOS; neither failed filesystem case was skipped or weakened.
-  - Public API verification, Go client freshness, full make lint, task checks and specification checks pass. Demo verification remains pending.
+  - Public API verification, Go client freshness, full make lint, task checks and specification checks pass. Demo UI 0.11.29 verifies a complete Inbox, the affected operation Run and project-nuclei-scan Workflow; six Runtime pass readiness, models/data/archive are preserved and queue admission is restored.
+implementation_commit: f79af1a7e2f9cf2eef7f1b840994c72fafa07e8c
+delivery:
+  date: '2026-11-09'
+  branch: codex/operation-response-contracts
+  merged_into_main: false
+  demo:
+    source_commit: f79af1a7e2f9cf2eef7f1b840994c72fafa07e8c
+    ui_version: 0.11.29
+    record: /Users/ruslan/src/contractor/.local/demo/run/operation-contracts-patch-20261109.json
+    schema_migrations: []
+    runtime_source_unchanged: true
