@@ -262,10 +262,11 @@ class _Pool(OwnedHandler, server.ConnectionHandler):
         if io is not None and io.handler is not None:
             self.close_connection(connection)
             results = await asyncio.gather(io.handler, return_exceptions=True)
+            self._connection_tasks.discard(io.handler)
         # A native task cancelled before its first step never enters its finally.
         await self._release_connection(connection)
         for result in results:
-            if isinstance(result, Exception) and not isinstance(result, OSError):
+            if isinstance(result, Exception):
                 raise result
 
     async def server_event(self, event):
@@ -316,6 +317,7 @@ class _Pool(OwnedHandler, server.ConnectionHandler):
             raise RuntimeError("native HTTP engine timer failed")
 
     async def open_connection(self, command):
+        self.own_connection_task()
         exchange = self.connecting[command.connection]
         token = _dial.set(exchange)
         try:
@@ -380,6 +382,7 @@ class _Pool(OwnedHandler, server.ConnectionHandler):
             self.close_connection(connection)
             if io.handler is not None:
                 await join_owned_task(io.handler)
+                self._connection_tasks.discard(io.handler)
                 if not io.handler.cancelled():
                     io.handler.result()
 

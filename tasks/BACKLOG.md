@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-69 open tasks: 10 in progress, 46 pending, 13 deferred. 1548 finished: 1530 completed, 18 archived.
+68 open tasks: 10 in progress, 45 pending, 13 deferred. 1549 finished: 1531 completed, 18 archived.
 
 ## In progress
 
@@ -49,7 +49,6 @@ the epics are in [epics.yml](epics.yml).
 | [V410-037](v410-037-allocation-openvpn-bridge-egress.yml) | feature | P2 | — | Route bridge egress through an allocation-owned OpenVPN tunnel |
 | [V412-001](v412-001-managed-pentest-browser.yml) | feature | P2 | — | Add allocation-owned browser investigation with explicit network authority |
 | [V412-004](v412-004-trusted-pentest-callback-proof.yml) | feature | P2 | V411-015, V411-016 | Use existing Interactsh tools as bounded HTTP investigation evidence |
-| [V463-004](v463-004-http-bridge-reset-cleanup.yml) | defect | P1 | — | Keep closed peer-reset sockets from poisoning HTTP bridge cleanup |
 
 ### Scanner tool Workers and scan planning (`scan-tools`)
 
@@ -162,7 +161,7 @@ tasks in `introduced_by`.
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 15 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
-| HTTP and Caido tools (`http-tools`) | 6 | 24 | 36 | 15 | 38 |
+| HTTP and Caido tools (`http-tools`) | 5 | 24 | 36 | 15 | 38 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 3 | 21 | 13 | 11 | 27 |
 | Findings tools and collections (`findings`) | 0 | 18 | 14 | 11 | 21 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 17 | 16 | 23 |
