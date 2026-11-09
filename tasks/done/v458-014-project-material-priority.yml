@@ -5,7 +5,7 @@ milestone: ui-consolidation-2026-10
 epic: ui
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [go, sql, typescript, json, markdown, yaml]
 goal: Project Materials and its Overview sample show source code API specs engagement architecture docs and diffs before uncategorized technical artifacts even when those artifacts fill many pages.
@@ -83,3 +83,10 @@ verification:
   - Final make ui-verify passed 223 files and 2515 tests plus one existing expected failure, all 17 static-service cases, generated-client freshness, lint, typecheck and build. The final full mocked browser gate passed 239 cases in 33 specs without skips or retries, including six new category paging namespace filter and Overview cases across 390/1440 pixels and light dark black themes.
   - Final make lint passed. ERD and the dependency graph were regenerated through their owning generators; 60 tables and 70 foreign keys remain. Task and specification checks pass. Native production preview is retained with synthetic data and writes disabled.
   - The owned database contractor_material_priority_20261109 was explicitly dropped after all test processes completed and its absence was verified. No demo migration deployment live model call business-data deletion or full release gate was performed. The feature remains on codex/project-material-priority for review and is not yet merged into main.
+implementation_commit: 357bc6c5b429b8b70c228f2ab678fb4a1a758d04
+delivery:
+  date: '2026-11-10'
+  branch: codex/project-material-priority
+  merged_into_main: false
+  ui_version: 0.11.32
+  migration: 000005_project_material_order.sql
