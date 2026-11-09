@@ -12,12 +12,49 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
+	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/helpers/requestid"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"google.golang.org/adk/v2/model"
 	"google.golang.org/genai"
 )
+
+func TestGatewayModelsPreserveCostAcrossADKAndCompactorBoundaries(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("llm_provider-x-litellm-response-cost", "0.00000625")
+		_, _ = w.Write([]byte(`{"choices":[{"finish_reason":"stop","message":{"content":"ok"}}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2,"cost":0.00000625}}`))
+	}))
+	defer server.Close()
+	llm, err := NewOpenAICompatibleModel(GatewaySettings{URL: server.URL, Model: "openrouter/selected", HTTPClient: server.Client()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var costs reporting.LLMCostCollector
+	ctx := gatewayrecovery.WithLLMCostCollector(t.Context(), &costs)
+	request := &model.LLMRequest{Contents: []*genai.Content{genai.NewContentFromText("x", genai.RoleUser)}}
+	for _, err := range llm.GenerateContent(ctx, request, false) {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := llm.(compactionModel).compact(ctx, request); err != nil {
+		t.Fatal(err)
+	}
+	got := costs.Snapshot(0)
+	if got.Calls != 2 || len(got.Groups) != 2 {
+		t.Fatalf("costs=%+v", got)
+	}
+	for _, g := range got.Groups {
+		if g.Model != "openrouter/selected" || g.Source != "provider" || g.Amount != "0.00000625" {
+			t.Fatalf("group=%+v", g)
+		}
+	}
+	if got.Groups[0].Phase != "compaction" || got.Groups[1].Phase != "main" {
+		t.Fatalf("phases=%+v", got.Groups)
+	}
+}
 
 func TestSharedGatewayResponseByteCeiling(t *testing.T) {
 	var fixture struct {

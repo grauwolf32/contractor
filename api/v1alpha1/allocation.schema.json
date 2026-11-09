@@ -152,6 +152,7 @@
         "tools"
       ],
       "properties": {
+        "llmCost": {"$ref": "llm-cost.schema.json"},
         "durationMs": {
           "$ref": "performance.schema.json#/$defs/resourceInteger"
         },

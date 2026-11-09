@@ -28,7 +28,9 @@ import (
 	"github.com/grauwolf32/contractor/internal/planner/streamline"
 	"github.com/grauwolf32/contractor/internal/projectlifecycle"
 	"github.com/grauwolf32/contractor/internal/projectsitemap"
+	"github.com/grauwolf32/contractor/internal/runcost"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
+	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/scheduler"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
@@ -78,7 +80,7 @@ func configureExecutors(
 		planner.DefaultCompletionWriteTimeout,
 		cfg.Operations.Database.AcquireTimeout+cfg.Operations.Database.LockTimeout+time.Second,
 	)
-	plannerSessions, err := plannersession.New(runstore.NewPostgresStore(pool, storage), plannersession.Options{
+	plannerSessions, err := plannersession.New(runcost.NewParticipants(pool, storage), plannersession.Options{
 		CompletionWriteTimeout: completionWriteTimeout,
 	})
 	if err != nil {
@@ -223,7 +225,7 @@ func configureWorkflows(
 		RequestTimeoutSeconds: int(cfg.WorkerRequestTimeout / time.Second),
 	}
 	schedulerSettings := settingsstore.NewPostgresStore(pool)
-	telemetryReports := telemetry.NewRepository(pool)
+	telemetryReports := runservice.NewCostReports(pool)
 	workflowScheduler, err := scheduler.New(
 		runstore.NewPostgresStore(pool, storage),
 		transactions,
@@ -262,7 +264,7 @@ func configureWorkflows(
 	// Expired telemetry is removed by its own loop outside the Scheduler lanes;
 	// a cleanup pass keeps the Scheduler store-operation budget it ran under.
 	telemetryRetention, err := telemetry.NewRetention(
-		telemetryReports, cfg.Operations.Scheduler.OperationTimeout, logger,
+		telemetryReports.Repository, cfg.Operations.Scheduler.OperationTimeout, logger,
 	)
 	if err != nil {
 		return workflowServices{}, fmt.Errorf("configure telemetry retention: %w", err)

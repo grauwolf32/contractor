@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/controlplane/engagementadapter"
 	"github.com/grauwolf32/contractor/internal/mtls"
+	"github.com/grauwolf32/contractor/internal/runcost"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -103,8 +104,9 @@ func configureControlPlane(
 		return controlServices{}, fmt.Errorf("configure engagement preparation: %w", err)
 	}
 	placementAllocator, err := controlplane.NewPlacementAllocator(controlplane.PlacementAllocatorOptions{
-		Storage: storage,
-		Pool:    pool, Registry: registry, Gateways: configurationManager,
+		Storage:     storage,
+		Allocations: runcost.NewParticipants(pool, storage),
+		Pool:        pool, Registry: registry, Gateways: configurationManager,
 		AdditionalAdapterRequirements: engagementPreparation.RequiredRuntimeAdapters,
 		LLMCredentials:                credentialSet.provider, RuntimeCredentials: credentialSet.runtime,
 		TransactionLLMCredentials: credentialSet.transactionLookup,

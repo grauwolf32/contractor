@@ -9,6 +9,7 @@ import {
 import {
   authSession,
   fulfillError,
+  fulfillEmptyPageOrNotFound,
   fulfillJSON,
   mockAPI,
 } from "./support/mock-api";
@@ -75,6 +76,8 @@ for (const width of [1440, 390, 320]) {
                 : { hasMore: false },
           };
         }
+        if (url.pathname.endsWith("/llm-cost"))
+          return fulfillEmptyPageOrNotFound(route);
         await fulfillJSON(route, value, 200, {
           ETag:
             url.pathname === "/v1/projects/project_history" ? '"1"' : '"51"',

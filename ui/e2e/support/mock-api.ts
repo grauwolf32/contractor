@@ -23,7 +23,11 @@ import {
 import { RESPONSE_SCHEMAS } from "../../src/api/generated/response-schemas";
 import type { components } from "../../src/api/generated/public";
 import { conforming } from "../../src/test/builders";
-import { errorRetryable, operationOf } from "../../src/test/responses";
+import {
+  errorRetryable,
+  operationOf,
+  unavailableCostForURL,
+} from "../../src/test/responses";
 
 type Schemas = components["schemas"];
 
@@ -186,6 +190,11 @@ export async function fulfillEmptyPageOrNotFound(
   message = "not found",
 ): Promise<void> {
   const request = route.request();
+  const cost = unavailableCostForURL(request.method(), new URL(request.url()));
+  if (cost) {
+    await fulfillJSON(route, cost);
+    return;
+  }
   if (
     request.method() === "GET" &&
     new URL(request.url()).pathname === "/v1/operations/settings/models"

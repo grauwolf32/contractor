@@ -352,6 +352,82 @@ bounded LLM error path (FAIL-OBS-2).
 independently enforced, because they bound one Planner or Worker execution
 rather than account consumption.
 
+**OBS-R120.** Execution metrics may contain `llmCost`: USD monetary
+observations from the existing Gateway transport, separate from token and
+logical model-call counters. Its `calls` covers observed transport attempts,
+with the logical model-call count as an unpriced lower bound when transport
+observations are unavailable;
+`groups` partitions the priced subset by selected model, phase (`main`,
+`compaction`, `finalization`, `summarization`) and source (`provider`,
+`gateway`). A provider cost forwarded by LiteLLM retains provider provenance;
+a LiteLLM tariff calculation is a Gateway estimate. Header and body totals
+describe the same charge and are never added together; cached and reasoning
+components are already included. These are operational observations, not an
+invoice or an enforced spending ceiling.
+
+**OBS-R121.** Monetary amounts are canonical nonnegative decimal strings,
+with at most 18 integer and 18 fractional digits, no exponent, redundant zero
+prefix or trailing fractional zero (LIM-OBS-25). `0` is known zero. Each report permits at
+most 64 unique model/phase/source groups (LIM-OBS-23); a model is at most 256 UTF-8 bytes (LIM-OBS-24),
+and all call counts obey LIM-OBS-17. The sum of priced group calls cannot exceed
+physical calls. Unsupported currency, malformed or contradictory observations,
+overflow and excess groups leave the affected calls unpriced. An absent
+monetary observation never establishes a free call. Shared cost fixtures pin
+the Go and Python validators and normalization boundary.
+
+**OBS-R122.** Capture cost before provider adaptation discards headers or
+usage extensions, once per actual transport attempt, including unsuccessful,
+retried and received-but-rejected responses. Auxiliary calls belong to the
+existing allocation or Planner report. Cost metadata must not change model
+selection, inference success, cancellation, limits or retry policy. No model
+call is repeated to recover accounting. Only the closed metadata above is
+retained; credentials, raw headers, prompts and responses are excluded.
+
+**OBS-R123.** Durable cost uses compact fields on existing records, with no
+additional tables. A new parent stores the compact known-empty object `{}`;
+SQL NULL denotes a historical gap. The allocation and Stage's Planner fields keep their last
+counted contribution independently of diagnostic report retention. The ordinary
+Run totals include its Planner and Workers; Audit execution keeps the Run cost
+snapshot, Audit totals include all its child Runs and iterations, and Project
+totals partition Audit children and standalone Runs. An Audit Planner is an
+ordinary Run participant, never another Project charge. Report receipt,
+participant replacement and all parent deltas commit in one existing transaction,
+with each store writing only its owned records. Replay and an obsolete
+incomplete report cannot charge again.
+
+Before a Planner starts or a Worker allocation is admitted, its creation
+transaction registers an expected report slot in that participant's existing
+cost field and projects it into all owning parent totals. An unreceived slot
+has an empty report identity, no observed calls or cost, and contributes one
+unknown report. `reports` counts participant slots; `unknownReports` includes
+missing as well as incomplete reports. A received report replaces the slot
+regardless of its timestamp; registration replay cannot replace an observation.
+Registration does not invent or advance the last execution-observation time.
+Failure to persist the slot or any parent delta rolls participant creation back.
+Best-effort diagnostic delivery cannot turn a missing report into complete
+coverage, even when every received report has complete cost metadata.
+
+**OBS-R124.** Full diagnostics still expire under OBS-R43. Compact participant
+metadata follows its Stage/Run lifetime; deleting a child removes its detail,
+without subtracting the already observed cost from its living Audit or Project.
+Missing-report counts are retained alongside the known subtotal after deletion.
+Parent totals follow the parent lifetime. Earlier absent monetary observations
+remain a historical gap, not an inferred price or a zero. No data is reset and
+current tariffs are never applied to historical token counts.
+
+**OBS-R125.** Monetary aggregates have at most 64 model/role/phase/source
+groups: at most 48 explicitly named groups and a phase/role/source remainder
+(LIM-OBS-26). Aggregate counters are canonical nonnegative decimal strings with
+at most 38 integer digits; USD sums add at most 18 fractional digits
+(LIM-OBS-27). The remainder retains exact amounts and coverage. Owner-authorized
+Run, Audit and Project cost reads return one bounded prepared aggregate and
+separate `asOf`, last-observation time, basis and coverage. Monetary updates do
+not alter the parent lifecycle, draft CAS revision or unchanged parent ETag.
+An Audit cost read may additionally select at most 64 exact execution IDs
+(LIM-OBS-26) from its visible Work page; one indexed read returns their retained
+Run snapshots, including deleted source Runs, without browser fan-out.
+Live/partial/unavailable data is not a security verdict or a spending limit.
+
 ### Report content
 
 **OBS-R19.** `complete` describes report completeness, not

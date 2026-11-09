@@ -21,7 +21,8 @@ const maxReportErrors = 100
 const maxRejectionErrors = maxReportErrors - 2
 
 type executionState struct {
-	mu sync.Mutex
+	mu   sync.Mutex
+	cost reporting.LLMCostCollector
 
 	limits Limits
 
@@ -316,6 +317,7 @@ func (s *executionState) report(
 	report := reporting.ExecutionReport{
 		ReportID: reportID, Complete: true,
 		Metrics: reporting.ExecutionMetrics{
+			LLMCost:    s.cost.Snapshot(modelCalls),
 			DurationMS: &durationMS, ModelCalls: &modelCalls,
 			InputTokens: &inputTokens, OutputTokens: &outputTokens,
 			TotalTokens: &totalTokens, Tools: tools,

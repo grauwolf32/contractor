@@ -208,6 +208,7 @@ var layers = []layerSpec{
 			"internal/operations/publishfindings",
 			"internal/rundeletion",
 			"internal/runservice",
+			"internal/runcost",
 		},
 	},
 	{

@@ -1,0 +1,47 @@
+schema_version: '1.0'
+id: V458-009
+title: Reconcile scan history fixtures and browser inventory with shipped scan workflows
+milestone: llm-cost-reporting-2026-11
+epic: operations
+kind: defect
+introduced_by: V461-003
+priority: P2
+status: completed
+depends_on: [V461-003, V455-008]
+languages: [go, javascript, yaml]
+goal: Existing scan history and browser verification execute their intended cases against the current scanner workflow graph.
+context:
+  authority: The user-authorized main integration on 2026-11-09 requires reconciling these verification failures before landing.
+  severity: low
+  finding: >-
+    internal/planner/session/scan_history_test.go:60 keeps the new scanner
+    transitions into publish/publish-partial after reducing the Workflow to two
+    Stages. ui/server/mocked-browser-gate.mjs:43 omits the real-process scanner
+    Finding and engagement browser specs, so its inventory rejects the whole gate.
+    The scan graph change is from V461-003; scanner browser coverage also comes
+    from V455-008. Both failures were observed on the combined real checks.
+  siblings: The fixture must terminate success failure and interruption locally; both new browser specs require a real scanner stack and belong to the process inventory, not the mocked execution list.
+  co_land: V458-008 and this correction must land together to keep the integrated verification graph green; no product code changes are required.
+scope:
+  in:
+  - Make the deliberately reduced scan-history fixture graph self-contained.
+  - Register both existing process browser specs in the inventory without claiming their execution in the mocked gate.
+  out:
+  - Scanner behavior, production workflows, relaxed assertions, test skipping and live deployments.
+acceptance_criteria:
+  - id: A1
+    text: All scan-history cases execute their original authority, recovery and batched-read assertions against a valid two-Stage fixture.
+  - id: A2
+    text: Browser inventory includes every spec in its correct mocked or process category, and the complete mocked browser gate executes successfully without skipped cases.
+tests:
+  - command: go test -count=1 ./internal/planner/session
+    covers: [A1]
+  - command: make ui-browser-mocked
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A2]
+implementation_commit: 6755ac4d6c7aa600b5a4de6cfa52c7d93d7f4dc2
+verification:
+  - The original composed graph failed three scan-history tests on missing publish stages; the full Planner session package passed with race detection and real PostgreSQL after local terminal edges were restored.
+  - The complete mocked browser gate passed 221 cases across 33 specs with no skips or retries. The two real scanner-stack specs are registered only in the process inventory and are not claimed as mocked executions.
+  - UV_OFFLINE=true make lint passed on the combined tree. No production workflow or scanner behavior changed.

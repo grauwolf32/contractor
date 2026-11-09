@@ -33,6 +33,7 @@ from contractor_runtime.core.worker_completion import (
     FailCompletion,
     PreparedWorkerCompletion,
 )
+from contractor_runtime.llm.cost import model_cost_phase
 from contractor_runtime.llm.factory import ModelFactory
 from contractor_runtime.llm.openai import (
     GatewayModelError,
@@ -237,11 +238,12 @@ class WorkerCompletionPipeline:
             return _failure(
                 "worker_draining", "Worker is no longer accepting A2A work", True
             ), False
-        structured_candidate = await finalizer.run(
-            subtask_id=request.subtask_id,
-            result_text=candidate,
-            invocation_id=invocation_id,
-        )
+        with model_cost_phase("finalization"):
+            structured_candidate = await finalizer.run(
+                subtask_id=request.subtask_id,
+                result_text=candidate,
+                invocation_id=invocation_id,
+            )
         result, exportable = self.build_result(
             request,
             structured_candidate,
@@ -309,7 +311,8 @@ class WorkerCompletionPipeline:
                 instrumentation=self._instrumentation,
                 check_admission=self._admit_semantic_work,
             )
-            candidate = await summarizer.run(prompt=prompt, invocation_id=invocation_id)
+            with model_cost_phase("summarization"):
+                candidate = await summarizer.run(prompt=prompt, invocation_id=invocation_id)
             usage = summarizer.usage
             result, exportable = self.build_result(request, candidate, observed_refs)
             if not isinstance(result, WorkerResult):

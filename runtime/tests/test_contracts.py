@@ -198,6 +198,30 @@ def test_shared_execution_metric_integer_bounds() -> None:
         assert (schema.is_valid(report), accepted) == (case["valid"], case["valid"]), case["name"]
 
 
+def test_shared_llm_cost_cases() -> None:
+    from contractor_runtime.llm.cost import normalize_usd, response_cost
+
+    cases = json.loads((FIXTURES / "llm-cost-cases.json").read_text())
+    for case in cases["normalization"]:
+        assert normalize_usd(case["raw"]) == case["amount"], case
+    for case in cases["observations"]:
+        expected = None if case["amount"] is None else (case["source"], case["amount"])
+        assert response_cost(case["model"], case["headers"], case["body"].encode()) == expected
+    filename = "allocation-final-response.json"
+    schema = private_validator(INDEX["valid"][filename]["schema"])
+    for case in cases["reports"]:
+        report = json.loads((FIXTURES / "valid" / filename).read_text())
+        report["report"]["worker"]["metrics"]["llmCost"] = case["cost"]
+        try:
+            decode_private(VALID_MODELS[filename], json.dumps(report).encode())
+        except PrivateProtocolDecodeError:
+            accepted = False
+        else:
+            accepted = True
+        assert accepted == case["valid"], case["name"]
+        assert schema.is_valid(report) == case.get("schemaValid", case["valid"]), case["name"]
+
+
 def test_shared_stage_content_request_does_not_expose_session_controls() -> None:
     assert {
         "session",

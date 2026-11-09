@@ -1,4 +1,5 @@
 import type { ArtifactArchiveScope } from "./artifact-archive";
+import type { CostScope } from "./llm-cost";
 
 interface CatalogRef {
   name: string;
@@ -15,6 +16,11 @@ function toolCallQueries(runId: string) {
 }
 
 export const queryKeys = {
+  llmCost: (
+    scope: CostScope,
+    id: string,
+    executionIds: readonly string[] = [],
+  ) => ["llm-cost", scope, id, executionIds] as const,
   session: ["auth", "session"] as const,
   workflows: {
     inventory: ["workflows", "inventory"] as const,

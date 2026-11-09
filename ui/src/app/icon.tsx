@@ -6,6 +6,12 @@ import type { ReactNode } from "react";
  * of their own <svg>; lint rejects new inline SVG icons under src/routes.
  */
 const shapes = {
+  coins: (
+    <>
+      <ellipse cx="9" cy="6" rx="6" ry="3" />
+      <path d="M3 6v5c0 1.7 2.7 3 6 3s6-1.3 6-3V6M3 11v5c0 1.7 2.7 3 6 3 1.2 0 2.3-.2 3.2-.5M15 9c3.3 0 6 1.3 6 3s-2.7 3-6 3m-3-1v4c0 1.7 2 3 4.5 3S21 19.7 21 18v-6" />
+    </>
+  ),
   copy: (
     <>
       <rect x="8" y="8" width="12" height="13" rx="2" />

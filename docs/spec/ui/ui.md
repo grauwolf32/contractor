@@ -1735,3 +1735,21 @@ keyboard row focus avoids scrolling ancestors before revealing the row. The
 embedded API renderer updates its configuration without remounting for each
 operation. Intentional anchors, local references, mobile list/detail transitions
 and the existing keyboard focus contract remain available.
+
+
+**UI-R232.** Run, Check and Project show the Server-prepared retained LLM cost
+from their independently fresh cost resource (OBS-R123–R125). The Check card
+sits beside Work progress; Project shows its lifetime known total split into
+Checks (their child Runs included) and standalone Runs. Work's Run-attempt
+section requests the visible execution IDs in one bounded read, including
+retained snapshots after source Run deletion. The browser never fans out over
+Run history, reprices tokens or sums child Runs into a Project total.
+Source (Reported, Estimate, Mixed sources) is independent from coverage
+(complete, partial, pending, unavailable). Missing amounts are a dash; known
+zero is explicit. Positive amounts below a cent display `<$0.01`, with the
+exact decimal available in details. Details switch between activity and model
+breakdown and explain historical gaps. Monetary arithmetic uses exact decimal
+strings and integer units; display rounding never changes totals. Failed reads
+keep last-known data, back off under the common polling rule, and offer retry.
+Settled work stops polling after an independent terminal refresh. Shared fonts,
+colours and controls apply in light, dark and black themes at 390 px and above.

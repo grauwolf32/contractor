@@ -18,7 +18,13 @@ import { renderApplication } from "../../test/application";
 import { stageContract } from "../../test/builders-execution";
 import { fakeServer } from "../../test/fake-server";
 import { testAPI, testSession } from "../../test/render";
-import { bytes, failure, json, page } from "../../test/responses";
+import {
+  bytes,
+  failure,
+  json,
+  page,
+  emptyPageOrNotFound,
+} from "../../test/responses";
 import { auditFixture, projectFixture } from "../../test/shell-harness";
 import { makeFinding } from "../decisions/test-support";
 
@@ -302,7 +308,7 @@ function serve(server: FakeServer) {
       }
       if (path === "/v1/audit-profiles")
         return json(page(server.profiles ?? []));
-      return json(page([]));
+      return emptyPageOrNotFound(request, url);
     }),
   );
   return { api, requests };

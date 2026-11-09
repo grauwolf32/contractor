@@ -125,7 +125,7 @@ func (a *PlacementAllocator) pinReservations(
 			Origins:     runtimeConfig.Origins,
 			Provenance:  runtimeConfig.Provenance,
 		}
-		if err := store.RecordStageAllocation(ctx, runstore.StageAllocation{
+		if err := a.allocations.RecordStageAllocation(ctx, tx, runstore.StageAllocation{
 			RuntimePlacementLabels: append([]string{}, reservation.PlacementLabels...),
 			CompletionContract:     contracts.CloneWorkerCompletionContract(reservation.CompletionContract),
 			AllocationID:           reservation.Grant.AllocationID, StageExecutionID: request.StageExecutionID,

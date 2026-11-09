@@ -43,6 +43,7 @@ from contractor_runtime.factories import FactoryRegistry
 from contractor_runtime.http_body import read_limited_body
 from contractor_runtime.llm.factory import gateway_model
 from contractor_runtime.llm.openai import GatewayModelError, OpenAICompatibleGatewayLlm
+from contractor_runtime.telemetry.metrics import MetricsState
 from contractor_runtime.toolsets.common.credentials import proxy_authorization
 
 PROXY_PASSWORD = "recognizable-proxy-password"
@@ -67,6 +68,7 @@ def test_llm_gateway_target_routes_only_model_traffic_and_changes_no_globals() -
             assert adapter.handles.tool_http is None
             assert adapter.handles.tool_subprocess is None
             context = SimpleNamespace(
+                state=SimpleNamespace(metrics=MetricsState()),
                 model_policy=SimpleNamespace(model="worker-model"),
                 runtime_settings=SimpleNamespace(
                     llm_gateway_url="http://gateway.example/v1",
@@ -405,6 +407,7 @@ async def assert_safe_model_proxy_failure(proxy_url: str, backend_url: str) -> N
         proxy_settings(proxy_url, targets=["llm-gateway"]),
     )
     context = SimpleNamespace(
+        state=SimpleNamespace(metrics=MetricsState()),
         model_policy=SimpleNamespace(model="worker-model"),
         runtime_settings=SimpleNamespace(
             llm_gateway_url=backend_url,

@@ -346,6 +346,12 @@ export type PublicSchemaName =
   | "StageContentResult"
   | "StageTermination"
   | "Cancellation"
+  | "CostCounter"
+  | "USDAmount"
+  | "NullableUSDAmount"
+  | "CostBreakdownRow"
+  | "LLMCostExecution"
+  | "LLMCostSummary"
   | "MetricsSummary"
   | "WorkerCompletionDiagnostics"
   | "AttemptDiagnostic"
@@ -1478,6 +1484,30 @@ export const RESPONSE_SCHEMAS = {
     "401": "Error",
     "404": "Error",
     "409": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "GET /v1/runs/{runId}/llm-cost": {
+    "200": "LLMCostSummary",
+    "400": "Error",
+    "401": "Error",
+    "404": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "GET /v1/audits/{auditId}/llm-cost": {
+    "200": "LLMCostSummary",
+    "400": "Error",
+    "401": "Error",
+    "404": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "GET /v1/projects/{projectId}/llm-cost": {
+    "200": "LLMCostSummary",
+    "400": "Error",
+    "401": "Error",
+    "404": "Error",
     "500": "Error",
     "503": "Error",
   },

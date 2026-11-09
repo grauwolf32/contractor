@@ -167,9 +167,18 @@ for (const theme of ["light", "dark", "black"])
         await page.evaluate(() => document.documentElement.scrollWidth),
       ).toBeLessThanOrEqual(width);
       await preview.getByRole("tab", { name: "Limits", exact: true }).click();
+      const limits = preview.getByRole("region", {
+        name: "Saved HTTP limits",
+        exact: true,
+      });
       await expect(
-        preview.getByRole("region", { name: "Saved HTTP limits", exact: true }),
-      ).toContainText("5,000");
+        limits.getByText("Requests per second", { exact: true }),
+      ).toBeVisible();
+      await expect(limits.getByText("5", { exact: true })).toBeVisible();
+      await expect(
+        limits.getByText("Concurrent requests", { exact: true }),
+      ).toBeVisible();
+      await expect(limits.getByText("3", { exact: true })).toBeVisible();
       await expect(
         preview.getByText("65,536 bytes", { exact: true }),
       ).toBeVisible();
@@ -223,7 +232,7 @@ test("optional limits stay absent and invalid/oversized policies retain Source/d
   );
   const preview = await load(page);
   await preview.getByRole("tab", { name: "Limits", exact: true }).click();
-  await expect(preview.getByText("Not set", { exact: true })).toHaveCount(4);
+  await expect(preview.getByText("Not set", { exact: true })).toHaveCount(3);
   await expect(
     preview.getByRole("region", { name: "Saved HTTP limits", exact: true }),
   ).toContainText("7");

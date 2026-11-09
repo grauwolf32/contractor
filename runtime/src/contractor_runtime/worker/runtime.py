@@ -45,6 +45,7 @@ from contractor_runtime.core.worker_completion import (
     WorkerCompletionError,
     bind_worker_completion,
 )
+from contractor_runtime.llm.cost import model_cost_phase
 from contractor_runtime.llm.factory import ModelFactory, gateway_model
 from contractor_runtime.llm.openai import (
     GatewayModelError,
@@ -833,13 +834,14 @@ class AdkWorkerRuntime:
             if model is self._model:
                 raise WorkerCompactionError.failed("model_not_isolated")
             try:
-                candidate = await run_compactor(
-                    model=model,
-                    config=compaction.config,
-                    document=plan.document,
-                    invocation_id=invocation_id,
-                    observer=self._plugin,
-                )
+                with model_cost_phase("compaction"):
+                    candidate = await run_compactor(
+                        model=model,
+                        config=compaction.config,
+                        document=plan.document,
+                        invocation_id=invocation_id,
+                        observer=self._plugin,
+                    )
             except WorkerCompactionError:
                 raise
             except Exception as error:

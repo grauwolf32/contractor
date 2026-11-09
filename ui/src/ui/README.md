@@ -1099,3 +1099,12 @@ ui-install`); `pnpm lint` runs the ESLint part. They fail on:
   `test-support.tsx` file, and production code must not import them.
   `scripts/exports-baseline.txt` lists tolerated entries against an open
   task; an entry that is no longer needed fails, so it only shrinks.
+
+### LLM cost
+
+`src/app/llm-cost` supplies the shared `LLMCostPanel` over the independently
+fresh Run, Check or Project API summary. Its card and `CostAmount` use the
+common exact `formatUSD` formatter; shared styles are loaded once from
+`src/main.tsx`. Work attempts request one bounded set of execution snapshots.
+Currency strings never pass through floating-point totals, and absent costs
+remain distinct from known zero.

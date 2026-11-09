@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -31,8 +32,15 @@ type PlacementRuntimeCredentialLookup interface {
 	Get(context.Context, string) (credentials.RuntimeCredentialMetadata, error)
 }
 
+// PlacementAllocationRecorder commits allocation identity and expected report
+// coverage in the placement transaction before a Runtime can receive work.
+type PlacementAllocationRecorder interface {
+	RecordStageAllocation(context.Context, pgx.Tx, runstore.StageAllocation) error
+}
+
 type PlacementAllocatorOptions struct {
 	Storage                       *artifactpostgres.Storage
+	Allocations                   PlacementAllocationRecorder
 	AdditionalAdapterRequirements func(context.Context, string, string, []BindingRequirement) ([]runtimesettings.RuntimeAdapterRef, error)
 	Pool                          *pgxpool.Pool
 	Registry                      *InMemoryRegistry
@@ -49,6 +57,7 @@ type PlacementAllocatorOptions struct {
 // Registry mutex; only compact compatibility edges cross that boundary.
 type PlacementAllocator struct {
 	storage                       *artifactpostgres.Storage
+	allocations                   PlacementAllocationRecorder
 	additionalAdapterRequirements func(context.Context, string, string, []BindingRequirement) ([]runtimesettings.RuntimeAdapterRef, error)
 	pool                          *pgxpool.Pool
 	registry                      *InMemoryRegistry
@@ -61,13 +70,14 @@ type PlacementAllocator struct {
 }
 
 func NewPlacementAllocator(options PlacementAllocatorOptions) (*PlacementAllocator, error) {
-	if options.Storage == nil || options.Pool == nil || options.Registry == nil || options.Gateways == nil ||
+	if options.Storage == nil || options.Allocations == nil || options.Pool == nil || options.Registry == nil || options.Gateways == nil ||
 		options.LLMCredentials == nil || options.TransactionLLMCredentials == nil ||
 		options.RuntimeCredentials == nil || options.CredentialGuard == nil {
 		return nil, errors.New("candidate placement dependencies are incomplete")
 	}
 	return &PlacementAllocator{
 		storage:                       options.Storage,
+		allocations:                   options.Allocations,
 		additionalAdapterRequirements: options.AdditionalAdapterRequirements,
 		pool:                          options.Pool, registry: options.Registry, gateways: options.Gateways,
 		llmCredentials: options.LLMCredentials, runtimeCredentials: options.RuntimeCredentials,

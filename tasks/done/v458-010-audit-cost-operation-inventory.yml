@@ -1,0 +1,35 @@
+schema_version: '1.0'
+id: V458-010
+title: Include the Audit cost read in the common operation inventory
+milestone: llm-cost-reporting-2026-11
+epic: operations
+kind: defect
+introduced_by: V458-002
+priority: P2
+status: completed
+depends_on: [V458-002]
+languages: [yaml]
+goal: The complete Audit operation inventory accounts for the owner-authorized cost summary without restoring retired Audit authority.
+context:
+  authority: User-authorized main integration on 2026-11-09 requires correcting the inventory omission found by the full auditdomain suite.
+  severity: low
+  finding: docs/proposals/0050-audit-removal-map.yml omits GET /v1/audits/{auditId}/llm-cost, causing TestAuditCommonRemovalMapCoversRelationsAndOperations to fail after the cost API is added.
+  siblings: Run and Project cost paths do not belong to the Audit operation inventory; their public contracts and owner-authorized readers are already covered.
+  co_land: This inventory correction is required with V458-008 before updating main; no runtime operation or validation rule changes.
+scope:
+  in:
+  - Record preservation, owning task and bounded independent operational facts for the existing Audit cost read.
+  out:
+  - Relaxing the completeness gate, changing the endpoint or adding product behavior.
+acceptance_criteria:
+  - id: A1
+    text: The full auditdomain suite passes with every public Audit operation mapped and the cost read explicitly preserved under V458-002.
+tests:
+  - command: go test -count=1 ./internal/auditdomain
+    covers: [A1]
+  - command: make lint
+    covers: [A1]
+implementation_commit: b536fb22ca858bd54878df358f6d3041ca1bdcfd
+verification:
+  - The original exhaustive operation-map check failed on the missing Audit cost read. The full auditdomain package passed with race detection after its owning disposition was added.
+  - UV_OFFLINE=true make lint and the full shared fixture gate passed. The endpoint, lifecycle authority and validation rules were unchanged.

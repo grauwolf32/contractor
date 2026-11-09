@@ -35,6 +35,7 @@ type Dependencies struct {
 	Credentials          CredentialDependencies
 	RuntimeConfiguration RuntimeConfigurationDependencies
 	GitKeys              GitKeyDependencies
+	Costs                CostDependencies
 }
 
 // contextHandlers holds the handler struct of every context. Only NewHandler
@@ -54,6 +55,7 @@ type contextHandlers struct {
 	credentials          *credentialHandlers
 	runtimeConfiguration *runtimeConfigurationHandlers
 	gitKeys              *gitKeyHandlers
+	costs                *costHandlers
 }
 
 func NewHandler(dependencies Dependencies) (http.Handler, error) {
@@ -78,6 +80,7 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 		{"credential", dependencies.Credentials},
 		{"Runtime configuration", dependencies.RuntimeConfiguration},
 		{"Git key", dependencies.GitKeys},
+		{"LLM cost", dependencies.Costs},
 	} {
 		if err := requireServices(group.name, group.dependencies); err != nil {
 			return nil, err
@@ -95,6 +98,7 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	cursors := pageCursors{key: tokenDigest}
 	session := &sessionHandlers{SessionDependencies: dependencies.Session, tokenDigest: tokenDigest}
 	contexts := contextHandlers{
+		costs:                &costHandlers{CostDependencies: dependencies.Costs},
 		session:              session,
 		catalog:              &catalogHandlers{CatalogDependencies: dependencies.Catalog, cursors: cursors},
 		projects:             &projectHandlers{ProjectDependencies: dependencies.Projects, cursors: cursors},
