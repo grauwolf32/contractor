@@ -1,0 +1,51 @@
+schema_version: '1.0'
+id: V458-013
+title: Integrate the full Check workspace and visible deletion into main
+milestone: ui-consolidation-2026-10
+epic: ui
+kind: chore
+priority: P2
+status: in_progress
+depends_on: [V458-011, V458-012]
+languages: [typescript, markdown, yaml]
+goal: Main contains the approved full Check workspace and direct Delete control alongside the current operation response contract corrections.
+context:
+  authority: User request 2026-11-09 explicitly authorizes merging the approved Check UI into main; no remote push or demo deployment is requested.
+  specification: docs/spec/ui/ui.md#UI-R139
+  finding: >-
+    Check UI head 04cb5d32c0aba3b9d9fa58129db30378617c51e5 and main
+    097c023cccb3a88b663e20a585c0734bada75df4 have diverged. Main corrects
+    operation responses and generated clients; both branches changed the UI
+    package version and generated task backlog.
+  design: >-
+    Reconcile in an isolated integration branch, retain the newer UI release
+    0.11.30 and exact main operation contracts, regenerate the backlog and
+    validate the combined UI and public API before a no-fast-forward merge.
+    Preserve the unrelated dirty primary checkout byte for byte.
+scope:
+  in:
+  - Reconcile the existing approved commits and generated task index without adding product behavior.
+  - Verify full Check navigation, visible deletion and current operation response consumers together.
+  - Merge into local main and record the verified immutable revision and preservation evidence.
+  out:
+  - Remote push, deployment, database changes, live inference and unrelated user edits.
+acceptance_criteria:
+  - id: A1
+    text: Main contains V458-011 and V458-012 together with unchanged V462-001 operation contracts and generated clients; UI release is 0.11.30.
+  - id: A2
+    text: Combined complete UI verification, mocked browser gate, public API verification, generated Go client freshness and task/specification checks pass.
+  - id: A3
+    text: Local main matches the tested integration tree and all primary checkout changes retain exact hashes modes staged index and HEAD; merge evidence makes no deployment claim.
+tests:
+  - command: make ui-verify
+    covers: [A1, A2]
+  - command: make ui-browser-mocked
+    covers: [A1, A2]
+  - command: make verify-public-api
+    covers: [A1, A2]
+  - command: make generate-public-client-check
+    covers: [A1, A2]
+  - command: python3 scripts/check_tasks.py
+    covers: [A2, A3]
+  - command: python3 scripts/check_spec.py
+    covers: [A2, A3]

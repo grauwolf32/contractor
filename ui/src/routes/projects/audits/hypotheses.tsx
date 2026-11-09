@@ -5,7 +5,7 @@ import { type Audit } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
 import { PublicAPIError, requireData } from "../../../api/error";
 import { readableValue } from "../../../app/vocabulary";
-import { checkPath } from "./check-links";
+import { useCheckNavigation } from "./check-navigation";
 import {
   useResearchHypotheses,
   useResearchTasks,
@@ -47,6 +47,7 @@ export function AuditHypotheses({
   active?: boolean;
 }) {
   const api = usePublicAPI();
+  const { sectionHref } = useCheckNavigation(audit);
   const [search, setSearch] = useSearchParams();
   const cache = useQueryClient();
   const [open, setOpen] = useState(expanded);
@@ -412,7 +413,9 @@ export function AuditHypotheses({
                             <Link
                               className="research-source-link"
                               key={JSON.stringify(source)}
-                              to={`${checkPath(audit.projectId, audit.auditId)}/materials?${new URLSearchParams({ source: JSON.stringify(source) })}`}
+                              to={sectionHref("materials", {
+                                source: JSON.stringify(source),
+                              })}
                             >
                               <span>{source.ref.name}</span>
                               <small>
@@ -470,7 +473,9 @@ export function AuditHypotheses({
                             ))
                           : null}
                         <Link
-                          to={`${checkPath(audit.projectId, audit.auditId)}/work?${new URLSearchParams({ hypothesis: chosen.document.id })}`}
+                          to={sectionHref("work", {
+                            hypothesis: chosen.document.id,
+                          })}
                         >
                           View checks and results →
                         </Link>

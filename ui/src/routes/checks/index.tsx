@@ -1,11 +1,7 @@
 import { useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 
-import {
-  useAllChecks,
-  useProjectsIndex,
-  type CrossProjectCheck,
-} from "../../api/cross-project";
+import { useAllChecks, useProjectsIndex } from "../../api/cross-project";
 import { useDocumentTitle } from "../../app/document-title";
 import {
   DetailPane,
@@ -14,8 +10,7 @@ import {
   useListNavigation,
 } from "../../ui";
 import { useCheckWorkspaces } from "../projects/audits/check-data";
-import { checkPath } from "../projects/audits/check-links";
-import { CheckSummary } from "./list/check-summary";
+import { CheckDetail } from "./list/check-detail";
 import { ChecksListPane } from "./list/checks-list";
 import {
   CHECK_FILTERS,
@@ -35,8 +30,8 @@ const PROGRESS_ROWS = 30;
 /**
  * Checks: every check across the first page of projects
  * (/checks?state=<filter>&project=<projectId>&check=<auditId>). The list
- * filters by state and project; the selected check shows its progress, what
- * waits for the user and its controls, and opens the check page.
+ * filters by state and project; selection opens the complete Check workspace
+ * directly, with the source list and filters retained alongside it.
  */
 export function ChecksRoute() {
   useDocumentTitle("Checks");
@@ -80,20 +75,26 @@ export function ChecksRoute() {
     [rows],
   );
   const workspaces = useCheckWorkspaces(progressAudits);
-  const listed: CrossProjectCheck | undefined =
-    checkId === undefined
-      ? undefined
-      : checks.checks.find((check) => check.audit.auditId === checkId);
   const href = (next: {
     filter?: CheckFilter;
     projectId?: string | undefined;
     checkId?: string | undefined;
-  }) =>
-    checksHref({
+  }) => {
+    const target = checksHref({
       filter: next.filter ?? filter,
       projectId: "projectId" in next ? next.projectId : projectId,
       checkId: "checkId" in next ? next.checkId : checkId,
     });
+    // A new Check starts at Overview with fresh child selection/cursors. A
+    // list-filter change keeps the current workspace section and selection.
+    if ("checkId" in next && next.checkId !== checkId) return target;
+    const query = new URLSearchParams(target.split("?")[1]);
+    for (const [key, value] of params) {
+      if (!["state", "project", "check"].includes(key))
+        query.append(key, value);
+    }
+    return query.size ? `/checks?${query}` : "/checks";
+  };
   const selectedIndex =
     checkId === undefined
       ? -1
@@ -109,7 +110,7 @@ export function ChecksRoute() {
     onOpen: (position) => {
       const check = rows[position];
       if (check !== undefined)
-        void navigate(checkPath(check.project.projectId, check.audit.auditId));
+        void navigate(href({ checkId: check.audit.auditId }));
     },
   });
   const start =
@@ -118,6 +119,7 @@ export function ChecksRoute() {
       : `/checks/new?${new URLSearchParams({ project: projectId }).toString()}`;
   return (
     <PaneLayout
+      className="research-panes"
       listLabel="Checks"
       detailLabel="Selected check"
       showDetail={checkId !== undefined}
@@ -147,12 +149,12 @@ export function ChecksRoute() {
         checkId === undefined ? (
           <DetailPane>
             <EmptyState title="Choose a check">
-              Pick a check to see how far it got, what waits for you and its
-              controls.
+              Pick a check to explore its work, results, possible issues and
+              materials.
             </EmptyState>
           </DetailPane>
         ) : (
-          <CheckSummary key={checkId} auditId={checkId} listed={listed} />
+          <CheckDetail key={checkId} auditId={checkId} />
         )
       }
     />

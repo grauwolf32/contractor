@@ -10,7 +10,6 @@ import {
 import { usePublicAPI } from "../../../api/context";
 import { invalidateCrossProject } from "../../../api/cross-project";
 import { queryKeys } from "../../../api/query-keys";
-import { ActionMenu } from "../../../app/action-menu";
 import { ErrorNotice } from "../../../app/error-notice";
 import { Icon } from "../../../app/icon";
 import { checkStateLabel } from "../../../app/vocabulary";
@@ -234,19 +233,17 @@ const DELETING_HINT = "Deleting the check and its retained results…";
  * (Checks, Inbox, the projects list and overview) refresh alongside, also
  * after a refused request.
  *
- * `compact`: icon buttons for list rows. `menu`: Delete moves into a "Check
- * actions" menu next to the other controls (headers).
+ * `compact`: labeled icon buttons for list rows. Delete stays visible in every
+ * view; it never needs a single-action overflow menu.
  */
 export function AuditControls({
   audit,
   projectName,
   compact = false,
-  menu = false,
 }: {
   audit: Audit;
   projectName: string | undefined;
   compact?: boolean;
-  menu?: boolean;
 }) {
   const api = usePublicAPI();
   const queryClient = useQueryClient();
@@ -370,8 +367,8 @@ export function AuditControls({
     }
   }
   const buttons = controlButtons(audit);
-  function renderButton(button: ControlButton, inMenu = false) {
-    const iconOnly = compact && !inMenu;
+  function renderButton(button: ControlButton) {
+    const iconOnly = compact;
     return (
       <Button
         key={button.action}
@@ -394,35 +391,13 @@ export function AuditControls({
     );
   }
   const deleteButton = buttons.find((button) => button.action === "delete");
-  const visible = buttons.filter(
-    (button) => !(menu && button.action === "delete"),
-  );
   return (
     <div
       className="ui-toolbar checks-controls"
-      data-layout={compact ? "compact" : menu ? "menu" : undefined}
+      data-layout={compact ? "compact" : undefined}
     >
-      {visible.map((button) => renderButton(button))}
-      {menu ? (
-        <ActionMenu label="Check actions">
-          {deleteButton === undefined ? (
-            <>
-              <Button
-                size="sm"
-                variant="danger"
-                icon={<Icon name="delete" />}
-                disabled
-              >
-                <span>Delete check</span>
-              </Button>
-              <small className="ui-caption">{DELETING_HINT}</small>
-            </>
-          ) : (
-            renderButton(deleteButton, true)
-          )}
-        </ActionMenu>
-      ) : null}
-      {!menu && deleteButton === undefined ? (
+      {buttons.map((button) => renderButton(button))}
+      {deleteButton === undefined ? (
         <Button
           size="sm"
           variant="danger"

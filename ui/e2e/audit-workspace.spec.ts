@@ -6,6 +6,100 @@ import {
 import { installResearchAPI } from "./support/research-api";
 
 const root = `/projects/${RESEARCH_PROJECT}/audits/${RESEARCH_AUDIT}`;
+
+for (const theme of ["light", "dark", "black"])
+  for (const width of [1440, 390]) {
+    test(`global Checks opens the complete workspace · ${theme} · ${width}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.addInitScript(
+        (value) => localStorage.setItem("contractor.theme", value),
+        theme,
+      );
+      await installResearchAPI(page);
+      await page.goto(
+        `/checks?state=running&project=${RESEARCH_PROJECT}&check=${RESEARCH_AUDIT}`,
+      );
+      const detail = page.getByRole("region", {
+        name: "Selected check",
+        exact: true,
+      });
+      const tabs = detail.getByRole("navigation", { name: "Check sections" });
+      await expect(
+        detail.getByRole("heading", { name: "Work progress", exact: true }),
+      ).toBeVisible();
+      await expect(
+        detail.getByRole("link", { name: "Open check", exact: true }),
+      ).toHaveCount(0);
+      await expect(
+        detail.getByRole("button", { name: "Delete check", exact: true }),
+      ).toBeVisible();
+      await expect(page.getByLabel("Project", { exact: true })).toHaveValue(
+        RESEARCH_PROJECT,
+      );
+      await tabs.getByRole("link", { name: /^Work/ }).click();
+      await expect(page).toHaveURL(/section=work/);
+      await detail
+        .getByRole("button", { name: /A customer can read another customer/ })
+        .click();
+      await detail
+        .getByRole("button", { name: "Read saved result", exact: true })
+        .click();
+      await expect(
+        detail.getByRole("heading", { name: "Recorded result", exact: true }),
+      ).toBeVisible();
+      await tabs.getByRole("link", { name: "Hypotheses", exact: true }).click();
+      await detail
+        .getByRole("button", { name: /A customer can read another customer/ })
+        .click();
+      await detail
+        .getByRole("link", { name: "View checks and results →", exact: true })
+        .click();
+      await expect(page).toHaveURL(/section=work&hypothesis=/);
+      await tabs.getByRole("link", { name: "Hypotheses", exact: true }).click();
+      await detail
+        .getByRole("button", { name: /A customer can read another customer/ })
+        .click();
+      await detail.locator(".research-source-link").first().click();
+      await expect(page).toHaveURL(/section=materials&source=/);
+      const current = new URL(page.url());
+      expect(current.pathname).toBe("/checks");
+      expect(current.searchParams.get("state")).toBe("running");
+      expect(current.searchParams.get("project")).toBe(RESEARCH_PROJECT);
+      expect(current.searchParams.get("check")).toBe(RESEARCH_AUDIT);
+      await expect(
+        detail.locator(".research-material[data-selected=true]"),
+      ).toBeVisible();
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () => document.documentElement.scrollWidth <= innerWidth,
+          ),
+        )
+        .toBe(true);
+      if (width === 390) {
+        await page
+          .getByRole("link", { name: "Back to checks", exact: true })
+          .click();
+        await expect(page).toHaveURL(
+          `/checks?state=running&project=${RESEARCH_PROJECT}`,
+        );
+        await expect(
+          page.getByRole("group", { name: "Filter checks by state" }),
+        ).toBeVisible();
+        await expect(page.getByLabel("Project", { exact: true })).toHaveValue(
+          RESEARCH_PROJECT,
+        );
+        await expect(page).toHaveTitle("Checks · Contractor");
+      } else {
+        await expect(
+          page.getByRole("group", { name: "Filter checks by state" }),
+        ).toBeVisible();
+      }
+    });
+  }
+
 for (const theme of ["light", "dark", "black"])
   test(`timeline status stays a pill when results expand in ${theme}`, async ({
     page,
