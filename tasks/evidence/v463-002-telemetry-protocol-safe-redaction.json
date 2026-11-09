@@ -66,5 +66,6 @@
     "branch": "codex/debug-telemetry-known-secrets",
     "merged_to_main": false,
     "deployed": false
-  }
+  },
+  "implementation_commit": "58ddb1c2d7ae7b5cf52e65c359fbcd8255cc7387"
 }

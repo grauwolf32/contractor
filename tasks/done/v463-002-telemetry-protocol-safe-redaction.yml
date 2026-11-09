@@ -6,7 +6,8 @@ epic: operations
 kind: defect
 introduced_by: V463-001
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 58ddb1c2d7ae7b5cf52e65c359fbcd8255cc7387
 depends_on: [V463-001]
 languages: [go, python, json, markdown, yaml]
 goal: >-
