@@ -15,6 +15,10 @@ languages:
 goal: Make Planner compaction progress, cost and failure inspectable through existing safe telemetry and technical
   details without exposing conversation content.
 context:
+  telemetry_decision_2026_11_09: >-
+    User removed captureContent and allocation-wide content suppression. Configured
+    debug telemetry uses bounded content with exact known credential replacement;
+    durable/public facts stay content-free. This does not assign compaction work.
   authority: 'User request on 2026-10-25: create detailed tasks for Go ADK v2.6.0 and Planner compaction, including
     compatibility, tests and mutual exclusion with terminal summarization; keep Scheduler substantially unchanged.
     These pending records authorize planning only, do not start implementation and do not change the current
@@ -67,7 +71,7 @@ requirements:
     double count alongside main calls.
 - id: R3
   text: Raw history, summary, arbitrary model text, source event payloads and model-supplied identifiers never
-    enter durable/public facts or closed attributes. Respect current captureContent false/true contracts in
+    enter durable/public facts or closed attributes. Respect configured-exporter content and exact known credential replacement in
     separately bounded explicit fields; no new durable transcript or summary export by default.
 - id: R4
   text: Keep fact counts, JSON size, event/report pagination, exporter queue and final flush within owning

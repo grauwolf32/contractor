@@ -96,19 +96,17 @@ func TestResolverRunLabelAdaptersDoNotRequireMatchingAgentLabels(t *testing.T) {
 	}
 }
 
-func TestResolverPreservesTrustedContentOptIn(t *testing.T) {
+func TestResolverPreservesTelemetryConfigured(t *testing.T) {
 	input := resolverInput()
 	worker := telemetryPatch("https://otel.example/worker", "")
 	planner := telemetryPatch("https://otel.example/planner", "")
-	worker.Value.CaptureContent = true
-	planner.Value.CaptureContent = true
 	input.RunLabels = []PinnedRuntimeConfig{testPin("debug", "2", Spec{Worker: WorkerPatch{Telemetry: worker}, Planner: PlannerPatch{Telemetry: planner}})}
 	result, err := ResolveRuntimeConfig(input)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.WorkerTelemetry == nil || result.PlannerTelemetry == nil || !result.WorkerTelemetry.CaptureContent || !result.PlannerTelemetry.CaptureContent {
-		t.Fatal("trusted capture lost at resolution")
+	if result.WorkerTelemetry == nil || result.PlannerTelemetry == nil {
+		t.Fatal("telemetry lost at resolution")
 	}
 }
 

@@ -53,7 +53,6 @@ class InteractshToolsetFactory:
     infrastructure_channels = MappingProxyType(
         {name: frozenset({"interactsh-client"}) for name in sorted(TOOL_NAMES)}
     )
-    sensitive_output_tools = exported_tools
 
     def __init__(self, artifact_client_factory: ArtifactClientFactory | None = None):
         self._artifact_client_factory = artifact_client_factory or _reject_unconfigured_client
@@ -321,7 +320,6 @@ def _poll_result(
 class _Tool(ArtifactObservingTool):
     name: str
     description: str
-    contractor_sensitive_output = True
 
     def __init__(self, session: _Session, metrics: ToolMetrics):
         self._session = session

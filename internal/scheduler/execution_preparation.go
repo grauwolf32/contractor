@@ -164,7 +164,7 @@ func (s *Scheduler) materializeRuntimeSettings(
 	if runtimeConfig.WorkerTelemetry != nil {
 		telemetry := &runtimesettings.TelemetrySettings{
 			Adapter: runtimesettings.RuntimeAdapterOTLPHTTP, Endpoint: runtimeConfig.WorkerTelemetry.Endpoint,
-			Headers: map[string]contracts.SecretString{}, CaptureContent: runtimeConfig.WorkerTelemetry.CaptureContent,
+			Headers:             map[string]contracts.SecretString{},
 			FlushTimeoutSeconds: runtimeConfig.WorkerTelemetry.FlushTimeoutSeconds,
 		}
 		// The Server pins every export value (RCF-R102): a RuntimeConfig that

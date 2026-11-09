@@ -53,16 +53,15 @@ inside a container, its endpoint must resolve to the host from that container
 the engine must make the loopback-published service reachable. Verify that
 route rather than exposing this unauthenticated profile on all interfaces.
 
-Content capture stays off by default. To inspect prompts and responses, opt
-into `captureContent: true` for the relevant exporter; Contractor's sensitive
-tool rules still apply. Traces can then contain secrets and remain on local
-disk until explicitly removed. The viewer does not change live Run settings.
+Selecting the `debug` Runtime label with this telemetry configuration enables
+bounded model and tool content. Exact known credential values are replaced by
+`[REDACTED]`; unknown or transformed secrets are not detected. Existing Runs
+retain their pinned configuration. The viewer does not change Run settings.
 
 Contractor emits standard OTLP with OpenTelemetry GenAI messages, instructions,
 model and usage attributes. Phoenix converts these into its native LLM message
 and token views. No Phoenix or OpenInference attributes are needed in the
-production exporters. Both content capture and sensitive-tool suppression keep
-their existing rules.
+production exporters. Existing queue and content-size bounds apply.
 
 The same exporters can send directly to [Langfuse](../langfuse/README.md) by
 changing the endpoint and credential. Both backends have real-exporter smoke

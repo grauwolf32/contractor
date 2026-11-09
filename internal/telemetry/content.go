@@ -8,12 +8,12 @@ import (
 const MaxContentBytes = 256 * 1024
 
 type contentSpan interface {
-	capturesContent() bool
+	encodeContent(any) ([]byte, error)
 	setContent(string, string)
 }
 
-// CapturePlannerInput/Output evaluate their payload only for an opted-in sink.
-// Content is deliberately unredacted. It never enters normal logs or metrics.
+// CapturePlannerInput/Output evaluate content only for a configured exporter.
+// Known credentials are replaced before truncation and enqueueing.
 func CapturePlannerInput(span PlannerSpan, value func() any) {
 	capturePlannerContent(span, "input", value)
 }
@@ -23,12 +23,12 @@ func CapturePlannerOutput(span PlannerSpan, value func() any) {
 
 func capturePlannerContent(span PlannerSpan, field string, value func() any) {
 	c, ok := span.(contentSpan)
-	if !ok || !c.capturesContent() || value == nil {
+	if !ok || value == nil {
 		return
 	}
 	// Optional serialization must not change execution outcomes.
 	defer func() { _ = recover() }()
-	raw, err := json.Marshal(value())
+	raw, err := c.encodeContent(value())
 	if err != nil {
 		return
 	}

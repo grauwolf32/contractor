@@ -27,7 +27,7 @@ func captureGenAISpan(t *testing.T, name PlannerSpanName, field string, value an
 	}))
 	t.Cleanup(collector.Close)
 	registry, _ := NewBuiltinPlannerAdapterRegistry()
-	adapter, err := registry.Create(PlannerAdapterOTLPHTTP, PlannerAdapterSettings{Endpoint: collector.URL, FlushTimeout: time.Second, CaptureContent: true, RunMetadataLabels: runlabels.RunMetadataLabels{}, Resource: PlannerResource{RunID: "fixture-run", StageExecutionID: "fixture-stage", PlannerRef: "streamline@1"}})
+	adapter, err := registry.Create(PlannerAdapterOTLPHTTP, PlannerAdapterSettings{Endpoint: collector.URL, FlushTimeout: time.Second, RunMetadataLabels: runlabels.RunMetadataLabels{}, Resource: PlannerResource{RunID: "fixture-run", StageExecutionID: "fixture-stage", PlannerRef: "streamline@1"}})
 	if err != nil {
 		t.Fatal(err)
 	}

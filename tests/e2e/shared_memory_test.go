@@ -130,12 +130,10 @@ func runSharedMemoryProcesses(t *testing.T, production bool) {
 	operations := &runtimeOperations{t: t, client: publicClient, baseURL: publicBaseURL}
 	telemetryConfig := operations.publishRuntimeConfig("memory-release-audit", "1", map[string]any{
 		"planner": map[string]any{"telemetry": map[string]any{
-			"adapter": "otlp-http@1", "endpoint": collector.URL(),
-			"captureContent": false, "flushTimeoutSeconds": 2,
+			"adapter": "otlp-http@1", "endpoint": collector.URL(), "flushTimeoutSeconds": 2,
 		}},
 		"worker": map[string]any{"telemetry": map[string]any{
-			"adapter": "otlp-http@1", "endpoint": collector.URL(),
-			"captureContent": false, "flushTimeoutSeconds": 2,
+			"adapter": "otlp-http@1", "endpoint": collector.URL(), "flushTimeoutSeconds": 2,
 		}},
 	})
 	operations.createRuntimeLabel(memoryTelemetryLabel, telemetryConfig)

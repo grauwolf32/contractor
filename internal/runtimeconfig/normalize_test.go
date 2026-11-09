@@ -32,7 +32,7 @@ func TestNormalizeEquivalentDefaultsAndTargetOrder(t *testing.T) {
   "metadata":{"version":"1","name":"debug"},
   "spec":{"worker":{
     "httpProxy":{"targets":["llm-gateway","tool-http","tool-subprocess"],"proxyUrl":"http://proxy.example:8080","adapter":"http-proxy@1"},
-    "telemetry":{"flushTimeoutSeconds":10,"captureContent":false,"endpoint":"https://otel.example/v1/traces","adapter":"otlp-http@1"},
+    "telemetry":{"flushTimeoutSeconds":10,"endpoint":"https://otel.example/v1/traces","adapter":"otlp-http@1"},
     "llmGateway":{"credential":"worker-local","gateway":"local-litellm@1"}
   }}
 }`)
@@ -72,8 +72,8 @@ func TestNormalizeEquivalentDefaultsAndTargetOrder(t *testing.T) {
 	}
 }
 
-func TestNormalizeTrustedContentOptIn(t *testing.T) {
-	prepared, err := PreparePublication([]byte(`{"apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig","metadata":{"name":"debug","version":"2"},"spec":{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"http://localhost:3000/api/public/otel/v1/traces","captureContent":true}},"planner":{"telemetry":{"adapter":"otlp-http@1","endpoint":"http://localhost:3000/api/public/otel/v1/traces","captureContent":true}}}}`))
+func TestNormalizeTelemetryConfigured(t *testing.T) {
+	prepared, err := PreparePublication([]byte(`{"apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig","metadata":{"name":"debug","version":"2"},"spec":{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"http://localhost:3000/api/public/otel/v1/traces"}},"planner":{"telemetry":{"adapter":"otlp-http@1","endpoint":"http://localhost:3000/api/public/otel/v1/traces"}}}}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,8 +85,8 @@ func TestNormalizeTrustedContentOptIn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !decoded.Spec.Worker.Telemetry.Value.CaptureContent || !decoded.Spec.Planner.Telemetry.Value.CaptureContent {
-		t.Fatal("capture opt-in lost")
+	if decoded.Spec.Worker.Telemetry.Value.Endpoint == "" || decoded.Spec.Planner.Telemetry.Value.Endpoint == "" {
+		t.Fatal("configured telemetry lost")
 	}
 }
 
@@ -188,7 +188,7 @@ func TestPreparePublicationRejectsUnsafeOrAmbiguousDocuments(t *testing.T) {
 		"unknown":                      base(`{"worker":{"telemetry":null,"mystery":1}}`),
 		"duplicate":                    base(`{"worker":{"telemetry":null,"telemetry":null}}`),
 		"bad endpoint":                 base(`{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://user:secret@example/a?x=1"}}}`),
-		"null content capture":         base(`{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://example/a","captureContent":null}}}`),
+		"obsolete content switch":      base(`{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://example/a","captureContent":true}}}`),
 		"duplicate targets":            base(`{"worker":{"httpProxy":{"adapter":"http-proxy@1","proxyUrl":"http://proxy.example","targets":["tool-http","tool-http"]}}}`),
 		"null gateway":                 base(`{"worker":{"llmGateway":{"gateway":null}}}`),
 		"invalid surrogate":            base(`{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://example/\ud800"}}}`),

@@ -36,7 +36,7 @@ It leaves to other documents:
   transitions, finalization and abort: [Scheduler](../execution/scheduler.md).
 - The code, meaning and retryability table of the Memory error codes:
   [ERR-R3](../platform/errors.md).
-- Telemetry content capture (`captureContent`):
+- Telemetry content capture:
   [Runtime configuration](../configuration/runtime-config.md) and
   [Observability](../platform/observability.md).
 - Agent Skills: [Skills](skills.md).
@@ -616,7 +616,7 @@ MemoryTools projection applied within it is MEM-R78.
 description or tags into ExecutionReport detail, Planner durable facts, logs
 or WebSocket events.
 
-**MEM-R78.** External telemetry is content-free by default. Safe
+**MEM-R78.** External tracing is absent without a configured exporter. Safe
 tool diagnostics may retain only the operation name, the logical `worker_name`
 when applicable, the note name, request and result byte sizes, the success or
 error code and the duration. Tool counters remain ordinary aggregate metrics.
@@ -625,7 +625,7 @@ error code and the duration. Tool counters remain ordinary aggregate metrics.
 trusted Server provenance, but it is never placed in model context or a public
 Planner event.
 
-**MEM-R80.** With explicit `captureContent=true`
+**MEM-R80.** With a configured telemetry exporter
 ([Runtime configuration](../configuration/runtime-config.md),
 [OBS-R54](../platform/observability.md)), the trusted external sink may
 receive note content, descriptions and tags present in captured tool arguments
@@ -635,8 +635,8 @@ or results or in model conversations.
 background note export, and it does not relax the content-free ExecutionReport,
 durable-fact, log or WebSocket contracts of MEM-R77.
 
-**MEM-R82.** Content capture is bounded but unredacted; callers
-must not assume that note secrets are filtered.
+**MEM-R82.** Content capture is bounded and replaces exact known credentials
+under OBS-R54. Arbitrary unknown note secrets are not detected.
 
 **MEM-R83.** The selected LLM Gateway is an intentional content
 channel: a full note returned by `read_memory` or a mutation is part of that
@@ -805,7 +805,7 @@ These properties follow from the cited requirements, which are authoritative.
    return a candidate and enter `finalizing` (MEM-R95,
    MEM-R96, MEM-R97, MEM-R63, MEM-R64).
 10. Memory adapters never automatically retain note bodies or descriptive
-    metadata in durable diagnostics. External telemetry is content-free
+    metadata in durable diagnostics. External telemetry is disabled
     unless explicitly opted into trusted-sink capture. The LLM invocation and
     an explicit model-authored semantic copy remain separate intentional
     content destinations (MEM-R77, MEM-R78,

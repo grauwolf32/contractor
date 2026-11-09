@@ -22,6 +22,7 @@ from contractor_runtime.contracts import (
     RuntimeSettings,
     TelemetrySettings,
 )
+from contractor_runtime.redaction import runtime_secrets
 from contractor_runtime.threads import consume_task_exception
 
 UINT64_MAX = 2**64 - 1
@@ -105,7 +106,7 @@ EMPTY_ADAPTER_HANDLES = AdapterHandles()
 
 @dataclass(frozen=True, slots=True)
 class RuntimeAdapterBuildContext:
-    """Safe allocation identity; secret-bearing settings are passed separately."""
+    """Allocation identity; only the telemetry factory receives known credentials."""
 
     allocation_id: str
     run_id: str
@@ -119,6 +120,7 @@ class RuntimeAdapterBuildContext:
     run_metadata_labels: Mapping[str, str]
     runtime_adapter_refs: tuple[str, ...]
     private_bypass_hosts: tuple[str, ...]
+    known_credentials: tuple[str, ...] = field(default=(), repr=False)
 
 
 class AdapterFactoryError(RuntimeError):
@@ -310,6 +312,7 @@ class AllocationAdapterHost:
                             replace(
                                 context,
                                 run_metadata_labels=run_metadata_labels,
+                                known_credentials=runtime_secrets(spec.runtime_settings),
                             )
                             if isinstance(settings, TelemetrySettings)
                             else context

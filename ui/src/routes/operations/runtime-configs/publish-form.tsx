@@ -39,14 +39,12 @@ const TELEMETRY_BLOCKS = [
     title: "Worker telemetry",
     endpoint: "workerTelemetryEndpoint",
     credential: "workerTelemetryCredential",
-    captureContent: "workerTelemetryCaptureContent",
   },
   {
     enabled: "plannerTelemetry",
     title: "Planner telemetry",
     endpoint: "plannerTelemetryEndpoint",
     credential: "plannerTelemetryCredential",
-    captureContent: "plannerTelemetryCaptureContent",
   },
 ] as const;
 
@@ -232,59 +230,43 @@ export function RuntimeConfigPublishForm({
           <LoadMoreButton query={gatewayInventory} label="Load more Gateways" />
         </fieldset>
 
-        {TELEMETRY_BLOCKS.map(
-          ({ enabled, title, endpoint, credential, captureContent }) => (
-            <fieldset
-              className="ops-config-block"
-              key={enabled}
-              aria-label={title}
+        {TELEMETRY_BLOCKS.map(({ enabled, title, endpoint, credential }) => (
+          <fieldset
+            className="ops-config-block"
+            key={enabled}
+            aria-label={title}
+          >
+            <BlockSwitch
+              checked={draft[enabled]}
+              onChange={(checked) => update(enabled, checked)}
             >
-              <BlockSwitch
-                checked={draft[enabled]}
-                onChange={(checked) => update(enabled, checked)}
-              >
-                {`${title} · otlp-http@1`}
-              </BlockSwitch>
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  disabled={!draft[enabled]}
-                  checked={draft[captureContent]}
-                  onChange={(event) =>
-                    update(captureContent, event.target.checked)
-                  }
-                />
-                Capture content — trust this sink with unredacted prompts,
-                responses and tool content, including any secrets they contain.
-              </label>
-              <div className="ops-form-grid">
-                <Field label="OTLP traces endpoint">
-                  {(control) => (
-                    <input
-                      {...control}
-                      disabled={!draft[enabled]}
-                      placeholder="https://otel.example/v1/traces"
-                      value={draft[endpoint]}
-                      onChange={(event) => update(endpoint, event.target.value)}
-                    />
-                  )}
-                </Field>
-                <Field label="Runtime credential ID" optional>
-                  {(control) => (
-                    <input
-                      {...control}
-                      disabled={!draft[enabled]}
-                      value={draft[credential]}
-                      onChange={(event) =>
-                        update(credential, event.target.value)
-                      }
-                    />
-                  )}
-                </Field>
-              </div>
-            </fieldset>
-          ),
-        )}
+              {`${title} · otlp-http@1`}
+            </BlockSwitch>
+            <div className="ops-form-grid">
+              <Field label="OTLP traces endpoint">
+                {(control) => (
+                  <input
+                    {...control}
+                    disabled={!draft[enabled]}
+                    placeholder="https://otel.example/v1/traces"
+                    value={draft[endpoint]}
+                    onChange={(event) => update(endpoint, event.target.value)}
+                  />
+                )}
+              </Field>
+              <Field label="Runtime credential ID" optional>
+                {(control) => (
+                  <input
+                    {...control}
+                    disabled={!draft[enabled]}
+                    value={draft[credential]}
+                    onChange={(event) => update(credential, event.target.value)}
+                  />
+                )}
+              </Field>
+            </div>
+          </fieldset>
+        ))}
 
         <fieldset className="ops-config-block">
           <BlockSwitch

@@ -225,19 +225,13 @@ def test_otlp_metadata_uses_shared_secret_matching(secret: str) -> None:
     request = ExportTraceServiceRequest.FromString(instrumentation.export_request())
     resource = _attributes(request.resource_spans[0].resource.attributes)
     attributes = _attributes(request.resource_spans[0].scope_spans[0].spans[0].attributes)
-    assert "exact" not in resource
-    assert "model.alias" not in attributes
-    assert "contractor.run.label.exact" not in attributes
-    if len(secret.encode("utf-8")) < 16:
-        assert resource["service.name"] == embedded
-        assert resource["values"] == [embedded]
-        assert attributes["tool.name"] == embedded
-        assert attributes["contractor.run.label.note"] == embedded
-    else:
-        assert "service.name" not in resource
-        assert resource["values"] == []
-        assert "tool.name" not in attributes
-        assert "contractor.run.label.note" not in attributes
+    assert resource["exact"] == "[REDACTED]"
+    assert resource["service.name"] == "prefix-[REDACTED]-suffix"
+    assert resource["values"] == ["prefix-[REDACTED]-suffix", "[REDACTED]"]
+    assert attributes["model.alias"] == "[REDACTED]"
+    assert attributes["tool.name"] == "prefix-[REDACTED]-suffix"
+    assert attributes["contractor.run.label.note"] == "prefix-[REDACTED]-suffix"
+    assert attributes["contractor.run.label.exact"] == "[REDACTED]"
 
 
 def test_otlp_content_queue_retains_late_spans_beyond_two_mib() -> None:
@@ -248,7 +242,6 @@ def test_otlp_content_queue_retains_late_spans_beyond_two_mib() -> None:
         secret_values=(),
         max_pending_spans=MAX_PENDING_SPANS,
         max_pending_bytes=MAX_PENDING_BYTES,
-        capture_content=True,
     )
     for _ in range(16):
         span = instrumentation.start_span("contractor.worker.model", attributes={})
@@ -432,7 +425,6 @@ def telemetry_settings() -> TelemetrySettings:
         adapter="otlp-http@1",
         endpoint=ENDPOINT,
         headers={"Authorization": f"Bearer {HEADER_SECRET}"},
-        captureContent=False,
         flushTimeoutSeconds=1,
         export=SERVER_EXPORT,
     )

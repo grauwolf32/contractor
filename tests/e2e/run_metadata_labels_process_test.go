@@ -164,12 +164,12 @@ func TestRunMetadataLabelsAcrossProcesses(t *testing.T) {
 	debugConfig := operations.publishRuntimeConfig("metadata-label-debug", "1", map[string]any{
 		"planner": map[string]any{"telemetry": map[string]any{
 			"adapter": "otlp-http@1", "endpoint": collector.URL(),
-			"credential": "metadata-label-otel", "captureContent": false,
+			"credential":          "metadata-label-otel",
 			"flushTimeoutSeconds": 2,
 		}},
 		"worker": map[string]any{"telemetry": map[string]any{
 			"adapter": "otlp-http@1", "endpoint": collector.URL(),
-			"credential": "metadata-label-otel", "captureContent": false,
+			"credential":          "metadata-label-otel",
 			"flushTimeoutSeconds": 2,
 		}},
 	})

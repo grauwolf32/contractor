@@ -30,7 +30,7 @@ def test_shared_genai_telemetry() -> None:
                 payloads.append(await request.aread())
                 return httpx.Response(200)
 
-            settings = telemetry_settings().model_copy(update={"capture_content": True})
+            settings = telemetry_settings().model_copy(update={})
             adapter = await OTLPHTTPAdapterFactory(httpx.MockTransport(collector)).create(
                 adapter_context(), settings
             )

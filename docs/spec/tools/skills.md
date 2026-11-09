@@ -40,7 +40,7 @@ It leaves to other documents:
   Caido Toolset and its checked-in template: [HTTP and Caido](http-caido.md);
   the Podman sandbox and its planned skill mount:
   [Code execution](code-execution.md).
-- Telemetry content capture (`captureContent`):
+- Telemetry content capture:
   [Runtime configuration](../configuration/runtime-config.md) and
   [Observability](../platform/observability.md).
 - The Skills page of the web UI: [UI](../ui/ui.md).
@@ -852,11 +852,12 @@ allocation, never a public API answer (FAIL-SKL-2).
 **SKL-R112.** Package bodies never enter lifecycle events or ordinary
 execution reports.
 
-**SKL-R113.** External telemetry is content-free by default. With an
-explicit `captureContent=true`
+**SKL-R113.** External tracing is absent without a configured exporter. With
+a configured telemetry exporter
 ([Runtime configuration](../configuration/runtime-config.md)), disclosed
 instructions and resources present in model conversations or tool results may
-be exported to the trusted sink, unredacted and within its content limits.
+be exported within its content limits after exact known credential replacement
+under OBS-R54.
 Capture does not grant access to undisclosed package members and does not
 automatically upload complete package ZIPs.
 

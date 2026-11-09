@@ -1055,8 +1055,6 @@ def test_after_model_assigns_owned_ids_only_to_missing_function_call_ids() -> No
 
 def test_unknown_tool_before_callback_is_one_bounded_attempt_without_content() -> None:
     class CapturedSpan(RecordingSpan):
-        capture_content = True
-
         def __init__(self, name: str, attributes: dict[str, TelemetryAttribute]) -> None:
             super().__init__(name, attributes)
             self.content: dict[str, str] = {}

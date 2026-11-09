@@ -238,7 +238,6 @@ class AllocationPreparation:
                 resources=self.resources,
                 a2a_base_url=self._a2a_base_url,
                 runtime_settings=worker_settings,
-                sensitive_output_tools=self._factories.sensitive_output_tools,
                 summarizer=_effective_summarizer(spec),
                 compaction=(
                     spec.context_management

@@ -1,4 +1,4 @@
-"""Explicit trusted-sink content capture; no secret filtering is performed."""
+"""Bounded content capture for configured telemetry exporters."""
 
 from __future__ import annotations
 
@@ -43,13 +43,14 @@ def capture_span_content(
     output: Callable[[], Any] | None = None,
 ) -> None:
     # Lazy access is important: disabled capture must not inspect/serialize data.
-    if not getattr(span, "capture_content", False):
+    if not callable(getattr(span, "set_content", None)):
         return
     try:
+        encode = getattr(span, "encode_content", encode_content)
         if input is not None:
-            span.set_content("input", encode_content(input()))
+            span.set_content("input", encode(input()))
         if output is not None:
-            span.set_content("output", encode_content(output()))
+            span.set_content("output", encode(output()))
     except Exception:
         # Optional telemetry cannot change model/tool execution outcomes.
         return

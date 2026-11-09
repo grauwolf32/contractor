@@ -34,7 +34,7 @@ def test_model_tool_and_finalizer_capture_opt_in(enabled: bool) -> None:
         return httpx.Response(200, json={})
 
     async def scenario() -> None:
-        settings = telemetry_settings().model_copy(update={"capture_content": enabled})
+        settings = telemetry_settings().model_copy(update={})
         # Validate the actual private wire representation too.
         type(settings).model_validate_json(settings.model_dump_json())
         adapter = await OTLPHTTPAdapterFactory(httpx.MockTransport(collector)).create(
@@ -47,7 +47,7 @@ def test_model_tool_and_finalizer_capture_opt_in(enabled: bool) -> None:
             execution=state.resources.execution,
             budget=lambda: None,
             observe_artifacts=lambda _owner, _cursor: None,
-            instrumentation=adapter.handles.instrumentation,
+            instrumentation=adapter.handles.instrumentation if enabled else None,
             model_alias="test-model",
             allowed_tool_names=frozenset({tool.name}),
         )
@@ -84,6 +84,9 @@ def test_model_tool_and_finalizer_capture_opt_in(enabled: bool) -> None:
         await adapter.close()
 
     asyncio.run(scenario())
+    if not enabled:
+        assert not payloads
+        return
     payload = payloads[0]
     assert HEADER_SECRET.encode() not in payload
     for canary in (
@@ -121,11 +124,11 @@ def test_disabled_capture_never_evaluates_content() -> None:
     def forbidden() -> object:
         pytest.fail("disabled capture accessed content")
 
-    capture_span_content(SimpleNamespace(capture_content=False), input=forbidden, output=forbidden)
+    capture_span_content(SimpleNamespace(), input=forbidden, output=forbidden)
 
 
 def test_content_serialization_failure_is_optional() -> None:
-    span = SimpleNamespace(capture_content=True)
+    span = SimpleNamespace(set_content=lambda *_: None)
     capture_span_content(span, input=lambda: object())
 
 
@@ -138,7 +141,7 @@ def test_terminal_summarizer_captures_actual_adk_request_and_response(limited: b
         return httpx.Response(200)
 
     async def scenario() -> None:
-        settings = telemetry_settings().model_copy(update={"capture_content": True})
+        settings = telemetry_settings().model_copy(update={})
         adapter = await OTLPHTTPAdapterFactory(httpx.MockTransport(collector)).create(
             adapter_context(), settings
         )

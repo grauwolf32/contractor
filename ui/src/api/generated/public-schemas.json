@@ -9185,7 +9185,6 @@
         "credential": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/RuntimeCredentialId"
         },
-        "captureContent": { "type": "boolean" },
         "flushTimeoutSeconds": {
           "type": "integer",
           "minimum": 1,

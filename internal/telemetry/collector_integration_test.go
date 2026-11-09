@@ -24,7 +24,7 @@ func TestPlannerOTLPCollectorProjection(t *testing.T) {
 	}
 	registry, _ := NewBuiltinPlannerAdapterRegistry()
 	adapter, err := registry.Create(PlannerAdapterOTLPHTTP, PlannerAdapterSettings{
-		Endpoint: endpoint, Headers: headers, FlushTimeout: 10 * time.Second, CaptureContent: true,
+		Endpoint: endpoint, Headers: headers, FlushTimeout: 10 * time.Second,
 		RunMetadataLabels: runlabels.RunMetadataLabels{},
 		Resource:          PlannerResource{RunID: "go-smoke", StageExecutionID: "go-stage", PlannerRef: "streamline@1"},
 	})
