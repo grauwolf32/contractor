@@ -6,7 +6,8 @@ epic: http-tools
 kind: defect
 introduced_by: V410-030
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 76286a135bd5c6e24adeef42c0a32dd96a7e3892
 depends_on: [V410-030]
 languages: [python, markdown]
 goal: >-
