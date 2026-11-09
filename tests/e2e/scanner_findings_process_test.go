@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,6 +26,7 @@ func TestScannerFindingsAcrossProductionProcesses(t *testing.T) {
 		t.Fatal("scanner Finding acceptance requires real processes")
 	}
 	h := startConfiguredScanStackWithBudget(t, 10*time.Minute, "", func(h *scanProcessHarness, root string) {
+		h.targetURL = startEngagementScanTarget(t, h.fixture).URL
 		for _, relative := range []string{
 			"agent-templates/audit_web_nuclei_scan.yaml", "workflows/audit_web_nuclei_scan.yaml", "audit-profiles/web_scan.yaml", "instructions/audit-openapi-scan.md",
 			"agent-templates/project_nuclei_scan.yaml", "agent-templates/project_sqlmap_url_scan.yaml", "agent-templates/project_sqlmap_request_scan.yaml",
@@ -72,8 +75,15 @@ http:
 	address := freeAddress(t)
 	python := filepath.Join(h.repositoryRoot, "runtime/.venv/bin/python")
 	fixture := startProcess(t, "Scanner Finding SQLite target", h.repositoryRoot, map[string]string{"PYTHONUNBUFFERED": "1"}, python, filepath.Join(h.repositoryRoot, "tests/e2e/testdata/scanner-findings/target.py"), "--listen", address)
-	target := "http://" + address
-	waitForHTTP(t, h.ctx, fixture, h.client, target+"/readyz", http.StatusOK)
+	backend := "http://" + address
+	waitForHTTP(t, h.ctx, fixture, h.client, backend+"/readyz", http.StatusOK)
+	backendURL, err := url.Parse(backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The fixture remains loopback-only; engagement addresses this owned
+	// private-interface HTTP endpoint through the production transport.
+	target := startEngagementScanTarget(t, httputil.NewSingleHostReverseProxy(backendURL)).URL
 	project := createProjectResource(t, h.client, h.baseURL)
 	run := func(workflow, key, url string, inputs map[string]artifactRef) string {
 		t.Helper()
@@ -137,13 +147,12 @@ http:
 	}
 	// Real Audit children publish canonical Findings without an Artifact result,
 	// including a truthful empty result for the fixed target.
+	engagementInput := uploadScanEngagement(t, h.client, h.baseURL, project.ProjectID, target, false)
 	auditFor := func(key, url string) string {
 		targetData, _ := json.Marshal(map[string]any{"schema": "contractor.audit.web-target.v1", "url": url})
-		settingsData := []byte(`{"schema":"contractor.audit.web-scan-settings.v1","templateIds":"git-config","tags":"","severity":"medium","rateLimit":5}`)
 		targetInput := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "scanner-inputs", key+"-target", "application/json", targetData)
-		settingsInput := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "scanner-inputs", key+"-settings", "application/json", settingsData)
 		var draft auditProgramAudit
-		scanAuditPOST(t, h, "/v1/projects/"+project.ProjectID+"/audits", map[string]any{"profile": map[string]string{"name": "web-scan", "version": "1"}, "inputs": map[string]artifactRef{"target": targetInput, "settings": settingsInput}, "scope": map[string]string{"objective": "Check the exact fixture"}}, 0, http.StatusCreated, &draft)
+		scanAuditPOST(t, h, "/v1/projects/"+project.ProjectID+"/audits", map[string]any{"profile": map[string]string{"name": "web-scan", "version": "1"}, "inputs": map[string]artifactRef{"target": targetInput, "engagement": engagementInput}, "parameters": map[string]string{"template_ids": "git-config", "tags": "", "severity": "medium"}, "scope": map[string]string{"objective": "Check the exact fixture"}}, 0, http.StatusCreated, &draft)
 		scanAuditPOST(t, h, "/v1/audits/"+draft.AuditID+"/start", nil, draft.Revision, http.StatusOK, nil)
 		waitScanAudit(t, h, draft.AuditID, 1)
 		task := scanAuditTask(t, h, draft.AuditID)

@@ -206,7 +206,7 @@ func SupportsOpenAPIVersion(version string) bool {
 }
 
 func normalizeOptions(options Options) (Options, error) {
-	if !validateOptionsValues(options) {
+	if !validateOptionsValues(options) || options.EngagementCredential != "" && (!contracts.ValidConfigID(options.EngagementCredential) || len(options.Authentication) != 0) {
 		return Options{}, failure("invalid_options")
 	}
 	encoded, err := json.Marshal(options.revealed())

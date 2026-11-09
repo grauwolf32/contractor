@@ -477,6 +477,14 @@ func (s *factoryArtifacts) Create(ctx context.Context, _ string, target contract
 	return s.put(target, payload), nil
 }
 
+func (s *factoryArtifacts) Replace(ctx context.Context, _ string, target contracts.ArtifactRef, payload artifacts.Payload, expected string) (contracts.ArtifactRef, error) {
+	ref, exists := s.current[factoryRefKey(target)]
+	if ctx.Err() != nil || target.Revision != nil || !exists || ref.Revision == nil || *ref.Revision != expected {
+		return contracts.ArtifactRef{}, artifacts.ErrArtifactConflict
+	}
+	return s.put(target, payload), nil
+}
+
 func (s *factoryArtifacts) Inspect(_ context.Context, _ string, ref contracts.ArtifactRef) (planner.ArtifactMetadata, error) {
 	payload, exists := s.values[factoryRefKey(ref)]
 	if !exists || ref.ValidateExact() != nil {
@@ -487,7 +495,10 @@ func (s *factoryArtifacts) Inspect(_ context.Context, _ string, ref contracts.Ar
 
 func (s *factoryArtifacts) Resolve(ctx context.Context, _ string, target contracts.ArtifactRef) (contracts.ArtifactRef, error) {
 	ref, exists := s.current[factoryRefKey(target)]
-	if !exists || target.Revision != nil || ctx.Err() != nil {
+	if !exists {
+		return contracts.ArtifactRef{}, artifacts.ErrArtifactNotFound
+	}
+	if target.Revision != nil || ctx.Err() != nil {
 		return contracts.ArtifactRef{}, errors.New("report metadata unavailable")
 	}
 	return ref.Clone(), nil

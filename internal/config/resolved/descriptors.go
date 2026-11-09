@@ -254,9 +254,6 @@ func builtInDescriptors() descriptorTable {
 					"set_openapi_servers", "set_openapi_tags", "upsert_openapi_component", "upsert_openapi_path",
 					"validate_openapi",
 				},
-				InfrastructureChannels: map[string][]infrastructureChannel{
-					"validate_openapi": {channelRuntimeSubprocessLauncher},
-				},
 			},
 			"run-artifacts@1": {
 				Tools: []string{"list_artifacts", "read_artifact", "write_artifact"},
@@ -269,7 +266,7 @@ func builtInDescriptors() descriptorTable {
 					"scan_katana": {channelRuntimeSubprocessLauncher},
 					"scan_naabu":  {channelRuntimeSubprocessLauncher},
 					"scan_nuclei": {channelRuntimeHTTPClient, channelRuntimeSubprocessLauncher},
-					"scan_sqlmap": {channelRuntimeSubprocessLauncher},
+					"scan_sqlmap": {channelRuntimeHTTPClient, channelRuntimeSubprocessLauncher},
 				},
 				ActiveCheckTools: []string{"scan_ffuf", "scan_katana", "scan_naabu", "scan_nuclei", "scan_sqlmap"},
 			},

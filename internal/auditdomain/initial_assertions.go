@@ -157,6 +157,15 @@ func ExecutionProgram(program auditcontract.Program, baseline []byte) (auditcont
 	if strictjson.Decode(baseline, &fields) != nil {
 		return auditcontract.Program{}, invalid(CodeInvalid, "baseline")
 	}
+	var parameters map[string]string
+	if raw, exists := fields["parameters"]; exists && strictjson.DecodeNonNull(raw, &parameters) != nil {
+		return auditcontract.Program{}, invalid(CodeInvalid, "parameters")
+	}
+	var err error
+	program, err = program.BindParameters(parameters)
+	if err != nil {
+		return auditcontract.Program{}, err
+	}
 	raw := fields["initial_assertions"]
 	if raw == nil {
 		return program, nil

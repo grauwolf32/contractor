@@ -40,11 +40,16 @@ func TestNucleiEngagementAcrossProductionProcesses(t *testing.T) {
 	)
 	pool := engagementPool(t, h)
 	const secret = "private-real-nuclei-bearer-canary"
-	credential := engagementCredential(t, h, "nuclei-account", "target-bearer@1",
-		map[string]string{"token": secret}, secret)
+	credential := engagementCredential(t, h, "nuclei-account", "target-api-keys@1",
+		map[string]any{"fields": map[string]string{
+			"header:Authorization": "Bearer " + secret, "query:api_key": secret, "cookie:client": secret,
+		}}, secret)
 	var invalidHeaders atomic.Int64
 	target.setHandler(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") != "Bearer "+secret || r.Header.Get("Proxy-Authorization") != "" {
+		if r.Header.Get("Authorization") != "Bearer "+secret || r.Header.Get("Proxy-Authorization") != "" || r.URL.Query().Get("api_key") != secret {
+			invalidHeaders.Add(1)
+		}
+		if cookie, err := r.Cookie("client"); err != nil || cookie.Value != secret {
 			invalidHeaders.Add(1)
 		}
 		w.WriteHeader(http.StatusOK)
@@ -53,7 +58,7 @@ func TestNucleiEngagementAcrossProductionProcesses(t *testing.T) {
 	f.document.Egress.Routes = []engagementcontract.Route{engagementRoute(target.server.URL, "/allowed")}
 	requests := uint32(2)
 	f.document.Limits.RequestsPerSecond = &requests
-	f.addIdentity(t, "scanner", "bearer", credential)
+	f.addIdentity(t, "scanner", "api-keys", credential)
 	draft := f.draft(t)
 	stage := engagementRequestStage(nil)
 	stage.name = "engagement/real-nuclei"
@@ -88,7 +93,7 @@ func TestNucleiEngagementAcrossProductionProcesses(t *testing.T) {
 	h.gateway.releaseBlockedRequest()
 	waitForAuditProgram(t, h.ctx, h.server, h.runtimeProcess, h.gateway, h.client,
 		h.baseURL, draft.AuditID, 1)
-	if got := target.requests(); !slices.Equal(got, []string{"/allowed/http", "/allowed/nuclei", "/allowed/next"}) {
+	if got := target.requests(); !slices.Equal(got, []string{"/allowed/http?api_key=" + secret, "/allowed/nuclei?api_key=" + secret, "/allowed/next?api_key=" + secret}) {
 		t.Fatalf("HTTP tool and Nuclei did not share the authorized transport: %v", got)
 	}
 	if invalidHeaders.Load() != 0 {

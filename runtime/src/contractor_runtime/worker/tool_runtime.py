@@ -156,10 +156,12 @@ class ToolWorkerRuntime:
             "ToolWorkerInput", __config__=ConfigDict(strict=True, extra="forbid"), **fields
         )
         for name, binding in execution.arguments.items():
-            if binding.optional and (
-                name not in fields or self._input.model_fields[name].is_required()
+            if (
+                binding.optional
+                and "default" not in binding.model_fields_set
+                and (name not in fields or self._input.model_fields[name].is_required())
             ):
-                raise ValueError("optional artifact binding requires a callable default")
+                raise ValueError("optional binding requires a callable default")
         self._resources = context.resources
         self._state = context.state
         self.allocation_id = context.allocation_id
@@ -196,7 +198,14 @@ class ToolWorkerRuntime:
         omitted = set()
         for name, binding in self._execution.arguments.items():
             if binding.source == "parameter":
-                arguments[name] = binding.resolve_parameter(request.parameters)
+                if (
+                    binding.optional
+                    and "default" not in binding.model_fields_set
+                    and binding.name not in request.parameters
+                ):
+                    omitted.add(name)
+                else:
+                    arguments[name] = binding.resolve_parameter(request.parameters)
             elif binding.source == "artifact":
                 if binding.optional and binding.name not in request.artifacts:
                     omitted.add(name)

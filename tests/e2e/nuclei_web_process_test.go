@@ -36,6 +36,7 @@ func runNucleiWebProcessAcceptance(t *testing.T, deterministic bool) {
 		binaries = append(binaries, "nuclei")
 	}
 	h := startConfiguredScanStack(t, "", func(h *scanProcessHarness, root string) {
+		h.targetURL = startEngagementScanTarget(t, h.fixture).URL
 		if deterministic {
 			binaryRoot := filepath.Join(h.temporaryRoot, "fixture-bin")
 			if err := os.Mkdir(binaryRoot, 0700); err != nil {
@@ -45,7 +46,7 @@ func runNucleiWebProcessAcceptance(t *testing.T, deterministic bool) {
 			if python == "" {
 				python = filepath.Join(h.repositoryRoot, "runtime/.venv/bin/python")
 			}
-			source := "#!" + python + "\n" + `import json, pathlib, sys, urllib.request
+			source := "#!" + python + "\n" + `import json, pathlib, sys, urllib.request, yaml
 args = sys.argv[1:]
 if '-version' in args:
     print('Nuclei Engine Version: v3.11.1')
@@ -58,7 +59,9 @@ elif '-tl' in args:
     print('\n'.join(str(path.relative_to(root)) for path in sorted(root.rglob('*.yaml'))))
 else:
     target = pathlib.Path(args[args.index('-l') + 1]).read_text().strip()
-    with urllib.request.urlopen(target.rstrip('/') + '/nuclei', timeout=3) as response:
+    proxy = yaml.safe_load(pathlib.Path(args[args.index('-config') + 1]).read_text())['proxy'][0]
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({'http': proxy, 'https': proxy}))
+    with opener.open(target.rstrip('/') + '/nuclei', timeout=3) as response:
         body = response.read(1024)
     if b'contractor-controlled-scan-fixture' not in body:
         raise RuntimeError('unexpected loopback fixture')
@@ -154,6 +157,9 @@ else:
 			t.Fatal("invalid rules reached target")
 		}
 	})
+	if os.Getenv("CONTRACTOR_SCAN_BROWSER") == "1" {
+		runScanBrowserSpec(t, h, "e2e/web-engagement.spec.ts", nil)
+	}
 	t.Run("lost_scanner_result_retains_unknown_without_rescan", func(t *testing.T) {
 		installScanFault(t, h, "web_scan_journal", "planner_sessions", "UPDATE", `IF NEW.state #>> '{scan,state,jobs,0,status}' = 'completed' THEN RAISE EXCEPTION 'controlled scanner journal acknowledgement loss'; END IF;`)
 		before := len(scanFixtureRequests(h))
@@ -191,10 +197,9 @@ func startWebScanAudit(t *testing.T, h *scanProcessHarness, prefix string, rulep
 	scanAuditPOST(t, h, "/v1/projects", map[string]string{"kind": "project", "name": "Web scan Audit fixture", "activeChecks": "automatic"}, 0, http.StatusCreated, &project)
 	project = updateProjectTarget(t, h.client, h.baseURL, project.ProjectID, project.Revision, map[string]any{"url": h.targetURL + prefix}, http.StatusOK)
 	target := []byte(fmt.Sprintf(`{"schema":"contractor.audit.web-target.v1","url":%q}`, h.targetURL+prefix))
-	settings := []byte(`{"schema":"contractor.audit.web-scan-settings.v1","templateIds":"","tags":"","severity":"","rateLimit":10}`)
 	inputs := map[string]artifactRef{
-		"target":   uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "fixture", "target", "application/json", target),
-		"settings": uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "fixture", "settings", "application/json", settings),
+		"target":     uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "fixture", "target", "application/json", target),
+		"engagement": uploadScanEngagement(t, h.client, h.baseURL, project.ProjectID, h.targetURL, false),
 	}
 	if rulepack != nil {
 		inputs["rulepack"] = uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "fixture", "rules", "application/yaml", rulepack)

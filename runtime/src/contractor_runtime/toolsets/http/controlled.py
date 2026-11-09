@@ -338,7 +338,6 @@ class _ExchangeCapture:
                 "value": (
                     RUNTIME_CREDENTIAL
                     if name.lower() in injected_headers
-                    and name.lower() in {b"authorization", b"cookie"}
                     else value.decode("latin-1")
                 ),
             }

@@ -57,6 +57,7 @@ var utf8ByteBoundOwners = map[string]int{
 	"LIM-GIT-24": contracts.MaxGitSourceURLBytes,
 	"LIM-RCF-1":  llmgateway.MaximumGatewayFailureSignatureText,
 	"LIM-RCF-23": -1,
+	"LIM-RCF-32": -1, // Target API key qualified names and values; target credential fixtures.
 	"LIM-API-27": artifactpreview.MaximumPathBytes,
 }
 

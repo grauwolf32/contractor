@@ -121,6 +121,7 @@ def identity_spec(target, identities, *, concurrency=2):
                 "basic": "target-basic@1",
                 "bearer": "target-bearer@1",
                 "cookies": "target-cookies@1",
+                "api-keys": "target-api-keys@1",
             }[kind],
         }
         assignment["identities"].append(

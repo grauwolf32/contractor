@@ -18,11 +18,18 @@ spec:
         source: parameter
         name: target
       template_ids:
-        source: literal
-        value: http-missing-security-headers
-      rate_limit:
-        source: literal
-        value: 10
+        source: parameter
+        name: template_ids
+      credential_id:
+        source: parameter
+        name: credential_id
+        optional: true
+      tags:
+        source: parameter
+        name: tags
+      severity:
+        source: parameter
+        name: severity
     resultArtifact: report
     timeoutSeconds: 300
   sitemap:

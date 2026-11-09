@@ -529,9 +529,13 @@ proxy credentials stay in a private mode-0600 config file and never enter argv,
 environment, metrics or retained Artifacts. The ordinary scoped-Artifact policy
 for target observations remains SCN-R219.
 
-**SCN-R262.** Controlled Nuclei sets scanner retries and its native request-rate
-limiter to zero. Only the shared transport enforces optional request count,
-RPS, concurrency and body limits from the engagement (HTP-R145), together with
+**SCN-R262.** Controlled Nuclei disables scanner retries and sets its native
+request rate to the engagement RPS when configured (zero otherwise). Template
+concurrency is at most five, further capped by configured concurrency and RPS;
+payload concurrency and target batch size are one. This paces request production
+before the proxy rather than relying on transport queueing. The shared transport
+remains authoritative for aggregate RPS, concurrency and body limits from the
+engagement (HTP-R145), together with
 ordinary HTTP framing/buffering bounds. Thus HTTP tools and Nuclei consume the
 same allocation allowance. An omitted engagement limit stays absent. The
 `rate_limit` argument continues to configure standalone scans; controlled scans
@@ -554,7 +558,7 @@ report publication retain their ownership.
 
 **SCN-R225.** User-facing target scanning belongs to the Project's ordinary
 `web-scan@1` Audit, whose `audit-web-nuclei-scan@1` Workflow executes one
-explicit target without a model or OpenAPI input. Target, filter/rate settings
+explicit target without a model or OpenAPI input. Target, filter parameters and engagement
 and optional exact Project rulepack are baseline inputs; ASC-R151 to ASC-R153
 own admission, authority and result collection. The primary catalog has no
 standalone `nuclei-web` launcher. Generic tool Workflows remain available.
@@ -1008,8 +1012,8 @@ selected revision.
 
 The production caller is the OpenAPI Audit scan adapter ([Audit
 scans](../audits/scans.md)), which prepares SQLMap requests or fixed Nuclei
-targets with `AuditScanSettings.PrepareOperations` when it builds the inventory
-(SCN-R256) and with `AuditScanSettings.PrepareOperation` when it reproduces one
+targets with `AuditSelection.PrepareOperations` when it builds the inventory
+(SCN-R256) and with `AuditSelection.PrepareOperation` when it reproduces one
 accepted task.
 
 **SCN-R220.** The `request-set-scan@1` Workflow consumes a separately supplied
@@ -1302,20 +1306,20 @@ skipped operation with diagnostics, never an empty success.
 entire document; reference expansion and request preparation concern only the
 assigned operation.
 
-**SCN-R256.** `AuditScanSettings.PrepareOperations` prepares every operation
-that one settings artifact selects, in pointer order, from one exact source:
+**SCN-R256.** `AuditSelection.PrepareOperations` prepares every operation
+that one explicit parameter selection selects, in pointer order, from one exact source:
 it validates the ref, parses and checks the document and computes the source
 content digest once, then prepares each operation from that parsed source.
 Each operation keeps its own options, reference and concrete-hint budgets and
 depth limits (LIM-SCN-43 to LIM-SCN-46), gaps, coverage and copy of the source
 identity, so every result, digest and error code equals what
-`AuditScanSettings.PrepareOperation` returns for the same bytes, media type,
+`AuditSelection.PrepareOperation` returns for the same bytes, media type,
 exact ref and operation; the first failing operation ends the batch. The
 parsed source is read-only and lives for one call: it holds one document
 within the source bounds (LIM-SCN-39, LIM-SCN-41, LIM-SCN-42) and an index
 with one entry per path key, for at most 1,000 operations (LIM-ASC-12).
-Nothing caches it on the settings or across calls, inventories or Runs, so
-the same settings with other bytes, another media type or another revision
+Nothing caches it on the selection or across calls, inventories or Runs, so
+the same selection with other bytes, another media type or another revision
 prepare from that source. The OpenAPI Audit scan inventory
 ([Audit scans](../audits/scans.md)) is the batch caller; a caller that
 prepares one operation, such as dispatch-time re-preparation of an accepted
@@ -1366,6 +1370,14 @@ same three bounds, counted the same way, on every document it loads, on the
 result of every mutation, on every document it writes or returns, and in
 `validate_openapi` before the external validator runs. All three read YAML
 scalars and member names under SCN-R124 (SCN-R257).
+
+
+OpenAPI authoring validation used by source preparation runs Vacuum locally.
+`validate_openapi` rejects external `$ref`/`$dynamicRef` values before launch,
+sets `--remote=false` and `--no-update-check`, and uses an explicit empty config
+in a private temporary directory. It selects no network adapter or proxy
+subprocess channel. Generated contracts must carry internal references; this
+keeps source preparation usable within engagement without authorizing egress.
 
 The shared source decoder and the `openapi-operations@1` inventory apply no
 additional length limit to source strings or member names, including path
@@ -1619,8 +1631,8 @@ dispatched. Changing a generic storage failure to retryable is insufficient.
 
 | Code | Retryable | Meaning |
 | --- | --- | --- |
-| `audit_scan_assignment_invalid` | no | The manifest assignment does not match the exact task, source, settings or rulepack. |
-| `audit_scan_input_invalid` | no | The Audit source or settings media type differs from the assigned contract. |
+| `audit_scan_assignment_invalid` | no | The manifest assignment does not match the exact task, source, selection, request values or rulepack. |
+| `audit_scan_input_invalid` | no | The Audit source or request-values media type differs from the assigned contract. |
 | `audit_scan_input_missing` | no | A required assigned Audit input is absent. |
 | `audit_scan_manifest_invalid` | no | The execution manifest is malformed or has an invalid assignment count. |
 | `audit_scan_preparation_invalid` | no | The assigned operation or prepared request cannot be validated or encoded. |
@@ -1628,7 +1640,7 @@ dispatched. Changing a generic storage failure to retryable is insufficient.
 | `audit_scan_result_invalid` | no | Audit result assembly rejected retained content, bounds or assignment with auditscan.ErrInvalid. |
 | `audit_scan_result_unavailable` | cause-based for Audit; no for ordinary scans | Retained evidence could not be read or result assembly was cancelled or exhausted its budget. |
 | `audit_scan_result_write_failed` | cause-based for Audit; no for ordinary scans | The create-only Audit result package could not be published. |
-| `audit_scan_settings_unavailable` | cause-based for Audit; no for ordinary scans | The exact Audit settings could not be read. |
+| `audit_scan_request_values_unavailable` | cause-based for Audit; no for ordinary scans | The exact Audit request values could not be read. |
 | `audit_scan_operation_unavailable` | cause-based for Audit; no for ordinary scans | The exact selected OpenAPI operation material could not be read. |
 | `audit_scan_source_unavailable` | cause-based for Audit; no for ordinary scans | The exact assigned source or selected rulepack could not be read. |
 | `audit_scan_task_invalid` | no | The assigned task package, member, document or scanner identity is invalid. |
@@ -1714,6 +1726,13 @@ repeats scanner traffic.
 from completed coverage; missing or invalid reports do not become successful
 scans. The aggregate preserves preparation gaps and candidate selection reasons
 through its exact plan reference.
+
+Controlled HTTP failure promptly stops and joins the scanner process group while
+retaining already received stdout/stderr within the ordinary combined output
+limit. Provider parsing and Finding/evidence publication still consume that
+partial output, including when process completion races with transport failure;
+the report retains the transport error and never claims completed coverage.
+Allocation/caller cancellation still propagates after child cleanup.
 
 **SCN-R221.** Both selection accounting and execution outcomes must be
 inspected before a security report is interpreted.
@@ -1876,6 +1895,13 @@ Installed manifests retain their compact package provenance without inventing
 per-template records. A custom candidate missing from the selected manifest
 fails output publication. Existing evidence limits apply to the retained selection.
 
+The Planner publishes the selected material set at the declared downstream
+Stage binding. A later attempt advances that binding with the Artifact store's
+revision CAS; previous exact result revisions remain readable. Identical replay
+reuses the current exact revision, including after a lost write acknowledgement.
+Conflicting writes fail without overwriting an unobserved revision or repeating
+scanner traffic; ordinary scan error classification and recovery still apply.
+
 **SCN-R265.** Nuclei follows its template severity: evidenced low/medium/high/
 critical matches become problem candidates, while info, unknown and absent
 severity remain explicit skipped outcomes. There is no separate configurable
@@ -1891,3 +1917,22 @@ Technique-only output cannot create a Finding for every tested parameter. Keys
 separate endpoints, methods, parameter locations and names. A missing supported
 parameter is an explicit gap, never a clean verdict. Partial scans preserve
 individually complete positives and explicit incompleteness.
+
+
+**SCN-R267.** Controlled SQLMap uses the same authenticated per-invocation HTTP
+bridge and allocation transport as Nuclei. Both URL and prepared-request modes
+accept an explicit assigned `credential_id`; omission selects the anonymous
+identity. Proxy address and authentication are written only to private mode-0600
+scratch configuration. Native retries, redirects, preconnections and learned
+scanner cookies are disabled. Runtime owns cookies, TLS verification, egress
+and aggregate limits. Explicit SQLMap Cookie input is preserved for anonymous
+requests; conflicts with a selected credential fail before target traffic.
+
+SQLMap detection stays single-threaded, within every positive engagement
+concurrency bound. Configured RPS becomes native `--delay=1/RPS` because its
+delay applies per thread; absent RPS adds no delay. This is native pacing, not
+an additional Runtime sleep. Target response timing still includes contention
+with other tools sharing the allocation, so timing evidence is not a promise
+of exclusive target capacity. Refused, failed or truncated exchanges fail the
+scan even after a zero native exit. Preparation, process, proxy and temporary
+files follow the existing invocation deadline and joined cleanup.

@@ -1,0 +1,47 @@
+schema_version: "1.0"
+id: V461-005
+title: Preserve bounded scanner output when controlled HTTP stops execution
+milestone: audit-scanners-engagement-2026-11
+epic: scan-tools
+kind: defect
+introduced_by: V461-001
+priority: P2
+status: completed
+implementation_commit: 66172fd04a627ba8d48e0937405ff9005124d904
+depends_on: []
+languages: [python]
+goal: A controlled HTTP failure promptly stops the native scanner and preserves already received stdout/stderr for partial Findings and evidence without changing allocation cancellation semantics.
+context:
+  authority: "User review supplied 2026-11-09 for codex/audit-engagement at 3d5156c5b authorizes fixing the three reported regressions."
+  finding: >-
+    runtime/src/contractor_runtime/toolsets/scan/tools.py:360 returns a fresh empty ProcessResult when bridge.error_code is present, dropping finished or buffered scanner output before provider parsing.
+  siblings: >-
+    Both Nuclei and SQLMap use the same controlled-process wrapper. Cover completed/error races, running process stop, bounded output, process group cleanup, timeout and caller cancellation; unrelated subprocess callers must keep their cancellation behavior.
+  specification: docs/spec/tools/scanners.md
+scope:
+  in: [shared boundary correction, regression through the actual publication/process/store path, required owning-package verification]
+  out: [unrelated cleanup, new scanner capabilities, deployment, compatibility shims]
+acceptance_criteria:
+  - id: A1
+    text: The reported defect reproduces on the original implementation and does not reproduce after the correction.
+  - id: A2
+    text: Sibling callers and legitimate controls retain their specified behavior, bounds and cancellation or replay guarantees.
+  - id: A3
+    text: Owning package suites and repository lint pass; any optional skips are reported explicitly.
+tests:
+  - command: cd runtime && uv run pytest -W error tests/test_tool_process.py tests/test_controlled_scan_process.py tests/test_scan_toolset.py tests/test_nuclei_engagement.py tests/test_sqlmap_engagement.py tests/test_http_proxy_bridge.py
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+
+decisions:
+  - "Use an explicit stop event in the existing bounded process owner. Stop and join the group, drain already received pipe bytes under the existing combined bound, and preserve caller cancellation as cancellation. No second process lifecycle or output buffer is introduced."
+  - "The shared Nuclei/SQLMap wrapper overlays the authoritative bridge error on the retained process result. Partial output is parsed and published without claiming completed coverage."
+verification:
+  date: "2026-11-09"
+  regression: "Original wrapper failed all three regressions: simultaneous completed-result/bridge failure and two running-process cases with retained stdout/stderr. Corrected cases pass."
+  focused: "Full process/scanner/Nuclei/SQLMap/HTTP bridge suites: 218 passed, including real child-group cleanup, output bounds, timeout and repeated cancellation controls."
+  native: "Actual Nuclei emits a medium-severity match before a later local HTTP transport failure; the failed observation retains that match and publishes nonempty candidates and selected evidence. Real SQLMap engagement tests passed through the same process wrapper."
+  runtime: "make test-runtime passed: 6115 passed, 135 declared optional/environment skips; release Runtime report validation passed."
+  lint: "make lint passed."
+  delivery: "Committed on codex/audit-engagement; not merged or deployed."

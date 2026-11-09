@@ -70,13 +70,20 @@ func ResolveProgramWorkflows(program auditcontract.Program, lookup func(string) 
 		}
 		parameters := binding.Parameters
 		for name, slot := range workflow.Parameters {
-			if _, ok := parameters[name]; !ok && slot.Required {
+			_, literal := parameters[name]
+			source, supplied := binding.ParameterInputs[name]
+			if !literal && slot.Required && (!supplied || !program.Parameters[source].Required) {
 				return nil, apierror.New(apierror.AuditDocumentInvalid, "audit_document_invalid: required Workflow parameter is missing")
 			}
 		}
 		for name := range parameters {
 			if _, ok := workflow.Parameters[name]; !ok {
 				return nil, apierror.New(apierror.AuditDocumentInvalid, "audit_document_invalid: unknown Workflow parameter")
+			}
+		}
+		for name := range binding.ParameterInputs {
+			if _, ok := workflow.Parameters[name]; !ok {
+				return nil, apierror.New(apierror.AuditDocumentInvalid, "audit_document_invalid: unknown Workflow parameter binding")
 			}
 		}
 		for logical, output := range binding.Outputs {

@@ -47,8 +47,13 @@ func targetCredentialMaterials(t *testing.T, canary string) map[RuntimeCredentia
 	if err != nil {
 		t.Fatal(err)
 	}
+	keys, err := DecodeRuntimeCredentialMaterial(RuntimeCredentialTargetAPIKeys, []byte(`{"fields":{"header:X-Key":"`+canary+`-header","query:key":"`+canary+`-query","cookie:api":"`+canary+`-cookie"}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
 	materials := map[RuntimeCredentialKind]RuntimeCredentialMaterial{
-		RuntimeCredentialTargetBasic: basic, RuntimeCredentialTargetBearer: bearer, RuntimeCredentialTargetCookies: login,
+		RuntimeCredentialTargetAPIKeys: keys,
+		RuntimeCredentialTargetBasic:   basic, RuntimeCredentialTargetBearer: bearer, RuntimeCredentialTargetCookies: login,
 	}
 	t.Cleanup(func() {
 		for _, material := range materials {
@@ -59,7 +64,7 @@ func targetCredentialMaterials(t *testing.T, canary string) map[RuntimeCredentia
 }
 
 func targetKindsInOrder() []RuntimeCredentialKind {
-	return []RuntimeCredentialKind{RuntimeCredentialTargetBasic, RuntimeCredentialTargetBearer, RuntimeCredentialTargetCookies}
+	return []RuntimeCredentialKind{RuntimeCredentialTargetBasic, RuntimeCredentialTargetBearer, RuntimeCredentialTargetCookies, RuntimeCredentialTargetAPIKeys}
 }
 
 func newTargetCredentialService(t *testing.T, pool *pgxpool.Pool, audits RuntimeCredentialAuditHoldLookup) *RuntimeCredentialService {
@@ -124,7 +129,7 @@ func TestTargetCredentialPostgresCreateListResolveAndPrivateUse(t *testing.T) {
 		}
 	}
 	page, err := service.List(ctx, "", 100)
-	if err != nil || len(page) != 3 {
+	if err != nil || len(page) != len(targetKindsInOrder()) {
 		t.Fatalf("list = (%+v, %v)", page, err)
 	}
 	encoded, err := json.Marshal(page)

@@ -13,20 +13,19 @@ import (
 	"github.com/grauwolf32/contractor/internal/scanplan"
 )
 
-// goldenPreparations were recorded from the implementation that parsed and
-// hashed the source once per selected operation (base d7b825c4). Inventory
-// preparation from one parsed source must reproduce every byte of them: the
+// SQLMap golden preparations bind an engagement credential ID without embedding
+// authentication bytes. The parse-once and per-operation paths must agree on the
 // canonical inventory digest, every prepared request set or URL target, and
 // the scan plans built from them.
 var goldenPreparations = map[string]string{
 	"json/nuclei/operations": "sha256:341df51408787c731f3d6b645ea44b8455fb882407a8b26869abb0ed37878c7d",
 	"json/nuclei/plan":       "sha256:d435ef098492920360b56850c54bfb3fcdc85b1b5eb37d5a9b5ba87a8e1c151a",
-	"json/sqlmap/operations": "sha256:55d565199ea5f6471af20b310c7e67f6da77287f2e99dc5c41062c19597b3e17",
-	"json/sqlmap/plan":       "sha256:2ca8d4226a83d413529e15dd22f613875068ea2274b55a43564444362407d9da",
+	"json/sqlmap/operations": "sha256:338dbd2d97ad1b3fa15e10bc306c2271e53d30df87b2d5938740ac8ed046ab61",
+	"json/sqlmap/plan":       "sha256:673217feaa5b3afca3bcfbc67fd58aae2e0046e2b5e5f3ff91c3ea20c21e2b70",
 	"yaml/nuclei/operations": "sha256:29eba50c159459d28b6b07e2c0d8daec0bb0a428372129a569107dc287078dd5",
 	"yaml/nuclei/plan":       "sha256:d435ef098492920360b56850c54bfb3fcdc85b1b5eb37d5a9b5ba87a8e1c151a",
-	"yaml/sqlmap/operations": "sha256:40734e307b706af8dda2829663bff7ba14d62aa55011300fda7d2fd8c89c5451",
-	"yaml/sqlmap/plan":       "sha256:8357ac4456c90d4abbae16f2c8478d47282b73d4e98bfd38e1c3b8302e283f07",
+	"yaml/sqlmap/operations": "sha256:c4097915aaacff26baf54f430db1a831d253e1720b7d4cca8285f14e16d305b9",
+	"yaml/sqlmap/plan":       "sha256:f5f603cd030304af1645a92d01b81af64d5ee0d093fc66f631f0b6184e93b753",
 }
 
 func TestInventoryPreparationKeepsGoldenResults(t *testing.T) {
@@ -37,7 +36,7 @@ func TestInventoryPreparationKeepsGoldenResults(t *testing.T) {
 		for _, scanner := range []string{"sqlmap", "nuclei"} {
 			key := format + "/" + scanner
 			settingsText := map[string]string{"sqlmap": reuseSQLMapSettings, "nuclei": reuseNucleiSettings}[scanner]
-			settings, err := scanplan.DecodeAuditScanSettings([]byte(settingsText))
+			settings, err := compileSelectionFixture([]byte(settingsText))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -97,7 +96,7 @@ func requireReuseSemantics(t *testing.T, key string, prepared []scanplan.Prepare
 		}
 	}
 	post := prepared[2].RequestSet.Requests[0].Request
-	if post.Body != `{"name":"Milo"}` || !slices.Contains(post.Headers, scan.HTTPRequestHeader{Name: "authorization", Value: "Bearer golden-credential"}) {
+	if post.Body != `{"name":"Milo"}` || slices.ContainsFunc(post.Headers, func(h scan.HTTPRequestHeader) bool { return h.Name == "authorization" }) {
 		t.Fatalf("%s: authenticated POST changed: %+v", key, post)
 	}
 }
@@ -135,7 +134,7 @@ func TestInventoryPreparationKeepsErrorClassification(t *testing.T) {
 		for _, pointer := range pointers {
 			operations = append(operations, `"`+pointer+`":{}`)
 		}
-		return `{"schema":"contractor.audit.openapi-scan-settings.v1","scanner":"sqlmap","server":"https://target.test/api",` +
+		return `{"scanner":"sqlmap","server":"https://target.test/api",` +
 			`"testParameters":["q"],"operations":{` + strings.Join(operations, ",") + `}}`
 	}
 	for _, test := range []struct {
@@ -160,7 +159,7 @@ func TestInventoryPreparationKeepsErrorClassification(t *testing.T) {
 				t.Fatalf("batch error = %v, want %s", err, test.code)
 			}
 
-			settings, err := scanplan.DecodeAuditScanSettings([]byte(test.settings))
+			settings, err := compileSelectionFixture([]byte(test.settings))
 			if err != nil {
 				t.Fatal(err)
 			}

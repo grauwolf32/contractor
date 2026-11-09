@@ -4,19 +4,35 @@ metadata:
   name: audit-openapi-nuclei-scan
   version: '1'
 spec:
-  parameters: {}
+  parameters:
+    credential_id:
+      required: false
+    template_ids:
+      required: true
+    tags:
+      required: true
+    severity:
+      required: true
+    server:
+      required: true
+    operations:
+      required: true
   inputs:
+    engagement:
+      required: true
+      mediaTypes:
+      - application/vnd.contractor.engagement+json
     openapi:
       required: true
       mediaTypes:
       - application/json
       - application/yaml
-    settings:
+    operation:
       required: true
       mediaTypes:
       - application/json
-    operation:
-      required: true
+    request_values:
+      required: false
       mediaTypes:
       - application/json
   outputs: {}
@@ -45,14 +61,14 @@ spec:
             namespace: inputs
             name: openapi
             required: true
-          settings:
-            namespace: inputs
-            name: settings
-            required: true
           operation:
             namespace: inputs
             name: operation
             required: true
+          request_values:
+            namespace: inputs
+            name: request_values
+            required: false
       result:
         artifacts:
           report:
@@ -78,10 +94,10 @@ spec:
           next: publish-partial
       scanPreparation:
         scanner: nuclei
-        settingsArtifact: settings
         unknownOutcome: retain-gap
         kind: openapi-operation
         operationArtifact: operation
+        valuesArtifact: request_values
     publish:
       operation:
         ref: publish-findings@1

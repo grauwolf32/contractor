@@ -214,6 +214,21 @@ func (e AllocationResourceSummaryStatus) Valid() bool {
 	}
 }
 
+// Defines values for ArgumentBinding0Optional.
+const (
+	ArgumentBinding0OptionalTrue ArgumentBinding0Optional = true
+)
+
+// Valid indicates whether the value is a known member of the ArgumentBinding0Optional enum.
+func (e ArgumentBinding0Optional) Valid() bool {
+	switch e {
+	case ArgumentBinding0OptionalTrue:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ArgumentBinding0Source.
 const (
 	ArgumentBinding0SourceParameter ArgumentBinding0Source = "parameter"
@@ -223,6 +238,21 @@ const (
 func (e ArgumentBinding0Source) Valid() bool {
 	switch e {
 	case ArgumentBinding0SourceParameter:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ArgumentBinding1Optional.
+const (
+	ArgumentBinding1OptionalTrue ArgumentBinding1Optional = true
+)
+
+// Valid indicates whether the value is a known member of the ArgumentBinding1Optional enum.
+func (e ArgumentBinding1Optional) Valid() bool {
+	switch e {
+	case ArgumentBinding1OptionalTrue:
 		return true
 	default:
 		return false
@@ -1447,6 +1477,21 @@ const (
 func (e CreateRuntimeCredentialRequest9Kind) Valid() bool {
 	switch e {
 	case CreateRuntimeCredentialRequest9KindTargetCookies1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateRuntimeCredentialRequest10Kind.
+const (
+	CreateRuntimeCredentialRequest10KindTargetApiKeys1 CreateRuntimeCredentialRequest10Kind = "target-api-keys@1"
+)
+
+// Valid indicates whether the value is a known member of the CreateRuntimeCredentialRequest10Kind enum.
+func (e CreateRuntimeCredentialRequest10Kind) Valid() bool {
+	switch e {
+	case CreateRuntimeCredentialRequest10KindTargetApiKeys1:
 		return true
 	default:
 		return false
@@ -4531,6 +4576,7 @@ const (
 	RuntimeCredentialKindHttpProxyBearer1  RuntimeCredentialKind = "http-proxy-bearer@1"
 	RuntimeCredentialKindInteractshToken1  RuntimeCredentialKind = "interactsh-token@1"
 	RuntimeCredentialKindOtlpHeaders1      RuntimeCredentialKind = "otlp-headers@1"
+	RuntimeCredentialKindTargetApiKeys1    RuntimeCredentialKind = "target-api-keys@1"
 	RuntimeCredentialKindTargetBasic1      RuntimeCredentialKind = "target-basic@1"
 	RuntimeCredentialKindTargetBearer1     RuntimeCredentialKind = "target-bearer@1"
 	RuntimeCredentialKindTargetCookies1    RuntimeCredentialKind = "target-cookies@1"
@@ -4552,6 +4598,8 @@ func (e RuntimeCredentialKind) Valid() bool {
 	case RuntimeCredentialKindInteractshToken1:
 		return true
 	case RuntimeCredentialKindOtlpHeaders1:
+		return true
+	case RuntimeCredentialKindTargetApiKeys1:
 		return true
 	case RuntimeCredentialKindTargetBasic1:
 		return true
@@ -4858,6 +4906,21 @@ func (e RuntimeTelemetryConfigAdapter) Valid() bool {
 	}
 }
 
+// Defines values for ServerOperationConfigArguments0Optional.
+const (
+	ServerOperationConfigArguments0OptionalTrue ServerOperationConfigArguments0Optional = true
+)
+
+// Valid indicates whether the value is a known member of the ServerOperationConfigArguments0Optional enum.
+func (e ServerOperationConfigArguments0Optional) Valid() bool {
+	switch e {
+	case ServerOperationConfigArguments0OptionalTrue:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ServerOperationConfigArguments0Source.
 const (
 	ServerOperationConfigArguments0SourceParameter ServerOperationConfigArguments0Source = "parameter"
@@ -4867,6 +4930,21 @@ const (
 func (e ServerOperationConfigArguments0Source) Valid() bool {
 	switch e {
 	case ServerOperationConfigArguments0SourceParameter:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ServerOperationConfigArguments1Optional.
+const (
+	ServerOperationConfigArguments1OptionalTrue ServerOperationConfigArguments1Optional = true
+)
+
+// Valid indicates whether the value is a known member of the ServerOperationConfigArguments1Optional enum.
+func (e ServerOperationConfigArguments1Optional) Valid() bool {
+	switch e {
+	case ServerOperationConfigArguments1OptionalTrue:
 		return true
 	default:
 		return false
@@ -6292,21 +6370,29 @@ type ArgumentBinding struct {
 
 // ArgumentBinding0 defines model for ArgumentBinding.0.
 type ArgumentBinding0 struct {
-	Default *string                `json:"default,omitempty"`
-	Name    string                 `json:"name"`
-	Source  ArgumentBinding0Source `json:"source"`
+	Default  *string                   `json:"default,omitempty"`
+	Name     string                    `json:"name"`
+	Optional *ArgumentBinding0Optional `json:"optional,omitempty"`
+	Source   ArgumentBinding0Source    `json:"source"`
 }
+
+// ArgumentBinding0Optional defines model for ArgumentBinding.0.Optional.
+type ArgumentBinding0Optional bool
 
 // ArgumentBinding0Source defines model for ArgumentBinding.0.Source.
 type ArgumentBinding0Source string
 
 // ArgumentBinding1 defines model for ArgumentBinding.1.
 type ArgumentBinding1 struct {
-	Default *int                   `json:"default,omitempty"`
-	Name    string                 `json:"name"`
-	Parse   ArgumentBinding1Parse  `json:"parse"`
-	Source  ArgumentBinding1Source `json:"source"`
+	Default  *int                      `json:"default,omitempty"`
+	Name     string                    `json:"name"`
+	Optional *ArgumentBinding1Optional `json:"optional,omitempty"`
+	Parse    ArgumentBinding1Parse     `json:"parse"`
+	Source   ArgumentBinding1Source    `json:"source"`
 }
+
+// ArgumentBinding1Optional defines model for ArgumentBinding.1.Optional.
+type ArgumentBinding1Optional bool
 
 // ArgumentBinding1Parse defines model for ArgumentBinding.1.Parse.
 type ArgumentBinding1Parse string
@@ -6532,6 +6618,9 @@ type Audit struct {
 	Limits              AuditLimits  `json:"limits"`
 	OutstandingRunCount int          `json:"outstandingRunCount"`
 
+	// Parameters Explicit values for the parameters declared by the selected Audit Program; only its named Workflow bindings consume these values.
+	Parameters *AuditLaunchParameters `json:"parameters,omitempty"`
+
 	// PausedAt Time when the remaining Audit allowance was frozen.
 	PausedAt  *time.Time           `json:"pausedAt,omitempty"`
 	Profile   AuditProfileIdentity `json:"profile"`
@@ -6570,8 +6659,11 @@ type AuditBaseline struct {
 	Inputs       map[string]AuditExactArtifact `json:"inputs"`
 
 	// Labels Ordinary labels pinned at Audit start and inherited by every child Run. cloud or local with an empty value selects the whole namespace; cloud=aws selects cloud/aws. Four entries are reserved for child-specific audit.* provenance.
-	Labels            *AuditLabels       `json:"labels,omitempty"`
-	ProjectHttpTarget *ProjectHTTPTarget `json:"projectHttpTarget,omitempty"`
+	Labels *AuditLabels `json:"labels,omitempty"`
+
+	// Parameters Explicit values for the parameters declared by the selected Audit Program; only its named Workflow bindings consume these values.
+	Parameters        *AuditLaunchParameters `json:"parameters,omitempty"`
+	ProjectHttpTarget *ProjectHTTPTarget     `json:"projectHttpTarget,omitempty"`
 
 	// RequiredPlacementLabels Sorted unique cloud/local paths forming one ancestor chain. Empty means no location declaration or requirement.
 	RequiredPlacementLabels *PlacementLabels     `json:"requiredPlacementLabels,omitempty"`
@@ -6758,6 +6850,9 @@ type AuditHypothesisPage struct {
 // AuditLabels Ordinary labels pinned at Audit start and inherited by every child Run. cloud or local with an empty value selects the whole namespace; cloud=aws selects cloud/aws. Four entries are reserved for child-specific audit.* provenance.
 type AuditLabels map[string]string
 
+// AuditLaunchParameters Explicit values for the parameters declared by the selected Audit Program; only its named Workflow bindings consume these values.
+type AuditLaunchParameters map[string]string
+
 // AuditLimits defines model for AuditLimits.
 type AuditLimits struct {
 	BatchSize          int `json:"batchSize"`
@@ -6885,6 +6980,7 @@ type AuditProgram struct {
 	InitialWork []AuditProgramInitialWork             `json:"initial_work"`
 	Inputs      map[string]AuditProgramInput          `json:"inputs"`
 	Limits      AuditProgramLimits                    `json:"limits"`
+	Parameters  *map[string]AuditProgramParameter     `json:"parameters,omitempty"`
 	Policy      AuditProgramPolicy                    `json:"policy"`
 	Schema      AuditProgramSchema                    `json:"schema"`
 	SeedSource  *AuditProgramSeedSource               `json:"seed_source,omitempty"`
@@ -6973,6 +7069,11 @@ type AuditProgramLimits struct {
 	MaxTasksPerIteration   int                      `json:"max_tasks_per_iteration"`
 }
 
+// AuditProgramParameter defines model for AuditProgramParameter.
+type AuditProgramParameter struct {
+	Required bool `json:"required"`
+}
+
 // AuditProgramPolicy defines model for AuditProgramPolicy.
 type AuditProgramPolicy struct {
 	ActiveOperations AuditProgramPolicyActiveOperations `json:"active_operations"`
@@ -7004,11 +7105,12 @@ type AuditProgramSelector = string
 
 // AuditProgramWorkflow defines model for AuditProgramWorkflow.
 type AuditProgramWorkflow struct {
-	Inputs      map[string]AuditProgramInputMapping `json:"inputs"`
-	MaxAttempts *AuditProgramAttemptLimit           `json:"max_attempts,omitempty"`
-	Outputs     map[string]AuditCommonKey           `json:"outputs"`
-	Parameters  map[string]string                   `json:"parameters"`
-	Ref         AuditProgramSelector                `json:"ref"`
+	Inputs          map[string]AuditProgramInputMapping `json:"inputs"`
+	MaxAttempts     *AuditProgramAttemptLimit           `json:"max_attempts,omitempty"`
+	Outputs         map[string]AuditCommonKey           `json:"outputs"`
+	ParameterInputs *map[string]AuditCommonKey          `json:"parameter_inputs,omitempty"`
+	Parameters      map[string]string                   `json:"parameters"`
+	Ref             AuditProgramSelector                `json:"ref"`
 }
 
 // AuditReport defines model for AuditReport.
@@ -7490,8 +7592,11 @@ type CreateAuditRequest struct {
 	Inputs map[string]ExactArtifactRef `json:"inputs"`
 
 	// Labels Ordinary labels pinned at Audit start and inherited by every child Run. cloud or local with an empty value selects the whole namespace; cloud=aws selects cloud/aws. Four entries are reserved for child-specific audit.* provenance.
-	Labels  *AuditLabels         `json:"labels,omitempty"`
-	Profile AuditProfileSelector `json:"profile"`
+	Labels *AuditLabels `json:"labels,omitempty"`
+
+	// Parameters Explicit values for the parameters declared by the selected Audit Program; only its named Workflow bindings consume these values.
+	Parameters *AuditLaunchParameters `json:"parameters,omitempty"`
+	Profile    AuditProfileSelector   `json:"profile"`
 
 	// RuntimeLabels Runtime labels in any order: at most 32 labels of the label grammar, unique, never the reserved default label (RCF-R117 to RCF-R120). The Server stores and answers them in lexical order.
 	RuntimeLabels *[]RuntimeInfrastructureId `json:"runtimeLabels,omitempty"`
@@ -7650,6 +7755,16 @@ type CreateRuntimeCredentialRequest9 struct {
 
 // CreateRuntimeCredentialRequest9Kind defines model for CreateRuntimeCredentialRequest.9.Kind.
 type CreateRuntimeCredentialRequest9Kind string
+
+// CreateRuntimeCredentialRequest10 defines model for CreateRuntimeCredentialRequest.10.
+type CreateRuntimeCredentialRequest10 struct {
+	CredentialId RuntimeCredentialId                  `json:"credentialId"`
+	Kind         CreateRuntimeCredentialRequest10Kind `json:"kind"`
+	Material     *TargetAPIKeysMaterial               `json:"material,omitempty"`
+}
+
+// CreateRuntimeCredentialRequest10Kind defines model for CreateRuntimeCredentialRequest.10.Kind.
+type CreateRuntimeCredentialRequest10Kind string
 
 // CredentialConsumption defines model for CredentialConsumption.
 type CredentialConsumption struct {
@@ -11017,21 +11132,29 @@ type ServerOperationConfig struct {
 
 // ServerOperationConfigArguments0 defines model for ServerOperationConfig.Arguments.0.
 type ServerOperationConfigArguments0 struct {
-	Default *string                               `json:"default,omitempty"`
-	Name    string                                `json:"name"`
-	Source  ServerOperationConfigArguments0Source `json:"source"`
+	Default  *string                                  `json:"default,omitempty"`
+	Name     string                                   `json:"name"`
+	Optional *ServerOperationConfigArguments0Optional `json:"optional,omitempty"`
+	Source   ServerOperationConfigArguments0Source    `json:"source"`
 }
+
+// ServerOperationConfigArguments0Optional defines model for ServerOperationConfig.Arguments.0.Optional.
+type ServerOperationConfigArguments0Optional bool
 
 // ServerOperationConfigArguments0Source defines model for ServerOperationConfig.Arguments.0.Source.
 type ServerOperationConfigArguments0Source string
 
 // ServerOperationConfigArguments1 defines model for ServerOperationConfig.Arguments.1.
 type ServerOperationConfigArguments1 struct {
-	Default *int                                  `json:"default,omitempty"`
-	Name    string                                `json:"name"`
-	Parse   ServerOperationConfigArguments1Parse  `json:"parse"`
-	Source  ServerOperationConfigArguments1Source `json:"source"`
+	Default  *int                                     `json:"default,omitempty"`
+	Name     string                                   `json:"name"`
+	Optional *ServerOperationConfigArguments1Optional `json:"optional,omitempty"`
+	Parse    ServerOperationConfigArguments1Parse     `json:"parse"`
+	Source   ServerOperationConfigArguments1Source    `json:"source"`
 }
+
+// ServerOperationConfigArguments1Optional defines model for ServerOperationConfig.Arguments.1.Optional.
+type ServerOperationConfigArguments1Optional bool
 
 // ServerOperationConfigArguments1Parse defines model for ServerOperationConfig.Arguments.1.Parse.
 type ServerOperationConfigArguments1Parse string
@@ -11367,6 +11490,12 @@ type StageTransition struct {
 
 // StageTransitionAction defines model for StageTransition.Action.
 type StageTransitionAction string
+
+// TargetAPIKeysMaterial defines model for TargetAPIKeysMaterial.
+type TargetAPIKeysMaterial struct {
+	// Fields API keys applied together through one engagement identity. Names use header:NAME, query:NAME or cookie:NAME. At most 256 UTF-8 bytes per unqualified name and 16 KiB of qualified names and values combined. Headers follow HTTP token/credential-field rules, cookies follow the cookie grammar, and query names/values forbid controls. Header names are case insensitive and cannot repeat or control HTTP framing.
+	Fields *map[string]string `json:"fields,omitempty"`
+}
 
 // TargetBasicMaterial defines model for TargetBasicMaterial.
 type TargetBasicMaterial struct {
@@ -13713,6 +13842,13 @@ func (t AuditProgram) MarshalJSON() ([]byte, error) {
 		return nil, fmt.Errorf("error marshaling 'limits': %w", err)
 	}
 
+	if t.Parameters != nil {
+		object["parameters"], err = json.Marshal(t.Parameters)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'parameters': %w", err)
+		}
+	}
+
 	object["policy"], err = json.Marshal(t.Policy)
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling 'policy': %w", err)
@@ -13783,6 +13919,13 @@ func (t *AuditProgram) UnmarshalJSON(b []byte) error {
 		err = json.Unmarshal(raw, &t.Limits)
 		if err != nil {
 			return fmt.Errorf("error reading 'limits': %w", err)
+		}
+	}
+
+	if raw, found := object["parameters"]; found {
+		err = json.Unmarshal(raw, &t.Parameters)
+		if err != nil {
+			return fmt.Errorf("error reading 'parameters': %w", err)
 		}
 	}
 
@@ -14416,6 +14559,32 @@ func (t *CreateRuntimeCredentialRequest) FromCreateRuntimeCredentialRequest9(v C
 
 // MergeCreateRuntimeCredentialRequest9 performs a merge with any union data inside the CreateRuntimeCredentialRequest, using the provided CreateRuntimeCredentialRequest9
 func (t *CreateRuntimeCredentialRequest) MergeCreateRuntimeCredentialRequest9(v CreateRuntimeCredentialRequest9) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsCreateRuntimeCredentialRequest10 returns the union data inside the CreateRuntimeCredentialRequest as a CreateRuntimeCredentialRequest10
+func (t CreateRuntimeCredentialRequest) AsCreateRuntimeCredentialRequest10() (CreateRuntimeCredentialRequest10, error) {
+	var body CreateRuntimeCredentialRequest10
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCreateRuntimeCredentialRequest10 overwrites any union data inside the CreateRuntimeCredentialRequest as the provided CreateRuntimeCredentialRequest10
+func (t *CreateRuntimeCredentialRequest) FromCreateRuntimeCredentialRequest10(v CreateRuntimeCredentialRequest10) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCreateRuntimeCredentialRequest10 performs a merge with any union data inside the CreateRuntimeCredentialRequest, using the provided CreateRuntimeCredentialRequest10
+func (t *CreateRuntimeCredentialRequest) MergeCreateRuntimeCredentialRequest10(v CreateRuntimeCredentialRequest10) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err

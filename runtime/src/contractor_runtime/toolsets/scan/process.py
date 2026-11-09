@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import time
 from dataclasses import dataclass
@@ -58,7 +59,9 @@ def child_environment(directory: Path) -> dict[str, str]:
     }
 
 
-async def run_process(command: list[str], directory: Path, timeout: float) -> ProcessResult:
+async def run_process(
+    command: list[str], directory: Path, timeout: float, *, stop_event: asyncio.Event | None = None
+) -> ProcessResult:
     started = time.monotonic()
     error_code = None
     try:
@@ -68,6 +71,7 @@ async def run_process(command: list[str], directory: Path, timeout: float) -> Pr
             env=child_environment(directory),
             timeout=timeout,
             max_output_bytes=MAX_OUTPUT_BYTES,
+            stop_event=stop_event,
         )
         exit_code, stdout, stderr = result.returncode, result.stdout, result.stderr
         if exit_code != 0:

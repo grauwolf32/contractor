@@ -1177,11 +1177,48 @@ test("widget: launches a Web scan Audit with custom project rules through the re
       body: JSON.stringify({
         kind: "project",
         name: "Web scan Project",
+        activeChecks: "automatic",
       }),
     });
     if (response.status !== 201)
       throw new Error(`Could not create test Project: ${response.status}`);
     const body = (await response.json()) as { projectId: string };
+    const policy = await fetch(
+      `${origin}/v1/projects/${body.projectId}/artifacts/fixture/engagement`,
+      {
+        method: "PUT",
+        credentials: "include",
+        headers: {
+          "X-CSRF-Token": session.csrfToken,
+          "Idempotency-Key": crypto.randomUUID(),
+          "If-None-Match": "*",
+          "Content-Type": "application/vnd.contractor.engagement+json",
+        },
+        body: JSON.stringify({
+          schema: "contractor.engagement.v1",
+          egress: {
+            routes: [
+              {
+                origin: "http://127.0.0.1:1",
+                methods: ["GET"],
+                pathPrefixes: ["/"],
+                addressRanges: ["127.0.0.0/8"],
+              },
+            ],
+            exclusions: [],
+          },
+          identities: [
+            {
+              id: "anonymous",
+              kind: "anonymous",
+              origins: ["http://127.0.0.1:1"],
+            },
+          ],
+        }),
+      },
+    );
+    if (policy.status !== 201)
+      throw new Error(`Could not create engagement: ${policy.status}`);
     return body.projectId;
   }, apiURL);
   await page.goto(`/checks/new?project=${projectId}&type=web-scan`);
@@ -1230,8 +1267,8 @@ test("widget: launches a Web scan Audit with custom project rules through the re
   expect(audit.labels).toEqual({ cloud: "aws" });
   expect(audit.runtimeLabels).toEqual(["webscan-test"]);
   expect(Object.keys(audit.inputs).sort()).toEqual([
+    "engagement",
     "rulepack",
-    "settings",
     "target",
   ]);
   expect(audit.inputs.rulepack?.ref.namespace).toBe("scan-inputs");

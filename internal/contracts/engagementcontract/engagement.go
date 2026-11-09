@@ -158,6 +158,8 @@ func (i Identity) Validate() error {
 		kind = runtimesettings.RuntimeCredentialTargetBearer
 	case "cookies":
 		kind = runtimesettings.RuntimeCredentialTargetCookies
+	case "api-keys":
+		kind = runtimesettings.RuntimeCredentialTargetAPIKeys
 	default:
 		return invalid()
 	}

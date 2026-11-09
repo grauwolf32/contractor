@@ -70,9 +70,11 @@ async def run_command(
     input: bytes | None = None,
     timeout: float,
     max_output_bytes: int,
+    stop_event: asyncio.Event | None = None,
 ) -> subprocess.CompletedProcess[bytes]:
     """Return bounded output only after the leader and its process group stop.
 
+    An explicit stop retains received output; caller cancellation still raises.
     A descendant that detached into another session is not waited for.
     """
     stdout, stderr = bytearray(), bytearray()
@@ -130,10 +132,25 @@ async def run_command(
     ]
     if input is not None:
         pipes.append(asyncio.create_task(write()))
+
+    async def collect() -> None:
+        await asyncio.gather(*pipes)
+        await process.wait()
+
+    collected = asyncio.create_task(collect(), name="tool-subprocess-output")
+    stopped = (
+        asyncio.create_task(stop_event.wait(), name="tool-subprocess-stop")
+        if stop_event is not None
+        else None
+    )
     try:
         async with asyncio.timeout(timeout):
-            await asyncio.gather(*pipes)
-            await process.wait()
+            if stopped is not None:
+                await asyncio.wait({collected, stopped}, return_when=asyncio.FIRST_COMPLETED)
+            if stopped is not None and not collected.done():
+                failure = "stopped"
+            else:
+                await collected
     except TimeoutError:
         failure = "timeout"
     except _OutputLimit:
@@ -141,10 +158,24 @@ async def run_command(
     finally:
 
         async def cleanup() -> None:
-            for pipe in pipes:
-                pipe.cancel()
-            await asyncio.gather(*pipes, return_exceptions=True)
-            await _stop(process)
+            nonlocal failure
+            if stopped is not None:
+                stopped.cancel()
+                await asyncio.gather(stopped, return_exceptions=True)
+            if failure == "stopped":
+                # Closing the transports feeds EOF to their readers. Drain the
+                # already received bytes under the same shared output bound;
+                # never wait for a detached descendant to close its pipe.
+                await _stop(process)
+                outcomes = await asyncio.gather(collected, *pipes, return_exceptions=True)
+                if any(isinstance(outcome, _OutputLimit) for outcome in outcomes):
+                    failure = "output_limit"
+            else:
+                collected.cancel()
+                for pipe in pipes:
+                    pipe.cancel()
+                await asyncio.gather(collected, *pipes, return_exceptions=True)
+                await _stop(process)
 
         cancelled = await _join_cleanup(
             asyncio.create_task(cleanup(), name="tool-subprocess-cleanup")

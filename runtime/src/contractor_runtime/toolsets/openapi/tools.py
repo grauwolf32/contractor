@@ -9,8 +9,9 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from types import MappingProxyType
 from typing import Any
 
@@ -19,7 +20,6 @@ from pydantic import ValidationError
 
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
-from contractor_runtime.adapters.http_proxy import ProxySubprocessLauncher
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.core.input_errors import ToolInputError
@@ -123,9 +123,8 @@ class OpenAPIToolsetFactory:
             "validate_openapi",
         }
     )
-    infrastructure_channels = MappingProxyType(
-        {"validate_openapi": frozenset({"runtime-subprocess-launcher"})}
-    )
+    # Vacuum is local-only: no remote references, ambient config, or update checks.
+    infrastructure_channels = MappingProxyType({})
 
     def __init__(self, client_factory: ArtifactClientFactory | None = None) -> None:
         self._client_factory = client_factory or _unconfigured_client
@@ -149,21 +148,13 @@ class OpenAPIToolsetFactory:
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: WorkspaceReader | None = None,
     ) -> Mapping[str, Any]:
-        del run_id, workspace
+        del run_id, workspace, adapter_handles
         require_selected_tools(selected, self.exported_tools)
         if project_workspace is None:
             raise ValueError("openapi@1 requires a project workspace")
         metrics = require_metrics(resources, "openapi@1")
         client = self._client_factory(allocation_id, runtime_settings)
-        launcher = adapter_handles.tool_subprocess
-        if launcher is not None and not isinstance(launcher, ProxySubprocessLauncher):
-            raise TypeError("openapi@1 received an invalid subprocess handle")
-        session = _OpenAPISession(
-            client,
-            namespace,
-            launcher,
-            project_workspace=project_workspace,
-        )
+        session = _OpenAPISession(client, namespace, project_workspace=project_workspace)
         secrets = runtime_secrets(runtime_settings)
         constructors = {
             "load_openapi": LoadOpenAPITool,
@@ -205,13 +196,11 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
         self,
         client: ArtifactClient,
         namespace: str,
-        launcher: ProxySubprocessLauncher | None,
         *,
         project_workspace: WorkspaceReader,
     ) -> None:
         super().__init__(client, namespace)
         self._project_workspace = project_workspace
-        self._launcher = launcher
 
     def _decode_seed(self, data: bytes, media_type: str) -> dict[str, Any]:
         # _parse_document already checked the bounds and the JSON value types.
@@ -466,10 +455,7 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
         rendered, structural_errors = await self._prepare(
             self._validation_input, document, project_evidence_paths
         )
-        if self._launcher is None:
-            vacuum = await _run_vacuum(rendered)
-        else:
-            vacuum = await _run_vacuum(rendered, self._launcher)
+        vacuum = await _run_vacuum(rendered)
         valid = (
             not structural_errors
             and vacuum["available"]
@@ -494,6 +480,7 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
         # structure checks below are reported beside its findings.
         rendered = _dump_document(document).decode("utf-8")
         _validate_json_tree(document)
+        _require_internal_references(document)
         structural_errors: list[str] = []
         try:
             _validate_structure(document, require_provenance=True)
@@ -1819,10 +1806,22 @@ def _document_state(
     }
 
 
-async def _run_vacuum(
-    source_text: str,
-    launcher: ProxySubprocessLauncher | None = None,
-) -> dict[str, Any]:
+def _require_internal_references(document: dict[str, Any]) -> None:
+    pending: list[Any] = [document]
+    while pending:
+        value = pending.pop()
+        if isinstance(value, dict):
+            for name, child in value.items():
+                if name in {"$ref", "$dynamicRef"} and (
+                    not isinstance(child, str) or not child.startswith("#")
+                ):
+                    raise ToolInputError("OpenAPI validation accepts only internal references")
+                pending.append(child)
+        elif isinstance(value, list):
+            pending.extend(value)
+
+
+async def _run_vacuum(source_text: str) -> dict[str, Any]:
     executable = shutil.which("vacuum")
     if executable is None:
         return {
@@ -1832,15 +1831,30 @@ async def _run_vacuum(
             "truncated": False,
         }
     try:
-        command = [executable, "spectral-report", "-i", "-o"]
-        process = await run_tool_command(
-            command,
-            launcher=launcher,
-            input=source_text.encode("utf-8"),
-            env={"PATH": os.environ.get("PATH", os.defpath), "LANG": "C.UTF-8"},
-            timeout=VACUUM_TIMEOUT_SECONDS,
-            max_output_bytes=2 * MAX_VACUUM_OUTPUT_BYTES,
-        )
+        # A fresh working directory and explicit empty config prevent ambient
+        # rules/plugins from introducing network calls. References are internal.
+        with tempfile.TemporaryDirectory(prefix="contractor-openapi-validator-") as root:
+            config = Path(root) / "vacuum.yaml"
+            config.write_text("{}\n", encoding="utf-8")
+            command = [
+                executable,
+                "spectral-report",
+                "-i",
+                "-o",
+                "--remote=false",
+                "--no-update-check",
+                "--config",
+                str(config),
+            ]
+            process = await run_tool_command(
+                command,
+                launcher=None,
+                input=source_text.encode("utf-8"),
+                cwd=root,
+                env={"PATH": os.environ.get("PATH", os.defpath), "LANG": "C.UTF-8"},
+                timeout=VACUUM_TIMEOUT_SECONDS,
+                max_output_bytes=2 * MAX_VACUUM_OUTPUT_BYTES,
+            )
     except subprocess.TimeoutExpired:
         return {
             "available": True,

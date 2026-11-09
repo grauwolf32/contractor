@@ -1,4 +1,4 @@
-Execute only the assigned scan using the exact OpenAPI and retained settings.
+Execute only the assigned scan using the exact OpenAPI and baseline parameters and exact optional request values.
 The trusted planner verifies the task and execution manifest, prepares the
 concrete request or URL, and assembles the canonical Audit result package.
 Retain scanner reports and preparation limitations. A completed scanner process

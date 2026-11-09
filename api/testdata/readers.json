@@ -15,7 +15,7 @@
     "public/runtime-diagnostic-decimals.json": {"readers": ["go", "ui"]},
     "project-sitemap-cases.json": {"readers": ["go", "python", "ui"]},
     "sitemap-reports/": {"readers": ["python"], "reason": "Runtime tool adapters own report preprocessing and validate producer output; Server consumes only the shared normalized observation wire contract."},
-    "audit-web-scan-settings.json": {"readers": ["go", "ui"]},
+    "audit-web-scan-parameters.json": {"readers": ["go", "ui"]},
     "nuclei-package-manifest.json": {"readers": ["go", "python"]},
     "nuclei-input-cases.json": {"readers": ["go", "python", "ui"]},
     "tool-parameter-binding-cases.json": {"readers": ["go", "python", "ui"]},

@@ -5,6 +5,7 @@ import {
   projectFixture,
   startResponse,
   webScanProfile,
+  engagementMaterial,
 } from "../src/routes/checks/start/test-fixtures";
 import { page as pageResponse } from "../src/test/responses";
 import {
@@ -58,7 +59,10 @@ for (const theme of ["light", "dark", "black"]) {
             url.pathname === "/v1/projects/project_shop/artifacts" &&
             request.method() === "GET"
           )
-            return fulfillJSON(route, pageResponse([rules]));
+            return fulfillJSON(
+              route,
+              pageResponse([rules, engagementMaterial]),
+            );
           if (request.method() === "PUT") {
             writes.push(url.pathname);
             const metadata = artifactMetadata(
@@ -137,11 +141,11 @@ for (const theme of ["light", "dark", "black"]) {
       expect(submitted?.runtimeLabels).toEqual(["debug"]);
       expect(submitted?.inputs.rulepack).toEqual(rules.artifact);
       expect(Object.keys(submitted?.inputs ?? {}).sort()).toEqual([
+        "engagement",
         "rulepack",
-        "settings",
         "target",
       ]);
-      expect(writes).toHaveLength(2);
+      expect(writes).toHaveLength(1);
       expect(
         writes.every((path) =>
           path.startsWith("/v1/projects/project_shop/artifacts/"),

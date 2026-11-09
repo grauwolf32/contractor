@@ -725,3 +725,13 @@ in [Operations](../operations/operations.md); shared rules are in
 - Persistence of a Run draft across a tab reload is not guaranteed, because
   sensitive input is not automatically written to browser storage (UIJ-R42).
 - Comparing prompts across Agent versions is not supported.
+
+
+The scan setup for web, OpenAPI Nuclei, OpenAPI SQLMap and source-to-SQLMap
+requires an exact engagement material. It never uploads a settings artifact.
+Web setup uploads only the target and, when chosen, a custom rulepack. Explicit
+Program parameters render ordinary bounded execution fields; required values
+block submission, and values over 4,096 UTF-8 bytes are rejected. Authentication
+uses a credential ID assigned by engagement; secrets are entered through
+Credentials. The form explains that Nuclei uses HTTP rules and rejects unsupported
+controlled HTTP constructs. Traffic limits are owned by engagement.

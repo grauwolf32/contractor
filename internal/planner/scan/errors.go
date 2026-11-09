@@ -15,7 +15,7 @@ func (p *execution) scanError(code string, cause error) *planner.Error {
 	case "scan_plan_write_failed", "scan_input_write_failed", "scan_plan_record_failed":
 		// No job can be claimed before all inputs and InitializeScan succeed.
 		retryable = retryableScanCause(cause)
-	case "audit_scan_source_unavailable", "audit_scan_settings_unavailable",
+	case "audit_scan_source_unavailable", "audit_scan_request_values_unavailable",
 		"audit_scan_operation_unavailable",
 		"audit_scan_preparation_write_failed", "audit_scan_result_unavailable",
 		"audit_scan_result_write_failed", "scan_history_unavailable",

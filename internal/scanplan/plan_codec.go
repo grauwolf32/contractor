@@ -149,7 +149,7 @@ func (p ScanPlan) Validate() error {
 			return bad()
 		}
 		parts := strings.Split(job.TemplateRef, "@")
-		if len(parts) != 2 || (contracts.AgentTemplateRef{TemplateID: parts[0], Version: parts[1], Digest: job.TemplateDigest}).ValidateRef() != nil || !validPlanExecution(job.Execution) || job.Parameters == nil || job.Artifacts == nil || len(job.Parameters) > 5 || len(job.Artifacts) > 1 {
+		if len(parts) != 2 || (contracts.AgentTemplateRef{TemplateID: parts[0], Version: parts[1], Digest: job.TemplateDigest}).ValidateRef() != nil || !validPlanExecution(job.Execution) || job.Parameters == nil || job.Artifacts == nil || len(job.Parameters) > 6 || len(job.Artifacts) > 1 {
 			return bad()
 		}
 		if owner, ok := seenTools[job.Tool]; ok && owner != job.Worker {
@@ -170,7 +170,7 @@ func (p ScanPlan) Validate() error {
 		policy := policies[job.Worker]
 		switch job.Tool {
 		case "scan_sqlmap":
-			if job.Request == nil || job.Request.SchemaVersion != 1 || !reflect.DeepEqual(job.Request.TestParameters, policy.TestParameters) || len(job.Parameters) != 0 || len(job.Artifacts) != 0 {
+			if job.Request == nil || job.Request.SchemaVersion != 1 || !reflect.DeepEqual(job.Request.TestParameters, policy.TestParameters) || !validSQLMapParameters(job) || len(job.Artifacts) != 0 {
 				return bad()
 			}
 			request := scan.PreparedHTTPRequest{Method: job.Request.Method, URL: job.Request.URL, Headers: job.Request.Headers, Body: job.Request.Body}
@@ -281,7 +281,7 @@ func validPlanExecution(execution contracts.ToolExecutionConfig) bool {
 	}
 	for name, actual := range execution.Arguments {
 		if _, exists := dynamic[name]; !exists && actual.Source != "literal" &&
-			!(execution.Tool == "scan_nuclei" && scan.IsNucleiSelectionBinding(name, actual)) {
+			!(execution.Tool == "scan_nuclei" && scan.IsNucleiSelectionBinding(name, actual)) && !scan.IsScanCredentialBinding(execution.Tool, name, actual) {
 			return false
 		}
 	}

@@ -26,10 +26,6 @@ spec:
       severity:
         source: parameter
         name: severity
-      rate_limit:
-        source: parameter
-        name: rate_limit
-        parse: integer
       templates_digest:
         source: literal
         value: sha256:51a3bd4eef14e95bdeb0bad14ca4bd9bd455479a7044b244b76dee8f6dba5014
@@ -40,6 +36,10 @@ spec:
       timeout_seconds:
         source: literal
         value: 300
+      credential_id:
+        source: parameter
+        name: credential_id
+        optional: true
     resultArtifact: report
     timeoutSeconds: 330
   sitemap:

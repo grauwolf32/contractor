@@ -225,9 +225,9 @@ its owning requirement.
 | `LIM-ASC-8` | at most 1 accepted attempt | Each prepare role | Audit Controller (atomic acceptance of preparation outputs) | [ASC-R37](../audits/scans.md) |
 | `LIM-ASC-9` | 1 assigned item and 1 scanner Worker | The openapi-scan@1 and web-scan@1 executor Stage named by auditTask.stage | Configuration catalog validation of the selected executor | [ASC-R75](../audits/scans.md) |
 | `LIM-ASC-10` | 1 source operation | Each accepted OpenAPI scan item | auditdomain.BuildOpenAPIScanInventory and PrepareOpenAPIScanTask | [ASC-R85](../audits/scans.md) |
-| `LIM-ASC-11` | 256 KiB | Scan settings artifact (contractor.audit.openapi-scan-settings.v1) | scanplan.DecodeAuditScanSettings | [ASC-R95](../audits/scans.md) |
-| `LIM-ASC-12` | 1,000 operations | operations map of the scan settings artifact | scanplan.DecodeAuditScanSettings | [ASC-R99](../audits/scans.md) |
-| `LIM-ASC-13` | 1..64 distinct names | SQLMap testParameters list in the scan settings artifact | scanplan.DecodeAuditScanSettings | [ASC-R101](../audits/scans.md) |
+| `LIM-ASC-11` | 256 KiB | Optional request_values JSON material | scanplan.CompileAuditSelection | [ASC-R95](../audits/scans.md) |
+| `LIM-ASC-12` | 1,000 operations | operations selection (also bounded by 4,096 parameter bytes; shipped profiles allow sixteen) | scanplan.CompileAuditSelection | [ASC-R99](../audits/scans.md) |
+| `LIM-ASC-13` | 1..64 distinct names | SQLMap test_parameters JSON array parameter | scanplan.CompileAuditSelection | [ASC-R101](../audits/scans.md) |
 | `LIM-ASC-14` | 256 KiB each | Source root and consumer descriptor encoded bytes | Audit snapshot/Run input materialization owner | [ASC-R157](../audits/scans.md) |
 | `LIM-ASC-15` | 256 KiB / 128 items / 512 descriptors | One settled-Round metadata page | Audit snapshot/Run input materialization owner | [ASC-R157](../audits/scans.md) |
 | `LIM-ASC-16` | 256 | Pages of one complete settled-Round snapshot | Audit snapshot/Run input materialization owner | [ASC-R157](../audits/scans.md) |
@@ -699,7 +699,8 @@ its owning requirement.
 | `LIM-RCF-28` | at least 120 s, default 180 s | RuntimeSettings.requestTimeoutSeconds (allocation-local outbound request budget) | Server | [RCF-R161](../configuration/runtime-config.md) |
 | `LIM-RCF-29` | positive integer at most 2^31-1 | gatewayPolicy tpmLimit, rpmLimit and maxParallelRequests | Server credential creation (before any Gateway call) | [RCF-R63](../configuration/runtime-config.md) |
 | `LIM-RCF-30` | 1–128 pairs; name 1–256 ASCII token bytes, value 0–8192 ASCII cookie-octets | target-cookies@1 supplied cookies | Go/Python/schema and Server credential creation | [RCF-R184](../configuration/runtime-config.md) |
-| `LIM-RCF-31` | 16 KiB | target-cookies@1 combined cookie name/value bytes | Go/Python and Server credential creation | [RCF-R184](../configuration/runtime-config.md) |
+| `LIM-RCF-31` | 16 KiB | target-cookies@1 names/values or target-api-keys@1 qualified names/values | Go/Python and Server credential creation | [RCF-R184](../configuration/runtime-config.md) |
+| `LIM-RCF-32` | 1–128 fields; unqualified name 1–256 UTF-8 bytes (qualified at most 263); value 1–8192 UTF-8 bytes | target-api-keys@1 fields; location-specific header/cookie grammars also apply | Go/Python and Server credential creation; public UTF-8 annotations | [RCF-R184](../configuration/runtime-config.md) |
 | `LIM-REV-1` | 1 initial coverage row per selected requirement or operation | Audit coverage at start (requirement rows start as not-tested) | Audit Controller (coverage) | [REV-R13](../audits/review-and-reports.md) |
 | `LIM-REV-2` | Retired | Formal approval lifecycle removed | No current operation | [REV-R39](../audits/review-and-reports.md) |
 | `LIM-REV-3` | Retired | Formal approval lifecycle removed | No current operation | [REV-R47](../audits/review-and-reports.md) |

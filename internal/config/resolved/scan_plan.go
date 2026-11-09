@@ -119,7 +119,7 @@ func ValidateScanPlanStage(stage ResolvedStage) error {
 		}
 		for name, source := range execution.Arguments {
 			if _, dynamic := expected[name]; !dynamic && source.Source != "literal" &&
-				!(stage.ScanPreparation != nil && execution.Tool == "scan_nuclei" && scan.IsNucleiSelectionBinding(name, source)) {
+				!(stage.ScanPreparation != nil && (execution.Tool == "scan_nuclei" && scan.IsNucleiSelectionBinding(name, source) || scan.IsScanCredentialBinding(execution.Tool, name, source))) {
 				return fmt.Errorf("scanPlan additional Worker arguments must be literals")
 			}
 		}
@@ -206,11 +206,11 @@ func validateScanPlanInputMedia(workflow ResolvedWorkflow, stage ResolvedStage) 
 	inputMedia := []string{scan.HTTPRequestSetMediaType, "text/vnd.contractor.target-list"}
 	if stage.ScanPreparation != nil {
 		inputMedia = []string{"application/json", "application/yaml", "application/zip"}
-		for name, media := range map[string][]string{
-			stage.ScanPreparation.SettingsArtifact: {"application/json"},
-		} {
-			if err := validate(name, media); err != nil {
-				return err
+		if name := stage.ScanPreparation.ValuesArtifact; name != "" {
+			context, exists := stage.Context.Artifacts[name]
+			slot, declared := workflow.Inputs[context.Name]
+			if !exists || !declared || context.Namespace != "inputs" || slot.Required != context.Required || len(slot.MediaTypes) != 1 || slot.MediaTypes[0] != "application/json" {
+				return fmt.Errorf("invalid request values input")
 			}
 		}
 		if stage.ScanPreparation.OperationArtifact != "" {

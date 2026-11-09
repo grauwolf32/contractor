@@ -1,0 +1,93 @@
+schema_version: "1.0"
+id: V461-003
+title: Run every shipped scan Audit through engagement without settings artifacts
+milestone: audit-scanners-engagement-2026-11
+epic: scan-tools
+kind: feature
+priority: P1
+status: completed
+implementation_commit: 63cdc7d6af42d7e8184bb13c69054ff99450f9da
+depends_on: [V461-001, V461-002]
+languages: [go, python, typescript]
+context:
+  authority: >-
+    User decision 2026-11-09: remove Audit scan settings inputs, use engagement
+    for egress, identities and traffic limits without turning it into a scan
+    configuration; extend credentials to preserve authentication; run only HTTP
+    Nuclei rules; align native Nuclei and, where possible, SQLMap scheduling to
+    engagement to minimize transport-induced waits. Implementation is authorized.
+  specification: docs/spec/tools/scanners.md
+goal: Launch the four shipped web/OpenAPI/source scan Audits with engagement, ordinary execution parameters and materials, preserving normalized Project Findings and exact evidence.
+demonstration: A browser-created web scan and a source/OpenAPI SQLMap Audit run through the real Server, Runtime, HTTP target and PostgreSQL without creating or reading settings artifacts.
+scope:
+  in: [Audit launch parameter binding where required by real callers, deterministic request preparation, four shipped scan profiles and supporting Workflows, API and UI, examples and process gates]
+  out: [scan configuration inside engagement, non-HTTP Nuclei rules, automatic login, deployment]
+requirements:
+  - id: R1
+    text: Delete scan settings contracts and readers end to end; bind selected operations/request values/test parameters and Nuclei filters through existing Workflow parameter and artifact mechanisms.
+  - id: R2
+    text: Engagement retains only egress, identities and HTTP limits; all active scan tasks receive its exact policy, with native scheduling aligned through V461-001.
+  - id: R3
+    text: Preserve bounded deterministic per-operation preparation, exact input provenance, normalized Findings and selected evidence introduced by V455-008/009.
+  - id: R4
+    text: Nuclei selects only HTTP templates and explicitly reports unsupported controlled HTTP constructs; UI communicates this restriction.
+failure_outcomes:
+  - operation: Audit selection, preparation and task admission
+    permanent: Existing strict input and invalid selection errors; no target scan after invalid preparation.
+    retryable: Existing bounded store and controller retry rules; no hidden active request replay.
+    ambiguous: Existing Audit/task/Run receipts and exact artifact bindings reconcile writes.
+    cancelled: Existing Run and allocation cancellation joins native scanners and HTTP resources.
+    timeout: Existing preparation, invocation and Audit budgets retain their owners.
+cardinality:
+  - collection: Selected operations and launch values
+    expected: One web target or up to sixteen prepared OpenAPI operation tasks
+    maximum: Existing profile task counts, parameter and artifact byte limits
+    bound: Bounded validation and deterministic preparation; no arbitrary Workflow overrides.
+lifecycle:
+  - entity: Audit pinned inputs and parameters
+    delete: Existing Audit/Run and Artifact owners retain authority.
+    cascade: Existing input forks, credential holds and output references.
+    retention: Ordinary Audit baseline and exact evidence retention; no new store or journal.
+acceptance_criteria:
+  - id: A1
+    given: Each of the four shipped scan profiles
+    when: Launched through its normal API/UI path
+    then: No settings artifact is accepted or produced; engagement controls requests and results retain Project Findings/evidence.
+  - id: A2
+    given: User request values, authentication, rule filters and malformed inputs
+    when: Preparation and execution run
+    then: Supported capabilities remain usable, secrets remain private and unsupported rules or inputs fail explicitly.
+  - id: A3
+    given: The integrated branch and real process fixtures
+    when: Public/wire/config/UI/process/lint gates run
+    then: Required gates pass and optional skips are reported honestly.
+decisions:
+  - "Audit launch values are explicitly declared by the Program and bound only to named Workflow parameters. Existing baseline JSON and ExecutionProgram derivation pin them; no new store or arbitrary Workflow override is introduced."
+  - "The existing engagement document retains egress, identity references and optional HTTP limits. Scan filters, operation selection, server choice and SQLMap test parameters remain ordinary execution parameters."
+  - "Optional request_values material contains only per-operation parameter/body data under the existing 256-KiB options bound; it carries neither scanner configuration nor authentication/traffic policy. Values embedded in OpenAPI examples remain usable."
+  - "OpenAPI source validation is local-only: Vacuum uses internal references, an empty private config, remote resolution disabled and update checks disabled. The tool no longer requests a network subprocess adapter. Real validation and bounded/cancelled subprocess behavior remain tested."
+  - "Prepared operation work retains exact source and value-material provenance; dispatch reproduces the selected request and verifies its preparation identity before scanning."
+  - "Integrated normalized Findings expose a retry conflict in the old create-only material-set binding. The existing Artifact revision CAS advances only the observed downstream binding; previous exact attempts remain immutable, and identical recovery reuses the current revision."
+tests:
+  - command: make verify-public-api test-wire-cross-language ui-verify lint
+    covers: [A1, A2, A3]
+  - command: make test-nuclei-web-e2e test-nuclei-engagement
+    covers: [A1, A2, A3]
+  - command: go test -tags=e2e ./tests/e2e -run '^(TestAuditCommonScanProfilesAcrossProductionProcesses|TestAuditCommonSourcePreparationAcrossProductionProcesses)$' -count=1 -timeout=15m
+    covers: [A1, A2, A3]
+  - command: CONTRACTOR_SCAN_BROWSER=1 go test -tags=e2e ./tests/e2e -run '^(TestNucleiWebWithDeterministicScannerAcrossProcesses|TestAuditCompositionAcrossProductionProcesses)$' -count=1 -timeout=20m
+    covers: [A1, A2, A3]
+  - command: CONTRACTOR_SCAN_BROWSER=1 go test -tags=e2e ./tests/e2e -run '^TestScannerFindingsAcrossProductionProcesses$' -count=1 -timeout=15m
+    covers: [A1, A2, A3]
+verification:
+  date: "2026-11-09"
+  runtime: "Full Runtime suite passed: 6104 cases passed and 135 declared optional/environment skips. After the final optional/default binding correction, the complete Tool Worker suite passed all 52 cases."
+  go: "Full touched Go package suites passed against real PostgreSQL, including pinned launch parameter admission and replay. The full scan Planner suite passed after the retry correction, including real-store CAS, exact prior revision retention and identical acknowledgement recovery."
+  contracts: "make verify-public-api and test-wire-cross-language passed: 378 shared fixtures, 425 Go and 270 Python shared tests. One optional disk-heavy shared test skipped; heavy I/O stayed disabled."
+  process: "All four shipped scan profiles passed through actual Server, Runtime, Nuclei/SQLMap and PostgreSQL. Nuclei web and engagement gates passed, including cancellation and conservative lost-outcome recovery."
+  browser: "Real browser-created web and OpenAPI scans passed without settings artifacts. OpenAPI Tasks retained canonical results after source Run deletion. The real scanner Findings gate passed positive/fixed controls, selected evidence, Runtime-free publication replay and browser source/evidence views."
+  ui: "make ui-verify passed: 221 test files, 2487 tests passed and one expected failure; all 17 static-server tests passed and the production build succeeded. Six Chromium web-form checks passed at 390/1440px in light/dark/black themes; screenshots were inspected."
+  config: "Shipped catalog validation passed: 31 Workflows, 32 AgentTemplates and 15 Audit profiles."
+  lint: "Final make docs-dependencies lint passed, including generated contracts/clients, strict shared fixtures, task/spec checks, Go/Python layers, release graph and UI gates."
+  cleanup: "Owned Vite process stopped and contractor_v461_01a1bca1 dropped after all process/store gates completed."
+  delivery: "Implemented on codex/audit-engagement; not merged into main or deployed."

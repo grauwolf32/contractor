@@ -610,7 +610,7 @@ class MitmproxyEngine:
             exchange = self.flows[data.id]
             if hook.name == "requestheaders":
                 exchange.boundary.require_time()
-                if native_url(data.request) != exchange.url:
+                if native_url(data.request) != (exchange.request.url or exchange.url):
                     exchange.reason = "policy_denied"
                     data.kill()
                 data.request.stream = True

@@ -527,7 +527,7 @@ Assembled from every document.
 | `audit_scan_result_invalid` | — | no | Audit result assembly rejected retained content, bounds or assignment with auditscan.ErrInvalid. | [SCN-R258](../tools/scanners.md) |
 | `audit_scan_result_unavailable` | — | cause-based for Audit; no for ordinary scans | Retained evidence could not be read or result assembly was cancelled or exhausted its budget. | [SCN-R258](../tools/scanners.md) |
 | `audit_scan_result_write_failed` | — | cause-based for Audit; no for ordinary scans | The create-only Audit result package could not be published. | [SCN-R258](../tools/scanners.md) |
-| `audit_scan_settings_unavailable` | — | cause-based for Audit; no for ordinary scans | The exact Audit settings could not be read. | [SCN-R258](../tools/scanners.md) |
+| `audit_scan_request_values_unavailable` | — | cause-based for Audit; no for ordinary scans | The exact Audit settings could not be read. | [SCN-R258](../tools/scanners.md) |
 | `audit_scan_operation_unavailable` | — | cause-based for Audit; no for ordinary scans | The exact selected OpenAPI operation material could not be read. | [SCN-R258](../tools/scanners.md) |
 | `audit_scan_source_unavailable` | — | cause-based for Audit; no for ordinary scans | The exact assigned source or selected rulepack could not be read. | [SCN-R258](../tools/scanners.md) |
 | `audit_scan_task_invalid` | — | no | The assigned task package, member, document or scanner identity is invalid. | [SCN-R258](../tools/scanners.md) |

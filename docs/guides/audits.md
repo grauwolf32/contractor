@@ -12,10 +12,10 @@ The current shipped programs are:
 | --- | --- | --- |
 | `openapi-operation-observe@1` | Source ZIP and OpenAPI | Separate passive operation observations |
 | `openapi-operation-trace@1` | Source ZIP and OpenAPI | Source tracing with optional evidenced Project problems |
-| `openapi-sqlmap-scan@1` | OpenAPI and scan settings | Separate selected request checks using SQLMap |
-| `openapi-nuclei-scan@1` | OpenAPI and scan settings | Separate selected URL/template checks using Nuclei |
-| `source-openapi-sqlmap-scan@1` | Source ZIP and scan settings | Ordinary source-to-OpenAPI Run, preparation and request checks |
-| `web-scan@1` | Target, settings and optional rulepack | One Task for the selected target |
+| `openapi-sqlmap-scan@1` | OpenAPI, engagement and execution parameters | Separate selected request checks using SQLMap |
+| `openapi-nuclei-scan@1` | OpenAPI, engagement and execution parameters | Separate selected URL/template checks using Nuclei |
+| `source-openapi-sqlmap-scan@1` | Source ZIP, engagement and execution parameters | Ordinary source-to-OpenAPI Run, preparation and request checks |
+| `web-scan@1` | Target, engagement and optional rulepack | One Task for the selected target |
 
 Fixed assertions also run through this same path: `source-checklist`,
 `owasp-top10-2025-source-risk`, ASVS 5.0 L1 pilot/full source review, and WSTG 4.2
@@ -40,7 +40,7 @@ optional `scope` and Runtime labels. Start it with
 read `GET /v1/audits/{auditId}/tasks` and follow every returned cursor.
 
 OpenAPI preparation is an ordinary Workflow with a Server-operation Stage. The
-domain builder interprets OpenAPI and settings; its output is a bounded list of
+domain builder interprets OpenAPI and execution parameters; its output is a bounded list of
 work. Common intake validates that list in slices and assigns Task identities.
 A model or a Runtime Worker is not involved in deterministic preparation.
 Each selected operation becomes a separate Task and can retry independently.
@@ -153,15 +153,19 @@ Finding and needs no formal report acceptance.
 
 Use the [OpenAPI example](../../configs/scan/examples/audit-openapi-scan/openapi.json)
 and the corresponding
-[SQLMap settings](../../configs/scan/examples/audit-openapi-scan/sqlmap-settings.json)
-or [Nuclei settings](../../configs/scan/examples/audit-openapi-scan/nuclei-settings.json)
+[SQLMap parameters](../../configs/scan/examples/audit-openapi-scan/sqlmap-parameters.json)
+or [Nuclei parameters](../../configs/scan/examples/audit-openapi-scan/nuclei-parameters.json)
 as format examples. Supply a target you are authorized to check and the
 Project policy/capabilities required by the selected operations. Nuclei URL
-checks do not reproduce OpenAPI request methods, bodies or authentication.
+checks do not reproduce OpenAPI request methods or bodies. Authentication is
+applied by engagement identities and private credentials. Upload an engagement
+with the declared media type; supply optional per-operation request values as
+a separate application/json material. Parameters are ordinary launch fields,
+not uploaded artifacts.
 
-The source-to-scan program uses the same settings; its ordinary generation
+The source-to-scan program uses the same parameters and optional request values; its ordinary generation
 Workflow produces the OpenAPI input before deterministic preparation.
-Web-scan uses the selected target/settings artifacts and an optional exact
+Web-scan uses the selected target/engagement artifacts and an optional exact
 custom rulepack. See [scanner setup](../../runtime/README.md#cli-scanners).
 
 ## Verification

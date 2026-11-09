@@ -1410,6 +1410,13 @@ spec:
   policy:
     active_operations: prohibited
 `
+	parameterSlots := "    server: {required: true}\n    operations: {required: true}\n    test_parameters: {required: true}\n    credential_id: {required: false}\n    tags: {required: false}\n"
+	parameterWorkflow := strings.Replace(files["workflows/check.yaml"], "name: audit-check", "name: parameter-check", 1)
+	files["workflows/parameters.yaml"] = strings.Replace(parameterWorkflow, "  parameters: {}", "  parameters:\n"+parameterSlots, 1)
+	parameterProfile := strings.Replace(files["audit-profiles/checklist.yaml"], "name: test-checklist", "name: test-parameters", 1)
+	parameterProfile = strings.Replace(parameterProfile, "  schema: contractor.audit.program.v1", "  schema: contractor.audit.program.v1\n  parameters:\n"+parameterSlots, 1)
+	parameterProfile = strings.Replace(parameterProfile, "ref: audit-check@1", "ref: parameter-check@1", 1)
+	files["audit-profiles/parameters.yaml"] = strings.Replace(parameterProfile, "      parameters: {}", "      parameters: {}\n      parameter_inputs: {server: server, operations: operations, test_parameters: test_parameters, credential_id: credential_id, tags: tags}", 1)
 	for _, variant := range []string{"a", "b"} {
 		policy := strings.Replace(files["model-policies/worker.yaml"], "name: worker", "name: variant-worker-"+variant, 1)
 		files["model-policies/variant-worker-"+variant+".yaml"] = strings.Replace(policy, "worker-model", "variant-model-"+variant, 1)

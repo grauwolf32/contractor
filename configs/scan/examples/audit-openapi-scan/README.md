@@ -1,39 +1,29 @@
 # Supplied OpenAPI scan inputs
 
-These inputs exercise V62-009 preparation, inventory and trusted scan execution.
-The catalog contains accepted `openapi-sqlmap-scan@1` and
-`openapi-nuclei-scan@1` profiles. See the
-[setup and approval walkthrough](../../../../docs/guides/audits.md#scan-a-supplied-openapi).
+Select `openapi-sqlmap-scan@1` or `openapi-nuclei-scan@1`. Upload OpenAPI and
+`engagement.json` as Project materials; engagement uses media type
+`application/vnd.contractor.engagement+json`. Pass the chosen `*-parameters.json`
+object as CreateAuditRequest.parameters. Upload the matching `*-request-values.json`
+as optional `request_values` (application/json). There is no settings artifact.
 
-Both settings files explicitly select `#/paths/~1pets~1{id}/post` and the local
-server `http://127.0.0.1:8080/api`. The prepared URL is
-`http://127.0.0.1:8080/api/pets/7?search=Milo`.
+The example selects `#/paths/~1pets~1{id}/post` at
+`http://192.168.56.10:8080/api/pets/7?search=Milo`. SQLMap preserves POST and the
+JSON body and tests `name` and `search`. Its optional fixture-credential must be
+created through Credentials as target-bearer@1, referenced by an engagement
+identity, and selected with credential_id. Do not put its token in materials.
+The example engagement declares that reference; for anonymous execution remove
+its scanner identity and omit credential_id.
 
-- SQLMap retains POST, the JSON body and the supplied fixture bearer token. It
-  selects only the `name` and `search` test parameters. `id` fixes the path.
-- Nuclei receives the URL. It does not replay POST, the JSON body or bearer
-  authentication. Those limitations remain in the generated Audit task.
-  Template selection is fixed by the resolved Workflow/Worker policy.
+Nuclei prepares a fixed URL, without replaying the operation method/body. It
+runs HTTP rules through engagement; raw, headless, code, flow and other
+unsupported controlled constructs fail explicitly. Native pacing follows
+engagement HTTP limits. Optional rulepack materials retain exact provenance.
 
-The inventory builder is `openapi-scans@1`. The consuming Workflow separately
-declares `auditTask: {contract: openapi-scan@1, stage: scan}`. Resource names and
-input aliases can change without changing Go code; the executor Stage may be
-surrounded by ordinary Workflow Stages. Exact inputs, approval and the canonical
-result producer remain enforced by the execution contract.
+Source-to-scan uses the same parameters and values with a source ZIP. Its
+ordinary preparation Run generates OpenAPI and bounded common work; each
+accepted operation becomes a separate scan Run. Findings and selected evidence
+are published through the existing Project Findings pipeline.
 
-Tests do not read these files. Frozen copies live in
-`testdata/configs-scan/audit-openapi-scan/` and are exercised from the
-repository root by:
-
-```sh
-go test ./internal/auditdomain -run '^TestOpenAPIScanFixtureInputsPrepareQueryURLAndRequest$'
-go test ./internal/planner/scan -run '^TestAuditExecutor'
-```
-
-These checks perform no scanner or network calls. Editing the examples here
-does not change the tests; refresh the fixture copies only alongside a change
-to the input contract.
-See the [adapter contract](../../../../docs/spec/audits/scans.md) for
-execution, result and recovery requirements. With disposable PostgreSQL and
-installed SQLMap/Nuclei, run `make test-openapi-audit-scan-e2e` for the mandatory
-process acceptance gate against its own local target.
+Frozen test copies live in testdata/configs-scan/audit-openapi-scan. The real
+process gate is `make test-openapi-audit-scan-e2e`, using a disposable database
+and its own local target.

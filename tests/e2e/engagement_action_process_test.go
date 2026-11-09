@@ -43,22 +43,8 @@ func (c engagementCountConn) Read(p []byte) (int, error) {
 
 func newEngagementTargetFixture(t *testing.T) *engagementTargetFixture {
 	t.Helper()
-	var ip net.IP
-	requested := os.Getenv("CONTRACTOR_HTTP_TEST_BIND_ADDRESS")
-	interfaces, err := net.InterfaceAddrs()
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, address := range interfaces {
-		candidate, _, err := net.ParseCIDR(address.String())
-		if err == nil && candidate.To4() != nil && candidate.IsPrivate() && !candidate.IsLoopback() && (requested == "" || candidate.String() == requested) {
-			ip = candidate.To4()
-			break
-		}
-	}
-	if ip == nil {
-		t.Fatal("engagement process gate requires an actual RFC1918 interface; loopback policy must remain enforced")
-	}
+	ip := engagementFixtureBindIP(t)
+	var err error
 	f := &engagementTargetFixture{}
 	root := filepath.Join(t.TempDir(), "target-pki")
 	generator := localpki.Generator{}
@@ -115,4 +101,25 @@ func newEngagementTargetFixture(t *testing.T) *engagementTargetFixture {
 	t.Cleanup(plain.Close)
 	f.httpURL = plain.URL
 	return f
+}
+
+func engagementFixtureBindIP(t *testing.T) net.IP {
+	t.Helper()
+	var ip net.IP
+	requested := os.Getenv("CONTRACTOR_HTTP_TEST_BIND_ADDRESS")
+	interfaces, err := net.InterfaceAddrs()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, address := range interfaces {
+		candidate, _, err := net.ParseCIDR(address.String())
+		if err == nil && candidate.To4() != nil && candidate.IsPrivate() && !candidate.IsLoopback() && (requested == "" || candidate.String() == requested) {
+			ip = candidate.To4()
+			break
+		}
+	}
+	if ip == nil {
+		t.Fatal("engagement process gate requires an actual RFC1918 interface; loopback policy must remain enforced")
+	}
+	return ip
 }

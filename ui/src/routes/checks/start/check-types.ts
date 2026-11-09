@@ -175,21 +175,21 @@ const KNOWN: Readonly<Record<string, CheckTypePresentation>> = {
     icon: "target",
     label: "Nuclei scan",
     description:
-      "Runs Nuclei on the endpoints your scan settings select, using your project’s active-check setting.",
+      "Runs Nuclei on the endpoints your execution parameters select, using your project’s active-check setting.",
     order: 70,
   },
   "source-openapi-sqlmap-scan": {
     icon: "source",
     label: "Source code to SQLMap checks",
     description:
-      "Prepares a validated API spec from source code, accepts its selected endpoints, then runs request checks using your scan settings.",
+      "Prepares a validated API spec from source code, accepts its selected endpoints, then runs request checks under the selected engagement.",
     order: 81,
   },
   "openapi-sqlmap-scan": {
     icon: "api",
     label: "SQLMap scan",
     description:
-      "Runs SQLMap on the endpoints your scan settings select, using your project’s active-check setting.",
+      "Runs SQLMap on the endpoints your execution parameters select, using your project’s active-check setting.",
     order: 80,
   },
 };
@@ -236,10 +236,10 @@ const INPUT_LABELS: Readonly<Record<string, string>> = {
   sources: "Source code",
   openapi: "API spec",
   spec: "API spec",
-  settings: "Scan settings",
+  engagement: "Engagement",
+  request_values: "Request values",
   context: "Context brief",
   checklist: "Checklist",
-  engagement: "Engagement",
 };
 
 const FORMAT_NAMES: Readonly<Record<string, string>> = {
@@ -449,7 +449,15 @@ export function readinessOf(
   profile: AuditProfile,
   context: ReadinessContext,
 ): Readiness {
-  if (isWebScanProfile(profile)) return { state: "ready" };
+  if (isWebScanProfile(profile)) {
+    const missing = missingInputs(
+      orderedInputs(profile).filter(([name]) => name === "engagement"),
+      context.materials,
+    );
+    return missing.length === 0
+      ? { state: "ready" }
+      : { state: "missing", missing };
+  }
   const missing = missingInputs(
     orderedInputs(profile).filter(([, input]) => input.required),
     context.materials,
@@ -468,7 +476,7 @@ function joinOr(words: readonly string[]): string {
 }
 
 /**
- * "Source code (ZIP)", "Another material for API spec or scan settings",
+ * "Source code (ZIP)", "Another material for API spec or request values",
  * "Live target URL".
  */
 export function missingLabel(need: MissingNeed): string {

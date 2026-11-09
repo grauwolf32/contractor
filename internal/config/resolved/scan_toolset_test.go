@@ -19,7 +19,7 @@ func TestScanToolsetDescriptor(t *testing.T) {
 	}
 	for _, name := range want {
 		channels := []infrastructureChannel{channelRuntimeSubprocessLauncher}
-		if name == "scan_nuclei" {
+		if name == "scan_nuclei" || name == "scan_sqlmap" {
 			channels = []infrastructureChannel{channelRuntimeHTTPClient, channelRuntimeSubprocessLauncher}
 		}
 		if got := descriptor.InfrastructureChannels[name]; !slices.Equal(got, channels) {
@@ -35,7 +35,7 @@ func TestControlledHTTPSelectionKeepsOtherScannersUncontrolled(t *testing.T) {
 	}{
 		{[]string{"scan_nuclei"}, false},
 		{[]string{"scan_ffuf"}, true},
-		{[]string{"scan_sqlmap"}, true},
+		{[]string{"scan_sqlmap"}, false},
 		{[]string{"scan_naabu"}, true},
 		{[]string{"scan_katana"}, true},
 		{[]string{"scan_nuclei", "scan_naabu"}, true},

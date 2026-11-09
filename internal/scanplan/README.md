@@ -2,9 +2,9 @@
 
 `PrepareOperation(sourceBytes, mediaType, exactArtifactRef, options, pointer)`
 prepares one assigned operation without I/O. Production Audit scan inventory
-uses `AuditScanSettings.PrepareOperations` through `internal/auditdomain`, which
+uses `AuditSelection.PrepareOperations` through `internal/auditdomain`, which
 parses and hashes the source once for all selected operations (SCN-R256);
-`AuditScanSettings.PrepareOperation` reproduces one accepted task before scanner
+`AuditSelection.PrepareOperation` reproduces one accepted task before scanner
 execution. There is no product
 OpenAPI-to-RequestSet Artifact export or automatic `request-set-scan@1` handoff.
 That Workflow accepts an independently supplied, valid RequestSet Artifact.
@@ -21,8 +21,9 @@ Both preserve exact source revision/digest and reject bindings outside their
 interface. The [Audit scan adapter contract](../../docs/spec/audits/scans.md)
 describes the remaining integration and release requirements.
 
-`DecodeAuditScanSettings` validates the bounded, JSON-only
-`contractor.audit.openapi-scan-settings.v1` input. It requires an explicit
+`CompileAuditSelection` validates ordinary string parameters and optional
+request-values JSON, bounded to 256 KiB. Engagement supplies private credentials
+and HTTP policy. Selection requires an explicit
 absolute server and operation allowlist, rejects ambiguous/unknown fields, and
 exposes immutable accessors. Its `PrepareOperation` method checks the scanner's
 input representation too, including availability of selected SQLMap parameters.

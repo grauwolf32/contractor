@@ -216,6 +216,8 @@ class _ScanSession:
             value = await threads.to_thread_until_done(
                 observation or tool.observation, result, name="scan-observation"
             )
+            if self.controlled_http is not None:
+                value["httpLimits"] = self.controlled_http.configured_limits()
             return await finalize(value, deadline) if finalize is not None else value
 
         async def owned_invocation():
@@ -274,12 +276,14 @@ class _ScanSession:
                         self.controlled_http,
                         credential_id=credential_id,
                         deadline=deadline,
+                        strip_cookies=tool.strip_proxy_cookies,
                     ) as bridge:
                         configure_proxy = tool.http_proxy_arguments
                         if configure_proxy is None:
                             raise RuntimeError("scanner HTTP proxy configuration is missing")
                         proxy_arguments = await configure_proxy(bridge, directory)
-                        result = await run_process(
+                        result = await _run_controlled_process(
+                            bridge,
                             [*command, *proxy_arguments],
                             directory,
                             max(0.001, deadline - time.monotonic()),
@@ -352,8 +356,17 @@ class _ScanSession:
             pass
 
 
+async def _run_controlled_process(
+    bridge: HTTPProxyBridge, command: list[str], directory: Path, timeout: float
+) -> ProcessResult:
+    result = await run_process(command, directory, timeout, stop_event=bridge.failed)
+    return replace(result, error_code=bridge.error_code or result.error_code)
+
+
 class ScanTool:
     """Trusted scanner adapter; registration never comes from invocation input."""
+
+    strip_proxy_cookies = True
 
     name: str
     binary: str
@@ -598,6 +611,13 @@ class _NucleiPreparation:
         elif self.templates_digest or self.session.controlled_http is not None:
             self.result.source = "installed"
             self.result.expected_package_digest = self.templates_digest or None
+        limits = (
+            self.session.controlled_http.configured_limits()
+            if self.session.controlled_http is not None
+            else {}
+        )
+        rate = limits.get("requestsPerSecond", 0)
+        concurrency = min(5, limits.get("concurrentRequests", 5), rate or 5)
         command = [
             "-jsonl",
             "-silent",
@@ -610,16 +630,16 @@ class _NucleiPreparation:
             "-omit-template",
             "-disable-redirects",
             "-rate-limit",
-            str(self.rate_limit if self.session.controlled_http is None else 0),
+            str(self.rate_limit if self.session.controlled_http is None else rate),
             "-concurrency",
-            "5",
+            str(concurrency),
             "-timeout",
             "10",
             "-retries",
             "1" if self.session.controlled_http is None else "0",
         ]
         if self.session.controlled_http is not None:
-            command += ["-no-httpx", "-payload-concurrency", "1"]
+            command += ["-no-httpx", "-payload-concurrency", "1", "-bulk-size", "1"]
         for flag, value in (
             ("-id", self.template_ids),
             ("-tags", self.tags),
@@ -945,8 +965,6 @@ class NucleiTool(JSONLinesScanTool):
                 )
                 if self._session.controlled_http is None:
                     value["rateLimit"] = rate_limit
-                else:
-                    value["httpLimits"] = self._session.controlled_http.configured_limits()
             value["findingCandidates"] = nuclei_candidates(
                 value, methods=preparation.result.template_methods
             )
@@ -963,13 +981,15 @@ class NucleiTool(JSONLinesScanTool):
 
 
 class SQLMapTool(ScanTool):
+    strip_proxy_cookies = False
     name = "scan_sqlmap"
     binary = "sqlmap"
     version_arguments = ("--version",)
     description = """Check one prepared HTTP request or URL for SQL injection with sqlmap.
 
     Each call uses a fresh session. No database dumping or shell operations are
-    requested. A configured tool proxy route is unsupported. Review the output
+    requested. With engagement, all traffic uses its shared HTTP transport and
+    optional limits; native retries are disabled. Review the output
     to distinguish detected injection, a negative check, and scanner diagnostics.
     Metadata and Runtime service destinations fail with scan_target_denied, as do
     loopback and link-local ones unless the operator allows the network.
@@ -986,6 +1006,7 @@ class SQLMapTool(ScanTool):
             Contains one schemaVersion 1 HTTP request (method, url, headers, body,
             testParameters). Mutually exclusive with url, parameter, data and cookie.
             Only supported UTF-8 text requests are accepted; see the scan request contract.
+        credential_id: Optional assigned engagement credential; omission uses anonymous access.
 
     Returns:
         status, exitCode, errorCode, bounded stdout/stderr previews, truncation
@@ -997,6 +1018,20 @@ class SQLMapTool(ScanTool):
 
     def prepare(self, directory: Path, templates: Path) -> list[str]:
         return [f"--output-dir={directory / 'output'}", f"--tmp-dir={directory}"]
+
+    async def http_proxy_arguments(self, bridge: HTTPProxyBridge, directory: Path) -> list[str]:
+        proxy = urlsplit(bridge.proxy_url)
+        config = directory / "sqlmap-proxy.ini"
+        # SQLMap's HTTP proxy handler requires proxyCred separately; URL userinfo
+        # alone is used only by its SOCKS path. Neither value belongs in argv.
+        content = (
+            f"[Target]\n[Request]\nproxy = http://{proxy.hostname}:{proxy.port}\n"
+            f"proxyCred = {proxy.username}:{proxy.password}\n"
+        )
+        await threads.to_thread_until_done(
+            _write_private, config, content.encode(), name="sqlmap-private-proxy-config"
+        )
+        return ["-c", str(config)]
 
     async def selected_evidence_inputs(self, observation: dict, arguments: dict) -> list[dict]:
         """Retain exact selected inputs only in explicit owner-authorized evidence.
@@ -1038,6 +1073,7 @@ class SQLMapTool(ScanTool):
         risk: int = 1,
         timeout_seconds: int = 300,
         request_ref: dict[str, str] | None = None,
+        credential_id: str | None = None,
     ) -> dict:
         # All preparation/projection state belongs to this invocation. Concurrent
         # callers never overwrite an input on the shared ToolInstance.
@@ -1047,6 +1083,14 @@ class SQLMapTool(ScanTool):
 
         def arguments():
             nonlocal exact_ref
+            controlled = self._session.controlled_http
+            if credential_id is not None and (
+                controlled is None
+                or not any(
+                    item["credential_id"] == credential_id for item in controlled.credentials()
+                )
+            ):
+                raise ScanInputError("credential is not assigned to this allocation")
             if request_ref is None:
                 _url(url)
                 _tokens(parameter)
@@ -1071,10 +1115,18 @@ class SQLMapTool(ScanTool):
                 "--ignore-redirects",
                 "--threads=1",
                 "--timeout=10",
-                "--retries=1",
+                "--retries=1" if controlled is None else "--retries=0",
                 f"--level={level}",
                 f"--risk={risk}",
             ]
+            if controlled is not None:
+                # Detection stays single-threaded: SQLMap's delay is per thread,
+                # not a global rate limiter. One thread also fits every engagement
+                # concurrency bound without adding wait time to timing probes.
+                rate = controlled.configured_limits().get("requestsPerSecond")
+                if rate is not None:
+                    command.append(f"--delay={1 / rate:.12g}")
+                command += ["--drop-set-cookie", "--skip-waf", "--disable-precon"]
             if request_ref is None:
                 command.insert(0, f"--url={url}")
             if parameter:
@@ -1106,7 +1158,8 @@ class SQLMapTool(ScanTool):
             prepared_request = request
             prepared_digest = "sha256:" + hashlib.sha256(value.data).hexdigest()
             host, port = url_endpoint(request.url)
-            await self._session.require_destination(host, (port,))
+            if self._session.controlled_http is None:
+                await self._session.require_destination(host, (port,))
             path = directory / "request.http"
             try:
                 await threads.to_thread_until_done(
@@ -1169,6 +1222,7 @@ class SQLMapTool(ScanTool):
             destination=(lambda: _url_destination(url)) if request_ref is None else None,
             prepare=prepare_request if request_ref is not None else None,
             observation=request_observation if request_ref is not None else url_observation,
+            credential_id=credential_id,
         )
 
 
