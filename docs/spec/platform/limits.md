@@ -699,7 +699,8 @@ its owning requirement.
 | `LIM-RCF-28` | at least 120 s, default 180 s | RuntimeSettings.requestTimeoutSeconds (allocation-local outbound request budget) | Server | [RCF-R161](../configuration/runtime-config.md) |
 | `LIM-RCF-29` | positive integer at most 2^31-1 | gatewayPolicy tpmLimit, rpmLimit and maxParallelRequests | Server credential creation (before any Gateway call) | [RCF-R63](../configuration/runtime-config.md) |
 | `LIM-RCF-30` | 1–128 pairs; name 1–256 ASCII token bytes, value 0–8192 ASCII cookie-octets | target-cookies@1 supplied cookies | Go/Python/schema and Server credential creation | [RCF-R184](../configuration/runtime-config.md) |
-| `LIM-RCF-31` | 16 KiB | target-cookies@1 combined cookie name/value bytes | Go/Python and Server credential creation | [RCF-R184](../configuration/runtime-config.md) |
+| `LIM-RCF-31` | 16 KiB | target-cookies@1 names/values or target-api-keys@1 qualified names/values | Go/Python and Server credential creation | [RCF-R184](../configuration/runtime-config.md) |
+| `LIM-RCF-32` | 1–128 fields; unqualified name 1–256 UTF-8 bytes (qualified at most 263); value 1–8192 UTF-8 bytes | target-api-keys@1 fields; location-specific header/cookie grammars also apply | Go/Python and Server credential creation; public UTF-8 annotations | [RCF-R184](../configuration/runtime-config.md) |
 | `LIM-REV-1` | 1 initial coverage row per selected requirement or operation | Audit coverage at start (requirement rows start as not-tested) | Audit Controller (coverage) | [REV-R13](../audits/review-and-reports.md) |
 | `LIM-REV-2` | Retired | Formal approval lifecycle removed | No current operation | [REV-R39](../audits/review-and-reports.md) |
 | `LIM-REV-3` | Retired | Formal approval lifecycle removed | No current operation | [REV-R47](../audits/review-and-reports.md) |

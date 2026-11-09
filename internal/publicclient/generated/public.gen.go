@@ -1453,6 +1453,21 @@ func (e CreateRuntimeCredentialRequest9Kind) Valid() bool {
 	}
 }
 
+// Defines values for CreateRuntimeCredentialRequest10Kind.
+const (
+	CreateRuntimeCredentialRequest10KindTargetApiKeys1 CreateRuntimeCredentialRequest10Kind = "target-api-keys@1"
+)
+
+// Valid indicates whether the value is a known member of the CreateRuntimeCredentialRequest10Kind enum.
+func (e CreateRuntimeCredentialRequest10Kind) Valid() bool {
+	switch e {
+	case CreateRuntimeCredentialRequest10KindTargetApiKeys1:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CredentialInUseDetailsKind.
 const (
 	CredentialInUseDetailsKindCredentialInUse CredentialInUseDetailsKind = "credential_in_use"
@@ -4531,6 +4546,7 @@ const (
 	RuntimeCredentialKindHttpProxyBearer1  RuntimeCredentialKind = "http-proxy-bearer@1"
 	RuntimeCredentialKindInteractshToken1  RuntimeCredentialKind = "interactsh-token@1"
 	RuntimeCredentialKindOtlpHeaders1      RuntimeCredentialKind = "otlp-headers@1"
+	RuntimeCredentialKindTargetApiKeys1    RuntimeCredentialKind = "target-api-keys@1"
 	RuntimeCredentialKindTargetBasic1      RuntimeCredentialKind = "target-basic@1"
 	RuntimeCredentialKindTargetBearer1     RuntimeCredentialKind = "target-bearer@1"
 	RuntimeCredentialKindTargetCookies1    RuntimeCredentialKind = "target-cookies@1"
@@ -4552,6 +4568,8 @@ func (e RuntimeCredentialKind) Valid() bool {
 	case RuntimeCredentialKindInteractshToken1:
 		return true
 	case RuntimeCredentialKindOtlpHeaders1:
+		return true
+	case RuntimeCredentialKindTargetApiKeys1:
 		return true
 	case RuntimeCredentialKindTargetBasic1:
 		return true
@@ -7650,6 +7668,16 @@ type CreateRuntimeCredentialRequest9 struct {
 
 // CreateRuntimeCredentialRequest9Kind defines model for CreateRuntimeCredentialRequest.9.Kind.
 type CreateRuntimeCredentialRequest9Kind string
+
+// CreateRuntimeCredentialRequest10 defines model for CreateRuntimeCredentialRequest.10.
+type CreateRuntimeCredentialRequest10 struct {
+	CredentialId RuntimeCredentialId                  `json:"credentialId"`
+	Kind         CreateRuntimeCredentialRequest10Kind `json:"kind"`
+	Material     *TargetAPIKeysMaterial               `json:"material,omitempty"`
+}
+
+// CreateRuntimeCredentialRequest10Kind defines model for CreateRuntimeCredentialRequest.10.Kind.
+type CreateRuntimeCredentialRequest10Kind string
 
 // CredentialConsumption defines model for CredentialConsumption.
 type CredentialConsumption struct {
@@ -11368,6 +11396,12 @@ type StageTransition struct {
 // StageTransitionAction defines model for StageTransition.Action.
 type StageTransitionAction string
 
+// TargetAPIKeysMaterial defines model for TargetAPIKeysMaterial.
+type TargetAPIKeysMaterial struct {
+	// Fields API keys applied together through one engagement identity. Names use header:NAME, query:NAME or cookie:NAME. At most 256 UTF-8 bytes per unqualified name and 16 KiB of qualified names and values combined. Headers follow HTTP token/credential-field rules, cookies follow the cookie grammar, and query names/values forbid controls. Header names are case insensitive and cannot repeat or control HTTP framing.
+	Fields *map[string]string `json:"fields,omitempty"`
+}
+
 // TargetBasicMaterial defines model for TargetBasicMaterial.
 type TargetBasicMaterial struct {
 	// Password The password of a Basic credential, at most 8,192 UTF-8 bytes without control characters (RCF-R114).
@@ -14416,6 +14450,32 @@ func (t *CreateRuntimeCredentialRequest) FromCreateRuntimeCredentialRequest9(v C
 
 // MergeCreateRuntimeCredentialRequest9 performs a merge with any union data inside the CreateRuntimeCredentialRequest, using the provided CreateRuntimeCredentialRequest9
 func (t *CreateRuntimeCredentialRequest) MergeCreateRuntimeCredentialRequest9(v CreateRuntimeCredentialRequest9) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsCreateRuntimeCredentialRequest10 returns the union data inside the CreateRuntimeCredentialRequest as a CreateRuntimeCredentialRequest10
+func (t CreateRuntimeCredentialRequest) AsCreateRuntimeCredentialRequest10() (CreateRuntimeCredentialRequest10, error) {
+	var body CreateRuntimeCredentialRequest10
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCreateRuntimeCredentialRequest10 overwrites any union data inside the CreateRuntimeCredentialRequest as the provided CreateRuntimeCredentialRequest10
+func (t *CreateRuntimeCredentialRequest) FromCreateRuntimeCredentialRequest10(v CreateRuntimeCredentialRequest10) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCreateRuntimeCredentialRequest10 performs a merge with any union data inside the CreateRuntimeCredentialRequest, using the provided CreateRuntimeCredentialRequest10
+func (t *CreateRuntimeCredentialRequest) MergeCreateRuntimeCredentialRequest10(v CreateRuntimeCredentialRequest10) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err

@@ -402,6 +402,27 @@
       ],
       "maxBytes": 4096,
       "rule": "LIM-ACT-3"
+    },
+    {
+      "schema": "TargetAPIKeysMaterial",
+      "path": [
+        "properties",
+        "fields",
+        "propertyNames"
+      ],
+      "maxBytes": 263,
+      "rule": "LIM-RCF-32",
+      "prefix": "cookie:"
+    },
+    {
+      "schema": "TargetAPIKeysMaterial",
+      "path": [
+        "properties",
+        "fields",
+        "additionalProperties"
+      ],
+      "maxBytes": 8192,
+      "rule": "LIM-RCF-32"
     }
   ]
 }

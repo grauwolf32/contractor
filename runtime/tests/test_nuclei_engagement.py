@@ -368,7 +368,7 @@ def test_real_nuclei_unsupported_features_fail_before_any_target_request(tmp_pat
     asyncio.run(scenario())
 
 
-@pytest.mark.parametrize("kind", ["basic", "bearer", "cookies"])
+@pytest.mark.parametrize("kind", ["basic", "bearer", "cookies", "api-keys"])
 def test_real_nuclei_uses_private_credentials_and_runtime_cookie_state(tmp_path, monkeypatch, kind):
     secret = "private-assigned-nuclei-credential-canary"
     observed = []
@@ -405,6 +405,8 @@ def test_real_nuclei_uses_private_credentials_and_runtime_cookie_state(tmp_path,
                 else {"token": secret}
                 if kind == "bearer"
                 else {"session": secret}
+                if kind == "cookies"
+                else {"header:X-API-Key": secret, "query:api_key": secret, "cookie:client": secret}
             )
             spec = identity_spec(target, [("account", kind, fields, None)])
             rule = template()
@@ -428,8 +430,13 @@ def test_real_nuclei_uses_private_credentials_and_runtime_cookie_state(tmp_path,
                     else b"Authorization: Bearer " + secret.encode()
                     if kind == "bearer"
                     else b"Cookie: session=" + secret.encode()
+                    if kind == "cookies"
+                    else b"X-API-Key: " + secret.encode()
                 )
                 assert all(expected.lower() in raw.lower() for raw in observed)
+                if kind == "api-keys":
+                    assert all(b"?api_key=" + secret.encode() in raw for raw in observed)
+                    assert all(b"client=" + secret.encode() in raw for raw in observed)
                 assert b"learned=runtime-jar" in observed[1]
                 assert secret not in json.dumps(result)
                 assert all(secret.encode() not in value[0] for value in store.values.values())

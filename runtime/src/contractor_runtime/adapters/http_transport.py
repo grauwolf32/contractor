@@ -8,7 +8,7 @@ import time
 from collections.abc import Callable
 from contextlib import nullcontext
 from dataclasses import dataclass, replace
-from urllib.parse import urlsplit
+from urllib.parse import quote, quote_plus, urlsplit
 
 from contractor_runtime.adapters.bridge import BridgeFailure
 from contractor_runtime.adapters.bridge.errors import BridgeInfrastructureError
@@ -281,6 +281,10 @@ class HTTPTransport:
                 continue
             fields = {key: value.get_secret_value() for key, value in material.fields.items()}
             values.extend(fields.values())
+            if session.identity.kind == "api-keys":
+                for name, value in fields.items():
+                    if name.startswith("query:"):
+                        values.extend((quote(value, safe=""), quote_plus(value)))
             if session.identity.kind == "basic":
                 authorization = basic_authorization(fields["username"], fields["password"])
                 values.extend((authorization, authorization.removeprefix("Basic ")))
@@ -307,7 +311,7 @@ class HTTPTransport:
         for session in self._sessions:
             async with self._session_locks[session.identity.id]:
                 session.clear()
-                if session.identity.kind == "cookies":
+                if session.supplied_cookies:
                     session.state = "blocked"
 
     async def session_summaries(self) -> list[dict]:
@@ -343,7 +347,9 @@ class HTTPTransport:
         ):
             raise ValueError("request body exceeds the Runtime slot bound")
         if credential_id is not None and any(
-            name.lower() in {b"authorization", b"cookie"} for name, _ in options.get("headers", ())
+            name.lower() == b"authorization"
+            or (name.lower() == b"cookie" and session.identity.kind != "api-keys")
+            for name, _ in options.get("headers", ())
         ):
             raise ValueError("selected credential conflicts with explicit authentication headers")
         added = self.own_invocation()
@@ -429,7 +435,7 @@ class HTTPTransport:
                 epoch = session.epoch
                 try:
                     private_request = await to_thread_until_done(
-                        session.request, url, name="engagement-private-request"
+                        session.request, url, headers, name="engagement-private-request"
                     )
                 except (ValueError, KeyError, UnicodeError):
                     return HTTPOutcome(kind="denied", reason="policy_denied"), None
@@ -442,7 +448,12 @@ class HTTPTransport:
             private_request.method = method
             private_request.body = body
             private_request.follow_redirects = follow_redirects
-            private_request.headers = [*headers, *private_request.headers]
+            forwarded = [
+                (name, value)
+                for name, value in headers
+                if not (session.identity.kind == "api-keys" and name.lower() == b"cookie")
+            ]
+            private_request.headers = [*forwarded, *private_request.headers]
             private_request.headers = self._wire_headers(url, private_request)
             # Every redirect and permitted retry passes scope and RPS admission.
             try:

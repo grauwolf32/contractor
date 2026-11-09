@@ -9424,7 +9424,8 @@
         "http-origin-bearer@1",
         "target-basic@1",
         "target-bearer@1",
-        "target-cookies@1"
+        "target-cookies@1",
+        "target-api-keys@1"
       ]
     },
     "RuntimeCredentialMetadata": {
@@ -9630,6 +9631,33 @@
         }
       }
     },
+    "TargetAPIKeysMaterial": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fields"],
+      "properties": {
+        "fields": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 128,
+          "propertyNames": {
+            "type": "string",
+            "minLength": 7,
+            "maxLength": 263,
+            "x-max-utf8-bytes": 263,
+            "pattern": "^(header|query|cookie):[^\\x00-\\x1F\\x7F]+$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192,
+            "x-max-utf8-bytes": 8192,
+            "writeOnly": true
+          },
+          "writeOnly": true
+        }
+      }
+    },
     "CreateRuntimeCredentialRequest": {
       "oneOf": [
         {
@@ -9778,6 +9806,21 @@
             "kind": { "type": "string", "const": "target-cookies@1" },
             "material": {
               "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/TargetCookiesMaterial",
+              "writeOnly": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["credentialId", "kind", "material"],
+          "properties": {
+            "credentialId": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/RuntimeCredentialId"
+            },
+            "kind": { "type": "string", "const": "target-api-keys@1" },
+            "material": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/TargetAPIKeysMaterial",
               "writeOnly": true
             }
           }

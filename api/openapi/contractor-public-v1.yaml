@@ -16093,7 +16093,7 @@ components:
         config: {$ref: '#/components/schemas/RuntimeConfigRef'}
     RuntimeCredentialKind:
       type: string
-      enum: [otlp-headers@1, http-proxy-basic@1, http-proxy-bearer@1, caido-bearer@1, interactsh-token@1, http-origin-basic@1, http-origin-bearer@1, target-basic@1, target-bearer@1, target-cookies@1]
+      enum: [otlp-headers@1, http-proxy-basic@1, http-proxy-bearer@1, caido-bearer@1, interactsh-token@1, http-origin-basic@1, http-origin-bearer@1, target-basic@1, target-bearer@1, target-cookies@1, target-api-keys@1]
     RuntimeCredentialMetadata:
       type: object
       additionalProperties: false
@@ -16240,6 +16240,35 @@ components:
             writeOnly: true
           writeOnly: true
           description: Ready user supplied cookies (RCF-R184); at most 128 cookies with token names, at most 8192 ASCII cookie octets per value and at most 16 KiB of names and values combined. Empty values are allowed. Runtime does not log in or refresh the session.
+    TargetAPIKeysMaterial:
+      type: object
+      additionalProperties: false
+      required: [fields]
+      properties:
+        fields:
+          type: object
+          minProperties: 1
+          maxProperties: 128
+          propertyNames:
+            type: string
+            minLength: 7
+            maxLength: 263
+            x-max-utf8-bytes: 263
+            pattern: '^(header|query|cookie):[^\x00-\x1F\x7F]+$'
+          additionalProperties:
+            type: string
+            minLength: 1
+            maxLength: 8192
+            x-max-utf8-bytes: 8192
+            writeOnly: true
+          writeOnly: true
+          description: >-
+            API keys applied together through one engagement identity. Names use
+            header:NAME, query:NAME or cookie:NAME. At most 256 UTF-8 bytes per
+            unqualified name and 16 KiB of qualified names and values combined.
+            Headers follow HTTP token/credential-field rules, cookies follow the
+            cookie grammar, and query names/values forbid controls. Header names
+            are case insensitive and cannot repeat or control HTTP framing.
     CreateRuntimeCredentialRequest:
       oneOf:
         - type: object
@@ -16312,6 +16341,13 @@ components:
             credentialId: {$ref: '#/components/schemas/RuntimeCredentialId'}
             kind: {type: string, const: target-cookies@1}
             material: {$ref: '#/components/schemas/TargetCookiesMaterial', writeOnly: true}
+        - type: object
+          additionalProperties: false
+          required: [credentialId, kind, material]
+          properties:
+            credentialId: {$ref: '#/components/schemas/RuntimeCredentialId'}
+            kind: {type: string, const: target-api-keys@1}
+            material: {$ref: '#/components/schemas/TargetAPIKeysMaterial', writeOnly: true}
     PinnedRuntimeConfig:
       type: object
       additionalProperties: false

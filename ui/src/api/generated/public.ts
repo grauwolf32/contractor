@@ -5343,7 +5343,7 @@ export interface components {
             config: components["schemas"]["RuntimeConfigRef"];
         };
         /** @enum {string} */
-        RuntimeCredentialKind: "otlp-headers@1" | "http-proxy-basic@1" | "http-proxy-bearer@1" | "caido-bearer@1" | "interactsh-token@1" | "http-origin-basic@1" | "http-origin-bearer@1" | "target-basic@1" | "target-bearer@1" | "target-cookies@1";
+        RuntimeCredentialKind: "otlp-headers@1" | "http-proxy-basic@1" | "http-proxy-bearer@1" | "caido-bearer@1" | "interactsh-token@1" | "http-origin-basic@1" | "http-origin-bearer@1" | "target-basic@1" | "target-bearer@1" | "target-cookies@1" | "target-api-keys@1";
         RuntimeCredentialMetadata: {
             credentialId: components["schemas"]["RuntimeCredentialId"];
             kind: components["schemas"]["RuntimeCredentialKind"];
@@ -5402,6 +5402,12 @@ export interface components {
                 [key: string]: string;
             };
         };
+        TargetAPIKeysMaterial: {
+            /** @description API keys applied together through one engagement identity. Names use header:NAME, query:NAME or cookie:NAME. At most 256 UTF-8 bytes per unqualified name and 16 KiB of qualified names and values combined. Headers follow HTTP token/credential-field rules, cookies follow the cookie grammar, and query names/values forbid controls. Header names are case insensitive and cannot repeat or control HTTP framing. */
+            fields: {
+                [key: string]: string;
+            };
+        };
         CreateRuntimeCredentialRequest: {
             credentialId: components["schemas"]["RuntimeCredentialId"];
             /** @constant */
@@ -5452,6 +5458,11 @@ export interface components {
             /** @constant */
             kind: "target-cookies@1";
             material: components["schemas"]["TargetCookiesMaterial"];
+        } | {
+            credentialId: components["schemas"]["RuntimeCredentialId"];
+            /** @constant */
+            kind: "target-api-keys@1";
+            material: components["schemas"]["TargetAPIKeysMaterial"];
         };
         PinnedRuntimeConfig: {
             label: components["schemas"]["ConfigId"];

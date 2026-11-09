@@ -397,6 +397,7 @@ export type PublicSchemaName =
   | "TargetBasicMaterial"
   | "TargetBearerMaterial"
   | "TargetCookiesMaterial"
+  | "TargetAPIKeysMaterial"
   | "CreateRuntimeCredentialRequest"
   | "PinnedRuntimeConfig"
   | "RunRuntimeConfiguration"

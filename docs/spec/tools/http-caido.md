@@ -1381,7 +1381,12 @@ GET and drop body/content headers. No request settlement or journal RPC occurs.
 ID selects one immutable credential assigned to this allocation. Omission applies
 no assigned credential and uses the anonymous cookie jar; no URL-based selection
 or Project auth/checkpoint inheritance occurs. Selected credentials cannot be
-combined with manual Cookie/Authorization. Missing/foreign IDs fail before
+combined with manual Authorization. Basic/Bearer/cookie credentials also reject
+manual Cookie. API-key identities reject caller headers, query names (after URL
+decoding) and cookies that collide with configured fields or learned cookies;
+disjoint explicit cookie parameters remain usable. API keys are injected only at
+the private send boundary; URL provenance retains the caller's logical URL.
+Scanner diagnostics redact raw and URL-encoded query secrets. Missing/foreign IDs fail before
 target bytes, without fallback. HTTP tools share the
 allocation-owned controlled transport and isolate jars by credential and exact
 origin. Credential material arrives only via private prepare (CTL-R168).
@@ -1395,7 +1400,7 @@ outcomes; they neither prove expiry nor choose another credential. Every other
 assigned credential retains independent state.
 
 **HTP-R142.** Closed contracts accept anonymous, Basic, Bearer and supplied
-cookies. No login recipe, extraction, control request or refresh operation is
+cookies, and combined header/query/cookie API keys. No login recipe, extraction, control request or refresh operation is
 supported. Unsupported fields/kinds fail strict admission before target I/O.
 Automatic authentication needs a separately specified production caller.
 
@@ -1416,9 +1421,9 @@ No private service credential API is added.
 
 **HTP-R144.** Invalid/oversized cookie updates clear that credential's jars and
 stop redirect continuation; the completed physical response stays available.
-A cookie credential becomes blocked when no sendable cookies remain, without
+An identity with supplied cookies becomes blocked when no sendable cookies remain, without
 anonymous fallback. Basic/Bearer and anonymous calls may continue independently.
-`http_session_clear` drops learned cookies and blocks cleared cookie credentials;
+`http_session_clear` drops learned cookies and blocks cleared identities with supplied cookies;
 it cannot restore supplied material. Concurrent calls snapshot credentials/cookies
 under a short identity lock; response cookie updates use that lock and the
 snapshot epoch. A clear invalidates queued sends and rejects stale response

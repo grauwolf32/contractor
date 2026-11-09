@@ -87,7 +87,7 @@ func TestSharedTargetCredentialMaterialCases(t *testing.T) {
 		opened.Destroy()
 	}
 	for _, kind := range []RuntimeCredentialKind{
-		RuntimeCredentialTargetBasic, RuntimeCredentialTargetBearer, RuntimeCredentialTargetCookies,
+		RuntimeCredentialTargetBasic, RuntimeCredentialTargetBearer, RuntimeCredentialTargetCookies, RuntimeCredentialTargetAPIKeys,
 		RuntimeCredentialOriginBasic, RuntimeCredentialProxyBasic,
 	} {
 		if kinds[kind] == 0 {

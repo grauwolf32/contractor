@@ -50,6 +50,7 @@ const (
 	RuntimeCredentialTargetBasic     = RuntimeCredentialKind(runtimesettings.RuntimeCredentialTargetBasic)
 	RuntimeCredentialTargetBearer    = RuntimeCredentialKind(runtimesettings.RuntimeCredentialTargetBearer)
 	RuntimeCredentialTargetCookies   = RuntimeCredentialKind(runtimesettings.RuntimeCredentialTargetCookies)
+	RuntimeCredentialTargetAPIKeys   = RuntimeCredentialKind(runtimesettings.RuntimeCredentialTargetAPIKeys)
 )
 
 var (
@@ -455,6 +456,23 @@ func decodeRuntimeCredentialMaterial(kind RuntimeCredentialKind, data []byte) (R
 		default:
 			return NewTargetBearerCredential(source.Token)
 		}
+	case RuntimeCredentialTargetAPIKeys:
+		var source struct {
+			Fields map[string]string `json:"fields" strictjson:"required"`
+		}
+		if err := strictjson.DecodeNonNull(data, &source); err != nil {
+			return RuntimeCredentialMaterial{}, err
+		}
+		defer clear(source.Fields)
+		private := make(map[string]contracts.SecretString, len(source.Fields))
+		for name, value := range source.Fields {
+			private[name] = contracts.NewSecretString(value)
+		}
+		defer clear(private)
+		if runtimesettings.ValidateAPIKeyFields(private) != nil {
+			return RuntimeCredentialMaterial{}, runtimeInvalid("Target API key fields are invalid")
+		}
+		return newRuntimeCredentialMaterial(RuntimeCredentialTargetAPIKeys, source)
 	case RuntimeCredentialTargetCookies:
 		var source struct {
 			Cookies map[string]string `json:"cookies"`

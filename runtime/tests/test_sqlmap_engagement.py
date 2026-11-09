@@ -44,11 +44,21 @@ async def scanner(tmp_path, target, *, spec=None, tls=None, document=None):
 
 
 @pytest.mark.parametrize("scheme,method", [("http", "POST"), ("https", "PATCH")])
-def test_sqlmap_prepared_request_uses_shared_identity_and_cancels(tmp_path, scheme, method):
+@pytest.mark.parametrize("kind", ["bearer", "api-keys"])
+def test_sqlmap_prepared_request_uses_shared_identity_and_cancels(tmp_path, scheme, method, kind):
     async def scenario():
         server, client, names = tls_contexts(tmp_path) if scheme == "https" else (None, None, [])
         async with SocketTarget(ssl_context=server) as target:
-            spec = identity_spec(target, [("account", "bearer", {"token": "private-canary"}, None)])
+            fields = (
+                {"token": "private-canary"}
+                if kind == "bearer"
+                else {
+                    "header:Authorization": "Bearer private-canary",
+                    "query:api_key": "private-query-canary",
+                    "cookie:client": "private-cookie-canary",
+                }
+            )
+            spec = identity_spec(target, [("account", kind, fields, None)])
             spec.engagement.http.limits = HTTPLimits(requestsPerSecond=10, concurrentRequests=1)
             document = {
                 "schemaVersion": 1,
@@ -73,7 +83,11 @@ def test_sqlmap_prepared_request_uses_shared_identity_and_cancels(tmp_path, sche
                 )
                 assert received in done, invocation.result() if invocation.done() else "no request"
                 first = target.requests[0]
-                assert first.startswith(f"{method} /allowed?keep=fixed HTTP/1.1".encode()), first
+                query = "&api_key=private-query-canary" if kind == "api-keys" else ""
+                expected = f"{method} /allowed?keep=fixed{query} HTTP/1.1".encode()
+                assert first.startswith(expected), first
+                if kind == "api-keys":
+                    assert b"client=private-cookie-canary" in first
                 assert (
                     b"authorization: Bearer private-canary" in first
                     or b"Authorization: Bearer private-canary" in first

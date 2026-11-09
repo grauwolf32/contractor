@@ -112,7 +112,8 @@
                       "anonymous",
                       "basic",
                       "bearer",
-                      "cookies"
+                      "cookies",
+                      "api-keys"
                     ]
                   }
                 },

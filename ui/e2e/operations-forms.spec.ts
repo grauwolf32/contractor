@@ -397,3 +397,74 @@ for (const theme of ["light", "dark", "black"]) {
     ).toMatchObject({ spec: { worker: { interactsh: null } } });
   });
 }
+
+for (const theme of ["light", "dark", "black"]) {
+  test(`Combined API keys at 390px in ${theme}`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.addInitScript(
+      (value) => localStorage.setItem("contractor.theme", value),
+      theme,
+    );
+    const writes = await installOperations(page);
+    await page.goto("/operations/configuration");
+    await page.getByRole("button", { name: "Add Runtime credential" }).click();
+    const dialog = page.getByRole("dialog", {
+      name: "Create Runtime credential",
+    });
+    await dialog
+      .getByLabel("Runtime credential ID", { exact: true })
+      .fill("combined-api");
+    await dialog
+      .getByLabel("Credential kind", { exact: true })
+      .selectOption("target-api-keys@1");
+    for (const [index, location] of ["header", "query", "cookie"].entries()) {
+      if (index > 0)
+        await dialog.getByRole("button", { name: "Add API key" }).click();
+      await dialog
+        .getByLabel("API key location", { exact: true })
+        .nth(index)
+        .selectOption(location);
+      await dialog
+        .getByLabel("API key name", { exact: true })
+        .nth(index)
+        .fill(location === "header" ? "X-API-Key" : "client");
+      await dialog
+        .getByLabel("API key value · write only", { exact: true })
+        .nth(index)
+        .fill(`fixture-${location}-secret`);
+    }
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    expect(
+      await dialog.evaluate(
+        (element) => element.scrollWidth <= element.clientWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: test.info().outputPath(`api-keys-${theme}.png`),
+      fullPage: true,
+    });
+    await dialog
+      .getByRole("button", { name: "Create active Runtime credential" })
+      .click();
+    await expect(
+      dialog.getByText("Credential creation denied by Server"),
+    ).toBeVisible();
+    for (let i = 1; i <= 3; i++)
+      await expect(
+        dialog
+          .getByLabel("API key value · write only", { exact: true })
+          .nth(i - 1),
+      ).toHaveValue("");
+    expect(writes.at(-1)?.body).toEqual({
+      credentialId: "combined-api",
+      kind: "target-api-keys@1",
+      material: {
+        fields: {
+          "header:X-API-Key": "fixture-header-secret",
+          "query:client": "fixture-query-secret",
+          "cookie:client": "fixture-cookie-secret",
+        },
+      },
+    });
+  });
+}
