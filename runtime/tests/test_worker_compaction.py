@@ -12,6 +12,7 @@ from typing import Any
 import pytest
 from fakes.model import json_result, scripted_model, text_result, tool_call
 from fakes.worker_state import WorkerState
+from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event, EventActions
 from google.adk.models.llm_response import LlmResponse
 from google.genai import types
@@ -210,6 +211,78 @@ def test_boundary_uses_ratio_and_output_reserve() -> None:
     assert compaction_boundary(policy, 0.95) == 900
 
 
+@pytest.mark.parametrize("prompt", [100, None])
+def test_tool_windows_compact_after_parallel_settlement(
+    tmp_path: Path, prompt: int | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sdk_calls: list[tuple[str, int, int]] = []
+    increment = InvocationContext.increment_llm_call_count
+
+    def observe_sdk_counter(context: InvocationContext) -> None:
+        increment(context)
+        if context.agent.name == "contractor_worker":
+            sdk_calls.append(
+                (
+                    context.invocation_id,
+                    context._invocation_cost_manager._number_of_llm_calls,
+                    context.run_config.max_llm_calls,
+                )
+            )
+
+    monkeypatch.setenv("ADK_MAX_LLM_CALLS", "1")
+    monkeypatch.setattr(InvocationContext, "increment_llm_call_count", observe_sdk_counter)
+
+    async def scenario() -> None:
+        effects: list[str] = []
+        state = WorkerState()
+        parallel = step("b", prompt)
+        parallel.content.parts.extend(step("overflow", prompt).content.parts)
+        model = CapturingScriptedLlm(
+            model="worker-model",
+            responses=[
+                step("a", prompt),
+                parallel,
+                step("c", prompt),
+                step("d", prompt),
+                usage(text_result("done"), prompt),
+            ],
+        )
+        compactor = scripted_model(
+            [summary("a recorded"), summary("a, b and c recorded; overflow not executed")],
+            model=COMPACTOR_MODEL,
+            auto_result_finalizer=False,
+        )
+        runtime = await compact_runtime(
+            tmp_path, state, {"step": recording_step(effects)}, model, compactor, max_tool_calls=2
+        )
+        try:
+            result = await runtime.invoke(stage_request())
+            assert result.failure is None, result.failure
+            assert result.result.result == "done"
+            assert result.result.summarized is False
+            assert effects == ["a", "b", "c", "d"]
+            assert len(compactor.requests) == 2
+            assert "tool_call_not_executed" in compactor.requests[1]["contentText"]
+            for payload in model.payloads[:-1]:
+                assert_balanced_tool_calls(payload)
+            assert tool_ids(model.payloads[2]) == ["call-b", "call-overflow"]
+            report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
+            budget = report.metrics.worker_budget
+            assert budget.max_tool_calls == 2
+            assert budget.observed_tool_calls == 4
+            assert budget.observed_model_calls == 8
+            assert budget.exhausted is None
+            # Each new SDK turn owns a fresh LLM counter; the logical budget above
+            # still charges all main, compactor and finalizer calls cumulatively.
+            assert [count for _, count, _ in sdk_calls] == [1, 2, 1, 2, 1]
+            assert len({identifier for identifier, _, _ in sdk_calls}) == 3
+            assert {limit for _, _, limit in sdk_calls} == {32}
+        finally:
+            await finish(runtime)
+
+    asyncio.run(scenario())
+
+
 def test_isolated_worker_continues_through_two_checkpoints(tmp_path: Path) -> None:
     """A2: one logical invocation, side effects once, finalizer only at the end."""
 
@@ -358,13 +431,22 @@ def test_missing_usage_never_triggers_an_estimated_compaction(tmp_path: Path) ->
     asyncio.run(scenario())
 
 
-def test_high_usage_without_eligible_prefix_fails_explicitly(tmp_path: Path) -> None:
+@pytest.mark.parametrize("tool_boundary", [False, True])
+def test_high_usage_without_eligible_prefix_fails_explicitly(
+    tmp_path: Path, tool_boundary: bool
+) -> None:
     async def scenario() -> None:
         effects: list[str] = []
-        model = scripted_model([step("a", 900)], model="worker-model")
+        model = scripted_model([step("a", 100 if tool_boundary else 900)], model="worker-model")
         compactor = scripted_model([], model=COMPACTOR_MODEL, auto_result_finalizer=False)
         runtime = await compact_runtime(
-            tmp_path, WorkerState(), {"step": recording_step(effects)}, model, compactor, keep=4
+            tmp_path,
+            WorkerState(),
+            {"step": recording_step(effects)},
+            model,
+            compactor,
+            keep=4,
+            max_tool_calls=1 if tool_boundary else 32,
         )
         try:
             result = await runtime.invoke(stage_request())
@@ -473,11 +555,19 @@ def test_rejected_compactor_output_adds_no_marker_and_no_later_calls(
     asyncio.run(scenario())
 
 
-def test_cycle_ceiling_is_a_non_retryable_context_limit(tmp_path: Path) -> None:
+@pytest.mark.parametrize("tool_boundary", [False, True])
+def test_cycle_ceiling_is_a_non_retryable_context_limit(
+    tmp_path: Path, tool_boundary: bool
+) -> None:
     async def scenario() -> None:
         effects: list[str] = []
         model = scripted_model(
-            [step("a", 100), step("b", 600), step("c", 100), step("d", 600)],
+            [
+                step("a", 100),
+                step("b", 100 if tool_boundary else 600),
+                step("c", 100),
+                step("d", 100 if tool_boundary else 600),
+            ],
             model="worker-model",
         )
         compactor = scripted_model(
@@ -490,6 +580,7 @@ def test_cycle_ceiling_is_a_non_retryable_context_limit(tmp_path: Path) -> None:
             model,
             compactor,
             max_compactions=1,
+            max_tool_calls=2 if tool_boundary else 32,
         )
         try:
             result = await runtime.invoke(stage_request())
@@ -504,9 +595,14 @@ def test_cycle_ceiling_is_a_non_retryable_context_limit(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_compactor_call_exhausting_the_worker_budget_keeps_budget_code(tmp_path: Path) -> None:
+@pytest.mark.parametrize("tool_boundary", [False, True])
+def test_compactor_call_exhausting_the_worker_budget_keeps_budget_code(
+    tmp_path: Path, tool_boundary: bool
+) -> None:
     async def scenario() -> None:
-        model = scripted_model([step("a", 100), step("b", 600)], model="worker-model")
+        model = scripted_model(
+            [step("a", 100), step("b", 100 if tool_boundary else 600)], model="worker-model"
+        )
         compactor = scripted_model(
             [summary("S1")], model=COMPACTOR_MODEL, auto_result_finalizer=False
         )
@@ -517,6 +613,7 @@ def test_compactor_call_exhausting_the_worker_budget_keeps_budget_code(tmp_path:
             model,
             compactor,
             max_model_calls=2,
+            max_tool_calls=2 if tool_boundary else 32,
         )
         try:
             result = await runtime.invoke(stage_request())
@@ -655,15 +752,25 @@ def test_conflicting_marker_identity_fences_the_session(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_cancellation_during_compactor_call_adds_no_marker(tmp_path: Path) -> None:
+@pytest.mark.parametrize("tool_boundary", [False, True])
+def test_cancellation_during_compactor_call_adds_no_marker(
+    tmp_path: Path, tool_boundary: bool
+) -> None:
     async def scenario() -> None:
         effects: list[str] = []
-        model = scripted_model([step("a", 100), step("b", 600)], model="worker-model")
+        model = scripted_model(
+            [step("a", 100), step("b", 100 if tool_boundary else 600)], model="worker-model"
+        )
         compactor = scripted_model(
             [summary("S1")], model=COMPACTOR_MODEL, auto_result_finalizer=False, block=True
         )
         runtime = await compact_runtime(
-            tmp_path, WorkerState(), {"step": recording_step(effects)}, model, compactor
+            tmp_path,
+            WorkerState(),
+            {"step": recording_step(effects)},
+            model,
+            compactor,
+            max_tool_calls=2 if tool_boundary else 32,
         )
         appended: list[Event] = []
         append = runtime._session_service.append_event

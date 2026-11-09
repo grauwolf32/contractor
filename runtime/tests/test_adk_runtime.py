@@ -2137,7 +2137,13 @@ def test_adk_worker_accepts_finalized_result_exactly_at_token_limit(tmp_path: Pa
 
 @pytest.mark.parametrize(
     "trigger",
-    ["cumulative-budget", "context-window"],
+    [
+        "cumulative-budget",
+        "context-window",
+        "tool-calls",
+        "tool-calls-missing-usage",
+        "tool-calls-parallel",
+    ],
 )
 def test_adk_worker_uses_one_terminal_summarizer_at_a_safe_tool_boundary(
     tmp_path: Path,
@@ -2153,6 +2159,18 @@ def test_adk_worker_uses_one_terminal_summarizer_at_a_safe_tool_boundary(
             call_id="read-before-summary",
         )
         expected_normal_total = 10
+        if trigger == "tool-calls-missing-usage":
+            first_response.usage_metadata = None
+            expected_normal_total = None
+        if trigger == "tool-calls-parallel":
+            for index in range(2):
+                first_response.content.parts.extend(
+                    tool_call(
+                        "read_artifact",
+                        {"namespace": "inputs", "name": "source", "revision": "input-r1"},
+                        call_id=f"overflow-{index}",
+                    ).content.parts
+                )
         if trigger == "context-window":
             assert first_response.usage_metadata is not None
             # min(floor(8192 * .9), 8192 - 1024) == 7168.
@@ -2173,6 +2191,7 @@ def test_adk_worker_uses_one_terminal_summarizer_at_a_safe_tool_boundary(
             max_output_tokens=1024,
             context_window_tokens=8192,
             cumulative_budget=10 if trigger == "cumulative-budget" else None,
+            max_tool_calls=1 if trigger.startswith("tool-calls") else 16,
             summary_instructions="Summarize literally {subtaskId} with configured instructions.",
         )
 
@@ -2195,6 +2214,9 @@ def test_adk_worker_uses_one_terminal_summarizer_at_a_safe_tool_boundary(
         assert summary_request["toolNames"] == []
         assert summary_request["hasResponseSchema"] is True
         assert "read_artifact" in summary_request["contentText"]
+        if trigger == "tool-calls-parallel":
+            assert "tool_call_not_executed" in summary_request["contentText"]
+            assert summary_request["contentText"].count("tool_call_not_executed") == 2
         assert SECRET not in summary_request["contentText"]
         assert client.calls == ["read_artifact"]
 

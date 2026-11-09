@@ -405,9 +405,13 @@ metadata and does not ask the provider to discover it at Runtime.
 **TPL-R23.** `maxOutputTokens` caps one model response and must be smaller than
 `contextWindowTokens` when both are present (LIM-TPL-2).
 
-**TPL-R24.** `maxModelCalls`, `maxToolCalls`, `maxWorkerCalls` and
-`maxTotalTokens` are cumulative across one complete Planner or Worker
-invocation.
+**TPL-R24.** `maxModelCalls`, `maxWorkerCalls` and `maxTotalTokens` are
+cumulative across one complete Planner or Worker invocation. `maxToolCalls`
+is cumulative for Planners and Workers with context strategy `none`. For
+`terminal@1` Workers it triggers terminal summarization; for `compact@1`
+Workers it limits admitted tools in each context window, resetting only after
+a committed checkpoint. Observed tool-call telemetry remains cumulative
+([Worker](../execution/worker.md), WRK-R140, WRK-R185).
 
 **TPL-R25.** `maxModelCalls` is at most 1,000 (LIM-TPL-3); `maxToolCalls` and
 `maxWorkerCalls` are each at most 10,000 (LIM-TPL-4, LIM-TPL-5);

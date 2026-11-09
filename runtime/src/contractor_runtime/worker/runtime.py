@@ -850,6 +850,7 @@ class AdkWorkerRuntime:
             )
             compaction.commit(plan, summary, marker)
             if self._invocation.budget is not None:
+                self._invocation.budget.commit_tool_checkpoint()
                 # A new context generation needs its own measured main usage.
                 self._invocation.budget.latest_prompt_tokens = None
             outcome, cause = "succeeded", ""

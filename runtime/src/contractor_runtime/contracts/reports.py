@@ -68,8 +68,7 @@ class WorkerBudgetMetrics(WireModel):
     def validate_observations(self) -> Self:
         if self.observed_model_calls > self.max_model_calls:
             raise ValueError("observedModelCalls exceeds maxModelCalls")
-        if self.observed_tool_calls > self.max_tool_calls:
-            raise ValueError("observedToolCalls exceeds maxToolCalls")
+        # Tool observations span all committed context windows (WRK-R185).
         if self.exhausted == "model_calls" and self.observed_model_calls != self.max_model_calls:
             raise ValueError("model-call exhaustion is inconsistent")
         if self.exhausted == "tool_calls" and self.observed_tool_calls != self.max_tool_calls:

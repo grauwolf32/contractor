@@ -192,6 +192,10 @@
     "engagement-allocation-api-keys.json": {
       "type": "AllocationSpec",
       "schema": "allocation.schema.json"
+    },
+    "agent-state-compacted-tool-budget.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json"
     }
   },
   "invalid": {

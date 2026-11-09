@@ -45,6 +45,8 @@ class InvocationBudget(Protocol):
 
     def should_summarize(self) -> bool: ...
 
+    def tool_limit_reached(self) -> bool: ...
+
 
 class ToolHistory(Protocol):
     """Invocation-local history bookkeeping, independent of plugin locking."""
@@ -249,7 +251,10 @@ class WorkerInstrumentationPlugin(BasePlugin):
             if self._pending_tools or self._settling_tools:
                 raise RuntimeError("Worker model call overlapped unfinished tools")
             budget = self._budget()
-            if budget is not None and budget.should_summarize():
+            if budget is not None and (
+                budget.should_summarize()
+                or (self._summarizer_enabled and budget.tool_limit_reached())
+            ):
                 if self._pending_tools:
                     raise RuntimeError("Worker model call overlapped unfinished tools")
                 snapshot = await self._state.request_summarization(
@@ -260,7 +265,10 @@ class WorkerInstrumentationPlugin(BasePlugin):
             if (
                 budget is not None
                 and self._compaction is not None
-                and self._compaction.should_compact(budget.latest_prompt_tokens)
+                and (
+                    budget.tool_limit_reached()
+                    or self._compaction.should_compact(budget.latest_prompt_tokens)
+                )
             ):
                 # Raised before charging: the boundary call never starts.
                 raise WorkerCompactionRequested()
@@ -492,6 +500,19 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 raise RuntimeError("Worker tool callback was already admitted")
             budget = self._budget()
             if budget is not None:
+                if (
+                    self._summarizer_enabled or self._compaction is not None
+                ) and budget.tool_limit_reached():
+                    # Answer overflow without cancelling admitted parallel siblings.
+                    # ADK persists this response before the next model boundary.
+                    return {
+                        "ok": False,
+                        "error": {
+                            "code": "tool_call_not_executed",
+                            "message": "Tool-call limit reached; context management is required.",
+                            "retryable": True,
+                        },
+                    }
                 budget.before_tool_call()
             invocation_id = self._require_logical_invocation_id()
             owner = getattr(tool, "func", tool)
