@@ -18,7 +18,8 @@ package postgres
 // Used by Repository.Fork.
 var forkSQL = `
 WITH source_selection AS MATERIALIZED (
-    SELECT revision.revision, revision.version_id, version.media_type, blob.size_bytes
+    SELECT revision.revision, revision.version_id, version.media_type, blob.size_bytes,
+           version.git_resolved_commit IS NOT NULL AS git_source
     FROM artifact_binding_revisions AS revision
     JOIN artifact_scopes AS source_scope
       ON source_scope.scope_kind = revision.scope_kind AND source_scope.scope_id = revision.scope_id
@@ -42,9 +43,10 @@ WITH source_selection AS MATERIALIZED (
 ), created_binding AS (
     INSERT INTO artifact_bindings (
         scope_kind, scope_id, namespace, name, current_revision, frozen,
-        retained_revisions, retained_bytes
+        retained_revisions, retained_bytes, material_rank
     )
-    SELECT $6, $7, $8, $9, $10, $15::boolean, 1, source_selection.size_bytes FROM source_selection
+    SELECT $6, $7, $8, $9, $10, $15::boolean, 1, source_selection.size_bytes,
+           contractor_material_rank($8, source_selection.media_type, source_selection.git_source) FROM source_selection
     ON CONFLICT DO NOTHING
     RETURNING 1
 ), target_revision AS (

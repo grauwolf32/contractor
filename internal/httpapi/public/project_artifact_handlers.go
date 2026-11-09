@@ -15,6 +15,7 @@ func (h *artifactHandlers) listProjectArtifacts(w http.ResponseWriter, r *http.R
 	}
 	return h.listArtifactBindings(
 		w, r, store, artifactListOptions{
+			allowMaterialOrder:     true,
 			uploadsAllowed:         project.Lifecycle != projectstore.LifecycleDeleting,
 			cursorPrefix:           "project-artifacts:" + project.ProjectID,
 			excludeNamespacePrefix: artifactpolicy.AuditManagedProjectNamespacePrefix,

@@ -27,6 +27,7 @@ import {
 } from "../../test/responses";
 import { auditFixture, projectFixture } from "../../test/shell-harness";
 import { makeFinding } from "../decisions/test-support";
+import { groupMaterialsByKind } from "../artifacts/kinds";
 
 const DIGEST = `sha256:${"a".repeat(64)}`;
 const RECENT = new Date(Date.now() - 5 * 60_000).toISOString();
@@ -296,9 +297,11 @@ function serve(server: FakeServer) {
       if (match !== null) {
         const namespace = query.get("namespace");
         const limit = Number(query.get("limit") ?? "50");
-        const items = (server.artifacts ?? []).filter(
+        let items = (server.artifacts ?? []).filter(
           (item) => namespace === null || item.artifact.namespace === namespace,
         );
+        if (query.get("order") === "material")
+          items = groupMaterialsByKind(items).flatMap((group) => group.items);
         return json(
           page(
             items.slice(0, limit),
@@ -1070,8 +1073,36 @@ describe("Project overview", () => {
     );
   });
 
+  it("keeps API format discovery when the priority sample contains only source archives", async () => {
+    const { requests } = renderAt(
+      {
+        ...overviewServer,
+        artifacts: [
+          ...Array.from({ length: 12 }, (_, index) =>
+            material("sources", `code-${index}`, "application/zip"),
+          ),
+          material("openapi", "additional-api", "application/yaml"),
+        ],
+      },
+      "/projects/project_a",
+    );
+    const glance = await screen.findByRole("region", { name: "At a glance" });
+    await within(glance).findByText("Source code, API spec");
+    const materialReads = requests.filter(
+      (request) =>
+        new URL(request.url).pathname === "/v1/projects/project_a/artifacts",
+    );
+    expect(materialReads).toHaveLength(3);
+    expect(
+      materialReads.every(
+        (request) =>
+          Number(new URL(request.url).searchParams.get("limit")) <= 5,
+      ),
+    ).toBe(true);
+  });
+
   it("offers the materials and the live target as chips", async () => {
-    renderAt(overviewServer, "/projects/project_a");
+    const { requests } = renderAt(overviewServer, "/projects/project_a");
     const chips = await screen.findByRole("region", {
       name: "Project materials",
     });
@@ -1093,6 +1124,14 @@ describe("Project overview", () => {
     expect(
       within(chips).getByRole("link", { name: "Add material" }),
     ).toHaveAttribute("href", "/projects/project_a/artifacts?add=artifact");
+    const materialReads = requests.filter(
+      (r) => new URL(r.url).pathname === "/v1/projects/project_a/artifacts",
+    );
+    expect(materialReads).toHaveLength(3);
+    expect(new URL(materialReads[0]!.url).searchParams.get("order")).toBe(
+      "material",
+    );
+    expect(new URL(materialReads[0]!.url).searchParams.get("limit")).toBe("5");
   });
   it("keeps the possible-issue count while a running check's revision advances", async () => {
     const server: FakeServer = {

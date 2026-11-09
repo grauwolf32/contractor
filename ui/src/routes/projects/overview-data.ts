@@ -120,15 +120,16 @@ export interface MaterialsSample {
 
 /**
  * A bounded sample of the project's materials (S06: the overview never loads
- * the complete inventory): five current materials, and up to three source
+ * the complete inventory): five category-ordered current materials, and up to three source
  * archives and three API specs, which the check types need most.
  */
 export function useMaterialsSample(projectId: string): MaterialsSample {
   const api = usePublicAPI();
   const base = queryKeys.projects.artifacts.all(projectId);
   const recent = useQuery({
-    queryKey: [...base, "overview"],
-    queryFn: () => listProjectArtifacts(api, { projectId, limit: 5 }),
+    queryKey: [...base, "overview-material-order"],
+    queryFn: () =>
+      listProjectArtifacts(api, { projectId, limit: 5, order: "material" }),
   });
   const sources = useQuery({
     queryKey: [...base, "overview-sources"],

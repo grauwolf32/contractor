@@ -6328,6 +6328,21 @@ func (e PutRuntimeLabelParamsIfNoneMatch) Valid() bool {
 	}
 }
 
+// Defines values for ListProjectArtifactsParamsOrder.
+const (
+	Material ListProjectArtifactsParamsOrder = "material"
+)
+
+// Valid indicates whether the value is a known member of the ListProjectArtifactsParamsOrder enum.
+func (e ListProjectArtifactsParamsOrder) Valid() bool {
+	switch e {
+	case Material:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PutProjectArtifactParamsIfNoneMatch.
 const (
 	PutProjectArtifactParamsIfNoneMatchAsterisk PutProjectArtifactParamsIfNoneMatch = "*"
@@ -13116,10 +13131,14 @@ type UpdateProjectParams struct {
 
 // ListProjectArtifactsParams defines parameters for ListProjectArtifacts.
 type ListProjectArtifactsParams struct {
-	Namespace *ArtifactName `form:"namespace,omitempty" json:"namespace,omitempty"`
-	Limit     *Limit        `form:"limit,omitempty" json:"limit,omitempty"`
-	Cursor    *Cursor       `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Order     *ListProjectArtifactsParamsOrder `form:"order,omitempty" json:"order,omitempty"`
+	Namespace *ArtifactName                    `form:"namespace,omitempty" json:"namespace,omitempty"`
+	Limit     *Limit                           `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor    *Cursor                          `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
+
+// ListProjectArtifactsParamsOrder defines parameters for ListProjectArtifacts.
+type ListProjectArtifactsParamsOrder string
 
 // DownloadProjectArtifactParams defines parameters for DownloadProjectArtifact.
 type DownloadProjectArtifactParams struct {
@@ -18926,7 +18945,15 @@ type ClientInterface interface {
 
 	// ListProjectArtifacts List current Artifact bindings in one owned ProjectScope
 	//
-	// Without a namespace filter, historical-* migration archives are hidden before pagination. Select an archive namespace explicitly to list it. Audit-managed namespaces remain hidden.
+	// Default order is namespace and name. With `order=material`, current
+	// bindings follow source code, API spec, engagement, architecture, docs,
+	// diffs, then Other, with namespace/name tie breakers. Git provenance
+	// takes precedence, then the suggested namespace, then purpose-specific
+	// media type. Priority is applied before the limit. Cursors bind the
+	// Project, namespace filter and order; they do not pin a snapshot.
+	// Without a namespace filter, historical-* migration archives are hidden
+	// before pagination. Select an archive namespace explicitly to list it.
+	// Audit-managed namespaces remain hidden.
 	//
 	// Corresponds with GET /v1/projects/{projectId}/artifacts (the `ListProjectArtifacts` operationId).
 	ListProjectArtifacts(ctx context.Context, projectId ProjectId, params *ListProjectArtifactsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -21657,7 +21684,15 @@ func (c *Client) UpdateProject(ctx context.Context, projectId ProjectId, params 
 
 // ListProjectArtifacts List current Artifact bindings in one owned ProjectScope
 //
-// Without a namespace filter, historical-* migration archives are hidden before pagination. Select an archive namespace explicitly to list it. Audit-managed namespaces remain hidden.
+// Default order is namespace and name. With `order=material`, current
+// bindings follow source code, API spec, engagement, architecture, docs,
+// diffs, then Other, with namespace/name tie breakers. Git provenance
+// takes precedence, then the suggested namespace, then purpose-specific
+// media type. Priority is applied before the limit. Cursors bind the
+// Project, namespace filter and order; they do not pin a snapshot.
+// Without a namespace filter, historical-* migration archives are hidden
+// before pagination. Select an archive namespace explicitly to list it.
+// Audit-managed namespaces remain hidden.
 //
 // Corresponds with GET /v1/projects/{projectId}/artifacts (the `ListProjectArtifacts` operationId).
 func (c *Client) ListProjectArtifacts(ctx context.Context, projectId ProjectId, params *ListProjectArtifactsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -30090,6 +30125,18 @@ func NewListProjectArtifactsRequest(server string, projectId ProjectId, params *
 		// per the OpenAPI spec (e.g. "color=blue,black,brown").
 		var rawQueryFragments []string
 
+		if params.Order != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "order", *params.Order, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
 		if params.Namespace != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "namespace", *params.Namespace, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
@@ -35240,7 +35287,15 @@ type ClientWithResponsesInterface interface {
 
 	// ListProjectArtifactsWithResponse List current Artifact bindings in one owned ProjectScope
 	//
-	// Without a namespace filter, historical-* migration archives are hidden before pagination. Select an archive namespace explicitly to list it. Audit-managed namespaces remain hidden.
+	// Default order is namespace and name. With `order=material`, current
+	// bindings follow source code, API spec, engagement, architecture, docs,
+	// diffs, then Other, with namespace/name tie breakers. Git provenance
+	// takes precedence, then the suggested namespace, then purpose-specific
+	// media type. Priority is applied before the limit. Cursors bind the
+	// Project, namespace filter and order; they do not pin a snapshot.
+	// Without a namespace filter, historical-* migration archives are hidden
+	// before pagination. Select an archive namespace explicitly to list it.
+	// Audit-managed namespaces remain hidden.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -60732,7 +60787,15 @@ func (c *ClientWithResponses) UpdateProjectWithResponse(ctx context.Context, pro
 
 // ListProjectArtifactsWithResponse List current Artifact bindings in one owned ProjectScope
 //
-// Without a namespace filter, historical-* migration archives are hidden before pagination. Select an archive namespace explicitly to list it. Audit-managed namespaces remain hidden.
+// Default order is namespace and name. With `order=material`, current
+// bindings follow source code, API spec, engagement, architecture, docs,
+// diffs, then Other, with namespace/name tie breakers. Git provenance
+// takes precedence, then the suggested namespace, then purpose-specific
+// media type. Priority is applied before the limit. Cursors bind the
+// Project, namespace filter and order; they do not pin a snapshot.
+// Without a namespace filter, historical-* migration archives are hidden
+// before pagination. Select an archive namespace explicitly to list it.
+// Audit-managed namespaces remain hidden.
 //
 // Returns a wrapper object for the known response body format(s).
 //

@@ -827,8 +827,8 @@ of every workspace collection. It reads:
 - three Audits waiting for review (LIM-UI-5);
 - five recent Runs (LIM-UI-6);
 - three successful Runs (LIM-UI-7);
-- a sample of current Artifacts: five recent ones and up to three each in
-  `sources` and `openapi` (LIM-UI-8);
+- a sample of five current Artifacts in material-category order, plus up to
+  three each in `sources` and `openapi` for input-format discovery (LIM-UI-8);
 - the published Audit profiles, for check types whose input formats match.
 
 **UI-R113.** Counts over Audits say when they cover only the 50 newest
@@ -880,6 +880,18 @@ actions remain outside that scroll area.
 
 **UI-R119.** Adding an Artifact opens a chooser with the existing upload and
 Git import flows.
+
+**UI-R239.** Project Materials requests the ordinary Artifact list in
+`order=material`: the named Add material categories precede Other across the
+complete paginated collection. Category order is source code, API spec,
+engagement, architecture, docs and diffs; existing metadata classification and
+namespace/name tie breakers apply. Counts beside a group describe the current
+page when continuation exists. Namespace filtering, exact links and mobile
+navigation retain this order. Overview samples the first five of the same
+ordered collection and preserves its bounded source/API discovery reads, so
+one category cannot displace format hints for another. It does not load the
+complete inventory. Other Artifact clients retain their default
+order, and failed or incomplete reads remain explicit.
 
 **UI-R120.** Project Workflow setup uses the shared drawer in ProjectScope,
 retains its ProjectScope form, the selected exact version and exact version
@@ -1314,8 +1326,9 @@ Limits ([registry](../platform/limits.md)):
 - LIM-UI-5 — Project Overview: three Audits waiting for review (UI-R112).
 - LIM-UI-6 — Project Overview: five recent Runs (UI-R112).
 - LIM-UI-7 — Project Overview: three successful Runs (UI-R112).
-- LIM-UI-8 — Project Overview Artifact sample: five recent, up to three each
-  in `sources` and `openapi` (UI-R112).
+- LIM-UI-8 — Project Overview Artifact sample: five current materials in
+  category order, plus up to three each in `sources` and `openapi`
+  (UI-R112, UI-R239).
 - LIM-UI-9 — Project Runs page: 25 Runs (UI-R121).
 - LIM-UI-10 — file-drop component: exactly one local file per selection
   (UI-R132).

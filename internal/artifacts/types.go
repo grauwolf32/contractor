@@ -100,6 +100,8 @@ type ForkResult struct {
 // Metadata describes one exact immutable Artifact revision and its relation to
 // the current logical binding. It never contains bytes or a physical blob key.
 type Metadata struct {
+	// MaterialRank is the private ordering key returned by material-ordered pages.
+	MaterialRank int `json:"-"`
 	// BindingCreatedAt is the authoritative logical binding creation time.
 	BindingCreatedAt  time.Time         `json:"-"`
 	GitSource         *GitSource        `json:"gitSource,omitempty"`
@@ -124,6 +126,10 @@ func (m Metadata) Exact() contracts.ExactArtifact {
 }
 
 type BindingPageQuery struct {
+	// MaterialOrder is the opt-in Project presentation order: known material
+	// categories before Other, then namespace/name. The rank is cursor state.
+	MaterialOrder     bool
+	AfterMaterialRank int
 	// NamePrefix selects a literal prefix in one Project namespace. It is
 	// keyset-paged before metadata hydration, without a whole-scope filter.
 	NamePrefix       string

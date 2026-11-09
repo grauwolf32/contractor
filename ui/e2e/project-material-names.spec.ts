@@ -7,6 +7,137 @@ import {
   fulfillEmptyPageOrNotFound,
   mockAPI,
 } from "./support/mock-api";
+
+for (const theme of ["light", "dark", "black"])
+  for (const width of [1440, 390]) {
+    test(`Project prioritizes named materials across pages at ${width}px in ${theme}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.addInitScript(
+        (t) => localStorage.setItem("contractor.theme", t),
+        theme,
+      );
+      const owner = project("project_material_priority", { name: "Shop API" });
+      const known = [
+        artifactMetadata("sources", "shop", { mediaType: "application/zip" }),
+        artifactMetadata("openapi", "shop-api", {
+          mediaType: "application/vnd.oai.openapi+json",
+        }),
+        artifactMetadata("engagement", "scope", {
+          mediaType: "application/vnd.contractor.engagement+json",
+        }),
+        artifactMetadata("likec4", "system", { mediaType: "text/vnd.likec4" }),
+        artifactMetadata("docs", "readme", { mediaType: "text/markdown" }),
+      ];
+      const generated = artifactMetadata("a-generated", "finding-evidence", {
+        mediaType: "application/json",
+      });
+      const reads: URL[] = [];
+      await mockAPI(page, async (route, _request, url) => {
+        if (url.pathname === "/v1/projects")
+          return fulfillJSON(route, {
+            items: [owner],
+            page: { hasMore: false },
+          });
+        if (url.pathname === `/v1/projects/${owner.projectId}`)
+          return fulfillJSON(route, owner, 200, {
+            ETag: `"${owner.revision}"`,
+          });
+        if (url.pathname === `/v1/projects/${owner.projectId}/findings`)
+          return fulfillJSON(route, {
+            items: [],
+            projectRevision: 1,
+            page: { hasMore: false },
+          });
+        if (url.pathname === `/v1/projects/${owner.projectId}/artifacts`) {
+          reads.push(url);
+          if (url.searchParams.get("limit") !== "3")
+            expect(url.searchParams.get("order")).toBe("material");
+          if (url.searchParams.has("namespace"))
+            return fulfillJSON(route, {
+              items: known.filter(
+                (item) =>
+                  item.artifact.namespace === url.searchParams.get("namespace"),
+              ),
+              page: { hasMore: false },
+            });
+          return fulfillJSON(
+            route,
+            url.searchParams.has("cursor")
+              ? { items: [generated], page: { hasMore: false } }
+              : {
+                  items: known,
+                  page: { hasMore: true, nextCursor: "other-materials" },
+                },
+          );
+        }
+        return fulfillEmptyPageOrNotFound(route);
+      });
+      const root = `/projects/${owner.projectId}`;
+      await page.goto(root + "/artifacts");
+      await expect(
+        page.getByRole("link", { name: "sources/shop", exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("region", { name: "Engagement", exact: true }),
+      ).toBeVisible();
+      const before = await page
+        .getByRole("region", { name: "Materials", exact: true })
+        .locator(".ui-list-section-title")
+        .allTextContents();
+      expect(before).toEqual([
+        "Source code",
+        "API spec",
+        "Engagement",
+        "Architecture",
+        "Docs",
+      ]);
+      await page.getByRole("button", { name: "Next", exact: true }).click();
+      await expect(
+        page.getByRole("link", {
+          name: "a-generated/finding-evidence",
+          exact: true,
+        }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("region", { name: "Source code", exact: true }),
+      ).toHaveCount(0);
+      await page.getByRole("button", { name: "Previous", exact: true }).click();
+      await expect(
+        page.getByRole("link", { name: "sources/shop", exact: true }),
+      ).toBeVisible();
+      await page.getByPlaceholder("all namespaces").fill("openapi");
+      await page.getByRole("button", { name: "Apply", exact: true }).click();
+      await expect(
+        page.getByRole("link", { name: "openapi/shop-api", exact: true }),
+      ).toBeVisible();
+      expect(reads.at(-1)?.searchParams.has("cursor")).toBe(false);
+      await page.goto(root);
+      const chips = page.getByRole("region", {
+        name: "Project materials",
+        exact: true,
+      });
+      await expect(
+        chips.getByRole("link", { name: /Source code/ }),
+      ).toBeVisible();
+      await expect(
+        chips.getByRole("link", { name: /Engagement/ }),
+      ).toBeVisible();
+      expect(
+        reads.filter((url) => url.searchParams.get("limit") === "5"),
+      ).toHaveLength(1);
+      expect(
+        reads.filter((url) => url.searchParams.get("limit") === "3"),
+      ).toHaveLength(2);
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      ).toBe(true);
+    });
+  }
+
 for (const theme of ["light", "dark", "black"])
   for (const width of [1440, 390]) {
     test(`Project retains compact exact long material links at ${width}px in ${theme}`, async ({

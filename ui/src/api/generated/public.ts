@@ -714,7 +714,15 @@ export interface paths {
         };
         /**
          * List current Artifact bindings in one owned ProjectScope
-         * @description Without a namespace filter, historical-* migration archives are hidden before pagination. Select an archive namespace explicitly to list it. Audit-managed namespaces remain hidden.
+         * @description Default order is namespace and name. With `order=material`, current
+         *     bindings follow source code, API spec, engagement, architecture, docs,
+         *     diffs, then Other, with namespace/name tie breakers. Git provenance
+         *     takes precedence, then the suggested namespace, then purpose-specific
+         *     media type. Priority is applied before the limit. Cursors bind the
+         *     Project, namespace filter and order; they do not pin a snapshot.
+         *     Without a namespace filter, historical-* migration archives are hidden
+         *     before pagination. Select an archive namespace explicitly to list it.
+         *     Audit-managed namespaces remain hidden.
          */
         get: operations["listProjectArtifacts"];
         put?: never;
@@ -9803,6 +9811,7 @@ export interface operations {
     listProjectArtifacts: {
         parameters: {
             query?: {
+                order?: "material";
                 namespace?: components["schemas"]["ArtifactName"];
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];

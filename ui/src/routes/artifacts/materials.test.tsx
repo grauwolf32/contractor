@@ -119,6 +119,13 @@ describe("Project materials", () => {
     const other = within(screen.getByRole("region", { name: "Other" }));
     expect(other.getByText("Locked")).toBeInTheDocument();
     expect(new URL(requests[0]!.url).searchParams.has("namespace")).toBeFalsy();
+    const materialRead = requests.find(
+      (request) =>
+        new URL(request.url).pathname === `/v1/projects/${PROJECT}/artifacts`,
+    )!;
+    expect(new URL(materialRead.url).searchParams.get("order")).toBe(
+      "material",
+    );
   });
 
   it("keeps the namespace filter valid and in the URL, and resets the page", async () => {
@@ -189,7 +196,9 @@ describe("Project materials", () => {
     );
     expect(source.getByText("2")).toHaveClass("ui-list-section-count");
     expect(source.getByText("on this page")).toBeVisible();
-    expect(screen.getByText(/Grouped by kind within this page/)).toBeVisible();
+    expect(
+      screen.getByText(/Materials are ordered by kind across all pages/),
+    ).toBeVisible();
     // A kind can live on a later page only.
     expect(screen.queryByRole("region", { name: "API spec" })).toBeNull();
 
@@ -200,7 +209,9 @@ describe("Project materials", () => {
     );
     const api = within(await screen.findByRole("region", { name: "API spec" }));
     expect(api.getByText("on this page")).toBeVisible();
-    expect(screen.getByText(/Grouped by kind within this page/)).toBeVisible();
+    expect(
+      screen.getByText(/Materials are ordered by kind across all pages/),
+    ).toBeVisible();
   });
 
   it("opens the Add material sheet from ?add=artifact and keeps other filters", async () => {

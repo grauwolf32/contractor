@@ -176,7 +176,7 @@ func (s ScopedStore) ListMetadata(
 	if err := validateBindingPageQuery(query); err != nil {
 		return nil, err
 	}
-	if query.NamePrefix != "" && s.scope.kind != ScopeProject {
+	if (query.NamePrefix != "" || query.MaterialOrder) && s.scope.kind != ScopeProject {
 		return nil, ErrInvalidScope
 	}
 	return s.service.repository.ListMetadata(ctx, s.scope, query)
@@ -215,6 +215,15 @@ func (s ScopedStore) ListLineage(
 }
 
 func validateBindingPageQuery(query BindingPageQuery) error {
+	if query.AfterMaterialRank < 0 || query.AfterMaterialRank > 6 ||
+		(!query.MaterialOrder && query.AfterMaterialRank != 0) ||
+		(query.MaterialOrder && (query.NamePrefix != "" || query.ExcludeNamespace != nil || query.HiddenNamespace != "" || query.ExcludeNamespacePrefix != artifactpolicy.AuditManagedProjectNamespacePrefix)) {
+		return ErrInvalidName
+	}
+	if query.MaterialOrder && ((query.Namespace == nil && query.HiddenNamespacePrefix != artifactpolicy.HistoricalProjectNamespacePrefix) ||
+		(query.Namespace != nil && query.HiddenNamespacePrefix != "")) {
+		return ErrInvalidName
+	}
 	if !pagelimit.ValidFetch(query.Limit) {
 		return ErrInvalidName
 	}

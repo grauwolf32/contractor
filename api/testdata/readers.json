@@ -1,6 +1,7 @@
 {
   "description": "Who reads each shared fixture under api/testdata: go (a TestShared* Go test), python (a test_shared_* Runtime test, or a test module whose test_shared_* tests ran) and ui (a UI source that imports the fixture). Keys are paths below api/testdata; a key ending in / covers its directory, and the longest matching key wins. make test-wire-cross-language (scripts/shared_fixture_gate.py) fails when a fixture matches no key, when a declared side does not read it, when a side reads it without being declared, and when a fixture has one reader but no reason. README files and this file are not fixtures. A file in another testdata directory that tests of two sides name is a shared fixture outside api/testdata, which the gate rejects unless OUTSIDE_SHARED in scripts/shared_fixture_gate.py names it with its reason.",
   "readers": {
+    "material-kind-order.json": {"readers": ["go", "ui"], "reason": "Project listing storage and the UI share presentation classification; Runtime receives ordinary selected Artifact refs without material grouping rules."},
     "telemetry-credential-redaction.json": {"readers": ["go", "python"]},
     "finding-candidates-cases.json": {"readers": ["go", "python"]},
     "material-set-cases.json": {"readers": ["go", "python"], "reason": "Shared exact material selection uses the common descriptor schema; Runtime receives ordinary Run Artifact refs."},
