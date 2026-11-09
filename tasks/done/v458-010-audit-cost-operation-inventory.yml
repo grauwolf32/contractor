@@ -6,7 +6,7 @@ epic: operations
 kind: defect
 introduced_by: V458-002
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V458-002]
 languages: [yaml]
 goal: The complete Audit operation inventory accounts for the owner-authorized cost summary without restoring retired Audit authority.
@@ -29,3 +29,7 @@ tests:
     covers: [A1]
   - command: make lint
     covers: [A1]
+implementation_commit: b536fb22ca858bd54878df358f6d3041ca1bdcfd
+verification:
+  - The original exhaustive operation-map check failed on the missing Audit cost read. The full auditdomain package passed with race detection after its owning disposition was added.
+  - UV_OFFLINE=true make lint and the full shared fixture gate passed. The endpoint, lifecycle authority and validation rules were unchanged.
