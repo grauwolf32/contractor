@@ -142,6 +142,7 @@ type artifactListOptions struct {
 	allowNamespaceExclusion bool
 	hiddenNamespace         string
 	excludeNamespacePrefix  string
+	hideProjectArchives     bool
 }
 
 func (h *artifactHandlers) listArtifactBindings(
@@ -167,6 +168,11 @@ func (h *artifactHandlers) listArtifactBindings(
 	if namespace != nil {
 		cursorKind += ":" + *namespace
 	}
+	var hiddenPrefix string
+	if options.hideProjectArchives && namespace == nil {
+		hiddenPrefix = artifactpolicy.HistoricalProjectNamespacePrefix
+		cursorKind += ":hidden-prefix:" + hiddenPrefix
+	}
 	var excludeNamespace *string
 	if values, present := query["excludeNamespace"]; present {
 		value := values[0]
@@ -185,6 +191,7 @@ func (h *artifactHandlers) listArtifactBindings(
 	}
 	pageQuery := artifacts.BindingPageQuery{
 		Namespace: namespace, ExcludeNamespace: excludeNamespace, HiddenNamespace: options.hiddenNamespace,
+		HiddenNamespacePrefix:  hiddenPrefix,
 		ExcludeNamespacePrefix: options.excludeNamespacePrefix, Limit: pagelimit.FetchRows(limit),
 	}
 	if len(cursor) != 0 {

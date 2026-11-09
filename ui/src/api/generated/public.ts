@@ -712,7 +712,10 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** List current Artifact bindings in one owned ProjectScope */
+        /**
+         * List current Artifact bindings in one owned ProjectScope
+         * @description Without a namespace filter, historical-* migration archives are hidden before pagination. Select an archive namespace explicitly to list it. Audit-managed namespaces remain hidden.
+         */
         get: operations["listProjectArtifacts"];
         put?: never;
         post?: never;

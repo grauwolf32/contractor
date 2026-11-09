@@ -18926,6 +18926,8 @@ type ClientInterface interface {
 
 	// ListProjectArtifacts List current Artifact bindings in one owned ProjectScope
 	//
+	// Without a namespace filter, historical-* migration archives are hidden before pagination. Select an archive namespace explicitly to list it. Audit-managed namespaces remain hidden.
+	//
 	// Corresponds with GET /v1/projects/{projectId}/artifacts (the `ListProjectArtifacts` operationId).
 	ListProjectArtifacts(ctx context.Context, projectId ProjectId, params *ListProjectArtifactsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -21654,6 +21656,8 @@ func (c *Client) UpdateProject(ctx context.Context, projectId ProjectId, params 
 }
 
 // ListProjectArtifacts List current Artifact bindings in one owned ProjectScope
+//
+// Without a namespace filter, historical-* migration archives are hidden before pagination. Select an archive namespace explicitly to list it. Audit-managed namespaces remain hidden.
 //
 // Corresponds with GET /v1/projects/{projectId}/artifacts (the `ListProjectArtifacts` operationId).
 func (c *Client) ListProjectArtifacts(ctx context.Context, projectId ProjectId, params *ListProjectArtifactsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -35235,6 +35239,8 @@ type ClientWithResponsesInterface interface {
 	UpdateProjectWithResponse(ctx context.Context, projectId ProjectId, params *UpdateProjectParams, body UpdateProjectJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateProjectResponse, error)
 
 	// ListProjectArtifactsWithResponse List current Artifact bindings in one owned ProjectScope
+	//
+	// Without a namespace filter, historical-* migration archives are hidden before pagination. Select an archive namespace explicitly to list it. Audit-managed namespaces remain hidden.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -60725,6 +60731,8 @@ func (c *ClientWithResponses) UpdateProjectWithResponse(ctx context.Context, pro
 }
 
 // ListProjectArtifactsWithResponse List current Artifact bindings in one owned ProjectScope
+//
+// Without a namespace filter, historical-* migration archives are hidden before pagination. Select an archive namespace explicitly to list it. Audit-managed namespaces remain hidden.
 //
 // Returns a wrapper object for the known response body format(s).
 //

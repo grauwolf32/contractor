@@ -3565,6 +3565,7 @@ paths:
       operationId: listProjectArtifacts
       tags: [Projects, Artifacts]
       summary: List current Artifact bindings in one owned ProjectScope
+      description: Without a namespace filter, historical-* migration archives are hidden before pagination. Select an archive namespace explicitly to list it. Audit-managed namespaces remain hidden.
       parameters:
         - name: namespace
           in: query

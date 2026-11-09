@@ -220,7 +220,7 @@ func validateBindingPageQuery(query BindingPageQuery) error {
 	}
 	if query.NamePrefix != "" {
 		if ValidateComponent(query.NamePrefix) != nil || query.Namespace == nil ||
-			query.ExcludeNamespace != nil || query.ExcludeNamespacePrefix != "" || query.HiddenNamespace != "" ||
+			query.ExcludeNamespace != nil || query.ExcludeNamespacePrefix != "" || query.HiddenNamespace != "" || query.HiddenNamespacePrefix != "" ||
 			(query.AfterName != "" && !strings.HasPrefix(query.AfterName, query.NamePrefix)) ||
 			(query.AfterNamespace != "" && query.AfterNamespace != *query.Namespace) {
 			return ErrInvalidName
@@ -243,6 +243,11 @@ func validateBindingPageQuery(query BindingPageQuery) error {
 	}
 	if query.ExcludeNamespacePrefix != "" {
 		if err := ValidateComponent(query.ExcludeNamespacePrefix + "x"); err != nil {
+			return err
+		}
+	}
+	if query.HiddenNamespacePrefix != "" {
+		if err := ValidateComponent(query.HiddenNamespacePrefix + "x"); err != nil {
 			return err
 		}
 	}
