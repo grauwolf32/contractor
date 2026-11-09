@@ -77,4 +77,4 @@ verification_results:
   - Full telemetry package passed with race detector and dedicated PostgreSQL database; that database was dropped.
   - Shared gate passed with 380 fixtures, 433 Go and 277 Python shared tests; one optional disk-heavy skip is not passing coverage.
   - make lint passed, including the regenerated dependency graph, source guards, strict task/spec checks and import layers.
-  - This implementation remains on codex/debug-telemetry-known-secrets; main merge and deployment are not performed.
+  - Main integration is recorded by V463-003; deployment is not performed.

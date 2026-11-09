@@ -57,8 +57,15 @@
     }
   ],
   "delivery": {
-    "merged_to_main": false,
+    "merged_to_main": true,
     "remote_push": false,
-    "deployed": false
-  }
+    "deployed": false,
+    "main_merge": "92edcb1cf4a8b19fb787cd8b4f738f36e0261ae5",
+    "main_parents": [
+      "fc64128447024c33728fbed8c9cf6694a5cd5504",
+      "ec97da863947106cc5619d5a4b5a169a9dabaf3e"
+    ],
+    "merged_tree_matches_verified_branch": true
+  },
+  "implementation_commit": "92edcb1cf4a8b19fb787cd8b4f738f36e0261ae5"
 }
