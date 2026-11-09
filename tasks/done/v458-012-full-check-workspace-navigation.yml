@@ -5,7 +5,7 @@ milestone: ui-consolidation-2026-10
 epic: ui
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V458-011]
 languages: [typescript, css, json, markdown, yaml]
 goal: Selecting a Check immediately shows its complete workspace alongside the original Checks list and filters, with no intermediate summary or Open check step.
@@ -57,3 +57,12 @@ tests:
     covers: [A1, A2, A3]
   - command: make ui-browser-mocked
     covers: [A1, A2, A3]
+implementation_commit: 0f4ee94edba8eb04c0b0073f4d14e9ee06e622aa
+verification:
+  results:
+  - Removed the 267-line CheckSummary implementation, its retired legend component, unused item-filter type and summary-only CSS. Global and Project entries render the same ResearchAuditDetail; no nested pane layout or Open check intermediate action remains.
+  - Final make ui-verify passed 223 files and 2504 tests plus one existing expected failure, all 17 Node server cases, generation check, lint, typecheck and build. UI release is 0.11.30.
+  - Final complete mocked browser gate passed 233 cases across 33 specs with no skips or retries. Six new cases cover global filtered entry, full work and saved results, hypothesis work and exact materials, and mobile filtered Back at 390 and 1440 pixels in light dark and black themes.
+  - The full global Checks unit file passed nine cases, including independent off-list and missing Check reads, existing mutation confirmation and deleting-state behavior, keyboard selection, retaining the section while filtering, clearing child cursors on another Check and resetting only the detail scroll.
+  - Native production preview was inspected with synthetic data; mobile Back retained the Running and Shop API filters and restored focus to the source row. The final route-owned title also remains Checks after returning. CSS/export guards, specification and task checks passed.
+  - Read-only preview and screenshot are retained under ignored local review files. No server/database changes, live model calls, business-data deletion, merge, deployment or full release gate were performed.
