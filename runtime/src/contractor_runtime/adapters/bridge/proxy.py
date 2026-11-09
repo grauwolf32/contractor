@@ -49,7 +49,7 @@ class HTTPProxyBridge:
         self._server: asyncio.Server | None = None
         self._tasks: set[asyncio.Task] = set()
         self._writers: set[asyncio.StreamWriter] = set()
-        self._handlers = set()
+        self._handlers = {}
         self._engine = None
         self._exception = None
         self._close_task = None
@@ -97,7 +97,7 @@ class HTTPProxyBridge:
     def _accept(self, reader, writer):
         self._writers.add(writer)
         handler = self._engine.create_ingress(self, reader, writer)
-        self._handlers.add(handler)
+        self._handlers[handler] = writer
         task = asyncio.create_task(self._handle(handler, writer), name="http-bridge-request")
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
@@ -117,7 +117,7 @@ class HTTPProxyBridge:
             await handler.join()
             if handler.received and (handler.pending or not handler.completed):
                 self.error_code = self.error_code or "scan_request_failed"
-            self._handlers.discard(handler)
+            self._handlers.pop(handler, None)
             self._writers.discard(writer)
 
     async def __aexit__(self, *_):
@@ -138,9 +138,12 @@ class HTTPProxyBridge:
         for task in tasks:
             task.cancel()
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        for handler in tuple(self._handlers):
+        for handler, writer in tuple(self._handlers.items()):
             await handler.join()
-            self._handlers.discard(handler)
+            self._handlers.pop(handler, None)
+            # The native owner already confirmed this exact writer's close,
+            # including a cached reset. Do not repeat its raw close waiter.
+            self._writers.discard(writer)
         for writer in tuple(self._writers):
             writer.close()
             await writer.wait_closed()

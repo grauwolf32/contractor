@@ -6,7 +6,8 @@ epic: http-tools
 kind: defect
 introduced_by: V410-030
 priority: P1
-status: pending
+status: completed
+implementation_commit: 76286a135bd5c6e24adeef42c0a32dd96a7e3892
 depends_on: [V410-030]
 languages: [python, markdown]
 goal: >-
@@ -18,7 +19,9 @@ context:
     User request 2026-11-09 asks to create a fix task after investigation of the
     Invoice Lab HTTP bridge cleanup failure. This task records the confirmed
     defect and the proposed correction; implementation and deployment are not
-    part of task creation.
+    part of task creation. User assignment 2026-11-09 authorizes implementation
+    and deterministic verification of this task; deployment remains out of scope.
+    User request 2026-11-10 authorizes local integration into main with --no-ff.
   severity: high
   finding: >-
     runtime/src/contractor_runtime/adapters/bridge/mitmproxy/lifecycle.py:44-52
@@ -119,9 +122,27 @@ acceptance_criteria:
       They use owned real sockets and deterministic coordination, with no live
       target, external LLM, timing assertions or reset-only mock replacing I/O.
 tests:
-  - command: cd runtime && uv run pytest tests/test_bridge_lifecycle.py tests/test_bridge_retirement.py tests/test_bridge_establishment.py tests/test_bridge_ingress.py tests/test_http_proxy_bridge.py tests/test_allocation_stop.py
+  - command: cd runtime && uv run pytest tests/test_bridge_reset.py tests/test_bridge_lifecycle.py tests/test_bridge_retirement.py tests/test_bridge_establishment.py tests/test_bridge_ingress.py tests/test_http_proxy_bridge.py tests/test_allocation_stop.py
     covers: [A1, A2, A3, A4, A5, A6]
   - command: make test-runtime
     covers: [A1, A2, A3, A4, A5, A6]
   - command: make lint
     covers: [A1, A2, A3, A4, A5, A6]
+
+implementation_notes:
+  - The common native lifecycle joins one in-flight close per writer, then classifies only ConnectionResetError/BrokenPipeError with a closed original socket descriptor. Other errors retain ownership.
+  - Native connection tasks remain owned beyond ConnectionIO removal. Outcomes are observed, delivered once to joining owners, and successful/cancelled tasks are removed without connection-history retention.
+  - Removed the broad OSError filter from native joins; callback/retirement defects still surface even after their sockets close. Explicit establishment and idle joins retire already delivered outcomes before a cleanup retry.
+  - Request parsing, response completion, first-write/no-replay rules and allocation fatal policy remain with their existing owners; no API, schema, dependency or deployment changes.
+  - The private scanner bridge records each handler with its exact writer and retires both after joined cleanup, including cancellation before the handler starts; it does not repeat the classified raw close waiter.
+  - Scanner ingress uses the same OwnedHandler; outgoing response close, establishment retirement, idle release and allocation-wide join all use the corrected lifecycle.
+  - Real-socket tests cover early unread-body 404, explicit reset before/after response completion, verified TLS and HTTP/2, private scanner ingress, concurrent close/cancellation and same-process allocation reuse.
+  - Allocation tests use a real ADK Worker and native HTTP engine with a deterministic failure completion; they preserve the budget error/report, erase a learned cookie and verify that real cleanup defects still request exit 70.
+  - Verification evidence is tasks/evidence/v463-004-http-bridge-reset-verification.json.
+
+verification_results:
+  - The final focused command passed all 114 cases.
+  - make test-runtime passed 6181 cases with 135 declared platform/live/separate-process skips; its report guard passed. Skips are not passing coverage.
+  - make lint passed, including Go static checks, UI gates, task/spec checks, Ruff and import-layer contracts.
+  - Three real-socket/allocation regressions fail on the original production source; the pre-handler scanner cancellation additionally fails before the outer writer ownership correction.
+  - Implementation was verified on codex/v463-004-http-cleanup. The authorized local main integration preserves the verified source tree and is recorded by the Git no-fast-forward merge; demo deployment and live LLM checks were not performed.

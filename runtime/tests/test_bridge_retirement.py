@@ -61,10 +61,12 @@ def test_closed_target_connections_release_timers_and_protocol_layers(tmp_path, 
                         len(owner._engine.flows),
                         len(pool.wakeup_timer),
                         len(pool.layer.command_sources),
+                        len(pool._connection_tasks),
+                        len(pool._writer_closes),
                     )
                 )
             assert len(target.connections) == len(opened) == 50
-            assert counts == [(0, 0, 0, 0)] * 50
+            assert counts == [(0, 0, 0, 0, 0, 0)] * 50
             assert not pool.parsers and not pool.connecting and not pool.exchanges
             assert set(pool.layer.connections) == {pool.client}
             # Completed cancelled tasks may retain their cancellation traceback.
