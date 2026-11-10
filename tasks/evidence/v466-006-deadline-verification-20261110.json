@@ -1,0 +1,47 @@
+{
+  "date": "2026-11-10",
+  "task": "V466-006",
+  "implementation_commit": "08fee86cc8d1000bdbdd28626fbcf87e4cc3bae0",
+  "runtime_lock_sha256": "945f997f38cabe445f1f05a559a26089fdf3bf44c95b523a6d8eb71c8e235c65",
+  "before_fix": {
+    "failed": 2,
+    "passed": 8,
+    "failure": "Both total-deadline outcomes were scan_request_failed instead of scan_timeout",
+    "report": "/private/tmp/contractor-v417-merge-tucvsa8c/v466-006-before-fix.log"
+  },
+  "focused": {
+    "command": "cd runtime && uv run pytest -W error tests/test_http_proxy_bridge.py tests/test_bridge_ingress.py tests/test_bridge_lifecycle.py tests/test_controlled_scan_process.py tests/test_nuclei_engagement.py",
+    "passed": 103,
+    "report": "/private/tmp/contractor-v417-merge-tucvsa8c/v466-006-focused.log"
+  },
+  "runtime": {
+    "command": "make test-runtime",
+    "passed": 6199,
+    "skipped_not_passing_coverage": 135,
+    "seconds": 426.64,
+    "required_deadline_cases": [
+      "test_bridge_classifies_delegated_timeout_by_scan_deadline[timeout-request-budget]",
+      "test_bridge_classifies_delegated_timeout_by_scan_deadline[timeout-scan-deadline]",
+      "test_bridge_classifies_delegated_timeout_by_scan_deadline[connect_failed-request-budget]",
+      "test_bridge_classifies_delegated_timeout_by_scan_deadline[connect_failed-scan-deadline]",
+      "test_bridge_classifies_delegated_timeout_by_scan_deadline[denied-request-budget]",
+      "test_bridge_classifies_delegated_timeout_by_scan_deadline[denied-scan-deadline]",
+      "test_bridge_classifies_ipc_timeout_and_joins_handler[TimeoutError-request-budget]",
+      "test_bridge_classifies_ipc_timeout_and_joins_handler[TimeoutError-scan-deadline]",
+      "test_bridge_classifies_ipc_timeout_and_joins_handler[OSError-request-budget]",
+      "test_bridge_classifies_ipc_timeout_and_joins_handler[OSError-scan-deadline]",
+      "test_real_nuclei_process_and_socket_join_on_owner_termination[cancel]",
+      "test_real_nuclei_process_and_socket_join_on_owner_termination[lease_loss]",
+      "test_real_nuclei_process_and_socket_join_on_owner_termination[timeout]"
+    ],
+    "junit_sha256": "eba38112baa56a94f3135ffa0e500f2f0d07701318f83a95022ca978af0f40b8",
+    "report": "/private/tmp/contractor-v417-merge-tucvsa8c/v466-full-runtime.log"
+  },
+  "lint": {
+    "command": "make lint",
+    "exit_code": 0,
+    "report": "/private/tmp/contractor-v417-merge-tucvsa8c/v466-final-lint-3.log"
+  },
+  "optional_heavy_io_enabled": false,
+  "database": "The single owned disposable database is retained for the ongoing V417-003 process gate; it has not yet been dropped."
+}
