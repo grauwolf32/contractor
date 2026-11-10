@@ -5,9 +5,11 @@ milestone: worker-context-compaction-2026-10
 epic: planner-worker
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V417-003
+- V417-009
+- V417-010
 languages:
 - go
 - python
@@ -16,7 +18,23 @@ goal: Sequential Worker invocations in one shared allocation reuse the compacted
 context:
   authority: 'User request on 2026-10-25: split proposal 0046 into tasks and make terminal summarizer
     includeReasoning independently deliverable. This record plans work; it does not start implementation
-    or change existing delivery priorities.'
+    or change existing delivery priorities. User decision 2026-11-10: defer shared-session compaction
+    until a concrete consumer requires it; isolated Audit compaction and its release gate proceed
+    independently. Later user decision 2026-11-10 explicitly reactivates V417-004 as in_progress and
+    requires it to execute last in the V417 series, after isolated delivery, its deterministic release
+    gate and the independent quality work. This supersedes the earlier deferral and its reactivation
+    condition; implementation waits for the declared dependencies despite the user-requested status.'
+  reactivation:
+    date: '2026-11-10'
+    previous_status: deferred
+    previous_deferral_date: '2026-11-10'
+    reason: Explicit user instruction to return shared-session compaction to in_progress and execute it last.
+  delivery_order: V417-009 and V417-010 are user-requested ordering dependencies, not new Runtime
+    prerequisites. Their transitive dependencies put V417-004 after all other V417 tasks. V417-005 and
+    V417-009 remain independent of V417-004, so no cycle or isolated-delivery blocker is introduced.
+  integration_boundary: When shared support is implemented after isolated acceptance, update affected
+    shared-rejection controls, owning specifications and fixtures with the newly supported combinations.
+    Preserve the isolated acceptance evidence; prior V417-010 measurements do not prove shared-mode quality.
   proposal: docs/proposals/0046-workflow-context-compaction.md
   specification:
   - docs/spec/execution/worker.md#WRK-R65
