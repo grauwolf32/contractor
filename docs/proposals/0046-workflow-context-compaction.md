@@ -603,7 +603,7 @@ OpenAPI/LikeC4 с отложенными зависимостями и посл�
 
 | Задача | Самостоятельный результат | Зависимости |
 | --- | --- | --- |
-| [V417-001](../../tasks/v417-001-terminal-summarizer-include-reasoning.yml) | `includeReasoning` существующего terminal summarizer: конфигурация, pins, Runtime projection и проверки обоих режимов | Нет |
+| [V417-001](../../tasks/done/v417-001-terminal-summarizer-include-reasoning.yml) | `includeReasoning` существующего terminal summarizer: конфигурация, pins, Runtime projection и проверки обоих режимов | Нет |
 | [V417-002](../../tasks/done/v417-002-adk-compaction-continuation-spike.yml) | Test-only spike на принятом ADK 2.13: два checkpoint, точные ranges, одна логическая invocation через несколько SDK turns и строгие failure outcomes | V418-007 |
 | [V417-003](../../tasks/v417-003-isolated-worker-context-compaction.yml) | Сквозной `compact@1` для обычного isolated Worker: Workflow → snapshot/wire → coordinator, архив и reader, catalog resources, limits и cleanup | V417-002 |
 | [V417-004](../../tasks/v417-004-shared-session-context-compaction.yml) | `in_progress` по указанию пользователя; выполняется последней: shared context между invocations с общими границами allocation, корректными generation и текущей task authority | V417-003, V417-009, V417-010 |
