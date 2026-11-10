@@ -37,6 +37,11 @@ context:
     another reporting or scheduling mechanism. Revisit the aggregate budget when catalog growth or measured
     successful runs approach its bound; quality owns the Make target.
   evidence: tasks/evidence/v466-007-aggregate-budget-20261110.json
+  execution_isolation: PER-R1/R2 scopes the single-active-Server lease to the database, not a test schema.
+    An agent-started independent family against the aggregate database invalidated the first 75-minute
+    attempt through standby readiness and was explicitly stopped. Its report is preserved as failed/interrupted.
+    The two current lanes use separate owned databases; a PostgreSQL check proves one granted lease in
+    each. This correction changes test execution setup only.
 scope:
   in:
   - Increase the aggregate package and report-runner budgets and document their separate ownership.

@@ -150,5 +150,24 @@
     "make_lint": "passed"
   },
   "optional_heavy_io_enabled": false,
-  "owned_database": "Retained for the active complete rerun; not yet dropped."
+  "owned_database": "Retained for the active complete rerun; not yet dropped.",
+  "invalidated_shared_database_attempt": {
+    "status": "failed/interrupted; excluded from successful aggregate evidence",
+    "cause": "Agent started the independent summarizer family concurrently against the aggregate database. PER-R1/R2 uses one advisory Server lease per database, so the aggregate Server in a different schema entered standby. This was an execution setup error, not a proposed change to production lease behavior.",
+    "observed_failure": "AuditHypothesisContinuation initial=true readiness deadline expired; Server log confirmed its lease was held by the independent family Server.",
+    "stop": "Both exact owned runner trees were stopped. Independent checks found no previously identified active test processes and zero PostgreSQL connections before recreation.",
+    "cleanup": "The old aggregate database was dropped after its processes stopped; a clean aggregate database and a separate terminal-family database were created.",
+    "report": "/private/tmp/contractor-v417-merge-tucvsa8c/v466-007-75m-shared-db-interrupted.jsonl",
+    "report_sha256": "7fc26d090bb625d71566d8259969f8d9015e43b2b2bc0bead2355676296c589f",
+    "family_report": "/private/tmp/contractor-v417-merge-tucvsa8c/v417-001-current-family.log",
+    "family_result": "interrupted with SIGTERM; no family pass is claimed"
+  },
+  "isolated_rerun": {
+    "status": "running; no complete pass yet",
+    "aggregate_database": "contractor_test_v417_compaction_20261110_01",
+    "terminal_family_database": "contractor_test_v417_terminal_20261110_01",
+    "lease_check": "2026-11-10 20:18 UTC: each owned database holds exactly one granted Control Plane advisory lease",
+    "aggregate_report": "/private/tmp/contractor-v417-merge-tucvsa8c/v466-007-full-process-isolated.log",
+    "terminal_family_report": "/private/tmp/contractor-v417-merge-tucvsa8c/v417-001-family-isolated.log"
+  }
 }
