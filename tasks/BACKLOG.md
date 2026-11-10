@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-67 open tasks: 9 in progress, 44 pending, 14 deferred. 1552 finished: 1534 completed, 18 archived.
+67 open tasks: 10 in progress, 44 pending, 13 deferred. 1552 finished: 1534 completed, 18 archived.
 
 ## In progress
 
@@ -18,6 +18,7 @@ the epics are in [epics.yml](epics.yml).
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V417-001](v417-001-terminal-summarizer-include-reasoning.yml) | planner-worker | feature | P1 | Accept merged terminal summarizer reasoning selection |
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Accept merged isolated Worker context compaction |
+| [V417-004](v417-004-shared-session-context-compaction.yml) | planner-worker | feature | P1 | Preserve compacted context across shared-session invocations |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 
@@ -142,7 +143,6 @@ the epics are in [epics.yml](epics.yml).
 | [V61-009](v61-009-toolset-configuration-release.yml) | runtime-config | 2026-10-11 | Explicit user decision that external MCP tools are needed (for example for autonomous pentest Audits, proposal 0033); then port the branch onto main rather than reimplementing, renumber its migration and rerun the V61-009 release gate. |
 | [V62-008](v62-008-project-analysis-preparation.yml) | audits | 2026-09-20 | Explicit user approval of standalone analysis-report reuse and the additional two-Workflow chain. |
 | [V365-016](v365-016-fold-planner-execution-reports.yml) | persistence | 2026-10-04 | Explicit user approval of making Planner reports a mutable slot on stage_metrics. |
-| [V417-004](v417-004-shared-session-context-compaction.yml) | planner-worker | 2026-11-10 | A concrete production Workflow requires compacted conversation across sequential Worker invocations, and the user explicitly assigns reactivation with its caller and acceptance scenario. Review the preserved requirements against current contracts before implementation. |
 | [V425-001](v425-001-apfs-opaque-leaf-normalization.yml) | workspaces | 2026-11-02 | Explicit user decision to require separate macOS filename hardening; first rescope its acceptance and dedicated coverage rather than treating this Linux fixture as a required macOS test. |
 | [V425-002](v425-002-trailmark-mirror-path-max.yml) | code-analysis | 2026-11-02 | Explicit user decision to require separate macOS long-path support; first rescope its acceptance and dedicated coverage rather than treating this Linux fixture as a required macOS test. |
 

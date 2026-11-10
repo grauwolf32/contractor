@@ -26,7 +26,9 @@ context:
     or stay controlled. The user requested task replanning and diagrams for review before implementation.
     User decision 2026-11-10: deliver ordinary/Audit compaction in isolated sessions; defer shared-session
     compaction until a concrete consumer requires it. Remove V417-004 from this release gate and retain
-    compact@1/shared rejection as a required control.'
+    compact@1/shared rejection as a required control. Later user decision 2026-11-10 reactivates V417-004
+    as in_progress and orders it last, after this isolated gate and V417-010; this gate does not regain
+    a shared-session dependency.'
   proposal: docs/proposals/0046-workflow-context-compaction.md
   specification:
   - docs/spec/execution/worker.md
@@ -71,7 +73,7 @@ scope:
     failed required cases or switching configured live models.
   - Live Gateway calls, measured quality/default-selection claims, dependence on V417-008/V417-010 or
     requiring terminal includeReasoning to implement compact@1.
-  - Shared-session compaction admission or cross-invocation compacted history (deferred V417-004).
+  - Shared-session compaction admission or cross-invocation compacted history (V417-004, ordered last).
 acceptance_criteria:
 - id: A1
   given: Integrated real Server/Runtime/PostgreSQL and a deterministic Gateway
@@ -208,6 +210,8 @@ deliverables:
 - path: docs/testing/README.md
   description: Actual deterministic gate prerequisites, scope and retained evidence locations; live evaluation
     remains opt-in.
-dependency_note: No dependency on V417-001, deferred V417-004, V417-008 or V417-010. Terminal reasoning
-  has its own independent exit, shared compaction waits for a concrete caller and measured quality has
-  a separate milestone. The 2026-11-10 decision narrows the deterministic exit to isolated compaction.
+dependency_note: No dependency on V417-001, V417-004, V417-008 or V417-010. Terminal reasoning has its
+  own independent exit and measured quality has a separate milestone. The 2026-11-10 decisions narrow
+  this exit to isolated compaction and place reactivated V417-004 after this gate and V417-010. Shared
+  rejection controls describe this isolated delivery; the later shared implementation updates affected
+  controls without rewriting earlier acceptance evidence.

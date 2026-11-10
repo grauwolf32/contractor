@@ -19,9 +19,12 @@ Workers; нормативные правила теперь в
 и Audit completion (V417-005) остаются предложением.
 
 Решение пользователя от 10 ноября 2026 года: V417-005 допускает compaction
-только для Audit Workers с `isolated`. V417-004 отложена до конкретного
-production-потребителя истории между invocations; V417-005 и deterministic
-exit V417-009 от неё не зависят. Приёмка V417-003 остаётся prerequisite.
+только для Audit Workers с `isolated`. Последующее указание в тот же день
+возвращает V417-004 в `in_progress` и ставит её последней в серии V417:
+после V417-009, V417-010 и всех их зависимостей. Этот порядок заменяет
+предыдущее откладывание до конкретного потребителя. Статус задан пользователем;
+реализация shared ждёт зависимостей. V417-005 и deterministic exit V417-009
+от неё не зависят. Приёмка V417-003 остаётся prerequisite.
 Это изменение плана; допуск Audit compaction ещё не реализован.
 
 Результат integration spike от 26 октября 2026 года:
@@ -348,7 +351,7 @@ marker, наблюдения и списанные вызовы сохраняю
 dispatch/цикл запрещается. Она отличается от непригодного candidate,
 который можно отвергнуть до commit без добавления marker.
 
-Отложенный контракт V417-004: в `shared` сохраняется session-level последнее измерение с его generation,
+Контракт последней задачи V417-004: в `shared` сохраняется session-level последнее измерение с его generation,
 чтобы новый A2A invocation не забывал размер уже общей истории. Invocation
 budgets при новом принятом A2A запросе меняются только по существующему
 контракту; сам compaction новый запрос не создаёт.
@@ -385,7 +388,7 @@ compression batches требуют своих измеренных границ.
 Группы индексируются по мере поступления. Страница архива не пересканирует
 всю allocation history. Обход ADK events ограничивается объявленным ceiling;
 проверяется на 4096 группах. Случай `shared` с большим числом subtasks относится
-к отложенной V417-004 и не блокирует isolated-поставку.
+к последующей V417-004 и не блокирует isolated-поставку.
 Сериализация больших проекций выполняется off event loop через существующий
 joined-thread механизм, а не под lock canonical State.
 
@@ -475,7 +478,7 @@ adapter на уровне request projection; не обходить это мо�
 | Ситуация | Поведение |
 | --- | --- |
 | `isolated` | Compaction и архив живут в пределах одного invocation; после его завершения conversation удаляется. Никакая новая память не протекает в следующий invocation через eligible State |
-| `shared` | Сейчас `compact@1` отклоняется. Отложенная V417-004 сохраняет предложение: compacted context и архив доступны последовательным invocations той же allocation; между bindings и allocations они не объединяются |
+| `shared` | Сейчас `compact@1` отклоняется. Последняя задача V417-004 сохраняет предложение: compacted context и архив доступны последовательным invocations той же allocation; между bindings и allocations они не объединяются |
 | Обычное завершение | Существующий finalizer и trusted result assembly; `summarized=false`, даже если ранее были compactions |
 | Audit completion | Существующий trusted completion boundary и receipts; compactor не завершает проверку и не публикует результат |
 | Cancel, deadline, lease loss | Остановить и join текущий compactor/continuation через действующий lifecycle; больше не запускать model/tool calls |
@@ -603,7 +606,7 @@ OpenAPI/LikeC4 с отложенными зависимостями и посл�
 | [V417-001](../../tasks/v417-001-terminal-summarizer-include-reasoning.yml) | `includeReasoning` существующего terminal summarizer: конфигурация, pins, Runtime projection и проверки обоих режимов | Нет |
 | [V417-002](../../tasks/done/v417-002-adk-compaction-continuation-spike.yml) | Test-only spike на принятом ADK 2.13: два checkpoint, точные ranges, одна логическая invocation через несколько SDK turns и строгие failure outcomes | V418-007 |
 | [V417-003](../../tasks/v417-003-isolated-worker-context-compaction.yml) | Сквозной `compact@1` для обычного isolated Worker: Workflow → snapshot/wire → coordinator, архив и reader, catalog resources, limits и cleanup | V417-002 |
-| [V417-004](../../tasks/v417-004-shared-session-context-compaction.yml) | Отложена до конкретного потребителя: shared context между invocations с общими границами allocation, корректными generation и текущей task authority | V417-003; явная реактивация пользователем |
+| [V417-004](../../tasks/v417-004-shared-session-context-compaction.yml) | `in_progress` по указанию пользователя; выполняется последней: shared context между invocations с общими границами allocation, корректными generation и текущей task authority | V417-003, V417-009, V417-010 |
 | [V417-005](../../tasks/v417-005-audit-worker-context-compaction.yml) | Допуск compaction в isolated Audit с сохранением completeness gate, trusted results и receipts | V417-003, V64-012 |
 | [V417-006](../../tasks/v417-006-compactor-model-policy-selection.yml) | Reference-only `compactorModelPolicy` через существующие executionConfig selections и exact pins | V417-003 |
 | [V417-007](../../tasks/v417-007-context-compaction-state-and-ui.yml) | Числовые State/metrics, public projections и правдивое отображение в UI | V417-003 |
@@ -625,9 +628,12 @@ Audit комбинации строго отклоняются до V417-004 и 
 
 После приёмки V417-003 независимо доступны isolated Audit compaction,
 model-policy selection, метрики/UI и Eval harness (последний также требует
-V417-001). Shared compaction отложена до конкретного потребителя и явной
-реактивации V417-004. Допуск `compact@1` с `shared` остаётся запрещённым;
-этот отрицательный сценарий входит в deterministic exit.
+V417-001). Реактивированная V417-004 выполняется последней, после deterministic
+exit V417-009 и quality-задачи V417-010. Пока shared не реализован, допуск
+`compact@1` с `shared` остаётся запрещённым; этот отрицательный сценарий
+входит в isolated deterministic exit. При последующей реализации shared
+соответствующие проверки обновляются вместе с контрактом; ранняя приёмка
+и измерения качества не выдаются за подтверждение shared-поведения.
 
 У поставки два отдельных выхода: V417-009 закрывает
 `worker-context-compaction-2026-10`, V417-010 —
@@ -658,7 +664,7 @@ V417-001). Shared compaction отложена до конкретного пот
   последовательность SDK content.
 - `isolated` не переносит compacted context или доступ к архиву в следующий
   invocation; `compact@1` с `shared` отклоняется. Сохранение compacted context
-  между invocations проверяется только при реактивации V417-004.
+  между invocations проверяется при реализации последней задачи V417-004.
   Skills/eligible State следуют своему контракту.
 - Missing usage не запускает оценочный trigger, stale pre-compaction usage
   не вызывает повторный цикл, большой свежий tool result даёт честный

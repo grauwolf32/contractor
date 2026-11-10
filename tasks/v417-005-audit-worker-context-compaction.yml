@@ -25,7 +25,9 @@ context:
     or stay controlled. The user requested task replanning and diagrams for review before implementation.
     User decision 2026-11-10: implement Audit compaction for isolated sessions only, remove the dependency
     on V417-004 and leave shared-session compaction deferred until a concrete consumer requires it.
-    Acceptance of V417-003 remains a prerequisite.'
+    Acceptance of V417-003 remains a prerequisite. Later user decision 2026-11-10 returns V417-004 to
+    in_progress but orders its implementation last in the V417 series; this task remains isolated-only
+    and does not regain a dependency on shared-session support.'
   proposal: docs/proposals/0046-workflow-context-compaction.md
   specification:
   - docs/spec/audits/worker-completion.md#AWC-R127
@@ -67,8 +69,9 @@ context:
   session_boundary: 'User decision 2026-11-10: repeated checkpoints continue one isolated invocation;
     retaining conversation between separate invocations is not needed for this outcome. Supporting both
     modes now would add session-lifetime and cross-invocation authority work without a shipped Audit
-    consumer. Reopen shared compaction only for a concrete caller through deferred V417-004; this task
-    and the deterministic release gate do not depend on it.'
+    consumer. The later 2026-11-10 user instruction reactivates V417-004 as the last task in the series;
+    this task and the deterministic release gate do not depend on it. Shared rejection remains the
+    isolated-delivery contract until the later shared implementation updates its affected controls.'
 scope:
   in:
   - Effective context-policy validation for Audit Worker completion and every reachable escalation, replacing
@@ -80,7 +83,7 @@ scope:
     engine or result authority.
   - Enabling terminal summarization with Audit completion, making compactor output a finding/evidence
     receipt, or mass-enabling compact mode in shipped Audit profiles.
-  - Shared-session compaction and conversation transfer between invocations (deferred V417-004).
+  - Shared-session compaction and conversation transfer between invocations (V417-004, ordered last).
 requirements:
 - id: R1
   text: 'Audit admission uses the resolved effective context policy: compact@1 is allowed for isolated
