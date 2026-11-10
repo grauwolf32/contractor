@@ -1,0 +1,74 @@
+{
+  "status": "in_progress; acceptance incomplete",
+  "main_merge": "ac264b846e20c5f874e9959d97c10dce1c3db407",
+  "runtime_lock_sha256": "945f997f38cabe445f1f05a559a26089fdf3bf44c95b523a6d8eb71c8e235c65",
+  "runtime_patch_sha256": "a710358b9c4e75f7dca1569b2e54966e1e77402ba89bb4db7c1605afcb4e3ab9",
+  "toolchain": {
+    "go": "1.26.9",
+    "node": "24.20.0",
+    "python": "3.13.16",
+    "google_adk": "2.13.0",
+    "postgres": "17.11",
+    "GOMAXPROCS": 4,
+    "GOFLAGS": "-p=4"
+  },
+  "passing_commands": [
+    "go test ./internal/config/... ./internal/contracts/... ./internal/controlplane/...",
+    "make test-postgres",
+    "make ui-verify",
+    "make verify-public-api",
+    "make test-config",
+    "make test-wire-cross-language",
+    "make lint",
+    "go test -tags=e2e -count=1 -timeout=5m -v ./tests/e2e -run '^TestWorkerCompactionContinuesIsolatedWorker$'"
+  ],
+  "regressions": {
+    "before": "both new bounded-history regressions fail",
+    "after": "54 focused compaction/ADK tests pass, including all 54 inside the complete Runtime run"
+  },
+  "runtime": {
+    "command": "make test-runtime",
+    "exit_code": 2,
+    "passed": 6188,
+    "skipped_not_passing_coverage": 135,
+    "failed": 1,
+    "failure": "tests.test_nuclei_engagement.test_real_nuclei_process_and_socket_join_on_owner_termination[timeout]",
+    "expected": "scan_timeout",
+    "actual": "scan_request_failed"
+  },
+  "e2e": {
+    "command": "make test-e2e",
+    "exit_code": 2,
+    "status": "interrupted after recorded failures; not a complete run or pass",
+    "recorded_failures": [
+      "TestAgentSkillsMVPProcesses: OTLP secret-canary assertion",
+      "TestAuditCommonObservationProfilesAcrossProductionProcesses/trace: tool allowlist mismatch"
+    ],
+    "cleanup": "SIGTERM sent to the exact owned report harness; it reported EPERM during cleanup. Subsequent independent checks found no members of its process group and no remaining connections to the owned database."
+  },
+  "baseline_checks": [
+    {
+      "revision": "main ac264b846",
+      "test": "TestAgentSkillsMVPProcesses",
+      "result": "failed at agent_skills_test.go:292 waiting for Run after 260 seconds; this run did not reach the OTLP assertion, so it does not confirm the same canary failure"
+    },
+    {
+      "revision": "main ac264b846",
+      "test": "test_real_nuclei_process_and_socket_join_on_owner_termination[timeout]",
+      "result": "passed in isolation; the full-suite timeout classification failure remains unresolved"
+    }
+  ],
+  "wire": {
+    "fixtures": 382,
+    "go_shared_tests": 434,
+    "python_shared_tests": 278,
+    "optional_heavy_skips_not_passing_coverage": 1
+  },
+  "cleanup": {
+    "owned_database": "contractor_test_v417_compaction_20261110_01",
+    "database_dropped": true,
+    "original_user_dirty_files_preserved_by_sha256_and_modes": 6,
+    "staged_diff_preserved": true
+  },
+  "scope_decision": "User question pending: investigate and repair the broader Runtime/e2e failures in separate owner tasks, or retain this partial acceptance without starting V417-005."
+}

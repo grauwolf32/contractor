@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-67 open tasks: 10 in progress, 44 pending, 13 deferred. 1552 finished: 1534 completed, 18 archived.
+70 open tasks: 12 in progress, 45 pending, 13 deferred. 1552 finished: 1534 completed, 18 archived.
 
 ## In progress
 
@@ -21,6 +21,8 @@ the epics are in [epics.yml](epics.yml).
 | [V417-004](v417-004-shared-session-context-compaction.yml) | planner-worker | feature | P1 | Preserve compacted context across shared-session invocations |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V466-001](v466-001-telemetry-content-process-expectations.yml) | operations | chore | P1 | Align process telemetry checks with credential-only replacement |
+| [V466-002](v466-002-taint-gateway-selected-tools.yml) | quality | chore | P1 | Align the taint process Gateway with its selected finding tool |
 
 ## Pending
 
@@ -127,6 +129,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-006, V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
 | [V425-014](v425-014-runtime-tests-fail-on-macos.yml) | chore | P3 | — | Make the Runtime process-liveness assertions able to fail on macOS |
 | [V433-005](v433-005-runtime-resource-bounds-gate.yml) | chore | P3 | — | Verify the Runtime resource-bound fixes and reconcile the review dispositions |
+| [V466-003](v466-003-production-checkpoint-process-fixtures.yml) | chore | P1 | — | Read internal Stage checkpoints in production Workflow process fixtures |
 
 ## Deferred
 
@@ -162,14 +165,14 @@ tasks in `introduced_by`.
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 5 | 24 | 36 | 15 | 38 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 3 | 21 | 13 | 11 | 27 |
-| Findings tools and collections (`findings`) | 0 | 18 | 14 | 11 | 21 |
-| Workflow catalog and document workflows (`workflows`) | 6 | 19 | 17 | 16 | 23 |
+| Findings tools and collections (`findings`) | 0 | 18 | 14 | 11 | 22 |
+| Workflow catalog and document workflows (`workflows`) | 6 | 19 | 17 | 16 | 24 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 40 | 20 | 70 |
 | Audits (`audits`) | 10 | 69 | 97 | 42 | 169 |
 | Evaluations (`evals`) | 5 | 22 | 42 | 17 | 50 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
 | Web UI (`ui`) | 1 | 54 | 80 | 31 | 76 |
-| Operations, authentication, CLI and deployment (`operations`) | 0 | 21 | 53 | 11 | 28 |
+| Operations, authentication, CLI and deployment (`operations`) | 1 | 21 | 53 | 12 | 29 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 43 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 50 | 18 |
-| Quality, CI and process (`quality`) | 11 | 1 | 33 | 140 | 30 |
+| Quality, CI and process (`quality`) | 13 | 1 | 33 | 142 | 30 |

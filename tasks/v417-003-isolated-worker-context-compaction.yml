@@ -25,7 +25,10 @@ context:
     for this transition; retain the explicit contextManagement strategy required by R1.
     User decision on 2026-10-31: terminal summarizer includeReasoning also uses an
     explicit true/false boolean below authoring, matching compact@1; its earlier
-    true-only encoding is superseded by V417-001.'
+    true-only encoding is superseded by V417-001. User assignment 2026-11-10: merge the reviewed task
+    scope/order into main and begin the agreed implementation chain. This chat continues acceptance
+    of the already-merged V417-003 prerequisite before isolated Audit work in V417-005; shared V417-004
+    executes last. Acceptance uses current production paths and does not claim the earlier gates ran.'
   proposal: docs/proposals/0046-workflow-context-compaction.md
   specification:
   - docs/spec/configuration/workflows.md#WFL-R86
@@ -54,6 +57,24 @@ context:
     test_worker_compaction.py and TestWorkerCompactionContinuesIsolatedWorker are existing production-path
     coverage. Shared and Audit admission are still rejected by contracts.ValidateCompactionTarget; those
     extensions remain V417-004/005.
+  acceptance_evidence:
+  - tasks/evidence/v417-003-acceptance-20261110.md
+  - tasks/evidence/v417-003-size-probe-20261110.json
+  - tasks/evidence/v417-003-verification-20261110.json
+  acceptance_status: '2026-11-10: bounded archive-read corrections, 54 compaction/ADK tests, the real
+    two-checkpoint process scenario, Go config/contracts/controlplane, PostgreSQL, wire, API, UI,
+    shipped config and lint pass. Full Runtime failed one nuclei timeout classification; the full
+    process gate recorded Agent Skills OTLP and Audit trace tool-list failures and was interrupted.
+    Separate main controls are recorded without claiming the same failures reproduced. Acceptance
+    remains incomplete; repair of those broader gate paths needs separate owner tasks and a scope decision.'
+  telemetry_policy_clarification: >-
+    User clarification 2026-11-10: disclosed Skill content is acceptable in external telemetry; only
+    credentials are prohibited. The existing OBS/SKL/MEM contracts already permit bounded content with
+    known credential replacement. V466-001 removes obsolete content-marker prohibitions; Skills and
+    production Memory now pass twice with credential assertions intact. The taint Gateway inventory
+    is aligned in V466-002, but its process fixture still requires retired workspace_state Workflow
+    outputs. Pending V466-003 records that separate migration. Historical failed gate reports remain
+    unchanged; no credential leak or complete V417 acceptance is claimed.
 scope:
   in:
   - 'One vertical change: Workflow binding authoring and normalization, exact model/instruction dependencies,
@@ -385,8 +406,10 @@ decisions:
 remaining_work:
 - Audit acceptance against the merged coordinator, current stop/cleanup ownership and recorded tests;
   fill missing evidence or actual defects rather than build a second compaction path.
-- Complete the required gates and record the outstanding representative-input/temporary-copy measurements
-  from R12/R13; the October note says the ceilings were tested but representative live sizes were not
-  measured.
+- Resolve the broader gate failures recorded in the 2026-11-10 acceptance evidence through separately
+  scoped owner tasks, then complete the required full Runtime/process gates before closing this task.
+- Representative serialized-input and temporary-copy measurements for R12/R13 are recorded on six
+  deterministic production-path fixtures, including 4096 groups, multibyte input, a 4-MiB group and
+  near-32-MiB history. They are fixture measurements, not live-model quality or universal RSS guarantees.
 - Accept the current binding-selected compactor policy here. The separately authorized V417-006 migration
   to executionConfig does not block acceptance of this implemented slice.

@@ -366,9 +366,7 @@ func TestTaintAnnotationsAcrossRealRuntimeProcess(t *testing.T) {
 			collector.requests(), collector.failuresSnapshot())
 	}
 	assertOTLPPayloadSafe(
-		t, collector.payloads(), taintSourceCanary, taintTargetCanary,
-		taintSourcePath, taintDuplicatePath, taintOTLPCredential,
-		llmGatewayToken, publicToken,
+		t, collector.payloads(), taintOTLPCredential, llmGatewayToken, publicToken,
 	)
 
 	for _, runID := range []string{initialRunID, cleanRunID} {

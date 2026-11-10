@@ -341,17 +341,12 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 		t, ctx, runtimeProcess, controlClient, runtimeBaseURL,
 		reuseEvidence.lastAllocationID, workRoot,
 	)
-	assertOTLPPayloadSafe(
-		t, otlpCollector.payloads(), otlpCredentialCanary,
-		fixture.PackageACanary, fixture.PackageBCanary,
-	)
+	// Disclosed Skill text is ordinary content in the configured external
+	// exporter (SKL-R113); known credentials remain forbidden (OBS-R54).
+	assertOTLPPayloadSafe(t, otlpCollector.payloads(), otlpCredentialCanary, llmGatewayToken, publicToken)
 	if failures := otlpCollector.failuresSnapshot(); len(failures) != 0 {
 		t.Fatalf("Agent Skill OTLP collector failures: %v", failures)
 	}
-	for _, payload := range otlpCollector.payloads() {
-		assertAgentSkillCanariesAbsent(t, fixture, string(payload))
-	}
-
 	if gateway.CompletedStages() != 8 || len(gateway.Failures()) != 0 {
 		t.Fatalf("Agent Skill gateway stages/failures = %d/%v, want 8/none",
 			gateway.CompletedStages(), gateway.Failures())
