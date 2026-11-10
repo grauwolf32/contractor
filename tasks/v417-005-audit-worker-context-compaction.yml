@@ -1,6 +1,6 @@
 schema_version: '1.0'
 id: V417-005
-title: Admit compaction without bypassing trusted Audit completion
+title: Admit isolated compaction without bypassing trusted Audit completion
 milestone: worker-context-compaction-2026-10
 epic: audits
 kind: feature
@@ -8,19 +8,24 @@ priority: P1
 status: pending
 depends_on:
 - V417-003
-- V417-004
 - V64-012
 languages:
 - go
 - python
-goal: An Audit Worker can continue an unfinished check after compaction while the existing completeness
+goal: An isolated Audit Worker can continue an unfinished check after compaction while the existing completeness
   gate, trusted result collection and publication receipts remain authoritative.
+demonstration: A real Server/Runtime/PostgreSQL Audit check in an isolated session accepts partial conclusions,
+  compacts twice within the same logical invocation, supplies the remaining evidence and publishes one
+  ordinary JSON result through the existing completeness gate and receipts (A1).
 context:
   authority: 'User decisions on 2026-10-31: Contractor is a research platform. Audit provides durable
     coordination over ordinary Runs, fixed assertions use common hypotheses, exploratory findings may
     have no hypothesis, deduplication and exact Audit/Run origin remain, hypothesis associations are automatic
     and owner-independent, formal approvals are removed almost completely, and complexity must decrease
-    or stay controlled. The user requested task replanning and diagrams for review before implementation.'
+    or stay controlled. The user requested task replanning and diagrams for review before implementation.
+    User decision 2026-11-10: implement Audit compaction for isolated sessions only, remove the dependency
+    on V417-004 and leave shared-session compaction deferred until a concrete consumer requires it.
+    Acceptance of V417-003 remains a prerequisite.'
   proposal: docs/proposals/0046-workflow-context-compaction.md
   specification:
   - docs/spec/audits/worker-completion.md#AWC-R127
@@ -38,9 +43,9 @@ context:
   adk_migration: V418-007 accepts the exact ADK 2.13.0 lock before V417-002 establishes compaction integration.
     Internal SDK turns are not new logical Contractor invocations; use the accepted migration contract,
     not 2.8 callback/identity assumptions.
-  implementation_gate: This 2026-11-07 change replans the remaining feature. The common Audit redesign
-    is already implemented; no new approval of proposal 0050 is a prerequisite. Implementation starts
-    only on assignment after the declared dependencies complete.
+  implementation_gate: The user assigned V417-005 on 2026-11-10 and accepted its isolated-only scope.
+    Implementation starts after the declared dependencies complete; V417-003 acceptance remains outstanding.
+    The common Audit redesign is already implemented; no new approval of proposal 0050 is a prerequisite.
   design:
   - docs/spec/audits/worker-completion.md
   - docs/spec/audits/execution.md
@@ -57,21 +62,29 @@ context:
   current_state: 'Still required: ValidateCompactionTarget rejects templates selecting audit-results@2
     and allocations with a completionContract. Completed V64-002/012/010 replaced the old Audit execution
     pipeline with common Tasks, ordinary Runs and JSON results. Audit persistence simplification alone
-    does not remove the Runtime completion gate.'
+    does not remove the Runtime completion gate. The 2026-11-10 scope decision removes shared-session
+    admission from this task; the existing compact@1/shared rejection remains in force.'
+  session_boundary: 'User decision 2026-11-10: repeated checkpoints continue one isolated invocation;
+    retaining conversation between separate invocations is not needed for this outcome. Supporting both
+    modes now would add session-lifetime and cross-invocation authority work without a shipped Audit
+    consumer. Reopen shared compaction only for a concrete caller through deferred V417-004; this task
+    and the deterministic release gate do not depend on it.'
 scope:
   in:
   - Effective context-policy validation for Audit Worker completion and every reachable escalation, replacing
     only the compact-mode restriction from V417-003.
   - Completion priority, collector/receipt preservation, incomplete-check continuation, result publication
-    and real-store/process tests in both supported session modes.
+    and real-store/process tests in isolated sessions.
   out:
   - Changing Audit collection schemas, item identity, evidence predicates, findings proof rules, retry
     engine or result authority.
   - Enabling terminal summarization with Audit completion, making compactor output a finding/evidence
     receipt, or mass-enabling compact mode in shipped Audit profiles.
+  - Shared-session compaction and conversation transfer between invocations (deferred V417-004).
 requirements:
 - id: R1
-  text: 'Audit admission uses the resolved effective context policy: compact@1 is allowed after this task,
+  text: 'Audit admission uses the resolved effective context policy: compact@1 is allowed for isolated
+    sessions after this task; compact@1 with shared sessions remains rejected consistently before dispatch.
     terminal@1 remains prohibited by the completion contract. A template summarizer wholly replaced by
     compact@1 must not cause a false rejection; template@1 selecting that summarizer still fails. Validate
     snapshots and all reachable escalation paths identically.'
@@ -101,9 +114,10 @@ requirements:
     cover accepted publication with lost acknowledgement and continued execution; no new receipt table
     or semantic retry is added.
 - id: R7
-  text: Include both isolated and shared modes supported by V417-004, plus retry/replacement allocation
-    behavior. Keep ordinary Worker completion unchanged and update owning AWC/WRK specs and strict wire/shared
-    fixtures with implementation.
+  text: Cover isolated sessions, a later isolated invocation and retry/replacement allocation behavior.
+    Compacted conversation and archive access never transfer to another invocation or allocation. Preserve
+    rejection of compact@1 with shared sessions in authoring, snapshots and Runtime admission. Keep ordinary
+    Worker completion unchanged and update owning AWC/WRK specs and strict wire/shared fixtures with implementation.
 failure_outcomes:
 - operation: Audit admission and trusted completion/publication around compaction
   permanent: Invalid strategy combinations fail the owning admission validation before dispatch; invalid
@@ -141,10 +155,11 @@ acceptance_criteria:
   then: The complete check skips unnecessary compaction; invented/unsupported evidence does not pass even
     if reasoning included it.
 - id: A3
-  given: Effective compact policy over a summarizer template, terminal policy and every reachable escalation
+  given: Effective isolated compact policy over a summarizer template, terminal policy, a shared compact
+    policy and every reachable escalation
   when: Authoring, snapshot reads and Runtime binding validate
-  then: Compact is admitted consistently; terminal remains rejected; invalid alternate routes cannot bypass
-    completion restrictions.
+  then: Isolated compact is admitted consistently; terminal and shared compact remain rejected; invalid
+    alternate routes cannot bypass completion or session restrictions.
 - id: A4
   given: Real PostgreSQL, a publication acknowledgement loss and cancel/deadline/lease loss, synthetic
     abort/cancel responses and interrupted parallel calls
@@ -153,10 +168,11 @@ acceptance_criteria:
     result is published. Synthetic responses cannot satisfy evidence, mark a tool successful or advance
     completeness.
 - id: A5
-  given: Isolated/shared sessions and a replacement allocation
+  given: Sequential isolated invocations and a replacement allocation
   when: Compaction and current Audit task transitions execute
   then: Exact current task authority and all existing completion semantics remain intact; historical data
-    never completes another task.
+    never completes another task, and a later invocation or replacement allocation cannot read the prior
+    invocation's compacted conversation or archive.
 tests:
 - command: make test-audit-completion-e2e
   covers:

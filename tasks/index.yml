@@ -9,6 +9,12 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
+    User decision 2026-11-10 narrows assigned V417-005 to Audit compaction in
+    isolated sessions. V417-004 is deferred until a concrete production caller
+    requires compacted history between invocations; V417-005 and V417-009 no
+    longer depend on it. The deterministic milestone covers isolated ordinary
+    and Audit Workers and rejects shared compact policies. V417-003 acceptance
+    remains a prerequisite; this scope update claims no implementation or test pass.
     User request 2026-11-07 integrated the verified release baseline and fixture
     repairs (V456-001/V456-002) into main through no-fast-forward merge
     b66620730735f68c4da878ffc12686125d451be7 (V456-003). The single baseline retains its
@@ -336,7 +342,7 @@ milestones:
     outcome: The existing terminal summarizer accepts an explicitly pinned includeReasoning option with bounded redacted input and unchanged terminal behavior, independently of compaction implementation or quality experiments.
   - id: worker-context-compaction-2026-10
     exit_task: V417-009
-    outcome: Workflow-selected compact@1 continues ordinary and Audit Workers in isolated and shared sessions with bounded history recovery, preserved budgets and completion authority, truthful metadata and passing real-process deterministic release evidence.
+    outcome: Workflow-selected compact@1 continues ordinary and Audit Workers in isolated sessions with bounded history recovery, preserved budgets and completion authority, truthful metadata and passing real-process deterministic release evidence. Shared compact policies remain rejected; shared-session compaction is deferred until a concrete production caller and explicit reactivation.
   - id: worker-context-compaction-quality-2026-10
     exit_task: V417-010
     outcome: Frozen repeated experiments compare terminal reasoning, compaction reasoning, configured handoff and experimental masking under equal total budgets, producing measured consumer-specific recommendations without blocking deterministic delivery.

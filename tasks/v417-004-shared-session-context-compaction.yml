@@ -5,7 +5,19 @@ milestone: worker-context-compaction-2026-10
 epic: planner-worker
 kind: feature
 priority: P1
-status: pending
+status: deferred
+deferral:
+  date: '2026-11-10'
+  previous_status: pending
+  reason: >-
+    User decision: ship Audit compaction for isolated sessions without requiring shared-session compaction.
+    The shipped catalog selects shared sessions only in an e2e fixture; no current Audit caller requires
+    retaining compacted conversation between invocations. Preserve this separate scope without making
+    it a prerequisite for V417-005 or V417-009.
+  reactivate_when: >-
+    A concrete production Workflow requires compacted conversation across sequential Worker invocations,
+    and the user explicitly assigns reactivation with its caller and acceptance scenario. Review the
+    preserved requirements against current contracts before implementation.
 depends_on:
 - V417-003
 languages:
@@ -16,7 +28,9 @@ goal: Sequential Worker invocations in one shared allocation reuse the compacted
 context:
   authority: 'User request on 2026-10-25: split proposal 0046 into tasks and make terminal summarizer
     includeReasoning independently deliverable. This record plans work; it does not start implementation
-    or change existing delivery priorities.'
+    or change existing delivery priorities. User decision 2026-11-10: defer shared-session compaction
+    until a concrete consumer requires it; isolated Audit compaction and its release gate proceed
+    independently. The requirements below preserve deferred scope, not active release obligations.'
   proposal: docs/proposals/0046-workflow-context-compaction.md
   specification:
   - docs/spec/execution/worker.md#WRK-R65

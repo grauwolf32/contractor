@@ -8,7 +8,6 @@ priority: P1
 status: pending
 depends_on:
 - V417-003
-- V417-004
 - V417-005
 - V417-006
 - V417-007
@@ -24,7 +23,10 @@ context:
     coordination over ordinary Runs, fixed assertions use common hypotheses, exploratory findings may
     have no hypothesis, deduplication and exact Audit/Run origin remain, hypothesis associations are automatic
     and owner-independent, formal approvals are removed almost completely, and complexity must decrease
-    or stay controlled. The user requested task replanning and diagrams for review before implementation.'
+    or stay controlled. The user requested task replanning and diagrams for review before implementation.
+    User decision 2026-11-10: deliver ordinary/Audit compaction in isolated sessions; defer shared-session
+    compaction until a concrete consumer requires it. Remove V417-004 from this release gate and retain
+    compact@1/shared rejection as a required control.'
   proposal: docs/proposals/0046-workflow-context-compaction.md
   specification:
   - docs/spec/execution/worker.md
@@ -54,14 +56,14 @@ context:
     and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
     and verification history. Recheck affected contracts if main changes before execution.
   current_state: The ordinary isolated Worker process test is already registered in release-verify.
-    Extend that existing coverage for shared/Audit/diagnostic/selection combinations; the remaining
-    gate is not a new Worker engine or a second isolated-only scenario.
+    Extend that existing coverage for isolated Audit/diagnostic/selection combinations and rejected
+    shared compaction; the remaining gate is not a new Worker engine or a second isolated-only scenario.
 scope:
   in:
   - A context-compaction family/process gate, required-case inventory and release-graph integration using
     tests already added by each implementation task plus missing cross-boundary cases.
-  - Cross-task regression matrix for ordinary/Audit, shared/isolated, reasoning true/false, policy overrides,
-    Scheduler behavior, failures and at-ceiling resource use.
+  - Cross-task regression matrix for ordinary/Audit isolated sessions, rejected shared compaction,
+    reasoning true/false, policy overrides, Scheduler behavior, failures and at-ceiling resource use.
   - Reconcile proposal 0046 status and operator/testing documentation with implemented normative contracts;
     retain separate measured-quality follow-up.
   out:
@@ -69,12 +71,14 @@ scope:
     failed required cases or switching configured live models.
   - Live Gateway calls, measured quality/default-selection claims, dependence on V417-008/V417-010 or
     requiring terminal includeReasoning to implement compact@1.
+  - Shared-session compaction admission or cross-invocation compacted history (deferred V417-004).
 acceptance_criteria:
 - id: A1
   given: Integrated real Server/Runtime/PostgreSQL and a deterministic Gateway
   when: make test-worker-compaction-e2e runs
   then: Every required case executes and verifies continuing identities/budgets/results, ordinary/Audit
-    modes, exact configuration and truthful state without a false handoff.
+    isolated modes, rejection of shared compaction, exact configuration and truthful state without a
+    false handoff.
 - id: A2
   given: At-ceiling history and injected failure/cancellation matrix
   when: The family gate and full affected suites run
@@ -129,8 +133,10 @@ requirements:
     under test. Use the exact 2.13 closure accepted by V418-007 and capture multiple internal SDK turns
     under one logical owner; record Runtime revision and lock digest.
 - id: R3
-  text: Cover ordinary isolated/shared, mixed-binding Router policies, common Task/JSON Audit incomplete/complete
-    paths, single-source Workflow/inline-escalation compactor selection and lifecycle replacement. Run/Eval
+  text: Cover ordinary isolated Workers, mixed-binding isolated Router policies, common Task/JSON Audit
+    incomplete/complete isolated paths, single-source Workflow/inline-escalation compactor selection and
+    lifecycle replacement. Shared compact policies remain rejected across authoring, snapshots and Runtime
+    admission, including escalations; shared-session compaction is not a release prerequisite. Run/Eval
     overrides and retired Audit ZIP/manifests are rejected controls, not supported modes. Existing terminal
     summarizer/handoff remains a control without making its independent includeReasoning task a prerequisite.
 - id: R4
@@ -202,5 +208,6 @@ deliverables:
 - path: docs/testing/README.md
   description: Actual deterministic gate prerequisites, scope and retained evidence locations; live evaluation
     remains opt-in.
-dependency_note: No dependency on V417-001, V417-008 or V417-010. Terminal reasoning has its own independent
-  exit, and measured quality has a separate milestone.
+dependency_note: No dependency on V417-001, deferred V417-004, V417-008 or V417-010. Terminal reasoning
+  has its own independent exit, shared compaction waits for a concrete caller and measured quality has
+  a separate milestone. The 2026-11-10 decision narrows the deterministic exit to isolated compaction.
