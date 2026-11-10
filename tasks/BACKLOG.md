@@ -160,8 +160,8 @@ tasks in `introduced_by`.
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 15 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
-| HTTP and Caido tools (`http-tools`) | 5 | 24 | 37 | 15 | 39 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 3 | 21 | 13 | 11 | 27 |
+| HTTP and Caido tools (`http-tools`) | 5 | 24 | 37 | 15 | 38 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 3 | 21 | 13 | 11 | 28 |
 | Findings tools and collections (`findings`) | 0 | 18 | 14 | 11 | 23 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 17 | 16 | 24 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 40 | 20 | 70 |

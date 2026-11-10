@@ -43,5 +43,10 @@
     "report": "/private/tmp/contractor-v417-merge-tucvsa8c/v466-final-lint-3.log"
   },
   "optional_heavy_io_enabled": false,
-  "database": "The single owned disposable database is retained for the ongoing V417-003 process gate; it has not yet been dropped."
+  "database": "The single owned disposable database is retained for the ongoing V417-003 process gate; it has not yet been dropped.",
+  "origin": {
+    "task": "V422-003",
+    "original_mappings_commit": "dac5fe9c6e368e6514e1bbfaac20d073ad765c41",
+    "retained_by_native_integration": "fb127850b6e73fe38deed027be45e33cd84ab62e"
+  }
 }

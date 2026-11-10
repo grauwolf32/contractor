@@ -4,11 +4,12 @@ title: Preserve scanner deadline classification across competing HTTP timers
 milestone: project-sitemap-2026-10
 epic: http-tools
 kind: defect
-introduced_by: V410-030
+introduced_by: V422-003
 priority: P1
 status: completed
 depends_on:
 - V410-030
+- V422-003
 languages:
 - python
 - markdown
@@ -21,12 +22,14 @@ context:
   specification:
   - docs/spec/tools/scanners.md#SCN-R254
   - docs/spec/tools/scanners.md#SCN-R263
-  finding: runtime/src/contractor_runtime/adapters/bridge/proxy.py:108-115 classifies its deadline timeout
-    as scan_request_failed. mitmproxy/ingress.py:248-253 also converts a delegated HTTP timeout bounded
+  finding: runtime/src/contractor_runtime/adapters/bridge/proxy.py:108-115 classified its deadline timeout
+    as scan_request_failed. mitmproxy/ingress.py:248-253 also converted a delegated HTTP timeout bounded
     by the remaining scan deadline to scan_request_failed. Either can settle before the outer ScanSession
-    timer and stop the process first. Full Runtime acceptance fails the real Nuclei owner-termination
-    timeout case with that code instead of scan_timeout; isolation can pass. Both mappings were introduced
-    by V410-030 commit fb127850b6e73fe38deed027be45e33cd84ab62e.
+    timer and stop the process first. Full Runtime acceptance failed the real Nuclei owner-termination
+    timeout case with that code instead of scan_timeout; isolation could pass. Following blame through
+    the native-engine replacement proves both original mappings came from V422-003 commit dac5fe9c6e368e6514e1bbfaac20d073ad765c41.
+    V410-030 commit fb127850b6e73fe38deed027be45e33cd84ab62e retained those classifications during native
+    integration.
   siblings: The common bridge serves controlled Nuclei, SQLMap, Katana and ffuf through ScanSession. Correct
     both the IPC timer and delegated target outcome. Permanent target denial, ordinary connection/IPC
     failures, shorter per-request deadlines, cancellation and fatal bridge/lease exceptions retain their
