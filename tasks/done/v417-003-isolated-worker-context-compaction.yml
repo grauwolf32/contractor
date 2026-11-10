@@ -5,7 +5,7 @@ milestone: worker-context-compaction-2026-10
 epic: planner-worker
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V417-002
 - V466-001
@@ -67,19 +67,37 @@ context:
   - tasks/evidence/v417-003-size-probe-20261110.json
   - tasks/evidence/v417-003-verification-20261110.json
   - tasks/evidence/v466-007-aggregate-budget-20261110.json
-  acceptance_status: '2026-11-10 follow-up: V466-001 through V466-006 are completed. Full Runtime passes
-    6199 tests with 135 declared skips excluded from passing coverage. Focused process commands and lint
-    pass. The full 50-minute process aggregate passed 48 roots then timed out inside session modes; no
-    scenario failed before the package timer. Session modes and summarizer then both passed separately
-    under their original inner deadlines. V466-007 corrects the aggregate budget to 75/80 minutes; the
-    complete make test-e2e rerun is running. This task remains in_progress until that command and every
-    report verifier succeed. Historical failed reports remain preserved.'
+  - tasks/evidence/v417-003-acceptance-20261111.json
+  acceptance_status: 'Accepted 2026-11-11: all A1-A7 and required commands pass. Full Runtime: 6199 passed,
+    135 declared skips excluded. Complete process gate: 50 roots, no failures/skips, all five report verifiers
+    pass. Retained Go/PostgreSQL/wire/API/UI/config results apply to byte-identical owning paths; current
+    lint passes. Owned processes/pools stopped and the database was dropped. Earlier failed reports remain
+    historical evidence.'
   telemetry_policy_clarification: User clarification 2026-11-10 permits Skill/Memory/source content in
     configured external telemetry and prohibits credentials. Completed V466-001 preserves known credential
     and independent retained/public diagnostic guards. Completed V466-002/005 align strict Gateway tool
     oracles; completed V466-003/004 inspect exact Stage checkpoints and preserve valid exact diff prefixes.
     Completed V466-006 preserves scan_timeout when an inner HTTP timer settles at the total scanner deadline.
-    No complete V417 acceptance is claimed while the full process gate is pending.
+    The final complete Runtime and process gates pass; historical failures remain recorded.
+  verification_history:
+    acceptance_status: '2026-11-10 follow-up: V466-001 through V466-006 are completed. Full Runtime passes
+      6199 tests with 135 declared skips excluded from passing coverage. Focused process commands and
+      lint pass. The full 50-minute process aggregate passed 48 roots then timed out inside session modes;
+      no scenario failed before the package timer. Session modes and summarizer then both passed separately
+      under their original inner deadlines. V466-007 corrects the aggregate budget to 75/80 minutes; the
+      complete make test-e2e rerun is running. This task remains in_progress until that command and every
+      report verifier succeed. Historical failed reports remain preserved.'
+    remaining_work:
+    - Complete V466-007 and the full make test-e2e rerun with its corrected aggregate budget before closing
+      this task and starting V417-005. The 48-root timeout and two passing tail controls are evidence,
+      not a successful complete aggregate.
+    - The full Runtime suite, focused real process scenarios and lint pass. Prior Go config/contracts/controlplane,
+      PostgreSQL, wire, API, UI and shipped-config checks remain recorded against unchanged owning implementation.
+    - Representative serialized-input and temporary-copy measurements for R12/R13 remain recorded on the
+      six deterministic production-path fixtures, including the 4096-group ceiling and near-32-MiB history.
+      They are fixture measurements, not live-model quality or universal RSS guarantees.
+    - Accept the current binding-selected compactor policy here. The separately authorized V417-006 migration
+      to executionConfig does not block acceptance of this slice. Shared V417-004 remains last.
 scope:
   in:
   - 'One vertical change: Workflow binding authoring and normalization, exact model/instruction dependencies,
@@ -330,9 +348,8 @@ tests:
   - A6
   - A7
 test_prerequisites:
-- These are future implementation acceptance commands, not verification performed while creating tasks.
-  Implement every explicitly named new gate in its owning task; zero selected or skipped mandatory cases
-  fail.
+- Every named mandatory command must execute successfully; zero selected or skipped mandatory cases fail.
+  Final verification is recorded in context.acceptance_evidence.
 - Use locked Runtime dependencies, testdata catalogs and pseudo-Skills. Unit and integration tests never
   read the live configs tree; make test-config validates the shipped catalog.
 - Persistence and immutable snapshot reads use disposable real PostgreSQL. Set CONTRACTOR_TEST_DATABASE_URL
@@ -393,14 +410,11 @@ decisions:
 - '2026-10-31 (lane cmp-worker): opt-in example taint-trace-from-workspace-compact@1 is a copy of taint-trace-from-workspace@4
   with compact@1 on its analyst and no on.summarized escalation; existing Workflows are unchanged. Specification
   numbers: WFL-R91 to WFL-R95 (V420-002 took WFL-R90), WRK-R184 to WRK-R195, FAIL-WRK-8, LIFE-WRK-6.'
-remaining_work:
-- Complete V466-007 and the full make test-e2e rerun with its corrected aggregate budget before closing
-  this task and starting V417-005. The 48-root timeout and two passing tail controls are evidence, not
-  a successful complete aggregate.
-- The full Runtime suite, focused real process scenarios and lint pass. Prior Go config/contracts/controlplane,
-  PostgreSQL, wire, API, UI and shipped-config checks remain recorded against unchanged owning implementation.
-- Representative serialized-input and temporary-copy measurements for R12/R13 remain recorded on the six
-  deterministic production-path fixtures, including the 4096-group ceiling and near-32-MiB history. They
-  are fixture measurements, not live-model quality or universal RSS guarantees.
-- Accept the current binding-selected compactor policy here. The separately authorized V417-006 migration
-  to executionConfig does not block acceptance of this slice. Shared V417-004 remains last.
+remaining_work: []
+implementation_commit: 00f135ce11cc158820328d5fef1cf33d85715ae0
+verification_results:
+- A1-A7 and all listed commands are accepted in tasks/evidence/v417-003-acceptance-20261111.json.
+- 54 mandatory compaction/ADK cases and the real two-checkpoint Server/Runtime/PostgreSQL case pass. Six
+  size/copy probes include 4096 groups and near-32-MiB history; live-model quality is not claimed.
+- Shared and Audit compact policies remain rejected at this delivery boundary; their later tasks must
+  update owning contracts and tests together.
