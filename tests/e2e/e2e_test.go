@@ -720,6 +720,25 @@ func TestRuntimeWorkRootEmptyAllowsPersistentOwnerLock(t *testing.T) {
 	}
 }
 
+func downloadStageResultArtifact(
+	t *testing.T, client *http.Client, baseURL, runID string, attempt runAttempt, slot string,
+) ([]byte, string) {
+	t.Helper()
+	var result stageresult.StageContentResult
+	if err := json.Unmarshal(attempt.Result, &result); err != nil {
+		t.Fatalf("decode Stage %s result: %v", attempt.Stage, err)
+	}
+	if err := result.Validate(); err != nil || attempt.State != "succeeded" || result.Outcome != stageresult.StageSucceeded {
+		t.Fatalf("Stage %s has no valid successful result: %+v (err=%v)", attempt.Stage, result, err)
+	}
+	ref, ok := result.Artifacts[slot]
+	if !ok || ref.ValidateExact() != nil {
+		t.Fatalf("Stage %s omitted exact artifact %q: %+v", attempt.Stage, slot, result.Artifacts)
+	}
+	return download(t, client, baseURL+"/v1/runs/"+url.PathEscape(runID)+"/artifacts/"+
+		url.PathEscape(ref.Namespace)+"/"+url.PathEscape(ref.Name)+"?revision="+url.QueryEscape(*ref.Revision))
+}
+
 func download(t *testing.T, client *http.Client, target string) ([]byte, string) {
 	t.Helper()
 	request, _ := http.NewRequest(http.MethodGet, target, nil)

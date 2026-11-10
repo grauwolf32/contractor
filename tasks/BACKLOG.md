@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-70 open tasks: 12 in progress, 45 pending, 13 deferred. 1552 finished: 1534 completed, 18 archived.
+70 open tasks: 13 in progress, 44 pending, 13 deferred. 1552 finished: 1534 completed, 18 archived.
 
 ## In progress
 
@@ -23,6 +23,7 @@ the epics are in [epics.yml](epics.yml).
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V466-001](v466-001-telemetry-content-process-expectations.yml) | operations | chore | P1 | Align process telemetry checks with credential-only replacement |
 | [V466-002](v466-002-taint-gateway-selected-tools.yml) | quality | chore | P1 | Align the taint process Gateway with its selected finding tool |
+| [V466-003](v466-003-production-checkpoint-process-fixtures.yml) | quality | chore | P1 | Read internal Stage checkpoints in production Workflow process fixtures |
 
 ## Pending
 
@@ -129,7 +130,6 @@ the epics are in [epics.yml](epics.yml).
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-006, V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
 | [V425-014](v425-014-runtime-tests-fail-on-macos.yml) | chore | P3 | — | Make the Runtime process-liveness assertions able to fail on macOS |
 | [V433-005](v433-005-runtime-resource-bounds-gate.yml) | chore | P3 | — | Verify the Runtime resource-bound fixes and reconcile the review dispositions |
-| [V466-003](v466-003-production-checkpoint-process-fixtures.yml) | chore | P1 | — | Read internal Stage checkpoints in production Workflow process fixtures |
 
 ## Deferred
 

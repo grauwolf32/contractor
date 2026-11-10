@@ -292,7 +292,6 @@ func TestProjectWorkspaceLifecycleAcrossProductionProcesses(t *testing.T) {
 		t, openAPIStatus, project.ProjectID,
 		map[string]string{
 			"openapi": "published", "openapi_validation_report": "published",
-			"workspace_state": "published", "workspace_diff": "published",
 		},
 	)
 	assertProjectRunStatus(
@@ -300,6 +299,7 @@ func TestProjectWorkspaceLifecycleAcrossProductionProcesses(t *testing.T) {
 		[]string{"dependency_discovery", "project_discovery", "openapi_build", "openapi_validate"},
 		[]int64{5, 5, 9, 9},
 	)
+	assertProjectWorkspaceCheckpoints(t, publicClient, publicBaseURL, openAPIStatus)
 	openAPIBytes, openAPIMediaType := download(
 		t, publicClient, publicBaseURL+"/v1/runs/"+url.PathEscape(openAPIRunID)+"/outputs/openapi",
 	)
@@ -325,12 +325,9 @@ func TestProjectWorkspaceLifecycleAcrossProductionProcesses(t *testing.T) {
 			"openapi/workspace_state": "application/vnd.contractor.workspace-overlay+json",
 			"openapi/workspace_diff":  "text/x-diff",
 			"outputs/openapi":         "application/yaml", "outputs/openapi_validation_report": "text/markdown",
-			"outputs/workspace_state": "application/vnd.contractor.workspace-overlay+json",
-			"outputs/workspace_diff":  "text/x-diff",
 		},
 		map[string]string{
 			"openapi": "openapi", "openapi_validation_report": "validation_report",
-			"workspace_state": "workspace_state", "workspace_diff": "workspace_diff",
 		},
 	)
 	waitForRuntimeReleased(
@@ -373,7 +370,6 @@ func TestProjectWorkspaceLifecycleAcrossProductionProcesses(t *testing.T) {
 		t, likeC4Status, project.ProjectID,
 		map[string]string{
 			"likec4": "published", "likec4_validation_report": "published",
-			"workspace_state": "already_present", "workspace_diff": "already_present",
 		},
 	)
 	assertProjectRunStatus(
@@ -381,6 +377,7 @@ func TestProjectWorkspaceLifecycleAcrossProductionProcesses(t *testing.T) {
 		[]string{"dependency_discovery", "project_discovery", "likec4_build", "likec4_validate"},
 		[]int64{5, 5, 11, 9},
 	)
+	assertProjectWorkspaceCheckpoints(t, publicClient, publicBaseURL, likeC4Status)
 	likeC4Bytes, likeC4MediaType := download(
 		t, publicClient, publicBaseURL+"/v1/runs/"+url.PathEscape(likeC4RunID)+"/outputs/likec4",
 	)
@@ -407,12 +404,9 @@ func TestProjectWorkspaceLifecycleAcrossProductionProcesses(t *testing.T) {
 			"likec4/workspace_diff":  "text/x-diff",
 			"skills/likec4":          "application/vnd.contractor.agent-skill+zip",
 			"outputs/likec4":         "text/vnd.likec4", "outputs/likec4_validation_report": "text/markdown",
-			"outputs/workspace_state": "application/vnd.contractor.workspace-overlay+json",
-			"outputs/workspace_diff":  "text/x-diff",
 		},
 		map[string]string{
 			"likec4": "architecture", "likec4_validation_report": "validation_report",
-			"workspace_state": "workspace_state", "workspace_diff": "workspace_diff",
 		},
 	)
 	waitForRuntimeReleased(
@@ -732,6 +726,30 @@ func assertProjectQueueMembership(
 	t.Fatalf("Project Run %s is absent from Project Queue: %+v", runID, page.Items)
 }
 
+func assertProjectWorkspaceCheckpoints(t *testing.T, client *http.Client, baseURL string, status runStatus) {
+	t.Helper()
+	for _, attempt := range status.Attempts {
+		stateBytes, stateMediaType := downloadStageResultArtifact(
+			t, client, baseURL, status.RunID, attempt, "workspace_state",
+		)
+		var state taintWorkspaceState
+		if err := json.Unmarshal(stateBytes, &state); err != nil ||
+			stateMediaType != "application/vnd.contractor.workspace-overlay+json" ||
+			state.APIVersion != "contractor.workspace/v1" || state.Kind != "WorkspaceOverlay" ||
+			!strings.HasPrefix(state.BaseWorkspaceDigest, "sha256:") ||
+			state.BaseWorkspaceDigest != state.ResultWorkspaceDigest || len(state.Operations) != 0 {
+			t.Fatalf("Stage %s changed the source workspace: media=%q state=%s (err=%v)",
+				attempt.Stage, stateMediaType, stateBytes, err)
+		}
+		diff, diffMediaType := downloadStageResultArtifact(
+			t, client, baseURL, status.RunID, attempt, "workspace_diff",
+		)
+		if diffMediaType != "text/x-diff" || len(diff) != 0 {
+			t.Fatalf("Stage %s workspace diff = (%q, %q), want empty diff", attempt.Stage, diff, diffMediaType)
+		}
+	}
+}
+
 func assertRunProjectAndPublications(
 	t *testing.T,
 	status runStatus,
@@ -741,6 +759,9 @@ func assertRunProjectAndPublications(
 	t.Helper()
 	if status.ProjectID == nil || *status.ProjectID != projectID {
 		t.Fatalf("Run Project = %v, want %s", status.ProjectID, projectID)
+	}
+	if len(status.Outputs) != len(want) {
+		t.Fatalf("Run outputs = %+v, want only %v", status.Outputs, want)
 	}
 	if len(status.OutputPublications) != len(want) {
 		t.Fatalf("output publications = %+v, want %v", status.OutputPublications, want)

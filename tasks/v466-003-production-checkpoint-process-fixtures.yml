@@ -6,7 +6,7 @@ epic: quality
 kind: chore
 introduced_by: V465-002
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V465-002
 languages: [go]
@@ -16,8 +16,9 @@ context:
   authority: >-
     V465-002 records the user decision of 2026-11-09 to keep workspace checkpoints in technical Run
     artifacts while removing their promotion to shipped Workflow outputs. This task is an agent-proposed
-    verification prerequisite discovered on 2026-11-10; implementation of this broader fixture migration
-    has not been assigned by the user's narrower telemetry clarification.
+    verification prerequisite discovered on 2026-11-10. User assignment 2026-11-10 approves the reviewed
+    next-step plan: implement this migration, finish V466-001/002 and V417-003 acceptance, then continue
+    isolated Audit compaction. Shared compaction remains the last V417 task.
   specification:
   - docs/spec/configuration/workflows.md#WFL-R69
   - docs/spec/configuration/workflows.md#WFL-R71
@@ -33,12 +34,11 @@ context:
     tests/e2e/git_artifacts_test.go:177-180 against its concrete selected Workflow before changing it.
     Explicit workspace-roundtrip fixtures that intentionally declare checkpoint outputs remain valid;
     frozen Eval catalogs retain their independent contract.
-  decision_needed: >-
-    Assign this separate fixture migration before widening the current telemetry expectation repair.
-    Recommendation: correct all affected shipped-Workflow readers together, reusing ordinary exact
-    Stage result and Artifact reads and preserving state/diff/source assertions. The alternative is to
-    leave broad process acceptance incomplete for now. Do not restore retired Workflow outputs or
-    weaken checkpoint verification merely to pass the gate.
+  decision: >-
+    User approval 2026-11-10 selects the reviewed migration: correct all affected shipped-Workflow
+    readers together, using ordinary exact Stage result and Artifact reads while preserving
+    state/diff/source assertions. Do not restore retired Workflow outputs or weaken checkpoint
+    verification merely to pass the gate.
 scope:
   in:
   - Find production-checkpoint output assumptions and distinguish them from intentional custom outputs.
@@ -70,3 +70,11 @@ test_prerequisites:
 - Use a single owned disposable PostgreSQL database and locked Runtime; exact selected cases must execute.
 - Apply existing platform/optional-engine and heavy-I/O policies. Optional skips are not passing coverage.
 - Run the concrete Git transport control if its assertions change; do not enable real-engine fixtures implicitly.
+verification_results:
+- The untagged e2e package passes. The real Project scenario passes both production Workflows,
+  eight exact Stage checkpoint pairs, publication, lineage and Runtime release assertions.
+- >-
+  The combined process command fails in Taint after exact Stage downloads: V463-001 stripped
+  the context-prefix spaces from five blank lines of its expected unified diff. Actual checkpoint
+  bytes retain those required spaces. A separate fixture task will repair the expectation;
+  this task remains in_progress until the complete declared command passes.

@@ -493,11 +493,8 @@ func assertTaintRun(
 		status.Attempts[0].State != "succeeded" || status.Attempts[0].Attempt != 1 {
 		t.Fatalf("taint terminal Run = %+v", status)
 	}
-	for _, output := range []string{"taint_report", "workspace_state", "workspace_diff"} {
-		ref, ok := status.Outputs[output]
-		if !ok || ref.Revision == nil {
-			t.Fatalf("taint Run omitted exact output %q: %+v", output, status.Outputs)
-		}
+	if len(status.Outputs) != 1 || status.Outputs["taint_report"].Revision == nil {
+		t.Fatalf("taint Run must publish only the exact taint report: %+v", status.Outputs)
 	}
 	report, reportMediaType := download(
 		t, client, baseURL+"/v1/runs/"+url.PathEscape(status.RunID)+"/outputs/taint_report",
@@ -505,14 +502,14 @@ func assertTaintRun(
 	if string(report) != wantReport || reportMediaType != "text/markdown" {
 		t.Fatalf("taint report = (%q, %q)", report, reportMediaType)
 	}
-	stateBytes, stateMediaType := download(
-		t, client, baseURL+"/v1/runs/"+url.PathEscape(status.RunID)+"/outputs/workspace_state",
+	stateBytes, stateMediaType := downloadStageResultArtifact(
+		t, client, baseURL, status.RunID, status.Attempts[0], "workspace_state",
 	)
 	if stateMediaType != "application/vnd.contractor.workspace-overlay+json" {
 		t.Fatalf("taint workspace state media type = %q", stateMediaType)
 	}
-	diff, diffMediaType := download(
-		t, client, baseURL+"/v1/runs/"+url.PathEscape(status.RunID)+"/outputs/workspace_diff",
+	diff, diffMediaType := downloadStageResultArtifact(
+		t, client, baseURL, status.RunID, status.Attempts[0], "workspace_diff",
 	)
 	if diffMediaType != "text/x-diff" || string(diff) != wantDiff {
 		t.Fatalf("taint workspace diff = (%q, %q), want exact %q", diff, diffMediaType, wantDiff)
