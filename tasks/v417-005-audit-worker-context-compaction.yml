@@ -5,7 +5,7 @@ milestone: worker-context-compaction-2026-10
 epic: audits
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V417-003
 - V64-012
@@ -24,10 +24,10 @@ context:
     and owner-independent, formal approvals are removed almost completely, and complexity must decrease
     or stay controlled. The user requested task replanning and diagrams for review before implementation.
     User decision 2026-11-10: implement Audit compaction for isolated sessions only, remove the dependency
-    on V417-004 and leave shared-session compaction deferred until a concrete consumer requires it.
-    Acceptance of V417-003 remains a prerequisite. Later user decision 2026-11-10 returns V417-004 to
-    in_progress but orders its implementation last in the V417 series; this task remains isolated-only
-    and does not regain a dependency on shared-session support.'
+    on V417-004 and leave shared-session compaction deferred until a concrete consumer requires it. Acceptance
+    of V417-003 remains a prerequisite. Later user decision 2026-11-10 returns V417-004 to in_progress
+    but orders its implementation last in the V417 series; this task remains isolated-only and does not
+    regain a dependency on shared-session support.'
   proposal: docs/proposals/0046-workflow-context-compaction.md
   specification:
   - docs/spec/audits/worker-completion.md#AWC-R127
@@ -45,33 +45,39 @@ context:
   adk_migration: V418-007 accepts the exact ADK 2.13.0 lock before V417-002 establishes compaction integration.
     Internal SDK turns are not new logical Contractor invocations; use the accepted migration contract,
     not 2.8 callback/identity assumptions.
-  implementation_gate: The user assigned V417-005 on 2026-11-10 and accepted its isolated-only scope.
-    Implementation starts after the declared dependencies complete; V417-003 acceptance remains outstanding.
-    The common Audit redesign is already implemented; no new approval of proposal 0050 is a prerequisite.
+  implementation_gate: 'User assignment 2026-11-10 authorizes isolated Audit compaction. Dependencies
+    are completed: V417-003 acceptance is recorded in 678f2f77f and V64-012 is completed. Implementation
+    starts 2026-11-11 within the assigned scope; shared compaction remains last.'
   design:
   - docs/spec/audits/worker-completion.md
   - docs/spec/audits/execution.md
   redesign_boundary: Extend the current audit-results@2 collector/completion owner under AWC-R127-R129.
-    Use the trusted common Task context, ordinary JSON conclusions and Server-added Task/Run/Finding
-    provenance. Do not restore retired internal ZIP packages, execution manifests, approval flows or
-    a second collector.
+    Use the trusted common Task context, ordinary JSON conclusions and Server-added Task/Run/Finding provenance.
+    Do not restore retired internal ZIP packages, execution manifests, approval flows or a second collector.
   replanning_authority: 'User request 2026-11-07: reconcile the compaction backlog with merged refactors
     before implementation. This edit updates task scope and acceptance only; it does not start implementation,
     run live experiments or claim task completion.'
   review_baseline: Local main 1142c2681d6520baa8c04bb0a90ca8fd224deb29. Current owning specifications
     and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
     and verification history. Recheck affected contracts if main changes before execution.
-  current_state: 'Still required: ValidateCompactionTarget rejects templates selecting audit-results@2
-    and allocations with a completionContract. Completed V64-002/012/010 replaced the old Audit execution
-    pipeline with common Tasks, ordinary Runs and JSON results. Audit persistence simplification alone
-    does not remove the Runtime completion gate. The 2026-11-10 scope decision removes shared-session
-    admission from this task; the existing compact@1/shared rejection remains in force.'
+  current_state: At implementation start, Go authoring/dispatch and Runtime admission reject Audit compact
+    policies, and Audit template validation rejects even a wholly replaced summarizer. The existing audit-results@2
+    collector and common Task/JSON publication path remain the owning mechanisms.
   session_boundary: 'User decision 2026-11-10: repeated checkpoints continue one isolated invocation;
     retaining conversation between separate invocations is not needed for this outcome. Supporting both
-    modes now would add session-lifetime and cross-invocation authority work without a shipped Audit
-    consumer. The later 2026-11-10 user instruction reactivates V417-004 as the last task in the series;
-    this task and the deterministic release gate do not depend on it. Shared rejection remains the
-    isolated-delivery contract until the later shared implementation updates its affected controls.'
+    modes now would add session-lifetime and cross-invocation authority work without a shipped Audit consumer.
+    The later 2026-11-10 user instruction reactivates V417-004 as the last task in the series; this task
+    and the deterministic release gate do not depend on it. Shared rejection remains the isolated-delivery
+    contract until the later shared implementation updates its affected controls.'
+  boundary_decision: 'Agent implementation decision 2026-11-11: the Audit completion owner exposes a bounded
+    read-only readiness query over its current authoritative collector. At the settled boundary before
+    another main-model call, the Worker checks readiness before context pressure or compaction-cycle limits;
+    a ready check unwinds the Runner and uses the existing completion/publication pipeline. Begin/end
+    remain once per logical invocation across SDK turns. Checking only after a compaction request is a
+    simpler alternative but can miss readiness when eligibility/limits fail first; inspecting summary
+    text or diagnostic counters would give authority to the wrong owner. No new collection, schema, receipt
+    or completion state is introduced. Revisit only if a concrete additional completion strategy needs
+    different readiness semantics.'
 scope:
   in:
   - Effective context-policy validation for Audit Worker completion and every reachable escalation, replacing
