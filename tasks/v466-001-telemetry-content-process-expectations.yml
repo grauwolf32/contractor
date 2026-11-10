@@ -50,6 +50,7 @@ context:
     The existing exporter owns bounded external content and exact execution-scoped credential
     replacement. This task corrects test expectations only; it adds no runtime suppression, discovery,
     parser, secret registry, schema, model call, publication or persistence mechanism.
+  evidence: tasks/evidence/v466-telemetry-process-policy-20261110.json
 scope:
   in:
   - Remove noncredential content markers from the Skill, Memory and taint OTLP prohibition checks.
@@ -93,7 +94,11 @@ verification_results:
 - Agent Skills real process scenario passes after removal of the obsolete Skill-content prohibition.
 - Production Memory real process scenario passes with decoded credential checks and retained-data guards.
 - Runtime content/redaction suite passes 28 tests; the untagged e2e package and make lint pass.
-- The combined process selection remains failed because the taint Gateway omits finding from its
-  explicit expected tools. The pinned workspace_taint_analyst template explicitly selects that tool
-  under completed V460-001. Correct this narrow fixture prerequisite separately, then rerun the
-  declared process selection before marking this task complete.
+- Both full process attempts pass Skills and Memory, including credential, retained-data and cleanup checks.
+- V466-002 corrects the taint finding inventory under the existing V460-001 selection. The repeated
+  process run reaches all 16 mutate calls with no Gateway errors, then stops at a retired workspace_state
+  Workflow-output assertion introduced by the V465-002 contract change. Pending V466-003 owns that
+  separate fixture migration. The taint OTLP and clean-reuse checks remain unproven; this task stays
+  in_progress and the failed combined process command is not relabeled as a pass.
+- The owned PostgreSQL database was dropped after all processes stopped; original primary user files
+  and staged work retain their exact saved hashes and modes.
