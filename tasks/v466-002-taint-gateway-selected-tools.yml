@@ -58,3 +58,10 @@ tests:
   covers: [A1, A2]
 - command: make lint
   covers: [A1, A2]
+verification_results:
+- The regular e2e package and make lint pass after the explicit finding inventory correction.
+- The real taint Gateway now accepts the selected tools and completes all 16 calls of the mutate
+  stage with zero Gateway failures, instead of rejecting the first model request.
+- Full A2 acceptance remains unproven because assertTaintRun stops at the retired workspace_state
+  Workflow output before the clean-reuse stage. Pending V466-003 owns the separate Stage-checkpoint
+  fixture migration under WFL-R69. This task remains in_progress; the process command is not a pass.
