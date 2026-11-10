@@ -12,6 +12,7 @@ depends_on:
 - V466-002
 - V466-005
 - V466-006
+- V466-007
 languages:
 - go
 - python
@@ -65,12 +66,14 @@ context:
   - tasks/evidence/v417-003-acceptance-20261110.md
   - tasks/evidence/v417-003-size-probe-20261110.json
   - tasks/evidence/v417-003-verification-20261110.json
-  acceptance_status: '2026-11-10 follow-up: all six separately tracked prerequisite tasks V466-001 through
-    V466-006 are completed. The full Runtime suite passes 6199 tests with 135 declared skips excluded
-    from passing coverage. The declared Skills/Memory/Taint, Project/Taint and Audit observe/trace process
-    commands, complete e2e helper package and lint pass. The complete make test-e2e process gate is running;
-    V417-003 remains in_progress until that gate completes. Prior failed gate records remain historical
-    evidence.'
+  - tasks/evidence/v466-007-aggregate-budget-20261110.json
+  acceptance_status: '2026-11-10 follow-up: V466-001 through V466-006 are completed. Full Runtime passes
+    6199 tests with 135 declared skips excluded from passing coverage. Focused process commands and lint
+    pass. The full 50-minute process aggregate passed 48 roots then timed out inside session modes; no
+    scenario failed before the package timer. Session modes and summarizer then both passed separately
+    under their original inner deadlines. V466-007 corrects the aggregate budget to 75/80 minutes; the
+    complete make test-e2e rerun is running. This task remains in_progress until that command and every
+    report verifier succeed. Historical failed reports remain preserved.'
   telemetry_policy_clarification: User clarification 2026-11-10 permits Skill/Memory/source content in
     configured external telemetry and prohibits credentials. Completed V466-001 preserves known credential
     and independent retained/public diagnostic guards. Completed V466-002/005 align strict Gateway tool
@@ -391,8 +394,9 @@ decisions:
   with compact@1 on its analyst and no on.summarized escalation; existing Workflows are unchanged. Specification
   numbers: WFL-R91 to WFL-R95 (V420-002 took WFL-R90), WRK-R184 to WRK-R195, FAIL-WRK-8, LIFE-WRK-6.'
 remaining_work:
-- Complete the full make test-e2e process gate on the corrected prerequisite tree before closing this
-  task and starting V417-005.
+- Complete V466-007 and the full make test-e2e rerun with its corrected aggregate budget before closing
+  this task and starting V417-005. The 48-root timeout and two passing tail controls are evidence, not
+  a successful complete aggregate.
 - The full Runtime suite, focused real process scenarios and lint pass. Prior Go config/contracts/controlplane,
   PostgreSQL, wire, API, UI and shipped-config checks remain recorded against unchanged owning implementation.
 - Representative serialized-input and temporary-copy measurements for R12/R13 remain recorded on the six
