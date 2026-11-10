@@ -67,6 +67,14 @@ context:
     process gate recorded Agent Skills OTLP and Audit trace tool-list failures and was interrupted.
     Separate main controls are recorded without claiming the same failures reproduced. Acceptance
     remains incomplete; repair of those broader gate paths needs separate owner tasks and a scope decision.'
+  telemetry_policy_clarification: >-
+    User clarification 2026-11-10: disclosed Skill content is acceptable in external telemetry; only
+    credentials are prohibited. The existing OBS/SKL/MEM contracts already permit bounded content with
+    known credential replacement. V466-001 removes obsolete content-marker prohibitions; Skills and
+    production Memory now pass twice with credential assertions intact. The taint Gateway inventory
+    is aligned in V466-002, but its process fixture still requires retired workspace_state Workflow
+    outputs. Pending V466-003 records that separate migration. Historical failed gate reports remain
+    unchanged; no credential leak or complete V417 acceptance is claimed.
 scope:
   in:
   - 'One vertical change: Workflow binding authoring and normalization, exact model/instruction dependencies,
