@@ -987,7 +987,7 @@ func (c *fakeOTLPCollector) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func assertOTLPPayloadSafe(t *testing.T, payloads [][]byte, secrets ...string) {
+func assertOTLPPayloadSafe(t *testing.T, payloads [][]byte, credentials ...string) {
 	t.Helper()
 	if len(payloads) == 0 {
 		t.Fatal("fake OTLP collector received no protobuf requests")
@@ -996,9 +996,9 @@ func assertOTLPPayloadSafe(t *testing.T, payloads [][]byte, secrets ...string) {
 		if !bytes.Contains(payload, []byte("contractor.runtime.")) {
 			t.Fatal("OTLP protobuf payload has no Contractor safe provenance")
 		}
-		for _, secret := range secrets {
-			if bytes.Contains(payload, []byte(secret)) {
-				t.Fatalf("OTLP protobuf payload exposed secret canary")
+		for _, credential := range credentials {
+			if bytes.Contains(payload, []byte(credential)) {
+				t.Fatal("OTLP protobuf payload exposed a known credential")
 			}
 		}
 	}
@@ -1008,7 +1008,7 @@ func assertOTLPPayloadsContainSafeScope(
 	t *testing.T,
 	payloads [][]byte,
 	scopePrefix string,
-	secrets ...string,
+	credentials ...string,
 ) {
 	t.Helper()
 	found := false
@@ -1016,9 +1016,9 @@ func assertOTLPPayloadsContainSafeScope(
 		if bytes.Contains(payload, []byte(scopePrefix)) {
 			found = true
 		}
-		for _, secret := range secrets {
-			if bytes.Contains(payload, []byte(secret)) {
-				t.Fatal("OTLP protobuf payload exposed secret canary")
+		for _, credential := range credentials {
+			if bytes.Contains(payload, []byte(credential)) {
+				t.Fatal("OTLP protobuf payload exposed a known credential")
 			}
 		}
 	}

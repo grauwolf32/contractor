@@ -1,0 +1,99 @@
+schema_version: '1.0'
+id: V466-001
+title: Align process telemetry checks with credential-only replacement
+milestone: runtime-telemetry-2026-10
+epic: operations
+kind: chore
+introduced_by: V463-001
+priority: P1
+status: in_progress
+depends_on:
+- V463-001
+- V463-002
+languages: [go, markdown]
+goal: Existing process checks permit disclosed Skill, Memory and source content in configured external
+  telemetry while continuing to reject known credential values in delivered OTLP payloads.
+demonstration: Real Server/Runtime/PostgreSQL Skill, Memory and taint scenarios use their configured
+  local collector. Ordinary captured content does not fail credential checks; supplied model/exporter
+  credentials remain absent, and the independent retained-diagnostic checks remain applicable.
+context:
+  authority: >-
+    User decision 2026-11-10: Skill content in telemetry is acceptable; only credentials are prohibited.
+    This clarifies the existing V463-001/V463-002 exporter contract and authorizes updating the stale
+    process expectations found during V417-003 acceptance. It does not authorize changing unrelated
+    nuclei timeout handling or the Audit trace tool-selection fixture.
+  specification:
+  - docs/spec/platform/observability.md#OBS-R53
+  - docs/spec/platform/observability.md#OBS-R54
+  - docs/spec/platform/observability.md#OBS-R55
+  - docs/spec/platform/observability.md#OBS-R57
+  - docs/spec/platform/observability.md#OBS-R58
+  - docs/spec/platform/observability.md#OBS-R62
+  - docs/spec/tools/skills.md#SKL-R113
+  - docs/spec/tools/skills.md#SKL-R114
+  - docs/spec/tools/skills.md#SKL-R115
+  - docs/spec/tools/memory.md#MEM-R80
+  - docs/spec/tools/memory.md#MEM-R82
+  finding: >-
+    tests/e2e/agent_skills_test.go:344-353 treats package-body markers as secrets in OTLP twice;
+    the real process gate fails its first assertion after configured content export. Siblings are
+    tests/e2e/taint_annotations_test.go:368-372 (source bodies and logical source paths) and
+    tests/e2e/shared_memory_test.go:740-768 (all note contents, descriptions and tags after protobuf
+    decoding). V463-001 changed their contract but left these older process expectations intact.
+  siblings: >-
+    Runtime-label and Run-metadata OTLP checks already reject actual credential fixtures only.
+    Existing Runtime content/redaction tests permit ordinary content and replace known credentials.
+    Skill/Memory/taint checks on ordinary logs, public responses, lifecycle events and durable reports
+    have separate owning contracts and remain in force. Compaction's retained-surface checks are
+    independent of configured external telemetry and are not changed.
+  ownership: >-
+    The existing exporter owns bounded external content and exact execution-scoped credential
+    replacement. This task corrects test expectations only; it adds no runtime suppression, discovery,
+    parser, secret registry, schema, model call, publication or persistence mechanism.
+scope:
+  in:
+  - Remove noncredential content markers from the Skill, Memory and taint OTLP prohibition checks.
+  - Keep explicit exporter/model credential assertions and decoded Worker/Planner provenance checks.
+  - Clarify shared assertion names/messages so a content marker is not reported as a credential leak.
+  - Verify affected real-process scenarios and retain exact outcomes without relabeling incomplete gates.
+  out:
+  - Exporter behavior, size/queue bounds, credential resolution, unknown-secret discovery and capture switches.
+  - Changes to ordinary logs, public responses, persistent diagnostics, Skill disclosure or artifact authority.
+  - Nuclei timeout classification, Audit trace tool selection, model selection and deployment.
+acceptance_criteria:
+- id: A1
+  given: A configured external collector and disclosed Skill, Memory or source content
+  when: The affected process assertions inspect OTLP payloads
+  then: Ordinary content markers are permitted; no assertion treats content as a credential solely by name.
+- id: A2
+  given: Configured model/exporter credential fixtures and decoded Worker/Planner traces
+  when: The affected real-process scenarios complete
+  then: Known credential values are absent, authenticated collection and provenance remain checked,
+    and existing durable/public diagnostic checks continue to execute.
+- id: A3
+  given: The existing content/redaction regressions and the e2e package
+  when: The declared checks run
+  then: Actual cases execute with their original budgets and assertions; required failures or skipped
+    cases are not waived as success. Wider unrelated acceptance failures remain recorded separately.
+tests:
+- command: go test -count=1 ./tests/e2e
+  covers: [A1, A2, A3]
+- command: go test -tags=e2e -count=1 -timeout=12m -v ./tests/e2e -run '^(TestAgentSkillsMVPProcesses|TestTaintAnnotationsAcrossRealRuntimeProcess|TestProductionMemoryTemplatesAcrossProcesses)$'
+  covers: [A1, A2, A3]
+- command: cd runtime && uv run pytest -W error tests/test_telemetry_content.py tests/test_telemetry_redaction.py
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A1, A2, A3]
+test_prerequisites:
+- Use the locked ADK 2.13.0 Runtime, pinned Node/Go toolchains and one owned disposable PostgreSQL database.
+- Selected process scenarios must execute; zero matches or skipped required cases fail.
+- Optional heavy-I/O remains disabled unless explicitly requested and is not counted as passing coverage.
+- Join owned processes before dropping the database; preserve user changes in the primary checkout.
+verification_results:
+- Agent Skills real process scenario passes after removal of the obsolete Skill-content prohibition.
+- Production Memory real process scenario passes with decoded credential checks and retained-data guards.
+- Runtime content/redaction suite passes 28 tests; the untagged e2e package and make lint pass.
+- The combined process selection remains failed because the taint Gateway omits finding from its
+  explicit expected tools. The pinned workspace_taint_analyst template explicitly selects that tool
+  under completed V460-001. Correct this narrow fixture prerequisite separately, then rerun the
+  declared process selection before marking this task complete.

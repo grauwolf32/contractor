@@ -259,7 +259,7 @@ WHERE scope_kind = 'run' AND scope_id = $1 AND namespace = 'shared' AND name = $
 	assertMemoryHTTPFailureRedacted(t, publicClient, publicBaseURL, canaries)
 	assertNoMemoryOnlyDatabaseInventory(t, ctx, pool)
 	assertAllNonPayloadDatabaseColumnsRedacted(t, ctx, pool, canaries)
-	assertDecodedMemoryOTLPRedacted(t, collector.payloads(), canaries)
+	assertDecodedMemoryOTLPCredentialsRedacted(t, collector.payloads(), publicToken, llmGatewayToken)
 	if failures := collector.failuresSnapshot(); len(failures) != 0 {
 		t.Fatalf("shared-memory OTLP collector failures: %v", failures)
 	}
@@ -737,10 +737,10 @@ ORDER BY table_name, ordinal_position`)
 	}
 }
 
-func assertDecodedMemoryOTLPRedacted(
+func assertDecodedMemoryOTLPCredentialsRedacted(
 	t *testing.T,
 	payloads [][]byte,
-	canaries []string,
+	credentials ...string,
 ) {
 	t.Helper()
 	if len(payloads) == 0 {
@@ -759,8 +759,12 @@ func assertDecodedMemoryOTLPRedacted(
 		decoded.Write(encoded)
 		decoded.WriteByte('\n')
 	}
-	assertNoMemoryCanaryForms(t, "decoded OTLP", decoded.Bytes(), canaries)
 	projection := decoded.String()
+	for _, credential := range credentials {
+		if strings.Contains(projection, credential) {
+			t.Fatal("decoded Memory OTLP payload exposed a known credential")
+		}
+	}
 	for _, scope := range []string{"contractor.planner.", "contractor.runtime."} {
 		if !strings.Contains(projection, scope) {
 			t.Fatalf("decoded OTLP has no safe %q scope", scope)
