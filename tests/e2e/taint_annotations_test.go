@@ -76,23 +76,20 @@ def duplicate(value):
 	taintCleanSource = `def clean_handler(value):
     return value
 `
+	// Encode blank context prefixes explicitly so formatting cannot strip the diff data.
 	taintExpectedDiff = `--- a/private-taint-path-canary/app.py
 +++ b/private-taint-path-canary/app.py
 @@ -2,13 +2,16 @@
-
- SOURCE_MARKER = "TAINT_SOURCE_CONTENT_CANARY"
-
-+# @trace target=TAINT_TARGET_VALUE_CANARY args=req:tainted calls=validate_input,query_db
+` + " \n" + ` SOURCE_MARKER = "TAINT_SOURCE_CONTENT_CANARY"
+` + " \n" + `+# @trace target=TAINT_TARGET_VALUE_CANARY args=req:tainted calls=validate_input,query_db
  @app.get("/items/{item_id}")
  def handler(req):
      checked = validate_input(req)
      return query_db(checked)
-
-+# @validate arg=value kind=schema
+` + " \n" + `+# @validate arg=value kind=schema
  def validate_input(value):
      return value if value.isdigit() else ""
-
-+# @sink kind=db.query arg=value
+` + " \n" + `+# @sink kind=db.query arg=value
  def query_db(value):
      return database.execute("SELECT value FROM items WHERE id = ?", [value])
 --- a/private-taint-path-canary/duplicates.py
@@ -100,8 +97,7 @@ def duplicate(value):
 @@ -1,5 +1,6 @@
  def duplicate(value):
      return value
-
-+# @trace target=TAINT_TARGET_VALUE_CANARY
+` + " \n" + `+# @trace target=TAINT_TARGET_VALUE_CANARY
  def duplicate(value):
      return value + "!"
 `

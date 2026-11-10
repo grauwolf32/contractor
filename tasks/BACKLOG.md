@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-70 open tasks: 13 in progress, 44 pending, 13 deferred. 1552 finished: 1534 completed, 18 archived.
+71 open tasks: 14 in progress, 44 pending, 13 deferred. 1552 finished: 1534 completed, 18 archived.
 
 ## In progress
 
@@ -24,6 +24,7 @@ the epics are in [epics.yml](epics.yml).
 | [V466-001](v466-001-telemetry-content-process-expectations.yml) | operations | chore | P1 | Align process telemetry checks with credential-only replacement |
 | [V466-002](v466-002-taint-gateway-selected-tools.yml) | quality | chore | P1 | Align the taint process Gateway with its selected finding tool |
 | [V466-003](v466-003-production-checkpoint-process-fixtures.yml) | quality | chore | P1 | Read internal Stage checkpoints in production Workflow process fixtures |
+| [V466-004](v466-004-taint-diff-context-prefix.yml) | quality | chore | P1 | Preserve blank context prefixes in the exact taint diff fixture |
 
 ## Pending
 
@@ -172,7 +173,7 @@ tasks in `introduced_by`.
 | Evaluations (`evals`) | 5 | 22 | 42 | 17 | 50 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
 | Web UI (`ui`) | 1 | 54 | 80 | 31 | 76 |
-| Operations, authentication, CLI and deployment (`operations`) | 1 | 21 | 53 | 12 | 29 |
+| Operations, authentication, CLI and deployment (`operations`) | 1 | 21 | 53 | 12 | 30 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 43 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 50 | 18 |
-| Quality, CI and process (`quality`) | 13 | 1 | 33 | 142 | 30 |
+| Quality, CI and process (`quality`) | 14 | 1 | 33 | 143 | 30 |
