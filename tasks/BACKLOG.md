@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-72 open tasks: 15 in progress, 44 pending, 13 deferred. 1552 finished: 1534 completed, 18 archived.
+73 open tasks: 16 in progress, 44 pending, 13 deferred. 1552 finished: 1534 completed, 18 archived.
 
 ## In progress
 
@@ -26,6 +26,7 @@ the epics are in [epics.yml](epics.yml).
 | [V466-003](v466-003-production-checkpoint-process-fixtures.yml) | quality | chore | P1 | Read internal Stage checkpoints in production Workflow process fixtures |
 | [V466-004](v466-004-taint-diff-context-prefix.yml) | quality | chore | P1 | Preserve blank context prefixes in the exact taint diff fixture |
 | [V466-005](v466-005-audit-trace-gateway-selected-tools.yml) | quality | chore | P1 | Align the Audit trace process Gateway with its selected annotation tools |
+| [V466-006](v466-006-scanner-bridge-deadline-classification.yml) | http-tools | defect | P1 | Preserve scanner deadline classification across competing HTTP timers |
 
 ## Pending
 
@@ -165,7 +166,7 @@ tasks in `introduced_by`.
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 15 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
-| HTTP and Caido tools (`http-tools`) | 5 | 24 | 36 | 15 | 38 |
+| HTTP and Caido tools (`http-tools`) | 6 | 24 | 37 | 15 | 39 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 3 | 21 | 13 | 11 | 27 |
 | Findings tools and collections (`findings`) | 0 | 18 | 14 | 11 | 23 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 17 | 16 | 24 |

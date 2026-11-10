@@ -249,7 +249,11 @@ class Ingress(OwnedHandler, server.LiveConnectionHandler):
             )
             if outcome.kind != "completed" or response is None:
                 self.bridge.error_code = (
-                    "scan_target_denied" if outcome.kind == "denied" else "scan_request_failed"
+                    "scan_target_denied"
+                    if outcome.kind == "denied"
+                    else self.bridge._timeout_error_code()
+                    if outcome.reason == "timeout"
+                    else "scan_request_failed"
                 )
                 flow.kill()
                 return
