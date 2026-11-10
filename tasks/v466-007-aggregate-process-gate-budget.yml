@@ -86,3 +86,8 @@ verification_results:
   excluding command overhead.'
 - All 19 report-runner unit tests, release graph verification and make lint pass. The complete corrected
   aggregate is running; no full pass or task completion is claimed.
+- A clean-database aggregate attempt hit the Nuclei Audit wait deadline after 29 successful roots;
+  35 roots passed before the failed run was stopped. Its immutable report is retained. An independent
+  Nuclei control on a separate database passed all six scenarios in 116.414 seconds without source,
+  deadline or assertion changes. The aggregate timeout cause remains unexplained; a fresh complete
+  command is running on a recreated owned database, without a parallel Server test lane.

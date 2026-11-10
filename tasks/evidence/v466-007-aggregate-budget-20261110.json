@@ -1,7 +1,7 @@
 {
   "date": "2026-11-10",
   "task": "V466-007",
-  "status": "in_progress; complete 75-minute aggregate rerun pending",
+  "status": "in_progress; complete clean aggregate rerun pending after recorded Nuclei timeout",
   "implementation_commit": "cc80e811de404781ab5fa28cdadbf0ff35268934",
   "selection": {
     "matched_roots": 50,
@@ -169,5 +169,68 @@
     "lease_check": "2026-11-10 20:18 UTC: each owned database holds exactly one granted Control Plane advisory lease",
     "aggregate_report": "/private/tmp/contractor-v417-merge-tucvsa8c/v466-007-full-process-isolated.log",
     "terminal_family_report": "/private/tmp/contractor-v417-merge-tucvsa8c/v417-001-family-isolated.log"
+  },
+  "isolated_nuclei_timeout_attempt": {
+    "command": "make test-e2e",
+    "exit_code": 2,
+    "report": "/private/tmp/contractor-v417-merge-tucvsa8c/v466-007-isolated-nuclei-timeout-interrupted.jsonl",
+    "report_sha256": "ea3a6efe74e20982d667550c53ad2bc7abbb4e98dba7acb83a5b4b4668b4ed2b",
+    "passed_roots": {
+      "TestAgentSkillsMVPProcesses": 164.27,
+      "TestArtifactHistoryAcrossProductionProcesses": 32.15,
+      "TestAuditBasicExactHandoffAcrossProductionProcesses": 85.93,
+      "TestAuditProgramCatalogReplacementRestartsServer": 0.64,
+      "TestAuditCommonObservationProfilesAcrossProductionProcesses": 27.63,
+      "TestAuditCommonPrepared256PauseRestartAndCancelAcrossProcesses": 19.64,
+      "TestAuditHypothesisContinuationAcrossProductionProcesses": 166.32,
+      "TestAuditFixedHypothesesAcrossProductionProcesses": 14.28,
+      "TestAuditWorkspaceAcrossProductionProcesses": 34.54,
+      "TestHeterogeneousRuntimeCapabilityPlacement": 42.89,
+      "TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses": 73.43,
+      "TestLocalGoToPythonArtifactCopy": 41.84,
+      "TestEngagementHTTPBoundsAcrossProcesses": 14.21,
+      "TestEngagementHTTPSelectedEvidenceAcrossProcesses": 14.17,
+      "TestEngagementHTTPFindingReusesSelectedEvidenceAcrossProcesses": 14.16,
+      "TestEngagementHTTPLifecycleAcrossProcesses": 128.15,
+      "TestEngagementHTTPRouteMatrixAcrossProcesses": 42.65,
+      "TestEngagementIdentityLifecycleAcrossProcesses": 36.52,
+      "TestEngagementIdentitySessionsAcrossProcesses": 14.19,
+      "TestEngagementOrdinaryRunAcrossProcesses": 14.66,
+      "TestFindingsReaderBoundariesAcrossProcesses": 62.99,
+      "TestFindingLocationsAcrossProcesses": 33.2,
+      "TestFindingsProducerAndReaderAcrossProcesses": 33.29,
+      "TestFindingsCollectionsRetainOrdinaryAndAuditReceipts": 73.29,
+      "TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses": 53.47,
+      "TestGatewayRecoveryCancellationAndPermanentErrorAcrossProcesses": 33.18,
+      "TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses": 72.31,
+      "TestProjectSitemapHTTPCollectionAcrossProductionProcesses": 72.4,
+      "TestWorkflowMaterialSetsAcrossProductionProcesses": 33.3,
+      "TestOpenAPIPreparedWorkServerOperation": 0.94,
+      "TestProductionMemoryTemplatesAcrossProcesses": 102.32,
+      "TestProjectFindingsReaderAcrossProcesses": 33.39,
+      "TestProjectSitemapReportImportsAcrossProductionProcesses": 71.96,
+      "TestProjectSitemapServerOperationsAcrossProductionProcesses": 0.9,
+      "TestProjectSitemapToolsAcrossProductionProcesses": 92.12
+    },
+    "failures": [
+      "TestNucleiWebWithDeterministicScannerAcrossProcesses/installed_rules_and_replayed_audit_admission",
+      "TestNucleiWebWithDeterministicScannerAcrossProcesses/custom_project_rules_pin_inputs_without_installation",
+      "TestNucleiWebWithDeterministicScannerAcrossProcesses/changed_installed_package_has_gaps_without_traffic",
+      "TestNucleiWebWithDeterministicScannerAcrossProcesses/invalid_custom_rules_have_gaps_without_installed_fallback",
+      "TestNucleiWebWithDeterministicScannerAcrossProcesses/lost_scanner_result_retains_unknown_without_rescan",
+      "TestNucleiWebWithDeterministicScannerAcrossProcesses/cancelled_child_is_not_resubmitted",
+      "TestNucleiWebWithDeterministicScannerAcrossProcesses"
+    ],
+    "outcome": "Nuclei installed and custom-rule Audit waits timed out; remaining child failures follow expired shared harness context. Aggregate stopped after failure through report-runner signal; not a pass or package-budget expiry. No production or scenario source changed.",
+    "cleanup": "Report runner printed EPERM while signalling group. Independent PID check found all identified processes gone; PostgreSQL had zero connections in both owned databases."
+  },
+  "nuclei_isolated_control": {
+    "command": "go test -tags=e2e -count=1 -timeout=8m -v ./tests/e2e -run '^TestNucleiWebWithDeterministicScannerAcrossProcesses$'",
+    "exit_code": 0,
+    "seconds": 116.414,
+    "all_six_subtests": "passed",
+    "log": "/private/tmp/contractor-v417-merge-tucvsa8c/v466-007-nuclei-control.log",
+    "isolation": "Separate owned contractor_test_v417_terminal_20261110_01 database; no shared Control Plane lease",
+    "limitation": "Successful isolated control does not explain the aggregate timeout; no timeout or assertion was weakened."
   }
 }
