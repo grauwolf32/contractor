@@ -1029,10 +1029,93 @@ def test_history_page_never_exceeds_byte_and_group_bounds_for_unit_pages() -> No
         )
         for index in range(20)
     )
-    page = _history_page(groups, 1, 0)
+    page = _history_page(groups, 1, 0, last=len(groups))
     assert page_bytes(page) <= MAX_HISTORY_PAGE_BYTES
     assert 1 <= len(page["groups"]) <= MAX_HISTORY_PAGE_GROUPS
     assert page["nextGroup"] == 1 + len(page["groups"])
+
+
+def test_history_reads_do_not_copy_the_full_4096_group_archive() -> None:
+    class CountedGroups(list):
+        visited = 0
+
+        def __iter__(self):
+            for group in super().__iter__():
+                self.visited += 1
+                yield group
+
+        def __getitem__(self, key):
+            self.visited += len(range(*key.indices(len(self)))) if isinstance(key, slice) else 1
+            return super().__getitem__(key)
+
+    async def scenario() -> None:
+        coordinator = new_coordinator()
+        for ordinal in range(1, MAX_RETAINED_HISTORY_GROUPS + 1):
+            await coordinator.observe(model_event(f"t{ordinal}", [types.Part(text="note")]))
+        plan = await coordinator.plan()
+        coordinator.commit(plan, "S1", coordinator.marker(plan, sdk_invocation_id="sdk-1"))
+        index = coordinator._archive
+        assert index is not None
+        counted = CountedGroups(index.groups)
+        index._groups = counted
+        for first in (1, 2000, 4088, 4095):
+            counted.visited = 0
+            page = coordinator.history_page("inv-1", first, 0)
+            assert page["lastCompactedGroup"] == 4095
+            assert [item["group"] for item in page["groups"]] == list(
+                range(first, min(first + MAX_HISTORY_PAGE_GROUPS, 4096))
+            )
+            assert page_bytes(page) <= MAX_HISTORY_PAGE_BYTES
+            assert counted.visited <= MAX_HISTORY_PAGE_GROUPS + 2
+        assert "nextGroup" not in page
+
+    asyncio.run(scenario())
+
+
+def test_large_history_fragments_copy_and_encode_only_a_page() -> None:
+    class CountedText(str):
+        largest_slice = 0
+        largest_encode = 0
+
+        def __getitem__(self, key):
+            if isinstance(key, slice):
+                self.largest_slice = max(self.largest_slice, len(range(*key.indices(len(self)))))
+            return super().__getitem__(key)
+
+        def encode(self, *args, **kwargs):
+            self.largest_encode = max(self.largest_encode, len(self))
+            return super().encode(*args, **kwargs)
+
+    async def scenario() -> None:
+        coordinator = new_coordinator()
+        await coordinator.observe(call_event("large", "c1"))
+        await coordinator.observe(
+            reply_event("large-reply", "c1", value={str(i): "x" * 65536 for i in range(64)})
+        )
+        await add_group(coordinator, 2)
+        plan = await coordinator.plan()
+        coordinator.commit(plan, "S1", coordinator.marker(plan, sdk_invocation_id="sdk-1"))
+        index = coordinator._archive
+        assert index is not None
+        original = index.groups[0]
+        text = CountedText(original.projection)
+        assert len(text) > 4 * 1024 * 1024
+        index._groups[0] = replace(original, projection=text)
+        position = 0
+        for _ in range(3):
+            page = coordinator.history_page("inv-1", 1, position)
+            assert page_bytes(page) <= MAX_HISTORY_PAGE_BYTES
+            assert page["nextGroup"] == 1
+            assert page["nextPosition"] > position
+            assert (
+                page["groups"][0]["fragment"]
+                == original.projection[position : page["nextPosition"]]
+            )
+            assert text.largest_slice <= MAX_HISTORY_PAGE_BYTES
+            assert text.largest_encode <= MAX_HISTORY_PAGE_BYTES
+            position = page["nextPosition"]
+
+    asyncio.run(scenario())
 
 
 def test_recent_tail_over_its_byte_ceiling_fails_without_dropping_groups() -> None:

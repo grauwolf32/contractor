@@ -14,7 +14,7 @@ import contextlib
 import json
 import math
 import uuid
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -179,6 +179,14 @@ class ContextArchive:
 
     def knows(self, event_id: str) -> bool:
         return event_id in self._ids
+
+    def history_page(self, first: int, position: Any, *, last: int) -> Mapping[str, Any]:
+        projection = self._groups[first - 1].projection
+        if type(position) is not int or not 0 <= position < max(1, len(projection)):
+            raise ToolInputError(
+                "position must be a nextPosition of the same group", code="invalid_history_position"
+            )
+        return _history_page(self._groups, first, position, last=last)
 
     async def observe(self, event: Event) -> None:
         if event.author in {"user", MARKER_AUTHOR} or event.content is None:
@@ -518,14 +526,7 @@ class CompactionCoordinator:
             raise ToolInputError(
                 f"group must be a compacted group from 1 to {last}", code="invalid_history_group"
             )
-        groups = archive.groups
-        if type(position) is not int or not 0 <= position < max(
-            1, len(groups[group - 1].projection)
-        ):
-            raise ToolInputError(
-                "position must be a nextPosition of the same group", code="invalid_history_position"
-            )
-        return _history_page(groups[:last], group, position)
+        return archive.history_page(group, position, last=last)
 
 
 def _compactor_document(
@@ -550,20 +551,22 @@ def _json_bytes(value: Any) -> int:
     return len(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
 
 
-def _fitting_prefix(text: str, budget: int) -> str:
+def _fitting_prefix(text: str, budget: int, *, position: int) -> str:
     """Longest prefix whose JSON string encoding fits budget bytes."""
 
-    low, high = 0, min(len(text), budget)
+    low, high = 0, min(len(text) - position, budget)
     while low < high:
         middle = (low + high + 1) // 2
-        if _json_bytes(text[:middle]) <= budget:
+        if _json_bytes(text[position : position + middle]) <= budget:
             low = middle
         else:
             high = middle - 1
-    return text[:low]
+    return text[position : position + low]
 
 
-def _history_page(groups: tuple[_Group, ...], first: int, position: int) -> dict[str, Any]:
+def _history_page(
+    groups: Sequence[_Group], first: int, position: int, *, last: int
+) -> dict[str, Any]:
     """Whole groups while they fit, else one bounded fragment of one group.
 
     Work is proportional to the page: the ordinal index addresses the first
@@ -573,9 +576,11 @@ def _history_page(groups: tuple[_Group, ...], first: int, position: int) -> dict
     items: list[dict[str, Any]] = []
     used = _PAGE_OVERHEAD_BYTES
     ordinal, offset = first, position
-    while ordinal <= len(groups) and len(items) < MAX_HISTORY_PAGE_GROUPS:
+    while ordinal <= last and len(items) < MAX_HISTORY_PAGE_GROUPS:
         projection = groups[ordinal - 1].projection
-        if offset == 0:
+        # A character occupies at least one UTF-8 byte. Avoid encoding an
+        # entire oversized group merely to discover that it cannot fit.
+        if offset == 0 and len(projection) + _GROUP_OVERHEAD_BYTES <= MAX_HISTORY_PAGE_BYTES - used:
             size = len(projection.encode("utf-8")) + _GROUP_OVERHEAD_BYTES
             if used + size <= MAX_HISTORY_PAGE_BYTES:
                 items.append({"group": ordinal, "events": json.loads(projection)})
@@ -585,7 +590,9 @@ def _history_page(groups: tuple[_Group, ...], first: int, position: int) -> dict
         if items:
             break
         chunk = _fitting_prefix(
-            projection[offset:], MAX_HISTORY_PAGE_BYTES - used - _GROUP_OVERHEAD_BYTES
+            projection,
+            MAX_HISTORY_PAGE_BYTES - used - _GROUP_OVERHEAD_BYTES,
+            position=offset,
         )
         if not chunk:
             raise RuntimeError("context history page cannot hold any content")
@@ -599,9 +606,9 @@ def _history_page(groups: tuple[_Group, ...], first: int, position: int) -> dict
     page: dict[str, Any] = {
         "historical": True,
         "groups": items,
-        "lastCompactedGroup": len(groups),
+        "lastCompactedGroup": last,
     }
-    if ordinal <= len(groups):
+    if ordinal <= last:
         page["nextGroup"], page["nextPosition"] = ordinal, offset
     return page
 
