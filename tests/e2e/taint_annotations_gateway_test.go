@@ -23,7 +23,7 @@ var taintAnnotationModelTools = []string{
 	"annotate_sink", "annotate_trace", "annotate_validate",
 	"attack_surface", "changed_paths", "complexity_hotspots", "diff",
 	"entrypoint_paths_to", "find_callees", "find_callers", "find_symbol",
-	"functions_that_raise", "glob", "graph_summary", "grep", "list_skills",
+	"finding", "functions_that_raise", "glob", "graph_summary", "grep", "list_skills",
 	"list_symbols", "load_skill", "load_skill_resource", "ls", "paths_between",
 	"read_file", "read_text_artifact", "rollback_changes", "search_def",
 	"write_text_artifact",
