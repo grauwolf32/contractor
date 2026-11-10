@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-72 open tasks: 15 in progress, 44 pending, 13 deferred. 1553 finished: 1535 completed, 18 archived.
+71 open tasks: 14 in progress, 44 pending, 13 deferred. 1554 finished: 1536 completed, 18 archived.
 
 ## In progress
 
@@ -23,7 +23,6 @@ the epics are in [epics.yml](epics.yml).
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V466-001](v466-001-telemetry-content-process-expectations.yml) | operations | chore | P1 | Align process telemetry checks with credential-only replacement |
 | [V466-002](v466-002-taint-gateway-selected-tools.yml) | quality | chore | P1 | Align the taint process Gateway with its selected finding tool |
-| [V466-003](v466-003-production-checkpoint-process-fixtures.yml) | quality | chore | P1 | Read internal Stage checkpoints in production Workflow process fixtures |
 | [V466-005](v466-005-audit-trace-gateway-selected-tools.yml) | quality | chore | P1 | Align the Audit trace process Gateway with its selected annotation tools |
 | [V466-006](v466-006-scanner-bridge-deadline-classification.yml) | http-tools | defect | P1 | Preserve scanner deadline classification across competing HTTP timers |
 
@@ -177,4 +176,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 21 | 53 | 12 | 30 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 43 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 50 | 18 |
-| Quality, CI and process (`quality`) | 14 | 1 | 33 | 144 | 30 |
+| Quality, CI and process (`quality`) | 13 | 1 | 33 | 144 | 30 |
