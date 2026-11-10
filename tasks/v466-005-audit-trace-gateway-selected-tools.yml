@@ -1,0 +1,47 @@
+schema_version: '1.0'
+id: V466-005
+title: Align the Audit trace process Gateway with its selected annotation tools
+milestone: worker-context-compaction-2026-10
+epic: quality
+kind: chore
+introduced_by: V460-001
+priority: P1
+status: in_progress
+depends_on: [V460-001]
+languages: [go]
+goal: The Audit trace process fixture reaches its trusted result assertions using the exact tools
+  already selected by its pinned production template.
+context:
+  authority: >-
+    User assignment 2026-11-10 approves the reviewed remaining prerequisite fixes before V417-003
+    acceptance and isolated Audit compaction. This is the separately tracked Audit tool oracle repair.
+  specification: docs/spec/findings/findings.md#FND-R230
+  finding: >-
+    tests/e2e/audit_common_observation_process_test.go:16 omits annotate_trace, annotate_validate,
+    annotate_sink, changed_paths, diff and rollback_changes. The tracer template explicitly selects
+    those tools since V460-001 commit ab59080919c0bdddfa2c1f9b3b62d28c3e3d0fb4; the strict
+    scripted Gateway rejects the first request before its Audit completion assertions.
+  siblings: >-
+    The observe subcase selects no annotation or workspace-change tools and retains its own exact
+    inventory. The ordinary taint fixture already lists these six tools; V466-002 corrected its
+    separate finding omission. Other Audit source/scan fixtures select different templates.
+scope:
+  in:
+  - Add the six selected tools to the explicit trace-only oracle, retaining exact tool equality.
+  - Run both observe and trace real Server/Runtime/PostgreSQL subcases and all e2e helper tests.
+  out:
+  - Production templates, Toolsets, Audit completion, model budgets or telemetry behavior.
+  - Deriving the oracle from production code or allowing unexpected tools.
+acceptance_criteria:
+- id: A1
+  text: Both real Audit observe/trace subcases complete with their original exact tool inventories,
+    canonical result, Task origin, no-duplicate preparation and completion assertions.
+- id: A2
+  text: The e2e helper package and lint pass, with no weakened Gateway tool comparison.
+tests:
+- command: go test -count=1 ./tests/e2e
+  covers: [A1, A2]
+- command: go test -tags=e2e -count=1 -timeout=8m -v ./tests/e2e -run '^TestAuditCommonObservationProfilesAcrossProductionProcesses$'
+  covers: [A1, A2]
+- command: make lint
+  covers: [A1, A2]

@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-71 open tasks: 14 in progress, 44 pending, 13 deferred. 1552 finished: 1534 completed, 18 archived.
+72 open tasks: 15 in progress, 44 pending, 13 deferred. 1552 finished: 1534 completed, 18 archived.
 
 ## In progress
 
@@ -25,6 +25,7 @@ the epics are in [epics.yml](epics.yml).
 | [V466-002](v466-002-taint-gateway-selected-tools.yml) | quality | chore | P1 | Align the taint process Gateway with its selected finding tool |
 | [V466-003](v466-003-production-checkpoint-process-fixtures.yml) | quality | chore | P1 | Read internal Stage checkpoints in production Workflow process fixtures |
 | [V466-004](v466-004-taint-diff-context-prefix.yml) | quality | chore | P1 | Preserve blank context prefixes in the exact taint diff fixture |
+| [V466-005](v466-005-audit-trace-gateway-selected-tools.yml) | quality | chore | P1 | Align the Audit trace process Gateway with its selected annotation tools |
 
 ## Pending
 
@@ -166,7 +167,7 @@ tasks in `introduced_by`.
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 5 | 24 | 36 | 15 | 38 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 3 | 21 | 13 | 11 | 27 |
-| Findings tools and collections (`findings`) | 0 | 18 | 14 | 11 | 22 |
+| Findings tools and collections (`findings`) | 0 | 18 | 14 | 11 | 23 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 17 | 16 | 24 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 40 | 20 | 70 |
 | Audits (`audits`) | 10 | 69 | 97 | 42 | 169 |
@@ -176,4 +177,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 21 | 53 | 12 | 30 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 43 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 50 | 18 |
-| Quality, CI and process (`quality`) | 14 | 1 | 33 | 143 | 30 |
+| Quality, CI and process (`quality`) | 15 | 1 | 33 | 144 | 30 |
