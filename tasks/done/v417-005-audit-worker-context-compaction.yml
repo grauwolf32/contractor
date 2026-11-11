@@ -5,7 +5,8 @@ milestone: worker-context-compaction-2026-10
 epic: audits
 kind: feature
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: b670a18da9f006b154ef60bf2def47ad5340fe87
 depends_on:
 - V417-003
 - V64-012
@@ -62,9 +63,13 @@ context:
   review_baseline: Local main 1142c2681d6520baa8c04bb0a90ca8fd224deb29. Current owning specifications
     and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
     and verification history. Recheck affected contracts if main changes before execution.
-  current_state: At implementation start, Go authoring/dispatch and Runtime admission reject Audit compact
-    policies, and Audit template validation rejects even a wholly replaced summarizer. The existing audit-results@2
-    collector and common Task/JSON publication path remain the owning mechanisms.
+  current_state: Implemented and accepted on 2026-11-11. Go authoring/dispatch and Runtime admission allow
+    effective isolated compact policies, including a wholly replaced template summarizer. The existing
+    audit-results@2 collector and common Task/JSON publication path retain completion authority, accepted
+    partial conclusions and receipts across SDK turns. Terminal and shared compact combinations remain rejected.
+  acceptance_status: A1-A5 and every listed command passed on the recorded source and ADK lock. The complete
+    52-root process gate and all five report verifiers passed; the owned database was dropped and the
+    temporary idle-sleep assertion stopped. This branch is not merged into main and claims no live quality result.
   session_boundary: 'User decision 2026-11-10: repeated checkpoints continue one isolated invocation;
     retaining conversation between separate invocations is not needed for this outcome. Supporting both
     modes now would add session-lifetime and cross-invocation authority work without a shipped Audit consumer.
@@ -92,6 +97,7 @@ context:
   - tasks/evidence/v417-005-progress-20261111.json
   - tasks/evidence/v417-005-pre-process-acceptance-20261111.json
   - tasks/evidence/v417-005-host-sleep-20261111.json
+  - tasks/evidence/v417-005-acceptance-20261111.json
 scope:
   in:
   - Effective context-policy validation for Audit Worker completion and every reachable escalation, replacing
@@ -229,9 +235,9 @@ tests:
   - A4
   - A5
 test_prerequisites:
-- These are future implementation acceptance commands, not verification performed while creating tasks.
-  Implement every explicitly named new gate in its owning task; zero selected or skipped mandatory cases
-  fail.
+- Executed acceptance commands and exact source/lock evidence are recorded under context.acceptance_evidence.
+  Every explicitly named mandatory gate must select its required cases; zero selected or skipped mandatory
+  cases fail.
 - Use locked Runtime dependencies, testdata catalogs and pseudo-Skills. Unit and integration tests never
   read the live configs tree; make test-config validates the shipped catalog.
 - Persistence and immutable snapshot reads use disposable real PostgreSQL. Set CONTRACTOR_TEST_DATABASE_URL
@@ -242,9 +248,9 @@ test_prerequisites:
   and lock digest. No separate old-SDK compaction implementation or version-switching production path.
 - Follow the current Linux/platform and disk-heavy test policies (V433-007 and AGENTS.md). Do not enable
   CONTRACTOR_TEST_HEAVY_IO implicitly or count declared optional skips as passing coverage. Record exact
-  revision, executed cases and exclusions; this backlog review ran no feature acceptance suites.
+  revision, executed cases and exclusions.
 verification_results:
-- 'In progress: 14 new real ADK Runtime controls pass, covering two checkpoints, rejected invented membership/evidence,
+- '14 new real ADK Runtime controls pass, covering two checkpoints, rejected invented membership/evidence,
   hard-budget completion priority, reminders, synthetic responses, cancellation/abort/deadline, parallel
   joining and later/replacement isolation.'
 - make test-runtime passes 6219 tests; 135 declared skips are excluded from passing coverage. The complete
@@ -254,9 +260,15 @@ verification_results:
   and read back once; a separate confirmed-lease loss joins compactor work and publishes zero results.'
 - Audit family (199 Go / 451 Runtime cases, no selected skips), full touched Go packages, PostgreSQL,
   wire and UI consumer gates pass. The release guard now includes the two new mandatory process cases;
-  its 56 regression tests and repeated full lint pass. Complete 52-root process acceptance and final
-  owned-database cleanup remain pending.
+  its 56 regression tests and repeated full lint pass.
+- make test-e2e passes all 52 expected roots in 3391.822 seconds, with zero failures or skips and all
+  five report verifiers passing. Both new Audit process controls pass in the complete aggregate.
 - The first complete process attempt passed 34 roots, including both new Audit controls, but material
   sets timed out while macOS entered idle sleep. Its wall/monotonic gap and sanitized power-log events
-  are retained as failed evidence. A clean rerun uses a verified temporary idle-sleep assertion; no code,
-  selection, scenario timeout or retry policy changes. The assertion must be stopped during lane cleanup.
+  are retained as failed evidence. The clean passing rerun used a verified temporary idle-sleep assertion;
+  no code, selection, scenario timeout or retry policy changed.
+- Owned Server/Runtime/e2e processes and database connections reached zero. The disposable database was
+  explicitly dropped and absence verified; the owned caffeinate identity was checked, terminated and
+  its session closed. All six primary user files and the staged index match their original snapshot.
+- Complete make lint passes again after task completion/move, generated backlog and acceptance evidence
+  updates; the final report is linked from the acceptance evidence.

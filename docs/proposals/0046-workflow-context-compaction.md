@@ -1,22 +1,25 @@
 # Compaction контекста Worker с выбором в Workflow
 
 Статус: предложение разбито на задачи V417-001–V417-010, 25 октября 2026 года.
-Реализация и изменение нормативных контрактов не выполнены. Текущее поведение проверено
+Исходный анализ выполнен до реализации и изменения нормативных контрактов
 на `b0ce0a3fe4d222bae903ac5c77100d90e922ee47`, с установленным
 `google-adk==2.8.0`.
 
 План уточнён после анализа ADK 2.13.0: spike V417-002 начинается после
 [V418-007](../../tasks/done/v418-007-adk-213-release-gate.yml), который принимает
 обновление и его Runtime-контракты. Compaction проверяется на этом точном
-lock, а не повторно на исторической 2.8.0. Обновление ADK 2.13.0 выполнено;
-compaction остаётся предложением. V417-001 с terminal `includeReasoning`
-остаётся независимой.
+lock, а не повторно на исторической 2.8.0. Обновление ADK 2.13.0 выполнено.
+V417-001 с terminal `includeReasoning` принята 11 ноября 2026 года независимо
+от compaction.
 
 V417-003 (31 октября 2026 года) реализует `compact@1` для isolated обычных
 Workers; нормативные правила теперь в
 [WFL-R91–WFL-R95](../spec/configuration/workflows.md) и
-[WRK-R184–WRK-R195](../spec/execution/worker.md). Shared sessions (V417-004)
-и Audit completion (V417-005) остаются предложением.
+[WRK-R184–WRK-R195](../spec/execution/worker.md). Приёмка V417-003 завершена
+11 ноября 2026 года. В тот же день принята V417-005: isolated Audit compaction
+сохраняет trusted completion и receipts по
+[AWC-R130](../spec/audits/worker-completion.md#AWC-R130).
+Shared sessions (V417-004) остаются предложением.
 
 Решение пользователя от 10 ноября 2026 года: V417-005 допускает compaction
 только для Audit Workers с `isolated`. Последующее указание в тот же день
@@ -24,8 +27,10 @@ Workers; нормативные правила теперь в
 после V417-009, V417-010 и всех их зависимостей. Этот порядок заменяет
 предыдущее откладывание до конкретного потребителя. Статус задан пользователем;
 реализация shared ждёт зависимостей. V417-005 и deterministic exit V417-009
-от неё не зависят. Приёмка V417-003 остаётся prerequisite.
-Это изменение плана; допуск Audit compaction ещё не реализован.
+от неё не зависят. Завершённая приёмка V417-003 остаётся prerequisite.
+Реализация и приёмка isolated Audit compaction зафиксированы в
+[V417-005 evidence](../../tasks/evidence/v417-005-acceptance-20261111.json);
+это не приёмка всего milestone или доказательство live-качества.
 
 Результат integration spike от 26 октября 2026 года:
 [V417-002 evidence](../../tasks/evidence/v417-002-adk-compaction-spike.md).
@@ -597,9 +602,10 @@ OpenAPI/LikeC4 с отложенными зависимостями и посл�
 
 ## 10. Поставки и критерии приёмки
 
-Задачи созданы в статусе `pending`; реализация не начата. Их зависимости
-задают технический порядок, не меняя текущие приоритеты поставки проекта.
-Нормативные контракты обновляются вместе с реализующим их кодом.
+Текущие статусы и evidence находятся в связанных задачах. На 11 ноября
+2026 года приняты V417-001, V417-002, V417-003 и V417-005; остальные задачи
+ещё не завершены. Зависимости задают технический порядок. Нормативные
+контракты обновляются вместе с реализующим их кодом.
 
 | Задача | Самостоятельный результат | Зависимости |
 | --- | --- | --- |
@@ -607,7 +613,7 @@ OpenAPI/LikeC4 с отложенными зависимостями и посл�
 | [V417-002](../../tasks/done/v417-002-adk-compaction-continuation-spike.yml) | Test-only spike на принятом ADK 2.13: два checkpoint, точные ranges, одна логическая invocation через несколько SDK turns и строгие failure outcomes | V418-007 |
 | [V417-003](../../tasks/done/v417-003-isolated-worker-context-compaction.yml) | Сквозной `compact@1` для обычного isolated Worker: Workflow → snapshot/wire → coordinator, архив и reader, catalog resources, limits и cleanup | V417-002 |
 | [V417-004](../../tasks/v417-004-shared-session-context-compaction.yml) | `in_progress` по указанию пользователя; выполняется последней: shared context между invocations с общими границами allocation, корректными generation и текущей task authority | V417-003, V417-009, V417-010 |
-| [V417-005](../../tasks/v417-005-audit-worker-context-compaction.yml) | Допуск compaction в isolated Audit с сохранением completeness gate, trusted results и receipts | V417-003, V64-012 |
+| [V417-005](../../tasks/done/v417-005-audit-worker-context-compaction.yml) | Допуск compaction в isolated Audit с сохранением completeness gate, trusted results и receipts | V417-003, V64-012 |
 | [V417-006](../../tasks/v417-006-compactor-model-policy-selection.yml) | Reference-only `compactorModelPolicy` через существующие executionConfig selections и exact pins | V417-003 |
 | [V417-007](../../tasks/v417-007-context-compaction-state-and-ui.yml) | Числовые State/metrics, public projections и правдивое отображение в UI | V417-003 |
 | [V417-008](../../tasks/v417-008-context-compaction-eval-harness.yml) | Замороженные Eval fixtures/scorers и opt-in harness; без live-вызовов при реализации harness | V417-001, V417-003 |
@@ -622,13 +628,15 @@ compaction, нового strategy union, ADK spike или live Eval. Отсут�
 
 Первая реализация compaction намеренно сквозная: V417-003 вводит контракт
 вместе с рабочим consumer. Она сразу включает безопасную отмену, обработку
-неоднозначного append, границы памяти и восстановление истории. Shared и
-Audit комбинации строго отклоняются до V417-004 и V417-005 соответственно;
-отдельной поставки принимаемой, но не исполняемой конфигурации нет.
+неоднозначного append, границы памяти и восстановление истории. V417-005
+допускает isolated Audit через существующий completion owner. Shared
+комбинации строго отклоняются до V417-004; отдельной поставки принимаемой,
+но не исполняемой конфигурации нет.
 
-После приёмки V417-003 независимо доступны isolated Audit compaction,
-model-policy selection, метрики/UI и Eval harness (последний также требует
-V417-001). Реактивированная V417-004 выполняется последней, после deterministic
+После приёмки V417-003 технически независимы задачи по model-policy selection,
+метрикам/UI и Eval harness (последний также требует V417-001). Isolated Audit
+compaction принята в V417-005. Реактивированная V417-004 выполняется последней,
+после deterministic
 exit V417-009 и quality-задачи V417-010. Пока shared не реализован, допуск
 `compact@1` с `shared` остаётся запрещённым; этот отрицательный сценарий
 входит в isolated deterministic exit. При последующей реализации shared

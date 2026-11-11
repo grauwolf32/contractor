@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-65 open tasks: 9 in progress, 43 pending, 13 deferred. 1561 finished: 1543 completed, 18 archived.
+64 open tasks: 8 in progress, 43 pending, 13 deferred. 1562 finished: 1544 completed, 18 archived.
 
 ## In progress
 
@@ -17,7 +17,6 @@ the epics are in [epics.yml](epics.yml).
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | quality | chore | P3 | Make the Runtime suite pass on macOS: declare the Linux-only Podman tests, make the other tests portable and file the macOS defects |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V417-004](v417-004-shared-session-context-compaction.yml) | planner-worker | feature | P1 | Preserve compacted context across shared-session invocations |
-| [V417-005](v417-005-audit-worker-context-compaction.yml) | audits | feature | P1 | Admit isolated compaction without bypassing trusted Audit completion |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 
@@ -121,7 +120,7 @@ the epics are in [epics.yml](epics.yml).
 | [V347-001](v347-001-protect-main-branch.yml) | chore | P1 | — | Protect main with a required check |
 | [V410-007](v410-007-sitemap-release-gate.yml) | chore | P1 | V410-006 | Verify the standalone sitemap slice across scale and lifecycle boundaries |
 | [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V64-011, V411-013, V411-014, V411-016, V411-017, V411-018, V410-025 | Gate the composed ordinary HTTP pentest through real processes |
-| [V417-009](v417-009-context-compaction-release-gate.yml) | chore | P1 | V417-005, V417-006, V417-007 | Verify context compaction across real processes and close the deterministic milestone |
+| [V417-009](v417-009-context-compaction-release-gate.yml) | chore | P1 | V417-006, V417-007 | Verify context compaction across real processes and close the deterministic milestone |
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-006, V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
 | [V425-014](v425-014-runtime-tests-fail-on-macos.yml) | chore | P3 | — | Make the Runtime process-liveness assertions able to fail on macOS |
 | [V433-005](v433-005-runtime-resource-bounds-gate.yml) | chore | P3 | — | Verify the Runtime resource-bound fixes and reconcile the review dispositions |
@@ -163,7 +162,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 0 | 18 | 14 | 11 | 23 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 17 | 16 | 24 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 40 | 20 | 70 |
-| Audits (`audits`) | 10 | 69 | 97 | 42 | 169 |
+| Audits (`audits`) | 9 | 69 | 97 | 42 | 169 |
 | Evaluations (`evals`) | 5 | 22 | 42 | 17 | 50 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
 | Web UI (`ui`) | 1 | 54 | 80 | 31 | 76 |
