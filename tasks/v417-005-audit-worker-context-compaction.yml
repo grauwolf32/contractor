@@ -91,6 +91,7 @@ context:
   acceptance_evidence:
   - tasks/evidence/v417-005-progress-20261111.json
   - tasks/evidence/v417-005-pre-process-acceptance-20261111.json
+  - tasks/evidence/v417-005-host-sleep-20261111.json
 scope:
   in:
   - Effective context-policy validation for Audit Worker completion and every reachable escalation, replacing
@@ -255,3 +256,7 @@ verification_results:
   wire and UI consumer gates pass. The release guard now includes the two new mandatory process cases;
   its 56 regression tests and repeated full lint pass. Complete 52-root process acceptance and final
   owned-database cleanup remain pending.
+- The first complete process attempt passed 34 roots, including both new Audit controls, but material
+  sets timed out while macOS entered idle sleep. Its wall/monotonic gap and sanitized power-log events
+  are retained as failed evidence. A clean rerun uses a verified temporary idle-sleep assertion; no code,
+  selection, scenario timeout or retry policy changes. The assertion must be stopped during lane cleanup.
