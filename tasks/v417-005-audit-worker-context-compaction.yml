@@ -34,6 +34,7 @@ context:
   - docs/spec/audits/worker-completion.md#AWC-R127
   - docs/spec/audits/worker-completion.md#AWC-R128
   - docs/spec/audits/worker-completion.md#AWC-R129
+  - docs/spec/audits/worker-completion.md#AWC-R130
   - docs/spec/audits/execution.md
   - docs/spec/execution/worker.md#WRK-R62
   - docs/spec/execution/worker.md#WRK-R63
@@ -89,6 +90,7 @@ context:
     completion. Two initial failing real-Runner tests exposed this integration before correction.
   acceptance_evidence:
   - tasks/evidence/v417-005-progress-20261111.json
+  - tasks/evidence/v417-005-pre-process-acceptance-20261111.json
 scope:
   in:
   - Effective context-policy validation for Audit Worker completion and every reachable escalation, replacing
@@ -249,5 +251,7 @@ verification_results:
 - 'Real Server/Runtime/PostgreSQL controls pass in 24.452 seconds: three-item/two-checkpoint completion,
   exact Task/Run/hypothesis/Finding origins, one retained result version with a committed response lost
   and read back once; a separate confirmed-lease loss joins compactor work and publishes zero results.'
-- Catalog/pinned reads and both escalation rejection controls pass. Required Audit family, full touched
-  Go packages, PostgreSQL, wire, UI consumer, lint and complete process acceptance remain pending.
+- Audit family (199 Go / 451 Runtime cases, no selected skips), full touched Go packages, PostgreSQL,
+  wire and UI consumer gates pass. The release guard now includes the two new mandatory process cases;
+  its 56 regression tests and repeated full lint pass. Complete 52-root process acceptance and final
+  owned-database cleanup remain pending.

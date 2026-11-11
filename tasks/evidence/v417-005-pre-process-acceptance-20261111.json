@@ -1,0 +1,23 @@
+{
+  "task": "V417-005",
+  "date": "2026-11-11",
+  "status": "in_progress; complete process gate and final resource cleanup pending",
+  "code_commit": "b670a18da9f006b154ef60bf2def47ad5340fe87",
+  "commands": {
+    "make test-audit-completion-e2e": {"exit_code": 0, "go_cases": 199, "runtime_cases": 451, "selected_skips": 0, "log": "/private/tmp/contractor-v417-merge-tucvsa8c/v417-005-audit-family.log"},
+    "go test -count=1 ./internal/config/... ./internal/contracts/... ./internal/controlplane/... ./internal/scheduler/...": {"exit_code": 0, "log": "/private/tmp/contractor-v417-merge-tucvsa8c/v417-005-go-packages.log"},
+    "make test-postgres": {"exit_code": 0, "database": "real owned disposable PostgreSQL", "optional_heavy_io_enabled": false, "log": "/private/tmp/contractor-v417-merge-tucvsa8c/v417-005-postgres.log"},
+    "make test-wire-cross-language": {"exit_code": 0, "fixtures": 382, "go_shared_tests": 434, "python_shared_tests": 278, "optional_disk_heavy_skips_not_passing_coverage": 1, "log": "/private/tmp/contractor-v417-merge-tucvsa8c/v417-005-wire.log"},
+    "make ui-verify": {"exit_code": 0, "test_files": 223, "passed": 2515, "declared_expected_fail": 1, "log": "/private/tmp/contractor-v417-merge-tucvsa8c/v417-005-ui-consumer.log"},
+    "make lint": {"exit_code": 0, "log": "/private/tmp/contractor-v417-merge-tucvsa8c/v417-005-lint-final.log"},
+    "python3 -m unittest discover -s scripts -p test_check_release_verify_graph.py": {"exit_code": 0, "cases": 56}
+  },
+  "source_scope": "After the passing Runtime, Audit family, Go, PostgreSQL, wire and UI gates, only the release graph expected set changed. Its direct check, 56 regressions and repeated complete lint pass. Recorded Runtime source hashes still match the full passing suite.",
+  "verification_history": {
+    "initial_lint": {"exit_code": 2, "reason": "Two new Make process roots were missing from the guard's expected set; corrected in the code commit above.", "log": "/private/tmp/contractor-v417-merge-tucvsa8c/v417-005-lint.log"},
+    "evidence_update_review": "An automatic approval review timed out before a local metadata command executed. No policy-based rejection or task blocker was reported; the same authorized evidence was saved through apply_patch."
+  },
+  "pre_process_resource_check": {"active_owned_server_runtime_e2e_processes": 0, "database_connections": 0},
+  "full_process_expected_roots": 52,
+  "shared_compaction": "Still rejected; V417-004 executes last."
+}
