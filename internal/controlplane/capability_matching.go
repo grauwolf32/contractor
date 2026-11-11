@@ -153,7 +153,7 @@ func isBindingCompatible(registration control.AgentRegistration, binding Binding
 }
 
 func isBindingCompatibleWithTools(registration control.AgentRegistration, binding BindingRequirement, tools toolCapabilityIndex) bool {
-	return resolved.ValidateWorkerCompletionSelection(binding.CompletionContract, binding.Namespace, binding.AgentTemplate) == nil &&
+	return resolved.ValidateWorkerCompletionSelection(binding.CompletionContract, binding.Namespace, binding.AgentTemplate, binding.ContextManagement) == nil &&
 		contracts.SupportsWorkerCompletion(registration.Capabilities, binding.CompletionContract) &&
 		tools.supports(registration, binding.AgentTemplate, binding.Workspace)
 }

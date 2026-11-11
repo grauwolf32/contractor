@@ -26,7 +26,7 @@
     {"name": "unknown compactor policy", "path": ["stages", "copy", "agents", "builder", "contextManagement", "modelPolicy"], "value": "missing@1", "valid": false, "catalogOnly": true},
     {"name": "compactor with tool budget", "path": ["stages", "copy", "agents", "builder", "contextManagement", "modelPolicy"], "value": "test-compact-worker@1", "valid": false, "catalogOnly": true},
     {"name": "Worker policy without context window", "path": ["executionConfig", "workers", "modelPolicy"], "value": "test-worker@1", "valid": false, "catalogOnly": true},
-    {"name": "Audit completion Worker", "path": ["stages", "copy", "agents", "builder", "template"], "value": "audit_checker@1", "valid": false, "catalogOnly": true},
+    {"name": "Audit completion Worker", "path": ["stages", "copy", "agents", "builder", "template"], "value": "audit_checker@1", "valid": true, "catalogOnly": true},
     {"name": "summarizer-only override", "path": ["executionConfig", "workers", "summarizerModelPolicy"], "value": "test-summarizer@1", "valid": false, "catalogOnly": true}
   ]
 }

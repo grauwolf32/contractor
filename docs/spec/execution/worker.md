@@ -1524,8 +1524,9 @@ A Workflow binding may select `compact@1`
 continues the same isolated subtask past its context boundary: Runtime
 summarizes the oldest complete history groups into one checkpoint and keeps
 the recent ones. Proposal 0046 records the design and the ADK 2.13 evidence
-it builds on. Shared sessions and Audit completion Workers are outside this
-version.
+it builds on. Isolated Audit Workers retain their trusted completeness and
+publication owner ([AWC-R130](../audits/worker-completion.md#AWC-R130)). Shared
+session compaction remains outside this version.
 
 #### Selection and boundary
 
@@ -1537,11 +1538,13 @@ ModelPolicy and instruction text. Server derives it from the binding and the
 template; the template itself is not rewritten. Go and Runtime validation and
 the allocation schema reject a branch that disagrees with the template
 (`none` with a summarizer, `terminal@1` without one), `compact@1` for a
-`tool@1` template, a `shared` session, an Audit completion contract or an
-`audit-results@2` template, a `summarizerModelPolicy` outside `terminal@1`,
+`tool@1` template, a `shared` session, a `summarizerModelPolicy` outside `terminal@1`,
 and a compacted Worker policy without `contextWindowTokens` or
 `maxOutputTokens`. Runtime never falls back from `compact@1` to terminal
 summarization.
+An Audit completion contract allows `none` or isolated `compact@1`, including
+a compact policy wholly replacing a template summarizer, and rejects
+`terminal@1`. Its collector is separate from ADK history and checkpoints.
 
 **WRK-R185.** The compaction boundary is
 `min(floor(contextWindowTokens * contextWindowRatio), contextWindowTokens -

@@ -23,7 +23,7 @@ func auditBindingRequirements(run runstore.WorkflowRun, workflow executableWorkf
 		if completion.Stage == workflow.stageName {
 			stage := workflow.stage
 			agent, ok := stage.Agents[completion.Agent]
-			if !ok || len(stage.Agents) != 1 || stage.Planner.Selector() != resolved.PassthroughPlanner || resolved.ValidateWorkerCompletionSelection(&completion.Contract, agent.Namespace, agent.Template) != nil {
+			if !ok || len(stage.Agents) != 1 || stage.Planner.Selector() != resolved.PassthroughPlanner || resolved.ValidateWorkerCompletionSelection(&completion.Contract, agent.Namespace, agent.Template, contracts.EffectiveContextManagement(agent.ContextManagement, agent.Template)) != nil {
 				return nil, fmt.Errorf("Audit completion target changed")
 			}
 			outputFound := false
@@ -54,7 +54,7 @@ func auditBindingRequirements(run runstore.WorkflowRun, workflow executableWorkf
 		}
 	}
 	for _, binding := range bindings {
-		if err := resolved.ValidateWorkerCompletionSelection(binding.CompletionContract, binding.Namespace, binding.AgentTemplate); err != nil {
+		if err := resolved.ValidateWorkerCompletionSelection(binding.CompletionContract, binding.Namespace, binding.AgentTemplate, binding.ContextManagement); err != nil {
 			return nil, err
 		}
 	}

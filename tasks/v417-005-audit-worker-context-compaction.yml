@@ -27,7 +27,8 @@ context:
     on V417-004 and leave shared-session compaction deferred until a concrete consumer requires it. Acceptance
     of V417-003 remains a prerequisite. Later user decision 2026-11-10 returns V417-004 to in_progress
     but orders its implementation last in the V417 series; this task remains isolated-only and does not
-    regain a dependency on shared-session support.'
+    regain a dependency on shared-session support. User instruction 2026-11-11: continue the assigned
+    implementation and acceptance.'
   proposal: docs/proposals/0046-workflow-context-compaction.md
   specification:
   - docs/spec/audits/worker-completion.md#AWC-R127
@@ -78,6 +79,16 @@ context:
     text or diagnostic counters would give authority to the wrong owner. No new collection, schema, receipt
     or completion state is introduced. Revisit only if a concrete additional completion strategy needs
     different readiness semantics.'
+  effective_policy_routes: Current reachable escalation variants override execution/model selections;
+    they cannot replace the Worker template, context strategy or session mode. Canonical Stage validation
+    checks each effective variant, including failed/interrupted summarizer-only selections. Catalog, Audit
+    pin and Workflow snapshot tests cover the current routes; no replacement-template mechanism is introduced.
+  sdk_control_boundary: ADK 2.13 emits a generic error event before propagating an owned callback exception.
+    Compact Audit turns wait for the joined Runner exception chain to classify completion/compaction control.
+    Genuine provider errors and exceptions remain failures; names or text in an event cannot request trusted
+    completion. Two initial failing real-Runner tests exposed this integration before correction.
+  acceptance_evidence:
+  - tasks/evidence/v417-005-progress-20261111.json
 scope:
   in:
   - Effective context-policy validation for Audit Worker completion and every reachable escalation, replacing
@@ -229,3 +240,14 @@ test_prerequisites:
 - Follow the current Linux/platform and disk-heavy test policies (V433-007 and AGENTS.md). Do not enable
   CONTRACTOR_TEST_HEAVY_IO implicitly or count declared optional skips as passing coverage. Record exact
   revision, executed cases and exclusions; this backlog review ran no feature acceptance suites.
+verification_results:
+- 'In progress: 14 new real ADK Runtime controls pass, covering two checkpoints, rejected invented membership/evidence,
+  hard-budget completion priority, reminders, synthetic responses, cancellation/abort/deadline, parallel
+  joining and later/replacement isolation.'
+- make test-runtime passes 6219 tests; 135 declared skips are excluded from passing coverage. The complete
+  Runtime report verifier passes.
+- 'Real Server/Runtime/PostgreSQL controls pass in 24.452 seconds: three-item/two-checkpoint completion,
+  exact Task/Run/hypothesis/Finding origins, one retained result version with a committed response lost
+  and read back once; a separate confirmed-lease loss joins compactor work and publishes zero results.'
+- Catalog/pinned reads and both escalation rejection controls pass. Required Audit family, full touched
+  Go packages, PostgreSQL, wire, UI consumer, lint and complete process acceptance remain pending.

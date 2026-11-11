@@ -171,6 +171,11 @@ class PreparedAuditCompletion(PreparedWorkerCompletion):
             if interrupted:
                 raise asyncio.CancelledError
 
+    async def ready_to_finish(self) -> bool:
+        collector = self.current()
+        snapshot = await collector.snapshot()
+        return len(snapshot.items) == len(collector.owner.item_keys)
+
     async def finish(
         self,
         *,

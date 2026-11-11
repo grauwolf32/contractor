@@ -70,6 +70,9 @@ class CollectedCompletion(PreparedWorkerCompletion):
             code="custom_completion_failed", message="Completion failed safely", retryable=True
         )
 
+    async def ready_to_finish(self):
+        return False
+
     async def finish(self, *, request, deadline, check_active):
         check_active()
         assert deadline > asyncio.get_running_loop().time()

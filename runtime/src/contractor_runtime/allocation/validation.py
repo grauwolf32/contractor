@@ -45,7 +45,9 @@ def validate_spec(
     contract = spec.completion_contract
     if contract is not None:
         try:
-            contract.validate_allocation(spec.namespace, spec.agent_template)
+            contract.validate_allocation(
+                spec.namespace, spec.agent_template, spec.context_management
+            )
         except ValueError:
             raise AllocationError(
                 "invalid_worker_completion",

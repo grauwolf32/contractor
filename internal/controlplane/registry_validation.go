@@ -85,9 +85,8 @@ func containsRuntimeAdapters(
 // binding's immutable selection before any candidate is reserved (WRK-R184).
 func validateBindingContextManagement(binding BindingRequirement) error {
 	context := contracts.AllocationContext{
-		Template:           binding.AgentTemplate,
-		SessionMode:        binding.WorkerSessionMode,
-		CompletionContract: binding.CompletionContract,
+		Template:    binding.AgentTemplate,
+		SessionMode: binding.WorkerSessionMode,
 	}
 	if binding.RuntimeSelection != nil {
 		context.WorkerPolicy = binding.RuntimeSelection.ModelPolicy
@@ -123,7 +122,7 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 		if binding.Namespace == "inputs" || binding.Namespace == "outputs" {
 			return "", nil, fmt.Errorf("%w: Agent binding cannot use a Run-reserved namespace", ErrInvalidRequest)
 		}
-		if err := resolved.ValidateWorkerCompletionSelection(binding.CompletionContract, binding.Namespace, binding.AgentTemplate); err != nil {
+		if err := resolved.ValidateWorkerCompletionSelection(binding.CompletionContract, binding.Namespace, binding.AgentTemplate, binding.ContextManagement); err != nil {
 			return "", nil, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
 		}
 		if err := binding.AgentTemplate.Validate(); err != nil {

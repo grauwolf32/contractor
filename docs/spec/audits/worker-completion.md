@@ -230,8 +230,9 @@ binding's canonical logical `result` output.
 `audit-results@2` with both `read_audit_task` and `submit_check_result`, and
 must not select legacy `audit-results@1` at the same time.
 
-**AWC-R12.** Version 1 rejects an optional terminal summarizer on the selected
-Worker and does not combine the strategy with terminal summarization. This
+**AWC-R12.** Audit completion rejects effective terminal summarization. An
+isolated `compact@1` policy may wholly replace the selected template's
+summarizer; selecting that summarizer through `template@1` still fails. This
 restriction does not affect ordinary Worker summarization, whose trigger rules
 apply to the ordinary completion strategy ([worker](../execution/worker.md)).
 
@@ -240,7 +241,7 @@ Rationale: a tool-free summary cannot replace missing check submissions.
 **AWC-R13.** These constraints are validated against every reachable escalation
 variant of the selected stage, including replacement AgentTemplates and result
 mappings. Changing an execution configuration must not remove the gate, select
-`audit-results@1`, add a summarizer or change the pinned task or result
+`audit-results@1`, enable terminal summarization or change the pinned task or result
 ownership.
 
 **AWC-R14.** Server authoring descriptors must register `audit-results@2`
@@ -982,3 +983,25 @@ Audit materials and adds trusted origins and bounded Finding receipt references.
 Normal supporting outputs retain their declared ordinary media types without
 semantic reinterpretation. A missing/invalid result is a truthful technical gap;
 source or persistence ambiguity never causes repeated target activity.
+
+**AWC-R130.** Isolated `compact@1` continues one logical Audit invocation
+through internal SDK turns. The same prepared completion owner and collector
+retain exact Task/hypothesis membership, accepted partial conclusions, evidence
+and Finding associations; their begin/end lifecycle does not repeat at a
+checkpoint. At a settled boundary before another main-model call, Runtime asks
+the completion owner whether all assigned results have been accepted. Readiness
+is a bounded read of the authoritative collector, without sealing, publication
+or spending an incomplete-check reminder. A ready check joins the Runner and
+enters the ordinary completion/publication path before pressure, checkpoint
+eligibility or another call's budget admission. An incomplete check may compact
+and retains the normal completion reminders. Existing deadlines, budgets,
+publication receipts, fences and isolated invocation/allocation cleanup remain
+authoritative; compaction renews none of them and introduces no new durable state.
+
+Summary text, archived responses and synthetic SDK abort/cancel responses are
+history data, never submissions, selected evidence or publication authority.
+ADK's generic error event emitted before a callback exception does not itself
+identify a completion or compaction request: Runtime classifies the actual
+owned exception chain after joining the Runner. Genuine model errors still fail
+the check. Shared compact policies and terminal completion remain rejected in
+authoring, reachable execution variants, pinned reads and Runtime admission.

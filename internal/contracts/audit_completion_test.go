@@ -55,5 +55,5 @@ func allocationCompletionReject(data []byte) error {
 	if err != nil {
 		return err
 	}
-	return resolved.ValidateWorkerCompletionSelection(spec.CompletionContract, spec.Namespace, spec.AgentTemplate)
+	return resolved.ValidateWorkerCompletionSelection(spec.CompletionContract, spec.Namespace, spec.AgentTemplate, spec.ContextManagement)
 }

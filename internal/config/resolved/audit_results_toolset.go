@@ -14,9 +14,10 @@ const (
 
 // ValidateAuditCompletionTemplate checks that an AgentTemplate can complete
 // Audit checks: it selects audit-results@2 once, with both of its tools
-// (AWC-R11), and no terminal summarizer (AWC-R12).
-func ValidateAuditCompletionTemplate(template contracts.ResolvedAgentTemplate) error {
-	if template.Summarizer != nil {
+// (AWC-R11), and no effective terminal summarizer (AWC-R12). compact@1
+// wholly replaces a template summarizer without changing the template.
+func ValidateAuditCompletionTemplate(template contracts.ResolvedAgentTemplate, context contracts.WorkerContextManagement) error {
+	if context.Strategy == contracts.ContextStrategyTerminal || (template.Summarizer != nil && !context.IsCompact()) {
 		return contracts.Invalidf("Audit completion cannot select a terminal summarizer")
 	}
 	found := false
@@ -50,12 +51,13 @@ func ValidateWorkerCompletionSelection(
 	contract *contracts.WorkerCompletionContract,
 	namespace string,
 	template contracts.ResolvedAgentTemplate,
+	context contracts.WorkerContextManagement,
 ) error {
 	if contract != nil {
 		if err := contract.ValidateAllocation(namespace); err != nil {
 			return err
 		}
-		return ValidateAuditCompletionTemplate(template)
+		return ValidateAuditCompletionTemplate(template, context)
 	}
 	for _, toolset := range template.Toolsets {
 		if toolset.Ref.ToolsetID == AuditResultsToolsetID && toolset.Ref.Version == AuditResultsToolsetVersion {

@@ -26,7 +26,7 @@ func (c *RuntimeControlClient) Prepare(
 	if !contracts.SupportsWorkerCompletion(reservation.CompletionCapabilities, reservation.CompletionContract) {
 		return contracts.WorkerHandle{}, fmt.Errorf("%w: Runtime does not support completion contract", ErrInvalidRequest)
 	}
-	if err := resolved.ValidateWorkerCompletionSelection(reservation.CompletionContract, reservation.Grant.Namespace, reservation.AgentTemplate); err != nil {
+	if err := resolved.ValidateWorkerCompletionSelection(reservation.CompletionContract, reservation.Grant.Namespace, reservation.AgentTemplate, reservation.ContextManagement); err != nil {
 		return contracts.WorkerHandle{}, err
 	}
 	resolvedSkills := reservation.ResolvedSkills

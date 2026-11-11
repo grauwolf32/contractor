@@ -6,7 +6,7 @@ import asyncio
 import contextlib
 import time
 import uuid
-from collections.abc import Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -73,6 +73,10 @@ class WorkerCompactionRequested(RuntimeError):
         super().__init__("Worker context compaction requested")
 
 
+class WorkerCompletionRequested(RuntimeError):
+    """The trusted collector is ready at a settled main-model boundary."""
+
+
 class WorkerSummarizationRequested(RuntimeError):
     """Content-free control signal used to unwind the normal ADK Runner."""
 
@@ -120,6 +124,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
         workspace_observation_source: WorkspaceObservationSource | None = None,
         summarizer_enabled: bool = False,
         compaction: CompactionTrigger | None = None,
+        completion_ready: Callable[[], Awaitable[bool]] | None = None,
     ) -> None:
         super().__init__(name="contractor_worker_instrumentation")
         self._state = state
@@ -135,6 +140,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
         self._workspace_observation_source = workspace_observation_source
         self._summarizer_enabled = summarizer_enabled
         self._compaction = compaction
+        self._completion_ready = completion_ready
         self._lock = asyncio.Lock()
         self._prepared: tuple[str, str] | None = None
         self._continuation: tuple[str, str] | None = None
@@ -250,6 +256,10 @@ class WorkerInstrumentationPlugin(BasePlugin):
             self._admit_call()
             if self._pending_tools or self._settling_tools:
                 raise RuntimeError("Worker model call overlapped unfinished tools")
+            if self._completion_ready is not None and await self._completion_ready():
+                # Only the completion owner decides readiness. The Runner is
+                # joined before Runtime enters its ordinary publication path.
+                raise WorkerCompletionRequested()
             budget = self._budget()
             if budget is not None and (
                 budget.should_summarize()

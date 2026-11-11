@@ -1097,5 +1097,809 @@
       },
       "workerSessionMode": "isolated"
     }
+  },
+  {
+    "name": "isolated-compact-audit",
+    "model": "allocation",
+    "valid": true,
+    "value": {
+      "agentTemplate": {
+        "description": "Builds a requested artifact",
+        "instructions": {
+          "digest": "sha256:c67c365638dfc179b134ec47a6ad6f4cf872f9c081393865851df24d22607530",
+          "ref": "instructions/artifact-builder.md",
+          "text": "Use only the selected tools and return a strict result."
+        },
+        "ref": {
+          "digest": "sha256:08c3765cf79a0f027356ab4398438a32ef8786e1dc277b472d42a664b559b9ab",
+          "templateId": "artifact_builder",
+          "version": "1"
+        },
+        "runtime": {
+          "runtimeId": "adk",
+          "version": "1"
+        },
+        "sandboxProfile": {
+          "sandboxProfileId": "local-workdir",
+          "version": "1"
+        },
+        "toolsets": [
+          {
+            "ref": {
+              "toolsetId": "run-artifacts",
+              "version": "1"
+            },
+            "tools": [
+              "read_artifact"
+            ]
+          },
+          {
+            "ref": {
+              "toolsetId": "audit-results",
+              "version": "2"
+            },
+            "tools": [
+              "read_audit_task",
+              "submit_check_result"
+            ]
+          }
+        ]
+      },
+      "allocationId": "allocation-1",
+      "apiVersion": "contractor/v1alpha1",
+      "completionContract": {
+        "kind": "audit-check-results@1",
+        "resultArtifact": {
+          "name": "result",
+          "namespace": "builder"
+        },
+        "context": {
+          "name": "assignment",
+          "namespace": "inputs",
+          "revision": "task-r1"
+        }
+      },
+      "contextManagement": {
+        "strategy": "compact@1",
+        "modelPolicy": {
+          "ref": {
+            "policyId": "compactor",
+            "version": "1",
+            "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          },
+          "model": "compactor-model",
+          "contextWindowTokens": 131072,
+          "maxOutputTokens": 4096,
+          "maxModelCalls": 1,
+          "maxTotalTokens": 140000
+        },
+        "instructions": {
+          "ref": "instructions/compactor.md",
+          "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "text": "Preserve exact task constraints."
+        },
+        "includeReasoning": false,
+        "contextWindowRatio": 0.5,
+        "keepRecentGroups": 1,
+        "maxCompactions": 2
+      },
+      "leaseExpiresAt": "2026-09-07T00:00:00Z",
+      "logicalAgentName": "builder",
+      "modelPolicy": {
+        "maxModelCalls": 8,
+        "maxOutputTokens": 4096,
+        "maxToolCalls": 16,
+        "maxTotalTokens": 32768,
+        "model": "worker-model",
+        "ref": {
+          "digest": "sha256:98aeee4bea132b3320d0f7e75443e9ed4b9aab0f0e12db4cd17b6d067bc25101",
+          "policyId": "worker",
+          "version": "1"
+        },
+        "temperature": 0.1,
+        "contextWindowTokens": 131072
+      },
+      "namespace": "builder",
+      "resolvedRuntimeConfigProvenance": {
+        "agentLabels": [],
+        "default": {
+          "bindingRevision": 1,
+          "config": {
+            "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "name": "contractor-empty",
+            "version": "1"
+          },
+          "label": "default"
+        },
+        "llmGatewayConfig": {
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "gatewayId": "local-litellm",
+          "version": "1"
+        },
+        "runLabels": [],
+        "runtimeAdapters": [],
+        "runtimeCredentialRefs": []
+      },
+      "resolvedSkills": [],
+      "runId": "run-1",
+      "runMetadataLabels": {},
+      "runtimeSettings": {
+        "artifactApiUrl": "https://control.example/private/v1",
+        "llmGatewayToken": "recognizable-a2a-test-token",
+        "llmGatewayUrl": "https://llm.example/v1",
+        "requestTimeoutSeconds": 30
+      },
+      "stageExecutionId": "stage-execution-1",
+      "workerSessionMode": "isolated"
+    }
+  },
+  {
+    "name": "isolated-compact-replaces-template-summarizer",
+    "model": "allocation",
+    "valid": true,
+    "value": {
+      "agentTemplate": {
+        "description": "Builds a requested artifact",
+        "instructions": {
+          "digest": "sha256:c67c365638dfc179b134ec47a6ad6f4cf872f9c081393865851df24d22607530",
+          "ref": "instructions/artifact-builder.md",
+          "text": "Use only the selected tools and return a strict result."
+        },
+        "ref": {
+          "digest": "sha256:08c3765cf79a0f027356ab4398438a32ef8786e1dc277b472d42a664b559b9ab",
+          "templateId": "artifact_builder",
+          "version": "1"
+        },
+        "runtime": {
+          "runtimeId": "adk",
+          "version": "1"
+        },
+        "sandboxProfile": {
+          "sandboxProfileId": "local-workdir",
+          "version": "1"
+        },
+        "toolsets": [
+          {
+            "ref": {
+              "toolsetId": "run-artifacts",
+              "version": "1"
+            },
+            "tools": [
+              "read_artifact"
+            ]
+          },
+          {
+            "ref": {
+              "toolsetId": "audit-results",
+              "version": "2"
+            },
+            "tools": [
+              "read_audit_task",
+              "submit_check_result"
+            ]
+          }
+        ],
+        "summarizer": {
+          "contextWindowRatio": 0.9,
+          "cumulativeBudget": 20000,
+          "includeReasoning": false
+        }
+      },
+      "allocationId": "allocation-1",
+      "apiVersion": "contractor/v1alpha1",
+      "completionContract": {
+        "kind": "audit-check-results@1",
+        "resultArtifact": {
+          "name": "result",
+          "namespace": "builder"
+        },
+        "context": {
+          "name": "assignment",
+          "namespace": "inputs",
+          "revision": "task-r1"
+        }
+      },
+      "contextManagement": {
+        "strategy": "compact@1",
+        "modelPolicy": {
+          "ref": {
+            "policyId": "compactor",
+            "version": "1",
+            "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          },
+          "model": "compactor-model",
+          "contextWindowTokens": 131072,
+          "maxOutputTokens": 4096,
+          "maxModelCalls": 1,
+          "maxTotalTokens": 140000
+        },
+        "instructions": {
+          "ref": "instructions/compactor.md",
+          "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "text": "Preserve exact task constraints."
+        },
+        "includeReasoning": false,
+        "contextWindowRatio": 0.5,
+        "keepRecentGroups": 1,
+        "maxCompactions": 2
+      },
+      "leaseExpiresAt": "2026-09-07T00:00:00Z",
+      "logicalAgentName": "builder",
+      "modelPolicy": {
+        "maxModelCalls": 8,
+        "maxOutputTokens": 4096,
+        "maxToolCalls": 16,
+        "maxTotalTokens": 32768,
+        "model": "worker-model",
+        "ref": {
+          "digest": "sha256:98aeee4bea132b3320d0f7e75443e9ed4b9aab0f0e12db4cd17b6d067bc25101",
+          "policyId": "worker",
+          "version": "1"
+        },
+        "temperature": 0.1,
+        "contextWindowTokens": 131072
+      },
+      "namespace": "builder",
+      "resolvedRuntimeConfigProvenance": {
+        "agentLabels": [],
+        "default": {
+          "bindingRevision": 1,
+          "config": {
+            "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "name": "contractor-empty",
+            "version": "1"
+          },
+          "label": "default"
+        },
+        "llmGatewayConfig": {
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "gatewayId": "local-litellm",
+          "version": "1"
+        },
+        "runLabels": [],
+        "runtimeAdapters": [],
+        "runtimeCredentialRefs": []
+      },
+      "resolvedSkills": [],
+      "runId": "run-1",
+      "runMetadataLabels": {},
+      "runtimeSettings": {
+        "artifactApiUrl": "https://control.example/private/v1",
+        "llmGatewayToken": "recognizable-a2a-test-token",
+        "llmGatewayUrl": "https://llm.example/v1",
+        "requestTimeoutSeconds": 30
+      },
+      "stageExecutionId": "stage-execution-1",
+      "workerSessionMode": "isolated"
+    }
+  },
+  {
+    "name": "shared-compact-audit",
+    "model": "allocation",
+    "valid": false,
+    "value": {
+      "agentTemplate": {
+        "description": "Builds a requested artifact",
+        "instructions": {
+          "digest": "sha256:c67c365638dfc179b134ec47a6ad6f4cf872f9c081393865851df24d22607530",
+          "ref": "instructions/artifact-builder.md",
+          "text": "Use only the selected tools and return a strict result."
+        },
+        "ref": {
+          "digest": "sha256:08c3765cf79a0f027356ab4398438a32ef8786e1dc277b472d42a664b559b9ab",
+          "templateId": "artifact_builder",
+          "version": "1"
+        },
+        "runtime": {
+          "runtimeId": "adk",
+          "version": "1"
+        },
+        "sandboxProfile": {
+          "sandboxProfileId": "local-workdir",
+          "version": "1"
+        },
+        "toolsets": [
+          {
+            "ref": {
+              "toolsetId": "run-artifacts",
+              "version": "1"
+            },
+            "tools": [
+              "read_artifact"
+            ]
+          },
+          {
+            "ref": {
+              "toolsetId": "audit-results",
+              "version": "2"
+            },
+            "tools": [
+              "read_audit_task",
+              "submit_check_result"
+            ]
+          }
+        ]
+      },
+      "allocationId": "allocation-1",
+      "apiVersion": "contractor/v1alpha1",
+      "completionContract": {
+        "kind": "audit-check-results@1",
+        "resultArtifact": {
+          "name": "result",
+          "namespace": "builder"
+        },
+        "context": {
+          "name": "assignment",
+          "namespace": "inputs",
+          "revision": "task-r1"
+        }
+      },
+      "contextManagement": {
+        "strategy": "compact@1",
+        "modelPolicy": {
+          "ref": {
+            "policyId": "compactor",
+            "version": "1",
+            "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          },
+          "model": "compactor-model",
+          "contextWindowTokens": 131072,
+          "maxOutputTokens": 4096,
+          "maxModelCalls": 1,
+          "maxTotalTokens": 140000
+        },
+        "instructions": {
+          "ref": "instructions/compactor.md",
+          "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "text": "Preserve exact task constraints."
+        },
+        "includeReasoning": false,
+        "contextWindowRatio": 0.5,
+        "keepRecentGroups": 1,
+        "maxCompactions": 2
+      },
+      "leaseExpiresAt": "2026-09-07T00:00:00Z",
+      "logicalAgentName": "builder",
+      "modelPolicy": {
+        "maxModelCalls": 8,
+        "maxOutputTokens": 4096,
+        "maxToolCalls": 16,
+        "maxTotalTokens": 32768,
+        "model": "worker-model",
+        "ref": {
+          "digest": "sha256:98aeee4bea132b3320d0f7e75443e9ed4b9aab0f0e12db4cd17b6d067bc25101",
+          "policyId": "worker",
+          "version": "1"
+        },
+        "temperature": 0.1,
+        "contextWindowTokens": 131072
+      },
+      "namespace": "builder",
+      "resolvedRuntimeConfigProvenance": {
+        "agentLabels": [],
+        "default": {
+          "bindingRevision": 1,
+          "config": {
+            "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "name": "contractor-empty",
+            "version": "1"
+          },
+          "label": "default"
+        },
+        "llmGatewayConfig": {
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "gatewayId": "local-litellm",
+          "version": "1"
+        },
+        "runLabels": [],
+        "runtimeAdapters": [],
+        "runtimeCredentialRefs": []
+      },
+      "resolvedSkills": [],
+      "runId": "run-1",
+      "runMetadataLabels": {},
+      "runtimeSettings": {
+        "artifactApiUrl": "https://control.example/private/v1",
+        "llmGatewayToken": "recognizable-a2a-test-token",
+        "llmGatewayUrl": "https://llm.example/v1",
+        "requestTimeoutSeconds": 30
+      },
+      "stageExecutionId": "stage-execution-1",
+      "workerSessionMode": "shared"
+    }
+  },
+  {
+    "name": "shared-compact-replaces-template-summarizer",
+    "model": "allocation",
+    "valid": false,
+    "value": {
+      "agentTemplate": {
+        "description": "Builds a requested artifact",
+        "instructions": {
+          "digest": "sha256:c67c365638dfc179b134ec47a6ad6f4cf872f9c081393865851df24d22607530",
+          "ref": "instructions/artifact-builder.md",
+          "text": "Use only the selected tools and return a strict result."
+        },
+        "ref": {
+          "digest": "sha256:08c3765cf79a0f027356ab4398438a32ef8786e1dc277b472d42a664b559b9ab",
+          "templateId": "artifact_builder",
+          "version": "1"
+        },
+        "runtime": {
+          "runtimeId": "adk",
+          "version": "1"
+        },
+        "sandboxProfile": {
+          "sandboxProfileId": "local-workdir",
+          "version": "1"
+        },
+        "toolsets": [
+          {
+            "ref": {
+              "toolsetId": "run-artifacts",
+              "version": "1"
+            },
+            "tools": [
+              "read_artifact"
+            ]
+          },
+          {
+            "ref": {
+              "toolsetId": "audit-results",
+              "version": "2"
+            },
+            "tools": [
+              "read_audit_task",
+              "submit_check_result"
+            ]
+          }
+        ],
+        "summarizer": {
+          "contextWindowRatio": 0.9,
+          "cumulativeBudget": 20000,
+          "includeReasoning": false
+        }
+      },
+      "allocationId": "allocation-1",
+      "apiVersion": "contractor/v1alpha1",
+      "completionContract": {
+        "kind": "audit-check-results@1",
+        "resultArtifact": {
+          "name": "result",
+          "namespace": "builder"
+        },
+        "context": {
+          "name": "assignment",
+          "namespace": "inputs",
+          "revision": "task-r1"
+        }
+      },
+      "contextManagement": {
+        "strategy": "compact@1",
+        "modelPolicy": {
+          "ref": {
+            "policyId": "compactor",
+            "version": "1",
+            "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          },
+          "model": "compactor-model",
+          "contextWindowTokens": 131072,
+          "maxOutputTokens": 4096,
+          "maxModelCalls": 1,
+          "maxTotalTokens": 140000
+        },
+        "instructions": {
+          "ref": "instructions/compactor.md",
+          "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "text": "Preserve exact task constraints."
+        },
+        "includeReasoning": false,
+        "contextWindowRatio": 0.5,
+        "keepRecentGroups": 1,
+        "maxCompactions": 2
+      },
+      "leaseExpiresAt": "2026-09-07T00:00:00Z",
+      "logicalAgentName": "builder",
+      "modelPolicy": {
+        "maxModelCalls": 8,
+        "maxOutputTokens": 4096,
+        "maxToolCalls": 16,
+        "maxTotalTokens": 32768,
+        "model": "worker-model",
+        "ref": {
+          "digest": "sha256:98aeee4bea132b3320d0f7e75443e9ed4b9aab0f0e12db4cd17b6d067bc25101",
+          "policyId": "worker",
+          "version": "1"
+        },
+        "temperature": 0.1,
+        "contextWindowTokens": 131072
+      },
+      "namespace": "builder",
+      "resolvedRuntimeConfigProvenance": {
+        "agentLabels": [],
+        "default": {
+          "bindingRevision": 1,
+          "config": {
+            "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "name": "contractor-empty",
+            "version": "1"
+          },
+          "label": "default"
+        },
+        "llmGatewayConfig": {
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "gatewayId": "local-litellm",
+          "version": "1"
+        },
+        "runLabels": [],
+        "runtimeAdapters": [],
+        "runtimeCredentialRefs": []
+      },
+      "resolvedSkills": [],
+      "runId": "run-1",
+      "runMetadataLabels": {},
+      "runtimeSettings": {
+        "artifactApiUrl": "https://control.example/private/v1",
+        "llmGatewayToken": "recognizable-a2a-test-token",
+        "llmGatewayUrl": "https://llm.example/v1",
+        "requestTimeoutSeconds": 30
+      },
+      "stageExecutionId": "stage-execution-1",
+      "workerSessionMode": "shared"
+    }
+  },
+  {
+    "name": "untrusted-compact-audit-tools",
+    "model": "allocation",
+    "valid": false,
+    "value": {
+      "agentTemplate": {
+        "description": "Builds a requested artifact",
+        "instructions": {
+          "digest": "sha256:c67c365638dfc179b134ec47a6ad6f4cf872f9c081393865851df24d22607530",
+          "ref": "instructions/artifact-builder.md",
+          "text": "Use only the selected tools and return a strict result."
+        },
+        "ref": {
+          "digest": "sha256:08c3765cf79a0f027356ab4398438a32ef8786e1dc277b472d42a664b559b9ab",
+          "templateId": "artifact_builder",
+          "version": "1"
+        },
+        "runtime": {
+          "runtimeId": "adk",
+          "version": "1"
+        },
+        "sandboxProfile": {
+          "sandboxProfileId": "local-workdir",
+          "version": "1"
+        },
+        "toolsets": [
+          {
+            "ref": {
+              "toolsetId": "run-artifacts",
+              "version": "1"
+            },
+            "tools": [
+              "read_artifact"
+            ]
+          },
+          {
+            "ref": {
+              "toolsetId": "audit-results",
+              "version": "2"
+            },
+            "tools": [
+              "read_audit_task",
+              "submit_check_result"
+            ]
+          }
+        ]
+      },
+      "allocationId": "allocation-1",
+      "apiVersion": "contractor/v1alpha1",
+      "contextManagement": {
+        "strategy": "compact@1",
+        "modelPolicy": {
+          "ref": {
+            "policyId": "compactor",
+            "version": "1",
+            "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          },
+          "model": "compactor-model",
+          "contextWindowTokens": 131072,
+          "maxOutputTokens": 4096,
+          "maxModelCalls": 1,
+          "maxTotalTokens": 140000
+        },
+        "instructions": {
+          "ref": "instructions/compactor.md",
+          "digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "text": "Preserve exact task constraints."
+        },
+        "includeReasoning": false,
+        "contextWindowRatio": 0.5,
+        "keepRecentGroups": 1,
+        "maxCompactions": 2
+      },
+      "leaseExpiresAt": "2026-09-07T00:00:00Z",
+      "logicalAgentName": "builder",
+      "modelPolicy": {
+        "maxModelCalls": 8,
+        "maxOutputTokens": 4096,
+        "maxToolCalls": 16,
+        "maxTotalTokens": 32768,
+        "model": "worker-model",
+        "ref": {
+          "digest": "sha256:98aeee4bea132b3320d0f7e75443e9ed4b9aab0f0e12db4cd17b6d067bc25101",
+          "policyId": "worker",
+          "version": "1"
+        },
+        "temperature": 0.1,
+        "contextWindowTokens": 131072
+      },
+      "namespace": "builder",
+      "resolvedRuntimeConfigProvenance": {
+        "agentLabels": [],
+        "default": {
+          "bindingRevision": 1,
+          "config": {
+            "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "name": "contractor-empty",
+            "version": "1"
+          },
+          "label": "default"
+        },
+        "llmGatewayConfig": {
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "gatewayId": "local-litellm",
+          "version": "1"
+        },
+        "runLabels": [],
+        "runtimeAdapters": [],
+        "runtimeCredentialRefs": []
+      },
+      "resolvedSkills": [],
+      "runId": "run-1",
+      "runMetadataLabels": {},
+      "runtimeSettings": {
+        "artifactApiUrl": "https://control.example/private/v1",
+        "llmGatewayToken": "recognizable-a2a-test-token",
+        "llmGatewayUrl": "https://llm.example/v1",
+        "requestTimeoutSeconds": 30
+      },
+      "stageExecutionId": "stage-execution-1",
+      "workerSessionMode": "isolated"
+    }
+  },
+  {
+    "name": "terminal-audit-after-compact",
+    "model": "allocation",
+    "valid": false,
+    "value": {
+      "agentTemplate": {
+        "description": "Builds a requested artifact",
+        "instructions": {
+          "digest": "sha256:c67c365638dfc179b134ec47a6ad6f4cf872f9c081393865851df24d22607530",
+          "ref": "instructions/artifact-builder.md",
+          "text": "Use only the selected tools and return a strict result."
+        },
+        "ref": {
+          "digest": "sha256:08c3765cf79a0f027356ab4398438a32ef8786e1dc277b472d42a664b559b9ab",
+          "templateId": "artifact_builder",
+          "version": "1"
+        },
+        "runtime": {
+          "runtimeId": "adk",
+          "version": "1"
+        },
+        "sandboxProfile": {
+          "sandboxProfileId": "local-workdir",
+          "version": "1"
+        },
+        "toolsets": [
+          {
+            "ref": {
+              "toolsetId": "run-artifacts",
+              "version": "1"
+            },
+            "tools": [
+              "read_artifact"
+            ]
+          },
+          {
+            "ref": {
+              "toolsetId": "audit-results",
+              "version": "2"
+            },
+            "tools": [
+              "read_audit_task",
+              "submit_check_result"
+            ]
+          }
+        ],
+        "summarizer": {
+          "contextWindowRatio": 0.9,
+          "cumulativeBudget": 20000,
+          "includeReasoning": false
+        }
+      },
+      "allocationId": "allocation-1",
+      "apiVersion": "contractor/v1alpha1",
+      "completionContract": {
+        "kind": "audit-check-results@1",
+        "resultArtifact": {
+          "name": "result",
+          "namespace": "builder"
+        },
+        "context": {
+          "name": "assignment",
+          "namespace": "inputs",
+          "revision": "task-r1"
+        }
+      },
+      "contextManagement": {
+        "strategy": "terminal@1"
+      },
+      "leaseExpiresAt": "2026-09-07T00:00:00Z",
+      "logicalAgentName": "builder",
+      "modelPolicy": {
+        "maxModelCalls": 8,
+        "maxOutputTokens": 4096,
+        "maxToolCalls": 16,
+        "maxTotalTokens": 32768,
+        "model": "worker-model",
+        "ref": {
+          "digest": "sha256:98aeee4bea132b3320d0f7e75443e9ed4b9aab0f0e12db4cd17b6d067bc25101",
+          "policyId": "worker",
+          "version": "1"
+        },
+        "temperature": 0.1,
+        "contextWindowTokens": 131072
+      },
+      "namespace": "builder",
+      "resolvedRuntimeConfigProvenance": {
+        "agentLabels": [],
+        "default": {
+          "bindingRevision": 1,
+          "config": {
+            "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "name": "contractor-empty",
+            "version": "1"
+          },
+          "label": "default"
+        },
+        "llmGatewayConfig": {
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "gatewayId": "local-litellm",
+          "version": "1"
+        },
+        "runLabels": [],
+        "runtimeAdapters": [],
+        "runtimeCredentialRefs": []
+      },
+      "resolvedSkills": [],
+      "runId": "run-1",
+      "runMetadataLabels": {},
+      "runtimeSettings": {
+        "artifactApiUrl": "https://control.example/private/v1",
+        "llmGatewayToken": "recognizable-a2a-test-token",
+        "llmGatewayUrl": "https://llm.example/v1",
+        "requestTimeoutSeconds": 30
+      },
+      "stageExecutionId": "stage-execution-1",
+      "workerSessionMode": "isolated",
+      "summarizerModelPolicy": {
+        "contextWindowTokens": 131072,
+        "maxModelCalls": 1,
+        "maxOutputTokens": 2048,
+        "model": "worker-summarizer-model",
+        "ref": {
+          "digest": "sha256:55788bce43cad4ff515823b933910cd347a66efdb42641db7b7f09f1eb855970",
+          "policyId": "terminal_summarizer",
+          "version": "1"
+        },
+        "temperature": 0.1
+      }
+    }
   }
 ]
