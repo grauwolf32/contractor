@@ -166,7 +166,7 @@ def test_gateway_error_with_submission_never_dispatches_tools_or_publishes(
                             "content": None,
                             "tool_calls": [
                                 {
-                                "id": f"call-{reply_count}-{index}",
+                                    "id": f"call-{reply_count}-{index}",
                                     "type": "function",
                                     "function": {"name": name, "arguments": json.dumps(args)},
                                 }
