@@ -102,6 +102,46 @@ def assert_structured_payload(payload):
     assert schema["additionalProperties"] is False
 
 
+@pytest.mark.parametrize("summary", [False, True], ids=["ordinary", "terminal"])
+def test_gateway_error_with_tool_call_stops_ordinary_worker_before_side_effects(tmp_path, summary):
+    effects, payloads = [], []
+
+    async def gateway(request):
+        payloads.append(json.loads(request.content))
+        response = tool_reply()
+        response["choices"][0]["finish_reason"] = "content_filter"
+        return httpx.Response(200, json=response)
+
+    async def probe(required_text: str, optional_note: str | None) -> dict:
+        """Record an effect only when the model response is admitted."""
+        effects.append((required_text, optional_note))
+        return {"ok": True}
+
+    async def scenario():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(gateway)) as http:
+            state = WorkerState()
+            runtime = await create_runtime(
+                tmp_path,
+                state,
+                {"probe": probe},
+                gateway_model(http),
+                summary_model=gateway_model(http, summary=True) if summary else None,
+                cumulative_budget=18 if summary else None,
+            )
+            try:
+                outcome = await runtime.invoke(stage_request())
+                assert outcome.result is None and outcome.failure.code == "worker_execution_failed"
+                assert effects == [] and len(payloads) == 1
+                report = state.metrics.build_report(report_id="error-tools", duration_ms=1)
+                assert report.metrics.total_tokens == 18
+                assert state.metrics.counters["llm_errors"] == 1
+                assert report.metrics.worker_budget.observed_tool_calls == 0
+            finally:
+                await runtime.finalize(datetime.now(UTC) + timedelta(seconds=10))
+
+    asyncio.run(scenario())
+
+
 @pytest.mark.parametrize("summary", [False, True], ids=["finalizer", "summarizer"])
 @pytest.mark.parametrize(("capture", "sensitive"), [(False, False), (True, False), (True, True)])
 def test_real_gateway_roles_preserve_schemas_reasoning_and_serialized_capture_policy(

@@ -1002,6 +1002,10 @@ Summary text, archived responses and synthetic SDK abort/cancel responses are
 history data, never submissions, selected evidence or publication authority.
 ADK's generic error event emitted before a callback exception does not itself
 identify a completion or compaction request: Runtime classifies the actual
-owned exception chain after joining the Runner. Genuine model errors still fail
-the check. Shared compact policies and terminal completion remain rejected in
+owned exception chain after joining the Runner. Genuine model-response errors
+are rejected in the after-model callback before ADK dispatches any tool from
+that response. Their usage remains charged, and they fail the check before
+completion readiness or compaction control can authorize further work; an error
+and a tool call in the same response never submit results or publish output.
+Shared compact policies and terminal completion remain rejected in
 authoring, reachable execution variants, pinned reads and Runtime admission.

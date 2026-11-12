@@ -51,7 +51,7 @@ from contractor_runtime.llm.openai import (
     GatewayModelError,
     OpenAICompatibleGatewayLlm,
 )
-from contractor_runtime.llm.response import output_limit_reached
+from contractor_runtime.llm.response import model_response_failed, output_limit_reached
 from contractor_runtime.projectfs import (
     WorkspaceAutoExporter,
     WorkspaceExportError,
@@ -78,6 +78,7 @@ from contractor_runtime.worker.instrumentation import (
     WorkerCompactionRequested,
     WorkerCompletionRequested,
     WorkerInstrumentationPlugin,
+    WorkerModelResponseError,
     WorkerSummarizationRequested,
     span_error_type,
 )
@@ -619,12 +620,13 @@ class AdkWorkerRuntime:
                                         "Worker model response reached its output token limit",
                                         True,
                                     ), False
-                                if completion is not None and getattr(
-                                    event, "error_code", None
-                                ) not in (None, "MODEL_RETURNED_NO_CONTENT"):
+                                if completion is not None and model_response_failed(event):
                                     if self._compaction is not None:
                                         # ADK 2.13 emits a generic error event
                                         # before propagating callback exceptions.
+                                        # Actual error responses have already
+                                        # been rejected before tool dispatch by
+                                        # the after-model callback.
                                         # Classify the actual exception chain after
                                         # the Runner joins; event text is not a
                                         # trusted completion/compaction signal.
@@ -649,6 +651,12 @@ class AdkWorkerRuntime:
                             return _failure(
                                 "worker_output_limit_exceeded",
                                 "Worker model response reached its output token limit",
+                                True,
+                            ), False
+                        if _chained_error(error, WorkerModelResponseError) is not None:
+                            return _failure(
+                                "worker_execution_failed",
+                                "Worker model returned an error",
                                 True,
                             ), False
                         if _chained_error(error, WorkerSummarizationRequested) is not None:

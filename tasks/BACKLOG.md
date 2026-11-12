@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-64 open tasks: 8 in progress, 43 pending, 13 deferred. 1562 finished: 1544 completed, 18 archived.
+65 open tasks: 9 in progress, 43 pending, 13 deferred. 1562 finished: 1544 completed, 18 archived.
 
 ## In progress
 
@@ -19,6 +19,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-004](v417-004-shared-session-context-compaction.yml) | planner-worker | feature | P1 | Preserve compacted context across shared-session invocations |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V466-008](v466-008-reject-model-error-tool-dispatch.yml) | audits | defect | P1 | Reject erroneous model responses before Worker tool dispatch |
 
 ## Pending
 
@@ -162,7 +163,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 0 | 18 | 14 | 11 | 23 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 17 | 16 | 24 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 40 | 20 | 70 |
-| Audits (`audits`) | 9 | 69 | 97 | 42 | 169 |
+| Audits (`audits`) | 10 | 69 | 98 | 42 | 170 |
 | Evaluations (`evals`) | 5 | 22 | 42 | 17 | 50 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
 | Web UI (`ui`) | 1 | 54 | 80 | 31 | 76 |

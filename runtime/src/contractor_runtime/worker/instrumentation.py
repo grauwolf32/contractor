@@ -18,7 +18,7 @@ from contractor_runtime.adapters.genai import usage_attributes
 from contractor_runtime.adapters.instrumentation import end_isolated_span, start_isolated_span
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.tool_errors import ToolExecutionError, ToolResultDiagnostic
-from contractor_runtime.llm.response import output_limit_reached
+from contractor_runtime.llm.response import model_response_failed, output_limit_reached
 from contractor_runtime.observations import WorkspaceToolObservation
 from contractor_runtime.telemetry.invocations import InvocationMetricsReducer
 from contractor_runtime.telemetry.metrics import (
@@ -75,6 +75,13 @@ class WorkerCompactionRequested(RuntimeError):
 
 class WorkerCompletionRequested(RuntimeError):
     """The trusted collector is ready at a settled main-model boundary."""
+
+
+class WorkerModelResponseError(RuntimeError):
+    """A genuine error response must stop before ADK dispatches its tools."""
+
+    def __init__(self) -> None:
+        super().__init__("Worker model returned an error")
 
 
 class WorkerSummarizationRequested(RuntimeError):
@@ -319,19 +326,31 @@ class WorkerInstrumentationPlugin(BasePlugin):
             self._require_reducer().record_model_usage(usage)
             attributes = usage_attributes(usage)
             limited = output_limit_reached(llm_response)
+            failure = WorkerModelResponseError() if model_response_failed(llm_response) else None
             self._model_output_limited = self._model_output_limited or limited
             if limited:
                 attributes["error.type"] = "OutputTokenLimitExceeded"
+            elif failure is not None:
+                attributes["error.type"] = type(failure).__name__
+                self._metrics.record_model_error(failure)
+                self._require_reducer().record_model_error()
             end_isolated_span(
-                span, outcome="failed" if limited else "succeeded", attributes=attributes
+                span,
+                outcome="failed" if limited or failure is not None else "succeeded",
+                attributes=attributes,
             )
             try:
                 budget = self._budget()
                 if budget is not None:
                     budget.after_model_response(usage)
-                    if self._compaction is not None:
+                    if self._compaction is not None and failure is None:
                         # Stops before this response's tools are dispatched.
                         self._compaction.after_main_response(budget.latest_prompt_tokens)
+                if failure is not None:
+                    # This callback sees actual model responses, unlike ADK's
+                    # generic error events for exceptions from owned callbacks.
+                    # Unwind before ADK can execute any call in this response.
+                    raise failure
             finally:
                 await self._publish_locked(callback_context)
 

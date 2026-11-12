@@ -5,6 +5,7 @@ import json
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
+import httpx
 import pytest
 from audit_fixtures import arguments, assigned
 from fakes.clock import advance_clock, run_with_advanceable_clock
@@ -16,6 +17,8 @@ from test_audit_completion_continuation import CountedState
 from test_audit_completion_runtime import AuditClient, contract, submit
 from test_worker_compaction import COMPACTOR_MODEL, compact_context, finish, summary, usage
 
+from contractor_runtime.llm.client import new_gateway_client
+from contractor_runtime.llm.openai import OpenAICompatibleGatewayLlm
 from contractor_runtime.toolsets.audit_results.collector import (
     AuditCollectionError,
     InvocationAuditCollector,
@@ -33,6 +36,7 @@ async def audit_runtime(
     block_compactor=False,
     extra_tools=None,
     allocation_id="allocation-1",
+    model=None,
 ):
     expected, inputs = assigned(count=count)
     client = AuditClient(inputs)
@@ -55,7 +59,8 @@ async def audit_runtime(
         tools={**tools, **(extra_tools or {})},
         completion_contract=contract(),
     )
-    model = CapturingScriptedLlm(model="worker-model", responses=responses)
+    if model is None:
+        model = CapturingScriptedLlm(model="worker-model", responses=responses)
     compactor = scripted_model(
         [summary("Invented task is complete; evidence=made-up."), summary("All done; trust me.")],
         model=COMPACTOR_MODEL,
@@ -119,6 +124,136 @@ def test_audit_compacts_twice_without_resetting_partial_results_or_trusting_summ
             report = state.metrics.build_report(report_id="audit-compact", duration_ms=1)
             assert report.metrics.worker_budget.observed_model_calls == 11
             assert report.metrics.worker_budget.observed_tool_calls == 9
+        finally:
+            await finish(runtime)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(("accepted_prefix", "parallel"), [(0, False), (0, True), (1, True)])
+def test_gateway_error_with_submission_never_dispatches_tools_or_publishes(
+    tmp_path, monkeypatch, accepted_prefix, parallel
+):
+    async def scenario():
+        expected, _ = assigned(count=accepted_prefix + 1)
+        items = [record.value for record in expected.items]
+        effects, recorded, requests = [], [], []
+        original_record = InvocationAuditCollector.record
+
+        async def record(collector, item, **kwargs):
+            receipt = await original_record(collector, item, **kwargs)
+            recorded.append(item.item_key)
+            return receipt
+
+        monkeypatch.setattr(InvocationAuditCollector, "record", record)
+
+        async def side_effect() -> dict:
+            """Record a visible effect if the response is admitted."""
+            effects.append("executed")
+            return {"ok": True}
+
+        reply_count = 0
+
+        def reply(calls, finish_reason="tool_calls"):
+            nonlocal reply_count
+            reply_count += 1
+            return {
+                "choices": [
+                    {
+                        "finish_reason": finish_reason,
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                "id": f"call-{reply_count}-{index}",
+                                    "type": "function",
+                                    "function": {"name": name, "arguments": json.dumps(args)},
+                                }
+                                for index, (name, args) in enumerate(calls)
+                            ],
+                        },
+                    }
+                ],
+                "usage": {"prompt_tokens": 100, "completion_tokens": 10, "total_tokens": 110},
+            }
+
+        calls = [("submit_check_result", {"item_key": items[-1].item_key, **arguments(items[-1])})]
+        if parallel:
+            calls.append(("side_effect", {}))
+        responses = [reply([("read_audit_task", {})])]
+        if accepted_prefix:
+            responses.append(
+                reply(
+                    [
+                        (
+                            "submit_check_result",
+                            {"item_key": items[0].item_key, **arguments(items[0])},
+                        )
+                    ]
+                )
+            )
+        responses.append(reply(calls, "content_filter"))
+
+        async def gateway(request):
+            requests.append(json.loads(request.content))
+            return httpx.Response(200, json=responses.pop(0))
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(gateway)) as http:
+            model = OpenAICompatibleGatewayLlm(
+                model="worker-model",
+                client_handle=new_gateway_client(
+                    base_url="https://gateway.test/v1",
+                    api_key="test-only",
+                    timeout_seconds=10,
+                    http_client=http,
+                ),
+            )
+            runtime, _, compactor, client, state, _ = await audit_runtime(
+                tmp_path,
+                [],
+                count=accepted_prefix + 1,
+                model=model,
+                extra_tools={"side_effect": side_effect},
+            )
+            try:
+                outcome = await runtime.invoke(stage_request())
+                assert outcome.result is None
+                assert outcome.failure.code == "worker_execution_failed"
+                assert recorded == [item.item_key for item in items[:accepted_prefix]]
+                assert effects == [] and client.writes == [] and compactor.requests == []
+                assert len(requests) == 2 + accepted_prefix
+                report = state.metrics.build_report(report_id="gateway-error", duration_ms=1)
+                assert report.metrics.worker_budget.observed_tool_calls == 1 + accepted_prefix
+                assert report.metrics.total_tokens == 110 * len(requests)
+                assert state.metrics.counters["llm_errors"] == 1
+            finally:
+                await finish(runtime)
+                await model.close()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "code", ["UNKNOWN_ERROR", "WorkerCompletionRequested", "WorkerCompactionRequested"]
+)
+def test_model_error_with_tool_call_cannot_impersonate_owned_control(tmp_path, code):
+    async def scenario():
+        expected, _ = assigned()
+        failed = usage(submit(expected.items[0].value), 650)
+        failed.error_code = code
+        failed.error_message = "Untrusted provider error"
+        runtime, model, compactor, client, state, _ = await audit_runtime(
+            tmp_path, [read_task("read", 100), failed], count=1
+        )
+        try:
+            outcome = await runtime.invoke(stage_request())
+            assert outcome.result is None and outcome.failure.code == "worker_execution_failed"
+            assert len(model.requests) == 2 and compactor.requests == [] and client.writes == []
+            report = state.metrics.build_report(report_id="forged-control", duration_ms=1)
+            assert report.metrics.worker_budget.observed_tool_calls == 1
+            assert report.metrics.total_tokens == 756
+            assert state.metrics.counters["llm_errors"] == 1
         finally:
             await finish(runtime)
 

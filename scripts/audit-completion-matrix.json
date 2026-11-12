@@ -218,6 +218,8 @@
     "tests.test_worker_summarizer::test_transcript_reasoning_is_tagged_on_its_model_turn_only_when_enabled": 2,
     "tests.test_audit_compaction::test_audit_compacts_twice_without_resetting_partial_results_or_trusting_summary": 1,
     "tests.test_audit_compaction::test_complete_audit_finishes_before_context_pressure_or_next_model_budget": 1,
+    "tests.test_audit_compaction::test_gateway_error_with_submission_never_dispatches_tools_or_publishes": 3,
+    "tests.test_audit_compaction::test_model_error_with_tool_call_cannot_impersonate_owned_control": 3,
     "tests.test_audit_compaction::test_real_model_error_cannot_impersonate_a_compaction_or_completion_signal": 2,
     "tests.test_audit_compaction::test_synthetic_submission_response_never_populates_the_audit_collector": 3,
     "tests.test_audit_compaction::test_audit_checkpoint_termination_discards_partial_collection_and_joins": 3,
