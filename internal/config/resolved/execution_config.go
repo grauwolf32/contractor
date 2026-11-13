@@ -390,7 +390,7 @@ func validateConsumerExecutionConfig(
 
 // validateAgentContextManagement checks one binding's explicit context
 // selection against its Stage and effective execution selection (WFL-R93):
-// compact@1 needs a modeled, isolated, non-Audit-completion Worker whose
+// compact@1 needs a modeled, isolated Worker whose
 // effective policy pins its context window, produces no summarized outcome
 // and accepts no summarizer-only selection it would ignore.
 func validateAgentContextManagement(
@@ -404,7 +404,7 @@ func validateAgentContextManagement(
 	if !binding.ContextManagement.IsCompact() {
 		return nil
 	}
-	if err := contracts.ValidateCompactionTarget(binding.Template, stage.Session, false); err != nil {
+	if err := contracts.ValidateCompactionTarget(binding.Template, stage.Session); err != nil {
 		return err
 	}
 	if stage.On.Summarized != nil {

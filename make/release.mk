@@ -100,7 +100,7 @@ test-release-non-race: require-database
 # Shards are balanced from uncached CI test durations; all three run on
 # separate runners. Keep the full local test-e2e command below.
 RELEASE_ITERATIVE_TESTS := $(shell python3 scripts/release_test_reports.py iterative-pattern)
-RELEASE_E2E_TESTS_A := TestWorkflowMaterialSetsAcrossProductionProcesses|TestAuditHypothesisContinuationAcrossProductionProcesses|TestAuditFixedHypothesesAcrossProductionProcesses|TestAuditWorkspaceAcrossProductionProcesses|TestMemoryMVPProcesses|TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses|TestLocalGoToPythonArtifactCopy|TestArtifactHistoryAcrossProductionProcesses|TestProjectSitemapToolsAcrossProductionProcesses|TestProjectSitemapHTTPCollectionAcrossProductionProcesses|TestProjectSitemapReportImportsAcrossProductionProcesses|TestProjectSitemapServerOperationsAcrossProductionProcesses|TestOpenAPIPreparedWorkServerOperation|$(RELEASE_ITERATIVE_TESTS)
+RELEASE_E2E_TESTS_A := TestWorkflowMaterialSetsAcrossProductionProcesses|TestAuditHypothesisContinuationAcrossProductionProcesses|TestAuditFixedHypothesesAcrossProductionProcesses|TestAuditCompactionPreservesTrustedCompletionAcrossProcesses|TestAuditCompactionLeaseLossAcrossProcesses|TestAuditWorkspaceAcrossProductionProcesses|TestMemoryMVPProcesses|TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses|TestLocalGoToPythonArtifactCopy|TestArtifactHistoryAcrossProductionProcesses|TestProjectSitemapToolsAcrossProductionProcesses|TestProjectSitemapHTTPCollectionAcrossProductionProcesses|TestProjectSitemapReportImportsAcrossProductionProcesses|TestProjectSitemapServerOperationsAcrossProductionProcesses|TestOpenAPIPreparedWorkServerOperation|$(RELEASE_ITERATIVE_TESTS)
 RELEASE_HTTP_TESTS := $(shell python3 scripts/test-engagement-http-process.py --process-names)
 RELEASE_E2E_TESTS_B := $(RELEASE_HTTP_TESTS)|TestWorkerSummarizerProductionBoundaries|TestRoutingAndEscalationProductionBoundaries|TestLabelDrivenRuntimeConfigurationAcrossProcesses|TestRuntimeAdapterSelectionAllowsAdditionalCapabilities|TestRunMetadataLabelsAcrossProcesses|TestSchedulerConcurrencyAcrossProductionProcesses|TestTaintAnnotationsAcrossRealRuntimeProcess|TestAuditProgramCatalogReplacementRestartsServer
 RELEASE_FINDINGS_TESTS := $(shell python3 scripts/release_test_reports.py findings-pattern)
@@ -108,7 +108,7 @@ RELEASE_E2E_TESTS_C := TestNucleiWebWithDeterministicScannerAcrossProcesses|Test
 RELEASE_E2E_TESTS := $(RELEASE_E2E_TESTS_A)|$(RELEASE_E2E_TESTS_B)|$(RELEASE_E2E_TESTS_C)
 
 test-release-process-e2e: require-database runtime-venv
-	python3 scripts/release_test_reports.py run --report "$(RELEASE_REPORTS)/go-process.jsonl" --timeout-seconds 3300 -- go test -json -tags=e2e -count=1 -timeout=50m ./tests/e2e -run '^($(RELEASE_E2E_TESTS))$$'
+	python3 scripts/release_test_reports.py run --report "$(RELEASE_REPORTS)/go-process.jsonl" --timeout-seconds 4800 -- go test -json -tags=e2e -count=1 -timeout=75m ./tests/e2e -run '^($(RELEASE_E2E_TESTS))$$'
 	python3 scripts/release_test_reports.py verify-findings --report "$(RELEASE_REPORTS)/go-process.jsonl"
 	python3 scripts/test-audit-basic-e2e.py --verify-report "$(RELEASE_REPORTS)/go-process.jsonl"
 	python3 scripts/release_test_reports.py verify-iterative-process --report "$(RELEASE_REPORTS)/go-process.jsonl"

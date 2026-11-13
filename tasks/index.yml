@@ -9,6 +9,16 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
+    User continuation 2026-11-11 completes assigned V417-005 isolated Audit
+    compaction after accepting V417-001/V417-003 and their verification repairs.
+    Existing trusted collection, Task/Run/Finding provenance and publication
+    receipts survive checkpoints. Full Runtime, Audit family, touched Go,
+    PostgreSQL, wire, UI consumer, lint and all 52 process roots with five report
+    verifiers pass. Owned test databases and the temporary idle-sleep assertion
+    are removed; six primary user files and the staged index are preserved.
+    This branch is not merged into main; no live quality result or complete
+    release gate is claimed. V417-004 remains reserved in_progress and executes
+    last; its dependencies and shared rejection are unchanged.
     User decision 2026-11-10 narrows assigned V417-005 to Audit compaction in
     isolated sessions. A later instruction explicitly returns V417-004 from
     deferred to in_progress and orders its implementation last in the V417

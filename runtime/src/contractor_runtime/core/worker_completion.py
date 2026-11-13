@@ -92,6 +92,11 @@ class PreparedWorkerCompletion(ABC):
     def failure(self, error: Exception) -> WorkerFailure: ...
 
     @abstractmethod
+    async def ready_to_finish(self) -> bool:
+        """Read trusted completeness without sealing, publishing or spending a reminder."""
+        ...
+
+    @abstractmethod
     async def finish(
         self,
         *,

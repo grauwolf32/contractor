@@ -27,6 +27,8 @@ import (
 type findingsHarness struct {
 	browser                          *researchBrowserTransport
 	runtimeExtraArguments            []string
+	runtimeControlPlaneURL           string
+	proxyPrivateAPI                  func(func(*http.Response) error) string
 	restartServer                    func()
 	ctx                              context.Context
 	server, runtimeProcess           *childProcess
@@ -134,12 +136,25 @@ func startFindingsHarnessForBrowser(t *testing.T, stages []domainGatewayStage, b
 		t.Fatalf("Python Runtime environment is missing at %s; run 'cd runtime && uv sync --locked'", python)
 	}
 	prepared := &findingsHarness{ctx: ctx, server: server, gateway: gateway, client: client, baseURL: publicBaseURL, databaseURL: isolateURL, configRoot: configRoot}
+	prepared.runtimeControlPlaneURL = privateBaseURL
+	prepared.proxyPrivateAPI = func(modify func(*http.Response) error) string {
+		address := startPrivateAPIResponseProxy(t, privateBaseURL, caPaths, controlPlanePaths, agentPaths, modify)
+		// Allocation Artifact clients use the Server-published private URL,
+		// independently of the Runtime registration endpoint. Publish the test
+		// proxy through the ordinary Server setting before any allocation exists.
+		server.stop(t)
+		serverEnvironment["CONTRACTOR_PRIVATE_URL"] = address
+		server = startServer()
+		prepared.server = server
+		waitForHTTP(t, ctx, server, client, publicBaseURL+"/readyz", http.StatusOK)
+		return address
+	}
 	for _, prepare := range beforeRuntime {
 		prepare(prepared)
 	}
 	workRoot := filepath.Join(temporaryRoot, "runtime-work")
 	runtimeArguments := []string{"-m", "contractor_runtime",
-		"--control-plane-url", privateBaseURL,
+		"--control-plane-url", prepared.runtimeControlPlaneURL,
 		"--advertised-control-url", runtimeBaseURL,
 		"--advertised-a2a-url", runtimeBaseURL,
 		"--ca-file", caPaths.Certificate,

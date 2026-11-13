@@ -60,7 +60,12 @@ class WorkerCompletionContract(WireModel):
             raise ValueError("completion needs an exact Run context and a versionless output")
         return self
 
-    def validate_allocation(self, namespace: str, template: ResolvedAgentTemplate) -> None:
+    def validate_allocation(
+        self,
+        namespace: str,
+        template: ResolvedAgentTemplate,
+        context_management: WorkerContextManagement,
+    ) -> None:
         if self.result_artifact.namespace != namespace:
             raise ValueError("completion output is outside Worker namespace")
         selections = [
@@ -69,13 +74,15 @@ class WorkerCompletionContract(WireModel):
             if selection.ref.toolset_id == "audit-results"
         ]
         if (
-            template.summarizer is not None
+            context_management.strategy == "terminal@1"
+            or (template.summarizer is not None and context_management.strategy != "compact@1")
             or len(selections) != 1
             or selections[0].ref.version != "2"
             or sorted(selections[0].tools) != sorted(AUDIT_COMPLETION_TOOLS)
         ):
             raise ValueError(
-                "Audit completion needs audit-results@2 with both tools and no summarizer"
+                "Audit completion needs audit-results@2 with both tools "
+                "and no terminal summarization"
             )
 
 
@@ -159,7 +166,14 @@ class AllocationSpec(VersionedWireModel):
             if material.credential != identity.credential:
                 raise ValueError("engagement private credential differs from assignment")
         if self.completion_contract is not None:
-            self.completion_contract.validate_allocation(self.namespace, self.agent_template)
+            self.completion_contract.validate_allocation(
+                self.namespace, self.agent_template, self.context_management
+            )
+        elif any(
+            selection.ref.toolset_id == "audit-results" and selection.ref.version == "2"
+            for selection in self.agent_template.toolsets
+        ):
+            raise ValueError("audit-results@2 requires a trusted completion contract")
         for field, value in (
             ("allocationId", self.allocation_id),
             ("runId", self.run_id),
@@ -257,11 +271,6 @@ class AllocationSpec(VersionedWireModel):
             raise ValueError("compact@1 requires a modeled ADK Worker")
         if self.worker_session_mode != "isolated":
             raise ValueError("compact@1 supports only isolated Worker sessions")
-        if self.completion_contract is not None or any(
-            selection.ref.toolset_id == "audit-results" and selection.ref.version == "2"
-            for selection in self.agent_template.toolsets
-        ):
-            raise ValueError("compact@1 does not support Audit completion Workers")
 
 
 class PrepareAllocationResponse(VersionedWireModel):

@@ -421,13 +421,14 @@ not change.
 
 **WFL-R93.** Configuration resolution rejects `compact@1`, instead of
 falling back to terminal summarization, for: a model-free (`tool@1`) template;
-a Stage with `session: shared` (until shared compaction is specified); a
-template that selects `audit-results@2` or a binding used for Audit completion
-(until Audit completion compaction is specified); a Stage that declares
+a Stage with `session: shared` (until shared compaction is specified); a Stage that declares
 `on.summarized`; and an effective `workers.summarizerModelPolicy` selection,
 which would have no consumer. The same combinations are rejected when a
 persisted snapshot is read and when an allocation is admitted
 ([WRK-R184](../execution/worker.md)).
+Isolated Audit completion permits `compact@1` under
+[AWC-R130](../audits/worker-completion.md#AWC-R130); its effective terminal
+summarization remains prohibited.
 
 Every modeled Worker binding requires a compatible effective main
 `modelPolicy` from Workflow executionConfig. A binding using terminal

@@ -1,0 +1,96 @@
+{
+  "task": "V417-001",
+  "date": "2026-11-10",
+  "status": "acceptance complete",
+  "implementation_commit": "2c52c192bbbbf1c7d984f0252e2a9f6f056d09bf",
+  "code_changes_during_acceptance": false,
+  "current_family": {
+    "command": "make test-worker-summarizer-e2e",
+    "exit_code": 0,
+    "runtime_cases": 298,
+    "go_race_packages": "internal/config/... internal/contracts/... internal/controlplane/... internal/telemetry/...",
+    "real_process_root": "TestWorkerSummarizerProductionBoundaries",
+    "real_process_package_seconds": 364.354,
+    "report": "/private/tmp/contractor-v417-merge-tucvsa8c/v417-001-family-isolated.log",
+    "report_sha256": "327cdf2079f7b2e9ab9dcf5fc29d19a461597919a51bc51c42a4cf7a6a2d17d5"
+  },
+  "full_runtime": {
+    "command": "make test-runtime",
+    "passed": 6199,
+    "skipped_not_passing_coverage": 135,
+    "terminal_reasoning_projection_cases": 38,
+    "required_projection_cases_all_passed": true,
+    "report": "/private/tmp/contractor-v417-merge-tucvsa8c/v466-complete-runtime.xml",
+    "report_sha256": "eba38112baa56a94f3135ffa0e500f2f0d07701318f83a95022ca978af0f40b8"
+  },
+  "retained_passing_checks": {
+    "source": "tasks/evidence/v417-003-verification-20261110.json",
+    "boundary_reference": "ac264b846e20c5f874e9959d97c10dce1c3db407",
+    "unchanged_paths": [
+      "internal/config",
+      "internal/contracts",
+      "internal/controlplane",
+      "internal/telemetry",
+      "internal/persistence",
+      "internal/runstore",
+      "internal/planner",
+      "api",
+      "ui",
+      "configs",
+      "scripts",
+      "make/core.mk",
+      "make/toolsets.mk",
+      "runtime/src/contractor_runtime/worker/summarizer.py",
+      "runtime/src/contractor_runtime/reasoning.py"
+    ],
+    "commands": [
+      "make test-postgres",
+      "make test-wire-cross-language",
+      "make verify-public-api",
+      "make ui-verify",
+      "make test-config"
+    ],
+    "reason": "The owning Go/schema/UI/catalog/generation and terminal projection paths are byte-identical to this passing verification reference; the current family revalidates Go owners under race and the real process consumer."
+  },
+  "lint": {
+    "command": "make lint",
+    "exit_code": 0,
+    "report": "/private/tmp/contractor-v417-merge-tucvsa8c/v466-007-lint.log"
+  },
+  "criteria": {
+    "A1": [
+      "TestWorkerSummarizerIncludeReasoningResolvesPinsAndDigests",
+      "TestWorkerSummarizerIncludeReasoningRejectsInvalidAuthoring",
+      "TestWorkerSummarizerResolvedIncludeReasoningRequiresExplicitBoolean",
+      "TestSharedAllocationSpecIncludeReasoningIsExplicit",
+      "real process raw PostgreSQL snapshot assertions for true and false"
+    ],
+    "A2": [
+      "real reasoning-on/off/absent Gateway requests",
+      "test_transcript_reasoning_is_tagged_on_its_model_turn_only_when_enabled"
+    ],
+    "A3": [
+      "shared reasoning UTF-8/redaction/serialized-bound fixtures",
+      "test_retained_reasoning_is_bounded_newest_first_and_never_evicts_evidence at 1000 model groups",
+      "test_reasoning_never_displaces_evidence_at_the_document_bound"
+    ],
+    "A4": [
+      "real cumulative/context-window/on.summarized scenarios",
+      "invalid/provider-timeout/empty/thought/limited summary and reuse-after-failure controls",
+      "current Runtime cancellation/deadline and budget suites"
+    ],
+    "A5": [
+      "unchanged main-model reasoning replay contract and independent telemetry capture policy",
+      "current telemetry and sensitive-output Runtime tests",
+      "strict shared digests and generated API/UI clients"
+    ]
+  },
+  "historical_failures": "The old macOS I/O cases follow the explicit Linux-only policy; old fixture-reader registration and lint blockers were fixed by V425-020/021. Earlier failed records remain in the task verification history. The agent-interrupted family attempt sharing an aggregate database is not counted as a passing command.",
+  "cleanup": {
+    "database": "contractor_test_v417_terminal_20261110_01",
+    "connections_before_drop": 0,
+    "database_dropped": true,
+    "aggregate_lane_uses_another_database": true,
+    "optional_heavy_io_enabled": false
+  }
+}

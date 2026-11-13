@@ -6,7 +6,7 @@ import asyncio
 import contextlib
 import time
 import uuid
-from collections.abc import Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -18,7 +18,7 @@ from contractor_runtime.adapters.genai import usage_attributes
 from contractor_runtime.adapters.instrumentation import end_isolated_span, start_isolated_span
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.tool_errors import ToolExecutionError, ToolResultDiagnostic
-from contractor_runtime.llm.response import output_limit_reached
+from contractor_runtime.llm.response import model_response_failed, output_limit_reached
 from contractor_runtime.observations import WorkspaceToolObservation
 from contractor_runtime.telemetry.invocations import InvocationMetricsReducer
 from contractor_runtime.telemetry.metrics import (
@@ -73,6 +73,17 @@ class WorkerCompactionRequested(RuntimeError):
         super().__init__("Worker context compaction requested")
 
 
+class WorkerCompletionRequested(RuntimeError):
+    """The trusted collector is ready at a settled main-model boundary."""
+
+
+class WorkerModelResponseError(RuntimeError):
+    """A genuine error response must stop before ADK dispatches its tools."""
+
+    def __init__(self) -> None:
+        super().__init__("Worker model returned an error")
+
+
 class WorkerSummarizationRequested(RuntimeError):
     """Content-free control signal used to unwind the normal ADK Runner."""
 
@@ -120,6 +131,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
         workspace_observation_source: WorkspaceObservationSource | None = None,
         summarizer_enabled: bool = False,
         compaction: CompactionTrigger | None = None,
+        completion_ready: Callable[[], Awaitable[bool]] | None = None,
     ) -> None:
         super().__init__(name="contractor_worker_instrumentation")
         self._state = state
@@ -135,6 +147,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
         self._workspace_observation_source = workspace_observation_source
         self._summarizer_enabled = summarizer_enabled
         self._compaction = compaction
+        self._completion_ready = completion_ready
         self._lock = asyncio.Lock()
         self._prepared: tuple[str, str] | None = None
         self._continuation: tuple[str, str] | None = None
@@ -250,6 +263,10 @@ class WorkerInstrumentationPlugin(BasePlugin):
             self._admit_call()
             if self._pending_tools or self._settling_tools:
                 raise RuntimeError("Worker model call overlapped unfinished tools")
+            if self._completion_ready is not None and await self._completion_ready():
+                # Only the completion owner decides readiness. The Runner is
+                # joined before Runtime enters its ordinary publication path.
+                raise WorkerCompletionRequested()
             budget = self._budget()
             if budget is not None and (
                 budget.should_summarize()
@@ -309,19 +326,31 @@ class WorkerInstrumentationPlugin(BasePlugin):
             self._require_reducer().record_model_usage(usage)
             attributes = usage_attributes(usage)
             limited = output_limit_reached(llm_response)
+            failure = WorkerModelResponseError() if model_response_failed(llm_response) else None
             self._model_output_limited = self._model_output_limited or limited
             if limited:
                 attributes["error.type"] = "OutputTokenLimitExceeded"
+            elif failure is not None:
+                attributes["error.type"] = type(failure).__name__
+                self._metrics.record_model_error(failure)
+                self._require_reducer().record_model_error()
             end_isolated_span(
-                span, outcome="failed" if limited else "succeeded", attributes=attributes
+                span,
+                outcome="failed" if limited or failure is not None else "succeeded",
+                attributes=attributes,
             )
             try:
                 budget = self._budget()
                 if budget is not None:
                     budget.after_model_response(usage)
-                    if self._compaction is not None:
+                    if self._compaction is not None and failure is None:
                         # Stops before this response's tools are dispatched.
                         self._compaction.after_main_response(budget.latest_prompt_tokens)
+                if failure is not None:
+                    # This callback sees actual model responses, unlike ADK's
+                    # generic error events for exceptions from owned callbacks.
+                    # Unwind before ADK can execute any call in this response.
+                    raise failure
             finally:
                 await self._publish_locked(callback_context)
 

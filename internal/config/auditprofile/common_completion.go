@@ -29,7 +29,7 @@ func ResolveCompletionTarget(workflow resolved.ResolvedWorkflow, binding auditco
 			if !agent.Template.SelectsAuditCompletion() {
 				continue
 			}
-			if target != nil || len(stage.Agents) != 1 || stage.Planner.Selector() != resolved.PassthroughPlanner || resolved.ValidateAuditCompletionTemplate(agent.Template) != nil {
+			if target != nil || len(stage.Agents) != 1 || stage.Planner.Selector() != resolved.PassthroughPlanner || resolved.ValidateAuditCompletionTemplate(agent.Template, contracts.EffectiveContextManagement(agent.ContextManagement, agent.Template)) != nil {
 				return nil, fmt.Errorf("common result assembly requires one passthrough Worker target")
 			}
 			output, found := stage.Result.Artifacts[stage.WorkflowOutputs[binding.Outputs["result"]]]

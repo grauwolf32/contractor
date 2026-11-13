@@ -24,7 +24,6 @@ func TestCompactBranchRejectsUnsupportedWorkers(t *testing.T) {
 	worker := ResolvedModelPolicy{ContextWindowTokens: 131072, MaxOutputTokens: 4096}
 	audit := modeled
 	audit.Toolsets = []ToolsetSelection{{Ref: ToolsetRef{ToolsetID: AuditResultsToolsetID, Version: AuditResultsToolsetVersion}}}
-	contract := &WorkerCompletionContract{Kind: AuditCheckResultsV1}
 	summarizerPolicy := worker
 	for _, tc := range []struct {
 		name    string
@@ -32,8 +31,6 @@ func TestCompactBranchRejectsUnsupportedWorkers(t *testing.T) {
 	}{
 		{"model-free", AllocationContext{Template: ResolvedAgentTemplate{Runtime: WorkerRuntimeRef{RuntimeID: "tool", Version: "1"}}, SessionMode: WorkerSessionIsolated, WorkerPolicy: worker}},
 		{"shared", AllocationContext{Template: modeled, SessionMode: WorkerSessionShared, WorkerPolicy: worker}},
-		{"Audit toolset", AllocationContext{Template: audit, SessionMode: WorkerSessionIsolated, WorkerPolicy: worker}},
-		{"Audit contract", AllocationContext{Template: modeled, SessionMode: WorkerSessionIsolated, CompletionContract: contract, WorkerPolicy: worker}},
 		{"summarizer selection", AllocationContext{Template: modeled, SessionMode: WorkerSessionIsolated, WorkerPolicy: worker, SummarizerModelPolicy: &summarizerPolicy}},
 		{"no context window", AllocationContext{Template: modeled, SessionMode: WorkerSessionIsolated, WorkerPolicy: ResolvedModelPolicy{MaxOutputTokens: 4096}}},
 	} {
@@ -45,6 +42,9 @@ func TestCompactBranchRejectsUnsupportedWorkers(t *testing.T) {
 	}
 	if err := testCompaction().ValidateAllocation(AllocationContext{Template: modeled, SessionMode: WorkerSessionIsolated, WorkerPolicy: worker}); err != nil {
 		t.Fatalf("isolated modeled Worker: %v", err)
+	}
+	if err := testCompaction().ValidateAllocation(AllocationContext{Template: audit, SessionMode: WorkerSessionIsolated, WorkerPolicy: worker}); err != nil {
+		t.Fatalf("isolated Audit Worker: %v", err)
 	}
 }
 

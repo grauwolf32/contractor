@@ -76,23 +76,20 @@ def duplicate(value):
 	taintCleanSource = `def clean_handler(value):
     return value
 `
+	// Encode blank context prefixes explicitly so formatting cannot strip the diff data.
 	taintExpectedDiff = `--- a/private-taint-path-canary/app.py
 +++ b/private-taint-path-canary/app.py
 @@ -2,13 +2,16 @@
-
- SOURCE_MARKER = "TAINT_SOURCE_CONTENT_CANARY"
-
-+# @trace target=TAINT_TARGET_VALUE_CANARY args=req:tainted calls=validate_input,query_db
+` + " \n" + ` SOURCE_MARKER = "TAINT_SOURCE_CONTENT_CANARY"
+` + " \n" + `+# @trace target=TAINT_TARGET_VALUE_CANARY args=req:tainted calls=validate_input,query_db
  @app.get("/items/{item_id}")
  def handler(req):
      checked = validate_input(req)
      return query_db(checked)
-
-+# @validate arg=value kind=schema
+` + " \n" + `+# @validate arg=value kind=schema
  def validate_input(value):
      return value if value.isdigit() else ""
-
-+# @sink kind=db.query arg=value
+` + " \n" + `+# @sink kind=db.query arg=value
  def query_db(value):
      return database.execute("SELECT value FROM items WHERE id = ?", [value])
 --- a/private-taint-path-canary/duplicates.py
@@ -100,8 +97,7 @@ def duplicate(value):
 @@ -1,5 +1,6 @@
  def duplicate(value):
      return value
-
-+# @trace target=TAINT_TARGET_VALUE_CANARY
+` + " \n" + `+# @trace target=TAINT_TARGET_VALUE_CANARY
  def duplicate(value):
      return value + "!"
 `
@@ -493,11 +489,8 @@ func assertTaintRun(
 		status.Attempts[0].State != "succeeded" || status.Attempts[0].Attempt != 1 {
 		t.Fatalf("taint terminal Run = %+v", status)
 	}
-	for _, output := range []string{"taint_report", "workspace_state", "workspace_diff"} {
-		ref, ok := status.Outputs[output]
-		if !ok || ref.Revision == nil {
-			t.Fatalf("taint Run omitted exact output %q: %+v", output, status.Outputs)
-		}
+	if len(status.Outputs) != 1 || status.Outputs["taint_report"].Revision == nil {
+		t.Fatalf("taint Run must publish only the exact taint report: %+v", status.Outputs)
 	}
 	report, reportMediaType := download(
 		t, client, baseURL+"/v1/runs/"+url.PathEscape(status.RunID)+"/outputs/taint_report",
@@ -505,14 +498,14 @@ func assertTaintRun(
 	if string(report) != wantReport || reportMediaType != "text/markdown" {
 		t.Fatalf("taint report = (%q, %q)", report, reportMediaType)
 	}
-	stateBytes, stateMediaType := download(
-		t, client, baseURL+"/v1/runs/"+url.PathEscape(status.RunID)+"/outputs/workspace_state",
+	stateBytes, stateMediaType := downloadStageResultArtifact(
+		t, client, baseURL, status.RunID, status.Attempts[0], "workspace_state",
 	)
 	if stateMediaType != "application/vnd.contractor.workspace-overlay+json" {
 		t.Fatalf("taint workspace state media type = %q", stateMediaType)
 	}
-	diff, diffMediaType := download(
-		t, client, baseURL+"/v1/runs/"+url.PathEscape(status.RunID)+"/outputs/workspace_diff",
+	diff, diffMediaType := downloadStageResultArtifact(
+		t, client, baseURL, status.RunID, status.Attempts[0], "workspace_diff",
 	)
 	if diffMediaType != "text/x-diff" || string(diff) != wantDiff {
 		t.Fatalf("taint workspace diff = (%q, %q), want exact %q", diff, diffMediaType, wantDiff)

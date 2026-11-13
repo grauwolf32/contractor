@@ -1,0 +1,58 @@
+schema_version: '1.0'
+id: V466-004
+title: Preserve blank context prefixes in the exact taint diff fixture
+milestone: artifact-release-cleanup-2026-11
+epic: quality
+kind: chore
+introduced_by: V463-001
+priority: P1
+status: completed
+depends_on:
+- V463-001
+languages:
+- go
+goal: The taint process fixture compares the complete valid unified diff, including blank context lines,
+  without relying on trailing source whitespace that formatting can remove.
+context:
+  authority: User assignment 2026-11-10 approves repairing the prerequisite process gates before V417-003
+    acceptance and isolated Audit compaction. This separately tracked fixture correction was found after
+    V466-003 enabled exact Stage checkpoint reads; it changes no production behavior.
+  specification: docs/spec/tools/workspace.md
+  finding: tests/e2e/taint_annotations_test.go:82,84,90,94,103 contain empty lines inside taintExpectedDiff.
+    V463-001 commit 289df746155d64156730b15e93e04c6a976e9c99 removed their single space context prefixes.
+    The real checkpoint has correct unified-diff prefixes and fails the exact comparison.
+  siblings: This is the only multiline unified-diff expectation in the e2e Go fixtures. Source fixture
+    blank lines remain ordinary empty source lines; they must not acquire diff prefixes. Runtime export
+    and its own diff tests remain unchanged.
+scope:
+  in:
+  - Encode the five exact space-plus-newline context lines without trailing source whitespace.
+  - Retain byte-for-byte diff comparison, source state, reuse, credential and release assertions.
+  out:
+  - Runtime diff generation, whitespace normalization, relaxed matching or production changes.
+acceptance_criteria:
+- id: A1
+  text: The real taint mutate and clean-reuse process case passes its original exact diff assertions.
+- id: A2
+  text: Formatting preserves the expected bytes; the complete e2e helper package and lint pass.
+tests:
+- command: go test -count=1 ./tests/e2e
+  covers:
+  - A1
+  - A2
+- command: go test -tags=e2e -count=1 -timeout=12m -v ./tests/e2e -run '^TestTaintAnnotationsAcrossRealRuntimeProcess$'
+  covers:
+  - A1
+  - A2
+- command: make lint
+  covers:
+  - A1
+  - A2
+implementation_commit: 8207e76abc8349c9b6c57498c846048e57c96a35
+verification_results:
+- The original exact diff comparison failed on the stripped blank context prefixes before the fixture
+  correction.
+- The real taint mutate and clean-reuse case passes in isolation (54.39s), in the Project/Taint command
+  and in the Skills/Memory/Taint command.
+- Formatting preserves the explicit space-plus-newline literals. The complete e2e helper package and make
+  lint pass.

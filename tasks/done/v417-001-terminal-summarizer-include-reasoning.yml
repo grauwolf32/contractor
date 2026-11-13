@@ -5,7 +5,7 @@ milestone: terminal-summarizer-reasoning-2026-10
 epic: planner-worker
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -16,18 +16,19 @@ goal: Authors can enable provider-supplied reasoning for the existing terminal s
   of compact@1, the ADK spike or any new context strategy. Existing terminal completion and Planner handoff
   remain intact.
 context:
-  acceptance_update: >-
-    User decision 2026-11-02: the V425-001/002 fixtures are Linux-only under
-    OPS-R1/V433-007. Their historical macOS failures no longer block this
-    task's acceptance; the standard Runtime gate reports expected skips.
-    This does not change this task's status or waive other recorded gates.
+  acceptance_update: 'User decision 2026-11-02: the V425-001/002 fixtures are Linux-only under OPS-R1/V433-007.
+    Their historical macOS failures no longer block this task''s acceptance; the standard Runtime gate
+    reports expected skips. This does not change this task''s status or waive other recorded gates.'
   authority: 'User request on 2026-10-25: split proposal 0046 into tasks and make terminal summarizer
     includeReasoning independently deliverable. This record plans work; it does not start implementation
-    or change existing delivery priorities. User decision on 2026-10-30: start implementation now; the coordinator session runs it in lane cmp-sum together with V417-001, V417-003 and V420-002.
-    User decision on 2026-10-31: continue V417-001 with an explicit true/false boolean
-    in normalized snapshots, AllocationSpec and digest manifests; omission remains an
-    authoring-only default to false. The database is test-only and conflicting records
-    may be repaired or deleted manually; preserving their old encoding is not required.'
+    or change existing delivery priorities. User decision on 2026-10-30: start implementation now; the
+    coordinator session runs it in lane cmp-sum together with V417-001, V417-003 and V420-002. User decision
+    on 2026-10-31: continue V417-001 with an explicit true/false boolean in normalized snapshots, AllocationSpec
+    and digest manifests; omission remains an authoring-only default to false. The database is test-only
+    and conflicting records may be repaired or deleted manually; preserving their old encoding is not
+    required. User assignment 2026-11-10 approves the reviewed next-step plan including acceptance of
+    this already-merged independent terminal slice. This chat completes acceptance against current source
+    without new feature code.'
   proposal: docs/proposals/0046-workflow-context-compaction.md
   specification:
   - docs/spec/configuration/agent-templates.md#TPL-R47
@@ -44,10 +45,12 @@ context:
   review_baseline: Local main 1142c2681d6520baa8c04bb0a90ca8fd224deb29. Current owning specifications
     and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
     and verification history. Recheck affected contracts if main changes before execution.
-  current_state: Implementation is merged, including explicit false/true snapshot encoding (2c52c192b).
-    Recorded summarizer/process/API/PostgreSQL checks passed. Historical lint/fixture blockers were
-    fixed by completed V425-020 and V425-021; V433-007 supersedes the old macOS filesystem blocker.
-    These corrections do not themselves complete this task.
+  current_state: Acceptance complete on 2026-11-10. The current complete summarizer family passes 298
+    Runtime cases, all selected Go owner packages under race and the real process path; the complete Runtime
+    suite passes 6199 cases with 135 declared skips excluded from passing coverage. Retained PostgreSQL/wire/API/UI/catalog
+    checks cover unchanged owning paths. The isolated terminal lane database was dropped. No compaction
+    dependency, default policy change or live-model quality claim is added.
+  acceptance_evidence: tasks/evidence/v417-001-acceptance-20261110.json
 scope:
   in:
   - AgentTemplate summarizer.includeReasoning authoring, strict normalization, exact digests/pins, catalog/public
@@ -203,71 +206,60 @@ test_prerequisites:
   revision, executed cases and exclusions; this backlog review ran no feature acceptance suites.
 dependency_note: depends_on is intentionally empty. Neither implementation acceptance nor this milestone
   exit depends on any V417 compaction task.
-
 decisions:
-- >-
-  2026-10-31 (user decision): restore R1's explicit includeReasoning boolean below
-  authoring, rejecting missing, null, non-boolean, aliased and duplicate members.
-  Both true and false are serialized and included in the exact AgentTemplate digest
-  manifest. Authoring omission normalizes to false. This replaces the true-only
-  encoding introduced to preserve existing snapshot digests (TPL-R116); consistent
-  strict readers take precedence over keeping test records readable. Conflicting
-  test data may be manually repaired or deleted. No database records are changed by
-  this implementation. Reopen only if a future deployment requires data retention.
-
-verification_results:
-- >-
-  2026-10-31: continued on codex/terminal-reasoning-explicit-boolean from
-  main 7eca667f4. Toolchain: Go 1.26.9, Node 24.20.0, locked Runtime
-  dependencies. PostgreSQL tests used a newly created disposable local database;
-  no demo database records were changed.
-- >-
-  go test ./internal/config/... ./internal/contracts/... ./internal/controlplane/...
-  passed, including explicit false serialization, strict persisted Workflow reads,
-  invalid/missing/duplicate members and shared digest cases. go test
-  ./internal/archtest passed. The summarizer hardening gate also passed all its
-  selected Go packages under -race.
-- >-
-  make test-worker-summarizer-e2e passed, including 294 focused Runtime tests,
-  the full selected Go package suites under -race, and the real Server/Runtime/
-  PostgreSQL TestWorkerSummarizerProductionBoundaries process test (365.256s).
-  Reasoning-on/off/absent, summary cancellation, Runtime reuse and on.summarized
-  Planner continuation passed. New direct PostgreSQL assertions verified that
-  the stored Run snapshot contains the actual JSON true/false member for each
-  reasoning scenario, rather than relying on a decoder default.
-- >-
-  make test-postgres passed all ten packages against real PostgreSQL.
-  make verify-public-api and make test-config passed, including shipped catalog
-  validation. Generated Go/UI client freshness checks passed; the public schema
-  already required the boolean, so no public API or generated client change was needed.
-- >-
-  make ui-verify passed on its second full run: 213 test files, 2632 tests passed,
-  one existing expected failure, 17 server tests passed and production build passed.
-  The first run failed the unrelated finding-export.test.tsx:196 visibility assertion;
-  no UI source was changed between runs.
-- >-
-  make test-runtime finished with 5763 passed, 133 platform/opt-in skips and
-  the two already documented macOS failures owned by V425-001 and V425-002:
-  test_projectfs_local_io.py::test_limits_deadline_names_and_binary_classification
+- '2026-10-31 (user decision): restore R1''s explicit includeReasoning boolean below authoring, rejecting
+  missing, null, non-boolean, aliased and duplicate members. Both true and false are serialized and included
+  in the exact AgentTemplate digest manifest. Authoring omission normalizes to false. This replaces the
+  true-only encoding introduced to preserve existing snapshot digests (TPL-R116); consistent strict readers
+  take precedence over keeping test records readable. Conflicting test data may be manually repaired or
+  deleted. No database records are changed by this implementation. Reopen only if a future deployment
+  requires data retention.'
+implementation_commit: 2c52c192bbbbf1c7d984f0252e2a9f6f056d09bf
+verification_history:
+- '2026-10-31: continued on codex/terminal-reasoning-explicit-boolean from main 7eca667f4. Toolchain:
+  Go 1.26.9, Node 24.20.0, locked Runtime dependencies. PostgreSQL tests used a newly created disposable
+  local database; no demo database records were changed.'
+- go test ./internal/config/... ./internal/contracts/... ./internal/controlplane/... passed, including
+  explicit false serialization, strict persisted Workflow reads, invalid/missing/duplicate members and
+  shared digest cases. go test ./internal/archtest passed. The summarizer hardening gate also passed all
+  its selected Go packages under -race.
+- make test-worker-summarizer-e2e passed, including 294 focused Runtime tests, the full selected Go package
+  suites under -race, and the real Server/Runtime/ PostgreSQL TestWorkerSummarizerProductionBoundaries
+  process test (365.256s). Reasoning-on/off/absent, summary cancellation, Runtime reuse and on.summarized
+  Planner continuation passed. New direct PostgreSQL assertions verified that the stored Run snapshot
+  contains the actual JSON true/false member for each reasoning scenario, rather than relying on a decoder
+  default.
+- make test-postgres passed all ten packages against real PostgreSQL. make verify-public-api and make
+  test-config passed, including shipped catalog validation. Generated Go/UI client freshness checks passed;
+  the public schema already required the boolean, so no public API or generated client change was needed.
+- 'make ui-verify passed on its second full run: 213 test files, 2632 tests passed, one existing expected
+  failure, 17 server tests passed and production build passed. The first run failed the unrelated finding-export.test.tsx:196
+  visibility assertion; no UI source was changed between runs.'
+- 'make test-runtime finished with 5763 passed, 133 platform/opt-in skips and the two already documented
+  macOS failures owned by V425-001 and V425-002: test_projectfs_local_io.py::test_limits_deadline_names_and_binary_classification
   and test_code_analysis_graph.py::test_graph_collection_stops_at_encoded_result_ceiling_with_resumable_cursor.
-  All terminal summarizer/boolean cases passed. Full Runtime Ruff checks,
-  Ruff formatting and all four import-layer contracts passed.
-- >-
-  make test-wire-cross-language: contract packages and 375 selected Runtime
-  contract tests passed; the shared gate passed 392 Go shared tests and 1577
-  Runtime cases (284 shared functions), then failed because the pre-existing
-  workflow-context-management-cases.json has no entry in api/testdata/readers.json.
-  The explicit-boolean fixtures themselves passed on both sides.
-- >-
-  make lint reached staticcheck after generated client, dependency graph,
-  model configuration, UI gates, formatting and go vet checks passed, then failed
-  on the pre-existing unused compactionThreshold constant in
-  internal/planner/streamline/compaction_test.go:27. The missing fixture-reader
-  registration and unused Planner constant belong to the merged compaction slices;
-  this terminal-boolean change does not alter them. Keep V417-001 in_progress
-  until all required gates pass; the macOS failures remain owned by V425-001/002.
-remaining_work:
-- Reconcile each acceptance criterion and listed gate with retained results and the current revision;
-  run the still-required verification and record exact provenance.
-- Keep the existing explicit boolean contract; close with the actual implementation commit only after
-  acceptance, without reimplementing the feature.
+  All terminal summarizer/boolean cases passed. Full Runtime Ruff checks, Ruff formatting and all four
+  import-layer contracts passed.'
+- 'make test-wire-cross-language: contract packages and 375 selected Runtime contract tests passed; the
+  shared gate passed 392 Go shared tests and 1577 Runtime cases (284 shared functions), then failed because
+  the pre-existing workflow-context-management-cases.json has no entry in api/testdata/readers.json. The
+  explicit-boolean fixtures themselves passed on both sides.'
+- make lint reached staticcheck after generated client, dependency graph, model configuration, UI gates,
+  formatting and go vet checks passed, then failed on the pre-existing unused compactionThreshold constant
+  in internal/planner/streamline/compaction_test.go:27. The missing fixture-reader registration and unused
+  Planner constant belong to the merged compaction slices; this terminal-boolean change does not alter
+  them. Keep V417-001 in_progress until all required gates pass; the macOS failures remain owned by V425-001/002.
+verification_results:
+- All A1-A5 are reconciled to current source and exact evidence in tasks/evidence/v417-001-acceptance-20261110.json.
+  No implementation change was required during this acceptance.
+- 'make test-worker-summarizer-e2e passes on a dedicated disposable database: 298 Runtime cases, selected
+  Go package suites under race, and the actual Server/Runtime/PostgreSQL summarizer root (364.354 seconds
+  for the process package). Reasoning-on/off/absent, explicit raw snapshot booleans, handoff, failure,
+  cancellation and reuse assertions execute.'
+- make test-runtime passes 6199 cases with 135 declared platform/opt-in skips. All 38 terminal reasoning/projection
+  cases pass without skips, including 1000-group retention, multibyte redaction and boundary fixtures.
+- Recorded successful PostgreSQL, cross-language wire, public API, UI and shipped-catalog gates remain
+  valid on byte-identical owning paths. Current make lint and the complete current summarizer family pass;
+  no historical failed gate is relabeled as successful.
+- The independent database was explicitly dropped after a zero-connection check. Optional heavy I/O remained
+  disabled. Default model/capture policy and compaction/shared support are unchanged.

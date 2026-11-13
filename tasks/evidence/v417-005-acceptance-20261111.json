@@ -1,0 +1,203 @@
+{
+  "schema_version": "1.0",
+  "task": "V417-005",
+  "date": "2026-11-11",
+  "status": "accepted",
+  "implementation_commit": "b670a18da9f006b154ef60bf2def47ad5340fe87",
+  "source_revision": "c543540753e35011f7cdb8c8bd4d3719ab92ef4b",
+  "outcome": "An isolated Audit Worker compacts twice within one logical invocation, retains accepted trusted conclusions, and publishes one ordinary common JSON result through the existing completion owner and receipts.",
+  "acceptance": {
+    "A1": "Real Server/Runtime/PostgreSQL three-member check survives two checkpoints; existing collector begin/end stays once per logical invocation, exact Task/Run/hypothesis provenance and one Finding receipt are retained, with one result binding revision.",
+    "A2": "Real ADK controls finish a complete collector before another model budget/pressure/cycle check. False membership, invented evidence and summary/reasoning text do not become trusted results.",
+    "A3": "Authoring, Audit pins, Workflow snapshots, all reachable escalation variants, strict wire schemas and shared Go/Python fixtures admit effective isolated compact policy over a summarizer and reject terminal/shared combinations and orphan audit-results@2.",
+    "A4": "Lost committed publication reply is reconciled by one read-back with one retained result version. Real confirmed lease loss joins an in-flight compactor and publishes zero late results. Real ADK controls cover cancellation, abort, injected deadline, synthetic responses, genuine model errors and joining a parallel blocked tool.",
+    "A5": "Real ADK later-invocation/replacement controls retain exact current authority and cannot inherit the previous collector or compacted conversation/archive. Existing ordinary Worker and Audit lifecycle process controls pass."
+  },
+  "focused_process_proof": {
+    "command": "go test -tags=e2e -count=1 -timeout=8m -v ./tests/e2e -run '^TestAuditCompaction(PreservesTrustedCompletionAcrossProcesses|LeaseLossAcrossProcesses)$'",
+    "exit_code": 0,
+    "seconds": 24.452,
+    "report": "/private/tmp/contractor-v417-merge-tucvsa8c/v417-005-process-controls.log",
+    "result_versions": 1,
+    "dropped_committed_reply": 1,
+    "read_back": 1,
+    "trusted_members": 3,
+    "finding_receipts": 1,
+    "checkpoints": 2,
+    "observed_main_plus_compactor_calls": 14,
+    "lease_loss": {
+      "seconds": 6.5,
+      "main_calls": 6,
+      "compactor_calls": 1,
+      "late_result_publications": 0
+    }
+  },
+  "new_real_adk_runtime_cases": 14,
+  "commands": {
+    "make test-audit-completion-e2e": {
+      "exit_code": 0,
+      "go_cases": 199,
+      "runtime_cases": 451,
+      "selected_skips": 0,
+      "log": "/private/tmp/contractor-v417-merge-tucvsa8c/v417-005-audit-family.log"
+    },
+    "go test -count=1 ./internal/config/... ./internal/contracts/... ./internal/controlplane/... ./internal/scheduler/...": {
+      "exit_code": 0,
+      "log": "/private/tmp/contractor-v417-merge-tucvsa8c/v417-005-go-packages.log"
+    },
+    "make test-postgres": {
+      "exit_code": 0,
+      "database": "real owned disposable PostgreSQL",
+      "optional_heavy_io_enabled": false,
+      "log": "/private/tmp/contractor-v417-merge-tucvsa8c/v417-005-postgres.log"
+    },
+    "make test-wire-cross-language": {
+      "exit_code": 0,
+      "fixtures": 382,
+      "go_shared_tests": 434,
+      "python_shared_tests": 278,
+      "optional_disk_heavy_skips_not_passing_coverage": 1,
+      "log": "/private/tmp/contractor-v417-merge-tucvsa8c/v417-005-wire.log"
+    },
+    "make ui-verify": {
+      "exit_code": 0,
+      "test_files": 223,
+      "passed": 2515,
+      "declared_expected_fail": 1,
+      "log": "/private/tmp/contractor-v417-merge-tucvsa8c/v417-005-ui-consumer.log"
+    },
+    "make lint": {
+      "exit_code": 0,
+      "log": "/private/tmp/contractor-v417-merge-tucvsa8c/v417-005-closure-lint.log",
+      "previous_passing_log": "/private/tmp/contractor-v417-merge-tucvsa8c/v417-005-lint-final.log",
+      "closure_scope": "Passed after task completion/move, backlog generation, proposal links and acceptance evidence updates. Database tests are a separate recorded passing gate."
+    },
+    "python3 -m unittest discover -s scripts -p test_check_release_verify_graph.py": {
+      "exit_code": 0,
+      "cases": 56
+    },
+    "make test-runtime": {
+      "command": "make test-runtime",
+      "exit_code": 0,
+      "passed": 6219,
+      "declared_skips_not_passing_coverage": 135,
+      "seconds": 404.47,
+      "junit": "/private/tmp/contractor-v417-merge-tucvsa8c/v417-005-full-runtime-passed.xml",
+      "junit_sha256": "5468ade538b7738c45e0ee6c922f32ab5b30a06fdf9831203e4c3391b7d5207a",
+      "lock_sha256": "945f997f38cabe445f1f05a559a26089fdf3bf44c95b523a6d8eb71c8e235c65",
+      "source_hash_evidence": "tasks/evidence/v417-005-progress-20261111.json#/runtime/source_sha256",
+      "matching_source_files_after_all_gates": 281
+    },
+    "make test-e2e": {
+      "command": "make test-e2e",
+      "exit_code": 0,
+      "source_revision": "c543540753e35011f7cdb8c8bd4d3719ab92ef4b",
+      "go_package_seconds": 3391.822,
+      "expected_root_count": 52,
+      "passed_roots": {
+        "TestAgentSkillsMVPProcesses": 165.47,
+        "TestArtifactHistoryAcrossProductionProcesses": 33.27,
+        "TestAuditBasicExactHandoffAcrossProductionProcesses": 85.95,
+        "TestAuditProgramCatalogReplacementRestartsServer": 0.65,
+        "TestAuditCommonObservationProfilesAcrossProductionProcesses": 28.69,
+        "TestAuditCommonPrepared256PauseRestartAndCancelAcrossProcesses": 19.7,
+        "TestAuditCompactionPreservesTrustedCompletionAcrossProcesses": 14.54,
+        "TestAuditCompactionLeaseLossAcrossProcesses": 6.08,
+        "TestAuditHypothesisContinuationAcrossProductionProcesses": 166.5,
+        "TestAuditFixedHypothesesAcrossProductionProcesses": 14.34,
+        "TestAuditWorkspaceAcrossProductionProcesses": 34.54,
+        "TestHeterogeneousRuntimeCapabilityPlacement": 43.66,
+        "TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses": 74.24,
+        "TestLocalGoToPythonArtifactCopy": 41.97,
+        "TestEngagementHTTPBoundsAcrossProcesses": 14.21,
+        "TestEngagementHTTPSelectedEvidenceAcrossProcesses": 14.14,
+        "TestEngagementHTTPFindingReusesSelectedEvidenceAcrossProcesses": 14.23,
+        "TestEngagementHTTPLifecycleAcrossProcesses": 126.74,
+        "TestEngagementHTTPRouteMatrixAcrossProcesses": 42.68,
+        "TestEngagementIdentityLifecycleAcrossProcesses": 36.93,
+        "TestEngagementIdentitySessionsAcrossProcesses": 14.15,
+        "TestEngagementOrdinaryRunAcrossProcesses": 14.92,
+        "TestFindingsReaderBoundariesAcrossProcesses": 63.11,
+        "TestFindingLocationsAcrossProcesses": 33.2,
+        "TestFindingsProducerAndReaderAcrossProcesses": 33.27,
+        "TestFindingsCollectionsRetainOrdinaryAndAuditReceipts": 73.33,
+        "TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses": 53.56,
+        "TestGatewayRecoveryCancellationAndPermanentErrorAcrossProcesses": 33.11,
+        "TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses": 72.44,
+        "TestProjectSitemapHTTPCollectionAcrossProductionProcesses": 72.94,
+        "TestWorkflowMaterialSetsAcrossProductionProcesses": 33.4,
+        "TestNucleiWebWithDeterministicScannerAcrossProcesses": 114.21,
+        "TestOpenAPIPreparedWorkServerOperation": 0.96,
+        "TestProductionMemoryTemplatesAcrossProcesses": 103.8,
+        "TestProjectFindingsReaderAcrossProcesses": 33.43,
+        "TestProjectSitemapReportImportsAcrossProductionProcesses": 72.05,
+        "TestProjectSitemapServerOperationsAcrossProductionProcesses": 0.93,
+        "TestProjectSitemapToolsAcrossProductionProcesses": 92.07,
+        "TestProjectWorkspaceLifecycleAcrossProductionProcesses": 163.15,
+        "TestRoutingAndEscalationProductionBoundaries": 113.98,
+        "TestRunMetadataLabelsAcrossProcesses": 82.32,
+        "TestRuntimeAdapterSelectionAllowsAdditionalCapabilities": 0,
+        "TestLabelDrivenRuntimeConfigurationAcrossProcesses": 112.15,
+        "TestRuntimePlacementScannerFixture": 1.84,
+        "TestRuntimePlacementAcrossProductionProcesses": 195.32,
+        "TestSchedulerConcurrencyAcrossProductionProcesses": 62.33,
+        "TestMemoryMVPProcesses": 93.28,
+        "TestTaintAnnotationsAcrossRealRuntimeProcess": 52.25,
+        "TestTraceFindingCoordinatesAcrossProcesses": 13.53,
+        "TestWorkerCompactionContinuesIsolatedWorker": 21.93,
+        "TestWorkerSessionModesAcrossProductionProcesses": 222.38,
+        "TestWorkerSummarizerProductionBoundaries": 362.62
+      },
+      "failures": [],
+      "skips": [],
+      "all_five_post_process_verifiers": "passed",
+      "report": "/private/tmp/contractor-v417-merge-tucvsa8c/v417-005-complete-process-passed.jsonl",
+      "report_sha256": "4f9f94533d63674460f7bccdfbf1a0b04b12555e8c916b0da51930c9aec30c9a",
+      "log": "/private/tmp/contractor-v417-merge-tucvsa8c/v417-005-full-process-awake.log",
+      "go_package_budget_minutes": 75,
+      "report_runner_budget_seconds": 4800,
+      "scenario_deadlines": "unchanged",
+      "clock_gap_observations": []
+    }
+  },
+  "runtime_dependencies": {
+    "python": "3.13.16",
+    "google_adk": "2.13.0",
+    "uv_lock_sha256": "945f997f38cabe445f1f05a559a26089fdf3bf44c95b523a6d8eb71c8e235c65",
+    "production_model_selection_changed": false
+  },
+  "resources": {
+    "owned_database": "contractor_test_v417_compaction_20261110_01",
+    "connections_before_drop": 0,
+    "database_dropped": true,
+    "database_absence_verified": true,
+    "owned_server_runtime_e2e_processes_after_gate": 0,
+    "temporary_idle_sleep_assertion": {
+      "command": "/usr/bin/caffeinate -i -t 5400",
+      "pid": 54121,
+      "identity_and_cwd_verified_before_signal": true,
+      "terminated": true,
+      "session_exit_code": 143,
+      "permanent_power_settings_changed": false
+    },
+    "primary_user_files_hashes_and_modes_preserved": 6,
+    "primary_staged_index_matches_original_snapshot": true
+  },
+  "verification_history": {
+    "implementation_and_initial_runtime_controls": "tasks/evidence/v417-005-progress-20261111.json",
+    "pre_process_gates_and_release_guard_correction": "tasks/evidence/v417-005-pre-process-acceptance-20261111.json",
+    "failed_host_idle_sleep_attempt": "tasks/evidence/v417-005-host-sleep-20261111.json",
+    "failed_attempt_is_not_passing_coverage": true,
+    "clean_rerun": "A fresh owned database and verified temporary idle-sleep assertion; unchanged code, scenario selection, deadlines and retry policy. Both retained source reports and their hashes are recorded."
+  },
+  "scope_limits": {
+    "shared_compaction": "Still rejected; V417-004 remains in_progress by user instruction and executes last.",
+    "optional_heavy_io_enabled": false,
+    "runtime_declared_skips_not_passing_coverage": 135,
+    "wire_optional_disk_heavy_skip_not_passing_coverage": 1,
+    "ui_declared_expected_failure_not_passing_coverage": 1,
+    "live_model_quality_evaluation_run": false,
+    "complete_release_verify_run": false,
+    "merged_into_main": false
+  }
+}

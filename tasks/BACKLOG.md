@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-70 open tasks: 12 in progress, 45 pending, 13 deferred. 1552 finished: 1534 completed, 18 archived.
+64 open tasks: 8 in progress, 43 pending, 13 deferred. 1563 finished: 1545 completed, 18 archived.
 
 ## In progress
 
@@ -16,13 +16,9 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | quality | chore | P3 | Make the Runtime suite pass on macOS: declare the Linux-only Podman tests, make the other tests portable and file the macOS defects |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
-| [V417-001](v417-001-terminal-summarizer-include-reasoning.yml) | planner-worker | feature | P1 | Accept merged terminal summarizer reasoning selection |
-| [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Accept merged isolated Worker context compaction |
 | [V417-004](v417-004-shared-session-context-compaction.yml) | planner-worker | feature | P1 | Preserve compacted context across shared-session invocations |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V466-001](v466-001-telemetry-content-process-expectations.yml) | operations | chore | P1 | Align process telemetry checks with credential-only replacement |
-| [V466-002](v466-002-taint-gateway-selected-tools.yml) | quality | chore | P1 | Align the taint process Gateway with its selected finding tool |
 
 ## Pending
 
@@ -36,8 +32,8 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V417-006](v417-006-compactor-model-policy-selection.yml) | feature | P1 | V417-003 | Select Worker compactor models only through Workflow executionConfig |
-| [V417-007](v417-007-context-compaction-state-and-ui.yml) | feature | P1 | V417-003 | Report compaction progress and costs without exposing context content |
+| [V417-006](v417-006-compactor-model-policy-selection.yml) | feature | P1 | — | Select Worker compactor models only through Workflow executionConfig |
+| [V417-007](v417-007-context-compaction-state-and-ui.yml) | feature | P1 | — | Report compaction progress and costs without exposing context content |
 | [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | — | Verify Planner compaction persistence cancellation and scale boundaries |
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | — | Expose bounded truthful Planner compaction diagnostics |
 
@@ -81,7 +77,6 @@ the epics are in [epics.yml](epics.yml).
 | [V64-017](v64-017-audit-attack-tree-projection.yml) | feature | P2 | V64-011 | Project optional attack trees over retained research conclusions |
 | [V64-018](v64-018-audit-research-pentest-integration.yml) | feature | P2 | V64-011, V411-020 | Compose optional hypothesis generation with ordinary HTTP Audit tasks |
 | [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-015, V411-014 | Show HTTP engagement context and gaps in ordinary retained Audit reports |
-| [V417-005](v417-005-audit-worker-context-compaction.yml) | feature | P1 | V417-003 | Admit isolated compaction without bypassing trusted Audit completion |
 | [V425-017](v425-017-machine-report-ceiling-test.yml) | chore | P3 | — | Drive the cumulative 64 MiB machine report check to its rejection in a test |
 
 ### Evaluations (`evals`)
@@ -90,7 +85,7 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V40-003](v40-003-agent-instruction-eval-decision.yml) | feature | P1 | V40-002 | Evaluate instruction candidates and record evidence-based adoption decisions |
 | [V411-021](v411-021-pentest-frozen-live-quality-evaluation.yml) | chore | P2 | V411-020 | Evaluate HTTP investigation quality with frozen repeated comparisons |
-| [V417-008](v417-008-context-compaction-eval-harness.yml) | chore | P2 | V417-001, V417-003 | Build frozen context-compaction evaluation fixtures and an opt-in harness |
+| [V417-008](v417-008-context-compaction-eval-harness.yml) | chore | P2 | — | Build frozen context-compaction evaluation fixtures and an opt-in harness |
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | chore | P2 | V417-008, V417-009 | Measure compaction and reasoning choices with repeated frozen live experiments |
 
 ### Podman sandbox (`sandbox`)
@@ -125,11 +120,10 @@ the epics are in [epics.yml](epics.yml).
 | [V347-001](v347-001-protect-main-branch.yml) | chore | P1 | — | Protect main with a required check |
 | [V410-007](v410-007-sitemap-release-gate.yml) | chore | P1 | V410-006 | Verify the standalone sitemap slice across scale and lifecycle boundaries |
 | [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V64-011, V411-013, V411-014, V411-016, V411-017, V411-018, V410-025 | Gate the composed ordinary HTTP pentest through real processes |
-| [V417-009](v417-009-context-compaction-release-gate.yml) | chore | P1 | V417-003, V417-005, V417-006, V417-007 | Verify context compaction across real processes and close the deterministic milestone |
+| [V417-009](v417-009-context-compaction-release-gate.yml) | chore | P1 | V417-006, V417-007 | Verify context compaction across real processes and close the deterministic milestone |
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-006, V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
 | [V425-014](v425-014-runtime-tests-fail-on-macos.yml) | chore | P3 | — | Make the Runtime process-liveness assertions able to fail on macOS |
 | [V433-005](v433-005-runtime-resource-bounds-gate.yml) | chore | P3 | — | Verify the Runtime resource-bound fixes and reconcile the review dispositions |
-| [V466-003](v466-003-production-checkpoint-process-fixtures.yml) | chore | P1 | — | Read internal Stage checkpoints in production Workflow process fixtures |
 
 ## Deferred
 
@@ -157,22 +151,22 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 2 | 49 | 68 | 39 | 105 |
-| Planners and the Worker model boundary (`planner-worker`) | 8 | 36 | 54 | 34 | 86 |
+| Planners and the Worker model boundary (`planner-worker`) | 6 | 36 | 54 | 34 | 86 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 15 | 5 | 47 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 3 | 15 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 15 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
-| HTTP and Caido tools (`http-tools`) | 5 | 24 | 36 | 15 | 38 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 3 | 21 | 13 | 11 | 27 |
-| Findings tools and collections (`findings`) | 0 | 18 | 14 | 11 | 22 |
+| HTTP and Caido tools (`http-tools`) | 5 | 24 | 37 | 15 | 38 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 3 | 21 | 13 | 11 | 28 |
+| Findings tools and collections (`findings`) | 0 | 18 | 14 | 11 | 23 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 17 | 16 | 24 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 40 | 20 | 70 |
-| Audits (`audits`) | 10 | 69 | 97 | 42 | 169 |
+| Audits (`audits`) | 9 | 69 | 98 | 42 | 170 |
 | Evaluations (`evals`) | 5 | 22 | 42 | 17 | 50 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
 | Web UI (`ui`) | 1 | 54 | 80 | 31 | 76 |
-| Operations, authentication, CLI and deployment (`operations`) | 1 | 21 | 53 | 12 | 29 |
+| Operations, authentication, CLI and deployment (`operations`) | 0 | 21 | 53 | 12 | 30 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 43 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 50 | 18 |
-| Quality, CI and process (`quality`) | 13 | 1 | 33 | 142 | 30 |
+| Quality, CI and process (`quality`) | 11 | 1 | 33 | 145 | 31 |

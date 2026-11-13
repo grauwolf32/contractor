@@ -1,0 +1,149 @@
+{
+  "task": "V466-008",
+  "date": "2026-11-12",
+  "status": "accepted",
+  "introduced_by": "V417-005",
+  "functional_implementation_commit": "785f390cef6daf9112f4177bee97d92059d83259",
+  "implementation_commit": "a1fb1338cdd3b467c3b57ce054197db480591454",
+  "outcome": "Genuine model-response errors unwind before ADK tool dispatch. They cannot populate the Audit collector or authorize successful publication through later completion/compaction control. Existing failure codes, hard budgets and spent usage accounting remain.",
+  "regressions": {
+    "new_cases": 8,
+    "gateway_error_and_submission": 3,
+    "forged_control_error_and_tool": 3,
+    "ordinary_and_terminal_gateway_error_tools": 2,
+    "http_fixture": "httpx.MockTransport through the production OpenAI-compatible Gateway adapter, real ADK Runner and real trusted Audit collector; Artifact IO is test-owned.",
+    "assertions": [
+      "worker_execution_failed with no result",
+      "no tool from the erroneous response executes",
+      "no Audit publication or compactor/finalizer call",
+      "accepted partial conclusions cannot become a complete result through the erroneous response",
+      "spent token usage and one model error remain accounted"
+    ]
+  },
+  "commands": {
+    "focused_runtime": {
+      "exit_code": 0,
+      "cases": 275,
+      "skips": 0,
+      "log": "/private/tmp/contractor-v466-008-8_p_a353/focused-final.log",
+      "junit": {
+        "path": "/private/tmp/contractor-v466-008-8_p_a353/focused.xml",
+        "sha256": "6b38bfcffe9378759d6e396e3fb2c5a7df21f90ab20175e673714a525e0f895e",
+        "tests": 275,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    "make test-runtime": {
+      "exit_code": 0,
+      "passed": 6227,
+      "declared_skips_not_passing_coverage": 135,
+      "seconds": 426.54,
+      "report_verifier_exit_code": 0,
+      "log": "/private/tmp/contractor-v466-008-8_p_a353/runtime.log",
+      "junit": {
+        "path": "/private/tmp/contractor-v466-008-8_p_a353/runtime-passed.xml",
+        "sha256": "aaa311d98554c76c60ff48e58e6c49bf92e47cf19fc356aef80ef6915ae85214",
+        "tests": 6362,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 135
+      },
+      "source_bytes_match_commit": "785f390cef6daf9112f4177bee97d92059d83259"
+    },
+    "make test-audit-completion-e2e": {
+      "exit_code": 0,
+      "go_cases": 199,
+      "runtime_cases": 457,
+      "selected_skips": 0,
+      "source": {
+        "revision": "a1fb1338cdd3b467c3b57ce054197db480591454",
+        "dirty": false
+      },
+      "log": "/private/tmp/contractor-v466-008-8_p_a353/audit-family.log",
+      "retained_evidence": "/private/tmp/contractor-v466-008-8_p_a353/audit-family-passed/executed.json",
+      "evidence_sha256": "4ab069873353bab6ddc76ffc619a11259072916ed8290db7d50231448eaf4d55",
+      "database": "real owned disposable PostgreSQL"
+    },
+    "make lint": {
+      "exit_code": 0,
+      "log": "/private/tmp/contractor-v466-008-8_p_a353/lint-final.log"
+    }
+  },
+  "baseline_regression": {
+    "source_commit": "0a6e2f005ec6b9024f3ee2465558d01c144e9d2d",
+    "exit_code": 1,
+    "cases_failed_as_expected": 3,
+    "reason": "Each asserts no result but receives successful published WorkerResult on the unfixed V417-005 source.",
+    "isolated_source_module_path_asserted": true,
+    "log": "/private/tmp/contractor-v466-008-8_p_a353/baseline-final.log",
+    "log_sha256": "085267e1f68912f6cef93ad240065dee433e5ac2707207b1318db6aff424b1dc"
+  },
+  "source_freshness": {
+    "runtime_suite_snapshot": {
+      "runtime/src/contractor_runtime/llm/response.py": "fca320868aa1e0eab6ffffa5da7c920fedb4077487bb93e182400c2360ff7a14",
+      "runtime/src/contractor_runtime/worker/instrumentation.py": "6f9e9953cf170216a81412902866f5b39f7a7ed03ae490b3b447429342aad510",
+      "runtime/src/contractor_runtime/worker/runtime.py": "79d6bd215d7642c12ffa36bc581cca1dcf584632581f788d44e3039c9549ebc4",
+      "runtime/tests/test_audit_compaction.py": "b284c556b75c2f03a72a479248d148fe052c18c5aba81a0d176da9404b6de8a2",
+      "runtime/tests/test_adk_gateway_conformance.py": "6e16a5cf41217ffe51962dc670c2b6ee37ee5671e052a767ec46ba16c5072308",
+      "scripts/audit-completion-matrix.json": "eebbe3f2ebb20f2428573240e23fb1c13318cfe7008871c7547880d6ddb5c881",
+      "runtime/uv.lock": "945f997f38cabe445f1f05a559a26089fdf3bf44c95b523a6d8eb71c8e235c65"
+    },
+    "final_snapshot": {
+      "runtime/src/contractor_runtime/llm/response.py": "fca320868aa1e0eab6ffffa5da7c920fedb4077487bb93e182400c2360ff7a14",
+      "runtime/src/contractor_runtime/worker/instrumentation.py": "6f9e9953cf170216a81412902866f5b39f7a7ed03ae490b3b447429342aad510",
+      "runtime/src/contractor_runtime/worker/runtime.py": "79d6bd215d7642c12ffa36bc581cca1dcf584632581f788d44e3039c9549ebc4",
+      "runtime/tests/test_audit_compaction.py": "59ba55483b6be92c384b6e277423ef8c8ceab36329fb624d5f484ec55343b193",
+      "runtime/tests/test_adk_gateway_conformance.py": "6e16a5cf41217ffe51962dc670c2b6ee37ee5671e052a767ec46ba16c5072308",
+      "scripts/audit-completion-matrix.json": "eebbe3f2ebb20f2428573240e23fb1c13318cfe7008871c7547880d6ddb5c881",
+      "runtime/uv.lock": "945f997f38cabe445f1f05a559a26089fdf3bf44c95b523a6d8eb71c8e235c65"
+    },
+    "formatter_only_change": {
+      "path": "runtime/tests/test_audit_compaction.py",
+      "before_sha256": "b284c556b75c2f03a72a479248d148fe052c18c5aba81a0d176da9404b6de8a2",
+      "after_sha256": "59ba55483b6be92c384b6e277423ef8c8ceab36329fb624d5f484ec55343b193",
+      "normalized_ast_sha256": "a190bb1de7ce35d50f0018e63ae1a03a6b765317141ab4b7d0af8bb888ab63b7",
+      "ast_equivalent": true,
+      "production_sources_changed": false
+    },
+    "explanation": "After the passing full Runtime suite, Ruff corrected one test dictionary-key indentation. The normalized AST is identical and every production source byte is unchanged. The Audit gate repeats on the final clean commit."
+  },
+  "dependencies": {
+    "python": "3.13.16",
+    "google_adk": "2.13.0",
+    "uv_lock_sha256": "945f997f38cabe445f1f05a559a26089fdf3bf44c95b523a6d8eb71c8e235c65"
+  },
+  "verification_history": {
+    "initial_audit_gate": "Rejected a dirty source before test execution; repeated successfully after the implementation commit.",
+    "initial_lint": {
+      "exit_code": 2,
+      "reason": "One test dictionary-key indentation was not Ruff-formatted. Corrected without AST or production changes; repeated complete lint passes.",
+      "log": "/private/tmp/contractor-v466-008-8_p_a353/lint.log"
+    }
+  },
+  "resources": {
+    "owned_database": "contractor_test_v466_008_20261112_01",
+    "connections_before_drop": 0,
+    "owned_server_runtime_e2e_processes": 0,
+    "database_dropped": true,
+    "database_absence_verified": true,
+    "owned_caffeinate": {
+      "pid": 22483,
+      "command": "/usr/bin/caffeinate -i -t 1800",
+      "identity_and_cwd_verified": true,
+      "terminated": true,
+      "session_exit_code": 143,
+      "permanent_power_settings_changed": false
+    },
+    "primary_checkout_edited": false
+  },
+  "scope_limits": {
+    "optional_heavy_io_enabled": false,
+    "declared_skips_not_counted_as_passing_coverage": true,
+    "live_model_quality_evaluation_run": false,
+    "complete_process_or_release_gate_rerun": false,
+    "shared_compaction": "unchanged; V417-004 remains last",
+    "merged_into_main": false
+  }
+}

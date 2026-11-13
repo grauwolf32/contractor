@@ -1,0 +1,102 @@
+schema_version: '1.0'
+id: V466-007
+title: Size the aggregate process gate budget for the complete catalog
+milestone: release-gate-test-dedup-2026-10
+epic: quality
+kind: chore
+introduced_by: V155-001
+priority: P1
+status: completed
+depends_on:
+- V155-001
+languages:
+- make
+- markdown
+goal: The full local process gate reaches every selected scenario and its strict report verification under
+  a finite aggregate budget sized for the current catalog.
+context:
+  authority: 'User assignment 2026-11-10 approves finishing V417-003 acceptance before isolated Audit
+    compaction. This separately tracked verification prerequisite was discovered after the six earlier
+    repairs. Agent implementation decision: correct the aggregate harness budget without changing a scenario,
+    model, production timeout, selection or coverage assertion.'
+  specification: docs/testing/README.md
+  finding: make/release.mk:111 gives the full aggregate the same 50-minute Go package budget as one CI
+    shard. The 2026-11-10 real run passed 48 root cases in 2809.89 seconds, then the package timer interrupted
+    Worker session modes at 3000.526 seconds before terminal summarizer ran. No scenario failure preceded
+    that timer. The actual full selection matches 50 roots. V155-001 introduced this consolidation and
+    timeout in 81b84acd60a9d02b73564069e72312787d8ffdc2 with 19 process tests; later catalog expansions
+    retained it. The runner's 3300-second envelope was added in 7dbc660c149be531c4b49744f80d32b9a852c510.
+  siblings: CI uses the existing A/B/C shards on separate runners. Their selections and 50-minute package
+    budgets remain valid independently. Each process scenario retains its own deadline; this task changes
+    only the aggregate command and its outer report-runner envelope. Existing cancellation, silent-child
+    and descendant-joining tests cover the unchanged runner implementation.
+  decision: Use 75 minutes for the full aggregate Go package and 80 minutes for its runner, retaining
+    the existing five-minute envelope for startup, report draining and cleanup. Running the existing CI
+    shards separately is a viable verification alternative, but leaves the documented full local entry
+    point unable to reach the complete catalog. The two-limit correction preserves that entry point without
+    another reporting or scheduling mechanism. Revisit the aggregate budget when catalog growth or measured
+    successful runs approach its bound; quality owns the Make target.
+  evidence: tasks/evidence/v466-007-aggregate-budget-20261110.json
+  execution_isolation: PER-R1/R2 scopes the active-Server lease to a database. The invalid same-database
+    attempt is retained as failed/interrupted. The terminal family and its diagnostic control used a separate
+    owned database; the final complete aggregate ran alone on a clean owned database. Both databases were
+    dropped after their processes and pools stopped.
+scope:
+  in:
+  - Increase the aggregate package and report-runner budgets and document their separate ownership.
+  - Preserve all selected roots, per-scenario deadlines, strict report verifiers and cleanup behavior.
+  - Record the original incomplete run and a complete successful aggregate run without relabeling skips.
+  out:
+  - Production/model deadlines, scenario edits, extra retries, skipped cases or weaker assertions.
+  - Shard scheduling, parallel execution, new report formats or a partial-report merge mechanism.
+acceptance_criteria:
+- id: A1
+  text: The aggregate retains the exact selected scenarios and every existing verifier, with finite 75-minute
+    Go and 80-minute runner bounds; CI shard and per-scenario deadlines are unchanged.
+- id: A2
+  text: The complete make test-e2e command reaches all required cases and passes every report verifier;
+    the old timeout remains recorded as an incomplete failed run.
+- id: A3
+  text: Existing report-runner, release-graph and lint checks pass; owned resources are joined and the
+    lane's disposable database is dropped after all dependent work stops.
+tests:
+- command: python3 -m unittest discover -s scripts -p 'test_release_test_reports.py'
+  covers:
+  - A1
+  - A3
+- command: python3 scripts/check_release_verify_graph.py
+  covers:
+  - A1
+  - A3
+- command: make test-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A3
+implementation_commit: cc80e811de404781ab5fa28cdadbf0ff35268934
+verification_history:
+- Actual make test-e2e selection enumerates 50 roots. The old aggregate passed 48 roots in 2809.89 seconds,
+  then hit its package timeout before the final two completed; no scenario failed before the package timeout.
+- 'Both tail controls pass separately within their original inner deadlines: session modes 224.27 seconds,
+  summarizer 362.17 seconds. Observed parent durations total 3396.33 seconds (56 minutes 36 seconds),
+  excluding command overhead.'
+- All 19 report-runner unit tests, release graph verification and make lint pass. The complete corrected
+  aggregate is running; no full pass or task completion is claimed.
+- A clean-database aggregate attempt hit the Nuclei Audit wait deadline after 29 successful roots; 35
+  roots passed before the failed run was stopped. Its immutable report is retained. An independent Nuclei
+  control on a separate database passed all six scenarios in 116.414 seconds without source, deadline
+  or assertion changes. The aggregate timeout cause remains unexplained; a fresh complete command is running
+  on a recreated owned database, without a parallel Server test lane.
+verification_results:
+- The complete make test-e2e command passed all 50 selected roots and every nested case with no failures
+  or skips in 3380.956 seconds. All five post-process verifiers passed; exact selection and scenario deadlines
+  are unchanged.
+- All 19 report-runner unit tests, release-graph verification and make lint passed on the budget correction.
+  The retained 50-minute timeout, shared-database interrupted attempt and isolated Nuclei timeout remain
+  failed historical evidence.
+- Independent process and PostgreSQL checks found no owned Server/Runtime/e2e processes or database connections.
+  Both owned disposable lane databases were explicitly dropped after their work stopped.

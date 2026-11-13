@@ -2,6 +2,7 @@
 
 import asyncio
 import time
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -43,6 +44,83 @@ class Owner:
             ],
             b"from-owner",
         )
+
+
+@pytest.mark.parametrize("expired", [False, True], ids=["request-budget", "scan-deadline"])
+@pytest.mark.parametrize("failure", ["timeout", "connect_failed", "denied"])
+def test_bridge_classifies_delegated_timeout_by_scan_deadline(monkeypatch, expired, failure):
+    from contractor_runtime.adapters.bridge import proxy as module
+
+    async def scenario():
+        now = time.monotonic()
+        clock = SimpleNamespace(monotonic=lambda: now)
+        monkeypatch.setattr(module, "time", clock)
+        owner = Owner()
+
+        async def request(*_args, **_options):
+            # Settle the inner HTTP outcome before the outer scanner timer fires.
+            clock.monotonic = lambda: now + (16 if expired else 1)
+            return HTTPOutcome("denied" if failure == "denied" else "failed", reason=failure), None
+
+        owner.request = request
+        try:
+            async with (
+                HTTPProxyBridge(owner, credential_id=None, deadline=now + 15) as bridge,
+                httpx.AsyncClient(proxy=bridge.proxy_url, trust_env=False) as client,
+            ):
+                with pytest.raises(httpx.HTTPError):
+                    await client.get("http://nonresolving.invalid/allowed")
+            expected = (
+                "scan_target_denied"
+                if failure == "denied"
+                else "scan_timeout"
+                if expired and failure == "timeout"
+                else "scan_request_failed"
+            )
+            assert bridge.error_code == expected
+            assert not bridge._tasks and not bridge._writers
+        finally:
+            if owner.engine is not None:
+                await owner.engine.close()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("expired", [False, True], ids=["request-budget", "scan-deadline"])
+@pytest.mark.parametrize("failure", [TimeoutError, OSError])
+def test_bridge_classifies_ipc_timeout_and_joins_handler(monkeypatch, expired, failure):
+    from contractor_runtime.adapters.bridge import proxy as module
+
+    async def scenario():
+        now = time.monotonic()
+        clock = SimpleNamespace(monotonic=lambda: now)
+        monkeypatch.setattr(module, "time", clock)
+        bridge = HTTPProxyBridge(Owner(), credential_id=None, deadline=now + 15)
+        joined = False
+
+        class Handler:
+            received = True
+            pending = frozenset({"flow"})
+            completed = 0
+
+            async def handle_client(self):
+                clock.monotonic = lambda: now + (16 if expired else 1)
+                raise failure("injected IPC failure")
+
+            async def join(self):
+                nonlocal joined
+                joined = True
+
+        handler = Handler()
+        writer = object()
+        bridge._writers.add(writer)
+        await bridge._handle(handler, writer)
+        assert bridge.error_code == (
+            "scan_timeout" if expired and failure is TimeoutError else "scan_request_failed"
+        )
+        assert joined and not bridge._writers
+
+    asyncio.run(scenario())
 
 
 @pytest.mark.parametrize("scheme,http2", [("http", False), ("https", False), ("https", True)])

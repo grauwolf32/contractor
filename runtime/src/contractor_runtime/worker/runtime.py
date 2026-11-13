@@ -51,7 +51,7 @@ from contractor_runtime.llm.openai import (
     GatewayModelError,
     OpenAICompatibleGatewayLlm,
 )
-from contractor_runtime.llm.response import output_limit_reached
+from contractor_runtime.llm.response import model_response_failed, output_limit_reached
 from contractor_runtime.projectfs import (
     WorkspaceAutoExporter,
     WorkspaceExportError,
@@ -76,7 +76,9 @@ from contractor_runtime.worker.function_tools import ContractorFunctionTool
 from contractor_runtime.worker.history import ToolHistory
 from contractor_runtime.worker.instrumentation import (
     WorkerCompactionRequested,
+    WorkerCompletionRequested,
     WorkerInstrumentationPlugin,
+    WorkerModelResponseError,
     WorkerSummarizationRequested,
     span_error_type,
 )
@@ -166,10 +168,9 @@ class AdkWorkerRuntime:
         if context.compaction is not None:
             if (
                 context.worker_session_mode != WorkerSessionMode.ISOLATED
-                or self._completion is not None
                 or context.summarizer is not None
             ):
-                raise RuntimeError("compact@1 requires an isolated ordinary Worker")
+                raise RuntimeError("compact@1 requires an isolated Worker without terminal summary")
             self._compaction = CompactionCoordinator(
                 context.compaction,
                 worker_policy=policy,
@@ -201,6 +202,11 @@ class AdkWorkerRuntime:
             check_admission=self._admit_semantic_work,
             history=self._tool_history,
             compaction=self._compaction,
+            completion_ready=(
+                self._completion.ready_to_finish
+                if self._compaction is not None and self._completion is not None
+                else None
+            ),
         )
         if self._completion is not None:
             self._completion.phase_sink = self._plugin.record_completion
@@ -595,6 +601,8 @@ class AdkWorkerRuntime:
                     self._admit_semantic_work()
                     candidate: str | None = None
                     compacted = False
+                    completion_requested = False
+                    turn_model_error = False
                     try:
                         # An early return must close ADK's generator in this task:
                         # its tracing contexts cannot be detached by GC in another one.
@@ -612,9 +620,18 @@ class AdkWorkerRuntime:
                                         "Worker model response reached its output token limit",
                                         True,
                                     ), False
-                                if completion is not None and getattr(
-                                    event, "error_code", None
-                                ) not in (None, "MODEL_RETURNED_NO_CONTENT"):
+                                if completion is not None and model_response_failed(event):
+                                    if self._compaction is not None:
+                                        # ADK 2.13 emits a generic error event
+                                        # before propagating callback exceptions.
+                                        # Actual error responses have already
+                                        # been rejected before tool dispatch by
+                                        # the after-model callback.
+                                        # Classify the actual exception chain after
+                                        # the Runner joins; event text is not a
+                                        # trusted completion/compaction signal.
+                                        turn_model_error = True
+                                        continue
                                     return _failure(
                                         "worker_execution_failed",
                                         "Worker model returned an error",
@@ -636,6 +653,12 @@ class AdkWorkerRuntime:
                                 "Worker model response reached its output token limit",
                                 True,
                             ), False
+                        if _chained_error(error, WorkerModelResponseError) is not None:
+                            return _failure(
+                                "worker_execution_failed",
+                                "Worker model returned an error",
+                                True,
+                            ), False
                         if _chained_error(error, WorkerSummarizationRequested) is not None:
                             return await self._pipeline.summarize(
                                 request=request,
@@ -644,6 +667,9 @@ class AdkWorkerRuntime:
                                 observed_refs=tuple(self._pipeline.refs),
                                 secrets=summary_secrets,
                             )
+                        completion_requested = (
+                            _chained_error(error, WorkerCompletionRequested) is not None
+                        )
                         compaction_error = _chained_error(error, WorkerCompactionError)
                         budget_error = _chained_error(error, WorkerBudgetExceeded)
                         if (
@@ -664,8 +690,14 @@ class AdkWorkerRuntime:
                                 compacted = True
                         if compaction_error is not None:
                             return _compaction_failure(compaction_error), False
-                        if not compacted:
+                        if not compacted and not completion_requested:
                             if budget_error is None:
+                                if turn_model_error:
+                                    return _failure(
+                                        "worker_execution_failed",
+                                        "Worker model returned an error",
+                                        True,
+                                    ), False
                                 raise
                             self._metrics.record_worker_budget_exhausted(budget_error.dimension)
                             return (
@@ -687,6 +719,10 @@ class AdkWorkerRuntime:
                         )
                         prompt = self._compaction.continuation_prompt()
                         continue
+                    if turn_model_error and not completion_requested:
+                        return _failure(
+                            "worker_execution_failed", "Worker model returned an error", True
+                        ), False
                     self._tool_history.check()
                     if self._plugin.model_output_limited:
                         return _failure(

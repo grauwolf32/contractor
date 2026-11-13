@@ -555,6 +555,11 @@ whole invocation, including preparation, process, output handling and bridge,
 is owned by the allocation HTTP lifecycle (HTP-R149). Process and per-request
 deadlines remain independently bounded; ordinary tool Worker receipts and
 report publication retain their ownership.
+Expiry of the total scan deadline yields `scan_timeout` even when the bridge
+or delegated HTTP timeout settles before the outer scanner timer. A shorter
+per-request timeout that settles before the scan deadline remains
+`scan_request_failed`; target denial and other request failures keep their
+own classifications.
 
 ### Pinned installed Nuclei web scans
 

@@ -152,7 +152,7 @@ func (c WorkerContextManagement) ValidateAllocation(spec AllocationContext) erro
 		if err := c.validateCompaction(); err != nil {
 			return err
 		}
-		if err := ValidateCompactionTarget(spec.Template, spec.SessionMode, spec.CompletionContract != nil); err != nil {
+		if err := ValidateCompactionTarget(spec.Template, spec.SessionMode); err != nil {
 			return err
 		}
 		if spec.SummarizerModelPolicy != nil {
@@ -175,7 +175,6 @@ func (c WorkerContextManagement) ValidateAllocation(spec AllocationContext) erro
 type AllocationContext struct {
 	Template              ResolvedAgentTemplate
 	SessionMode           WorkerSessionMode
-	CompletionContract    *WorkerCompletionContract
 	SummarizerModelPolicy *ResolvedModelPolicy
 	WorkerPolicy          ResolvedModelPolicy
 }
@@ -197,18 +196,14 @@ func (t ResolvedAgentTemplate) SelectsAuditCompletion() bool {
 	return false
 }
 
-// ValidateCompactionTarget rejects the Worker kinds compact@1 does not
-// support yet: model-free Workers, shared sessions (until V417-004) and Audit
-// completion (until V417-005).
-func ValidateCompactionTarget(template ResolvedAgentTemplate, session WorkerSessionMode, auditCompletion bool) error {
+// ValidateCompactionTarget requires a modeled Worker in an isolated session.
+// Trusted Audit completion is independent of its compacted conversation.
+func ValidateCompactionTarget(template ResolvedAgentTemplate, session WorkerSessionMode) error {
 	if template.IsToolWorker() {
 		return Invalidf("compact@1 requires a modeled ADK Worker")
 	}
 	if session != WorkerSessionIsolated {
 		return Invalidf("compact@1 supports only isolated Worker sessions")
-	}
-	if auditCompletion || template.SelectsAuditCompletion() {
-		return Invalidf("compact@1 does not support Audit completion Workers")
 	}
 	return nil
 }

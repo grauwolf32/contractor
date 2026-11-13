@@ -464,6 +464,12 @@ its fixture writes, may stay in a schema of the shared database.
 The process harness starts the actual Go Server and Python Runtime entry points,
 creates temporary mTLS identities, and uses a deterministic loopback model
 Gateway. It verifies scheduling, artifacts and cleanup without a live model.
+The full local `make test-e2e` aggregate has a 75-minute Go package deadline and
+an 80-minute report-runner deadline. The outer envelope includes process startup,
+report draining and owned-process cleanup. The three separate CI shards retain
+their 50-minute package deadlines, and each scenario owns its own inner deadline.
+Review the aggregate budget as its selected catalog grows; a package timeout is
+an incomplete failed run, even when every scenario that finished passed.
 Each browser process stack builds and serves one private temporary UI snapshot.
 A developer build or another gate may replace ui/dist without invalidating a
 running stack. The scanner browser likewise builds privately, or copies an

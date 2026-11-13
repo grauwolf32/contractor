@@ -28,6 +28,10 @@ func (t engagementLeaseTimingTransport) RoundTrip(r *http.Request) (*http.Respon
 	if err != nil || !strings.HasSuffix(r.URL.Path, "/register") || response.StatusCode != 200 {
 		return response, err
 	}
+	return shortConfirmedControlLease(response)
+}
+
+func shortConfirmedControlLease(response *http.Response) (*http.Response, error) {
 	body, err := io.ReadAll(io.LimitReader(response.Body, 4096))
 	_ = response.Body.Close()
 	if err != nil {

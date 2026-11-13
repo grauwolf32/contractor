@@ -67,6 +67,9 @@ class HTTPProxyBridge:
         self._error_code = self._error_code or value
         self.failed.set()
 
+    def _timeout_error_code(self) -> str:
+        return "scan_timeout" if time.monotonic() >= self._deadline else "scan_request_failed"
+
     async def __aenter__(self):
         catalog = self._transport.credentials()
         if self._credential_id is not None and not any(
@@ -111,7 +114,9 @@ class HTTPProxyBridge:
             if handler.pending:
                 self.error_code = self.error_code or "scan_request_failed"
             raise
-        except (TimeoutError, OSError):
+        except TimeoutError:
+            self.error_code = self._timeout_error_code()
+        except OSError:
             self.error_code = self.error_code or "scan_request_failed"
         finally:
             await handler.join()
