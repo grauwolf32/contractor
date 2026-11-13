@@ -6,7 +6,8 @@ epic: audits
 kind: defect
 introduced_by: V417-005
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: a1fb1338cdd3b467c3b57ce054197db480591454
 depends_on:
 - V417-005
 languages:
@@ -17,6 +18,7 @@ context:
     submit_check_result tool call that incorrectly publishes a successful compact Audit result.
   specification:
   - docs/spec/audits/worker-completion.md#AWC-R130
+  acceptance_evidence: tasks/evidence/v466-008-model-error-tool-dispatch-20261112.json
   finding: runtime/src/contractor_runtime/worker/runtime.py:625 defers every model error event for
     compact Audit turns; a tool call in the erroneous response can populate the collector before a
     subsequent WorkerCompletionRequested overrides the real error. The deferral was introduced by
@@ -63,5 +65,10 @@ verification_results:
 - All 275 focused Runtime cases pass without skips, including eight new combined-error/tool controls.
 - make test-runtime passes 6227 tests with 135 declared skips excluded from passing coverage; its report
   verifier passes. Exact tested source and lock hashes and retained JUnit reports are recorded locally.
-- Audit completion gate requires a clean committed source. Its first attempt stopped at that prerequisite
-  before executing cases; commit the implementation before running the mandatory gate. Full lint remains pending.
+- Audit completion gate passes on the final clean commit: 199 Go and 457 Runtime cases, with no selected skips.
+- Complete make lint passes. An initial formatting failure was corrected by one fixture indentation;
+  normalized test AST and production source bytes remain identical to the passing full Runtime suite.
+- The initial Audit gate attempt required a clean source and ran no cases. Passing evidence comes from
+  the subsequent clean committed runs, not that prerequisite rejection.
+- Owned test processes and database connections reached zero; the disposable database was dropped and
+  absence verified. The owned temporary caffeinate identity was checked, terminated and its session closed.
