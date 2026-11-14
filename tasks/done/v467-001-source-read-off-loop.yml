@@ -57,4 +57,7 @@ implementation_commit: 99ffac70b9f71f2423ab1b68219d8d5ad7d1cb0e
 delivery:
   date: '2026-11-14'
   branch: codex/graphify-hotspot-fixes
-  merged_into_main: false
+  merged_into_main: true
+  merge_commit: 609803f7b0bc93628ff1fa74c22aaabb638ddb40
+  integrated_at: '2026-11-14'
+  integration_task: V467-004
