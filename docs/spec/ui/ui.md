@@ -1770,3 +1770,12 @@ strings and integer units; display rounding never changes totals. Failed reads
 keep last-known data, back off under the common polling rule, and offer retry.
 Settled work stops polling after an independent terminal refresh. Shared fonts,
 colours and controls apply in light, dark and black themes at 390 px and above.
+
+**UI-R240.** Owner-wide Project, Check and Finding lists and the Project
+overview's Finding list use the common polling backoff for failed refreshes.
+A failed continuation counts as one failed read even while its loaded prefix
+remains visible with the existing partial/error indication. Consecutive failures
+double the base interval up to the common cap; a complete successful refresh
+resets it. A permanent client refusal stops polling, while timeouts and rate
+limits remain retryable. Rendering or observing the same read result again
+does not count as another failure.

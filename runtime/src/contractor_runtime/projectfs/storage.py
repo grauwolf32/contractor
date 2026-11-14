@@ -89,6 +89,8 @@ class WorkspaceSourceView:
 class WorkspaceReader(Protocol):
     async def snapshot(self) -> WorkspaceSnapshot: ...
 
+    async def file_paths(self) -> frozenset[str]: ...
+
     async def read_text(self, path: str) -> str: ...
 
     async def observation_metadata(self) -> WorkspaceObservationMetadata: ...
@@ -131,6 +133,9 @@ class WorkspaceReaderView:
     async def snapshot(self) -> WorkspaceSnapshot:
         return await self.__reader.snapshot()
 
+    async def file_paths(self) -> frozenset[str]:
+        return await self.__reader.file_paths()
+
     async def read_text(self, path: str) -> str:
         return await self.__reader.read_text(path)
 
@@ -148,6 +153,9 @@ class WorkspaceWriterView:
 
     async def snapshot(self) -> WorkspaceSnapshot:
         return await self.__writer.snapshot()
+
+    async def file_paths(self) -> frozenset[str]:
+        return await self.__writer.file_paths()
 
     async def read_text(self, path: str) -> str:
         return await self.__writer.read_text(path)
@@ -306,6 +314,17 @@ class DirectWorkspaceSession:
         async with self._lock:
             self._require_open()
             return await to_thread_until_done(self._tree.snapshot, name="workspace-snapshot")
+
+    async def file_paths(self) -> frozenset[str]:
+        if self._local is not None:
+            self._require_open()
+            return await self._local.file_paths()
+        async with self._lock:
+            self._require_open()
+            return await to_thread_until_done(
+                lambda: frozenset(self._tree.text_files) | frozenset(self._tree.binary_paths),
+                name="workspace-file-paths",
+            )
 
     async def observation_metadata(self) -> WorkspaceObservationMetadata:
         if self._local is not None:

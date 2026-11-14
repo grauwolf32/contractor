@@ -3,12 +3,24 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 
 _LINE_BREAK_PATTERN = r"\r\n|\r|\n"
 _LINE_BREAK = re.compile(_LINE_BREAK_PATTERN)
 # The same boundaries in UTF-8 bytes: these bytes never occur inside a
 # multi-byte character, so byte and character line numbers agree.
 LINE_BREAK_BYTES = re.compile(_LINE_BREAK_PATTERN.encode("ascii"))
+
+
+def line_spans(text: str) -> Iterator[tuple[int, int]]:
+    """Yield line boundaries, including their ends, without copying the lines."""
+
+    start = 0
+    for match in _LINE_BREAK.finditer(text):
+        yield start, match.end()
+        start = match.end()
+    if start < len(text):
+        yield start, len(text)
 
 
 def split_lines(text: str, keepends: bool = False) -> list[str]:

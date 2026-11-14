@@ -24,6 +24,8 @@ import {
 import type { Project } from "./projects";
 import * as build from "../test/builders";
 import { deferred } from "../test/deferred";
+import { usePossibleIssuesToReview } from "../routes/projects/overview-data";
+import { getSharedConfig } from "./shared-config";
 
 // LIM-UI-15 in docs/spec/platform/limits.md.
 const MAXIMUM_LOADED_PAGES = 20;
@@ -98,11 +100,13 @@ function json(value: unknown, status = 200): Response {
 }
 function setup(state: ServerState) {
   const requests: URL[] = [];
+  const requestTimes: number[] = [];
   let activeReports = 0;
   let maximumReports = 0;
   const fetch = vi.fn(async (input: RequestInfo | URL) => {
     const url = new URL(input instanceof Request ? input.url : String(input));
     requests.push(url);
+    requestTimes.push(Date.now());
     if (
       state.failures?.[url.pathname] ||
       (state.continuationFails === url.pathname &&
@@ -126,6 +130,8 @@ function setup(state: ServerState) {
     if (url.pathname === "/v1/projects") items = state.projects;
     else if (url.pathname === "/v1/audits")
       items = audits.filter((a) => wanted("state", a.state));
+    else if (url.pathname === "/v1/projects/project_a/findings")
+      items = (state.findings?.project_a ?? []).map(build.findingSummary);
     else if (url.pathname === "/v1/findings")
       items = Object.values(state.findings ?? {})
         .flat()
@@ -164,6 +170,9 @@ function setup(state: ServerState) {
     const start = Number(url.searchParams.get("cursor") ?? 0);
     const hasMore = start + limit < items.length;
     return json({
+      ...(url.pathname === "/v1/projects/project_a/findings"
+        ? { projectRevision: 1 }
+        : {}),
       items: items.slice(start, start + limit),
       page: {
         hasMore,
@@ -190,7 +199,9 @@ function setup(state: ServerState) {
   const count = (path: string) =>
     requests.filter((url) => url.pathname === path).length;
   return {
+    api,
     requests,
+    requestTimes,
     queryClient,
     wrapper,
     count,
@@ -206,6 +217,94 @@ const base = (): ServerState => ({
     project_a: [audit("project_a", "audit_a", "active")],
     project_b: [audit("project_b", "audit_b", "completed")],
   },
+});
+
+describe("paginated polling failures", () => {
+  const readers: {
+    name: string;
+    path: string;
+    interval: number;
+    useRead: () => { partial: boolean };
+  }[] = [
+    {
+      name: "Project index",
+      path: "/v1/projects",
+      interval: 20_000,
+      useRead: () => useProjectsIndex(),
+    },
+    {
+      name: "owner Checks",
+      path: "/v1/audits",
+      interval: 20_000,
+      useRead: () => useAllChecks(),
+    },
+    {
+      name: "owner Findings",
+      path: "/v1/findings",
+      interval: 20_000,
+      useRead: () => useAllPossibleIssues(),
+    },
+    {
+      name: "Project overview Findings",
+      path: "/v1/projects/project_a/findings",
+      interval: 10_000,
+      useRead: () => usePossibleIssuesToReview("project_a"),
+    },
+  ];
+
+  describe.each(readers)("$name", ({ path, interval, useRead }) => {
+    it.each(["head", "continuation"])(
+      "backs off a failed %s and recovers",
+      async (failure) => {
+        const state = base();
+        state.projects = [
+          project("project_a"),
+          ...Array.from({ length: 50 }, (_, i) => project(`extra_${i}`)),
+        ];
+        state.audits.project_a = Array.from({ length: 201 }, (_, i) =>
+          audit("project_a", `audit_${i}`, "active"),
+        );
+        state.findings = {
+          project_a: Array.from({ length: 201 }, (_, i) =>
+            finding("project_a", `finding_${i}`),
+          ),
+        };
+        if (failure === "head") state.failures = { [path]: true };
+        else state.continuationFails = path;
+        const server = setup(state);
+        await getSharedConfig(server.api);
+        vi.useFakeTimers();
+        const hook = renderHook(useRead, { wrapper: server.wrapper });
+        const heads = () =>
+          server.requests.flatMap((request, index) =>
+            request.pathname === path && !request.searchParams.has("cursor")
+              ? [server.requestTimes[index]!]
+              : [],
+          );
+        try {
+          await act(async () => {
+            await vi.advanceTimersByTimeAsync(interval * 3);
+          });
+          const times = heads();
+          expect(times.length).toBeGreaterThanOrEqual(2);
+          expect(times[1]! - times[0]!).toBe(interval * 2);
+          expect(hook.result.current.partial).toBe(true);
+          state.failures = {};
+          delete state.continuationFails;
+          await act(async () => {
+            await vi.advanceTimersByTimeAsync(120_000);
+          });
+          expect(hook.result.current.partial).toBe(false);
+          const recovered = heads();
+          expect(recovered.at(-1)! - recovered.at(-2)!).toBe(interval);
+        } finally {
+          hook.unmount();
+          server.queryClient.clear();
+          vi.useRealTimers();
+        }
+      },
+    );
+  });
 });
 
 describe("owner-wide lists", () => {

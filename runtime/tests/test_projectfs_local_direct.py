@@ -98,6 +98,111 @@ def test_external_changes_refresh_snapshots_metadata_and_classification(tmp_path
     asyncio.run(scenario())
 
 
+def test_file_paths_are_current_without_payload_reads_or_digest(tmp_path, monkeypatch):
+    from contractor_runtime.projectfs import storage as storage_module
+
+    async def scenario():
+        async with workspace(
+            tmp_path,
+            limits=WorkspaceLimits(
+                max_files=5000,
+                max_file_bytes=1024 * 1024,
+                max_expanded_bytes=128 * 1024 * 1024,
+                max_managed_text_bytes=128 * 1024 * 1024,
+            ),
+        ) as (session, root):
+            text = "x" * (16 * 1024)
+            for index in range(4000):
+                (root / f"source_{index}.py").write_text(text)
+
+            def forbidden(*args, **kwargs):
+                pytest.fail("file-path projection read source bytes or calculated a digest")
+
+            monkeypatch.setattr(RootedLocalFilesystem, "_read", forbidden)
+            monkeypatch.setattr(storage_module, "workspace_digest", forbidden)
+            paths = await session.reader_view().file_paths()
+            assert len(paths) == 4002
+            assert "binary" in paths and "src/a.txt" in paths
+            assert paths == await session.writer_view().file_paths()
+            (root / "source_0.py").unlink()
+            (root / "new.py").write_text("new")
+            (root / "link.py").symlink_to(root / "new.py")
+            (root / "hard.py").hardlink_to(root / "new.py")
+            (root / "oversize.py").write_bytes(b"x" * (1024 * 1024 + 1))
+            updated = await session.reader_view().file_paths()
+            assert "source_0.py" not in updated
+            assert not {"new.py", "link.py", "hard.py", "oversize.py"} & updated
+            (root / "hard.py").unlink()
+            assert "new.py" in await session.file_paths()
+
+    asyncio.run(scenario())
+
+
+def test_file_paths_classify_only_when_metadata_cannot_prove_text_budget(tmp_path):
+    async def scenario():
+        async with workspace(
+            tmp_path,
+            limits=WorkspaceLimits(
+                max_files=20,
+                max_file_bytes=1024,
+                max_expanded_bytes=4096,
+                max_managed_text_bytes=10,
+            ),
+        ) as (session, root):
+            # Existing text is 8 bytes; the remaining bytes belong to a binary leaf.
+            (root / "binary").write_bytes(b"\x00" * 100)
+            assert await session.file_paths() == frozenset({"src/a.txt", "binary"})
+            (root / "excess.py").write_text("abc")
+            with pytest.raises(WorkspaceStorageError, match="workspace_limit_exceeded"):
+                await session.file_paths()
+            with pytest.raises(WorkspaceStorageError, match="workspace_limit_exceeded"):
+                await session.snapshot()
+
+    asyncio.run(scenario())
+
+
+def test_cancelled_path_projection_joins_before_workspace_close(tmp_path, monkeypatch):
+    entered, release, finished = threading.Event(), threading.Event(), threading.Event()
+    probe = RootedLocalFilesystem._probe_readable
+    loop_thread = threading.get_ident()
+
+    def held(self, *args):
+        assert threading.get_ident() != loop_thread
+        entered.set()
+        try:
+            if not release.wait(5):
+                raise RuntimeError("path projection was not released")
+            return probe(self, *args)
+        finally:
+            finished.set()
+
+    monkeypatch.setattr(RootedLocalFilesystem, "_probe_readable", held)
+
+    async def scenario():
+        async with workspace(tmp_path) as (session, root):
+            reading = asyncio.create_task(session.file_paths())
+            closing = None
+            try:
+                assert await asyncio.to_thread(entered.wait, 5)
+                reading.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await reading
+                closing = asyncio.create_task(session.close())
+                await asyncio.sleep(0)
+                await asyncio.sleep(0)
+                assert not closing.done()
+                assert not finished.is_set()
+                assert (root / "src/a.txt").exists()
+            finally:
+                release.set()
+                await asyncio.gather(reading, return_exceptions=True)
+                if closing is not None:
+                    await closing
+            assert finished.is_set()
+
+    asyncio.run(scenario())
+
+
 def test_mutations_use_current_bytes_and_do_not_resurrect_or_overwrite_others(
     tmp_path: Path,
 ) -> None:

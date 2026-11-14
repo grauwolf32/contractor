@@ -1,0 +1,60 @@
+schema_version: '1.0'
+id: V467-001
+title: Prepare bounded source read windows off the event loop
+milestone: run-workspaces-hardening
+epic: workspaces
+kind: defect
+introduced_by: V2-002
+priority: P2
+status: completed
+depends_on: []
+languages: [python, markdown]
+goal: Read a bounded source window without blocking Runtime tasks or retaining every line of a large source file.
+context:
+  review: tasks/evidence/v467-001-source-read-verification.json
+  authority: User request 2026-11-14 authorizes fixing the three hotspot review findings on one separate branch.
+  finding: >-
+    runtime/src/contractor_runtime/toolsets/source_analysis/tools.py:313 splits the whole
+    file on the event loop after its guarded read. Reading one line of an admitted
+    4-MiB member materializes 2097152 lines and blocks the loop for about 200 ms.
+  siblings: >-
+    filesystem read_file and LikeC4 read windows already prepare their results off
+    the loop. Source list/search already run under WorkspaceOperationGuard.
+    Keep those paths and the shared CRLF/CR/LF line grammar consistent.
+  specification:
+    - docs/spec/tools/workspace.md
+    - docs/spec/artifacts/git-import.md
+scope:
+  in:
+    - Run file reading, line counting and bounded-window preparation inside the existing session operation guard.
+    - Retain at most the requested line window instead of all source lines; keep exact totals and truncation semantics.
+    - Cover thread ownership, cancellation/close, realistic line cardinality and newline/result parity.
+  out:
+    - Changing source admission limits, tool schemas, archive extraction or model configuration.
+failure_outcomes:
+  permanent: Invalid arguments and absent source paths keep their existing errors before work starts.
+  cancelled: The existing operation guard owns the preparation until it finishes; close cannot erase its files early.
+  timeout: The existing operation deadline fences the session; no new timeout is added.
+acceptance_criteria:
+  - id: A1
+    text: A one-line read from a 4-MiB newline-heavy file parses off the loop and retains only its bounded window while returning the exact line total.
+  - id: A2
+    text: Empty files, mixed line endings, Unicode, long first lines and out-of-range reads preserve the former bounded response.
+  - id: A3
+    text: A held preparation cannot race cancellation and close; deterministic thread/barrier regressions fail on the original implementation.
+tests:
+  - command: cd runtime && uv run --locked pytest -q tests/test_source_analysis_toolset.py tests/test_common_line_window.py tests/test_filesystem_toolset.py tests/test_likec4_toolset.py tests/test_openapi_toolset.py tests/test_projectfs_*.py tests/test_local_direct_tool_consumers.py
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+verification_results:
+- '2026-11-14: combined complete source-analysis, common-line-window, filesystem, LikeC4, OpenAPI, projectfs and
+  local-direct-consumer suites: 353 passed, 1 declared Linux filename/long-path skip on macOS.'
+- The new 4-MiB source read regression fails on the original production module because preparation runs on the loop
+  thread; the fixed code passes thread, bounded retention, response parity and cancellation/close tests.
+- make lint passed, including Go checks, UI gates, script tests, spec/task checks, Ruff and import-linter.
+implementation_commit: 99ffac70b9f71f2423ab1b68219d8d5ad7d1cb0e
+delivery:
+  date: '2026-11-14'
+  branch: codex/graphify-hotspot-fixes
+  merged_into_main: false

@@ -103,7 +103,10 @@ interface CrossProjectStatus {
 // The project index and the check pages: polled while the page is visible.
 const POLLED = {
   staleTime: CROSS_PROJECT_LIMITS.pollMs,
-  refetchInterval: CROSS_PROJECT_LIMITS.pollMs,
+  refetchInterval: pollInterval<LoadedPages<unknown>>({
+    interval: CROSS_PROJECT_LIMITS.pollMs,
+    readError: (data) => data.error,
+  }),
   refetchIntervalInBackground: false,
   refetchOnWindowFocus: false,
   retry: false,

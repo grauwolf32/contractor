@@ -1,0 +1,61 @@
+schema_version: '1.0'
+id: V467-003
+title: Validate OpenAPI evidence through a content-free workspace path projection
+milestone: run-workspaces-hardening
+epic: workspaces
+kind: chore
+introduced_by: V22-001
+priority: P2
+status: completed
+depends_on: []
+languages: [python, markdown]
+goal: Validate current source evidence without reading and hashing every workspace file on each OpenAPI edit.
+context:
+  review: tasks/evidence/v467-003-evidence-path-verification.json
+  authority: User request 2026-11-14 authorizes the measured OpenAPI optimization together with the two defects.
+  finding: >-
+    runtime/src/contractor_runtime/toolsets/openapi/tools.py:528 obtains complete
+    source contents and a digest but uses only paths. A 4000-file/62.5-MiB
+    workspace is reread on each call, taking about 262 ms in the review probe.
+  siblings: >-
+    Path and component upserts and whole-document provenance validation share
+    this read. Support local direct, managed memory and overlay workspaces and
+    the narrow reader/writer views. Content consumers keep full snapshots.
+  specification:
+    - docs/spec/tools/workspace.md
+  decision: >-
+    WorkspaceReader owns a current immutable file-path projection. Local direct
+    storage scans/probes current readable regular entries without content reads
+    when metadata proves the managed-text budget; otherwise its existing bounded
+    classification checks that budget. Never cache mutable disk paths by mtime
+    or move host/provider interpretation into the OpenAPI consumer.
+scope:
+  in:
+    - Add a narrow file-path projection with a production OpenAPI caller, preserving opaque-entry exclusions and source freshness.
+    - Reuse workspace locks, descriptor checks, quotas, operation deadlines and cleanup ownership.
+    - Prove no payload reads/digest calculation on a normal large tree, external mutation visibility, binary membership and rejection/fencing behavior.
+  out:
+    - Changing source limits, evidence grammar, suffix rules, public/wire APIs or full snapshot/observation semantics.
+acceptance_criteria:
+  - id: A1
+    text: Repeated OpenAPI evidence checks over a 4000-file workspace enumerate current paths without payload reads or a workspace digest when metadata proves the text bound.
+  - id: A2
+    text: Direct external creates/deletes, opaque and unreadable entries, binary files and quota failures agree with the existing logical workspace view.
+  - id: A3
+    text: Memory/direct and local/memory overlay projections remain serialized with mutations, enforce lifecycle ownership and keep all OpenAPI regressions passing.
+tests:
+  - command: cd runtime && uv run --locked pytest -q tests/test_source_analysis_toolset.py tests/test_common_line_window.py tests/test_filesystem_toolset.py tests/test_likec4_toolset.py tests/test_openapi_toolset.py tests/test_projectfs_*.py tests/test_local_direct_tool_consumers.py
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+verification_results:
+- '2026-11-14: combined Runtime suites: 353 passed, 1 declared Linux filename/long-path skip on macOS. Real filesystem,
+  all four storage/mode combinations, read denial, external changes, quotas and cancellation/close are covered.'
+- 'Three repeats over 4000 files/62.5 MiB: median path projection 57.11 ms, compared with 261.75 ms before the change;
+  all three new calls read zero payload bytes and compute no digest.'
+- make lint passed. No database or live-model checks were needed; optional heavy-I/O fixtures were not enabled.
+implementation_commit: 2eb674f48c432fee77887c40b3c8e09084664e02
+delivery:
+  date: '2026-11-14'
+  branch: codex/graphify-hotspot-fixes
+  merged_into_main: false

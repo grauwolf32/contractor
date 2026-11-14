@@ -229,7 +229,8 @@ def test_project_workspace_is_authoritative_for_openapi_evidence(
         assert component["name"] == "HealthResponse"
         validation = await tools["validate_openapi"]()
         assert validation["valid"]
-        assert project.snapshot_calls == 2
+        assert project.file_paths_calls == 2
+        assert project.snapshot_calls == 0
 
         with pytest.raises(ValueError, match="source evidence file does not exist"):
             await tools["upsert_openapi_component"](
@@ -2380,6 +2381,11 @@ class StaticWorkspaceReader:
     def __init__(self, files: dict[str, str]) -> None:
         self._files = dict(files)
         self.snapshot_calls = 0
+        self.file_paths_calls = 0
+
+    async def file_paths(self) -> frozenset[str]:
+        self.file_paths_calls += 1
+        return frozenset(self._files)
 
     async def snapshot(self) -> WorkspaceSnapshot:
         self.snapshot_calls += 1

@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-64 open tasks: 8 in progress, 43 pending, 13 deferred. 1563 finished: 1545 completed, 18 archived.
+65 open tasks: 9 in progress, 43 pending, 13 deferred. 1566 finished: 1548 completed, 18 archived.
 
 ## In progress
 
@@ -19,6 +19,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-004](v417-004-shared-session-context-compaction.yml) | planner-worker | feature | P1 | Preserve compacted context across shared-session invocations |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V467-004](v467-004-hotspot-main-integration.yml) | workspaces | chore | P2 | Integrate the verified hotspot corrections into main |
 
 ## Pending
 
@@ -155,17 +156,17 @@ tasks in `introduced_by`.
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 15 | 5 | 47 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 3 | 15 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
-| Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 15 | 5 | 16 |
+| Run workspaces and project filesystem (`workspaces`) | 2 | 16 | 16 | 7 | 17 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 5 | 24 | 37 | 15 | 38 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 3 | 21 | 13 | 11 | 28 |
 | Findings tools and collections (`findings`) | 0 | 18 | 14 | 11 | 23 |
-| Workflow catalog and document workflows (`workflows`) | 6 | 19 | 17 | 16 | 24 |
+| Workflow catalog and document workflows (`workflows`) | 6 | 19 | 17 | 16 | 26 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 40 | 20 | 70 |
 | Audits (`audits`) | 9 | 69 | 98 | 42 | 170 |
 | Evaluations (`evals`) | 5 | 22 | 42 | 17 | 50 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
-| Web UI (`ui`) | 1 | 54 | 80 | 31 | 76 |
+| Web UI (`ui`) | 1 | 54 | 81 | 31 | 76 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 21 | 53 | 12 | 30 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 43 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 50 | 18 |

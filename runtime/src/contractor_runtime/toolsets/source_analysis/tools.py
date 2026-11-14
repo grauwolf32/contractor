@@ -27,7 +27,7 @@ from contractor_runtime.contracts.settings import (
     default_source_archive_limits,
 )
 from contractor_runtime.core.input_errors import ToolInputError
-from contractor_runtime.core.lines import split_lines
+from contractor_runtime.core.lines import line_spans, split_lines
 from contractor_runtime.projectfs.operation_guard import WorkspaceOperationGuard
 from contractor_runtime.projectfs.paths import (
     ProjectPathError,
@@ -307,28 +307,34 @@ class _SourceArchiveSession:
                     "source path is absent or not a readable text file",
                     code="source_path_not_found",
                 )
-            content = await self._guard.run(
-                lambda: self._read_file(source), deadline=self._deadline()
+            return await self._guard.run(
+                lambda: self._read_window(source, start_line, max_lines),
+                deadline=self._deadline(),
             )
-            lines = split_lines(content, keepends=True)
-            if lines and start_line > len(lines):
-                raise ToolInputError("start_line exceeds source file line count")
-            selected, end_line, partial_line = bounded_line_window(
-                lines,
-                start_line=start_line,
-                max_lines=max_lines,
-                max_bytes=MAX_VISIBLE_READ_BYTES,
-            )
-            return {
-                "path": normalized,
-                "size": source.size,
-                "totalLines": len(lines),
-                "startLine": start_line,
-                "endLine": end_line,
-                "text": selected,
-                "truncated": partial_line or end_line < len(lines),
-                "partialLine": partial_line,
-            }
+
+    def _read_window(self, source: _SourceFile, start_line: int, max_lines: int) -> dict[str, Any]:
+        content = self._read_file(source)
+        window: list[str] = []
+        total_lines = 0
+        for total_lines, (start, end) in enumerate(line_spans(content), start=1):
+            if start_line <= total_lines < start_line + max_lines:
+                window.append(content[start:end])
+        if total_lines and start_line > total_lines:
+            raise ToolInputError("start_line exceeds source file line count")
+        selected, relative_end, partial_line = bounded_line_window(
+            window, start_line=1, max_lines=max_lines, max_bytes=MAX_VISIBLE_READ_BYTES
+        )
+        end_line = start_line + relative_end - 1 if relative_end else 0
+        return {
+            "path": source.path,
+            "size": source.size,
+            "totalLines": total_lines,
+            "startLine": start_line,
+            "endLine": end_line,
+            "text": selected,
+            "truncated": partial_line or end_line < total_lines,
+            "partialLine": partial_line,
+        }
 
     async def close(self) -> None:
         async with self._lock:

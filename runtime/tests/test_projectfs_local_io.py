@@ -49,6 +49,26 @@ def test_read_write_copy_move_remove_use_actual_disk(tmp_path: Path) -> None:
     assert path.read_bytes() == b"edited\r\n"
 
 
+def test_file_paths_exclude_unreadable_entries_like_full_snapshots(tmp_path, monkeypatch):
+    root = tmp_path / "work"
+    fs = disk(root)
+    (root / "source.py").write_text("source")
+    (root / "private.py").write_text("private")
+    (root / "binary").write_bytes(b"\x00")
+    original_open = os.open
+
+    def denied(path, *args, **kwargs):
+        if str(path) == "private.py":
+            raise PermissionError("fixture file is unreadable")
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "open", denied)
+    paths = fs.file_paths(deadline=deadline())
+    tree = fs.scan(deadline=deadline())
+    assert paths == frozenset(tree.texts) | frozenset(tree.binary_paths)
+    assert paths == frozenset({"source.py", "binary"})
+
+
 def test_copy_preserves_permission_bits_without_setid(tmp_path: Path) -> None:
     root = tmp_path / "work"
     fs = disk(root)
