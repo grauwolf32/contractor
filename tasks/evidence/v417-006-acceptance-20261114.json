@@ -1,0 +1,154 @@
+{
+  "task": "V417-006",
+  "date": "2026-11-14",
+  "implementation_commit": "e638133e3e09237e71970d3ab90fb67b2990f1ef",
+  "base_revision": "f9eabdec2a37f87c56cc17792907dbc79f828a45",
+  "status": "accepted",
+  "merged_into_main": false,
+  "boundary": "Workflow executionConfig is the sole authored compactor model source. Behavior-only contextManagement is shared by authored/resolved/allocation grammars; AllocationSpec.compactorModelPolicy carries the exact captured policy. Runtime verifies its digest before preparing resources.",
+  "gates": [
+    {
+      "command": "go test ./internal/config/... ./internal/contracts/... ./internal/controlplane/...",
+      "exit_code": 0,
+      "log": "/var/folders/j7/g49dqq0x6nn25y_j4f1ht2ww0000gn/T/contractor-v417-006-008-20261114-7hze5cda/go-006-final.log"
+    },
+    {
+      "command": "go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^TestWorkerCompactionContinuesIsolatedWorker$'",
+      "exit_code": 0,
+      "log": "/var/folders/j7/g49dqq0x6nn25y_j4f1ht2ww0000gn/T/contractor-v417-006-008-20261114-7hze5cda/process-006-accepted.log"
+    },
+    {
+      "command": "make test-runtime",
+      "exit_code": 0,
+      "log": "/var/folders/j7/g49dqq0x6nn25y_j4f1ht2ww0000gn/T/contractor-v417-006-008-20261114-7hze5cda/runtime-006-complete.log"
+    },
+    {
+      "command": "make test-postgres test-wire-cross-language",
+      "exit_code": 0,
+      "log": "/var/folders/j7/g49dqq0x6nn25y_j4f1ht2ww0000gn/T/contractor-v417-006-008-20261114-7hze5cda/postgres-wire-006-final.log"
+    },
+    {
+      "command": "go test -count=1 ./internal/evalservice",
+      "exit_code": 0,
+      "log": "/var/folders/j7/g49dqq0x6nn25y_j4f1ht2ww0000gn/T/contractor-v417-006-008-20261114-7hze5cda/eval-postgres-006.log"
+    },
+    {
+      "command": "make verify-public-api generate-public-client-check ui-generate-check docs-dependencies-check",
+      "exit_code": 0,
+      "log": "/var/folders/j7/g49dqq0x6nn25y_j4f1ht2ww0000gn/T/contractor-v417-006-008-20261114-7hze5cda/contracts-006-accepted.log"
+    },
+    {
+      "command": "make ui-verify",
+      "exit_code": 0,
+      "log": "/var/folders/j7/g49dqq0x6nn25y_j4f1ht2ww0000gn/T/contractor-v417-006-008-20261114-7hze5cda/ui-006-accepted.log"
+    },
+    {
+      "command": "make verify-public-api test-config docs-dependencies",
+      "exit_code": 0,
+      "log": "/var/folders/j7/g49dqq0x6nn25y_j4f1ht2ww0000gn/T/contractor-v417-006-008-20261114-7hze5cda/api-config-docs-006-2.log"
+    },
+    {
+      "command": "make lint",
+      "exit_code": 0,
+      "log": "/var/folders/j7/g49dqq0x6nn25y_j4f1ht2ww0000gn/T/contractor-v417-006-008-20261114-7hze5cda/lint-006-accepted.log"
+    },
+    {
+      "command": "go test ./internal/publicclient/... ./tests/e2e",
+      "exit_code": 0,
+      "log": "/var/folders/j7/g49dqq0x6nn25y_j4f1ht2ww0000gn/T/contractor-v417-006-008-20261114-7hze5cda/remaining-consumers-006.log"
+    }
+  ],
+  "runtime": {
+    "passed": 6227,
+    "declared_skips": 135,
+    "failures": 0,
+    "errors": 0,
+    "seconds": 530.41,
+    "report": "/var/folders/j7/g49dqq0x6nn25y_j4f1ht2ww0000gn/T/contractor-v417-006-008-20261114-7hze5cda/runtime-006-passed.xml",
+    "sha256": "25bf1511cf12a2fea6363877702152ce401bf88ff75638011907bb5bf239b515",
+    "adk": "2.13.0",
+    "lock_sha256": "945f997f38cabe445f1f05a559a26089fdf3bf44c95b523a6d8eb71c8e235c65"
+  },
+  "process_scenarios": {
+    "root": "TestWorkerCompactionContinuesIsolatedWorker",
+    "selected_subcases": [
+      "default",
+      "binding",
+      "escalation"
+    ],
+    "seconds": 88.46,
+    "components": [
+      "real Server",
+      "real Runtime",
+      "real PostgreSQL",
+      "scripted local Gateway"
+    ],
+    "proof": [
+      "Two committed checkpoints and normal completion in every selection layer.",
+      "Specific and inline selections override an otherwise valid unused model; the unused alias is never called.",
+      "Escalation follows one controlled genuine Gateway failure and retains the selected policy origin."
+    ]
+  },
+  "wire": {
+    "fixtures": 382,
+    "go_shared_tests": 434,
+    "python_shared_tests": 279,
+    "runtime_contract_tests_passed": 397,
+    "optional_disk_heavy_shared_skips": 1
+  },
+  "ui": {
+    "files_passed": 223,
+    "tests_passed": 2518,
+    "expected_negative_tests": 1,
+    "worker_limit": 2,
+    "version": "0.11.34"
+  },
+  "real_store_proof": [
+    "RunStore JSONB read and keyed replay preserve the captured compactor policy after catalog drift.",
+    "Pinned Eval selection rejects drift instead of mutable resolution.",
+    "Managed Eval preparation freezes distinct compactor policies and dispatches eight ordinary Runs from retained bindings with the preflight resolver disabled."
+  ],
+  "catalog_migration": [
+    {
+      "path": "configs/workflows/taint_trace_from_workspace_compact.yaml",
+      "stage": "trace",
+      "binding": "analyst",
+      "same_policy": "compactor@1",
+      "all_other_authored_settings_equal": true
+    },
+    {
+      "path": "configs/e2e/workflows/worker_compaction.yaml",
+      "stage": "compact",
+      "binding": "builder",
+      "same_policy": "worker_compactor@1",
+      "all_other_authored_settings_equal": true
+    },
+    {
+      "path": "internal/config/testdata/context-compaction/workflows/compact_copy.yaml",
+      "stage": "copy",
+      "binding": "builder",
+      "same_policy": "test-compactor@1",
+      "all_other_authored_settings_equal": true
+    }
+  ],
+  "verification_history": [
+    "The temporary Go and Node installations were incomplete; fresh copies of the pinned toolchains were installed in the owned report directory.",
+    "The first process check found a remaining digest-verification access to the removed nested policy. It was corrected and the allocation integrity regression was extended.",
+    "The first PostgreSQL run over a Unix socket observed a broken pipe in an existing backend-termination test. The complete PostgreSQL/wire gate passed over TCP without persistence-code changes; the original failure log is retained and its exact cause is not claimed.",
+    "An unrestricted concurrent UI run exceeded deadlines in three unrelated existing tests. The complete UI target passed with two workers; those tests and their deadlines were not changed or excluded.",
+    "Superseded early Runtime runs were interrupted/terminated during source and test-reader updates. Only the complete 6227-pass report is accepted coverage.",
+    "Ruff sorted two imported names from the same module; final Ruff and full lint passed."
+  ],
+  "resources": {
+    "database": "contractor_test_v417_006_008_20261114_01",
+    "lifecycle": "One owned disposable database is reused for the assigned V417-007/V417-008 lane and will be dropped after the lane finishes.",
+    "heavy_io_enabled": false,
+    "live_model_calls": false,
+    "deployment": false
+  },
+  "scope_unchanged": [
+    "No production model-policy definitions, model aliases, hard budgets or deployment roles changed.",
+    "No business data was rewritten or reset. Obsolete pre-production snapshot shapes fail strict reads; no legacy fallback was added.",
+    "V417-004 remains reserved in_progress and last. V417-009/V417-010 were not executed."
+  ]
+}

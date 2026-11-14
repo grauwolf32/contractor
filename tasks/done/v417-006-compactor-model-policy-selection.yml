@@ -5,7 +5,8 @@ milestone: worker-context-compaction-2026-10
 epic: planner-worker
 kind: feature
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: e638133e3e09237e71970d3ab90fb67b2990f1ef
 depends_on:
 - V417-003
 languages:
@@ -18,8 +19,8 @@ goal: Choose the Worker compactor model through Workflow executionConfig and inl
 context:
   authority: 'User request on 2026-10-25: split proposal 0046 into tasks and make terminal summarizer
     includeReasoning independently deliverable. This record plans work; it does not start implementation
-    or change existing delivery priorities. User assignment 2026-11-14: execute V417-006,
-    V417-007 and V417-008 in one work pass, with separate acceptance and task commits;
+    or change existing delivery priorities. User request 2026-11-14: take several ready V417 tasks in one pass. Agent execution
+    choice: group V417-006, V417-007 and V417-008 with separate acceptance and task commits;
     V417-004 remains last and live experiments remain after deterministic acceptance.'
   proposal: docs/proposals/0046-workflow-context-compaction.md
   specification:
@@ -52,12 +53,13 @@ context:
   process_acceptance: Extend the existing TestWorkerCompactionContinuesIsolatedWorker real-process scenario
     for migrated policy selection and preserve its nonzero required-case registration. Reuse the ordinary
     scripted Gateway; this planning change makes no model calls.
+  evidence: tasks/evidence/v417-006-acceptance-20261114.json
   implemented_boundary: '2026-11-14: contextManagement is behavior-only in authored,
     resolved and allocation values. The existing consumer execution selection owns
     the compactor policy and origin; RuntimeConfig materialization and AllocationSpec
     carry it as compactorModelPolicy. The Runtime verifies that exact policy digest
     before resource preparation. Default, binding and escalation selections use
-    one resolver and the owning Worker Gateway/credential. No policy definitions,
+    one resolver and the owning Worker Gateway/credential. No production policy definitions,
     deployment model roles, production models or budgets changed.'
   stored_format_transition: 'The pre-production closed snapshot/wire grammar changes
     in place. Obsolete nested modelPolicy is rejected, including null and YAML merge;

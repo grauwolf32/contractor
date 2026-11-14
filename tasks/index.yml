@@ -9,8 +9,12 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
-    User assignment 2026-11-14 starts V417-006, V417-007 and V417-008 as one
-    work pass with separate task acceptance and commits, beginning with V417-006.
+    User request 2026-11-14 takes several ready V417 tasks in one pass. The agent
+    selected V417-006, V417-007 and V417-008 with separate acceptance and commits.
+    V417-006 is accepted on e638133e3e09237e71970d3ab90fb67b2990f1ef: strict single-source
+    Worker compactor selection, three real process scenarios, frozen PostgreSQL/Eval
+    reads, full Runtime, public API, UI, catalog, wire and lint checks pass.
+    V417-007 and V417-008 remain assigned next.
     Shared V417-004 remains last; V417-010 live experiments wait for deterministic
     acceptance. The earlier isolated implementation and V466-008 correction were
     merged into main through f9eabdec2a37f87c56cc17792907dbc79f828a45.
