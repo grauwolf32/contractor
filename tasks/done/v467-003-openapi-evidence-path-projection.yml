@@ -6,7 +6,7 @@ epic: workspaces
 kind: chore
 introduced_by: V22-001
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [python, markdown]
 goal: Validate current source evidence without reading and hashing every workspace file on each OpenAPI edit.
@@ -54,3 +54,8 @@ verification_results:
 - 'Three repeats over 4000 files/62.5 MiB: median path projection 57.11 ms, compared with 261.75 ms before the change;
   all three new calls read zero payload bytes and compute no digest.'
 - make lint passed. No database or live-model checks were needed; optional heavy-I/O fixtures were not enabled.
+implementation_commit: 2eb674f48c432fee77887c40b3c8e09084664e02
+delivery:
+  date: '2026-11-14'
+  branch: codex/graphify-hotspot-fixes
+  merged_into_main: false
