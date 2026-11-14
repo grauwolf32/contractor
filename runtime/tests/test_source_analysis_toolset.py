@@ -23,6 +23,7 @@ from contractor_runtime.artifacts import ArtifactValue
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.contracts.settings import default_source_archive_limits
 from contractor_runtime.core.input_errors import ToolInputError
+from contractor_runtime.core.lines import split_lines
 from contractor_runtime.factories import built_in_factories
 from contractor_runtime.toolsets.source_analysis.tools import (
     MAX_ARCHIVE_ENTRIES,
@@ -41,6 +42,129 @@ SECRET = "source-tool-recognizable-secret"
 def producer_fixture() -> dict:
     fixture = Path(__file__).resolve().parents[2] / "api/testdata/source-member-paths.json"
     return json.loads(fixture.read_text(encoding="utf-8"))
+
+
+def test_source_read_prepares_only_the_requested_window_off_loop(tmp_path, monkeypatch):
+    loop_thread = threading.get_ident()
+    preparations: list[tuple[int, int]] = []
+    prepare = source_tools_module.bounded_line_window
+
+    def observed(lines, **kwargs):
+        preparations.append((threading.get_ident(), len(lines)))
+        return prepare(lines, **kwargs)
+
+    monkeypatch.setattr(source_tools_module, "bounded_line_window", observed)
+
+    async def scenario():
+        client = ReadOnlyArtifactClient()
+        payload = b"x\n" * (MAX_FILE_UNCOMPRESSED_BYTES // 2)
+        ref = client.seed("inputs", "source", "application/zip", make_zip({"large.py": payload}))
+        tools = await make_tools(tmp_path, client, WorkerState())
+        await tools["open_source_archive"]("inputs", "source", ref.revision)
+        try:
+            result = await tools["read_source"]("large.py", start_line=2, max_lines=1)
+            assert result == {
+                "path": "large.py",
+                "size": len(payload),
+                "totalLines": len(payload) // 2,
+                "startLine": 2,
+                "endLine": 2,
+                "text": "x\n",
+                "truncated": True,
+                "partialLine": False,
+            }
+            assert len(preparations) == 1
+            assert preparations[0][0] != loop_thread
+            assert preparations[0][1] == 1
+        finally:
+            await tools["read_source"].close()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("content", ["", "\n", "a\r\nb\rc\nd", "a\u2028b\n終\r", "終" * 100_000])
+def test_source_read_streamed_windows_keep_response_semantics(tmp_path, content):
+    async def scenario():
+        client = ReadOnlyArtifactClient()
+        ref = client.seed("inputs", "source", "application/zip", make_zip({"source.py": content}))
+        tools = await make_tools(tmp_path, client, WorkerState())
+        await tools["open_source_archive"]("inputs", "source", ref.revision)
+        lines = split_lines(content, keepends=True)
+        try:
+            for start in [1, 2, len(lines) + 1]:
+                for count in [1, 3]:
+                    if lines and start > len(lines):
+                        with pytest.raises(ToolInputError, match="line count"):
+                            await tools["read_source"](
+                                "source.py", start_line=start, max_lines=count
+                            )
+                        continue
+                    text, end, partial = source_tools_module.bounded_line_window(
+                        lines,
+                        start_line=start,
+                        max_lines=count,
+                        max_bytes=source_tools_module.MAX_VISIBLE_READ_BYTES,
+                    )
+                    result = await tools["read_source"](
+                        "source.py", start_line=start, max_lines=count
+                    )
+                    assert result["text"] == text
+                    assert result["endLine"] == end
+                    assert result["totalLines"] == len(lines)
+                    assert result["partialLine"] == partial
+                    assert result["truncated"] == (partial or end < len(lines))
+        finally:
+            await tools["read_source"].close()
+
+    asyncio.run(scenario())
+
+
+def test_cancelled_source_read_keeps_preparation_owned_until_close(tmp_path, monkeypatch):
+    entered, release, finished = threading.Event(), threading.Event(), threading.Event()
+    loop_thread = threading.get_ident()
+    prepare = source_tools_module.bounded_line_window
+
+    def held(lines, **kwargs):
+        assert threading.get_ident() != loop_thread
+        entered.set()
+        try:
+            if not release.wait(5):
+                raise RuntimeError("read preparation was not released")
+            return prepare(lines, **kwargs)
+        finally:
+            finished.set()
+
+    monkeypatch.setattr(source_tools_module, "bounded_line_window", held)
+
+    async def scenario():
+        client = ReadOnlyArtifactClient()
+        ref = client.seed("inputs", "source", "application/zip", make_zip({"source.py": "x\n"}))
+        tools = await make_tools(tmp_path, client, WorkerState())
+        await tools["open_source_archive"]("inputs", "source", ref.revision)
+        reading = asyncio.create_task(tools["read_source"]("source.py"))
+        closing = None
+        try:
+            assert await asyncio.to_thread(entered.wait, 5)
+            reading.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await reading
+            closing = asyncio.create_task(tools["read_source"].close())
+            await asyncio.sleep(0)
+            await asyncio.sleep(0)
+            assert not closing.done()
+            assert (tmp_path / "source/source.py").exists()
+            assert not finished.is_set()
+        finally:
+            release.set()
+            await asyncio.gather(reading, return_exceptions=True)
+            if closing is not None:
+                await closing
+            else:
+                await tools["read_source"].close()
+        assert finished.is_set()
+        assert not (tmp_path / "source").exists()
+
+    asyncio.run(scenario())
 
 
 def test_shared_source_member_paths_match_producer_fixture() -> None:

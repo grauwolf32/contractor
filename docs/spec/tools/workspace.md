@@ -769,6 +769,14 @@ tree until that thread returns (WSP-R75, FAIL-WSP-3); the guard's operation
 deadline bounds the step and fences the session when it expires. Results,
 ordering, totals and truncation do not depend on where the step runs.
 
+`read_source` also prepares its complete response inside that operation guard:
+file reading, line counting and the bounded UTF-8 window run off the event loop.
+Counting visits every line to retain the exact total, but retains only the
+requested window, at most the existing read-line bound, rather than a list of
+every line in the admitted source member. CRLF, CR and LF keep their shared
+line-numbering semantics. Cancellation, timeout and close retain the same
+operation ownership as list and search.
+
 **WSP-R131.** A missing evidence path in the current project workspace is
 rejected. No other source tree or previously opened archive can supply it.
 

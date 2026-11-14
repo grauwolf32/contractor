@@ -1,0 +1,21 @@
+{
+  "date": "2026-11-14",
+  "base_commit": "f9eabdec2a37f87c56cc17792907dbc79f828a45",
+  "branch": "codex/graphify-hotspot-fixes",
+  "environment": "macOS arm64, Python 3.13.16, Node 24.20.0; locked dependencies",
+  "database": "No database tests required or configured for these Runtime/UI changes",
+  "heavy_io": "Not enabled",
+  "task": "V467-001",
+  "checks": {
+    "runtime": {
+      "tests": 354,
+      "passed": 353,
+      "skipped": 1,
+      "skip_reason": "OPS-R1: Linux byte-exact filename/long-path fixture"
+    },
+    "baseline_regression": "The new 4-MiB read test fails against the original source-analysis implementation because bounded_line_window executes on the loop thread",
+    "ownership": "Barrier tests verify cancelled response preparation remains owned until close",
+    "result_parity": "Mixed line endings, Unicode, empty files, out-of-range reads and long first lines preserve the former response",
+    "make_lint": "passed"
+  }
+}
