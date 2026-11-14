@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-67 open tasks: 11 in progress, 43 pending, 13 deferred. 1563 finished: 1545 completed, 18 archived.
+66 open tasks: 10 in progress, 43 pending, 13 deferred. 1564 finished: 1546 completed, 18 archived.
 
 ## In progress
 
@@ -19,7 +19,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-004](v417-004-shared-session-context-compaction.yml) | planner-worker | feature | P1 | Preserve compacted context across shared-session invocations |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V467-001](v467-001-source-read-off-loop.yml) | workspaces | defect | P2 | Prepare bounded source read windows off the event loop |
 | [V467-002](v467-002-paged-list-polling-backoff.yml) | ui | defect | P2 | Back off paginated UI polling after head and continuation failures |
 | [V467-003](v467-003-openapi-evidence-path-projection.yml) | workspaces | chore | P2 | Validate OpenAPI evidence through a content-free workspace path projection |
 
@@ -158,7 +157,7 @@ tasks in `introduced_by`.
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 15 | 5 | 47 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 3 | 15 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
-| Run workspaces and project filesystem (`workspaces`) | 3 | 16 | 16 | 6 | 16 |
+| Run workspaces and project filesystem (`workspaces`) | 2 | 16 | 16 | 6 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 5 | 24 | 37 | 15 | 38 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 3 | 21 | 13 | 11 | 28 |

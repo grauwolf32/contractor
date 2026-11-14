@@ -6,7 +6,7 @@ epic: workspaces
 kind: defect
 introduced_by: V2-002
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [python, markdown]
 goal: Read a bounded source window without blocking Runtime tasks or retaining every line of a large source file.
@@ -53,3 +53,8 @@ verification_results:
 - The new 4-MiB source read regression fails on the original production module because preparation runs on the loop
   thread; the fixed code passes thread, bounded retention, response parity and cancellation/close tests.
 - make lint passed, including Go checks, UI gates, script tests, spec/task checks, Ruff and import-linter.
+implementation_commit: 99ffac70b9f71f2423ab1b68219d8d5ad7d1cb0e
+delivery:
+  date: '2026-11-14'
+  branch: codex/graphify-hotspot-fixes
+  merged_into_main: false
