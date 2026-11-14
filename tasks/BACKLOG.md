@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-66 open tasks: 10 in progress, 43 pending, 13 deferred. 1564 finished: 1546 completed, 18 archived.
+65 open tasks: 9 in progress, 43 pending, 13 deferred. 1565 finished: 1547 completed, 18 archived.
 
 ## In progress
 
@@ -19,7 +19,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-004](v417-004-shared-session-context-compaction.yml) | planner-worker | feature | P1 | Preserve compacted context across shared-session invocations |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V467-002](v467-002-paged-list-polling-backoff.yml) | ui | defect | P2 | Back off paginated UI polling after head and continuation failures |
 | [V467-003](v467-003-openapi-evidence-path-projection.yml) | workspaces | chore | P2 | Validate OpenAPI evidence through a content-free workspace path projection |
 
 ## Pending
@@ -167,7 +166,7 @@ tasks in `introduced_by`.
 | Audits (`audits`) | 9 | 69 | 98 | 42 | 170 |
 | Evaluations (`evals`) | 5 | 22 | 42 | 17 | 50 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
-| Web UI (`ui`) | 2 | 54 | 81 | 31 | 76 |
+| Web UI (`ui`) | 1 | 54 | 81 | 31 | 76 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 21 | 53 | 12 | 30 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 43 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 50 | 18 |

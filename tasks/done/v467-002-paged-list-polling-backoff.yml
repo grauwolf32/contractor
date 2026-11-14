@@ -5,7 +5,7 @@ milestone: ui-journey-usability
 epic: ui
 kind: defect
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [typescript, markdown]
 goal: Preserve visible partial lists while slowing repeated failed reads under the common UI polling policy.
@@ -49,3 +49,8 @@ verification_results:
 - All 33 focused polling/cross-project tests passed. On the original three production modules all 12 new regression
   checks fail, while 21 existing tests pass.
 - make lint passed. No public API, UI layout, successful polling interval or list cap changed.
+implementation_commit: 814250ae296ca33ade3bb34c409616b086c7f041
+delivery:
+  date: '2026-11-14'
+  branch: codex/graphify-hotspot-fixes
+  merged_into_main: false
