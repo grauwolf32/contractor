@@ -127,8 +127,8 @@ type ExecutionConfigOrigins struct {
 // Workflow or Run snapshot.
 type ResolvedConsumerExecutionConfig struct {
 	SummarizerModelPolicy *contracts.ResolvedModelPolicy `json:"summarizerModelPolicy,omitempty"`
-	// CompactorModelPolicy is the tool-free compactor of a compact@1 Planner
-	// (PLN-R125); a Worker selection never has one.
+	// CompactorModelPolicy is the tool-free compactor of a compact@1 consumer
+	// (TPL-R117), selected independently from context behavior.
 	CompactorModelPolicy *contracts.ResolvedModelPolicy       `json:"compactorModelPolicy,omitempty"`
 	ModelPolicy          contracts.ResolvedModelPolicy        `json:"modelPolicy,omitzero"`
 	LLMGateway           *llmgateway.ResolvedLLMGatewayConfig `json:"llmGateway,omitempty"`

@@ -9,6 +9,11 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
+    User assignment 2026-11-14 starts V417-006, V417-007 and V417-008 as one
+    work pass with separate task acceptance and commits, beginning with V417-006.
+    Shared V417-004 remains last; V417-010 live experiments wait for deterministic
+    acceptance. The earlier isolated implementation and V466-008 correction were
+    merged into main through f9eabdec2a37f87c56cc17792907dbc79f828a45.
     User continuation 2026-11-11 completes assigned V417-005 isolated Audit
     compaction after accepting V417-001/V417-003 and their verification repairs.
     Existing trusted collection, Task/Run/Finding provenance and publication

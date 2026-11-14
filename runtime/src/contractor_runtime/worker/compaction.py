@@ -700,6 +700,7 @@ async def run_compactor(
     *,
     model: BaseLlm,
     config: CompactWorkerContextManagement,
+    policy: ResolvedModelPolicy,
     document: str,
     invocation_id: str,
     observer: CompactorObserver,
@@ -727,7 +728,7 @@ async def run_compactor(
         instruction=lambda _: instruction,
         tools=[],
         output_schema=CompactionSummary,
-        generate_content_config=generation_config(config.model_policy),
+        generate_content_config=generation_config(policy),
         before_model_callback=before_model,
     )
     async with one_shot_session(
@@ -760,7 +761,7 @@ async def run_compactor(
     if one_shot.output_limited:
         raise WorkerCompactionError.failed("output_limit_exceeded")
     total = project_token_usage(one_shot.usage).total_tokens
-    limit = config.model_policy.max_total_tokens
+    limit = policy.max_total_tokens
     if total is not None and limit is not None and total > limit:
         raise WorkerCompactionError.failed("compactor_token_limit")
     return candidate

@@ -23,6 +23,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/stageresult"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -36,6 +37,12 @@ const compactionReasoningCanary = "ephemeral-compaction-reasoning-canary"
 // compresses its context twice, continues the same subtask and finishes with a
 // normal trusted result (V417-003 A7).
 func TestWorkerCompactionContinuesIsolatedWorker(t *testing.T) {
+	for _, layer := range []string{"default", "binding", "escalation"} {
+		t.Run(layer, func(t *testing.T) { workerCompactionSelectionScenario(t, layer) })
+	}
+}
+
+func workerCompactionSelectionScenario(t *testing.T, layer string) {
 	if testing.Short() {
 		t.Skip("end-to-end process test")
 	}
@@ -78,6 +85,51 @@ func TestWorkerCompactionContinuesIsolatedWorker(t *testing.T) {
 		t, filepath.Join(repositoryRoot, "configs", "e2e"),
 		filepath.Join(temporaryRoot, "configs"), gateway.URL(),
 	)
+	expectedOrigin := "workflow.executionConfig.workers"
+	expectedAttempts := 1
+	if layer != "default" {
+		policyPath := filepath.Join(configRoot, "model-policies/worker_compactor.yaml")
+		original, err := os.ReadFile(policyPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		unused := strings.Replace(string(original), "name: worker_compactor", "name: unused_compactor", 1)
+		unused = strings.Replace(unused, "model: worker-compactor-model", "model: unselected-compactor-model", 1)
+		if err := os.WriteFile(filepath.Join(configRoot, "model-policies/unused_compactor.yaml"), []byte(unused), 0600); err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(configRoot, "workflows/worker_compaction.yaml")
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		source := strings.Replace(string(data), "compactorModelPolicy: worker_compactor@1", "compactorModelPolicy: unused_compactor@1", 1)
+		if layer == "binding" {
+			source = strings.Replace(source, "  entryStage: compact", `    stages:
+      compact:
+        agents:
+          builder: {compactorModelPolicy: worker_compactor@1}
+
+  entryStage: compact`, 1)
+			expectedOrigin = "workflow.executionConfig.stages.compact.agents.builder"
+		} else {
+			source = strings.Replace(source, "        failed:\n          fail: {}", `        failed:
+          escalate:
+            maxAttempts: 1
+            executionConfig:
+              agents:
+                builder: {compactorModelPolicy: worker_compactor@1}
+            then: {fail: {}}`, 1)
+			expectedOrigin = "workflow.stages.compact.on.failed.escalate.executionConfig.agents.builder"
+			expectedAttempts = 2
+			gateway.mu.Lock()
+			gateway.failFirstMain = true
+			gateway.mu.Unlock()
+		}
+		if err := os.WriteFile(path, []byte(source), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
 	publicAddress := freeAddress(t)
 	privateAddress := freeAddress(t)
 	runtimeAddress := freeAddress(t)
@@ -144,10 +196,10 @@ func TestWorkerCompactionContinuesIsolatedWorker(t *testing.T) {
 	if failures := gateway.Failures(); len(failures) != 0 {
 		t.Fatalf("compaction Gateway fixture failures: %v", failures)
 	}
-	if len(status.Attempts) != 1 || status.Attempts[0].State != "succeeded" {
+	if len(status.Attempts) != expectedAttempts || status.Attempts[len(status.Attempts)-1].State != "succeeded" {
 		t.Fatalf("compaction attempts = %+v", status.Attempts)
 	}
-	attempt := status.Attempts[0]
+	attempt := status.Attempts[len(status.Attempts)-1]
 	var stageResult stageresult.StageContentResult
 	if err := json.Unmarshal(attempt.Result, &stageResult); err != nil {
 		t.Fatalf("Stage result: %v (%s)", err, attempt.Result)
@@ -172,7 +224,16 @@ func TestWorkerCompactionContinuesIsolatedWorker(t *testing.T) {
 		t.Fatalf("public compaction metrics = %+v, want 9 calls and %d tokens",
 			attempt.Metrics, gateway.TotalTokens())
 	}
-	report := loadSummarizerProcessReport(t, ctx, pool, runID)
+	executions, err := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).ListStageExecutions(ctx, runID)
+	if err != nil || len(executions) != expectedAttempts {
+		t.Fatalf("compaction StageExecutions = (%d, %v)", len(executions), err)
+	}
+	completed := executions[len(executions)-1]
+	reports, err := telemetry.NewRepository(pool).ListAllocationReports(ctx, completed.StageExecutionID)
+	if err != nil || len(reports) != 1 {
+		t.Fatalf("compaction execution reports = (%d, %v)", len(reports), err)
+	}
+	report := reports[0]
 	budget := report.Report.Worker.Metrics.WorkerBudget
 	if !report.Report.Worker.Complete || budget == nil || budget.ObservedModelCalls != 9 ||
 		budget.ObservedToolCalls != 5 || report.Report.Worker.Metrics.Summarizer != nil {
@@ -180,17 +241,15 @@ func TestWorkerCompactionContinuesIsolatedWorker(t *testing.T) {
 	}
 
 	// The immutable Stage snapshot carries the exact compact@1 pins.
-	executions, err := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).ListStageExecutions(ctx, runID)
-	if err != nil || len(executions) != 1 {
-		t.Fatalf("compaction StageExecutions = (%d, %v)", len(executions), err)
-	}
 	var stage resolved.ResolvedStage
-	if err := json.Unmarshal(executions[0].StageSpecSnapshot, &stage); err != nil {
+	if err := json.Unmarshal(completed.StageSpecSnapshot, &stage); err != nil {
 		t.Fatalf("decode Stage snapshot: %v", err)
 	}
 	selection := stage.Agents["builder"].ContextManagement
+	consumer := stage.ExecutionConfig.Agents["builder"]
 	if selection.Strategy != contracts.ContextStrategyCompact || selection.WorkerCompaction == nil ||
-		selection.ModelPolicy.Model != "worker-compactor-model" || !selection.IncludeReasoning ||
+		consumer.CompactorModelPolicy == nil || consumer.CompactorModelPolicy.Model != "worker-compactor-model" ||
+		consumer.Origins.CompactorModelPolicy != expectedOrigin || !selection.IncludeReasoning ||
 		selection.KeepRecentGroups != 1 || selection.MaxCompactions != 4 ||
 		selection.ContextWindowRatio != 0.5 ||
 		!strings.HasPrefix(selection.Instructions.Text, "Keep decisions, completed steps") {
@@ -248,13 +307,14 @@ type compactionGateway struct {
 	server *httptest.Server
 	token  string
 
-	mu          sync.Mutex
-	main        int
-	compactor   int
-	finalizer   int
-	totalTokens int64
-	pending     map[string]string
-	failures    []string
+	mu            sync.Mutex
+	failFirstMain bool
+	main          int
+	compactor     int
+	finalizer     int
+	totalTokens   int64
+	pending       map[string]string
+	failures      []string
 }
 
 func newCompactionGateway(token string) *compactionGateway {
@@ -400,6 +460,14 @@ func (g *compactionGateway) serveMain(w http.ResponseWriter, request map[string]
 	tools, err := optionalRequestToolNames(request)
 	if err != nil || !equalStringSlices(tools, []string{"read_context_history", "write_text_artifact"}) {
 		g.fail(w, fmt.Sprintf("compacted Worker exposed tools %v", tools))
+		return
+	}
+	g.mu.Lock()
+	initialFailure := g.failFirstMain
+	g.failFirstMain = false
+	g.mu.Unlock()
+	if initialFailure {
+		g.complete(w, model, map[string]any{"role": "assistant", "content": "controlled initial failure"}, "content_filter", 0, 0)
 		return
 	}
 	g.mu.Lock()

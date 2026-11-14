@@ -5,7 +5,7 @@ milestone: worker-context-compaction-2026-10
 epic: planner-worker
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V417-003
 languages:
@@ -18,7 +18,9 @@ goal: Choose the Worker compactor model through Workflow executionConfig and inl
 context:
   authority: 'User request on 2026-10-25: split proposal 0046 into tasks and make terminal summarizer
     includeReasoning independently deliverable. This record plans work; it does not start implementation
-    or change existing delivery priorities.'
+    or change existing delivery priorities. User assignment 2026-11-14: execute V417-006,
+    V417-007 and V417-008 in one work pass, with separate acceptance and task commits;
+    V417-004 remains last and live experiments remain after deterministic acceptance.'
   proposal: docs/proposals/0046-workflow-context-compaction.md
   specification:
   - docs/spec/configuration/agent-templates.md#TPL-R70
@@ -50,6 +52,18 @@ context:
   process_acceptance: Extend the existing TestWorkerCompactionContinuesIsolatedWorker real-process scenario
     for migrated policy selection and preserve its nonzero required-case registration. Reuse the ordinary
     scripted Gateway; this planning change makes no model calls.
+  implemented_boundary: '2026-11-14: contextManagement is behavior-only in authored,
+    resolved and allocation values. The existing consumer execution selection owns
+    the compactor policy and origin; RuntimeConfig materialization and AllocationSpec
+    carry it as compactorModelPolicy. The Runtime verifies that exact policy digest
+    before resource preparation. Default, binding and escalation selections use
+    one resolver and the owning Worker Gateway/credential. No policy definitions,
+    deployment model roles, production models or budgets changed.'
+  stored_format_transition: 'The pre-production closed snapshot/wire grammar changes
+    in place. Obsolete nested modelPolicy is rejected, including null and YAML merge;
+    no legacy reader or mutable catalog fallback is added. No stored business data
+    is rewritten or reset, and existing Runs are not retargeted. Newly resolved Runs
+    and prepared Eval bindings capture the new single-source selection.'
 scope:
   in:
   - Remove modelPolicy from Worker contextManagement authoring and its base-policy resolution; retain
@@ -161,6 +175,9 @@ tests:
   - A1
   - A4
 - command: make test-postgres
+  covers:
+  - A3
+- command: go test -count=1 ./internal/evalservice
   covers:
   - A3
 - command: make test-wire-cross-language

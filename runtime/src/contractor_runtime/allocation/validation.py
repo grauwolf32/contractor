@@ -107,6 +107,8 @@ def validate_spec(
             verify_model_policy_digest(spec.model_policy)
         if spec.summarizer_model_policy is not None:
             verify_model_policy_digest(spec.summarizer_model_policy)
+        if spec.compactor_model_policy is not None:
+            verify_model_policy_digest(spec.compactor_model_policy)
         if isinstance(spec.context_management, CompactWorkerContextManagement):
             verify_compaction_digests(spec.context_management)
     except TemplateDigestMismatch:

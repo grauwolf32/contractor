@@ -114,7 +114,7 @@ func (l *loader) applyExecutionConfigPatch(
 				}
 				selection := stage.ExecutionConfig.Agents[logicalName]
 				if err := l.applySelection(
-					&selection, *patch.Workers, originPrefix+".workers", false,
+					&selection, *patch.Workers, originPrefix+".workers",
 				); err != nil {
 					return fmt.Errorf("Stage %q Agent %q: %w", stageName, logicalName, err)
 				}
@@ -153,7 +153,7 @@ func (l *loader) applyExecutionConfigPatch(
 				return fmt.Errorf("stages.%s.agents names unknown logical Agent %q", stageName, logicalName)
 			}
 			if err := l.applySelection(
-				&selection, stagePatch.Agents[logicalName], stageOrigin+".agents."+logicalName, false,
+				&selection, stagePatch.Agents[logicalName], stageOrigin+".agents."+logicalName,
 			); err != nil {
 				return fmt.Errorf("Stage %q Agent %q: %w", stageName, logicalName, err)
 			}
@@ -179,14 +179,13 @@ func (l *loader) applyPlannerSelection(
 	if stage.ExecutionConfig.Planner == nil {
 		stage.ExecutionConfig.Planner = &resolved.ResolvedConsumerExecutionConfig{}
 	}
-	return l.applySelection(stage.ExecutionConfig.Planner, patch, origin, true)
+	return l.applySelection(stage.ExecutionConfig.Planner, patch, origin)
 }
 
 func (l *loader) applySelection(
 	selection *resolved.ResolvedConsumerExecutionConfig,
 	patch executionSelectionPatch,
 	origin string,
-	planner bool,
 ) error {
 	if patch.ModelPolicy.Present {
 		selector, err := resolved.ParseSelector(patch.ModelPolicy.Value)
@@ -217,9 +216,6 @@ func (l *loader) applySelection(
 		selection.Origins.SummarizerModelPolicy = origin
 	}
 	if patch.CompactorModelPolicy.Present {
-		if !planner {
-			return fmt.Errorf("compactorModelPolicy applies only to a Planner")
-		}
 		policy, err := l.compactorPolicy(patch.CompactorModelPolicy.Value)
 		if err != nil {
 			return err

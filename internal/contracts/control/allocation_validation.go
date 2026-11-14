@@ -76,6 +76,7 @@ func (s AllocationSpec) validateWorkerConfiguration() error {
 	if err := s.ContextManagement.ValidateAllocation(contracts.AllocationContext{
 		Template: s.AgentTemplate, SessionMode: s.WorkerSessionMode,
 		SummarizerModelPolicy: s.SummarizerModelPolicy, WorkerPolicy: s.ModelPolicy,
+		CompactorModelPolicy: s.CompactorModelPolicy,
 	}); err != nil {
 		return err
 	}

@@ -244,6 +244,7 @@ class AllocationPreparation:
                     if isinstance(spec.context_management, CompactWorkerContextManagement)
                     else None
                 ),
+                compactor_model_policy=spec.compactor_model_policy,
                 completion_contract=spec.completion_contract,
                 adapter_handles=self.adapter_host.handles.for_worker(),
                 resolved_skills=tuple(spec.resolved_skills),

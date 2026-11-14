@@ -437,6 +437,7 @@ func (s HTTPOriginTargetSettings) Validate() error {
 // only after allocation provenance is durable.
 type WorkerExecutionSettings struct {
 	SummarizerModelPolicy           *contracts.ResolvedModelPolicy
+	CompactorModelPolicy            *contracts.ResolvedModelPolicy
 	ModelPolicy                     contracts.ResolvedModelPolicy
 	RuntimeSettings                 RuntimeSettings
 	ResolvedRuntimeConfigProvenance ResolvedRuntimeConfigProvenance

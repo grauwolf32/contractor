@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-64 open tasks: 8 in progress, 43 pending, 13 deferred. 1563 finished: 1545 completed, 18 archived.
+64 open tasks: 9 in progress, 42 pending, 13 deferred. 1563 finished: 1545 completed, 18 archived.
 
 ## In progress
 
@@ -17,6 +17,7 @@ the epics are in [epics.yml](epics.yml).
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | quality | chore | P3 | Make the Runtime suite pass on macOS: declare the Linux-only Podman tests, make the other tests portable and file the macOS defects |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V417-004](v417-004-shared-session-context-compaction.yml) | planner-worker | feature | P1 | Preserve compacted context across shared-session invocations |
+| [V417-006](v417-006-compactor-model-policy-selection.yml) | planner-worker | feature | P1 | Select Worker compactor models only through Workflow executionConfig |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 
@@ -32,7 +33,6 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V417-006](v417-006-compactor-model-policy-selection.yml) | feature | P1 | — | Select Worker compactor models only through Workflow executionConfig |
 | [V417-007](v417-007-context-compaction-state-and-ui.yml) | feature | P1 | — | Report compaction progress and costs without exposing context content |
 | [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | — | Verify Planner compaction persistence cancellation and scale boundaries |
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | — | Expose bounded truthful Planner compaction diagnostics |

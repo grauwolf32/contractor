@@ -12,7 +12,6 @@ import (
 
 const auditCompactBinding = `          contextManagement:
             strategy: compact@1
-            modelPolicy: test-compactor@1
             instructions: {ref: instructions/worker-compaction.md}
             includeReasoning: false
 `
@@ -25,7 +24,7 @@ func compactAuditFixture(t *testing.T) string {
 	}
 	path := filepath.Join(root, "workflows/audit_source_check.yaml")
 	source := string(readFile(t, path))
-	source = strings.Replace(source, "modelPolicy: audit_completion_worker@1", "modelPolicy: test-compact-worker@1", 1)
+	source = strings.Replace(source, "modelPolicy: audit_completion_worker@1", "modelPolicy: test-compact-worker@1\n      compactorModelPolicy: test-compactor@1", 1)
 	source = strings.Replace(source, "          namespace: audit-check\n", "          namespace: audit-check\n"+auditCompactBinding, 1)
 	writeFile(t, path, []byte(source))
 	path = filepath.Join(root, "agent-templates/audit_source_checker.yaml")

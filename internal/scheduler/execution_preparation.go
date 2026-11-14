@@ -62,6 +62,7 @@ func (s *Scheduler) workerExecutionSettingsForRun(
 		result[logicalName] = runtimesettings.WorkerExecutionSettings{
 			ModelPolicy: runtimeConfig.ModelPolicy.Clone(), RuntimeSettings: runtimeSettings,
 			SummarizerModelPolicy:           runtimeConfig.SummarizerModelPolicy,
+			CompactorModelPolicy:            runtimeConfig.CompactorModelPolicy,
 			ResolvedRuntimeConfigProvenance: runtimeConfig.Provenance,
 		}
 	}

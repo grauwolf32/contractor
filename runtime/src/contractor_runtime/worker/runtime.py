@@ -817,6 +817,9 @@ class AdkWorkerRuntime:
         compaction = self._compaction
         if compaction is None:
             raise RuntimeError("Worker compaction is disabled")
+        policy = self._context.compactor_model_policy
+        if policy is None:
+            raise RuntimeError("Worker compactor model policy is missing")
         span = start_isolated_span(
             self._instrumentation,
             "contractor.worker.context_compaction",
@@ -832,9 +835,10 @@ class AdkWorkerRuntime:
             self._admit_semantic_work()
             compactor_context = replace(
                 self._context,
-                model_policy=compaction.config.model_policy,
+                model_policy=policy,
                 summarizer=None,
                 compaction=None,
+                compactor_model_policy=None,
                 tools={},
                 resolved_skills=(),
                 agent_skills=None,
@@ -849,6 +853,7 @@ class AdkWorkerRuntime:
                     candidate = await run_compactor(
                         model=model,
                         config=compaction.config,
+                        policy=policy,
                         document=plan.document,
                         invocation_id=invocation_id,
                         observer=self._plugin,

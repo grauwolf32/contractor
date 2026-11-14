@@ -7738,7 +7738,7 @@ type ConfigurationResourceSource string
 type ConsumerExecutionConfig struct {
 	CompactorModel *string `json:"compactorModel,omitempty"`
 
-	// CompactorModelPolicy Tool-free compactor of a compact@1 Planner (PLN-R125); absent for every Worker.
+	// CompactorModelPolicy Exact tool-free compactor policy of a compact@1 Planner or Worker (TPL-R117); absent for other context strategies.
 	CompactorModelPolicy *ModelPolicyRef      `json:"compactorModelPolicy,omitempty"`
 	Credential           *CredentialRef       `json:"credential,omitempty"`
 	LlmGateway           *LLMGatewayConfigRef `json:"llmGateway,omitempty"`
@@ -11930,7 +11930,6 @@ type WorkflowCompactContextManagement struct {
 	Instructions       InstructionsRef                          `json:"instructions"`
 	KeepRecentGroups   int                                      `json:"keepRecentGroups"`
 	MaxCompactions     int                                      `json:"maxCompactions"`
-	ModelPolicy        ModelPolicyRef                           `json:"modelPolicy"`
 	Strategy           WorkflowCompactContextManagementStrategy `json:"strategy"`
 }
 

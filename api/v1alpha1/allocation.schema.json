@@ -450,7 +450,8 @@
                 "const": "none"
               }
             }
-          }
+          },
+          "compactorModelPolicy": false
         }
       },
       "else": {
@@ -556,6 +557,9 @@
         },
         "engagement": {
           "$ref": "engagement-allocation.schema.json"
+        },
+        "compactorModelPolicy": {
+          "$ref": "common.schema.json#/$defs/workerCompactorModelPolicy"
         }
       },
       "required": [
@@ -579,13 +583,20 @@
       "allOf": [
         {
           "if": {
-            "required": ["completionContract"]
+            "required": [
+              "completionContract"
+            ]
           },
           "then": {
             "properties": {
               "contextManagement": {
                 "properties": {
-                  "strategy": {"enum": ["none", "compact@1"]}
+                  "strategy": {
+                    "enum": [
+                      "none",
+                      "compact@1"
+                    ]
+                  }
                 }
               }
             }
@@ -675,7 +686,8 @@
           },
           "then": {
             "required": [
-              "modelPolicy"
+              "modelPolicy",
+              "compactorModelPolicy"
             ],
             "properties": {
               "workerSessionMode": {
@@ -688,6 +700,11 @@
                   "maxOutputTokens"
                 ]
               }
+            }
+          },
+          "else": {
+            "properties": {
+              "compactorModelPolicy": false
             }
           }
         }

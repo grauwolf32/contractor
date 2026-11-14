@@ -231,7 +231,7 @@ def test_prepare_rejects_every_purpose_reserved_agent_namespace(
     asyncio.run(scenario())
 
 
-def test_bad_digest_and_unsupported_ref_leave_no_residue(
+def test_shared_bad_digests_and_unsupported_ref_leave_no_residue(
     tmp_path: Path, runtime_capabilities: CapabilitySnapshot
 ) -> None:
     async def scenario() -> None:
@@ -251,6 +251,22 @@ def test_bad_digest_and_unsupported_ref_leave_no_residue(
             await service.prepare(bad_policy_digest)
         assert policy_mismatch.value.code == "template_digest_mismatch"
         assert not policy_mismatch.value.retryable
+        assert await service.snapshot() is None
+        assert list(tmp_path.iterdir()) == []
+
+        # Compactor policy integrity belongs to the captured execution selection,
+        # separately from the behavior-only contextManagement block.
+        compact_fixture = (
+            Path(__file__).parents[2] / "api/testdata/v1alpha1/valid/allocation-spec-compact.json"
+        )
+        bad_compactor = AllocationSpec.model_validate_json(compact_fixture.read_bytes())
+        bad_compactor.lease_expires_at = make_spec().lease_expires_at
+        assert bad_compactor.compactor_model_policy is not None
+        bad_compactor.compactor_model_policy.model = "tampered-compactor-model"
+        with pytest.raises(AllocationError) as compactor_mismatch:
+            await service.prepare(bad_compactor)
+        assert compactor_mismatch.value.code == "template_digest_mismatch"
+        assert not compactor_mismatch.value.retryable
         assert await service.snapshot() is None
         assert list(tmp_path.iterdir()) == []
 

@@ -1419,9 +1419,27 @@ spec:
 	files["audit-profiles/parameters.yaml"] = strings.Replace(parameterProfile, "      parameters: {}", "      parameters: {}\n      parameter_inputs: {server: server, operations: operations, test_parameters: test_parameters, credential_id: credential_id, tags: tags}", 1)
 	for _, variant := range []string{"a", "b"} {
 		policy := strings.Replace(files["model-policies/worker.yaml"], "name: worker", "name: variant-worker-"+variant, 1)
-		files["model-policies/variant-worker-"+variant+".yaml"] = strings.Replace(policy, "worker-model", "variant-model-"+variant, 1)
+		policy = strings.Replace(policy, "  model: worker-model", "  contextWindowTokens: 8192\n  model: variant-model-"+variant, 1)
+		files["model-policies/variant-worker-"+variant+".yaml"] = policy
+		files["model-policies/variant-compactor-"+variant+".yaml"] = `apiVersion: contractor/v1alpha1
+kind: ModelPolicy
+metadata: {name: variant-compactor-` + variant + `, version: "1"}
+spec:
+  model: variant-compactor-` + variant + `
+  contextWindowTokens: 8192
+  maxOutputTokens: 1024
+  maxModelCalls: 1
+  maxTotalTokens: 4096
+`
 		workflow := strings.Replace(files["workflows/check.yaml"], "name: audit-check", "name: variant-check-"+variant, 1)
-		files["workflows/variant-check-"+variant+".yaml"] = strings.Replace(workflow, "modelPolicy: worker@1", "modelPolicy: variant-worker-"+variant+"@1", 1)
+		workflow = strings.Replace(workflow, "modelPolicy: worker@1", "modelPolicy: variant-worker-"+variant+"@1\n      compactorModelPolicy: variant-compactor-"+variant+"@1", 1)
+		workflow = strings.Replace(workflow, "worker: {template: audit-worker@1}", `worker:
+          template: audit-worker@1
+          contextManagement:
+            strategy: compact@1
+            instructions: {ref: instructions/worker.md}
+            includeReasoning: false`, 1)
+		files["workflows/variant-check-"+variant+".yaml"] = workflow
 	}
 	for _, name := range []string{"agent-templates/nuclei.yaml", "workflows/nuclei.yaml"} {
 		data, err := os.ReadFile(filepath.Join("testdata", "source-scope", name))
@@ -1510,6 +1528,9 @@ func TestSharedPostgresEvalComparesAuthoredWorkflowPoliciesAndSubmitsFrozenBindi
 		selection := workflow.Stages["check"].ExecutionConfig.Agents["worker"]
 		if selection.ModelPolicy.Model != "variant-model-"+variant || selection.Origins.ModelPolicy != "workflow.executionConfig.workers" {
 			t.Fatalf("submitted policy %+v", selection)
+		}
+		if selection.CompactorModelPolicy == nil || selection.CompactorModelPolicy.Model != "variant-compactor-"+variant || selection.Origins.CompactorModelPolicy != "workflow.executionConfig.workers" || !workflow.Stages["check"].Agents["worker"].ContextManagement.IsCompact() {
+			t.Fatalf("submitted compactor policy %+v", selection)
 		}
 		counts[variant]++
 	}

@@ -27,6 +27,7 @@ spec:
 
   executionConfig:
     workers:
+      compactorModelPolicy: compactor@1
       llmGateway: local-litellm@1
       credential: development-worker
       modelPolicy: worker@2
@@ -46,7 +47,6 @@ spec:
           # the same trace instead of stopping with a terminal summary.
           contextManagement:
             strategy: compact@1
-            modelPolicy: compactor@1
             instructions:
               ref: instructions/worker-compaction.md
             includeReasoning: false

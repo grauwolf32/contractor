@@ -5643,7 +5643,7 @@ export interface components {
             model?: string;
             summarizerModelPolicy?: components["schemas"]["ModelPolicyRef"];
             summarizerModel?: string;
-            /** @description Tool-free compactor of a compact@1 Planner (PLN-R125); absent for every Worker. */
+            /** @description Exact tool-free compactor policy of a compact@1 Planner or Worker (TPL-R117); absent for other context strategies. */
             compactorModelPolicy?: components["schemas"]["ModelPolicyRef"];
             compactorModel?: string;
             llmGateway?: components["schemas"]["LLMGatewayConfigRef"];
@@ -6017,7 +6017,6 @@ export interface components {
         WorkflowCompactContextManagement: {
             /** @constant */
             strategy: "compact@1";
-            modelPolicy: components["schemas"]["ModelPolicyRef"];
             instructions: components["schemas"]["InstructionsRef"];
             includeReasoning: boolean;
             contextWindowRatio: number;

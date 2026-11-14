@@ -1533,9 +1533,11 @@ session compaction remains outside this version.
 **WRK-R184.** AllocationSpec carries exactly one effective
 `contextManagement` branch: `none` (the template has no summarizer),
 `terminal@1` (the template summarizer of WRK-R140 onward) or `compact@1`
-with every member of the binding policy, including the pinned compactor
-ModelPolicy and instruction text. Server derives it from the binding and the
-template; the template itself is not rewritten. Go and Runtime validation and
+with every behavior member of the binding policy and instruction text. The
+pinned compactor ModelPolicy is the allocation's separate `compactorModelPolicy`,
+captured from Workflow executionConfig; it is required exactly for `compact@1`.
+The behavior branch rejects `modelPolicy`. Server derives the branch from the
+binding and template; the template itself is not rewritten. Go and Runtime validation and
 the allocation schema reject a branch that disagrees with the template
 (`none` with a summarizer, `terminal@1` without one), `compact@1` for a
 `tool@1` template, a `shared` session, a `summarizerModelPolicy` outside `terminal@1`,

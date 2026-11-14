@@ -844,7 +844,6 @@ class CompactWorkerContextManagement(WireModel):
     """The Workflow-selected compact@1 branch; it wholly replaces the summarizer."""
 
     strategy: Literal["compact@1"]
-    model_policy: ResolvedModelPolicy
     instructions: ResolvedInstructions
     include_reasoning: bool
     context_window_ratio: float = Field(gt=0, lt=1)
@@ -855,7 +854,6 @@ class CompactWorkerContextManagement(WireModel):
     def validate_compaction(self) -> Self:
         if len(self.instructions.text) > MAX_WORKER_CONTEXT_INSTRUCTIONS_CHARACTERS:
             raise ValueError("compact@1 instructions must contain at most 8000 Unicode characters")
-        _require_worker_compactor_policy(self.model_policy)
         if not math.isfinite(self.context_window_ratio):
             raise ValueError("compact@1 contextWindowRatio must be finite")
         return self

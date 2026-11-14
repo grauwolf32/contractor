@@ -35,6 +35,7 @@ from contractor_runtime.contracts.settings import (
     RuntimeSettings,
     WorkerContextManagement,
     WorkerRuntimeRef,
+    _require_worker_compactor_policy,
     _require_worker_policy,
     _require_worker_summarizer_policy,
 )
@@ -141,10 +142,20 @@ class AllocationSpec(VersionedWireModel):
         default=None, exclude_if=lambda value: value is None
     )
     summarizer_model_policy: ResolvedModelPolicy | None = None
+    compactor_model_policy: ResolvedModelPolicy | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     runtime_settings: RuntimeSettings
     resolved_runtime_config_provenance: ResolvedRuntimeConfigProvenance
     workspace: AllocationWorkspaceSpec | None = None
     performance_metrics: PerformanceMetricsRequest | None = None
+
+    @field_validator("compactor_model_policy", mode="before")
+    @classmethod
+    def require_compactor_policy_when_present(cls, value: Any) -> Any:
+        if value is None:
+            raise ValueError("compactorModelPolicy must not be null")
+        return value
 
     @field_validator("run_metadata_labels")
     @classmethod
@@ -198,6 +209,7 @@ class AllocationSpec(VersionedWireModel):
             if (
                 "model_policy" in self.model_fields_set
                 or "summarizer_model_policy" in self.model_fields_set
+                or "compactor_model_policy" in self.model_fields_set
                 or "completion_contract" in self.model_fields_set
                 or "llm_gateway_url" in self.runtime_settings.model_fields_set
                 or self.runtime_settings.llm_gateway_url is not None
@@ -266,7 +278,12 @@ class AllocationSpec(VersionedWireModel):
         if self.summarizer_model_policy is not None and strategy != "terminal@1":
             raise ValueError("summarizerModelPolicy requires terminal@1 context management")
         if strategy != "compact@1":
+            if self.compactor_model_policy is not None:
+                raise ValueError("compactorModelPolicy requires compact@1 context management")
             return
+        if self.compactor_model_policy is None:
+            raise ValueError("compact@1 requires compactorModelPolicy")
+        _require_worker_compactor_policy(self.compactor_model_policy)
         if self.agent_template.is_tool_worker:
             raise ValueError("compact@1 requires a modeled ADK Worker")
         if self.worker_session_mode != "isolated":

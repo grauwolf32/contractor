@@ -11212,7 +11212,6 @@
       "additionalProperties": false,
       "required": [
         "strategy",
-        "modelPolicy",
         "instructions",
         "includeReasoning",
         "contextWindowRatio",
@@ -11221,9 +11220,6 @@
       ],
       "properties": {
         "strategy": { "type": "string", "const": "compact@1" },
-        "modelPolicy": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ModelPolicyRef"
-        },
         "instructions": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/InstructionsRef"
         },

@@ -173,8 +173,8 @@ func (a *PlacementAllocator) resolveCandidateWithCache(
 		summarizerModelPolicy = &policy
 	}
 	var compactorModelPolicy *contracts.ResolvedModelPolicy
-	if binding.ContextManagement.IsCompact() {
-		policy := binding.ContextManagement.ModelPolicy.Clone()
+	if binding.RuntimeSelection.CompactorModelPolicy != nil {
+		policy := binding.RuntimeSelection.CompactorModelPolicy.Clone()
 		compactorModelPolicy = &policy
 	}
 	return runtimeconfig.ResolveRuntimeConfig(runtimeconfig.ResolveRuntimeConfigInput{

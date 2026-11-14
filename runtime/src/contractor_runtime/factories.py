@@ -123,6 +123,7 @@ class WorkerBuildContext:
     summarizer: WorkerSummarizerConfig | None = None
     # The compact@1 branch (WRK-R184); it excludes ``summarizer``.
     compaction: CompactWorkerContextManagement | None = None
+    compactor_model_policy: ResolvedModelPolicy | None = None
     completion_contract: WorkerCompletionContract | None = None
     adapter_handles: AdapterHandles = field(
         default=EMPTY_ADAPTER_HANDLES,
@@ -138,6 +139,8 @@ class WorkerBuildContext:
             raise TypeError("Worker State and tool resources must share allocation metrics")
         if self.summarizer is not None and self.compaction is not None:
             raise TypeError("a Worker has at most one context-management branch")
+        if (self.compaction is None) != (self.compactor_model_policy is None):
+            raise TypeError("compact@1 requires exactly one compactor model policy")
 
 
 class WorkerRuntimeFactory(Protocol):

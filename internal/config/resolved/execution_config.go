@@ -125,8 +125,8 @@ func applyResolvedStageExecutionConfigOverride(
 		if stage.Agents[logicalName].Template.IsToolWorker() {
 			return fmt.Errorf("tool@1 does not accept model execution overrides")
 		}
-		if patch.CompactorModelPolicy != nil {
-			return fmt.Errorf("agents.%s: compactorModelPolicy applies only to a Planner", logicalName)
+		if patch.CompactorModelPolicy != nil && !stage.Agents[logicalName].ContextManagement.IsCompact() {
+			return fmt.Errorf("agents.%s: compactorModelPolicy requires compact@1", logicalName)
 		}
 		if err := applyResolvedExecutionSelectionOverride(
 			&selection, patch, origin+".agents."+logicalName,
@@ -298,9 +298,6 @@ func ValidateStageExecutionConfig(stageName string, stage ResolvedStage) error {
 			return fmt.Errorf("Stage %q Agent %q contextManagement: %w", stageName, logicalName, err)
 		}
 		hasTools := len(binding.Template.Toolsets) > 0 || len(binding.Template.Skills) > 0
-		if selection.CompactorModelPolicy != nil || selection.Origins.CompactorModelPolicy != "" {
-			return fmt.Errorf("Stage %q Agent %q: compactorModelPolicy applies only to a Planner", stageName, logicalName)
-		}
 		if binding.Template.IsToolWorker() {
 			if !selection.ModelPolicy.IsZero() || selection.SummarizerModelPolicy != nil || selection.LLMGateway != nil || selection.Credential != nil || selection.Origins != (ExecutionConfigOrigins{}) {
 				return fmt.Errorf("tool@1 does not accept model execution configuration")
@@ -402,7 +399,16 @@ func validateAgentContextManagement(
 		return err
 	}
 	if !binding.ContextManagement.IsCompact() {
+		if selection.CompactorModelPolicy != nil || selection.Origins.CompactorModelPolicy != "" {
+			return fmt.Errorf("compactorModelPolicy requires compact@1")
+		}
 		return nil
+	}
+	if selection.CompactorModelPolicy == nil || strings.TrimSpace(selection.Origins.CompactorModelPolicy) == "" {
+		return fmt.Errorf("compact@1 requires compactorModelPolicy and its origin")
+	}
+	if err := selection.CompactorModelPolicy.ValidateForCompactor(); err != nil {
+		return err
 	}
 	if err := contracts.ValidateCompactionTarget(binding.Template, stage.Session); err != nil {
 		return err

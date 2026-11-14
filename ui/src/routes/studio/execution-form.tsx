@@ -37,16 +37,18 @@ function SelectionForm({
       ) : (
         <>
           <p>Unset fields inherit their existing configuration.</p>
+          <p>Compactor policies apply only to consumers using compact@1.</p>
           {(
             [
               "modelPolicy",
               ...(allowSummary ? ["summarizerModelPolicy"] : []),
+              "compactorModelPolicy",
               "llmGateway",
             ] as const
           ).map((field) => (
             <CatalogField
               key={field}
-              label={`${title} ${field === "modelPolicy" ? "model policy" : field === "summarizerModelPolicy" ? "summarizer model policy" : "gateway"}`}
+              label={`${title} ${field === "modelPolicy" ? "model policy" : field === "summarizerModelPolicy" ? "summarizer model policy" : field === "compactorModelPolicy" ? "compactor model policy" : "gateway"}`}
               kind={field === "llmGateway" ? "llm-gateways" : "model-policies"}
               value={textValue(row[field])}
               onChange={(value) =>

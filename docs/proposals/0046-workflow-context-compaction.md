@@ -93,6 +93,9 @@ tool-free вызов и возвращает `WorkerResult(summarized=true)`.
 
 ```yaml
 spec:
+  executionConfig:
+    workers:
+      compactorModelPolicy: compactor@1
   stages:
     review:
       planner: passthrough@1
@@ -103,7 +106,6 @@ spec:
           namespace: analysis
           contextManagement:
             strategy: compact@1
-            modelPolicy: compactor@1
             instructions:
               ref: instructions/worker-compaction.md
             includeReasoning: true

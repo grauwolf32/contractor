@@ -86,10 +86,10 @@ func TestCompactBindingResolvesExplicitPinsWithoutChangingTemplate(t *testing.T)
 		compaction.MaxCompactions != contracts.DefaultWorkerCompactions || compaction.IncludeReasoning {
 		t.Fatalf("defaults were not normalized: %+v", compaction)
 	}
-	if compaction.ModelPolicy.Ref.PolicyID != "test-compactor" || compaction.ModelPolicy.MaxModelCalls != 1 {
-		t.Fatalf("compactor policy = %+v", compaction.ModelPolicy)
+	if workflow.Stages["copy"].ExecutionConfig.Agents["builder"].CompactorModelPolicy.Ref.PolicyID != "test-compactor" || workflow.Stages["copy"].ExecutionConfig.Agents["builder"].CompactorModelPolicy.MaxModelCalls != 1 {
+		t.Fatalf("compactor policy = %+v", workflow.Stages["copy"].ExecutionConfig.Agents["builder"].CompactorModelPolicy)
 	}
-	assertDigest(t, compaction.ModelPolicy.Ref.Digest)
+	assertDigest(t, workflow.Stages["copy"].ExecutionConfig.Agents["builder"].CompactorModelPolicy.Ref.Digest)
 	if compaction.Instructions.Ref != "instructions/worker-compaction.md" ||
 		!strings.Contains(compaction.Instructions.Text, "same subtask") {
 		t.Fatalf("instructions = %+v", compaction.Instructions)

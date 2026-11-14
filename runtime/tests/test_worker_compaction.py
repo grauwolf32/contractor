@@ -104,7 +104,6 @@ def compaction(
 ) -> CompactWorkerContextManagement:
     return CompactWorkerContextManagement(
         strategy="compact@1",
-        modelPolicy=compactor_policy(),
         instructions=ResolvedInstructions(
             ref="instructions/worker-compaction.md",
             digest="sha256:" + "d" * 64,
@@ -142,6 +141,7 @@ def compact_context(
             }
         ),
         compaction=compaction(keep=keep, max_compactions=max_compactions),
+        compactor_model_policy=compactor_policy(),
     )
 
 

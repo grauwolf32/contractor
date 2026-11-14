@@ -16605,7 +16605,7 @@ components:
         summarizerModel: {type: string, minLength: 1}
         compactorModelPolicy:
           $ref: '#/components/schemas/ModelPolicyRef'
-          description: Tool-free compactor of a compact@1 Planner (PLN-R125); absent for every Worker.
+          description: Exact tool-free compactor policy of a compact@1 Planner or Worker (TPL-R117); absent for other context strategies.
         compactorModel: {type: string, minLength: 1}
         llmGateway: {$ref: '#/components/schemas/LLMGatewayConfigRef'}
         credential: {$ref: '#/components/schemas/CredentialRef'}
@@ -17137,10 +17137,9 @@ components:
     WorkflowCompactContextManagement:
       type: object
       additionalProperties: false
-      required: [strategy, modelPolicy, instructions, includeReasoning, contextWindowRatio, keepRecentGroups, maxCompactions]
+      required: [strategy, instructions, includeReasoning, contextWindowRatio, keepRecentGroups, maxCompactions]
       properties:
         strategy: {type: string, const: compact@1}
-        modelPolicy: {$ref: '#/components/schemas/ModelPolicyRef'}
         instructions: {$ref: '#/components/schemas/InstructionsRef'}
         includeReasoning: {type: boolean}
         contextWindowRatio: {type: number, exclusiveMinimum: 0, exclusiveMaximum: 1}
