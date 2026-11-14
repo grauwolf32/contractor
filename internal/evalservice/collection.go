@@ -12,7 +12,7 @@ import (
 )
 
 func NormalizerSHA256() string {
-	return normalizerV3SHA256
+	return normalizerV4SHA256
 }
 
 type preparedSetup struct {

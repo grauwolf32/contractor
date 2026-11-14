@@ -592,7 +592,9 @@ already enter normal-loop counters; phase and monetary breakdowns are views,
 never additional charges. The same separate summarizer totals enter bounded
 known-token admission lower bounds for Runs and all owned Audit children, with
 the existing overflow saturation. Runtime termination and its normal-loop hard
-budget are unchanged.
+budget are unchanged. This intentional collection change uses output normalizer
+version 4 with a new pinned implementation digest (EVF-R53, EVF-R58). Existing
+result history is retained under the ordinary revision/selection rules (EVM-R82).
 
 **EVM-R76.** For an Audit, all owned child executions are resolved through
 authoritative common execution/Task associations, including supporting work
