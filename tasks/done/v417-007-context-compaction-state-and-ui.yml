@@ -5,7 +5,7 @@ milestone: worker-context-compaction-2026-10
 epic: planner-worker
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V417-003
 languages:
@@ -47,13 +47,14 @@ context:
   review_baseline: Local main 1142c2681d6520baa8c04bb0a90ca8fd224deb29. Current owning specifications
     and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
     and verification history. Recheck affected contracts if main changes before execution.
-  current_state: Basic compaction spans and model.phase=context_compactor already exist; public numeric
-    State/report/UI diagnostics remain this task. V452-002 already optimizes conditional Worker State
-    reads, and V452-001 separates State projection from allocation stop ownership.
+  current_state: Accepted 2026-11-14. One State progress owner, canonical cost phases in allocation metrics,
+    one public Runtime diagnostic path for active/retained observations, safe cleanup and current UI.
+    See tasks/evidence/v417-007-acceptance-20261114.json.
   implementation_decision: 'Runtime owns one closed numeric observation, with optional State schema-v2
     presence meaning observed only. ExecutionReport retains the latest invocation; fixed modelPhases counters
     are allocation-wide. User review 2026-11-14 removes duplicate applied/generation storage and per-invocation
-    usage deltas: State alone owns progress; main prompt measurements join the existing metric publication without a second State mutation. Reports read progress after joining, and MetricsState alone owns
+    usage deltas: State alone owns progress; main prompt measurements join the existing metric publication
+    without a second State mutation. Reports read progress after joining, and MetricsState alone owns
     phase usage. Existing summarizer usage is projected without changing its accounting. Runtime diagnostics
     is the single public progress path, live or retained. Diagnostic errors preserve the original execution
     failure and cannot bypass resource cleanup. Existing owner-authorized Runtime diagnostics select a
@@ -62,6 +63,9 @@ context:
     reports take precedence. The simpler final-report-only projection cannot show ongoing requested/running
     compaction. Reopen this choice if State read load exceeds the existing page and three-second request
     budgets; do not add background polling.'
+  verification: "All A1\u2013A4 and required Runtime, Go/PostgreSQL, wire, API, UI, browser and lint commands\
+    \ passed. A real Server/Runtime process checks public generation/phase totals for all three policy-selection\
+    \ scenarios. Optional heavy I/O and 135 declared Runtime skips are excluded coverage."
 scope:
   in:
   - Bounded numeric compaction State and report/telemetry breakdown, strict schemas and shared fixtures,
@@ -96,11 +100,12 @@ requirements:
     to obey OBS-R54-R60 independently; enabled telemetry may capture ordinary content with exact credential
     redaction; selected tools do not suppress the entire Worker content.
 - id: R5
-  text: UI may show Контекст сжат, работа продолжается only from a confirmed applied state. Compaction
-    alone cannot set completed, create a subtask or mark summarized=true. Handle multiple cycles, terminal
-    refetch, stale reads, failed polling and stable final state according to existing UI rules. Native
-    SDK skip/None, abort, error or an uncommitted marker cannot produce applied or the continuing-success
-    message.
+  text: "UI may show \u041A\u043E\u043D\u0442\u0435\u043A\u0441\u0442 \u0441\u0436\u0430\u0442, \u0440\
+    \u0430\u0431\u043E\u0442\u0430 \u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0430\u0435\u0442\u0441\u044F\
+    \ only from a confirmed applied state. Compaction alone cannot set completed, create a subtask or\
+    \ mark summarized=true. Handle multiple cycles, terminal refetch, stale reads, failed polling and\
+    \ stable final state according to existing UI rules. Native SDK skip/None, abort, error or an uncommitted\
+    \ marker cannot produce applied or the continuing-success message."
 - id: R6
   text: Extend existing bounded State/report shapes and revision ownership coherently. Every compaction
     State mutation invalidates conditional-read eligibility; a fresh revision is strictly wire-validated
@@ -213,3 +218,4 @@ test_prerequisites:
 - Follow the current Linux/platform and disk-heavy test policies (V433-007 and AGENTS.md). Do not enable
   CONTRACTOR_TEST_HEAVY_IO implicitly or count declared optional skips as passing coverage. Record exact
   revision, executed cases and exclusions; this backlog review ran no feature acceptance suites.
+implementation_commit: f6dbdf8402717b24c9d4d48eb0c17169611dc566
