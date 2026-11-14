@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import time
@@ -24,6 +25,7 @@ MAX_DOCUMENT = 1 << 20
 TERMINAL = frozenset({"succeeded", "failed", "cancelled"})
 DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
 ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}\Z")
+VALIDATOR_ENV = "CONTRACTOR_CONTEXT_EVAL_OPENAPI_VALIDATOR"
 
 
 class Rejected(ValueError):
@@ -41,6 +43,58 @@ def encoded(value):
 
 def digest(raw):
     return "sha256:" + hashlib.sha256(raw).hexdigest()
+
+
+def scorer_digest():
+    """Pin the scorer and the exact local validator source/dependency closure."""
+    return digest(
+        b"\0".join(
+            path.read_bytes()
+            for path in (
+                ROOT / "harness.py",
+                ROOT / "openapivalidator/main.go",
+                REPO / "go.mod",
+                REPO / "go.sum",
+            )
+        )
+    )
+
+
+@contextlib.contextmanager
+def openapi_validator():
+    """Build once without dependency downloads; remove the owned binary on exit."""
+    with tempfile.TemporaryDirectory(prefix="context-eval-validator-") as folder:
+        binary = str(Path(folder) / "validate-openapi")
+        result = subprocess.run(
+            ["go", "build", "-o", binary, "./tests/eval/context_compaction/openapivalidator"],
+            cwd=REPO,
+            capture_output=True,
+            timeout=60,
+            env={**os.environ, "GOPROXY": "off", "GOSUMDB": "off", "GOTOOLCHAIN": "local"},
+        )
+        require(result.returncode == 0, "local OpenAPI validator build failed")
+        previous = os.environ.get(VALIDATOR_ENV)
+        os.environ[VALIDATOR_ENV] = binary
+        try:
+            yield
+        finally:
+            if previous is None:
+                os.environ.pop(VALIDATOR_ENV, None)
+            else:
+                os.environ[VALIDATOR_ENV] = previous
+
+
+def valid_openapi(document):
+    binary = os.environ.get(VALIDATOR_ENV)
+    if binary is None:
+        raise RuntimeError("local OpenAPI validator is not prepared")
+    raw = encoded(document)
+    if len(raw) > MAX_DOCUMENT:
+        return False
+    result = subprocess.run([binary], input=raw, capture_output=True, timeout=5)
+    if result.returncode not in (0, 1):
+        raise RuntimeError("local OpenAPI validator failed")
+    return result.returncode == 0
 
 
 def unique_object(pairs):
@@ -91,7 +145,7 @@ def fixtures():
         "truth drift",
     )
     require(
-        digest((ROOT / "harness.py").read_bytes()) == variants["scorerSha256"],
+        scorer_digest() == variants["scorerSha256"],
         "scorer drift",
     )
     require(
@@ -148,6 +202,7 @@ def score(case, answer, oracle, truth, *, continuation_required=True):
             ) and set(answer["uncertain"]) == set(expected["uncertain"])
         elif case["id"] == "api-dependency":
             document = answer["openapi"]
+            checks["openapi_valid"] = valid_openapi(document)
             routes = case["inputs"]["routes"]
             operations = [document["paths"][r["path"]][r["method"]] for r in routes]
             checks["api_contract"] = (
@@ -587,6 +642,8 @@ def verify_remote(client, manifest):
                 gateway is not None and gateway["ref"]["kind"] == "llm-gateways",
                 "configured Gateway pin missing",
             )
+        workflow = resources["/v1/workflows/" + pin["workflow"].replace("@", "/versions/")]
+        verify_workflow_models(workflow, pin["models"])
     _, cases, _ = fixtures()
     expected = []
     for experiment in manifest["experiments"]:
@@ -603,7 +660,7 @@ def verify_remote(client, manifest):
         require(
             len(checks) == 1
             and checks[0]["required"]
-            and checks[0]["implementationSha256"] == digest((ROOT / "harness.py").read_bytes()),
+            and checks[0]["implementationSha256"] == scorer_digest(),
             "remote scorer closure mismatch",
         )
         require(
@@ -662,6 +719,56 @@ def verify_remote(client, manifest):
     return expected
 
 
+def verify_workflow_models(workflow, models):
+    """Match every effective consumer, including continuation/retry variants.
+
+    All arms declare the same policy set; an arm can use a subset (for example,
+    a terminal-only arm has no compactor). Every actual route must be in it.
+    An omitted Worker Gateway depends on deployment defaults and cannot prove
+    the frozen route, so this experiment requires an explicit Workflow route.
+    """
+    declared = {
+        (model["policyRef"], model["policySha256"], model["alias"], model["gatewaySha256"])
+        for model in models
+    }
+    for stage in workflow["stages"].values():
+        configurations = [stage["executionConfig"]]
+        configurations.extend(
+            action["executionConfig"]["effective"]
+            for action in stage["on"].values()
+            if action["kind"] == "escalate"
+        )
+        for configuration in configurations:
+            consumers = list(configuration["agents"].values())
+            if configuration.get("planner") is not None:
+                consumers.append(configuration["planner"])
+            for consumer in consumers:
+                if "modelPolicy" not in consumer:
+                    require(not consumer, "unverifiable model-free consumer")
+                    continue
+                gateway = consumer.get("llmGateway")
+                require(gateway is not None, "explicit effective Gateway required")
+                for policy_field, alias_field in (
+                    ("modelPolicy", "model"),
+                    ("summarizerModelPolicy", "summarizerModel"),
+                    ("compactorModelPolicy", "compactorModel"),
+                ):
+                    policy = consumer.get(policy_field)
+                    if policy is None:
+                        require(alias_field not in consumer, "model alias has no policy")
+                        continue
+                    require(
+                        (
+                            policy["policyId"] + "@" + policy["version"],
+                            policy["digest"],
+                            consumer.get(alias_field),
+                            gateway["digest"],
+                        )
+                        in declared,
+                        "effective Workflow model route mismatch",
+                    )
+
+
 def observe_member(client, member, deadline, clock, pause):
     path = "/v1/eval-experiments/" + member["experimentId"] + "/members"
     while clock() < deadline:
@@ -685,15 +792,16 @@ def submit_member(client, member):
         + member["memberId"]
         + "/submissions"
     )
-    # A lost response uses the same durable keyed submission, never a new Run.
+    return keyed_post(
+        client, path, {"planSha256": member["planSha256"]}, key="eval-" + member["memberId"]
+    )
+
+
+def keyed_post(client, path, body, *, key, revision=None):
+    # A lost response replays the same durable request, including its CAS.
     for attempt in range(3):
         try:
-            return client.request(
-                "POST",
-                path,
-                {"planSha256": member["planSha256"]},
-                key="eval-" + member["memberId"],
-            )
+            return client.request("POST", path, body, key=key, revision=revision)
         except (urllib.error.URLError, TimeoutError, ConnectionError):
             if attempt == 2:
                 raise
@@ -755,12 +863,12 @@ def collect_member(client, member, row, run, case, truth, observer, observer_tim
             "usage": row["usage"],
             "previousResultSha256": None,
         }
-        receipt = client.request(
-            "POST", prefix + "/results", result, key="cc-result-" + member["memberId"]
+        receipt = keyed_post(
+            client, prefix + "/results", result, key="cc-result-" + member["memberId"]
         )
         check_pin = current["setup"]["checks"][0]
         require(
-            check_pin["implementationSha256"] == digest((ROOT / "harness.py").read_bytes()),
+            check_pin["implementationSha256"] == scorer_digest(),
             "remote scorer pin drift",
         )
         assessment = {
@@ -783,13 +891,43 @@ def collect_member(client, member, row, run, case, truth, observer, observer_tim
             ],
             "previousAssessmentSha256": None,
         }
-        client.request(
-            "POST",
+        assessment_receipt = keyed_post(
+            client,
             prefix + "/assessments",
             assessment,
             key="cc-assess-" + member["memberId"],
         )
+        select_records(
+            client,
+            member,
+            receipt["recordSha256"],
+            assessment_receipt["recordSha256"],
+            selected=row,
+        )
     return {**usage_record(client, member, row, run), "passed": passed, "checks": checks}
+
+
+def select_records(client, member, result_sha256, assessment_sha256, *, selected=None):
+    """Select exact receipts under CAS; ambiguous retries keep the same request."""
+    if selected is not None and (
+        selected.get("resultSha256") == result_sha256
+        and selected.get("assessmentSha256") == assessment_sha256
+    ):
+        return
+    path = "/v1/eval-experiments/" + member["experimentId"]
+    revision = client.request("GET", path)["revision"]
+    selection = {
+        "planSha256": member["planSha256"],
+        "selections": [
+            {
+                "memberId": member["memberId"],
+                "resultSha256": result_sha256,
+                "assessmentSha256": assessment_sha256,
+            }
+        ],
+    }
+    key = "cc-select-" + digest(encoded([selection, revision]))[7:]
+    return keyed_post(client, path + "/selections", selection, key=key, revision=revision)
 
 
 def usage_record(client, member, row, run):
@@ -960,20 +1098,26 @@ def live(
         observed[active["memberId"]] = record["state"]
     # Use the existing server comparison, without reconstructing denominators.
     client.deadline = clock() + 10
+    comparisons = []
+    for experiment in manifest["experiments"]:
+        current = comparison_snapshot(client, experiment["id"])
+        while current.get("freshness") != "current" and clock() < client.deadline:
+            pause(min(1, max(0, client.deadline - clock())))
+            if clock() < client.deadline:
+                current = comparison_snapshot(client, experiment["id"])
+        comparisons.append(
+            {
+                key: current.get(key)
+                for key in ("experimentId", "state", "viewSnapshot", "summary", "freshness")
+            }
+        )
     result = {
         "expected": len(expected),
         "members": [
             {"memberId": row["memberId"], "state": observed.get(row["memberId"], "not_submitted")}
             for row in expected
         ],
-        "comparisons": [
-            {
-                key: current.get(key)
-                for key in ("experimentId", "state", "viewSnapshot", "summary", "freshness")
-            }
-            for experiment in manifest["experiments"]
-            for current in [comparison_snapshot(client, experiment["id"])]
-        ],
+        "comparisons": comparisons,
     }
     result["manifestSha256"] = digest(encoded(manifest))
     result["pairedReplay"] = "not_applicable: live Projects are independent end-to-end members"
@@ -1012,7 +1156,7 @@ def main():
     require(bool(token), "API token required")
     records_path = args.output.with_suffix(".members.jsonl")
     require(not records_path.exists(), "member records already exist")
-    with records_path.open("xb") as records:
+    with openapi_validator(), records_path.open("xb") as records:
 
         def emit(record):
             raw = encoded(record)

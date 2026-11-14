@@ -17,7 +17,13 @@ public result/assessment shapes, bounded replay, preflight, submission receipts,
 unknown usage, cancellation and dispatch limits. These samples verify the scorer
 and harness. They do not demonstrate live quality or a Runtime checkpoint.
 The Go test resolves all five authored Workflows through the actual catalog loader.
-Network connections are forbidden in the Python suite.
+Network connections are forbidden in the Python suite. OpenAPI scoring runs the
+repository's pinned `kin-openapi` validator before checking route constraints.
+It rejects malformed structure and unresolved/external references. The validator
+is built once in a task-owned temporary directory; each document is limited to
+1 MiB and a five-second subprocess allowance. Processes are joined and the binary
+is removed on exit. Go and the already downloaded module dependencies are required;
+validator builds disable module/toolchain downloads.
 
 ## Cases and variants
 
@@ -43,6 +49,9 @@ only `id`, `task`, `inputs`, `requires`, `outputs`. Scorers reject plausible wro
 reasoning, dropped constraints, changed locations/IDs and repeated effects.
 
 `variants.json` freezes payload, truth, scorer/consumer and authored-catalog hashes.
+Its `scorerSha256` hashes, in order with NUL separators, `harness.py`,
+`openapivalidator/main.go`, repository `go.mod` and `go.sum`. Validator or dependency
+changes therefore require new check pins and registrations, just like scorer changes.
 Its production comparisons are terminal reasoning off/on, compact reasoning off/on,
 and terminal off/terminal handoff, each with exactly two arms. Observation masking
 is a sixth, recorded-only baseline. It removes observation bodies and retains
@@ -69,7 +78,7 @@ operator action through the existing catalog and Eval public APIs:
    repeats per case and arm; use the fixed seed/order from the plan. Freeze actual
    registered case hashes, not hashes of the raw source payloads.
 3. Register one required external check with evaluator such as `context@1` and
-   `implementationSha256` equal to the checked-in `harness.py` hash. Freeze the
+   `implementationSha256` equal to `variants.json`'s `scorerSha256` closure hash. Freeze the
    existing comparison gates: minimum candidate end-to-end pass 1, maximum quality
    drop 0, maximum total-token ratio 1.0. Keep all failed, unsupported and missing
    expected members in the existing server comparison.
@@ -111,7 +120,13 @@ Capability/instruction/Skill equality is an operator attestation backed by the
 immutable execution binding. Runtime build identity comes from the operator deployment record; it cannot be
 discovered through the current Eval API. Verify all eligible Runtime processes
 against that pinned build before a live trial. Model aliases/policy and Gateway digests are checked
-against the exact published resources. This is not a claim
+against the exact published resources and every effective Worker/Planner selection
+in each Workflow, including summarizer/compactor policies, failure/interruption
+escalation and terminal handoff. Every actual route must belong to the common
+declared policy set; an arm may use a subset. Worker routes must name an explicit
+Gateway in the Workflow, since a deployment-default route cannot be verified through
+that public projection. Unsupported missing route evidence fails before dispatch.
+This is not a claim
 that the harness can discover upstream weights from an alias.
 
 Use conservative per-member ceilings from the frozen execution closure, including
@@ -146,7 +161,14 @@ CI, lint, verify and release-verify; the release-graph guard checks that boundar
 
 Submission uses the existing `eval-{memberId}` key; lost acknowledgement replays
 that exact request. Settlement waits for the authoritative execution and released
-Run. Cancellation uses the existing Eval command with revision/plan preconditions
+Run. Result and assessment receipts are explicitly selected through the ordinary
+`/selections` endpoint with the current revision. Ambiguous result/assessment/selection
+responses repeat the identical key, body and CAS at most three times within the
+current transport deadline. A stale CAS fails without overwriting another choice;
+resume skips an already selected exact result/assessment pair. There is no new receipt
+store. Comparison publication is asynchronous: the consumer observes all three
+views within a shared separate ten-second deadline. A view still stale or unavailable
+at that deadline remains inconclusive. Cancellation uses the existing Eval command with revision/plan preconditions
 and a separate 60-second cleanup deadline. Unknown or failed cleanup is retained.
 Resume with the same frozen registrations/keys and a new local output path; do not
 replace members or delete an uncertain execution to improve the denominator.

@@ -59,9 +59,7 @@ def complete_manifest():
     resources = [
         {
             "path": "/v1/workflows/" + pin["workflow"].replace("@", "/versions/"),
-            "sha256": h.digest(
-                h.encoded({"ref": {"name": pin["workflow"].split("@")[0], "version": "1"}})
-            ),
+            "sha256": h.digest(h.encoded(published_workflow(pin["workflow"].split("@")[0]))),
         }
         for pin in pins.values()
     ]
@@ -142,7 +140,7 @@ def setup(pair):
             {
                 "id": "artifact-quality",
                 "evaluator": "context@1",
-                "implementationSha256": h.digest((h.ROOT / "harness.py").read_bytes()),
+                "implementationSha256": h.scorer_digest(),
                 "required": True,
             }
         ],
@@ -178,6 +176,43 @@ def published_configurations():
     }
 
 
+def published_workflow(name):
+    consumer = {
+        "modelPolicy": {"policyId": "worker", "version": "1", "digest": "sha256:" + "c" * 64},
+        "model": "configured-model",
+        "llmGateway": {"gatewayId": "local", "version": "1", "digest": "sha256:" + "a" * 64},
+    }
+    if "compact" in name:
+        consumer["compactorModelPolicy"] = copy.deepcopy(consumer["modelPolicy"])
+        consumer["compactorModel"] = consumer["model"]
+    else:
+        consumer["summarizerModelPolicy"] = copy.deepcopy(consumer["modelPolicy"])
+        consumer["summarizerModel"] = consumer["model"]
+    return {
+        "ref": {"name": name, "version": "1"},
+        "stages": {
+            "work": {
+                "executionConfig": {"agents": {"builder": consumer}},
+                "on": {
+                    "failed": {
+                        "kind": "escalate",
+                        "executionConfig": {
+                            "effective": {
+                                "agents": {"builder": copy.deepcopy(consumer)},
+                                "planner": {
+                                    k: v
+                                    for k, v in consumer.items()
+                                    if k in {"modelPolicy", "model", "llmGateway"}
+                                },
+                            }
+                        },
+                    }
+                },
+            }
+        },
+    }
+
+
 class FakeAPI:
     def __init__(self, manifest):
         self.manifest = manifest
@@ -186,6 +221,11 @@ class FakeAPI:
         self.cancelled = False
         self.timeout = False
         self.rows = {}
+        self.workflows = {
+            r["path"]: published_workflow(r["path"].split("/")[3])
+            for r in manifest["resources"]
+            if r["path"].startswith("/v1/workflows/")
+        }
         _, cases, _ = h.fixtures()
         for experiment in manifest["experiments"]:
             rows = registered_members(experiment["portableId"], experiment["variants"])
@@ -206,7 +246,7 @@ class FakeAPI:
     def request(self, method, path, body=None, **kwargs):
         self.calls.append((method, path, copy.deepcopy(body), kwargs.get("key")))
         if method == "GET" and path.startswith("/v1/workflows/"):
-            return {"ref": {"name": path.split("/")[3], "version": "1"}}
+            return copy.deepcopy(self.workflows[path])
         if method == "GET" and path in published_configurations():
             return published_configurations()[path]
         if method == "GET" and path.endswith("/llm-cost"):
@@ -264,6 +304,9 @@ class FakeAPI:
 class HarnessTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        cls.validator = h.openapi_validator()
+        cls.validator.__enter__()
+        cls.addClassCleanup(cls.validator.__exit__, None, None, None)
         cls.variants, cls.cases, cls.truth = h.fixtures()
         cls.answers = h.load(h.ROOT / "private/recorded-results.json")
 
@@ -318,6 +361,50 @@ class HarnessTests(unittest.TestCase):
                 self.assertFalse(
                     h.score(self.cases[case_id], answer, oracle(), self.truth[case_id])["pass"]
                 )
+
+    def test_openapi_scoring_rejects_invalid_structure_and_references(self):
+        mutations = [
+            lambda d: d["components"]["securitySchemes"]["tenant"].pop("name"),
+            lambda d: d["components"]["securitySchemes"]["tenant"].pop("in"),
+            lambda d: d["components"]["securitySchemes"]["tenant"].update(type="unknown"),
+            lambda d: d["paths"]["/tenants/{tenant}/items"]["get"]["responses"].update(
+                {"404": {"description": 123}}
+            ),
+            lambda d: d["components"].update(schemas={"Broken": {"type": "invalid"}}),
+            lambda d: d["paths"]["/tenants/{tenant}/items"]["get"]["responses"]["200"].update(
+                content={"application/json": {"schema": {"$ref": "#/components/schemas/Absent"}}}
+            ),
+            lambda d: d["paths"]["/tenants/{tenant}/items"]["get"]["responses"]["200"].update(
+                content={"application/json": {"schema": {"$ref": "http://127.0.0.1:1/schema"}}}
+            ),
+        ]
+        case_id = "api-dependency"
+        for mutate in mutations:
+            with self.subTest(mutation=mutate):
+                answer = copy.deepcopy(self.answers[case_id])
+                mutate(answer["openapi"])
+                verdict = h.score(self.cases[case_id], answer, oracle(), self.truth[case_id])
+                self.assertFalse(verdict["pass"])
+                self.assertFalse(verdict["checks"]["openapi_valid"])
+        document = copy.deepcopy(self.answers[case_id]["openapi"])
+        document["components"]["schemas"] = {"Item": {"type": "string"}}
+        document["paths"]["/tenants/{tenant}/items"]["get"]["responses"]["200"]["content"] = {
+            "application/json": {"schema": {"$ref": "#/components/schemas/Item"}}
+        }
+        self.assertTrue(h.valid_openapi(document))
+
+    def test_scorer_pin_covers_validator_source_and_dependencies(self):
+        original = h.scorer_digest()
+        for changed in (h.ROOT / "openapivalidator/main.go", h.REPO / "go.mod", h.REPO / "go.sum"):
+            read = Path.read_bytes
+            with patch.object(
+                Path,
+                "read_bytes",
+                lambda path, read=read, changed=changed: (
+                    read(path) + (b"changed" if path == changed else b"")
+                ),
+            ):
+                self.assertNotEqual(original, h.scorer_digest())
 
     def test_terminal_answer_does_not_claim_continuing_work(self):
         observed = {**oracle(), "usefulAfterCheckpoint": 0}
@@ -447,6 +534,114 @@ class HarnessTests(unittest.TestCase):
             h.verify_remote(api, manifest)
         self.assertFalse(api.submissions)
 
+    def test_effective_workflow_model_routes_are_verified_before_dispatch(self):
+        for target in (
+            "main",
+            "summarizer",
+            "compactor",
+            "planner",
+            "failed",
+            "interrupted",
+            "summarized",
+        ):
+            for field in ("policy", "alias", "gateway", "missing_gateway"):
+                with self.subTest(target=target, field=field):
+                    manifest = complete_manifest()
+                    api = FakeAPI(manifest)
+                    resource = next(
+                        r
+                        for r in manifest["resources"]
+                        if r["path"].startswith("/v1/workflows/")
+                        and ("compact" in r["path"]) == (target == "compactor")
+                    )
+                    stage = api.workflows[resource["path"]]["stages"]["work"]
+                    consumer = stage["executionConfig"]["agents"]["builder"]
+                    policy, alias = "modelPolicy", "model"
+                    if target in {"summarizer", "compactor"}:
+                        policy, alias = target + "ModelPolicy", target + "Model"
+                    elif target == "planner":
+                        stage["executionConfig"]["planner"] = copy.deepcopy(consumer)
+                        consumer = stage["executionConfig"]["planner"]
+                    elif target in {"failed", "interrupted", "summarized"}:
+                        stage["on"][target] = copy.deepcopy(stage["on"]["failed"])
+                        consumer = stage["on"][target]["executionConfig"]["effective"]["planner"]
+                    if field == "policy":
+                        consumer[policy]["digest"] = "sha256:" + "d" * 64
+                    elif field == "alias":
+                        consumer[alias] = "another-model"
+                    elif field == "gateway":
+                        consumer["llmGateway"]["digest"] = "sha256:" + "d" * 64
+                    else:
+                        consumer.pop("llmGateway")
+                    # Exact published bytes are pinned: this is a selection mismatch,
+                    # not the existing resource-drift check.
+                    resource["sha256"] = h.digest(h.encoded(api.workflows[resource["path"]]))
+                    with self.assertRaises(h.Rejected):
+                        h.live(manifest, api, observer="unused")
+                    self.assertFalse(api.submissions)
+
+    def test_selection_replays_exact_cas_and_preserves_conflicts(self):
+        member = {"memberId": "a" * 64, "experimentId": "e", "planSha256": "sha256:" + "b" * 64}
+        api = h.Client("http://127.0.0.1", "unused")
+        for failure in (TimeoutError(), ConnectionError()):
+            with patch.object(
+                api, "request", side_effect=[{"revision": 7}, failure, {"revision": 8}]
+            ) as call:
+                h.select_records(api, member, "sha256:" + "c" * 64, "sha256:" + "d" * 64)
+                self.assertEqual(call.call_args_list[1], call.call_args_list[2])
+                self.assertEqual(call.call_args.kwargs["revision"], 7)
+                self.assertLessEqual(len(call.call_args.kwargs["key"]), 128)
+        with patch.object(api, "request", side_effect=[{"revision": 7}, h.Rejected("412")]) as call:
+            with self.assertRaises(h.Rejected):
+                h.select_records(api, member, "r", "a")
+            self.assertEqual(call.call_count, 2)
+        with patch.object(api, "request") as call:
+            h.select_records(
+                api, member, "r", "a", selected={"resultSha256": "r", "assessmentSha256": "a"}
+            )
+            call.assert_not_called()
+
+    def test_comparisons_wait_for_publication_and_stop_at_deadline(self):
+        for settle in (True, False):
+            manifest = complete_manifest()
+            api = FakeAPI(manifest)
+            tick, reads = [0], []
+
+            def pause(seconds, tick=tick):
+                tick[0] += seconds
+
+            def comparison(_client, experiment, reads=reads, settle=settle, tick=tick):
+                reads.append(experiment)
+                return {
+                    "experimentId": experiment,
+                    "freshness": "current" if settle and tick[0] >= 2 else "stale",
+                    "summary": {"conclusion": "pass"},
+                }
+
+            with (
+                patch.object(h, "comparison_snapshot", comparison),
+                patch.object(
+                    h,
+                    "collect_member",
+                    lambda _client, member, *_args: {
+                        **member,
+                        "state": "succeeded",
+                        "calls": 4,
+                        "tokens": 400,
+                        "toolCalls": 4,
+                    },
+                ),
+            ):
+                result = h.live(
+                    manifest, api, observer="unused", clock=lambda tick=tick: tick[0], pause=pause
+                )
+            self.assertEqual(tick[0], 2 if settle else 10)
+            self.assertEqual(len(result["comparisons"]), 3)
+            self.assertGreater(len(reads), 3)
+            self.assertEqual(
+                result["comparisons"][0]["freshness"], "current" if settle else "stale"
+            )
+
     def test_lost_submission_response_replays_exact_existing_receipt(self):
         manifest = complete_manifest()
         api = FakeAPI(manifest)
@@ -561,11 +756,20 @@ class HarnessTests(unittest.TestCase):
                 self.assertIn("revision=r1", path)
                 return answer
             if method == "POST":
-                schema = "EvalResultInput" if path.endswith("/results") else "EvalAssessmentInput"
+                schema = (
+                    "EvalSelectionInput"
+                    if path.endswith("/selections")
+                    else "EvalResultInput"
+                    if path.endswith("/results")
+                    else "EvalAssessmentInput"
+                )
                 Draft202012Validator(
                     {"$ref": "#/components/schemas/" + schema, "components": components}
                 ).validate(body)
                 posted.append(copy.deepcopy(body))
+                if path.endswith("/selections"):
+                    self.assertEqual(kwargs["revision"], 7)
+                    return {"revision": 8, "viewSnapshot": None}
                 return {"recordSha256": h.digest(h.encoded(body))}
             if path.endswith("/llm-cost"):
                 return {
@@ -573,7 +777,7 @@ class HarnessTests(unittest.TestCase):
                     "amount": "0.70",
                     "activity": [{"phase": "summarization", "calls": "1"}],
                 }
-            return {"setup": setup(manifest["experiments"][0]["variants"])}
+            return {"setup": setup(manifest["experiments"][0]["variants"]), "revision": 7}
 
         def pages(path, *, limit=100):
             reads.append((path, limit))
@@ -607,6 +811,17 @@ class HarnessTests(unittest.TestCase):
         self.assertTrue(record["passed"])
         self.assertEqual((record["calls"], record["tokens"], record["usd"]), (7, 145, "0.70"))
         self.assertEqual(posted[0]["usage"], usage)
+        self.assertEqual(len(posted), 3)
+        self.assertEqual(
+            posted[2]["selections"],
+            [
+                {
+                    "memberId": member["memberId"],
+                    "resultSha256": h.digest(h.encoded(posted[0])),
+                    "assessmentSha256": h.digest(h.encoded(posted[1])),
+                }
+            ],
+        )
         self.assertEqual(reads, [("/v1/runs/run-1/attempts/stage-1/runtime-diagnostics", 10)])
         self.assertNotIn(b"EVALUATOR_PRIVATE", h.encoded(record))
         self.assertNotIn(b"credential-canary", h.encoded(record))
@@ -625,7 +840,7 @@ class HarnessTests(unittest.TestCase):
             )
         self.assertFalse(malformed["passed"])
         self.assertEqual(malformed["checks"], {"well_formed_evidence": False})
-        self.assertEqual(posted[-1]["checks"][0]["status"], "fail")
+        self.assertEqual(posted[-2]["checks"][0]["status"], "fail")
         answer = h.encoded(self.answers[member["caseId"]])
         # Missing usage and prices stay unknown, including in the retained record.
         row["usage"]["totalTokens"]["completeness"] = "partial"

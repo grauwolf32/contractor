@@ -73,3 +73,5 @@ tests:
   covers: [A1, A4]
 - command: make lint
   covers: [A1, A2, A3, A4]
+- command: make test-wire-cross-language
+  covers: [A1, A4]

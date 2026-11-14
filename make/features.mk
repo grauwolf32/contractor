@@ -97,4 +97,4 @@ test-artifact-history-e2e: require-database runtime-venv
 test: test-context-compaction-eval-fixtures
 test-context-compaction-eval-fixtures: runtime-venv
 	cd runtime && uv run python ../tests/eval/context_compaction/gate.py
-	$(call run-family-test,go test ./tests/eval/context_compaction)
+	$(call run-family-test,go test ./tests/eval/context_compaction/...)
