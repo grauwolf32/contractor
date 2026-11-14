@@ -6,12 +6,17 @@ epic: planner-worker
 kind: defect
 introduced_by: V417-006
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V417-006]
 languages: [go]
 goal: Both real Audit compaction process scenarios start with the intended Worker and compactor policies and exercise their completion and lease-loss guarantees.
 context:
   authority: Necessary verification repair discovered during the user-requested V466-016 main integration on 2026-11-14.
+  verification: >-
+    All 52 required real-process roots and all five report verifiers pass.
+    Lint passed within the successful complete make verify invocation.
+    Red/green evidence is tasks/evidence/v466-017-acceptance-20261115.json.
+    Production behavior is unchanged.
   severity: low
   finding: >-
     tests/e2e/audit_compaction_test.go:206 inserts a block-style newline into
@@ -47,3 +52,4 @@ tests:
   covers: [A1, A2, A3]
 - command: make lint
   covers: [A1, A2]
+implementation_commit: 1b8e8f11c3117e25c203481d2f9544e0b81d39f0

@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-63 open tasks: 10 in progress, 40 pending, 13 deferred. 1577 finished: 1559 completed, 18 archived.
+62 open tasks: 9 in progress, 40 pending, 13 deferred. 1578 finished: 1560 completed, 18 archived.
 
 ## In progress
 
@@ -20,7 +20,6 @@ the epics are in [epics.yml](epics.yml).
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V466-016](v466-016-policy-diagnostics-eval-main-integration.yml) | evals | chore | P1 | Integrate Worker compactor policies, diagnostics and Eval into main |
-| [V466-017](v466-017-audit-compaction-process-fixture.yml) | planner-worker | defect | P1 | Preserve valid YAML when selecting Audit process compactor policies |
 
 ## Pending
 
@@ -150,7 +149,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 2 | 49 | 68 | 39 | 105 |
-| Planners and the Worker model boundary (`planner-worker`) | 5 | 36 | 55 | 35 | 88 |
+| Planners and the Worker model boundary (`planner-worker`) | 4 | 36 | 55 | 35 | 88 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 15 | 5 | 47 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 3 | 15 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
