@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-65 open tasks: 9 in progress, 43 pending, 13 deferred. 1563 finished: 1545 completed, 18 archived.
+66 open tasks: 10 in progress, 43 pending, 13 deferred. 1563 finished: 1545 completed, 18 archived.
 
 ## In progress
 
@@ -20,6 +20,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V467-001](v467-001-source-read-off-loop.yml) | workspaces | defect | P2 | Prepare bounded source read windows off the event loop |
+| [V467-002](v467-002-paged-list-polling-backoff.yml) | ui | defect | P2 | Back off paginated UI polling after head and continuation failures |
 
 ## Pending
 
@@ -166,7 +167,7 @@ tasks in `introduced_by`.
 | Audits (`audits`) | 9 | 69 | 98 | 42 | 170 |
 | Evaluations (`evals`) | 5 | 22 | 42 | 17 | 50 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
-| Web UI (`ui`) | 1 | 54 | 80 | 31 | 76 |
+| Web UI (`ui`) | 2 | 54 | 81 | 31 | 76 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 21 | 53 | 12 | 30 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 43 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 50 | 18 |

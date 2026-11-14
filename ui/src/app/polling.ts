@@ -26,30 +26,31 @@ interface PollOptions<T> {
   settledInterval?: number | false;
   /** Longest wait between failed reads; default 60 seconds. */
   maxInterval?: number;
+  /** A failed continuation can retain partial data instead of throwing. */
+  readError?: (data: T) => Error | null;
 }
 
 const DEFAULT_MAX_INTERVAL = 60_000;
 
-/** Per query: the error count when its data last changed. */
-const lastSuccess = new WeakMap<
+/** Count each completed read once, including a partial result with an error. */
+const lastRead = new WeakMap<
   object,
-  { dataUpdateCount: number; errorUpdateCount: number }
+  { dataUpdateCount: number; errorUpdateCount: number; failures: number }
 >();
 
 /** Failed reads since the query last read data successfully. */
-function failedReads(query: PolledQuery<unknown>): number {
-  const { status, dataUpdateCount, errorUpdateCount } = query.state;
-  let mark = lastSuccess.get(query);
-  if (mark === undefined || mark.dataUpdateCount !== dataUpdateCount) {
-    // First seen in an error state: count at least that one failure.
-    mark = {
-      dataUpdateCount,
-      errorUpdateCount:
-        status === "error" ? errorUpdateCount - 1 : errorUpdateCount,
-    };
-    lastSuccess.set(query, mark);
-  }
-  return status === "error" ? errorUpdateCount - mark.errorUpdateCount : 0;
+function failedReads(query: PolledQuery<unknown>, error: Error | null): number {
+  const { dataUpdateCount, errorUpdateCount } = query.state;
+  const previous = lastRead.get(query);
+  if (
+    previous !== undefined &&
+    previous.dataUpdateCount === dataUpdateCount &&
+    previous.errorUpdateCount === errorUpdateCount
+  )
+    return previous.failures;
+  const failures = error === null ? 0 : (previous?.failures ?? 0) + 1;
+  lastRead.set(query, { dataUpdateCount, errorUpdateCount, failures });
+  return failures;
 }
 
 /**
@@ -100,14 +101,18 @@ export function pollInterval<T>(
     settled,
     settledInterval = false,
     maxInterval = DEFAULT_MAX_INTERVAL,
+    readError,
   } = options;
   return (query) => {
-    const failures = failedReads(query);
+    const data = query.state.data;
+    const error =
+      query.state.error ??
+      (data === undefined ? null : (readError?.(data) ?? null));
+    const failures = failedReads(query, error);
     if (failures > 0)
-      return permanent(query.state.error)
+      return permanent(error)
         ? false
         : Math.min(maxInterval, interval * 2 ** failures);
-    const data = query.state.data;
     if (data !== undefined && settled?.(data) === true) return settledInterval;
     return interval;
   };

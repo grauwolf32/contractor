@@ -8,7 +8,7 @@ import {
   listProjectAudits,
 } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
-import { loadAllPages } from "../../api/pages";
+import { loadAllPages, type LoadedPages } from "../../api/pages";
 import { listProjectArtifacts } from "../../api/project-artifacts";
 import { listProjectRuns } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
@@ -62,7 +62,10 @@ export function usePossibleIssuesToReview(projectId: string) {
         ),
       ),
     retry: false,
-    refetchInterval: OVERVIEW_POLL_MS,
+    refetchInterval: pollInterval<LoadedPages<unknown>>({
+      interval: OVERVIEW_POLL_MS,
+      readError: (data) => data.error,
+    }),
   });
   const items = (query.data?.items ?? []).filter(
     (finding) =>

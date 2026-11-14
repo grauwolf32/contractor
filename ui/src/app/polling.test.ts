@@ -12,21 +12,21 @@ interface Job {
  * Observes one polled query on fake timers and records when each read
  * happened, so the intervals between reads can be checked.
  */
-function observe(
-  read: () => Promise<Job>,
-  options: Parameters<typeof pollInterval<Job>>[0],
+function observe<T>(
+  read: () => Promise<T>,
+  options: Parameters<typeof pollInterval<T>>[0],
 ) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   const reads: number[] = [];
-  const observer = new QueryObserver<Job>(client, {
+  const observer = new QueryObserver<T>(client, {
     queryKey: ["job"],
     queryFn: () => {
       reads.push(Date.now());
       return read();
     },
-    refetchInterval: pollInterval<Job>(options),
+    refetchInterval: pollInterval<T>(options),
     refetchIntervalInBackground: true,
   });
   const unsubscribe = observer.subscribe(() => undefined);
@@ -123,4 +123,44 @@ describe("pollInterval", () => {
     expect(polled.gaps()).toEqual([1_000]);
     polled.stop();
   });
+
+  it("backs off partial results, resets after recovery and counts each result once", async () => {
+    const errors = [new Error("page 2"), new Error("page 2"), null];
+    const polled = observe(async () => ({ error: errors.shift() ?? null }), {
+      interval: 1_000,
+      readError: (data) => data.error,
+    });
+    try {
+      await vi.advanceTimersByTimeAsync(12_000);
+      expect(polled.gaps().slice(0, 4)).toEqual([2_000, 4_000, 1_000, 1_000]);
+    } finally {
+      polled.stop();
+    }
+  });
+
+  it.each([403, 408, 429])(
+    "classifies a partial result's HTTP %i",
+    async (status) => {
+      const polled = observe(
+        async () => ({
+          error: new PublicAPIError({
+            status,
+            code: "read_failed",
+            message: "Read failed",
+          }),
+        }),
+        {
+          interval: 1_000,
+          readError: (data) => data.error,
+        },
+      );
+      try {
+        await vi.advanceTimersByTimeAsync(20_000);
+        if (status === 403) expect(polled.reads).toHaveLength(1);
+        else expect(polled.gaps().slice(0, 3)).toEqual([2_000, 4_000, 8_000]);
+      } finally {
+        polled.stop();
+      }
+    },
+  );
 });
