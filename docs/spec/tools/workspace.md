@@ -742,7 +742,7 @@ host paths.
 
 **WSP-R129.** `openapi@1` requires read access for provenance checks.
 Every `evidence_files` path is
-validated against one `WorkspaceReader` snapshot, the same logical tree exposed
+validated against one `WorkspaceReader.file_paths` projection, the same logical tree exposed
 through `filesystem@1`, and `openapi@1` must not inspect `AllocationWorkspace`
 scratch.
 
@@ -780,9 +780,20 @@ operation ownership as list and search.
 **WSP-R131.** A missing evidence path in the current project workspace is
 rejected. No other source tree or previously opened archive can supply it.
 
-`openapi@1` acquires that snapshot before it takes its document-session lock
-and checks the evidence paths against that snapshot in the session's worker thread
+`openapi@1` acquires that path projection before it takes its document-session lock
+and checks evidence paths against that immutable set in the session's worker thread
 ([RTA-R115](../execution/runtime-agent.md)).
+
+The projection stays with the workspace owner, under its existing read/mutation
+coordination and operation deadline. Managed memory and overlay sessions project
+their effective text and binary paths. Local direct storage freshly enumerates
+and probes readable regular files through its descriptor-relative confinement;
+directories and opaque entries are excluded. It enforces the ordinary entry,
+file and expanded-byte limits. If the eligible file sizes already fit the
+managed-text budget, it reads no contents; otherwise the existing bounded
+classifier checks that budget before returning paths. No path projection
+computes a content digest or reuses a stale inventory after external edits.
+Full snapshots and content observation keep their existing contracts.
 
 The read-only `code-analysis@1` Toolset consumes the same `WorkspaceReader`
 snapshot boundary; neither its Tree-sitter operations nor its local-only

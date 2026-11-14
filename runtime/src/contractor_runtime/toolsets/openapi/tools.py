@@ -525,10 +525,9 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
 
     async def _project_evidence_paths(self) -> frozenset[str]:
         try:
-            snapshot = await self._project_workspace.snapshot()
+            return await self._project_workspace.file_paths()
         except WorkspaceStorageError:
             raise ValueError("project workspace is unavailable for OpenAPI evidence") from None
-        return frozenset([file.path for file in snapshot.files] + list(snapshot.binary_paths))
 
     def _validate_evidence_from_paths(
         self,

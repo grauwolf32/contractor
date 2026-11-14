@@ -128,6 +128,31 @@ class RootedLocalFilesystem:
         with _safe_errors(), self._opened_root() as root:
             return self._scan(root, path, deadline, contents=contents)
 
+    def file_paths(self, *, deadline: float) -> frozenset[str]:
+        """Project current readable file paths without loading or hashing their content."""
+
+        with _safe_errors(), self._opened_root() as root:
+            tree = self._scan(root, "", deadline, contents=False, verify_readable=True)
+            if tree.expanded_bytes > self.limits.max_managed_text_bytes:
+                # Metadata is a conservative text-size upper bound. Only when
+                # it cannot prove the quota do the existing bounded classifiers
+                # distinguish binary leaves from managed text. No digest is needed.
+                tree = self._scan(root, "", deadline, contents=True)
+            return frozenset(
+                item.path
+                for item in tree.entries.values()
+                if not item.directory and not item.opaque
+            )
+
+    def _probe_readable(self, root: int, item: LocalEntry, deadline: float) -> None:
+        _check_deadline(deadline)
+        with _parent(root, item.path) as (parent, name):
+            descriptor = os.open(name, _FILE_FLAGS, dir_fd=parent)
+            try:
+                _verify(item, _entry(item.path, os.fstat(descriptor)), version=True)
+            finally:
+                os.close(descriptor)
+
     def write(self, path: str, data: bytes, *, deadline: float) -> None:
         path = _path(path)
         if len(data) > self.limits.max_file_bytes:
@@ -344,7 +369,15 @@ class RootedLocalFilesystem:
             finally:
                 os.close(descriptor)
 
-    def _scan(self, root: int, path: str, deadline: float, *, contents: bool) -> LocalTree:
+    def _scan(
+        self,
+        root: int,
+        path: str,
+        deadline: float,
+        *,
+        contents: bool,
+        verify_readable: bool = False,
+    ) -> LocalTree:
         tree = LocalTree()
         managed_bytes = 0
 
@@ -365,9 +398,15 @@ class RootedLocalFilesystem:
             tree.expanded_bytes += item.size
             if tree.expanded_bytes > self.limits.max_expanded_bytes:
                 raise WorkspaceStorageError("workspace_limit_exceeded")
-            if contents:
+            if contents or verify_readable:
                 try:
-                    data = self._read(root, item.path, deadline, expected=item, classify_text=True)
+                    if contents:
+                        data = self._read(
+                            root, item.path, deadline, expected=item, classify_text=True
+                        )
+                    else:
+                        self._probe_readable(root, item, deadline)
+                        return
                 except PermissionError:
                     # A sandbox command may chmod its own files; nothing was read.
                     tree.expanded_bytes -= item.size

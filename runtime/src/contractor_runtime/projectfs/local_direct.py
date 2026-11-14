@@ -73,6 +73,9 @@ class LocalDirectWorkspace:
     async def snapshot(self) -> WorkspaceSnapshot:
         return await self._run(lambda fs, deadline: _managed(fs.scan(deadline=deadline)).snapshot())
 
+    async def file_paths(self) -> frozenset[str]:
+        return await self._run(lambda fs, deadline: fs.file_paths(deadline=deadline))
+
     async def observation_metadata(self) -> WorkspaceObservationMetadata:
         snapshot = await self.snapshot()
         return WorkspaceObservationMetadata(

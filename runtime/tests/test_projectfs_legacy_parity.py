@@ -11,7 +11,7 @@ from test_edit_files_toolset import hydrated_workspace
 from test_edit_files_toolset import make_tools as make_edit_tools
 from test_filesystem_toolset import create_tools as make_read_tools
 
-from contractor_runtime.projectfs import OverlayWorkspaceSession
+from contractor_runtime.projectfs import OverlayWorkspaceSession, WorkspaceStorageError
 from contractor_runtime.toolsets.filesystem.tools import FilesystemToolsetFactory
 
 
@@ -98,6 +98,35 @@ def test_retained_read_edit_tree_and_newline_behavior(
         rendered = repr(state.metrics)
         for forbidden in ("generated/new.txt", "beta", "one\\r\\ntwo", "recognizable"):
             assert forbidden not in rendered
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("storage", ["local", "memory"])
+@pytest.mark.parametrize("mode", ["direct", "overlay"])
+def test_file_path_projection_tracks_the_effective_tree(tmp_path, storage, mode):
+    async def scenario():
+        session, provider = await hydrated_workspace(tmp_path, storage, mode, "path-projection")
+        try:
+            snapshot = await session.snapshot()
+            original = frozenset(file.path for file in snapshot.files) | frozenset(
+                snapshot.binary_paths
+            )
+            assert await session.reader_view().file_paths() == original
+            await session.writer_view().write_text("added.py", "source")
+            await session.writer_view().delete_path("lf.txt")
+            current = await session.writer_view().file_paths()
+            assert current == original - {"lf.txt"} | {"added.py"}
+            assert "added.py" not in original
+            if mode == "overlay":
+                await session.rollback_changes()
+                assert await session.file_paths() == original
+            await session.close()
+            with pytest.raises(WorkspaceStorageError):
+                await session.reader_view().file_paths()
+        finally:
+            await session.close()
+            await provider.cleanup(session.storage)
 
     asyncio.run(scenario())
 
