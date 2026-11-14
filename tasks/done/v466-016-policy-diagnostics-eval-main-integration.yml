@@ -5,7 +5,7 @@ milestone: worker-context-compaction-quality-2026-10
 epic: evals
 kind: chore
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V417-006, V417-007, V417-008, V466-015, V466-017]
 languages: [go, python, typescript, markdown]
 goal: Land the reviewed V417 branch through a verified no-fast-forward main merge while preserving all existing primary checkout work exactly.
@@ -26,6 +26,12 @@ context:
     integration verification now runs the complete deterministic process gate
     rather than only the three compaction roots.
   design: docs/testing/README.md
+  verification: tasks/evidence/v466-016-main-integration-20261115.json
+  delivery: >-
+    Main contains the exact two-parent merge and V466-017 fixture repair. All
+    listed deterministic gates pass. Six primary files retain their exact bytes
+    and modes and the staged delta is unchanged. Both owned databases are dropped.
+    Final acceptance changes only task metadata; no live or full release claim.
   finding: >-
     The verified V417 branch is not yet in main. Main additionally contains the
     V467 Runtime source-read/workspace fixes and UI polling correction. Six primary
@@ -65,3 +71,4 @@ tests:
   covers: [A2]
 - command: python3 /private/tmp/contractor-v417-install-main.py --verify-only
   covers: [A3]
+implementation_commit: 5ca0aa20cf69d78ae06841d839e4a3968463d194

@@ -9,6 +9,19 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
+    User request 2026-11-14 delivered on 2026-11-15 integrates the reviewed
+    V417 branch into main through no-fast-forward merge
+    5ca0aa20cf69d78ae06841d839e4a3968463d194 (V466-016). All 25 independent main
+    paths and six primary user files remain intact; the staged delta is unchanged.
+    V466-017 repairs one malformed test-only Audit Workflow substitution at
+    1b8e8f11c3117e25c203481d2f9544e0b81d39f0. Full make verify, API, 239 mocked
+    browser cases, all 52 deterministic process roots and five report verifiers
+    pass. Runtime has 6268 passes and 135 declared skips; optional heavy I/O and
+    platform/live skips are not passing coverage. Both owned test databases are
+    removed. Evidence is tasks/evidence/v466-016-main-integration-20261115.json.
+    This integration does not close V417-009/V417-010 or claim live quality,
+    deployment or complete release verification; V417-004 retains its reservation
+    and executes last.
     User review-fix request 2026-11-14 completes V466-015 on
     codex/v417-policy-diagnostics-eval (0111d8f851c8c017971f3ae797bfef5b1b9a8f00):
     the external compaction Eval selects exact scored records, observes current
