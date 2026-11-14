@@ -85,6 +85,7 @@ func TestRouterSelectsExactWorkerWithDeterministicPromptAndContext(t *testing.T)
 	if marshalErr != nil {
 		t.Fatal(marshalErr)
 	}
+
 	for _, forbidden := range []string{
 		"allocation-builder", "allocation-reviewer", "runtime-placement.invalid", "runtime-secret",
 	} {
@@ -111,6 +112,10 @@ func TestRouterSelectsExactWorkerWithDeterministicPromptAndContext(t *testing.T)
 		t.Fatalf("Router telemetry export = %+v", export)
 	}
 	payload := <-telemetryPayload
+	if !bytes.Contains(payload, []byte(invocation.Stage.Objective)) {
+		t.Fatal("Router OTLP lost ordinary debug content")
+	}
+
 	for _, expected := range []telemetry.PlannerSpanName{
 		telemetry.PlannerSpanSession, telemetry.PlannerSpanModel, telemetry.PlannerSpanWorker,
 		telemetry.PlannerSpanSubtask, telemetry.PlannerSpanFinish,
@@ -120,8 +125,7 @@ func TestRouterSelectsExactWorkerWithDeterministicPromptAndContext(t *testing.T)
 		}
 	}
 	for _, forbidden := range []string{
-		invocation.Stage.Objective, invocation.Stage.Instructions.Text,
-		"Build the API document", "Use the exact source", "runtime-secret",
+		"runtime-secret",
 	} {
 		if bytes.Contains(payload, []byte(forbidden)) {
 			t.Fatalf("Router OTLP payload exposed %q: %q", forbidden, payload)

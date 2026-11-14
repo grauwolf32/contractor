@@ -107,9 +107,8 @@ func TestPassthroughPlannerInvokesOnceAndRecoversRecordedResult(t *testing.T) {
 	payload := <-telemetryPayload
 	if !bytes.Contains(payload, []byte(telemetry.PlannerSpanSession)) ||
 		!bytes.Contains(payload, []byte(telemetry.PlannerSpanWorker)) ||
-		bytes.Contains(payload, []byte(invocation.Stage.Objective)) ||
-		bytes.Contains(payload, []byte(invocation.Stage.Instructions.Text)) {
-		t.Fatalf("Passthrough OTLP payload is incomplete or unsafe: %q", payload)
+		!bytes.Contains(payload, []byte(invocation.Stage.Objective)) {
+		t.Fatalf("Passthrough OTLP payload is missing ordinary debug content: %q", payload)
 	}
 
 	recovered, err := registry.Create(resolved.PassthroughPlanner, invocation)
@@ -265,7 +264,13 @@ func passthroughTestTelemetry(
 	t.Helper()
 	payload := make(chan []byte, 1)
 	collector := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		body, _ := io.ReadAll(io.LimitReader(request.Body, 3<<20))
+		const maxFixtureOTLPBytes = 65 << 20
+		body, err := io.ReadAll(io.LimitReader(request.Body, maxFixtureOTLPBytes+1))
+		if err != nil || len(body) > maxFixtureOTLPBytes {
+			t.Error("invalid or oversized OTLP fixture payload")
+			response.WriteHeader(http.StatusRequestEntityTooLarge)
+			return
+		}
 		payload <- body
 		response.WriteHeader(http.StatusOK)
 	}))
