@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V466-009
+title: Follow the renamed allocation digest regression in the fault catalog
+milestone: worker-context-compaction-2026-10
+epic: planner-worker
+kind: chore
+introduced_by: V417-006
+priority: P2
+status: in_progress
+depends_on: [V417-006]
+languages: [yaml]
+goal: The fault matrix selects the real shared digest rejection regression after its required rename.
+context:
+  authority: Agent correction of the V417-006 test rename discovered by its batch verification on 2026-11-14.
+  finding: tests/faults/matrix.yml:212 still names test_bad_digest_and_unsupported_ref_leave_no_residue after the shared-fixture convention renamed the case.
+scope:
+  in: [Update the existing fault-matrix symbol to its actual shared-test name.]
+  out: [Runtime behavior and fault taxonomy changes.]
+acceptance_criteria:
+- id: A1
+  text: Every fault-matrix reference resolves to an existing executable case.
+tests:
+- command: go test ./tests/faults
+  covers: [A1]
+- command: make lint
+  covers: [A1]
