@@ -9,6 +9,13 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
+    User review-fix request 2026-11-14 completes V466-015 on
+    codex/v417-policy-diagnostics-eval (0111d8f851c8c017971f3ae797bfef5b1b9a8f00):
+    the external compaction Eval selects exact scored records, observes current
+    comparisons, verifies effective model routes and validates complete OpenAPI
+    artifacts with the pinned existing validator. Offline, HTTP/PostgreSQL,
+    touched Go, wire and lint checks pass. The owned test database is removed;
+    this correction does not run live experiments or merge the branch into main.
     User batch and simplification review 2026-11-14 accepts V417-006,
     V417-007 and V417-008 with separate implementation/acceptance commits:
     006 e638133e3e09237e71970d3ab90fb67b2990f1ef,

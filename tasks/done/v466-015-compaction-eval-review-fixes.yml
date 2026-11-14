@@ -6,13 +6,21 @@ epic: evals
 kind: defect
 introduced_by: V417-008
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 0111d8f851c8c017971f3ae797bfef5b1b9a8f00
 depends_on:
 - V417-008
 languages: [python, go, markdown]
 goal: The frozen compaction Eval selects its exact scored records, rejects mismatched effective models before dispatch and never passes an invalid OpenAPI artifact.
 context:
   authority: 'User request 2026-11-14: fix all three findings from the review of codex/v417-policy-diagnostics-eval, add regressions and run the necessary checks on that branch.'
+  evidence: tasks/evidence/v466-015-acceptance-20261114.json
+  verification: >-
+    Accepted 2026-11-14: all A1-A4 and listed commands pass. The offline suite has
+    24 tests and detects removal of each correction; the real HTTP/PostgreSQL
+    regression replays a lost selection acknowledgement once and rejects stale CAS.
+    Full touched Go suites, wire fixtures and lint pass. The owned database was
+    dropped after its sessions drained. No live model run, deployment or main merge.
   specification:
   - docs/spec/evals/managed-evals.md#EVM-R133
   - docs/spec/evals/managed-evals.md#EVM-R160
