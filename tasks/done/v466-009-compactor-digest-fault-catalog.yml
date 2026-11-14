@@ -6,21 +6,31 @@ epic: planner-worker
 kind: chore
 introduced_by: V417-006
 priority: P2
-status: in_progress
-depends_on: [V417-006]
-languages: [yaml]
+status: completed
+depends_on:
+- V417-006
+languages:
+- yaml
 goal: The fault matrix selects the real shared digest rejection regression after its required rename.
 context:
   authority: Agent correction of the V417-006 test rename discovered by its batch verification on 2026-11-14.
-  finding: tests/faults/matrix.yml:212 still names test_bad_digest_and_unsupported_ref_leave_no_residue after the shared-fixture convention renamed the case.
+  finding: tests/faults/matrix.yml:212 still names test_bad_digest_and_unsupported_ref_leave_no_residue
+    after the shared-fixture convention renamed the case.
+  verification: Full affected packages and make lint passed; see tasks/evidence/v466-009-acceptance-20261114.json.
+    No production behavior changed.
 scope:
-  in: [Update the existing fault-matrix symbol to its actual shared-test name.]
-  out: [Runtime behavior and fault taxonomy changes.]
+  in:
+  - Update the existing fault-matrix symbol to its actual shared-test name.
+  out:
+  - Runtime behavior and fault taxonomy changes.
 acceptance_criteria:
 - id: A1
   text: Every fault-matrix reference resolves to an existing executable case.
 tests:
 - command: go test ./tests/faults
-  covers: [A1]
+  covers:
+  - A1
 - command: make lint
-  covers: [A1]
+  covers:
+  - A1
+implementation_commit: 6b73c87f375916e9981a9997c2f17f31a7adf2ba
