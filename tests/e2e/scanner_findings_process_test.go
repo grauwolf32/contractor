@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httputil"
-	"net/url"
+	neturl "net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -77,7 +77,7 @@ http:
 	fixture := startProcess(t, "Scanner Finding SQLite target", h.repositoryRoot, map[string]string{"PYTHONUNBUFFERED": "1"}, python, filepath.Join(h.repositoryRoot, "tests/e2e/testdata/scanner-findings/target.py"), "--listen", address)
 	backend := "http://" + address
 	waitForHTTP(t, h.ctx, fixture, h.client, backend+"/readyz", http.StatusOK)
-	backendURL, err := url.Parse(backend)
+	backendURL, err := neturl.Parse(backend)
 	if err != nil {
 		t.Fatal(err)
 	}

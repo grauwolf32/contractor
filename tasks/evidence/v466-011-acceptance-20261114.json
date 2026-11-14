@@ -1,0 +1,26 @@
+{
+  "task": "V466-011",
+  "date": "2026-11-14",
+  "implementation_commit": "6d47e3d05d8815daa6eb7103de072c35e155c0bc",
+  "status": "accepted",
+  "merged_into_main": false,
+  "gates": [
+    {
+      "command": "GOFLAGS=-p=1 go test -count=1 ./internal/planner/... ./internal/archtest ./tests/e2e ./tests/faults ./tests/eval/project_workflows",
+      "exit_code": 0,
+      "log": "/var/folders/j7/g49dqq0x6nn25y_j4f1ht2ww0000gn/T/contractor-v417-006-008-20261114-7hze5cda/verification-repairs-final.log"
+    },
+    {
+      "command": "make lint",
+      "exit_code": 0,
+      "log": "/var/folders/j7/g49dqq0x6nn25y_j4f1ht2ww0000gn/T/contractor-v417-006-008-20261114-7hze5cda/lint-final2.log"
+    }
+  ],
+  "prerequisites": [
+    "Pinned Go 1.26.9, locked Runtime dependencies; owned disposable PostgreSQL 17 database."
+  ],
+  "exclusions": [
+    "No Gateway or live scanner experiment; optional heavy I/O disabled."
+  ],
+  "outcome": "remove scanner fixture URL import shadowing"
+}

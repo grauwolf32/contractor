@@ -1,0 +1,59 @@
+schema_version: '1.0'
+id: V466-013
+title: Include terminal summarization in authoritative Eval usage and token limits
+milestone: worker-context-compaction-quality-2026-10
+epic: evals
+kind: defect
+introduced_by: V38-006
+priority: P1
+status: completed
+depends_on:
+- V38-006
+languages:
+- go
+- sql
+- markdown
+goal: Eval comparisons and admission limits include terminal summarizer overhead once without evaluator-side
+  accounting.
+context:
+  authority: User decision 2026-11-14 approves fixing the common Eval collector during the V417 simplification
+    review.
+  specification:
+  - docs/spec/evals/managed-evals.md#EVM-R75
+  finding: internal/evalservice/usage_collection.go:119 reads only normal-loop counters; internal/evalstore/observed_usage_sql.go:41
+    reads the normal-loop stage summary. Both omit the existing separate terminal summarizer aggregate.
+  siblings: Native/external Workflow and Audit members share this collector and KnownTokens queries; both
+    paths change. Main/compaction/finalization already enter normal counters; modelPhases and monetary
+    cost breakdowns are projections and must not be added again. Runtime terminal summarizer accounting
+    stays unchanged.
+  verification: 'Accepted 2026-11-14 against real PostgreSQL: full evalservice/evalstore/evaldomain suites
+    and make lint pass. See tasks/evidence/v466-013-acceptance-20261114.json.'
+scope:
+  in:
+  - Add existing summarizer calls and known input/output/total tokens to collected usage and preserve
+    missing coverage.
+  - Include known summarizer tokens in bounded run/Audit budget lower bounds with existing overflow saturation.
+  - Real PostgreSQL regressions for collection, repeated reads and token limits.
+  out:
+  - New API, scheduler, receipt, ledger, table or Runtime budget behavior.
+acceptance_criteria:
+- id: A1
+  text: Normal counters plus terminal summarizer overhead are counted once, including repeated collection;
+    missing summarizer usage remains incomplete.
+- id: A2
+  text: Known-token budget reads include the same extra tokens, remain owner-scoped and saturating, and
+    stop new admissions through existing limits.
+- id: A3
+  text: Existing main/compaction/finalization and monetary projections are not added a second time.
+tests:
+- command: go test -count=1 ./internal/evalservice ./internal/evalstore ./internal/evaldomain
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+implementation_commit: 976f4fb54bd49dfd4e8d12ba4c03a514030741ab

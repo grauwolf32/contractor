@@ -120,6 +120,17 @@ func attemptMetrics(run, stage string, raw []byte, expectedWorkers int) (evaldom
 		add("inputTokens", r.Metrics.InputTokens)
 		add("outputTokens", r.Metrics.OutputTokens)
 		add("totalTokens", r.Metrics.TotalTokens)
+		if summary := r.Metrics.Summarizer; summary != nil {
+			// These calls are outside the normal-loop counters. Phase/cost
+			// breakdowns are views and must never be added again.
+			for name, value := range map[string]uint64{"modelCalls": summary.ModelCalls, "inputTokens": summary.InputTokens, "outputTokens": summary.OutputTokens, "totalTokens": summary.TotalTokens} {
+				contribution := int64(value) // Validate bounded it to 2^53-1.
+				add(name, &contribution)
+			}
+			if summary.TokenUsageUnavailable > 0 {
+				missing["inputTokens"], missing["outputTokens"], missing["totalTokens"] = true, true, true
+			}
+		}
 		// Validation requires the tools map, so a report without tools adds
 		// known zeros.
 		zero := int64(0)

@@ -258,7 +258,7 @@ func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfi
 	if input.CompactorModelPolicy != nil {
 		if err := input.CompactorModelPolicy.ValidateForCompactor(); err != nil || input.SummarizerModelPolicy != nil {
 			return ResolvedRuntimeConfig{}, resolutionError(
-				ResolutionInvalid, "contextManagement.modelPolicy", ErrInvalid,
+				ResolutionInvalid, "compactorModelPolicy", ErrInvalid,
 			)
 		}
 	}

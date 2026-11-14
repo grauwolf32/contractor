@@ -1599,7 +1599,7 @@ export interface paths {
         };
         /**
          * Inspect retained Runtime adapter diagnostics for an owned Stage attempt
-         * @description Reads only bounded Runtime projections from retained StageMetrics, including Eval-held metrics. Counters and durations are lossless decimal strings. Missing reports are not zero usage. No-store; read-only; selected Stage must belong to the owned Run. Cursor binds the retained metric generation; 409 requires refreshing the first page. Report availability is diagnostic and never changes a Run outcome. No prompts or tool content are returned.
+         * @description Reads bounded Runtime projections from retained StageMetrics, including Eval-held metrics, and owner-authorized active Worker State while a final report is pending. Counters and durations are lossless decimal strings. Missing reports are not zero usage. No-store; read-only; selected Stage must belong to the owned Run. Cursor binds the retained metric generation; 409 requires refreshing the first page. Report availability is diagnostic and never changes a Run outcome. No prompts or tool content are returned.
          */
         get: operations["getRunRuntimeDiagnostics"];
         put?: never;
@@ -5211,6 +5211,41 @@ export interface components {
             errorCount: number;
             truncated: boolean;
         };
+        CompactionPromptMeasurement: {
+            generation: number;
+            promptTokens?: number;
+        };
+        WorkerCompactionProgress: {
+            invocationId: string;
+            generation: number;
+            /** @enum {string} */
+            phase: "idle" | "requested" | "running" | "applied" | "failed";
+            attempts: number;
+            failures: number;
+            archiveReads: number;
+            inputBytes: number;
+            summaryBytes: number;
+            reasoningAvailable: number;
+            reasoningIncluded: number;
+            reasoningTruncated: number;
+            lastCause?: string;
+            beforePrompt?: components["schemas"]["CompactionPromptMeasurement"];
+            afterPrompt?: components["schemas"]["CompactionPromptMeasurement"];
+        } & (unknown & unknown & unknown);
+        WorkerModelPhases: {
+            main: components["schemas"]["WorkerModelUsage"];
+            compaction: components["schemas"]["WorkerModelUsage"];
+            finalization: components["schemas"]["WorkerModelUsage"];
+            summarization: components["schemas"]["WorkerModelUsage"];
+        };
+        WorkerModelUsage: {
+            modelCalls: number;
+            inputTokens: number;
+            outputTokens: number;
+            totalTokens: number;
+            tokenUsageUnavailable: number;
+            durationMs?: number;
+        };
         /** @description Latest Worker invocation facts. Published packages are not accepted Audit evidence. */
         WorkerCompletionDiagnostics: {
             /** @enum {string} */
@@ -5257,11 +5292,13 @@ export interface components {
             droppedSpans?: components["schemas"]["DroppedSpanDiagnosticCounts"];
         };
         RuntimeDiagnostic: {
+            compaction?: components["schemas"]["WorkerCompactionProgress"];
+            modelPhases?: components["schemas"]["WorkerModelPhases"];
             logicalAgent: components["schemas"]["ConfigId"];
             /** @enum {string} */
             status: "available" | "partial" | "unavailable";
             /** @enum {string} */
-            reason?: "invalid_report";
+            reason?: "invalid_report" | "report_missing";
             complete?: boolean;
             durationMs?: components["schemas"]["DiagnosticInt64Decimal"];
             stopReason?: string;
@@ -5643,7 +5680,7 @@ export interface components {
             model?: string;
             summarizerModelPolicy?: components["schemas"]["ModelPolicyRef"];
             summarizerModel?: string;
-            /** @description Tool-free compactor of a compact@1 Planner (PLN-R125); absent for every Worker. */
+            /** @description Exact tool-free compactor policy of a compact@1 Planner or Worker (TPL-R117); absent for other context strategies. */
             compactorModelPolicy?: components["schemas"]["ModelPolicyRef"];
             compactorModel?: string;
             llmGateway?: components["schemas"]["LLMGatewayConfigRef"];
@@ -6017,7 +6054,6 @@ export interface components {
         WorkflowCompactContextManagement: {
             /** @constant */
             strategy: "compact@1";
-            modelPolicy: components["schemas"]["ModelPolicyRef"];
             instructions: components["schemas"]["InstructionsRef"];
             includeReasoning: boolean;
             contextWindowRatio: number;

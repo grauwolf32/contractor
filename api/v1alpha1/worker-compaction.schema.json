@@ -1,0 +1,263 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractor.local/schema/v1alpha1/worker-compaction.schema.json",
+  "$defs": {
+    "CompactionPromptMeasurement": {
+      "additionalProperties": false,
+      "properties": {
+        "generation": {
+          "maximum": 16,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "promptTokens": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "generation"
+      ],
+      "type": "object"
+    },
+    "WorkerCompactionProgress": {
+      "additionalProperties": false,
+      "properties": {
+        "invocationId": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "type": "string"
+        },
+        "generation": {
+          "maximum": 16,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "phase": {
+          "enum": [
+            "idle",
+            "requested",
+            "running",
+            "applied",
+            "failed"
+          ],
+          "type": "string"
+        },
+        "attempts": {
+          "maximum": 17,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "failures": {
+          "maximum": 17,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "archiveReads": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "inputBytes": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "summaryBytes": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "reasoningAvailable": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "reasoningIncluded": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "reasoningTruncated": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "lastCause": {
+          "pattern": "^[a-z][a-z0-9_]{0,63}$",
+          "type": "string"
+        },
+        "beforePrompt": {
+          "$ref": "#/$defs/CompactionPromptMeasurement"
+        },
+        "afterPrompt": {
+          "$ref": "#/$defs/CompactionPromptMeasurement"
+        }
+      },
+      "required": [
+        "invocationId",
+        "generation",
+        "phase",
+        "attempts",
+        "failures",
+        "archiveReads",
+        "inputBytes",
+        "summaryBytes",
+        "reasoningAvailable",
+        "reasoningIncluded",
+        "reasoningTruncated"
+      ],
+      "type": "object",
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "phase": {
+                "type": "string",
+                "const": "applied"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "beforePrompt",
+              "afterPrompt"
+            ],
+            "properties": {
+              "generation": {
+                "minimum": 1
+              },
+              "inputBytes": {
+                "minimum": 1
+              },
+              "summaryBytes": {
+                "minimum": 1
+              }
+            }
+          },
+          "else": {
+            "not": {
+              "required": [
+                "afterPrompt"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "phase": {
+                "type": "string",
+                "const": "failed"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "lastCause"
+            ],
+            "properties": {
+              "failures": {
+                "minimum": 1
+              }
+            }
+          },
+          "else": {
+            "not": {
+              "required": [
+                "lastCause"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "phase": {
+                "type": "string",
+                "enum": [
+                  "requested",
+                  "running",
+                  "applied",
+                  "failed"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "beforePrompt"
+            ]
+          }
+        }
+      ]
+    },
+    "WorkerModelPhases": {
+      "additionalProperties": false,
+      "properties": {
+        "main": {
+          "$ref": "#/$defs/WorkerModelUsage"
+        },
+        "compaction": {
+          "$ref": "#/$defs/WorkerModelUsage"
+        },
+        "finalization": {
+          "$ref": "#/$defs/WorkerModelUsage"
+        },
+        "summarization": {
+          "$ref": "#/$defs/WorkerModelUsage"
+        }
+      },
+      "required": [
+        "main",
+        "compaction",
+        "finalization",
+        "summarization"
+      ],
+      "type": "object"
+    },
+    "WorkerModelUsage": {
+      "additionalProperties": false,
+      "properties": {
+        "modelCalls": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "inputTokens": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "outputTokens": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "totalTokens": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tokenUsageUnavailable": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "durationMs": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "modelCalls",
+        "inputTokens",
+        "outputTokens",
+        "totalTokens",
+        "tokenUsageUnavailable"
+      ],
+      "type": "object"
+    }
+  }
+}

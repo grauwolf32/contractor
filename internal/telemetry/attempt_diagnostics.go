@@ -59,14 +59,16 @@ type DroppedSpanDiagnosticCounts struct {
 }
 
 type RuntimeDiagnostic struct {
-	LogicalAgent        string                     `json:"logicalAgent"`
-	Status              string                     `json:"status"`
-	Reason              string                     `json:"reason,omitempty"`
-	Complete            *bool                      `json:"complete,omitempty"`
-	DurationMS          *string                    `json:"durationMs,omitempty"`
-	StopReason          *string                    `json:"stopReason,omitempty"`
-	StopReasonTruncated bool                       `json:"stopReasonTruncated"`
-	Adapters            []RuntimeAdapterDiagnostic `json:"adapters"`
+	Compaction          *reporting.WorkerCompactionProgress `json:"compaction,omitempty"`
+	ModelPhases         *reporting.WorkerModelPhases        `json:"modelPhases,omitempty"`
+	LogicalAgent        string                              `json:"logicalAgent"`
+	Status              string                              `json:"status"`
+	Reason              string                              `json:"reason,omitempty"`
+	Complete            *bool                               `json:"complete,omitempty"`
+	DurationMS          *string                             `json:"durationMs,omitempty"`
+	StopReason          *string                             `json:"stopReason,omitempty"`
+	StopReasonTruncated bool                                `json:"stopReasonTruncated"`
+	Adapters            []RuntimeAdapterDiagnostic          `json:"adapters"`
 }
 
 type RuntimeDiagnosticPage struct {
@@ -100,9 +102,9 @@ func (r *Repository) ReadRuntimeDiagnostics(ctx context.Context, params RuntimeD
 		var terminal bool
 		var version, tuple, kind, name *string
 		var updated *time.Time
-		var document []byte
+		var document, progress []byte
 		var stopTruncated, invalidNames bool
-		if err := rows.Scan(&terminal, &version, &updated, &tuple, &kind, &name, &document, &stopTruncated, &invalidNames); err != nil {
+		if err := rows.Scan(&terminal, &version, &updated, &tuple, &kind, &name, &document, &stopTruncated, &invalidNames, &progress); err != nil {
 			return result, fmt.Errorf("scan Runtime diagnostics: %w", err)
 		}
 		found = true
@@ -136,6 +138,13 @@ func (r *Repository) ReadRuntimeDiagnostics(ctx context.Context, params RuntimeD
 			break
 		}
 		entry := projectRuntimeDiagnostic(*name, document, stopTruncated)
+		var observation RuntimeDiagnostic
+		if err := strictjson.DecodeNonNull(progress, &observation); err == nil && (observation.Compaction == nil || observation.Compaction.Validate() == nil) && (observation.ModelPhases == nil || observation.ModelPhases.Validate() == nil) {
+			entry.Compaction = observation.Compaction
+			entry.ModelPhases = observation.ModelPhases
+		} else {
+			result.Reason = "invalid_report"
+		}
 		encoded, encodeErr := json.Marshal(entry)
 		if encodeErr != nil {
 			return result, fmt.Errorf("encode Runtime diagnostic: %w", encodeErr)
@@ -155,6 +164,9 @@ func (r *Repository) ReadRuntimeDiagnostics(ctx context.Context, params RuntimeD
 	}
 	if !found {
 		return result, ErrNotFound
+	}
+	if result.Status == "pending" && r.workerProgress != nil {
+		return r.readLiveWorkerDiagnostics(ctx, params)
 	}
 	if result.Status != "available" {
 		result.Items, result.More, result.After = []RuntimeDiagnostic{}, false, ""

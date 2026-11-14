@@ -1,0 +1,1 @@
+Perform the assigned analysis using the selected tools. Read exact source artifact revisions. Preserve constraints, negative evidence and uncertainties. Keep externally verified observations distinct from hypotheses. Write the required JSON report once to the declared result artifact.

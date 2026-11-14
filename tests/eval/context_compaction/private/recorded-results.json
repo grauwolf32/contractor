@@ -1,0 +1,120 @@
+{
+  "api-dependency": {
+    "constraints": [
+      "read-only",
+      "tenant-isolation"
+    ],
+    "likec4": "catalog -> inventory\norders -> billing",
+    "openapi": {
+      "components": {
+        "securitySchemes": {
+          "tenant": {
+            "in": "header",
+            "name": "X-Tenant",
+            "type": "apiKey"
+          }
+        }
+      },
+      "info": {
+        "title": "Tenant API",
+        "version": "1"
+      },
+      "openapi": "3.1.0",
+      "paths": {
+        "/tenants/{tenant}/items": {
+          "get": {
+            "operationId": "listTenantItems",
+            "parameters": [
+              {
+                "in": "path",
+                "name": "tenant",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "Success"
+              }
+            },
+            "security": [
+              {
+                "tenant": []
+              }
+            ]
+          }
+        },
+        "/tenants/{tenant}/orders": {
+          "post": {
+            "operationId": "createTenantOrder",
+            "parameters": [
+              {
+                "in": "query",
+                "name": "note",
+                "required": false,
+                "schema": {
+                  "type": "string"
+                }
+              },
+              {
+                "in": "path",
+                "name": "tenant",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "Success"
+              }
+            },
+            "security": [
+              {
+                "tenant": []
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "negative-memory": {
+    "constraints": [
+      "read-only",
+      "tenant-isolation"
+    ],
+    "negative": [
+      "P17"
+    ],
+    "observed": [
+      "P17",
+      "P18"
+    ],
+    "uncertain": [
+      "all-other-inputs"
+    ]
+  },
+  "source-review": {
+    "constraints": [
+      "read-only",
+      "tenant-isolation"
+    ],
+    "findings": [
+      {
+        "kind": "sql_concatenation",
+        "line": 5,
+        "path": "app.py"
+      }
+    ],
+    "observed": [
+      "unsafe-search"
+    ],
+    "uncertain": [
+      "lookup-exploitability"
+    ]
+  }
+}

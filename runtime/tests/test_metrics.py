@@ -704,3 +704,37 @@ def test_shared_report_trim_rejects_inconsistent_size_accounting(monkeypatch) ->
     monkeypatch.setattr(metrics_module, "_report_size", inflated)
     with pytest.raises(RuntimeError, match="not the computed"):
         _trim(report, _report_bytes(report) - 1)
+
+
+def test_shared_model_phases_project_existing_summarization_without_a_second_owner() -> None:
+    from typing import get_args
+
+    from contractor_runtime.contracts.compaction import WorkerModelPhases
+    from contractor_runtime.contracts.llm_cost import CostPhase
+
+    assert set(WorkerModelPhases.model_fields) == set(get_args(CostPhase))
+    metrics = MetricsState()
+    metrics.record_summarizer_attempt(
+        succeeded=True,
+        model_calls=1,
+        input_tokens=20,
+        output_tokens=5,
+        total_tokens=25,
+        token_usage_unavailable=0,
+    )
+    phases = metrics.model_phases()
+    assert phases.summarization.model_calls == 1
+    assert phases.summarization.total_tokens == 25
+    assert phases.summarization.duration_ms is None
+    assert (
+        phases.main.model_calls
+        == phases.compaction.model_calls
+        == phases.finalization.model_calls
+        == 0
+    )
+    assert "summarization" not in metrics._model_phases
+    report = metrics.build_report(report_id="summary", duration_ms=1)
+    assert (
+        report.metrics.model_phases.summarization.total_tokens
+        == report.metrics.summarizer.total_tokens
+    )

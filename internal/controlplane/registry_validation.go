@@ -91,6 +91,7 @@ func validateBindingContextManagement(binding BindingRequirement) error {
 	if binding.RuntimeSelection != nil {
 		context.WorkerPolicy = binding.RuntimeSelection.ModelPolicy
 		context.SummarizerModelPolicy = binding.RuntimeSelection.SummarizerModelPolicy
+		context.CompactorModelPolicy = binding.RuntimeSelection.CompactorModelPolicy
 	}
 	return binding.ContextManagement.ValidateAllocation(context)
 }

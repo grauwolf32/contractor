@@ -17,6 +17,11 @@ goal: Produce a reproducible quality and total-cost comparison that recommends m
   reasoning settings and pilot Workflows, including an honest no-improvement result when supported by
   the evidence.
 context:
+  authority: >-
+    User review 2026-11-14 requests simplifying the V417 implementation. The
+    accepted V417-008 consumer reuses Managed Eval members, usage and comparisons;
+    V466-013/V466-014 own summarizer accounting and normalizer version 4. This
+    dependent task consumes those views and adds no parallel accounting engine.
   proposal: docs/proposals/0046-workflow-context-compaction.md
   specification:
   - docs/spec/evals/format.md#EVF-R1
@@ -45,9 +50,15 @@ context:
   review_baseline: Local main 1142c2681d6520baa8c04bb0a90ca8fd224deb29. Current owning specifications
     and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
     and verification history. Recheck affected contracts if main changes before execution.
-  current_state: 'Still required: no context-compaction evaluation harness or live evidence is delivered.
-    V425-041 makes published Workflow refs the experiment model/configuration boundary. V454-001 only
-    consolidated existing Eval storage; reuse its public owner APIs, frozen plans and member receipts.'
+  current_state: >-
+    V417-008 now provides frozen pilot cases, generic authored variants, private
+    scorers and the offline-verified opt-in consumer. Live quality evidence is
+    still absent. After V417-009, prepare exact published external registrations,
+    operator Runtime build attestations and a private observer under the fixture
+    README; consume authoritative Eval usage and server comparison summaries.
+    Tiny cases without a useful observed checkpoint cannot establish compaction
+    quality. Masking/paired replay stay confined to the controlled adapter.
+
 scope:
   in:
   - Frozen repeated live comparisons covering terminal reasoning on/off, configured streamline handoff,

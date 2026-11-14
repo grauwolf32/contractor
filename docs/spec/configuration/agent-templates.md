@@ -973,24 +973,31 @@ weights. Unknown provider revision remains unknown; changing current defaults
 never relabels historical execution.
 
 **TPL-R117.** `compactorModelPolicy` selects the exact tool-free compactor
-policy of a `compact@1` Planner ([PLN-R125](../execution/planners.md)). The
-effective selection comes only from Workflow executionConfig (Workflow-wide
-or Stage-specific Planner leaves) and the existing escalation Planner selection,
+policy of a `compact@1` Planner ([PLN-R125](../execution/planners.md)) or
+Worker binding ([WFL-R92](workflows.md)). The effective selection comes only
+from Workflow executionConfig (Workflow-wide `planner`/`workers`, Stage
+Planner or Agent binding leaves) and the corresponding inline escalation selection,
 with the precedence of TPL-R79 and TPL-R80. `compact@1` requires an explicit
-compatible selection; `plannerContextManagement` owns only behavior and rejects
-`modelPolicy`. Ordinary Stages and summary continuations use the same closed
+compatible selection; `plannerContextManagement` and Worker
+`contextManagement` own only behavior and reject `modelPolicy`, including null
+and a field inherited through YAML merge. Ordinary Stages and summary continuations use the same closed
 context grammar. A Planner
 selection that names `compactorModelPolicy` applies only to `compact@1`
-Stages: a selection that would apply it to no such Stage, a Worker selection
-and an Agent binding selection are invalid. It cannot enable compaction or
+Stages: a selection that would apply it to no such Stage is invalid. Worker
+defaults apply to every Worker binding and therefore require all affected
+bindings to select `compact@1`; a mixed Stage uses specific Agent selections.
+Worker selections on terminal, none or model-free bindings are invalid. It cannot enable compaction or
 alter its instructions or thresholds. A summary-continuation target may select
 its own Planner context policy on `on.summarized.escalate` (WFL-R86); its exact
 compactor policy uses that transition's existing Planner execution selection.
 There is no deployment model-selection role for it. The catalog's generated
 `compactor@1` policy and Gateway route use the deployment source's `defaultModel`
-at generation time; Planner and Worker execution selections remain independent. The compactor uses the Planner's effective LLMGatewayConfig and
-credential. Consumer projections expose the requested compactor alias, the exact policy
-ref and its origin beside the Planner's (TPL-R113).
+at generation time; Planner and Worker execution selections remain independent.
+The compactor uses its owning Planner or Worker's effective LLMGatewayConfig
+and credential. Consumer projections expose the requested compactor alias,
+exact policy ref and origin beside the main model's (TPL-R113). The resolved
+allocation carries that captured selection as `compactorModelPolicy`, separate
+from behavior; it is required exactly for `compact@1`.
 
 **TPL-R118.** A compactor ModelPolicy declares `contextWindowTokens`, a
 positive `maxOutputTokens` below it, `maxModelCalls: 1` (one call per

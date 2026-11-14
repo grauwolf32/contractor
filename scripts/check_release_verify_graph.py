@@ -1023,11 +1023,30 @@ def check_integration_graph() -> int:
     return len(expected)
 
 
+def check_context_compaction_eval_boundary(deterministic: list[str], live: list[str], workflow: str) -> None:
+    """Recorded acceptance runs once; live dispatch stays explicitly opt-in."""
+    gate = "tests/eval/context_compaction/gate.py"
+    entry = "tests/eval/context_compaction/harness.py"
+    if sum(gate in line for line in deterministic) != 1:
+        raise SystemExit("deterministic verification must execute the context-compaction fixture gate once")
+    if any(entry in line or "eval-context-compaction-live" in line for line in deterministic):
+        raise SystemExit("deterministic verification invokes live context-compaction evaluation")
+    if not any(entry in line and "--manifest" in line and "--observer" in line for line in live):
+        raise SystemExit("live context-compaction target lost explicit manifest/observer preflight")
+    if "eval-context-compaction-live" in workflow or entry in workflow:
+        raise SystemExit("ordinary CI invokes live context-compaction evaluation")
+
+
 if __name__ == "__main__":
     stages = check_stage_order()
     check_ci_workflow(stages, CI_WORKFLOW.read_text())
     check_documented_stages(stages, TESTING_GUIDE.read_text())
     check_advisories_outside_release(dry_run("release-verify"), dry_run("advisories"), CI_WORKFLOW.read_text())
+    check_context_compaction_eval_boundary(dry_run("release-verify"), dry_run("eval-context-compaction-live"), CI_WORKFLOW.read_text())
+    for target in ("lint", "verify"):
+        commands = dry_run(target)
+        if any("tests/eval/context_compaction/harness.py" in line for line in commands):
+            raise SystemExit(f"{target} invokes live context-compaction evaluation")
     races = check_release_graph()
     with_tests = packages_with_tests()
     tagged_only = (packages_with_tests("integration") | packages_with_tests("e2e")) - with_tests

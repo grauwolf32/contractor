@@ -209,7 +209,7 @@ cases:
     fault: Resolved AgentTemplate bytes do not match the signed semantic digest.
     expected: Preparation fails non-retryably and leaves no slot, Worker, tools, or workspace residue.
     requirements: [R2, R3]
-    test: {source: runtime/tests/test_allocation.py, symbol: test_bad_digest_and_unsupported_ref_leave_no_residue}
+    test: {source: runtime/tests/test_allocation.py, symbol: test_shared_bad_digests_and_unsupported_ref_leave_no_residue}
   - id: instruction-path-symlink-escape
     category: attack
     phase: preparing

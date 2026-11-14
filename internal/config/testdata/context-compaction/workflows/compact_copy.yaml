@@ -22,6 +22,7 @@ spec:
 
   executionConfig:
     workers:
+      compactorModelPolicy: test-compactor@1
       llmGateway: local-litellm@1
       credential: development-worker
       modelPolicy: test-compact-worker@1
@@ -38,7 +39,6 @@ spec:
           template: compact_builder@1
           contextManagement:
             strategy: compact@1
-            modelPolicy: test-compactor@1
             instructions:
               ref: instructions/worker-compaction.md
             includeReasoning: false

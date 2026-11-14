@@ -92,6 +92,21 @@ async function installRunAPI(page: Page): Promise<void> {
             complete: false,
             stopReasonTruncated: false,
             durationMs: "9007199254740993",
+            compaction: {
+              invocationId: "worker-1",
+              generation: 2,
+              phase: "applied",
+              attempts: 2,
+              failures: 0,
+              archiveReads: 1,
+              inputBytes: 1024,
+              summaryBytes: 128,
+              reasoningAvailable: 2,
+              reasoningIncluded: 1,
+              reasoningTruncated: 1,
+              beforePrompt: { generation: 1, promptTokens: 600 },
+              afterPrompt: { generation: 2 },
+            },
             adapters: [
               {
                 ref: "otlp-http@1",
@@ -462,6 +477,13 @@ for (const theme of ["light", "dark", "black"] as const) {
     await expect
       .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
       .toBe(390);
+    await expect(
+      attempt.getByText("Контекст сжат", { exact: true }),
+    ).toBeVisible();
+    await expect(attempt.getByText("Поколение 2: нет данных")).toBeVisible();
+    await expect(
+      attempt.getByText("Контекст сжат, работа продолжается"),
+    ).toHaveCount(0);
     await attempt.screenshot({
       path: testInfo.outputPath(`runtime-diagnostics-${theme}.png`),
     });

@@ -149,17 +149,24 @@ describe("Advanced Studio forms", () => {
       screen.getByText("Stage execution overrides", { selector: "summary" }),
     );
     change("Stage agent worker model policy", "worker@2");
+    change("Stage agent worker compactor model policy", "compactor@1");
     change("Stage planner gateway", "gateway@2");
     expect(
       at(current().value, ["spec", "executionConfig", "stages", "start"]),
     ).toEqual({
-      agents: { worker: { modelPolicy: "worker@2" } },
+      agents: {
+        worker: {
+          modelPolicy: "worker@2",
+          compactorModelPolicy: "compactor@1",
+        },
+      },
       planner: { llmGateway: "gateway@2" },
     });
     expect(
       at(current().value, ["spec", "stages", "start", "executionConfig"]),
     ).toBeUndefined();
     change("Stage agent worker model policy", "");
+    change("Stage agent worker compactor model policy", "");
     expect(
       at(current().value, [
         "spec",

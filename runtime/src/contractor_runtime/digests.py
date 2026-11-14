@@ -40,8 +40,7 @@ def verify_template_digests(template: ResolvedAgentTemplate) -> None:
 
 
 def verify_compaction_digests(compaction: CompactWorkerContextManagement) -> None:
-    """Verifies the pinned compactor policy and instruction text (WFL-R92)."""
-    verify_model_policy_digest(compaction.model_policy)
+    """Verifies the pinned compaction behavior's instruction text (WFL-R92)."""
     instructions = compaction.instructions
     if sha256_digest(instructions.text.encode("utf-8")) != instructions.digest:
         raise TemplateDigestMismatch(

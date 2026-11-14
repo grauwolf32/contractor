@@ -9,6 +9,30 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
+    User review-fix request 2026-11-14 completes V466-015 on
+    codex/v417-policy-diagnostics-eval (0111d8f851c8c017971f3ae797bfef5b1b9a8f00):
+    the external compaction Eval selects exact scored records, observes current
+    comparisons, verifies effective model routes and validates complete OpenAPI
+    artifacts with the pinned existing validator. Offline, HTTP/PostgreSQL,
+    touched Go, wire and lint checks pass. The owned test database is removed;
+    this correction does not run live experiments or merge the branch into main.
+    User batch and simplification review 2026-11-14 accepts V417-006,
+    V417-007 and V417-008 with separate implementation/acceptance commits:
+    006 e638133e3e09237e71970d3ab90fb67b2990f1ef,
+    007 f6dbdf8402717b24c9d4d48eb0c17169611dc566,
+    008 d39ad87e4584a737bdd0be01bcfb8cd9a2bc0958.
+    State/report diagnostics have one progress owner and canonical model phases;
+    the Eval harness consumes existing membership, cumulative usage and server
+    comparisons. V466-009 through V466-012 repair verification fixtures.
+    User-approved V466-013 includes terminal summarizer usage once; V466-014
+    pins that behavior as contractor-output@4. Full Runtime, Go/PostgreSQL,
+    wire/API, UI/browser, three process scenarios, offline Eval and lint pass.
+    The owned test database is removed. This batch remains on
+    codex/v417-policy-diagnostics-eval and is not merged into main; the prior
+    isolated baseline remains f9eabdec2a37f87c56cc17792907dbc79f828a45.
+    V417-009 is the next deterministic exit; V417-010 live measurements wait
+    for it. No live Gateway experiment, deployment or complete release gate is
+    claimed. Shared V417-004 stays in_progress and executes LAST after 009/010.
     User continuation 2026-11-11 completes assigned V417-005 isolated Audit
     compaction after accepting V417-001/V417-003 and their verification repairs.
     Existing trusted collection, Task/Run/Finding provenance and publication

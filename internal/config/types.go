@@ -209,7 +209,6 @@ type agentBindingSource struct {
 // template@1 alone, or compact@1 with its policy members.
 type contextManagementSource struct {
 	Strategy           string                 `yaml:"strategy"`
-	ModelPolicy        string                 `yaml:"modelPolicy,omitempty"`
 	Instructions       *instructionsRefSource `yaml:"instructions,omitempty"`
 	IncludeReasoning   yaml.Node              `yaml:"includeReasoning,omitempty"`
 	ContextWindowRatio *float64               `yaml:"contextWindowRatio,omitempty"`

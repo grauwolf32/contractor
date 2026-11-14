@@ -584,7 +584,17 @@ suggest that an Audit is just one child Run.
 
 **EVM-R75.** For either kind, token measures aggregate one authoritative
 cumulative snapshot per unique Run or stage execution (LIM-EVM-7) across all
-included ordinary Workflows and retries.
+included ordinary Workflows and retries. Terminal summarizer calls and known
+input/output/total tokens come from the existing separate summarizer aggregate
+and are added once to normal-loop counters. Unknown summarizer usage makes token
+coverage incomplete, never a known zero. Main, compaction and finalization
+already enter normal-loop counters; phase and monetary breakdowns are views,
+never additional charges. The same separate summarizer totals enter bounded
+known-token admission lower bounds for Runs and all owned Audit children, with
+the existing overflow saturation. Runtime termination and its normal-loop hard
+budget are unchanged. This intentional collection change uses output normalizer
+version 4 with a new pinned implementation digest (EVF-R53, EVF-R58). Existing
+result history is retained under the ordinary revision/selection rules (EVM-R82).
 
 **EVM-R76.** For an Audit, all owned child executions are resolved through
 authoritative common execution/Task associations, including supporting work

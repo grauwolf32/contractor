@@ -1779,3 +1779,15 @@ double the base interval up to the common cap; a complete successful refresh
 resets it. A permanent client refusal stops polling, while timeouts and rate
 limits remain retryable. Rendering or observing the same read result again
 does not count as another failure.
+
+**UI-R241.** Run diagnostics display compaction generation, confirmed phase,
+before/after main prompt observations and numeric model phase costs
+(WRK-R196–R197). The continuing message «Контекст сжат, работа продолжается»
+requires a confirmed applied observation, a running attempt and a fresh
+successful read. Settled or stale observations never claim continuing work.
+Missing measurements are explicit; no savings are estimated from byte counts.
+Details contain counters and role usage; the ordinary Run cost report owns
+monetary costs. Visible active diagnostic pages poll every three seconds,
+back off failed reads to thirty seconds, and refetch on terminal transitions
+before stopping. Existing 390-pixel layout, light/dark/black tokens and controls
+apply; no transcript or unbounded cycle list is exposed.

@@ -1,0 +1,62 @@
+schema_version: '1.0'
+id: V466-016
+title: Integrate Worker compactor policies, diagnostics and Eval into main
+milestone: worker-context-compaction-quality-2026-10
+epic: evals
+kind: chore
+priority: P1
+status: in_progress
+depends_on: [V417-006, V417-007, V417-008, V466-015]
+languages: [go, python, typescript, markdown]
+goal: Land the reviewed V417 branch through a verified no-fast-forward main merge while preserving all existing primary checkout work exactly.
+context:
+  authority: 'User request 2026-11-14: merge codex/v417-policy-diagnostics-eval into main with --no-ff, preserve uncommitted work and run the necessary checks after merging.'
+  conflict_resolution: >-
+    Both branches independently allocated UI-R240. Preserve main's canonical
+    paginated-polling UI-R240 and allocate UI-R241 to incoming compaction diagnostics;
+    no references to the incoming number exist outside its owning document.
+    Retain incoming UI 0.11.35, which supersedes main's 0.11.34, and regenerate
+    tasks/BACKLOG.md from the merged task files with the owning generator.
+  source_head: 86d0f468b46bd38a4321c256afa3ce7351de5936
+  main_before: acd5c5fbdf227368e3ec0816b54863c763e1aaf4
+  review: tasks/evidence/v466-015-acceptance-20261114.json
+  design: docs/testing/README.md
+  finding: >-
+    The verified V417 branch is not yet in main. Main additionally contains the
+    V467 Runtime source-read/workspace fixes and UI polling correction. Six primary
+    modified/untracked files and their modes must be preserved; only the generated
+    working tasks/BACKLOG.md overlaps the merge. The staged binary patch is empty.
+  boundary: >-
+    Prepare the --no-ff merge in an isolated worktree, retain both branches'
+    production changes, regenerate generated outputs through their owning tools,
+    and check the integrated revision. Install that exact revision through the
+    existing guarded ref-advance/selective-restore approach used by V467-004:
+    protected working files are never restored, only their committed index base
+    advances. Verify original SHA-256, modes and staged delta before and after.
+scope:
+  in:
+  - Merge the pinned source head with original main as first parent and reconcile conflicts under the current contracts.
+  - Check integrated Go/PostgreSQL, Runtime, API/wire, configuration, UI/browser and deterministic compaction processes.
+  - Preserve primary working changes and record merge, verification and disposable database cleanup evidence.
+  out:
+  - Live Gateway quality experiments, deployment, remote push, unrelated pending tasks or production model changes.
+acceptance_criteria:
+- id: A1
+  text: Main contains the exact requested branch through a two-parent merge whose parents are original main and the pinned source head; V467 changes remain present.
+- id: A2
+  text: All listed deterministic checks succeed on the merged revision with a real disposable PostgreSQL database; zero matching tests or skipped required cases fail.
+- id: A3
+  text: All six original primary files retain their exact bytes and modes, the staged binary patch is unchanged, and the owned test database is dropped after processes and pools stop.
+- id: A4
+  text: Integration evidence and completed task metadata identify the merge, actual commands, outcomes and declared exclusions without claiming live or complete release verification.
+tests:
+- command: make verify
+  covers: [A1, A2, A4]
+- command: make verify-public-api
+  covers: [A2]
+- command: make ui-browser-mocked
+  covers: [A2]
+- command: go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^(TestWorkerCompactionContinuesIsolatedWorker|TestAuditCompactionPreservesTrustedCompletionAcrossProcesses|TestAuditCompactionLeaseLossAcrossProcesses)$'
+  covers: [A2]
+- command: python3 /private/tmp/contractor-v417-install-main.py --verify-only
+  covers: [A3]

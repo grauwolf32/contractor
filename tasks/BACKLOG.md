@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-64 open tasks: 8 in progress, 43 pending, 13 deferred. 1567 finished: 1549 completed, 18 archived.
+62 open tasks: 9 in progress, 40 pending, 13 deferred. 1577 finished: 1559 completed, 18 archived.
 
 ## In progress
 
@@ -19,6 +19,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-004](v417-004-shared-session-context-compaction.yml) | planner-worker | feature | P1 | Preserve compacted context across shared-session invocations |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V466-016](v466-016-policy-diagnostics-eval-main-integration.yml) | evals | chore | P1 | Integrate Worker compactor policies, diagnostics and Eval into main |
 
 ## Pending
 
@@ -32,8 +33,6 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V417-006](v417-006-compactor-model-policy-selection.yml) | feature | P1 | — | Select Worker compactor models only through Workflow executionConfig |
-| [V417-007](v417-007-context-compaction-state-and-ui.yml) | feature | P1 | — | Report compaction progress and costs without exposing context content |
 | [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | — | Verify Planner compaction persistence cancellation and scale boundaries |
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | — | Expose bounded truthful Planner compaction diagnostics |
 
@@ -85,8 +84,7 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V40-003](v40-003-agent-instruction-eval-decision.yml) | feature | P1 | V40-002 | Evaluate instruction candidates and record evidence-based adoption decisions |
 | [V411-021](v411-021-pentest-frozen-live-quality-evaluation.yml) | chore | P2 | V411-020 | Evaluate HTTP investigation quality with frozen repeated comparisons |
-| [V417-008](v417-008-context-compaction-eval-harness.yml) | chore | P2 | — | Build frozen context-compaction evaluation fixtures and an opt-in harness |
-| [V417-010](v417-010-context-compaction-live-evaluation.yml) | chore | P2 | V417-008, V417-009 | Measure compaction and reasoning choices with repeated frozen live experiments |
+| [V417-010](v417-010-context-compaction-live-evaluation.yml) | chore | P2 | V417-009 | Measure compaction and reasoning choices with repeated frozen live experiments |
 
 ### Podman sandbox (`sandbox`)
 
@@ -120,7 +118,7 @@ the epics are in [epics.yml](epics.yml).
 | [V347-001](v347-001-protect-main-branch.yml) | chore | P1 | — | Protect main with a required check |
 | [V410-007](v410-007-sitemap-release-gate.yml) | chore | P1 | V410-006 | Verify the standalone sitemap slice across scale and lifecycle boundaries |
 | [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V64-011, V411-013, V411-014, V411-016, V411-017, V411-018, V410-025 | Gate the composed ordinary HTTP pentest through real processes |
-| [V417-009](v417-009-context-compaction-release-gate.yml) | chore | P1 | V417-006, V417-007 | Verify context compaction across real processes and close the deterministic milestone |
+| [V417-009](v417-009-context-compaction-release-gate.yml) | chore | P1 | — | Verify context compaction across real processes and close the deterministic milestone |
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-006, V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
 | [V425-014](v425-014-runtime-tests-fail-on-macos.yml) | chore | P3 | — | Make the Runtime process-liveness assertions able to fail on macOS |
 | [V433-005](v433-005-runtime-resource-bounds-gate.yml) | chore | P3 | — | Verify the Runtime resource-bound fixes and reconcile the review dispositions |
@@ -151,22 +149,22 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 2 | 49 | 68 | 39 | 105 |
-| Planners and the Worker model boundary (`planner-worker`) | 6 | 36 | 54 | 34 | 86 |
+| Planners and the Worker model boundary (`planner-worker`) | 4 | 36 | 54 | 35 | 87 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 15 | 5 | 47 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 3 | 15 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 16 | 7 | 17 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 5 | 24 | 37 | 15 | 38 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 3 | 21 | 13 | 11 | 28 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 3 | 21 | 13 | 12 | 29 |
 | Findings tools and collections (`findings`) | 0 | 18 | 14 | 11 | 23 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 17 | 16 | 26 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 40 | 20 | 70 |
 | Audits (`audits`) | 9 | 69 | 98 | 42 | 170 |
-| Evaluations (`evals`) | 5 | 22 | 42 | 17 | 50 |
+| Evaluations (`evals`) | 5 | 22 | 45 | 18 | 53 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
 | Web UI (`ui`) | 1 | 54 | 81 | 31 | 76 |
-| Operations, authentication, CLI and deployment (`operations`) | 0 | 21 | 53 | 12 | 30 |
+| Operations, authentication, CLI and deployment (`operations`) | 0 | 21 | 53 | 14 | 32 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 43 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 50 | 18 |
 | Quality, CI and process (`quality`) | 11 | 1 | 33 | 145 | 31 |

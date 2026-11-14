@@ -700,3 +700,71 @@ def test_validation_finishing_after_a_mutation_cannot_validate_the_new_revision(
         assert await state.validated_state_revision() is None
 
     asyncio.run(scenario())
+
+
+def test_compaction_revisions_measurement_and_terminal_failure() -> None:
+    async def scenario() -> None:
+        state = WorkerStateStore()
+        await state.begin_invocation(
+            invocation_id="worker-1",
+            subtask_id="1",
+            metrics=empty_invocation_metrics(),
+            compaction_enabled=True,
+        )
+
+        async def validated() -> int:
+            assert await state.validated_state_revision() is None
+            snapshot = await state.agent_state_snapshot()
+            revision = snapshot.state.state_revision
+            assert await state.validated_state_revision() == revision
+            return revision
+
+        revision = await validated()
+        await state.request_compaction(invocation_id="worker-1", generation=0, prompt_tokens=600)
+        assert await validated() > revision
+        state.metrics.record_model_call(phase="compaction")
+        await state.start_compaction(
+            invocation_id="worker-1",
+            input_bytes=100,
+            reasoning_available=2,
+            reasoning_included=1,
+            reasoning_truncated=1,
+        )
+        await validated()
+        state.metrics.record_model_usage(None, phase="compaction")
+        state.metrics.record_model_duration("compaction", 25)
+        await state.apply_compaction(invocation_id="worker-1", generation=1, summary_bytes=20)
+        snapshot = await state.agent_state_snapshot()
+        progress = snapshot.state.current_invocation.compaction
+        assert progress.phase == "applied" and progress.after_prompt.prompt_tokens is None
+        assert (
+            state.metrics.model_phase_usage("compaction").duration_ms == 25
+            and state.metrics.model_phase_usage("compaction").token_usage_unavailable == 1
+        )
+        await state.publish_invocation_metrics(
+            invocation_id="worker-1", metrics=empty_invocation_metrics(), compaction_prompt=(1, 80)
+        )
+        await validated()
+        # Duplicate/late observations cannot rewrite the first measured prompt.
+        await state.publish_invocation_metrics(
+            invocation_id="worker-1", metrics=empty_invocation_metrics(), compaction_prompt=(1, 90)
+        )
+        assert (
+            await state.agent_state_snapshot()
+        ).state.current_invocation.compaction.after_prompt.prompt_tokens == 80
+        await state.request_compaction(invocation_id="worker-1", generation=1, prompt_tokens=700)
+        await state.complete_invocation(
+            invocation_id="worker-1", phase="cancelled", metrics=empty_invocation_metrics()
+        )
+        snapshot = await state.agent_state_snapshot()
+        progress = snapshot.state.last_completed_invocation.compaction
+        assert (progress.phase, progress.generation, progress.failures, progress.last_cause) == (
+            "failed",
+            1,
+            1,
+            "cancelled",
+        )
+        assert progress.after_prompt is None
+        assert snapshot.state.last_completed_invocation.summarizer.phase == "disabled"
+
+    asyncio.run(scenario())

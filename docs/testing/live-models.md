@@ -10,6 +10,7 @@ locked Runtime dependencies first.
 - [Local LiteLLM and Router evaluation](#live-router-evaluation-through-litellm)
 - [Planner dialect check](#planner-gateway-dialect)
 - [Worker and summarizer checks](#worker-and-summarizer-gateway-checks)
+- [Context-compaction evaluation](#context-compaction-evaluation)
 - [Project-workflow quality evaluation](#live-project-workflow-quality-evaluation)
 
 ## Live Router evaluation through LiteLLM
@@ -171,3 +172,19 @@ fails, rather than skips, if the Python bridge prerequisites are absent.
 During local diagnosis only, set `CONTRACTOR_WORKFLOWS_LIVE_ONLY` to either
 `openapi-from-workspace@7` or `likec4-from-workspace@7`; the default and documented
 quality gate always execute both.
+
+## Context-compaction evaluation
+
+`make test-context-compaction-eval-fixtures` runs the nonempty recorded-provider,
+scorer, public-contract and bounded-consumer checks without a Gateway. The explicit
+`make eval-context-compaction-live` command consumes three already registered
+two-arm Managed Eval experiments; it never publishes configurations or chooses
+models. It is excluded from deterministic CI/release targets.
+
+Follow the [fixture README](../../tests/eval/context_compaction/README.md) for
+exact SDK/lock/build and catalog pins, private truth/observer isolation, valid
+public recipes, at least five repeats, equal budgets, cancellation and retained
+evidence. Common Eval usage includes separate terminal summarizer spend once;
+model phases and monetary activity remain breakdowns. This harness adds no
+Runtime budget, member planner, usage ledger or comparison engine. Building and
+checking it performs no live experiment; V417-010 owns those measurements.

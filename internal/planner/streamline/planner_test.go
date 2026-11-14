@@ -227,12 +227,9 @@ func TestStreamlineCallsSingleWorkerWithStoredSubtaskAndCompleteContext(t *testi
 			t.Fatalf("Streamline OTLP payload lacks %s: %q", expected, payload)
 		}
 	}
-	for _, forbidden := range []string{
-		invocation.Stage.Objective, invocation.Stage.Instructions.Text,
-		"Analyze the input", "Produce the final report", "report ready",
-	} {
-		if bytes.Contains(payload, []byte(forbidden)) {
-			t.Fatalf("Streamline OTLP payload exposed %q: %q", forbidden, payload)
+	for _, expected := range []string{invocation.Stage.Objective, "Analyze the input", "Produce the final report", "report ready"} {
+		if !bytes.Contains(payload, []byte(expected)) {
+			t.Fatalf("Streamline OTLP lost ordinary debug content %q", expected)
 		}
 	}
 	if sessions.plan == nil || sessions.plan.Revision != 3 ||
@@ -267,7 +264,13 @@ func streamlineTestTelemetry(
 	t.Helper()
 	payload := make(chan []byte, 1)
 	collector := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		body, _ := io.ReadAll(io.LimitReader(request.Body, 3<<20))
+		const maxFixtureOTLPBytes = 65 << 20
+		body, err := io.ReadAll(io.LimitReader(request.Body, maxFixtureOTLPBytes+1))
+		if err != nil || len(body) > maxFixtureOTLPBytes {
+			t.Error("invalid or oversized OTLP fixture payload")
+			response.WriteHeader(http.StatusRequestEntityTooLarge)
+			return
+		}
 		payload <- body
 		response.WriteHeader(http.StatusOK)
 	}))

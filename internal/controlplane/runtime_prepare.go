@@ -45,6 +45,7 @@ func (c *RuntimeControlClient) Prepare(
 		ResolvedSkills: contracts.CloneResolvedSkills(resolvedSkills),
 		ModelPolicy:    settings.ModelPolicy.Clone(), RuntimeSettings: settings.RuntimeSettings,
 		SummarizerModelPolicy:           settings.SummarizerModelPolicy,
+		CompactorModelPolicy:            settings.CompactorModelPolicy,
 		ResolvedRuntimeConfigProvenance: settings.ResolvedRuntimeConfigProvenance,
 		Workspace:                       contracts.CloneAllocationWorkspaceSpec(reservation.Workspace),
 		PerformanceMetrics:              clonePerformanceMetricsRequest(reservation.PerformanceMetrics),

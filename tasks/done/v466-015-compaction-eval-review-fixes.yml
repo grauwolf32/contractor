@@ -1,0 +1,85 @@
+schema_version: '1.0'
+id: V466-015
+title: Correct compaction Eval selection, effective model pins and OpenAPI scoring
+milestone: worker-context-compaction-quality-2026-10
+epic: evals
+kind: defect
+introduced_by: V417-008
+priority: P1
+status: completed
+implementation_commit: 0111d8f851c8c017971f3ae797bfef5b1b9a8f00
+depends_on:
+- V417-008
+languages: [python, go, markdown]
+goal: The frozen compaction Eval selects its exact scored records, rejects mismatched effective models before dispatch and never passes an invalid OpenAPI artifact.
+context:
+  authority: 'User request 2026-11-14: fix all three findings from the review of codex/v417-policy-diagnostics-eval, add regressions and run the necessary checks on that branch.'
+  evidence: tasks/evidence/v466-015-acceptance-20261114.json
+  verification: >-
+    Accepted 2026-11-14: all A1-A4 and listed commands pass. The offline suite has
+    24 tests and detects removal of each correction; the real HTTP/PostgreSQL
+    regression replays a lost selection acknowledgement once and rejects stale CAS.
+    Full touched Go suites, wire fixtures and lint pass. The owned database was
+    dropped after its sessions drained. No live model run, deployment or main merge.
+  specification:
+  - docs/spec/evals/managed-evals.md#EVM-R133
+  - docs/spec/evals/managed-evals.md#EVM-R160
+  - docs/spec/evals/managed-evals.md#EVM-R162
+  - docs/spec/evals/format.md#EVF-R49
+  - docs/spec/evals/format.md#EVF-R53
+  finding: >-
+    tests/eval/context_compaction/harness.py:786 ingests assessments without selecting
+    records; :579 verifies independent catalog resources without tying them to Workflow
+    execution selections; :165 accepts an apiKey scheme missing name/in. PostgreSQL
+    and offline corruption probes reproduce all three defects on 5eb4bb785.
+  siblings: >-
+    Cover result/assessment/selection receipt replay, stale CAS and delayed comparison
+    publication; main, summarizer, compactor, Planner, failure/interruption escalation
+    and summary handoff selections; valid and malformed/local/remote-reference OpenAPI
+    artifacts. Ordinary Server selection and catalog resolution already own their
+    contracts and need no new endpoint, store, model choice or compatibility reader.
+  boundary: >-
+    Keep the fixes in the existing evaluator. Reuse public keyed selection/CAS and
+    asynchronous comparison views. Read effective public Workflow selections and
+    fail before dispatch when a model route cannot be verified. Reuse the repository's
+    pinned kin-openapi validator in an evaluator-only bounded local command, with
+    external reference loading disabled. Pin its source/dependency closure alongside
+    the scorer and join owned subprocesses. Do not change production Runtime behavior.
+scope:
+  in:
+  - Select exact result and assessment receipts and wait within a finite comparison deadline.
+  - Match declared model policy/alias/Gateway pins to every effective Workflow consumer and escalation.
+  - Validate complete OpenAPI structure before scoring its domain constraints.
+  - Offline regressions, a real HTTP/PostgreSQL selection regression and updated frozen scorer pins/docs.
+  out:
+  - Live Gateway experiments, deployment, main merge, new public contracts and production model/config changes.
+failure_outcomes:
+- operation: Record ingestion, explicit selection and comparison observation
+  permanent: Reject conflicting pins or stale CAS without overwriting another selection; retain durable records.
+  retryable: Repeat an ambiguous write with its same key, body and revision under a finite attempt/deadline bound.
+  ambiguous: Existing receipt replay owns reconciliation; never create replacement records or a second Run.
+  cancelled: Stop dispatch and reuse existing cancellation/join cleanup; local validator processes are joined.
+  timeout: Keep stale or unavailable comparison inconclusive after the separate bounded observation deadline.
+cardinality:
+- collection: Effective selections and scored artifacts
+  expected: Five Workflow variants, three comparisons and 90 pilot members.
+  maximum: Existing Workflow limits, manifest member/resource bounds and 1 MiB artifact limit.
+  bound: Inspect each pinned Workflow once; build the local validator once per invocation and bound each validation by bytes and timeout.
+acceptance_criteria:
+- id: A1
+  text: Exact result/assessment receipts are selected through real HTTP/PostgreSQL; replay does not create another selection and stale CAS preserves the current choice. Delayed views are awaited without inventing a pass.
+- id: A2
+  text: Main, auxiliary, Planner and escalation policy/alias/Gateway mismatches fail before any submission; matching selections pass and missing route evidence is rejected.
+- id: A3
+  text: A complete valid OpenAPI passes; missing apiKey name/in, other malformed structure and unresolved/remote references fail without network access. Validator changes alter the frozen scorer closure.
+- id: A4
+  text: Regressions fail against the reviewed implementation, all touched-package suites and lint pass, and no live Gateway calls or user-work changes occur.
+tests:
+- command: make test-context-compaction-eval-fixtures
+  covers: [A1, A2, A3, A4]
+- command: go test -count=1 ./internal/httpapi/public ./internal/evalservice ./internal/evalstore ./internal/evaldomain
+  covers: [A1, A4]
+- command: make lint
+  covers: [A1, A2, A3, A4]
+- command: make test-wire-cross-language
+  covers: [A1, A4]

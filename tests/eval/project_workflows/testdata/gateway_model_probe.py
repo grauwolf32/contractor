@@ -27,8 +27,12 @@ async def _probe(raw: bytes) -> list[dict[str, object]]:
     import httpx
     from contractor_runtime.adapters.http_proxy import ProxyHTTPClient
     from contractor_runtime.contracts import ResolvedModelPolicy, RuntimeSettings
+    from contractor_runtime.telemetry.metrics import MetricsState
     from contractor_runtime.llm.factory import gateway_model
-    from contractor_runtime.llm.openai import GatewayModelError, OpenAICompatibleGatewayLlm
+    from contractor_runtime.llm.openai import (
+        GatewayModelError,
+        OpenAICompatibleGatewayLlm,
+    )
     from google.adk.models.llm_request import LlmRequest
     from google.genai import types
     from pydantic import BaseModel, ConfigDict, Field, SecretStr, TypeAdapter
@@ -92,7 +96,11 @@ async def _probe(raw: bytes) -> list[dict[str, object]]:
                                 "finish_reason": "stop",
                             }
                         ],
-                        "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+                        "usage": {
+                            "prompt_tokens": 1,
+                            "completion_tokens": 1,
+                            "total_tokens": 2,
+                        },
                     },
                 )
             return httpx.Response(
@@ -112,6 +120,7 @@ async def _probe(raw: bytes) -> list[dict[str, object]]:
             proxy = ProxyHTTPClient(http_client)
             context = SimpleNamespace(
                 model_policy=case.policy,
+                state=SimpleNamespace(metrics=MetricsState()),
                 gateway_recovery=None,
                 runtime_settings=settings,
                 adapter_handles=SimpleNamespace(model_http=proxy),
@@ -120,7 +129,9 @@ async def _probe(raw: bytes) -> list[dict[str, object]]:
             if not isinstance(model, OpenAICompatibleGatewayLlm):
                 raise ProbeFailure
             request = LlmRequest(
-                contents=[types.Content(role="user", parts=[types.Part(text="Reply ok.")])],
+                contents=[
+                    types.Content(role="user", parts=[types.Part(text="Reply ok.")])
+                ],
                 config=types.GenerateContentConfig(
                     max_output_tokens=case.policy.max_output_tokens,
                     temperature=case.policy.temperature,
@@ -129,7 +140,9 @@ async def _probe(raw: bytes) -> list[dict[str, object]]:
             if request.model:
                 raise ProbeFailure
             try:
-                responses = [response async for response in model.generate_content_async(request)]
+                responses = [
+                    response async for response in model.generate_content_async(request)
+                ]
                 if (
                     len(responses) != 1
                     or responses[0].content is None
@@ -151,7 +164,9 @@ async def _probe(raw: bytes) -> list[dict[str, object]]:
                     ):
                         raise ProbeFailure from None
                     safe_error = f"{error!s} {error!r} {vars(error)!r}"
-                    if any(canary in safe_error for canary in (_TOKEN_CANARY, _BODY_CANARY)):
+                    if any(
+                        canary in safe_error for canary in (_TOKEN_CANARY, _BODY_CANARY)
+                    ):
                         raise ProbeFailure from None
                     rejected_type = type(error).__name__
                 else:
@@ -182,7 +197,10 @@ def main() -> int:
             raise ProbeFailure
         # Dependencies and provider adapters must not pollute the JSON bridge or
         # expose data through incidental logging, warnings or tracebacks.
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        with (
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
             results = asyncio.run(_probe(raw))
     except Exception as error:
         print(type(error).__name__, file=sys.stderr)

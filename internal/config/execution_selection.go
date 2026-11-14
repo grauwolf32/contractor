@@ -20,7 +20,7 @@ type stageExecutionConfigPatch struct {
 type executionSelectionPatch struct {
 	ModelPolicy           optionalSelectionString
 	SummarizerModelPolicy optionalSelectionString
-	// CompactorModelPolicy applies only to a compact@1 Planner (PLN-R125).
+	// CompactorModelPolicy applies to a compact@1 Planner or Worker (TPL-R117).
 	CompactorModelPolicy optionalSelectionString
 	LLMGateway           optionalSelectionString
 	Credential           optionalSelectionString

@@ -207,7 +207,7 @@ internal/runstore            projects                       The Run queue shows 
 internal/scheduler           workflow_runs                  The terminal commit of a succeeded Run reads its Project and
     output publication mode to publish its outputs.
 
-internal/telemetry           stage_allocations              Resource history reads the allocations of terminal Stages.
+internal/telemetry           stage_allocations              Resource history reads the allocations of terminal Stages; owner-authorized live diagnostics select a bounded allocation page.
     Accepted upward read PER-UR-2.
 internal/telemetry           stage_executions               Resource history reads terminal Stages, diagnostics authorize
     a Stage through its Run, and report and metric retention deletes only those of terminal Stages. Accepted upward

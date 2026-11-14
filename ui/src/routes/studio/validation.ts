@@ -63,7 +63,6 @@ function mediaTypesProblem(value: unknown): string | undefined {
 
 const COMPACT_MEMBERS = new Set([
   "strategy",
-  "modelPolicy",
   "instructions",
   "includeReasoning",
   "contextWindowRatio",
@@ -106,11 +105,6 @@ function contextManagementProblems(
   for (const name of Object.keys(context))
     if (!COMPACT_MEMBERS.has(name))
       problems.push([[name], "compact@1 does not accept this member."]);
-  if (
-    typeof context.modelPolicy !== "string" ||
-    !isConfigSelector(context.modelPolicy)
-  )
-    problems.push([["modelPolicy"], SELECTOR_MESSAGE]);
   const instructions = record(context.instructions).ref;
   if (typeof instructions !== "string" || !instructions.trim())
     problems.push([

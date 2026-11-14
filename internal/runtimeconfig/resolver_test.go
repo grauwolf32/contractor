@@ -350,7 +350,7 @@ func TestResolverRejectsUnauthorizedRoutesAndCredentialKinds(t *testing.T) {
 		withTools.MaxToolCalls = 1
 		input.CompactorModelPolicy = &withTools
 		_, err = ResolveRuntimeConfig(input)
-		assertResolutionError(t, err, ResolutionInvalid, "contextManagement.modelPolicy")
+		assertResolutionError(t, err, ResolutionInvalid, "compactorModelPolicy")
 	})
 
 	t.Run("Runtime credential kind", func(t *testing.T) {

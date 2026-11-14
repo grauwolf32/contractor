@@ -181,6 +181,9 @@
           "additionalProperties": {
             "$ref": "#/$defs/toolMetrics"
           }
+        },
+        "modelPhases": {
+          "$ref": "worker-compaction.schema.json#/$defs/WorkerModelPhases"
         }
       }
     },
@@ -333,6 +336,9 @@
         },
         "truncated": {
           "type": "boolean"
+        },
+        "compaction": {
+          "$ref": "worker-compaction.schema.json#/$defs/WorkerCompactionProgress"
         }
       }
     },
@@ -450,7 +456,8 @@
                 "const": "none"
               }
             }
-          }
+          },
+          "compactorModelPolicy": false
         }
       },
       "else": {
@@ -556,6 +563,9 @@
         },
         "engagement": {
           "$ref": "engagement-allocation.schema.json"
+        },
+        "compactorModelPolicy": {
+          "$ref": "common.schema.json#/$defs/workerCompactorModelPolicy"
         }
       },
       "required": [
@@ -579,13 +589,20 @@
       "allOf": [
         {
           "if": {
-            "required": ["completionContract"]
+            "required": [
+              "completionContract"
+            ]
           },
           "then": {
             "properties": {
               "contextManagement": {
                 "properties": {
-                  "strategy": {"enum": ["none", "compact@1"]}
+                  "strategy": {
+                    "enum": [
+                      "none",
+                      "compact@1"
+                    ]
+                  }
                 }
               }
             }
@@ -675,7 +692,8 @@
           },
           "then": {
             "required": [
-              "modelPolicy"
+              "modelPolicy",
+              "compactorModelPolicy"
             ],
             "properties": {
               "workerSessionMode": {
@@ -688,6 +706,11 @@
                   "maxOutputTokens"
                 ]
               }
+            }
+          },
+          "else": {
+            "properties": {
+              "compactorModelPolicy": false
             }
           }
         }

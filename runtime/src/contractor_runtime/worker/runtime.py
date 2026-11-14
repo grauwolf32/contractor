@@ -191,6 +191,9 @@ class AdkWorkerRuntime:
             )
         self._plugin = WorkerInstrumentationPlugin(
             state=self._worker_state,
+            compactor_model_alias=(
+                context.compactor_model_policy.model if context.compactor_model_policy else None
+            ),
             execution=self._resources.execution,
             budget=lambda: self._invocation.budget,
             instrumentation=self._instrumentation,
@@ -807,7 +810,9 @@ class AdkWorkerRuntime:
               nextGroup and nextPosition when more compacted history follows.
             """
 
-            return dict(compaction.history_page(tool_context.invocation_id, group, position))
+            result = dict(compaction.history_page(tool_context.invocation_id, group, position))
+            await self._worker_state.record_archive_read(invocation_id=tool_context.invocation_id)
+            return result
 
         return read_context_history
 
@@ -817,6 +822,9 @@ class AdkWorkerRuntime:
         compaction = self._compaction
         if compaction is None:
             raise RuntimeError("Worker compaction is disabled")
+        policy = self._context.compactor_model_policy
+        if policy is None:
+            raise RuntimeError("Worker compactor model policy is missing")
         span = start_isolated_span(
             self._instrumentation,
             "contractor.worker.context_compaction",
@@ -827,14 +835,25 @@ class AdkWorkerRuntime:
         )
         outcome, cause = "failed", "runtime_failed"
         model: BaseLlm | None = None
+        primary_error: BaseException | None = None
         try:
+            await self._worker_state.request_compaction(
+                invocation_id=invocation_id,
+                generation=compaction.generation,
+                prompt_tokens=(
+                    self._invocation.budget.latest_prompt_tokens
+                    if self._invocation.budget is not None
+                    else None
+                ),
+            )
             plan = await compaction.plan()
             self._admit_semantic_work()
             compactor_context = replace(
                 self._context,
-                model_policy=compaction.config.model_policy,
+                model_policy=policy,
                 summarizer=None,
                 compaction=None,
+                compactor_model_policy=None,
                 tools={},
                 resolved_skills=(),
                 agent_skills=None,
@@ -844,11 +863,19 @@ class AdkWorkerRuntime:
             model = self._model_factory(compactor_context)
             if model is self._model:
                 raise WorkerCompactionError.failed("model_not_isolated")
+            await self._worker_state.start_compaction(
+                invocation_id=invocation_id,
+                input_bytes=len(plan.document.encode("utf-8")),
+                reasoning_available=plan.reasoning_available,
+                reasoning_included=plan.reasoning_included,
+                reasoning_truncated=plan.reasoning_truncated,
+            )
             try:
                 with model_cost_phase("compaction"):
                     candidate = await run_compactor(
                         model=model,
                         config=compaction.config,
+                        policy=policy,
                         document=plan.document,
                         invocation_id=invocation_id,
                         observer=self._plugin,
@@ -885,25 +912,54 @@ class AdkWorkerRuntime:
                 fence=self._fence_compacted_session,
             )
             compaction.commit(plan, summary, marker)
+            # The checkpoint is already committed. Join its numeric State
+            # publication even if cancellation arrives during validation.
+            applied = asyncio.create_task(
+                self._worker_state.apply_compaction(
+                    invocation_id=invocation_id,
+                    generation=compaction.generation,
+                    summary_bytes=len(summary.encode("utf-8")),
+                ),
+                name="worker-compaction-observation",
+            )
+            cancelled = await join_owned_task(applied)
+            applied.result()
+            if cancelled:
+                raise asyncio.CancelledError
             if self._invocation.budget is not None:
                 self._invocation.budget.commit_tool_checkpoint()
                 # A new context generation needs its own measured main usage.
                 self._invocation.budget.latest_prompt_tokens = None
             outcome, cause = "succeeded", ""
-        except WorkerCompactionError as error:
-            cause = error.cause
-            raise
-        except asyncio.CancelledError:
-            outcome, cause = "cancelled", ""
+        except BaseException as error:
+            primary_error = error
+            if isinstance(error, WorkerBudgetExceeded):
+                cause = "budget_exhausted"
+            elif isinstance(error, WorkerCompactionError):
+                cause = error.cause
+            elif isinstance(error, asyncio.CancelledError):
+                outcome, cause = "cancelled", "cancelled"
+            try:
+                await self._worker_state.fail_compaction(invocation_id=invocation_id, cause=cause)
+            except BaseException:
+                # The original execution failure owns the outcome. Lost
+                # diagnostics mark existing detail coverage incomplete.
+                self._metrics.truncated = True
             raise
         finally:
-            if isinstance(model, OpenAICompatibleGatewayLlm) and model is not self._model:
-                await model.close()
-            end_isolated_span(
-                span,
-                outcome=outcome,
-                attributes={"compaction.cause": cause} if cause else {},
-            )
+            try:
+                if isinstance(model, OpenAICompatibleGatewayLlm) and model is not self._model:
+                    await model.close()
+            except BaseException:
+                if primary_error is None:
+                    raise
+                self._metrics.truncated = True
+            finally:
+                end_isolated_span(
+                    span,
+                    outcome=outcome,
+                    attributes={"compaction.cause": cause} if cause else {},
+                )
 
     def _stop_accepting(self) -> None:
         self._accepting = False
@@ -1015,6 +1071,7 @@ class AdkWorkerRuntime:
                     subtask_id=subtask_id,
                     metrics=metrics,
                     summarizer_enabled=self._context.summarizer is not None,
+                    compaction_enabled=self._compaction is not None,
                 )
                 snapshot = await self._worker_state.complete_invocation(
                     invocation_id=invocation_id,

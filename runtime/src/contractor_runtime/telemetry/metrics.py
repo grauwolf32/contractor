@@ -24,6 +24,12 @@ from contractor_runtime.contracts import (
     WorkerSummarizerMetrics,
 )
 from contractor_runtime.contracts.base import ARGUMENT_NUMBER_MARKER, argument_number_in_range
+from contractor_runtime.contracts.compaction import (
+    WorkerCompactionProgress,
+    WorkerModelPhases,
+    WorkerModelUsage,
+)
+from contractor_runtime.contracts.llm_cost import CostPhase
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.llm.cost import CostCollector
 from contractor_runtime.llm.errors import GatewayFailure
@@ -124,6 +130,12 @@ class MetricsState:
     _worker_budget: WorkerBudgetMetrics | None = None
     _summarizer: WorkerSummarizerMetrics | None = None
     _completion: WorkerCompletionDiagnostics | None = None
+    _model_phases: dict[str, dict[str, int]] = field(
+        default_factory=lambda: {
+            phase: dict.fromkeys(WorkerModelUsage.model_fields, 0)
+            for phase in ("main", "compaction", "finalization")
+        }
+    )
     _tool_correlation_outcomes: dict[str, bool] = field(default_factory=dict, repr=False)
 
     @property
@@ -142,6 +154,32 @@ class MetricsState:
         self._completion = WorkerCompletionDiagnostics.model_validate(
             value.model_dump(by_alias=True)
         )
+
+    def model_phase_usage(self, phase: CostPhase) -> WorkerModelUsage:
+        if phase == "summarization":
+            summary = self._summarizer
+            return WorkerModelUsage(
+                **{
+                    key: getattr(summary, key) if summary is not None else 0
+                    for key in WorkerModelUsage.model_fields
+                    if key != "duration_ms"
+                }
+            )
+        return WorkerModelUsage(
+            **{key: _report_integer(value) for key, value in self._model_phases[phase].items()}
+        )
+
+    def model_phases(self) -> WorkerModelPhases:
+        return WorkerModelPhases(
+            **{phase: self.model_phase_usage(phase) for phase in WorkerModelPhases.model_fields}
+        )
+
+    def record_model_duration(self, phase: CostPhase, duration_ms: int) -> None:
+        self._increment_phase(phase, "duration_ms", max(0, duration_ms))
+
+    def _increment_phase(self, phase: CostPhase, counter: str, amount: int = 1) -> None:
+        values = self._model_phases[phase]
+        values[counter] = min(MAX_METRIC_COUNTER, values[counter] + amount)
 
     def start_worker_budget(
         self, *, max_model_calls: int, max_tool_calls: int, max_total_tokens: int
@@ -360,10 +398,13 @@ class MetricsState:
         if exit_code is not None:
             self._increment("sandbox.completed_nonzero" if exit_code else "sandbox.completed_zero")
 
-    def record_model_call(self) -> None:
+    def record_model_call(self, *, phase: CostPhase = "main") -> None:
         self._increment("llm_calls")
+        self._increment_phase(phase, "model_calls")
+        # An in-flight or rejected response is unavailable until actual usage arrives.
+        self._increment_phase(phase, "token_usage_unavailable")
 
-    def record_model_usage(self, usage: Any) -> None:
+    def record_model_usage(self, usage: Any, *, phase: CostPhase = "main") -> None:
         projected = project_token_usage(usage)
         for value, counter in (
             (projected.prompt_tokens, "input_tokens"),
@@ -373,6 +414,11 @@ class MetricsState:
         ):
             if value is not None:
                 self._increment(counter, value)
+                if counter != "cached_input_tokens":
+                    self._increment_phase(phase, counter, value)
+        if projected.total_tokens is not None:
+            values = self._model_phases[phase]
+            values["token_usage_unavailable"] = max(0, values["token_usage_unavailable"] - 1)
 
     def record_recovery_authority_retry(self, cause: str) -> None:
         """Count one reconnect to the model recovery authority; cause is a safe token."""
@@ -467,6 +513,11 @@ class MetricsState:
             "finalOutcome": self.final_outcome,
             "truncated": self.truncated,
         }
+        if (
+            any(v["model_calls"] for v in self._model_phases.values())
+            or self._summarizer is not None
+        ):
+            result["modelPhases"] = self.model_phases().model_dump(by_alias=True)
         if self._worker_budget is not None:
             result["workerBudget"] = self._worker_budget.model_dump(
                 mode="json", by_alias=True, exclude_none=True
@@ -482,6 +533,7 @@ class MetricsState:
         duration_ms: int,
         complete: bool = True,
         extra_errors: tuple[TerminationError, ...] = (),
+        compaction: WorkerCompactionProgress | None = None,
     ) -> ExecutionReport:
         errors = list(self._errors)
         error_projections = list(self._error_projections)
@@ -508,6 +560,10 @@ class MetricsState:
             for name, values in sorted(self._tool_metrics.items())
         }
         optional_metrics = {
+            "modelPhases": self.model_phases()
+            if any(v["model_calls"] for v in self._model_phases.values())
+            or self._summarizer is not None
+            else None,
             "inputTokens": self._report_counter("input_tokens"),
             "outputTokens": self._report_counter("output_tokens"),
             "totalTokens": self._report_counter("total_tokens"),
@@ -529,6 +585,7 @@ class MetricsState:
             errors=errors,
             truncated=truncated,
             **({"completion": self._completion.model_copy(deep=True)} if self._completion else {}),
+            **({"compaction": compaction} if compaction is not None else {}),
         )
         return trim_report_detail(
             report,

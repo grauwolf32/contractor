@@ -89,7 +89,7 @@ func TestWorkflowDetailProjectsSafeOpenAPIFields(t *testing.T) {
 		t.Fatalf("safe Workflow projection = %+v", stage)
 	}
 	if selection := stage.Agents["builder"].ContextManagement; selection.Strategy != contracts.ContextStrategyTemplate ||
-		selection.ModelPolicy != nil || selection.Instructions != nil || selection.IncludeReasoning != nil {
+		selection.Instructions != nil || selection.IncludeReasoning != nil {
 		t.Fatalf("template@1 Workflow projection = %+v", selection)
 	}
 	if !workflow.Outputs["openapi"].Primary || workflow.Outputs["openapi_validation_report"].Primary ||
@@ -106,7 +106,6 @@ func TestWorkflowDetailProjectsSafeOpenAPIFields(t *testing.T) {
 func TestWorkflowContextManagementProjectionIsReferenceOnly(t *testing.T) {
 	const secretText = "compactor instruction text must not be projected"
 	compaction := &contracts.WorkerCompaction{
-		ModelPolicy:        contracts.ResolvedModelPolicy{Ref: contracts.ModelPolicyRef{PolicyID: "compactor", Version: "1", Digest: "sha256:" + strings.Repeat("a", 64)}},
 		Instructions:       contracts.ResolvedInstructions{Ref: "instructions/worker-compaction.md", Digest: "sha256:" + strings.Repeat("b", 64), Text: secretText},
 		IncludeReasoning:   false,
 		ContextWindowRatio: 0.75,
@@ -118,8 +117,7 @@ func TestWorkflowContextManagementProjectionIsReferenceOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `{"strategy":"compact@1","modelPolicy":{"policyId":"compactor","version":"1","digest":"sha256:` + strings.Repeat("a", 64) +
-		`"},"instructions":{"ref":"instructions/worker-compaction.md","digest":"sha256:` + strings.Repeat("b", 64) +
+	want := `{"strategy":"compact@1","instructions":{"ref":"instructions/worker-compaction.md","digest":"sha256:` + strings.Repeat("b", 64) +
 		`"},"includeReasoning":false,"contextWindowRatio":0.75,"keepRecentGroups":4,"maxCompactions":8}`
 	if string(encoded) != want || strings.Contains(string(encoded), secretText) {
 		t.Fatalf("compact@1 projection = %s", encoded)

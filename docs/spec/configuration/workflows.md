@@ -396,7 +396,6 @@ agents:
     template: workspace_taint_analyst@3
     contextManagement:
       strategy: compact@1
-      modelPolicy: compactor@1
       instructions:
         ref: instructions/worker-compaction.md
       includeReasoning: false
@@ -405,8 +404,8 @@ agents:
       maxCompactions: 8          # default
 ```
 
-**WFL-R92.** `compact@1` requires an exact compactor `modelPolicy`
-selector, an `instructions.ref` resource and an explicit YAML boolean
+**WFL-R92.** `compact@1` requires an exact `compactorModelPolicy` selected
+through Workflow executionConfig (TPL-R117), an `instructions.ref` resource and an explicit YAML boolean
 `includeReasoning`; a quoted or otherwise textual value is invalid.
 `contextWindowRatio` (LIM-WFL-11), `keepRecentGroups` (LIM-WFL-10) and
 `maxCompactions` (LIM-WFL-9) default during resolution and are explicit

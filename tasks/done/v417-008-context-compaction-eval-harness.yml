@@ -5,10 +5,12 @@ milestone: worker-context-compaction-quality-2026-10
 epic: evals
 kind: chore
 priority: P2
-status: pending
+status: completed
 depends_on:
 - V417-001
 - V417-003
+- V466-013
+- V466-014
 languages:
 - python
 - go
@@ -18,6 +20,25 @@ goal: Make the quality and total cost of terminal summarization and continuing c
   frozen cases, meaningful deterministic scorers and a bounded opt-in live command, without running live
   experiments in this task.
 context:
+  authority: User request 2026-11-14 takes several ready V417 tasks in one pass; the agent selected 006/007/008
+    with separate acceptance. User review 2026-11-14 requests removing unnecessary mechanisms across the
+    batch; reuse Managed Eval membership, cumulative usage and comparisons instead of a parallel charge
+    ledger, member planner or local comparison engine. This task builds and verifies the harness offline
+    and does not authorize live experiments. User decision 2026-11-14 approves the common collector correction
+    V466-013 as a prerequisite. Continue independent fixture/scorer work; do not close this task before
+    that correction passes. The same collector correction needs V466-014 to assign its changed behavior
+    a new normalizer identity before final acceptance.
+  implementation_decision: Reuse frozen externally-controlled Managed Eval registrations, submissions,
+    execution inventory, result and assessment receipts through public HTTP. The live manifest references
+    already registered exact plans, member order, case digests and read-only configuration pins; it never
+    publishes a Workflow or sends Run/Eval execution overrides. One member is observed to settlement before
+    admitting the next, reserving its full finite declared task budget. Test-only masking and controlled
+    replay use recorded environments; unsupported live pairing remains in the denominator. Hidden truth
+    and future questions stay outside the execution projection and API recipe. Common Eval usage includes
+    terminal summarization once after V466-013. The consumer projects existing usage/cost/phase views,
+    streams bounded member records and reads server comparisons; there is no local member planner, charge-revision
+    ledger or quality/savings calculator. Runtime build and capability equality are frozen operator attestations
+    where the current public API has no reader.
   proposal: docs/proposals/0046-workflow-context-compaction.md
   specification:
   - docs/spec/evals/format.md#EVF-R1
@@ -45,9 +66,12 @@ context:
   review_baseline: Local main 1142c2681d6520baa8c04bb0a90ca8fd224deb29. Current owning specifications
     and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
     and verification history. Recheck affected contracts if main changes before execution.
-  current_state: 'Still required: no context-compaction evaluation harness or live evidence is delivered.
-    V425-041 makes published Workflow refs the experiment model/configuration boundary. V454-001 only
-    consolidated existing Eval storage; reuse its public owner APIs, frozen plans and member receipts.'
+  current_state: 'Accepted 2026-11-14: six declared variants, three visible case classes, private truth
+    and bounded scorers, 90 recorded samples, existing external Eval consumer and separate live target.
+    Common usage correction and normalizer identity are accepted in V466-013/V466-014. No live measurements
+    were run.'
+  verification: "All A1\u2013A5 pass in the 19-test offline suite and real catalog load; public result/assessment\
+    \ payloads validate against current OpenAPI. Full Eval/PostgreSQL and lint pass. See tasks/evidence/v417-008-acceptance-20261114.json."
 scope:
   in:
   - Frozen visible cases, private expected data, variant manifests and scorer regressions under tests/eval.
@@ -237,3 +261,4 @@ verification_requirements:
   shared validation in the implementation change.
 - Record commands, nonzero case counts and prerequisites honestly; this planning task record does not
   claim successful implementation or populate implementation_commit.
+implementation_commit: d39ad87e4584a737bdd0be01bcfb8cd9a2bc0958

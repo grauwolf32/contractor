@@ -1,0 +1,40 @@
+{
+  "task": "V466-014",
+  "date": "2026-11-14",
+  "status": "accepted",
+  "implementation_commit": "d783c2ea29852de436c9e324615b9e36ee8bcce5",
+  "merged_into_main": false,
+  "normalizer": {
+    "id": "contractor-output@4",
+    "implementationSha256": "sha256:7795f7ddecc4c22f0420da944b3cf7b1a10959849b3a4eb83baaedb37db4baaa"
+  },
+  "gates": [
+    {
+      "command": "go test -count=1 ./internal/evalservice ./internal/evalstore ./internal/evaldomain",
+      "exit_code": 0,
+      "log": "/var/folders/j7/g49dqq0x6nn25y_j4f1ht2ww0000gn/T/contractor-v417-006-008-20261114-7hze5cda/eval-014-full.log"
+    },
+    {
+      "command": "make lint",
+      "exit_code": 0,
+      "log": "/var/folders/j7/g49dqq0x6nn25y_j4f1ht2ww0000gn/T/contractor-v417-006-008-20261114-7hze5cda/lint-014-final.log"
+    }
+  ],
+  "regressions": [
+    "Actual PostgreSQL preparation publishes the new normalizer identity/digest in both frozen bindings.",
+    "Normalizer result source revisions use the same constant; existing native/human policy pins stay fixed.",
+    "Existing full collection/recollection/selection suites pass, preserving immutable history."
+  ],
+  "prerequisites": [
+    "Owned real PostgreSQL17 database; pinned Go1.26.9 and locked Runtime."
+  ],
+  "cleanup": {
+    "database": "contractor_test_v417_006_008_20261114_01",
+    "sessions_before_drop": 0,
+    "dropped": true,
+    "other_databases_and_demo_processes_unchanged": true
+  },
+  "exclusions": [
+    "No live Gateway, demo deployment or full release-verify; optional heavy I/O disabled."
+  ]
+}

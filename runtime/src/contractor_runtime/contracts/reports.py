@@ -28,6 +28,7 @@ from contractor_runtime.contracts.base import (
     _require_text,
     _require_tool_arguments,
 )
+from contractor_runtime.contracts.compaction import WorkerCompactionProgress, WorkerModelPhases
 from contractor_runtime.contracts.llm_cost import LLMCost
 
 # Every integer of RuntimeResources and of ExecutionMetrics, with its tools,
@@ -198,6 +199,7 @@ class RuntimeAdapterMetrics(WireModel):
 
 
 class ExecutionMetrics(WireModel):
+    model_phases: WorkerModelPhases | None = None
     llm_cost: LLMCost | None = None
     duration_ms: ReportInteger | None = None
     model_calls: ReportInteger | None = None
@@ -305,6 +307,7 @@ class RuntimeResources(WireModel):
 
 
 class ExecutionReport(WireModel):
+    compaction: WorkerCompactionProgress | None = None
     report_id: str
     complete: bool
     metrics: ExecutionMetrics

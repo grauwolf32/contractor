@@ -896,3 +896,11 @@ uses ordinary public API version, authentication and error handling. The
 handler reads no store. Server-only settings, credentials and allocation
 RuntimeSettings are absent. The public schema is generated from the private
 owning SharedConfig schema; both endpoints use the same Server constructor.
+
+
+Run Runtime diagnostics include the content-free compaction observation and
+model-phase usage when available (OBS-R126). While final reports are pending,
+the same owner-authorized, bounded page may read live State. Adapter report
+availability and completion remain independent from compaction; no missing
+report is represented as complete. Live cursor continuation is fenced by the
+Stage tuple generation, and final retained reports replace the live view.

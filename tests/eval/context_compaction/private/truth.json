@@ -1,0 +1,79 @@
+{
+  "api-dependency": {
+    "canary": "EVALUATOR_PRIVATE_417_FUTURE_TRUTH",
+    "constraints": [
+      "read-only",
+      "tenant-isolation"
+    ],
+    "expected": {
+      "edges": [
+        [
+          "catalog",
+          "inventory"
+        ],
+        [
+          "orders",
+          "billing"
+        ]
+      ],
+      "operations": [
+        "listTenantItems",
+        "createTenantOrder"
+      ],
+      "optional": [
+        "note"
+      ]
+    },
+    "futureQuestions": [
+      "Which dependency serves createTenantOrder, and was note optional?"
+    ]
+  },
+  "negative-memory": {
+    "canary": "EVALUATOR_PRIVATE_417_FUTURE_TRUTH",
+    "constraints": [
+      "read-only",
+      "tenant-isolation"
+    ],
+    "expected": {
+      "negative": [
+        "P17"
+      ],
+      "observed": [
+        "P17",
+        "P18"
+      ],
+      "retrieved": [
+        "obs-P17"
+      ],
+      "uncertain": [
+        "all-other-inputs"
+      ]
+    },
+    "futureQuestions": [
+      "Does denied P17 prove that every object and input is protected?"
+    ]
+  },
+  "source-review": {
+    "canary": "EVALUATOR_PRIVATE_417_FUTURE_TRUTH",
+    "constraints": [
+      "read-only",
+      "tenant-isolation"
+    ],
+    "expected": {
+      "finding": {
+        "kind": "sql_concatenation",
+        "line": 5,
+        "path": "app.py"
+      },
+      "observed": [
+        "unsafe-search"
+      ],
+      "uncertain": [
+        "lookup-exploitability"
+      ]
+    },
+    "futureQuestions": [
+      "Which exact line still concatenates untrusted term after context replacement?"
+    ]
+  }
+}

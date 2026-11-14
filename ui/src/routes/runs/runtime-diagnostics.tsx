@@ -8,6 +8,8 @@ import type { StageAttempt } from "../../api/runs";
 import { ErrorNotice } from "../../app/error-notice";
 import { Button, Facts } from "../../ui";
 
+import { CompactionProgress } from "./compaction-progress";
+
 const DROP_LABELS = {
   queueOverflow: "Queue overflow",
   encodingFailed: "Encoding failed",
@@ -46,6 +48,11 @@ export function RuntimeDiagnostics({
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.page.nextCursor,
     enabled: open,
+    refetchInterval: (query) =>
+      open &&
+      ["preparing", "running", "finalizing", "aborting"].includes(attempt.state)
+        ? Math.min(3000 * 2 ** query.state.fetchFailureCount, 30000)
+        : false,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
     refetchOnReconnect: false,
@@ -107,6 +114,18 @@ export function RuntimeDiagnostics({
           <li key={item.logicalAgent}>
             <strong>Logical Worker {item.logicalAgent}</strong>
             <p>Report {item.status}</p>
+            {item.compaction === undefined &&
+            item.modelPhases === undefined ? null : (
+              <CompactionProgress
+                progress={item.compaction}
+                phases={item.modelPhases}
+                continuing={
+                  attempt.state === "running" &&
+                  query.error === null &&
+                  !query.isRefetching
+                }
+              />
+            )}
             <Facts
               items={[
                 {

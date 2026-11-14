@@ -28,12 +28,16 @@ func (c *RuntimeControlClient) ReadWorkerState(
 	if err != nil {
 		return reporting.WorkerStateReadResult{}, workerStateReadError(0, "worker_state_endpoint_invalid", false)
 	}
+	return c.readWorkerState(ctx, target, handle.RuntimeAgentID, ifNoneMatch)
+}
+
+func (c *RuntimeControlClient) readWorkerState(ctx context.Context, target, runtimeAgentID, ifNoneMatch string) (reporting.WorkerStateReadResult, error) {
 	headers := map[string]string{}
 	if ifNoneMatch != "" {
 		headers["If-None-Match"] = ifNoneMatch
 	}
 	response, err := c.doRequest(
-		ctx, http.MethodGet, target, nil, handle.RuntimeAgentID, headers,
+		ctx, http.MethodGet, target, nil, runtimeAgentID, headers,
 	)
 	if err != nil {
 		code := "worker_state_transport_failed"

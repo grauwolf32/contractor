@@ -40,7 +40,6 @@ const (
 // a resolved binding and in AllocationSpec; authoring defaults are applied by
 // configuration resolution only.
 type WorkerCompaction struct {
-	ModelPolicy        ResolvedModelPolicy  `json:"modelPolicy" strictjson:"required"`
 	Instructions       ResolvedInstructions `json:"instructions" strictjson:"required"`
 	IncludeReasoning   bool                 `json:"includeReasoning" strictjson:"required"`
 	ContextWindowRatio float64              `json:"contextWindowRatio" strictjson:"required"`
@@ -101,7 +100,6 @@ func (c WorkerContextManagement) Clone() WorkerContextManagement {
 		return c
 	}
 	compaction := *c.WorkerCompaction
-	compaction.ModelPolicy = c.ModelPolicy.Clone()
 	return WorkerContextManagement{Strategy: c.Strategy, WorkerCompaction: &compaction}
 }
 
@@ -152,6 +150,12 @@ func (c WorkerContextManagement) ValidateAllocation(spec AllocationContext) erro
 		if err := c.validateCompaction(); err != nil {
 			return err
 		}
+		if spec.CompactorModelPolicy == nil {
+			return Invalidf("compact@1 requires compactorModelPolicy")
+		}
+		if err := spec.CompactorModelPolicy.ValidateForCompactor(); err != nil {
+			return err
+		}
 		if err := ValidateCompactionTarget(spec.Template, spec.SessionMode); err != nil {
 			return err
 		}
@@ -167,6 +171,9 @@ func (c WorkerContextManagement) ValidateAllocation(spec AllocationContext) erro
 	if spec.SummarizerModelPolicy != nil && c.Strategy != ContextStrategyTerminal {
 		return Invalidf("summarizerModelPolicy requires terminal@1 context management")
 	}
+	if spec.CompactorModelPolicy != nil && c.Strategy != ContextStrategyCompact {
+		return Invalidf("compactorModelPolicy requires compact@1 context management")
+	}
 	return nil
 }
 
@@ -176,6 +183,7 @@ type AllocationContext struct {
 	Template              ResolvedAgentTemplate
 	SessionMode           WorkerSessionMode
 	SummarizerModelPolicy *ResolvedModelPolicy
+	CompactorModelPolicy  *ResolvedModelPolicy
 	WorkerPolicy          ResolvedModelPolicy
 }
 
@@ -241,9 +249,6 @@ func (c WorkerContextManagement) validateCompaction() error {
 	compaction := c.WorkerCompaction
 	if compaction == nil {
 		return Invalidf("contextManagement compact@1 requires its compaction policy")
-	}
-	if err := compaction.ModelPolicy.ValidateForCompactor(); err != nil {
-		return err
 	}
 	instructions := compaction.Instructions
 	if strings.TrimSpace(instructions.Ref) == "" || strings.TrimSpace(instructions.Text) == "" {

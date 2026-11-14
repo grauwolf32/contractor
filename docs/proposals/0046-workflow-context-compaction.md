@@ -93,6 +93,9 @@ tool-free вызов и возвращает `WorkerResult(summarized=true)`.
 
 ```yaml
 spec:
+  executionConfig:
+    workers:
+      compactorModelPolicy: compactor@1
   stages:
     review:
       planner: passthrough@1
@@ -103,7 +106,6 @@ spec:
           namespace: analysis
           contextManagement:
             strategy: compact@1
-            modelPolicy: compactor@1
             instructions:
               ref: instructions/worker-compaction.md
             includeReasoning: true
@@ -614,7 +616,7 @@ OpenAPI/LikeC4 с отложенными зависимостями и посл�
 | [V417-003](../../tasks/done/v417-003-isolated-worker-context-compaction.yml) | Сквозной `compact@1` для обычного isolated Worker: Workflow → snapshot/wire → coordinator, архив и reader, catalog resources, limits и cleanup | V417-002 |
 | [V417-004](../../tasks/v417-004-shared-session-context-compaction.yml) | `in_progress` по указанию пользователя; выполняется последней: shared context между invocations с общими границами allocation, корректными generation и текущей task authority | V417-003, V417-009, V417-010 |
 | [V417-005](../../tasks/done/v417-005-audit-worker-context-compaction.yml) | Допуск compaction в isolated Audit с сохранением completeness gate, trusted results и receipts | V417-003, V64-012 |
-| [V417-006](../../tasks/v417-006-compactor-model-policy-selection.yml) | Reference-only `compactorModelPolicy` через существующие executionConfig selections и exact pins | V417-003 |
+| [V417-006](../../tasks/done/v417-006-compactor-model-policy-selection.yml) | Reference-only `compactorModelPolicy` через существующие executionConfig selections и exact pins | V417-003 |
 | [V417-007](../../tasks/v417-007-context-compaction-state-and-ui.yml) | Числовые State/metrics, public projections и правдивое отображение в UI | V417-003 |
 | [V417-008](../../tasks/v417-008-context-compaction-eval-harness.yml) | Замороженные Eval fixtures/scorers и opt-in harness; без live-вызовов при реализации harness | V417-001, V417-003 |
 | [V417-009](../../tasks/v417-009-context-compaction-release-gate.yml) | Интегрированная deterministic проверка isolated compaction на реальных Server/Runtime/PostgreSQL и release gate | V417-003, V417-005, V417-006, V417-007 |

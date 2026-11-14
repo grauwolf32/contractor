@@ -14,6 +14,7 @@ from contractor_runtime.contracts import (
     AgentStateSnapshot,
 )
 from contractor_runtime.contracts.base import json_byte_size
+from contractor_runtime.contracts.compaction import WorkerCompactionProgress
 from contractor_runtime.shared_config import get_shared_config
 from contractor_runtime.telemetry.metrics import MetricsState
 from contractor_runtime.threads import to_thread_until_done
@@ -103,6 +104,7 @@ class WorkerStateStore:
         metrics: Mapping[str, Any],
         workspace: Mapping[str, Any] | None = None,
         summarizer_enabled: bool = False,
+        compaction_enabled: bool = False,
     ) -> dict[str, Any]:
         _require_identifier("invocationId", invocation_id, _INVOCATION_ID)
         _require_identifier("subtaskId", subtask_id, _SUBTASK_ID)
@@ -110,6 +112,8 @@ class WorkerStateStore:
         invocation_workspace = _workspace_observation_copy(workspace)
         if type(summarizer_enabled) is not bool:
             raise WorkerStateError("Worker summarizer enabled flag is invalid")
+        if type(compaction_enabled) is not bool:
+            raise WorkerStateError("Worker compaction enabled flag is invalid")
 
         def mutate(state: dict[str, Any]) -> None:
             if state["currentInvocation"] is not None:
@@ -122,6 +126,86 @@ class WorkerStateStore:
                 "summarizer": _empty_summarizer(enabled=summarizer_enabled),
                 "workspace": invocation_workspace,
             }
+            if compaction_enabled:
+                state["currentInvocation"]["compaction"] = {
+                    "invocationId": invocation_id,
+                    "generation": 0,
+                    "phase": "idle",
+                    "attempts": 0,
+                    "failures": 0,
+                    "archiveReads": 0,
+                    "inputBytes": 0,
+                    "summaryBytes": 0,
+                    "reasoningAvailable": 0,
+                    "reasoningIncluded": 0,
+                    "reasoningTruncated": 0,
+                }
+
+        snapshot = await self._mutate(mutate)
+        return snapshot
+
+    async def request_compaction(
+        self, *, invocation_id: str, generation: int, prompt_tokens: int | None
+    ) -> dict[str, Any]:
+        def mutate(state: dict[str, Any]) -> None:
+            progress = _matching_compaction(state, invocation_id)
+            if progress["generation"] != generation or progress["phase"] not in {"idle", "applied"}:
+                raise WorkerStateError("Worker compaction request is stale")
+            progress["attempts"] += 1
+            progress["phase"] = "requested"
+            progress["beforePrompt"] = _prompt_measurement(generation, prompt_tokens)
+            progress.pop("afterPrompt", None)
+
+        return await self._mutate(mutate)
+
+    async def start_compaction(
+        self,
+        *,
+        invocation_id: str,
+        input_bytes: int,
+        reasoning_available: int,
+        reasoning_included: int,
+        reasoning_truncated: int,
+    ) -> dict[str, Any]:
+        def mutate(state: dict[str, Any]) -> None:
+            progress = _matching_compaction(state, invocation_id)
+            if progress["phase"] != "requested":
+                raise WorkerStateError("Worker compaction is not requested")
+            progress["phase"] = "running"
+            for name, value in (
+                ("inputBytes", input_bytes),
+                ("reasoningAvailable", reasoning_available),
+                ("reasoningIncluded", reasoning_included),
+                ("reasoningTruncated", reasoning_truncated),
+            ):
+                progress[name] += value
+
+        return await self._mutate(mutate)
+
+    async def apply_compaction(
+        self, *, invocation_id: str, generation: int, summary_bytes: int
+    ) -> dict[str, Any]:
+        def mutate(state: dict[str, Any]) -> None:
+            progress = _matching_compaction(state, invocation_id)
+            if progress["phase"] != "running" or progress["generation"] + 1 != generation:
+                raise WorkerStateError("Worker compaction application is stale")
+            progress.update(phase="applied", generation=generation, summaryBytes=summary_bytes)
+            progress["afterPrompt"] = _prompt_measurement(generation, None)
+
+        return await self._mutate(mutate)
+
+    async def fail_compaction(self, *, invocation_id: str, cause: str) -> dict[str, Any]:
+        def mutate(state: dict[str, Any]) -> None:
+            progress = _matching_compaction(state, invocation_id)
+            if progress["phase"] in {"requested", "running"}:
+                progress.update(phase="failed", lastCause=cause)
+                progress["failures"] += 1
+
+        return await self._mutate(mutate)
+
+    async def record_archive_read(self, *, invocation_id: str) -> dict[str, Any]:
+        def mutate(state: dict[str, Any]) -> None:
+            _matching_compaction(state, invocation_id)["archiveReads"] += 1
 
         return await self._mutate(mutate)
 
@@ -178,6 +262,7 @@ class WorkerStateStore:
         invocation_id: str,
         metrics: Mapping[str, Any],
         workspace: Mapping[str, Any] | _Unset | None = _UNSET,
+        compaction_prompt: tuple[int, int | None] | None = None,
     ) -> dict[str, Any]:
         invocation_metrics = _invocation_metrics_copy(metrics)
         invocation_workspace = (
@@ -187,6 +272,14 @@ class WorkerStateStore:
         def mutate(state: dict[str, Any]) -> None:
             current = _matching_current(state, invocation_id)
             current["metrics"] = invocation_metrics
+            if compaction_prompt is not None:
+                generation, prompt_tokens = compaction_prompt
+                progress = _matching_compaction(state, invocation_id)
+                after = progress.get("afterPrompt")
+                if progress["generation"] != generation:
+                    raise WorkerStateError("Worker main response belongs to a different generation")
+                if after is not None and "promptTokens" not in after and prompt_tokens is not None:
+                    progress["afterPrompt"] = _prompt_measurement(generation, prompt_tokens)
             if invocation_workspace is not _UNSET:
                 current["workspace"] = invocation_workspace
 
@@ -212,6 +305,10 @@ class WorkerStateStore:
             nonlocal closed_request
             current = _matching_current(state, invocation_id)
             completed = copy.deepcopy(current)
+            progress = completed.get("compaction")
+            if progress is not None and progress["phase"] in {"requested", "running"}:
+                progress.update(phase="failed", lastCause="cancelled")
+                progress["failures"] += 1
             summarizer = completed["summarizer"]
             # Every terminal path closes here, so no completed invocation keeps
             # a pending summarization request (WRK-R107): the deadline, a
@@ -241,6 +338,16 @@ class WorkerStateStore:
         """Publish allocation metrics after a non-ADK lifecycle mutation."""
 
         return await self._mutate(lambda _state: None)
+
+    def compaction_progress(self) -> WorkerCompactionProgress | None:
+        """Project the current immutable State revision for the final report.
+
+        The allocation report owner calls this after joining the Worker. State
+        remains the sole owner; MetricsState retains no reverse copy.
+        """
+        invocation = self._state["currentInvocation"] or self._state["lastCompletedInvocation"]
+        progress = invocation.get("compaction") if invocation is not None else None
+        return WorkerCompactionProgress.model_validate(progress) if progress is not None else None
 
     async def snapshot(self) -> dict[str, Any]:
         """Return an independent deep snapshot without encoding under the lock."""
@@ -284,6 +391,10 @@ class WorkerStateStore:
                 }
 
             transform(candidate)
+            invocation = candidate["currentInvocation"] or candidate["lastCompletedInvocation"]
+            progress = invocation.get("compaction") if invocation else None
+            if progress is not None:
+                WorkerCompactionProgress.model_validate(progress)
             candidate["stateRevision"] = base_revision + 1
             candidate = await asyncio.to_thread(_fit_snapshot, candidate)
 
@@ -311,6 +422,20 @@ def _matching_current(state: dict[str, Any], invocation_id: str) -> dict[str, An
     if current.get("phase") != "running":
         raise WorkerStateError("active Worker invocation is not running")
     return current
+
+
+def _matching_compaction(state: dict[str, Any], invocation_id: str) -> dict[str, Any]:
+    progress = _matching_current(state, invocation_id).get("compaction")
+    if not isinstance(progress, dict):
+        raise WorkerStateError("Worker compaction is disabled")
+    return progress
+
+
+def _prompt_measurement(generation: int, tokens: int | None) -> dict[str, int]:
+    result = {"generation": generation}
+    if tokens is not None:
+        result["promptTokens"] = tokens
+    return result
 
 
 def _require_identifier(field: str, value: str, pattern: re.Pattern[str]) -> None:

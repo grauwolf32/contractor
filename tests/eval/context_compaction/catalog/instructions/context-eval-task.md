@@ -1,0 +1,1 @@
+Complete the objective in the source artifact using the selected tools. Preserve explicit constraints and exact identifiers. Distinguish observations from uncertain hypotheses. Publish the requested report as JSON under builder/result.

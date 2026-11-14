@@ -1,0 +1,85 @@
+{
+  "task": "V417-007",
+  "date": "2026-11-14",
+  "implementation_commit": "f6dbdf8402717b24c9d4d48eb0c17169611dc566",
+  "status": "accepted",
+  "merged_into_main": false,
+  "gates": [
+    {
+      "command": "make test-runtime",
+      "exit_code": 0,
+      "log": "/var/folders/j7/g49dqq0x6nn25y_j4f1ht2ww0000gn/T/contractor-v417-006-008-20261114-7hze5cda/runtime-007-final4.log"
+    },
+    {
+      "command": "GOFLAGS=-p=1 make test-go",
+      "exit_code": 0,
+      "log": "/var/folders/j7/g49dqq0x6nn25y_j4f1ht2ww0000gn/T/contractor-v417-006-008-20261114-7hze5cda/go-007-final2.log"
+    },
+    {
+      "command": "make test-wire-cross-language verify-public-api generate-public-client-check ui-generate-check docs-dependencies-check",
+      "exit_code": 0,
+      "log": "/var/folders/j7/g49dqq0x6nn25y_j4f1ht2ww0000gn/T/contractor-v417-006-008-20261114-7hze5cda/contracts-007-008-final.log"
+    },
+    {
+      "command": "make ui-verify",
+      "exit_code": 0,
+      "log": "/var/folders/j7/g49dqq0x6nn25y_j4f1ht2ww0000gn/T/contractor-v417-006-008-20261114-7hze5cda/ui-007-final2.log"
+    },
+    {
+      "command": "make ui-browser-mocked",
+      "exit_code": 0,
+      "log": "/var/folders/j7/g49dqq0x6nn25y_j4f1ht2ww0000gn/T/contractor-v417-006-008-20261114-7hze5cda/browser-007-final2.log"
+    },
+    {
+      "command": "make lint",
+      "exit_code": 0,
+      "log": "/var/folders/j7/g49dqq0x6nn25y_j4f1ht2ww0000gn/T/contractor-v417-006-008-20261114-7hze5cda/lint-batch-final.log"
+    },
+    {
+      "command": "go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^TestWorkerCompactionContinuesIsolatedWorker$'",
+      "exit_code": 0,
+      "log": "/var/folders/j7/g49dqq0x6nn25y_j4f1ht2ww0000gn/T/contractor-v417-006-008-20261114-7hze5cda/process-007-final5.log"
+    }
+  ],
+  "counts": {
+    "runtime_passed": 6253,
+    "runtime_declared_skips": 135,
+    "ui_test_files": 224,
+    "ui_passed": 2519,
+    "ui_expected_failure": 1,
+    "browser_passed": 239,
+    "process_policy_scenarios": 3,
+    "shared_wire_fixtures": 394,
+    "shared_go_tests": 435,
+    "shared_python_tests": 280
+  },
+  "runtime_report": {
+    "path": "/var/folders/j7/g49dqq0x6nn25y_j4f1ht2ww0000gn/T/contractor-v417-006-008-20261114-7hze5cda/runtime-007-passed-final4.xml",
+    "sha256": "df285b3c43c26e1c7677d34621cf383593cc5ea0d1baa8feaedb07c612b18608"
+  },
+  "simplification": [
+    "Generation is the sole applied count; no compactor usage delta or reverse State/metric copy.",
+    "State owns current/latest progress; allocation metrics own canonical main/compaction/finalization/summarization usage.",
+    "Existing summarizer aggregate supplies its view, without a second budget charge.",
+    "Prompt measurement joins existing invocation publication; diagnostics preserve primary errors and guaranteed model/span cleanup.",
+    "Runtime diagnostics is the single active/retained public path; bounded live reads reuse State/Control Plane and add no cache, lifecycle lock or table."
+  ],
+  "regressions": [
+    "Optional prompt publication failure preserves the genuine SAFETY model error.",
+    "Failure-state publication failure preserves compaction failure and closes the real Gateway model.",
+    "Unknown post-checkpoint usage stays absent until a measured response of that generation.",
+    "Real PostgreSQL ownership, bounded diagnostics, report precedence and resource release; Control Plane strict State and grant recheck.",
+    "390-pixel light/dark/black UI, stale/terminal continuing messages and polling backoff.",
+    "Real Server/Runtime API reports generation 2, two attempts, 6 main + 2 compaction + 1 finalization calls with matching total tokens in default/binding/escalation scenarios."
+  ],
+  "prerequisites": [
+    "Owned disposable PostgreSQL17 database; pinned Go1.26.9/Node24.20.0; locked Python3.13/ADK2.13.0 closure."
+  ],
+  "exclusions": [
+    "135 declared Runtime/platform/live/optional skips are not passing coverage; heavy I/O disabled.",
+    "No live quality experiment, deployment, main merge or full release-verify gate."
+  ],
+  "superseded": [
+    "Earlier fixture error-class failures, formatting/spec ID failures and the process decoder missing page are corrected; only the named final successful logs establish acceptance."
+  ]
+}

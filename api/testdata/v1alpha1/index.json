@@ -196,6 +196,30 @@
     "agent-state-compacted-tool-budget.json": {
       "type": "AgentStateSnapshot",
       "schema": "agent-state.schema.json"
+    },
+    "agent-state-compaction-idle.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json"
+    },
+    "agent-state-compaction-requested.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json"
+    },
+    "agent-state-compaction-running.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json"
+    },
+    "agent-state-compaction-applied.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json"
+    },
+    "allocation-final-response-compaction.json": {
+      "type": "AllocationFinalResponse",
+      "schema": "allocation.schema.json"
+    },
+    "agent-state-compaction-failed.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json"
     }
   },
   "invalid": {
@@ -704,6 +728,38 @@
       "type": "AllocationSpec",
       "strict": true,
       "schema": "allocation.schema.json"
+    },
+    "agent-state-compaction-phase.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json",
+      "strict": true
+    },
+    "agent-state-compaction-negative.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json",
+      "strict": true,
+      "reason": "schema"
+    },
+    "agent-state-compaction-overflow.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json",
+      "strict": true
+    },
+    "agent-state-compaction-content.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json",
+      "strict": true,
+      "reason": "schema"
+    },
+    "agent-state-compaction-null.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json",
+      "strict": true
+    },
+    "agent-state-compaction-cause.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json",
+      "strict": true
     }
   }
 }
