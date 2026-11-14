@@ -203,7 +203,7 @@ func installCompactAuditProcessFixture(t *testing.T, root, gatewayURL string) {
 			t.Fatal(err)
 		}
 	}
-	workflow := strings.Replace(basicCheckWorkflow, "modelPolicy: worker@2", "modelPolicy: audit-compact-worker@1\n      compactorModelPolicy: audit-compact-summary@1", 1)
+	workflow := strings.Replace(basicCheckWorkflow, "modelPolicy: worker@2", "modelPolicy: audit-compact-worker@1, compactorModelPolicy: audit-compact-summary@1", 1)
 	workflow = strings.Replace(workflow, "checker: {template: basic_check@1, namespace: checker}", `checker:
           template: basic_check@1
           namespace: checker
