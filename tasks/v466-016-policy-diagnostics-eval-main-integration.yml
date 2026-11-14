@@ -6,7 +6,7 @@ epic: evals
 kind: chore
 priority: P1
 status: in_progress
-depends_on: [V417-006, V417-007, V417-008, V466-015]
+depends_on: [V417-006, V417-007, V417-008, V466-015, V466-017]
 languages: [go, python, typescript, markdown]
 goal: Land the reviewed V417 branch through a verified no-fast-forward main merge while preserving all existing primary checkout work exactly.
 context:
@@ -20,6 +20,11 @@ context:
   source_head: 86d0f468b46bd38a4321c256afa3ce7351de5936
   main_before: acd5c5fbdf227368e3ec0816b54863c763e1aaf4
   review: tasks/evidence/v466-015-acceptance-20261114.json
+  prerequisite: >-
+    The selected real-process check exposed malformed test-only Audit Workflow
+    YAML introduced by V417-006. V466-017 owns the narrow fixture repair;
+    integration verification now runs the complete deterministic process gate
+    rather than only the three compaction roots.
   design: docs/testing/README.md
   finding: >-
     The verified V417 branch is not yet in main. Main additionally contains the
@@ -56,7 +61,7 @@ tests:
   covers: [A2]
 - command: make ui-browser-mocked
   covers: [A2]
-- command: go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^(TestWorkerCompactionContinuesIsolatedWorker|TestAuditCompactionPreservesTrustedCompletionAcrossProcesses|TestAuditCompactionLeaseLossAcrossProcesses)$'
+- command: make test-e2e
   covers: [A2]
 - command: python3 /private/tmp/contractor-v417-install-main.py --verify-only
   covers: [A3]
