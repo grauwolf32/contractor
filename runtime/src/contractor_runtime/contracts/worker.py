@@ -32,6 +32,7 @@ from contractor_runtime.contracts.base import (
     json_byte_size,
     trim_whitespace,
 )
+from contractor_runtime.contracts.compaction import WorkerCompactionProgress, WorkerModelPhases
 from contractor_runtime.contracts.reports import ToolCallOutcome, WorkerCompletionDiagnostics
 from contractor_runtime.contracts.workspace import WorkspaceObservationSummary
 from contractor_runtime.shared_config import get_shared_config
@@ -382,6 +383,8 @@ class WorkerResult(WireModel):
 
 
 class WorkerAllocationMetricsState(WireModel):
+    model_phases: WorkerModelPhases | None = Field(default=None, exclude_if=lambda v: v is None)
+
     counters: dict[str, int] = Field(max_length=10_000)
     tool_calls: list[WorkerStateToolCall] = Field(max_length=1000)
     errors: list[WorkerStateExecutionError] = Field(max_length=100)
@@ -421,6 +424,9 @@ class WorkerAllocationMetricsState(WireModel):
 
 
 class WorkerInvocationState(WireModel):
+    compaction: WorkerCompactionProgress | None = Field(
+        default=None, exclude_if=lambda v: v is None
+    )
     invocation_id: str
     subtask_id: str = Field(pattern=WORKER_SUBTASK_ID_PATTERN.pattern)
     phase: Literal["running", "succeeded", "failed", "cancelled"]
@@ -437,6 +443,11 @@ class WorkerInvocationState(WireModel):
         ):
             raise ValueError("Worker State invocationId is invalid")
         _require_worker_subtask_id(self.subtask_id)
+        if self.compaction is not None:
+            if self.compaction.invocation_id != self.invocation_id:
+                raise ValueError("compaction belongs to a different invocation")
+            if self.phase != "running" and self.compaction.phase in {"requested", "running"}:
+                raise ValueError("terminal Worker invocation has pending compaction")
         if self.phase != "running" and self.summarizer.phase == "requested":
             raise ValueError("terminal Worker invocation has pending summarization")
         return self

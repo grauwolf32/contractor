@@ -74,7 +74,8 @@ type StageMetricsRecord struct {
 }
 
 type Repository struct {
-	db persistencepostgres.DBTX
+	db             persistencepostgres.DBTX
+	workerProgress WorkerProgressReader
 }
 
 func NewRepository(db persistencepostgres.DBTX) *Repository {

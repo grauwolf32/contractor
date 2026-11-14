@@ -135,6 +135,14 @@ func (p Policy) NormalizeExecutionReport(
 		value := *source.Completion
 		result.Completion = &value
 	}
+	if source.Compaction != nil {
+		value := source.Compaction.Clone()
+		result.Compaction = &value
+	}
+	if source.Metrics.ModelPhases != nil {
+		value := source.Metrics.ModelPhases.Clone()
+		result.Metrics.ModelPhases = &value
+	}
 	result.Metrics.WorkerBudget = cloneWorkerBudget(source.Metrics.WorkerBudget)
 	result.Metrics.Summarizer = cloneWorkerSummarizer(source.Metrics.Summarizer)
 	if result.Metrics.Tools == nil {

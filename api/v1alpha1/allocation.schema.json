@@ -181,6 +181,9 @@
           "additionalProperties": {
             "$ref": "#/$defs/toolMetrics"
           }
+        },
+        "modelPhases": {
+          "$ref": "worker-compaction.schema.json#/$defs/WorkerModelPhases"
         }
       }
     },
@@ -333,6 +336,9 @@
         },
         "truncated": {
           "type": "boolean"
+        },
+        "compaction": {
+          "$ref": "worker-compaction.schema.json#/$defs/WorkerCompactionProgress"
         }
       }
     },

@@ -551,7 +551,7 @@ def test_adk_worker_emits_content_free_model_tool_and_a2a_hooks(tmp_path: Path) 
         ]
         assert [span.attributes["gen_ai.usage.input_tokens"] for span in model_spans] == [7, 7, 7]
         assert [span.attributes["gen_ai.usage.output_tokens"] for span in model_spans] == [3, 3, 3]
-        assert model_spans[-1].attributes["model.phase"] == "result_finalizer"
+        assert model_spans[-1].attributes["model.phase"] == "finalization"
         assert instrumentation.spans[2].attributes["tool.name"] == "read_artifact"
         assert instrumentation.spans[0].attributes["counts.model_calls"] == 3
         assert instrumentation.spans[0].attributes["counts.tool_calls"] == 1
@@ -1582,7 +1582,7 @@ def test_abort_cancels_active_result_finalizer(tmp_path: Path) -> None:
         finalizer_spans = [
             span
             for span in instrumentation.spans
-            if span.attributes.get("model.phase") == "result_finalizer"
+            if span.attributes.get("model.phase") == "finalization"
         ]
         assert len(finalizer_spans) == 1
         assert finalizer_spans[0].outcome == "cancelled"
@@ -3335,7 +3335,7 @@ def test_deadline_during_an_ordinary_phase_cancels_and_joins_its_work(
                 span for span in instrumentation.spans if span.name == "contractor.worker.model"
             ]
             assert model_spans[-1].outcome == "cancelled"
-            assert (model_spans[-1].attributes.get("model.phase") == "result_finalizer") is (
+            assert (model_spans[-1].attributes.get("model.phase") == "finalization") is (
                 phase == "result_finalizer"
             )
         assert_slot_released(runtime)

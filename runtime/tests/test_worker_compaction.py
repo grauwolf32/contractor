@@ -266,11 +266,21 @@ def test_tool_windows_compact_after_parallel_settlement(
             for payload in model.payloads[:-1]:
                 assert_balanced_tool_calls(payload)
             assert tool_ids(model.payloads[2]) == ["call-b", "call-overflow"]
-            report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
+            report = state.metrics.build_report(
+                report_id="worker-report", duration_ms=1, compaction=state.compaction_progress()
+            )
             budget = report.metrics.worker_budget
             assert budget.max_tool_calls == 2
             assert budget.observed_tool_calls == 4
             assert budget.observed_model_calls == 8
+            progress = report.compaction
+            assert progress is not None and progress.phase == "applied"
+            assert progress.after_prompt.prompt_tokens == prompt
+            assert progress.before_prompt.prompt_tokens == prompt
+            assert report.metrics.model_phases.main.model_calls == 5
+            assert report.metrics.model_phases.main.token_usage_unavailable == (
+                5 if prompt is None else 0
+            )
             assert budget.exhausted is None
             # Each new SDK turn owns a fresh LLM counter; the logical budget above
             # still charges all main, compactor and finalizer calls cumulatively.
@@ -349,9 +359,41 @@ def test_isolated_worker_continues_through_two_checkpoints(tmp_path: Path) -> No
                 tool["function"]["name"] for tool in payloads[0].get("tools", [])
             }
 
-            report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
+            report = state.metrics.build_report(
+                report_id="worker-report", duration_ms=1, compaction=state.compaction_progress()
+            )
             assert report.metrics.worker_budget is not None
             # 6 main + 2 compactor + 1 finalizer, each counted once.
+            phases = report.metrics.model_phases
+            assert phases is not None
+            assert (
+                phases.main.model_calls,
+                phases.compaction.model_calls,
+                phases.finalization.model_calls,
+            ) == (6, 2, 1)
+            assert (
+                sum(v.total_tokens for v in (phases.main, phases.compaction, phases.finalization))
+                == report.metrics.total_tokens
+            )
+            progress = report.compaction
+            assert progress is not None
+            assert (
+                progress.phase,
+                progress.generation,
+                progress.attempts,
+                progress.failures,
+            ) == ("applied", 2, 2, 0)
+            assert progress.before_prompt.generation == 1
+            assert progress.before_prompt.prompt_tokens == 650
+            assert progress.after_prompt.generation == 2
+            assert progress.after_prompt.prompt_tokens == 120
+            assert phases.compaction.model_calls == 2
+            exported = await runtime._worker_state.snapshot()
+            assert exported["lastCompletedInvocation"]["compaction"] == progress.model_dump(
+                by_alias=True, exclude_none=True
+            )
+            assert "S2: a to d recorded" not in json.dumps(exported)
+            assert "S1: a and b recorded" not in report.model_dump_json()
             assert report.metrics.worker_budget.observed_model_calls == 9
             assert report.metrics.worker_budget.observed_tool_calls == 5
             assert runtime._compaction is not None and not runtime._compaction.active
@@ -491,7 +533,9 @@ def test_ineffective_checkpoint_keeps_marker_and_stops_before_dispatch(tmp_path:
             # The response that proved ineffectiveness requested c; it never ran.
             assert effects == ["a", "b"]
             assert len(markers(appended)) == 1
-            report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
+            report = state.metrics.build_report(
+                report_id="worker-report", duration_ms=1, compaction=state.compaction_progress()
+            )
             assert report.metrics.worker_budget is not None
             assert report.metrics.worker_budget.observed_model_calls == 4
         finally:
@@ -544,6 +588,19 @@ def test_rejected_compactor_output_adds_no_marker_and_no_later_calls(
             result = await runtime.invoke(stage_request())
             assert result.failure is not None
             assert result.failure.code == "worker_compaction_failed"
+            report = runtime._context.state.metrics.build_report(
+                report_id="report",
+                duration_ms=1,
+                compaction=runtime._worker_state.compaction_progress(),
+            )
+            assert report.compaction is not None
+            assert (
+                report.compaction.phase,
+                report.compaction.attempts,
+                report.compaction.failures,
+            ) == ("failed", 1, 1)
+            assert report.compaction.last_cause == cause
+            assert report.compaction.after_prompt is None
             assert f"({cause})" in result.failure.message
             assert result.failure.retryable
             assert markers(appended) == []
@@ -667,7 +724,9 @@ def test_history_tool_reads_compacted_groups_with_tool_budget(tmp_path: Path) ->
             ]
             assert SECRET not in json.dumps(page)
             assert history["history-2"]["error"]["code"] == "invalid_history_group"
-            report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
+            report = state.metrics.build_report(
+                report_id="worker-report", duration_ms=1, compaction=state.compaction_progress()
+            )
             assert report.metrics.worker_budget is not None
             assert report.metrics.worker_budget.observed_tool_calls == 4
         finally:
@@ -1261,5 +1320,105 @@ def test_reasoning_does_not_count_against_the_protected_tail() -> None:
         assert sum(group.size for group in tail) > MAX_RECENT_GROUPS_BYTES
         plan = await coordinator.plan()
         assert (plan.first_group, plan.last_group) == (1, 1)
+
+    asyncio.run(scenario())
+
+
+def test_cancel_after_checkpoint_joins_numeric_state_publication(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        state = WorkerState()
+        effects: list[str] = []
+        model = scripted_model([step("a", 100), step("b", 600)], model="worker-model")
+        compactor = scripted_model(
+            [summary("S1")], model=COMPACTOR_MODEL, auto_result_finalizer=False
+        )
+        runtime = await compact_runtime(
+            tmp_path, state, {"step": recording_step(effects)}, model, compactor
+        )
+        entered, release = asyncio.Event(), asyncio.Event()
+        original = runtime._worker_state.apply_compaction
+
+        async def delayed(**kwargs: Any) -> dict[str, Any]:
+            entered.set()
+            await release.wait()
+            return await original(**kwargs)
+
+        runtime._worker_state.apply_compaction = delayed  # type: ignore[method-assign]
+        try:
+            task = asyncio.create_task(runtime.invoke(stage_request()))
+            await asyncio.wait_for(entered.wait(), timeout=10)
+            runtime.cancel_active(task)
+            release.set()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+            progress = (
+                await runtime.agent_state_snapshot()
+            ).state.last_completed_invocation.compaction
+            assert (progress.phase, progress.generation, progress.failures) == ("applied", 1, 0)
+            assert effects == ["a", "b"] and len(model.requests) == 2
+        finally:
+            release.set()
+            await finish(runtime)
+
+    asyncio.run(scenario())
+
+
+def test_failed_diagnostic_does_not_replace_compaction_error_or_skip_model_close(
+    tmp_path: Path,
+) -> None:
+    import httpx
+
+    from contractor_runtime.llm.client import new_gateway_client
+    from contractor_runtime.llm.openai import OpenAICompatibleGatewayLlm
+
+    async def scenario() -> None:
+        state = WorkerState()
+        effects: list[str] = []
+        model = scripted_model([step("a", 100), step("b", 600)], model="worker-model")
+
+        def respond(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200,
+                json={
+                    "choices": [
+                        {
+                            "finish_reason": "stop",
+                            "message": {"role": "assistant", "content": '{"summary":""}'},
+                        }
+                    ]
+                },
+            )
+
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(respond), trust_env=False
+        ) as client:
+            compactor = OpenAICompatibleGatewayLlm(
+                model=COMPACTOR_MODEL,
+                client_handle=new_gateway_client(
+                    base_url="https://gateway.example/v1",
+                    api_key=SECRET,
+                    timeout_seconds=5,
+                    http_client=client,
+                ),
+            )
+            runtime = await compact_runtime(
+                tmp_path, state, {"step": recording_step(effects)}, model, compactor
+            )
+
+            async def fail_diagnostic(**_kwargs: Any) -> dict[str, Any]:
+                raise RuntimeError("diagnostic-bug-canary")
+
+            runtime._worker_state.fail_compaction = fail_diagnostic  # type: ignore[method-assign]
+            try:
+                result = await runtime.invoke(stage_request())
+                assert result.failure is not None
+                assert result.failure.code == "worker_compaction_failed"
+                assert "invalid_output" in result.failure.message
+                assert "diagnostic-bug-canary" not in result.failure.message
+                assert compactor.closed
+                assert state.metrics.truncated
+                assert effects == ["a", "b"]
+            finally:
+                await finish(runtime)
 
     asyncio.run(scenario())

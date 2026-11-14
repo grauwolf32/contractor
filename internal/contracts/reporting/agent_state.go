@@ -35,6 +35,7 @@ type ContractorWorkerState struct {
 }
 
 type WorkerAllocationState struct {
+	ModelPhases  *WorkerModelPhases           `json:"modelPhases,omitempty"`
 	Completion   *WorkerCompletionDiagnostics `json:"completion,omitempty"`
 	Counters     map[string]uint64            `json:"counters" strictjson:"required"`
 	ToolCalls    []WorkerStateToolCall        `json:"toolCalls" strictjson:"required"`
@@ -67,6 +68,7 @@ type WorkerStateBudget struct {
 }
 
 type WorkerInvocationState struct {
+	Compaction   *WorkerCompactionProgress   `json:"compaction,omitempty"`
 	InvocationID string                      `json:"invocationId" strictjson:"required"`
 	SubtaskID    string                      `json:"subtaskId" strictjson:"required"`
 	Phase        string                      `json:"phase" strictjson:"required"`
@@ -190,6 +192,11 @@ func (s WorkerStateSummarizer) validate() error {
 }
 
 func (s WorkerAllocationState) validate() error {
+	if s.ModelPhases != nil {
+		if err := s.ModelPhases.Validate(); err != nil {
+			return err
+		}
+	}
 	if s.Completion != nil {
 		if err := s.Completion.Validate(); err != nil {
 			return err
@@ -288,6 +295,14 @@ func validateStateToolCall(call WorkerStateToolCall) error {
 }
 
 func (s WorkerInvocationState) validate() error {
+	if s.Compaction != nil {
+		if err := s.Compaction.Validate(); err != nil {
+			return err
+		}
+		if s.Compaction.InvocationID != s.InvocationID || s.Phase != "running" && (s.Compaction.Phase == "requested" || s.Compaction.Phase == "running") {
+			return contracts.Invalidf("compaction invocation or phase is inconsistent")
+		}
+	}
 	if !contracts.ValidBoundedOpaqueWorkerID(s.InvocationID) {
 		return contracts.Invalidf("Worker State invocationId is invalid")
 	}

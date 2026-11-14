@@ -15,11 +15,25 @@
     "executionError": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["code", "message"],
+      "required": [
+        "code",
+        "message"
+      ],
       "properties": {
-        "code": {"type": "string", "minLength": 1},
-        "message": {"type": "string", "minLength": 1, "maxLength": 4096, "x-maxBytes": 4096, "description": "At most 4096 UTF-8 text bytes (LIM-OBS-6), independently of JSON escaping."},
-        "retryable": {"type": "boolean"}
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096,
+          "x-maxBytes": 4096,
+          "description": "At most 4096 UTF-8 text bytes (LIM-OBS-6), independently of JSON escaping."
+        },
+        "retryable": {
+          "type": "boolean"
+        }
       }
     },
     "workerBudget": {
@@ -35,42 +49,116 @@
         "tokenUsageUnavailable"
       ],
       "properties": {
-        "maxModelCalls": {"type": "integer", "minimum": 1, "maximum": 1000},
-        "maxToolCalls": {"type": "integer", "minimum": 1, "maximum": 10000},
-        "maxTotalTokens": {"type": "integer", "minimum": 1, "maximum": 100000000},
-        "observedModelCalls": {"$ref": "#/$defs/uint64"},
-        "observedToolCalls": {"$ref": "#/$defs/uint64"},
-        "observedTotalTokens": {"$ref": "#/$defs/uint64"},
-        "tokenUsageUnavailable": {"$ref": "#/$defs/uint64"},
-        "exhausted": {"enum": ["model_calls", "tool_calls", "total_tokens"]}
+        "maxModelCalls": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "maxToolCalls": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "maxTotalTokens": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000000
+        },
+        "observedModelCalls": {
+          "$ref": "#/$defs/uint64"
+        },
+        "observedToolCalls": {
+          "$ref": "#/$defs/uint64"
+        },
+        "observedTotalTokens": {
+          "$ref": "#/$defs/uint64"
+        },
+        "tokenUsageUnavailable": {
+          "$ref": "#/$defs/uint64"
+        },
+        "exhausted": {
+          "enum": [
+            "model_calls",
+            "tool_calls",
+            "total_tokens"
+          ]
+        }
       }
     },
     "toolCall": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["callId", "tool", "argumentsTruncated", "outcome"],
+      "required": [
+        "callId",
+        "tool",
+        "argumentsTruncated",
+        "outcome"
+      ],
       "properties": {
-        "callId": {"type": "string", "minLength": 1},
-        "tool": {"type": "string", "minLength": 1},
-        "arguments": {"type": "object"},
-        "argumentsTruncated": {"type": "boolean"},
-        "outcome": {"enum": ["succeeded", "failed"]},
-        "durationMs": {"$ref": "#/$defs/uint64"},
-        "resultSizeBytes": {"$ref": "#/$defs/uint64"},
-        "error": {"$ref": "#/$defs/executionError"}
+        "callId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tool": {
+          "type": "string",
+          "minLength": 1
+        },
+        "arguments": {
+          "type": "object"
+        },
+        "argumentsTruncated": {
+          "type": "boolean"
+        },
+        "outcome": {
+          "enum": [
+            "succeeded",
+            "failed"
+          ]
+        },
+        "durationMs": {
+          "$ref": "#/$defs/uint64"
+        },
+        "resultSizeBytes": {
+          "$ref": "#/$defs/uint64"
+        },
+        "error": {
+          "$ref": "#/$defs/executionError"
+        }
       },
       "allOf": [
         {
-          "if": {"properties": {"outcome": {"const": "failed"}}},
-          "then": {"required": ["error"]},
-          "else": {"not": {"required": ["error"]}}
+          "if": {
+            "properties": {
+              "outcome": {
+                "const": "failed"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "error"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "error"
+              ]
+            }
+          }
         }
       ]
     },
     "allocationMetrics": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["counters", "toolCalls", "errors", "finalOutcome", "truncated"],
+      "required": [
+        "counters",
+        "toolCalls",
+        "errors",
+        "finalOutcome",
+        "truncated"
+      ],
       "properties": {
         "counters": {
           "type": "object",
@@ -79,35 +167,60 @@
             "maxLength": 128,
             "pattern": "^[a-z0-9_]+(?:\\.[a-z0-9_]+)*$"
           },
-          "additionalProperties": {"$ref": "#/$defs/uint64"}
+          "additionalProperties": {
+            "$ref": "#/$defs/uint64"
+          }
         },
         "toolCalls": {
           "type": "array",
           "maxItems": 1000,
-          "items": {"$ref": "#/$defs/toolCall"}
+          "items": {
+            "$ref": "#/$defs/toolCall"
+          }
         },
         "errors": {
           "type": "array",
           "maxItems": 100,
-          "items": {"$ref": "#/$defs/executionError"}
+          "items": {
+            "$ref": "#/$defs/executionError"
+          }
         },
         "finalOutcome": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "maxLength": 64,
           "pattern": "^[a-z][a-z0-9_-]*$"
         },
-        "truncated": {"type": "boolean"},
-        "workerBudget": {"$ref": "#/$defs/workerBudget"},
-        "completion": {"$ref": "allocation.schema.json#/$defs/workerCompletionDiagnostics"}
+        "truncated": {
+          "type": "boolean"
+        },
+        "workerBudget": {
+          "$ref": "#/$defs/workerBudget"
+        },
+        "completion": {
+          "$ref": "allocation.schema.json#/$defs/workerCompletionDiagnostics"
+        },
+        "modelPhases": {
+          "$ref": "worker-compaction.schema.json#/$defs/WorkerModelPhases"
+        }
       }
     },
     "invocationToolMetrics": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["calls", "failures"],
+      "required": [
+        "calls",
+        "failures"
+      ],
       "properties": {
-        "calls": {"$ref": "#/$defs/uint64"},
-        "failures": {"$ref": "#/$defs/uint64"}
+        "calls": {
+          "$ref": "#/$defs/uint64"
+        },
+        "failures": {
+          "$ref": "#/$defs/uint64"
+        }
       }
     },
     "invocationMetrics": {
@@ -127,22 +240,47 @@
         "truncated"
       ],
       "properties": {
-        "modelCalls": {"$ref": "#/$defs/uint64"},
-        "modelErrors": {"$ref": "#/$defs/uint64"},
-        "inputTokens": {"$ref": "#/$defs/uint64"},
-        "outputTokens": {"$ref": "#/$defs/uint64"},
-        "totalTokens": {"$ref": "#/$defs/uint64"},
-        "cachedInputTokens": {"$ref": "#/$defs/uint64"},
-        "tokenUsageUnavailable": {"$ref": "#/$defs/uint64"},
-        "toolCalls": {"$ref": "#/$defs/uint64"},
-        "toolErrors": {"$ref": "#/$defs/uint64"},
+        "modelCalls": {
+          "$ref": "#/$defs/uint64"
+        },
+        "modelErrors": {
+          "$ref": "#/$defs/uint64"
+        },
+        "inputTokens": {
+          "$ref": "#/$defs/uint64"
+        },
+        "outputTokens": {
+          "$ref": "#/$defs/uint64"
+        },
+        "totalTokens": {
+          "$ref": "#/$defs/uint64"
+        },
+        "cachedInputTokens": {
+          "$ref": "#/$defs/uint64"
+        },
+        "tokenUsageUnavailable": {
+          "$ref": "#/$defs/uint64"
+        },
+        "toolCalls": {
+          "$ref": "#/$defs/uint64"
+        },
+        "toolErrors": {
+          "$ref": "#/$defs/uint64"
+        },
         "tools": {
           "type": "object",
           "maxProperties": 256,
-          "propertyNames": {"maxLength": 64, "pattern": "^[a-z][a-z0-9_-]*$"},
-          "additionalProperties": {"$ref": "#/$defs/invocationToolMetrics"}
+          "propertyNames": {
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9_-]*$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/invocationToolMetrics"
+          }
         },
-        "truncated": {"type": "boolean"}
+        "truncated": {
+          "type": "boolean"
+        }
       }
     },
     "summarizerState": {
@@ -157,13 +295,37 @@
         "tokenUsageUnavailable"
       ],
       "properties": {
-        "phase": {"enum": ["disabled", "not_requested", "requested", "succeeded", "failed"]},
-        "requestStateRevision": {"$ref": "#/$defs/positiveUint64"},
-        "modelCalls": {"type": "integer", "minimum": 0, "maximum": 1},
-        "inputTokens": {"$ref": "#/$defs/uint64"},
-        "outputTokens": {"$ref": "#/$defs/uint64"},
-        "totalTokens": {"$ref": "#/$defs/uint64"},
-        "tokenUsageUnavailable": {"type": "integer", "minimum": 0, "maximum": 1},
+        "phase": {
+          "enum": [
+            "disabled",
+            "not_requested",
+            "requested",
+            "succeeded",
+            "failed"
+          ]
+        },
+        "requestStateRevision": {
+          "$ref": "#/$defs/positiveUint64"
+        },
+        "modelCalls": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "inputTokens": {
+          "$ref": "#/$defs/uint64"
+        },
+        "outputTokens": {
+          "$ref": "#/$defs/uint64"
+        },
+        "totalTokens": {
+          "$ref": "#/$defs/uint64"
+        },
+        "tokenUsageUnavailable": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1
+        },
         "failureCode": {
           "type": "string",
           "minLength": 1,
@@ -173,14 +335,50 @@
       },
       "allOf": [
         {
-          "if": {"properties": {"phase": {"enum": ["requested", "succeeded", "failed"]}}},
-          "then": {"required": ["requestStateRevision"]},
-          "else": {"not": {"required": ["requestStateRevision"]}}
+          "if": {
+            "properties": {
+              "phase": {
+                "enum": [
+                  "requested",
+                  "succeeded",
+                  "failed"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "requestStateRevision"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "requestStateRevision"
+              ]
+            }
+          }
         },
         {
-          "if": {"properties": {"phase": {"const": "failed"}}},
-          "then": {"required": ["failureCode"]},
-          "else": {"not": {"required": ["failureCode"]}}
+          "if": {
+            "properties": {
+              "phase": {
+                "const": "failed"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "failureCode"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "failureCode"
+              ]
+            }
+          }
         }
       ]
     },
@@ -204,13 +402,27 @@
         "mutationCalls"
       ],
       "properties": {
-        "path": {"$ref": "#/$defs/workspacePath"},
-        "firstOrdinal": {"$ref": "#/$defs/positiveUint64"},
-        "lastOrdinal": {"$ref": "#/$defs/positiveUint64"},
-        "discoveryCalls": {"$ref": "#/$defs/uint64"},
-        "readCalls": {"$ref": "#/$defs/uint64"},
-        "matchCalls": {"$ref": "#/$defs/uint64"},
-        "mutationCalls": {"$ref": "#/$defs/uint64"}
+        "path": {
+          "$ref": "#/$defs/workspacePath"
+        },
+        "firstOrdinal": {
+          "$ref": "#/$defs/positiveUint64"
+        },
+        "lastOrdinal": {
+          "$ref": "#/$defs/positiveUint64"
+        },
+        "discoveryCalls": {
+          "$ref": "#/$defs/uint64"
+        },
+        "readCalls": {
+          "$ref": "#/$defs/uint64"
+        },
+        "matchCalls": {
+          "$ref": "#/$defs/uint64"
+        },
+        "mutationCalls": {
+          "$ref": "#/$defs/uint64"
+        }
       }
     },
     "workspaceObservation": {
@@ -228,48 +440,100 @@
           "type": "array",
           "maxItems": 10000,
           "uniqueItems": true,
-          "items": {"$ref": "#/$defs/workspacePath"}
+          "items": {
+            "$ref": "#/$defs/workspacePath"
+          }
         },
-        "scopeComplete": {"type": "boolean"},
+        "scopeComplete": {
+          "type": "boolean"
+        },
         "interactions": {
           "description": "The compact JSON array of interaction paths shares the workspace path byte bound.",
           "x-paths-maxBytes": 2097152,
           "type": "array",
           "maxItems": 10000,
-          "items": {"$ref": "#/$defs/workspaceInteraction"}
+          "items": {
+            "$ref": "#/$defs/workspaceInteraction"
+          }
         },
-        "detailComplete": {"type": "boolean"}
+        "detailComplete": {
+          "type": "boolean"
+        }
       }
     },
     "invocation": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["invocationId", "subtaskId", "phase", "metrics", "summarizer", "workspace"],
+      "required": [
+        "invocationId",
+        "subtaskId",
+        "phase",
+        "metrics",
+        "summarizer",
+        "workspace"
+      ],
       "properties": {
-        "invocationId": {"type": "string", "minLength": 1, "maxLength": 128, "x-maxBytes": 128},
+        "invocationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "x-maxBytes": 128
+        },
         "subtaskId": {
           "type": "string",
           "minLength": 1,
           "maxLength": 128,
           "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
         },
-        "phase": {"enum": ["running", "succeeded", "failed", "cancelled"]},
-        "metrics": {"$ref": "#/$defs/invocationMetrics"},
-        "summarizer": {"$ref": "#/$defs/summarizerState"},
+        "phase": {
+          "enum": [
+            "running",
+            "succeeded",
+            "failed",
+            "cancelled"
+          ]
+        },
+        "metrics": {
+          "$ref": "#/$defs/invocationMetrics"
+        },
+        "summarizer": {
+          "$ref": "#/$defs/summarizerState"
+        },
+        "compaction": {
+          "$ref": "worker-compaction.schema.json#/$defs/WorkerCompactionProgress"
+        },
         "workspace": {
           "oneOf": [
-            {"type": "null"},
-            {"$ref": "#/$defs/workspaceObservation"}
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/workspaceObservation"
+            }
           ]
         }
       },
       "allOf": [
         {
-          "if": {"properties": {"phase": {"not": {"const": "running"}}}},
+          "if": {
+            "properties": {
+              "phase": {
+                "not": {
+                  "const": "running"
+                }
+              }
+            }
+          },
           "then": {
             "properties": {
               "summarizer": {
-                "properties": {"phase": {"not": {"const": "requested"}}}
+                "properties": {
+                  "phase": {
+                    "not": {
+                      "const": "requested"
+                    }
+                  }
+                }
               }
             }
           }
@@ -278,14 +542,34 @@
     },
     "runningInvocation": {
       "allOf": [
-        {"$ref": "#/$defs/invocation"},
-        {"properties": {"phase": {"const": "running"}}}
+        {
+          "$ref": "#/$defs/invocation"
+        },
+        {
+          "properties": {
+            "phase": {
+              "const": "running"
+            }
+          }
+        }
       ]
     },
     "completedInvocation": {
       "allOf": [
-        {"$ref": "#/$defs/invocation"},
-        {"properties": {"phase": {"enum": ["succeeded", "failed", "cancelled"]}}}
+        {
+          "$ref": "#/$defs/invocation"
+        },
+        {
+          "properties": {
+            "phase": {
+              "enum": [
+                "succeeded",
+                "failed",
+                "cancelled"
+              ]
+            }
+          }
+        }
       ]
     },
     "contractorWorkerState": {
@@ -299,19 +583,33 @@
         "lastCompletedInvocation"
       ],
       "properties": {
-        "schemaVersion": {"const": 2},
-        "stateRevision": {"$ref": "#/$defs/positiveUint64"},
-        "metrics": {"$ref": "#/$defs/allocationMetrics"},
+        "schemaVersion": {
+          "const": 2
+        },
+        "stateRevision": {
+          "$ref": "#/$defs/positiveUint64"
+        },
+        "metrics": {
+          "$ref": "#/$defs/allocationMetrics"
+        },
         "currentInvocation": {
           "oneOf": [
-            {"type": "null"},
-            {"$ref": "#/$defs/runningInvocation"}
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/runningInvocation"
+            }
           ]
         },
         "lastCompletedInvocation": {
           "oneOf": [
-            {"type": "null"},
-            {"$ref": "#/$defs/completedInvocation"}
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/completedInvocation"
+            }
           ]
         }
       }
@@ -320,9 +618,16 @@
   "type": "object",
   "additionalProperties": false,
   "x-maxBytes": 4194304,
-  "required": ["apiVersion", "state"],
+  "required": [
+    "apiVersion",
+    "state"
+  ],
   "properties": {
-    "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
-    "state": {"$ref": "#/$defs/contractorWorkerState"}
+    "apiVersion": {
+      "$ref": "common.schema.json#/$defs/apiVersion"
+    },
+    "state": {
+      "$ref": "#/$defs/contractorWorkerState"
+    }
   }
 }

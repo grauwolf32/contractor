@@ -1001,7 +1001,7 @@ from auxiliary model phase names (WRK-R106, WRK-R125); the invocation's
 existing bounded cleanup owns terminal State publication (WRK-R168).
 
 **WRK-R84.** Model spans of the result-finalizer call mark
-`model.phase=result_finalizer`.
+`model.phase=finalization`.
 
 **WRK-R85.** The plugin never generically copies tool arguments or
 results into State. Each selected tool may register a narrow
@@ -1127,9 +1127,9 @@ mutate the previous completed snapshot; completing it replaces that one-slot
 history. Allocation-wide metrics continue across sequential invocations.
 
 **WRK-R107.** State schema version 2 includes bounded invocation metrics
-and a required closed summarizer section. Prompt-token trigger tracking stays
-internal to the invocation budget; workspace integrity digests stay in the
-workspace owner. Neither is an exported State field. The section is `disabled` when the pinned AgentTemplate has
+and a required closed summarizer section. Prompt-token trigger tracking remains owned by the invocation budget; only the
+generation-bound observations in WRK-R196 are exported. Workspace integrity
+digests stay in the workspace owner. The section is `disabled` when the pinned AgentTemplate has
 no summarizer; otherwise it moves monotonically through
 `not_requested -> requested -> succeeded|failed`. No completed invocation
 keeps a `requested` section: when an invocation ends after the request and
@@ -1690,8 +1690,8 @@ at most twice its bound while it is joined), one summary (LIM-WRK-33) and one
 history page (LIM-WRK-36). A history page addresses its first group
 by ordinal and serializes at most one page, so a read never rescans the
 archive. Successful and failed checkpoints are reported through the span
-below and the `context_compactor` model phase; richer counters are not part
-of this version. The
+below, the `compaction` model phase and the content-free progress in
+WRK-R196. The
 session itself, including markers, follows LIFE-WRK-2. A checkpoint is
 semantic work: it runs only inside the active invocation, checks the deadline
 and cancellation before the compactor call and before the commit, and never
@@ -1904,14 +1904,14 @@ mTLS peer identity itself is owned by [Security](../platform/security.md).
 - Instrumentation plugin, reducers and `ExecutionReport`: WRK-R80,
   WRK-R81, WRK-R82, WRK-R85,
   WRK-R86, WRK-R179.
-- Result-finalizer accounting and the `model.phase=result_finalizer` span:
+- Result-finalizer accounting and the `model.phase=finalization` span:
   WRK-R49, WRK-R83, WRK-R84.
 - Token usage accounting: WRK-R16, WRK-R24,
   WRK-R138.
 - Summarizer State and the `ExecutionMetrics` summarizer aggregate:
   WRK-R108, WRK-R155.
 - Context compaction: the `contractor.worker.context_compaction` span and the
-  `model.phase=context_compactor` span (WRK-R186, WRK-R195).
+  `model.phase=compaction` span (WRK-R186, WRK-R195).
 
 Metrics and OTLP conventions shared by every component are owned by
 [Observability](../platform/observability.md).
@@ -2016,3 +2016,39 @@ These properties follow from the cited requirements, which are authoritative.
 - Estimated-token triggers when provider usage is absent.
 - Reactive recovery after a provider has already rejected the context length.
 - UI mutation of summarizer policy for an existing Run or allocation.
+
+
+**WRK-R196.** An invocation using compaction initializes one optional closed
+`compaction` observation in State schema version 2. Its absence means no
+observation, never idle or applied. It holds the logical invocation ID,
+current generation, phase `idle|requested|running|applied|failed`, attempts,
+failed counts, archive reads, input and summary
+bytes, reasoning group counts available/included/truncated and a bounded
+failure cause. Generation is the only committed-checkpoint counter (at most 16); attempts
+and failures are at most 17 including a failed ceiling attempt. No timeline,
+summary, prompt, reasoning text, history, provider error or private path is
+included. Requested/running transitions happen before the call; applied is
+committed only after the checkpoint commit succeeds. Cancellation or another
+failure before commit closes the pending attempt as failed. A later main
+failure never undoes a committed checkpoint or changes the Run's outcome.
+Terminal summarizer state remains independent. Each mutation uses the existing
+State revision/validation boundary and invalidates conditional-read eligibility;
+unchanged wire-validated revisions retain the no-copy 304 path.
+
+**WRK-R197.** Before and after prompt observations name the actual main-request
+context generation. The after observation has no prompt-token value until a
+completed response from that generation supplies usage; the first measured
+value is retained. Missing usage is absent, never zero, and bytes never imply
+savings. Invocation counters span internal SDK turns. Allocation-wide
+`modelPhases` in State and ExecutionReport reuse cost phases `main`, `compaction`,
+`finalization` and `summarization` for call counts, known input/output/total tokens, unavailable usage
+and callback duration in milliseconds. Call admission counts once, pending or
+missing total usage remains unavailable, and completion/error/abort settles its
+duration once. These are breakdowns of existing charges, never additional
+budget charges. State owns the current/latest invocation observation; final reports project it
+from State after joining the Worker, with no reverse copy in the metric reducer.
+Summarization usage is projected from its existing independent aggregate, with
+unknown duration omitted. The metric reducer is the sole owner of phase usage.
+If failure diagnostics raise, the original execution exception wins and existing
+detail coverage is marked truncated. Model cleanup and span settlement always run;
+a diagnostic failure cannot skip cleanup or become the model failure.

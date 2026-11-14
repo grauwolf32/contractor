@@ -4768,12 +4768,15 @@ func (e RuntimeCredentialKind) Valid() bool {
 // Defines values for RuntimeDiagnosticReason.
 const (
 	RuntimeDiagnosticReasonInvalidReport RuntimeDiagnosticReason = "invalid_report"
+	RuntimeDiagnosticReasonReportMissing RuntimeDiagnosticReason = "report_missing"
 )
 
 // Valid indicates whether the value is a known member of the RuntimeDiagnosticReason enum.
 func (e RuntimeDiagnosticReason) Valid() bool {
 	switch e {
 	case RuntimeDiagnosticReasonInvalidReport:
+		return true
+	case RuntimeDiagnosticReasonReportMissing:
 		return true
 	default:
 		return false
@@ -5629,6 +5632,33 @@ func (e ToolDiagnosticPageStatus) Valid() bool {
 	case ToolDiagnosticPageStatusPending:
 		return true
 	case ToolDiagnosticPageStatusUnavailable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WorkerCompactionProgressPhase.
+const (
+	WorkerCompactionProgressPhaseApplied   WorkerCompactionProgressPhase = "applied"
+	WorkerCompactionProgressPhaseFailed    WorkerCompactionProgressPhase = "failed"
+	WorkerCompactionProgressPhaseIdle      WorkerCompactionProgressPhase = "idle"
+	WorkerCompactionProgressPhaseRequested WorkerCompactionProgressPhase = "requested"
+	WorkerCompactionProgressPhaseRunning   WorkerCompactionProgressPhase = "running"
+)
+
+// Valid indicates whether the value is a known member of the WorkerCompactionProgressPhase enum.
+func (e WorkerCompactionProgressPhase) Valid() bool {
+	switch e {
+	case WorkerCompactionProgressPhaseApplied:
+		return true
+	case WorkerCompactionProgressPhaseFailed:
+		return true
+	case WorkerCompactionProgressPhaseIdle:
+		return true
+	case WorkerCompactionProgressPhaseRequested:
+		return true
+	case WorkerCompactionProgressPhaseRunning:
 		return true
 	default:
 		return false
@@ -7690,6 +7720,12 @@ type Cancellation struct {
 
 // CancellationCode defines model for Cancellation.Code.
 type CancellationCode string
+
+// CompactionPromptMeasurement defines model for CompactionPromptMeasurement.
+type CompactionPromptMeasurement struct {
+	Generation   int  `json:"generation"`
+	PromptTokens *int `json:"promptTokens,omitempty"`
+}
 
 // ConfigId defines model for ConfigId.
 type ConfigId = string
@@ -11132,12 +11168,14 @@ type RuntimeCredentialPage struct {
 
 // RuntimeDiagnostic defines model for RuntimeDiagnostic.
 type RuntimeDiagnostic struct {
-	Adapters []RuntimeAdapterDiagnostic `json:"adapters"`
-	Complete *bool                      `json:"complete,omitempty"`
+	Adapters   []RuntimeAdapterDiagnostic `json:"adapters"`
+	Compaction *WorkerCompactionProgress  `json:"compaction,omitempty"`
+	Complete   *bool                      `json:"complete,omitempty"`
 
 	// DurationMs Canonical nonnegative int64 decimal, at most 9223372036854775807. Field names define milliseconds or byte units.
 	DurationMs          *DiagnosticInt64Decimal  `json:"durationMs,omitempty"`
 	LogicalAgent        ConfigId                 `json:"logicalAgent"`
+	ModelPhases         *WorkerModelPhases       `json:"modelPhases,omitempty"`
 	Reason              *RuntimeDiagnosticReason `json:"reason,omitempty"`
 	Status              RuntimeDiagnosticStatus  `json:"status"`
 	StopReason          *string                  `json:"stopReason,omitempty"`
@@ -11861,6 +11899,27 @@ type UpdateSchedulerSettingsRequest struct {
 	MaxConcurrentToolRuns *int `json:"maxConcurrentToolRuns,omitempty"`
 }
 
+// WorkerCompactionProgress defines model for WorkerCompactionProgress.
+type WorkerCompactionProgress struct {
+	AfterPrompt        *CompactionPromptMeasurement  `json:"afterPrompt,omitempty"`
+	ArchiveReads       int                           `json:"archiveReads"`
+	Attempts           int                           `json:"attempts"`
+	BeforePrompt       *CompactionPromptMeasurement  `json:"beforePrompt,omitempty"`
+	Failures           int                           `json:"failures"`
+	Generation         int                           `json:"generation"`
+	InputBytes         int                           `json:"inputBytes"`
+	InvocationId       string                        `json:"invocationId"`
+	LastCause          *string                       `json:"lastCause,omitempty"`
+	Phase              WorkerCompactionProgressPhase `json:"phase"`
+	ReasoningAvailable int                           `json:"reasoningAvailable"`
+	ReasoningIncluded  int                           `json:"reasoningIncluded"`
+	ReasoningTruncated int                           `json:"reasoningTruncated"`
+	SummaryBytes       int                           `json:"summaryBytes"`
+}
+
+// WorkerCompactionProgressPhase defines model for WorkerCompactionProgress.Phase.
+type WorkerCompactionProgressPhase string
+
 // WorkerCompletionDiagnostics Latest Worker invocation facts. Published packages are not accepted Audit evidence.
 type WorkerCompletionDiagnostics struct {
 	AcceptedCount int                              `json:"acceptedCount"`
@@ -11876,6 +11935,24 @@ type WorkerCompletionDiagnosticsKind string
 
 // WorkerCompletionDiagnosticsPhase defines model for WorkerCompletionDiagnostics.Phase.
 type WorkerCompletionDiagnosticsPhase string
+
+// WorkerModelPhases defines model for WorkerModelPhases.
+type WorkerModelPhases struct {
+	Compaction    WorkerModelUsage `json:"compaction"`
+	Finalization  WorkerModelUsage `json:"finalization"`
+	Main          WorkerModelUsage `json:"main"`
+	Summarization WorkerModelUsage `json:"summarization"`
+}
+
+// WorkerModelUsage defines model for WorkerModelUsage.
+type WorkerModelUsage struct {
+	DurationMs            *int `json:"durationMs,omitempty"`
+	InputTokens           int  `json:"inputTokens"`
+	ModelCalls            int  `json:"modelCalls"`
+	OutputTokens          int  `json:"outputTokens"`
+	TokenUsageUnavailable int  `json:"tokenUsageUnavailable"`
+	TotalTokens           int  `json:"totalTokens"`
+}
 
 // WorkerSummarizerConfigBody defines model for WorkerSummarizerConfigBody.
 type WorkerSummarizerConfigBody struct {
@@ -19290,7 +19367,7 @@ type ClientInterface interface {
 
 	// GetRunRuntimeDiagnostics Inspect retained Runtime adapter diagnostics for an owned Stage attempt
 	//
-	// Reads only bounded Runtime projections from retained StageMetrics, including Eval-held metrics. Counters and durations are lossless decimal strings. Missing reports are not zero usage. No-store; read-only; selected Stage must belong to the owned Run. Cursor binds the retained metric generation; 409 requires refreshing the first page. Report availability is diagnostic and never changes a Run outcome. No prompts or tool content are returned.
+	// Reads bounded Runtime projections from retained StageMetrics, including Eval-held metrics, and owner-authorized active Worker State while a final report is pending. Counters and durations are lossless decimal strings. Missing reports are not zero usage. No-store; read-only; selected Stage must belong to the owned Run. Cursor binds the retained metric generation; 409 requires refreshing the first page. Report availability is diagnostic and never changes a Run outcome. No prompts or tool content are returned.
 	//
 	// Corresponds with GET /v1/runs/{runId}/attempts/{stageExecutionId}/runtime-diagnostics (the `GetRunRuntimeDiagnostics` operationId).
 	GetRunRuntimeDiagnostics(ctx context.Context, runId RunId, stageExecutionId ResourceId, params *GetRunRuntimeDiagnosticsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -22539,7 +22616,7 @@ func (c *Client) ListRunArtifactVersions(ctx context.Context, runId RunId, names
 
 // GetRunRuntimeDiagnostics Inspect retained Runtime adapter diagnostics for an owned Stage attempt
 //
-// Reads only bounded Runtime projections from retained StageMetrics, including Eval-held metrics. Counters and durations are lossless decimal strings. Missing reports are not zero usage. No-store; read-only; selected Stage must belong to the owned Run. Cursor binds the retained metric generation; 409 requires refreshing the first page. Report availability is diagnostic and never changes a Run outcome. No prompts or tool content are returned.
+// Reads bounded Runtime projections from retained StageMetrics, including Eval-held metrics, and owner-authorized active Worker State while a final report is pending. Counters and durations are lossless decimal strings. Missing reports are not zero usage. No-store; read-only; selected Stage must belong to the owned Run. Cursor binds the retained metric generation; 409 requires refreshing the first page. Report availability is diagnostic and never changes a Run outcome. No prompts or tool content are returned.
 //
 // Corresponds with GET /v1/runs/{runId}/attempts/{stageExecutionId}/runtime-diagnostics (the `GetRunRuntimeDiagnostics` operationId).
 func (c *Client) GetRunRuntimeDiagnostics(ctx context.Context, runId RunId, stageExecutionId ResourceId, params *GetRunRuntimeDiagnosticsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -35692,7 +35769,7 @@ type ClientWithResponsesInterface interface {
 
 	// GetRunRuntimeDiagnosticsWithResponse Inspect retained Runtime adapter diagnostics for an owned Stage attempt
 	//
-	// Reads only bounded Runtime projections from retained StageMetrics, including Eval-held metrics. Counters and durations are lossless decimal strings. Missing reports are not zero usage. No-store; read-only; selected Stage must belong to the owned Run. Cursor binds the retained metric generation; 409 requires refreshing the first page. Report availability is diagnostic and never changes a Run outcome. No prompts or tool content are returned.
+	// Reads bounded Runtime projections from retained StageMetrics, including Eval-held metrics, and owner-authorized active Worker State while a final report is pending. Counters and durations are lossless decimal strings. Missing reports are not zero usage. No-store; read-only; selected Stage must belong to the owned Run. Cursor binds the retained metric generation; 409 requires refreshing the first page. Report availability is diagnostic and never changes a Run outcome. No prompts or tool content are returned.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -61498,7 +61575,7 @@ func (c *ClientWithResponses) ListRunArtifactVersionsWithResponse(ctx context.Co
 
 // GetRunRuntimeDiagnosticsWithResponse Inspect retained Runtime adapter diagnostics for an owned Stage attempt
 //
-// Reads only bounded Runtime projections from retained StageMetrics, including Eval-held metrics. Counters and durations are lossless decimal strings. Missing reports are not zero usage. No-store; read-only; selected Stage must belong to the owned Run. Cursor binds the retained metric generation; 409 requires refreshing the first page. Report availability is diagnostic and never changes a Run outcome. No prompts or tool content are returned.
+// Reads bounded Runtime projections from retained StageMetrics, including Eval-held metrics, and owner-authorized active Worker State while a final report is pending. Counters and durations are lossless decimal strings. Missing reports are not zero usage. No-store; read-only; selected Stage must belong to the owned Run. Cursor binds the retained metric generation; 409 requires refreshing the first page. Report availability is diagnostic and never changes a Run outcome. No prompts or tool content are returned.
 //
 // Returns a wrapper object for the known response body format(s).
 //

@@ -559,6 +559,1436 @@
         "/state/metrics/workerBudget"
       ]
     },
+    "agent-state-compaction-applied.json": {
+      "zero": [
+        "/state/currentInvocation/compaction/generation",
+        "/state/currentInvocation/compaction/inputBytes",
+        "/state/currentInvocation/compaction/summaryBytes",
+        "/state/lastCompletedInvocation/workspace/interactions/0/firstOrdinal",
+        "/state/lastCompletedInvocation/workspace/interactions/0/lastOrdinal",
+        "/state/metrics/workerBudget/maxModelCalls",
+        "/state/metrics/workerBudget/maxToolCalls",
+        "/state/metrics/workerBudget/maxTotalTokens",
+        "/state/schemaVersion",
+        "/state/stateRevision"
+      ],
+      "memberAliases": [
+        "/apiVersion",
+        "/state/currentInvocation",
+        "/state/currentInvocation/compaction/afterPrompt",
+        "/state/currentInvocation/compaction/archiveReads",
+        "/state/currentInvocation/compaction/beforePrompt",
+        "/state/currentInvocation/compaction/inputBytes",
+        "/state/currentInvocation/compaction/invocationId",
+        "/state/currentInvocation/compaction/reasoningAvailable",
+        "/state/currentInvocation/compaction/reasoningIncluded",
+        "/state/currentInvocation/compaction/reasoningTruncated",
+        "/state/currentInvocation/compaction/summaryBytes",
+        "/state/currentInvocation/invocationId",
+        "/state/currentInvocation/metrics/cachedInputTokens",
+        "/state/currentInvocation/metrics/inputTokens",
+        "/state/currentInvocation/metrics/modelCalls",
+        "/state/currentInvocation/metrics/modelErrors",
+        "/state/currentInvocation/metrics/outputTokens",
+        "/state/currentInvocation/metrics/tokenUsageUnavailable",
+        "/state/currentInvocation/metrics/toolCalls",
+        "/state/currentInvocation/metrics/toolErrors",
+        "/state/currentInvocation/metrics/totalTokens",
+        "/state/currentInvocation/subtaskId",
+        "/state/currentInvocation/summarizer/inputTokens",
+        "/state/currentInvocation/summarizer/modelCalls",
+        "/state/currentInvocation/summarizer/outputTokens",
+        "/state/currentInvocation/summarizer/tokenUsageUnavailable",
+        "/state/currentInvocation/summarizer/totalTokens",
+        "/state/currentInvocation/workspace/detailComplete",
+        "/state/currentInvocation/workspace/scopeComplete",
+        "/state/currentInvocation/workspace/scopePaths",
+        "/state/lastCompletedInvocation",
+        "/state/lastCompletedInvocation/invocationId",
+        "/state/lastCompletedInvocation/metrics/cachedInputTokens",
+        "/state/lastCompletedInvocation/metrics/inputTokens",
+        "/state/lastCompletedInvocation/metrics/modelCalls",
+        "/state/lastCompletedInvocation/metrics/modelErrors",
+        "/state/lastCompletedInvocation/metrics/outputTokens",
+        "/state/lastCompletedInvocation/metrics/tokenUsageUnavailable",
+        "/state/lastCompletedInvocation/metrics/toolCalls",
+        "/state/lastCompletedInvocation/metrics/toolErrors",
+        "/state/lastCompletedInvocation/metrics/totalTokens",
+        "/state/lastCompletedInvocation/subtaskId",
+        "/state/lastCompletedInvocation/summarizer/inputTokens",
+        "/state/lastCompletedInvocation/summarizer/modelCalls",
+        "/state/lastCompletedInvocation/summarizer/outputTokens",
+        "/state/lastCompletedInvocation/summarizer/tokenUsageUnavailable",
+        "/state/lastCompletedInvocation/summarizer/totalTokens",
+        "/state/lastCompletedInvocation/workspace/detailComplete",
+        "/state/lastCompletedInvocation/workspace/interactions/0/discoveryCalls",
+        "/state/lastCompletedInvocation/workspace/interactions/0/firstOrdinal",
+        "/state/lastCompletedInvocation/workspace/interactions/0/lastOrdinal",
+        "/state/lastCompletedInvocation/workspace/interactions/0/matchCalls",
+        "/state/lastCompletedInvocation/workspace/interactions/0/mutationCalls",
+        "/state/lastCompletedInvocation/workspace/interactions/0/readCalls",
+        "/state/lastCompletedInvocation/workspace/scopeComplete",
+        "/state/lastCompletedInvocation/workspace/scopePaths",
+        "/state/metrics/finalOutcome",
+        "/state/metrics/modelPhases",
+        "/state/metrics/modelPhases/compaction/durationMs",
+        "/state/metrics/modelPhases/compaction/inputTokens",
+        "/state/metrics/modelPhases/compaction/modelCalls",
+        "/state/metrics/modelPhases/compaction/outputTokens",
+        "/state/metrics/modelPhases/compaction/tokenUsageUnavailable",
+        "/state/metrics/modelPhases/compaction/totalTokens",
+        "/state/metrics/modelPhases/finalization/durationMs",
+        "/state/metrics/modelPhases/finalization/inputTokens",
+        "/state/metrics/modelPhases/finalization/modelCalls",
+        "/state/metrics/modelPhases/finalization/outputTokens",
+        "/state/metrics/modelPhases/finalization/tokenUsageUnavailable",
+        "/state/metrics/modelPhases/finalization/totalTokens",
+        "/state/metrics/modelPhases/main/durationMs",
+        "/state/metrics/modelPhases/main/inputTokens",
+        "/state/metrics/modelPhases/main/modelCalls",
+        "/state/metrics/modelPhases/main/outputTokens",
+        "/state/metrics/modelPhases/main/tokenUsageUnavailable",
+        "/state/metrics/modelPhases/main/totalTokens",
+        "/state/metrics/modelPhases/summarization/inputTokens",
+        "/state/metrics/modelPhases/summarization/modelCalls",
+        "/state/metrics/modelPhases/summarization/outputTokens",
+        "/state/metrics/modelPhases/summarization/tokenUsageUnavailable",
+        "/state/metrics/modelPhases/summarization/totalTokens",
+        "/state/metrics/toolCalls",
+        "/state/metrics/toolCalls/0/argumentsTruncated",
+        "/state/metrics/toolCalls/0/callId",
+        "/state/metrics/toolCalls/0/durationMs",
+        "/state/metrics/toolCalls/0/resultSizeBytes",
+        "/state/metrics/workerBudget",
+        "/state/metrics/workerBudget/maxModelCalls",
+        "/state/metrics/workerBudget/maxToolCalls",
+        "/state/metrics/workerBudget/maxTotalTokens",
+        "/state/metrics/workerBudget/observedModelCalls",
+        "/state/metrics/workerBudget/observedToolCalls",
+        "/state/metrics/workerBudget/observedTotalTokens",
+        "/state/metrics/workerBudget/tokenUsageUnavailable",
+        "/state/schemaVersion",
+        "/state/stateRevision"
+      ],
+      "enum": [
+        "/apiVersion",
+        "/state/currentInvocation/compaction/phase",
+        "/state/currentInvocation/phase",
+        "/state/currentInvocation/summarizer/phase",
+        "/state/lastCompletedInvocation/phase",
+        "/state/lastCompletedInvocation/summarizer/phase",
+        "/state/metrics/toolCalls/0/outcome",
+        "/state/schemaVersion"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/state/currentInvocation/invocationId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/state/currentInvocation/subtaskId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/state/currentInvocation/workspace/scopePaths/0",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/currentInvocation/workspace/scopePaths/1",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/invocationId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/subtaskId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/interactions/0/path",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/scopePaths/0",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/scopePaths/1",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/metrics/errors/0/message",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/metrics/finalOutcome",
+          "maxLength": 64
+        },
+        {
+          "pointer": "/state/metrics/toolCalls/0/error/message",
+          "maxLength": 4096
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/state/currentInvocation/invocationId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/currentInvocation/subtaskId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/currentInvocation/workspace/scopePaths/0",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/currentInvocation/workspace/scopePaths/1",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/invocationId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/subtaskId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/interactions/0/path",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/scopePaths/0",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/scopePaths/1",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/metrics/errors/0/message",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/metrics/finalOutcome",
+          "maxLength": 64,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/metrics/toolCalls/0/error/message",
+          "maxLength": 4096,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/state",
+        "/state/currentInvocation",
+        "/state/currentInvocation/compaction",
+        "/state/currentInvocation/compaction/afterPrompt",
+        "/state/currentInvocation/compaction/beforePrompt",
+        "/state/currentInvocation/metrics",
+        "/state/currentInvocation/summarizer",
+        "/state/currentInvocation/workspace",
+        "/state/lastCompletedInvocation",
+        "/state/lastCompletedInvocation/metrics",
+        "/state/lastCompletedInvocation/metrics/tools/read_file",
+        "/state/lastCompletedInvocation/summarizer",
+        "/state/lastCompletedInvocation/workspace",
+        "/state/lastCompletedInvocation/workspace/interactions/0",
+        "/state/metrics",
+        "/state/metrics/errors/0",
+        "/state/metrics/modelPhases",
+        "/state/metrics/modelPhases/compaction",
+        "/state/metrics/modelPhases/finalization",
+        "/state/metrics/modelPhases/main",
+        "/state/metrics/modelPhases/summarization",
+        "/state/metrics/toolCalls/0",
+        "/state/metrics/toolCalls/0/error",
+        "/state/metrics/workerBudget"
+      ],
+      "duplicateKey": [
+        "",
+        "/state",
+        "/state/currentInvocation",
+        "/state/currentInvocation/compaction",
+        "/state/currentInvocation/compaction/afterPrompt",
+        "/state/currentInvocation/compaction/beforePrompt",
+        "/state/currentInvocation/metrics",
+        "/state/currentInvocation/summarizer",
+        "/state/currentInvocation/workspace",
+        "/state/lastCompletedInvocation",
+        "/state/lastCompletedInvocation/metrics",
+        "/state/lastCompletedInvocation/metrics/tools",
+        "/state/lastCompletedInvocation/metrics/tools/read_file",
+        "/state/lastCompletedInvocation/summarizer",
+        "/state/lastCompletedInvocation/workspace",
+        "/state/lastCompletedInvocation/workspace/interactions/0",
+        "/state/metrics",
+        "/state/metrics/counters",
+        "/state/metrics/errors/0",
+        "/state/metrics/modelPhases",
+        "/state/metrics/modelPhases/compaction",
+        "/state/metrics/modelPhases/finalization",
+        "/state/metrics/modelPhases/main",
+        "/state/metrics/modelPhases/summarization",
+        "/state/metrics/toolCalls/0",
+        "/state/metrics/toolCalls/0/arguments",
+        "/state/metrics/toolCalls/0/error",
+        "/state/metrics/workerBudget"
+      ]
+    },
+    "agent-state-compaction-failed.json": {
+      "zero": [
+        "/state/currentInvocation/compaction/failures",
+        "/state/lastCompletedInvocation/workspace/interactions/0/firstOrdinal",
+        "/state/lastCompletedInvocation/workspace/interactions/0/lastOrdinal",
+        "/state/metrics/workerBudget/maxModelCalls",
+        "/state/metrics/workerBudget/maxToolCalls",
+        "/state/metrics/workerBudget/maxTotalTokens",
+        "/state/schemaVersion",
+        "/state/stateRevision"
+      ],
+      "memberAliases": [
+        "/apiVersion",
+        "/state/currentInvocation",
+        "/state/currentInvocation/compaction/archiveReads",
+        "/state/currentInvocation/compaction/beforePrompt",
+        "/state/currentInvocation/compaction/inputBytes",
+        "/state/currentInvocation/compaction/invocationId",
+        "/state/currentInvocation/compaction/lastCause",
+        "/state/currentInvocation/compaction/reasoningAvailable",
+        "/state/currentInvocation/compaction/reasoningIncluded",
+        "/state/currentInvocation/compaction/reasoningTruncated",
+        "/state/currentInvocation/compaction/summaryBytes",
+        "/state/currentInvocation/invocationId",
+        "/state/currentInvocation/metrics/cachedInputTokens",
+        "/state/currentInvocation/metrics/inputTokens",
+        "/state/currentInvocation/metrics/modelCalls",
+        "/state/currentInvocation/metrics/modelErrors",
+        "/state/currentInvocation/metrics/outputTokens",
+        "/state/currentInvocation/metrics/tokenUsageUnavailable",
+        "/state/currentInvocation/metrics/toolCalls",
+        "/state/currentInvocation/metrics/toolErrors",
+        "/state/currentInvocation/metrics/totalTokens",
+        "/state/currentInvocation/subtaskId",
+        "/state/currentInvocation/summarizer/inputTokens",
+        "/state/currentInvocation/summarizer/modelCalls",
+        "/state/currentInvocation/summarizer/outputTokens",
+        "/state/currentInvocation/summarizer/tokenUsageUnavailable",
+        "/state/currentInvocation/summarizer/totalTokens",
+        "/state/currentInvocation/workspace/detailComplete",
+        "/state/currentInvocation/workspace/scopeComplete",
+        "/state/currentInvocation/workspace/scopePaths",
+        "/state/lastCompletedInvocation",
+        "/state/lastCompletedInvocation/invocationId",
+        "/state/lastCompletedInvocation/metrics/cachedInputTokens",
+        "/state/lastCompletedInvocation/metrics/inputTokens",
+        "/state/lastCompletedInvocation/metrics/modelCalls",
+        "/state/lastCompletedInvocation/metrics/modelErrors",
+        "/state/lastCompletedInvocation/metrics/outputTokens",
+        "/state/lastCompletedInvocation/metrics/tokenUsageUnavailable",
+        "/state/lastCompletedInvocation/metrics/toolCalls",
+        "/state/lastCompletedInvocation/metrics/toolErrors",
+        "/state/lastCompletedInvocation/metrics/totalTokens",
+        "/state/lastCompletedInvocation/subtaskId",
+        "/state/lastCompletedInvocation/summarizer/inputTokens",
+        "/state/lastCompletedInvocation/summarizer/modelCalls",
+        "/state/lastCompletedInvocation/summarizer/outputTokens",
+        "/state/lastCompletedInvocation/summarizer/tokenUsageUnavailable",
+        "/state/lastCompletedInvocation/summarizer/totalTokens",
+        "/state/lastCompletedInvocation/workspace/detailComplete",
+        "/state/lastCompletedInvocation/workspace/interactions/0/discoveryCalls",
+        "/state/lastCompletedInvocation/workspace/interactions/0/firstOrdinal",
+        "/state/lastCompletedInvocation/workspace/interactions/0/lastOrdinal",
+        "/state/lastCompletedInvocation/workspace/interactions/0/matchCalls",
+        "/state/lastCompletedInvocation/workspace/interactions/0/mutationCalls",
+        "/state/lastCompletedInvocation/workspace/interactions/0/readCalls",
+        "/state/lastCompletedInvocation/workspace/scopeComplete",
+        "/state/lastCompletedInvocation/workspace/scopePaths",
+        "/state/metrics/finalOutcome",
+        "/state/metrics/modelPhases",
+        "/state/metrics/modelPhases/compaction/durationMs",
+        "/state/metrics/modelPhases/compaction/inputTokens",
+        "/state/metrics/modelPhases/compaction/modelCalls",
+        "/state/metrics/modelPhases/compaction/outputTokens",
+        "/state/metrics/modelPhases/compaction/tokenUsageUnavailable",
+        "/state/metrics/modelPhases/compaction/totalTokens",
+        "/state/metrics/modelPhases/finalization/durationMs",
+        "/state/metrics/modelPhases/finalization/inputTokens",
+        "/state/metrics/modelPhases/finalization/modelCalls",
+        "/state/metrics/modelPhases/finalization/outputTokens",
+        "/state/metrics/modelPhases/finalization/tokenUsageUnavailable",
+        "/state/metrics/modelPhases/finalization/totalTokens",
+        "/state/metrics/modelPhases/main/durationMs",
+        "/state/metrics/modelPhases/main/inputTokens",
+        "/state/metrics/modelPhases/main/modelCalls",
+        "/state/metrics/modelPhases/main/outputTokens",
+        "/state/metrics/modelPhases/main/tokenUsageUnavailable",
+        "/state/metrics/modelPhases/main/totalTokens",
+        "/state/metrics/modelPhases/summarization/inputTokens",
+        "/state/metrics/modelPhases/summarization/modelCalls",
+        "/state/metrics/modelPhases/summarization/outputTokens",
+        "/state/metrics/modelPhases/summarization/tokenUsageUnavailable",
+        "/state/metrics/modelPhases/summarization/totalTokens",
+        "/state/metrics/toolCalls",
+        "/state/metrics/toolCalls/0/argumentsTruncated",
+        "/state/metrics/toolCalls/0/callId",
+        "/state/metrics/toolCalls/0/durationMs",
+        "/state/metrics/toolCalls/0/resultSizeBytes",
+        "/state/metrics/workerBudget",
+        "/state/metrics/workerBudget/maxModelCalls",
+        "/state/metrics/workerBudget/maxToolCalls",
+        "/state/metrics/workerBudget/maxTotalTokens",
+        "/state/metrics/workerBudget/observedModelCalls",
+        "/state/metrics/workerBudget/observedToolCalls",
+        "/state/metrics/workerBudget/observedTotalTokens",
+        "/state/metrics/workerBudget/tokenUsageUnavailable",
+        "/state/schemaVersion",
+        "/state/stateRevision"
+      ],
+      "enum": [
+        "/apiVersion",
+        "/state/currentInvocation/compaction/phase",
+        "/state/currentInvocation/phase",
+        "/state/currentInvocation/summarizer/phase",
+        "/state/lastCompletedInvocation/phase",
+        "/state/lastCompletedInvocation/summarizer/phase",
+        "/state/metrics/toolCalls/0/outcome",
+        "/state/schemaVersion"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/state/currentInvocation/invocationId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/state/currentInvocation/subtaskId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/state/currentInvocation/workspace/scopePaths/0",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/currentInvocation/workspace/scopePaths/1",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/invocationId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/subtaskId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/interactions/0/path",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/scopePaths/0",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/scopePaths/1",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/metrics/errors/0/message",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/metrics/finalOutcome",
+          "maxLength": 64
+        },
+        {
+          "pointer": "/state/metrics/toolCalls/0/error/message",
+          "maxLength": 4096
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/state/currentInvocation/invocationId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/currentInvocation/subtaskId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/currentInvocation/workspace/scopePaths/0",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/currentInvocation/workspace/scopePaths/1",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/invocationId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/subtaskId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/interactions/0/path",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/scopePaths/0",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/scopePaths/1",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/metrics/errors/0/message",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/metrics/finalOutcome",
+          "maxLength": 64,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/metrics/toolCalls/0/error/message",
+          "maxLength": 4096,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/state",
+        "/state/currentInvocation",
+        "/state/currentInvocation/compaction",
+        "/state/currentInvocation/compaction/beforePrompt",
+        "/state/currentInvocation/metrics",
+        "/state/currentInvocation/summarizer",
+        "/state/currentInvocation/workspace",
+        "/state/lastCompletedInvocation",
+        "/state/lastCompletedInvocation/metrics",
+        "/state/lastCompletedInvocation/metrics/tools/read_file",
+        "/state/lastCompletedInvocation/summarizer",
+        "/state/lastCompletedInvocation/workspace",
+        "/state/lastCompletedInvocation/workspace/interactions/0",
+        "/state/metrics",
+        "/state/metrics/errors/0",
+        "/state/metrics/modelPhases",
+        "/state/metrics/modelPhases/compaction",
+        "/state/metrics/modelPhases/finalization",
+        "/state/metrics/modelPhases/main",
+        "/state/metrics/modelPhases/summarization",
+        "/state/metrics/toolCalls/0",
+        "/state/metrics/toolCalls/0/error",
+        "/state/metrics/workerBudget"
+      ],
+      "duplicateKey": [
+        "",
+        "/state",
+        "/state/currentInvocation",
+        "/state/currentInvocation/compaction",
+        "/state/currentInvocation/compaction/beforePrompt",
+        "/state/currentInvocation/metrics",
+        "/state/currentInvocation/summarizer",
+        "/state/currentInvocation/workspace",
+        "/state/lastCompletedInvocation",
+        "/state/lastCompletedInvocation/metrics",
+        "/state/lastCompletedInvocation/metrics/tools",
+        "/state/lastCompletedInvocation/metrics/tools/read_file",
+        "/state/lastCompletedInvocation/summarizer",
+        "/state/lastCompletedInvocation/workspace",
+        "/state/lastCompletedInvocation/workspace/interactions/0",
+        "/state/metrics",
+        "/state/metrics/counters",
+        "/state/metrics/errors/0",
+        "/state/metrics/modelPhases",
+        "/state/metrics/modelPhases/compaction",
+        "/state/metrics/modelPhases/finalization",
+        "/state/metrics/modelPhases/main",
+        "/state/metrics/modelPhases/summarization",
+        "/state/metrics/toolCalls/0",
+        "/state/metrics/toolCalls/0/arguments",
+        "/state/metrics/toolCalls/0/error",
+        "/state/metrics/workerBudget"
+      ]
+    },
+    "agent-state-compaction-idle.json": {
+      "zero": [
+        "/state/lastCompletedInvocation/workspace/interactions/0/firstOrdinal",
+        "/state/lastCompletedInvocation/workspace/interactions/0/lastOrdinal",
+        "/state/metrics/workerBudget/maxModelCalls",
+        "/state/metrics/workerBudget/maxToolCalls",
+        "/state/metrics/workerBudget/maxTotalTokens",
+        "/state/schemaVersion",
+        "/state/stateRevision"
+      ],
+      "memberAliases": [
+        "/apiVersion",
+        "/state/currentInvocation",
+        "/state/currentInvocation/compaction/archiveReads",
+        "/state/currentInvocation/compaction/inputBytes",
+        "/state/currentInvocation/compaction/invocationId",
+        "/state/currentInvocation/compaction/reasoningAvailable",
+        "/state/currentInvocation/compaction/reasoningIncluded",
+        "/state/currentInvocation/compaction/reasoningTruncated",
+        "/state/currentInvocation/compaction/summaryBytes",
+        "/state/currentInvocation/invocationId",
+        "/state/currentInvocation/metrics/cachedInputTokens",
+        "/state/currentInvocation/metrics/inputTokens",
+        "/state/currentInvocation/metrics/modelCalls",
+        "/state/currentInvocation/metrics/modelErrors",
+        "/state/currentInvocation/metrics/outputTokens",
+        "/state/currentInvocation/metrics/tokenUsageUnavailable",
+        "/state/currentInvocation/metrics/toolCalls",
+        "/state/currentInvocation/metrics/toolErrors",
+        "/state/currentInvocation/metrics/totalTokens",
+        "/state/currentInvocation/subtaskId",
+        "/state/currentInvocation/summarizer/inputTokens",
+        "/state/currentInvocation/summarizer/modelCalls",
+        "/state/currentInvocation/summarizer/outputTokens",
+        "/state/currentInvocation/summarizer/tokenUsageUnavailable",
+        "/state/currentInvocation/summarizer/totalTokens",
+        "/state/currentInvocation/workspace/detailComplete",
+        "/state/currentInvocation/workspace/scopeComplete",
+        "/state/currentInvocation/workspace/scopePaths",
+        "/state/lastCompletedInvocation",
+        "/state/lastCompletedInvocation/invocationId",
+        "/state/lastCompletedInvocation/metrics/cachedInputTokens",
+        "/state/lastCompletedInvocation/metrics/inputTokens",
+        "/state/lastCompletedInvocation/metrics/modelCalls",
+        "/state/lastCompletedInvocation/metrics/modelErrors",
+        "/state/lastCompletedInvocation/metrics/outputTokens",
+        "/state/lastCompletedInvocation/metrics/tokenUsageUnavailable",
+        "/state/lastCompletedInvocation/metrics/toolCalls",
+        "/state/lastCompletedInvocation/metrics/toolErrors",
+        "/state/lastCompletedInvocation/metrics/totalTokens",
+        "/state/lastCompletedInvocation/subtaskId",
+        "/state/lastCompletedInvocation/summarizer/inputTokens",
+        "/state/lastCompletedInvocation/summarizer/modelCalls",
+        "/state/lastCompletedInvocation/summarizer/outputTokens",
+        "/state/lastCompletedInvocation/summarizer/tokenUsageUnavailable",
+        "/state/lastCompletedInvocation/summarizer/totalTokens",
+        "/state/lastCompletedInvocation/workspace/detailComplete",
+        "/state/lastCompletedInvocation/workspace/interactions/0/discoveryCalls",
+        "/state/lastCompletedInvocation/workspace/interactions/0/firstOrdinal",
+        "/state/lastCompletedInvocation/workspace/interactions/0/lastOrdinal",
+        "/state/lastCompletedInvocation/workspace/interactions/0/matchCalls",
+        "/state/lastCompletedInvocation/workspace/interactions/0/mutationCalls",
+        "/state/lastCompletedInvocation/workspace/interactions/0/readCalls",
+        "/state/lastCompletedInvocation/workspace/scopeComplete",
+        "/state/lastCompletedInvocation/workspace/scopePaths",
+        "/state/metrics/finalOutcome",
+        "/state/metrics/modelPhases",
+        "/state/metrics/modelPhases/compaction/durationMs",
+        "/state/metrics/modelPhases/compaction/inputTokens",
+        "/state/metrics/modelPhases/compaction/modelCalls",
+        "/state/metrics/modelPhases/compaction/outputTokens",
+        "/state/metrics/modelPhases/compaction/tokenUsageUnavailable",
+        "/state/metrics/modelPhases/compaction/totalTokens",
+        "/state/metrics/modelPhases/finalization/durationMs",
+        "/state/metrics/modelPhases/finalization/inputTokens",
+        "/state/metrics/modelPhases/finalization/modelCalls",
+        "/state/metrics/modelPhases/finalization/outputTokens",
+        "/state/metrics/modelPhases/finalization/tokenUsageUnavailable",
+        "/state/metrics/modelPhases/finalization/totalTokens",
+        "/state/metrics/modelPhases/main/durationMs",
+        "/state/metrics/modelPhases/main/inputTokens",
+        "/state/metrics/modelPhases/main/modelCalls",
+        "/state/metrics/modelPhases/main/outputTokens",
+        "/state/metrics/modelPhases/main/tokenUsageUnavailable",
+        "/state/metrics/modelPhases/main/totalTokens",
+        "/state/metrics/modelPhases/summarization/inputTokens",
+        "/state/metrics/modelPhases/summarization/modelCalls",
+        "/state/metrics/modelPhases/summarization/outputTokens",
+        "/state/metrics/modelPhases/summarization/tokenUsageUnavailable",
+        "/state/metrics/modelPhases/summarization/totalTokens",
+        "/state/metrics/toolCalls",
+        "/state/metrics/toolCalls/0/argumentsTruncated",
+        "/state/metrics/toolCalls/0/callId",
+        "/state/metrics/toolCalls/0/durationMs",
+        "/state/metrics/toolCalls/0/resultSizeBytes",
+        "/state/metrics/workerBudget",
+        "/state/metrics/workerBudget/maxModelCalls",
+        "/state/metrics/workerBudget/maxToolCalls",
+        "/state/metrics/workerBudget/maxTotalTokens",
+        "/state/metrics/workerBudget/observedModelCalls",
+        "/state/metrics/workerBudget/observedToolCalls",
+        "/state/metrics/workerBudget/observedTotalTokens",
+        "/state/metrics/workerBudget/tokenUsageUnavailable",
+        "/state/schemaVersion",
+        "/state/stateRevision"
+      ],
+      "enum": [
+        "/apiVersion",
+        "/state/currentInvocation/compaction/phase",
+        "/state/currentInvocation/phase",
+        "/state/currentInvocation/summarizer/phase",
+        "/state/lastCompletedInvocation/phase",
+        "/state/lastCompletedInvocation/summarizer/phase",
+        "/state/metrics/toolCalls/0/outcome",
+        "/state/schemaVersion"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/state/currentInvocation/invocationId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/state/currentInvocation/subtaskId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/state/currentInvocation/workspace/scopePaths/0",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/currentInvocation/workspace/scopePaths/1",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/invocationId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/subtaskId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/interactions/0/path",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/scopePaths/0",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/scopePaths/1",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/metrics/errors/0/message",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/metrics/finalOutcome",
+          "maxLength": 64
+        },
+        {
+          "pointer": "/state/metrics/toolCalls/0/error/message",
+          "maxLength": 4096
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/state/currentInvocation/invocationId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/currentInvocation/subtaskId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/currentInvocation/workspace/scopePaths/0",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/currentInvocation/workspace/scopePaths/1",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/invocationId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/subtaskId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/interactions/0/path",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/scopePaths/0",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/scopePaths/1",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/metrics/errors/0/message",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/metrics/finalOutcome",
+          "maxLength": 64,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/metrics/toolCalls/0/error/message",
+          "maxLength": 4096,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/state",
+        "/state/currentInvocation",
+        "/state/currentInvocation/compaction",
+        "/state/currentInvocation/metrics",
+        "/state/currentInvocation/summarizer",
+        "/state/currentInvocation/workspace",
+        "/state/lastCompletedInvocation",
+        "/state/lastCompletedInvocation/metrics",
+        "/state/lastCompletedInvocation/metrics/tools/read_file",
+        "/state/lastCompletedInvocation/summarizer",
+        "/state/lastCompletedInvocation/workspace",
+        "/state/lastCompletedInvocation/workspace/interactions/0",
+        "/state/metrics",
+        "/state/metrics/errors/0",
+        "/state/metrics/modelPhases",
+        "/state/metrics/modelPhases/compaction",
+        "/state/metrics/modelPhases/finalization",
+        "/state/metrics/modelPhases/main",
+        "/state/metrics/modelPhases/summarization",
+        "/state/metrics/toolCalls/0",
+        "/state/metrics/toolCalls/0/error",
+        "/state/metrics/workerBudget"
+      ],
+      "duplicateKey": [
+        "",
+        "/state",
+        "/state/currentInvocation",
+        "/state/currentInvocation/compaction",
+        "/state/currentInvocation/metrics",
+        "/state/currentInvocation/summarizer",
+        "/state/currentInvocation/workspace",
+        "/state/lastCompletedInvocation",
+        "/state/lastCompletedInvocation/metrics",
+        "/state/lastCompletedInvocation/metrics/tools",
+        "/state/lastCompletedInvocation/metrics/tools/read_file",
+        "/state/lastCompletedInvocation/summarizer",
+        "/state/lastCompletedInvocation/workspace",
+        "/state/lastCompletedInvocation/workspace/interactions/0",
+        "/state/metrics",
+        "/state/metrics/counters",
+        "/state/metrics/errors/0",
+        "/state/metrics/modelPhases",
+        "/state/metrics/modelPhases/compaction",
+        "/state/metrics/modelPhases/finalization",
+        "/state/metrics/modelPhases/main",
+        "/state/metrics/modelPhases/summarization",
+        "/state/metrics/toolCalls/0",
+        "/state/metrics/toolCalls/0/arguments",
+        "/state/metrics/toolCalls/0/error",
+        "/state/metrics/workerBudget"
+      ]
+    },
+    "agent-state-compaction-requested.json": {
+      "zero": [
+        "/state/lastCompletedInvocation/workspace/interactions/0/firstOrdinal",
+        "/state/lastCompletedInvocation/workspace/interactions/0/lastOrdinal",
+        "/state/metrics/workerBudget/maxModelCalls",
+        "/state/metrics/workerBudget/maxToolCalls",
+        "/state/metrics/workerBudget/maxTotalTokens",
+        "/state/schemaVersion",
+        "/state/stateRevision"
+      ],
+      "memberAliases": [
+        "/apiVersion",
+        "/state/currentInvocation",
+        "/state/currentInvocation/compaction/archiveReads",
+        "/state/currentInvocation/compaction/beforePrompt",
+        "/state/currentInvocation/compaction/inputBytes",
+        "/state/currentInvocation/compaction/invocationId",
+        "/state/currentInvocation/compaction/reasoningAvailable",
+        "/state/currentInvocation/compaction/reasoningIncluded",
+        "/state/currentInvocation/compaction/reasoningTruncated",
+        "/state/currentInvocation/compaction/summaryBytes",
+        "/state/currentInvocation/invocationId",
+        "/state/currentInvocation/metrics/cachedInputTokens",
+        "/state/currentInvocation/metrics/inputTokens",
+        "/state/currentInvocation/metrics/modelCalls",
+        "/state/currentInvocation/metrics/modelErrors",
+        "/state/currentInvocation/metrics/outputTokens",
+        "/state/currentInvocation/metrics/tokenUsageUnavailable",
+        "/state/currentInvocation/metrics/toolCalls",
+        "/state/currentInvocation/metrics/toolErrors",
+        "/state/currentInvocation/metrics/totalTokens",
+        "/state/currentInvocation/subtaskId",
+        "/state/currentInvocation/summarizer/inputTokens",
+        "/state/currentInvocation/summarizer/modelCalls",
+        "/state/currentInvocation/summarizer/outputTokens",
+        "/state/currentInvocation/summarizer/tokenUsageUnavailable",
+        "/state/currentInvocation/summarizer/totalTokens",
+        "/state/currentInvocation/workspace/detailComplete",
+        "/state/currentInvocation/workspace/scopeComplete",
+        "/state/currentInvocation/workspace/scopePaths",
+        "/state/lastCompletedInvocation",
+        "/state/lastCompletedInvocation/invocationId",
+        "/state/lastCompletedInvocation/metrics/cachedInputTokens",
+        "/state/lastCompletedInvocation/metrics/inputTokens",
+        "/state/lastCompletedInvocation/metrics/modelCalls",
+        "/state/lastCompletedInvocation/metrics/modelErrors",
+        "/state/lastCompletedInvocation/metrics/outputTokens",
+        "/state/lastCompletedInvocation/metrics/tokenUsageUnavailable",
+        "/state/lastCompletedInvocation/metrics/toolCalls",
+        "/state/lastCompletedInvocation/metrics/toolErrors",
+        "/state/lastCompletedInvocation/metrics/totalTokens",
+        "/state/lastCompletedInvocation/subtaskId",
+        "/state/lastCompletedInvocation/summarizer/inputTokens",
+        "/state/lastCompletedInvocation/summarizer/modelCalls",
+        "/state/lastCompletedInvocation/summarizer/outputTokens",
+        "/state/lastCompletedInvocation/summarizer/tokenUsageUnavailable",
+        "/state/lastCompletedInvocation/summarizer/totalTokens",
+        "/state/lastCompletedInvocation/workspace/detailComplete",
+        "/state/lastCompletedInvocation/workspace/interactions/0/discoveryCalls",
+        "/state/lastCompletedInvocation/workspace/interactions/0/firstOrdinal",
+        "/state/lastCompletedInvocation/workspace/interactions/0/lastOrdinal",
+        "/state/lastCompletedInvocation/workspace/interactions/0/matchCalls",
+        "/state/lastCompletedInvocation/workspace/interactions/0/mutationCalls",
+        "/state/lastCompletedInvocation/workspace/interactions/0/readCalls",
+        "/state/lastCompletedInvocation/workspace/scopeComplete",
+        "/state/lastCompletedInvocation/workspace/scopePaths",
+        "/state/metrics/finalOutcome",
+        "/state/metrics/modelPhases",
+        "/state/metrics/modelPhases/compaction/durationMs",
+        "/state/metrics/modelPhases/compaction/inputTokens",
+        "/state/metrics/modelPhases/compaction/modelCalls",
+        "/state/metrics/modelPhases/compaction/outputTokens",
+        "/state/metrics/modelPhases/compaction/tokenUsageUnavailable",
+        "/state/metrics/modelPhases/compaction/totalTokens",
+        "/state/metrics/modelPhases/finalization/durationMs",
+        "/state/metrics/modelPhases/finalization/inputTokens",
+        "/state/metrics/modelPhases/finalization/modelCalls",
+        "/state/metrics/modelPhases/finalization/outputTokens",
+        "/state/metrics/modelPhases/finalization/tokenUsageUnavailable",
+        "/state/metrics/modelPhases/finalization/totalTokens",
+        "/state/metrics/modelPhases/main/durationMs",
+        "/state/metrics/modelPhases/main/inputTokens",
+        "/state/metrics/modelPhases/main/modelCalls",
+        "/state/metrics/modelPhases/main/outputTokens",
+        "/state/metrics/modelPhases/main/tokenUsageUnavailable",
+        "/state/metrics/modelPhases/main/totalTokens",
+        "/state/metrics/modelPhases/summarization/inputTokens",
+        "/state/metrics/modelPhases/summarization/modelCalls",
+        "/state/metrics/modelPhases/summarization/outputTokens",
+        "/state/metrics/modelPhases/summarization/tokenUsageUnavailable",
+        "/state/metrics/modelPhases/summarization/totalTokens",
+        "/state/metrics/toolCalls",
+        "/state/metrics/toolCalls/0/argumentsTruncated",
+        "/state/metrics/toolCalls/0/callId",
+        "/state/metrics/toolCalls/0/durationMs",
+        "/state/metrics/toolCalls/0/resultSizeBytes",
+        "/state/metrics/workerBudget",
+        "/state/metrics/workerBudget/maxModelCalls",
+        "/state/metrics/workerBudget/maxToolCalls",
+        "/state/metrics/workerBudget/maxTotalTokens",
+        "/state/metrics/workerBudget/observedModelCalls",
+        "/state/metrics/workerBudget/observedToolCalls",
+        "/state/metrics/workerBudget/observedTotalTokens",
+        "/state/metrics/workerBudget/tokenUsageUnavailable",
+        "/state/schemaVersion",
+        "/state/stateRevision"
+      ],
+      "enum": [
+        "/apiVersion",
+        "/state/currentInvocation/compaction/phase",
+        "/state/currentInvocation/phase",
+        "/state/currentInvocation/summarizer/phase",
+        "/state/lastCompletedInvocation/phase",
+        "/state/lastCompletedInvocation/summarizer/phase",
+        "/state/metrics/toolCalls/0/outcome",
+        "/state/schemaVersion"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/state/currentInvocation/invocationId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/state/currentInvocation/subtaskId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/state/currentInvocation/workspace/scopePaths/0",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/currentInvocation/workspace/scopePaths/1",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/invocationId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/subtaskId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/interactions/0/path",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/scopePaths/0",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/scopePaths/1",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/metrics/errors/0/message",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/metrics/finalOutcome",
+          "maxLength": 64
+        },
+        {
+          "pointer": "/state/metrics/toolCalls/0/error/message",
+          "maxLength": 4096
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/state/currentInvocation/invocationId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/currentInvocation/subtaskId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/currentInvocation/workspace/scopePaths/0",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/currentInvocation/workspace/scopePaths/1",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/invocationId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/subtaskId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/interactions/0/path",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/scopePaths/0",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/scopePaths/1",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/metrics/errors/0/message",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/metrics/finalOutcome",
+          "maxLength": 64,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/metrics/toolCalls/0/error/message",
+          "maxLength": 4096,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/state",
+        "/state/currentInvocation",
+        "/state/currentInvocation/compaction",
+        "/state/currentInvocation/compaction/beforePrompt",
+        "/state/currentInvocation/metrics",
+        "/state/currentInvocation/summarizer",
+        "/state/currentInvocation/workspace",
+        "/state/lastCompletedInvocation",
+        "/state/lastCompletedInvocation/metrics",
+        "/state/lastCompletedInvocation/metrics/tools/read_file",
+        "/state/lastCompletedInvocation/summarizer",
+        "/state/lastCompletedInvocation/workspace",
+        "/state/lastCompletedInvocation/workspace/interactions/0",
+        "/state/metrics",
+        "/state/metrics/errors/0",
+        "/state/metrics/modelPhases",
+        "/state/metrics/modelPhases/compaction",
+        "/state/metrics/modelPhases/finalization",
+        "/state/metrics/modelPhases/main",
+        "/state/metrics/modelPhases/summarization",
+        "/state/metrics/toolCalls/0",
+        "/state/metrics/toolCalls/0/error",
+        "/state/metrics/workerBudget"
+      ],
+      "duplicateKey": [
+        "",
+        "/state",
+        "/state/currentInvocation",
+        "/state/currentInvocation/compaction",
+        "/state/currentInvocation/compaction/beforePrompt",
+        "/state/currentInvocation/metrics",
+        "/state/currentInvocation/summarizer",
+        "/state/currentInvocation/workspace",
+        "/state/lastCompletedInvocation",
+        "/state/lastCompletedInvocation/metrics",
+        "/state/lastCompletedInvocation/metrics/tools",
+        "/state/lastCompletedInvocation/metrics/tools/read_file",
+        "/state/lastCompletedInvocation/summarizer",
+        "/state/lastCompletedInvocation/workspace",
+        "/state/lastCompletedInvocation/workspace/interactions/0",
+        "/state/metrics",
+        "/state/metrics/counters",
+        "/state/metrics/errors/0",
+        "/state/metrics/modelPhases",
+        "/state/metrics/modelPhases/compaction",
+        "/state/metrics/modelPhases/finalization",
+        "/state/metrics/modelPhases/main",
+        "/state/metrics/modelPhases/summarization",
+        "/state/metrics/toolCalls/0",
+        "/state/metrics/toolCalls/0/arguments",
+        "/state/metrics/toolCalls/0/error",
+        "/state/metrics/workerBudget"
+      ]
+    },
+    "agent-state-compaction-running.json": {
+      "zero": [
+        "/state/lastCompletedInvocation/workspace/interactions/0/firstOrdinal",
+        "/state/lastCompletedInvocation/workspace/interactions/0/lastOrdinal",
+        "/state/metrics/workerBudget/maxModelCalls",
+        "/state/metrics/workerBudget/maxToolCalls",
+        "/state/metrics/workerBudget/maxTotalTokens",
+        "/state/schemaVersion",
+        "/state/stateRevision"
+      ],
+      "memberAliases": [
+        "/apiVersion",
+        "/state/currentInvocation",
+        "/state/currentInvocation/compaction/archiveReads",
+        "/state/currentInvocation/compaction/beforePrompt",
+        "/state/currentInvocation/compaction/inputBytes",
+        "/state/currentInvocation/compaction/invocationId",
+        "/state/currentInvocation/compaction/reasoningAvailable",
+        "/state/currentInvocation/compaction/reasoningIncluded",
+        "/state/currentInvocation/compaction/reasoningTruncated",
+        "/state/currentInvocation/compaction/summaryBytes",
+        "/state/currentInvocation/invocationId",
+        "/state/currentInvocation/metrics/cachedInputTokens",
+        "/state/currentInvocation/metrics/inputTokens",
+        "/state/currentInvocation/metrics/modelCalls",
+        "/state/currentInvocation/metrics/modelErrors",
+        "/state/currentInvocation/metrics/outputTokens",
+        "/state/currentInvocation/metrics/tokenUsageUnavailable",
+        "/state/currentInvocation/metrics/toolCalls",
+        "/state/currentInvocation/metrics/toolErrors",
+        "/state/currentInvocation/metrics/totalTokens",
+        "/state/currentInvocation/subtaskId",
+        "/state/currentInvocation/summarizer/inputTokens",
+        "/state/currentInvocation/summarizer/modelCalls",
+        "/state/currentInvocation/summarizer/outputTokens",
+        "/state/currentInvocation/summarizer/tokenUsageUnavailable",
+        "/state/currentInvocation/summarizer/totalTokens",
+        "/state/currentInvocation/workspace/detailComplete",
+        "/state/currentInvocation/workspace/scopeComplete",
+        "/state/currentInvocation/workspace/scopePaths",
+        "/state/lastCompletedInvocation",
+        "/state/lastCompletedInvocation/invocationId",
+        "/state/lastCompletedInvocation/metrics/cachedInputTokens",
+        "/state/lastCompletedInvocation/metrics/inputTokens",
+        "/state/lastCompletedInvocation/metrics/modelCalls",
+        "/state/lastCompletedInvocation/metrics/modelErrors",
+        "/state/lastCompletedInvocation/metrics/outputTokens",
+        "/state/lastCompletedInvocation/metrics/tokenUsageUnavailable",
+        "/state/lastCompletedInvocation/metrics/toolCalls",
+        "/state/lastCompletedInvocation/metrics/toolErrors",
+        "/state/lastCompletedInvocation/metrics/totalTokens",
+        "/state/lastCompletedInvocation/subtaskId",
+        "/state/lastCompletedInvocation/summarizer/inputTokens",
+        "/state/lastCompletedInvocation/summarizer/modelCalls",
+        "/state/lastCompletedInvocation/summarizer/outputTokens",
+        "/state/lastCompletedInvocation/summarizer/tokenUsageUnavailable",
+        "/state/lastCompletedInvocation/summarizer/totalTokens",
+        "/state/lastCompletedInvocation/workspace/detailComplete",
+        "/state/lastCompletedInvocation/workspace/interactions/0/discoveryCalls",
+        "/state/lastCompletedInvocation/workspace/interactions/0/firstOrdinal",
+        "/state/lastCompletedInvocation/workspace/interactions/0/lastOrdinal",
+        "/state/lastCompletedInvocation/workspace/interactions/0/matchCalls",
+        "/state/lastCompletedInvocation/workspace/interactions/0/mutationCalls",
+        "/state/lastCompletedInvocation/workspace/interactions/0/readCalls",
+        "/state/lastCompletedInvocation/workspace/scopeComplete",
+        "/state/lastCompletedInvocation/workspace/scopePaths",
+        "/state/metrics/finalOutcome",
+        "/state/metrics/modelPhases",
+        "/state/metrics/modelPhases/compaction/durationMs",
+        "/state/metrics/modelPhases/compaction/inputTokens",
+        "/state/metrics/modelPhases/compaction/modelCalls",
+        "/state/metrics/modelPhases/compaction/outputTokens",
+        "/state/metrics/modelPhases/compaction/tokenUsageUnavailable",
+        "/state/metrics/modelPhases/compaction/totalTokens",
+        "/state/metrics/modelPhases/finalization/durationMs",
+        "/state/metrics/modelPhases/finalization/inputTokens",
+        "/state/metrics/modelPhases/finalization/modelCalls",
+        "/state/metrics/modelPhases/finalization/outputTokens",
+        "/state/metrics/modelPhases/finalization/tokenUsageUnavailable",
+        "/state/metrics/modelPhases/finalization/totalTokens",
+        "/state/metrics/modelPhases/main/durationMs",
+        "/state/metrics/modelPhases/main/inputTokens",
+        "/state/metrics/modelPhases/main/modelCalls",
+        "/state/metrics/modelPhases/main/outputTokens",
+        "/state/metrics/modelPhases/main/tokenUsageUnavailable",
+        "/state/metrics/modelPhases/main/totalTokens",
+        "/state/metrics/modelPhases/summarization/inputTokens",
+        "/state/metrics/modelPhases/summarization/modelCalls",
+        "/state/metrics/modelPhases/summarization/outputTokens",
+        "/state/metrics/modelPhases/summarization/tokenUsageUnavailable",
+        "/state/metrics/modelPhases/summarization/totalTokens",
+        "/state/metrics/toolCalls",
+        "/state/metrics/toolCalls/0/argumentsTruncated",
+        "/state/metrics/toolCalls/0/callId",
+        "/state/metrics/toolCalls/0/durationMs",
+        "/state/metrics/toolCalls/0/resultSizeBytes",
+        "/state/metrics/workerBudget",
+        "/state/metrics/workerBudget/maxModelCalls",
+        "/state/metrics/workerBudget/maxToolCalls",
+        "/state/metrics/workerBudget/maxTotalTokens",
+        "/state/metrics/workerBudget/observedModelCalls",
+        "/state/metrics/workerBudget/observedToolCalls",
+        "/state/metrics/workerBudget/observedTotalTokens",
+        "/state/metrics/workerBudget/tokenUsageUnavailable",
+        "/state/schemaVersion",
+        "/state/stateRevision"
+      ],
+      "enum": [
+        "/apiVersion",
+        "/state/currentInvocation/compaction/phase",
+        "/state/currentInvocation/phase",
+        "/state/currentInvocation/summarizer/phase",
+        "/state/lastCompletedInvocation/phase",
+        "/state/lastCompletedInvocation/summarizer/phase",
+        "/state/metrics/toolCalls/0/outcome",
+        "/state/schemaVersion"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/state/currentInvocation/invocationId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/state/currentInvocation/subtaskId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/state/currentInvocation/workspace/scopePaths/0",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/currentInvocation/workspace/scopePaths/1",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/invocationId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/subtaskId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/interactions/0/path",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/scopePaths/0",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/scopePaths/1",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/metrics/errors/0/message",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/state/metrics/finalOutcome",
+          "maxLength": 64
+        },
+        {
+          "pointer": "/state/metrics/toolCalls/0/error/message",
+          "maxLength": 4096
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/state/currentInvocation/invocationId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/currentInvocation/subtaskId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/currentInvocation/workspace/scopePaths/0",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/currentInvocation/workspace/scopePaths/1",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/invocationId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/subtaskId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/interactions/0/path",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/scopePaths/0",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/lastCompletedInvocation/workspace/scopePaths/1",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/metrics/errors/0/message",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/metrics/finalOutcome",
+          "maxLength": 64,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/state/metrics/toolCalls/0/error/message",
+          "maxLength": 4096,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/state",
+        "/state/currentInvocation",
+        "/state/currentInvocation/compaction",
+        "/state/currentInvocation/compaction/beforePrompt",
+        "/state/currentInvocation/metrics",
+        "/state/currentInvocation/summarizer",
+        "/state/currentInvocation/workspace",
+        "/state/lastCompletedInvocation",
+        "/state/lastCompletedInvocation/metrics",
+        "/state/lastCompletedInvocation/metrics/tools/read_file",
+        "/state/lastCompletedInvocation/summarizer",
+        "/state/lastCompletedInvocation/workspace",
+        "/state/lastCompletedInvocation/workspace/interactions/0",
+        "/state/metrics",
+        "/state/metrics/errors/0",
+        "/state/metrics/modelPhases",
+        "/state/metrics/modelPhases/compaction",
+        "/state/metrics/modelPhases/finalization",
+        "/state/metrics/modelPhases/main",
+        "/state/metrics/modelPhases/summarization",
+        "/state/metrics/toolCalls/0",
+        "/state/metrics/toolCalls/0/error",
+        "/state/metrics/workerBudget"
+      ],
+      "duplicateKey": [
+        "",
+        "/state",
+        "/state/currentInvocation",
+        "/state/currentInvocation/compaction",
+        "/state/currentInvocation/compaction/beforePrompt",
+        "/state/currentInvocation/metrics",
+        "/state/currentInvocation/summarizer",
+        "/state/currentInvocation/workspace",
+        "/state/lastCompletedInvocation",
+        "/state/lastCompletedInvocation/metrics",
+        "/state/lastCompletedInvocation/metrics/tools",
+        "/state/lastCompletedInvocation/metrics/tools/read_file",
+        "/state/lastCompletedInvocation/summarizer",
+        "/state/lastCompletedInvocation/workspace",
+        "/state/lastCompletedInvocation/workspace/interactions/0",
+        "/state/metrics",
+        "/state/metrics/counters",
+        "/state/metrics/errors/0",
+        "/state/metrics/modelPhases",
+        "/state/metrics/modelPhases/compaction",
+        "/state/metrics/modelPhases/finalization",
+        "/state/metrics/modelPhases/main",
+        "/state/metrics/modelPhases/summarization",
+        "/state/metrics/toolCalls/0",
+        "/state/metrics/toolCalls/0/arguments",
+        "/state/metrics/toolCalls/0/error",
+        "/state/metrics/workerBudget"
+      ]
+    },
     "agent-state-snapshot.json": {
       "zero": [
         "/state/lastCompletedInvocation/workspace/interactions/0/firstOrdinal",
@@ -869,6 +2299,133 @@
         "/report/worker/metrics/summarizer",
         "/report/worker/toolCalls/0",
         "/report/worker/toolCalls/0/arguments",
+        "/report/worker/toolCalls/0/error"
+      ]
+    },
+    "allocation-final-response-compaction.json": {
+      "zero": [
+        "/report/worker/compaction/generation",
+        "/report/worker/compaction/inputBytes",
+        "/report/worker/compaction/summaryBytes",
+        "/report/worker/metrics/summarizer/attempts"
+      ],
+      "memberAliases": [
+        "/apiVersion",
+        "/report/allocationId",
+        "/report/finishedAt",
+        "/report/reportId",
+        "/report/runtime/durationMs",
+        "/report/runtime/stopReason",
+        "/report/startedAt",
+        "/report/worker/compaction/afterPrompt",
+        "/report/worker/compaction/archiveReads",
+        "/report/worker/compaction/beforePrompt",
+        "/report/worker/compaction/inputBytes",
+        "/report/worker/compaction/invocationId",
+        "/report/worker/compaction/reasoningAvailable",
+        "/report/worker/compaction/reasoningIncluded",
+        "/report/worker/compaction/reasoningTruncated",
+        "/report/worker/compaction/summaryBytes",
+        "/report/worker/metrics/durationMs",
+        "/report/worker/metrics/modelCalls",
+        "/report/worker/metrics/modelPhases",
+        "/report/worker/metrics/modelPhases/compaction/durationMs",
+        "/report/worker/metrics/modelPhases/compaction/inputTokens",
+        "/report/worker/metrics/modelPhases/compaction/modelCalls",
+        "/report/worker/metrics/modelPhases/compaction/outputTokens",
+        "/report/worker/metrics/modelPhases/compaction/tokenUsageUnavailable",
+        "/report/worker/metrics/modelPhases/compaction/totalTokens",
+        "/report/worker/metrics/modelPhases/finalization/durationMs",
+        "/report/worker/metrics/modelPhases/finalization/inputTokens",
+        "/report/worker/metrics/modelPhases/finalization/modelCalls",
+        "/report/worker/metrics/modelPhases/finalization/outputTokens",
+        "/report/worker/metrics/modelPhases/finalization/tokenUsageUnavailable",
+        "/report/worker/metrics/modelPhases/finalization/totalTokens",
+        "/report/worker/metrics/modelPhases/main/durationMs",
+        "/report/worker/metrics/modelPhases/main/inputTokens",
+        "/report/worker/metrics/modelPhases/main/modelCalls",
+        "/report/worker/metrics/modelPhases/main/outputTokens",
+        "/report/worker/metrics/modelPhases/main/tokenUsageUnavailable",
+        "/report/worker/metrics/modelPhases/main/totalTokens",
+        "/report/worker/metrics/modelPhases/summarization/inputTokens",
+        "/report/worker/metrics/modelPhases/summarization/modelCalls",
+        "/report/worker/metrics/modelPhases/summarization/outputTokens",
+        "/report/worker/metrics/modelPhases/summarization/tokenUsageUnavailable",
+        "/report/worker/metrics/modelPhases/summarization/totalTokens",
+        "/report/worker/metrics/summarizer/failureCodes",
+        "/report/worker/metrics/summarizer/inputTokens",
+        "/report/worker/metrics/summarizer/modelCalls",
+        "/report/worker/metrics/summarizer/outputTokens",
+        "/report/worker/metrics/summarizer/tokenUsageUnavailable",
+        "/report/worker/metrics/summarizer/totalTokens",
+        "/report/worker/reportId",
+        "/report/worker/toolCalls",
+        "/report/worker/toolCalls/0/argumentsTruncated",
+        "/report/worker/toolCalls/0/callId"
+      ],
+      "enum": [
+        "/apiVersion",
+        "/report/worker/compaction/phase",
+        "/report/worker/toolCalls/0/outcome"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/report/worker/errors/0/message",
+          "maxLength": 4096
+        },
+        {
+          "pointer": "/report/worker/toolCalls/0/error/message",
+          "maxLength": 4096
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/report/worker/errors/0/message",
+          "maxLength": 4096,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/report/worker/toolCalls/0/error/message",
+          "maxLength": 4096,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/report",
+        "/report/runtime",
+        "/report/worker",
+        "/report/worker/compaction",
+        "/report/worker/compaction/afterPrompt",
+        "/report/worker/compaction/beforePrompt",
+        "/report/worker/errors/0",
+        "/report/worker/metrics",
+        "/report/worker/metrics/modelPhases",
+        "/report/worker/metrics/modelPhases/compaction",
+        "/report/worker/metrics/modelPhases/finalization",
+        "/report/worker/metrics/modelPhases/main",
+        "/report/worker/metrics/modelPhases/summarization",
+        "/report/worker/metrics/summarizer",
+        "/report/worker/toolCalls/0",
+        "/report/worker/toolCalls/0/error"
+      ],
+      "duplicateKey": [
+        "",
+        "/report",
+        "/report/runtime",
+        "/report/worker",
+        "/report/worker/compaction",
+        "/report/worker/compaction/afterPrompt",
+        "/report/worker/compaction/beforePrompt",
+        "/report/worker/errors/0",
+        "/report/worker/metrics",
+        "/report/worker/metrics/modelPhases",
+        "/report/worker/metrics/modelPhases/compaction",
+        "/report/worker/metrics/modelPhases/finalization",
+        "/report/worker/metrics/modelPhases/main",
+        "/report/worker/metrics/modelPhases/summarization",
+        "/report/worker/metrics/summarizer",
+        "/report/worker/toolCalls/0",
         "/report/worker/toolCalls/0/error"
       ]
     },

@@ -1770,3 +1770,16 @@ strings and integer units; display rounding never changes totals. Failed reads
 keep last-known data, back off under the common polling rule, and offer retry.
 Settled work stops polling after an independent terminal refresh. Shared fonts,
 colours and controls apply in light, dark and black themes at 390 px and above.
+
+
+**UI-R240.** Run diagnostics display compaction generation, confirmed phase,
+before/after main prompt observations and numeric model phase costs
+(WRK-R196–R197). The continuing message «Контекст сжат, работа продолжается»
+requires a confirmed applied observation, a running attempt and a fresh
+successful read. Settled or stale observations never claim continuing work.
+Missing measurements are explicit; no savings are estimated from byte counts.
+Details contain counters and role usage; the ordinary Run cost report owns
+monetary costs. Visible active diagnostic pages poll every three seconds,
+back off failed reads to thirty seconds, and refetch on terminal transitions
+before stopping. Existing 390-pixel layout, light/dark/black tokens and controls
+apply; no transcript or unbounded cycle list is exposed.

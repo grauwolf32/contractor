@@ -16,9 +16,11 @@ from contractor_runtime.adapters import RuntimeInstrumentation, RuntimeSpan
 from contractor_runtime.adapters.content import capture_span_content, model_request_content
 from contractor_runtime.adapters.genai import usage_attributes
 from contractor_runtime.adapters.instrumentation import end_isolated_span, start_isolated_span
+from contractor_runtime.contracts.llm_cost import CostPhase
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.tool_errors import ToolExecutionError, ToolResultDiagnostic
 from contractor_runtime.llm.response import model_response_failed, output_limit_reached
+from contractor_runtime.llm.usage import project_token_usage
 from contractor_runtime.observations import WorkspaceToolObservation
 from contractor_runtime.telemetry.invocations import InvocationMetricsReducer
 from contractor_runtime.telemetry.metrics import (
@@ -61,6 +63,8 @@ class ToolHistory(Protocol):
 
 
 class CompactionTrigger(Protocol):
+    generation: int
+
     def should_compact(self, latest_prompt_tokens: int | None) -> bool: ...
 
     def after_main_response(self, latest_prompt_tokens: int | None) -> None: ...
@@ -132,6 +136,8 @@ class WorkerInstrumentationPlugin(BasePlugin):
         summarizer_enabled: bool = False,
         compaction: CompactionTrigger | None = None,
         completion_ready: Callable[[], Awaitable[bool]] | None = None,
+        clock: Callable[[], float] = time.monotonic,
+        compactor_model_alias: str | None = None,
     ) -> None:
         super().__init__(name="contractor_worker_instrumentation")
         self._state = state
@@ -148,6 +154,8 @@ class WorkerInstrumentationPlugin(BasePlugin):
         self._summarizer_enabled = summarizer_enabled
         self._compaction = compaction
         self._completion_ready = completion_ready
+        self._clock = clock
+        self._compactor_model_alias = compactor_model_alias
         self._lock = asyncio.Lock()
         self._prepared: tuple[str, str] | None = None
         self._continuation: tuple[str, str] | None = None
@@ -158,7 +166,9 @@ class WorkerInstrumentationPlugin(BasePlugin):
         self._invocation_metrics: InvocationMetricsReducer | None = None
         self._workspace_observations: WorkspaceObservationReducer | None = None
         self._pending_models: list[RuntimeSpan | None] = []
+        self._model_observations: list[tuple[float, int]] = []
         self._pending_auxiliary_models: dict[str, RuntimeSpan | None] = {}
+        self._auxiliary_started: dict[str, float] = {}
         self._pending_tools: dict[int, _PendingTool] = {}
         self._settling_tools: set[int] = set()
         self._next_tool_ordinal = 1
@@ -245,7 +255,9 @@ class WorkerInstrumentationPlugin(BasePlugin):
             self._workspace_observations = workspace_observations
             self._projection_failed = self._projection_failed or workspace_projection_failed
             self._pending_models.clear()
+            self._model_observations.clear()
             self._pending_auxiliary_models.clear()
+            self._auxiliary_started.clear()
             self._pending_tools.clear()
             self._next_tool_ordinal = 1
             snapshot = await self._state.begin_invocation(
@@ -254,6 +266,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 metrics=self._invocation_metrics.snapshot(),
                 workspace=self._workspace_snapshot(),
                 summarizer_enabled=self._summarizer_enabled,
+                compaction_enabled=self._compaction is not None,
             )
             _install_session_snapshot(invocation_context, snapshot)
 
@@ -304,6 +317,9 @@ class WorkerInstrumentationPlugin(BasePlugin):
                     },
                 )
             )
+            self._model_observations.append(
+                (self._clock(), self._compaction.generation if self._compaction is not None else 0)
+            )
             capture_span_content(
                 self._pending_models[-1], input=lambda: model_request_content(llm_request)
             )
@@ -320,6 +336,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 if function_call is not None and not function_call.id:
                     function_call.id = f"contractor-tool-{uuid.uuid4().hex}"
             span = self._pending_models.pop(0)
+            response_generation = self._finish_main_observation()
             usage = llm_response.usage_metadata
             capture_span_content(span, output=lambda: llm_response.content)
             self._metrics.record_model_usage(usage)
@@ -352,7 +369,15 @@ class WorkerInstrumentationPlugin(BasePlugin):
                     # Unwind before ADK can execute any call in this response.
                     raise failure
             finally:
-                await self._publish_locked(callback_context)
+                await self._publish_locked(
+                    callback_context,
+                    compaction_prompt=(
+                        response_generation,
+                        project_token_usage(usage).prompt_tokens,
+                    )
+                    if self._compaction is not None and response_generation > 0
+                    else None,
+                )
 
     async def on_model_error_callback(
         self,
@@ -367,6 +392,8 @@ class WorkerInstrumentationPlugin(BasePlugin):
             if not self._pending_models:
                 return
             span = self._pending_models.pop(0)
+            response_generation = self._finish_main_observation()
+            compaction_prompt = None
             try:
                 received, usage = _rejected_response_usage(error)
                 end_isolated_span(
@@ -381,30 +408,35 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 self._require_reducer().record_model_error()
                 if received:
                     self._record_spent_usage_locked(usage)
+                    if self._compaction is not None and response_generation > 0:
+                        compaction_prompt = (
+                            response_generation,
+                            project_token_usage(usage).prompt_tokens,
+                        )
             finally:
-                await self._publish_locked(callback_context)
+                await self._publish_locked(callback_context, compaction_prompt=compaction_prompt)
 
     async def before_result_finalizer_call(self, *, invocation_id: str) -> None:
         """Account the isolated ADK finalizer in the normal Worker budget."""
 
-        await self._before_auxiliary_call("result_finalizer", invocation_id)
+        await self._before_auxiliary_call("finalization", invocation_id)
 
     async def after_result_finalizer_call(self, *, invocation_id: str, usage: Any | None) -> None:
-        await self._after_auxiliary_call("result_finalizer", invocation_id, usage)
+        await self._after_auxiliary_call("finalization", invocation_id, usage)
 
     async def on_result_finalizer_error(self, *, invocation_id: str, error: BaseException) -> None:
-        await self._on_auxiliary_error("result_finalizer", invocation_id, error)
+        await self._on_auxiliary_error("finalization", invocation_id, error)
 
     async def before_context_compactor_call(self, *, invocation_id: str) -> None:
         """Account one compactor call in the owning invocation (WRK-R186)."""
 
-        await self._before_auxiliary_call("context_compactor", invocation_id)
+        await self._before_auxiliary_call("compaction", invocation_id)
 
     async def after_context_compactor_call(self, *, invocation_id: str, usage: Any | None) -> None:
-        await self._after_auxiliary_call("context_compactor", invocation_id, usage)
+        await self._after_auxiliary_call("compaction", invocation_id, usage)
 
     async def on_context_compactor_error(self, *, invocation_id: str, error: BaseException) -> None:
-        await self._on_auxiliary_error("context_compactor", invocation_id, error)
+        await self._on_auxiliary_error("compaction", invocation_id, error)
 
     async def _before_auxiliary_call(self, phase: str, invocation_id: str) -> None:
         async with self._lock:
@@ -416,14 +448,21 @@ class WorkerInstrumentationPlugin(BasePlugin):
             budget = self._budget()
             if budget is not None:
                 budget.before_model_call()
-            self._metrics.record_model_call()
+            self._metrics.record_model_call(phase=phase)
             self._require_reducer().record_model_call()
+            self._auxiliary_started[phase] = self._clock()
             self._pending_auxiliary_models[phase] = start_isolated_span(
                 self._instrumentation,
                 "contractor.worker.model",
                 {
                     "operation.kind": "model",
-                    "model.alias": self._model_alias,
+                    **(
+                        {"model.alias": self._compactor_model_alias}
+                        if phase == "compaction" and self._compactor_model_alias is not None
+                        else {"model.alias": self._model_alias}
+                        if phase == "finalization"
+                        else {}
+                    ),
                     "model.phase": phase,
                 },
             )
@@ -434,6 +473,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 # Close its partial registration under this lock, without another
                 # publication/await that cancellation could interrupt again.
                 span = self._pending_auxiliary_models.pop(phase)
+                self._finish_auxiliary_observation(phase)
                 end_isolated_span(span, outcome="cancelled", attributes={"model.phase": phase})
                 raise
 
@@ -444,7 +484,8 @@ class WorkerInstrumentationPlugin(BasePlugin):
             if not self._is_active(invocation_id) or phase not in self._pending_auxiliary_models:
                 raise RuntimeError("Worker auxiliary model completion is stale")
             span = self._pending_auxiliary_models.pop(phase)
-            self._metrics.record_model_usage(usage)
+            self._finish_auxiliary_observation(phase)
+            self._metrics.record_model_usage(usage, phase=phase)
             self._require_reducer().record_model_usage(usage)
             end_isolated_span(
                 span,
@@ -465,7 +506,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
         async with self._lock:
             if not self._is_active(invocation_id):
                 return
-            span = self._pending_auxiliary_models.get("result_finalizer")
+            span = self._pending_auxiliary_models.get("finalization")
             capture_span_content(
                 span,
                 input=(lambda: input) if input is not None else None,
@@ -479,6 +520,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
             if not self._is_active(invocation_id) or phase not in self._pending_auxiliary_models:
                 return
             span = self._pending_auxiliary_models.pop(phase)
+            self._finish_auxiliary_observation(phase)
             try:
                 if isinstance(error, asyncio.CancelledError):
                     end_isolated_span(span, outcome="cancelled", attributes={"model.phase": phase})
@@ -499,7 +541,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
                     self._metrics.record_model_error(safe_error)
                     self._require_reducer().record_model_error()
                     if received:
-                        self._record_spent_usage_locked(usage)
+                        self._record_spent_usage_locked(usage, phase=phase)
             finally:
                 await self._publish_locked(None)
 
@@ -693,17 +735,26 @@ class WorkerInstrumentationPlugin(BasePlugin):
             raise error
         return response
 
-    def _record_spent_usage_locked(self, usage: Any | None) -> None:
+    def _record_spent_usage_locked(self, usage: Any | None, *, phase: CostPhase = "main") -> None:
         """Account a Gateway response that was received but rejected.
 
         The provider already spent these tokens, exactly as for an accepted
         response; the budget may therefore report exhaustion.
         """
-        self._metrics.record_model_usage(usage)
+        self._metrics.record_model_usage(usage, phase=phase)
         self._require_reducer().record_model_usage(usage)
         budget = self._budget()
         if budget is not None:
-            budget.after_model_response(usage)
+            budget.after_model_response(usage, record_prompt=phase == "main")
+
+    def _finish_main_observation(self) -> int:
+        started, generation = self._model_observations.pop(0)
+        self._metrics.record_model_duration("main", int(max(0, self._clock() - started) * 1000))
+        return generation
+
+    def _finish_auxiliary_observation(self, phase: str) -> None:
+        started = self._auxiliary_started.pop(phase)
+        self._metrics.record_model_duration(phase, int(max(0, self._clock() - started) * 1000))
 
     async def record_unhandled_model_error(self, error: Exception) -> None:
         async with self._lock:
@@ -728,9 +779,11 @@ class WorkerInstrumentationPlugin(BasePlugin):
             if self._settling_tools:
                 raise RuntimeError("Worker tool history is still settling")
             while self._pending_models:
+                self._finish_main_observation()
                 end_isolated_span(self._pending_models.pop(0), outcome="cancelled")
             for auxiliary_phase, span in tuple(self._pending_auxiliary_models.items()):
                 self._pending_auxiliary_models.pop(auxiliary_phase, None)
+                self._finish_auxiliary_observation(auxiliary_phase)
                 end_isolated_span(
                     span, outcome="cancelled", attributes={"model.phase": auxiliary_phase}
                 )
@@ -776,9 +829,11 @@ class WorkerInstrumentationPlugin(BasePlugin):
             self._prepared = None
             self._continuation = None
             while self._pending_models:
+                self._finish_main_observation()
                 end_isolated_span(self._pending_models.pop(0), outcome="cancelled")
             for auxiliary_phase, span in tuple(self._pending_auxiliary_models.items()):
                 self._pending_auxiliary_models.pop(auxiliary_phase, None)
+                self._finish_auxiliary_observation(auxiliary_phase)
                 end_isolated_span(
                     span, outcome="cancelled", attributes={"model.phase": auxiliary_phase}
                 )
@@ -902,7 +957,12 @@ class WorkerInstrumentationPlugin(BasePlugin):
             reset_tool_metric_correlation(token)
         return failed
 
-    async def _publish_locked(self, callback_context: Any | None) -> None:
+    async def _publish_locked(
+        self,
+        callback_context: Any | None,
+        *,
+        compaction_prompt: tuple[int, int | None] | None = None,
+    ) -> None:
         active = self._active_invocation_id
         reducer = self._invocation_metrics
         if active is None or reducer is None:
@@ -912,6 +972,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 invocation_id=active,
                 metrics=reducer.snapshot(),
                 workspace=self._workspace_snapshot(),
+                compaction_prompt=compaction_prompt,
             )
         except Exception:
             # Optional live projection cannot change a tool/model result. The

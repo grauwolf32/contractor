@@ -138,3 +138,58 @@ func TestRuntimeDiagnosticsPostgresBoundsOwnershipGenerationAndRetainedAuthority
 		t.Fatal("unavailable real store became a successful diagnostic read")
 	}
 }
+
+type progressReader struct {
+	calls int
+	fail  bool
+}
+
+func (r *progressReader) ReadWorkerProgress(_ context.Context, run, stage, allocation, name string) (*reporting.WorkerCompactionProgress, *reporting.WorkerModelPhases, error) {
+	r.calls++
+	if r.fail {
+		return nil, nil, errors.New("State unavailable")
+	}
+	if run != "run-telemetry" || stage != "live-stage" || allocation != "live-allocation" || name != "builder" {
+		return nil, nil, errors.New("incorrect authority")
+	}
+	return &reporting.WorkerCompactionProgress{InvocationID: "worker-1", Phase: "idle"}, nil, nil
+}
+
+func TestLiveWorkerDiagnosticsUseExactOwnedPageAndReleasePoolBeforeIO(t *testing.T) {
+	ctx := t.Context()
+	pool := isolatedTelemetryPool(t, ctx)
+	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
+	createTelemetryRun(t, ctx, runs)
+	stage := createTelemetryStage(t, ctx, runs, "live-stage", "live-allocation", "live-session")
+	reader := &progressReader{}
+	reports := telemetry.NewRepository(pool).WithWorkerProgressReader(reader)
+	params := telemetry.RuntimeDiagnosticParams{OwnerID: "foreign", RunID: "run-telemetry", StageExecutionID: stage, Limit: 1}
+	if _, err := reports.ReadRuntimeDiagnostics(ctx, params); !errors.Is(err, telemetry.ErrNotFound) || reader.calls != 0 {
+		t.Fatalf("foreign read reached Runtime: %v", err)
+	}
+	params.OwnerID = "user"
+	page, err := reports.ReadRuntimeDiagnostics(ctx, params)
+	if err != nil || len(page.Items) != 1 || page.Items[0].Compaction == nil || page.Items[0].Complete != nil || page.Items[0].Status != "unavailable" || page.More {
+		t.Fatalf("live facts: %+v %v", page, err)
+	}
+	reader.fail = true
+	if _, err := reports.ReadRuntimeDiagnostics(ctx, params); err == nil {
+		t.Fatal("State transport failure became success")
+	}
+	reader.fail = false
+	// A final report takes precedence: live State is no longer consulted.
+	final := allocationEnvelope(stage, "live-allocation", time.Now().UTC(), true)
+	final.Report.Worker.Compaction = &reporting.WorkerCompactionProgress{InvocationID: "worker-1", Phase: "applied", Generation: 1, Attempts: 1, InputBytes: 100, SummaryBytes: 20, BeforePrompt: &reporting.CompactionPromptMeasurement{Generation: 0}, AfterPrompt: &reporting.CompactionPromptMeasurement{Generation: 1}}
+	final.Report.Worker.Metrics.ModelPhases = &reporting.WorkerModelPhases{Compaction: reporting.WorkerModelUsage{ModelCalls: 1, TokenUsageUnavailable: 1}}
+	if err := reports.RecordAllocationReport(ctx, final); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reports.RebuildStageMetrics(ctx, stage, contracts.APIVersion); err != nil {
+		t.Fatal(err)
+	}
+	calls := reader.calls
+	page, err = reports.ReadRuntimeDiagnostics(ctx, params)
+	if err != nil || reader.calls != calls || page.Items[0].Complete == nil || page.Items[0].Compaction == nil || page.Items[0].Compaction.Generation != 1 || page.Items[0].ModelPhases == nil || page.Items[0].ModelPhases.Compaction.ModelCalls != 1 {
+		t.Fatalf("retained report precedence: %+v %v", page, err)
+	}
+}

@@ -105,6 +105,7 @@ class _Group:
     evidence_size: int = 0
     reasoning_bytes: int = 0
     reasoning_truncated: bool = False
+    reasoning_available: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,6 +114,7 @@ class _GroupProjection:
     evidence_size: int
     reasoning_bytes: int
     reasoning_truncated: bool
+    reasoning_available: bool
 
 
 def _dump(value: Any) -> str:
@@ -130,7 +132,12 @@ def _project_group_events(
     projected: list[dict[str, Any]] = []
     reasoning_bytes = 0
     reasoning_truncated = False
+    reasoning_available = False
     for event in events:
+        reasoning_available = reasoning_available or any(
+            part.thought and bool(part.text)
+            for part in ((event.content.parts or []) if event.content is not None else [])
+        )
         value = _project_event(event, secrets, include_reasoning=include_reasoning)
         reasoning_truncated = reasoning_truncated or value.reasoning_truncated
         if value.event is None:
@@ -145,7 +152,11 @@ def _project_group_events(
     projection = _dump(projected)
     evidence = _dump(_without_reasoning(projected)) if reasoning_bytes else projection
     return _GroupProjection(
-        projection, len(evidence.encode("utf-8")), reasoning_bytes, reasoning_truncated
+        projection,
+        len(evidence.encode("utf-8")),
+        reasoning_bytes,
+        reasoning_truncated,
+        reasoning_available,
     )
 
 
@@ -246,6 +257,7 @@ class ContextArchive:
                 size=size,
                 evidence_size=projected.evidence_size + _GROUP_OVERHEAD_BYTES,
                 reasoning_bytes=projected.reasoning_bytes,
+                reasoning_available=projected.reasoning_available,
                 reasoning_truncated=projected.reasoning_truncated,
             )
         )
@@ -276,6 +288,9 @@ class CheckpointPlan:
     document: str
     source_bytes: int
     groups_seen: int
+    reasoning_available: int = 0
+    reasoning_included: int = 0
+    reasoning_truncated: int = 0
 
 
 class CompactionCoordinator:
@@ -423,6 +438,14 @@ class CompactionCoordinator:
             source_bytes=sum(group.evidence_size for group in selected)
             + len(self._memory.encode("utf-8")),
             groups_seen=len(groups),
+            reasoning_available=sum(group.reasoning_available for group in selected),
+            reasoning_included=len(admitted),
+            reasoning_truncated=sum(
+                group.reasoning_available
+                and include_reasoning
+                and (group.reasoning_truncated or group.ordinal not in admitted)
+                for group in selected
+            ),
         )
 
     def validate_summary(self, plan: CheckpointPlan, candidate: str | None) -> str:

@@ -15,7 +15,8 @@ WITH owned AS MATERIALIZED (
     SELECT stage.terminal_at IS NOT NULL AS terminal,
            metrics.metrics_schema_version, metrics.updated_at,
            metrics.xmin::text AS tuple_generation,
-           metrics.metrics->'runtime' AS runtime
+           metrics.metrics->'runtime' AS runtime,
+           metrics.metrics->'workers' AS workers
     FROM stage_executions stage
     JOIN workflow_runs run USING (run_id)
     LEFT JOIN stage_metrics metrics USING (stage_execution_id)
@@ -29,7 +30,8 @@ WITH owned AS MATERIALIZED (
     SELECT owned.terminal, owned.metrics_schema_version, owned.updated_at,
            owned.tuple_generation, jsonb_typeof(owned.runtime) AS runtime_kind,
            EXISTS (SELECT 1 FROM participant_names WHERE key !~ $7 OR octet_length(key) > $8) AS invalid_names,
-           participant.key, owned.runtime->participant.key AS value
+           participant.key, owned.runtime->participant.key AS value,
+           owned.workers->participant.key AS worker
     FROM owned
     LEFT JOIN LATERAL (
         SELECT key
@@ -40,6 +42,10 @@ WITH owned AS MATERIALIZED (
 ), projected AS MATERIALIZED (
     SELECT terminal, metrics_schema_version, updated_at, tuple_generation,
         runtime_kind, invalid_names, key,
+        CASE WHEN worker ? 'compaction' THEN jsonb_build_object('compaction', worker->'compaction')
+            ELSE '{}'::jsonb END ||
+        CASE WHEN worker ? 'metrics' AND worker->'metrics' ? 'modelPhases'
+            THEN jsonb_build_object('modelPhases', worker->'metrics'->'modelPhases') ELSE '{}'::jsonb END AS progress,
         (CASE WHEN jsonb_typeof(value->'stopReason') = 'string'
         THEN jsonb_set(value, '{stopReason}', to_jsonb(left(value->>'stopReason', 4096)))
         ELSE value END)::text AS document,
@@ -49,6 +55,23 @@ WITH owned AS MATERIALIZED (
 SELECT terminal, metrics_schema_version, updated_at, tuple_generation,
        runtime_kind, key,
        CASE WHEN octet_length(document) <= $6 THEN document END,
-       stop_truncated, invalid_names
+       stop_truncated, invalid_names,
+       CASE WHEN octet_length(progress::text) <= 8192 THEN progress::text END
 FROM projected ORDER BY key COLLATE "C" NULLS FIRST
+`
+
+// liveWorkerDiagnosticPageSQL selects at most one existing diagnostic page of
+// unreleased allocations, through the same exact owner/Run/Stage authority.
+// Stage tuple changes fence continuation cursors; no Runtime address is read.
+const liveWorkerDiagnosticPageSQL = `
+SELECT allocation.allocation_id, allocation.logical_agent_name,
+       stage.xmin::text
+FROM stage_allocations allocation
+JOIN stage_executions stage USING (stage_execution_id)
+JOIN workflow_runs run USING (run_id)
+WHERE run.owner_id = $1 AND run.run_id = $2
+  AND stage.stage_execution_id = $3 AND stage.terminal_at IS NULL
+  AND allocation.release_completed_at IS NULL
+  AND allocation.logical_agent_name COLLATE "C" > $4 COLLATE "C"
+ORDER BY allocation.logical_agent_name COLLATE "C" LIMIT $5
 `

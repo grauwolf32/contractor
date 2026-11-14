@@ -1378,3 +1378,18 @@ These properties follow from the cited requirements, which are authoritative.
 - Metadata labels as metric dimensions (OBS-R108).
 - Route-specific HTTP metric breakdowns, owned by
   [Operations](../operations/operations.md).
+
+
+**OBS-R126.** Worker compaction diagnostics follow WRK-R196–R197. State,
+ExecutionReport and public projections carry only closed numeric observations;
+OBS-R54–R60 independently govern enabled telemetry content and credential
+redaction. The Runtime diagnostic page retains final observations and can read live numeric State while retained reports are pending:
+first authorize the exact owner/Run/Stage, select at most the ordinary page
+limit of unreleased allocations, release database resources, then read State
+through Control Plane with a shared three-second request deadline. Recheck
+live allocation authority after I/O. No report/lifecycle write or State cache
+is created. A missing/not-yet-prepared/released allocation has no observation;
+transport or malformed-State failure fails the read through the existing safe
+retryable internal error boundary. Retained reports take precedence. Compaction is not duplicated in the generic
+attempt-error list. Ongoing
+State disappears on release; final safe report metadata follows Run retention.

@@ -50,6 +50,7 @@ type WorkerSummarizerMetrics struct {
 }
 
 type ExecutionMetrics struct {
+	ModelPhases  *WorkerModelPhases       `json:"modelPhases,omitempty"`
 	LLMCost      *LLMCost                 `json:"llmCost,omitempty"`
 	DurationMS   *int64                   `json:"durationMs,omitempty"`
 	ModelCalls   *int64                   `json:"modelCalls,omitempty"`
@@ -203,6 +204,7 @@ type ToolCallRecord struct {
 }
 
 type ExecutionReport struct {
+	Compaction *WorkerCompactionProgress    `json:"compaction,omitempty"`
 	Completion *WorkerCompletionDiagnostics `json:"completion,omitempty"`
 	ReportID   string                       `json:"reportId" strictjson:"required"`
 	Complete   bool                         `json:"complete" strictjson:"required"`
@@ -330,6 +332,11 @@ func metricIntegerInRange(value int64) bool {
 }
 
 func (r ExecutionReport) validate(received bool) error {
+	if r.Compaction != nil {
+		if err := r.Compaction.Validate(); err != nil {
+			return err
+		}
+	}
 	if r.Completion != nil {
 		if err := r.Completion.Validate(); err != nil {
 			return err
@@ -403,6 +410,11 @@ func (r ExecutionReport) validate(received bool) error {
 // between 0 and 2^53-1 (OBS-R111), and the Worker budget and the summarizer
 // aggregate are consistent.
 func (m ExecutionMetrics) Validate() error {
+	if m.ModelPhases != nil {
+		if err := m.ModelPhases.Validate(); err != nil {
+			return err
+		}
+	}
 	if m.LLMCost != nil {
 		if err := m.LLMCost.Validate(); err != nil {
 			return err

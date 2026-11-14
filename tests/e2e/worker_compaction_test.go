@@ -239,6 +239,27 @@ func workerCompactionSelectionScenario(t *testing.T, layer string) {
 		budget.ObservedToolCalls != 5 || report.Report.Worker.Metrics.Summarizer != nil {
 		t.Fatalf("trusted compaction Worker report = %+v", report.Report.Worker)
 	}
+	// Public diagnostics consume the same final observation as the report;
+	// phase counters are breakdowns of the nine charged calls.
+	var diagnostics struct {
+		Status string                        `json:"status"`
+		Items  []telemetry.RuntimeDiagnostic `json:"items"`
+		Page   json.RawMessage               `json:"page"`
+	}
+	getAuthenticatedJSON(t, publicClient, publicBaseURL+"/v1/runs/"+runID+"/attempts/"+completed.StageExecutionID+"/runtime-diagnostics", &diagnostics)
+	if diagnostics.Status != "available" || len(diagnostics.Items) != 1 {
+		t.Fatalf("public Runtime diagnostics: %+v", diagnostics)
+	}
+	progress, phases := diagnostics.Items[0].Compaction, diagnostics.Items[0].ModelPhases
+	if progress == nil || progress.Generation != 2 || progress.Attempts != 2 || progress.Failures != 0 || progress.Phase != "applied" ||
+		progress.BeforePrompt == nil || progress.BeforePrompt.Generation != 1 ||
+		progress.AfterPrompt == nil || progress.AfterPrompt.Generation != 2 || progress.AfterPrompt.PromptTokens == nil ||
+		phases == nil || phases.Main.ModelCalls != 6 || phases.Compaction.ModelCalls != 2 || phases.Finalization.ModelCalls != 1 || phases.Summarization.ModelCalls != 0 {
+		t.Fatalf("public compaction observation: progress=%+v phases=%+v", progress, phases)
+	}
+	if phases.Main.TotalTokens+phases.Compaction.TotalTokens+phases.Finalization.TotalTokens != uint64(gateway.TotalTokens()) {
+		t.Fatal("public model phase usage was duplicated or lost")
+	}
 
 	// The immutable Stage snapshot carries the exact compact@1 pins.
 	var stage resolved.ResolvedStage

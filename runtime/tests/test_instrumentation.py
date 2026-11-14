@@ -16,6 +16,7 @@ from contractor_runtime.telemetry.invocations import InvocationMetricsReducer
 from contractor_runtime.telemetry.metrics import MetricsState
 from contractor_runtime.worker.instrumentation import (
     WorkerInstrumentationPlugin,
+    WorkerModelResponseError,
     span_error_type,
 )
 
@@ -668,6 +669,45 @@ def test_finalizer_startup_owns_partial_registration(monkeypatch: pytest.MonkeyP
         assert snapshot["lastCompletedInvocation"]["metrics"]["modelErrors"] == 0
         await plugin.close()
         assert sink.spans[0].end_calls == 1
+
+    asyncio.run(scenario())
+
+
+def test_compacted_error_response_survives_optional_prompt_publication_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def scenario() -> None:
+        state = WorkerStateStore()
+        plugin = WorkerInstrumentationPlugin(
+            state=state,
+            execution=state.resources.execution,
+            budget=lambda: None,
+            instrumentation=None,
+            model_alias="model",
+            observe_artifacts=lambda _owner, _cursor: None,
+            allowed_tool_names=ALLOWED_TOOL_NAMES,
+            compaction=SimpleNamespace(generation=1, should_compact=lambda _: False),
+        )
+        context = FakeContext("worker-model-error")
+        plugin.prepare_invocation(invocation_id=context.invocation_id, subtask_id="0")
+        await plugin.before_run_callback(invocation_context=context)
+        await plugin.before_model_callback(callback_context=context, llm_request=PROMPT)
+        observations = []
+
+        async def reject_publication(**kwargs: Any) -> None:
+            observations.append(kwargs["compaction_prompt"])
+            raise RuntimeError("optional diagnostic unavailable")
+
+        monkeypatch.setattr(state, "publish_invocation_metrics", reject_publication)
+        with pytest.raises(WorkerModelResponseError):
+            await plugin.after_model_callback(
+                callback_context=context,
+                llm_response=SimpleNamespace(error_code="SAFETY", usage_metadata=None),
+            )
+        assert observations == [(1, None)]
+        assert plugin.projection_failed
+        assert state.metrics.model_phase_usage("main").model_calls == 1
+        await plugin.close()
 
     asyncio.run(scenario())
 
@@ -1435,5 +1475,42 @@ def test_only_authorized_tool_cancellation_can_latch_current_turn(foreign):
         await plugin.complete_invocation(invocation_id=own.invocation_id, phase="cancelled")
         plugin.prepare_invocation(invocation_id="worker-healthy-next", subtask_id="1")
         assert not plugin.tool_cancellation_observed
+
+    asyncio.run(scenario())
+
+
+def test_auxiliary_role_measurement_uses_injected_clock_and_counts_once() -> None:
+    async def scenario() -> None:
+        state = WorkerStateStore()
+        tick = [10.0]
+        plugin = WorkerInstrumentationPlugin(
+            state=state,
+            execution=state.resources.execution,
+            allowed_tool_names=ALLOWED_TOOL_NAMES,
+            budget=lambda: None,
+            observe_artifacts=lambda _owner, _cursor: None,
+            clock=lambda: tick[0],
+            instrumentation=None,
+            model_alias=None,
+        )
+        context = FakeContext("worker-clock")
+        plugin.prepare_invocation(invocation_id=context.invocation_id, subtask_id="0")
+        await plugin.before_run_callback(invocation_context=context)
+        await plugin.before_result_finalizer_call(invocation_id=context.invocation_id)
+        tick[0] = 10.25
+        await plugin.after_result_finalizer_call(invocation_id=context.invocation_id, usage=None)
+        with pytest.raises(RuntimeError, match="stale"):
+            await plugin.after_result_finalizer_call(
+                invocation_id=context.invocation_id, usage=None
+            )
+        await plugin.on_result_finalizer_error(
+            invocation_id=context.invocation_id, error=RuntimeError("late")
+        )
+        await plugin.complete_invocation(invocation_id=context.invocation_id, phase="succeeded")
+        await plugin.close()
+        phases = state.metrics.build_report(report_id="report", duration_ms=1).metrics.model_phases
+        assert phases.finalization.model_calls == phases.finalization.token_usage_unavailable == 1
+        assert phases.finalization.duration_ms == 250
+        assert phases.main.model_calls == phases.compaction.model_calls == 0
 
     asyncio.run(scenario())

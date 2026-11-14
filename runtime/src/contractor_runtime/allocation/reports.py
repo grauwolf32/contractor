@@ -26,6 +26,7 @@ def _build_report(
         report_id=f"worker-{context.allocation_id}",
         duration_ms=duration_ms,
         extra_errors=errors,
+        compaction=context.worker_state.compaction_progress() if context.worker_state else None,
     )
     return AllocationFinalReport(
         reportId=f"allocation-final-{context.allocation_id}",
