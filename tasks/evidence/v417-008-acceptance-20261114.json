@@ -1,0 +1,75 @@
+{
+  "task": "V417-008",
+  "date": "2026-11-14",
+  "status": "accepted",
+  "implementation_commit": "d39ad87e4584a737bdd0be01bcfb8cd9a2bc0958",
+  "merged_into_main": false,
+  "gates": [
+    {
+      "command": "make test-context-compaction-eval-fixtures",
+      "exit_code": 0,
+      "log": "/var/folders/j7/g49dqq0x6nn25y_j4f1ht2ww0000gn/T/contractor-v417-006-008-20261114-7hze5cda/eval-008-final4.log",
+      "python_tests": 19,
+      "scored_recorded_samples": 90,
+      "variants": 6,
+      "case_classes": 3,
+      "repeats": 5
+    },
+    {
+      "command": "go test -count=1 ./tests/eval/context_compaction",
+      "exit_code": 0,
+      "log": "/var/folders/j7/g49dqq0x6nn25y_j4f1ht2ww0000gn/T/contractor-v417-006-008-20261114-7hze5cda/eval-008-catalog-final.log",
+      "workflows": 5
+    },
+    {
+      "command": "make lint",
+      "exit_code": 0,
+      "log": "/var/folders/j7/g49dqq0x6nn25y_j4f1ht2ww0000gn/T/contractor-v417-006-008-20261114-7hze5cda/lint-014-final.log"
+    },
+    {
+      "command": "go test -count=1 ./internal/evalservice ./internal/evalstore ./internal/evaldomain",
+      "exit_code": 0,
+      "log": "/var/folders/j7/g49dqq0x6nn25y_j4f1ht2ww0000gn/T/contractor-v417-006-008-20261114-7hze5cda/eval-014-full.log",
+      "database": "real owned disposable PostgreSQL17"
+    }
+  ],
+  "architecture": [
+    "No new member planner, charge-revision ledger, result store or comparison calculator.",
+    "Existing frozen external registrations, member IDs, keyed submissions/result/assessment receipts, cumulative usage and comparison summaries remain authoritative.",
+    "Three sequential production A/B experiments; masking and same-state replay are test-only controlled environments.",
+    "Terminal summary overhead is included by common Eval normalizer v4; cost/phase breakdowns are never added again.",
+    "Safe streamed member records retain all expected states, unknown usage/prices, metadata coverage and bounded cleanup outcomes."
+  ],
+  "regressions": [
+    "Deliberate artifact/location/constraint/ID/factual-support corruption fails scoring; malformed JSON creates a failed check.",
+    "Private truth canary/future questions stay outside execution projections and generic catalog instructions.",
+    "Controlled replay clones independent local fixtures with equal start hashes and no external side-effect duplication.",
+    "Public result/assessment writes validate against current OpenAPI.",
+    "Missing/confounded SDK/lock/build/models/thresholds, duplicate/oversize manifests fail before dispatch; model aliases are checked against published resources rather than an invented grammar.",
+    "Lost acknowledgement replays the same member key; timeout cancels and joins; budget/unknown usage stop further dispatch without dropping expected failures.",
+    "Current server comparisons own denominators/conclusions; stale or incomplete coverage cannot become success.",
+    "Private observer process groups are bounded and joined; optional diagnostic failure does not replace execution results."
+  ],
+  "provenance": {
+    "adk": "2.13.0",
+    "runtime_lock_sha256": "sha256:945f997f38cabe445f1f05a559a26089fdf3bf44c95b523a6d8eb71c8e235c65",
+    "fixture_manifest_sha256": "sha256:7d1dd22b79d9087ceff870db7556785d2d5f27881ea2c28b697c8ffde6f7b91c"
+  },
+  "limitations": [
+    "Offline scored records verify fixtures/scorers/consumer only; no live quality or token savings are claimed.",
+    "Runtime build and capability/instruction/Skill equality use explicit operator attestations where current public APIs have no discovery reader.",
+    "LikeC4 pilot scorer checks a dependency projection, not full-project compilation.",
+    "Tiny cases that never produce useful post-checkpoint work cannot establish compaction quality; V417-010 owns live/held-out evidence.",
+    "Cooperative observed-token limits may include an in-flight member overshoot; the harness adds no new Runtime hard limiter.",
+    "Full release-verify remains V417-009; shared V417-004 remains last."
+  ],
+  "cleanup": {
+    "database": "contractor_test_v417_006_008_20261114_01",
+    "sessions_before_drop": 0,
+    "dropped": true,
+    "other_databases_and_demo_processes_unchanged": true
+  },
+  "exclusions": [
+    "No live Gateway dispatch, deployment or main merge; optional heavy I/O disabled."
+  ]
+}
