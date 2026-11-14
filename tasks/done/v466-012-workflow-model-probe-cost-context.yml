@@ -1,0 +1,38 @@
+schema_version: '1.0'
+id: V466-012
+title: Supply cost-observer state to the offline Workflow model probe
+milestone: llm-cost-reporting-2026-11
+epic: operations
+kind: chore
+introduced_by: V458-001
+priority: P2
+status: completed
+depends_on:
+- V458-001
+languages:
+- go
+- python
+goal: Supply cost-observer state to the offline Workflow model probe.
+context:
+  authority: User approval 2026-11-14 includes verification repairs found by full V417 batch checks.
+  finding: tests/eval/project_workflows/testdata/gateway_model_probe.py:113 omits state required by gateway_model
+    cost attribution.
+  verification: Full affected packages and make lint passed; see tasks/evidence/v466-012-acceptance-20261114.json.
+    No production behavior changed.
+scope:
+  in:
+  - tests/eval/project_workflows/testdata/gateway_model_probe.py:113 omits state required by gateway_model
+    cost attribution.
+  out:
+  - Production execution, model selection and telemetry policy changes.
+acceptance_criteria:
+- id: A1
+  text: The complete affected package suites pass with current bounded telemetry/model-context contracts.
+tests:
+- command: go test ./tests/eval/project_workflows
+  covers:
+  - A1
+- command: make lint
+  covers:
+  - A1
+implementation_commit: 92df8ba906a189aac910179cb183b077d7a54a80
