@@ -31,14 +31,18 @@ var (
 
 // knownTokensSQL sums the totalTokens summary of at most $3 stage metric rows,
 // in stage execution order, of the Runs that the statement owned selects;
-// a row without a total counts zero. sum(bigint) is numeric, so the exact sum
+// plus existing separate summarizer totals. Missing totals add no known
+// contribution. Numeric sums preserve the exact lower bound, so the exact sum
 // is capped at the bigint maximum, 9223372036854775807, which reaches every
 // token limit (EVM-R248), instead of failing to fit int64.
 func knownTokensSQL(owned string) string {
 	return `WITH owned AS (` + owned + `)
  SELECT LEAST(COALESCE(sum(known_tokens), 0), 9223372036854775807)::bigint
  FROM (
-   SELECT COALESCE((metrics.summary->>'totalTokens')::bigint, 0) AS known_tokens
+   SELECT COALESCE((metrics.summary->>'totalTokens')::numeric, 0)
+     + COALESCE((metrics.metrics #>> '{planner,metrics,summarizer,totalTokens}')::numeric, 0)
+     + COALESCE((SELECT sum((worker.value #>> '{metrics,summarizer,totalTokens}')::numeric)
+                 FROM jsonb_each(metrics.metrics->'workers') worker), 0) AS known_tokens
    FROM stage_metrics metrics
    JOIN stage_executions stage USING (stage_execution_id)
    JOIN owned ON owned.run_id = stage.run_id

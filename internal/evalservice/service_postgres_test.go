@@ -807,16 +807,19 @@ func TestSharedPostgresExternalDispatchRequiresExplicitSubmissionAndFinalizesMis
 }
 
 func TestSharedPostgresDeadlineAndObservedTokenLimitsDrainWithoutNewAdmissions(t *testing.T) {
-	for _, budget := range []string{"deadline", "tokens"} {
+	for _, budget := range []string{"deadline", "tokens", "summarizer"} {
 		t.Run(budget, func(t *testing.T) {
 			h := newHarness(t)
 			e := h.create(t, "workflow")
-			if budget == "tokens" {
+			if budget != "deadline" {
 				var draft evaldomain.Draft
 				if err := json.Unmarshal(e.Draft.Bytes(), &draft); err != nil {
 					t.Fatal(err)
 				}
 				limit := int64(100)
+				if budget == "summarizer" {
+					limit = 144
+				}
 				draft.Budgets.MaxObservedTotalTokens = &limit
 				doc := frozen(t, "DraftUpdate", evaldomain.DraftUpdate{Name: e.Name, Draft: draft})
 				if err := h.service.tx(t.Context(), func(s *evalstore.Store) error {
@@ -849,7 +852,34 @@ func TestSharedPostgresDeadlineAndObservedTokenLimitsDrainWithoutNewAdmissions(t
 				if err != nil || len(members) != 1 {
 					t.Fatal(members, err)
 				}
-				for _, observed := range []int64{100, 50, 100} {
+				observations := []int64{100, 50, 100}
+				if budget == "summarizer" {
+					submission, err := store.Submission(t.Context(), e.OwnerID, e.ID, members[0])
+					if err != nil || submission.ExecutionID == nil {
+						t.Fatal("missing accepted execution", err)
+					}
+					runID := *submission.ExecutionID
+					runs := runstore.NewPostgresStore(h.pool, artifactpgtest.NewStorage())
+					current, err := runs.GetRun(t.Context(), runID)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if current.State == runstore.RunPending {
+						if _, err := runs.TransitionRun(t.Context(), runID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "fixture_admitted"}); err != nil {
+							t.Fatal(err)
+						}
+					}
+					recordSummarizedUsageStage(t, h.pool, runID, "budget-summary-stage", false)
+					if err := runs.MarkStageAllocationReleased(t.Context(), "budget-summary-stage-allocation"); err != nil {
+						t.Fatal(err)
+					}
+					known, err := store.KnownTokens(t.Context(), e.OwnerID, "run", &runID)
+					if err != nil || known != 145 {
+						t.Fatalf("summarizer did not reach budget owner: %d %v", known, err)
+					}
+					observations = []int64{known, known}
+				}
+				for _, observed := range observations {
 					if err = h.service.tx(t.Context(), func(s *evalstore.Store) error {
 						return s.RecoverMember(h.scope, e.ID, members[0], claims[0]).ObserveTokens(t.Context(), observed)
 					}); err != nil {
@@ -859,7 +889,11 @@ func TestSharedPostgresDeadlineAndObservedTokenLimitsDrainWithoutNewAdmissions(t
 				if err = store.ReleaseClaim(t.Context(), claims[0]); err != nil {
 					t.Fatal(err)
 				}
-				if h.get(t, e.ID).ObservedTokens != 100 {
+				want := int64(100)
+				if budget == "summarizer" {
+					want = 145
+				}
+				if h.get(t, e.ID).ObservedTokens != want {
 					t.Fatal("usage was double counted or reset")
 				}
 			}
