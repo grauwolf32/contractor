@@ -1,0 +1,44 @@
+{
+  "id": "api-dependency",
+  "inputs": {
+    "routes": [
+      {
+        "authorization": "tenant",
+        "dependency": "inventory",
+        "method": "get",
+        "operationId": "listTenantItems",
+        "path": "/tenants/{tenant}/items",
+        "service": "catalog"
+      },
+      {
+        "authorization": "tenant",
+        "dependency": "billing",
+        "method": "post",
+        "operationId": "createTenantOrder",
+        "optional": [
+          "note"
+        ],
+        "path": "/tenants/{tenant}/orders",
+        "service": "orders"
+      }
+    ]
+  },
+  "outputs": {
+    "report": {
+      "mediaTypes": [
+        "application/json"
+      ],
+      "required": true
+    }
+  },
+  "requires": [
+    "api-analysis"
+  ],
+  "task": {
+    "constraints": [
+      "read-only",
+      "tenant-isolation"
+    ],
+    "objective": "Produce the API document and service dependency model from the supplied routes. Preserve exact operation identifiers, optional fields and tenant authorization. Return JSON with openapi (a complete OpenAPI 3.1 document), likec4 (one source -> destination dependency per line), and constraints copied by ID. Keep exact operation IDs, tenant security and optional field semantics."
+  }
+}

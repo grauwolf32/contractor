@@ -1,0 +1,45 @@
+{
+  "id": "negative-memory",
+  "inputs": {
+    "hypotheses": [
+      {
+        "claim": "The two recorded controls establish protection for every other object and input",
+        "id": "all-other-inputs"
+      }
+    ],
+    "observations": [
+      {
+        "actor": "tenant-B",
+        "outcome": "denied",
+        "probeId": "P17",
+        "receipt": "obs-P17",
+        "target": "tenant-A/item-9"
+      },
+      {
+        "actor": "tenant-A",
+        "outcome": "allowed",
+        "probeId": "P18",
+        "receipt": "obs-P18",
+        "target": "tenant-A/item-9"
+      }
+    ]
+  },
+  "outputs": {
+    "report": {
+      "mediaTypes": [
+        "application/json"
+      ],
+      "required": true
+    }
+  },
+  "requires": [
+    "evidence-review"
+  ],
+  "task": {
+    "constraints": [
+      "read-only",
+      "tenant-isolation"
+    ],
+    "objective": "Continue the bounded review from the recorded observations. Preserve negative evidence without generalizing it to untested inputs; do not repeat settled probes or mutate the environment. Return JSON with negative (settled negative probe IDs), observed and uncertain fact IDs, and constraints copied by ID. Consult an earlier observation if needed; do not repeat a settled probe."
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "id": "source-review",
+  "inputs": {
+    "hypotheses": [
+      {
+        "claim": "search may concatenate untrusted text into SQL",
+        "id": "unsafe-search"
+      },
+      {
+        "claim": "lookup may permit injection despite its placeholders",
+        "id": "lookup-exploitability"
+      }
+    ],
+    "source": {
+      "app.py": "def lookup(db, tenant, name):\n    return db.execute(\"SELECT * FROM items WHERE tenant = ? AND name = ?\", (tenant, name))\n\ndef search(db, tenant, term):\n    return db.execute(\"SELECT * FROM items WHERE tenant = ? AND name LIKE \" + term, (tenant,))\n"
+    }
+  },
+  "outputs": {
+    "report": {
+      "mediaTypes": [
+        "application/json"
+      ],
+      "required": true
+    }
+  },
+  "requires": [
+    "source-review"
+  ],
+  "task": {
+    "constraints": [
+      "read-only",
+      "tenant-isolation"
+    ],
+    "objective": "Review the supplied source and produce a structured evidence report. Preserve tenant isolation and read-only operation. Distinguish observed defects from hypotheses. Return JSON with findings (path, line and kind per finding), observed and uncertain hypothesis IDs, and constraints copied by ID. Verify hypotheses against source; do not promote an unsupported exploitability claim to an observation. Classify a concatenated SQL expression as kind sql_concatenation."
+  }
+}

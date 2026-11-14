@@ -33,3 +33,12 @@ test-web-scan-ui-stack: ui-install ui-browser-install require-database runtime-v
 .PHONY: test-audit-research-ui
 test-audit-research-ui: ui-install ui-browser-install require-database runtime-venv
 	python3 scripts/release_test_reports.py run --report "$(RELEASE_REPORTS)/audit-research-ui.jsonl" --timeout-seconds 720 -- go test -json -tags=e2e -count=1 -timeout=10m ./tests/e2e -run '^TestAuditResearchUIAcrossProductionProcesses$$'
+
+# Explicit external Eval consumer. Setup/publishing is a separate operator step.
+.PHONY: eval-context-compaction-live
+eval-context-compaction-live:
+	@test -n "$$CONTRACTOR_CONTEXT_EVAL_MANIFEST" || (echo "CONTRACTOR_CONTEXT_EVAL_MANIFEST is required" >&2; exit 1)
+	@test -n "$$CONTRACTOR_CONTEXT_EVAL_OBSERVER" || (echo "CONTRACTOR_CONTEXT_EVAL_OBSERVER is required" >&2; exit 1)
+	@test -n "$$CONTRACTOR_CONTEXT_EVAL_API" || (echo "CONTRACTOR_CONTEXT_EVAL_API is required" >&2; exit 1)
+	@test -n "$$CONTRACTOR_CONTEXT_EVAL_OUTPUT" || (echo "CONTRACTOR_CONTEXT_EVAL_OUTPUT is required" >&2; exit 1)
+	cd runtime && uv run --locked --no-sync python ../tests/eval/context_compaction/harness.py --manifest "$$CONTRACTOR_CONTEXT_EVAL_MANIFEST" --observer "$$CONTRACTOR_CONTEXT_EVAL_OBSERVER" --api "$$CONTRACTOR_CONTEXT_EVAL_API" --output "$$CONTRACTOR_CONTEXT_EVAL_OUTPUT"

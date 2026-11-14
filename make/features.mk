@@ -90,3 +90,11 @@ test-artifact-history-postgres: require-database
 
 test-artifact-history-e2e: require-database runtime-venv
 	$(call run-family-test,go test -tags=e2e -count=1 -timeout=10m ./tests/e2e -run '^TestArtifactHistoryAcrossProductionProcesses$$')
+
+# Offline recorded providers and private scorers; the Go catalog suite is
+# already in test-go during consolidated release verification.
+.PHONY: test-context-compaction-eval-fixtures
+test: test-context-compaction-eval-fixtures
+test-context-compaction-eval-fixtures: runtime-venv
+	cd runtime && uv run python ../tests/eval/context_compaction/gate.py
+	$(call run-family-test,go test ./tests/eval/context_compaction)

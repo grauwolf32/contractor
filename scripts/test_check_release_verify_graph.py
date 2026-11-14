@@ -543,3 +543,17 @@ func pool(t *testing.T) {
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ContextCompactionEvalBoundaryTest(unittest.TestCase):
+    def test_offline_gate_and_explicit_live_entry_are_separate(self):
+        guard.check_context_compaction_eval_boundary(["python tests/eval/context_compaction/gate.py"], ["python tests/eval/context_compaction/harness.py --manifest frozen --observer private"], "ordinary CI")
+
+    def test_missing_duplicate_or_live_release_paths_fail(self):
+        live = ["python tests/eval/context_compaction/harness.py --manifest frozen --observer private"]
+        gate = "python tests/eval/context_compaction/gate.py"
+        for commands in ([], [gate, gate], [gate, live[0]]):
+            with self.assertRaises(SystemExit):
+                guard.check_context_compaction_eval_boundary(commands, live, "ordinary CI")
+        with self.assertRaises(SystemExit):
+            guard.check_context_compaction_eval_boundary([gate], live, "make eval-context-compaction-live")
