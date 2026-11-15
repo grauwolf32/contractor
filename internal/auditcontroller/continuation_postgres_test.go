@@ -460,11 +460,16 @@ func TestPostgresContinuationConsumesOnlyItsBoundedSelectedSources(t *testing.T)
 	}
 	for decision, count := range []int{31, 2} {
 		step() // accept a distinct source slice
-		page, err := h.service.Tasks(ctx, auditstore.ListTasksParams{OwnerID: "owner", AuditID: h.started.Audit.AuditID, Limit: 100})
+		// Settled history can fill a byte-bounded page before the continuation.
+		ready := auditstore.TaskReady
+		page, err := h.service.Tasks(ctx, auditstore.ListTasksParams{OwnerID: "owner", AuditID: h.started.Audit.AuditID, State: &ready, Limit: 1})
 		if err != nil {
 			t.Fatal(err)
 		}
-		task := page.Tasks[len(page.Tasks)-1]
+		if len(page.Tasks) != 1 || page.NextOrdinal != nil || page.Tasks[0].Source.Kind != "continuation" {
+			t.Fatal("expected one ready continuation", page)
+		}
+		task := page.Tasks[0]
 		expected := 31
 		if decision == 1 {
 			expected = 33

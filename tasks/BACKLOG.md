@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-61 open tasks: 9 in progress, 39 pending, 13 deferred. 1579 finished: 1561 completed, 18 archived.
+62 open tasks: 10 in progress, 39 pending, 13 deferred. 1579 finished: 1561 completed, 18 archived.
 
 ## In progress
 
@@ -20,6 +20,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-009](v417-009-context-compaction-release-gate.yml) | quality | chore | P1 | Verify context compaction across real processes and close the deterministic milestone |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V466-018](v466-018-continuation-gate-task-page.yml) | quality | chore | P1 | Select the ready continuation without assuming Task history fits one page |
 
 ## Pending
 
@@ -155,7 +156,7 @@ tasks in `introduced_by`.
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 16 | 7 | 17 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 5 | 24 | 37 | 15 | 38 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 3 | 21 | 13 | 12 | 29 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 3 | 21 | 13 | 12 | 30 |
 | Findings tools and collections (`findings`) | 0 | 18 | 14 | 11 | 23 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 17 | 16 | 26 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 40 | 20 | 70 |
@@ -166,4 +167,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 21 | 53 | 14 | 32 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 43 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 50 | 18 |
-| Quality, CI and process (`quality`) | 11 | 1 | 33 | 145 | 31 |
+| Quality, CI and process (`quality`) | 12 | 1 | 33 | 146 | 31 |
