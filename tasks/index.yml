@@ -19,10 +19,12 @@ execution_policy:
     observed shared Gateway DNS/WireGuard egress failure before any model answer.
     The Run is cancelled/released, owned credential revoked, processes joined and
     final owned database dropped. The four-comparison/120-member study remains
-    unregistered/unrun. The user authorized one existing egress.sh up operation
-    on 2026-11-15; it exited 0 but DNS/HTTPS remain unavailable and WireGuard has
-    no handshake/received traffic. Sudo is available; V417-010 remains pending
-    for a working provider profile/peer, not for the prior authorization.
+    unregistered/unrun. The user's 2026-11-16 follow-up authorizes running and
+    configuring the remote infrastructure itself. Operational recovery now uses
+    one dedicated Gateway peer in an existing VPN server, preserving its other
+    peer and the Gateway identity. DNS/readiness/provider HTTPS and the existing
+    fail-closed check all pass. V417-010 is in_progress for isolated calibration
+    and frozen repeated measurements with the same configured model.
     No live quality is claimed.
     This branch is not merged or deployed. V417-004 stays reserved in_progress
     and executes LAST, after V417-010.

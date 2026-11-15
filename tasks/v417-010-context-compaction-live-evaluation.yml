@@ -5,7 +5,7 @@ milestone: worker-context-compaction-quality-2026-10
 epic: evals
 kind: chore
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V417-008
 - V417-009
@@ -33,6 +33,10 @@ context:
     shared Gateway through existing egress.sh up, DNS/HTTPS checks and then
     continuation of this task. That one operation was executed with available
     noninteractive sudo; it exited 0 but did not restore provider connectivity.
+    User follow-up 2026-11-16 explicitly asks the agent to run and configure
+    the passwordless remote infrastructure itself. This authorizes completing
+    the bounded operational recovery, not waiting for another sudo approval.
+    Current configured model selections remain unchanged.
   proposal: docs/proposals/0046-workflow-context-compaction.md
   specification:
   - docs/spec/evals/format.md#EVF-R1
@@ -76,18 +80,28 @@ context:
     Identical native checkpoint replay remains explicitly unsupported. Expanded
     cases and independent scorers are fixed before any held-out submission;
     common thresholds and build still require development measurement.
-  decision_needed: >-
-    The authorized installed egress.sh up operation is complete (exit 0).
-    DNS still times out in the LiteLLM container and the owner's HTTPS check
-    exits 28 without an HTTP response. WireGuard has no new handshake, zero
-    received bytes and 2072 transmitted bytes; the endpoint route exists outside
-    WireGuard, both services are active and host OUTPUT policy is ACCEPT.
-    Sudo access is available; no user sudo command is required. Need a working
-    provider profile/peer before development calibration and held-out execution.
-    Asked the user for the local path of a valid replacement profile that may
-    be applied, or to wait for the existing peer to recover. The precise cause
-    beyond the namespace remains unproven; no second network mutation or new
-    live Run was attempted. Keep pending while this external input is missing.
+  recovery_decision: >-
+    The stale provider endpoint does not answer authenticated handshakes; its
+    SSH alias refuses connections. An existing operator-managed VPN server is reachable with sudo,
+    already hosts wg0 with an available client address, and reaches OpenRouter
+    over HTTPS. Within the user's configuration request, register one dedicated
+    Gateway peer in that existing wg0, preserve its current peer and policy,
+    and update only the Gateway's existing egress profile/metadata. Use native
+    WireGuard and existing owner scripts; verify DNS, HTTPS and fail-closed
+    namespace behavior, then resume development calibration. Reuse the Gateway
+    client identity, with no new service/model route or production mechanism.
+    Alternative restoration of the old peer is unavailable through its current
+    management route. Reopen if the existing KZ path cannot meet the checks.
+  network_recovered_2026_11_16: >-
+    Completed the authorized configuration through existing WireGuard owners.
+    Added one dedicated Gateway peer while preserving the existing server peer;
+    retained the Gateway client identity, namespace, mesh and model selections.
+    Updated both deployed and protected local egress profile/metadata, retaining
+    owner-only rollback backups. Container DNS resolves, Gateway readiness and
+    all four configured model aliases are available, and provider HTTPS is 200.
+    Existing owner check-kill-switch passes: HTTP200 before/after and no direct
+    egress while the tunnel is down. Resume isolated development calibration;
+    no additional user sudo action or replacement-profile input is needed.
   recovery_attempt: >-
     2026-11-15: inspected the deployed owner's pre-parameterization script;
     its fixed network matches the deployment. One authorized up command exited
