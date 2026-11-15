@@ -10,6 +10,7 @@ depends_on:
 - V417-008
 - V417-009
 - V466-019
+- V466-020
 languages:
 - python
 - yaml
@@ -26,6 +27,8 @@ context:
     User request 2026-11-15 assigns V417-009 followed by V417-010. Agent-proposed
     prerequisite V466-019 now recognizes complete negative measurements without
     changing execution states, Server conclusions or frozen quality gates.
+    Agent-proposed V466-020 supplies the missing test-only live control adapter;
+    it performs offline preparation while this task waits for V417-009.
   proposal: docs/proposals/0046-workflow-context-compaction.md
   specification:
   - docs/spec/evals/format.md#EVF-R1

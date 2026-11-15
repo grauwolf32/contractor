@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 folder = Path(__file__).resolve().parent
-suite = unittest.defaultTestLoader.discover(str(folder), pattern="test_harness.py")
+suite = unittest.defaultTestLoader.discover(str(folder), pattern="test_*.py")
 if suite.countTestCases() == 0:
     raise RuntimeError("context-compaction evaluation selected zero cases")
 result = unittest.TextTestRunner(verbosity=2).run(suite)

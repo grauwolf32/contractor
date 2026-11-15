@@ -188,3 +188,45 @@ local savings estimate or second comparison engine. Diagnostic-read failure mark
 coverage unavailable without replacing an execution result. Keep the private
 manifest, observer and truth under evaluator access controls; delete generated
 experiments/Projects only through their existing lifecycle after evidence review.
+
+## Controlled Runtime preparation
+
+`controlled_runtime.py` composes the ordinary Runtime factory for the later
+live study. Its offline tests exercise the actual ADK Worker, Gateway-handle
+cleanup and error callbacks with network access denied. This prepares the
+controlled adapter; the current production consumer still dispatches its three
+comparisons only. It is not live masking evidence.
+
+Launch it with the ordinary Runtime arguments plus `--questions`,
+`--questions-sha256` and `--private-records`. The private, byte-pinned question
+document is at most 64 KiB and has only `schemaVersion`
+(`context-compaction-probes/v1`) and `questions`, keyed by the three case IDs.
+Each question is at most 2048 characters. It contains questions, never answers.
+Include the launcher and that exact document in the operator Runtime build
+attestation before dispatch.
+
+Only the explicitly named `context-eval-controlled-compact` and
+`context-eval-masking` templates activate controls. They require isolated
+sessions, no terminal summarizer or Skills, and only the text-artifact tools.
+Each probe belongs to one isolated session; a different session is rejected.
+The former uses native `compact@1`; the latter uses no native compactor.
+Masking reuses `ContextArchive` to identify complete older groups, replaces
+only their text observation bodies, and retains the latest group, tool IDs,
+artifact receipts and a digest of the replaced response. SDK session events
+are untouched. This is a model-request experiment, not Runtime memory savings.
+
+A later question becomes visible only after an actual native checkpoint or
+nonempty mask. It is restated on subsequent controlled requests because a
+request projection is not a persisted user event. Ordinary templates keep their
+native callbacks. This adds no logical task, model loop, usage owner, budget
+reset or production resume mechanism. Identical-checkpoint pairing remains
+unsupported until demonstrated separately.
+
+Safe per-Run JSONL records contain IDs, counts, timestamps and digests, with a
+2 MiB ceiling. The request digest covers the native `model_request_content`
+SDK projection **after** the agent callback, at most 4 MiB; it is not raw
+provider transport bytes. Native OTLP input capture precedes that callback
+and therefore cannot attest the later masking projection. Neither record
+contains question text, observations, reasoning or credentials. Optional
+recording failures preserve native execution and cleanup; the evaluator must
+report missing or oversized evidence as unavailable, never as a zero count.

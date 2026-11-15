@@ -1,0 +1,87 @@
+schema_version: '1.0'
+id: V466-020
+title: Prepare a test-only Runtime adapter for live context probes
+milestone: worker-context-compaction-quality-2026-10
+epic: evals
+kind: chore
+priority: P2
+status: in_progress
+depends_on:
+- V417-008
+- V466-019
+languages:
+- python
+- markdown
+goal: Make the required masking and later-question probes executable through the ordinary ADK Worker without adding a production strategy or a second execution engine.
+context:
+  authority: >-
+    User request 2026-11-15 assigns V417-009 and V417-010. This is an
+    agent-proposed test-only prerequisite for the latter's already requested
+    controlled probes. Preparation and offline verification are independent of
+    the deterministic release exit; all live execution still waits for V417-009.
+  finding: >-
+    tests/eval/context_compaction/harness.py:264 masks recorded dictionaries
+    only. Its live consumer explicitly excludes masking, so recorded fixtures
+    cannot satisfy V417-010's actual continuation experiment. This was an
+    intentional V417-008 boundary, not a production defect attributed to it.
+  specification:
+  - docs/spec/execution/worker.md
+  - docs/spec/evals/managed-evals.md
+  - docs/spec/platform/observability.md
+  implementation_boundary: >-
+    Reuse ContextArchive's complete-group identities, the native Runtime factory,
+    ADK Runner, tools, budgets, safety callbacks and cleanup. A test-only launcher
+    wraps the existing before-model callback for two explicitly named isolated
+    templates. Source interpretation, scorer truth, planning, usage and comparison
+    remain with their existing owners. No Runtime/src or public API change.
+  decision: >-
+    Use the existing complete-group archive and a test-only native factory
+    composition. A separate replay Agent would duplicate execution and budget
+    ownership. Safe hashes describe the post-agent SDK projection because OTLP
+    captures before it; no transport proxy is added. Ordinary templates retain
+    their original callbacks. A controlled probe is scoped to one isolated
+    session. Reopen this boundary only for a concrete supported trial, not to
+    imply a production resume or shared-session guarantee.
+scope:
+  in:
+  - A bounded controlled callback that masks older observation bodies while retaining tool identities, receipts and the latest complete group.
+  - Frozen evaluator-private later questions activated only after a real checkpoint or mask and restated during controlled continuation.
+  - Safe request-projection digests and probe observations; optional recording failures must not replace execution outcomes.
+  - Offline regressions through the actual locked ADK request path, with network access denied.
+  out:
+  - Live model calls, final experiment parameters, held-out fixture tuning or a measured quality claim.
+  - Production masking, a shared-session or checkpoint-resume API, a new agent loop, charge ledger, member planner or comparison engine.
+acceptance_criteria:
+- id: A1
+  text: Actual ADK requests mask only complete older response groups; original events and the latest group remain intact, and function-call/response identities remain paired.
+- id: A2
+  text: Later questions are absent initially and appear only after an actual checkpoint/mask, persist across subsequent controlled requests, and never affect ordinary templates.
+- id: A3
+  text: Invalid private pins and unsupported control configurations fail before use; diagnostic recording failures cannot replace a native execution result or skip cleanup. Records contain hashes/counts/IDs, without questions, tool bodies, reasoning or credentials.
+- id: A4
+  text: The complete offline Eval fixture gate and lint pass without network or live Gateway calls; live V417-010 acceptance remains pending.
+tests:
+- command: make test-context-compaction-eval-fixtures
+  covers: [A1, A2, A3, A4]
+- command: make lint
+  covers: [A4]
+cardinality:
+- collection: Private question document and callback history
+  expected: Three declared case questions and one bounded invocation history
+  maximum: 64 KiB of question input; existing ContextArchive group/byte ceilings; at most 2 MiB of safe records per Run
+  bound: Hash-pin and strictly decode the document; incrementally consume session events through the existing archive, and stop optional recording at its byte ceiling.
+failure_outcomes:
+- operation: Controlled request projection
+  permanent: Invalid pins, unsupported shared control or unsafe/incomplete history fail the test-only operation explicitly.
+  retryable: Native Gateway and Worker policies remain unchanged; this adapter adds no retry.
+  ambiguous: No publication or external side effect is repeated; native receipts keep ownership.
+  cancelled: Native Runner and factory rollback join model/tools before release.
+  timeout: Native invocation deadlines remain cumulative; there is no continuation budget reset.
+lifecycle:
+- entity: Test-only control and private evidence
+  delete: The operator owns the private fixture directory and removes it after retaining reviewed safe evidence.
+  cascade: Native allocation cleanup owns all Worker resources; no adapter-owned model or tool task survives release.
+  retention: Public evidence contains only allowlisted counts, digests and opaque identifiers; private questions never enter initial artifacts or workspaces.
+deliverables:
+- path: tests/eval/context_compaction
+  description: Test-only launcher, real-ADK offline regressions and bounded control documentation.
