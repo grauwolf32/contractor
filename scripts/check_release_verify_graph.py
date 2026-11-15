@@ -437,6 +437,7 @@ def race_command_packages(races: list[str]) -> list[set[str]]:
 def check_family_entry_points() -> None:
     for target, marker in (
         ("test-worker-session-modes-hardening", "go test -race -count=1"),
+        ("test-worker-compaction-e2e", "verify-compaction-process"),
         ("test-project-workspaces-e2e", "go test -tags=e2e -count=1"),
         ("test-agent-skills-races", "go test -race -count=1"),
         ("test-ui-stack", "./tests/ui-stack"),
@@ -1037,11 +1038,35 @@ def check_context_compaction_eval_boundary(deterministic: list[str], live: list[
         raise SystemExit("ordinary CI invokes live context-compaction evaluation")
 
 
+def check_compaction_report_reuse(commands: list[str], focused: list[str]) -> None:
+    for action, report in (
+        ("verify-compaction-go", "go-unit.jsonl"),
+        ("verify-compaction-runtime", "runtime.xml"),
+        ("verify-compaction-process", "go-process-a.jsonl"),
+        ("verify-compaction-process", "go-process-c.jsonl"),
+    ):
+        matches = [line for line in commands if action in line and report in line]
+        if len(matches) != 1 or (
+            action == "verify-compaction-process" and "--scope" not in matches[0]
+        ):
+            raise SystemExit("compaction verification lost its canonical " + report)
+    if any(re.search(r"worker-compaction-(?:go|runtime|process)\.(?:jsonl|xml)", line) for line in commands):
+        raise SystemExit("consolidated release repeats a focused compaction suite")
+    for action in (
+        "verify-compaction-go",
+        "verify-compaction-runtime",
+        "verify-compaction-process",
+    ):
+        if not any(action in line for line in focused):
+            raise SystemExit("focused compaction gate lost " + action)
+
+
 if __name__ == "__main__":
     stages = check_stage_order()
     check_ci_workflow(stages, CI_WORKFLOW.read_text())
     check_documented_stages(stages, TESTING_GUIDE.read_text())
     check_advisories_outside_release(dry_run("release-verify"), dry_run("advisories"), CI_WORKFLOW.read_text())
+    check_compaction_report_reuse(dry_run("release-verify"), dry_run("test-worker-compaction-e2e"))
     check_context_compaction_eval_boundary(dry_run("release-verify"), dry_run("eval-context-compaction-live"), CI_WORKFLOW.read_text())
     for target in ("lint", "verify"):
         commands = dry_run(target)

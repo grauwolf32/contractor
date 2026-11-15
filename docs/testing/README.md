@@ -10,6 +10,7 @@ UI dependencies. Choose a check by the boundary you changed:
 | Formatting, language tests, builds, shipped configuration and UI checks | `make verify` | Go, Python/uv, Node/Corepack |
 | PostgreSQL repositories | `make test-postgres` | Test database |
 | Live advisory scans of the Go commands and the Runtime lock | `make advisories` | Go, uv and access to the Go and PyPI advisory services |
+| Worker context compaction, bounded history and ordinary/Audit continuation | `make test-worker-compaction-e2e` | Disposable test database, pinned Go and locked ADK 2.13 Runtime; scripted Gateway |
 | Server/Runtime process integration | `make test-e2e` | Test database and locked Runtime environment |
 | Real scanner process and browser integration | `make test-scan-e2e` | Test database, Chromium, and host `nuclei`, `naabu`, `sqlmap`, `ffuf`, `katana` |
 | Private paired HTTP targets, state oracles and network isolation | `make test-pentest-fixtures` | Local Podman, preinstalled exact image and pinned sibling playground; [fixture contract](../../tests/eval/pentest/README.md); no Gateway or database |
@@ -572,3 +573,37 @@ features, body bounds, safe retry, no write replay, private credentials,
 cancellation, lease loss and timeout. The proxy parser/delegation tests use real
 loopback HTTP/TLS IPC. This explicit installed-engine gate complements the
 ordinary deterministic Nuclei gate; a missing scanner fails its prerequisites.
+
+## Worker context compaction release gate
+
+`make test-worker-compaction-e2e` runs complete component packages, the owning
+Runtime suites and real Server/Runtime/PostgreSQL processes with a scripted
+Gateway. The fixed [required-case inventory](../../scripts/worker-compaction-matrix.json)
+requires all named Go cases, parameter counts and package passes; zero selection,
+missing cases, duplicate identities and every selected skip/failure fail the gate.
+It covers default/binding/escalation selection, mixed isolated Router bindings,
+two checkpoints, trusted Audit completion and lost publication acknowledgement,
+lease loss, shared-mode rejection, ADK event identity, ambiguous markers, budgets,
+archive ceilings/pagination, reasoning, cancellation and numeric diagnostics.
+
+Prepare `runtime/.venv` with `uv sync --locked` and set
+`CONTRACTOR_TEST_DATABASE_URL` to an owned disposable PostgreSQL database whose
+role has CREATEDB. This gate never needs a live Gateway. Reports are written to
+`RELEASE_REPORTS` (default `reports/`): `worker-compaction-go.jsonl`,
+`worker-compaction-runtime.xml`, `worker-compaction-process.jsonl`. Keep their
+exact source revision, Runtime lock digest, executed counts and hashes with the
+acceptance evidence. Required bounds are ordinary Runtime fixtures; optional
+large disk-write fixtures retain the explicit heavy-I/O policy above.
+
+`make release-verify` reaches this family without repeating its suites. It
+verifies the same inventory against canonical `go-unit.jsonl`, `runtime.xml`
+and the selected roots of `go-process-a.jsonl`/`go-process-c.jsonl`. Ordinary
+and Audit compaction processes run once in their existing shards. The graph guard
+rejects missing report verifiers or an accidentally repeated focused suite.
+Full release acceptance still requires every aggregate stage to pass; earlier
+merge checks are useful evidence but do not replace that command.
+
+Shared `compact@1` remains rejected until its separately ordered implementation.
+This deterministic gate establishes execution correctness; frozen live quality,
+latency and total-cost recommendations belong to V417-010, using the opt-in
+[Eval consumer](../../tests/eval/context_compaction/README.md).

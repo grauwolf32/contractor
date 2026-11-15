@@ -1570,7 +1570,7 @@ checkpoint through its own model client, built from the pinned compactor
 ModelPolicy with no tools, Skills, workspace or summarizer. It charges the
 owning invocation's hard budgets and metrics like the result finalizer: one
 model call and its reported tokens, under the separate model phase
-`context_compactor`. Its usage never replaces the main prompt measurement of
+`compaction`. Its usage never replaces the main prompt measurement of
 WRK-R185. It also stays within the compactor policy's own `maxModelCalls: 1`
 and `maxTotalTokens`. Exhausting the owning invocation's budget returns
 `worker_budget_exhausted`; exceeding the compactor's own limits returns
