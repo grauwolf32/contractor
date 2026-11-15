@@ -1,5 +1,6 @@
 """Deterministic acceptance: no Gateway, network, publication or external side effects."""
 
+import contextlib
 import copy
 import json
 import sys
@@ -671,7 +672,7 @@ class HarnessTests(unittest.TestCase):
             result = h.live(manifest, api, observer="unused", clock=lambda: 0, pause=lambda _: None)
         self.assertEqual((result["expected"], len(api.submissions)), (90, 1))
         self.assertEqual(sum(row["state"] == "not_submitted" for row in result["members"]), 89)
-        self.assertFalse(h.successful(result))
+        self.assertFalse(h.measurement_complete(result))
         self.assertEqual(result["comparisons"][0]["summary"]["counts"]["fixture"]["expected"], 30)
 
     def test_member_timeout_cancels_and_joins_without_resetting_fixture(self):
@@ -902,7 +903,7 @@ class HarnessTests(unittest.TestCase):
             self.assertEqual(states[:3], ["unsupported", "blocked", state])
             self.assertEqual(states.count("not_submitted"), 87)
             self.assertEqual(len(records), 3)
-            self.assertFalse(h.successful(result))
+            self.assertFalse(h.measurement_complete(result))
 
     def test_optional_diagnostic_failure_keeps_scoring_and_costs(self):
         # Exercised through the real collector above; auxiliary reads cannot
@@ -953,20 +954,143 @@ class HarnessTests(unittest.TestCase):
             with self.assertRaises(subprocess.TimeoutExpired):
                 h.run_observer(str(observer), "run-1", self.cases["negative-memory"], timeout=0.05)
 
-    def test_only_fresh_server_comparison_can_report_success(self):
-        result = {
-            "members": [{"state": "succeeded"}],
-            "comparisons": [{"freshness": "current", "summary": {"conclusion": "pass"}}],
+    def test_completion_preserves_negative_conclusions_and_failed_members(self):
+        arm = {
+            "expected": 1,
+            "submitted": 1,
+            "terminal": 1,
+            "scored": 1,
+            "missing": 0,
+            "conflicting": 0,
         }
-        self.assertTrue(h.successful(result))
-        for key, value in [
-            ("freshness", "stale"),
-            ("summary", None),
-            ("summary", {"conclusion": "inconclusive"}),
-        ]:
+        result = {
+            "expected": 2,
+            "members": [
+                {"memberId": "a", "state": "succeeded"},
+                {"memberId": "b", "state": "failed"},
+            ],
+            "comparisons": [
+                {
+                    "freshness": "current",
+                    "summary": {
+                        "conclusion": "regressions",
+                        "counts": {"a": arm, "b": copy.deepcopy(arm)},
+                    },
+                }
+            ],
+        }
+        for conclusion in ("pass", "regressions", "inconclusive"):
+            with self.subTest(conclusion=conclusion):
+                result["comparisons"][0]["summary"]["conclusion"] = conclusion
+                before = copy.deepcopy(result)
+                self.assertTrue(h.measurement_complete(result))
+                self.assertEqual(result, before)
+        changes = [
+            lambda r: r.update(expected=0),
+            lambda r: r["members"].pop(),
+            lambda r: r["members"][1].update(memberId="a"),
+            lambda r: r["members"][1].update(state="not_submitted"),
+            lambda r: r["members"][1].update(state="running"),
+            lambda r: r["members"][1].update(state="timed_out"),
+            lambda r: r.update(comparisons=[]),
+            lambda r: r["comparisons"][0].update(freshness="stale"),
+            lambda r: r["comparisons"][0].update(summary=None),
+            lambda r: r["comparisons"][0]["summary"].update(counts={}),
+        ]
+        for key, value in (
+            ("expected", 2),
+            ("expected", 0),
+            ("submitted", 0),
+            ("terminal", 0),
+            ("scored", 0),
+            ("missing", 1),
+            ("conflicting", 1),
+            ("scored", True),
+        ):
+            changes.append(
+                lambda r, k=key, v=value: r["comparisons"][0]["summary"]["counts"]["b"].update(
+                    {k: v}
+                )
+            )
+        for change in changes:
             changed = copy.deepcopy(result)
-            changed["comparisons"][0][key] = value
-            self.assertFalse(h.successful(changed))
+            change(changed)
+            self.assertFalse(h.measurement_complete(changed))
+
+    def test_cli_retains_complete_negative_evidence_and_rejects_partial_trial(self):
+        import os
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            manifest = complete_manifest()
+            observer = root / "observer.py"
+            observer.write_text('"""Evaluator-private fixture."""\n')
+            manifest["observerSha256"] = h.digest(observer.read_bytes())
+            frozen = root / "manifest.json"
+            frozen.write_bytes(h.encoded(manifest))
+            ids = h.preflight(manifest)
+            arm = {
+                "expected": 15,
+                "submitted": 15,
+                "terminal": 15,
+                "scored": 15,
+                "missing": 0,
+                "conflicting": 0,
+            }
+            report = {
+                "expected": 90,
+                "members": [{"memberId": identity, "state": "failed"} for identity in ids],
+                "comparisons": [
+                    {
+                        "experimentId": e["id"],
+                        "freshness": "current",
+                        "summary": {
+                            "conclusion": "regressions",
+                            "counts": {v: copy.deepcopy(arm) for v in e["variants"]},
+                        },
+                    }
+                    for e in manifest["experiments"]
+                ],
+            }
+            for complete in (True, False):
+                measured = copy.deepcopy(report)
+                if not complete:
+                    measured["members"][-1]["state"] = "not_submitted"
+                output = root / ("complete.json" if complete else "partial.json")
+
+                def run(*_args, emit, **_kwargs):
+                    for row in measured["members"]:
+                        if row["state"] in h.TERMINAL:
+                            emit(row)
+                    return measured
+
+                with (
+                    patch.object(
+                        sys,
+                        "argv",
+                        [
+                            "harness.py",
+                            "--manifest",
+                            str(frozen),
+                            "--observer",
+                            str(observer),
+                            "--api",
+                            "http://127.0.0.1",
+                            "--output",
+                            str(output),
+                        ],
+                    ),
+                    patch.dict(os.environ, {"CONTRACTOR_CONTEXT_EVAL_TOKEN": "unused"}),
+                    patch.object(h, "openapi_validator", contextlib.nullcontext),
+                    patch.object(h, "live", run),
+                ):
+                    self.assertEqual(h.main(), 0 if complete else 1)
+                self.assertEqual(h.load(output), measured)
+                self.assertEqual(
+                    len(output.with_suffix(".members.jsonl").read_text().splitlines()),
+                    90 if complete else 89,
+                )
 
     def test_invalid_cli_manifests_fail_before_network_or_output(self):
         import os

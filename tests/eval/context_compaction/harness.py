@@ -1172,20 +1172,51 @@ def main():
         )
     with args.output.open("xb") as stream:
         stream.write(encoded(result))
-    return 0 if successful(result) else 1
+    return 0 if measurement_complete(result) else 1
 
 
-def successful(result):
-    return (
-        bool(result["members"])
-        and all(row["state"] == "succeeded" for row in result["members"])
-        and all(
-            c["freshness"] == "current"
-            and c["summary"] is not None
-            and c["summary"]["conclusion"] == "pass"
-            for c in result["comparisons"]
-        )
-    )
+def measurement_complete(result):
+    """Consume authoritative completion counts without interpreting quality."""
+    expected, members = result["expected"], result["members"]
+    if (
+        type(expected) is not int
+        or expected < 1
+        or len(members) != expected
+        or len({row["memberId"] for row in members}) != expected
+        or any(row["state"] not in TERMINAL for row in members)
+    ):
+        return False
+    accounted = 0
+    for comparison in result["comparisons"]:
+        summary = comparison["summary"]
+        if comparison["freshness"] != "current" or summary is None:
+            return False
+        counts = summary.get("counts", {})
+        if len(counts) != 2:
+            return False
+        for arm in counts.values():
+            if any(
+                type(arm.get(key)) is not int
+                for key in (
+                    "expected",
+                    "submitted",
+                    "terminal",
+                    "scored",
+                    "missing",
+                    "conflicting",
+                )
+            ):
+                return False
+            count = arm["expected"]
+            if (
+                count < 1
+                or any(arm[key] != count for key in ("submitted", "terminal", "scored"))
+                or arm["missing"]
+                or arm["conflicting"]
+            ):
+                return False
+            accounted += count
+    return accounted == expected
 
 
 if __name__ == "__main__":

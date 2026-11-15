@@ -1,0 +1,62 @@
+schema_version: '1.0'
+id: V466-019
+title: Recognize complete compaction measurements with negative conclusions
+milestone: worker-context-compaction-quality-2026-10
+epic: evals
+kind: defect
+introduced_by: V417-008
+priority: P1
+status: in_progress
+depends_on: [V417-008]
+languages: [python, json, markdown]
+goal: The live measurement command can finish a fully observed and scored negative experiment while preserving every execution failure and the Server's conclusion.
+context:
+  authority: >-
+    User request 2026-11-15 assigns V417-009 and V417-010. The latter explicitly
+    accepts measured regressions, no-improvement and inconclusive results.
+    This agent-proposed prerequisite makes the existing opt-in consumer report
+    completion consistently with that authorized outcome; it runs no live trial.
+  specification:
+  - docs/spec/evals/format.md#EVF-R100
+  - docs/spec/evals/format.md#EVF-R115
+  - docs/spec/evals/managed-evals.md#EVM-R73
+  finding: >-
+    tests/eval/context_compaction/harness.py:1178 successful requires every
+    execution to succeed and every comparison conclusion to equal pass.
+    Commit d39ad87e4584a737bdd0be01bcfb8cd9a2bc0958 introduced this restriction.
+    A fully executed/scored negative experiment therefore returns the same
+    incomplete exit as missing evidence, despite V417-010 accepting that result.
+  decision: >-
+    Read completion from existing current comparison counts: all frozen members
+    must be submitted, terminal and scored, with no missing/conflicting rows.
+    Keep conclusions and failed/cancelled execution states unchanged. Do not
+    interpret or recompute quality conclusions. Retaining the positive-only
+    exit and adding an external exception wrapper would be less code locally,
+    but would make ordinary research completion depend on another interpreter
+    of the same result. There is no production positive-only caller to preserve.
+  boundary: >-
+    One derived predicate consumes the Server-owned counts and the frozen local
+    denominator. No new member planner, usage ledger, comparison calculation,
+    persistent state, retry or model choice is added.
+scope:
+  in:
+  - Replace the CLI's positive-only success predicate with evidence completeness.
+  - Regressions for complete negative results and incomplete/stale/unscored matrices, including actual CLI exit/report behavior without network.
+  - Refresh the frozen scorer/consumer closure digest and document exit meanings.
+  out:
+  - Live model execution, production Eval or Runtime semantics, scoring changes, model changes and relaxing frozen comparison thresholds.
+acceptance_criteria:
+- id: A1
+  text: A complete matrix of settled and scored failed/successful executions returns exit0 and retains the exact negative or inconclusive Server conclusion and expected denominator.
+- id: A2
+  text: Empty, unrun, nonterminal, stale, missing or unscored evidence returns an incomplete exit; invalid preflight still fails before network or output and no failure is converted to success.
+- id: A3
+  text: All offline fixture/scorer/consumer tests and lint pass, the closure pin matches changed code, and no live Gateway request occurs.
+tests:
+- command: make test-context-compaction-eval-fixtures
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A2, A3]
+test_prerequisites:
+- Locked Runtime dependencies, Go/Node toolchains and UI dependencies; deterministic tests prohibit network connections.
+- V417-009 remains the separate deterministic exit before V417-010 starts real measurements.

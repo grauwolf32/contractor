@@ -175,8 +175,12 @@ replace members or delete an uncertain execution to improve the denominator.
 
 The sibling `.members.jsonl` streams safe per-member records as they settle;
 the final JSON retains every expected ID/status, manifest digest and the **server's**
-comparison summaries/freshness. Exit 0 requires all expected executions succeeded
-and fresh server comparisons passed. Missing or stale comparisons are inconclusive.
+comparison summaries/freshness. Exit 0 means the frozen matrix is fully submitted,
+terminal and scored in fresh Server comparisons, with no missing or conflicting
+members. Negative and inconclusive conclusions and failed/cancelled executions stay
+unchanged: completing a measurement does not assert improvement. Exit 1 means the
+evidence is incomplete; invalid preflight/consumer errors exit 2. Missing or stale
+comparisons remain inconclusive and incomplete.
 Usage comes from common cumulative Eval snapshots, including terminal summarizer
 usage once. Run monetary activity and Runtime phase diagnostics are breakdowns,
 never added to usage again. Missing tokens or prices remain `null`; there is no
