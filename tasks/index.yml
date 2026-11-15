@@ -25,7 +25,13 @@ execution_policy:
     peer and the Gateway identity. DNS/readiness/provider HTTPS and the existing
     fail-closed check all pass. V417-010 is in_progress for isolated calibration
     and frozen repeated measurements with the same configured model.
-    No live quality is claimed.
+    Development03 now proves useful continuation after the soft6000 checkpoint;
+    both controlled live probes activate and recover the correct later answer.
+    Schema/hypothesis-ID misses are retained. The primary study freezes ratio0.006,
+    keepRecentGroups1,maxCompactions4 and unchanged configured aliases/sampling;
+    template version4 separates final authored fixtures from development refs.
+    All120 primary members remain unregistered/unrun at this calibration commit.
+    No repeated live quality is claimed.
     This branch is not merged or deployed. V417-004 stays reserved in_progress
     and executes LAST, after V417-010.
     User request 2026-11-14 delivered on 2026-11-15 integrates the reviewed

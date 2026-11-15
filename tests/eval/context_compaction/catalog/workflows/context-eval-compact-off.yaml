@@ -31,13 +31,13 @@ spec:
       planner: passthrough@1
       agents:
         builder:
-          template: context-eval-worker@1
+          template: context-eval-worker@4
           contextManagement:
             strategy: compact@1
             instructions:
               ref: instructions/worker-compaction.md
             includeReasoning: false
-            contextWindowRatio: 0.5
+            contextWindowRatio: 0.006
             keepRecentGroups: 1
             maxCompactions: 4
       context:

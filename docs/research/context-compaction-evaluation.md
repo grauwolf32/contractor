@@ -3,7 +3,7 @@
 V417-009 принята; live-приёмка V417-010 ещё не завершена. После неудачного
 отдельного development Run 15 ноября сетевой выход Gateway восстановлен
 16 ноября 2026 года через существующий VPN-узел. Настроенная модель сохранена.
-Следующий этап — development-калибровка и замороженные held-out сравнения.
+Development-калибровка завершена; следующий этап — замороженные held-out сравнения.
 Измеренного результата о качестве, токенах или пользе reasoning пока нет.
 
 ## Проверенная основа
@@ -65,8 +65,8 @@ Observer читает существующие OTLP spans и безопасны�
 не разрешены capabilities: отсутствие повторных сетевых проверок не доказывает,
 что модель решила их не повторять.
 
-Перед held-out запуском ещё требуется измерить development prompt/checkpoint,
-зафиксировать общие пределы, ratio, timeout, build/closure pins, порядок seed 417,
+Development prompt/checkpoint уже измерены (см. ниже). Перед held-out
+запуском фиксируются общие пределы, ratio, timeout, build/closure pins, порядок seed 417,
 точные регистрации и все варианты. Подгонки по held-out результатам не было.
 Порог качества остаётся прежним: candidate pass 1, quality drop 0, token ratio 1.
 Расходы и сравнения принадлежат существующему Managed Eval; локальный charge
@@ -125,7 +125,7 @@ reported USD 0.01827893 по штатному cost view. AST-проверка fi
 12744 prompt tokens, после — 3066; это размер контекста, а не экономия
 полной задачи. После checkpoint полезных tool operations не было.
 
-Следующий отдельный development-прогон проверит soft6000 (ratio0.006 при
+Отдельный development03 затем проверил soft6000 (ratio0.006 при
 контексте1M) между наблюдавшимися prompt5700 и6808, сохраняя модели,
 sampling, бюджеты, инструкции, keepRecentGroups1 и maxCompactions4.
 Held-out результаты ещё не получены; параметры по ним не подгонялись.
@@ -157,3 +157,27 @@ Offline scored fixtures проверяют scorer и consumer; они не яв�
 (39 offline-тестов, 105 recorded scored samples, два Go package) и `make lint`.
 Обе команды прошли. `make eval-context-compaction-live` не запускалась:
 окончательного manifest и регистраций пока нет. Результат не объявлен pass.
+
+## Development03 и реальные контрольные пробы
+
+При soft6000 (`contextWindowRatio=0.006`, configured context 1M) обычный
+Run завершился с тремя успешными инструментами после checkpoint. Native
+prompt изменился 6928 → 2522; восемь вызовов суммарно потребили 34518 токенов
+и USD0.00387207 с полным reported cost coverage. Разницу с development02
+нельзя приписывать одному threshold: это отдельные стохастические прогоны.
+
+Оба тестовых контроля с теми же общими настройками реально активировались:
+после native checkpoint выполнено пять полезных инструментов, после masking —
+16. Оба верно ответили на поздний вопрос. AST подтверждает идентичность
+найденного sink во всех трёх результатах; это не полные quality passes:
+два отчёта пропускают требуемые hypothesis-ID sets, а два включают лишние
+поля finding при строгой проверке схемы. Эти промахи сохранены.
+
+Для основной серии фиксируются ratio0.006, keepRecentGroups1,
+maxCompactions4, общая методологическая инструкция и прежние модели/бюджеты.
+Template version4 отделяет итоговые authored Workflows от development refs.
+Fixture-каталог разрешается с e2e policies; операторская live-копия отдельно
+фиксирует выбранные ModelPolicy/Gateway и summarizer cumulativeBudget200000
+при caller maxTotalTokens250000. Exact effective closure pins входят в manifest.
+[Данные development03 и контролей](../../tasks/evidence/v417-010-development-20261116-03.json)
+содержат все исходы. Основные 120 членов пока не зарегистрированы.

@@ -2,7 +2,7 @@ apiVersion: contractor/v1alpha1
 kind: AgentTemplate
 metadata:
   name: context-eval-controlled-compact
-  version: '1'
+  version: '4'
 spec:
   description: Test-only controlled controlled-compact continuation through the ordinary
     Runtime

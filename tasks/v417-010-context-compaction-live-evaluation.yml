@@ -66,20 +66,25 @@ context:
     and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
     and verification history. Recheck affected contracts if main changes before execution.
   current_state: >-
-    V417-009 is accepted. Network recovery is complete. After the retained
-    initial infrastructure failure, development02 succeeds on the configured
-    model: 12 native calls, 121073 total tokens, USD0.01827893 reported cost;
-    independent source/constraint checks pass. A checkpoint reduces measured
-    prompt12744 to3066 but follows the useful tool work. Development03 will
-    test the earlier soft6000 trigger before any held-out registration.
-    All120 primary members remain unregistered/unrun; no quality conclusion.
+    V417-009 is accepted and network recovery is complete. Development03
+    succeeds with useful continuation after the soft6000 checkpoint; both
+    controlled live probes activate and answer the late question correctly.
+    General settings are frozen for the primary study: ratio0.006,
+    keepRecentGroups1,maxCompactions4, unchanged configured aliases/sampling
+    and caller/auxiliary budgets. Development output-schema and hypothesis-ID
+    misses are retained, not interpreted as complete quality passes.
+    All120 primary members are still unregistered/unrun; no quality conclusion.
   development_calibration: >-
-    Agent decision based only on development02 measurements: ratio0.006 at
-    configured context1M lies between measured prompts5700 and6808. Keep
-    model selections, sampling, call/tool/token caps, instructions,
-    keepRecentGroups1 and maxCompactions4 fixed. Use a distinct workflow/template
-    identity and retain the earlier run and costs. Identical-checkpoint replay
-    remains unsupported.
+    Agent decision based only on development02/03: soft6000 (ratio0.006 for
+    configured context1M) permits useful work after native compaction. Ordinary
+    development03 has three later tools, controlled compact five, masking16;
+    both controls recover the correct late answer. Finding identity matches
+    independent AST in all three, but only the controlled compact output
+    retains both hypothesis-ID sets, and extra finding metadata fails the
+    exact schema check. Keep those misses. Freeze the same generic methodology
+    instruction, models and sampling; use new template version4 for final
+    authored Workflows. No calibration result is a repeated quality comparison.
+    Identical-checkpoint replay remains unsupported.
   observer_measurement_correction: >-
     Development02 exposed an error in this task's new observer: text-artifact
     pagination's truncated=true is a valid complete tool response, not the
@@ -133,6 +138,7 @@ context:
   development_evidence:
   - tasks/evidence/v417-010-development-20261115.json
   - tasks/evidence/v417-010-development-20261116-02.json
+  - tasks/evidence/v417-010-development-20261116-03.json
 
 scope:
   in:
@@ -318,8 +324,8 @@ verification_requirements:
 
 verification:
 - command: make test-context-compaction-eval-fixtures
-  result: Passed preparation only; 39 offline cases, 105 recorded scored samples and both Go packages. No live quality claim.
+  result: Passed preparation only; 41 offline cases, 105 recorded scored samples and both Go packages. No live quality claim.
 - command: make lint
   result: Passed full lint; task/spec/dependency consistency and diff checks also pass after the final evidence update.
 - command: make eval-context-compaction-live
-  result: Not run; development Gateway DNS/WireGuard egress failure prevented final calibration and registration. All 120 declared primary members remain unrun. Acceptance A1-A4 remains incomplete.
+  result: Not yet run. Network restored, development checkpoint and both controls measured. All 120 declared primary members remain unrun. Acceptance A1-A4 remains incomplete.
