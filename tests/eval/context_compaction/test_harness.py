@@ -221,6 +221,7 @@ class FakeAPI:
         self.lost = False
         self.cancelled = False
         self.timeout = False
+        self.unverified_pins = False
         self.rows = {}
         self.workflows = {
             r["path"]: published_workflow(r["path"].split("/")[3])
@@ -299,6 +300,11 @@ class FakeAPI:
         if path.endswith("/runtime-diagnostics"):
             return []
         self.calls.append(("GET", path, None, None))
+        if path.endswith("/pairs"):
+            return [
+                {"exclusions": ["pins-unverified"] if self.unverified_pins else ["nonterminal"]}
+                for _ in range(len(self.rows[path.split("/")[3]]) // 2)
+            ]
         return copy.deepcopy(self.rows[path.split("/")[3]])
 
 
@@ -520,6 +526,14 @@ class HarnessTests(unittest.TestCase):
         with self.assertRaises(h.Rejected):
             h.verify_remote(api, manifest)
         self.assertFalse(api.submissions)
+
+    def test_server_unverified_comparison_pins_block_every_live_submission(self):
+        api = FakeAPI(complete_manifest())
+        api.unverified_pins = True
+        with self.assertRaisesRegex(h.Rejected, "server comparison pins unverified"):
+            h.live(api.manifest, api, observer="unused", clock=lambda: 0, pause=lambda _: None)
+        self.assertFalse(api.submissions)
+        self.assertTrue(all(call[0] == "GET" for call in api.calls))
 
     def test_effective_workflow_model_routes_are_verified_before_dispatch(self):
         for target in (

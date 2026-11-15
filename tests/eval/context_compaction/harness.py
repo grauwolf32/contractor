@@ -667,6 +667,16 @@ def verify_remote(client, manifest):
             "registered thresholds mismatch",
         )
         rows = client.pages(path + "/members")
+        pairs = client.pages(path + "/pairs")
+        require(
+            len(pairs) * 2 == len(rows)
+            and all(
+                isinstance(pair.get("exclusions"), list)
+                and "pins-unverified" not in pair["exclusions"]
+                for pair in pairs
+            ),
+            "server comparison pins unverified",
+        )
         by_id = {r["member"]["memberId"]: r["member"] for r in rows}
         require(
             len(by_id) == len(rows) and set(by_id) == set(experiment["memberOrder"]),

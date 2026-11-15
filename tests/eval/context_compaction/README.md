@@ -144,6 +144,17 @@ its fake IDs/digests are not suitable for a live server. Invalid, missing, dupli
 oversized or confounded manifests fail before submission. Every read-only resource,
 registered matrix, scorer and Workflow selection is checked before the first write.
 
+The preflight also reads the native `/pairs` projection before any submission.
+`pins-unverified` blocks the entire live matrix, including when a local manifest
+contains matching attributed hashes. Configuration hashes do not manufacture
+observed source/task equality. The 2026-11-16 study exposed that the current
+external registration freezes executable pins but does not observe those two
+dimensions; the proposed common-owner prerequisite is
+[V466-021](../../../tasks/v466-021-observe-external-eval-input-task-pins.yml).
+Until supported, retain the incomplete plan and do not remove required equality
+or substitute a local comparison to admit it. Nonterminal/quality-incomplete
+exclusions are expected before dispatch; provenance must already be known.
+
 ## Invocation and retained evidence
 
 Use absolute local paths, a new output filename, and an existing API session token:

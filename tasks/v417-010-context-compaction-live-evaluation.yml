@@ -5,12 +5,13 @@ milestone: worker-context-compaction-quality-2026-10
 epic: evals
 kind: chore
 priority: P2
-status: in_progress
+status: pending
 depends_on:
 - V417-008
 - V417-009
 - V466-019
 - V466-020
+- V466-021
 languages:
 - python
 - yaml
@@ -66,23 +67,29 @@ context:
     and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
     and verification history. Recheck affected contracts if main changes before execution.
   current_state: >-
-    V417-009 is accepted and network recovery is complete. Development03
-    succeeds with useful continuation after the soft6000 checkpoint; both
-    controlled live probes activate and answer the late question correctly.
-    General settings are frozen for the primary study: ratio0.006,
-    keepRecentGroups1,maxCompactions4, unchanged configured aliases/sampling
-    and caller/auxiliary budgets. Development output-schema and hypothesis-ID
-    misses are retained, not interpreted as complete quality passes.
-    Protocol attempt1 registered120 members but stopped after its first
-    succeeded Run: the observer import fails under the consumer's actual -I -S
-    launch. All120 members, one observed cost and119 unrun members are retained;
-    all four experiments are cancelled. No quality assessment was published.
-    The correction loads the pinned sibling client explicitly, passes a real
-    isolated-entry regression and the same retained live Run smoke check.
-    Attempt2 is now registered and running with120 members, frozen manifest
-    sha256:5cfcf096990838527eafbe9106c200609491c0a7cd2ac34951c90977f6207c8f.
-    It retains its relation to attempt1; no scorer, case, model, threshold or
-    context parameter changes and no favorable replacement.
+    V417-009 is accepted and network recovery is complete. Attempt1 retains
+    one succeeded/unscored Run and119 unrun members. Attempt2 is stopped and
+    all four experiments cancelled:36 completed, one cancelled,83 unrun from
+    its frozen120. Known36-member usage is1377320 tokens and USD0.1930442420
+    reported; the cancelled member's complete usage/price are unavailable.
+    All60 native pairs carry pins-unverified: external registration does not
+    observe source/task equality. All native verdicts remain inconclusive.
+    The consumer preflight gap is corrected and tested before any new dispatch.
+    Return to pending for proposed prerequisite V466-021 and explicit user
+    scope decision. No live quality acceptance or policy recommendation.
+  decision_needed: >-
+    User was asked on2026-11-16 whether to implement common Eval prerequisite
+    V466-021 or retain this research incomplete. It is a production capability
+    outside this task's harness scope (AGENTS.md4.1); no implementation has
+    started. Missing native pins cannot be bypassed by a local comparison.
+  comparison_preflight_correction: >-
+    The assigned consumer now checks the native pair exclusions before its
+    first submission. A regression fails under the old implementation because
+    it dispatches an unverified plan; after correction all43 offline tests and
+    both Go packages pass. Read-only replay of the retained live plan rejects
+    pins-unverified after19 GETs with zero writes/model calls. The scoring
+    function, cases, truth, model, thresholds and context parameters are not
+    tuned; the scorer closure digest changes because it pins the whole consumer.
   observer_launch_correction: >-
     Agent correction 2026-11-16 within this task's evaluator implementation:
     importlib.util loads the existing sibling client under isolated Python;
@@ -159,6 +166,7 @@ context:
   - tasks/evidence/v417-010-development-20261116-03.json
   - tasks/evidence/v417-010-protocol-attempt1-20261116.json
   - tasks/evidence/v417-010-freeze-r2-20261116.json
+  - tasks/evidence/v417-010-protocol-attempt2-20261116.json
 
 scope:
   in:
@@ -344,11 +352,12 @@ verification_requirements:
 
 verification:
 - command: make test-context-compaction-eval-fixtures
-  result: Passed preparation only; 42 offline cases, 105 recorded scored samples and both Go packages. No live quality claim.
+  result: Passed preparation only; 43 offline cases, 105 recorded scored samples and both Go packages. No live quality claim.
 - command: make lint
-  result: Passed full lint; task/spec/dependency consistency and diff checks also pass after the final evidence update.
+  result: Passed full make lint after the comparison-pin admission guard; task/spec/dependency and diff checks pass. Earlier rerun failed solely on concurrently stale generated BACKLOG, regenerated before the successful run.
 - command: make eval-context-compaction-live
   result: >-
-    Attempt1 incomplete: one succeeded Run, no assessment and119 unrun; make exit2.
-    Retained all120 members/costs. Observer launch correction verified; a new
-    frozen attempt2 is now running. Acceptance A1-A4 remains incomplete.
+    Incomplete, make exit2. Attempt1 retains1 succeeded/unscored and119 unrun.
+    Attempt2 retains36 completed,1 cancelled and83 unrun; all120 expected
+    members retained in each attempt. Missing native source/task observed pins
+    exclude every pair. No quality/savings recommendation; A1-A4 incomplete.

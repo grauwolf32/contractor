@@ -9,39 +9,20 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
-    V417-010 protocol attempt1 is retained incomplete:120 registered members,
-    one succeeded Run,119 unrun and no quality assessment. The evaluator's
-    isolated Python import failed; a real subprocess regression and same-Run
-    smoke prove the correction. All four experiments are cancelled. A new
-    frozen attempt2 is registered and running with120 members; it retains that
-    relation and unchanged cases/scorer/model/sampling/context settings. Pins are
-    tasks/evidence/v417-010-freeze-r2-20261116.json. This is a protocol correction,
-    not sample selection.
-    User request 2026-11-15 completes V417-009 on codex/v417-release-quality.
-    Full make -k release-verify passes on clean integrated revision
-    7ef5d58deb5ff42cec9175fa4261d169047c1d22 after V466-018 repairs an unrelated
-    bounded-page test. All 52 process roots and required compaction cases pass;
-    optional heavy-I/O/platform/live skips remain explicit exclusions. Evidence:
-    tasks/evidence/v417-009-acceptance-20261115.json. V466-019/V466-020 prepare
-    the separately assigned V417-010 live study. Its 2026-11-15 development Run
-    observed shared Gateway DNS/WireGuard egress failure before any model answer.
-    The Run is cancelled/released, owned credential revoked, processes joined and
-    final owned database dropped. The four-comparison/120-member study remains
-    unregistered/unrun. The user's 2026-11-16 follow-up authorizes running and
-    configuring the remote infrastructure itself. Operational recovery now uses
-    one dedicated Gateway peer in an existing VPN server, preserving its other
-    peer and the Gateway identity. DNS/readiness/provider HTTPS and the existing
-    fail-closed check all pass. V417-010 is in_progress for isolated calibration
-    and frozen repeated measurements with the same configured model.
-    Development03 now proves useful continuation after the soft6000 checkpoint;
-    both controlled live probes activate and recover the correct later answer.
-    Schema/hypothesis-ID misses are retained. The primary study freezes ratio0.006,
-    keepRecentGroups1,maxCompactions4 and unchanged configured aliases/sampling;
-    template version4 separates final authored fixtures from development refs.
-    All120 primary members remain unregistered/unrun at this calibration commit.
-    No repeated live quality is claimed.
-    This branch is not merged or deployed. V417-004 stays reserved in_progress
-    and executes LAST, after V417-010.
+    User network-configuration follow-up2026-11-16 is fulfilled: dedicated
+    Gateway peer on the existing VPN server, preserved mesh/identity/model,
+    DNS/readiness/provider HTTPS and native fail-closed checks pass.
+    V417-009 remains completed with full release evidence. V417-010 returns
+    pending: external source/task pins are unobserved, so every native pair is
+    pins-unverified. The assigned consumer now blocks that before dispatch.
+    Attempt1 retains1 succeeded/unscored and119 unrun; attempt2 retains36
+    completed,1 cancelled and83 unrun, with every expected member and known
+    cost retained. Known R2 usage is1377320 tokens and USD0.1930442420 reported;
+    cancelled-member complete usage/price are unavailable. No quality acceptance
+    or recommendation. Agent-proposed V466-021 is pending explicit user scope
+    decision under AGENTS.md4.1; no common Eval implementation has started.
+    V417-004 stays reserved in_progress and executes LAST after V417-010.
+    This branch is not merged or deployed. Earlier accepted evidence follows.
     User request 2026-11-14 delivered on 2026-11-15 integrates the reviewed
     V417 branch into main through no-fast-forward merge
     5ca0aa20cf69d78ae06841d839e4a3968463d194 (V466-016). All 25 independent main

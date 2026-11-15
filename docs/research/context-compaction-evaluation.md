@@ -1,212 +1,151 @@
-# Context compaction: состояние live-исследования
+# Context compaction: неполное live-исследование
 
-V417-009 принята; live-приёмка V417-010 ещё не завершена. После неудачного
-отдельного development Run 15 ноября сетевой выход Gateway восстановлен
-16 ноября 2026 года через существующий VPN-узел. Настроенная модель сохранена.
-Development-калибровка завершена; следующий этап — замороженные held-out сравнения.
-Измеренного результата о качестве, токенах или пользе reasoning пока нет.
+V417-009 принята; V417-010 не завершена. Сетевой выход Gateway восстановлен
+16 ноября 2026 года, но live-план обнаружил недостающую наблюдаемую provenance
+в external Eval. Dispatch остановлен. Модель, gates, truth и параметры не
+подгонялись по held-out результатам. Рекомендаций по reasoning, оптимальному
+threshold или включению пилота нет.
 
-## Проверенная основа
+## Что реально выполнено
 
-Полный `make -k release-verify` прошёл на
-`7ef5d58deb5ff42cec9175fa4261d169047c1d22`: все 52 процессных корня и
-обязательные сценарии isolated compaction выполнены. Необязательные heavy-I/O,
-платформенные и live-пропуски перечислены отдельно в
-[доказательствах V417-009](../../tasks/evidence/v417-009-acceptance-20261115.json).
-Это подтверждает детерминированный контракт, а не качество модели.
+| Попытка | Замороженный denominator | Завершено | Отменено | Не запускалось | Native quality assessments |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1: ошибка isolated observer | 120 | 1 | 0 | 119 | 0 |
+| 2: отсутствуют native source/task pins | 120 | 36 | 1 | 83 | 36 |
 
-Используется настроенная `glm-5.3-flash`, upstream
-`openrouter/z-ai/glm-5.3-flash`. Alias Worker, Planner и summarizer сохранены
-из конфигурации модели `cc78cc13596ab7d7`; физическая ревизия весов неизвестна.
-Для отдельного окружения созданы ограниченные политики с теми же alias,
-context/output caps и температурой 0.6. Один вспомогательный alias обслуживает
-summarizer и compactor. Нового deployment role или несуществующего
-`compactor-model` нет.
+Попытки имеют разные frozen identities и не смешиваются в одну выборку.
+Первая остановилась до assessment: `python -I -S` исключает каталог скрипта
+из `sys.path`, поэтому observer не импортировал соседний client. Исправление
+явно загружает pinned sibling через `importlib.util`. Тест через настоящий
+изолированный subprocess воспроизводит ошибку до исправления и проходит после;
+тот же сохранённый Run проверен без нового вызова модели.
+[Данные попытки1](../../tasks/evidence/v417-010-protocol-attempt1-20261116.json).
 
-Все варианты должны использовать Python 3.13.16, ADK 2.13.0 и lock
-`sha256:945f997f38cabe445f1f05a559a26089fdf3bf44c95b523a6d8eb71c8e235c65`.
-Тестовый адаптер оборачивает штатные callbacks ADK без своего цикла модели,
-счётчиков расходов или production-стратегии masking.
+Во второй попытке все 30 terminal off/on запусков завершены и оценены.
+Compact off/on имеет шесть завершённых запусков и один отменённый. Handoff и
+контролируемое compact/masking сравнение в held-out серии не запускались.
+Всего 13 Runs succeeded, 23 failed, один cancelled. Все 36 опубликованных
+quality assessments — fail; это не подменяет неизвестные исходы остальных
+84 членов. Из ошибок выполнения 22 имеют `worker_summarized`, одна —
+`worker_summarization_failed`.
 
-## Подготовленный протокол
+Для 36 членов известны **1 377 320 токенов** и **USD 0.1930442420 reported**.
+У отменённого члена полные usage и цена недоступны. Это известная часть
+расхода, не полный итог и не нулевая цена отменённого вызова. В первой попытке
+отдельно сохранён расход USD0.0048948605. Все failed/cancelled/unrun члены
+остаются в своих denominator.
+[Данные попытки2](../../tasks/evidence/v417-010-protocol-attempt2-20261116.json).
 
-| Сравнение | Варианты | Планируемые члены |
+## Почему native сравнение не состоялось
+
+`resolveExternal` сохраняет локальные executable snapshots и observed pins
+конфигурации. `source/tasks` добавляются native plan builder, но не external
+registration. Существующий `verifiedComparisonPins` поэтому правильно
+отказывает в сравнении required-equal dimensions. Все 60 native пар попытки2
+помечены `pins-unverified`; итог каждого сравнения остаётся `inconclusive`.
+Operator-pinned входы и конфигурация в manifest не превращают producer claims
+в observed provenance сервера (EVM-R31, EVM-R135, EVM-R138).
+
+Preflight V417-010 ошибочно разрешал такой план. Теперь consumer читает
+штатные pair exclusions до первой submission и отклоняет `pins-unverified`.
+Регрессия до исправления допускает запись submission, после — не делает
+ни одной записи. Read-only replay сохранённого native плана отклонён после
+19 GET, без model calls, results или assessments.
+
+Численные paired intervals и сравнительный token ratio здесь не публикуются:
+native пары исключены, и отдельный локальный comparison engine не обходит
+это решение. Даже при полной серии её gates не могли бы дать рекомендацию.
+Для продолжения предложена отдельная **V466-021** у общего владельца Eval:
+наблюдать только действительно проверяемые локальные inputs/effective tasks.
+Задача pending, реализация ждёт решения пользователя. Старые immutable
+registrations не переписываются; последующая серия потребует новой заморозки
+с сохранением связи с обеими неполными попытками.
+
+## Зафиксированный протокол
+
+| Сравнение | Варианты | Запланировано на попытку |
 | --- | --- | ---: |
 | Terminal reasoning | off / on | 30 |
 | Compactor reasoning | off / on | 30 |
 | Terminal continuation | terminal off / terminal → streamline | 30 |
-| Контролируемое продолжение | native compact / masking наблюдений | 30 |
+| Контролируемое продолжение | native compact / observation masking | 30 |
 
-Каждое сравнение содержит три класса задач и пять повторов на сторону,
-всего 120 членов. Terminal off участвует в двух независимых сравнениях.
-Первая регистрация120 членов сохранена как незавершённая попытка протокола
-(см. ниже). Исправленная серия получит новые frozen identities и manifest.
+Три класса: Python source review; контракт 12 API routes и dependency
+projection; negative-result memory из 48 наблюдений. По пять повторов на
+каждую сторону. Terminal off в двух сравнениях — независимые члены.
 
-Классы содержат Python source review, контракт 12 API routes с dependency
-projection и 48 наблюдений разрешённых/отклонённых проверок. Независимые
-AST/OpenAPI/receipt-проверки используют отдельный oracle. JSON-массив строк
-сохраняет доступ к source через ограниченные окна чтения. Hidden truth и
-вопросы не включаются во входные Artifact или рабочие каталоги модели.
+Попытка2 зафиксирована до первого dispatch: manifest
+`sha256:5cfcf096990838527eafbe9106c200609491c0a7cd2ac34951c90977f6207c8f`,
+seed417 только для порядка, concurrency1, 20 минут на члена, 24 часа на
+consumer. Gates: candidate pass1, quality drop0, total-token ratio1.
+[Точные pins и attestation](../../tasks/evidence/v417-010-freeze-r2-20261116.json).
 
-В четвёртом сравнении приватный вопрос появляется только после реального
-native checkpoint или непустого masking. Он повторяется в последующих
-проекциях запроса, поскольку проекция не является сохранённым событием
-сессии. Проверяется поле `futureAnswer`, а не самооценка полноты summary.
-Начальное поведение обычных вариантов не меняется.
+Настроенная модель — `glm-5.3-flash`, upstream
+`openrouter/z-ai/glm-5.3-flash`. Alias Worker, Planner и summarizer сохранены
+из конфигурации `cc78cc13596ab7d7`; физическая ревизия весов недоступна.
+Один существующий auxiliary alias обслуживает summarizer и compactor.
+Клонированные ограниченные политики сохраняют alias, context/output caps и
+температуру0.6. Runtime — Python3.13.16, ADK2.13.0, lock
+`sha256:945f997f38cabe445f1f05a559a26089fdf3bf44c95b523a6d8eb71c8e235c65`;
+build чистого `1f80459f36dad3901fb61d4bf612bf52852b7808`.
 
-Повтор одного и того же checkpoint через штатный API не поддерживается.
-Статистические пары case/repetition нельзя выдавать за одинаковое состояние
-Runtime. Прежняя имитация через копирование локальных файлов удалена.
+Общие параметры: ratio0.006 при configured context1M (soft6000),
+keepRecentGroups1, maxCompactions4; template version4, неизменная общая
+методологическая инструкция. Live-копия фиксирует выбранные policies/Gateway
+и summarizer cumulativeBudget200000 при caller maxTotalTokens250000.
+Это исследуемая конфигурация, не production-рекомендация и не оптимум.
 
-Observer читает существующие OTLP spans и безопасные записи SDK projection.
-Полезная работа требует успешного tool span после checkpoint. Пропущенные,
-чужие и усечённые данные не превращаются в нулевую активность. Source receipts,
-повторные чтения и native archive retrieval различаются. HTTP probes вообще
-не разрешены capabilities: отсутствие повторных сетевых проверок не доказывает,
-что модель решила их не повторять.
+Totals принадлежат native cumulative Eval usage. Runtime phases и monetary
+activity — breakdowns, не дополнительные затраты. Byte compression не
+пересчитывается в токены. SDK digests — redacted request projections, не
+raw provider transport; fresh Run/revision IDs отличаются. Идентичный replay
+native checkpoint не поддерживается. Пары case/repetition не означают
+одинаковое состояние Runtime.
 
-Development prompt/checkpoint уже измерены (см. ниже). Перед held-out
-запуском фиксируются общие пределы, ratio, timeout, build/closure pins, порядок seed 417,
-точные регистрации и все варианты. Подгонки по held-out результатам не было.
-Порог качества остаётся прежним: candidate pass 1, quality drop 0, token ratio 1.
-Расходы и сравнения принадлежат существующему Managed Eval; локальный charge
-ledger и второй механизм сравнения не добавлены.
+## Development и ограниченные наблюдения
 
-## Препятствие для измерения
+До held-out выполнялись отдельные development fixtures. Soft12000 сработал
+после полезных инструментов: prompt12744 →3066, но дальнейшей полезной работы
+не было. При soft6000 development03 имел три успешных инструмента после
+checkpoint и prompt6928 →2522. Оба development-контроля реально активировались
+и верно ответили на поздний вопрос; дальнейших инструментов было пять после
+native compact и16 после masking. AST подтверждал identity sink, однако
+schema/hypothesis-ID промахи сохранены. Эти одиночные прогоны не доказывают
+улучшения. [Development02](../../tasks/evidence/v417-010-development-20261116-02.json),
+[development03 и контроли](../../tasks/evidence/v417-010-development-20261116-03.json).
 
-Development Run `run_cfc3dc57195be6e8eaafc89429c0f195` использует отдельный
-source и `dev-context-eval-compact-off@1`. Первый логический вызов модели
-попал в восстановление; после штатного пятиминутного окна Server сообщает
-`requiresRetry=true`. После этого Run отменён через штатный API и освобождён.
-Один логический вызов включил девять физических попыток Gateway. Ответов модели,
-tool calls, checkpoint и выходных Artifact нет. Token usage недоступен.
-Штатный LLM cost view сообщает estimated USD 0 для девяти попыток; это
-не измерение цены успешного результата.
+В попытке2 первый compact-off source Run применил checkpoint1:
+prompt6646 →2233; main33658, compaction6386, finalization1020 токенов.
+Уменьшение одного prompt не является экономией полной задачи. Незавершённой
+серии недостаточно для выбора includeReasoning, threshold, keepRecentGroups,
+maxCompactions или пилота. Terminal arms оценивают end-to-end завершение,
+а не самостоятельную полезность текста terminal summary.
 
-Read-only диагностика общего Gateway обнаружила `ClientConnectorDNSError`
-для `openrouter.ai`. В контейнере DNS lookup не завершился за восемь секунд,
-на хосте тот же lookup успешен. Последний WireGuard egress handshake был
-старше двух часов. Это инфраструктурное препятствие, не quality miss.
-Общий маршрут и конфигурация модели не изменялись. Собственный Gateway key
-отозван, Server/Runtime/SSH forward остановлены и joined, тестовая база удалена.
-[Development evidence](../../tasks/evidence/v417-010-development-20261115.json)
-сохраняет точные pins, диагностику, расход и ограничения.
+Observer различает валидную пагинацию text-artifact (`truncated=true`) и
+native telemetry envelope `{truncated,preview}`. Последний делает evidence
+недоступным на arguments и output. Проверки используют настоящий content
+encoder и protobuf projection. Успешные post-checkpoint tool spans,
+source receipts и native archive reads — разные измерения. HTTP probes
+capabilities не допускают; их отсутствие не доказывает решения модели.
 
-Пользователь разрешил одну попытку восстановления 15 ноября 2026 года.
-Установленная команда `/opt/contractor-hybrid/bin/egress.sh up` выполнена
-с exit code 0; доступ `sudo` имеется. После неё DNS в контейнере не завершился
-за восемь секунд, а штатная HTTPS-проверка завершилась с exit code 28 без
-HTTP-ответа. Новый WireGuard handshake отсутствует: передано 2072 байта,
-принято 0. Маршрут к peer идёт вне WireGuard, службы активны, политика
-исходящего firewall хоста — ACCEPT. Точная причина отсутствия обмена
-за пределами namespace пока не доказана.
+## Инфраструктура и границы
 
-После указания пользователя самостоятельно настроить инфраструктуру
-16 ноября найден действующий операторский VPN-узел. Для Gateway добавлен
-отдельный peer в существующем WireGuard, прежний peer сохранён. Идентичность
-клиента Gateway и mesh сохранены; обновлены deployed и локальные защищённые
-profile/metadata. Есть owner-only резервные копии для отката.
+Первый отдельный development Run15 ноября остановился на DNS/WireGuard
+Gateway failure: девять физических попыток, неизвестные tokens, estimated
+USD0. Его исходы не скрыты.
+[Development15](../../tasks/evidence/v417-010-development-20261115.json).
 
-Проверки прошли: DNS внутри LiteLLM, readiness Gateway и HTTPS OpenRouter —
-HTTP 200; четыре настроенных model alias доступны. Штатная проверка
-`check-kill-switch` подтверждает HTTP 200 до/после и блокировку прямого выхода
-при выключенном туннеле. Модели и их sampling не менялись.
+По указанию пользователя16 ноября Gateway переведён на выделенный peer
+существующего VPN-узла. Прежний peer, Gateway identity и mesh сохранены;
+deployed и защищённые локальные profile/metadata обновлены с rollback backups.
+DNS, readiness, provider HTTPS200 и native fail-closed check проходят.
+Настроенная модель не заменена. Persistent recovery не является disposable
+ресурсом исследования.
 
-Операционные записи находятся в приватном локальном runbook. V417-010
-возвращена в `in_progress`; дополнительная команда sudo или профиль от
-пользователя не требуются. Основной набор ещё не зарегистрирован и не запущен.
-
-## Development после восстановления сети
-
-Отдельный Run `run_50af72c4a10e647e9161800d1d020c83` завершился успешно:
-10 main, 1 compaction и 1 finalization вызов; всего 121073 токена и
-reported USD 0.01827893 по штатному cost view. AST-проверка finding,
-разделение observed/uncertain и constraints проходят. До checkpoint было
-12744 prompt tokens, после — 3066; это размер контекста, а не экономия
-полной задачи. После checkpoint полезных tool operations не было.
-
-Отдельный development03 затем проверил soft6000 (ratio0.006 при
-контексте1M) между наблюдавшимися prompt5700 и6808, сохраняя модели,
-sampling, бюджеты, инструкции, keepRecentGroups1 и maxCompactions4.
-Held-out результаты ещё не получены; параметры по ним не подгонялись.
-[Данные development02](../../tasks/evidence/v417-010-development-20261116-02.json)
-сохраняют provenance, все role counters и стоимость.
-
-Исправлена ошибка observer этого прохода: признак пагинации Artifact
-`truncated=true` был принят за обрезанную телеметрию. Теперь проверяется
-только envelope штатного content encoder; входные аргументы и выходы
-проверяются одинаково. Новые регрессии воспроизводят обе ошибки прежнего
-observer. Worker и SDK callbacks этой коррекцией не меняются.
-
-## Выводы на текущих данных
-
-| Решение | Рекомендация |
-| --- | --- |
-| Terminal `includeReasoning` | Данных для выбора нет |
-| Compactor `includeReasoning` | Данных для выбора нет; независимо от terminal |
-| ratio / keepRecentGroups / maxCompactions | Не рекомендовать до измерения |
-| Pilot Workflow / активация defaults | Не активировать по этим данным |
-| Latency, цена успешного результата, paired uncertainty | Не измерены |
-
-Offline scored fixtures проверяют scorer и consumer; они не являются live
-повторами. V417-010 остаётся открытой. Shared V417-004 выполняется последней,
-после завершения V417-010. Ветка `codex/v417-release-quality` не слита в main
-и не развёрнута.
-
-Подготовка проверена командами `make test-context-compaction-eval-fixtures`
-(39 offline-тестов, 105 recorded scored samples, два Go package) и `make lint`.
-Обе команды прошли. `make eval-context-compaction-live` не запускалась:
-окончательного manifest и регистраций пока нет. Результат не объявлен pass.
-
-## Development03 и реальные контрольные пробы
-
-При soft6000 (`contextWindowRatio=0.006`, configured context 1M) обычный
-Run завершился с тремя успешными инструментами после checkpoint. Native
-prompt изменился 6928 → 2522; восемь вызовов суммарно потребили 34518 токенов
-и USD0.00387207 с полным reported cost coverage. Разницу с development02
-нельзя приписывать одному threshold: это отдельные стохастические прогоны.
-
-Оба тестовых контроля с теми же общими настройками реально активировались:
-после native checkpoint выполнено пять полезных инструментов, после masking —
-16. Оба верно ответили на поздний вопрос. AST подтверждает идентичность
-найденного sink во всех трёх результатах; это не полные quality passes:
-два отчёта пропускают требуемые hypothesis-ID sets, а два включают лишние
-поля finding при строгой проверке схемы. Эти промахи сохранены.
-
-Для основной серии фиксируются ratio0.006, keepRecentGroups1,
-maxCompactions4, общая методологическая инструкция и прежние модели/бюджеты.
-Template version4 отделяет итоговые authored Workflows от development refs.
-Fixture-каталог разрешается с e2e policies; операторская live-копия отдельно
-фиксирует выбранные ModelPolicy/Gateway и summarizer cumulativeBudget200000
-при caller maxTotalTokens250000. Exact effective closure pins входят в manifest.
-[Данные development03 и контролей](../../tasks/evidence/v417-010-development-20261116-03.json)
-содержат все исходы. После калибровки зарегистрирована первая попытка; её сбой описан ниже.
-
-## Сохранённая попытка протокола 1
-
-Четыре эксперимента зарегистрировали120 членов. Первый Run (`terminal-on`,
-API case) завершился успешно: 5 вызовов, 22436 токенов, USD0.0048948605
-reported. До публикации assessment consumer остановился: `python -I -S`
-не добавляет каталог скрипта в `sys.path`, поэтому observer не мог импортировать
-соседний `harness.py`. Это сбой измерителя, не quality miss модели.
-
-Все120 членов сохранены: один выполнен без quality assessment,119 не
-запускались. Эксперименты отменены штатными командами. Новый тест запускает
-observer через настоящий изолированный subprocess; он воспроизводит ошибку
-до исправления и проходит после явной загрузки byte-pinned sibling client.
-Проверка на том же завершённом Run проходит без нового обращения к модели.
-
-Попытка2 получает новые frozen identities; cases, private truth, scorer,
-модель, sampling, thresholds и параметры контекста не меняются. Первая
-попытка остаётся отдельной незавершённой выборкой с полным denominator120
-и наблюдёнными расходами, не смешивается с результатами второй.
-[Сохранённые члены и доказательства](../../tasks/evidence/v417-010-protocol-attempt1-20261116.json).
-
-Попытка2 зарегистрирована и выполняется. Её manifest
-`sha256:5cfcf096990838527eafbe9106c200609491c0a7cd2ac34951c90977f6207c8f`
-зафиксирован до первого dispatch; 120 членов, seed417, пять повторов, один
-одновременный Run, 20 минут на члена и 24 часа на consumer.
-[Точные pins и build attestation](../../tasks/evidence/v417-010-freeze-r2-20261116.json).
-Все варианты используют Runtime build из чистого
-`1f80459f36dad3901fb61d4bf612bf52852b7808`; source/lock/launcher/catalog hashes
-сохранены. Ни один основной исход пока не используется для подстройки.
+Hidden truth, вопросы до activation, raw answers и reasoning остаются вне
+model-visible inputs/workspaces и публичного отчёта. Credentials не
+публикуются. Обе попытки отменены через native lifecycle, собственные ключи
+отозваны, процессы joined и owned disposable database удалена после экспорта.
+623 evaluator-private файла (16 275 048 байт) сохранены в ignored
+`.local/v417-010-private-evidence-20261116`; ephemeral auth/cipher keys, PKI
+и workspaces удалены. V417-004 остаётся зарезервированной in_progress и выполняется LAST.
