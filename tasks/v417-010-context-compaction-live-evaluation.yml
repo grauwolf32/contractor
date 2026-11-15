@@ -9,6 +9,7 @@ status: pending
 depends_on:
 - V417-008
 - V417-009
+- V466-019
 languages:
 - python
 - yaml
@@ -22,6 +23,9 @@ context:
     accepted V417-008 consumer reuses Managed Eval members, usage and comparisons;
     V466-013/V466-014 own summarizer accounting and normalizer version 4. This
     dependent task consumes those views and adds no parallel accounting engine.
+    User request 2026-11-15 assigns V417-009 followed by V417-010. Agent-proposed
+    prerequisite V466-019 now recognizes complete negative measurements without
+    changing execution states, Server conclusions or frozen quality gates.
   proposal: docs/proposals/0046-workflow-context-compaction.md
   specification:
   - docs/spec/evals/format.md#EVF-R1

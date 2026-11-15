@@ -6,11 +6,17 @@ epic: evals
 kind: defect
 introduced_by: V417-008
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: d818900636f1da46163b760b162f90fa63b12150
 depends_on: [V417-008]
 languages: [python, json, markdown]
 goal: The live measurement command can finish a fully observed and scored negative experiment while preserving every execution failure and the Server's conclusion.
 context:
+  evidence: tasks/evidence/v466-019-acceptance-20261115.json
+  verification: >-
+    All 25 offline tests and 90 recorded scores, both Go fixture packages and full
+    lint pass. The actual prior predicate fails the new CLI regression at 1!=0.
+    No live calls, execution-state rewrite or comparison recalculation occurs.
   authority: >-
     User request 2026-11-15 assigns V417-009 and V417-010. The latter explicitly
     accepts measured regressions, no-improvement and inconclusive results.

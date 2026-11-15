@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "task": "V466-019",
+  "date": "2026-11-15",
+  "implementationCommit": "d818900636f1da46163b760b162f90fa63b12150",
+  "verification": [
+    {
+      "command": "make test-context-compaction-eval-fixtures",
+      "exitCode": 0,
+      "log": "/private/tmp/contractor-v417-009-010-20261115-8d0zh7k_/repair-eval-fixtures.log",
+      "pythonTests": 25,
+      "recordedSamples": 90,
+      "liveModelCalls": 0
+    },
+    {
+      "command": "make lint",
+      "exitCode": 0,
+      "log": "/private/tmp/contractor-v417-009-010-20261115-8d0zh7k_/repair-lint.log"
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0
+    }
+  ],
+  "regression": {
+    "testsRun": 1,
+    "priorBehaviorFailures": 1,
+    "failure": "complete negative experiment returned exit1 instead of measurement completion0",
+    "source": "actual prior successful() AST from53e6c8fa0",
+    "network": "denied by existing test audit hook"
+  },
+  "scorerConsumerSha256": "sha256:aa4720d3b8c4c6a5695180dc33dfa45efbb72ffa184c827f881af3c7df3b976f",
+  "completion": "Authoritative current two-arm counts require expected=submitted=terminal=scored, missing=conflicting=0; totals must match the frozen unique local denominator. Settled failed/cancelled executions remain failures in the report.",
+  "conclusions": "Server-owned conclusions are retained unchanged, without local quality calculation or interpretation.",
+  "productionEvalRuntimeChanged": false,
+  "liveStudyStarted": false
+}
