@@ -11,6 +11,7 @@ depends_on:
 - V417-005
 - V417-006
 - V417-007
+- V466-018
 languages:
 - go
 - python
@@ -62,6 +63,14 @@ context:
   current_state: The ordinary isolated Worker process test is already registered in release-verify. Extend
     that existing coverage for isolated Audit/diagnostic/selection combinations and rejected shared compaction;
     the remaining gate is not a new Worker engine or a second isolated-only scenario.
+  aggregate_followup: >-
+    The first integrated aggregate attempt on ade6800f0d4968bb9bde1b52bbccc1e2da1d652c
+    exposed the unrelated continuation fixture failure repaired by V466-018.
+    Controller source selection was correct; its bounded Task page was misread
+    by the test. Full owning-package race/integration checks pass after repair.
+    This attempt is not acceptance; run the complete aggregate on the clean
+    integrated repair revision. V466-019 independently prepares the later quality
+    consumer and adds no quality dependency to this isolated deterministic exit.
   implementation_decision: One fixed required-case matrix is verified by the existing canonical report
     reader/capture. The focused family runs full owning component packages, Runtime modules and three
     existing process roots; Router is a fourth subcase of the ordinary root, using its existing harness
