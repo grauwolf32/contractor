@@ -137,7 +137,7 @@ def projection(case):
 def fixtures():
     variants = load(ROOT / "variants.json")
     require(
-        len(variants["variants"]) == 6 and len(variants["cases"]) == 3,
+        len(variants["variants"]) == 7 and len(variants["cases"]) == 3,
         "empty/incomplete pilot matrix",
     )
     require(
@@ -165,7 +165,7 @@ def fixtures():
     return variants, cases, load(ROOT / "private/truth.json")
 
 
-def score(case, answer, oracle, truth, *, continuation_required=True):
+def score(case, answer, oracle, truth, *, continuation_required=True, future_required=False):
     """Judge artifacts against source/route facts and evaluator-owned observations."""
     try:
         checks = {
@@ -175,12 +175,14 @@ def score(case, answer, oracle, truth, *, continuation_required=True):
         }
         if continuation_required:
             checks["continuation"] = oracle["usefulAfterCheckpoint"] > 0
+        if future_required:
+            checks["future_answer"] = answer.get("futureAnswer") == truth["futureAnswer"]
         expected = truth["expected"]
         if case["id"] == "source-review":
             # Independently derive concatenation sinks from the actual source.
             actual = []
             for path, source in case["inputs"]["source"].items():
-                tree = ast.parse(source)
+                tree = ast.parse("\n".join(source))
                 for node in ast.walk(tree):
                     if (
                         isinstance(node, ast.Call)
@@ -243,27 +245,6 @@ def score(case, answer, oracle, truth, *, continuation_required=True):
         return {"pass": all(checks.values()), "checks": checks}
     except (KeyError, TypeError, AttributeError, IndexError, SyntaxError, ValueError):
         return {"pass": False, "checks": {"well_formed_evidence": False}}
-
-
-def controlled_pair(environment, continuations):
-    """Replay only a local recorded environment, in independent temporary fixtures."""
-    require(set(environment) == {"files", "receipts"}, "external state is not replayable")
-    starts, results = [], []
-    for continuation in continuations:
-        with tempfile.TemporaryDirectory(prefix="context-eval-replay-") as folder:
-            state = copy.deepcopy(environment)
-            starts.append(digest(encoded(state)))
-            for name, content in state["files"].items():
-                require(Path(name).name == name, "nonlocal replay path")
-                (Path(folder) / name).write_text(content)
-            results.append(continuation(Path(folder), state))
-    require(len(set(starts)) == 1, "paired start state differs")
-    return starts, results
-
-
-def mask_observations(events):
-    """Test-only baseline: retain identities/receipts, remove tool observation bodies."""
-    return [{k: copy.deepcopy(v) for k, v in event.items() if k != "body"} for event in events]
 
 
 def preflight(manifest):
@@ -377,7 +358,13 @@ def preflight(manifest):
             pin["models"]
             and all(
                 set(model)
-                == {"policyRef", "alias", "gatewaySha256", "policySha256", "weightsRevision"}
+                == {
+                    "policyRef",
+                    "alias",
+                    "gatewaySha256",
+                    "policySha256",
+                    "weightsRevision",
+                }
                 and isinstance(model["policyRef"], str)
                 and bool(model["policyRef"])
                 and isinstance(model["alias"], str)
@@ -406,7 +393,8 @@ def preflight(manifest):
         require(equal is None or dimensions == equal, "unequal required dimensions")
         equal = dimensions
     require(
-        len(manifest["experiments"]) == 3 and len(manifest["resources"]) <= 2048,
+        len(manifest["experiments"]) == len(variants["comparisons"])
+        and len(manifest["resources"]) <= 2048,
         "incomplete/big experiment set",
     )
     seen, expected = set(), []
@@ -428,7 +416,7 @@ def preflight(manifest):
         )
         pair = tuple(experiment["variants"])
         require(
-            list(pair) in variants["comparisons"][:3] and pair not in seen,
+            list(pair) in variants["comparisons"] and pair not in seen,
             "invalid/duplicate comparison",
         )
         seen.add(pair)
@@ -841,8 +829,15 @@ def collect_member(client, member, row, run, case, truth, observer, observer_tim
                     answer,
                     run_observer(observer, run_id, case, timeout=observer_timeout),
                     truth,
-                    continuation_required=member["variantId"].startswith("compact-")
-                    or member["variantId"] == "terminal-handoff",
+                    continuation_required=member["variantId"]
+                    in {
+                        "compact-off",
+                        "compact-on",
+                        "terminal-handoff",
+                        "controlled-compact",
+                        "masking",
+                    },
+                    future_required=member["variantId"] in {"controlled-compact", "masking"},
                 )
                 passed, checks = verdict["pass"], verdict["checks"]
     prefix = "/v1/eval-experiments/" + member["experimentId"] + "/members/" + member["memberId"]
@@ -904,7 +899,11 @@ def collect_member(client, member, row, run, case, truth, observer, observer_tim
             assessment_receipt["recordSha256"],
             selected=row,
         )
-    return {**usage_record(client, member, row, run), "passed": passed, "checks": checks}
+    return {
+        **usage_record(client, member, row, run),
+        "passed": passed,
+        "checks": checks,
+    }
 
 
 def select_records(client, member, result_sha256, assessment_sha256, *, selected=None):
@@ -1108,20 +1107,29 @@ def live(
         comparisons.append(
             {
                 key: current.get(key)
-                for key in ("experimentId", "state", "viewSnapshot", "summary", "freshness")
+                for key in (
+                    "experimentId",
+                    "state",
+                    "viewSnapshot",
+                    "summary",
+                    "freshness",
+                )
             }
         )
     result = {
         "expected": len(expected),
         "members": [
-            {"memberId": row["memberId"], "state": observed.get(row["memberId"], "not_submitted")}
+            {
+                "memberId": row["memberId"],
+                "state": observed.get(row["memberId"], "not_submitted"),
+            }
             for row in expected
         ],
         "comparisons": comparisons,
     }
     result["manifestSha256"] = digest(encoded(manifest))
     result["pairedReplay"] = "not_applicable: live Projects are independent end-to-end members"
-    result["masking"] = "Recorded adapter only; excluded from production dispatch."
+    result["masking"] = "Test-only SDK request projection in a separate controlled comparison."
     return result
 
 

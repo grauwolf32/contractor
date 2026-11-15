@@ -15,7 +15,12 @@ execution_policy:
     bounded-page test. All 52 process roots and required compaction cases pass;
     optional heavy-I/O/platform/live skips remain explicit exclusions. Evidence:
     tasks/evidence/v417-009-acceptance-20261115.json. V466-019/V466-020 prepare
-    the separately assigned V417-010 live study; no live quality is claimed yet.
+    the separately assigned V417-010 live study. Its 2026-11-15 development Run
+    observed shared Gateway DNS/WireGuard egress failure before any model answer.
+    The Run is cancelled/released, owned credential revoked, processes joined and
+    final owned database dropped. The four-comparison/120-member study remains
+    unregistered/unrun; V417-010 returns to pending for the requested shared
+    egress recovery authorization (AGENTS 4.1). No live quality is claimed.
     This branch is not merged or deployed. V417-004 stays reserved in_progress
     and executes LAST, after V417-010.
     User request 2026-11-14 delivered on 2026-11-15 integrates the reviewed

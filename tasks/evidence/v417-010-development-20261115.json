@@ -1,0 +1,296 @@
+{
+  "schemaVersion": 1,
+  "task": "V417-010",
+  "status": "incomplete: shared Gateway egress restoration awaits authorization",
+  "date": "2026-11-15",
+  "deterministicAcceptance": "tasks/evidence/v417-009-acceptance-20261115.json",
+  "modelSelection": {
+    "defaultModel": "glm-5.3-flash",
+    "settingsRevision": "1",
+    "catalogDigest": "sha256:0dbbfb6c23076fa6108114b80dad5b01e97d3428dd22607e434c3e22fd014b9f",
+    "selected": {
+      "auxiliary": {
+        "selectedPolicy": "context_study_auxiliary@1",
+        "configuredPolicyRef": {
+          "digest": "sha256:0c2fb16710f1b723586b4f12a98ebcf8cac5700248a53bcbd732e7daa14e6135",
+          "kind": "model-policies",
+          "name": "summarizer_glm_5_3_flash_cc78cc13596ab7d7",
+          "version": "1"
+        },
+        "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+        "weightsRevision": null,
+        "configuredBodySha256": "sha256:3f5c8f33be4111ee13a8b27976bb8aba3d1209834029be581862956e7778749f",
+        "studyBodySha256": "sha256:d918eb2fd0d1bc747b8a200ceceeb35a3b51cc44d4d67fedfc926ca5990d4c1a"
+      },
+      "planner": {
+        "selectedPolicy": "context_study_planner@1",
+        "configuredPolicyRef": {
+          "digest": "sha256:805926095998d94b082f1412fa5b5584c6468fe8b56b57e34c67a90f8e244202",
+          "kind": "model-policies",
+          "name": "planner_glm_5_3_flash_cc78cc13596ab7d7",
+          "version": "2"
+        },
+        "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/planner-model",
+        "weightsRevision": null,
+        "configuredBodySha256": "sha256:ce03c5b7613ddfcb0462cf5f98483b269e6133e990c318c734cb35ded4fd4719",
+        "studyBodySha256": "sha256:c9dc105e3f04dfc0284d06dba08b92ddde583e9d1e79e9b2a89fc01f528a88e6"
+      },
+      "worker": {
+        "selectedPolicy": "context_study_worker@1",
+        "configuredPolicyRef": {
+          "digest": "sha256:dd33a3665c2c3c912364177ff6ef287a52f5bdd41f0d49919400bb56f5a63e0f",
+          "kind": "model-policies",
+          "name": "worker_glm_5_3_flash_cc78cc13596ab7d7",
+          "version": "2"
+        },
+        "alias": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+        "weightsRevision": null,
+        "configuredBodySha256": "sha256:22044a4c39babdf72bffe677c89177bdb33e8fab2dc8c34ecff0412126e01ddb",
+        "studyBodySha256": "sha256:559c7c2aa966138a6332bf6e6674d8c34a8efada1743b95a199c8a3112bf6a46"
+      }
+    },
+    "gateway": {
+      "digest": "sha256:7479fe56b39c4d452826f26761f7d814f43d46dbf875c606ecf144b6e347db0e",
+      "kind": "llm-gateways",
+      "name": "cloud-litellm",
+      "version": "1"
+    },
+    "aliasesOrSamplingChanged": false
+  },
+  "runtime": {
+    "python": "3.13.16",
+    "adk": "2.13.0",
+    "lockSha256": "sha256:945f997f38cabe445f1f05a559a26089fdf3bf44c95b523a6d8eb71c8e235c65",
+    "nativeSourceTree": "db066561a9c56f7014f76caf301eef331847d1e8",
+    "qualityBuildAttestation": "not established: this separate development attempt is not an accepted comparable quality arm"
+  },
+  "development": {
+    "runId": "run_cfc3dc57195be6e8eaafc89429c0f195",
+    "workflow": "dev-context-eval-compact-off@1",
+    "state": "cancelled",
+    "released": true,
+    "sourceBytes": 17437,
+    "sourceSha256": "sha256:e800bc66aeed5ad41635453dba20567a6d4ed847c64e81222c5b3348c6ed2124",
+    "workflowGetSha256": "sha256:6b5e0b655e1f4cc202cc50c89920cfe6c80a53999b710049b196982b93f79c30",
+    "firstContextSha256": "sha256:8c3aa5b1cce8a459df7f9e820e66a2c87ecbb507f5395b86d7156b63d9ef67db",
+    "firstContextBasis": "Exact exported OTLP GenAI input messages/system instructions/tool definitions before agent callback; not raw HTTP bytes",
+    "logicalModelCalls": 1,
+    "physicalGatewayAttempts": 9,
+    "tokens": null,
+    "reason": "gateway_unavailable; no provider response/usage; native recovery window exhausted before explicit cancellation",
+    "modelPhases": {
+      "main": {
+        "modelCalls": 1,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalTokens": 0,
+        "tokenUsageUnavailable": 1,
+        "durationMs": 635533
+      },
+      "compaction": {
+        "modelCalls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalTokens": 0,
+        "tokenUsageUnavailable": 0,
+        "durationMs": 0
+      },
+      "finalization": {
+        "modelCalls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalTokens": 0,
+        "tokenUsageUnavailable": 0,
+        "durationMs": 0
+      },
+      "summarization": {
+        "modelCalls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalTokens": 0,
+        "tokenUsageUnavailable": 0
+      }
+    },
+    "compaction": {
+      "invocationId": "worker-8b3413f74ec94a51b088b7c0624f69cf",
+      "generation": 0,
+      "phase": "idle",
+      "attempts": 0,
+      "failures": 0,
+      "archiveReads": 0,
+      "inputBytes": 0,
+      "summaryBytes": 0,
+      "reasoningAvailable": 0,
+      "reasoningIncluded": 0,
+      "reasoningTruncated": 0
+    },
+    "runtimeExport": [
+      {
+        "ref": "otlp-http@1",
+        "operations": "2",
+        "failedOperations": "0",
+        "flushAttempted": true,
+        "flushSucceeded": true,
+        "droppedSpans": {
+          "queueOverflow": "0",
+          "encodingFailed": "0",
+          "nonRetryable": "0",
+          "retryExhausted": "0",
+          "collectorRejected": "0",
+          "deadlineExceeded": "0",
+          "cancelled": "0",
+          "shutdown": "0"
+        }
+      }
+    ],
+    "outputs": [],
+    "laterQuestionsActivated": 0,
+    "nativeCost": {
+      "scope": "run",
+      "scopeId": "run_cfc3dc57195be6e8eaafc89429c0f195",
+      "currency": "USD",
+      "amount": "0",
+      "calls": "9",
+      "pricedCalls": "9",
+      "reports": "2",
+      "unknownReports": "0",
+      "basis": "estimated",
+      "coverage": "complete",
+      "pending": false,
+      "historicalGap": false,
+      "asOf": "2026-11-15T15:23:59.123615Z",
+      "updatedAt": "2026-11-15T15:23:58.630411Z",
+      "checksAmount": "0",
+      "standaloneAmount": "0",
+      "activity": [
+        {
+          "key": "worker",
+          "label": "Worker analysis",
+          "calls": "9",
+          "amount": "0",
+          "basis": "estimated"
+        }
+      ],
+      "models": [
+        {
+          "key": "model:openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+          "label": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+          "calls": "9",
+          "amount": "0",
+          "basis": "estimated"
+        }
+      ],
+      "executions": []
+    },
+    "qualityScored": false,
+    "operatorScriptExit": 1,
+    "operatorScriptLimitation": "After Run cancellation the development helper queried diagnostics with limit=100 and received HTTP400. Final authoritative diagnostics were separately read with the documented limit=10; no model retry or replacement was made.",
+    "observerOnRetainedNativeExport": {
+      "mutations": 0,
+      "effects": [],
+      "usefulAfterCheckpoint": 0,
+      "retrieved": [],
+      "newProbes": []
+    },
+    "effectiveSelections": {
+      "model": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/worker-model",
+      "compactorModelPolicy": {
+        "policyId": "context_study_auxiliary",
+        "version": "1",
+        "digest": "sha256:95c7ac3001bd2f6cd2bbfae0b3c36fae58eefa7696e550af2b81b2de63a5461c"
+      },
+      "compactorModel": "openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model",
+      "modelPolicy": {
+        "policyId": "context_study_worker",
+        "version": "1",
+        "digest": "sha256:df9b07fec63fa16d92575653a462dbedafe6e46732f1793a2b03471e49a58712"
+      },
+      "llmGateway": {
+        "gatewayId": "cloud-litellm",
+        "version": "1",
+        "digest": "sha256:7479fe56b39c4d452826f26761f7d814f43d46dbf875c606ecf144b6e347db0e"
+      },
+      "origins": {
+        "modelPolicy": "workflow.executionConfig.workers",
+        "compactorModelPolicy": "workflow.executionConfig.workers",
+        "llmGateway": "workflow.executionConfig.workers",
+        "credential": "workflow.executionConfig.workers"
+      }
+    }
+  },
+  "primaryStudy": {
+    "comparisons": 4,
+    "cases": 3,
+    "repetitionsPerArm": 5,
+    "declaredMembers": 120,
+    "registeredMembers": 0,
+    "submittedMembers": 0,
+    "scoredMembers": 0,
+    "unrunMembers": 120,
+    "fixtureSha256": "sha256:95553665c4e32a52238d1cc982bc8f6866a2a173dc9baebb5f43c0f519e9b864",
+    "finalLiveManifest": "not frozen; development checkpoint/threshold remains unmeasured",
+    "identicalCheckpointReplay": "unsupported; local copy simulation removed",
+    "terminalReasoningRecommendation": "unavailable",
+    "compactorReasoningRecommendation": "unavailable"
+  },
+  "infrastructure": {
+    "gatewayReadiness": "HTTP200",
+    "configuredAliasesPresent": true,
+    "providerFailureClass": "ClientConnectorDNSError",
+    "providerDomain": "openrouter.ai",
+    "containerDNSLookup": "did not finish within an 8-second bound",
+    "hostDNSLookup": "succeeded",
+    "wireguardHandshakeAgeAtInspectionSeconds": 7512,
+    "openDecision": "One bounded reapplication of the existing egress profile followed by DNS/HTTPS checks, or keep live study pending. User authorization was requested; silence is not authorization.",
+    "sharedNetworkOrModelMutations": 0,
+    "taskOwnedGatewayCredentialLifecycle": "Created through native Server manager with finite USD25/day cap, then revoked after Run release; no administrator key used for inference."
+  },
+  "cleanup": {
+    "databaseDropped": "contractor_test_v417_gate_20261115_ab0340cb9d49",
+    "poolsAndProcessesJoined": true,
+    "gatewayCredentialRevoked": true,
+    "ownedSSHForwardStopped": true,
+    "ownedPrivateKeysAndTokensRemoved": true,
+    "demoDataOrServicesChanged": false,
+    "sharedGatewayEgressChanged": false
+  },
+  "verification": [
+    {
+      "command": "make test-context-compaction-eval-fixtures",
+      "exitCode": 0,
+      "unittestCases": 39,
+      "offlineScoredSamples": 105,
+      "goPackages": 2,
+      "log": "/private/tmp/contractor-v417-009-010-20261115-8d0zh7k_/live-fixtures-accepted-preparation.log",
+      "sha256": "sha256:b6d0f566cf4eef0a4fcb29fbb687ee84c4f9b009b3d577e604497dfce2dc0209"
+    },
+    {
+      "command": "make lint",
+      "exitCode": 0,
+      "log": "/private/tmp/contractor-v417-009-010-20261115-8d0zh7k_/live-preparation-lint.log",
+      "sha256": "sha256:3e100084a04dd0b88b6fc4fe8651dd50fa4603be3bac89c434d4be52faede2d5"
+    },
+    {
+      "command": "python3 scripts/check_tasks.py; python3 scripts/check_spec.py; make docs-dependencies-check; git diff --check",
+      "exitCode": 0,
+      "taskRecords": 1643,
+      "specificationDocuments": 51
+    },
+    {
+      "command": "make eval-context-compaction-live",
+      "status": "not run",
+      "reason": "No finalized held-out manifest or Managed Eval registration: configured provider egress failed the separate development trial. This is not a skip or passing acceptance."
+    }
+  ],
+  "mergedIntoMain": false,
+  "shared004": "reserved in_progress; executes last",
+  "preparationSourcePins": {
+    "harness.py": "sha256:ab6bb9f1d6310750a388ddd0c3cd609d2b49b63a9ee77c5fe6013366290ef0a9",
+    "controlled_runtime.py": "sha256:4d5f8661ec94f226b6197560d75bc69d447f4f72ccbdcfb3c135122f961c78db",
+    "observer.py": "sha256:7704d2ab152a1427c7813f1f0aafd0b541cb8faa0ae6883141cd5069e50f223d",
+    "variants.json": "sha256:95553665c4e32a52238d1cc982bc8f6866a2a173dc9baebb5f43c0f519e9b864",
+    "visible/source-review.json": "sha256:fd34e2cfe7b920874b8bbf64fd770ee0cda19d2ad0b202895d985380e0f1ae1e",
+    "visible/api-dependency.json": "sha256:74b30aab956104b76e250486d810424b2f795e78bf224d5a8083824caef69925",
+    "visible/negative-memory.json": "sha256:60ea8a9c18280167ca66798269d9cb6cfbb7a7dba210e37b066911126f457963"
+  }
+}

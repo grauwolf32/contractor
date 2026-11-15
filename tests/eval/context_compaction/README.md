@@ -3,7 +3,7 @@
 This is an offline fixture/scorer gate and an opt-in consumer of existing
 externally controlled Managed Eval experiments. It does not publish configurations,
 plan members, choose models, create a charge ledger or compute comparison conclusions.
-Actual Gateway measurements belong to V417-010.
+Actual Gateway measurements belong to V417-010; its development trial and infrastructure status are recorded in `docs/research/context-compaction-evaluation.md`.
 
 Run the deterministic gate from the repository root:
 
@@ -11,12 +11,12 @@ Run the deterministic gate from the repository root:
 make test-context-compaction-eval-fixtures
 ```
 
-The gate checks six declared variants, three case classes and five repeats
-(90 recorded scored samples), deliberate corruptions, private-data boundaries,
+The gate checks seven declared variants, three case classes and five repeats
+(105 recorded scored samples), deliberate corruptions, private-data boundaries,
 public result/assessment shapes, bounded replay, preflight, submission receipts,
 unknown usage, cancellation and dispatch limits. These samples verify the scorer
 and harness. They do not demonstrate live quality or a Runtime checkpoint.
-The Go test resolves all five authored Workflows through the actual catalog loader.
+The Go test resolves all seven authored Workflows through the actual catalog loader.
 Network connections are forbidden in the Python suite. OpenAPI scoring runs the
 repository's pinned `kin-openapi` validator before checking route constraints.
 It rejects malformed structure and unresolved/external references. The validator
@@ -53,11 +53,13 @@ Its `scorerSha256` hashes, in order with NUL separators, `harness.py`,
 `openapivalidator/main.go`, repository `go.mod` and `go.sum`. Validator or dependency
 changes therefore require new check pins and registrations, just like scorer changes.
 Its production comparisons are terminal reasoning off/on, compact reasoning off/on,
-and terminal off/terminal handoff, each with exactly two arms. Observation masking
-is a sixth, recorded-only baseline. It removes observation bodies and retains
-receipts. `controlled_pair` clones only local `{files, receipts}` into fresh
-temporary directories; it never replays an external side effect. Live Workflows
-are independent end-to-end samples, not resumed production checkpoints.
+and terminal off/terminal handoff, each with exactly two arms. A fourth comparison uses controlled native compaction and observation masking
+through the test-only Runtime adapter. Its later question becomes visible only
+after a real checkpoint/mask and is scored separately. The complete registered
+matrix has 120 members: four comparisons, three cases, five repeats, two arms.
+The 105 offline samples cover seven distinct variants and are not live members.
+Live Workflows are independent end-to-end samples. Identical-checkpoint replay
+is unsupported; the former local file-copy simulation has been removed.
 
 ## Preparing a live manifest
 
@@ -65,14 +67,14 @@ Prepare the locked Runtime environment with `cd runtime && uv sync --locked`.
 Run the consumer on macOS or Linux. Setup/publication is a separate, explicit
 operator action through the existing catalog and Eval public APIs:
 
-1. Author and publish the five fixture Workflows against the intended configured
+1. Author and preload the seven fixture Workflows against the intended configured
    ModelPolicy/Gateway/credential selection. `catalog/` is an authored overlay on
    the e2e catalog, not a production model recommendation. Keep generic production
    instructions free of benchmark answers. Use a new identity if publication
    detects drift. The harness never publishes or changes a model.
 2. Upload only the three exact visible JSON payloads as immutable Artifact
    revisions. Construct valid public `EvalCase` recipes with these BlobRefs and
-   the mappings above. Register three externally controlled two-arm experiments
+   the mappings above. Register four externally controlled two-arm experiments
    through `POST /v1/projects/{projectId}/eval-experiments`, using existing portable
    plans/member identities and `ExternalRegistration` receipts. Keep at least five
    repeats per case and arm; use the fixed seed/order from the plan. Freeze actual
@@ -106,9 +108,9 @@ The closed `context-compaction-live/v1` manifest contains:
 | `fixtureSha256`, `observerSha256` | Exact `variants.json` and observer bytes |
 | `runtime` | `{adk:"2.13.0", lockSha256, build}`; exact lock bytes and Runtime build digest |
 | `budgets` | Positive integer `wallMs`, `memberMs`, `maxCalls`, `maxTokens`, `maxToolCalls`, `memberCalls`, `memberTokens`, `memberToolCalls` |
-| `variants` | Five entries keyed by production variant ID, each with `workflow`, `closureSha256`, `models`, `capabilitiesSha256`, `instructionsSha256`, `skillsSha256`, `reasoningAvailable`, `runtime` |
+| `variants` | Seven entries keyed by variant ID, each with `workflow`, `closureSha256`, `models`, `capabilitiesSha256`, `instructionsSha256`, `skillsSha256`, `reasoningAvailable`, `runtime` |
 | `models` per variant | Configured provenance entries `{policyRef, alias, gatewaySha256, policySha256, weightsRevision}`; include the same policy set for main/auxiliary/Planner/retry use, without inventing another role enum |
-| `experiments` | Three entries `{id, portableId, planSha256, setupSha256, variants, casePins, memberOrder}`; `casePins` maps the three case IDs to registered digests; `memberOrder` copies frozen existing IDs |
+| `experiments` | Four entries `{id, portableId, planSha256, setupSha256, variants, casePins, memberOrder}`; `casePins` maps the three case IDs to registered digests; `memberOrder` copies frozen existing IDs |
 | `resources` | At most 2048 exact GET response pins `{path, sha256}` for `/v1/workflows/...` and `/v1/configurations/...`; include every Workflow and effective closure resource |
 
 Hashes have the `sha256:` prefix. `closureSha256` is the registered member binding digest. File pins hash exact bytes. GET/setup pins hash
@@ -166,7 +168,7 @@ Run. Result and assessment receipts are explicitly selected through the ordinary
 responses repeat the identical key, body and CAS at most three times within the
 current transport deadline. A stale CAS fails without overwriting another choice;
 resume skips an already selected exact result/assessment pair. There is no new receipt
-store. Comparison publication is asynchronous: the consumer observes all three
+store. Comparison publication is asynchronous: the consumer observes all four
 views within a shared separate ten-second deadline. A view still stale or unavailable
 at that deadline remains inconclusive. Cancellation uses the existing Eval command with revision/plan preconditions
 and a separate 60-second cleanup deadline. Unknown or failed cleanup is retained.
@@ -193,9 +195,8 @@ experiments/Projects only through their existing lifecycle after evidence review
 
 `controlled_runtime.py` composes the ordinary Runtime factory for the later
 live study. Its offline tests exercise the actual ADK Worker, Gateway-handle
-cleanup and error callbacks with network access denied. This prepares the
-controlled adapter; the current production consumer still dispatches its three
-comparisons only. It is not live masking evidence.
+cleanup and error callbacks with network access denied. The consumer includes its separate fourth comparison. These offline tests are
+not live masking evidence.
 
 Launch it with the ordinary Runtime arguments plus `--questions`,
 `--questions-sha256` and `--private-records`. The private, byte-pinned question
@@ -230,3 +231,14 @@ and therefore cannot attest the later masking projection. Neither record
 contains question text, observations, reasoning or credentials. Optional
 recording failures preserve native execution and cleanup; the evaluator must
 report missing or oversized evidence as unavailable, never as a zero count.
+
+`observer.py` is an evaluator-side reader of existing OTLP evidence and the
+controlled SDK projection records. Set `CONTRACTOR_CONTEXT_EVAL_EVIDENCE` to an
+owner-only directory outside Runtime workspaces, with `traces/{runId}/*.json`
+(OTLP protobuf JSON projection) and `projections/{runId}.jsonl`. Each Run is
+bounded to 4096 spans and 16 MiB of trace evidence. Missing, foreign or truncated
+evidence fails collection instead of becoming zero activity. Successful tool
+spans must start after an observed checkpoint to count as useful continuation.
+Source receipt observation and native archive retrieval are separate facts; no
+HTTP probe capability is available, so absence of repeated network probes is
+enforced by capabilities and does not demonstrate a model decision.

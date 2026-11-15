@@ -20,6 +20,86 @@
         ],
         "path": "/tenants/{tenant}/orders",
         "service": "orders"
+      },
+      {
+        "authorization": "tenant",
+        "dependency": "ledger_0",
+        "method": "get",
+        "operationId": "listTenantLedger0",
+        "path": "/tenants/{tenant}/ledgers/0",
+        "service": "reporting_0"
+      },
+      {
+        "authorization": "tenant",
+        "dependency": "ledger_1",
+        "method": "get",
+        "operationId": "listTenantLedger1",
+        "path": "/tenants/{tenant}/ledgers/1",
+        "service": "reporting_1"
+      },
+      {
+        "authorization": "tenant",
+        "dependency": "ledger_2",
+        "method": "get",
+        "operationId": "listTenantLedger2",
+        "path": "/tenants/{tenant}/ledgers/2",
+        "service": "reporting_2"
+      },
+      {
+        "authorization": "tenant",
+        "dependency": "ledger_3",
+        "method": "get",
+        "operationId": "listTenantLedger3",
+        "path": "/tenants/{tenant}/ledgers/3",
+        "service": "reporting_3"
+      },
+      {
+        "authorization": "tenant",
+        "dependency": "ledger_4",
+        "method": "get",
+        "operationId": "listTenantLedger4",
+        "path": "/tenants/{tenant}/ledgers/4",
+        "service": "reporting_4"
+      },
+      {
+        "authorization": "tenant",
+        "dependency": "ledger_5",
+        "method": "get",
+        "operationId": "listTenantLedger5",
+        "path": "/tenants/{tenant}/ledgers/5",
+        "service": "reporting_5"
+      },
+      {
+        "authorization": "tenant",
+        "dependency": "ledger_6",
+        "method": "get",
+        "operationId": "listTenantLedger6",
+        "path": "/tenants/{tenant}/ledgers/6",
+        "service": "reporting_6"
+      },
+      {
+        "authorization": "tenant",
+        "dependency": "ledger_7",
+        "method": "get",
+        "operationId": "listTenantLedger7",
+        "path": "/tenants/{tenant}/ledgers/7",
+        "service": "reporting_7"
+      },
+      {
+        "authorization": "tenant",
+        "dependency": "ledger_8",
+        "method": "get",
+        "operationId": "listTenantLedger8",
+        "path": "/tenants/{tenant}/ledgers/8",
+        "service": "reporting_8"
+      },
+      {
+        "authorization": "tenant",
+        "dependency": "ledger_9",
+        "method": "get",
+        "operationId": "listTenantLedger9",
+        "path": "/tenants/{tenant}/ledgers/9",
+        "service": "reporting_9"
       }
     ]
   },

@@ -1,0 +1,16 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata:
+  name: context-eval-masking
+  version: '1'
+spec:
+  description: Test-only controlled masking continuation through the ordinary Runtime
+  runtime: adk@1
+  instructions:
+    ref: instructions/context-eval-worker.md
+  toolsets:
+  - ref: text-artifacts@1
+    tools:
+    - read_text_artifact
+    - write_text_artifact
+  sandboxProfile: local-workdir@1

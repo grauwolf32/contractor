@@ -3,7 +3,7 @@
   "inputs": {
     "hypotheses": [
       {
-        "claim": "The two recorded controls establish protection for every other object and input",
+        "claim": "The recorded controls establish protection for every other object and input",
         "id": "all-other-inputs"
       }
     ],
@@ -21,6 +21,328 @@
         "probeId": "P18",
         "receipt": "obs-P18",
         "target": "tenant-A/item-9"
+      },
+      {
+        "actor": "tenant-B",
+        "outcome": "denied",
+        "probeId": "P19",
+        "receipt": "obs-P19",
+        "target": "tenant-A/item-10"
+      },
+      {
+        "actor": "tenant-A",
+        "outcome": "allowed",
+        "probeId": "P20",
+        "receipt": "obs-P20",
+        "target": "tenant-A/item-11"
+      },
+      {
+        "actor": "tenant-B",
+        "outcome": "denied",
+        "probeId": "P21",
+        "receipt": "obs-P21",
+        "target": "tenant-A/item-12"
+      },
+      {
+        "actor": "tenant-A",
+        "outcome": "allowed",
+        "probeId": "P22",
+        "receipt": "obs-P22",
+        "target": "tenant-A/item-13"
+      },
+      {
+        "actor": "tenant-B",
+        "outcome": "denied",
+        "probeId": "P23",
+        "receipt": "obs-P23",
+        "target": "tenant-A/item-14"
+      },
+      {
+        "actor": "tenant-A",
+        "outcome": "allowed",
+        "probeId": "P24",
+        "receipt": "obs-P24",
+        "target": "tenant-A/item-15"
+      },
+      {
+        "actor": "tenant-B",
+        "outcome": "denied",
+        "probeId": "P25",
+        "receipt": "obs-P25",
+        "target": "tenant-A/item-16"
+      },
+      {
+        "actor": "tenant-A",
+        "outcome": "allowed",
+        "probeId": "P26",
+        "receipt": "obs-P26",
+        "target": "tenant-A/item-17"
+      },
+      {
+        "actor": "tenant-B",
+        "outcome": "denied",
+        "probeId": "P27",
+        "receipt": "obs-P27",
+        "target": "tenant-A/item-18"
+      },
+      {
+        "actor": "tenant-A",
+        "outcome": "allowed",
+        "probeId": "P28",
+        "receipt": "obs-P28",
+        "target": "tenant-A/item-19"
+      },
+      {
+        "actor": "tenant-B",
+        "outcome": "denied",
+        "probeId": "P29",
+        "receipt": "obs-P29",
+        "target": "tenant-A/item-20"
+      },
+      {
+        "actor": "tenant-A",
+        "outcome": "allowed",
+        "probeId": "P30",
+        "receipt": "obs-P30",
+        "target": "tenant-A/item-21"
+      },
+      {
+        "actor": "tenant-B",
+        "outcome": "denied",
+        "probeId": "P31",
+        "receipt": "obs-P31",
+        "target": "tenant-A/item-22"
+      },
+      {
+        "actor": "tenant-A",
+        "outcome": "allowed",
+        "probeId": "P32",
+        "receipt": "obs-P32",
+        "target": "tenant-A/item-23"
+      },
+      {
+        "actor": "tenant-B",
+        "outcome": "denied",
+        "probeId": "P33",
+        "receipt": "obs-P33",
+        "target": "tenant-A/item-24"
+      },
+      {
+        "actor": "tenant-A",
+        "outcome": "allowed",
+        "probeId": "P34",
+        "receipt": "obs-P34",
+        "target": "tenant-A/item-25"
+      },
+      {
+        "actor": "tenant-B",
+        "outcome": "denied",
+        "probeId": "P35",
+        "receipt": "obs-P35",
+        "target": "tenant-A/item-26"
+      },
+      {
+        "actor": "tenant-A",
+        "outcome": "allowed",
+        "probeId": "P36",
+        "receipt": "obs-P36",
+        "target": "tenant-A/item-27"
+      },
+      {
+        "actor": "tenant-B",
+        "outcome": "denied",
+        "probeId": "P37",
+        "receipt": "obs-P37",
+        "target": "tenant-A/item-28"
+      },
+      {
+        "actor": "tenant-A",
+        "outcome": "allowed",
+        "probeId": "P38",
+        "receipt": "obs-P38",
+        "target": "tenant-A/item-29"
+      },
+      {
+        "actor": "tenant-B",
+        "outcome": "denied",
+        "probeId": "P39",
+        "receipt": "obs-P39",
+        "target": "tenant-A/item-30"
+      },
+      {
+        "actor": "tenant-A",
+        "outcome": "allowed",
+        "probeId": "P40",
+        "receipt": "obs-P40",
+        "target": "tenant-A/item-31"
+      },
+      {
+        "actor": "tenant-B",
+        "outcome": "denied",
+        "probeId": "P41",
+        "receipt": "obs-P41",
+        "target": "tenant-A/item-32"
+      },
+      {
+        "actor": "tenant-A",
+        "outcome": "allowed",
+        "probeId": "P42",
+        "receipt": "obs-P42",
+        "target": "tenant-A/item-33"
+      },
+      {
+        "actor": "tenant-B",
+        "outcome": "denied",
+        "probeId": "P43",
+        "receipt": "obs-P43",
+        "target": "tenant-A/item-34"
+      },
+      {
+        "actor": "tenant-A",
+        "outcome": "allowed",
+        "probeId": "P44",
+        "receipt": "obs-P44",
+        "target": "tenant-A/item-35"
+      },
+      {
+        "actor": "tenant-B",
+        "outcome": "denied",
+        "probeId": "P45",
+        "receipt": "obs-P45",
+        "target": "tenant-A/item-36"
+      },
+      {
+        "actor": "tenant-A",
+        "outcome": "allowed",
+        "probeId": "P46",
+        "receipt": "obs-P46",
+        "target": "tenant-A/item-37"
+      },
+      {
+        "actor": "tenant-B",
+        "outcome": "denied",
+        "probeId": "P47",
+        "receipt": "obs-P47",
+        "target": "tenant-A/item-38"
+      },
+      {
+        "actor": "tenant-A",
+        "outcome": "allowed",
+        "probeId": "P48",
+        "receipt": "obs-P48",
+        "target": "tenant-A/item-39"
+      },
+      {
+        "actor": "tenant-B",
+        "outcome": "denied",
+        "probeId": "P49",
+        "receipt": "obs-P49",
+        "target": "tenant-A/item-40"
+      },
+      {
+        "actor": "tenant-A",
+        "outcome": "allowed",
+        "probeId": "P50",
+        "receipt": "obs-P50",
+        "target": "tenant-A/item-41"
+      },
+      {
+        "actor": "tenant-B",
+        "outcome": "denied",
+        "probeId": "P51",
+        "receipt": "obs-P51",
+        "target": "tenant-A/item-42"
+      },
+      {
+        "actor": "tenant-A",
+        "outcome": "allowed",
+        "probeId": "P52",
+        "receipt": "obs-P52",
+        "target": "tenant-A/item-43"
+      },
+      {
+        "actor": "tenant-B",
+        "outcome": "denied",
+        "probeId": "P53",
+        "receipt": "obs-P53",
+        "target": "tenant-A/item-44"
+      },
+      {
+        "actor": "tenant-A",
+        "outcome": "allowed",
+        "probeId": "P54",
+        "receipt": "obs-P54",
+        "target": "tenant-A/item-45"
+      },
+      {
+        "actor": "tenant-B",
+        "outcome": "denied",
+        "probeId": "P55",
+        "receipt": "obs-P55",
+        "target": "tenant-A/item-46"
+      },
+      {
+        "actor": "tenant-A",
+        "outcome": "allowed",
+        "probeId": "P56",
+        "receipt": "obs-P56",
+        "target": "tenant-A/item-47"
+      },
+      {
+        "actor": "tenant-B",
+        "outcome": "denied",
+        "probeId": "P57",
+        "receipt": "obs-P57",
+        "target": "tenant-A/item-48"
+      },
+      {
+        "actor": "tenant-A",
+        "outcome": "allowed",
+        "probeId": "P58",
+        "receipt": "obs-P58",
+        "target": "tenant-A/item-49"
+      },
+      {
+        "actor": "tenant-B",
+        "outcome": "denied",
+        "probeId": "P59",
+        "receipt": "obs-P59",
+        "target": "tenant-A/item-50"
+      },
+      {
+        "actor": "tenant-A",
+        "outcome": "allowed",
+        "probeId": "P60",
+        "receipt": "obs-P60",
+        "target": "tenant-A/item-51"
+      },
+      {
+        "actor": "tenant-B",
+        "outcome": "denied",
+        "probeId": "P61",
+        "receipt": "obs-P61",
+        "target": "tenant-A/item-52"
+      },
+      {
+        "actor": "tenant-A",
+        "outcome": "allowed",
+        "probeId": "P62",
+        "receipt": "obs-P62",
+        "target": "tenant-A/item-53"
+      },
+      {
+        "actor": "tenant-B",
+        "outcome": "denied",
+        "probeId": "P63",
+        "receipt": "obs-P63",
+        "target": "tenant-A/item-54"
+      },
+      {
+        "actor": "tenant-A",
+        "outcome": "allowed",
+        "probeId": "P64",
+        "receipt": "obs-P64",
+        "target": "tenant-A/item-55"
       }
     ]
   },

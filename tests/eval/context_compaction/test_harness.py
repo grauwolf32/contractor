@@ -102,7 +102,7 @@ def complete_manifest():
                 ],
                 "variants": pair,
             }
-            for i, pair in enumerate(variants["comparisons"][:3])
+            for i, pair in enumerate(variants["comparisons"])
         ],
         "resources": resources,
     }
@@ -323,11 +323,21 @@ class HarnessTests(unittest.TestCase):
                             oracle(),
                             self.truth[case_id],
                             continuation_required=variant["strategy"] == "compact@1"
-                            or variant["id"] == "terminal-handoff",
+                            or variant["id"] in {"terminal-handoff", "masking"},
+                            future_required=variant["id"] in {"controlled-compact", "masking"},
                         )
                         self.assertTrue(result["pass"], result["checks"])
                         n += 1
-        self.assertEqual(n, 90)
+        self.assertEqual(n, 105)
+
+    def test_later_answers_are_scored_only_in_the_controlled_comparison(self):
+        for name, case in self.cases.items():
+            answer = copy.deepcopy(self.answers[name])
+            answer["futureAnswer"] = {"unsupported": True}
+            self.assertTrue(h.score(case, answer, oracle(), self.truth[name])["pass"])
+            self.assertFalse(
+                h.score(case, answer, oracle(), self.truth[name], future_required=True)["pass"]
+            )
 
     def test_scorers_reject_deliberately_plausible_corruption(self):
         mutations = [
@@ -454,30 +464,6 @@ class HarnessTests(unittest.TestCase):
             for question in self.truth[name]["futureQuestions"]:
                 self.assertNotIn(question.encode(), authored)
 
-    def test_controlled_replay_is_independent_and_masking_has_no_external_effect(self):
-        events = [{"tool": "read", "receipt": "R1", "body": "large observation"}]
-        self.assertEqual(h.mask_observations(events), [{"tool": "read", "receipt": "R1"}])
-        folders = []
-
-        def change(folder, state):
-            folders.append(folder)
-            state["receipts"].append("new")
-            return len(state["receipts"])
-
-        def inspect(folder, state):
-            folders.append(folder)
-            return len(state["receipts"])
-
-        starts, results = h.controlled_pair(
-            {"files": {"state.json": "{}"}, "receipts": ["R1"]}, [change, inspect]
-        )
-        self.assertEqual(starts[0], starts[1])
-        self.assertEqual(results, [2, 1])
-        self.assertNotEqual(folders[0], folders[1])
-        self.assertTrue(all(not p.exists() for p in folders))
-        with self.assertRaises(h.Rejected):
-            h.controlled_pair({"url": "https://external.example"}, [change, inspect])
-
     def test_authoritative_usage_is_consumed_without_repricing_or_phase_addition(self):
         usage = {
             "modelCalls": {"value": 7, "completeness": "complete"},
@@ -491,11 +477,11 @@ class HarnessTests(unittest.TestCase):
 
     def test_preflight_pins_reject_confounded_or_incomplete_experiments(self):
         manifest = complete_manifest()
-        self.assertEqual(len(h.preflight(manifest)), 90)
+        self.assertEqual(len(h.preflight(manifest)), 120)
         namespaced = copy.deepcopy(manifest)
         for pin in namespaced["variants"].values():
             pin["models"][0].update(alias="provider/model:revision", policyRef="worker@2026.11")
-        self.assertEqual(len(h.preflight(namespaced)), 90)
+        self.assertEqual(len(h.preflight(namespaced)), 120)
         # The published-resource owner, rather than an invented alias grammar,
         # settles whether those identities match the selected configuration.
         mutations = [
@@ -528,7 +514,7 @@ class HarnessTests(unittest.TestCase):
         manifest = complete_manifest()
         api = FakeAPI(manifest)
         rows = h.verify_remote(api, manifest)
-        self.assertEqual(len(rows), 90)
+        self.assertEqual(len(rows), 120)
         self.assertTrue(all(call[0] == "GET" for call in api.calls))
         manifest["resources"][-1]["sha256"] = "sha256:" + "f" * 64
         with self.assertRaises(h.Rejected):
@@ -634,11 +620,15 @@ class HarnessTests(unittest.TestCase):
                 ),
             ):
                 result = h.live(
-                    manifest, api, observer="unused", clock=lambda tick=tick: tick[0], pause=pause
+                    manifest,
+                    api,
+                    observer="unused",
+                    clock=lambda tick=tick: tick[0],
+                    pause=pause,
                 )
             self.assertEqual(tick[0], 2 if settle else 10)
-            self.assertEqual(len(result["comparisons"]), 3)
-            self.assertGreater(len(reads), 3)
+            self.assertEqual(len(result["comparisons"]), 4)
+            self.assertGreater(len(reads), 4)
             self.assertEqual(
                 result["comparisons"][0]["freshness"], "current" if settle else "stale"
             )
@@ -670,8 +660,8 @@ class HarnessTests(unittest.TestCase):
 
         with patch.object(h, "collect_member", collected):
             result = h.live(manifest, api, observer="unused", clock=lambda: 0, pause=lambda _: None)
-        self.assertEqual((result["expected"], len(api.submissions)), (90, 1))
-        self.assertEqual(sum(row["state"] == "not_submitted" for row in result["members"]), 89)
+        self.assertEqual((result["expected"], len(api.submissions)), (120, 1))
+        self.assertEqual(sum(row["state"] == "not_submitted" for row in result["members"]), 119)
         self.assertFalse(h.measurement_complete(result))
         self.assertEqual(result["comparisons"][0]["summary"]["counts"]["fixture"]["expected"], 30)
 
@@ -696,7 +686,7 @@ class HarnessTests(unittest.TestCase):
         self.assertTrue(api.cancelled)
         self.assertEqual(len(api.submissions), 1)
         self.assertTrue(next(r for r in records if r["state"] == "cancelled")["cleanupJoined"])
-        self.assertEqual(result["expected"], 90)
+        self.assertEqual(result["expected"], 120)
 
     def test_real_collection_posts_valid_public_records_and_keeps_authoritative_usage(self):
         import yaml
@@ -898,10 +888,10 @@ class HarnessTests(unittest.TestCase):
                     pause=lambda _: None,
                     emit=records.append,
                 )
-            self.assertEqual(result["expected"], 90)
+            self.assertEqual(result["expected"], 120)
             states = [row["state"] for row in result["members"]]
             self.assertEqual(states[:3], ["unsupported", "blocked", state])
-            self.assertEqual(states.count("not_submitted"), 87)
+            self.assertEqual(states.count("not_submitted"), 117)
             self.assertEqual(len(records), 3)
             self.assertFalse(h.measurement_complete(result))
 
@@ -1039,7 +1029,7 @@ class HarnessTests(unittest.TestCase):
                 "conflicting": 0,
             }
             report = {
-                "expected": 90,
+                "expected": 120,
                 "members": [{"memberId": identity, "state": "failed"} for identity in ids],
                 "comparisons": [
                     {
@@ -1059,7 +1049,7 @@ class HarnessTests(unittest.TestCase):
                     measured["members"][-1]["state"] = "not_submitted"
                 output = root / ("complete.json" if complete else "partial.json")
 
-                def run(*_args, emit, **_kwargs):
+                def run(*_args, emit, measured=measured, **_kwargs):
                     for row in measured["members"]:
                         if row["state"] in h.TERMINAL:
                             emit(row)
@@ -1089,7 +1079,7 @@ class HarnessTests(unittest.TestCase):
                 self.assertEqual(h.load(output), measured)
                 self.assertEqual(
                     len(output.with_suffix(".members.jsonl").read_text().splitlines()),
-                    90 if complete else 89,
+                    120 if complete else 119,
                 )
 
     def test_invalid_cli_manifests_fail_before_network_or_output(self):

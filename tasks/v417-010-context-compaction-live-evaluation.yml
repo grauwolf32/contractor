@@ -58,13 +58,31 @@ context:
     and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
     and verification history. Recheck affected contracts if main changes before execution.
   current_state: >-
-    V417-008 now provides frozen pilot cases, generic authored variants, private
-    scorers and the offline-verified opt-in consumer. Live quality evidence is
-    still absent. After V417-009, prepare exact published external registrations,
-    operator Runtime build attestations and a private observer under the fixture
-    README; consume authoritative Eval usage and server comparison summaries.
-    Tiny cases without a useful observed checkpoint cannot establish compaction
-    quality. Masking/paired replay stay confined to the controlled adapter.
+    V417-009 is accepted on 2026-11-15. This task prepared seven authored
+    variants and four native two-arm comparisons (120 declared members),
+    independent held-out scorers and an OTLP/SDK observer. A separate development
+    Run reached native Gateway recovery before any tool/checkpoint; it was
+    cancelled and released. All 120 primary members remain unregistered/unrun.
+    This is preparation and infrastructure evidence, not live quality acceptance.
+  implementation_decision: >-
+    Agent proposal executed within assigned scope: use a fourth controlled
+    native-compact/masking comparison, keeping its later-question protocol out
+    of ordinary arms. Reuse native Managed Eval submission, usage and comparison
+    owners. Remove the obsolete local file-copy replay/masking simulation.
+    Identical native checkpoint replay remains explicitly unsupported. Expanded
+    cases and independent scorers are fixed before any held-out submission;
+    common thresholds and build still require development measurement.
+  decision_needed: >-
+    Read-only diagnosis found openrouter.ai DNS failure inside shared LiteLLM,
+    successful host DNS and a WireGuard egress handshake older than two hours.
+    Requested authorization for one bounded existing egress.sh up operation,
+    followed by DNS/HTTPS checks; alternative: leave the study pending until
+    infrastructure is restored. Recommendation is the bounded owner operation.
+    AGENTS.md 4.1 requires reporting this expansion beyond disposable fixtures.
+    No shared infrastructure mutation is authorized by silence; task returns to
+    pending while the user decision is outstanding. Operational recovery alone
+    needs no code task under 4.2; any code correction needs its own task first.
+  development_evidence: tasks/evidence/v417-010-development-20261115.json
 
 scope:
   in:
@@ -81,7 +99,7 @@ scope:
     pilot.
   - A new production masking strategy, learned compression policy or benchmark-specific prompt/Skill hints.
   - Guaranteeing improvement or changing thresholds after seeing held-out results.
-  - Live execution as part of this planning change or as a dependency of lint, verify or release-verify.
+  - Live execution as a dependency of lint, verify or release-verify.
 requirements:
 - id: R1
   text: Before any live submission freeze exact cases, visible inputs, private truth/scorer revisions,
@@ -247,3 +265,11 @@ verification_requirements:
   it cannot conclude from deterministic fixtures alone.
 - Do not change normative specifications or claim quality results during this planning edit; do not populate
   implementation_commit until actual completion.
+
+verification:
+- command: make test-context-compaction-eval-fixtures
+  result: Passed preparation only; 39 offline cases, 105 recorded scored samples and both Go packages. No live quality claim.
+- command: make lint
+  result: Passed full lint; task/spec/dependency consistency and diff checks also pass after the final evidence update.
+- command: make eval-context-compaction-live
+  result: Not run; development Gateway DNS/WireGuard egress failure prevented final calibration and registration. All 120 declared primary members remain unrun. Acceptance A1-A4 remains incomplete.
