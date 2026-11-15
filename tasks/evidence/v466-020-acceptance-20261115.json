@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "task": "V466-020",
+  "date": "2026-11-15",
+  "implementationCommit": "88f3117651e87a8e16e22b8dd5544d2b8fc01b81",
+  "runtimeSourceTree": "db066561a9c56f7014f76caf301eef331847d1e8",
+  "verification": [
+    {
+      "command": "make test-context-compaction-eval-fixtures",
+      "exitCode": 0,
+      "pythonTests": 35,
+      "recordedSamples": 90,
+      "goPackages": 2,
+      "path": "/private/tmp/contractor-v417-009-010-20261115-8d0zh7k_/controlled-offline.log",
+      "sha256": "sha256:21ff04e6bc49f9af6dea353e66b4390fcb28f21a5361bed382d4cf3896952dc7"
+    },
+    {
+      "command": "make lint",
+      "exitCode": 0,
+      "path": "/private/tmp/contractor-v417-009-010-20261115-8d0zh7k_/controlled-lint.log",
+      "sha256": "sha256:3c8c7983390c046ca7276ffe5bb1f17dbf65d8ab03346819b79ad781427dda79"
+    },
+    {
+      "command": "cd runtime && uv run ruff check --config pyproject.toml ../tests/eval/context_compaction/controlled_runtime.py ../tests/eval/context_compaction/test_controlled_runtime.py",
+      "exitCode": 0
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0
+    }
+  ],
+  "nonVacuousRegression": {
+    "testsRun": 1,
+    "failures": 4,
+    "errors": 0,
+    "baseline": "actual ordinary AdkWorkerRuntime without the test-only control callback",
+    "network": "denied"
+  },
+  "boundary": {
+    "productionChanged": false,
+    "realGatewayCalls": 0,
+    "newModelOrToolLoop": false,
+    "newUsageOrComparisonOwner": false,
+    "ordinaryWorkerCallbacksUnchanged": true,
+    "sameCheckpointReplay": "unsupported",
+    "sdk": "ADK2.13.0; native Worker/factory and actual owned Gateway handle, scripted responses, network denied",
+    "sourceGate009": "Still running independently on clean7ef5d58deb5ff42cec9175fa4261d169047c1d22; this prerequisite does not close009or010."
+  },
+  "controls": {
+    "history": "native ContextArchive exact complete groups; original events unmodified",
+    "scope": "two named text-only templates, one isolated session",
+    "questions": "private byte-pinned document; activated after real checkpoint/nonempty mask, restated on later controlled requests",
+    "records": "bounded IDs/counts/timestamps/digests, post-agent SDK projection; no raw content or credentials; missing evidence remains unavailable",
+    "cleanup": "Native failure, safety callback and resource release retained when optional recording fails"
+  }
+}

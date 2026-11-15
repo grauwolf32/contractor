@@ -5,7 +5,7 @@ milestone: worker-context-compaction-quality-2026-10
 epic: evals
 kind: chore
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V417-008
 - V466-019
@@ -85,3 +85,13 @@ lifecycle:
 deliverables:
 - path: tests/eval/context_compaction
   description: Test-only launcher, real-ADK offline regressions and bounded control documentation.
+
+implementation_commit: 88f3117651e87a8e16e22b8dd5544d2b8fc01b81
+verification:
+- command: make test-context-compaction-eval-fixtures
+  result: Passed 35 offline tests, 90 recorded samples and both Go fixture packages; network denied.
+- command: make lint
+  result: Passed complete lint; all four Runtime import contracts kept.
+- command: git diff --check
+  result: Passed.
+evidence: tasks/evidence/v466-020-acceptance-20261115.json
