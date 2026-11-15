@@ -68,7 +68,17 @@ def observe(directory, run_id):
         )
         argument = json.loads(values["contractor.input"])
         output = json.loads(values["contractor.output"])
-        require(not output.get("truncated"), "tool observation truncated")
+        require(
+            all(
+                not (
+                    isinstance(value, dict)
+                    and set(value) == {"truncated", "preview"}
+                    and value["truncated"] is True
+                )
+                for value in (argument, output)
+            ),
+            "telemetry content truncated",
+        )
         if output.get("ok") is False:
             continue
         tools.append(span)

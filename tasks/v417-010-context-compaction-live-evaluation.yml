@@ -66,12 +66,28 @@ context:
     and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
     and verification history. Recheck affected contracts if main changes before execution.
   current_state: >-
-    V417-009 is accepted on 2026-11-15. This task prepared seven authored
-    variants and four native two-arm comparisons (120 declared members),
-    independent held-out scorers and an OTLP/SDK observer. A separate development
-    Run reached native Gateway recovery before any tool/checkpoint; it was
-    cancelled and released. All 120 primary members remain unregistered/unrun.
-    This is preparation and infrastructure evidence, not live quality acceptance.
+    V417-009 is accepted. Network recovery is complete. After the retained
+    initial infrastructure failure, development02 succeeds on the configured
+    model: 12 native calls, 121073 total tokens, USD0.01827893 reported cost;
+    independent source/constraint checks pass. A checkpoint reduces measured
+    prompt12744 to3066 but follows the useful tool work. Development03 will
+    test the earlier soft6000 trigger before any held-out registration.
+    All120 primary members remain unregistered/unrun; no quality conclusion.
+  development_calibration: >-
+    Agent decision based only on development02 measurements: ratio0.006 at
+    configured context1M lies between measured prompts5700 and6808. Keep
+    model selections, sampling, call/tool/token caps, instructions,
+    keepRecentGroups1 and maxCompactions4 fixed. Use a distinct workflow/template
+    identity and retain the earlier run and costs. Identical-checkpoint replay
+    remains unsupported.
+  observer_measurement_correction: >-
+    Development02 exposed an error in this task's new observer: text-artifact
+    pagination's truncated=true is a valid complete tool response, not the
+    telemetry owner's truncated/preview envelope. Check only that native
+    envelope on both arguments and output. Regression fixtures use the actual
+    native content encoder and protobuf projection; prior code errors on a
+    paginated read and falsely accepts truncated write arguments. Both fail
+    under the prior implementation and pass under the corrected observer.
   implementation_decision: >-
     Agent proposal executed within assigned scope: use a fourth controlled
     native-compact/masking comparison, keeping its later-question protocol out
@@ -80,6 +96,11 @@ context:
     Identical native checkpoint replay remains explicitly unsupported. Expanded
     cases and independent scorers are fixed before any held-out submission;
     common thresholds and build still require development measurement.
+    Agent preflight clarification before any held-out submission makes the
+    API task's required output shape explicit (tenant apiKey and optional query
+    parameters), matching its existing scorer. This prevents equally valid
+    but unspecified auth/body representations from becoming accidental misses;
+    no hidden answer or benchmark-specific Worker instruction is introduced.
   recovery_decision: >-
     The stale provider endpoint does not answer authenticated handshakes; its
     SSH alias refuses connections. An existing operator-managed VPN server is reachable with sudo,
@@ -109,7 +130,9 @@ context:
     sha256:ffc1608d8cece6e4db9b0694ca4bd256fe5e0771af73c9ff2e57550bfeac8e6a.
     Exact operational results are retained in the ignored owner-only local
     runbook; no profile keys or concrete deployment addresses are published.
-  development_evidence: tasks/evidence/v417-010-development-20261115.json
+  development_evidence:
+  - tasks/evidence/v417-010-development-20261115.json
+  - tasks/evidence/v417-010-development-20261116-02.json
 
 scope:
   in:

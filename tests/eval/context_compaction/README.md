@@ -242,3 +242,8 @@ spans must start after an observed checkpoint to count as useful continuation.
 Source receipt observation and native archive retrieval are separate facts; no
 HTTP probe capability is available, so absence of repeated network probes is
 enforced by capabilities and does not demonstrate a model decision.
+
+Artifact pagination may set the tool response's `truncated` flag while returning
+a complete observed page. That is valid evidence. Only the native telemetry
+encoder's `{truncated, preview}` envelope makes captured arguments/output
+unavailable; regression tests exercise the actual encoder and protobuf form.

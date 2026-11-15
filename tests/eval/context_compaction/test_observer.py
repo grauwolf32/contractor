@@ -6,13 +6,14 @@ import unittest
 from pathlib import Path
 
 import observer
+from contractor_runtime.adapters.content import MAX_CONTENT_BYTES, encode_content
 from google.protobuf.json_format import MessageToDict
 from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
 from opentelemetry.proto.trace.v1.trace_pb2 import Status
 
 
 class ObserverTests(unittest.TestCase):
-    def fixture(self, folder, *, tool_start=10, failed=False, truncated=False):
+    def fixture(self, folder, *, tool_start=10, failed=False, truncated=False, paginated=False):
         request = ExportTraceServiceRequest()
         resource = request.resource_spans.add()
         label = resource.resource.attributes.add(key="contractor.run.id")
@@ -33,8 +34,10 @@ class ObserverTests(unittest.TestCase):
                     {
                         "tool.name": "read_text_artifact",
                         "contractor.input": "{}",
-                        "contractor.output": json.dumps(
-                            {"text": '"receipt": "obs-P17"', "truncated": truncated}
+                        "contractor.output": encode_content(
+                            {"text": "x" * (MAX_CONTENT_BYTES + 100)}
+                            if truncated
+                            else {"text": '"receipt": "obs-P17"', "truncated": paginated}
                         ),
                     },
                 ),
@@ -83,6 +86,30 @@ class ObserverTests(unittest.TestCase):
                 + "\n"
             )
             self.assertEqual(observer.observe(folder, "run-test")["usefulAfterCheckpoint"], 1)
+
+    def test_paginated_artifact_read_is_complete_telemetry_evidence(self):
+        with tempfile.TemporaryDirectory() as folder:
+            self.fixture(folder, tool_start=31, paginated=True)
+            result = observer.observe(folder, "run-test")
+            self.assertEqual(result["usefulAfterCheckpoint"], 1)
+            self.assertEqual(result["retrieved"], ["obs-P17"])
+
+    def test_truncated_write_arguments_are_unavailable_evidence(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = self.fixture(folder, tool_start=31)
+            document = json.loads(path.read_text())
+            tool = document["resourceSpans"][0]["scopeSpans"][0]["spans"][1]
+            values = {item["key"]: item["value"] for item in tool["attributes"]}
+            values["tool.name"]["stringValue"] = "write_text_artifact"
+            values["contractor.input"]["stringValue"] = encode_content(
+                {"name": "progress", "text": "x" * (MAX_CONTENT_BYTES + 100)}
+            )
+            values["contractor.output"]["stringValue"] = json.dumps(
+                {"artifact": {"namespace": "builder", "name": "progress"}}
+            )
+            path.write_text(json.dumps(document))
+            with self.assertRaises(ValueError):
+                observer.observe(folder, "run-test")
 
     def test_native_export_gaps_cannot_be_reported_as_no_activity(self):
         import copy
