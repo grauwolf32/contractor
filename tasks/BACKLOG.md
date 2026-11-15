@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-61 open tasks: 9 in progress, 39 pending, 13 deferred. 1582 finished: 1564 completed, 18 archived.
+62 open tasks: 10 in progress, 39 pending, 13 deferred. 1581 finished: 1563 completed, 18 archived.
 
 ## In progress
 
@@ -20,6 +20,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-009](v417-009-context-compaction-release-gate.yml) | quality | chore | P1 | Verify context compaction across real processes and close the deterministic milestone |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V466-020](v466-020-controlled-context-eval-adapter.yml) | evals | chore | P2 | Prepare a test-only Runtime adapter for live context probes |
 
 ## Pending
 
@@ -84,7 +85,7 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V40-003](v40-003-agent-instruction-eval-decision.yml) | feature | P1 | V40-002 | Evaluate instruction candidates and record evidence-based adoption decisions |
 | [V411-021](v411-021-pentest-frozen-live-quality-evaluation.yml) | chore | P2 | V411-020 | Evaluate HTTP investigation quality with frozen repeated comparisons |
-| [V417-010](v417-010-context-compaction-live-evaluation.yml) | chore | P2 | V417-009 | Measure compaction and reasoning choices with repeated frozen live experiments |
+| [V417-010](v417-010-context-compaction-live-evaluation.yml) | chore | P2 | V417-009, V466-020 | Measure compaction and reasoning choices with repeated frozen live experiments |
 
 ### Podman sandbox (`sandbox`)
 
@@ -160,7 +161,7 @@ tasks in `introduced_by`.
 | Workflow catalog and document workflows (`workflows`) | 6 | 19 | 17 | 16 | 26 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 40 | 20 | 70 |
 | Audits (`audits`) | 9 | 69 | 98 | 42 | 170 |
-| Evaluations (`evals`) | 4 | 22 | 46 | 19 | 54 |
+| Evaluations (`evals`) | 5 | 22 | 46 | 19 | 54 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
 | Web UI (`ui`) | 1 | 54 | 81 | 31 | 76 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 21 | 53 | 14 | 32 |

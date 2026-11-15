@@ -303,11 +303,12 @@ class ControlledRuntimeTests(unittest.TestCase):
         async def scenario():
             events = pair(1, SOURCE)
             original = request(events)
+            records = []
             probe = c.RequestProbe(
                 run_id="run-1",
                 mode="compact@1",
                 questions=QUESTIONS,
-                record=lambda _: self.fail("oversized projection recorded"),
+                record=records.append,
             )
             with patch.object(c, "MAX_REQUEST_BYTES", 1):
                 await probe.project(
@@ -315,6 +316,7 @@ class ControlledRuntimeTests(unittest.TestCase):
                     original,
                 )
             self.assertEqual(original.model_dump(), request(events).model_dump())
+            self.assertEqual(records, [])
 
         asyncio.run(scenario())
         with tempfile.TemporaryDirectory() as directory:
