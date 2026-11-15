@@ -19,8 +19,11 @@ execution_policy:
     observed shared Gateway DNS/WireGuard egress failure before any model answer.
     The Run is cancelled/released, owned credential revoked, processes joined and
     final owned database dropped. The four-comparison/120-member study remains
-    unregistered/unrun; V417-010 returns to pending for the requested shared
-    egress recovery authorization (AGENTS 4.1). No live quality is claimed.
+    unregistered/unrun. The user authorized one existing egress.sh up operation
+    on 2026-11-15; it exited 0 but DNS/HTTPS remain unavailable and WireGuard has
+    no handshake/received traffic. Sudo is available; V417-010 remains pending
+    for a working provider profile/peer, not for the prior authorization.
+    No live quality is claimed.
     This branch is not merged or deployed. V417-004 stays reserved in_progress
     and executes LAST, after V417-010.
     User request 2026-11-14 delivered on 2026-11-15 integrates the reviewed

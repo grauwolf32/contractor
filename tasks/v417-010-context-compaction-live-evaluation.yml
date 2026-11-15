@@ -29,6 +29,10 @@ context:
     changing execution states, Server conclusions or frozen quality gates.
     Agent-proposed V466-020 supplies the missing test-only live control adapter;
     it performs offline preparation while this task waits for V417-009.
+    User decision 2026-11-15 explicitly authorizes one attempt to restore the
+    shared Gateway through existing egress.sh up, DNS/HTTPS checks and then
+    continuation of this task. That one operation was executed with available
+    noninteractive sudo; it exited 0 but did not restore provider connectivity.
   proposal: docs/proposals/0046-workflow-context-compaction.md
   specification:
   - docs/spec/evals/format.md#EVF-R1
@@ -73,15 +77,24 @@ context:
     cases and independent scorers are fixed before any held-out submission;
     common thresholds and build still require development measurement.
   decision_needed: >-
-    Read-only diagnosis found openrouter.ai DNS failure inside shared LiteLLM,
-    successful host DNS and a WireGuard egress handshake older than two hours.
-    Requested authorization for one bounded existing egress.sh up operation,
-    followed by DNS/HTTPS checks; alternative: leave the study pending until
-    infrastructure is restored. Recommendation is the bounded owner operation.
-    AGENTS.md 4.1 requires reporting this expansion beyond disposable fixtures.
-    No shared infrastructure mutation is authorized by silence; task returns to
-    pending while the user decision is outstanding. Operational recovery alone
-    needs no code task under 4.2; any code correction needs its own task first.
+    The authorized installed egress.sh up operation is complete (exit 0).
+    DNS still times out in the LiteLLM container and the owner's HTTPS check
+    exits 28 without an HTTP response. WireGuard has no new handshake, zero
+    received bytes and 2072 transmitted bytes; the endpoint route exists outside
+    WireGuard, both services are active and host OUTPUT policy is ACCEPT.
+    Sudo access is available; no user sudo command is required. Need a working
+    provider profile/peer before development calibration and held-out execution.
+    Asked the user for the local path of a valid replacement profile that may
+    be applied, or to wait for the existing peer to recover. The precise cause
+    beyond the namespace remains unproven; no second network mutation or new
+    live Run was attempted. Keep pending while this external input is missing.
+  recovery_attempt: >-
+    2026-11-15: inspected the deployed owner's pre-parameterization script;
+    its fixed network matches the deployment. One authorized up command exited
+    0. Installed script digest is
+    sha256:ffc1608d8cece6e4db9b0694ca4bd256fe5e0771af73c9ff2e57550bfeac8e6a.
+    Exact operational results are retained in the ignored owner-only local
+    runbook; no profile keys or concrete deployment addresses are published.
   development_evidence: tasks/evidence/v417-010-development-20261115.json
 
 scope:
