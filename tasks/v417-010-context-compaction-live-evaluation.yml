@@ -79,8 +79,10 @@ context:
     all four experiments are cancelled. No quality assessment was published.
     The correction loads the pinned sibling client explicitly, passes a real
     isolated-entry regression and the same retained live Run smoke check.
-    A new frozen attempt2 will keep its relation to attempt1; no scorer, case,
-    model, threshold or context parameter changes and no favorable replacement.
+    Attempt2 is now registered and running with120 members, frozen manifest
+    sha256:5cfcf096990838527eafbe9106c200609491c0a7cd2ac34951c90977f6207c8f.
+    It retains its relation to attempt1; no scorer, case, model, threshold or
+    context parameter changes and no favorable replacement.
   observer_launch_correction: >-
     Agent correction 2026-11-16 within this task's evaluator implementation:
     importlib.util loads the existing sibling client under isolated Python;
@@ -156,6 +158,7 @@ context:
   - tasks/evidence/v417-010-development-20261116-02.json
   - tasks/evidence/v417-010-development-20261116-03.json
   - tasks/evidence/v417-010-protocol-attempt1-20261116.json
+  - tasks/evidence/v417-010-freeze-r2-20261116.json
 
 scope:
   in:
@@ -348,4 +351,4 @@ verification:
   result: >-
     Attempt1 incomplete: one succeeded Run, no assessment and119 unrun; make exit2.
     Retained all120 members/costs. Observer launch correction verified; a new
-    frozen attempt2 is pending. Acceptance A1-A4 remains incomplete.
+    frozen attempt2 is now running. Acceptance A1-A4 remains incomplete.

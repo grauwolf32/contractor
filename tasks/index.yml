@@ -13,8 +13,10 @@ execution_policy:
     one succeeded Run,119 unrun and no quality assessment. The evaluator's
     isolated Python import failed; a real subprocess regression and same-Run
     smoke prove the correction. All four experiments are cancelled. A new
-    frozen attempt2 retains that relation and unchanged cases/scorer/model/
-    sampling/context settings; this is a protocol correction, not sample selection.
+    frozen attempt2 is registered and running with120 members; it retains that
+    relation and unchanged cases/scorer/model/sampling/context settings. Pins are
+    tasks/evidence/v417-010-freeze-r2-20261116.json. This is a protocol correction,
+    not sample selection.
     User request 2026-11-15 completes V417-009 on codex/v417-release-quality.
     Full make -k release-verify passes on clean integrated revision
     7ef5d58deb5ff42cec9175fa4261d169047c1d22 after V466-018 repairs an unrelated
