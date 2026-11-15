@@ -5,7 +5,7 @@ milestone: worker-context-compaction-2026-10
 epic: quality
 kind: chore
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V417-003
 - V417-005
@@ -231,3 +231,13 @@ dependency_note: No dependency on V417-001, V417-004, V417-008 or V417-010. Term
   this exit to isolated compaction and place reactivated V417-004 after this gate and V417-010. Shared
   rejection controls describe this isolated delivery; the later shared implementation updates affected
   controls without rewriting earlier acceptance evidence.
+
+implementation_commit: 7ef5d58deb5ff42cec9175fa4261d169047c1d22
+verification:
+- command: make test-worker-compaction-e2e
+  result: Passed full owning suites and all 57 Go, 561 Runtime and 7 required process case events.
+- command: make test-wire-cross-language verify-public-api test-postgres
+  result: Passed on the integrated repair revision with real PostgreSQL.
+- command: make -k release-verify
+  result: Passed complete aggregate on 7ef5d58deb5ff42cec9175fa4261d169047c1d22; 52 process roots and all required conformance verifiers passed.
+evidence: tasks/evidence/v417-009-acceptance-20261115.json

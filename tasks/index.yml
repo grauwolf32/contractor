@@ -9,6 +9,15 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
+    User request 2026-11-15 completes V417-009 on codex/v417-release-quality.
+    Full make -k release-verify passes on clean integrated revision
+    7ef5d58deb5ff42cec9175fa4261d169047c1d22 after V466-018 repairs an unrelated
+    bounded-page test. All 52 process roots and required compaction cases pass;
+    optional heavy-I/O/platform/live skips remain explicit exclusions. Evidence:
+    tasks/evidence/v417-009-acceptance-20261115.json. V466-019/V466-020 prepare
+    the separately assigned V417-010 live study; no live quality is claimed yet.
+    This branch is not merged or deployed. V417-004 stays reserved in_progress
+    and executes LAST, after V417-010.
     User request 2026-11-14 delivered on 2026-11-15 integrates the reviewed
     V417 branch into main through no-fast-forward merge
     5ca0aa20cf69d78ae06841d839e4a3968463d194 (V466-016). All 25 independent main
