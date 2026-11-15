@@ -5,7 +5,7 @@ milestone: worker-context-compaction-quality-2026-10
 epic: evals
 kind: chore
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V417-008
 - V466-019
@@ -100,3 +100,5 @@ verification:
 - command: git diff --check
   result: Passed.
 evidence: tasks/evidence/v466-020-acceptance-20261115.json
+
+implementation_commit: 9e17349a09329cd3f545aae5a10ad071fb9474f7
