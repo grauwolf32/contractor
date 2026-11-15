@@ -73,7 +73,23 @@ context:
     keepRecentGroups1,maxCompactions4, unchanged configured aliases/sampling
     and caller/auxiliary budgets. Development output-schema and hypothesis-ID
     misses are retained, not interpreted as complete quality passes.
-    All120 primary members are still unregistered/unrun; no quality conclusion.
+    Protocol attempt1 registered120 members but stopped after its first
+    succeeded Run: the observer import fails under the consumer's actual -I -S
+    launch. All120 members, one observed cost and119 unrun members are retained;
+    all four experiments are cancelled. No quality assessment was published.
+    The correction loads the pinned sibling client explicitly, passes a real
+    isolated-entry regression and the same retained live Run smoke check.
+    A new frozen attempt2 will keep its relation to attempt1; no scorer, case,
+    model, threshold or context parameter changes and no favorable replacement.
+  observer_launch_correction: >-
+    Agent correction 2026-11-16 within this task's evaluator implementation:
+    importlib.util loads the existing sibling client under isolated Python;
+    no duplicate client, runtime loop or accounting owner. The added test uses
+    the real harness.run_observer subprocess against bounded local HTTP/OTLP
+    fixtures. Before correction it errors, after correction it passes; the
+    same retained live Run also passes without another model call. Because the
+    original observer pin is unusable, attempt2 receives new frozen identities
+    and explicitly retains attempt1's incomplete120-member denominator.
   development_calibration: >-
     Agent decision based only on development02/03: soft6000 (ratio0.006 for
     configured context1M) permits useful work after native compaction. Ordinary
@@ -139,6 +155,7 @@ context:
   - tasks/evidence/v417-010-development-20261115.json
   - tasks/evidence/v417-010-development-20261116-02.json
   - tasks/evidence/v417-010-development-20261116-03.json
+  - tasks/evidence/v417-010-protocol-attempt1-20261116.json
 
 scope:
   in:
@@ -324,8 +341,11 @@ verification_requirements:
 
 verification:
 - command: make test-context-compaction-eval-fixtures
-  result: Passed preparation only; 41 offline cases, 105 recorded scored samples and both Go packages. No live quality claim.
+  result: Passed preparation only; 42 offline cases, 105 recorded scored samples and both Go packages. No live quality claim.
 - command: make lint
   result: Passed full lint; task/spec/dependency consistency and diff checks also pass after the final evidence update.
 - command: make eval-context-compaction-live
-  result: Not yet run. Network restored, development checkpoint and both controls measured. All 120 declared primary members remain unrun. Acceptance A1-A4 remains incomplete.
+  result: >-
+    Attempt1 incomplete: one succeeded Run, no assessment and119 unrun; make exit2.
+    Retained all120 members/costs. Observer launch correction verified; a new
+    frozen attempt2 is pending. Acceptance A1-A4 remains incomplete.

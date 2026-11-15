@@ -1,18 +1,86 @@
 """Evidence gaps and before-checkpoint activity must not become successful probes."""
 
 import json
+import os
 import tempfile
+import threading
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from unittest.mock import patch
 
 import observer
-from contractor_runtime.adapters.content import MAX_CONTENT_BYTES, encode_content
 from google.protobuf.json_format import MessageToDict
 from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
 from opentelemetry.proto.trace.v1.trace_pb2 import Status
 
+from contractor_runtime.adapters.content import MAX_CONTENT_BYTES, encode_content
+
 
 class ObserverTests(unittest.TestCase):
+    def test_actual_isolated_consumer_entry_uses_the_pinned_sibling_client(self):
+        diagnostics = {
+            "status": "available",
+            "complete": True,
+            "adapters": [
+                {
+                    "ref": "otlp-http@1",
+                    "flushSucceeded": True,
+                    "failedOperations": "0",
+                    "droppedSpans": {"queueOverflow": "0"},
+                }
+            ],
+        }
+        responses = {
+            "/v1/runs/run-test": {
+                "state": "succeeded",
+                "deletable": True,
+                "attempts": [{"stageExecutionId": "stage-test"}],
+            },
+            "/v1/runs/run-test/attempts/stage-test/runtime-diagnostics?limit=10": {
+                "items": [diagnostics],
+                "page": {"hasMore": False},
+            },
+        }
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *_args):
+                pass
+
+            def do_GET(self):
+                raw = json.dumps(responses[self.path]).encode()
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                self.wfile.write(raw)
+
+        with tempfile.TemporaryDirectory() as folder:
+            self.fixture(folder, tool_start=31)
+            server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+            thread = threading.Thread(target=server.serve_forever)
+            thread.start()
+            try:
+                with patch.dict(
+                    os.environ,
+                    {
+                        "CONTRACTOR_CONTEXT_EVAL_API": f"http://127.0.0.1:{server.server_port}",
+                        "CONTRACTOR_CONTEXT_EVAL_TOKEN": "test-only-session",
+                        "CONTRACTOR_CONTEXT_EVAL_EVIDENCE": folder,
+                    },
+                ):
+                    result = observer.h.run_observer(
+                        str(Path(observer.__file__).resolve()),
+                        "run-test",
+                        observer.h.fixtures()[1]["source-review"],
+                        timeout=10,
+                    )
+                self.assertEqual(result["retrieved"], ["obs-P17"])
+                self.assertEqual(result["usefulAfterCheckpoint"], 1)
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join()
+
     def fixture(self, folder, *, tool_start=10, failed=False, truncated=False, paginated=False):
         request = ExportTraceServiceRequest()
         resource = request.resource_spans.add()

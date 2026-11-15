@@ -7,13 +7,23 @@ model answers or private scoring truth are read or emitted here.
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import os
 import re
 import sys
 from pathlib import Path
 
-import harness as h
+# The consumer launches this script with -I -S, which excludes its directory
+# from sys.path. Load the pinned sibling client explicitly, without ambient
+# PYTHONPATH/site-package imports or a second API client implementation.
+_client_spec = importlib.util.spec_from_file_location(
+    "context_compaction_client", Path(__file__).with_name("harness.py")
+)
+if _client_spec is None or _client_spec.loader is None:
+    raise RuntimeError("evaluator client unavailable")
+h = importlib.util.module_from_spec(_client_spec)
+_client_spec.loader.exec_module(h)
 
 MAX_BYTES = 16 * 1024 * 1024
 MAX_SPANS = 4096
