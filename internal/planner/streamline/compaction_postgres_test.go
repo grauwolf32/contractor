@@ -2,6 +2,7 @@ package streamline
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -18,6 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/stageresult"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"google.golang.org/adk/v2/model"
 	adksession "google.golang.org/adk/v2/session"
 )
 
@@ -267,6 +269,62 @@ func TestPostgresCompactionFinishAppendFailureAfterCheckpoints(t *testing.T) {
 			stored := loadAppendProbeCompletion(t, ctx, store)
 			if stored.Result != nil || stored.Failure == nil || stored.Failure.Code != "planner_session_rejected" {
 				t.Fatalf("stored completion = %s", appendProbeCompletionCode(stored))
+			}
+		})
+	}
+}
+
+func TestPostgresRollingCompactionAcceptsSmallerCombinedContext(t *testing.T) {
+	for _, profile := range []string{"streamline", "router"} {
+		t.Run(profile, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
+			defer cancel()
+			_, store, sessions := compactionPostgresStore(t, ctx)
+			step := func(rolling bool) compactorStep {
+				return func(request *model.LLMRequest) (compactorReply, error) {
+					var source compactorInput
+					for _, content := range request.Contents {
+						for _, part := range content.Parts {
+							if part.Text != "" && json.Unmarshal([]byte(part.Text), &source) == nil && len(source.History) > 0 {
+								var rawBytes int
+								for _, event := range source.History {
+									encoded, err := json.Marshal(event)
+									if err != nil {
+										t.Fatal(err)
+									}
+									rawBytes += len(encoded)
+								}
+								size := rawBytes / 2
+								if rolling {
+									size = rawBytes + 1
+									if len(source.PreviousSummary) <= 1 {
+										t.Fatal("second checkpoint has no useful prior summary")
+									}
+								}
+								return summaryStep(strings.Repeat("s", size))(request)
+							}
+						}
+					}
+					t.Fatal("compactor did not receive its history")
+					return compactorReply{}, nil
+				}
+			}
+			compactor := &scriptedCompactor{steps: []compactorStep{step(false), step(true)}}
+			llm := &scriptedModel{steps: twoCompactionSteps(profile, &requestLog{})}
+			workers := &sequenceWorkers{}
+			instance, err := postgresCompactionFactory(t, profile, sessions, workers, llm, compactor).Create(compactionInvocation(profile))
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := instance.Run(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.Outcome != stageresult.StageSucceeded || sessions.count() != 2 || workers.count() != 2 {
+				t.Fatalf("rolling continuation did not finish: result=%+v markers=%d workers=%d", result, sessions.count(), workers.count())
+			}
+			if completion := loadAppendProbeCompletion(t, ctx, store); completion.Result == nil || completion.Failure != nil {
+				t.Fatal("successful candidate was not persisted")
 			}
 		})
 	}

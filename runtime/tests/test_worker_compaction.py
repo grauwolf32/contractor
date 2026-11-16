@@ -1469,3 +1469,52 @@ def test_failed_diagnostic_does_not_replace_compaction_error_or_skip_model_close
                 await finish(runtime)
 
     asyncio.run(scenario())
+
+
+def test_shared_compaction_boundaries() -> None:
+    fixture = json.loads(
+        (
+            Path(__file__).resolve().parents[2] / "api/testdata/compaction-boundary-cases.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    async def scenario() -> None:
+        for case in fixture["tails"]:
+            coordinator = new_coordinator(keep=case["keep"])
+            for ordinal in range(1, case["groups"] + 1):
+                await add_group(coordinator, ordinal)
+                if case["covered"] and ordinal == case["covered"] + case["keep"]:
+                    first = await coordinator.plan()
+                    coordinator.commit(
+                        first, "memory", coordinator.marker(first, sdk_invocation_id="sdk-1")
+                    )
+            if not case["eligible"]:
+                with pytest.raises(WorkerCompactionError) as raised:
+                    await coordinator.plan()
+                assert raised.value.cause == "ineffective"
+            else:
+                plan = await coordinator.plan()
+                assert plan.last_group - case["covered"] == case["eligible"]
+
+        for case in fixture["summaries"]:
+            coordinator = new_coordinator(keep=1)
+            await add_group(coordinator, 1, value="a" * 2000)
+            await add_group(coordinator, 2, value="new fact")
+            first = await coordinator.plan()
+            previous = case["previous"] * case["repeat"]
+            previous = coordinator.validate_summary(first, json.dumps({"summary": previous}))
+            coordinator.commit(
+                first, previous, coordinator.marker(first, sdk_invocation_id="sdk-1")
+            )
+            await add_group(coordinator, 3, value="protected tail")
+            second = await coordinator.plan()
+            raw_bytes = second.source_bytes - len(previous.encode("utf-8"))
+            candidate = json.dumps({"summary": "x" * (raw_bytes + case["extraRawBytes"])})
+            if case["valid"]:
+                assert coordinator.validate_summary(second, candidate)
+            else:
+                with pytest.raises(WorkerCompactionError) as raised:
+                    coordinator.validate_summary(second, candidate)
+                assert raised.value.cause == "ineffective"
+
+    asyncio.run(scenario())

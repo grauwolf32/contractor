@@ -450,6 +450,8 @@ func (c *contextCompaction) selectCheckpoint(current adksession.Session) (compac
 	}
 	selection := compactionSelection{
 		generation: c.generation, end: end, summary: c.summary, retained: c.retainedLocked(),
+		// The rolling summary replaces both the prior summary and new groups.
+		sourceBytes: int64(len(c.summary)),
 	}
 	for _, group := range c.groups[c.covered:end] {
 		selection.sourceBytes += group.bytes
