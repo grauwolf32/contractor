@@ -29,6 +29,7 @@ test-runtime: test-runtime-hardening
 test-runtime-hardening: runtime-venv test-release-reports
 	cd runtime && CONTRACTOR_SHARED_FIXTURE_LOG="$(SHARED_FIXTURE_LOG)" uv run pytest -W error tests --junitxml="$(RELEASE_REPORTS)/runtime.xml"
 	python3 scripts/release_test_reports.py verify-runtime --report "$(RELEASE_REPORTS)/runtime.xml"
+	python3 scripts/release_test_reports.py verify-compaction-runtime --report "$(RELEASE_REPORTS)/runtime.xml"
 
 test-release-config-fixtures: runtime-venv
 	go test -tags=e2e -v -count=1 ./tests/e2e -run '^($(CONFIG_FIXTURE_TESTS))$$'
@@ -37,6 +38,7 @@ test-release-shared-fixtures: RELEASE_CONSOLIDATED := 1
 test-release-shared-fixtures: test-go test-runtime-hardening
 	python3 scripts/shared_fixture_gate.py --go-report "$(RELEASE_REPORTS)/go-unit.jsonl" --runtime-log "$(SHARED_FIXTURE_LOG)"
 	python3 scripts/release_test_reports.py verify-engagement-accounting --report "$(RELEASE_REPORTS)/go-unit.jsonl"
+	python3 scripts/release_test_reports.py verify-compaction-go --report "$(RELEASE_REPORTS)/go-unit.jsonl"
 
 test-hardening-matrices: runtime-venv
 	$(call run-family-test,go test -count=1 ./tests/e2e)

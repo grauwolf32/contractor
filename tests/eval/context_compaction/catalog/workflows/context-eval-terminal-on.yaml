@@ -31,7 +31,7 @@ spec:
       planner: passthrough@1
       agents:
         builder:
-          template: context-eval-terminal-on@1
+          template: context-eval-terminal-on@4
           contextManagement:
             strategy: template@1
       context:

@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "go": {
+    "github.com/grauwolf32/contractor/internal/config": [
+      "TestSharedWorkflowContextManagementCases",
+      "TestWorkerCompactorSelectionLayersAndPinnedReplay",
+      "TestWorkerCompactorRejectsRemovedPolicyAndMissingSelection",
+      "TestWorkerCompactorMixedRouterRequiresSpecificSelection",
+      "TestWorkerCompactorSnapshotSurvivesPostgresAndCatalogDrift"
+    ],
+    "github.com/grauwolf32/contractor/internal/contracts": [
+      "TestCompactBranchRejectsUnsupportedWorkers/shared",
+      "TestCompactBranchRejectsUnsupportedWorkers/model-free",
+      "TestWorkerContextManagementJSONIsFlatAndClosed"
+    ],
+    "github.com/grauwolf32/contractor/internal/contracts/reporting": [
+      "TestCompactionProgressRejectsInconsistentOutcomesAndMeasurements",
+      "TestNumericModelPhasesUseExistingCostPhaseVocabulary"
+    ],
+    "github.com/grauwolf32/contractor/internal/controlplane": [
+      "TestSharedWorkerProgressProjectsValidatedStateAndRechecksAuthority"
+    ],
+    "github.com/grauwolf32/contractor/internal/telemetry": [
+      "TestLiveWorkerDiagnosticsUseExactOwnedPageAndReleasePoolBeforeIO",
+      "TestRuntimeDiagnosticsPostgresBoundsOwnershipGenerationAndRetainedAuthority"
+    ]
+  },
+  "process": {
+    "github.com/grauwolf32/contractor/tests/e2e": [
+      "TestWorkerCompactionContinuesIsolatedWorker/default",
+      "TestWorkerCompactionContinuesIsolatedWorker/binding",
+      "TestWorkerCompactionContinuesIsolatedWorker/escalation",
+      "TestWorkerCompactionContinuesIsolatedWorker/router",
+      "TestAuditCompactionPreservesTrustedCompletionAcrossProcesses",
+      "TestAuditCompactionLeaseLossAcrossProcesses"
+    ]
+  },
+  "python": {
+    "tests.test_adk_compaction_contracts::test_adk_event_id_is_not_append_idempotency": 1,
+    "tests.test_adk_compaction_contracts::test_native_timestamp_range_cannot_replace_exact_source_identity": 5,
+    "tests.test_audit_compaction::test_audit_checkpoint_termination_discards_partial_collection_and_joins": 3,
+    "tests.test_audit_compaction::test_audit_compacts_twice_without_resetting_partial_results_or_trusting_summary": 1,
+    "tests.test_audit_compaction::test_complete_audit_finishes_before_context_pressure_or_next_model_budget": 1,
+    "tests.test_audit_compaction::test_complete_collector_waits_for_parallel_tool_join_before_publication": 1,
+    "tests.test_audit_compaction::test_gateway_error_with_submission_never_dispatches_tools_or_publishes": 3,
+    "tests.test_audit_compaction::test_incomplete_audit_keeps_its_reminder_budget_and_partial_results_after_checkpoint": 1,
+    "tests.test_audit_compaction::test_later_isolated_invocation_or_replacement_cannot_read_archive_or_inherit_results": 2,
+    "tests.test_audit_compaction::test_model_error_with_tool_call_cannot_impersonate_owned_control": 3,
+    "tests.test_audit_compaction::test_real_model_error_cannot_impersonate_a_compaction_or_completion_signal": 2,
+    "tests.test_audit_compaction::test_synthetic_submission_response_never_populates_the_audit_collector": 3,
+    "tests.test_contracts::test_shared_json_schemas_accept_and_reject_the_golden_fixtures": 1,
+    "tests.test_contracts::test_shared_required_member_cases_are_rejected": 1,
+    "tests.test_contracts::test_shared_worker_session_mode_cases_match_model_and_schema": 1,
+    "tests.test_instrumentation::test_auxiliary_role_measurement_uses_injected_clock_and_counts_once": 1,
+    "tests.test_instrumentation::test_compacted_error_response_survives_optional_prompt_publication_failure": 1,
+    "tests.test_metrics::test_shared_model_phases_project_existing_summarization_without_a_second_owner": 1,
+    "tests.test_worker_compaction::test_boundary_uses_ratio_and_output_reserve": 1,
+    "tests.test_worker_compaction::test_cancel_after_checkpoint_joins_numeric_state_publication": 1,
+    "tests.test_worker_compaction::test_cancellation_during_compactor_call_adds_no_marker": 2,
+    "tests.test_worker_compaction::test_checkpoint_markers_commit_once_per_cycle": 1,
+    "tests.test_worker_compaction::test_compactor_call_exhausting_the_worker_budget_keeps_budget_code": 2,
+    "tests.test_worker_compaction::test_compactor_input_keeps_newest_reasoning_within_its_total_bound": 1,
+    "tests.test_worker_compaction::test_conflicting_marker_identity_fences_the_session": 1,
+    "tests.test_worker_compaction::test_cycle_ceiling_is_a_non_retryable_context_limit": 2,
+    "tests.test_worker_compaction::test_failed_diagnostic_does_not_replace_compaction_error_or_skip_model_close": 1,
+    "tests.test_worker_compaction::test_high_usage_without_eligible_prefix_fails_explicitly": 2,
+    "tests.test_worker_compaction::test_history_page_never_exceeds_byte_and_group_bounds_for_unit_pages": 1,
+    "tests.test_worker_compaction::test_history_pages_split_large_multibyte_groups_and_resume_exactly": 1,
+    "tests.test_worker_compaction::test_history_reads_do_not_copy_the_full_4096_group_archive": 1,
+    "tests.test_worker_compaction::test_history_tool_reads_compacted_groups_with_tool_budget": 1,
+    "tests.test_worker_compaction::test_incomplete_group_fails_before_compactor_call": 1,
+    "tests.test_worker_compaction::test_ineffective_checkpoint_keeps_marker_and_stops_before_dispatch": 1,
+    "tests.test_worker_compaction::test_isolated_worker_continues_through_two_checkpoints": 1,
+    "tests.test_worker_compaction::test_large_history_fragments_copy_and_encode_only_a_page": 1,
+    "tests.test_worker_compaction::test_lost_marker_acknowledgement_reconciles_or_fails_before_continuation": 2,
+    "tests.test_worker_compaction::test_missing_usage_never_triggers_an_estimated_compaction": 1,
+    "tests.test_worker_compaction::test_parallel_calls_form_one_group_and_markers_cover_exact_ids": 1,
+    "tests.test_worker_compaction::test_reasoning_does_not_count_against_the_protected_tail": 1,
+    "tests.test_worker_compaction::test_reasoning_enters_compactor_input_only_when_selected": 2,
+    "tests.test_worker_compaction::test_recent_tail_over_its_byte_ceiling_fails_without_dropping_groups": 1,
+    "tests.test_worker_compaction::test_rejected_compactor_output_adds_no_marker_and_no_later_calls": 7,
+    "tests.test_worker_compaction::test_retained_history_accepts_its_group_ceiling_and_rejects_one_more": 1,
+    "tests.test_worker_compaction::test_retained_history_bytes_stop_at_the_ceiling": 1,
+    "tests.test_worker_compaction::test_skill_content_and_secrets_never_reach_history_pages": 1,
+    "tests.test_worker_compaction::test_tool_windows_compact_after_parallel_settlement": 2,
+    "tests.test_worker_compaction::test_unsafe_history_fails_before_any_compactor_call": 8,
+    "tests.test_worker_state::test_compaction_revisions_measurement_and_terminal_failure": 1
+  }
+}

@@ -91,6 +91,10 @@ func (s *Service) resolveExternal(ctx context.Context, owner string, reg evaldom
 				return nil, evaldomain.Failure("eval_not_ready")
 			}
 		}
+		preflight.Pins, err = caseComparisonPins(cases, v, preflight.Pins)
+		if err != nil {
+			return nil, err
+		}
 		doc, err := bindingDocument(v, preflight)
 		if err != nil {
 			return nil, err

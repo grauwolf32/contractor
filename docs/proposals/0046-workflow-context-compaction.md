@@ -1,6 +1,14 @@
 # Compaction контекста Worker с выбором в Workflow
 
-Статус: предложение разбито на задачи V417-001–V417-010, 25 октября 2026 года.
+Статус: isolated compaction, единый выбор compactor через Workflow
+executionConfig, метаданные State/report/UI и offline Eval harness реализованы
+и интегрированы в main. Deterministic milestone V417-009 принят 15 ноября
+2026 года полным `release-verify` на `7ef5d58deb5ff42cec9175fa4261d169047c1d22`
+в ветке `codex/v417-release-quality`; эта ветка ещё не слита.
+Живые повторные сравнения остаются V417-010, shared-session compaction — последняя
+V417-004. Текущие нормативные гарантии задают WFL-R91–R95 и WRK-R184–R197;
+остальные проектные разделы ниже сохраняют историю выбора и вопросы измерений.
+
 Исходный анализ выполнен до реализации и изменения нормативных контрактов
 на `b0ce0a3fe4d222bae903ac5c77100d90e922ee47`, с установленным
 `google-adk==2.8.0`.
@@ -114,8 +122,8 @@ spec:
             maxCompactions: 8
 ```
 
-`compactor@1` и instruction file в примере — предлагаемые новые ресурсы,
-сейчас их в каталоге нет. Числа — стартовая конфигурация для эксперимента.
+`compactor@1` и instruction file — явные версионированные ресурсы каталога.
+Числа иллюстрируют конфигурацию; оптимальные значения ещё не измерены.
 Полный Workflow сохраняет обычные context, result и transition contracts.
 
 Authoring принимает закрытый union:
@@ -604,9 +612,9 @@ OpenAPI/LikeC4 с отложенными зависимостями и посл�
 
 ## 10. Поставки и критерии приёмки
 
-Текущие статусы и evidence находятся в связанных задачах. На 11 ноября
-2026 года приняты V417-001, V417-002, V417-003 и V417-005; остальные задачи
-ещё не завершены. Зависимости задают технический порядок. Нормативные
+Текущие статусы и evidence находятся в связанных задачах. На 15 ноября
+2026 года приняты V417-001, V417-002, V417-003 и V417-005–V417-009.
+Live-измерения V417-010 ещё не проведены; V417-004 зарезервирована последней. Зависимости задают технический порядок. Нормативные
 контракты обновляются вместе с реализующим их кодом.
 
 | Задача | Самостоятельный результат | Зависимости |
@@ -617,10 +625,10 @@ OpenAPI/LikeC4 с отложенными зависимостями и посл�
 | [V417-004](../../tasks/v417-004-shared-session-context-compaction.yml) | `in_progress` по указанию пользователя; выполняется последней: shared context между invocations с общими границами allocation, корректными generation и текущей task authority | V417-003, V417-009, V417-010 |
 | [V417-005](../../tasks/done/v417-005-audit-worker-context-compaction.yml) | Допуск compaction в isolated Audit с сохранением completeness gate, trusted results и receipts | V417-003, V64-012 |
 | [V417-006](../../tasks/done/v417-006-compactor-model-policy-selection.yml) | Reference-only `compactorModelPolicy` через существующие executionConfig selections и exact pins | V417-003 |
-| [V417-007](../../tasks/v417-007-context-compaction-state-and-ui.yml) | Числовые State/metrics, public projections и правдивое отображение в UI | V417-003 |
-| [V417-008](../../tasks/v417-008-context-compaction-eval-harness.yml) | Замороженные Eval fixtures/scorers и opt-in harness; без live-вызовов при реализации harness | V417-001, V417-003 |
-| [V417-009](../../tasks/v417-009-context-compaction-release-gate.yml) | Интегрированная deterministic проверка isolated compaction на реальных Server/Runtime/PostgreSQL и release gate | V417-003, V417-005, V417-006, V417-007 |
-| [V417-010](../../tasks/v417-010-context-compaction-live-evaluation.yml) | Повторные live Eval и измеренные рекомендации отдельно для terminal summarizer и compactor | V417-008, V417-009 |
+| [V417-007](../../tasks/done/v417-007-context-compaction-state-and-ui.yml) | Числовые State/metrics, public projections и правдивое отображение в UI | V417-003 |
+| [V417-008](../../tasks/done/v417-008-context-compaction-eval-harness.yml) | Замороженные Eval fixtures/scorers и opt-in harness; без live-вызовов при реализации harness | V417-001, V417-003, V466-013, V466-014 |
+| [V417-009](../../tasks/done/v417-009-context-compaction-release-gate.yml) | Интегрированная deterministic проверка isolated compaction на реальных Server/Runtime/PostgreSQL и release gate | V417-003, V417-005, V417-006, V417-007, V466-018 |
+| [V417-010](../../tasks/v417-010-context-compaction-live-evaluation.yml) | Повторные live Eval и измеренные рекомендации отдельно для terminal summarizer и compactor | V417-008, V417-009, V466-019, V466-020 |
 
 **V417-001 независима:** `depends_on: []`, собственный milestone
 `terminal-summarizer-reasoning-2026-10`. Её можно реализовать и принять без

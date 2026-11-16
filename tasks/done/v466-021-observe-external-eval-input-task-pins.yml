@@ -1,0 +1,165 @@
+schema_version: '1.0'
+id: V466-021
+title: Observe verified local input and task pins for external Eval comparisons
+milestone: worker-context-compaction-quality-2026-10
+epic: evals
+kind: feature
+priority: P2
+status: completed
+implementation_commit: 57992a95412aea210a7d1936eba23b2953aa6f5f
+depends_on:
+- V466-015
+languages:
+- go
+- markdown
+goal: >-
+  An externally controlled experiment over verified local Artifact revisions
+  and equal effective tasks can use the native comparison, while unverified
+  producer claims remain unavailable. The compaction study can freeze a
+  comparable plan before spending model calls.
+demonstration: >-
+  Through the real PostgreSQL-backed service, register two external Workflow
+  arms over the same locally verified immutable inputs and effective tasks,
+  submit ordinary Runs and select attributed results and assessments. Native
+  pairs have no pins-unverified exclusion for source/tasks, and the existing
+  token/quality comparison uses its unchanged gates. A different effective
+  task or unavailable source stays incomparable.
+context:
+  authority: >-
+    User decision 2026-11-16 explicitly approves implementing the common Eval
+    source/task provenance capability as a separate task, then continuing
+    V417-010. Retain all prior attempts/costs; do not ask for that scope again.
+    The proposed boundary and exclusions below are accepted for execution.
+  specification:
+  - docs/spec/evals/managed-evals.md#EVM-R31
+  - docs/spec/evals/managed-evals.md#EVM-R60
+  - docs/spec/evals/managed-evals.md#EVM-R61
+  - docs/spec/evals/managed-evals.md#EVM-R131
+  - docs/spec/evals/managed-evals.md#EVM-R135
+  - docs/spec/evals/managed-evals.md#EVM-R138
+  - docs/spec/evals/managed-evals.md#EVM-R242
+  - docs/spec/evals/format.md#EVF-R1
+  evidence:
+  - tasks/evidence/v417-010-freeze-r2-20261116.json
+  - tasks/evidence/v466-021-acceptance-20261116.json
+  current_boundary: >-
+    authoring.go resolveExternal freezes Resolver pins, which cover executable
+    configuration. Source/task pins are added only by the native plan builder
+    in plan_variants.go. collection_pins.go correctly refuses unknown required
+    dimensions. All 60 pairs of the retained external study consequently carry
+    pins-unverified even though local Artifact/recipe provenance is separately
+    pinned. V417-010 independently owns the consumer admission guard.
+  alternatives_checked: >-
+    The existing server-mode plan builder observes source/tasks, but its
+    buildChecks accepts only registered native/human evaluators, not this
+    domain scorer context@1. Substituting an artifact-only or human checker
+    would mislabel the study's semantic judgement. Supporting the same scorer
+    there would be a separate broader production extension. Keep the external
+    consumer and fix observation at its existing owner, or retain the research
+    incomplete; never weaken required equality to admit it.
+  implementation_decision: >-
+    Accepted boundary is the existing Server Eval authoring/resolution owner,
+    using validated local Artifact metadata and effective task/mapping rules.
+    Reuse the native definitions where they apply. Keep the attributed portable
+    hashes separate from locally observed pins. No Runtime round trip, second
+    planner, receipt store, usage owner or local gate belongs in this change.
+scope:
+  in:
+  - Freeze source and effective-task equality evidence where the Server actually verifies it locally.
+  - Reuse the existing native pin definitions and task/parameter/input/output mapping rules.
+  - Preserve explicit unavailable provenance for unverifiable external inputs.
+  - Real-store regression for newly frozen external registrations and unchanged comparison gates.
+  out:
+  - Rewriting or upgrading retained immutable external registrations, including the stopped V417-010 attempts.
+  - Inferring upstream weights, Runtime builds or other unknown dimensions from aliases or producer hashes.
+  - New public API operations, tables, receipts, execution drivers or comparison engines.
+  - Changing quality gates, native verdicts, model selections or dispatch limits.
+requirements:
+- id: R1
+  text: >-
+    A source/task pin is observed only from the actual locally validated
+    immutable inputs and effective task/parameter/mapping values. A matching
+    producer-supplied digest alone is not an observation. Define the shared
+    rule once, using the existing owner and native definitions. Canonicalize
+    case association/order independently of seeded execution/member order;
+    reordered identical recipes cannot appear different, and swapping tasks
+    between case IDs cannot appear equal.
+- id: R2
+  text: >-
+    Distinct revisions, changed effective parameters/tasks or mappings, missing
+    inputs and unverifiable producer data cannot become falsely equal. Keep
+    current authorization, Artifact integrity and eligibility checks; preserve
+    their classified failure outcomes.
+- id: R3
+  text: >-
+    Store new evidence in the ordinary immutable binding/plan publication.
+    Preserve producer-attributed hashes, unknown model/runtime dimensions and
+    native external-registration readiness semantics. Old frozen resources
+    remain unchanged and incomparable; add no fallback or legacy reader.
+- id: R4
+  text: >-
+    The existing comparison owner consumes the pins with its current gates.
+    Do not reimplement comparisons or alter conclusions to make the study pass.
+    Subsequent live work requires a new frozen identity retaining its relation
+    to the incomplete prior attempts.
+failure_outcomes:
+- operation: Resolve local input metadata and publish an external registration
+  permanent: >-
+    Missing, corrupt, unauthorized or invalid input uses the owning resolver's
+    existing classified rejection or unavailable eligibility/pin outcome; no
+    promotion to observed provenance and no endless retry.
+  retryable: Existing bounded PostgreSQL transaction-conflict handling and request context apply.
+  ambiguous: Reconcile the unchanged registration receipt and exact request key; no duplicate plan or member.
+  cancelled: Join the existing transaction; publish no partial plan, binding, member or receipt.
+  timeout: Existing authoring/request deadline owns bounded metadata reads and hashing; no model timeout is reused.
+cardinality:
+- collection: Distinct cases, mappings and local input references in one external registration
+  expected: Three cases, two arms and five repeats in each compaction comparison
+  maximum: Existing 1000-member native ceiling, external-document byte limit and case/mapping limits
+  bound: >-
+    Deduplicate repeated case recipes and reuse resolver transaction reads.
+    Bound work by validated rows and bytes; no per-tick whole-member rescan,
+    repeated payload parsing or nested pool acquisition.
+lifecycle:
+- entity: Locally observed provenance in existing frozen Eval resources
+  delete: Existing experiment/Project deletion and Artifact retention owners apply.
+  cascade: No new entity, hold, table or cleanup path.
+  retention: >-
+    Keep exact immutable pins with their plan. Missing source at dispatch still
+    follows existing receipt-first reconciliation and exact-revision rules;
+    never fall back to the current revision or rewrite old evidence.
+acceptance_criteria:
+- id: A1
+  given: Two newly registered external arms over equal verified local inputs and effective tasks
+  when: Real-store ordinary executions and exact selected assessments settle
+  then: Source/task pins are observed and equal, native pairs are comparable and unchanged gates determine the verdict.
+- id: A2
+  given: Reordered identical recipes, different revisions/tasks/mappings, missing or corrupt inputs, or producer-only claims
+  when: Registration resolves its evidence
+  then: Recipe order alone does not change equality; real differences are never hidden and existing failure/unknown provenance semantics remain strict.
+- id: A3
+  given: A retained earlier registration and new valid/invalid registrations near current bounds
+  when: The new owner code runs and publishes resources
+  then: Old bytes are unchanged, work remains bounded and no additional store, driver, API or fallback is introduced.
+tests:
+- command: go test ./internal/evalservice ./internal/evalstore ./internal/evaldomain
+  covers: [A1, A2, A3]
+- command: make verify-public-api-postgres
+  covers: [A1, A2]
+- command: make test-wire-cross-language
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A1, A2, A3]
+test_prerequisites:
+- Use one owned disposable PostgreSQL database with CONTRACTOR_TEST_DATABASE_URL set; an unreachable configured database fails.
+- Keep CONTRACTOR_TEST_HEAVY_IO unset unless the user explicitly requests named heavy fixtures.
+- Validate new comparison provenance with real service/store paths, not a fake that invents observed source/task pins.
+verification:
+- command: go test ./internal/evalservice ./internal/evalstore ./internal/evaldomain
+  result: Passed with real PostgreSQL, including eight ordinary external Runs, four complete comparable pairs, strict input rejection, canonical recipes and unchanged retained resources.
+- command: make verify-public-api-postgres
+  result: Passed the PostgreSQL-backed public API race gate.
+- command: make test-wire-cross-language
+  result: Passed 394 shared fixtures, 443 Go and 280 Python shared tests plus 417 Python contract tests; one optional heavy fixture skipped, not counted as passing coverage.
+- command: make lint
+  result: Passed full formatting, static analysis, task/spec, release-graph, fixture-source and layer checks.

@@ -5,12 +5,13 @@ milestone: worker-context-compaction-2026-10
 epic: quality
 kind: chore
 priority: P1
-status: pending
+status: completed
 depends_on:
 - V417-003
 - V417-005
 - V417-006
 - V417-007
+- V466-018
 languages:
 - go
 - python
@@ -28,7 +29,9 @@ context:
     compaction until a concrete consumer requires it. Remove V417-004 from this release gate and retain
     compact@1/shared rejection as a required control. Later user decision 2026-11-10 reactivates V417-004
     as in_progress and orders it last, after this isolated gate and V417-010; this gate does not regain
-    a shared-session dependency.'
+    a shared-session dependency. User request 2026-11-15 assigns V417-009 followed by V417-010 on integrated
+    main 926395e18e1850ce277b576cd17ae5737818e08f; keep shared V417-004 last. Reuse existing owners, tests,
+    canonical reports and V466-016 integration evidence; actual aggregate release acceptance remains required.'
   proposal: docs/proposals/0046-workflow-context-compaction.md
   specification:
   - docs/spec/execution/worker.md
@@ -57,15 +60,28 @@ context:
   review_baseline: Local main 1142c2681d6520baa8c04bb0a90ca8fd224deb29. Current owning specifications
     and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
     and verification history. Recheck affected contracts if main changes before execution.
-  current_state: The ordinary isolated Worker process test is already registered in release-verify.
-    Extend that existing coverage for isolated Audit/diagnostic/selection combinations and rejected
-    shared compaction; the remaining gate is not a new Worker engine or a second isolated-only scenario.
+  current_state: The ordinary isolated Worker process test is already registered in release-verify. Extend
+    that existing coverage for isolated Audit/diagnostic/selection combinations and rejected shared compaction;
+    the remaining gate is not a new Worker engine or a second isolated-only scenario.
+  aggregate_followup: >-
+    The first integrated aggregate attempt on ade6800f0d4968bb9bde1b52bbccc1e2da1d652c
+    exposed the unrelated continuation fixture failure repaired by V466-018.
+    Controller source selection was correct; its bounded Task page was misread
+    by the test. Full owning-package race/integration checks pass after repair.
+    This attempt is not acceptance; run the complete aggregate on the clean
+    integrated repair revision. V466-019 independently prepares the later quality
+    consumer and adds no quality dependency to this isolated deterministic exit.
+  implementation_decision: One fixed required-case matrix is verified by the existing canonical report
+    reader/capture. The focused family runs full owning component packages, Runtime modules and three
+    existing process roots; Router is a fourth subcase of the ordinary root, using its existing harness
+    and a second Runtime. Consolidated release reuses go-unit.jsonl/runtime.xml and scoped process shards
+    instead of executing the family again. No production compaction, state or lifecycle mechanism is added.
 scope:
   in:
   - A context-compaction family/process gate, required-case inventory and release-graph integration using
     tests already added by each implementation task plus missing cross-boundary cases.
-  - Cross-task regression matrix for ordinary/Audit isolated sessions, rejected shared compaction,
-    reasoning true/false, policy overrides, Scheduler behavior, failures and at-ceiling resource use.
+  - Cross-task regression matrix for ordinary/Audit isolated sessions, rejected shared compaction, reasoning
+    true/false, policy overrides, Scheduler behavior, failures and at-ceiling resource use.
   - Reconcile proposal 0046 status and operator/testing documentation with implemented normative contracts;
     retain separate measured-quality follow-up.
   out:
@@ -79,8 +95,8 @@ acceptance_criteria:
   given: Integrated real Server/Runtime/PostgreSQL and a deterministic Gateway
   when: make test-worker-compaction-e2e runs
   then: Every required case executes and verifies continuing identities/budgets/results, ordinary/Audit
-    isolated modes, rejection of shared compaction, exact configuration and truthful state without a
-    false handoff.
+    isolated modes, rejection of shared compaction, exact configuration and truthful state without a false
+    handoff.
 - id: A2
   given: At-ceiling history and injected failure/cancellation matrix
   when: The family gate and full affected suites run
@@ -215,3 +231,13 @@ dependency_note: No dependency on V417-001, V417-004, V417-008 or V417-010. Term
   this exit to isolated compaction and place reactivated V417-004 after this gate and V417-010. Shared
   rejection controls describe this isolated delivery; the later shared implementation updates affected
   controls without rewriting earlier acceptance evidence.
+
+implementation_commit: 7ef5d58deb5ff42cec9175fa4261d169047c1d22
+verification:
+- command: make test-worker-compaction-e2e
+  result: Passed full owning suites and all 57 Go, 561 Runtime and 7 required process case events.
+- command: make test-wire-cross-language verify-public-api test-postgres
+  result: Passed on the integrated repair revision with real PostgreSQL.
+- command: make -k release-verify
+  result: Passed complete aggregate on 7ef5d58deb5ff42cec9175fa4261d169047c1d22; 52 process roots and all required conformance verifiers passed.
+evidence: tasks/evidence/v417-009-acceptance-20261115.json

@@ -37,7 +37,7 @@ const compactionReasoningCanary = "ephemeral-compaction-reasoning-canary"
 // compresses its context twice, continues the same subtask and finishes with a
 // normal trusted result (V417-003 A7).
 func TestWorkerCompactionContinuesIsolatedWorker(t *testing.T) {
-	for _, layer := range []string{"default", "binding", "escalation"} {
+	for _, layer := range []string{"default", "binding", "escalation", "router"} {
 		t.Run(layer, func(t *testing.T) { workerCompactionSelectionScenario(t, layer) })
 	}
 }
@@ -87,7 +87,32 @@ func workerCompactionSelectionScenario(t *testing.T, layer string) {
 	)
 	expectedOrigin := "workflow.executionConfig.workers"
 	expectedAttempts := 1
-	if layer != "default" {
+	expectedWorkers := 1
+	if layer == "router" {
+		expectedWorkers = 2
+		path := filepath.Join(configRoot, "workflows/worker_compaction.yaml")
+		source, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := strings.Replace(string(source), "      compactorModelPolicy: worker_compactor@1\n", "", 1)
+		text = strings.Replace(text, "    workers:", `    planner:
+      modelPolicy: planner@1
+      llmGateway: local-litellm@1
+      credential: development-planner
+    stages:
+      compact:
+        agents:
+          builder: {compactorModelPolicy: worker_compactor@1}
+    workers:`, 1)
+		text = strings.Replace(text, "planner: passthrough@1", "planner: router@1", 1)
+		text = strings.Replace(text, "      agents:\n        builder:", "      agents:\n        observer: {template: artifact_builder@1}\n        builder:", 1)
+		if err := os.WriteFile(path, []byte(text), 0600); err != nil {
+			t.Fatal(err)
+		}
+		expectedOrigin = "workflow.executionConfig.stages.compact.agents.builder"
+	}
+	if layer != "default" && layer != "router" {
 		policyPath := filepath.Join(configRoot, "model-policies/worker_compactor.yaml")
 		original, err := os.ReadFile(policyPath)
 		if err != nil {
@@ -179,6 +204,26 @@ func workerCompactionSelectionScenario(t *testing.T, layer string) {
 	waitForHTTP(t, ctx, runtimeProcess, controlClient, runtimeBaseURL+"/healthz", http.StatusOK)
 	waitForProcessLog(t, ctx, runtimeProcess, "runtime agent registered")
 
+	var observerProcess *childProcess
+	var observerURL, observerWork string
+	if layer == "router" {
+		paths, err := generator.IssueAgent(pkiRoot, "worker-compaction-router-observer", leaf)
+		if err != nil {
+			t.Fatal(err)
+		}
+		address := freeAddress(t)
+		observerURL = "https://" + address
+		observerWork = filepath.Join(temporaryRoot, "observer-work")
+		observerProcess = startProcess(t, "Router observer Python Runtime", filepath.Join(repositoryRoot, "runtime"), map[string]string{"PYTHONUNBUFFERED": "1"},
+			python, "-m", "contractor_runtime", "--control-plane-url", privateBaseURL,
+			"--advertised-control-url", observerURL, "--advertised-a2a-url", observerURL,
+			"--ca-file", caPaths.Certificate, "--certificate-file", paths.Certificate,
+			"--private-key-file", paths.PrivateKey, "--listen", address, "--work-root", observerWork,
+			"--request-timeout-seconds", "10", "--shutdown-grace-seconds", "5")
+		waitForHTTP(t, ctx, observerProcess, controlClient, observerURL+"/healthz", http.StatusOK)
+		waitForProcessLog(t, ctx, observerProcess, "runtime agent registered")
+	}
+
 	pool, err := pgxpool.New(ctx, isolateURL)
 	if err != nil {
 		t.Fatalf("open assertion database: %v", err)
@@ -218,11 +263,15 @@ func workerCompactionSelectionScenario(t *testing.T, layer string) {
 	if main != 6 || compactor != 2 || finalizer != 1 {
 		t.Fatalf("Gateway calls main/compactor/finalizer = %d/%d/%d, want 6/2/1", main, compactor, finalizer)
 	}
-	// Every compactor call is charged once to the same invocation.
+	// Planner calls are charged separately from the same nine Worker calls.
+	expectedModelCalls := int64(9)
+	if layer == "router" {
+		expectedModelCalls += 3
+	}
 	if attempt.Metrics == nil || !attempt.Metrics.ReportsComplete ||
-		attempt.Metrics.ModelCalls != 9 || attempt.Metrics.TotalTokens != gateway.TotalTokens() {
-		t.Fatalf("public compaction metrics = %+v, want 9 calls and %d tokens",
-			attempt.Metrics, gateway.TotalTokens())
+		attempt.Metrics.ModelCalls != expectedModelCalls || attempt.Metrics.TotalTokens != gateway.TotalTokens() {
+		t.Fatalf("public compaction metrics = %+v, want %d calls and %d tokens",
+			attempt.Metrics, expectedModelCalls, gateway.TotalTokens())
 	}
 	executions, err := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage()).ListStageExecutions(ctx, runID)
 	if err != nil || len(executions) != expectedAttempts {
@@ -230,10 +279,18 @@ func workerCompactionSelectionScenario(t *testing.T, layer string) {
 	}
 	completed := executions[len(executions)-1]
 	reports, err := telemetry.NewRepository(pool).ListAllocationReports(ctx, completed.StageExecutionID)
-	if err != nil || len(reports) != 1 {
+	if err != nil || len(reports) != expectedWorkers {
 		t.Fatalf("compaction execution reports = (%d, %v)", len(reports), err)
 	}
-	report := reports[0]
+	var report telemetry.StoredAllocationReport
+	for _, candidate := range reports {
+		if candidate.LogicalAgentName == "builder" {
+			report = candidate
+		}
+		if candidate.LogicalAgentName == "observer" && (candidate.Report.Worker.Compaction != nil || candidate.Report.Worker.Metrics.ModelCalls != nil && *candidate.Report.Worker.Metrics.ModelCalls != 0) {
+			t.Fatal("unused Router binding inherited compaction or model work")
+		}
+	}
 	budget := report.Report.Worker.Metrics.WorkerBudget
 	if !report.Report.Worker.Complete || budget == nil || budget.ObservedModelCalls != 9 ||
 		budget.ObservedToolCalls != 5 || report.Report.Worker.Metrics.Summarizer != nil {
@@ -247,17 +304,23 @@ func workerCompactionSelectionScenario(t *testing.T, layer string) {
 		Page   json.RawMessage               `json:"page"`
 	}
 	getAuthenticatedJSON(t, publicClient, publicBaseURL+"/v1/runs/"+runID+"/attempts/"+completed.StageExecutionID+"/runtime-diagnostics", &diagnostics)
-	if diagnostics.Status != "available" || len(diagnostics.Items) != 1 {
+	if diagnostics.Status != "available" || len(diagnostics.Items) != expectedWorkers {
 		t.Fatalf("public Runtime diagnostics: %+v", diagnostics)
 	}
-	progress, phases := diagnostics.Items[0].Compaction, diagnostics.Items[0].ModelPhases
+	var builder telemetry.RuntimeDiagnostic
+	for _, item := range diagnostics.Items {
+		if item.LogicalAgent == "builder" {
+			builder = item
+		}
+	}
+	progress, phases := builder.Compaction, builder.ModelPhases
 	if progress == nil || progress.Generation != 2 || progress.Attempts != 2 || progress.Failures != 0 || progress.Phase != "applied" ||
 		progress.BeforePrompt == nil || progress.BeforePrompt.Generation != 1 ||
 		progress.AfterPrompt == nil || progress.AfterPrompt.Generation != 2 || progress.AfterPrompt.PromptTokens == nil ||
 		phases == nil || phases.Main.ModelCalls != 6 || phases.Compaction.ModelCalls != 2 || phases.Finalization.ModelCalls != 1 || phases.Summarization.ModelCalls != 0 {
 		t.Fatalf("public compaction observation: progress=%+v phases=%+v", progress, phases)
 	}
-	if phases.Main.TotalTokens+phases.Compaction.TotalTokens+phases.Finalization.TotalTokens != uint64(gateway.TotalTokens()) {
+	if phases.Main.TotalTokens+phases.Compaction.TotalTokens+phases.Finalization.TotalTokens != uint64(*report.Report.Worker.Metrics.TotalTokens) {
 		t.Fatal("public model phase usage was duplicated or lost")
 	}
 
@@ -277,9 +340,13 @@ func workerCompactionSelectionScenario(t *testing.T, layer string) {
 		t.Fatalf("Stage snapshot compact@1 selection = %+v", selection)
 	}
 
-	waitForRuntimeReleased(
-		t, ctx, runtimeProcess, controlClient, runtimeBaseURL, report.AllocationID, workRoot,
-	)
+	if observerProcess == nil {
+		waitForRuntimeReleased(t, ctx, runtimeProcess, controlClient, runtimeBaseURL, report.AllocationID, workRoot)
+	} else {
+		waitForRuntimeIdle(t, ctx, runtimeProcess, controlClient, runtimeBaseURL, workRoot)
+		waitForRuntimeIdle(t, ctx, observerProcess, controlClient, observerURL, observerWork)
+		assertCompactionRetentionSafe(t, ctx, pool, runID, server, observerProcess)
+	}
 	assertCompactionRetentionSafe(t, ctx, pool, runID, server, runtimeProcess)
 }
 
@@ -333,6 +400,7 @@ type compactionGateway struct {
 	main          int
 	compactor     int
 	finalizer     int
+	planner       int
 	totalTokens   int64
 	pending       map[string]string
 	failures      []string
@@ -428,11 +496,38 @@ func (g *compactionGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		g.serveFinalizer(w, request, model, finalizerInput)
 	case model == "worker-compactor-model":
 		g.serveCompactor(w, request, model, text)
+	case model == "planner-model":
+		g.serveRouter(w, request, model)
 	case model == "worker-model":
 		g.serveMain(w, request, model, text)
 	default:
 		g.fail(w, "unexpected compaction Gateway model alias")
 	}
+}
+
+func (g *compactionGateway) serveRouter(w http.ResponseWriter, request map[string]any, model string) {
+	g.mu.Lock()
+	g.planner++
+	step := g.planner
+	g.mu.Unlock()
+	var message map[string]any
+	switch step {
+	case 1:
+		message = toolCallMessage("compact-router-add", "add_subtask", map[string]any{"objective": "Complete the source analysis", "instructions": "Use the exact source and produce builder/result"})
+	case 2:
+		message = toolCallMessage("compact-router-execute", "execute_current_subtask", map[string]any{"subtask_id": "0", "worker_name": "builder"})
+	case 3:
+		artifact, ok := exactArtifactValue(request, "builder", "result")
+		if !ok {
+			g.fail(w, "Router did not observe the compacted Worker's exact result")
+			return
+		}
+		message = toolCallMessage("compact-router-finish", "finish", map[string]any{"outcome": "succeeded", "summary": "Compacted Worker finished", "artifacts": map[string]any{"result": artifact}})
+	default:
+		g.fail(w, "Router exceeded its three-call script")
+		return
+	}
+	g.complete(w, model, message, "tool_calls", 100, 10)
 }
 
 func (g *compactionGateway) serveCompactor(w http.ResponseWriter, request map[string]any, model, text string) {

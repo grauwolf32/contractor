@@ -31,7 +31,7 @@ release-verify-families: ui-install verify-public-api-postgres \
 	test-shared-memory-hardening test-agent-skills-hardening \
 	test-http-caido-hardening test-code-analysis-e2e test-taint-annotations-e2e \
 	test-worker-observations-e2e test-worker-summarizer-e2e \
-	test-worker-session-modes-e2e test-project-workspaces-release \
+	test-worker-session-modes-e2e test-worker-compaction-e2e test-project-workspaces-release \
 	test-lifecycle-controls-release test-scheduler-concurrency-e2e \
 	test-audit-program-library-e2e test-audit-completion-e2e test-audit-basic-e2e \
 	test-audit-iterative-postgres test-audit-iterative-e2e \
@@ -109,6 +109,7 @@ RELEASE_E2E_TESTS := $(RELEASE_E2E_TESTS_A)|$(RELEASE_E2E_TESTS_B)|$(RELEASE_E2E
 
 test-release-process-e2e: require-database runtime-venv
 	python3 scripts/release_test_reports.py run --report "$(RELEASE_REPORTS)/go-process.jsonl" --timeout-seconds 4800 -- go test -json -tags=e2e -count=1 -timeout=75m ./tests/e2e -run '^($(RELEASE_E2E_TESTS))$$'
+	python3 scripts/release_test_reports.py verify-compaction-process --report "$(RELEASE_REPORTS)/go-process.jsonl"
 	python3 scripts/release_test_reports.py verify-findings --report "$(RELEASE_REPORTS)/go-process.jsonl"
 	python3 scripts/test-audit-basic-e2e.py --verify-report "$(RELEASE_REPORTS)/go-process.jsonl"
 	python3 scripts/release_test_reports.py verify-iterative-process --report "$(RELEASE_REPORTS)/go-process.jsonl"
@@ -117,6 +118,7 @@ test-release-process-e2e: require-database runtime-venv
 
 test-release-process-e2e-a: require-database runtime-venv
 	python3 scripts/release_test_reports.py run --report "$(RELEASE_REPORTS)/go-process-a.jsonl" --timeout-seconds 3300 -- go test -json -tags=e2e -count=1 -timeout=50m ./tests/e2e -run '^($(RELEASE_E2E_TESTS_A))$$'
+	python3 scripts/release_test_reports.py verify-compaction-process --report "$(RELEASE_REPORTS)/go-process-a.jsonl" --scope '^($(RELEASE_E2E_TESTS_A))$$'
 	python3 scripts/test-audit-basic-e2e.py --verify-report "$(RELEASE_REPORTS)/go-process-a.jsonl"
 	python3 scripts/release_test_reports.py verify-iterative-process --report "$(RELEASE_REPORTS)/go-process-a.jsonl"
 	python3 scripts/test-audit-composition-e2e.py --case-set workspace --verify-only "$(RELEASE_REPORTS)/go-process-a.jsonl" --boundary process
@@ -127,6 +129,7 @@ test-release-process-e2e-b: require-database runtime-venv
 
 test-release-process-e2e-c: require-database runtime-venv
 	python3 scripts/release_test_reports.py run --report "$(RELEASE_REPORTS)/go-process-c.jsonl" -- go test -json -tags=e2e -count=1 -timeout=50m ./tests/e2e -run '^($(RELEASE_E2E_TESTS_C))$$'
+	python3 scripts/release_test_reports.py verify-compaction-process --report "$(RELEASE_REPORTS)/go-process-c.jsonl" --scope '^($(RELEASE_E2E_TESTS_C))$$'
 	python3 scripts/release_test_reports.py verify-findings --report "$(RELEASE_REPORTS)/go-process-c.jsonl"
 
 # The two browser stages run independently in CI. Each tagged stack test runs

@@ -10,8 +10,6 @@ import shutil
 import signal
 import sys
 import tempfile
-import xml.etree.ElementTree as ET
-from collections import Counter
 from pathlib import Path
 
 import release_test_reports as reports
@@ -36,22 +34,7 @@ def verify_go_report(path: Path) -> list[str]:
 
 
 def verify_python_report(path: Path) -> list[str]:
-    try:
-        root = ET.parse(path).getroot()
-    except (ET.ParseError, OSError) as error:
-        raise GateError("pytest did not produce a valid JUnit report") from error
-    counts: Counter[str] = Counter()
-    executed = []
-    for case in root.iter("testcase"):
-        name = case.get("classname", "") + "::" + case.get("name", "")
-        if any(case.find(tag) is not None for tag in ("skipped", "failure", "error")):
-            raise GateError("Python case did not pass: " + name)
-        counts[name.split("[", 1)[0]] += 1
-        executed.append(name)
-    missing = [name for name, minimum in matrix()["python"].items() if counts[name] < minimum]
-    if missing:
-        raise GateError("mandatory Python cases did not execute and pass: " + ", ".join(missing))
-    return sorted(executed)
+    return reports.verify_python_report(path, matrix()["python"])
 
 
 def run_command(command: list[str], *, cwd: Path, report: Path) -> None:

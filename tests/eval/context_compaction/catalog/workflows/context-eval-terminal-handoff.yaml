@@ -31,7 +31,7 @@ spec:
       planner: passthrough@1
       agents:
         builder:
-          template: context-eval-terminal-off@1
+          template: context-eval-terminal-off@4
           contextManagement:
             strategy: template@1
       context:
@@ -69,7 +69,7 @@ spec:
           escalate:
             maxAttempts: 1
             planner: streamline@1
-            deadlineSeconds: 60
+            deadlineSeconds: 900
             plannerContextManagement:
               strategy: compact@1
               instructions:

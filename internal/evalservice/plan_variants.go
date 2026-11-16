@@ -7,18 +7,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
 
-type effectiveTask struct {
-	Task       evaldomain.Task   `json:"task"`
-	Parameters map[string]string `json:"parameters"`
-	Inputs     map[string]string `json:"inputs"`
-	Outputs    map[string]string `json:"outputs"`
-}
-
 func (b *planBuilder) buildVariants(cases []evaldomain.Case) ([]variantReference, map[string]map[string]Pin, error) {
-	source, err := hashJSON(b.bundle.Inputs)
-	if err != nil {
-		return nil, nil, err
-	}
 	checks, err := hashJSON(struct {
 		Checks  []evaldomain.Check
 		Private []evaldomain.PrivateCheck
@@ -33,24 +22,10 @@ func (b *planBuilder) buildVariants(cases []evaldomain.Case) ([]variantReference
 		if !ok {
 			return nil, nil, evaldomain.Failure("eval_not_ready")
 		}
-		pins := map[string]Pin{}
-		for key, value := range resolved.Pins {
-			pins[key] = value
-		}
-		tasks := make([]effectiveTask, 0, len(cases))
-		for _, c := range cases {
-			tasks = append(tasks, effectiveTask{
-				Task:       c.Task,
-				Parameters: MapParameters(c, variant),
-				Inputs:     variant.InputMapping,
-				Outputs:    variant.OutputMapping,
-			})
-		}
-		taskDigest, err := hashJSON(tasks)
+		pins, err := caseComparisonPins(cases, variant, resolved.Pins)
 		if err != nil {
 			return nil, nil, err
 		}
-		pins["source"], pins["tasks"] = observedPin(source), observedPin(taskDigest)
 		pins["scorers"], pins["expected"] = observedPin(checks), observedPin(checks)
 		dimensions := append(append([]string{}, b.draft.Comparison.RequiredEqual...), b.draft.Comparison.AllowedDifferences...)
 		for _, dimension := range dimensions {

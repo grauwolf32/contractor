@@ -158,3 +158,14 @@ test-nuclei-engagement: require-database runtime-venv
 	@command -v nuclei >/dev/null || { echo "real nuclei is required on PATH" >&2; exit 1; }
 	go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^TestNucleiEngagementAcrossProductionProcesses$$'
 	cd runtime && uv run pytest -W error tests/test_http_proxy_bridge.py tests/test_nuclei_engagement.py
+
+# Focused compaction proof; consolidated release reuses its canonical reports.
+WORKER_COMPACTION_PROCESS_TESTS := $(shell python3 scripts/release_test_reports.py compaction-pattern)
+.PHONY: test-worker-compaction-e2e
+test-worker-compaction-e2e: require-database runtime-venv test-release-reports
+	$(call run-family-test,python3 scripts/release_test_reports.py run --report "$(RELEASE_REPORTS)/worker-compaction-go.jsonl" --timeout-seconds 900 -- go test -json -count=1 ./internal/config ./internal/contracts ./internal/contracts/reporting ./internal/controlplane ./internal/telemetry)
+	$(call run-family-test,python3 scripts/release_test_reports.py verify-compaction-go --report "$(RELEASE_REPORTS)/worker-compaction-go.jsonl")
+	$(call run-family-test,cd runtime && uv run pytest -W error tests/test_worker_compaction.py tests/test_adk_compaction_contracts.py tests/test_audit_compaction.py tests/test_contracts.py tests/test_worker_state.py tests/test_instrumentation.py tests/test_metrics.py --junitxml="$(RELEASE_REPORTS)/worker-compaction-runtime.xml")
+	$(call run-family-test,python3 scripts/release_test_reports.py verify-compaction-runtime --report "$(RELEASE_REPORTS)/worker-compaction-runtime.xml")
+	$(call run-family-test,python3 scripts/release_test_reports.py run --report "$(RELEASE_REPORTS)/worker-compaction-process.jsonl" --timeout-seconds 900 -- go test -json -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^($(WORKER_COMPACTION_PROCESS_TESTS))$$')
+	$(call run-family-test,python3 scripts/release_test_reports.py verify-compaction-process --report "$(RELEASE_REPORTS)/worker-compaction-process.jsonl")

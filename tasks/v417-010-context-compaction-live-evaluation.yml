@@ -5,10 +5,13 @@ milestone: worker-context-compaction-quality-2026-10
 epic: evals
 kind: chore
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V417-008
 - V417-009
+- V466-019
+- V466-020
+- V466-021
 languages:
 - python
 - yaml
@@ -22,6 +25,19 @@ context:
     accepted V417-008 consumer reuses Managed Eval members, usage and comparisons;
     V466-013/V466-014 own summarizer accounting and normalizer version 4. This
     dependent task consumes those views and adds no parallel accounting engine.
+    User request 2026-11-15 assigns V417-009 followed by V417-010. Agent-proposed
+    prerequisite V466-019 now recognizes complete negative measurements without
+    changing execution states, Server conclusions or frozen quality gates.
+    Agent-proposed V466-020 supplies the missing test-only live control adapter;
+    it performs offline preparation while this task waits for V417-009.
+    User decision 2026-11-15 explicitly authorizes one attempt to restore the
+    shared Gateway through existing egress.sh up, DNS/HTTPS checks and then
+    continuation of this task. That one operation was executed with available
+    noninteractive sudo; it exited 0 but did not restore provider connectivity.
+    User follow-up 2026-11-16 explicitly asks the agent to run and configure
+    the passwordless remote infrastructure itself. This authorizes completing
+    the bounded operational recovery, not waiting for another sudo approval.
+    Current configured model selections remain unchanged.
   proposal: docs/proposals/0046-workflow-context-compaction.md
   specification:
   - docs/spec/evals/format.md#EVF-R1
@@ -51,13 +67,123 @@ context:
     and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
     and verification history. Recheck affected contracts if main changes before execution.
   current_state: >-
-    V417-008 now provides frozen pilot cases, generic authored variants, private
-    scorers and the offline-verified opt-in consumer. Live quality evidence is
-    still absent. After V417-009, prepare exact published external registrations,
-    operator Runtime build attestations and a private observer under the fixture
-    README; consume authoritative Eval usage and server comparison summaries.
-    Tiny cases without a useful observed checkpoint cannot establish compaction
-    quality. Masking/paired replay stay confined to the controlled adapter.
+    Paused by explicit user request 2026-11-16 until their continue command.
+    R3 has verified native source/task pins for all60 pairs: three natural
+    failed Runs collected/scored,117 unsubmitted of120. Known usage123541
+    tokens and USD0.0239856091 reported. No active Run was cancelled. Own
+    credential revoked, processes joined and disposable database dropped after
+    retaining exact native exports and a private PostgreSQL archive. All prior
+    attempts/costs remain. No quality acceptance or recommendation.
+  prior_state_before_r3: >-
+    V417-009 is accepted and network recovery is complete. Attempt1 retains
+    one succeeded/unscored Run and119 unrun members. Attempt2 is stopped and
+    all four experiments cancelled:36 completed, one cancelled,83 unrun from
+    its frozen120. Known36-member usage is1377320 tokens and USD0.1930442420
+    reported; the cancelled member's complete usage/price are unavailable.
+    All60 native pairs carry pins-unverified: external registration does not
+    observe source/task equality. All native verdicts remain inconclusive.
+    The consumer preflight gap is corrected and tested before any new dispatch.
+    Prerequisite V466-021 completed at 57992a95412aea210a7d1936eba23b2953aa6f5f.
+    Resumed 2026-11-16 for a new frozen R3 identity on the unchanged protocol.
+    No live quality acceptance or policy recommendation yet.
+  prerequisite_authorized: >-
+    User decision 2026-11-16 approves V466-021 separately. This task remains
+    pending until that prerequisite completes, then resumes with a new frozen
+    plan and the configured model; previous attempts and costs remain retained.
+    That prerequisite is now complete, and this task resumes in_progress.
+  pause_authority: >-
+    User decision 2026-11-16: after the current Run, pause until an explicit
+    continue command. Keep status in_progress as a reservation; do not dispatch
+    or start another task. On continuation, inspect the retained frozen clocks,
+    lifecycle and credential state before deciding whether exact receipts can
+    be reused or a new frozen identity is required. Never rewrite old outcomes.
+  comparison_preflight_correction: >-
+    The assigned consumer now checks the native pair exclusions before its
+    first submission. A regression fails under the old implementation because
+    it dispatches an unverified plan; after correction all43 offline tests and
+    both Go packages pass. Read-only replay of the retained live plan rejects
+    pins-unverified after19 GETs with zero writes/model calls. The scoring
+    function, cases, truth, model, thresholds and context parameters are not
+    tuned; the scorer closure digest changes because it pins the whole consumer.
+  observer_launch_correction: >-
+    Agent correction 2026-11-16 within this task's evaluator implementation:
+    importlib.util loads the existing sibling client under isolated Python;
+    no duplicate client, runtime loop or accounting owner. The added test uses
+    the real harness.run_observer subprocess against bounded local HTTP/OTLP
+    fixtures. Before correction it errors, after correction it passes; the
+    same retained live Run also passes without another model call. Because the
+    original observer pin is unusable, attempt2 receives new frozen identities
+    and explicitly retains attempt1's incomplete120-member denominator.
+  development_calibration: >-
+    Agent decision based only on development02/03: soft6000 (ratio0.006 for
+    configured context1M) permits useful work after native compaction. Ordinary
+    development03 has three later tools, controlled compact five, masking16;
+    both controls recover the correct late answer. Finding identity matches
+    independent AST in all three, but only the controlled compact output
+    retains both hypothesis-ID sets, and extra finding metadata fails the
+    exact schema check. Keep those misses. Freeze the same generic methodology
+    instruction, models and sampling; use new template version4 for final
+    authored Workflows. No calibration result is a repeated quality comparison.
+    Identical-checkpoint replay remains unsupported.
+  observer_measurement_correction: >-
+    Development02 exposed an error in this task's new observer: text-artifact
+    pagination's truncated=true is a valid complete tool response, not the
+    telemetry owner's truncated/preview envelope. Check only that native
+    envelope on both arguments and output. Regression fixtures use the actual
+    native content encoder and protobuf projection; prior code errors on a
+    paginated read and falsely accepts truncated write arguments. Both fail
+    under the prior implementation and pass under the corrected observer.
+  implementation_decision: >-
+    Agent proposal executed within assigned scope: use a fourth controlled
+    native-compact/masking comparison, keeping its later-question protocol out
+    of ordinary arms. Reuse native Managed Eval submission, usage and comparison
+    owners. Remove the obsolete local file-copy replay/masking simulation.
+    Identical native checkpoint replay remains explicitly unsupported. Expanded
+    cases and independent scorers are fixed before any held-out submission;
+    common thresholds and build still require development measurement.
+    Agent preflight clarification before any held-out submission makes the
+    API task's required output shape explicit (tenant apiKey and optional query
+    parameters), matching its existing scorer. This prevents equally valid
+    but unspecified auth/body representations from becoming accidental misses;
+    no hidden answer or benchmark-specific Worker instruction is introduced.
+  recovery_decision: >-
+    The stale provider endpoint does not answer authenticated handshakes; its
+    SSH alias refuses connections. An existing operator-managed VPN server is reachable with sudo,
+    already hosts wg0 with an available client address, and reaches OpenRouter
+    over HTTPS. Within the user's configuration request, register one dedicated
+    Gateway peer in that existing wg0, preserve its current peer and policy,
+    and update only the Gateway's existing egress profile/metadata. Use native
+    WireGuard and existing owner scripts; verify DNS, HTTPS and fail-closed
+    namespace behavior, then resume development calibration. Reuse the Gateway
+    client identity, with no new service/model route or production mechanism.
+    Alternative restoration of the old peer is unavailable through its current
+    management route. Reopen if the existing KZ path cannot meet the checks.
+  network_recovered_2026_11_16: >-
+    Completed the authorized configuration through existing WireGuard owners.
+    Added one dedicated Gateway peer while preserving the existing server peer;
+    retained the Gateway client identity, namespace, mesh and model selections.
+    Updated both deployed and protected local egress profile/metadata, retaining
+    owner-only rollback backups. Container DNS resolves, Gateway readiness and
+    all four configured model aliases are available, and provider HTTPS is 200.
+    Existing owner check-kill-switch passes: HTTP200 before/after and no direct
+    egress while the tunnel is down. Resume isolated development calibration;
+    no additional user sudo action or replacement-profile input is needed.
+  recovery_attempt: >-
+    2026-11-15: inspected the deployed owner's pre-parameterization script;
+    its fixed network matches the deployment. One authorized up command exited
+    0. Installed script digest is
+    sha256:ffc1608d8cece6e4db9b0694ca4bd256fe5e0771af73c9ff2e57550bfeac8e6a.
+    Exact operational results are retained in the ignored owner-only local
+    runbook; no profile keys or concrete deployment addresses are published.
+  development_evidence:
+  - tasks/evidence/v417-010-development-20261115.json
+  - tasks/evidence/v417-010-development-20261116-02.json
+  - tasks/evidence/v417-010-development-20261116-03.json
+  - tasks/evidence/v417-010-protocol-attempt1-20261116.json
+  - tasks/evidence/v417-010-freeze-r2-20261116.json
+  - tasks/evidence/v417-010-protocol-attempt2-20261116.json
+  - tasks/evidence/v417-010-freeze-r3-20261116.json
+  - tasks/evidence/v417-010-protocol-paused-r3-20261116.json
 
 scope:
   in:
@@ -74,7 +200,7 @@ scope:
     pilot.
   - A new production masking strategy, learned compression policy or benchmark-specific prompt/Skill hints.
   - Guaranteeing improvement or changing thresholds after seeing held-out results.
-  - Live execution as part of this planning change or as a dependency of lint, verify or release-verify.
+  - Live execution as a dependency of lint, verify or release-verify.
 requirements:
 - id: R1
   text: Before any live submission freeze exact cases, visible inputs, private truth/scorer revisions,
@@ -240,3 +366,20 @@ verification_requirements:
   it cannot conclude from deterministic fixtures alone.
 - Do not change normative specifications or claim quality results during this planning edit; do not populate
   implementation_commit until actual completion.
+
+verification:
+- command: make test-context-compaction-eval-fixtures
+  result: Passed preparation only; 43 offline cases, 105 recorded scored samples and both Go packages. No live quality claim.
+- command: make lint
+  result: Passed full make lint after the comparison-pin admission guard; task/spec/dependency and diff checks pass. Earlier rerun failed solely on concurrently stale generated BACKLOG, regenerated before the successful run.
+- command: make eval-context-compaction-live
+  result: >-
+    Incomplete, make exit2. Attempt1 retains1 succeeded/unscored and119 unrun.
+    Attempt2 retains36 completed,1 cancelled and83 unrun; all120 expected
+    members retained in each attempt. Missing native source/task observed pins
+    exclude every pair. No quality/savings recommendation; A1-A4 incomplete.
+    R3 is explicitly paused by the user after3 natural failures/scored members
+    and117 unsubmitted; all60 native pairs had verified source/task pins before
+    dispatch. Retain123541 known tokens and USD0.0239856091 reported. No active
+    Run cancelled; own key revoked, processes joined, private native/archive
+    evidence retained and owned database dropped. Await continue command.

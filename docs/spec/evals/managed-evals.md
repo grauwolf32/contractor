@@ -951,7 +951,14 @@ Rationale: scoping prevents collisions between Projects that share a portable
 invocation ID, without changing the frozen portable CLI key format.
 
 **EVM-R135.** Local binding snapshots retained during external registration are
-separate from the producer's attributed binding hashes.
+separate from the producer's attributed binding hashes. After the local
+Resolver verifies every exact input Artifact revision, newly frozen external
+bindings observe `source` from those references and `tasks` from the actual
+case tasks, effective parameters and input/output mappings, using the native
+plan builder's definition. Case IDs bind tasks and inputs to their cases;
+recipe/member execution order does not affect these pins. Producer hashes do
+not establish observed equality. Unverifiable dimensions stay unavailable,
+and existing immutable plans and bindings are never upgraded or rewritten.
 
 ### External registration and control
 

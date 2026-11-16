@@ -1,0 +1,66 @@
+schema_version: '1.0'
+id: V466-018
+title: Select the ready continuation without assuming Task history fits one page
+milestone: worker-context-compaction-2026-10
+epic: quality
+kind: chore
+introduced_by: V455-008
+priority: P1
+status: completed
+implementation_commit: 4fbc2038340b2e523334ac6a7e1aaa51ffdc8d2b
+depends_on: [V455-008]
+languages: [go]
+goal: The continuation integration gate verifies both exact source slices through the existing bounded Task reader.
+context:
+  evidence: tasks/evidence/v466-018-acceptance-20261115.json
+  verification: >-
+    Full auditcontroller tests with race/integration pass, including both exact
+    continuation slices and final completion; task and whitespace checks pass.
+    Production behavior is unchanged. Aggregate release acceptance remains009.
+  authority: >-
+    User request 2026-11-15 assigns V417-009 and V417-010. V417-009 requires
+    resolving rather than waiving failures of the aggregate release gate.
+    This agent-proposed prerequisite corrects only the verification fixture.
+  specification:
+  - docs/spec/audits/common-contract.md#ACT-R15
+  - docs/spec/platform/limits.md#LIM-FND-58
+  finding: >-
+    internal/auditcontroller/continuation_postgres_test.go:467 reads the last
+    item of the first unfiltered page as the newly accepted continuation.
+    V455-008 commit 73051dbe457684c9b1dc8709016df1abeec5a02a reserves 48 KiB
+    framing per Task. The 34-row real fixture now occupies 1697563 metadata
+    bytes, so its 1-MiB first page has only 21 settled source Tasks. The
+    controller correctly accepted ordinal 34 with through=31 and 31 source
+    IDs; the fixture wrongly observes through=0. An unchanged focused run
+    reproduces the original release failure.
+  siblings: >-
+    This is the only last-item-of-Task-page lookup in auditcontroller tests.
+    The two-Task continuation test asserts its complete cardinality. Production
+    Task paging, source selection, metadata limits and controller state are
+    already correct and remain unchanged.
+  boundary: >-
+    Select the one ready continuation through ListTasksParams.State and a
+    one-row page, checking that no second ready Task exists. Keep both source
+    boundary assertions and exact generated observation counts. This avoids
+    reading settled history or introducing a pagination helper.
+scope:
+  in:
+  - Correct the existing real-PostgreSQL test lookup and retain all source/final-state assertions.
+  - Record the original failing gate, regression pass and full owning-package results.
+  out:
+  - Production controller/store changes, metadata-budget changes, new APIs and live-model calls.
+acceptance_criteria:
+- id: A1
+  text: The real test accepts exactly the existing 31-then-2 source slices and completes the Audit even when settled Task history exceeds one metadata page.
+- id: A2
+  text: The complete auditcontroller package passes with integration and race enabled; task metadata and whitespace checks pass.
+tests:
+- command: go test -race -tags=integration -count=1 ./internal/auditcontroller
+  covers: [A1, A2]
+- command: python3 scripts/check_tasks.py
+  covers: [A2]
+- command: git diff --check
+  covers: [A2]
+test_prerequisites:
+- Real disposable PostgreSQL and the locked Runtime Python environment for the task checker.
+- Full aggregate release verification remains V417-009 acceptance and is not claimed by this fixture repair.

@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "task": "V466-021",
+  "recordedAt": "2026-11-16T07:42:55.788001+00:00",
+  "baseCommit": "d7e7055d8ee201d32f91d3165808e6a70fcfea5d",
+  "productionBoundary": "Existing Eval authoring/resolution; common private caseComparisonPins definition for native plans and external bindings. No API, table, driver, receipt or comparison gate added.",
+  "tests": [
+    {
+      "command": "go test ./internal/evalservice ./internal/evalstore ./internal/evaldomain",
+      "exitCode": 0,
+      "logSha256": "sha256:d6e9fab2411f88390cc30245f36f838f5407966f03f859a88e83b5c3a81160ed"
+    },
+    {
+      "command": "make verify-public-api-postgres",
+      "exitCode": 0,
+      "logSha256": "sha256:3b419b846173c8d26c42b2f8ea78ee33d0a5f073ab632e18851b9cae3ff35bed"
+    },
+    {
+      "command": "make test-wire-cross-language",
+      "exitCode": 0,
+      "logSha256": "sha256:0c63b0453ac933adefcb8a7196e2b277a31be108291aadb025964a9919251c7c"
+    },
+    {
+      "command": "make lint",
+      "exitCode": 0,
+      "logSha256": "sha256:9458787564844d43e554cd07c880c707fa4094b7716cc87f5fe5181d1cd78608"
+    }
+  ],
+  "realStore": {
+    "postgresConfigured": true,
+    "focusedRegression": "Original registration reports locally verified source/tasks as incomparable; corrected registration observes equal pins.",
+    "ordinaryComparison": {
+      "runs": 8,
+      "pairs": 4,
+      "completeTokenPairs": 4,
+      "completeQualityPairs": 4,
+      "conclusion": "pass"
+    },
+    "strictFailures": [
+      "missing Artifact: eval_evidence_unavailable",
+      "foreign owner: eval_not_found",
+      "digest/size/media mismatch: eval_pin_mismatch"
+    ],
+    "priorResources": "Config-only retained binding bytes remain unchanged and pins-unverified. External readiness stays absent. Physical model/runtime/tool-docstring unknowns stay unavailable.",
+    "bounds": "Existing native member and external byte-ceiling real-store tests remain passing."
+  },
+  "wire": {
+    "fixtures": 394,
+    "goSharedTests": 443,
+    "pythonSharedTests": 280,
+    "pythonContractTests": 417,
+    "optionalHeavySkipped": 1,
+    "optionalSkipsArePassingCoverage": false
+  },
+  "liveModelCalls": 0,
+  "deployment": false,
+  "mergedIntoMain": false,
+  "next": "Complete task metadata, then resume V417-010 on a new frozen identity; never upgrade prior attempts."
+}

@@ -4,7 +4,7 @@
       "read-only",
       "tenant-isolation"
     ],
-    "likec4": "catalog -> inventory\norders -> billing",
+    "likec4": "catalog -> inventory\norders -> billing\nreporting_0 -> ledger_0\nreporting_1 -> ledger_1\nreporting_2 -> ledger_2\nreporting_3 -> ledger_3\nreporting_4 -> ledger_4\nreporting_5 -> ledger_5\nreporting_6 -> ledger_6\nreporting_7 -> ledger_7\nreporting_8 -> ledger_8\nreporting_9 -> ledger_9",
     "openapi": {
       "components": {
         "securitySchemes": {
@@ -78,8 +78,262 @@
               }
             ]
           }
+        },
+        "/tenants/{tenant}/ledgers/0": {
+          "get": {
+            "operationId": "listTenantLedger0",
+            "security": [
+              {
+                "tenant": []
+              }
+            ],
+            "parameters": [
+              {
+                "name": "tenant",
+                "in": "path",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "Tenant-scoped ledger entries"
+              }
+            }
+          }
+        },
+        "/tenants/{tenant}/ledgers/1": {
+          "get": {
+            "operationId": "listTenantLedger1",
+            "security": [
+              {
+                "tenant": []
+              }
+            ],
+            "parameters": [
+              {
+                "name": "tenant",
+                "in": "path",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "Tenant-scoped ledger entries"
+              }
+            }
+          }
+        },
+        "/tenants/{tenant}/ledgers/2": {
+          "get": {
+            "operationId": "listTenantLedger2",
+            "security": [
+              {
+                "tenant": []
+              }
+            ],
+            "parameters": [
+              {
+                "name": "tenant",
+                "in": "path",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "Tenant-scoped ledger entries"
+              }
+            }
+          }
+        },
+        "/tenants/{tenant}/ledgers/3": {
+          "get": {
+            "operationId": "listTenantLedger3",
+            "security": [
+              {
+                "tenant": []
+              }
+            ],
+            "parameters": [
+              {
+                "name": "tenant",
+                "in": "path",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "Tenant-scoped ledger entries"
+              }
+            }
+          }
+        },
+        "/tenants/{tenant}/ledgers/4": {
+          "get": {
+            "operationId": "listTenantLedger4",
+            "security": [
+              {
+                "tenant": []
+              }
+            ],
+            "parameters": [
+              {
+                "name": "tenant",
+                "in": "path",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "Tenant-scoped ledger entries"
+              }
+            }
+          }
+        },
+        "/tenants/{tenant}/ledgers/5": {
+          "get": {
+            "operationId": "listTenantLedger5",
+            "security": [
+              {
+                "tenant": []
+              }
+            ],
+            "parameters": [
+              {
+                "name": "tenant",
+                "in": "path",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "Tenant-scoped ledger entries"
+              }
+            }
+          }
+        },
+        "/tenants/{tenant}/ledgers/6": {
+          "get": {
+            "operationId": "listTenantLedger6",
+            "security": [
+              {
+                "tenant": []
+              }
+            ],
+            "parameters": [
+              {
+                "name": "tenant",
+                "in": "path",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "Tenant-scoped ledger entries"
+              }
+            }
+          }
+        },
+        "/tenants/{tenant}/ledgers/7": {
+          "get": {
+            "operationId": "listTenantLedger7",
+            "security": [
+              {
+                "tenant": []
+              }
+            ],
+            "parameters": [
+              {
+                "name": "tenant",
+                "in": "path",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "Tenant-scoped ledger entries"
+              }
+            }
+          }
+        },
+        "/tenants/{tenant}/ledgers/8": {
+          "get": {
+            "operationId": "listTenantLedger8",
+            "security": [
+              {
+                "tenant": []
+              }
+            ],
+            "parameters": [
+              {
+                "name": "tenant",
+                "in": "path",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "Tenant-scoped ledger entries"
+              }
+            }
+          }
+        },
+        "/tenants/{tenant}/ledgers/9": {
+          "get": {
+            "operationId": "listTenantLedger9",
+            "security": [
+              {
+                "tenant": []
+              }
+            ],
+            "parameters": [
+              {
+                "name": "tenant",
+                "in": "path",
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "Tenant-scoped ledger entries"
+              }
+            }
+          }
         }
       }
+    },
+    "futureAnswer": {
+      "dependency": "billing",
+      "optional": true
     }
   },
   "negative-memory": {
@@ -88,15 +342,87 @@
       "tenant-isolation"
     ],
     "negative": [
-      "P17"
+      "P17",
+      "P19",
+      "P21",
+      "P23",
+      "P25",
+      "P27",
+      "P29",
+      "P31",
+      "P33",
+      "P35",
+      "P37",
+      "P39",
+      "P41",
+      "P43",
+      "P45",
+      "P47",
+      "P49",
+      "P51",
+      "P53",
+      "P55",
+      "P57",
+      "P59",
+      "P61",
+      "P63"
     ],
     "observed": [
       "P17",
-      "P18"
+      "P18",
+      "P19",
+      "P20",
+      "P21",
+      "P22",
+      "P23",
+      "P24",
+      "P25",
+      "P26",
+      "P27",
+      "P28",
+      "P29",
+      "P30",
+      "P31",
+      "P32",
+      "P33",
+      "P34",
+      "P35",
+      "P36",
+      "P37",
+      "P38",
+      "P39",
+      "P40",
+      "P41",
+      "P42",
+      "P43",
+      "P44",
+      "P45",
+      "P46",
+      "P47",
+      "P48",
+      "P49",
+      "P50",
+      "P51",
+      "P52",
+      "P53",
+      "P54",
+      "P55",
+      "P56",
+      "P57",
+      "P58",
+      "P59",
+      "P60",
+      "P61",
+      "P62",
+      "P63",
+      "P64"
     ],
     "uncertain": [
       "all-other-inputs"
-    ]
+    ],
+    "futureAnswer": {
+      "provesAllInputs": false
+    }
   },
   "source-review": {
     "constraints": [
@@ -115,6 +441,10 @@
     ],
     "uncertain": [
       "lookup-exploitability"
-    ]
+    ],
+    "futureAnswer": {
+      "path": "app.py",
+      "line": 5
+    }
   }
 }

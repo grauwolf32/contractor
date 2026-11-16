@@ -1,20 +1,24 @@
 {
   "cases": {
-    "api-dependency": "sha256:46d5c51969c2d7d87690b5fa299646095e43f422c0c8f1d9ed51489b58453c96",
-    "negative-memory": "sha256:9e93c62ddca7e39bc86e03d40ccb67bb0b246a2fb1a5ed6591449ea6eff9b4be",
-    "source-review": "sha256:bef97e8fa97e7f83c918ce7c4884d2497699c760471805a2d52530620e847acc"
+    "api-dependency": "sha256:3cc8529a0b1e4725423238df98437fa45fadf1a8e04d23fd3d764abe55b08c29",
+    "negative-memory": "sha256:60ea8a9c18280167ca66798269d9cb6cfbb7a7dba210e37b066911126f457963",
+    "source-review": "sha256:fd34e2cfe7b920874b8bbf64fd770ee0cda19d2ad0b202895d985380e0f1ae1e"
   },
   "catalogFiles": {
-    "catalog/agent-templates/context-eval-terminal-off.yaml": "sha256:511cbe8f185d5a0372857456d80e97cd2da201c1af32cca7961e08a37bb5663f",
-    "catalog/agent-templates/context-eval-terminal-on.yaml": "sha256:8cc529b4ae9fa340d686c776186f31d6e8c67a561ca179e0421a48feef20f937",
-    "catalog/agent-templates/context-eval-worker.yaml": "sha256:956a974900567dadd0152fe2b5e6a4e37708c062129296152bb99f0311ffe565",
+    "catalog/agent-templates/context-eval-controlled-compact.yaml": "sha256:35ded4a628a7caa65b216d361d3cf4e566752e0433b7eeb6242ceecbb0a0121f",
+    "catalog/agent-templates/context-eval-masking.yaml": "sha256:d34abbfc5a015f4406ffda607448b30c864c39bc2441724b2f1d3df7f0b6ab3d",
+    "catalog/agent-templates/context-eval-terminal-off.yaml": "sha256:d3837a5c8825b63d513c624ac892ff6d1b5df21209ce14ff4b13659b3c9bb825",
+    "catalog/agent-templates/context-eval-terminal-on.yaml": "sha256:2ade8aa5d253ac3076f5348f386272497ffecd6c33fca5a3a3bc09c0957e0a7a",
+    "catalog/agent-templates/context-eval-worker.yaml": "sha256:55e50961fa514ab6f87ae87b53086c03ad863fc98156e95701ec8060a9c2155b",
     "catalog/instructions/context-eval-task.md": "sha256:d6a667f7e2d714060923a982521fe961f7ee653dbbf42af411ef9c84d755111d",
-    "catalog/instructions/context-eval-worker.md": "sha256:8d38f6109d9051ee8856746cef1f5df4d4c1fae2c3afff14bf8ea9eccf482712",
-    "catalog/workflows/context-eval-compact-off.yaml": "sha256:1a29452d95c069289546942cfb7b6f6aebf2360bd0979ac30f9d6666f95cc3ac",
-    "catalog/workflows/context-eval-compact-on.yaml": "sha256:dfeedbae205462943923638ecccfaf1fb40d7f6b7e881551cec1e58e7613556e",
-    "catalog/workflows/context-eval-terminal-handoff.yaml": "sha256:678de6cfe6af5bd0f383470aea699fb38dcb3a301f3c85cf6fd6d5ca2ac97147",
-    "catalog/workflows/context-eval-terminal-off.yaml": "sha256:269cf8fbb3b994bb99e642650f5ad98cc702bbe1cc972d63fc61d4b88c9732a7",
-    "catalog/workflows/context-eval-terminal-on.yaml": "sha256:e717aedbd2a6651b95a44e6f9248b2a7d80c3681fe0cfc9a644734e81d22a272"
+    "catalog/instructions/context-eval-worker.md": "sha256:d70edc7d79af084aeb126eb2660ab4bcb630d218fadc17460049481934a3e152",
+    "catalog/workflows/context-eval-compact-off.yaml": "sha256:415b390ddb5a465eda912ee6a3af5e7cfc00227e78b38537effcc55bd032ce6a",
+    "catalog/workflows/context-eval-compact-on.yaml": "sha256:ad74b3bbced3e09a8b76511e2e266a4c133f3aa84a4241cd9f5a14d61ddb51ce",
+    "catalog/workflows/context-eval-controlled-compact.yaml": "sha256:2b61d617d2757d1bd387156551a0278b2acfadc74513734944f4568ef27bc682",
+    "catalog/workflows/context-eval-masking.yaml": "sha256:ab0e7824f7805e2f990b9684cc47ee228deb830687a5e17bda58eda97ed7500e",
+    "catalog/workflows/context-eval-terminal-handoff.yaml": "sha256:a73b71ebbc1d114c6d6cffeb1835ab87997e8c23bd218ce446ba964b2a69d5b3",
+    "catalog/workflows/context-eval-terminal-off.yaml": "sha256:047b5fe04571eeb5ac1d379c67818a0dfd9f6e49c5ca1d466dab75a297a726e7",
+    "catalog/workflows/context-eval-terminal-on.yaml": "sha256:e0ccfb296e30626a848360a42d5027511b2976e097f18db6ceceb906f45dc7a2"
   },
   "comparisons": [
     [
@@ -30,7 +34,7 @@
       "terminal-handoff"
     ],
     [
-      "compact-off",
+      "controlled-compact",
       "masking"
     ]
   ],
@@ -40,13 +44,13 @@
   },
   "repetitions": 5,
   "schemaVersion": "context-compaction-variants/v1",
-  "scorerSha256": "sha256:fb26a5ce5270d5d673f40e7317372ac113ad73650a51de1e304aa6b67e378d2e",
+  "scorerSha256": "sha256:9af3551e652f0b3819c319e2df52d47592389ddbf7705e10de9801c6e452025f",
   "thresholds": {
     "maxQualityDrop": 0,
     "maxTokenRatio": 1.0,
     "minEndToEndPass": 1
   },
-  "truthSha256": "sha256:a3a5184c7496c2fba0b960a56cd6131f5b9bfbf54bc1cb2f9c8e76bf63f44d4a",
+  "truthSha256": "sha256:53aab70193ae78604263e52ac96ac289137237410a95fa42e3e0a2dbd26a17a0",
   "variants": [
     {
       "id": "terminal-off",
@@ -84,11 +88,18 @@
       "workflow": "context-eval-terminal-handoff@1"
     },
     {
+      "id": "controlled-compact",
+      "includeReasoning": false,
+      "provider": "contractor",
+      "strategy": "compact@1",
+      "workflow": "context-eval-controlled-compact@1"
+    },
+    {
       "id": "masking",
       "includeReasoning": false,
-      "provider": "recorded",
+      "provider": "contractor",
       "strategy": "test-only-masking",
-      "workflow": null
+      "workflow": "context-eval-masking@1"
     }
   ]
 }

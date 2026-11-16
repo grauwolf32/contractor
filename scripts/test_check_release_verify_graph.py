@@ -541,6 +541,29 @@ func pool(t *testing.T) {
         self.assertEqual(guard.database_skip_violations(source), [])
 
 
+
+
+class CompactionReportReuseTests(unittest.TestCase):
+    def test_each_canonical_report_has_one_verifier_and_the_family_stays_focused(self):
+        commands = [
+            "verify-compaction-go --report go-unit.jsonl",
+            "verify-compaction-runtime --report runtime.xml",
+            "verify-compaction-process --report go-process-a.jsonl --scope A",
+            "verify-compaction-process --report go-process-c.jsonl --scope C",
+        ]
+        focused = ["verify-compaction-" + kind for kind in ("go", "runtime", "process")]
+        guard.check_compaction_report_reuse(commands, focused)
+        for changed in (
+            commands[1:],
+            commands + [commands[0]],
+            commands + ["worker-compaction-process.jsonl"],
+        ):
+            with self.assertRaises(SystemExit):
+                guard.check_compaction_report_reuse(changed, focused)
+        with self.assertRaises(SystemExit):
+            guard.check_compaction_report_reuse(commands, focused[:-1])
+
+
 if __name__ == "__main__":
     unittest.main()
 

@@ -506,3 +506,77 @@ class AuditEvidenceTest(unittest.TestCase):
             self.assertEqual(json.loads(path.read_text()), {'status': 'incomplete'})
             reports.write_evidence(path, {'payload': 'x' * (80 << 10)}, max_bytes=128 << 10)
             self.assertEqual(len(json.loads(path.read_text())['payload']), 80 << 10)
+
+
+class CompactionReportsTest(unittest.TestCase):
+    def runtime_report(self):
+        suite = ET.Element("testsuite")
+        for identity, minimum in reports.compaction_matrix()["python"].items():
+            module, name = identity.split("::")
+            for index in range(minimum):
+                ET.SubElement(suite, "testcase", classname=module, name=f"{name}[{index}]")
+        return suite
+
+    def test_runtime_matrix_requires_counts_and_rejects_missing_skipped_and_duplicate_cases(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "runtime.xml"
+            suite = self.runtime_report()
+            ET.SubElement(
+                ET.SubElement(suite, "testcase", classname="tests.optional", name="optional"),
+                "skipped",
+            )
+            ET.ElementTree(suite).write(path)
+            reports.verify_compaction(path, "python")
+            for outcome in ("missing", "skipped", "failure", "error", "duplicate"):
+                suite = self.runtime_report()
+                first = suite[0]
+                if outcome == "missing":
+                    suite.remove(first)
+                elif outcome == "duplicate":
+                    suite.append(first)
+                else:
+                    ET.SubElement(first, outcome)
+                ET.ElementTree(suite).write(path)
+                with self.subTest(outcome=outcome), self.assertRaises(reports.GateError):
+                    reports.verify_compaction(path, "python")
+            ET.ElementTree(ET.Element("testsuite")).write(path)
+            with self.assertRaises(reports.GateError):
+                reports.verify_compaction(path, "python")
+
+    def test_compaction_go_and_process_matrices_require_real_case_and_package_passes(self):
+        for boundary in ("go", "process"):
+            events = []
+            for package, names in reports.compaction_matrix()[boundary].items():
+                cases = {name.split("/", 1)[0] for name in names} | set(names)
+                for action, ordered in (
+                    ("run", sorted(cases)),
+                    ("pass", sorted(cases, reverse=True)),
+                ):
+                    events.extend(
+                        dict(Action=action, Package=package, Test=name) for name in ordered
+                    )
+                events.append(dict(Action="pass", Package=package))
+            with tempfile.TemporaryDirectory() as folder:
+                path = Path(folder) / "go.jsonl"
+
+                def write(rows):
+                    path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+
+                write(events)
+                reports.verify_compaction(path, boundary)
+                if boundary == "process":
+                    reports.verify_compaction(path, boundary, "TestAuditCompaction.*")
+                    with self.assertRaises(reports.GateError):
+                        reports.verify_compaction(path, boundary, "TestNothing")
+                for rows in (
+                    [],
+                    events[1:],
+                    [row for row in events if "Test" not in row],
+                    [
+                        dict(row, Action="skip") if row.get("Test") == names[-1] else row
+                        for row in events
+                    ],
+                ):
+                    write(rows)
+                    with self.subTest(boundary=boundary), self.assertRaises(reports.GateError):
+                        reports.verify_compaction(path, boundary)

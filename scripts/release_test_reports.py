@@ -17,6 +17,7 @@ import tempfile
 import threading
 import time
 import xml.etree.ElementTree as ET
+from collections import Counter
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
@@ -331,6 +332,88 @@ def capture(
                     watcher.join()
 
 
+def verify_python_report(
+    report: Path,
+    required: dict[str, int],
+    *,
+    modules: set[str] | None = None,
+) -> list[str]:
+    """Require parametrized case counts, rejecting skipped/failed selected cases."""
+    if not required or any(type(count) is not int or count < 1 for count in required.values()):
+        raise GateError("empty or invalid Python selection")
+    if report.stat().st_size > 32 << 20:
+        raise GateError("Python report exceeds its bound")
+    try:
+        source = ET.parse(report).getroot()
+    except ET.ParseError as error:
+        raise GateError("pytest did not produce a valid JUnit report") from error
+    counts: Counter[str] = Counter()
+    executed = set()
+    for case in source.iter("testcase"):
+        module, name = case.get("classname", ""), case.get("name", "")
+        if modules is not None and module not in modules:
+            continue
+        identity = module + "::" + name
+        if identity in executed or len(executed) >= 8192:
+            raise GateError("Python case identities are duplicated or exceed their bound")
+        if any(case.find(tag) is not None for tag in ("skipped", "failure", "error")):
+            raise GateError("Python case did not pass: " + identity)
+        executed.add(identity)
+        counts[identity.split("[", 1)[0]] += 1
+    if missing := [name for name, minimum in required.items() if counts[name] < minimum]:
+        raise GateError("mandatory Python cases did not execute and pass: " + ", ".join(missing))
+    return sorted(executed)
+
+
+def compaction_matrix() -> dict:
+    path = ROOT / "scripts/worker-compaction-matrix.json"
+    if path.stat().st_size > 256 << 10:
+        raise GateError("compaction matrix exceeds its bound")
+    value = json.loads(path.read_text(), object_pairs_hook=json_object)
+    if set(value) != {"schemaVersion", "go", "process", "python"} or value["schemaVersion"] != 1:
+        raise GateError("invalid compaction matrix")
+    if any(
+        not isinstance(value[key], dict) or not value[key] for key in ("go", "process", "python")
+    ):
+        raise GateError("empty compaction matrix boundary")
+    for key in ("go", "process"):
+        for package, names in value[key].items():
+            if (
+                not package.startswith("github.com/grauwolf32/contractor/")
+                or not isinstance(names, list)
+                or not names
+                or len(set(names)) != len(names)
+                or any(
+                    not re.fullmatch(r"Test[A-Za-z0-9_]+(?:/[^\x00-\x1f]+)*", name)
+                    for name in names
+                )
+            ):
+                raise GateError("invalid compaction Go identity")
+    for name, minimum in value["python"].items():
+        if (
+            not re.fullmatch(r"tests\.test_[a-z0-9_]+::test_[a-z0-9_]+", name)
+            or type(minimum) is not int
+            or minimum < 1
+        ):
+            raise GateError("invalid compaction Python identity")
+    return value
+
+
+def verify_compaction(report: Path, boundary: str, scope: str | None = None) -> list[str]:
+    required = compaction_matrix()[boundary]
+    if boundary == "python":
+        return verify_python_report(
+            report, required, modules={name.split("::", 1)[0] for name in required}
+        )
+    if scope is not None:
+        required = {
+            package: [name for name in names if re.fullmatch(scope, name.split("/", 1)[0])]
+            for package, names in required.items()
+        }
+        required = {package: names for package, names in required.items() if names}
+    return verify_go_report(report, required)
+
+
 def verify_runtime(report: Path) -> None:
     """Retain each gate's exact module scope and minimum parametrized case counts."""
     source = ET.parse(report).getroot()
@@ -382,15 +465,35 @@ def main() -> int:
     parser.add_argument(
         "action",
         choices=("run", "verify-runtime", "verify-audit", "verify-findings", "verify-engagement-accounting", "findings-pattern",
-                 "verify-iterative-postgres", "verify-iterative-process", "iterative-pattern"),
+                 "verify-iterative-postgres", "verify-iterative-process", "iterative-pattern",
+                 "verify-compaction-go", "verify-compaction-process", "verify-compaction-runtime",
+                 "compaction-pattern"),
     )
     parser.add_argument("--report", type=Path)
     parser.add_argument("--timeout-seconds", type=float)
+    parser.add_argument("--scope", help="Exact consolidated process root selection")
     # Keep the child command separate from the report runner options.
     arguments = sys.argv[1:]
     delimiter = arguments.index("--") if "--" in arguments else len(arguments)
     args = parser.parse_args(arguments[:delimiter])
     command = arguments[delimiter + 1 :]
+    if args.scope is not None and args.action != "verify-compaction-process":
+        parser.error("--scope is only accepted for consolidated compaction processes")
+    if args.action == "compaction-pattern":
+        if command or args.report is not None or args.timeout_seconds is not None:
+            parser.error("compaction-pattern takes no command or report")
+        print(
+            pattern(
+                sorted(
+                    {
+                        name.split("/", 1)[0]
+                        for names in compaction_matrix()["process"].values()
+                        for name in names
+                    }
+                )
+            )[2:-2]
+        )
+        return 0
     if args.action == "iterative-pattern":
         if command or args.report is not None or args.timeout_seconds is not None:
             parser.error("iterative-pattern takes no command or report options")
@@ -412,7 +515,13 @@ def main() -> int:
         parser.error("a command is only accepted by run")
     if args.timeout_seconds is not None:
         parser.error("a deadline is only accepted by run")
-    if args.action.startswith("verify-iterative-"):
+    if args.action.startswith("verify-compaction-"):
+        boundary = {"go": "go", "process": "process", "runtime": "python"}[
+            args.action.removeprefix("verify-compaction-")
+        ]
+        executed = verify_compaction(args.report, boundary, args.scope)
+        print(f"Compaction {boundary}: {len(executed)} selected cases passed")
+    elif args.action.startswith("verify-iterative-"):
         gate("test-audit-iterative.py")["verify"](args.report, args.action.removeprefix("verify-iterative-"))
     elif args.action == "verify-runtime":
         verify_runtime(args.report)
