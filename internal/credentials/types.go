@@ -213,9 +213,10 @@ func (g GeneratedCredential) Validate() error {
 // LiteLLM behavior is introduced by V4-004; lifecycle orchestration is V4-003A.
 type GatewayCredentialManager interface {
 	// ValidateCreate performs all request/configuration validation without an
-	// outbound side effect. Lifecycle calls it before reserving an immutable ID
+	// outbound side effect and returns the policy derived from the request.
+	// Lifecycle checks its stored representation before reserving an immutable ID
 	// and repeats it during recovery after deterministic remote cleanup.
-	ValidateCreate(context.Context, ManagerCreateRequest) error
+	ValidateCreate(context.Context, ManagerCreateRequest) (EffectiveGatewayPolicy, error)
 	Create(context.Context, ManagerCreateRequest) (GeneratedCredential, error)
 	Delete(context.Context, ManagerDeleteRequest) error
 	// RecoverCreate returns nil only after the deterministic remote alias is

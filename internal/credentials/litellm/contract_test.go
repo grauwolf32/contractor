@@ -41,7 +41,7 @@ func TestPinnedLiteLLMContract(t *testing.T) {
 			TPMLimit: &tpm, RPMLimit: &rpm, MaxParallelRequests: &parallel,
 		},
 	}
-	if err := manager.ValidateCreate(t.Context(), request); err != nil {
+	if _, err := manager.ValidateCreate(t.Context(), request); err != nil {
 		t.Fatal(err)
 	}
 	if err := manager.RecoverCreate(t.Context(), request); err != nil {

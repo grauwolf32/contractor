@@ -632,7 +632,14 @@ call; it is not a credential and is neither listable nor selectable by a Run
 **RCF-R72.** If a process stops after LiteLLM created a key but before
 Contractor committed its encrypted token and `token_id`, startup recovery
 removes the deterministic alias and retries creation instead of creating an
-untracked second key. An unfinished deletion is likewise completed before
+untracked second key. Before reserving a new create, Server measures the
+manager-derived policy using PostgreSQL `jsonb::text`, the same representation as LIM-PER-19. It
+also checks the operation request and the actual returned policy before
+insertion. A definite permanent metadata/storage rejection after key creation
+removes the deterministic remote alias under the lease and marks the existing
+operation abandoned. If cleanup or commit has an ambiguous outcome, the
+operation stays prepared for reconciliation; it is never silently discarded.
+An unfinished deletion is likewise completed before
 Server accepts Run or Operations traffic (FAIL-RCF-1, FAIL-RCF-2).
 Startup recovery reads the operation journal only after the lease handover
 ([PER-R34](../platform/persistence.md)), and every write of a managed

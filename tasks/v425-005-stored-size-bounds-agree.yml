@@ -15,6 +15,7 @@ goal: Every bounded stored value is checked once by Go with the same byte measur
   constraint and its LIM row, so a valid request never reaches an unclassified CHECK violation and no
   column is looser than its registered bound.
 context:
+  credential_followup: V468-001 fixes the credential policy/request byte measures and permanent create recovery from the 2026-11-16 release review. The remaining non-credential columns below stay in this task.
   authority_2026_10_31: 'User decision: remove standalone Sweep and use Audit-owned target scanning. V425-033
     owns removing sweep tables, ID constraints and ownership entries. This task retains its non-sweep
     stored-size defects and does not repair or preserve the superseded Sweep contract.'
