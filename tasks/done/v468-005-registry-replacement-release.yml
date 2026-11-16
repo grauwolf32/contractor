@@ -6,11 +6,13 @@ epic: execution-core
 kind: defect
 introduced_by: V8-007
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 4dfbeaff5acc4d5116a989af34b4665b0d40892c
 depends_on: []
 languages: [go]
 goal: Restore replacement availability after candidate rollback.
 context:
+  evidence: tasks/evidence/v468-followup-review-20261116.json
   authority: 'User decision 2026-11-16: review fix/first-release-review-20261116, implement all bug fixes and proposed lifecycle refactorings on that branch, then merge into main.'
   finding: 'internal/controlplane/registry_reservations.go:338 leaves blockedByInstanceID after deleting the provisional grant.'
   siblings: 'Unify authority removal and replacement reconciliation across candidate discard, unprepared discard, Release and ReleaseLost; preserve post-release heartbeat and reservation tombstone semantics.'
