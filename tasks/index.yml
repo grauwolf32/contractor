@@ -9,9 +9,11 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
-    User request 2026-11-16 assigns V466-022 to merge the verified
-    codex/v417-release-quality head76104ef70 into local main. Integration
-    preserves primary working files and rechecks the exact merged tree.
+    User request 2026-11-16 completes V466-022: local main contains
+    codex/v417-release-quality through two-parent merge
+    017b8b289e6da12e68d13d28a592bc7fb66c43ba. All six primary working files
+    and their modes/staged delta are preserved. Audit/Eval/PostgreSQL, public
+    API, wire, offline controls and lint pass; the owned database is removed.
     V417-010 remains paused until an explicit continue command; shared
     V417-004 remains reserved and last. No live calls, deployment or finish_with.
     User decision 2026-11-16 pauses V417-010 until an explicit continue command.

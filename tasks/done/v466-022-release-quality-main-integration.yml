@@ -5,7 +5,7 @@ milestone: worker-context-compaction-quality-2026-10
 epic: evals
 kind: chore
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V417-009
 - V466-018
@@ -38,6 +38,7 @@ context:
     investigation found strict-format or coverage-related scorer failures; no quality or savings recommendation
     follows from them. No scorer or finalizer redesign belongs in this merge.
   design: docs/testing/README.md
+  verification: tasks/evidence/v466-022-main-integration-20261116.json
 scope:
   in:
   - Merge the pinned source through a no-fast-forward commit with the original main as first parent.
@@ -87,3 +88,11 @@ tests:
     scripts make docs
   covers:
   - A1
+implementation_commit: 017b8b289e6da12e68d13d28a592bc7fb66c43ba
+verification_results:
+- Local main contains the exact two-parent merge; all non-task tracked paths equal the pinned source.
+- All five deterministic gates passed with PostgreSQL configured; one declared optional heavy shared fixture
+  skipped, not counted as passing coverage.
+- All six primary working files retain their original bytes and modes; staged delta unchanged.
+- The owned database was dropped with zero active clients. No live calls, deployment, remote push or report-finalization
+  redesign.
