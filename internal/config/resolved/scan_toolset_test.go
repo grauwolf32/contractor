@@ -19,7 +19,7 @@ func TestScanToolsetDescriptor(t *testing.T) {
 	}
 	for _, name := range want {
 		channels := []infrastructureChannel{channelRuntimeSubprocessLauncher}
-		if name == "scan_nuclei" || name == "scan_sqlmap" {
+		if name == "scan_nuclei" || name == "scan_sqlmap" || name == "scan_ffuf" {
 			channels = []infrastructureChannel{channelRuntimeHTTPClient, channelRuntimeSubprocessLauncher}
 		}
 		if got := descriptor.InfrastructureChannels[name]; !slices.Equal(got, channels) {
@@ -34,7 +34,7 @@ func TestControlledHTTPSelectionKeepsOtherScannersUncontrolled(t *testing.T) {
 		uncontrolled bool
 	}{
 		{[]string{"scan_nuclei"}, false},
-		{[]string{"scan_ffuf"}, true},
+		{[]string{"scan_ffuf"}, false},
 		{[]string{"scan_sqlmap"}, false},
 		{[]string{"scan_naabu"}, true},
 		{[]string{"scan_katana"}, true},
@@ -67,6 +67,7 @@ func TestControlledHTTPSelectionIncludesIdentityAndSessionOperations(t *testing.
 		{"http-tools", "http_session_set", true},
 		{"http-tools", "http_session_clear", true},
 		{"scan", "scan_nuclei", true},
+		{"scan", "scan_ffuf", true},
 		{"scan", "scan_naabu", false},
 		{"run-artifacts", "read_artifact", false},
 	} {

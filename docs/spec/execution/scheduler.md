@@ -360,8 +360,9 @@ fits an Agent no waiting `model` Stage can use, such as a dedicated scan
 Agent, is placed as usual.
 
 Accepted risk: scans send active traffic, and per-job rate limits such as the
-ffuf `rate` (LIM-SCN-28) do not combine across parallel jobs, so parallel
-`tool` Stages that scan one target multiply its load. No per-target limit is
+standalone ffuf `rate` (LIM-SCN-28) or controlled allocation HTTP limits do not
+combine across parallel jobs, so parallel `tool` Stages that scan one target
+multiply its load. No per-target limit is
 enforced; the bound is `maxConcurrentToolRuns` (default 2), which also paces
 an Audit's scan roles (AUX-R3). Reopen when that default is raised above 4 or
 when scans may target fragile or production systems; the fix then is a

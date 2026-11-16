@@ -1317,7 +1317,9 @@ class FFUFTool(ScanTool):
 
     Replace FUZZ in the path or query with each UTF-8 payload, preserving duplicates,
     spaces and empty entries. Uses GET and one thread, without following redirects,
-    recursion, auto-calibration or external input commands. Configured proxy unsupported.
+    recursion, auto-calibration or external input commands. Generic proxy unsupported.
+    With an engagement, ffuf 2.3.0 uses the allocation HTTP transport, credentials,
+    cookies, TLS verification and optional limits. Failed exchanges stop the scan.
     Metadata and Runtime service destinations fail with scan_target_denied, as do
     loopback and link-local ones unless the operator allows the network.
 
@@ -1325,15 +1327,19 @@ class FFUFTool(ScanTool):
         url: HTTP(S) URL containing FUZZ in its path or query, never the authority.
         wordlist_ref: Exact artifact ref (namespace, name, revision) for text/plain or
             text/vnd.contractor.wordlist; max 1 MiB, 10000 entries, 4096 bytes per entry.
-        rate: Configured payloads per second, 1 through 1000; defaults to 10.
-            ffuf may retry a failed HTTP request once outside this rate limiter.
+        rate: Standalone payloads per second, 1 through 1000; defaults to 10.
+            Standalone ffuf may retry once outside this limiter. Engagement scans
+            use the allocation HTTP rate limit instead, absent when not configured.
         match_status: HTTP status numbers/ranges to match, or all (default).
         filter_status: Optional comma-separated HTTP status numbers/ranges to exclude.
         filter_size: Optional comma-separated response byte sizes/ranges to exclude.
         filter_words: Optional comma-separated response word counts/ranges to exclude.
         filter_lines: Optional comma-separated response line counts/ranges to exclude.
         timeout_seconds: Total deadline including artifact retrieval, 1 through 3600
-            seconds; defaults to 300. Each HTTP request has a 10-second timeout.
+            seconds; defaults to 300. Standalone requests have a 10-second timeout;
+            controlled requests use the allocation transport and invocation deadline.
+        credential_id: Optional exact assigned engagement credential ID; omission
+            selects anonymous access. Invalid without an engagement assignment.
 
     Returns:
         Process status, exact wordlistArtifact, wordlistEntries, bounded decoded results,
@@ -1341,6 +1347,16 @@ class FFUFTool(ScanTool):
         progress or request errors fail even if ffuf exits zero. Empty matches do not
         establish a clean target. Raw diagnostics are suppressed; tool@1 stores a report.
     """
+
+    async def http_proxy_arguments(self, bridge: HTTPProxyBridge, directory: Path) -> list[str]:
+        config = directory / "ffuf-proxy.toml"
+        await threads.to_thread_until_done(
+            _write_private,
+            config,
+            ("[http]\nproxyurl = " + json.dumps(bridge.proxy_url) + "\n").encode(),
+            name="ffuf-private-proxy-config",
+        )
+        return ["-config", str(config)]
 
     async def __call__(
         self,
@@ -1353,12 +1369,21 @@ class FFUFTool(ScanTool):
         filter_words: str = "",
         filter_lines: str = "",
         timeout_seconds: int = 300,
+        credential_id: str | None = None,
     ) -> dict:
         exact_ref: ArtifactRef | None = None
         entries = 0
 
         def arguments():
             nonlocal exact_ref
+            controlled = self._session.controlled_http
+            if credential_id is not None and (
+                controlled is None
+                or not any(
+                    item["credential_id"] == credential_id for item in controlled.credentials()
+                )
+            ):
+                raise ScanInputError("credential is not assigned to this allocation")
             validate_ffuf_url(url)
             _url(url)
             _integer(rate, "rate", 1, 1000)
@@ -1378,9 +1403,13 @@ class FFUFTool(ScanTool):
                 "-t",
                 "1",
                 "-rate",
-                str(rate),
+                str(
+                    rate
+                    if controlled is None
+                    else controlled.configured_limits().get("requestsPerSecond", 0)
+                ),
                 "-timeout",
-                "10",
+                "10" if controlled is None else str(timeout_seconds),
                 "-mc",
                 match_status,
             ]
@@ -1395,8 +1424,18 @@ class FFUFTool(ScanTool):
                     command.extend((flag, value))
             return command
 
-        async def prepare_wordlist(directory: Path, _deadline: float) -> list[str]:
+        async def prepare_wordlist(directory: Path, deadline: float) -> list[str]:
             nonlocal entries
+            if self._session.controlled_http is not None:
+                version = await run_process(
+                    [self._session.executables[self.name], "-V"],
+                    directory,
+                    max(0.001, deadline - time.monotonic()),
+                )
+                if version.error_code:
+                    raise ScannerUnavailable(version.error_code)
+                if version.stdout.strip() != b"ffuf version: 2.3.0":
+                    raise ScannerUnavailable("scan_proxy_unsupported")
             if not (exact_ref is not None):
                 raise RuntimeError("Expected exact_ref is not None")
             try:
@@ -1437,6 +1476,7 @@ class FFUFTool(ScanTool):
             destination=lambda: _url_destination(url),
             prepare=prepare_wordlist,
             observation=observation,
+            credential_id=credential_id,
         )
 
 

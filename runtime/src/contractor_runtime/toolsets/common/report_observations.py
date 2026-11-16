@@ -23,6 +23,7 @@ from contractor_runtime.contracts.base import (
     NAME_PATTERN,
     StrictWireModel,
 )
+from contractor_runtime.contracts.engagement import HTTPLimits
 from contractor_runtime.strict_json import strict_json_loads
 from contractor_runtime.toolsets.common.observation_metadata import normalize_http_observation
 
@@ -82,6 +83,7 @@ class _FFUFMatch(StrictWireModel):
 
 
 class _FFUF(_Process):
+    http_limits: HTTPLimits = Field(default_factory=HTTPLimits)
     results: list[_FFUFMatch]
     wordlist_artifact: ArtifactRef
     wordlist_entries: Annotated[int, Field(ge=1, le=10000)]

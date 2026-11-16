@@ -262,7 +262,7 @@ func builtInDescriptors() descriptorTable {
 			"scan@1": {
 				Tools: []string{"scan_ffuf", "scan_katana", "scan_naabu", "scan_nuclei", "scan_sqlmap"},
 				InfrastructureChannels: map[string][]infrastructureChannel{
-					"scan_ffuf":   {channelRuntimeSubprocessLauncher},
+					"scan_ffuf":   {channelRuntimeHTTPClient, channelRuntimeSubprocessLauncher},
 					"scan_katana": {channelRuntimeSubprocessLauncher},
 					"scan_naabu":  {channelRuntimeSubprocessLauncher},
 					"scan_nuclei": {channelRuntimeHTTPClient, channelRuntimeSubprocessLauncher},

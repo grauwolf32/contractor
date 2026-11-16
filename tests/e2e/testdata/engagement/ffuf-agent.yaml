@@ -1,0 +1,20 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata: {name: engagement-ffuf, version: "1"}
+spec:
+  description: Exercise the actual ffuf engine through the allocation HTTP owner.
+  runtime: tool@1
+  sandboxProfile: local-workdir@1
+  toolsets:
+    - ref: scan@1
+      tools: [scan_ffuf]
+  sitemap: {version: sitemap-access@1, collectObservations: true}
+  execution:
+    tool: scan_ffuf
+    arguments:
+      url: {source: parameter, name: target}
+      credential_id: {source: parameter, name: credential_id, optional: true}
+      wordlist_ref: {source: artifact, name: wordlist}
+      timeout_seconds: {source: literal, value: 30}
+    resultArtifact: report
+    timeoutSeconds: 40

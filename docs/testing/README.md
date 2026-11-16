@@ -13,6 +13,7 @@ UI dependencies. Choose a check by the boundary you changed:
 | Worker context compaction, bounded history and ordinary/Audit continuation | `make test-worker-compaction-e2e` | Disposable test database, pinned Go and locked ADK 2.13 Runtime; scripted Gateway |
 | Server/Runtime process integration | `make test-e2e` | Test database and locked Runtime environment |
 | Real scanner process and browser integration | `make test-scan-e2e` | Test database, Chromium, and host `nuclei`, `naabu`, `sqlmap`, `ffuf`, `katana` |
+| Controlled ffuf, private credentials, normalized sitemap results and termination | `make test-pentest-scanner-e2e` | Disposable PostgreSQL, locked Runtime, provisioned ffuf 2.3.0 and an active RFC1918 interface; no model calls |
 | Private paired HTTP targets, state oracles and network isolation | `make test-pentest-fixtures` | Local Podman, preinstalled exact image and pinned sibling playground; [fixture contract](../../tests/eval/pentest/README.md); no Gateway or database |
 | Separate Node UI with the real Go/Python stack | `make test-ui-stack` | Test database and Chromium with host libraries |
 | Basic scan/sweep widgets through the real API | `make test-web-scan-ui-stack` | Test database and locked Runtime/UI; no Studio or managed Eval scenarios |

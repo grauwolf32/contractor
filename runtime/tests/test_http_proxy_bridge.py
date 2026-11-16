@@ -46,6 +46,34 @@ class Owner:
         )
 
 
+def test_failed_invocation_refuses_a_scanner_retry_on_a_new_proxy_connection():
+    async def scenario():
+        owner = Owner()
+
+        async def fail(url, **options):
+            owner.calls.append((url, options))
+            return HTTPOutcome("failed", reason="transport_failed"), None
+
+        owner.request = fail
+        try:
+            async with HTTPProxyBridge(
+                owner, credential_id=None, deadline=time.monotonic() + 15
+            ) as bridge:
+                for _ in range(2):
+                    # Keep the process alive deliberately: stopping the scanner
+                    # eventually must not be the target-authority fence.
+                    async with httpx.AsyncClient(proxy=bridge.proxy_url, trust_env=False) as client:
+                        with pytest.raises(httpx.HTTPError):
+                            await client.get("http://nonresolving.invalid/allowed")
+                assert len(owner.calls) == 1
+                assert bridge.error_code == "scan_request_failed"
+        finally:
+            if owner.engine is not None:
+                await owner.engine.close()
+
+    asyncio.run(scenario())
+
+
 @pytest.mark.parametrize("expired", [False, True], ids=["request-budget", "scan-deadline"])
 @pytest.mark.parametrize("failure", ["timeout", "connect_failed", "denied"])
 def test_bridge_classifies_delegated_timeout_by_scan_deadline(monkeypatch, expired, failure):

@@ -159,6 +159,10 @@ test-nuclei-engagement: require-database runtime-venv
 	go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^TestNucleiEngagementAcrossProductionProcesses$$'
 	cd runtime && uv run pytest -W error tests/test_http_proxy_bridge.py tests/test_nuclei_engagement.py
 
+.PHONY: test-pentest-scanner-e2e
+test-pentest-scanner-e2e: require-database runtime-venv
+	python3 scripts/test-pentest-scanner-e2e.py
+
 # Focused compaction proof; consolidated release reuses its canonical reports.
 WORKER_COMPACTION_PROCESS_TESTS := $(shell python3 scripts/release_test_reports.py compaction-pattern)
 .PHONY: test-worker-compaction-e2e

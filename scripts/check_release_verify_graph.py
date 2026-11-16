@@ -105,6 +105,10 @@ EXPECTED_CONFIG_TESTS = {
 # opt-in target that selects it and why release-verify cannot run it; every
 # other e2e-tagged test must be selected by release-verify.
 OPT_IN_E2E_TESTS = {
+    "TestFFUFEngagementAcrossProductionProcesses": (
+        "test-pentest-scanner-e2e",
+        "requires the provisioned ffuf 2.3.0 engine on PATH",
+    ),
     "TestAuditCommonScanProfilesAcrossProductionProcesses": ("test-audit-common-programs-e2e", "requires real nuclei and sqlmap scanners on PATH"),
     "TestAuditCommonSourcePreparationAcrossProductionProcesses": ("test-audit-common-programs-e2e", "requires real sqlmap on PATH"),
     "TestNucleiEngagementAcrossProductionProcesses": (
@@ -534,7 +538,7 @@ def script_go_tests(relative: str, command: str = "") -> list[GoTest]:
                    module.reports.pattern(case for cases in accounting.values() for case in cases),
                    race=True),
         ]
-    if relative == "scripts/test-project-sitemap-tools-e2e.py":
+    if relative in {"scripts/test-project-sitemap-tools-e2e.py", "scripts/test-pentest-scanner-e2e.py"}:
         return [GoTest(relative, frozenset({"e2e"}), ("./tests/e2e",), "^(" + "|".join(module.PROCESS_TESTS) + ")$")]
     if relative == "scripts/test-findings-e2e.py":
         return [GoTest(relative, frozenset({"e2e"}), ("./tests/e2e",), "^(" + "|".join(module.PROCESS_TESTS) + ")$")]

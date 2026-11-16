@@ -1,0 +1,31 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata: {name: engagement-ffuf, version: "1"}
+spec:
+  parameters:
+    target: {required: true}
+    credential_id: {required: false}
+  inputs:
+    wordlist: {required: true, mediaTypes: [text/vnd.contractor.wordlist]}
+    network_policy: {required: true, mediaTypes: [application/vnd.contractor.engagement+json]}
+  outputs:
+    report: {required: true, primary: true, mediaTypes: [application/json]}
+  entryStage: scan
+  stages:
+    scan:
+      objective: Fuzz the explicit target under the selected engagement.
+      instructions: {ref: instructions/engagement-fixture.md}
+      planner: passthrough@1
+      agents:
+        scanner: {template: engagement-ffuf@1}
+      context:
+        artifacts:
+          wordlist: {namespace: inputs, name: wordlist, required: true}
+      result:
+        artifacts:
+          report: {required: true, mediaTypes: [application/json], from: {namespace: scanner, name: report}}
+      workflowOutputs: {report: report}
+      on:
+        succeeded: {succeed: {}}
+        failed: {fail: {}}
+        interrupted: {fail: {}}
