@@ -59,11 +59,11 @@ bridge не подписаны на sitemap collector, а controlled HTTP tools 
 источником sitemap.
 
 Nuclei интегрирован с engagement transport по
-[SCN-R259–263](../spec/tools/scanners.md). ffuf и Katana пока имеют собственные
-сетевые пути. Интеграция ffuf отдельно запланирована в
-[V412-005](../../tasks/v412-005-controlled-scanner-pentest-integration.yml).
-Эксперимент не должен незаметно реализовать эту интеграцию, интеграцию Katana
-или поддержку engagement для всех standalone Runs.
+[SCN-R259–263](../spec/tools/scanners.md). ffuf подключён к тому же транспорту
+по SCN-R268 в завершённой
+[V412-005](../../tasks/done/v412-005-controlled-scanner-pentest-integration.yml).
+Katana пока имеет собственный сетевой путь. Эксперимент не должен незаметно
+добавить интеграцию Katana или поддержку engagement для всех standalone Runs.
 
 ## Сравниваемые подходы
 
