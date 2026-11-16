@@ -6,11 +6,13 @@ epic: planner-worker
 kind: defect
 introduced_by: V420-002
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 8317b1c1728ef6d220d12ec7cba2e6eff619687b
 depends_on: []
 languages: [go, python, json]
 goal: Count the previous summary in rolling compaction source bytes.
 context:
+  evidence: tasks/evidence/v468-followup-review-20261116.json
   authority: 'User decision 2026-11-16: review fix/first-release-review-20261116, implement all bug fixes and proposed lifecycle refactorings on that branch, then merge into main.'
   finding: 'internal/planner/streamline/compaction.go:451 excludes the previous summary from the context replaced by the next checkpoint.'
   siblings: 'Fix shared Streamline/Router accounting; add shared Go/Python boundary fixtures for protected groups and repeated summaries; retain existing Worker accounting.'
