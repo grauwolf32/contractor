@@ -211,6 +211,53 @@ def test_boundary_uses_ratio_and_output_reserve() -> None:
     assert compaction_boundary(policy, 0.95) == 900
 
 
+@pytest.mark.parametrize("groups", [1, 2, 3, 4, 5, 6])
+def test_early_checkpoint_preserves_the_entire_recent_window(tmp_path: Path, groups: int) -> None:
+    async def run() -> None:
+        effects: list[str] = []
+        tags = [f"step-{index}" for index in range(groups)]
+        model = CapturingScriptedLlm(
+            model="worker-model",
+            responses=[
+                *(step(tag, 500 if index == groups - 1 else 100) for index, tag in enumerate(tags)),
+                usage(text_result("done"), 100),
+            ],
+        )
+        compactor = scripted_model(
+            [summary("Earlier steps recorded")], model=COMPACTOR_MODEL, auto_result_finalizer=False
+        )
+        runtime = await compact_runtime(
+            tmp_path, WorkerState(), {"step": recording_step(effects)}, model, compactor, keep=4
+        )
+        try:
+            result = await runtime.invoke(stage_request())
+            assert effects == tags
+            if groups <= 4:
+                assert result.failure is not None
+                assert result.failure.code == "worker_compaction_failed"
+                assert "ineffective" in result.failure.message
+                assert compactor.requests == []
+            else:
+                assert result.failure is None
+                assert len(compactor.requests) == 1
+                continuation = next(
+                    payload
+                    for payload in model.payloads
+                    if "Context checkpoint 1" in json.dumps(payload)
+                )
+                retained = [
+                    json.loads(message["content"])["recorded"]
+                    for message in continuation["messages"]
+                    if message["role"] == "tool"
+                ]
+                assert retained == tags[-4:]
+                assert_balanced_tool_calls(continuation)
+        finally:
+            await finish(runtime)
+
+    asyncio.run(run())
+
+
 @pytest.mark.parametrize("prompt", [100, None])
 def test_tool_windows_compact_after_parallel_settlement(
     tmp_path: Path, prompt: int | None, monkeypatch: pytest.MonkeyPatch
