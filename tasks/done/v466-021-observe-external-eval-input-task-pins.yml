@@ -5,7 +5,8 @@ milestone: worker-context-compaction-quality-2026-10
 epic: evals
 kind: feature
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 57992a95412aea210a7d1936eba23b2953aa6f5f
 depends_on:
 - V466-015
 languages:
