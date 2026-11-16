@@ -75,13 +75,11 @@ context:
     All60 native pairs carry pins-unverified: external registration does not
     observe source/task equality. All native verdicts remain inconclusive.
     The consumer preflight gap is corrected and tested before any new dispatch.
-    Return to pending for proposed prerequisite V466-021 and explicit user
-    scope decision. No live quality acceptance or policy recommendation.
-  decision_needed: >-
-    User was asked on2026-11-16 whether to implement common Eval prerequisite
-    V466-021 or retain this research incomplete. It is a production capability
-    outside this task's harness scope (AGENTS.md4.1); no implementation has
-    started. Missing native pins cannot be bypassed by a local comparison.
+    Pending while authorized prerequisite V466-021 is implemented. No live quality acceptance or policy recommendation.
+  prerequisite_authorized: >-
+    User decision 2026-11-16 approves V466-021 separately. This task remains
+    pending until that prerequisite completes, then resumes with a new frozen
+    plan and the configured model; previous attempts and costs remain retained.
   comparison_preflight_correction: >-
     The assigned consumer now checks the native pair exclusions before its
     first submission. A regression fails under the old implementation because

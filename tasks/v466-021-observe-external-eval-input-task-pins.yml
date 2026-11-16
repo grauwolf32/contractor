@@ -5,7 +5,7 @@ milestone: worker-context-compaction-quality-2026-10
 epic: evals
 kind: feature
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V466-015
 languages:
@@ -25,17 +25,10 @@ demonstration: >-
   task or unavailable source stays incomparable.
 context:
   authority: >-
-    Agent proposal 2026-11-16 arising from assigned V417-010. Implementation
-    approval is pending in the current chat; creating this task is shaping
-    only. User authorization for the earlier terminal-summarizer accounting
-    correction does not authorize this distinct production capability.
-  decision_needed: >-
-    User chooses whether to add this common Eval prerequisite or retain
-    V417-010 as incomplete. Recommend observing only what the existing local
-    Artifact/recipe checks actually establish, without a harness-specific
-    comparison engine. Alternative: preserve the incomplete experiments and
-    make no quality or policy recommendation. Do not start implementation
-    before the user answers.
+    User decision 2026-11-16 explicitly approves implementing the common Eval
+    source/task provenance capability as a separate task, then continuing
+    V417-010. Retain all prior attempts/costs; do not ask for that scope again.
+    The proposed boundary and exclusions below are accepted for execution.
   specification:
   - docs/spec/evals/managed-evals.md#EVM-R31
   - docs/spec/evals/managed-evals.md#EVM-R60
@@ -45,12 +38,14 @@ context:
   - docs/spec/evals/managed-evals.md#EVM-R138
   - docs/spec/evals/managed-evals.md#EVM-R242
   - docs/spec/evals/format.md#EVF-R1
-  evidence: tasks/evidence/v417-010-freeze-r2-20261116.json
+  evidence:
+  - tasks/evidence/v417-010-freeze-r2-20261116.json
+  - tasks/evidence/v466-021-acceptance-20261116.json
   current_boundary: >-
     authoring.go resolveExternal freezes Resolver pins, which cover executable
     configuration. Source/task pins are added only by the native plan builder
     in plan_variants.go. collection_pins.go correctly refuses unknown required
-    dimensions. All60 pairs of the retained external study consequently carry
+    dimensions. All 60 pairs of the retained external study consequently carry
     pins-unverified even though local Artifact/recipe provenance is separately
     pinned. V417-010 independently owns the consumer admission guard.
   alternatives_checked: >-
@@ -62,7 +57,7 @@ context:
     consumer and fix observation at its existing owner, or retain the research
     incomplete; never weaken required equality to admit it.
   implementation_decision: >-
-    Proposed boundary is the existing Server Eval authoring/resolution owner,
+    Accepted boundary is the existing Server Eval authoring/resolution owner,
     using validated local Artifact metadata and effective task/mapping rules.
     Reuse the native definitions where they apply. Keep the attributed portable
     hashes separate from locally observed pins. No Runtime round trip, second
@@ -150,9 +145,20 @@ tests:
   covers: [A1, A2, A3]
 - command: make verify-public-api-postgres
   covers: [A1, A2]
+- command: make test-wire-cross-language
+  covers: [A1, A2, A3]
 - command: make lint
   covers: [A1, A2, A3]
 test_prerequisites:
 - Use one owned disposable PostgreSQL database with CONTRACTOR_TEST_DATABASE_URL set; an unreachable configured database fails.
 - Keep CONTRACTOR_TEST_HEAVY_IO unset unless the user explicitly requests named heavy fixtures.
 - Validate new comparison provenance with real service/store paths, not a fake that invents observed source/task pins.
+verification:
+- command: go test ./internal/evalservice ./internal/evalstore ./internal/evaldomain
+  result: Passed with real PostgreSQL, including eight ordinary external Runs, four complete comparable pairs, strict input rejection, canonical recipes and unchanged retained resources.
+- command: make verify-public-api-postgres
+  result: Passed the PostgreSQL-backed public API race gate.
+- command: make test-wire-cross-language
+  result: Passed 394 shared fixtures, 443 Go and 280 Python shared tests plus 417 Python contract tests; one optional heavy fixture skipped, not counted as passing coverage.
+- command: make lint
+  result: Passed full formatting, static analysis, task/spec, release-graph, fixture-source and layer checks.

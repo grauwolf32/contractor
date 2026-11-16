@@ -19,8 +19,8 @@ execution_policy:
     completed,1 cancelled and83 unrun, with every expected member and known
     cost retained. Known R2 usage is1377320 tokens and USD0.1930442420 reported;
     cancelled-member complete usage/price are unavailable. No quality acceptance
-    or recommendation. Agent-proposed V466-021 is pending explicit user scope
-    decision under AGENTS.md4.1; no common Eval implementation has started.
+    or recommendation. User decision 2026-11-16 approves V466-021 as a separate
+    common Eval prerequisite; it is in_progress before resuming V417-010.
     V417-004 stays reserved in_progress and executes LAST after V417-010.
     This branch is not merged or deployed. Earlier accepted evidence follows.
     User request 2026-11-14 delivered on 2026-11-15 integrates the reviewed
