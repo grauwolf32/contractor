@@ -171,12 +171,17 @@ func TestPostgresDiagnosticsIsolationVisibilityAndOptionalPrivileges(t *testing.
 	if reason != "" || *d.IdleInTransactionConnections < 1 || d.LongestTransactionSeconds == nil || d.LongestIdleTransactionSeconds == nil {
 		t.Fatal("idle transaction missing")
 	}
-	var actual uint64
-	if err = working.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() AND backend_type='client backend'`).Scan(&actual); err != nil {
-		t.Fatal(err)
-	}
-	if *d.ClientConnections != actual-1 {
-		t.Fatalf("own backend counted: got=%d all=%d", *d.ClientConnections, actual)
+	// Both counts must use the observer's same statistics snapshot. Other
+	// packages can open/close connections in this database between statements.
+	// Run the production query, not a copy of its exclusion predicate.
+	var observed, actual uint64
+	err = normalStore.transaction(ctx, false, false, func(ctx context.Context, tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `SELECT observation.clients,
+ (SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() AND backend_type='client backend')
+ FROM (`+databaseStatisticsSQL+`) AS observation`).Scan(&observed, &actual)
+	})
+	if err != nil || observed != actual-1 {
+		t.Fatalf("own backend exclusion: got=%d all=%d err=%v", observed, actual, err)
 	}
 }
 
