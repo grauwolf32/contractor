@@ -6,11 +6,13 @@ epic: planner-worker
 kind: chore
 introduced_by: V1-002
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: c2dd279555f935ccd6ebe6873ed90903c05d7273
 depends_on: []
-languages: [go, python]
+languages: [python]
 goal: Share ordered Runtime producer shutdown.
 context:
+  evidence: tasks/evidence/v468-followup-review-20261116.json
   authority: 'User decision 2026-11-16: review fix/first-release-review-20261116, implement all bug fixes and proposed lifecycle refactorings on that branch, then merge into main.'
   finding: 'runtime/src/contractor_runtime/allocation/service.py:627 and :712 duplicate deadline-bounded Worker shutdown and producer cleanup.'
   siblings: 'Reuse bounded Worker stopping and ordered resource teardown while keeping command identity, lease fencing, cached reports, release coordination and workspace disposition in the lifecycle owner.'
