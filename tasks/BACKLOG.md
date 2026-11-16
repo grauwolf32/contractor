@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-60 open tasks: 9 in progress, 38 pending, 13 deferred. 1595 finished: 1577 completed, 18 archived.
+61 open tasks: 9 in progress, 39 pending, 13 deferred. 1595 finished: 1577 completed, 18 archived.
 
 ## In progress
 
@@ -33,6 +33,7 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
+| [V417-011](v417-011-worker-compaction-call-windows.yml) | feature | P1 | — | Renew Worker model and tool call windows after committed compaction |
 | [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | — | Verify Planner compaction persistence cancellation and scale boundaries |
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | — | Expose bounded truthful Planner compaction diagnostics |
 
@@ -147,7 +148,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 2 | 49 | 69 | 40 | 106 |
-| Planners and the Worker model boundary (`planner-worker`) | 4 | 36 | 57 | 36 | 90 |
+| Planners and the Worker model boundary (`planner-worker`) | 5 | 37 | 57 | 36 | 90 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 3 | 15 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
