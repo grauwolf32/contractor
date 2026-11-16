@@ -89,12 +89,11 @@ These are settled decisions. Do not reopen them without the user.
   publication rejects other content under an existing identity, Skill seeds
   and Audit standard packages report drift, and Eval pins reject a changed
   selection; changed Audit standard content under `configs/audit-standards`
-  still needs a new version. The rest of the shipped catalog under `configs/`
-  (manifests and instructions) is pre-production: until the first release it
-  may change in place without a version bump (CAT-R74 in
-  `docs/spec/configuration/catalog.md`). Run snapshots and Eval pins record
-  digests, so compare digests, not `name@version`, when exact content matters.
-  The first release replaces this exception with a digest lock.
+  still needs a new version. The shipped catalog under `configs/` is pinned by
+  `catalog.lock.json` (CAT-R74). Changed content needs a new manifest version
+  or instruction path. `config lock` adds identities but refuses to rewrite
+  existing digests; release validation requires the lock. Run snapshots and
+  Eval pins remain exact.
 - **No `assert` in production Python.** Use `if not cond: raise RuntimeError(...)`
   (Ruff `S101` enforces it outside `runtime/tests/`). In Go, never call
   `os.Exit` below `main`; honour context cancellation.

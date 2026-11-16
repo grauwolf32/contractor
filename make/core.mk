@@ -56,7 +56,7 @@ test-wire-cross-language: require-database runtime-venv
 
 test-config:
 	go test ./internal/config/... ./internal/configload/...
-	go run ./cmd/contractor-server config validate --root ./configs
+	go run ./cmd/contractor-server config validate --root ./configs --require-catalog-lock
 
 test-postgres: require-database
 	go test -count=1 ./internal/persistence/postgres ./internal/credentials ./internal/agentprincipal ./internal/runtimeconfig ./internal/runstore ./internal/artifacts/... ./internal/httpapi/public ./internal/planner/session ./internal/scheduler ./internal/telemetry

@@ -178,6 +178,10 @@ func NewManager(options ManagerOptions) (*Manager, error) {
 func LoadUnionReadOnly(
 	operatorPath, managedPath string, checks ...OperatorRootCheck,
 ) (*Snapshot, error) {
+	return loadUnionReadOnly(operatorPath, managedPath, false, checks...)
+}
+
+func loadUnionReadOnly(operatorPath, managedPath string, extendLock bool, checks ...OperatorRootCheck) (*Snapshot, error) {
 	operatorRoot, err := requireStrictRoot(operatorPath, false)
 	if err != nil {
 		return nil, fmt.Errorf("operator configuration root: %w", err)
@@ -213,7 +217,7 @@ func LoadUnionReadOnly(
 		roots = append(roots, configurationRoot{path: managedRoot, source: ConfigurationSourceManaged})
 	}
 	return loadConfigurationRoots(roots, loadOptions{
-		allowMissingManagedSubtrees: true, operatorRootChecks: checks,
+		allowMissingManagedSubtrees: true, operatorRootChecks: checks, extendCatalogLock: extendLock,
 	})
 }
 

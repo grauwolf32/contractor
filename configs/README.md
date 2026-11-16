@@ -171,6 +171,8 @@ Model authoring is split into three deployment sources:
 | Whether and when a Worker produces a terminal summary | `agent-templates/*.yaml`, `spec.summarizer` |
 | Whether a Workflow's Worker compacts its context and continues | `workflows/*.yaml`, agent `contextManagement` |
 
+For a changed locked policy, increment its `policyVersion` and update the
+referring manifest versions before extending the catalog lock.
 Run `make model-config` after editing these deployment sources, then
 `make test-config`. The generated `model-policies/*.yaml`,
 `model-policies/models/*.yaml`, `model-selection.json` and
@@ -327,15 +329,21 @@ Manifest identity comes from `kind`, `metadata.name`, and `metadata.version`;
 file names and nesting are only organizational. Instruction references are
 paths relative to this directory.
 
-Until the first release this catalog is pre-production: a shipped manifest or
-instruction may change in place without a new `metadata.version`, and Server
-loads the new content under the same identity at its next start
-([CAT-R74](../docs/spec/configuration/catalog.md)). Runs, started Audits and
-Eval pins keep the digests of what they used, so compare digests rather than
-`name@version`. `audit-standards/` and `skills/` are seeded create-only and keep
-their own rules: changed standard content needs a new version, and a changed
-Skill source never replaces an owner's existing Skill artifact (Server reports
-`seed_drift`).
+The committed `catalog.lock.json` freezes shipped identities and their semantic
+content ([CAT-R74](../docs/spec/configuration/catalog.md)). Use a new manifest
+version or instruction path for changed content, then run:
+
+```sh
+go run ./cmd/contractor-server config lock --root ./configs
+go run ./cmd/contractor-server config validate --root ./configs --require-catalog-lock
+```
+
+The offline lock command adds new identities and retains retired entries; it
+refuses to replace an existing digest. Commit the manifest changes and lock
+together. Startup verifies a present lock, and the release gate requires it.
+Custom operator roots may remain unlocked. Runs, started Audits and Eval pins
+still retain exact content digests. `audit-standards/` and `skills/` keep their
+own create-only seed rules.
 
 `llm-gateways/` contains immutable, non-secret endpoint descriptions. The
 shipped `local-litellm@1` config uses the OpenAI-compatible `/v1` inference

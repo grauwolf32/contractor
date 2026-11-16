@@ -107,6 +107,11 @@ func copyLiveConfiguration(t *testing.T, repositoryRoot, target string, settings
 			}
 		}
 	}
+	// The source lock was checked above. This private Eval catalog deliberately
+	// selects a different model/route; give that copy its own lock after rewriting.
+	if err := os.Remove(filepath.Join(target, "catalog.lock.json")); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, errors.New("reset private Eval catalog lock failed")
+	}
 	if err := rewriteLiveManifests(target, "model-policies", policies, "model", settings.model); err != nil {
 		return nil, err
 	}
@@ -114,7 +119,7 @@ func copyLiveConfiguration(t *testing.T, repositoryRoot, target string, settings
 		return nil, err
 	}
 	// Recompute all identities and effective selections with the same loader the Server uses.
-	snapshot, _, err = configload.LoadUnionReadOnly(target, filepath.Join(t.TempDir(), "managed"))
+	snapshot, err = configload.UpdateCatalogLock(target, filepath.Join(t.TempDir(), "managed"))
 	if err != nil {
 		return nil, errors.New("overridden live configuration cannot be resolved")
 	}

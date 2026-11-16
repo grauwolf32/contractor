@@ -280,7 +280,7 @@ available through a tag or a manual full-gate run before a PR is merged.
 
 | Stage | Runs |
 | --- | --- |
-| `release-verify-lint` | `make lint build test-config`: the generated Go public client check, gofmt, vet, staticcheck, the test-only export check (`tools/testonlyexports`, with its vet and tests), the release-graph guard and its tests, the database ERD freshness check, Ruff, the Runtime import-layer contracts, the command builds, the configuration package tests and validation of the shipped catalog (`config validate --root ./configs`) |
+| `release-verify-lint` | `make lint build test-config`: the generated Go public client check, gofmt, vet, staticcheck, the test-only export check (`tools/testonlyexports`, with its vet and tests), the release-graph guard and its tests, the database ERD freshness check, Ruff, the Runtime import-layer contracts, the command builds, the configuration package tests and validation of the shipped catalog (`config validate --root ./configs --require-catalog-lock`) |
 | `release-verify-unit` | Every Go package (including untagged e2e gate tests), the seven tagged configuration fixtures, and one full Runtime run with `pytest -W error tests`; shared fixture reads and required Audit/findings cases are verified from these reports |
 | `release-verify-ui` | `make ui-verify`: generated-type check, lint, typecheck, unit and server tests, and the production build |
 | `release-verify-families` | The feature families' UI and matrix checks; Go and Runtime execution belongs to the canonical stages |

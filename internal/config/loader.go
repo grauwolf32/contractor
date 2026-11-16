@@ -63,6 +63,7 @@ type OperatorRootCheck struct {
 
 // loadOptions selects how strictly one load treats the filesystem.
 type loadOptions struct {
+	extendCatalogLock bool
 	// allowMissingManagedSubtrees treats an absent managed subtree as empty.
 	// Only offline validation sets it: the Server creates every managed
 	// subtree at startup, so a later absence must fail the load.
@@ -146,6 +147,13 @@ func loadConfigurationRoots(roots []configurationRoot, options loadOptions) (*Sn
 		current.workflows, current.templates, current.policies, current.gateways,
 		current.auditProfiles, current.instructions, current.sources,
 	)
+	for _, root := range resolvedRoots {
+		if root.source == ConfigurationSourceOperator {
+			if _, err := checkCatalogLock(root.path, snapshot, false, options.extendCatalogLock); err != nil {
+				return nil, fmt.Errorf("operator catalog lock: %w", err)
+			}
+		}
+	}
 	for _, check := range options.operatorRootChecks {
 		if check.AfterLoad != nil {
 			if err := check.AfterLoad(snapshot); err != nil {
@@ -293,6 +301,7 @@ func (l *loader) loadInstructionResources() error {
 			l.instructions[relative] = contracts.ResolvedInstructions{
 				Ref: relative, Digest: contentdigest.Bytes(data), Text: string(data),
 			}
+			l.sources[configurationSourceKey(ConfigurationKind("instructions"), relative)] = root.source
 			return nil
 		})
 		if err != nil {
@@ -458,6 +467,7 @@ func (l *loader) loadWorkflows() error {
 			return fmt.Errorf("%s: %w", file.relative, resolveErr)
 		}
 		l.workflows[selector.String()] = workflow
+		l.sources[configurationSourceKey(ConfigurationKind("workflows"), selector.String())] = file.source
 	}
 	return nil
 }
