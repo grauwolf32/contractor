@@ -1,0 +1,36 @@
+{
+  "task": "V417-011",
+  "kind": "observed behavior motivating a user-requested contract change",
+  "observed_on": "2026-11-16",
+  "deployed_commit": "74a8d5054edfdd4c6fefa9bd4b7cf2823a88ac2d",
+  "audit_id": "audit_36bba63d53d7ac28de859ffb2db2f4c2",
+  "run_id": "run_7ce64070d864a51a3b2aab039434fba3",
+  "prior_contract": {
+    "model_calls": "cumulative per invocation",
+    "tool_calls": "renewable window after committed checkpoint",
+    "model_limit": 200,
+    "tool_window_limit": 200
+  },
+  "observation": {
+    "successful_compactions": 1,
+    "main_prompt_tokens_before": 55655,
+    "main_prompt_tokens_after": 8273,
+    "compactor_input_tokens": 52334,
+    "compactor_output_tokens": 2146,
+    "model_calls_total": 200,
+    "worker_tool_calls_total": 201,
+    "main_model_calls_after_compaction": 1,
+    "failure_code": "worker_budget_exhausted",
+    "failure_budget": "model_calls",
+    "findings": 0,
+    "trace_spans": 408
+  },
+  "user_decision": {
+    "renew_model_and_tool_windows_only_after_commit": true,
+    "either_window_requests_compaction": true,
+    "compactor_uses_own_call_policy": true,
+    "preserve_cumulative_tokens_deadline_cycles_and_usage": true,
+    "failed_compaction_grants_no_capacity": true
+  },
+  "evidence_scope": "Read-only trace/API analysis of an already finished demo Run; task creation performs no live model call or new Run."
+}
