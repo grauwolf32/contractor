@@ -217,7 +217,10 @@ class Ingress(OwnedHandler, server.LiveConnectionHandler):
                 raise ValueError("request body bound")
             self.pending.add(flow.id)
         elif name == "request":
-            if not self.authenticated:
+            # A scanner may retry its failed proxy exchange before the process
+            # stop observer runs. The first failure permanently closes this
+            # invocation's target authority, including on another connection.
+            if not self.authenticated or self.bridge.failed.is_set():
                 flow.kill()
                 return
             self.bridge.requests += 1

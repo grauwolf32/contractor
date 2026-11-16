@@ -795,7 +795,7 @@ its owning requirement.
 | `LIM-SCN-25` | 1 MiB | scanner wordlist source artifact | scan_ffuf adapter (Runtime), before scanner launch | [SCN-R86](../tools/scanners.md) |
 | `LIM-SCN-26` | 10,000 payloads | payloads in one scanner wordlist | scan_ffuf adapter (Runtime), before scanner launch | [SCN-R86](../tools/scanners.md) |
 | `LIM-SCN-27` | 4096 UTF-8 bytes | one wordlist payload, excluding its line delimiter | scan_ffuf adapter (Runtime), before scanner launch | [SCN-R86](../tools/scanners.md) |
-| `LIM-SCN-28` | 1-1000 payloads per second, default 10 | scan_ffuf rate argument | scan_ffuf adapter (Runtime) | [SCN-R97](../tools/scanners.md) |
+| `LIM-SCN-28` | 1-1000 payloads per second, default 10 | standalone scan_ffuf rate argument; controlled execution uses only assigned HTTP limits | scan_ffuf adapter (Runtime) | [SCN-R97](../tools/scanners.md), [SCN-R268](../tools/scanners.md) |
 | `LIM-SCN-29` | 1-3600 seconds, default 300 | scan_ffuf timeout_seconds (total artifact-read, preparation and scan deadline) | scan_ffuf adapter (Runtime) | [SCN-R97](../tools/scanners.md) |
 | `LIM-SCN-30` | 64 entries | each scan_ffuf match_status, filter_status, filter_size, filter_words or filter_lines argument | scan_ffuf adapter (Runtime) | [SCN-R98](../tools/scanners.md) |
 | `LIM-SCN-31` | 1024 ASCII bytes | each scan_ffuf match_status, filter_status, filter_size, filter_words or filter_lines argument | scan_ffuf adapter (Runtime) | [SCN-R98](../tools/scanners.md) |
@@ -803,7 +803,7 @@ its owning requirement.
 | `LIM-SCN-33` | 100-599 | HTTP status values in scan_ffuf match and filter arguments | scan_ffuf adapter (Runtime) | [SCN-R98](../tools/scanners.md) |
 | `LIM-SCN-34` | 0-1000000000 | byte, word and line counts in scan_ffuf filters | scan_ffuf adapter (Runtime) | [SCN-R98](../tools/scanners.md) |
 | `LIM-SCN-35` | 1 thread | ffuf invocation | scan_ffuf adapter (Runtime) | [SCN-R100](../tools/scanners.md) |
-| `LIM-SCN-36` | 10 seconds | HTTP timeout of each ffuf request | scan_ffuf adapter (Runtime) | [SCN-R100](../tools/scanners.md) |
+| `LIM-SCN-36` | 10 seconds | standalone ffuf request timeout; controlled execution uses the owner and invocation deadlines | scan_ffuf adapter (Runtime) | [SCN-R100](../tools/scanners.md), [SCN-R268](../tools/scanners.md) |
 | `LIM-SCN-37` | 100 matches | projected ffuf JSONL matches in the observation | scan_ffuf adapter (Runtime) | [SCN-R103](../tools/scanners.md) |
 | `LIM-SCN-38` | 128 KiB | encoded ffuf match data in the observation | scan_ffuf adapter (Runtime) | [SCN-R103](../tools/scanners.md) |
 | `LIM-SCN-39` | 2 MiB (UTF-8 bytes as stored) | OpenAPI source document bytes | Shared source decoder in internal/scanplan, used by preparation and the openapi-operations@1 inventory (including package members); OpenAPI authoring Toolset openapi@1 (Runtime) on load, mutation, write and before validation ([SCN-R253](../tools/scanners.md)) | [SCN-R167](../tools/scanners.md) |
@@ -835,7 +835,7 @@ its owning requirement.
 | `LIM-SCN-65` | 4 MiB | serialized scan plan | scan-plan@1 Planner (BuildPlan and the scan plan codec) | [SCN-R198](../tools/scanners.md) |
 | `LIM-SCN-66` | 100 bytes | report.from.name prefix of the scan-plan@1 aggregate report | scan-plan@1 Stage configuration | [SCN-R211](../tools/scanners.md) |
 | `LIM-SCN-67` | ±9007199254740991 (exact integer range of IEEE 754 doubles) | numbers in a JSON or YAML preparation source | Preparation library internal/scanplan; OpenAPI authoring Toolset openapi@1 (Runtime) on load and mutation ([SCN-R257](../tools/scanners.md)) | [SCN-R124](../tools/scanners.md) |
-| `LIM-SCN-68` | at most 1 retry | each failed ffuf HTTP request, without another rate-limiter tick | ffuf, within the scan_ffuf deadline (Runtime) | [SCN-R102](../tools/scanners.md) |
+| `LIM-SCN-68` | at most 1 retry | each failed standalone ffuf HTTP request, without another rate-limiter tick; controlled failure fences further target requests | ffuf, within the scan_ffuf deadline (Runtime) | [SCN-R102](../tools/scanners.md), [SCN-R268](../tools/scanners.md) |
 | `LIM-SCN-69` | 50000 files | pinned Nuclei installed package | Runtime streaming private snapshot | [SCN-R227](../tools/scanners.md) |
 | `LIM-SCN-70` | 512 MiB | pinned Nuclei package aggregate file bytes | Runtime streaming private snapshot | [SCN-R227](../tools/scanners.md) |
 | `LIM-SCN-71` | 16 MiB | each pinned Nuclei package file | Runtime streaming private snapshot | [SCN-R227](../tools/scanners.md) |

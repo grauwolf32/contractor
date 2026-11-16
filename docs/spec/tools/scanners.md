@@ -943,13 +943,14 @@ wordlist bytes are not promised to be the literal encoded bytes on the wire.
 
 | Argument | Contract |
 | --- | --- |
-| `rate` | Configured payloads per second, integer 1–1000; default 10 (LIM-SCN-28). |
+| `rate` | Standalone payloads per second, integer 1–1000; default 10 (LIM-SCN-28). Controlled execution uses SCN-R268. |
 | `timeout_seconds` | Total artifact-read, preparation and scan deadline, integer 1–3600 seconds; default 300 (LIM-SCN-29). |
 | `match_status` | HTTP status codes or ordered ranges to include; default `all`. |
 | `filter_status` | HTTP status codes or ordered ranges to exclude; default empty. |
 | `filter_size` | Response byte counts or ordered ranges to exclude; default empty. |
 | `filter_words` | Response word counts or ordered ranges to exclude; default empty. |
 | `filter_lines` | Response line counts or ordered ranges to exclude; default empty. |
+| `credential_id` | Optional exact assigned engagement credential; omission selects anonymous access (SCN-R268). |
 
 **SCN-R98.** Filters (`match_status`, `filter_status`, `filter_size`,
 `filter_words` and `filter_lines`) are comma-separated numbers or ranges, each
@@ -962,7 +963,7 @@ Exclusion filters combine using ffuf's OR semantics. No regex or arbitrary
 flags are accepted.
 
 **SCN-R100.** Runtime invokes a fixed GET operation with one thread
-(LIM-SCN-35), a ten-second HTTP timeout (LIM-SCN-36) and no shell. Redirect
+(LIM-SCN-35), a ten-second standalone HTTP timeout (LIM-SCN-36) and no shell. Redirect
 following, recursion, auto-calibration, comment removal, external input
 commands and additional wordlists are not enabled.
 
@@ -970,10 +971,46 @@ commands and additional wordlists are not enabled.
 ([RuntimeConfig](../configuration/runtime-config.md)) fails with
 `scan_proxy_unsupported` (FAIL-SCN-8).
 
-**SCN-R102.** ffuf may retry a failed HTTP request once (LIM-SCN-68) without
+**SCN-R102.** Standalone ffuf may retry a failed HTTP request once (LIM-SCN-68) without
 another rate-limiter tick. `rate` therefore controls payload scheduling, not a strict
 cap on physical HTTP requests; the retry remains within the overall Runtime
 deadline.
+
+**SCN-R268.** With an allocation HTTP assignment, `scan_ffuf` uses the same
+private bridge and transport as HTTP tools under HTP-R148–149. Its controlled
+engine is provisioned ffuf 2.3.0; a different reported version fails with
+`scan_proxy_unsupported` before target traffic. Standalone probing and execution
+remain unchanged. The fixed GET/wordlist/filter surface of SCN-R94–100 remains;
+no native preflight/postflight, replay proxy, redirects, additional headers,
+cookies, arbitrary config or command options are exposed.
+
+The bridge capability is written only to a mode-0600 scratch TOML file. An
+explicit `credential_id` must belong to the allocation and is invalid without
+an engagement, before scanner launch. Runtime owns exact-origin credential
+injection, cookie state, DNS admission and target TLS verification. Scanner
+output uses existing private-value redaction and bounded report projection.
+Native single-threaded scheduling uses the assigned RPS, or zero when absent;
+the allocation transport remains authoritative for shared HTTP limits. The
+report records `httpLimits` only for controlled execution. The ordinary strict
+ffuf sitemap report adapter accepts these same typed limits without adding
+them to surface metadata or interpreting credentials.
+
+The native request timeout equals the invocation budget, so it cannot introduce
+an earlier scanner timeout/retry over an in-flight controlled request. The
+transport's own request deadline and the original invocation deadline still
+bound execution. ffuf has an unconditional native retry after transport errors;
+the first failed bridge exchange closes that invocation's target authority
+before any further request, including on another proxy connection. Its process
+is cancelled and joined through the existing owner. Only the shared transport
+may make the proven pre-send retry permitted by HTP-R139. Refused, failed or
+truncated exchanges fail the scan even if native output reports success;
+earlier valid matches remain observations, never an automatic Finding.
+
+Boundary decision: native ffuf substitutes payloads and filters responses;
+the existing allocation owner enforces networking and lifecycle. This uses the
+shared failure fence rather than an ffuf request journal or patched scanner.
+Revisit the admitted version or timeout arrangement only after actual-engine
+proxy, TLS, retry, credential and termination conformance.
 
 **SCN-R103.** The JSONL output is projected to at most 100 matches (LIM-SCN-37)
 and 128 KiB of encoded match data (LIM-SCN-38). Each match contains the decoded

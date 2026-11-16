@@ -1521,6 +1521,11 @@ reuse this boundary after real conformance; TCP/DNS or unintegrated subprocess
 paths remain outside its authority. No scanner-specific fields are added to
 engagement and no new persistent lifecycle or request journal exists.
 
+The first failed exchange fences that bridge invocation before another request
+can delegate to the allocation owner, including a native scanner retry on a
+new proxy connection. This fence is independent of subprocess termination
+scheduling. Controlled ffuf uses this guarantee under SCN-R268.
+
 **HTP-R150.** A model may select invocation-owned Runtime HTTP request IDs with
 `submit_check_result(http_request_ids=[...])`; the scalar and batch result paths
 use the same selection and authority. An entire selection resolves before result
