@@ -5,7 +5,8 @@ milestone: worker-context-compaction-2026-10
 epic: planner-worker
 kind: feature
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 160280289308a5ca8511794c5cc2e92b966f3f86
 depends_on:
 - V417-003
 - V417-005
@@ -45,6 +46,15 @@ context:
   - docs/spec/platform/limits.md
   - docs/spec/platform/failure-model.md
   evidence: tasks/evidence/v417-011-call-windows-20261116.json
+  acceptance_evidence: tasks/evidence/v417-011-acceptance-20261116.json
+  verification: >-
+    A1-A7 and all required commands passed on the implementation commit. Full Runtime has
+    6284 passes and 135 declared skips; optional heavy I/O is excluded coverage. Compaction
+    and Audit gates, shared wire fixtures, public PostgreSQL API, full UI verification,
+    lint and whole affected Go packages passed. The complete make test-e2e selection has
+    52 passing process roots, no skips and six passing report verifiers. UI verification
+    uses VITEST_MAX_WORKERS=2 with unchanged test timeouts. The owned test database is
+    removed. This branch is not merged into main; no full release or live-model claim.
   current_paths:
   - runtime/src/contractor_runtime/worker/budget.py:49
   - runtime/src/contractor_runtime/worker/instrumentation.py:273

@@ -1,0 +1,205 @@
+{
+  "task": "V417-011",
+  "verified_on": "2026-11-16",
+  "baseline": "e93a5c9270211bbb5087880417d22f1958301c3f",
+  "implementation_commit": "160280289308a5ca8511794c5cc2e92b966f3f86",
+  "branch": "codex/v417-011-worker-call-windows",
+  "runtime": {
+    "cases": 6419,
+    "passed": 6284,
+    "skipped": 135,
+    "failed": 0
+  },
+  "compaction_runtime": {
+    "cases": 577,
+    "passed": 577,
+    "skipped": 0,
+    "failed": 0
+  },
+  "baseline_regression": {
+    "command": "go test -tags=e2e -count=1 -timeout=5m ./tests/e2e -run '^TestWorkerCompactionContinuesIsolatedWorker/default$'",
+    "source": "pre-change production code, tightened staged test policy",
+    "outcome": "failed as expected after the first checkpoint with worker_budget_exhausted(model_calls)",
+    "log_sha256": "7813b55b364a1da61b3948c1b398a14ab5c7491045e442545bec28b565ecc759"
+  },
+  "ordinary": {
+    "model_window": 3,
+    "tool_window": 2,
+    "checkpoints": 2,
+    "cumulative_model_calls": 9,
+    "cumulative_tool_calls": 5,
+    "main": 6,
+    "compaction": 2,
+    "finalization": 1,
+    "public_metrics_and_retained_diagnostics_verified": true
+  },
+  "audit": {
+    "model_window": 6,
+    "tool_window": 7,
+    "checkpoints": 2,
+    "cumulative_model_calls": 14,
+    "cumulative_tool_calls": 15,
+    "main": 12,
+    "compaction": 2,
+    "accepted_conclusions": 3,
+    "finding_receipts": 1,
+    "result_revisions": 1,
+    "lost_publication_acknowledgement_reconciled_once": true,
+    "triggers": [
+      "model window with one unused tool admission",
+      "tool window with two unused model admissions"
+    ]
+  },
+  "boundaries": {
+    "capacity_owner": "existing invocation budget",
+    "commit_owner": "existing marker append and exact reconciliation",
+    "renewal": "both baselines advance once for the confirmed generation after joined State publication and the cancellation/deadline fence",
+    "cumulative": "model/tool/phase usage, tokens and unavailable-usage counts are never reset by checkpoints",
+    "finalization": "one-shot and current-window admission; no compactor exception",
+    "diagnostics": "existing generation and phase observations; no new wire budget fields or inferred remaining capacity",
+    "planner_none_terminal": "admission unchanged"
+  },
+  "followup_plans": {
+    "V417-004": "reservation preserved; still last, now depends on V417-011",
+    "V417-010": "pause preserved; a new frozen source/plan is required after explicit resumption; prior Eval records unchanged"
+  },
+  "excluded": [
+    "live Gateway calls",
+    "demo deployment",
+    "heavy I/O opt-in",
+    "published catalog identity changes",
+    "main merge"
+  ],
+  "verification": [
+    {
+      "command": "make test-runtime",
+      "result": "6284 passed; 135 declared skips, not passing coverage; required Runtime/compaction report verification passed",
+      "log_sha256": "15756fbb65237a3f84785f4a15578665b90deefa398bea425d23358127dba990"
+    },
+    {
+      "command": "make test-worker-compaction-e2e",
+      "result": "whole focused Go packages; 577 Runtime cases and 7 required process cases passed",
+      "log_sha256": "8105fcb217bcef60bc5c02173ac9cb6c6b1c63ee28de57d7513d03eaabe64537"
+    },
+    {
+      "command": "make test-audit-completion-e2e",
+      "result": "199 Go cases and 457 Runtime cases passed; no selected skips; source pinned to the clean implementation commit",
+      "log_sha256": "5edd8366303bda4ec3ea5df4e6dcdc37b83991599a2576a9dc88f1eda1c430e3"
+    },
+    {
+      "command": "make test-wire-cross-language",
+      "result": "395 fixtures; 445 Go and 281 Python shared tests; 417 Python contract cases and 1563 shared Python cases passed; one optional heavy fixture skipped",
+      "log_sha256": "54eb984af40164f1d43c2797f188ec70fc593a7e0564648c8d449a533105e742"
+    },
+    {
+      "command": "make verify-public-api verify-public-api-postgres",
+      "result": "offline public operation coverage and PostgreSQL public API race gate passed",
+      "log_sha256": "202f52a1187e2a5672abb8e088340a4b9986872466f852fa675344edd70d60e4"
+    },
+    {
+      "command": "VITEST_MAX_WORKERS=2 make ui-verify",
+      "result": "224 files; 2532 tests passed and one expected negative case; 17 Node server tests, generated-client check, lint, typecheck and build passed",
+      "log_sha256": "ce30edc2dec0b71d1866f67d6d67fe76e27e65e72507db40347e452d033ec0dc"
+    },
+    {
+      "command": "make lint",
+      "result": "all format/static/layer/task/spec/generated/release-graph gates passed, including real PostgreSQL storage cleanup; optional Podman fixture skipped",
+      "log_sha256": "ffa3f285d33ecbf360ae55ef09841092aa665e064fb14fbcb09b7bcdeab450b3"
+    },
+    {
+      "command": "go test -race -count=1 ./internal/evalservice ./internal/publicclient/... ./internal/planner/...",
+      "result": "whole touched Eval/public-client and Planner control packages passed with PostgreSQL; generated client package has no tests",
+      "log_sha256": "f89024ee84e8a35cc6782f1dd87fcd8dd28ed46cc0b85c8cb0afc2e447aca7dc"
+    },
+    {
+      "command": "make test-e2e",
+      "result": "52 deterministic process roots and all attached report verifiers passed",
+      "log_sha256": "97560082dda727e0eb4015b5ad8f13baa4c9b9c17094a793337cf81e2e286edc"
+    }
+  ],
+  "audit_gate": {
+    "status": "passed",
+    "source": {
+      "revision": "160280289308a5ca8511794c5cc2e92b966f3f86",
+      "dirty": false
+    },
+    "matrix": {
+      "path": "scripts/audit-completion-matrix.json",
+      "digest": "sha256:eebbe3f2ebb20f2428573240e23fb1c13318cfe7008871c7547880d6ddb5c881"
+    },
+    "go_cases": 199,
+    "runtime_cases": 457
+  },
+  "process_roots": [
+    "TestAgentSkillsMVPProcesses",
+    "TestArtifactHistoryAcrossProductionProcesses",
+    "TestAuditBasicExactHandoffAcrossProductionProcesses",
+    "TestAuditProgramCatalogReplacementRestartsServer",
+    "TestAuditCommonObservationProfilesAcrossProductionProcesses",
+    "TestAuditCommonPrepared256PauseRestartAndCancelAcrossProcesses",
+    "TestAuditCompactionPreservesTrustedCompletionAcrossProcesses",
+    "TestAuditCompactionLeaseLossAcrossProcesses",
+    "TestAuditHypothesisContinuationAcrossProductionProcesses",
+    "TestAuditFixedHypothesesAcrossProductionProcesses",
+    "TestAuditWorkspaceAcrossProductionProcesses",
+    "TestHeterogeneousRuntimeCapabilityPlacement",
+    "TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses",
+    "TestLocalGoToPythonArtifactCopy",
+    "TestEngagementHTTPBoundsAcrossProcesses",
+    "TestEngagementHTTPSelectedEvidenceAcrossProcesses",
+    "TestEngagementHTTPFindingReusesSelectedEvidenceAcrossProcesses",
+    "TestEngagementHTTPLifecycleAcrossProcesses",
+    "TestEngagementHTTPRouteMatrixAcrossProcesses",
+    "TestEngagementIdentityLifecycleAcrossProcesses",
+    "TestEngagementIdentitySessionsAcrossProcesses",
+    "TestEngagementOrdinaryRunAcrossProcesses",
+    "TestFindingsReaderBoundariesAcrossProcesses",
+    "TestFindingLocationsAcrossProcesses",
+    "TestFindingsProducerAndReaderAcrossProcesses",
+    "TestFindingsCollectionsRetainOrdinaryAndAuditReceipts",
+    "TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses",
+    "TestGatewayRecoveryCancellationAndPermanentErrorAcrossProcesses",
+    "TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses",
+    "TestProjectSitemapHTTPCollectionAcrossProductionProcesses",
+    "TestWorkflowMaterialSetsAcrossProductionProcesses",
+    "TestNucleiWebWithDeterministicScannerAcrossProcesses",
+    "TestOpenAPIPreparedWorkServerOperation",
+    "TestProductionMemoryTemplatesAcrossProcesses",
+    "TestProjectFindingsReaderAcrossProcesses",
+    "TestProjectSitemapReportImportsAcrossProductionProcesses",
+    "TestProjectSitemapServerOperationsAcrossProductionProcesses",
+    "TestProjectSitemapToolsAcrossProductionProcesses",
+    "TestProjectWorkspaceLifecycleAcrossProductionProcesses",
+    "TestRoutingAndEscalationProductionBoundaries",
+    "TestRunMetadataLabelsAcrossProcesses",
+    "TestRuntimeAdapterSelectionAllowsAdditionalCapabilities",
+    "TestLabelDrivenRuntimeConfigurationAcrossProcesses",
+    "TestRuntimePlacementScannerFixture",
+    "TestRuntimePlacementAcrossProductionProcesses",
+    "TestSchedulerConcurrencyAcrossProductionProcesses",
+    "TestMemoryMVPProcesses",
+    "TestTaintAnnotationsAcrossRealRuntimeProcess",
+    "TestTraceFindingCoordinatesAcrossProcesses",
+    "TestWorkerCompactionContinuesIsolatedWorker",
+    "TestWorkerSessionModesAcrossProductionProcesses",
+    "TestWorkerSummarizerProductionBoundaries"
+  ],
+  "process_skips": [],
+  "separate_browser_gate": {
+    "case": "TestAuditResearchUIAcrossProductionProcesses",
+    "status": "not run",
+    "reason": "The release graph counts this separately selected browser-stage process test; make test-e2e selects the 52 roots recorded above. No complete release-verify claim."
+  },
+  "verification_retries": [
+    "Initial UI runs at default worker concurrency timed out in existing source-snippet and Inbox pagination tests; the complete unchanged suite passed with VITEST_MAX_WORKERS=2 and unchanged timeouts.",
+    "A concurrent initial lint run failed while dropping its own PostgreSQL storage fixture; the unchanged full lint passed on retry.",
+    "The dependency graph was regenerated from updated specification inputs; the new shared-fixture test was named TestShared as required before the implementation commit.",
+    "The Audit gate first refused the uncommitted source; it passed after the clean implementation commit was created."
+  ],
+  "database_cleanup": {
+    "database": "contractor_v417_011_call_windows",
+    "dropped": true,
+    "owned_processes_joined": true,
+    "heavy_io_enabled": false
+  }
+}
