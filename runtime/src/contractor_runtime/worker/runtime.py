@@ -686,8 +686,8 @@ class AdkWorkerRuntime:
                             except WorkerCompactionError as failure:
                                 compaction_error = failure
                             except WorkerBudgetExceeded as exhausted:
-                                # The compactor call counts against the same
-                                # hard budgets; exhaustion keeps its own code.
+                                # Cumulative token admission still applies to
+                                # the compactor; exhaustion keeps its own code.
                                 budget_error = exhausted
                             else:
                                 compacted = True
@@ -926,10 +926,9 @@ class AdkWorkerRuntime:
             applied.result()
             if cancelled:
                 raise asyncio.CancelledError
+            self._admit_semantic_work()
             if self._invocation.budget is not None:
-                self._invocation.budget.commit_tool_checkpoint()
-                # A new context generation needs its own measured main usage.
-                self._invocation.budget.latest_prompt_tokens = None
+                self._invocation.budget.commit_call_checkpoint(compaction.generation)
             outcome, cause = "succeeded", ""
         except BaseException as error:
             primary_error = error

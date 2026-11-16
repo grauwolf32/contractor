@@ -10,6 +10,7 @@ depends_on:
 - V417-003
 - V417-009
 - V417-010
+- V417-011
 languages:
 - go
 - python
@@ -23,7 +24,10 @@ context:
     independently. Later user decision 2026-11-10 explicitly reactivates V417-004 as in_progress and
     requires it to execute last in the V417 series, after isolated delivery, its deterministic release
     gate and the independent quality work. This supersedes the earlier deferral and its reactivation
-    condition; implementation waits for the declared dependencies despite the user-requested status.'
+    condition; implementation waits for the declared dependencies despite the user-requested status.
+    User decision 2026-11-16 changes compact Worker call admission through V417-011: confirmed
+    checkpoints renew both call windows while cumulative tokens, usage and deadlines remain bounded.
+    This plan review does not start reserved shared-session work.'
   reactivation:
     date: '2026-11-10'
     previous_status: deferred
@@ -76,7 +80,8 @@ requirements:
   text: A new accepted A2A request follows existing logical invocation budget/observed-ref ownership,
     while session generation, compacted memory, retained raw events and last main prompt usage remain
     scoped to the same shared allocation. An internal ADK Runner turn or repeated callback is not a new
-    accepted A2A invocation. Compaction never creates a new logical invocation or resets counters.
+    accepted A2A invocation. Compaction never creates a new logical invocation or resets cumulative counters;
+    both call windows renew only at its confirmed checkpoint under WRK-R185/R186.
 - id: R2
   text: Protected current task inputs come from the current request, not a previous task or summary. Historical
     refs and observations are readable data only; only current trusted tool observations/receipts can
@@ -147,8 +152,9 @@ acceptance_criteria:
   given: High previous prompt usage, two SDK continuations within one logical invocation, and a completed
     checkpoint
   when: A later accepted A2A invocation enters the same shared session
-  then: Usage provenance prevents stale re-triggers, SDK turns preserve cumulative budgets, and per-invocation
-    budgets reset only at the existing accepted A2A boundary.
+  then: Usage provenance prevents stale re-triggers, SDK turns preserve cumulative tokens and usage,
+    and only a confirmed checkpoint renews both call windows. A new accepted A2A invocation
+    starts fresh local budgets without inheriting another invocation’s call capacity.
 - id: A3
   given: Many subtasks accumulating 4096 groups/32 MiB or 32 checkpoints
   when: Another group or cycle is admitted and archive pages are read

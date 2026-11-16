@@ -568,8 +568,9 @@ new attempt is submitted.
 budget failure: a normally completed full collection may publish without
 another call. Actual budget exceptions or overshoot still fail.
 
-**AWC-R83.** If another model or tool call would exceed its limit, continuation
-cannot obtain extra capacity.
+**AWC-R83.** An incomplete-check reminder or new SDK turn cannot obtain extra
+call capacity. Only a confirmed `compact@1` checkpoint renews both call windows
+under AWC-R130 and WRK-R185/R186; without it, exceeding a limit stops continuation.
 
 **AWC-R84.** Once a normal completion has a full valid collection, Runtime
 atomically seals it; further submissions and updates are rejected
@@ -994,9 +995,10 @@ is a bounded read of the authoritative collector, without sealing, publication
 or spending an incomplete-check reminder. A ready check joins the Runner and
 enters the ordinary completion/publication path before pressure, checkpoint
 eligibility or another call's budget admission. An incomplete check may compact
-and retains the normal completion reminders. Existing deadlines, budgets,
+and retains the normal completion reminders. Confirmed checkpoints renew both
+call windows under WRK-R185/R186. Existing cumulative token budgets, deadlines,
 publication receipts, fences and isolated invocation/allocation cleanup remain
-authoritative; compaction renews none of them and introduces no new durable state.
+authoritative; compaction renews none of those and introduces no new durable state.
 
 Summary text, archived responses and synthetic SDK abort/cancel responses are
 history data, never submissions, selected evidence or publication authority.

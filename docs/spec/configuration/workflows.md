@@ -416,7 +416,8 @@ instruction text is non-blank and at most 8,000 Unicode characters
 `contextWindowTokens` and `maxOutputTokens`. A `compact@1` binding wholly
 replaces the template summarizer, its instructions, ratio and
 `cumulativeBudget` for that binding only; the AgentTemplate and its digest do
-not change.
+not change. Both Worker call windows renew only at a committed checkpoint
+(WRK-R185/R186); Planner admission remains cumulative under PLN-R127.
 
 **WFL-R93.** Configuration resolution rejects `compact@1`, instead of
 falling back to terminal summarization, for: a model-free (`tool@1`) template;

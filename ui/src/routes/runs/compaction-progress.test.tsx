@@ -19,6 +19,42 @@ const progress: components["schemas"]["WorkerCompactionProgress"] = {
   afterPrompt: { generation: 1 },
 };
 describe("confirmed compaction observations", () => {
+  it("keeps cumulative phase usage across two confirmed generations", () => {
+    const phase = (modelCalls: number) => ({
+      modelCalls,
+      inputTokens: 100,
+      outputTokens: 20,
+      totalTokens: 120,
+      tokenUsageUnavailable: 0,
+      durationMs: 10,
+    });
+    const phases = {
+      main: phase(9),
+      compaction: phase(2),
+      finalization: phase(1),
+      summarization: phase(0),
+    };
+    render(
+      <CompactionProgress
+        progress={{
+          ...progress,
+          generation: 2,
+          attempts: 2,
+          beforePrompt: { generation: 1, promptTokens: 100 },
+          afterPrompt: { generation: 2, promptTokens: 80 },
+        }}
+        phases={phases}
+        continuing
+      />,
+    );
+    expect(
+      screen.getByText("Контекст сжат, работа продолжается"),
+    ).toBeVisible();
+    expect(screen.getByText("Поколение 2: 80")).toBeVisible();
+    expect(screen.getByText("9")).toBeInTheDocument();
+    expect(screen.getByText("2 / 2 / 0")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
   it("requires applied and an ongoing attempt, and keeps after unavailable until measured", () => {
     const view = render(<CompactionProgress progress={progress} continuing />);
     expect(

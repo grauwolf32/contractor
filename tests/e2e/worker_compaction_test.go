@@ -85,6 +85,18 @@ func workerCompactionSelectionScenario(t *testing.T, layer string) {
 		t, filepath.Join(repositoryRoot, "configs", "e2e"),
 		filepath.Join(temporaryRoot, "configs"), gateway.URL(),
 	)
+	// Keep published identities intact; this staged fixture proves that nine
+	// cumulative model calls and five tools fit three renewable call windows.
+	policyPath := filepath.Join(configRoot, "model-policies/compact_worker.yaml")
+	policy, err := os.ReadFile(policyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	windowPolicy := strings.Replace(string(policy), "maxModelCalls: 16", "maxModelCalls: 3", 1)
+	windowPolicy = strings.Replace(windowPolicy, "maxToolCalls: 16", "maxToolCalls: 2", 1)
+	if err := os.WriteFile(policyPath, []byte(windowPolicy), 0600); err != nil {
+		t.Fatal(err)
+	}
 	expectedOrigin := "workflow.executionConfig.workers"
 	expectedAttempts := 1
 	expectedWorkers := 1
@@ -293,6 +305,7 @@ func workerCompactionSelectionScenario(t *testing.T, layer string) {
 	}
 	budget := report.Report.Worker.Metrics.WorkerBudget
 	if !report.Report.Worker.Complete || budget == nil || budget.ObservedModelCalls != 9 ||
+		budget.MaxModelCalls != 3 || budget.MaxToolCalls != 2 || budget.Exhausted != nil ||
 		budget.ObservedToolCalls != 5 || report.Report.Worker.Metrics.Summarizer != nil {
 		t.Fatalf("trusted compaction Worker report = %+v", report.Report.Worker)
 	}

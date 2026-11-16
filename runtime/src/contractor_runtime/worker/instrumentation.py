@@ -296,7 +296,8 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 budget is not None
                 and self._compaction is not None
                 and (
-                    budget.tool_limit_reached()
+                    budget.model_limit_reached()
+                    or budget.tool_limit_reached()
                     or self._compaction.should_compact(budget.latest_prompt_tokens)
                 )
             ):
@@ -447,7 +448,10 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 raise RuntimeError("Worker auxiliary phase already has a model call")
             budget = self._budget()
             if budget is not None:
-                budget.before_model_call()
+                if phase == "compaction" and self._compaction is not None:
+                    budget.before_compactor_call()
+                else:
+                    budget.before_model_call()
             self._metrics.record_model_call(phase=phase)
             self._require_reducer().record_model_call()
             self._auxiliary_started[phase] = self._clock()

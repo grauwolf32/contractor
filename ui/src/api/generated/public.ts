@@ -6304,7 +6304,9 @@ export interface components {
             model: string;
             contextWindowTokens?: number;
             maxOutputTokens?: number;
+            /** @description Model-call capacity per committed context window for compact@1 Workers; cumulative per invocation otherwise. Compactors use their own one-call policy. Observed usage remains cumulative. */
             maxModelCalls?: number;
+            /** @description Tool-call capacity per committed context window for compact@1 Workers, a summary trigger for terminal@1 Workers, and cumulative per invocation otherwise. Observed usage remains cumulative. */
             maxToolCalls?: number;
             maxWorkerCalls?: number;
             maxTotalTokens?: number;

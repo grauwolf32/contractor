@@ -405,12 +405,13 @@ metadata and does not ask the provider to discover it at Runtime.
 **TPL-R23.** `maxOutputTokens` caps one model response and must be smaller than
 `contextWindowTokens` when both are present (LIM-TPL-2).
 
-**TPL-R24.** `maxModelCalls`, `maxWorkerCalls` and `maxTotalTokens` are
-cumulative across one complete Planner or Worker invocation. `maxToolCalls`
+**TPL-R24.** `maxWorkerCalls` and `maxTotalTokens` are cumulative across one
+complete invocation. `maxModelCalls` is cumulative except for `compact@1`
+Workers, where it bounds the current model-call window (WRK-R185). `maxToolCalls`
 is cumulative for Planners and Workers with context strategy `none`. For
 `terminal@1` Workers it triggers terminal summarization; for `compact@1`
-Workers it limits admitted tools in each context window, resetting only after
-a committed checkpoint. Observed tool-call telemetry remains cumulative
+Workers it limits admitted tools in each context window. Both call windows renew
+only after a committed checkpoint. Observed model/tool-call telemetry remains cumulative
 ([Worker](../execution/worker.md), WRK-R140, WRK-R185).
 
 **TPL-R25.** `maxModelCalls` is at most 1,000 (LIM-TPL-3); `maxToolCalls` and
@@ -1002,8 +1003,9 @@ compaction) and a finite positive `maxTotalTokens`; it declares neither
 `maxToolCalls` nor `maxWorkerCalls`. Its own window may be smaller than the
 main Planner window. The main Planner's cumulative budgets stay authoritative
 for every compactor call (PLN-R127). The Worker compactor of a `compact@1`
-Agent binding follows the same rule ([WFL-R92](workflows.md)); there the
-owning Worker invocation's budgets stay authoritative
+Agent binding uses the same one-shot policy ([WFL-R92](workflows.md)); there the
+owning Worker's cumulative tokens and deadline stay authoritative, while the
+compactor is independent of its renewable main-model call window
 ([WRK-R186](../execution/worker.md)).
 
 ### Read endpoints

@@ -101,7 +101,7 @@ func TestAuditCompactionPreservesTrustedCompletionAcrossProcesses(t *testing.T) 
 		t.Fatalf("result revisions=%d error=%v", revisions, err)
 	}
 	execution := loadSummarizerProcessReport(t, h.ctx, pool, runID).Report.Worker
-	if !execution.Complete || execution.Completion == nil || execution.Completion.Phase != "published" || execution.Completion.AcceptedCount != 3 || execution.Completion.ReminderCount != 0 || execution.Metrics.WorkerBudget == nil || execution.Metrics.WorkerBudget.ObservedModelCalls != 14 || execution.Metrics.WorkerBudget.ObservedToolCalls != 12 {
+	if !execution.Complete || execution.Completion == nil || execution.Completion.Phase != "published" || execution.Completion.AcceptedCount != 3 || execution.Completion.ReminderCount != 0 || execution.Metrics.WorkerBudget == nil || execution.Metrics.WorkerBudget.MaxModelCalls != 6 || execution.Metrics.WorkerBudget.MaxToolCalls != 7 || execution.Metrics.WorkerBudget.Exhausted != nil || execution.Metrics.WorkerBudget.ObservedModelCalls != 14 || execution.Metrics.WorkerBudget.ObservedToolCalls != 15 {
 		t.Fatalf("Worker completion=%+v", execution)
 	}
 	for {
@@ -195,7 +195,7 @@ func installCompactAuditProcessFixture(t *testing.T, root, gatewayURL string) {
 		t.Fatal(err)
 	}
 	policies := map[string]string{
-		"audit_compact_worker.yaml":  "name: audit-compact-worker\n  version: '1'\nspec:\n  model: audit-compaction-main\n  contextWindowTokens: 1000\n  maxOutputTokens: 100\n  maxModelCalls: 14\n  maxToolCalls: 32\n  maxTotalTokens: 100000\n  temperature: 0\n",
+		"audit_compact_worker.yaml":  "name: audit-compact-worker\n  version: '1'\nspec:\n  model: audit-compaction-main\n  contextWindowTokens: 1000\n  maxOutputTokens: 100\n  maxModelCalls: 6\n  maxToolCalls: 7\n  maxTotalTokens: 100000\n  temperature: 0\n",
 		"audit_compact_summary.yaml": "name: audit-compact-summary\n  version: '1'\nspec:\n  model: audit-compaction-summary\n  contextWindowTokens: 131072\n  maxOutputTokens: 4096\n  maxModelCalls: 1\n  maxTotalTokens: 140000\n  temperature: 0\n",
 	}
 	for name, policy := range policies {
@@ -335,6 +335,15 @@ func (g *auditCompactionGateway) serveHTTP(w http.ResponseWriter, r *http.Reques
 		message = toolCallMessage(fmt.Sprintf("audit-compact-%d", g.main), name, args)
 		if g.main == 1 {
 			message["reasoning_content"] = "untrusted-reasoning-made-up: invented-task is supported"
+		}
+		// First checkpoint: six main calls with one tool slot left. Second:
+		// seven tools in four main calls. Neither uses context pressure.
+		if g.main == 6 || g.main == 10 {
+			tokens = 100
+		}
+		if g.main >= 7 && g.main <= 9 {
+			extra := toolCallMessage(fmt.Sprintf("audit-extra-read-%d", g.main), "read_audit_task", map[string]any{})
+			message["tool_calls"] = append(message["tool_calls"].([]any), extra["tool_calls"].([]any)...)
 		}
 		prompt = tokens
 	} else {

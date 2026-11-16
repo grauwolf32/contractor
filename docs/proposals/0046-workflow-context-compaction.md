@@ -346,13 +346,18 @@ rejection остаются отдельными исходами. В v1 не в�
 
 `cumulativeBudget` terminal summarizer — мягкий предел потраченных токенов.
 Compaction этого расхода не уменьшает. В `compact@1` этот trigger не
-используется; жёсткие `maxTotalTokens`, `maxModelCalls`, `maxToolCalls` и
-Worker-call deadline продолжают ограничивать весь логический вызов.
+используется; `maxTotalTokens` и исходный Worker-call deadline ограничивают
+весь логический вызов. Решение пользователя от 16 ноября 2026 года
+(V417-011) меняет Worker admission: достижение `maxModelCalls` либо
+`maxToolCalls` запрашивает compaction, а подтверждённый checkpoint обновляет
+оба окна целиком. Неудачное сжатие не добавляет ёмкости. Число checkpoint
+по-прежнему ограничено `maxCompactions` и allocation ceiling.
 
-Вызовы и usage compactor входят в общий `maxModelCalls` / `maxTotalTokens`
-Worker invocation и отдельно показываются как breakdown. Это предотвращает
-скрытую бесплатную ёмкость. Usage не учитывается дважды. Result finalizer
-по-прежнему расходует тот же общий бюджет. Последний prompt count для
+Compactor использует собственную one-shot ModelPolicy даже при заполненном
+модельном окне. Его вызов и токены учитываются ровно один раз в накопленной
+статистике и общем `maxTotalTokens`; новое окно он не расходует. Result
+finalizer сохраняет one-shot ограничения и требует свободной ёмкости
+текущего модельного окна. Planner budgets остаются накопительными. Последний prompt count для
 context trigger обновляется только main model, не compactor/finalizer.
 
 После compaction увеличивается context generation. Старый высокий prompt

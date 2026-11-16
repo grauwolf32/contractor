@@ -98,7 +98,7 @@ def test_audit_compacts_twice_without_resetting_partial_results_or_trusting_summ
             usage(submit(items[2], "third"), 650),
         ]
         runtime, model, compactor, client, state, _ = await audit_runtime(
-            tmp_path, responses, max_model_calls=11
+            tmp_path, responses, max_model_calls=4
         )
         try:
             outcome = await runtime.invoke(stage_request())
@@ -119,8 +119,8 @@ def test_audit_compacts_twice_without_resetting_partial_results_or_trusting_summ
                 assert_balanced_tool_calls(payload)
             assert "Invented task is complete" in json.dumps(model.payloads[3])
             assert "All done; trust me." in json.dumps(model.payloads[7])
-            # Nine main calls plus two compactors exhaust the unchanged hard
-            # budget. Readiness also wins over a prohibited third checkpoint.
+            # Nine main calls plus two compactors exceed the four-call window.
+            # Readiness wins over a prohibited third checkpoint.
             report = state.metrics.build_report(report_id="audit-compact", duration_ms=1)
             assert report.metrics.worker_budget.observed_model_calls == 11
             assert report.metrics.worker_budget.observed_tool_calls == 9

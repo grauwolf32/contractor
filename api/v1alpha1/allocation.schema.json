@@ -70,10 +70,12 @@
           "maximum": 100000000
         },
         "observedModelCalls": {
-          "$ref": "performance.schema.json#/$defs/resourceInteger"
+          "$ref": "performance.schema.json#/$defs/resourceInteger",
+          "description": "Cumulative invocation usage across committed call windows; may exceed the configured per-window capacity. Only exhausted reports refused admission."
         },
         "observedToolCalls": {
-          "$ref": "performance.schema.json#/$defs/resourceInteger"
+          "$ref": "performance.schema.json#/$defs/resourceInteger",
+          "description": "Cumulative invocation usage across committed call windows; may exceed the configured per-window capacity. Only exhausted reports refused admission."
         },
         "observedTotalTokens": {
           "$ref": "performance.schema.json#/$defs/resourceInteger"

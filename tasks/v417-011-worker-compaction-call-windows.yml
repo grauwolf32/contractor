@@ -5,7 +5,7 @@ milestone: worker-context-compaction-2026-10
 epic: planner-worker
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V417-003
 - V417-005
@@ -27,6 +27,8 @@ context:
     compaction; the compactor has its own one-call policy; cumulative tokens, deadline,
     maxCompactions and statistics remain bounded and do not reset; failed compaction grants
     no capacity. The subsequent request authorizes creating and merging this task only.
+    User assignment 2026-11-16 authorizes implementation of V417-011 from current main
+    e93a5c9270211bbb5087880417d22f1958301c3f in an isolated worktree.
   classification: >-
     This is an explicit change to the previous contract, not a claim that cumulative model
     admission violated WRK-R185/R186. It supersedes the cumulative model-call restriction
@@ -54,6 +56,12 @@ context:
     Only the existing confirmed marker commit, including its exact reconciliation path, advances
     both windows once. Simply raising a global model cap is the simpler alternative, but makes
     checkpoint count and remaining work capacity unrelated and does not implement the user decision.
+  diagnostics_decision: >-
+    Existing State/report budgets retain cumulative model/tool observations, and existing
+    confirmed compaction generation and phase costs explain renewals. Public/UI readers do
+    not expose a remaining-call estimate or derive exhaustion from totals; no new wire field
+    is needed. Finalization retains one-shot and current-window admission; only compaction
+    bypasses call capacity, while both obey cumulative tokens and the original deadline.
   implementation_boundary: >-
     Update the owning numbered specifications and every affected producer/reader together.
     Reuse existing progress/phase observations and shared fixtures; if a public or wire budget

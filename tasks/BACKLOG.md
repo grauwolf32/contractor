@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-61 open tasks: 9 in progress, 39 pending, 13 deferred. 1593 finished: 1575 completed, 18 archived.
+61 open tasks: 10 in progress, 38 pending, 13 deferred. 1593 finished: 1575 completed, 18 archived.
 
 ## In progress
 
@@ -18,6 +18,7 @@ the epics are in [epics.yml](epics.yml).
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V417-004](v417-004-shared-session-context-compaction.yml) | planner-worker | feature | P1 | Preserve compacted context across shared-session invocations |
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
+| [V417-011](v417-011-worker-compaction-call-windows.yml) | planner-worker | feature | P1 | Renew Worker model and tool call windows after committed compaction |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 
@@ -33,7 +34,6 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V417-011](v417-011-worker-compaction-call-windows.yml) | feature | P1 | — | Renew Worker model and tool call windows after committed compaction |
 | [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | — | Verify Planner compaction persistence cancellation and scale boundaries |
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | — | Expose bounded truthful Planner compaction diagnostics |
 
