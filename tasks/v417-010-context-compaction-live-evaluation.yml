@@ -5,7 +5,7 @@ milestone: worker-context-compaction-quality-2026-10
 epic: evals
 kind: chore
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V417-008
 - V417-009
@@ -75,11 +75,14 @@ context:
     All60 native pairs carry pins-unverified: external registration does not
     observe source/task equality. All native verdicts remain inconclusive.
     The consumer preflight gap is corrected and tested before any new dispatch.
-    Pending while authorized prerequisite V466-021 is implemented. No live quality acceptance or policy recommendation.
+    Prerequisite V466-021 completed at 57992a95412aea210a7d1936eba23b2953aa6f5f.
+    Resumed 2026-11-16 for a new frozen R3 identity on the unchanged protocol.
+    No live quality acceptance or policy recommendation yet.
   prerequisite_authorized: >-
     User decision 2026-11-16 approves V466-021 separately. This task remains
     pending until that prerequisite completes, then resumes with a new frozen
     plan and the configured model; previous attempts and costs remain retained.
+    That prerequisite is now complete, and this task resumes in_progress.
   comparison_preflight_correction: >-
     The assigned consumer now checks the native pair exclusions before its
     first submission. A regression fails under the old implementation because

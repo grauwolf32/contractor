@@ -23,7 +23,8 @@ execution_policy:
     common Eval prerequisite. V466-021 is completed at
     57992a95412aea210a7d1936eba23b2953aa6f5f: verified local source/task pins
     share the native definition; real PostgreSQL comparison, API, wire and lint
-    pass. V417-010 can resume on new frozen identities without rewriting old plans.
+    pass. V417-010 resumes in_progress on new frozen R3 identities without
+    rewriting old plans, configured models, held-out inputs, scorers or gates.
     V417-004 stays reserved in_progress and executes LAST after V417-010.
     This branch is not merged or deployed. Earlier accepted evidence follows.
     User request 2026-11-14 delivered on 2026-11-15 integrates the reviewed
