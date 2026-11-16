@@ -67,6 +67,14 @@ context:
     and merged code take precedence over historical proposal/spike descriptions; preserve recorded implementation
     and verification history. Recheck affected contracts if main changes before execution.
   current_state: >-
+    Paused by explicit user request 2026-11-16 until their continue command.
+    R3 has verified native source/task pins for all60 pairs: three natural
+    failed Runs collected/scored,117 unsubmitted of120. Known usage123541
+    tokens and USD0.0239856091 reported. No active Run was cancelled. Own
+    credential revoked, processes joined and disposable database dropped after
+    retaining exact native exports and a private PostgreSQL archive. All prior
+    attempts/costs remain. No quality acceptance or recommendation.
+  prior_state_before_r3: >-
     V417-009 is accepted and network recovery is complete. Attempt1 retains
     one succeeded/unscored Run and119 unrun members. Attempt2 is stopped and
     all four experiments cancelled:36 completed, one cancelled,83 unrun from
@@ -83,6 +91,12 @@ context:
     pending until that prerequisite completes, then resumes with a new frozen
     plan and the configured model; previous attempts and costs remain retained.
     That prerequisite is now complete, and this task resumes in_progress.
+  pause_authority: >-
+    User decision 2026-11-16: after the current Run, pause until an explicit
+    continue command. Keep status in_progress as a reservation; do not dispatch
+    or start another task. On continuation, inspect the retained frozen clocks,
+    lifecycle and credential state before deciding whether exact receipts can
+    be reused or a new frozen identity is required. Never rewrite old outcomes.
   comparison_preflight_correction: >-
     The assigned consumer now checks the native pair exclusions before its
     first submission. A regression fails under the old implementation because
@@ -168,6 +182,8 @@ context:
   - tasks/evidence/v417-010-protocol-attempt1-20261116.json
   - tasks/evidence/v417-010-freeze-r2-20261116.json
   - tasks/evidence/v417-010-protocol-attempt2-20261116.json
+  - tasks/evidence/v417-010-freeze-r3-20261116.json
+  - tasks/evidence/v417-010-protocol-paused-r3-20261116.json
 
 scope:
   in:
@@ -362,3 +378,8 @@ verification:
     Attempt2 retains36 completed,1 cancelled and83 unrun; all120 expected
     members retained in each attempt. Missing native source/task observed pins
     exclude every pair. No quality/savings recommendation; A1-A4 incomplete.
+    R3 is explicitly paused by the user after3 natural failures/scored members
+    and117 unsubmitted; all60 native pairs had verified source/task pins before
+    dispatch. Retain123541 known tokens and USD0.0239856091 reported. No active
+    Run cancelled; own key revoked, processes joined, private native/archive
+    evidence retained and owned database dropped. Await continue command.

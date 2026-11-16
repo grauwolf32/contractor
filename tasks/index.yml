@@ -9,6 +9,13 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
+    User decision 2026-11-16 pauses V417-010 until an explicit continue command.
+    Its in_progress status reserves the lane; dispatch and new work are stopped.
+    R3 verifies native source/task pins before dispatch, retaining3 failed/
+    scored and117 unrun members of120,123541 known tokens and USD0.0239856091
+    reported. No current Run was cancelled. Own key revoked, processes joined,
+    private exports/archive retained and owned database dropped. V466-021 is
+    completed; V417-004 remains reserved and executes LAST. Earlier history:
     User network-configuration follow-up2026-11-16 is fulfilled: dedicated
     Gateway peer on the existing VPN server, preserved mesh/identity/model,
     DNS/readiness/provider HTTPS and native fail-closed checks pass.
