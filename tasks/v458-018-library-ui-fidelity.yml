@@ -1,0 +1,98 @@
+schema_version: "1.0"
+id: V458-018
+title: Bring the approved OpenDesign Library into the working UI
+milestone: ui-consolidation-2026-10
+epic: ui
+kind: feature
+priority: P2
+status: in_progress
+depends_on: [V458-016, V458-017]
+languages: [typescript, css]
+goal: Check types, Workflows and Agents use the approved Library list/detail design with real catalog data and working actions.
+demonstration: Browse all three Library sections, select an exact version, follow a Workflow stage to its Agent and return, inspect instructions/tools, and open the existing check or Run setup at desktop and mobile widths.
+context:
+  authority: User 2026-11-16 approves adapting Check types, Workflows and Agents into the working UI while preserving the preview design as closely as possible.
+  design: docs/design/ui/README.md
+  specification: docs/spec/ui/ui.md#UI-R50
+  references:
+    - Shared archive iterations/2026-11-16-library
+    - Shared archive iterations/2026-11-16-library-workflows-agents
+  boundary: Existing public catalog readers, version policies, instruction digest validation and launch flows remain authoritative. Shared V3B panes own navigation/focus and the application shell is retained. Preview-only copy cannot become fabricated published metadata. No configuration or backend schema changes.
+  decision: Use persistent list/detail route components and exact-version URLs. Preserve server-paginated Agent search and show runtime composition for the current page rather than invent an unsupported global runtime filter. Workflow filters use the published input contract. Shared Project Workflow cards keep their existing presentation; catalog rows share their identity/version helpers.
+scope:
+  in:
+    - Closely reproduce approved spacing, typography, icons, tones, inventory rows and specialized detail layouts using shared UI components.
+    - Real Check type inputs/setup, Workflow contracts/stage-to-Agent links/Run drawer, Agent prompt/tool-only/configuration/usage views.
+    - Preserve direct URLs, search, cursor predecessors, exact versions, errors, refresh, technical disclosures and Node Studio access.
+    - Routed regression coverage, all UI verification, production preview and visual comparison in all themes at 390 and 1440 px.
+  out:
+    - New catalog API filters, changing published configs, editing Agent instructions, real check execution, merging main or deploying demo.
+requirements:
+  - id: R1
+    text: All three sections share one responsive list/detail pattern; on mobile only the selected pane appears and returning retains its source search/cursor context.
+  - id: R2
+    text: Published contracts, exact versions and loaded instructions remain truthful. Tools without a model show their call configuration; no prompt fetch is sent for them.
+  - id: R3
+    text: Original OpenDesign source and previous archive contents remain unchanged; native-to-production comparison documents any necessary differences.
+failure_outcomes:
+  - operation: Existing catalog, detail, version and instruction reads
+    permanent: Render existing classified errors without claiming readiness or substituting another version.
+    retryable: Retain existing query retry/backoff and explicit retry; a list failure does not replace a valid exact detail.
+    ambiguous: Reads only; existing Run/check setup owns all later mutation handling.
+    cancelled: Pass existing AbortSignal through every reader; navigation cancels obsolete reads.
+    timeout: Existing public API request timeout remains authoritative.
+cardinality:
+  - collection: Workflow and Check type inventory
+    expected: Tens of families and versions.
+    maximum: Existing bounded complete-page readers; no new unbounded enumeration.
+    bound: Preserve loadCompletePages and collectAuditPages caps; never select a default from a partial inventory.
+  - collection: Agent inventory, versions and Workflow usage
+    expected: Tens of entries per page.
+    maximum: Existing API page bounds; versions load explicitly through existing continuation.
+    bound: Keep cursor pagination and predecessor state; counts describe the loaded page, not a global total.
+lifecycle:
+  - entity: UI selection and unsubmitted setup
+    delete: No new persistent entity or delete action.
+    cascade: Selection follows the URL; existing Run draft lifecycle is unchanged.
+    retention: No new browser storage; search/cursor context stays in route state and query.
+acceptance_criteria:
+  - id: A1
+    given: Published catalog examples and an authenticated user.
+    when: The user browses Check types, Workflows and Agents.
+    then: Each uses the approved list/detail hierarchy with real data, shared fonts, exact versions and accessible controls.
+  - id: A2
+    given: Search, pagination, failed reads and directly opened versions.
+    when: The user switches selection, version or follows Workflow/Agent links and returns.
+    then: Search/cursor predecessors and direct identities remain correct, errors stay visible, and incomplete data does not produce false claims.
+  - id: A3
+    given: Model and tool-only Agents and launchable published definitions.
+    when: Instructions, tools, usage and setup actions are opened.
+    then: Validated full instructions and exact bindings remain available; tool Agents have no prompt fetch; existing setup and technical settings work.
+  - id: A4
+    given: The production build at 390 and 1440 px in light/dark/black.
+    when: Compared with the approved archive previews.
+    then: Layout, icons, spacing and typography closely match with no horizontal overflow or selection-induced shell jumps; differences and screenshots are retained.
+tests:
+  - command: make ui-verify
+    covers: [A1, A2, A3]
+  - command: python3 scripts/check_tasks.py
+    covers: [A1, A2, A3, A4]
+  - command: python3 scripts/check_spec.py
+    covers: [A1, A2, A3]
+  - command: git diff --check
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3]
+  - command: cd ui && CONTRACTOR_UI_E2E_BASE_URL=http://127.0.0.1:17570 corepack pnpm exec playwright test e2e/catalog.spec.ts e2e/audit-presets.spec.ts --timeout=45000
+    covers: [A1, A2, A3, A4]
+  - command: Browser review of production Library routes in three themes at 390/1440 and comparison with archived previews
+    covers: [A1, A2, A3, A4]
+verification:
+  archive: /Users/ruslan/Documents/ChatGPT/AppSec/archives/contractor-ui-experiments-2026-11-06/iterations/2026-11-16-library-production
+  results:
+    - make ui-verify passed with 225 test files, 2535 passing tests and one intentional negative test, 17 server tests and the production build. Earlier concurrent attempts hit unrelated five-second timeouts; the standalone full gate passed unchanged. A final singular/plural copy correction passed the complete Workflow suites and browser scenarios.
+    - make lint, task/specification validators and git diff --check passed. Both catalog browser scenarios passed against the compiled UI static server with strict public API fixtures.
+    - All three production sections reviewed in light/dark/black at 390/1440 px; tool-only Agents and 320 px inventories also checked. Twenty-six visual captures and measurements show no horizontal overflow. Selection preserves pane geometry; shared navigation keeps the selected row visible.
+    - Search, exact versions, independent discovery/usage cursor histories, return context, complete instructions, tool-only views, setup and technical settings retain routed regression coverage. A truncated Check type inventory is rejected before choosing a default.
+    - All 98 previous iteration files and the original compressed archive checksum verified unchanged. The new archive retains preview source, real read-only catalog snapshot, self-contained compiled comparison, screenshots and logs.
+  delivery: UI 0.11.36 and production/OpenDesign comparison on port 17569. Branch codex/library-ui-fidelity-20261116 is not merged; no demo deployment or business-data mutation.

@@ -68,6 +68,8 @@ function aborted(signal: AbortSignal): Promise<void> {
   });
 }
 
+let currentRouter: ReturnType<typeof renderApplication>["router"];
+
 function setup(
   path: string,
   options: {
@@ -171,6 +173,7 @@ function setup(
     emptyPageOrNotFound,
   );
   const view = renderApplication(path, { server, capabilities: ["user"] });
+  currentRouter = view.router;
   return { abortedSearches, ...view };
 }
 
@@ -181,7 +184,74 @@ function searched(server: { requests: Request[] }, value: string): boolean {
   );
 }
 
+async function currentPane() {
+  return within(
+    await screen.findByRole("region", {
+      name:
+        currentRouter.state.location.pathname !== "/catalog/agents"
+          ? "Where used"
+          : "Agents",
+    }),
+  );
+}
+async function paging() {
+  return within(
+    await screen.findByRole("navigation", {
+      name:
+        currentRouter.state.location.pathname !== "/catalog/agents"
+          ? "Agent usage pages"
+          : "Agent pages",
+    }),
+  );
+}
+
 describe("Catalog", () => {
+  it("keeps discovery and usage cursor histories independent in the persistent workspace", async () => {
+    const { router } = setup("/catalog/agents?q=researcher", {
+      paginated: true,
+      paginatedUsage: true,
+    });
+    const user = userEvent.setup();
+    const list = within(await screen.findByRole("region", { name: "Agents" }));
+    const listNode = screen.getByRole("region", { name: "Agents" });
+    await user.click(await list.findByRole("button", { name: "Next" }));
+    await list.findByText("Page 2");
+    await user.click(
+      await list.findByRole("link", { name: /Model agent Researcher/ }),
+    );
+    expect(screen.getByRole("region", { name: "Agents" })).toBe(listNode);
+    const usage = within(
+      await screen.findByRole("region", { name: "Where used" }),
+    );
+    await user.click(await usage.findByRole("button", { name: "Next" }));
+    await usage.findByText("Page 2");
+    expect(
+      new URLSearchParams(router.state.location.search).get("cursor"),
+    ).toBe("catalog-2");
+    expect(
+      new URLSearchParams(router.state.location.search).get("usageCursor"),
+    ).toBe("usage-next");
+    await user.click(list.getByRole("button", { name: "Previous" }));
+    await list.findByText("Page 1");
+    expect(usage.getByRole("button", { name: "Previous" })).toBeEnabled();
+    await user.click(usage.getByRole("button", { name: "Previous" }));
+    await usage.findByText("Page 1");
+    expect(router.state.location.search).toBe("?q=researcher");
+  });
+
+  it.each(["agents", "audit-presets", "workflows"])(
+    "does not substitute a default for an incomplete exact %s URL",
+    async (section) => {
+      const { sent } = setup(`/catalog/${section}/named-without-version`);
+      expect(
+        await screen.findByText(/(version|route) is invalid/),
+      ).toBeVisible();
+      expect(
+        sent("GET", `/v1/${section}/named-without-version/versions/1`),
+      ).toHaveLength(0);
+    },
+  );
+
   it("learns only visited predecessors after opening a later page directly", async () => {
     const user = userEvent.setup();
     const { router } = setup(
@@ -189,20 +259,22 @@ describe("Catalog", () => {
       { paginated: true },
     );
     expect(
-      await screen.findByRole("button", { name: "Previous" }),
+      await (await paging()).findByRole("button", { name: "Previous" }),
     ).toBeDisabled();
-    await user.click(screen.getByRole("button", { name: "Next" }));
-    await screen.findByText("Page 5");
+    await user.click((await paging()).getByRole("button", { name: "Next" }));
+    await (await currentPane()).findByText("Page 5");
     expect(
-      await screen.findByRole("button", { name: "Previous" }),
+      await (await paging()).findByRole("button", { name: "Previous" }),
     ).toBeEnabled();
-    await user.click(screen.getByRole("button", { name: "Previous" }));
-    await screen.findByText("Page 4");
+    await user.click(
+      (await paging()).getByRole("button", { name: "Previous" }),
+    );
+    await (await currentPane()).findByText("Page 4");
     expect(router.state.location.search).toBe(
       "?q=researcher&cursor=catalog-2&page=4",
     );
     expect(
-      await screen.findByRole("button", { name: "Previous" }),
+      await (await paging()).findByRole("button", { name: "Previous" }),
     ).toBeDisabled();
   });
 
@@ -212,8 +284,10 @@ describe("Catalog", () => {
       paginated: true,
       paginatedUsage: true,
     });
-    await user.click(await screen.findByRole("button", { name: "Next" }));
-    await screen.findByText("Page 2");
+    await user.click(
+      await (await paging()).findByRole("button", { name: "Next" }),
+    );
+    await (await currentPane()).findByText("Page 2");
     const previousState = router.state.location.state;
     await act(async () => {
       await router.navigate(
@@ -222,16 +296,20 @@ describe("Catalog", () => {
       );
     });
     expect(
-      await screen.findByRole("button", { name: "Previous" }),
+      await (await paging()).findByRole("button", { name: "Previous" }),
     ).toBeDisabled();
     await act(async () => {
       await router.navigate(
         "/catalog/agents/researcher/1?usageCursor=usage-next&usagePage=2",
       );
     });
-    await user.click(await screen.findByRole("button", { name: "First page" }));
-    await user.click(await screen.findByRole("button", { name: "Next" }));
-    await screen.findByText("Page 2");
+    await user.click(
+      await (await paging()).findByRole("button", { name: "First page" }),
+    );
+    await user.click(
+      await (await paging()).findByRole("button", { name: "Next" }),
+    );
+    await (await currentPane()).findByText("Page 2");
     const usageState = router.state.location.state;
     await act(async () => {
       await router.navigate(
@@ -240,9 +318,11 @@ describe("Catalog", () => {
       );
     });
     expect(
-      await screen.findByRole("button", { name: "Previous" }),
+      await (await paging()).findByRole("button", { name: "Previous" }),
     ).toBeDisabled();
-    expect(screen.getByRole("button", { name: "First page" })).toBeEnabled();
+    expect(
+      (await paging()).getByRole("button", { name: "First page" }),
+    ).toBeEnabled();
   });
 
   it("returns through actual preceding Agent pages after a detail visit and browser navigation", async () => {
@@ -250,37 +330,45 @@ describe("Catalog", () => {
     const { router } = setup("/catalog/agents?q=researcher&keep=yes", {
       paginated: true,
     });
-    await user.click(await screen.findByRole("button", { name: "Next" }));
-    await screen.findByText("Page 2");
-    await user.click(await screen.findByRole("button", { name: "Next" }));
-    await screen.findByText("Page 3");
     await user.click(
-      await screen.findByRole("link", { name: /Inspect version/ }),
+      await (await paging()).findByRole("button", { name: "Next" }),
     );
-    await user.click(await screen.findByRole("link", { name: /Agent search/ }));
-    await screen.findByText("Page 3");
-    await user.click(await screen.findByRole("button", { name: "Previous" }));
+    await (await currentPane()).findByText("Page 2");
+    await user.click(
+      await (await paging()).findByRole("button", { name: "Next" }),
+    );
+    await (await currentPane()).findByText("Page 3");
+    await user.click(
+      await screen.findByRole("link", { name: /Model agent Researcher/ }),
+    );
+    await user.click(await screen.findByRole("link", { name: "All agents" }));
+    await (await currentPane()).findByText("Page 3");
+    await user.click(
+      await (await paging()).findByRole("button", { name: "Previous" }),
+    );
     expect(router.state.location.pathname).toBe("/catalog/agents");
     expect(
       new URLSearchParams(router.state.location.search).get("cursor"),
     ).toBe("catalog-2");
-    await screen.findByText("Page 2");
-    await user.click(await screen.findByRole("button", { name: "Previous" }));
-    await screen.findByText("Page 1");
+    await (await currentPane()).findByText("Page 2");
+    await user.click(
+      await (await paging()).findByRole("button", { name: "Previous" }),
+    );
+    await (await currentPane()).findByText("Page 1");
     expect(router.state.location.search).toBe("?q=researcher&keep=yes");
     await act(async () => {
       await router.navigate(-1);
     });
-    await screen.findByText("Page 2");
+    await (await currentPane()).findByText("Page 2");
     expect(
-      await screen.findByRole("button", { name: "Previous" }),
+      await (await paging()).findByRole("button", { name: "Previous" }),
     ).toBeEnabled();
     await act(async () => {
       await router.navigate(1);
     });
-    await screen.findByText("Page 1");
+    await (await currentPane()).findByText("Page 1");
     expect(
-      await screen.findByRole("button", { name: "Previous" }),
+      await (await paging()).findByRole("button", { name: "Previous" }),
     ).toBeDisabled();
   });
 
@@ -290,30 +378,38 @@ describe("Catalog", () => {
       "/catalog/agents?q=researcher&keep=yes&cursor=external&page=4",
       { paginated: true },
     );
-    await screen.findByText("Page 4");
+    await (await currentPane()).findByText("Page 4");
     expect(
-      await screen.findByRole("button", { name: "Previous" }),
+      await (await paging()).findByRole("button", { name: "Previous" }),
     ).toBeDisabled();
-    await user.click(screen.getByRole("button", { name: "First page" }));
-    await screen.findByText("Page 1");
+    await user.click(
+      (await paging()).getByRole("button", { name: "First page" }),
+    );
+    await (await currentPane()).findByText("Page 1");
     expect(router.state.location.search).toBe("?q=researcher&keep=yes");
   });
 
   it("resets cursor history when the search changes", async () => {
     const user = userEvent.setup();
     const { router } = setup("/catalog/agents?keep=yes", { paginated: true });
-    await user.click(await screen.findByRole("button", { name: "Next" }));
-    await screen.findByText("Page 2");
+    await user.click(
+      await (await paging()).findByRole("button", { name: "Next" }),
+    );
+    await (await currentPane()).findByText("Page 2");
     await user.type(screen.getByLabelText("Search agents"), "researcher");
     await waitFor(() =>
       expect(router.state.location.search).toBe("?keep=yes&q=researcher"),
     );
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Previous" })).toBeDisabled(),
+    await waitFor(async () =>
+      expect(
+        (await paging()).getByRole("button", { name: "Previous" }),
+      ).toBeDisabled(),
     );
-    await user.click(screen.getByRole("button", { name: "Next" }));
-    await screen.findByText("Page 2");
-    await user.click(await screen.findByRole("button", { name: "Previous" }));
+    await user.click((await paging()).getByRole("button", { name: "Next" }));
+    await (await currentPane()).findByText("Page 2");
+    await user.click(
+      await (await paging()).findByRole("button", { name: "Previous" }),
+    );
     expect(router.state.location.search).toBe("?keep=yes&q=researcher");
   });
 
@@ -356,28 +452,34 @@ describe("Catalog", () => {
     });
     const usage = () =>
       within(screen.getByRole("region", { name: "Where used" }));
-    await user.click(await screen.findByRole("button", { name: "Next" }));
-    await screen.findByText("Page 2");
     await user.click(
-      await usage().findByRole("link", { name: "openapi-from-source@1" }),
+      await (await paging()).findByRole("button", { name: "Next" }),
+    );
+    await (await currentPane()).findByText("Page 2");
+    await user.click(
+      await usage().findByRole("link", { name: /openapi-from-source@1/ }),
     );
     await user.click(await screen.findByRole("link", { name: /researcher@1/ }));
-    await screen.findByText("Page 2");
-    await user.click(await screen.findByRole("button", { name: "Previous" }));
+    await (await currentPane()).findByText("Page 2");
+    await user.click(
+      await (await paging()).findByRole("button", { name: "Previous" }),
+    );
     expect(router.state.location.pathname).toBe("/catalog/agents/researcher/1");
     expect(router.state.location.search).toBe("");
-    await user.click(await screen.findByRole("button", { name: "Next" }));
-    await screen.findByText("Page 2");
+    await user.click(
+      await (await paging()).findByRole("button", { name: "Next" }),
+    );
+    await (await currentPane()).findByText("Page 2");
     await user.click(
       screen.getByRole("button", { name: "Load more versions" }),
     );
     await screen.findByRole("option", { name: "2" });
     await user.selectOptions(screen.getByLabelText("Published version"), "2");
-    await screen.findByText("Page 1");
+    await (await currentPane()).findByText("Page 1");
     expect(router.state.location.pathname).toBe("/catalog/agents/researcher/2");
     expect(router.state.location.search).toBe("");
     expect(
-      await screen.findByRole("button", { name: "Previous" }),
+      await (await paging()).findByRole("button", { name: "Previous" }),
     ).toBeDisabled();
   });
 
@@ -387,28 +489,31 @@ describe("Catalog", () => {
       "/catalog/agents/researcher/1?usageCursor=external&usagePage=4",
       { paginatedUsage: true },
     );
-    await screen.findByText("Page 4");
+    await (await currentPane()).findByText("Page 4");
     expect(
-      await screen.findByRole("button", { name: "Previous" }),
+      await (await paging()).findByRole("button", { name: "Previous" }),
     ).toBeDisabled();
-    await user.click(screen.getByRole("button", { name: "First page" }));
-    await screen.findByText("Page 1");
+    await user.click(
+      (await paging()).getByRole("button", { name: "First page" }),
+    );
+    await (await currentPane()).findByText("Page 1");
     expect(router.state.location.search).toBe("");
   });
 
   it("groups Agent versions and preserves a deliberate older choice for ordinary users", async () => {
     setup("/catalog/agents");
     const links = await screen.findAllByRole("link", {
-      name: /researcher.*Inspect version/,
+      name: /Model agent Researcher/,
     });
     expect(links.map((link) => link.getAttribute("href"))).toEqual([
       "/catalog/agents/researcher/2",
     ]);
+    await screen.findByRole("option", { name: "1" });
     await userEvent
       .setup()
-      .selectOptions(screen.getByLabelText("Version of researcher"), "1");
+      .selectOptions(screen.getByLabelText("Published version"), "1");
     expect(
-      screen.getByRole("link", { name: /researcher.*Inspect version/ }),
+      screen.getByRole("link", { name: /Model agent Researcher/ }),
     ).toHaveAttribute("href", "/catalog/agents/researcher/1");
     const primary = screen.getByRole("navigation", {
       name: "Primary navigation",
@@ -437,7 +542,10 @@ describe("Catalog", () => {
       await screen.findByRole("heading", { level: 1, name: "Library" }),
     ).toBeVisible();
     expect(
-      await screen.findByRole("heading", { level: 2, name: "Check types" }),
+      await screen.findByRole("heading", {
+        level: 2,
+        name: "Find your next check",
+      }),
     ).toBeVisible();
     await waitFor(() =>
       expect(document.title).toBe("Check types · Library · Contractor"),
@@ -494,15 +602,18 @@ describe("Catalog", () => {
     await waitFor(() => expect(router.state.location.search).toContain("q=2"));
     await waitFor(() => expect(searched(server, "2")).toBe(true));
     const result = await screen.findByRole("link", {
-      name: /researcher.*2.*Inspect version/,
+      name: /Model agent Researcher/,
     });
     expect(
-      screen.getAllByRole("link", { name: /Inspect version/ }),
+      screen.getAllByRole("link", { name: /Model agent Researcher/ }),
     ).toHaveLength(1);
-    expect(result).toHaveAttribute("href", "/catalog/agents/researcher/2");
+    expect(result).toHaveAttribute(
+      "href",
+      "/catalog/agents/researcher/2?keep=yes&q=2",
+    );
     await user.click(result);
     await screen.findByRole("heading", { name: "Second version" });
-    await user.click(screen.getByRole("link", { name: /Agent search/ }));
+    await user.click(screen.getByRole("link", { name: "All agents" }));
     await waitFor(() =>
       expect(router.state.location.pathname).toBe("/catalog/agents"),
     );
@@ -522,7 +633,7 @@ describe("Catalog", () => {
     await user.clear(search);
     await user.type(search, "2");
     await screen.findByRole("link", {
-      name: /researcher.*2.*Inspect version/,
+      name: /Model agent Researcher/,
     });
     await waitFor(() => expect(abortedSearches).toEqual(["slow"]));
   });
@@ -549,9 +660,11 @@ describe("Catalog", () => {
       container.querySelector('img[src="https://example.test/image.png"]'),
     ).toBeNull();
     expect(
-      screen.getByRole("link", { name: "skills/research" }),
+      within(
+        screen.getByRole("complementary", { name: "Agent capabilities" }),
+      ).getByRole("link", { name: /skills\/research/ }),
     ).toHaveAttribute("href", "/artifacts/skills/research");
-    await user.click(screen.getByRole("button", { name: "Copy" }));
+    await user.click(screen.getByRole("button", { name: "Copy instructions" }));
     expect(copy).toHaveBeenCalledWith(prompt);
     expect(await screen.findByRole("status")).toHaveTextContent(
       "Prompt copied.",
@@ -562,7 +675,7 @@ describe("Catalog", () => {
     ).toBe(prompt);
     expect(
       within(screen.getByRole("region", { name: "Where used" })).getByText(
-        "analyze",
+        /Stage analyze/,
       ),
     ).toBeVisible();
     expect(screen.queryByRole("option", { name: "2" })).not.toBeInTheDocument();
@@ -578,15 +691,15 @@ describe("Catalog", () => {
     );
     expect(await screen.findByText(/Second version/)).toBeVisible();
     const usage = screen.getByRole("region", { name: "Where used" });
-    expect(within(usage).getByText("model")).toBeVisible();
+    expect(within(usage).getByText(/Stage model/)).toBeVisible();
     expect(
-      within(usage).getByRole("link", { name: "likec4-from-source@beta" }),
+      within(usage).getByRole("link", { name: /likec4-from-source@beta/ }),
     ).toHaveAttribute("href", "/catalog/workflows/likec4-from-source/beta");
     await user.click(
-      within(usage).getByRole("link", { name: "likec4-from-source@beta" }),
+      within(usage).getByRole("link", { name: /likec4-from-source@beta/ }),
     );
     expect(
-      await screen.findByRole("heading", { name: "likec4-from-source" }),
+      await screen.findByRole("heading", { name: "LikeC4 from source" }),
     ).toBeVisible();
     await user.click(screen.getByRole("link", { name: /researcher@2/ }));
     await waitFor(() =>
@@ -604,7 +717,7 @@ describe("Catalog", () => {
     );
     setup("/catalog/agents/researcher/1");
     await screen.findByRole("heading", { name: "Careful researcher" });
-    await user.click(screen.getByRole("button", { name: "Copy" }));
+    await user.click(screen.getByRole("button", { name: "Copy instructions" }));
     expect(await screen.findByRole("status")).toHaveTextContent(
       "Could not copy",
     );
@@ -645,16 +758,16 @@ describe("Catalog", () => {
       ),
     ).toBeVisible();
     const configuration = screen.getByRole("complementary", {
-      name: "Agent configuration",
+      name: "Agent capabilities",
     });
     expect(within(configuration).getByText("tool@1")).toBeVisible();
     expect(
-      screen.queryByRole("button", { name: "Copy" }),
+      screen.queryByRole("button", { name: "Copy instructions" }),
     ).not.toBeInTheDocument();
     expect(
       await within(
         screen.getByRole("region", { name: "Where used" }),
-      ).findByRole("link", { name: "openapi-from-source@1" }),
+      ).findByRole("link", { name: /openapi-from-source@1/ }),
     ).toBeVisible();
     expect(
       server.requests.some((request) => request.url.includes("/instructions")),
@@ -664,7 +777,9 @@ describe("Catalog", () => {
   it("does not display or copy instructions from another digest", async () => {
     setup("/catalog/agents/researcher/1", { mismatch: true });
     expect(await screen.findByText(/instructions do not match/)).toBeVisible();
-    expect(screen.getByRole("button", { name: "Copy" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Copy instructions" }),
+    ).toBeDisabled();
     expect(
       screen.queryByRole("heading", { name: "Careful researcher" }),
     ).not.toBeInTheDocument();

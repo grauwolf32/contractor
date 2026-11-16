@@ -6,6 +6,20 @@ import type { ReactNode } from "react";
  * of their own <svg>; lint rejects new inline SVG icons under src/routes.
  */
 const shapes = {
+  workflow: (
+    <>
+      <rect x="3" y="3" width="6" height="6" rx="1" />
+      <rect x="15" y="15" width="6" height="6" rx="1" />
+      <path d="M6 9v9h9M9 6h9v9" />
+    </>
+  ),
+  agent: (
+    <>
+      <rect x="4" y="7" width="16" height="13" rx="4" />
+      <path d="M12 3v4M2 12h2m16 0h2M8 12v2m8-2v2M9 17h6" />
+    </>
+  ),
+  tool: <path d="m14 6 4 4 3-3a7 7 0 0 1-9 9l-6 6-4-4 6-6a7 7 0 0 1 9-9z" />,
   coins: (
     <>
       <ellipse cx="9" cy="6" rx="6" ry="3" />

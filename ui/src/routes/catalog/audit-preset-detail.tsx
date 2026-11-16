@@ -1,8 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { useId } from "react";
-import { useLocation, useNavigate, useParams } from "react-router";
-
+import { useLocation, useNavigate } from "react-router";
 import { auditPresetPath } from "../../api/audit-presets";
+import { ENGAGEMENT_MEDIA_TYPE } from "../../api/artifacts";
 import { getAuditProfile, type AuditProfile } from "../../api/audits";
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
@@ -18,34 +17,20 @@ import {
   formatBytes,
   formatTimeLimit,
 } from "../../app/format";
+import { Icon } from "../../app/icon";
 import { QueryView } from "../../app/query-view";
-import { capitalize, TERMS } from "../../app/vocabulary";
+import { Button, ButtonLink, Facts, TechnicalDetails } from "../../ui";
 import {
-  Button,
-  ButtonLink,
-  DetailHeader,
-  DetailPane,
-  Facts,
-  IdChip,
-  TechnicalDetails,
-} from "../../ui";
-import { auditPresetLabel } from "../projects/audits/labels";
-import { workflowFormats } from "../workflows/formats";
-import {
-  presetScope,
-  startCheckPath,
-  useAuditPresets,
-} from "./audit-preset-data";
-import { CheckTypeAvailability } from "./check-type-status";
-import { LibraryBackLink } from "./library-parts";
-
-const BACK = {
-  returnTo: "/catalog/audit-presets",
-  returnLabel: "All check types",
-};
-
+  presentCheckType,
+  inputLabel,
+  formatList,
+  orderedInputs,
+  scopeSummary,
+} from "../checks/start/check-types";
+import { startCheckPath, useAuditPresets } from "./audit-preset-data";
+import { LibraryDetailHeading, LibraryTag } from "./browser";
 function VersionPicker({ name, version }: { name: string; version: string }) {
-  const query = useAuditPresets();
+  const query = useAuditPresets(false);
   const navigate = useNavigate();
   const location = useLocation();
   const versions = new Set([version]);
@@ -62,9 +47,12 @@ function VersionPicker({ name, version }: { name: string; version: string }) {
           aria-label="Check type version"
           value={version}
           onChange={(event) =>
-            void navigate(auditPresetPath(name, event.target.value), {
-              state: location.state,
-            })
+            void navigate(
+              auditPresetPath(name, event.target.value) + location.search,
+              {
+                state: location.state,
+              },
+            )
           }
         >
           {[...versions]
@@ -97,121 +85,190 @@ function VersionPicker({ name, version }: { name: string; version: string }) {
   );
 }
 
-function CheckTypeInputs({ profile }: { profile: AuditProfile }) {
-  const heading = useId();
-  const inputs = Object.entries(profile.inputs).sort(
-    ([left, x], [right, y]) =>
-      Number(y.required) - Number(x.required) || left.localeCompare(right),
-  );
-  return (
-    <section className="library-block" aria-labelledby={heading}>
-      <h3 id={heading} className="library-block-title">
-        Inputs
-      </h3>
-      {inputs.length === 0 ? (
-        <p className="ui-caption">This check type needs no inputs.</p>
-      ) : (
-        <ul className="library-rows">
-          {inputs.map(([name, input]) => (
-            <li key={name}>
-              <code className="library-row-name">{name}</code>
-              <span className="library-row-tag">
-                {input.required ? "Required" : "Optional"}
-              </span>
-              <span className="library-row-detail">
-                {input.media_types
-                  .map((type) =>
-                    workflowFormats[type]
-                      ? `${workflowFormats[type]} (${type})`
-                      : type,
-                  )
-                  .join(", ")}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
-
-function CheckTypeWorkflows({ profile }: { profile: AuditProfile }) {
-  const heading = useId();
-  const workflows = Object.entries(profile.program?.workflows ?? {});
-  if (workflows.length === 0) return null;
-  return (
-    <section className="library-block" aria-labelledby={heading}>
-      <h3 id={heading} className="library-block-title">
-        Workflows
-      </h3>
-      <ul className="library-rows">
-        {workflows.map(([role, binding]) => (
-          <li key={role}>
-            <ContextLink
-              className="library-row-name"
-              to={`/catalog/workflows/${encodeURIComponent(binding.ref.split("@")[0]!)}/${encodeURIComponent(binding.ref.split("@")[1]!)}`}
-              returnLabel={`${auditPresetLabel(profile.ref.name)} @${profile.ref.version}`}
-            >
-              {binding.ref.split("@")[0]!}@{binding.ref.split("@")[1]!}
-            </ContextLink>
-            <span className="library-row-detail">
-              Role <code>{role}</code> ·{" "}
-              {Object.keys(binding.outputs).join(", ")}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
 function CheckTypeContents({ profile }: { profile: AuditProfile }) {
+  const presentation = presentCheckType(profile);
   const limits = profile.limits;
+  const http = Object.values(profile.inputs).some((i) =>
+    i.media_types.includes(ENGAGEMENT_MEDIA_TYPE),
+  );
+  const scope = scopeSummary(profile);
+  const workflows = Object.entries(profile.program?.workflows ?? {});
   return (
-    <>
-      <Facts
-        items={[
-          {
-            term: "Time limit",
-            value: formatTimeLimit(limits.deadline_seconds),
-          },
-          {
-            term: "Active tests",
-            value:
-              profile.policy.active_operations === "allowed"
-                ? "Use project setting"
-                : "Prohibited",
-          },
-          { term: "Task limit", value: limits.max_tasks },
-          { term: "Attempts per task", value: limits.max_attempts },
-        ]}
+    <article className="library-design-detail library-check-detail">
+      <LibraryDetailHeading
+        title={presentation.label}
+        kind="Check type"
+        description={presentation.description}
+        selector={`${profile.ref.name}@${profile.ref.version}`}
+        identityLabel="check type version"
+        icon={presentation.icon}
+        tone={http ? "amber" : "blue"}
+        version={
+          <VersionPicker
+            name={profile.ref.name}
+            version={profile.ref.version}
+          />
+        }
+        meta={
+          <LibraryTag tone={http ? "amber" : "blue"}>
+            {http ? "Engagement" : "Published check type"}
+          </LibraryTag>
+        }
       />
-      <p>{presetScope(profile)}</p>
-      <CheckTypeInputs profile={profile} />
-      <CheckTypeWorkflows profile={profile} />
-      <TechnicalDetails description="Limits and identities, for admins and debugging.">
-        <Facts
-          size="sm"
-          items={[
-            {
-              term: "Digest",
-              value: <code>{compactDigest(profile.ref.digest)}</code>,
-            },
-            { term: "Runs", value: limits.max_submitted_runs },
-            { term: "Batch size", value: limits.batch_size },
-            { term: "Evidence", value: formatBytes(limits.max_evidence_bytes) },
-          ]}
-        />
-      </TechnicalDetails>
-    </>
+      <div className="library-detail-grid">
+        <div className="library-detail-main">
+          <section
+            className="library-design-section"
+            aria-label="What you'll need"
+          >
+            <header className="library-design-section-header">
+              <h3>What you'll need</h3>
+              <span>{Object.keys(profile.inputs).length} inputs</span>
+            </header>
+            <div className="library-materials">
+              {orderedInputs(profile).map(([name, input]) => (
+                <div className="library-material" key={name}>
+                  <span className="library-material-icon">
+                    <Icon
+                      name={
+                        name === "source"
+                          ? "source"
+                          : name === "engagement"
+                            ? "target"
+                            : "docs"
+                      }
+                    />
+                  </span>
+                  <div>
+                    <strong>{inputLabel(name)}</strong>
+                    <small>{formatList(input.media_types)}</small>
+                  </div>
+                  <LibraryTag>
+                    {input.required ? "Required" : "Optional"}
+                  </LibraryTag>
+                </div>
+              ))}
+              {Object.keys(profile.inputs).length === 0 ? (
+                <p className="library-empty-contract">
+                  This check type needs no inputs.
+                </p>
+              ) : null}
+            </div>
+          </section>
+          {workflows.length ? (
+            <section className="library-design-section" aria-label="Workflows">
+              <header className="library-design-section-header">
+                <h3>Workflows</h3>
+                <span>Published bindings</span>
+              </header>
+              <div className="library-check-flow">
+                {workflows.map(([role, binding]) => {
+                  const [name, version] = binding.ref.split("@");
+                  return (
+                    <ContextLink
+                      className="library-usage-link"
+                      key={role}
+                      to={`/catalog/workflows/${encodeURIComponent(name!)}/${encodeURIComponent(version!)}`}
+                      returnLabel={presentation.label}
+                    >
+                      <Icon name="workflow" />
+                      <span>
+                        <strong>{binding.ref}</strong>
+                        <small>
+                          Role {role} ·{" "}
+                          {Object.keys(binding.outputs).join(", ")}
+                        </small>
+                      </span>
+                      <span aria-hidden="true">↗</span>
+                    </ContextLink>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
+          <section className="library-design-section">
+            <header className="library-design-section-header">
+              <h3>What to expect</h3>
+            </header>
+            <p className="library-section-copy">
+              {scope?.size ?? "Recorded results and evidence"}
+            </p>
+            <p className="ui-caption">
+              {scope?.detail ??
+                "Open the collected results and review possible issues as the check progresses."}
+            </p>
+          </section>
+          <TechnicalDetails
+            description="Limits, policy and exact contract"
+            className="library-design-technical"
+          >
+            <Facts
+              size="sm"
+              items={[
+                {
+                  term: "Time limit",
+                  value: formatTimeLimit(limits.deadline_seconds),
+                },
+                {
+                  term: "Active tests",
+                  value:
+                    profile.policy.active_operations === "allowed"
+                      ? "Use project setting"
+                      : "Prohibited",
+                },
+                { term: "Task limit", value: limits.max_tasks },
+                { term: "Attempts per task", value: limits.max_attempts },
+                {
+                  term: "Digest",
+                  value: <code>{compactDigest(profile.ref.digest)}</code>,
+                },
+                { term: "Runs", value: limits.max_submitted_runs },
+                { term: "Batch size", value: limits.batch_size },
+                {
+                  term: "Evidence",
+                  value: formatBytes(limits.max_evidence_bytes),
+                },
+              ]}
+            />
+            <dl className="library-exact-contract">
+              {Object.entries(profile.inputs).map(([name, input]) => (
+                <div key={name}>
+                  <dt>
+                    <code>{name}</code>
+                  </dt>
+                  <dd>{input.media_types.join(", ")}</dd>
+                </div>
+              ))}
+            </dl>
+            <ButtonLink size="sm" to="/catalog/studio?kind=AuditProfile">
+              Open Node Studio
+            </ButtonLink>
+          </TechnicalDetails>
+        </div>
+        <aside className="library-context-card library-setup-card">
+          <span className="library-context-icon">
+            <Icon name="checks" />
+          </span>
+          <h3>Make it your check</h3>
+          <p>Choose a project and the materials you want to check.</p>
+          <ButtonLink variant="primary" to={startCheckPath(profile.ref.name)}>
+            Set up check <Icon name="arrow-right" />
+          </ButtonLink>
+          <small>Review the version and inputs before starting.</small>
+        </aside>
+      </div>
+    </article>
   );
 }
 
-/** Library → Check types → one check type at an exact version. */
-export function AuditPresetDetailRoute() {
-  const { name = "", version = "" } = useParams();
+export function AuditPresetDetailRoute({
+  name,
+  version,
+}: {
+  name: string;
+  version: string;
+}) {
   const api = usePublicAPI();
-  const titleId = useId();
   const valid =
     CONFIG_NAME_PATTERN.test(name) && CONFIG_VERSION_PATTERN.test(version);
   const query = useQuery({
@@ -219,65 +276,13 @@ export function AuditPresetDetailRoute() {
     queryFn: ({ signal }) => getAuditProfile(api, name, version, signal),
     enabled: valid,
   });
-  const profile = query.data;
-  const selector = `${name}@${version}`;
-  return (
-    <div className="ui-stack">
-      <LibraryBackLink fallback={BACK} />
-      <article className="library-sheet" aria-labelledby={titleId}>
-        <DetailPane
-          header={
-            <DetailHeader
-              title={<span id={titleId}>{auditPresetLabel(name)}</span>}
-              status={
-                profile === undefined ? undefined : (
-                  <CheckTypeAvailability profile={profile} />
-                )
-              }
-              meta={
-                <>
-                  <span>{capitalize(TERMS.checkType)}</span>
-                  <IdChip
-                    value={selector}
-                    display={selector}
-                    label="check type version"
-                  />
-                  {valid ? (
-                    <VersionPicker name={name} version={version} />
-                  ) : null}
-                </>
-              }
-              actions={
-                <>
-                  <ButtonLink to="/catalog/studio?kind=AuditProfile">
-                    Open Node Studio
-                  </ButtonLink>
-                  {profile !== undefined ? (
-                    <ButtonLink variant="primary" to={startCheckPath(name)}>
-                      Start a check with this type
-                    </ButtonLink>
-                  ) : null}
-                </>
-              }
-            />
-          }
-        >
-          {!valid ? (
-            <ErrorNotice error={new Error("Check type version is invalid")} />
-          ) : (
-            <QueryView
-              query={query}
-              loading={
-                <p className="ui-caption" role="status">
-                  Loading check type…
-                </p>
-              }
-            >
-              {(data) => <CheckTypeContents key={selector} profile={data} />}
-            </QueryView>
-          )}
-        </DetailPane>
-      </article>
-    </div>
+  return valid ? (
+    <QueryView query={query} loading={<p role="status">Loading check type…</p>}>
+      {(profile) => (
+        <CheckTypeContents key={`${name}@${version}`} profile={profile} />
+      )}
+    </QueryView>
+  ) : (
+    <ErrorNotice error={new Error("Check type version is invalid")} />
   );
 }

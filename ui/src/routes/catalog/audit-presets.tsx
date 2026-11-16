@@ -1,180 +1,186 @@
-import { useId, useState } from "react";
-
+import { useLibraryBrowser } from "./browser-state";
+import { useId } from "react";
+import { useParams, useSearchParams } from "react-router";
 import { auditPresetPath } from "../../api/audit-presets";
-import type { AuditProfile } from "../../api/audits";
-import { ContextLink } from "../../app/context-navigation";
+import { ENGAGEMENT_MEDIA_TYPE } from "../../api/artifacts";
 import { plural } from "../../app/format";
 import { QueryView } from "../../app/query-view";
-import {
-  capitalize,
-  checkItemKind,
-  itemNoun,
-  TERMS,
-} from "../../app/vocabulary";
-import { EmptyState, IdChip } from "../../ui";
-import { auditPresetLabel } from "../projects/audits/labels";
+import { EmptyState } from "../../ui";
+import { presentCheckType, inputLabel } from "../checks/start/check-types";
 import {
   checkTypeSearchText,
   groupCheckTypes,
-  hasFixedItems,
-  presetScope,
   useAuditPresets,
-  type CheckTypeFamily,
 } from "./audit-preset-data";
-import { CheckTypeAvailability } from "./check-type-status";
+import { AuditPresetDetailRoute } from "./audit-preset-detail";
+import {
+  LibraryBrowser,
+  LibraryFilters,
+  LibraryInventory,
+  LibraryTag,
+} from "./browser";
 import { LibrarySearch, LibrarySectionHeader } from "./library-parts";
 import { useCatalogQueryState } from "./query-state";
 
-/** What the list hands a check type page as its way back. */
-const RETURN_LABEL = "All check types";
-
-/** "View requirements", or "View details" when the items come from inputs. */
-function viewLabel(profile: AuditProfile): string {
-  return hasFixedItems(profile)
-    ? `View ${itemNoun(checkItemKind(profile), 2)}`
-    : "View details";
-}
-
-function CheckTypeCard({
-  family,
-  profile,
-  onVersion,
-}: {
-  family: CheckTypeFamily;
-  profile: AuditProfile;
-  onVersion: (version: string) => void;
-}) {
-  const heading = useId();
-  const { name } = family;
-  const selector = `${name}@${profile.ref.version}`;
-  const path = auditPresetPath(name, profile.ref.version);
-  return (
-    <article className="library-card" aria-labelledby={heading}>
-      <div className="library-card-top">
-        <span className="library-card-kind">Check type</span>
-        <CheckTypeAvailability profile={profile} size="sm" />
-      </div>
-      <h3 id={heading} className="library-card-title">
-        <ContextLink to={path} returnLabel={RETURN_LABEL}>
-          {auditPresetLabel(name)}
-        </ContextLink>
-      </h3>
-      <p className="library-card-text">{presetScope(profile)}</p>
-      <div className="library-card-meta">
-        <label className="library-version">
-          <span>Version</span>
-          <select
-            className="ui-control"
-            data-size="xs"
-            aria-label={`Version of ${name}`}
-            value={profile.ref.version}
-            onChange={(event) => onVersion(event.target.value)}
-          >
-            {family.versions.map((item) => (
-              <option key={item.ref.version} value={item.ref.version}>
-                {item.ref.version}
-              </option>
-            ))}
-          </select>
-        </label>
-        <IdChip
-          value={selector}
-          display={selector}
-          label="check type version"
-        />
-      </div>
-      <footer className="library-card-footer">
-        <ContextLink
-          className="library-card-link"
-          to={path}
-          returnLabel={RETURN_LABEL}
-        >
-          {viewLabel(profile)} <span aria-hidden="true">→</span>
-        </ContextLink>
-      </footer>
-    </article>
-  );
-}
-
-/** Library → Check types: every published check type and its versions. */
+const BASE = "/catalog/audit-presets";
 export function AuditPresetListRoute() {
+  const { name, version } = useParams();
   const heading = useId();
   const query = useAuditPresets();
-  const state = useCatalogQueryState();
-  const [choices, setChoices] = useState<Record<string, string>>({});
-  const search = state.committedSearch.toLowerCase();
-  const families = groupCheckTypes(query.data ?? []).flatMap((family) => {
-    const versions = family.versions.filter((profile) =>
-      checkTypeSearchText(profile).includes(search),
+  const state = useCatalogQueryState(BASE);
+  const browser = useLibraryBrowser(BASE);
+  const [params, setParams] = useSearchParams();
+  const mode = params.get("mode") ?? "all";
+  const material = params.get("material") ?? "all";
+  const families = groupCheckTypes(query.data ?? []);
+  const materials = [
+    ...new Set((query.data ?? []).flatMap((p) => Object.keys(p.inputs))),
+  ].sort();
+  const shown = families
+    .flatMap((family) => {
+      const versions = family.versions.filter((profile) => {
+        const http = Object.values(profile.inputs).some((i) =>
+          i.media_types.includes(ENGAGEMENT_MEDIA_TYPE),
+        );
+        return (
+          checkTypeSearchText(profile).includes(
+            state.committedSearch.toLowerCase(),
+          ) &&
+          (mode === "all" ||
+            (mode === "http"
+              ? http
+              : Object.hasOwn(profile.inputs, "source"))) &&
+          (material === "all" || Object.hasOwn(profile.inputs, material))
+        );
+      });
+      const profile =
+        versions.find(
+          (p) => p.ref.version === (name === family.name ? version : undefined),
+        ) ?? versions[0];
+      return profile ? [{ family, profile }] : [];
+    })
+    .sort(
+      (a, b) =>
+        presentCheckType(a.profile).order - presentCheckType(b.profile).order ||
+        a.family.name.localeCompare(b.family.name),
     );
-    return versions.length === 0 ? [] : [{ ...family, versions }];
-  });
-  const shown = families.map((family) => ({
-    family,
-    profile:
-      family.versions.find(
-        (item) => item.ref.version === choices[family.name],
-      ) ?? family.versions[0]!,
-  }));
-
+  const first = shown[0]?.profile;
+  const selectedName = name ?? first?.ref.name;
+  const selectedVersion =
+    name !== undefined ? (version ?? "") : first?.ref.version;
+  function filter(key: string, value: string) {
+    const next = new URLSearchParams(params);
+    if (value === "all") next.delete(key);
+    else next.set(key, value);
+    setParams(next, { replace: true, state: browser.location.state });
+  }
   return (
-    <section className="library-section" aria-labelledby={heading}>
-      <LibrarySectionHeader
-        id={heading}
-        title={capitalize(TERMS.checkTypes)}
-        description="What each type of check works through, and whether this server can run it."
-        actions={
+    <LibraryBrowser
+      base={BASE}
+      title="Check types"
+      selected={name !== undefined}
+      list={
+        <div className="library-inventory">
+          <LibrarySectionHeader
+            id={heading}
+            title="Find your next check"
+            description="Choose by goal and materials."
+            actions={<span className="library-count-pill">{shown.length}</span>}
+          />
           <LibrarySearch
             label="Search check types"
-            placeholder="Name, version, standard or mode"
+            placeholder="Search checks…"
             value={state.draftSearch}
             onChange={state.changeDraftSearch}
           />
-        }
-      />
-      <QueryView
-        query={query}
-        loading={<p role="status">Loading check types…</p>}
-        isEmpty={() => shown.length === 0}
-        empty={
-          <div className="library-empty">
-            <EmptyState
-              title={
-                search
-                  ? "No check types match this search."
-                  : "No check types published."
-              }
+          <LibraryFilters
+            label="Check type filters"
+            value={mode}
+            onChange={(v) => filter("mode", v)}
+            options={[
+              ["all", "All types"],
+              ["source", "Source"],
+              ["http", "Engagement"],
+            ]}
+          />
+          <label className="library-material-filter">
+            Material
+            <select
+              className="ui-control"
+              data-size="xs"
+              aria-label="Material"
+              value={material}
+              onChange={(e) => filter("material", e.target.value)}
             >
-              {search
-                ? "Try a name, a version, a standard or a mode."
-                : "Check types appear here once the server publishes them."}
-            </EmptyState>
-          </div>
-        }
-      >
-        {() => (
-          <>
-            <p className="library-count" aria-live="polite">
-              {plural(shown.length, TERMS.checkType, TERMS.checkTypes)}
-            </p>
-            <div className="library-grid">
-              {shown.map(({ family, profile }) => (
-                <CheckTypeCard
-                  key={family.name}
-                  family={family}
-                  profile={profile}
-                  onVersion={(version) =>
-                    setChoices((previous) => ({
-                      ...previous,
-                      [family.name]: version,
-                    }))
-                  }
-                />
+              <option value="all">Any material</option>
+              {materials.map((m) => (
+                <option key={m} value={m}>
+                  {inputLabel(m)}
+                </option>
               ))}
-            </div>
-          </>
-        )}
-      </QueryView>
-    </section>
+            </select>
+          </label>
+          <QueryView
+            query={query}
+            loading={<p role="status">Loading check types…</p>}
+          >
+            {() =>
+              shown.length === 0 ? (
+                <EmptyState title="No matching check types">
+                  Try another name or material.
+                </EmptyState>
+              ) : (
+                <LibraryInventory
+                  selected={selectedName}
+                  state={browser.rowState}
+                  items={shown.map(({ family, profile }) => {
+                    const p = presentCheckType(profile);
+                    const http = Object.values(profile.inputs).some((i) =>
+                      i.media_types.includes(ENGAGEMENT_MEDIA_TYPE),
+                    );
+                    return {
+                      key: family.name,
+                      to:
+                        auditPresetPath(family.name, profile.ref.version) +
+                        browser.search,
+                      title: p.label,
+                      description: p.description,
+                      kind: "Check type",
+                      icon: p.icon,
+                      tone: http ? "amber" : "blue",
+                      meta: (
+                        <>
+                          <LibraryTag tone={http ? "amber" : "blue"}>
+                            {http ? "Engagement" : "Materials"}
+                          </LibraryTag>
+                          <span>
+                            {plural(
+                              Object.keys(profile.inputs).length,
+                              "input",
+                            )}
+                          </span>
+                        </>
+                      ),
+                    };
+                  })}
+                />
+              )
+            }
+          </QueryView>
+        </div>
+      }
+      detail={
+        selectedName !== undefined && selectedVersion !== undefined ? (
+          <AuditPresetDetailRoute
+            name={selectedName}
+            version={selectedVersion}
+          />
+        ) : (
+          <EmptyState title="Choose a check type">
+            Its purpose and materials will appear here.
+          </EmptyState>
+        )
+      }
+    />
   );
 }

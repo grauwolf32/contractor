@@ -1,6 +1,7 @@
+import { libraryReadableName } from "./presentation";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { lazy, Suspense, useId, useMemo, useState } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 
 import {
   agentPath,
@@ -23,15 +24,14 @@ import { CursorControls } from "../../app/cursor-controls";
 import { ErrorNotice } from "../../app/error-notice";
 import { LoadMoreButton } from "../../app/load-more";
 import { nextPageCursor } from "../../app/pagination";
-import { plural } from "../../app/format";
+import { compareVersions, plural } from "../../app/format";
 import { QueryView } from "../../app/query-view";
-import { Button, ButtonLink, DetailHeader, DetailPane, Field } from "../../ui";
+import { Button, ButtonLink, TechnicalDetails } from "../../ui";
 import { ConfigurationBodyView } from "../operations/llm-configurations/body";
-import {
-  useCatalogCursorState,
-  withoutCatalogPagination,
-} from "./cursor-state";
-import { LibraryBackLink } from "./library-parts";
+import { useCatalogCursorState } from "./cursor-state";
+import { LibraryDetailHeading, LibraryTag } from "./browser";
+import { Icon } from "../../app/icon";
+import { artifactDetailPath } from "../artifacts/paths";
 import { locationDestination } from "./navigation";
 
 const MarkdownPreview = lazy(() => import("../artifacts/previews/markdown"));
@@ -66,37 +66,49 @@ function AgentVersionSelector({
       }
     }
     return [...byVersion.values()].sort((left, right) =>
-      left.ref.version.localeCompare(right.ref.version),
+      compareVersions(right.ref.version, left.ref.version),
     );
   }, [query.data, resource]);
 
   return (
     <section className="library-agent-versions" aria-label="Agent versions">
-      <Field label="Published version">
-        {(control) => (
-          <select
-            {...control}
-            value={resource.ref.version}
-            onChange={(event) =>
-              void navigate(agentPath(resource.ref.name, event.target.value), {
-                state: withoutCatalogPagination(location.state),
-              })
-            }
-          >
-            {versions.map((item) => (
-              <option
-                key={`${item.ref.version}:${item.ref.digest}`}
-                value={item.ref.version}
-              >
-                {item.ref.version}
-              </option>
-            ))}
-          </select>
-        )}
-      </Field>
-      <span className="ui-caption">
-        {plural(versions.length, "version")} loaded
-      </span>
+      <label className="library-version">
+        <span>Version</span>
+        <select
+          className="ui-control"
+          data-size="xs"
+          aria-label="Published version"
+          value={resource.ref.version}
+          onChange={(event) => {
+            const params = new URLSearchParams(location.search);
+            params.delete("usageCursor");
+            params.delete("usagePage");
+            const state = {
+              ...(location.state as Record<string, unknown> | null),
+            };
+            delete state.catalogUsagePagination;
+            void navigate(
+              agentPath(resource.ref.name, event.target.value) +
+                (params.size ? `?${params}` : ""),
+              { state },
+            );
+          }}
+        >
+          {versions.map((item) => (
+            <option
+              key={`${item.ref.version}:${item.ref.digest}`}
+              value={item.ref.version}
+            >
+              {item.ref.version}
+            </option>
+          ))}
+        </select>
+      </label>
+      {query.hasNextPage ? (
+        <span className="ui-caption">
+          {plural(versions.length, "version")} loaded
+        </span>
+      ) : null}
       <LoadMoreButton
         size="sm"
         query={query}
@@ -153,19 +165,13 @@ function AgentPrompt({ resource }: { resource: ConfigurationResource }) {
     }
   }
   return (
-    <div className="library-agent-grid">
-      <section
-        className="library-panel library-prompt"
-        aria-labelledby={heading}
-      >
-        <header className="library-panel-header">
+    <>
+      <section className="library-prompt-panel" aria-labelledby={heading}>
+        <header className="library-prompt-header">
           <div>
             <h3 id={heading} className="library-block-title">
-              Base prompt
+              Base instructions
             </h3>
-            <p className="ui-caption">
-              Task context and Skill instructions are added during execution.
-            </p>
           </div>
           <div className="ui-toolbar">
             <div
@@ -192,8 +198,10 @@ function AgentPrompt({ resource }: { resource: ConfigurationResource }) {
               size="sm"
               disabled={query.data === undefined || query.error !== null}
               onClick={() => void copyPrompt()}
+              aria-label="Copy instructions"
+              title="Copy instructions"
             >
-              Copy
+              <Icon name="copy" />
             </Button>
           </div>
         </header>
@@ -217,22 +225,137 @@ function AgentPrompt({ resource }: { resource: ConfigurationResource }) {
             )
           }
         </QueryView>
+        <footer>
+          Base instructions only. Task context and Skill instructions are added
+          during execution.
+        </footer>
       </section>
-      <AgentConfiguration resource={resource} />
-    </div>
+    </>
   );
 }
 
-/** The template's declared settings: runtime, model policy, tools, Skills. */
-function AgentConfiguration({ resource }: { resource: ConfigurationResource }) {
+function AgentCapabilities({ resource }: { resource: ConfigurationResource }) {
+  const body = resource.body as AgentTemplateBody;
+  const count = body.toolsets.reduce((n, set) => n + set.tools.length, 0);
   return (
     <aside
-      className="library-panel library-agent-configuration"
-      aria-label="Agent configuration"
+      className="library-context-card library-capabilities"
+      aria-label="Agent capabilities"
     >
-      <h3 className="library-block-title">Configuration</h3>
-      <ConfigurationBodyView resource={resource} />
+      <span className="library-eyebrow">Capabilities</span>
+      <h3>Tools & Skills</h3>
+      <dl className="library-context-facts">
+        <div>
+          <dt>Runtime</dt>
+          <dd>
+            <code>{body.runtime}</code>
+          </dd>
+        </div>
+        <div>
+          <dt>Sandbox</dt>
+          <dd>
+            <code>{body.sandboxProfile}</code>
+          </dd>
+        </div>
+      </dl>
+      <h4>
+        Tools <span>{count}</span>
+      </h4>
+      {body.toolsets.length === 0 ? (
+        <p>No model-visible tools.</p>
+      ) : (
+        body.toolsets.map((set) => (
+          <details className="library-toolset" key={set.ref}>
+            <summary>
+              <Icon name="tool" />
+              <span>{set.ref}</span>
+              <small>{set.tools.length}</small>
+            </summary>
+            <ul>
+              {set.tools.map((tool) => (
+                <li key={tool}>
+                  <code>{tool}</code>
+                </li>
+              ))}
+            </ul>
+          </details>
+        ))
+      )}
+      <h4>
+        Skills <span>{body.skills?.length ?? 0}</span>
+      </h4>
+      {body.skills?.length ? (
+        <ul className="library-skill-links">
+          {body.skills.map((skill) => (
+            <li key={`${skill.namespace}/${skill.name}`}>
+              <Link to={artifactDetailPath({ kind: "user" }, skill)}>
+                <Icon name="docs" />
+                {skill.namespace}/{skill.name}
+                <span aria-hidden="true">↗</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p>No global Skills declared.</p>
+      )}
     </aside>
+  );
+}
+
+function ToolExecution({ body }: { body: AgentTemplateBody }) {
+  const execution = body.execution;
+  return (
+    <section className="library-tool-panel" aria-label="Direct tool execution">
+      <header>
+        <Icon name="tool" />
+        <div>
+          <strong>Direct tool call</strong>
+          <p>
+            This agent runs its configured tool directly without a model or
+            prompt.
+          </p>
+        </div>
+      </header>
+      {execution ? (
+        <div className="library-tool-call">
+          <code className="library-tool-name">{execution.tool}</code>
+          <dl>
+            {Object.entries(execution.arguments).map(([name, arg]) => (
+              <div key={name}>
+                <dt>{name}</dt>
+                <dd>
+                  {arg.source === "literal" ? (
+                    <>
+                      Literal · <code>{JSON.stringify(arg.value)}</code>
+                    </>
+                  ) : (
+                    <>
+                      {arg.source} · <code>{arg.name}</code>
+                      {arg.optional ? " · optional" : " · required"}
+                      {"parse" in arg ? ` · ${arg.parse}` : ""}
+                      {"default" in arg
+                        ? ` · default: ${JSON.stringify(arg.default)}`
+                        : ""}
+                    </>
+                  )}
+                </dd>
+              </div>
+            ))}
+            <div>
+              <dt>Result artifact</dt>
+              <dd>
+                <code>{execution.resultArtifact}</code>
+              </dd>
+            </div>
+            <div>
+              <dt>Timeout</dt>
+              <dd>{execution.timeoutSeconds}s</dd>
+            </div>
+          </dl>
+        </div>
+      ) : null}
+    </section>
   );
 }
 
@@ -240,7 +363,11 @@ function AgentUsage({ resource }: { resource: ConfigurationResource }) {
   const api = usePublicAPI();
   const location = useLocation();
   const heading = useId();
-  const pagination = useCatalogCursorState("usageCursor", "usagePage");
+  const pagination = useCatalogCursorState("usageCursor", "usagePage", {
+    stateKey: "catalogUsagePagination",
+    path: agentPath(resource.ref.name, resource.ref.version),
+    ignoreParams: ["q", "cursor", "page"],
+  });
   const { cursor, page } = pagination;
   const query = useQuery({
     queryKey: queryKeys.catalog.agentUsage(resource.ref, cursor),
@@ -254,8 +381,8 @@ function AgentUsage({ resource }: { resource: ConfigurationResource }) {
   });
 
   return (
-    <section className="library-block" aria-labelledby={heading}>
-      <header className="library-block-header">
+    <section className="library-design-section" aria-labelledby={heading}>
+      <header className="library-design-section-header">
         <h3 id={heading} className="library-block-title">
           Where used
         </h3>
@@ -272,7 +399,7 @@ function AgentUsage({ resource }: { resource: ConfigurationResource }) {
         }
       >
         {(data) => (
-          <ul className="library-rows library-usage">
+          <ul className="library-usage-links">
             {data.items.map((binding) => {
               const workflow = `${binding.workflow.name}@${binding.workflow.version}`;
               return (
@@ -280,22 +407,29 @@ function AgentUsage({ resource }: { resource: ConfigurationResource }) {
                   key={`${workflow}:${binding.stage}:${binding.logicalWorker}`}
                 >
                   <Link
-                    className="library-row-name"
+                    className="library-usage-link"
                     to={`/catalog/workflows/${encodeURIComponent(binding.workflow.name)}/${encodeURIComponent(binding.workflow.version)}`}
                     state={{
-                      returnTo: locationDestination(location),
+                      returnTo: locationDestination({
+                        ...location,
+                        pathname: agentPath(
+                          resource.ref.name,
+                          resource.ref.version,
+                        ),
+                      }),
                       returnLabel: `${resource.ref.name}@${resource.ref.version}`,
                       returnState: location.state,
                     }}
                   >
-                    {workflow}
+                    <Icon name="workflow" />
+                    <span>
+                      <strong>{workflow}</strong>
+                      <small>
+                        Stage {binding.stage} · Worker {binding.logicalWorker}
+                      </small>
+                    </span>
+                    <span aria-hidden="true">↗</span>
                   </Link>
-                  <span className="library-row-detail">
-                    Stage <code>{binding.stage}</code>
-                  </span>
-                  <span className="library-row-detail">
-                    Worker <code>{binding.logicalWorker}</code>
-                  </span>
                 </li>
               );
             })}
@@ -314,10 +448,14 @@ function AgentUsage({ resource }: { resource: ConfigurationResource }) {
 }
 
 /** Library → Agents → one Agent template at an exact version. */
-export function AgentDetailRoute() {
+export function AgentDetailRoute({
+  name,
+  version,
+}: {
+  name: string;
+  version: string;
+}) {
   const api = usePublicAPI();
-  const titleId = useId();
-  const { name = "", version = "" } = useParams();
   const valid =
     CONFIG_NAME_PATTERN.test(name) && CONFIG_VERSION_PATTERN.test(version);
   const query = useQuery({
@@ -326,74 +464,75 @@ export function AgentDetailRoute() {
       getConfiguration(api, "agent-templates", name, version, signal),
     enabled: valid,
   });
-  const body = query.data?.body as AgentTemplateBody | undefined;
-  return (
-    <div className="ui-stack">
-      <LibraryBackLink
-        fallback={{ returnTo: "/catalog/agents", returnLabel: "All agents" }}
-      />
-      <article className="library-sheet" aria-labelledby={titleId}>
-        <DetailPane
-          header={
-            <DetailHeader
-              actions={
-                <ButtonLink to="/catalog/studio?kind=AgentTemplate">
-                  Open Node Studio
-                </ButtonLink>
-              }
-              title={
-                <span id={titleId}>
-                  {name}
-                  <span className="library-title-version">@{version}</span>
-                </span>
-              }
+  return !valid ? (
+    <ErrorNotice error={new Error("Agent version is invalid")} />
+  ) : (
+    <QueryView
+      query={query}
+      loading={<p role="status">Loading Agent version…</p>}
+    >
+      {(data) => {
+        const body = data.body as AgentTemplateBody;
+        const tool = body.runtime === "tool@1";
+        return (
+          <article className="library-design-detail library-agent-detail">
+            <LibraryDetailHeading
+              title={libraryReadableName(name)}
+              kind={tool ? "Tool Agent" : "Model Agent"}
+              description={body.description}
+              selector={`${name}@${version}`}
+              identityLabel="agent version"
+              icon={tool ? "tool" : "agent"}
+              tone={tool ? "amber" : "blue"}
+              version={<AgentVersionSelector resource={data} />}
               meta={
-                <>
-                  <span>Agent template</span>
-                  {body === undefined ? null : <span>{body.runtime}</span>}
-                </>
+                <LibraryTag tone={tool ? "amber" : "blue"}>
+                  {tool ? "No model" : "Model based"}
+                </LibraryTag>
               }
             />
-          }
-        >
-          {!valid ? (
-            <ErrorNotice error={new Error("Agent version is invalid")} />
-          ) : (
-            <QueryView
-              query={query}
-              loading={
-                <p className="ui-caption" role="status">
-                  Loading Agent version…
-                </p>
-              }
-            >
-              {(data) => (
-                <>
-                  <AgentVersionSelector resource={data} />
-                  {(data.body as AgentTemplateBody).runtime === "tool@1" ? (
-                    <div className="library-agent-tool">
-                      <p className="library-note">
-                        This agent runs its configured tool directly without a
-                        model or prompt.
-                      </p>
-                      <AgentConfiguration resource={data} />
-                    </div>
-                  ) : (
-                    <AgentPrompt
-                      key={`prompt:${data.ref.digest}`}
-                      resource={data}
-                    />
-                  )}
-                  <AgentUsage
-                    key={`usage:${data.ref.digest}`}
+            <div className="library-detail-grid">
+              <div className="library-detail-main">
+                {tool ? (
+                  <ToolExecution body={body} />
+                ) : (
+                  <AgentPrompt
+                    key={`prompt:${data.ref.digest}`}
                     resource={data}
                   />
-                </>
-              )}
-            </QueryView>
-          )}
-        </DetailPane>
-      </article>
-    </div>
+                )}
+                <AgentUsage key={`usage:${data.ref.digest}`} resource={data} />
+                <TechnicalDetails
+                  className="library-design-technical"
+                  description="Exact published configuration"
+                >
+                  <ConfigurationBodyView resource={data} />
+                  <dl className="library-exact-contract">
+                    <div>
+                      <dt>Digest</dt>
+                      <dd>
+                        <code>{data.ref.digest}</code>
+                      </dd>
+                    </div>
+                    {body.summarizer ? (
+                      <div>
+                        <dt>Summarizer</dt>
+                        <dd>
+                          <pre>{JSON.stringify(body.summarizer, null, 2)}</pre>
+                        </dd>
+                      </div>
+                    ) : null}
+                  </dl>
+                  <ButtonLink size="sm" to="/catalog/studio?kind=AgentTemplate">
+                    Open Node Studio
+                  </ButtonLink>
+                </TechnicalDetails>
+              </div>
+              <AgentCapabilities resource={data} />
+            </div>
+          </article>
+        );
+      }}
+    </QueryView>
   );
 }

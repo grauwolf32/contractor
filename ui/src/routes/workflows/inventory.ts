@@ -4,9 +4,10 @@ import { loadCompletePages } from "../../api/pages";
 import { queryKeys } from "../../api/query-keys";
 import { listWorkflows } from "../../api/workflows";
 
-export function useWorkflowInventory() {
+export function useWorkflowInventory(refetchOnMount = true) {
   const api = usePublicAPI();
   return useQuery({
+    refetchOnMount,
     queryKey: queryKeys.workflows.inventory,
     queryFn: ({ signal }) =>
       loadCompletePages(

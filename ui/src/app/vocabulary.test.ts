@@ -18,7 +18,6 @@ import {
   FINDING_STATE_LABELS,
   findingStateLabel,
   itemCount,
-  itemNoun,
   readableValue,
   reportStatusLabel,
   RUN_STATE_LABELS,
@@ -197,7 +196,7 @@ describe("vocabulary", () => {
     ["item", 1, "item"],
     ["item", 3, "items"],
   ])("names %s for a count of %i", (kind, count, noun) => {
-    expect(itemNoun(kind, count)).toBe(noun);
+    expect(itemCount(kind, count)).toBe(`${count} ${noun}`);
   });
 
   it("counts items", () => {

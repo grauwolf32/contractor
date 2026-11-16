@@ -47,35 +47,43 @@ test("Check types expose exact input and Workflow contracts and retain mobile re
 
   await page.goto("/catalog/audit-presets");
   await expect(
-    page.getByRole("heading", { name: "Check types", exact: true }),
+    page.getByRole("heading", { name: "Find your next check", exact: true }),
   ).toBeVisible();
-  await expect(page.getByLabel("Version of source-review")).toHaveValue("10");
   await page.getByLabel("Search check types").fill("source review");
+  await expect(
+    page.getByLabel("Check type version", { exact: true }),
+  ).toHaveValue("10");
   await expect(page.getByRole("article")).toHaveCount(1);
-  await page.getByLabel("Version of source-review").selectOption("1");
+  await page
+    .getByLabel("Check type version", { exact: true })
+    .selectOption("1");
   await page.screenshot({
     path: testInfo.outputPath("audit-presets-desktop.png"),
     fullPage: true,
   });
-  await page.getByRole("link", { name: "View details", exact: true }).click();
-  await expect(page).toHaveURL(/\/catalog\/audit-presets\/source-review\/1$/);
+  await expect(page).toHaveURL(
+    /\/catalog\/audit-presets\/source-review\/1\?q=source\+review$/,
+  );
   await expect(
     page.getByLabel("Check type version", { exact: true }),
   ).toHaveValue("1");
-  const inputs = page.getByRole("region", { name: "Inputs", exact: true });
-  await expect(inputs.getByText("source", { exact: true })).toBeVisible();
+  const inputs = page.getByRole("region", {
+    name: "What you'll need",
+    exact: true,
+  });
+  await expect(inputs.getByText("Source code", { exact: true })).toBeVisible();
   await expect(inputs.getByText("Required", { exact: true })).toBeVisible();
-  await expect(inputs).toContainText("application/zip");
+  await expect(inputs).toContainText("ZIP");
   const workflows = page.getByRole("region", {
     name: "Workflows",
     exact: true,
   });
   await expect(
-    workflows.getByRole("link", { name: "source-check@3", exact: true }),
+    workflows.getByRole("link", { name: /source-check@3/ }),
   ).toHaveAttribute("href", "/catalog/workflows/source-check/3");
   await expect(workflows).toContainText("Role check");
   await expect(
-    page.getByRole("link", { name: "Start a check with this type" }),
+    page.getByRole("link", { name: "Set up check" }),
   ).toHaveAttribute("href", "/checks/new?type=source-review");
   await page.screenshot({
     path: testInfo.outputPath("audit-preset-details-desktop.png"),
@@ -98,16 +106,18 @@ test("Check types expose exact input and Workflow contracts and retain mobile re
   await expect(
     page.getByLabel("Check type version", { exact: true }),
   ).toHaveValue("1");
-  await expect(inputs).toContainText("application/zip");
+  await expect(inputs).toContainText("ZIP");
   await page
     .getByLabel("Check type version", { exact: true })
     .selectOption("10");
-  await expect(page).toHaveURL(/\/catalog\/audit-presets\/source-review\/10$/);
+  await expect(page).toHaveURL(
+    /\/catalog\/audit-presets\/source-review\/10\?q=source\+review$/,
+  );
   await expect(
     page.getByLabel("Check type version", { exact: true }),
   ).toHaveValue("10");
   await expect(
-    workflows.getByRole("link", { name: "source-check@3", exact: true }),
+    workflows.getByRole("link", { name: /source-check@3/ }),
   ).toBeVisible();
   await page
     .getByRole("link", { name: "All check types", exact: true })

@@ -384,7 +384,7 @@ loads directly.
 
 **UI-R43.** The Catalog's canonical routes are `/catalog/audit-presets`
 (Check types), `/catalog/workflows`, `/catalog/agents` and `/catalog/skills`;
-`/catalog` opens Workflows. Exact Workflow details use
+`/catalog` opens Check types. Exact Workflow details use
 `/catalog/workflows/:name/:version`.
 
 **UI-R44.** Runtime Agent processes stay in Operations, not in the Catalog.
@@ -429,7 +429,9 @@ text.
 
 **UI-R51.** Agent detail emphasizes the base instructions with Markdown
 Preview, literal Source and Copy, alongside Skills, selected tools, Runtime,
-sandbox and ModelPolicy.
+and sandbox. Workflow bindings own the effective model settings. Tool-only
+Agents show their direct call, argument sources, result artifact and timeout
+instead of fetching instructions.
 
 **UI-R52.** Agent detail is read-only: it does not expose invocation context
 or introduce a prompt editor.
@@ -526,7 +528,9 @@ independently of browser history.
 **UI-R57.** Browser Back and Forward restore each visited page's cursor
 context.
 
-**UI-R187.** Changing the search or the Agent version resets pagination.
+**UI-R187.** Changing search resets discovery pagination. Changing an Agent
+version resets its usage pagination while retaining the source discovery query
+and cursor. The two cursor histories are independent.
 
 **UI-R58.** A directly opened later page with no known predecessor disables
 Previous and offers First page for the same query.
@@ -536,10 +540,12 @@ Previous and offers First page for the same query.
 
 **UI-R60.** Catalog and Audit read projections filter before pagination.
 
-#### Workflow discovery cards
+#### Workflow discovery
 
-**UI-R61.** Project and Catalog use the same Workflow identity, version
-selector and card structure. Each logical name appears once (LIM-UI-3).
+**UI-R61.** Project cards and Catalog rows share Workflow identity and version
+selection policy. Each logical name appears once (LIM-UI-3). Catalog rows select
+an exact-version detail beside the inventory; Project cards retain material
+matching and launch actions.
 
 **UI-R62.** The Catalog reads all bounded pages before offering a default, so
 a later page cannot hide a newer version.
@@ -556,8 +562,9 @@ and exact-version actions together.
 
 **UI-R188.** An already open Run setup remains pinned to its selected version.
 
-**UI-R66.** Catalog cards display input and output contracts, primary-output
-flags, formats and parameter counts.
+**UI-R66.** The selected Catalog detail displays input and output contracts,
+primary-output flags, formats and parameter counts. Inventory rows show the
+published purpose and compact contract counts.
 
 **UI-R182.** Project cards display only the selected version's artifact
 matches, ambiguous choices, missing requirements and primary outputs.
@@ -585,7 +592,7 @@ error with explicit retry and supplies no partial match (FAIL-PRJ-3).
 
 **UI-R68.** An exact Workflow detail route starts with an overview: one
 identity heading, the version selector, input and output contracts and the
-published stage objectives. It uses the Catalog card formats and version
+published stage objectives. It uses the shared contract formats and version
 ordering.
 
 **UI-R69.** Loading the version inventory never replaces the version
@@ -601,8 +608,23 @@ when published.
 **UI-R72.** Entry is identified independently of list order; multi-stage
 summaries do not imply a linear execution graph.
 
-**UI-R73.** Exact Agents, resolved execution settings and transitions remain
-accessible in a disclosure.
+**UI-R73.** Stage cards link directly to exact Agents. Resolved execution
+settings and complete transitions remain accessible in Technical details.
+
+**UI-R242.** Check types, Workflows and Agents use a persistent Library list/detail
+workspace. Selection preserves the inventory pane and its scroll position;
+390px layouts show one pane with an explicit return to the same search/page.
+Exact-version URLs remain authoritative even when the inventory is filtered or
+fails. Check type discovery uses published inputs and the shared Start check
+presentation; Workflow filters use the input contract. Agent counts and runtime
+composition describe the current server page, not a global inventory. Friendly
+formatting retains the exact copyable identity, and authored descriptions are
+never invented. Shared typography, icons and light/dark/black theme tokens own
+all three sections.
+
+Rationale: this adapts the approved Library design to existing public readers
+without a new catalog/filter API, extra persisted state or config edits. Reopen
+server-wide runtime filtering only with an explicit API requirement.
 
 ### Run setup
 

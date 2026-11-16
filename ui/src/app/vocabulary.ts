@@ -249,7 +249,7 @@ const ITEM_NOUNS: Readonly<
 };
 
 /** "endpoint" for one, "endpoints" for any other count (including 0). */
-export function itemNoun(kind: ItemKind, count: number): string {
+function itemNoun(kind: ItemKind, count: number): string {
   const [singular, plural] = ITEM_NOUNS[kind];
   return count === 1 ? singular : plural;
 }

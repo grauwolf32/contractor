@@ -5,8 +5,6 @@ import { TERMS } from "../../app/vocabulary";
 import { LibraryHeader } from "./library-tabs";
 import { librarySectionOf } from "./navigation";
 
-import "./catalog.css";
-
 /** /catalog opens the first Library section, keeping its query and hash. */
 export function CatalogIndexRedirect() {
   const { search, hash } = useLocation();
@@ -26,7 +24,9 @@ export function CatalogLayoutRoute() {
     section === undefined ? TERMS.library : `${section} · ${TERMS.library}`,
   );
   return (
-    <div className="library-page">
+    <div
+      className={`library-page${["Check types", "Workflows", "Agents"].includes(section ?? "") ? " library-page--browser" : ""}`}
+    >
       <LibraryHeader />
       <Outlet />
     </div>

@@ -1,6 +1,6 @@
 import type { Location } from "react-router";
 
-export interface CatalogReturnState {
+interface CatalogReturnState {
   returnTo: string;
   returnLabel: string;
   returnState?: unknown;
