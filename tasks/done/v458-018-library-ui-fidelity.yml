@@ -5,7 +5,8 @@ milestone: ui-consolidation-2026-10
 epic: ui
 kind: feature
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 0c3787e2f2854dca835024b1b8afce2f26098279
 depends_on: [V458-016, V458-017]
 languages: [typescript, css]
 goal: Check types, Workflows and Agents use the approved Library list/detail design with real catalog data and working actions.
