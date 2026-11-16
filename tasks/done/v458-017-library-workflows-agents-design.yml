@@ -5,7 +5,8 @@ milestone: ui-consolidation-2026-10
 epic: ui
 kind: chore
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: b2bebeae7bc05d5da28072890e7baa044a203efa
 depends_on: [V458-016]
 languages: [html, css, javascript]
 goal: Demonstrate clearer Workflow and Agent browsing with distinct useful detail views and one consistent Library design.
