@@ -802,6 +802,9 @@ func stageUIStackConfiguration(
 ) string {
 	t.Helper()
 	source := filepath.Join(repositoryRoot, "configs")
+	if _, _, err := configload.LoadUnionReadOnly(source, filepath.Join(t.TempDir(), "managed")); err != nil {
+		t.Fatalf("UI-stack source configuration: %v", err)
+	}
 	encodedGatewayURL, _ := json.Marshal(gatewayURL)
 	encodedManagementURL, _ := json.Marshal(managementURL)
 	gatewayUpdated, managerUpdated := false, false
@@ -828,6 +831,11 @@ func stageUIStackConfiguration(
 		}
 		if !entry.Type().IsRegular() {
 			return errors.New("configuration contains a non-regular entry")
+		}
+		// The validated source stays locked. This private fixture substitutes
+		// local routes and adds scenario manifests before Server starts.
+		if relative == "catalog.lock.json" {
+			return nil
 		}
 		data, err := os.ReadFile(path)
 		if err != nil {

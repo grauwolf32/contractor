@@ -53,12 +53,23 @@ func TestProjectWorkflowModelSelection(t *testing.T) {
 	if err := os.WriteFile(policyPath, changed, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	sourceBefore := liveCatalogBytes(t, filepath.Join(fixture, "configs"))
 	settings := liveSettings{
 		model: `offline/custom: "選択"`, gatewayURL: "https://gateway.invalid/isolated/v1",
 		gatewayToken: "never-retain-gateway-credential",
 		workflows:    []string{"openapi-from-workspace@7", "likec4-from-workspace@7"},
 	}
+	if _, err := copyLiveConfiguration(t, fixture, filepath.Join(t.TempDir(), "configs"), settings); err == nil {
+		t.Fatal("live configuration accepted source catalog lock drift")
+	}
+	// This fixture intentionally has a different old model alias. Establish its
+	// own lock without modifying the shipped catalog or teaching the loader a bypass.
+	if err := os.Remove(filepath.Join(fixture, "configs/catalog.lock.json")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := configload.UpdateCatalogLock(filepath.Join(fixture, "configs"), filepath.Join(t.TempDir(), "managed")); err != nil {
+		t.Fatal(err)
+	}
+	sourceBefore := liveCatalogBytes(t, filepath.Join(fixture, "configs"))
 	target := filepath.Join(t.TempDir(), "configs")
 	selections, err := copyLiveConfiguration(t, fixture, target, settings)
 	if err != nil {
@@ -87,10 +98,10 @@ func TestProjectWorkflowModelSelection(t *testing.T) {
 	}
 	runModelProbe(t, repository, probes)
 
-	// Only the selected policy and route may change in the temporary catalog.
+	// Only the selected policy, route and their lock may change in the temporary catalog.
 	expected := liveCatalogBytes(t, target)
 	for path, data := range sourceBefore {
-		if path != "model-policies/renamed_worker.yaml" && path != "llm-gateways/renamed_gateway.yaml" && !bytes.Equal(data, expected[path]) {
+		if path != "catalog.lock.json" && path != "model-policies/renamed_worker.yaml" && path != "llm-gateways/renamed_gateway.yaml" && !bytes.Equal(data, expected[path]) {
 			t.Fatalf("unrelated catalog bytes changed: %s", path)
 		}
 	}

@@ -338,12 +338,7 @@ func (r *InMemoryRegistry) DiscardCandidateReservations(stageExecutionID string)
 	for _, allocationID := range existing.allocationIDs {
 		stored := r.allocations[allocationID]
 		entry := r.agents[stored.reservation.Grant.RuntimeInstanceID]
-		entry.authoritativeAllocationID = nil
-		entry.allocationLost = false
-		entry.allocationActivated = false
-		delete(r.allocations, allocationID)
-		r.recordOperationsChangeLocked(OperationsAllocation, allocationID)
-		r.recordOperationsChangeLocked(OperationsRuntimeAgent, entry.registration.InstanceID)
+		r.removeAllocationAuthorityLocked(allocationID, entry)
 	}
 	delete(r.stageReservations, stageExecutionID)
 	return nil
@@ -408,21 +403,7 @@ func (r *InMemoryRegistry) DiscardUnpreparedReservations(stageExecutionID string
 	for _, allocationID := range allocationIDs {
 		stored := r.allocations[allocationID]
 		entry := r.agents[stored.reservation.Grant.RuntimeInstanceID]
-		entry.authoritativeAllocationID = nil
-		entry.allocationLost = false
-		entry.allocationActivated = false
-		delete(r.allocations, allocationID)
-		r.recordOperationsChangeLocked(OperationsAllocation, allocationID)
-		for _, candidate := range r.agents {
-			if candidate.blockedByInstanceID != nil && *candidate.blockedByInstanceID == entry.registration.InstanceID {
-				candidate.blockedByInstanceID = nil
-				candidate.reconciliationRequired = r.entryNeedsReconciliationLocked(candidate)
-				r.recordOperationsChangeLocked(OperationsRuntimeAgent, candidate.registration.InstanceID)
-			}
-		}
-		if !r.retireInactiveAgentLocked(entry.registration.InstanceID) {
-			r.recordOperationsChangeLocked(OperationsRuntimeAgent, entry.registration.InstanceID)
-		}
+		r.removeAllocationAuthorityLocked(allocationID, entry)
 	}
 	delete(r.stageReservations, stageExecutionID)
 	return nil

@@ -261,6 +261,39 @@ func validateConfigForTest(operator, managed string) error {
 	return runConfigCLI([]string{"validate", "--root", operator, "--managed-root", managed}, logger)
 }
 
+func TestConfigLockAndRequiredValidationUseProductionLoaders(t *testing.T) {
+	root := copyConfigValidationTree(t)
+	managed := filepath.Join(t.TempDir(), "managed")
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	validate := []string{"validate", "--root", root, "--managed-root", managed, "--require-catalog-lock"}
+	if err := runConfigCLI(validate, logger); err == nil {
+		t.Fatal("release validation accepted missing catalog lock")
+	}
+	if err := runConfigCLI([]string{"lock", "--root", root, "--managed-root", managed}, logger); err != nil {
+		t.Fatal(err)
+	}
+	if err := runConfigCLI(validate, logger); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(managed); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("offline lock created the managed root: %v", err)
+	}
+	path := filepath.Join(root, "instructions", "artifact-builder.md")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, append(data, []byte("\nChanged locked instruction.\n")...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := runConfigCLI(validate, logger); err == nil {
+		t.Fatal("validation accepted changed locked content")
+	}
+	if err := runConfigCLI([]string{"lock", "--root", root, "--managed-root", managed}, logger); err == nil {
+		t.Fatal("lock command rebound content")
+	}
+}
+
 func TestConfigValidateCommonStandardAssertionSelections(t *testing.T) {
 	for _, test := range []struct {
 		name, version, entry string

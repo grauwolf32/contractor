@@ -178,17 +178,25 @@ func (r *InMemoryRegistry) releaseAllocation(allocationID string, lostOnly bool)
 			return false, nil
 		}
 	}
-	entry.authoritativeAllocationID = nil
-	entry.allocationLost = false
-	entry.allocationActivated = false
 	// The last heartbeat may still report idle when a short allocation was
 	// prepared and finalized entirely between heartbeat intervals. The private
 	// release call only prepares Runtime cleanup; it does not prove that the
 	// Runtime has applied the authoritative release response. Always require a
 	// fresh post-release heartbeat before offering this slot again.
 	entry.reconciliationRequired = true
-	delete(r.allocations, allocationID)
+	r.removeAllocationAuthorityLocked(allocationID, entry)
 	r.compactStageReservationLocked(stored.reservation.Grant.StageExecutionID)
+	return true, nil
+}
+
+// removeAllocationAuthorityLocked removes a validated grant and reconciles any
+// replacement waiting on its owner. The caller owns stage replay semantics and
+// whether the old owner needs a fresh heartbeat before becoming eligible.
+func (r *InMemoryRegistry) removeAllocationAuthorityLocked(allocationID string, entry *agentEntry) {
+	entry.authoritativeAllocationID = nil
+	entry.allocationLost = false
+	entry.allocationActivated = false
+	delete(r.allocations, allocationID)
 	for _, candidate := range r.agents {
 		if candidate.blockedByInstanceID != nil && *candidate.blockedByInstanceID == entry.registration.InstanceID {
 			candidate.blockedByInstanceID = nil
@@ -200,7 +208,6 @@ func (r *InMemoryRegistry) releaseAllocation(allocationID string, lostOnly bool)
 	if !r.retireInactiveAgentLocked(entry.registration.InstanceID) {
 		r.recordOperationsChangeLocked(OperationsRuntimeAgent, entry.registration.InstanceID)
 	}
-	return true, nil
 }
 
 func (r *InMemoryRegistry) compactStageReservationLocked(stageExecutionID string) {

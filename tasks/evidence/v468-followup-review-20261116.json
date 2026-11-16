@@ -1,0 +1,152 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-16",
+  "branch": "fix/first-release-review-20261116",
+  "reviewedHead": "73fe93835f7bb6e3e37a6687199565c7cd0bae7b",
+  "baseMain": "74a8d5054edfdd4c6fefa9bd4b7cf2823a88ac2d",
+  "verifiedCodeHead": "fb822f6cd44ae25cf95e568d49090d260f4c56fc",
+  "implementationCommits": {
+    "V468-005": "4dfbeaff5acc4d5116a989af34b4665b0d40892c",
+    "V468-006": "8317b1c1728ef6d220d12ec7cba2e6eff619687b",
+    "V468-007": "fb822f6cd44ae25cf95e568d49090d260f4c56fc",
+    "V468-008": "c2dd279555f935ccd6ebe6873ed90903c05d7273"
+  },
+  "review": {
+    "originalBranch": "Credentials stored-size recovery, protected Worker tail, diagnostic observer and catalog-lock changes reviewed; no additional confirmed defects in those changes.",
+    "followups": [
+      "Unblock replacement Runtime on candidate rollback and share grant removal.",
+      "Include prior summary in rolling Planner source bytes; share boundary fixtures with Worker.",
+      "Share terminal Server batch handling.",
+      "Share ordered Runtime producer stop while retaining lifecycle ownership."
+    ]
+  },
+  "gates": [
+    {
+      "command": "go test -race -count=1 ./internal/controlplane ./internal/scheduler (Registry fix; real PostgreSQL)",
+      "exitCode": 0,
+      "log": {
+        "path": "/Users/ruslan/Documents/Codex/2026-11-16/gh/work/registry-green.log",
+        "sha256": "d510d6d5a79c876717bc987a881c0a02eb167ce1888f18fe2d16ee9f71046508"
+      }
+    },
+    {
+      "command": "go test -race -count=1 ./internal/planner/... (real PostgreSQL)",
+      "exitCode": 0,
+      "log": {
+        "path": "/Users/ruslan/Documents/Codex/2026-11-16/gh/work/planner-green.log",
+        "sha256": "5307d5494d101570d21d891ddcbb65b9431ca7ae2ffab11175f08b84aaae7fcd"
+      }
+    },
+    {
+      "command": "cd runtime && uv run pytest -W error tests/test_worker_compaction.py",
+      "exitCode": 0,
+      "log": {
+        "path": "/Users/ruslan/Documents/Codex/2026-11-16/gh/work/worker-compaction-green.log",
+        "sha256": "dd6110c8ad08a99737b8350cb62f4539567ee260a4a84e3b01179bbb879479a0"
+      }
+    },
+    {
+      "command": "go test -race -count=1 ./internal/controlplane ./internal/scheduler (batch refactor; real PostgreSQL)",
+      "exitCode": 0,
+      "log": {
+        "path": "/Users/ruslan/Documents/Codex/2026-11-16/gh/work/batch-green.log",
+        "sha256": "ddcc991373c5499a6d504f7a7448ab5ca685fa4fe2757aa0bee77e645abe3565"
+      }
+    },
+    {
+      "command": "cd runtime && uv run pytest -W error tests/test_allocation.py tests/test_allocation_stop.py tests/test_lease_watchdog.py",
+      "exitCode": 0,
+      "log": {
+        "path": "/Users/ruslan/Documents/Codex/2026-11-16/gh/work/runtime-stop-green.log",
+        "sha256": "1a138b2a1838d2382af151ce535b6bb3a2c743a2856ba9e04a00290eaf251527"
+      }
+    },
+    {
+      "command": "go test -count=1 ./internal/app ./internal/persistence/postgres (local TCP PostgreSQL)",
+      "exitCode": 0,
+      "log": {
+        "path": "/Users/ruslan/Documents/Codex/2026-11-16/gh/work/tcp-environment-check.log",
+        "sha256": "7f02b585c986c401dc638affee2eb25b7c4dbce1c04fda19e215b931cd7ef7be"
+      }
+    },
+    {
+      "command": "make test test-release-config-fixtures test-release-shared-fixtures build ui-verify test-config RELEASE_CONSOLIDATED=1 (local TCP PostgreSQL)",
+      "exitCode": 0,
+      "log": {
+        "path": "/Users/ruslan/Documents/Codex/2026-11-16/gh/work/review-verification-tcp.log",
+        "sha256": "ac15963a6609f1899bfa83f9e2eb725aeda30a7f6175318ef7e739a03c6c5616"
+      }
+    },
+    {
+      "command": "go test -json -tags=e2e -count=1 -timeout=20m ./tests/e2e -run '^(TestWorkerCompactionContinuesIsolatedWorker|TestAuditCompactionLeaseLossAcrossProcesses|TestEngagementHTTPLifecycleAcrossProcesses|TestAuditProgramCatalogReplacementRestartsServer)$'",
+      "exitCode": 0,
+      "log": {
+        "path": "/Users/ruslan/Documents/Codex/2026-11-16/gh/work/review-process-tests.jsonl",
+        "sha256": "bbe0f976c8721a89644b4e6d5fcaed32af89916d5c0df50356292dcfb7bbb832"
+      }
+    }
+  ],
+  "lint": {
+    "target": "make lint",
+    "result": "passed as the prerequisite of the first make verify; make continued into the full Go suite",
+    "log": {
+      "path": "/Users/ruslan/Documents/Codex/2026-11-16/gh/work/review-verify.log",
+      "sha256": "38eeab153ff3b43630766e656fd509243be3dce04c7c0e45f0a09efb5f497ef0"
+    }
+  },
+  "negativeControls": [
+    {
+      "test": "TestReservationRemovalUnblocksReplacement/discard_candidate",
+      "result": "fails before the fix; both release siblings pass",
+      "log": {
+        "path": "/Users/ruslan/Documents/Codex/2026-11-16/gh/work/registry-red.log",
+        "sha256": "ce9acc9800b8fbcf8ea425a232e2ececc4512b15fc923256773d95a8051b48fd"
+      }
+    },
+    {
+      "test": "TestSharedCompactionBoundaries and TestPostgresRollingCompactionAcceptsSmallerCombinedContext (Streamline and Router)",
+      "exitCode": 1,
+      "expectedFailure": true,
+      "log": {
+        "path": "/Users/ruslan/Documents/Codex/2026-11-16/gh/work/compaction-real-store-red.log",
+        "sha256": "6e09c42add4f68763d1adeeb4b20006841963c9e322fe4c8c5948754385d9c98"
+      }
+    }
+  ],
+  "nonAcceptanceAttempts": [
+    {
+      "command": "make verify",
+      "exitCode": 2,
+      "reason": "Unix-socket PostgreSQL connection invalidated TCP keepalive and network-proxy assumptions in five tests. Lint passed. Both affected packages then passed over TCP, followed by a complete rerun of every remaining make verify target.",
+      "log": {
+        "path": "/Users/ruslan/Documents/Codex/2026-11-16/gh/work/review-verify.log",
+        "sha256": "38eeab153ff3b43630766e656fd509243be3dce04c7c0e45f0a09efb5f497ef0"
+      }
+    }
+  ],
+  "counts": {
+    "goPassedIncludingSubtests": 11043,
+    "goSkipped": 17,
+    "runtimePassed": 6275,
+    "runtimeSkipped": 135,
+    "uiPassed": 2531,
+    "uiExpectedFailures": 1,
+    "uiServerPassed": 17,
+    "processScenarios": 10,
+    "processRoots": 4,
+    "processPassedIncludingSubtests": 12,
+    "processSkipped": 0,
+    "sharedFixtures": 395,
+    "goSharedTests": 444,
+    "pythonSharedTests": 281
+  },
+  "cleanup": {
+    "ownedDatabase": "contractor_test_review_followup_20261116",
+    "dropped": true
+  },
+  "limits": [
+    "No complete release-verify claim, live model experiment or deployment.",
+    "Heavy I/O was not enabled; optional and platform skips are not passing coverage."
+  ],
+  "integration": "Ready for the user-authorized no-fast-forward merge; the six primary working files and staged delta have a saved exact preservation snapshot."
+}

@@ -313,13 +313,18 @@ class LintStageTest(unittest.TestCase):
     COMMANDS = [
         "test -z \"$(gofmt -l cmd internal tests tools)\"",
         "python3 scripts/check_database_erd.py",
-        "go run ./cmd/contractor-server config validate --root ./configs",
+        "go run ./cmd/contractor-server config validate --root ./configs --require-catalog-lock",
         "go -C tools/testonlyexports run . -tags=integration,e2e -baseline tools/testonlyexports/baseline.txt /repo",
         "CONTRACTOR_ERD_USAGE_OUT= go test -count=1 -run '^TestERDUsageMatchesTheSQLScan$' ./internal/persistence",
     ]
 
     def test_complete_lint_stage_passes(self) -> None:
         guard.check_lint_stage(self.COMMANDS)
+
+    def test_release_catalog_cannot_drop_the_required_lock(self) -> None:
+        commands = [command.replace(" --require-catalog-lock", "") for command in self.COMMANDS]
+        with self.assertRaisesRegex(SystemExit, "shipped configuration catalog"):
+            guard.check_lint_stage(commands)
 
     def test_lost_catalog_or_erd_check_is_rejected(self) -> None:
         with self.assertRaisesRegex(SystemExit, "shipped configuration catalog"):

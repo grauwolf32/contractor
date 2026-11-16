@@ -683,11 +683,11 @@ func newFakeGatewayManager() *fakeGatewayManager {
 	return &fakeGatewayManager{active: make(map[string]string)}
 }
 
-func (m *fakeGatewayManager) ValidateCreate(context.Context, ManagerCreateRequest) error {
+func (m *fakeGatewayManager) ValidateCreate(_ context.Context, request ManagerCreateRequest) (EffectiveGatewayPolicy, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.validations++
-	return m.validateErr
+	return EffectiveGatewayPolicy{ModelPolicies: request.Policy.ModelPolicies, Models: []string{"qwen/test-model"}, MaxBudget: request.Policy.MaxBudget, BudgetDuration: request.Policy.BudgetDuration, TPMLimit: request.Policy.TPMLimit, RPMLimit: request.Policy.RPMLimit, MaxParallelRequests: request.Policy.MaxParallelRequests}, m.validateErr
 }
 
 func (m *fakeGatewayManager) Create(_ context.Context, request ManagerCreateRequest) (GeneratedCredential, error) {

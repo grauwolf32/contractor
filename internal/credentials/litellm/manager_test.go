@@ -87,8 +87,13 @@ func TestManagerMapsCanonicalPolicyAndUsesSeparateDeleteIdentities(t *testing.T)
 			TPMLimit: &tpm, RPMLimit: &rpm, MaxParallelRequests: &parallel,
 		},
 	}
-	if err := manager.ValidateCreate(t.Context(), request); err != nil {
+	preview, err := manager.ValidateCreate(t.Context(), request)
+	if err != nil {
 		t.Fatal(err)
+	}
+	if !slices.Equal(preview.Models, []string{"alpha-model", "zeta-model"}) ||
+		len(preview.ModelPolicies) != 2 || preview.MaxBudget == nil || *preview.MaxBudget != maxBudget {
+		t.Fatalf("preflight policy differs from the requested Gateway policy: %+v", preview)
 	}
 	generated, err := manager.Create(t.Context(), request)
 	if err != nil || generated.RemoteKeyID != tokenID || generated.Validate() != nil {
@@ -309,19 +314,19 @@ func TestManagerValidatesExactBindingAndPolicyBeforeNetwork(t *testing.T) {
 		OperationID: "credop-validation", CredentialID: "managed-validation", LLMGateway: wrongGateway,
 		Policy: credentials.GatewayPolicy{ModelPolicies: refs[:1]},
 	}
-	if err := manager.ValidateCreate(t.Context(), request); !errors.Is(err, credentials.ErrManagerUnavailable) {
+	if _, err := manager.ValidateCreate(t.Context(), request); !errors.Is(err, credentials.ErrManagerUnavailable) {
 		t.Fatalf("wrong binding error = %v", err)
 	}
 	request.LLMGateway = gateway
 	request.Policy.ModelPolicies[0].Digest = "sha256:" + strings.Repeat("3", 64)
-	if err := manager.ValidateCreate(t.Context(), request); !errors.Is(err, credentials.ErrInvalid) {
+	if _, err := manager.ValidateCreate(t.Context(), request); !errors.Is(err, credentials.ErrInvalid) {
 		t.Fatalf("wrong ModelPolicy error = %v", err)
 	}
 	oversizedModel := policies["zeta@1"]
 	request.Policy.ModelPolicies = []contracts.ModelPolicyRef{oversizedModel.Ref}
 	oversizedModel.Model = strings.Repeat("m", 257)
 	policies["zeta@1"] = oversizedModel
-	if err := manager.ValidateCreate(t.Context(), request); !errors.Is(err, credentials.ErrInvalid) {
+	if _, err := manager.ValidateCreate(t.Context(), request); !errors.Is(err, credentials.ErrInvalid) {
 		t.Fatalf("oversized derived model error = %v", err)
 	}
 	if err := manager.Delete(t.Context(), credentials.ManagerDeleteRequest{

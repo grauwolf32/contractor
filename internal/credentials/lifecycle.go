@@ -734,8 +734,7 @@ func (s *Service) executeCreate(
 		if err := manager.RecoverCreate(ctx, managerRequest); err != nil {
 			return Record{}, ErrGatewayUnavailable
 		}
-		if err := manager.ValidateCreate(ctx, managerRequest); err != nil {
-			validationErr := safeManagerValidationError(ctx, err)
+		if validationErr := s.validateCreateManagerRequest(ctx, operation, request); validationErr != nil {
 			if !errors.Is(validationErr, ErrInvalid) {
 				return Record{}, validationErr
 			}
@@ -743,17 +742,7 @@ func (s *Service) executeCreate(
 			// absent, and validation failed deterministically, so no replay can
 			// ever succeed. Record a terminal failure instead of blocking
 			// recovery forever. Ambiguous failures above stay prepared.
-			if err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-				if err := s.proveLease(ctx, tx); err != nil {
-					return err
-				}
-				return NewRepository(tx).AbandonOperation(
-					ctx, operation.OperationID, operationCompletionTime(operation, s.now()),
-				)
-			}); err != nil {
-				return Record{}, err
-			}
-			return Record{}, ErrCreateAbandoned
+			return Record{}, s.abandonCreate(ctx, operation)
 		}
 	}
 	generated, err := manager.Create(ctx, managerRequest)
@@ -761,7 +750,7 @@ func (s *Service) executeCreate(
 		return Record{}, ErrGatewayUnavailable
 	}
 	if err := generated.Validate(); err != nil {
-		return Record{}, ErrGatewayUnavailable
+		return Record{}, s.abandonGeneratedCreate(ctx, operation, manager, managerRequest)
 	}
 	if s.afterCreate != nil {
 		if err := s.afterCreate(); err != nil {
@@ -788,10 +777,38 @@ func (s *Service) executeCreate(
 		}
 		return repository.CompleteOperation(ctx, operation.OperationID, operationCompletionTime(operation, s.now()))
 	})
+	if errors.Is(err, ErrInvalid) {
+		return Record{}, s.abandonGeneratedCreate(ctx, operation, manager, managerRequest)
+	}
 	if err != nil {
 		return Record{}, err
 	}
 	return record, nil
+}
+
+// Only a definite permanent failure reaches here. An ambiguous database or
+// Gateway outcome stays prepared, so recovery reconciles it instead of deleting
+// a credential whose transaction may have committed.
+func (s *Service) abandonGeneratedCreate(ctx context.Context, operation Operation, manager GatewayCredentialManager, request ManagerCreateRequest) error {
+	if err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error { return s.proveLease(ctx, tx) }); err != nil {
+		return err
+	}
+	if err := manager.RecoverCreate(ctx, request); err != nil {
+		return ErrGatewayUnavailable
+	}
+	return s.abandonCreate(ctx, operation)
+}
+
+func (s *Service) abandonCreate(ctx context.Context, operation Operation) error {
+	if err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		if err := s.proveLease(ctx, tx); err != nil {
+			return err
+		}
+		return NewRepository(tx).AbandonOperation(ctx, operation.OperationID, operationCompletionTime(operation, s.now()))
+	}); err != nil {
+		return err
+	}
+	return ErrCreateAbandoned
 }
 
 func (s *Service) executeDelete(
@@ -906,14 +923,14 @@ func (s *Service) validateCreateManagerRequest(
 	if err != nil {
 		return err
 	}
-	err = manager.ValidateCreate(ctx, ManagerCreateRequest{
+	policy, err := manager.ValidateCreate(ctx, ManagerCreateRequest{
 		OperationID: operation.OperationID, CredentialID: request.CredentialID,
 		LLMGateway: gateway, Label: request.Label, Policy: request.GatewayPolicy,
 	})
 	if err != nil {
 		return safeManagerValidationError(ctx, err)
 	}
-	return nil
+	return s.repository.validateGatewayPolicy(ctx, policy)
 }
 
 func safeManagerValidationError(ctx context.Context, err error) error {

@@ -149,9 +149,9 @@ func assertNoCredentialRows(t *testing.T, ctx context.Context, pool *pgxpool.Poo
 // can prove that a refused credential mutation made no Gateway call.
 type countingGatewayCredentialManager struct{ calls atomic.Int32 }
 
-func (m *countingGatewayCredentialManager) ValidateCreate(context.Context, credentials.ManagerCreateRequest) error {
+func (m *countingGatewayCredentialManager) ValidateCreate(context.Context, credentials.ManagerCreateRequest) (credentials.EffectiveGatewayPolicy, error) {
 	m.calls.Add(1)
-	return credentials.ErrGatewayUnavailable
+	return credentials.EffectiveGatewayPolicy{}, credentials.ErrGatewayUnavailable
 }
 
 func (m *countingGatewayCredentialManager) Create(

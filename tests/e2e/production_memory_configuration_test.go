@@ -28,6 +28,11 @@ func TestProductionMemoryConfigurationStaging(t *testing.T) {
 			if err := os.CopyFS(configRoot, os.DirFS(filepath.Join(repoRoot(t), "configs"))); err != nil {
 				t.Fatal(err)
 			}
+			// The shipped source was validated above. This private fixture
+			// deliberately tests different instruction references.
+			if err := os.Remove(filepath.Join(configRoot, "catalog.lock.json")); err != nil {
+				t.Fatal(err)
+			}
 			path := filepath.Join(configRoot, "agent-templates/artifact_builder_v2_memory.yaml")
 			data, err := os.ReadFile(path)
 			if err != nil {
@@ -227,7 +232,7 @@ func assertProductionPlannerCompactionCatalog(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, _, err := configload.LoadUnionReadOnly(loaded, filepath.Join(t.TempDir(), "managed")); err != nil {
+	if _, err := configload.UpdateCatalogLock(loaded, filepath.Join(t.TempDir(), "managed")); err != nil {
 		t.Fatalf("Planner examples cannot use the shipped compactor policy: %v", err)
 	}
 }

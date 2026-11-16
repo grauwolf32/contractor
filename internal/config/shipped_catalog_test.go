@@ -62,14 +62,10 @@ func TestManagedPublicationNeverRebindsShippedIdentity(t *testing.T) {
 	}
 }
 
-// TestShippedCatalogInPlaceChangeIsVisibleInRunSnapshots pins CAT-R74 and what
-// still detects such a change. Until the first release an in-place edit of a
-// shipped manifest loads under the same identity at the next start. The
-// digest-bearing refs of a new Run snapshot change with the content they
-// identify, and the Eval-style pinned selection digest rejects the change even
-// when only the Workflow, which has no digest of its own, changed. Once the
-// shipped catalog gets its digest lock, the restart below must fail instead.
-func TestShippedCatalogInPlaceChangeIsVisibleInRunSnapshots(t *testing.T) {
+// Unlocked custom operator roots still record exact Run snapshots and reject
+// changed Eval pins. The shipped release catalog additionally requires the
+// committed lock exercised by catalog_lock_test.go.
+func TestUnlockedCatalogChangeIsVisibleInRunSnapshots(t *testing.T) {
 	for _, test := range []struct {
 		name, file, from, to string
 		dependencyChanged    bool

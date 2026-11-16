@@ -120,12 +120,15 @@ func NewManager(bindings *AdminBindings, policies ModelPolicyLookup, options Opt
 	}, nil
 }
 
-func (m *Manager) ValidateCreate(ctx context.Context, request credentials.ManagerCreateRequest) error {
+func (m *Manager) ValidateCreate(ctx context.Context, request credentials.ManagerCreateRequest) (credentials.EffectiveGatewayPolicy, error) {
 	if err := ctx.Err(); err != nil {
-		return err
+		return credentials.EffectiveGatewayPolicy{}, err
 	}
-	_, _, err := m.createPayload(ctx, request)
-	return err
+	payload, _, err := m.createPayload(ctx, request)
+	if err != nil {
+		return credentials.EffectiveGatewayPolicy{}, err
+	}
+	return payload.requestedPolicy(), nil
 }
 
 func (m *Manager) Create(
@@ -222,18 +225,6 @@ func (m *Manager) createPayload(
 	if len(models) == 0 || len(models) > 128 {
 		return generateKeyRequest{}, exactBinding{}, fmt.Errorf("%w: derived LiteLLM models are invalid", credentials.ErrInvalid)
 	}
-	requestedPolicy := credentials.EffectiveGatewayPolicy{
-		ModelPolicies:       append([]contracts.ModelPolicyRef(nil), refs...),
-		Models:              append([]string(nil), models...),
-		MaxBudget:           clone.Pointer(request.Policy.MaxBudget),
-		BudgetDuration:      request.Policy.BudgetDuration,
-		TPMLimit:            clone.Pointer(request.Policy.TPMLimit),
-		RPMLimit:            clone.Pointer(request.Policy.RPMLimit),
-		MaxParallelRequests: clone.Pointer(request.Policy.MaxParallelRequests),
-	}
-	if err := requestedPolicy.Validate(); err != nil {
-		return generateKeyRequest{}, exactBinding{}, err
-	}
 	alias, err := KeyAlias(request.LLMGateway.Ref, request.CredentialID)
 	if err != nil {
 		return generateKeyRequest{}, exactBinding{}, err
@@ -257,10 +248,21 @@ func (m *Manager) createPayload(
 		MaxParallelRequests: clone.Pointer(request.Policy.MaxParallelRequests),
 		ModelPolicies:       refs,
 	}
+	if err := payload.requestedPolicy().Validate(); err != nil {
+		return generateKeyRequest{}, exactBinding{}, err
+	}
 	if encoded, err := json.Marshal(payload); err != nil || len(encoded) == 0 || len(encoded) > maximumRequestBytes {
 		return generateKeyRequest{}, exactBinding{}, fmt.Errorf("%w: LiteLLM create payload exceeds its bound", credentials.ErrInvalid)
 	}
 	return payload, binding, nil
+}
+
+func (p generateKeyRequest) requestedPolicy() credentials.EffectiveGatewayPolicy {
+	return credentials.EffectiveGatewayPolicy{
+		ModelPolicies: append([]contracts.ModelPolicyRef(nil), p.ModelPolicies...), Models: append([]string(nil), p.Models...),
+		MaxBudget: clone.Pointer(p.MaxBudget), BudgetDuration: p.BudgetDuration,
+		TPMLimit: clone.Pointer(p.TPMLimit), RPMLimit: clone.Pointer(p.RPMLimit), MaxParallelRequests: clone.Pointer(p.MaxParallelRequests),
+	}
 }
 
 func (m *Manager) validateBase(

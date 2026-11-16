@@ -380,11 +380,12 @@ class CompactionCoordinator:
             raise WorkerCompactionError.failed("incomplete_history")
         groups = archive.groups
         keep = self.config.keep_recent_groups
-        tail = groups[max(self._compacted_groups, len(groups) - keep) :]
+        eligible_end = max(self._compacted_groups, len(groups) - keep)
+        tail = groups[eligible_end:]
         # The main model sees the tail without reasoning (WRK-R188).
         if sum(group.evidence_size for group in tail) > MAX_RECENT_GROUPS_BYTES:
             raise WorkerCompactionError.limit("recent_groups")
-        eligible = groups[self._compacted_groups : len(groups) - keep]
+        eligible = groups[self._compacted_groups : eligible_end]
         if not eligible:
             raise WorkerCompactionError.failed("ineffective")
         header: dict[str, Any] = {

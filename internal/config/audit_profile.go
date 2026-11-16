@@ -52,6 +52,7 @@ func (l *loader) loadAuditProfiles() error {
 			return fmt.Errorf("%s: %w", file.relative, resolveErr)
 		}
 		l.auditProfiles[selector.String()] = profile
+		l.sources[configurationSourceKey(ConfigurationKind("audit-profiles"), selector.String())] = file.source
 	}
 	return nil
 }

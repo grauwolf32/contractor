@@ -11,6 +11,7 @@
     "v1alpha1/valid/shared-config.json": {"readers": ["go", "python", "ui"]},
     "v1alpha1/engagement-cases.json": {"readers": ["go", "python", "ui"], "reason": "UI reads valid saved document examples and structural errors using the shared schema; canonical network and cross-field execution authority remain with Server/Runtime validators."},
     "workflow-context-management-cases.json": {"readers": ["go", "ui"]},
+    "compaction-boundary-cases.json": {"readers": ["go", "python"]},
     "server-operation-openapi-work.json": {"readers": ["go", "ui"], "reason": "Server configuration and Studio share the registered passive preparation Stage; Runtime receives no operation stages."},
     "server-operation-stage-cases.json": {"readers": ["go", "ui"], "reason": "Server Workflow execution selection is shared with the Studio; Runtime receives no operation stages."},
     "public/tool-diagnostic-values.json": {"readers": ["go", "ui"]},

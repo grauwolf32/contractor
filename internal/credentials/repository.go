@@ -120,6 +120,10 @@ func (r *Repository) InsertCredential(ctx context.Context, record Record) error 
 	if err != nil {
 		return err
 	}
+	policy, err = r.storedJSON(ctx, policy, maximumGatewayPolicyBytes)
+	if err != nil {
+		return err
+	}
 	command, err := r.db.Exec(ctx, `
 INSERT INTO llm_credentials (
     credential_id, llm_gateway_id, llm_gateway_version, llm_gateway_digest,
@@ -190,6 +194,10 @@ func (r *Repository) InsertOperation(ctx context.Context, operation Operation) e
 	if err := validateOperation(operation); err != nil {
 		return err
 	}
+	request, err := r.storedJSON(ctx, operation.Request, maximumOperationRequestBytes)
+	if err != nil {
+		return err
+	}
 	command, err := r.db.Exec(ctx, `
 INSERT INTO credential_operations (
     operation_id, idempotency_key, request_hash, credential_id,
@@ -198,7 +206,7 @@ INSERT INTO credential_operations (
 ON CONFLICT DO NOTHING`,
 		operation.OperationID, operation.IdempotencyKey, operation.RequestHash,
 		operation.CredentialID, operation.Kind, operation.Phase,
-		CredentialSchemaVersion, operation.Request,
+		CredentialSchemaVersion, request,
 		persistencepostgres.Timestamp(operation.CreatedAt), persistencepostgres.Timestamp(operation.UpdatedAt),
 	)
 	if err != nil {
@@ -370,10 +378,33 @@ func encodeRecord(record Record) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: effective policy cannot be encoded", ErrInvalid)
 	}
-	if len(encoded) > maximumGatewayPolicyBytes {
-		return nil, fmt.Errorf("%w: effective policy is too large", ErrInvalid)
-	}
 	return encoded, nil
+}
+
+// storedJSON uses exactly the CHECK constraint's representation, including
+// whitespace, Unicode escapes and numeric expansion. Check before INSERT so a
+// deterministic rejection does not abort a caller's transaction.
+func (r *Repository) storedJSON(ctx context.Context, encoded []byte, maximum int) ([]byte, error) {
+	var stored []byte
+	if err := r.db.QueryRow(ctx, `SELECT $1::jsonb::text`, encoded).Scan(&stored); err != nil {
+		return nil, classifyRepositoryWrite(err)
+	}
+	if len(stored) > maximum {
+		return nil, fmt.Errorf("%w: stored credential JSON is too large", ErrInvalid)
+	}
+	return stored, nil
+}
+
+func (r *Repository) validateGatewayPolicy(ctx context.Context, policy EffectiveGatewayPolicy) error {
+	if err := policy.Validate(); err != nil {
+		return err
+	}
+	encoded, err := json.Marshal(policy)
+	if err != nil {
+		return ErrInvalid
+	}
+	_, err = r.storedJSON(ctx, encoded, maximumGatewayPolicyBytes)
+	return err
 }
 
 func validateRecord(record Record) error {
@@ -415,6 +446,8 @@ func validateCredentialID(value string) error {
 }
 
 func validateOperation(operation Operation) error {
+	// A JSON escape can use six input bytes for one stored character. This
+	// bounds parsing only; storedJSON enforces the exact persisted byte limit.
 	if !operationIDPattern.MatchString(operation.OperationID) ||
 		!contracts.ValidIdempotencyKey(operation.IdempotencyKey) ||
 		!contentdigest.Valid(operation.RequestHash) ||
@@ -422,7 +455,7 @@ func validateOperation(operation Operation) error {
 		(operation.Phase != OperationPrepared && operation.Phase != OperationCompleted &&
 			operation.Phase != OperationAbandoned) ||
 		operation.CreatedAt.IsZero() || operation.UpdatedAt.Before(operation.CreatedAt) ||
-		len(operation.Request) == 0 || len(operation.Request) > maximumOperationRequestBytes {
+		len(operation.Request) == 0 || len(operation.Request) > 6*maximumOperationRequestBytes {
 		return fmt.Errorf("%w: credential operation is invalid", ErrInvalid)
 	}
 	var object map[string]json.RawMessage

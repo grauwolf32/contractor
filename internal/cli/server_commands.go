@@ -16,6 +16,7 @@ Commands:
   run                 Run the Server
   migrate             Apply database migrations
   config validate     Validate the operator and managed configuration roots offline
+  config lock         Freeze new operator catalog identities
   auth hash-password  Print a local-auth bootstrap document
 
 Run 'contractor server <command> --help' for its flags.`)
@@ -31,8 +32,8 @@ Run 'contractor server <command> --help' for its flags.`)
 		return app.RunCLI(ctx, append([]string{"migrate"}, args[1:]...), c.getenv, loggerTo(c.stderr))
 	case "config":
 		// Group help passes through so the Server prints the group's usage.
-		if len(args) < 2 || args[1] != "validate" && !helpArgument(args[1]) {
-			return &UsageError{Message: "usage: contractor server config validate [flags]"}
+		if len(args) < 2 || args[1] != "validate" && args[1] != "lock" && !helpArgument(args[1]) {
+			return &UsageError{Message: "usage: contractor server config <validate|lock> [flags]"}
 		}
 		return app.RunCLI(ctx, append([]string{"config"}, args[1:]...), c.getenv, loggerTo(c.stderr))
 	case "auth":

@@ -16,24 +16,27 @@ import (
 
 func runConfigCLI(args []string, logger *slog.Logger) error {
 	if err := commandGroupHelp(args, "config",
-		[2]string{"validate", "check the operator and managed configuration roots offline"}); err != nil {
+		[2]string{"validate", "check the operator and managed configuration roots offline"},
+		[2]string{"lock", "freeze new operator catalog identities without rebinding existing ones"}); err != nil {
 		return err
 	}
-	if len(args) == 0 || args[0] != "validate" {
-		return fmt.Errorf("config command requires the validate subcommand")
+	if len(args) == 0 || args[0] != "validate" && args[0] != "lock" {
+		return fmt.Errorf("config command requires validate or lock")
 	}
 
 	var auditDocument, auditContext string
+	var requireLock bool
 	root := "./configs"
 	managedRoot := ""
-	flags := flag.NewFlagSet("contractor-server config validate", flag.ContinueOnError)
+	flags := flag.NewFlagSet("contractor-server config "+args[0], flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	flags.StringVar(&auditDocument, "audit-document", "", "strict Audit JSON document to validate offline against the loaded catalog")
 	flags.StringVar(&auditContext, "audit-context", "", "exact trusted context for offline result, proposal and prepared-work validation")
 	flags.StringVar(&root, "root", root, "configuration root")
 	flags.StringVar(&managedRoot, "managed-root", managedRoot, "managed configuration root (default: sibling managed-configs)")
+	flags.BoolVar(&requireLock, "require-catalog-lock", false, "require the operator catalog digest lock (release validation)")
 	if err := parseCommandFlags(flags, args[1:]); err != nil {
-		return fmt.Errorf("parse config validate flags: %w", err)
+		return fmt.Errorf("parse config %s flags: %w", args[0], err)
 	}
 	if flags.NArg() != 0 {
 		return fmt.Errorf("unexpected positional arguments: %v", flags.Args())
@@ -42,9 +45,24 @@ func runConfigCLI(args []string, logger *slog.Logger) error {
 	if managedRoot == "" {
 		managedRoot = defaultManagedConfigRoot(root)
 	}
+	if args[0] == "lock" {
+		if auditDocument != "" || auditContext != "" || requireLock {
+			return fmt.Errorf("config lock accepts only root and managed-root")
+		}
+		if _, err := configload.UpdateCatalogLock(root, managedRoot); err != nil {
+			return fmt.Errorf("lock configuration: %w", err)
+		}
+		logger.Info("catalog lock updated", "root", root)
+		return nil
+	}
 	snapshot, bundles, err := configload.LoadUnionReadOnly(root, managedRoot)
 	if err != nil {
 		return fmt.Errorf("validate configuration: %w", err)
+	}
+	if requireLock {
+		if err := contractorconfig.ValidateCatalogLock(root, snapshot, true); err != nil {
+			return fmt.Errorf("validate catalog lock: %w", err)
+		}
 	}
 	if auditContext != "" && auditDocument == "" {
 		return fmt.Errorf("audit-context requires audit-document")

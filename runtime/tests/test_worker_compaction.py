@@ -211,6 +211,53 @@ def test_boundary_uses_ratio_and_output_reserve() -> None:
     assert compaction_boundary(policy, 0.95) == 900
 
 
+@pytest.mark.parametrize("groups", [1, 2, 3, 4, 5, 6])
+def test_early_checkpoint_preserves_the_entire_recent_window(tmp_path: Path, groups: int) -> None:
+    async def run() -> None:
+        effects: list[str] = []
+        tags = [f"step-{index}" for index in range(groups)]
+        model = CapturingScriptedLlm(
+            model="worker-model",
+            responses=[
+                *(step(tag, 500 if index == groups - 1 else 100) for index, tag in enumerate(tags)),
+                usage(text_result("done"), 100),
+            ],
+        )
+        compactor = scripted_model(
+            [summary("Earlier steps recorded")], model=COMPACTOR_MODEL, auto_result_finalizer=False
+        )
+        runtime = await compact_runtime(
+            tmp_path, WorkerState(), {"step": recording_step(effects)}, model, compactor, keep=4
+        )
+        try:
+            result = await runtime.invoke(stage_request())
+            assert effects == tags
+            if groups <= 4:
+                assert result.failure is not None
+                assert result.failure.code == "worker_compaction_failed"
+                assert "ineffective" in result.failure.message
+                assert compactor.requests == []
+            else:
+                assert result.failure is None
+                assert len(compactor.requests) == 1
+                continuation = next(
+                    payload
+                    for payload in model.payloads
+                    if "Context checkpoint 1" in json.dumps(payload)
+                )
+                retained = [
+                    json.loads(message["content"])["recorded"]
+                    for message in continuation["messages"]
+                    if message["role"] == "tool"
+                ]
+                assert retained == tags[-4:]
+                assert_balanced_tool_calls(continuation)
+        finally:
+            await finish(runtime)
+
+    asyncio.run(run())
+
+
 @pytest.mark.parametrize("prompt", [100, None])
 def test_tool_windows_compact_after_parallel_settlement(
     tmp_path: Path, prompt: int | None, monkeypatch: pytest.MonkeyPatch
@@ -1420,5 +1467,54 @@ def test_failed_diagnostic_does_not_replace_compaction_error_or_skip_model_close
                 assert effects == ["a", "b"]
             finally:
                 await finish(runtime)
+
+    asyncio.run(scenario())
+
+
+def test_shared_compaction_boundaries() -> None:
+    fixture = json.loads(
+        (
+            Path(__file__).resolve().parents[2] / "api/testdata/compaction-boundary-cases.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    async def scenario() -> None:
+        for case in fixture["tails"]:
+            coordinator = new_coordinator(keep=case["keep"])
+            for ordinal in range(1, case["groups"] + 1):
+                await add_group(coordinator, ordinal)
+                if case["covered"] and ordinal == case["covered"] + case["keep"]:
+                    first = await coordinator.plan()
+                    coordinator.commit(
+                        first, "memory", coordinator.marker(first, sdk_invocation_id="sdk-1")
+                    )
+            if not case["eligible"]:
+                with pytest.raises(WorkerCompactionError) as raised:
+                    await coordinator.plan()
+                assert raised.value.cause == "ineffective"
+            else:
+                plan = await coordinator.plan()
+                assert plan.last_group - case["covered"] == case["eligible"]
+
+        for case in fixture["summaries"]:
+            coordinator = new_coordinator(keep=1)
+            await add_group(coordinator, 1, value="a" * 2000)
+            await add_group(coordinator, 2, value="new fact")
+            first = await coordinator.plan()
+            previous = case["previous"] * case["repeat"]
+            previous = coordinator.validate_summary(first, json.dumps({"summary": previous}))
+            coordinator.commit(
+                first, previous, coordinator.marker(first, sdk_invocation_id="sdk-1")
+            )
+            await add_group(coordinator, 3, value="protected tail")
+            second = await coordinator.plan()
+            raw_bytes = second.source_bytes - len(previous.encode("utf-8"))
+            candidate = json.dumps({"summary": "x" * (raw_bytes + case["extraRawBytes"])})
+            if case["valid"]:
+                assert coordinator.validate_summary(second, candidate)
+            else:
+                with pytest.raises(WorkerCompactionError) as raised:
+                    coordinator.validate_summary(second, candidate)
+                assert raised.value.cause == "ineffective"
 
     asyncio.run(scenario())

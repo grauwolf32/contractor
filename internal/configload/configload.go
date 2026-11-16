@@ -107,6 +107,19 @@ func LoadUnionReadOnly(operatorRoot, managedRoot string) (*config.Snapshot, Bund
 	return snapshot, checks.take(), nil
 }
 
+// UpdateCatalogLock applies the ordinary bundle and model-choice checks before
+// adding identities to the operator's immutable catalog lock.
+func UpdateCatalogLock(operatorRoot, managedRoot string) (*config.Snapshot, error) {
+	checks := newBundleChecks().operatorRootChecks()
+	checks = append(checks, config.OperatorRootCheck{
+		Subject: "deployment model choices", Check: func(string) error { return nil },
+		AfterLoad: func(snapshot *config.Snapshot) error {
+			return config.ValidateModelChoiceCatalog(operatorRoot, snapshot)
+		},
+	})
+	return config.UpdateCatalogLock(operatorRoot, managedRoot, checks...)
+}
+
 // NewManager starts the Server's configuration manager and returns the
 // bundles its startup load validated, which the caller seeds without
 // discovering the operator root again. The bundle checks run again on every

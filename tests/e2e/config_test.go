@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/configload"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -20,6 +21,13 @@ import (
 // exercise the same executionConfig that the demo deployment loads.
 func stageE2EConfiguration(t *testing.T, source, target, gatewayURL string) string {
 	t.Helper()
+	if _, err := os.Lstat(filepath.Join(source, "catalog.lock.json")); err == nil {
+		if _, _, err := configload.LoadUnionReadOnly(source, filepath.Join(t.TempDir(), "managed")); err != nil {
+			t.Fatalf("locked source configuration: %v", err)
+		}
+	} else if !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
 	encodedURL, err := json.Marshal(gatewayURL)
 	if err != nil {
 		t.Fatal(err)
@@ -42,6 +50,11 @@ func stageE2EConfiguration(t *testing.T, source, target, gatewayURL string) stri
 		}
 		if !entry.Type().IsRegular() {
 			return fmt.Errorf("configuration contains a non-regular entry")
+		}
+		// Source locks were validated above. The private process catalog uses
+		// a local Gateway and accepts scenario-specific manifests before startup.
+		if relative == "catalog.lock.json" {
+			return nil
 		}
 		data, err := os.ReadFile(path)
 		if err != nil {
