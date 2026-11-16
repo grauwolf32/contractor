@@ -1,0 +1,36 @@
+schema_version: '1.0'
+id: V468-006
+title: Count the previous summary in rolling compaction source bytes
+milestone: hub-audit-defects-2026-10
+epic: planner-worker
+kind: defect
+introduced_by: V420-002
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go, python, json]
+goal: Count the previous summary in rolling compaction source bytes.
+context:
+  authority: 'User decision 2026-11-16: review fix/first-release-review-20261116, implement all bug fixes and proposed lifecycle refactorings on that branch, then merge into main.'
+  finding: 'internal/planner/streamline/compaction.go:451 excludes the previous summary from the context replaced by the next checkpoint.'
+  siblings: 'Fix shared Streamline/Router accounting; add shared Go/Python boundary fixtures for protected groups and repeated summaries; retain existing Worker accounting.'
+  decision: 'Keep existing component owners and failure contracts; consolidate repeated mechanics only. No new orchestration service, persistent state or compatibility path.'
+scope:
+  in:
+  - 'Fix shared Streamline/Router accounting; add shared Go/Python boundary fixtures for protected groups and repeated summaries; retain existing Worker accounting.'
+  out:
+  - 'Unrelated backlog, paused live evaluations, DNS changes and deployment.'
+acceptance_criteria:
+- id: A1
+  text: 'A valid second summary larger than the newly selected raw groups but smaller than the whole replaced context succeeds through real Planner sessions; equal or larger replacement remains rejected.'
+- id: A2
+  text: 'Existing sibling-path regressions and full touched-package suites pass; defect regressions fail without the fix.'
+- id: A3
+  text: 'make lint passes and the task records exact verification evidence and implementation commit.'
+tests:
+- command: 'go test -race -count=1 ./internal/planner/...'
+  covers: [A1, A2, A3]
+- command: 'cd runtime && uv run pytest -W error tests/test_worker_compaction.py'
+  covers: [A1, A2, A3]
+- command: 'make lint'
+  covers: [A1, A2, A3]

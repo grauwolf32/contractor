@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-60 open tasks: 9 in progress, 38 pending, 13 deferred. 1589 finished: 1571 completed, 18 archived.
+64 open tasks: 13 in progress, 38 pending, 13 deferred. 1589 finished: 1571 completed, 18 archived.
 
 ## In progress
 
@@ -20,6 +20,10 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V468-005](v468-005-registry-replacement-release.yml) | execution-core | defect | P1 | Restore replacement availability after candidate rollback |
+| [V468-006](v468-006-rolling-compaction-accounting.yml) | planner-worker | defect | P1 | Count the previous summary in rolling compaction source bytes |
+| [V468-007](v468-007-runtime-batch-termination.yml) | execution-core | chore | P1 | Share terminal Runtime batch orchestration |
+| [V468-008](v468-008-runtime-producer-stop.yml) | planner-worker | chore | P1 | Share ordered Runtime producer shutdown |
 
 ## Pending
 
@@ -146,9 +150,9 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 2 | 49 | 68 | 39 | 105 |
-| Planners and the Worker model boundary (`planner-worker`) | 4 | 36 | 56 | 35 | 89 |
-| Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 47 |
+| Run execution core (`execution-core`) | 4 | 49 | 69 | 40 | 106 |
+| Planners and the Worker model boundary (`planner-worker`) | 6 | 36 | 57 | 36 | 90 |
+| Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 3 | 15 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 16 | 7 | 17 |
@@ -165,4 +169,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 21 | 53 | 14 | 33 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 43 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 50 | 18 |
-| Quality, CI and process (`quality`) | 10 | 1 | 34 | 146 | 31 |
+| Quality, CI and process (`quality`) | 10 | 1 | 34 | 146 | 32 |

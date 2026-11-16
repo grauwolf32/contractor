@@ -1,0 +1,34 @@
+schema_version: '1.0'
+id: V468-005
+title: Restore replacement availability after candidate rollback
+milestone: hub-audit-defects-2026-10
+epic: execution-core
+kind: defect
+introduced_by: V8-007
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Restore replacement availability after candidate rollback.
+context:
+  authority: 'User decision 2026-11-16: review fix/first-release-review-20261116, implement all bug fixes and proposed lifecycle refactorings on that branch, then merge into main.'
+  finding: 'internal/controlplane/registry_reservations.go:338 leaves blockedByInstanceID after deleting the provisional grant.'
+  siblings: 'Unify authority removal and replacement reconciliation across candidate discard, unprepared discard, Release and ReleaseLost; preserve post-release heartbeat and reservation tombstone semantics.'
+  decision: 'Keep existing component owners and failure contracts; consolidate repeated mechanics only. No new orchestration service, persistent state or compatibility path.'
+scope:
+  in:
+  - 'Unify authority removal and replacement reconciliation across candidate discard, unprepared discard, Release and ReleaseLost; preserve post-release heartbeat and reservation tombstone semantics.'
+  out:
+  - 'Unrelated backlog, paused live evaluations, DNS changes and deployment.'
+acceptance_criteria:
+- id: A1
+  text: 'A lease-expired owner is replaced while its candidate exists; discarding it makes the replacement eligible after its normal ready heartbeat.'
+- id: A2
+  text: 'Existing sibling-path regressions and full touched-package suites pass; defect regressions fail without the fix.'
+- id: A3
+  text: 'make lint passes and the task records exact verification evidence and implementation commit.'
+tests:
+- command: 'go test -race -count=1 ./internal/controlplane ./internal/scheduler'
+  covers: [A1, A2, A3]
+- command: 'make lint'
+  covers: [A1, A2, A3]

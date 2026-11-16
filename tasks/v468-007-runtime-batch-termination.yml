@@ -1,0 +1,34 @@
+schema_version: '1.0'
+id: V468-007
+title: Share terminal Runtime batch orchestration
+milestone: hub-audit-defects-2026-10
+epic: execution-core
+kind: chore
+introduced_by: V60-025
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Share terminal Runtime batch orchestration.
+context:
+  authority: 'User decision 2026-11-16: review fix/first-release-review-20261116, implement all bug fixes and proposed lifecycle refactorings on that branch, then merge into main.'
+  finding: 'internal/controlplane/runtime_batch.go:140 duplicates fencing, fan-out and report collection in FinalizeAll and AbortAll.'
+  siblings: 'Extract one private batch implementation with explicit phase, safe reason and operation callback; public command contracts and result/error behavior stay unchanged.'
+  decision: 'Keep existing component owners and failure contracts; consolidate repeated mechanics only. No new orchestration service, persistent state or compatibility path.'
+scope:
+  in:
+  - 'Extract one private batch implementation with explicit phase, safe reason and operation callback; public command contracts and result/error behavior stay unchanged.'
+  out:
+  - 'Unrelated backlog, paused live evaluations, DNS changes and deployment.'
+acceptance_criteria:
+- id: A1
+  text: 'Both finalization and abortion fence before dispatch, retain partial successful reports and report all observation/transport failures under their existing deadline.'
+- id: A2
+  text: 'Existing sibling-path regressions and full touched-package suites pass; defect regressions fail without the fix.'
+- id: A3
+  text: 'make lint passes and the task records exact verification evidence and implementation commit.'
+tests:
+- command: 'go test -race -count=1 ./internal/controlplane ./internal/scheduler'
+  covers: [A1, A2, A3]
+- command: 'make lint'
+  covers: [A1, A2, A3]
