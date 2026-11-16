@@ -5,7 +5,8 @@ milestone: ui-consolidation-2026-10
 epic: ui
 kind: chore
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 21697daedb1bc33c58e71061137837d8116f880a
 depends_on: []
 languages: [html, css, javascript]
 goal: Review current screens and demonstrate a clearer way to choose and inspect a check type before production adaptation.
@@ -35,3 +36,14 @@ tests:
     covers: [A1, A2, A3]
   - command: Browser review of archived prototype in light/dark/black at 390/1440 with search, filters, selection and setup disclosure
     covers: [A1, A2]
+
+verification:
+  artifact: tasks/evidence/v458-016-library-review.json
+  results:
+    - Reviewed live Projects, Checks, Reports and Library list/detail; compared Library code with current main.
+    - Original full-generation attempt produced no files; a bounded native continuation produced CSS and rationale over the host-authored semantic preview. Exact output and host changes are separately archived.
+    - Browser review passed light/dark/black at 390/1440 with no horizontal overflow, plus search, empty/reset, combined filters, selection/back, technical details, setup dialog and Escape. Browser errors were empty.
+    - Preview wrapper theme/width/before-after controls passed. Native relay stopped after 16 of 24 allowed requests and its upstream credential was removed.
+    - Verified all 253 previous project files and previous projects/conversations/messages/session rows unchanged. Pre/post SQLite backups passed integrity checks; original archive hash is unchanged.
+    - Task/spec validators and git diff --check passed. No production UI code or demo data changed; no production release gates are claimed.
+  delivery: Preview opened and marked deliverable. Forty-one source/evidence files are retained under the shared archive iterations/2026-11-16-library. Branch codex/library-opendesign-20261116 is not merged; production adaptation awaits review.
