@@ -7,7 +7,7 @@ import logging
 import os
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import ValidationError
 
@@ -628,7 +628,7 @@ class AllocationService:
         self,
         *,
         allocation_id: str,
-        kind: str,
+        kind: Literal["finalize", "abort"],
         operation_id: str,
         deadline: datetime,
         reason: TerminationError | None,
@@ -660,46 +660,7 @@ class AllocationService:
                 context.execution.reject()
             await self._state.begin_draining(allocation_id)
             producer_deadline = self._reserve_stop_flush(context, deadline)
-            await self._close_http_or_exit(context, producer_deadline)
-            worker = context.worker
-            if worker is None:
-                raise _conflict("allocation Worker is already absent")
-            remaining = (producer_deadline - self._now()).total_seconds()
-            stop_task: asyncio.Task[None] | None = None
-            try:
-                if remaining <= 0:
-                    raise TimeoutError
-                operation = (
-                    worker.finalize(producer_deadline)
-                    if kind == "finalize"
-                    else worker.abort(producer_deadline)
-                )
-                stop_task = asyncio.create_task(operation, name=f"worker-{kind}-{allocation_id}")
-                done, _ = await asyncio.wait({stop_task}, timeout=remaining)
-                if not done:
-                    stop_task.cancel()
-                    stop_task.add_done_callback(consume_task_exception)
-                    raise TimeoutError
-                await stop_task
-            except asyncio.CancelledError as error:
-                if stop_task is not None and not stop_task.done():
-                    stop_task.cancel()
-                    stop_task.add_done_callback(consume_task_exception)
-                await self._exit_after_stop_failure(context, phase="worker", error=error)
-                raise
-            except Exception as error:
-                await self._exit_after_stop_failure(context, phase="worker", error=error)
-                raise AllocationError(
-                    "worker_stop_unconfirmed",
-                    f"in-process Worker stop could not be guaranteed ({type(error).__name__})",
-                    retryable=False,
-                    status_code=503,
-                ) from None
-
-            context.worker = None
-            await self._stop_tools_or_exit(context, producer_deadline)
-            await self._stop_execution_or_exit(context, producer_deadline)
-            await self._stop_adapters_or_exit(context, deadline)
+            await self._stop_producers_or_exit(context, producer_deadline, deadline, kind=kind)
             if kind == "abort":
                 await self._discard_project_workspace_or_exit(context, deadline)
             response = AllocationFinalResponse(
@@ -723,8 +684,8 @@ class AllocationService:
         if state.process_state is ProcessState.ALLOCATED:
             await self._state.begin_draining(context.allocation_id)
         producer_deadline = self._reserve_stop_flush(context, deadline)
-        await self._close_http_or_exit(context, producer_deadline)
         if context.worker is None:
+            await self._close_http_or_exit(context, producer_deadline)
             if context.release_cleanup_task is not None:
                 await self._state.fence_allocation(context.allocation_id)
                 return
@@ -734,10 +695,34 @@ class AllocationService:
             await self._state.fence_allocation(context.allocation_id)
             return
 
+        await self._stop_producers_or_exit(context, producer_deadline, deadline, kind="abort")
+        await self._discard_project_workspace_or_exit(context, deadline)
+        context.termination_kind = "lease"
+        context.termination_id = None
+        context.terminal_response = AllocationFinalResponse(
+            apiVersion=API_VERSION,
+            report=_build_report(context, self._now(), reason),
+        )
+        await self._state.fence_allocation(context.allocation_id)
+
+    async def _stop_producers_or_exit(
+        self,
+        context: _AllocationContext,
+        producer_deadline: datetime,
+        deadline: datetime,
+        *,
+        kind: Literal["finalize", "abort"],
+    ) -> None:
+        """Stop producers in order before flushing adapters under their reserved budget."""
+
+        await self._close_http_or_exit(context, producer_deadline)
         worker = context.worker
+        if worker is None:
+            raise _conflict("allocation Worker is already absent")
+        operation = worker.finalize if kind == "finalize" else worker.abort
         try:
             await _await_before_deadline(
-                lambda: worker.abort(producer_deadline),
+                lambda: operation(producer_deadline),
                 deadline=producer_deadline,
                 now=self._now,
             )
@@ -757,14 +742,6 @@ class AllocationService:
         await self._stop_tools_or_exit(context, producer_deadline)
         await self._stop_execution_or_exit(context, producer_deadline)
         await self._stop_adapters_or_exit(context, deadline)
-        await self._discard_project_workspace_or_exit(context, deadline)
-        context.termination_kind = "lease"
-        context.termination_id = None
-        context.terminal_response = AllocationFinalResponse(
-            apiVersion=API_VERSION,
-            report=_build_report(context, self._now(), reason),
-        )
-        await self._state.fence_allocation(context.allocation_id)
 
     async def _close_http_or_exit(self, context: _AllocationContext, deadline: datetime) -> None:
         if context.http_transport is None:
