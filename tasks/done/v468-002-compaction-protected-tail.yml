@@ -6,12 +6,14 @@ epic: planner-worker
 kind: defect
 introduced_by: V417-003
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 31241e421ce16075ad5d3973b6d602fffe204692
 depends_on: []
 languages:
 - python
 goal: Preserve every protected recent Worker group at early compaction boundaries.
 context:
+  evidence: tasks/evidence/v468-release-review-20261116.json
   authority: 'User decision 2026-11-16: fix the first-release review findings in one pass without regressions.
     DNS fail-open behavior is explicitly excluded for now.'
   finding: Three complete groups with keepRecentGroups=4 select groups[0:-1] for compaction. runtime/src/contractor_runtime/worker/compaction.py:387.

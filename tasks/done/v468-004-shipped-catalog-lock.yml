@@ -5,7 +5,8 @@ milestone: workflow-catalog-consolidation
 epic: workflows
 kind: feature
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 47d84c81b7f85d86775d33c81e7e562962e464c5
 depends_on: []
 languages:
 - go
@@ -16,12 +17,16 @@ goal: The first release ships immutable catalog identity digests and rejects cha
 demonstration: Generate the committed catalog lock, validate the shipped root, then change fixture content
   under an existing identity and prove offline validation and startup reject it.
 context:
+  evidence: tasks/evidence/v468-release-review-20261116.json
   authority: 'User decision 2026-11-16: fix the remaining first-release review issues in one pass, excluding
     DNS. CAT-R74 requires this lock before the first release.'
   specification: docs/spec/configuration/catalog.md#CAT-R74
   decision: Use one bounded committed lock of semantic catalog digests; loader checks present locks, release
     validation requires one. Custom fixture/operator roots may remain unlocked. Explicit lock generation
     can add new identities but cannot rewrite a prior digest, including a retired identity.
+  fixture_boundary: Eval, E2E and UI process helpers validate the shipped source before staging private
+    model or Gateway substitutions. Eval creates its own lock; E2E and UI scenario catalogs remain
+    intentionally unlocked while assembling fixture manifests. The shipped source is never rewritten.
 scope:
   in:
   - Versioned Workflow, AgentTemplate, ModelPolicy, LLMGatewayConfig, AuditProfile and named instruction
@@ -79,4 +84,11 @@ tests:
   covers:
   - A1
   - A2
+  - A3
+- command: make test-release-config-fixtures
+  covers:
+  - A2
+  - A3
+- command: go test -tags=e2e -count=1 -timeout=20m ./tests/ui-stack
+  covers:
   - A3

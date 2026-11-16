@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-64 open tasks: 13 in progress, 38 pending, 13 deferred. 1585 finished: 1567 completed, 18 archived.
+60 open tasks: 9 in progress, 38 pending, 13 deferred. 1589 finished: 1571 completed, 18 archived.
 
 ## In progress
 
@@ -20,10 +20,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V468-001](v468-001-credential-storage-recovery.yml) | runtime-config | defect | P1 | Reject oversized credential metadata before Gateway effects and settle permanent recovery failures |
-| [V468-002](v468-002-compaction-protected-tail.yml) | planner-worker | defect | P1 | Preserve every protected recent Worker group at early compaction boundaries |
-| [V468-003](v468-003-postgres-diagnostic-observer-test.yml) | quality | defect | P1 | Verify diagnostic observer exclusion without comparing changing global snapshots |
-| [V468-004](v468-004-shipped-catalog-lock.yml) | workflows | feature | P1 | Freeze shipped catalog identities with a checked digest lock |
 
 ## Pending
 
@@ -151,8 +147,8 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 2 | 49 | 68 | 39 | 105 |
-| Planners and the Worker model boundary (`planner-worker`) | 5 | 36 | 56 | 35 | 89 |
-| Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 16 | 5 | 47 |
+| Planners and the Worker model boundary (`planner-worker`) | 4 | 36 | 56 | 35 | 89 |
+| Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 47 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 3 | 15 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 16 | 7 | 17 |
@@ -160,7 +156,7 @@ tasks in `introduced_by`.
 | HTTP and Caido tools (`http-tools`) | 5 | 24 | 37 | 15 | 38 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 3 | 21 | 13 | 12 | 30 |
 | Findings tools and collections (`findings`) | 0 | 18 | 14 | 11 | 23 |
-| Workflow catalog and document workflows (`workflows`) | 7 | 20 | 17 | 16 | 26 |
+| Workflow catalog and document workflows (`workflows`) | 6 | 20 | 17 | 16 | 26 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 40 | 20 | 70 |
 | Audits (`audits`) | 9 | 69 | 98 | 42 | 170 |
 | Evaluations (`evals`) | 4 | 23 | 46 | 20 | 54 |
@@ -169,4 +165,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 21 | 53 | 14 | 33 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 43 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 50 | 18 |
-| Quality, CI and process (`quality`) | 11 | 1 | 34 | 146 | 31 |
+| Quality, CI and process (`quality`) | 10 | 1 | 34 | 146 | 31 |

@@ -6,12 +6,14 @@ epic: quality
 kind: defect
 introduced_by: V32-003
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 41788c01c97b42c4678695bbbbb6a9bf5615efde
 depends_on: []
 languages:
 - go
 goal: Verify diagnostic observer exclusion without comparing changing global snapshots.
 context:
+  evidence: tasks/evidence/v468-release-review-20261116.json
   authority: 'User decision 2026-11-16: fix the first-release review findings in one pass without regressions.
     DNS fail-open behavior is explicitly excluded for now.'
   finding: 'The full Go suite fails with own backend counted: got=20 all=23 because two pg_stat_activity
