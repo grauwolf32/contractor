@@ -6,11 +6,13 @@ epic: execution-core
 kind: chore
 introduced_by: V60-025
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: fb822f6cd44ae25cf95e568d49090d260f4c56fc
 depends_on: []
 languages: [go]
 goal: Share terminal Runtime batch orchestration.
 context:
+  evidence: tasks/evidence/v468-followup-review-20261116.json
   authority: 'User decision 2026-11-16: review fix/first-release-review-20261116, implement all bug fixes and proposed lifecycle refactorings on that branch, then merge into main.'
   finding: 'internal/controlplane/runtime_batch.go:140 duplicates fencing, fan-out and report collection in FinalizeAll and AbortAll.'
   siblings: 'Extract one private batch implementation with explicit phase, safe reason and operation callback; public command contracts and result/error behavior stay unchanged.'
