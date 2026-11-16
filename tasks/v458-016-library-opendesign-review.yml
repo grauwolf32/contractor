@@ -1,0 +1,37 @@
+schema_version: "1.0"
+id: V458-016
+title: Explore a clearer check type library with OpenDesign
+milestone: ui-consolidation-2026-10
+epic: ui
+kind: chore
+priority: P2
+status: in_progress
+depends_on: []
+languages: [html, css, javascript]
+goal: Review current screens and demonstrate a clearer way to choose and inspect a check type before production adaptation.
+context:
+  authority: User 2026-11-16 requests a UI review, screen selection and an iteration using OpenDesign. Existing instructions preserve original designs, configured model, isolation and project-wide typography.
+  design: docs/design/ui/README.md
+  finding: The live Library repeats versions and task limits while goals and required materials are hard to scan. Check type detail puts technical limits before inputs. Checks has indistinguishable repeated titles; Reports currently has an empty inventory on demo.
+  boundary: This is a synthetic, local design experiment. Existing AuditProfile and launch operations remain the authority. Published does not mean ready to run; no readiness, security result, timing or coverage is invented.
+scope:
+  in:
+    - Review demo and current main source; prototype Library list and selected check type with genuine OpenDesign output.
+    - Search, material/mode filters, selected detail, technical disclosure and a clearly simulated setup action in three themes at 390 and 1440 px.
+    - Preserve native inputs/output, provenance, prior OpenDesign files and a recoverable state backup in the common archive.
+  out:
+    - Production UI changes, API changes, deployment, real checks or live target traffic.
+acceptance_criteria:
+  - id: A1
+    text: A real OpenDesign run contributes retained native source and the preview supports choosing a check type by goal and materials without misleading readiness claims.
+  - id: A2
+    text: Preview interactions, 390 and 1440 px layouts and light/dark/black themes are checked; current typography is used and no real start request is sent.
+  - id: A3
+    text: Previous native project files and original archive are preserved; generation receipts and exact outputs are retained, relay secrets removed, and preview opened.
+tests:
+  - command: python3 scripts/check_tasks.py
+    covers: [A1, A2, A3]
+  - command: git diff --check
+    covers: [A1, A2, A3]
+  - command: Browser review of archived prototype in light/dark/black at 390/1440 with search, filters, selection and setup disclosure
+    covers: [A1, A2]
