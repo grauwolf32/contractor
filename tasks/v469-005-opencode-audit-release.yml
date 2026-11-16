@@ -1,0 +1,149 @@
+schema_version: '1.0'
+id: V469-005
+title: Accept the minimal OpenCode Audit environment through real release gates
+milestone: opencode-audit-environments-2026-11
+epic: quality
+kind: chore
+priority: P1
+status: pending
+depends_on:
+- V469-004
+languages:
+- go
+- python
+- yaml
+- markdown
+goal: Demonstrate the first supported OpenCode Audit environment on an integrated revision and publish
+  honest release evidence and operating bounds.
+context:
+  authority: 'User request 2026-11-16: break proposal 0048 into tasks with minimal changes and explain
+    the design with diagrams. User decisions 2026-11-16: one retained container per Audit; application
+    ports are declared at container creation; dynamic publish_service and forwarder containers are outside
+    the first slice. Pause and terminal Audit stop the container, retaining files and installed packages
+    until explicit Audit deletion; continuation starts the same container. This request authorizes task
+    planning, not implementation, live-model calls or deployment. The supporting-task scope, fresh allocation
+    sessions, Linux-first placement and reuse of existing ownership are agent proposals for minimizing
+    changes, recorded in proposal 0048; they are not additional user decisions.'
+  proposal: docs/proposals/0048-opencode-audit-environments.md
+  specification:
+  - docs/spec/execution/runtime-agent.md#RTA-R1
+  - docs/spec/execution/worker.md#WRK-R65
+  - docs/spec/configuration/agent-templates.md#TPL-R3
+  - docs/spec/tools/code-execution.md#EXE-R123
+  - docs/spec/audits/common-contract.md#ACT-R2
+  - docs/spec/artifacts/artifact-store.md#ART-R1
+  boundary: Keep the existing Audit -> ordinary Run -> Planner -> allocation A2A path. The Runtime adapter
+    owns OpenCode protocol parsing and WorkerCompletion; ArtifactStore owns immutable outputs. Audit owns
+    durable environment identity and desired lifecycle; the existing Runtime/Podman owner enforces exact
+    host resources and stop. Extend existing allocation preparation and Audit reconciliation ports with
+    concrete callers; do not add a second coordinator, generic provider framework, receipt table or independent
+    lease system. Supporting tasks publish ordinary material outputs, not a fabricated hypothesis/check
+    result.
+  implementation_entry: Implementation is not started by this planning change. Complete dependencies and
+    verify their recorded decisions before taking the task.
+  release_boundary: Completion establishes the minimal supported Linux execution slice only. Wider OpenCode
+    compatibility, dynamic services, cross-host migration and live-quality evaluation are not silently
+    added to the milestone.
+  decision_record: The retained Audit container is the user-selected direction. An allocation-local container
+    plus prebuilt image would be simpler but would lose packages/files installed by earlier Runs. Reopen
+    the plan only if V469-001 shows retained rootless ownership, cancellation or finite disk/resource
+    bounds need a separate subsystem; record the smaller options before production work.
+scope:
+  in:
+  - Integrate make test-opencode-audit-e2e with release verification on the supported Linux lane and prove
+    every mandatory selection executes.
+  - Run the complete deterministic release gate and the documented environment lifecycle matrix on one
+    integrated revision.
+  - Record exact versions/images, source/config pins, resource ceilings, unsupported capabilities and
+    observed outcomes; remove all owned test resources.
+  - Reconcile proposal status and task references with delivered behavior; retain optional future ideas
+    as proposals rather than implicit release requirements.
+  out:
+  - Dynamic service publication, forwarder containers, multiple environments per Audit, VM migration or
+    automatic cloud provisioning.
+  - Controlled sandbox HTTP bridge, transparent interception, VPN, automatic user tunnels or public application
+    hosting; no dependencies on V410-037 or V411-013.
+  - A new workflow engine, custom OpenCode A2A wrapper, transferring all Contractor toolsets/Skills/MCP
+    into OpenCode, or automatic Findings/hypothesis production.
+  - Cross-allocation conversation continuation, automatic model substitution, compatibility readers or
+    modifying active deployments.
+acceptance_criteria:
+- id: A1
+  text: Full deterministic release verification passes on the recorded integrated revision with the OpenCode
+    real-process gate included.
+- id: A2
+  text: Package installation, persisted service/files, exact outputs, cancellation, pause/resume, restart
+    and deletion have reproducible evidence on supported Linux.
+- id: A3
+  text: Known limitations, model-quality non-claims, resource bounds and cleanup results are documented;
+    no owned test resource remains.
+tests:
+- command: make release-verify
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-opencode-audit-e2e
+  covers:
+  - A2
+  - A3
+demonstration: One exact release fixture runs Server/PostgreSQL/Runtime/A2A/pinned OpenCode/rootless Podman,
+  installs a local fixture package, starts a service, reuses it from a second Run, pauses/resumes and
+  deletes the Audit; fault cases exercise the same owner path.
+requirements:
+- id: R1
+  text: A scripted Gateway with real OpenCode proves execution integration, not autonomous model quality.
+    No live-model quality claim or model change belongs to this release gate.
+- id: R2
+  text: Report each skip, missing Linux prerequisite and unexecuted test as unproven. A can-fail regression
+    must detect broken retention, double acquisition, leaked invocation and false-ready endpoint.
+- id: R3
+  text: 'State remaining product limits: one environment, fixed ports, new session each allocation, operator
+    egress, one pinned host and no transparent bridge/VPN or automatic cloud access.'
+- id: R4
+  text: All owned databases, fixture repositories, containers, volumes and networks are removed after
+    pools/processes stop; no global Podman cleanup or user data reset.
+failure_outcomes:
+- operation: Prepare, invoke or stop the exact Audit environment
+  permanent: Reject unsupported configuration, unavailable required capability, foreign owner, wrong image/container
+    identity or over-bound input before work. Use owning classified outcomes; no fallback executor or
+    model.
+  retryable: Only bounded read/reconciliation retries under the original deadline; do not repeat possibly
+    executed prompts or shell operations.
+  ambiguous: Inspect the original container/session/operation identity. Quarantine uncertain ownership
+    and do not dispatch another mutating allocation until stop or prior outcome is established.
+  cancelled: Join adapter, descendants and publishers through allocation ownership. If executor-only stop
+    cannot be proven, stop the same whole container while retaining its writable layer.
+  timeout: Invocation deadline and finite prepare/stop/reconciliation budgets are distinct. No background
+    invocation may survive release.
+cardinality:
+- collection: Audit environments, allocations and host resources
+  expected: One environment, one writer and one application port in the end-to-end demonstrator.
+  maximum: One environment per Audit and one mutating allocation per environment. The demonstrator has
+    one declared application port; the finite production port, retained-environment, rootfs/log/output
+    byte and deadline limits are measured and fixed in V469-001 before production implementation. Existing
+    source/artifact and Podman CPU/RAM/PID bounds remain. No whole-history scan, unbounded container discovery
+    or implicit installation on startup.
+  bound: Use indexed per-Audit/host lookup and bounded reconciliation pages; finite stream frames, output
+    bytes, process trees and cleanup work.
+lifecycle:
+- entity: Audit-owned container and allocation-owned OpenCode execution
+  delete: Audit/Project deletion drains users, confirms exact container/network removal and then purges
+    ownership. An unreachable host leaves cleanup pending.
+  cascade: Use the existing Audit deletion path; ordinary Run deletion cannot remove the Audit container
+    or retained outputs.
+  retention: Normal successful allocation release preserves the running app while Audit is active. Pause
+    drains current Runs before stop; terminal Audit stops it. Rootfs persists until explicit Audit deletion.
+    Resume of a paused Audit restarts the exact container; no terminal-Audit reopening is added; processes
+    restart from the declared supervisor configuration, not a RAM snapshot.
+test_prerequisites:
+- A newly named make/process target is a deliverable of this task and must execute nonzero cases; absent
+  targets or zero-match selections fail.
+- Persistence behavior uses disposable PostgreSQL; a configured unreachable database fails. Use a single
+  owned database per lane and drop it after all processes stop.
+- Real rootless Linux Podman and pinned OpenCode are required for container/process acceptance. Missing
+  Linux resources are not passing evidence. Test catalogs live under testdata, not the live configs tree.
+- No live Gateway calls in deterministic gates. A scripted Gateway is used with the real OpenCode binary;
+  any later live demonstration needs separate authorization and retains the project-selected model.
+- Full suites of every touched package must pass. Heavy-I/O opt-in stays disabled unless explicitly requested;
+  disabled heavy fixtures are not passing coverage.
