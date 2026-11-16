@@ -1,0 +1,82 @@
+schema_version: '1.0'
+id: V468-004
+title: Freeze shipped catalog identities with a checked digest lock
+milestone: workflow-catalog-consolidation
+epic: workflows
+kind: feature
+priority: P1
+status: in_progress
+depends_on: []
+languages:
+- go
+- json
+- markdown
+goal: The first release ships immutable catalog identity digests and rejects changed content under a locked
+  identity.
+demonstration: Generate the committed catalog lock, validate the shipped root, then change fixture content
+  under an existing identity and prove offline validation and startup reject it.
+context:
+  authority: 'User decision 2026-11-16: fix the remaining first-release review issues in one pass, excluding
+    DNS. CAT-R74 requires this lock before the first release.'
+  specification: docs/spec/configuration/catalog.md#CAT-R74
+  decision: Use one bounded committed lock of semantic catalog digests; loader checks present locks, release
+    validation requires one. Custom fixture/operator roots may remain unlocked. Explicit lock generation
+    can add new identities but cannot rewrite a prior digest, including a retired identity.
+scope:
+  in:
+  - Versioned Workflow, AgentTemplate, ModelPolicy, LLMGatewayConfig, AuditProfile and named instruction
+    digests.
+  - Explicit lock generation, validation/startup checks, committed shipped lock and release-gate enforcement.
+  out:
+  - Managed publication already enforces immutability; Skills and Audit standards retain existing mechanisms.
+  - DNS policy, live evaluation, deployment and legacy compatibility.
+requirements:
+- id: R1
+  text: Current shipped identities must be listed with exact semantic digests; existing lock entries cannot
+    be rebound by generation.
+- id: R2
+  text: Lock reads are bounded and strict. Missing required, invalid or mismatched locks fail validation.
+    A rejected reload keeps the prior snapshot.
+failure_outcomes:
+- operation: Generate catalog lock
+  permanent: Invalid input or identity drift fails without rewriting the existing file.
+  retryable: Operator can retry a filesystem failure after correcting its cause.
+  ambiguous: Read and validate the atomic file outcome before retrying.
+  cancelled: No background work survives the command.
+  timeout: Local bounded reads and writes only; no network operation.
+cardinality:
+- collection: Catalog lock
+  expected: About 150 current identities
+  maximum: 4 MiB JSON document
+  bound: Same bounded file read as a catalog manifest; one entry per identity.
+lifecycle:
+- entity: Catalog lock entry
+  delete: Retained after removing an identity to prevent later rebinding.
+  cascade: None; managed identities and bundle packages have their existing owners.
+  retention: Committed with the release catalog.
+acceptance_criteria:
+- id: A1
+  text: Unchanged locked catalogs pass; changed, missing, duplicate and malformed lock cases are rejected
+    on real load/CLI paths.
+- id: A2
+  text: Generator preserves old digests and adds new identities; shipped config validation and release
+    checks require the committed lock.
+- id: A3
+  text: Touched package suites, config validation, release graph and lint pass without reading live configs
+    in unit tests.
+tests:
+- command: go test -count=1 ./internal/config/... ./internal/configload/... ./internal/app ./internal/cli
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-config
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
