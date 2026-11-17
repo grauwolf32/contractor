@@ -1,7 +1,8 @@
+import { libraryReadableName } from "./presentation";
+import { useLibraryBrowser } from "./browser-state";
 import { useQuery } from "@tanstack/react-query";
-import { useId, useState } from "react";
-import { Link, useLocation } from "react-router";
-
+import { useId } from "react";
+import { useParams } from "react-router";
 import { agentPath } from "../../api/agents";
 import { usePublicAPI } from "../../api/context";
 import {
@@ -11,90 +12,21 @@ import {
 } from "../../api/operations";
 import { queryKeys } from "../../api/query-keys";
 import { CursorControls } from "../../app/cursor-controls";
+import { compareVersions, plural } from "../../app/format";
 import { QueryView } from "../../app/query-view";
 import { EmptyState } from "../../ui";
+import { AgentDetailRoute } from "./agent-detail";
+import { LibraryBrowser, LibraryInventory, LibraryTag } from "./browser";
 import { LibrarySearch, LibrarySectionHeader } from "./library-parts";
-import { locationDestination } from "./navigation";
 import { useCatalogQueryState } from "./query-state";
-import { plural, compareVersions } from "../../app/format";
 
-function AgentCard({
-  name,
-  versions,
-  item,
-  onVersion,
-}: {
-  name: string;
-  versions: ConfigurationResource[];
-  item: ConfigurationResource;
-  onVersion: (version: string) => void;
-}) {
-  const location = useLocation();
-  const body = item.body as AgentTemplateBody;
-  const tools =
-    body.toolsets?.reduce(
-      (total, toolset) => total + toolset.tools.length,
-      0,
-    ) ?? 0;
-  return (
-    <article className="library-card library-agent-card">
-      <div className="library-card-top">
-        <label className="library-version">
-          <span>Version</span>
-          <select
-            className="ui-control"
-            data-size="xs"
-            aria-label={`Version of ${name}`}
-            value={item.ref.version}
-            onChange={(event) => onVersion(event.target.value)}
-          >
-            {versions.map((version) => (
-              <option key={version.ref.version} value={version.ref.version}>
-                {version.ref.version}
-              </option>
-            ))}
-          </select>
-        </label>
-        <small className="ui-caption">
-          {plural(versions.length, "matching version")} on this page
-        </small>
-      </div>
-      <Link
-        className="library-agent-link"
-        to={agentPath(item.ref.name, item.ref.version)}
-        state={{
-          returnTo: locationDestination(location),
-          returnLabel: "Agent search",
-          returnState: location.state,
-        }}
-      >
-        <span className="library-agent-identity">
-          <strong>{item.ref.name}</strong>
-          <span className="ui-badge library-tag">{item.ref.version}</span>
-        </span>
-        <span className="library-card-text">
-          {body.description || "No authored description."}
-        </span>
-        <span className="ui-caption">
-          {body.runtime} · {plural(body.skills?.length ?? 0, "Skill")} ·{" "}
-          {plural(tools, "tool")}
-        </span>
-        <code className="library-selector">
-          {item.ref.name}@{item.ref.version}
-        </code>
-        <span className="library-agent-open">
-          Inspect version <span aria-hidden="true">→</span>
-        </span>
-      </Link>
-    </article>
-  );
-}
-
-/** Library → Agents: published Agent templates, searched on the server. */
+const BASE = "/catalog/agents";
 export function AgentListRoute() {
   const api = usePublicAPI();
   const heading = useId();
-  const state = useCatalogQueryState();
+  const { name, version } = useParams();
+  const state = useCatalogQueryState(BASE);
+  const browser = useLibraryBrowser(BASE);
   const query = useQuery({
     queryKey: queryKeys.catalog.agentTemplates(
       state.committedSearch,
@@ -107,92 +39,129 @@ export function AgentListRoute() {
         signal,
       }),
   });
-  const [choices, setChoices] = useState<Record<string, string>>({});
   const families = new Map<string, ConfigurationResource[]>();
   for (const item of query.data?.items ?? []) {
-    const family = families.get(item.ref.name) ?? [];
-    family.push(item);
-    families.set(item.ref.name, family);
+    const values = families.get(item.ref.name) ?? [];
+    values.push(item);
+    families.set(item.ref.name, values);
   }
-
+  const shown = [...families.values()].map((items) => {
+    items.sort((a, b) => compareVersions(b.ref.version, a.ref.version));
+    return (
+      items.find((i) => i.ref.name === name && i.ref.version === version) ??
+      items[0]!
+    );
+  });
+  const first = shown[0];
+  const selectedName = name ?? first?.ref.name;
+  const selectedVersion =
+    name !== undefined ? (version ?? "") : first?.ref.version;
+  const toolCount = shown.filter(
+    (i) => (i.body as AgentTemplateBody).runtime === "tool@1",
+  ).length;
   return (
-    <section className="library-section" aria-labelledby={heading}>
-      <LibrarySectionHeader
-        id={heading}
-        title="Agents"
-        description="Agent versions with their instructions, Skills, tools and the Workflows that use them."
-        actions={
+    <LibraryBrowser
+      base={BASE}
+      title="Agents"
+      selected={name !== undefined}
+      list={
+        <div className="library-inventory">
+          <LibrarySectionHeader
+            id={heading}
+            title="Agents"
+            description="Instructions, tools and their purpose."
+            actions={<span className="library-count-pill">{shown.length}</span>}
+          />
           <LibrarySearch
             label="Search agents"
-            placeholder="Name, version or description"
+            placeholder="Search agents…"
             value={state.draftSearch}
             onChange={state.changeDraftSearch}
           />
-        }
-      />
-
-      <p className="library-count" aria-live="polite">
-        <span>Page {state.page}</span>
-        {state.committedSearch === "" ? null : (
-          <span>
-            Results for <strong>{state.committedSearch}</strong>
-          </span>
-        )}
-      </p>
-
-      <QueryView
-        query={query}
-        loading={<p role="status">Searching published Agents…</p>}
-        isEmpty={(data) => data.items.length === 0}
-        empty={
-          <div className="library-empty">
-            <EmptyState
-              title={
-                state.committedSearch === ""
-                  ? "No Agents published."
-                  : "No Agents match this search."
-              }
-            >
-              {state.committedSearch === ""
-                ? null
-                : "Try a different literal name, version or description."}
-            </EmptyState>
+          <div
+            className="library-runtime-composition"
+            aria-label="Agent types on this page"
+          >
+            <LibraryTag tone="blue">
+              Model based {shown.length - toolCount}
+            </LibraryTag>
+            <LibraryTag tone="amber">Tool only {toolCount}</LibraryTag>
           </div>
-        }
-      >
-        {() => (
-          <div className="library-grid">
-            {[...families].map(([name, versions]) => {
-              versions.sort((a, b) =>
-                compareVersions(b.ref.version, a.ref.version),
-              );
-              const item =
-                versions.find(
-                  (version) => version.ref.version === choices[name],
-                ) ?? versions[0]!;
-              return (
-                <AgentCard
-                  key={name}
-                  name={name}
-                  versions={versions}
-                  item={item}
-                  onVersion={(version) =>
-                    setChoices((previous) => ({ ...previous, [name]: version }))
-                  }
-                />
-              );
-            })}
-          </div>
-        )}
-      </QueryView>
-
-      {query.data === undefined ? null : (
-        <CursorControls
-          size="sm"
-          label="Agent pages"
-          {...state.controls(query.data.page)}
-        />
-      )}
-    </section>
+          <p className="library-inventory-count">
+            <span>Page {state.page}</span> · {plural(shown.length, "Agent")} on
+            this page
+          </p>
+          <QueryView
+            query={query}
+            loading={<p role="status">Searching published Agents…</p>}
+            isEmpty={(data) => data.items.length === 0}
+            empty={
+              <EmptyState
+                title={
+                  state.committedSearch
+                    ? "No Agents match this search."
+                    : "No Agents published."
+                }
+              >
+                Try a name, version or description.
+              </EmptyState>
+            }
+          >
+            {() => (
+              <LibraryInventory
+                selected={selectedName}
+                state={browser.rowState}
+                items={shown.map((item) => {
+                  const body = item.body as AgentTemplateBody;
+                  const tool = body.runtime === "tool@1";
+                  const tools = body.toolsets.reduce(
+                    (n, t) => n + t.tools.length,
+                    0,
+                  );
+                  return {
+                    key: item.ref.name,
+                    to:
+                      agentPath(item.ref.name, item.ref.version) +
+                      browser.search,
+                    title: libraryReadableName(item.ref.name),
+                    description: body.description || "No authored description.",
+                    kind: tool ? "Tool agent" : "Model agent",
+                    icon: tool ? "tool" : "agent",
+                    tone: tool ? "amber" : "blue",
+                    meta: (
+                      <>
+                        <LibraryTag tone={tool ? "amber" : "blue"}>
+                          {tool ? "No model" : "Model based"}
+                        </LibraryTag>
+                        <span>
+                          {plural(tools, "tool")} ·{" "}
+                          {plural(body.skills?.length ?? 0, "Skill")}
+                        </span>
+                      </>
+                    ),
+                  };
+                })}
+              />
+            )}
+          </QueryView>
+          {query.data ? (
+            <CursorControls
+              size="sm"
+              label="Agent pages"
+              {...state.controls(query.data.page)}
+            />
+          ) : null}
+        </div>
+      }
+      detail={
+        selectedName !== undefined && selectedVersion !== undefined ? (
+          <AgentDetailRoute name={selectedName} version={selectedVersion} />
+        ) : (
+          <EmptyState title="Choose an Agent">
+            Its instructions and tools will appear here.
+          </EmptyState>
+        )
+      }
+    />
   );
 }

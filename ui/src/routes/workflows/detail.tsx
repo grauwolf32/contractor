@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode } from "react";
-import { Link, useLocation, useParams } from "react-router";
+import { Link, useLocation } from "react-router";
 
 import type { components } from "../../api/generated/public";
 import { usePublicAPI } from "../../api/context";
@@ -17,7 +17,6 @@ import { compactDigest, plural } from "../../app/format";
 import { QueryView } from "../../app/query-view";
 import { ButtonLink, Facts, TechnicalDetails } from "../../ui";
 import { artifactDetailPath } from "../artifacts/paths";
-import { LibraryBackLink } from "../catalog/library-parts";
 import { locationDestination } from "../catalog/navigation";
 import { ConsumerConfigList } from "./consumer-config";
 import { WorkflowOverview } from "./overview";
@@ -249,9 +248,14 @@ function StageContract({
   );
 }
 
-export function WorkflowDetailRoute() {
+export function WorkflowDetailRoute({
+  name,
+  version,
+}: {
+  name: string;
+  version: string;
+}) {
   const api = usePublicAPI();
-  const { name = "", version = "" } = useParams();
   const valid =
     CONFIG_NAME_PATTERN.test(name) && CONFIG_VERSION_PATTERN.test(version);
   const query = useQuery({
@@ -261,12 +265,6 @@ export function WorkflowDetailRoute() {
   });
   return (
     <div className="ui-stack workflow-overview-page">
-      <LibraryBackLink
-        fallback={{
-          returnTo: "/catalog/workflows",
-          returnLabel: "All workflows",
-        }}
-      />
       {valid ? (
         <QueryView
           query={query}

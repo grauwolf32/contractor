@@ -16,6 +16,11 @@ export async function listAuditPresets(
       ...(cursor === undefined ? {} : { cursor }),
     });
   });
+  if (presets.truncated) {
+    throw new Error(
+      "The check type inventory has more entries than can be read at once, so it is incomplete.",
+    );
+  }
   return presets.items;
 }
 

@@ -331,11 +331,11 @@ describe("Workflow overview and Run drawer", () => {
     });
 
     expect(
-      await screen.findByRole("heading", { name: "Inputs and results" }),
+      await screen.findByRole("region", { name: "Inputs and results" }),
     ).toBeVisible();
-    expect(screen.getByRole("region", { name: "Input files" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "Inputs" })).toBeVisible();
     expect(
-      screen.getByRole("region", { name: "Declared outputs" }),
+      screen.getByRole("region", { name: "Declared results" }),
     ).toBeVisible();
     expect(
       screen.queryByText("No authored description."),
@@ -534,7 +534,7 @@ describe("Workflow routes", () => {
     expect(screen.queryByText("Instructions")).not.toBeInTheDocument();
   });
 
-  it.each([workflowDisplayName, "View workflow"])(
+  it.each([new RegExp(workflowDisplayName)])(
     "preserves Workflow search and return state through the %s link",
     async (linkName) => {
       const path = "/catalog/workflows?q=openapi&keep=yes";
@@ -547,7 +547,7 @@ describe("Workflow routes", () => {
       const user = userEvent.setup();
       await user.click(await screen.findByRole("link", { name: linkName }));
       await user.click(
-        await screen.findByRole("link", { name: /Workflow search/ }),
+        await screen.findByRole("link", { name: "All workflows" }),
       );
       expect(router.state.location.pathname).toBe("/catalog/workflows");
       expect(router.state.location.search).toBe("?q=openapi&keep=yes");
@@ -1322,6 +1322,8 @@ describe("Workflow routes", () => {
   it("loads all published Workflow pages before presenting grouped cards", async () => {
     const { router } = renderApplication("/catalog/workflows", {
       server: {
+        [WORKFLOW]: ({ params }) =>
+          json(params.name === nextWorkflow.ref.name ? nextWorkflow : workflow),
         "GET /v1/workflows": ({ url }) =>
           url.searchParams.get("q") === "likec4" ||
           url.searchParams.get("cursor") === "next-workflow"
@@ -1332,14 +1334,16 @@ describe("Workflow routes", () => {
 
     expect(
       await screen.findByRole("link", {
-        name: workflowDisplayName,
+        name: new RegExp(workflowDisplayName),
       }),
     ).toHaveAttribute("href", workflowRoute);
-    expect(screen.getByText(workflowDescription)).toBeVisible();
-    expect(screen.getByText(workflowSelector)).toBeInTheDocument();
+    expect(screen.getAllByText(workflowDescription)[0]).toBeVisible();
+
     const user = userEvent.setup();
     expect(
-      await screen.findByRole("link", { name: nextWorkflow.ref.name }),
+      await screen.findByRole("link", {
+        name: /LikeC4 from workspace/,
+      }),
     ).toBeInTheDocument();
     expect(screen.queryByText("No authored description.")).toBeNull();
     expect(
@@ -1353,7 +1357,9 @@ describe("Workflow routes", () => {
     expect(router.state.location.search).not.toContain("cursor=");
     expect(router.state.location.search).not.toContain("page=");
     expect(
-      await screen.findByRole("link", { name: nextWorkflow.ref.name }),
+      await screen.findByRole("link", {
+        name: /LikeC4 from workspace/,
+      }),
     ).toBeVisible();
   });
 
@@ -1395,7 +1401,7 @@ describe("Workflow routes", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: workflowDisplayName,
+        name: new RegExp(workflowDisplayName),
       }),
     ).toBeInTheDocument();
     await screen.findByText("Scheduler transitions");

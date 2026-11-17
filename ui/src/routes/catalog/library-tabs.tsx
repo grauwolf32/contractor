@@ -4,6 +4,7 @@ import { TERMS } from "../../app/vocabulary";
 import { ButtonLink } from "../../ui";
 import { LIBRARY_SECTIONS, librarySectionOf } from "./navigation";
 import "./library.css";
+import "./library-browser.css";
 
 /**
  * The section tabs, shared by the Library pages and the Files page so both

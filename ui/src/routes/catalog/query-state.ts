@@ -8,9 +8,12 @@ import {
 
 const SEARCH_DEBOUNCE_MS = 250;
 
-export function useCatalogQueryState() {
+export function useCatalogQueryState(contextPath?: string) {
   const location = useLocation();
-  const pagination = useCatalogCursorState();
+  const pagination = useCatalogCursorState("cursor", "page", {
+    path: contextPath,
+    ignoreParams: ["usageCursor", "usagePage"],
+  });
   const [searchParams, setSearchParams] = useSearchParams();
   const serializedSearchParams = searchParams.toString();
   const committedSearch = searchParams.get("q") ?? "";

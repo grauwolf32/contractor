@@ -17,6 +17,7 @@ export function withoutCatalogPagination(
 ): Record<string, unknown> {
   const result = { ...stateRecord(value) };
   delete result.catalogPagination;
+  delete result.catalogUsagePagination;
   return result;
 }
 
@@ -29,6 +30,11 @@ function pageNumber(raw: string | null): number {
 export function useCatalogCursorState(
   cursorParam = "cursor",
   pageParam = "page",
+  scope?: {
+    path?: string | undefined;
+    stateKey?: string;
+    ignoreParams?: readonly string[];
+  },
 ) {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -38,14 +44,16 @@ export function useCatalogCursorState(
   const filters = new URLSearchParams(searchParams);
   filters.delete(cursorParam);
   filters.delete(pageParam);
+  for (const key of scope?.ignoreParams ?? []) filters.delete(key);
   filters.sort();
   const context = JSON.stringify([
-    location.pathname,
+    scope?.path ?? location.pathname,
     cursorParam,
     pageParam,
     filters.toString(),
   ]);
-  const saved = stateRecord(stateRecord(location.state).catalogPagination);
+  const stateKey = scope?.stateKey ?? "catalogPagination";
+  const saved = stateRecord(stateRecord(location.state)[stateKey]);
   const previousCursors: Array<string | null> =
     saved.context === context &&
     saved.cursor === (cursor ?? null) &&
@@ -75,8 +83,8 @@ export function useCatalogCursorState(
     }
     setSearchParams(next, {
       state: {
-        ...withoutCatalogPagination(location.state),
-        catalogPagination: {
+        ...stateRecord(location.state),
+        [stateKey]: {
           context,
           cursor: nextCursor ?? null,
           page: nextPage,

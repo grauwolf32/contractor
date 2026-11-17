@@ -1,0 +1,49 @@
+schema_version: "1.0"
+id: V458-017
+title: Explore connected Workflow and Agent library views with OpenDesign
+milestone: ui-consolidation-2026-10
+epic: ui
+kind: chore
+priority: P2
+status: completed
+implementation_commit: b2bebeae7bc05d5da28072890e7baa044a203efa
+depends_on: [V458-016]
+languages: [html, css, javascript]
+goal: Demonstrate clearer Workflow and Agent browsing with distinct useful detail views and one consistent Library design.
+context:
+  authority: User 2026-11-16 requests an updated Workflows and Agents design following the Check types iteration. Preserve existing OpenDesign sources and the configured model.
+  design: docs/design/ui/README.md
+  finding: Current catalog cards repeat version and contract metadata while stage composition, instructions and template usage require separate exploration.
+  boundary: Synthetic local preview only. Workflow inputs, declared outputs and stage bindings remain separate from execution results. Agents are versioned templates, not live workers; tool agents have no prompt or model. No readiness, run status or performance is invented.
+scope:
+  in:
+    - Review current demo and source; make linked Workflow and Agent browser prototypes with a real OpenDesign contribution.
+    - Search, filters, exact version selection, stage-to-agent and usage-to-workflow navigation, prompt preview/source, mobile list/detail navigation.
+    - Compare before and proposed views in three themes at 390 and 1440 px; retain sources, generation receipts and verified backups in the common archive.
+  out:
+    - Production adaptation, API changes, deployment, real runs or modifying demo business data.
+acceptance_criteria:
+  - id: A1
+    text: Native OpenDesign output and host additions are separately retained; Workflows foreground contracts and stage bindings, Agents foreground instructions, capabilities and exact-version usage.
+  - id: A2
+    text: Interactive preview works at 390 and 1440 px in light, dark and black, with consistent fonts and no horizontal overflow or simulated action that starts real work.
+  - id: A3
+    text: Previous archive and native project files remain intact, recoverable state backups pass integrity checks, and the owned relay is stopped with its secret removed.
+tests:
+  - command: python3 scripts/check_tasks.py
+    covers: [A1, A2, A3]
+  - command: git diff --check
+    covers: [A1, A2, A3]
+  - command: Browser review of archived Workflows and Agents in three themes at 390/1440 with search, filters, version and linked navigation
+    covers: [A1, A2]
+verification:
+  artifact: tasks/evidence/v458-017-library-workflows-agents.json
+  results:
+    - Reviewed current demo lists and details; before captures show the same OpenAPI Workflow and builder Agent as the proposed default views.
+    - Native OpenDesign run succeeded and produced 145 lines of CSS plus rationale; applied CSS is byte-identical to native output. Host scaffold and final amendments are separately retained.
+    - Twelve browser layout checks passed across both sections, three themes and 390/1440 px. No document or detail-pane horizontal overflow; one font token set throughout.
+    - Search, empty/reset, filters, mobile selection/back with retained search, exact Agent/Workflow links, prompt Source/Preview, toolset disclosure and simulated setup/Escape passed. Tool agents show actual call arguments without prompt/model. One pinned version per example is supplied; no multi-version loading is claimed.
+    - Preview Before/New, section synchronization, themes and width controls passed; browser console errors are empty. Native relay stopped after 10 of 24 requests and its upstream secret was removed.
+    - All 265 previous native project files and previous project/conversation/message/session rows are unchanged. Pre/post SQLite backups passed integrity checks and the original compressed archive hash is unchanged.
+    - Task and specification validators and git diff --check passed. No production release gates or demo deployment are claimed.
+  delivery: Preview opened and marked deliverable at port 17568. Sources and evidence are retained in shared archive iterations/2026-11-16-library-workflows-agents. Production adaptation awaits review; branch is not merged.

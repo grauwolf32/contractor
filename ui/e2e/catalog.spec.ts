@@ -136,12 +136,13 @@ test("Catalog discovers exact Workflows and Agent usage from direct routes", asy
     page.getByRole("heading", { name: "OpenAPI source analysis" }),
   ).toBeVisible();
   await expect(
-    page.getByText("Build an API contract from one exact source artifact."),
+    page
+      .getByRole("article")
+      .getByText("Build an API contract from one exact source artifact."),
   ).toBeVisible();
   await expect(page.getByLabel("Version of openapi-from-source")).toHaveValue(
     "1",
   );
-  await page.getByText("Technical details", { exact: true }).click();
   await expect(
     page.getByText("openapi-from-source@1", { exact: true }),
   ).toBeVisible();
@@ -154,31 +155,42 @@ test("Catalog discovers exact Workflows and Agent usage from direct routes", asy
   await page.getByRole("link", { name: "Agents", exact: true }).click();
   await page.getByLabel("Search agents").fill("evidence-analyst");
   await expect(page).toHaveURL(/q=evidence-analyst/);
-  await page.getByLabel("Version of evidence-analyst").selectOption("1");
-  await page.locator('a[href="/catalog/agents/evidence-analyst/1"]').click();
+  await page.getByLabel("Published version", { exact: true }).selectOption("1");
   await expect(
-    page.getByRole("heading", { name: "Evidence analyst", exact: true }),
+    page.getByRole("heading", {
+      name: "Evidence analyst",
+      level: 1,
+      exact: true,
+    }),
   ).toBeVisible();
   await expect(
-    page.getByRole("region", { name: "Where used" }).getByText("researcher"),
+    page
+      .getByRole("region", { name: "Where used" })
+      .getByText(/Worker researcher/),
   ).toBeVisible();
-  await page.getByLabel("Published version").selectOption("2");
-  await expect(page).toHaveURL(/\/catalog\/agents\/evidence-analyst\/2$/);
+  await page.getByLabel("Published version", { exact: true }).selectOption("2");
+  await expect(page).toHaveURL(
+    /\/catalog\/agents\/evidence-analyst\/2\?q=evidence-analyst$/,
+  );
   await expect(
     page.getByRole("heading", { name: "Evidence analyst v2", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("region", { name: "Where used" }).getByText("reviewer"),
+    page
+      .getByRole("region", { name: "Where used" })
+      .getByText(/Worker reviewer/),
   ).toBeVisible();
   await page
     .getByRole("region", { name: "Where used" })
-    .getByRole("link", { name: "openapi-from-source@1" })
+    .getByRole("link", { name: /openapi-from-source@1/ })
     .click();
   await expect(
     page.getByRole("heading", { name: "OpenAPI source analysis" }),
   ).toBeVisible();
   await page.getByRole("link", { name: /evidence-analyst@2/ }).click();
-  await expect(page.getByLabel("Published version")).toHaveValue("2");
+  await expect(
+    page.getByLabel("Published version", { exact: true }),
+  ).toHaveValue("2");
 
   await page.getByRole("button", { name: "Source", exact: true }).click();
   await expect(page.locator(".catalog-prompt-source")).toHaveText(
@@ -186,7 +198,9 @@ test("Catalog discovers exact Workflows and Agent usage from direct routes", asy
   );
   await page.getByRole("button", { name: "Preview", exact: true }).click();
   await expect(
-    page.getByRole("link", { name: "skills/research" }),
+    page
+      .getByRole("complementary", { name: "Agent capabilities" })
+      .getByRole("link", { name: /skills\/research/ }),
   ).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath("catalog-agent-desktop.png"),

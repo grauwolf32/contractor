@@ -1,14 +1,19 @@
-import { useId, type ReactNode } from "react";
-import { useLocation, useNavigate } from "react-router";
-
+import { inputLabel } from "../checks/start/check-types";
+import { libraryReadableName } from "../catalog/presentation";
+import { type ReactNode } from "react";
+import { Link, useLocation, useNavigate } from "react-router";
+import { agentPath } from "../../api/agents";
 import type { WorkflowResource } from "../../api/workflows";
 import { plural } from "../../app/format";
+import { Icon } from "../../app/icon";
 import { RefreshButton } from "../../app/refresh-button";
-import { Button, DetailHeader, DetailPane, IdChip } from "../../ui";
+import { Button, TechnicalDetails } from "../../ui";
 import { formatLabel } from "../artifacts/kinds";
+import { LibraryDetailHeading, LibraryTag } from "../catalog/browser";
+import { locationDestination } from "../catalog/navigation";
 import { groupWorkflowVersions, hasNumericVersions } from "./families";
 import { useWorkflowInventory } from "./inventory";
-import { workflowDisplayName, workflowSelector } from "./presentation";
+import { workflowSelector } from "./presentation";
 import { WorkflowRunDrawer } from "./run-drawer";
 import { WorkflowRunForm } from "./run-form";
 import { WorkflowVersionSelect, WorkflowVersionTag } from "./version-select";
@@ -18,57 +23,57 @@ import "./overview.css";
 function OverviewSlots({
   title,
   slots,
+  output = false,
 }: {
   title: string;
   slots: WorkflowResource["outputs"];
+  output?: boolean;
 }) {
-  const heading = useId();
   return (
-    <section className="workflow-overview-slots" aria-labelledby={heading}>
-      <h4 id={heading}>{title}</h4>
+    <section
+      className="library-contract-panel"
+      aria-label={title}
+      data-output={output}
+    >
+      <header>
+        <h3>
+          <Icon name={output ? "download" : "projects"} />
+          {title}
+        </h3>
+        <span>
+          {plural(Object.keys(slots).length, output ? "output" : "file")}
+        </span>
+      </header>
+      {Object.entries(slots)
+        .sort(
+          ([a, x], [b, y]) =>
+            Number(!!y.primary) - Number(!!x.primary) ||
+            Number(y.required) - Number(x.required) ||
+            a.localeCompare(b),
+        )
+        .map(([name, slot]) => (
+          <div className="library-contract-row" key={name}>
+            <Icon name={name === "source" ? "projects" : "docs"} />
+            <div>
+              <strong>{libraryReadableName(inputLabel(name))}</strong>
+              <small>{slot.mediaTypes.map(formatLabel).join(" · ")}</small>
+              <LibraryTag tone={slot.primary ? "green" : undefined}>
+                {slot.primary
+                  ? "Primary result"
+                  : slot.required
+                    ? "Required"
+                    : "Optional"}
+              </LibraryTag>
+            </div>
+          </div>
+        ))}
       {Object.keys(slots).length === 0 ? (
-        <p className="ui-caption">None declared.</p>
-      ) : (
-        <dl>
-          {Object.entries(slots)
-            .sort(
-              ([a, x], [b, y]) =>
-                Number(!!y.primary) - Number(!!x.primary) ||
-                Number(y.required) - Number(x.required) ||
-                a.localeCompare(b),
-            )
-            .map(([name, slot]) => (
-              <div key={name}>
-                <dt>
-                  <code>{name}</code>
-                  <span>{slot.required ? "Required" : "Optional"}</span>
-                  {slot.primary ? (
-                    <span className="workflow-primary-output">Primary</span>
-                  ) : null}
-                </dt>
-                <dd>
-                  {slot.mediaTypes.map((type) => (
-                    <span key={type}>
-                      {formatLabel(type) === type ? null : (
-                        <>{formatLabel(type)} · </>
-                      )}
-                      <code>{type}</code>
-                    </span>
-                  ))}
-                </dd>
-              </div>
-            ))}
-        </dl>
-      )}
+        <p className="library-empty-contract">None declared.</p>
+      ) : null}
     </section>
   );
 }
 
-/**
- * One published Workflow version: contract, stages and the launch card,
- * with the Run sheet behind `#workflow-run-setup`. `children` follow the
- * stage list (the Studio link and the stage internals).
- */
 export function WorkflowOverview({
   workflow,
   refreshing,
@@ -80,26 +85,24 @@ export function WorkflowOverview({
   refresh: () => void;
   children: ReactNode;
 }) {
-  const inventory = useWorkflowInventory();
+  const inventory = useWorkflowInventory(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const titleId = useId();
-  const contractId = useId();
-  const stagesId = useId();
   const family = groupWorkflowVersions([
     ...(inventory.data ?? []),
     workflow,
-  ]).find((item) => item.name === workflow.ref.name)!;
-  const knownVersion =
+  ]).find((f) => f.name === workflow.ref.name)!;
+  const known =
     inventory.isSuccess &&
     inventory.data.some(
-      (item) =>
-        item.ref.name === workflow.ref.name &&
-        item.ref.version === workflow.ref.version,
+      (w) =>
+        w.ref.name === workflow.ref.name &&
+        w.ref.version === workflow.ref.version,
     );
-  const numericVersions = knownVersion && hasNumericVersions(family.versions);
+  const numeric = known && hasNumericVersions(family.versions);
   const latest = family.versions[0]?.ref.version === workflow.ref.version;
   const selector = workflowSelector(workflow);
+  const exactPath = `/catalog/workflows/${encodeURIComponent(workflow.ref.name)}/${encodeURIComponent(workflow.ref.version)}`;
   const stages = Object.entries(workflow.stages).sort(
     ([a], [b]) =>
       Number(b === workflow.entryStage) - Number(a === workflow.entryStage) ||
@@ -110,207 +113,268 @@ export function WorkflowOverview({
       Number(y.required) - Number(x.required) || a.localeCompare(b),
   );
   const requiredInputs = Object.values(workflow.inputs).filter(
-    (slot) => slot.required,
+    (i) => i.required,
   ).length;
-  const requiredParameters = parameters.filter(
-    ([, slot]) => slot.required,
-  ).length;
+  const requiredParameters = parameters.filter(([, v]) => v.required).length;
   const open = location.hash === "#workflow-run-setup";
-
   return (
     <>
-      <article className="library-sheet" aria-labelledby={titleId}>
-        <DetailPane
-          header={
-            <DetailHeader
-              title={<span id={titleId}>{workflowDisplayName(workflow)}</span>}
-              status={
-                numericVersions ? (
-                  <WorkflowVersionTag latest={latest} />
-                ) : undefined
-              }
-              meta={
-                <>
-                  <IdChip
-                    value={selector}
-                    display={selector}
-                    label="workflow version"
-                  />
-                  <WorkflowVersionSelect
-                    workflow={workflow}
-                    versions={family.versions}
-                    onChange={(next) =>
-                      void navigate(
-                        `/catalog/workflows/${encodeURIComponent(workflow.ref.name)}/${encodeURIComponent(next)}`,
-                        { state: location.state },
-                      )
-                    }
-                  />
-                  <span>Published Workflow</span>
-                </>
-              }
-              actions={
-                <RefreshButton
-                  isFetching={refreshing || inventory.isFetching}
-                  onRefresh={() => {
-                    refresh();
-                    void inventory.refetch();
-                  }}
-                  label="Refresh"
-                />
+      <article className="library-design-detail library-workflow-detail">
+        <LibraryDetailHeading
+          title={
+            workflow.presentation?.displayName ??
+            libraryReadableName(workflow.ref.name)
+          }
+          kind="Published Workflow"
+          description={workflow.presentation?.description}
+          selector={selector}
+          identityLabel="workflow version"
+          icon="workflow"
+          version={
+            <WorkflowVersionSelect
+              workflow={workflow}
+              versions={family.versions}
+              onChange={(v) =>
+                void navigate(
+                  `/catalog/workflows/${encodeURIComponent(workflow.ref.name)}/${encodeURIComponent(v)}${location.search}`,
+                  { state: location.state },
+                )
               }
             />
           }
-        >
-          {workflow.presentation?.description ? (
-            <p className="workflow-overview-lede">
-              {workflow.presentation.description}
+          meta={
+            numeric ? (
+              <WorkflowVersionTag latest={latest} />
+            ) : (
+              <LibraryTag tone="blue">Published</LibraryTag>
+            )
+          }
+          actions={
+            <RefreshButton
+              isFetching={refreshing || inventory.isFetching}
+              onRefresh={() => {
+                refresh();
+                void inventory.refetch();
+              }}
+              size="sm"
+            />
+          }
+        />
+        {inventory.isError ? (
+          <div className="library-note" data-tone="warning" role="status">
+            <p>
+              Other published versions could not be loaded. This version remains
+              available.
             </p>
-          ) : null}
-          {inventory.isError ? (
-            <div className="library-note" data-tone="warning" role="status">
-              <p>
-                Other published versions could not be loaded. This version
-                remains available.
-              </p>
-              <div>
-                <Button size="sm" onClick={() => void inventory.refetch()}>
-                  Retry versions
-                </Button>
-              </div>
-            </div>
-          ) : null}
-          <div className="workflow-overview-grid">
-            <div className="workflow-overview-content">
-              <section
-                className="library-block workflow-overview-contract"
-                aria-labelledby={contractId}
-              >
-                <header className="library-block-header">
-                  <h3 id={contractId} className="library-block-title">
-                    Inputs and results
-                  </h3>
-                  <span className="ui-caption">Contract</span>
-                </header>
-                <div
-                  className={`workflow-overview-io${stages.length === 1 ? " is-single-stage" : ""}`}
-                >
-                  <OverviewSlots title="Input files" slots={workflow.inputs} />
-                  {stages.length === 1 ? (
-                    <div
-                      className="workflow-overview-flow"
-                      aria-label={`Single stage: ${workflow.entryStage}`}
-                    >
-                      <span aria-hidden="true">→</span>
-                      <code>{workflow.entryStage}</code>
-                    </div>
-                  ) : null}
-                  <OverviewSlots
-                    title="Declared outputs"
-                    slots={workflow.outputs}
-                  />
-                </div>
-              </section>
-              <section
-                className="library-block workflow-overview-stages"
-                aria-labelledby={stagesId}
-              >
-                <header className="library-block-header">
-                  <h3 id={stagesId} className="library-block-title">
-                    How it runs
-                  </h3>
-                  <span className="ui-caption">
-                    {plural(stages.length, "Stage")}
-                  </span>
-                </header>
-                <ol className="workflow-stage-overview">
-                  {stages.map(([name, stage]) => (
-                    <li key={name}>
-                      <div>
-                        <code>{name}</code>
-                        {name === workflow.entryStage ? (
-                          <span className="workflow-entry-label">Entry</span>
-                        ) : null}
-                      </div>
-                      <p>{stage.objective}</p>
-                      <small>Published stage objective</small>
-                    </li>
-                  ))}
-                </ol>
-                {children}
-              </section>
-              {parameters.length > 0 ? (
-                <details
-                  className="workflow-overview-parameters"
-                  open={requiredParameters > 0}
-                >
-                  <summary>
-                    String parameters{" "}
-                    <span>
-                      {requiredParameters
-                        ? `${requiredParameters} required · `
-                        : ""}
-                      {parameters.length - requiredParameters} optional
-                    </span>
-                  </summary>
-                  <dl>
-                    {parameters.map(([name, slot]) => (
-                      <div key={name}>
-                        <dt>
-                          <code>{name}</code>
-                        </dt>
-                        <dd>
-                          {slot.required ? "Required" : "Optional"} string
-                        </dd>
-                      </div>
-                    ))}
-                  </dl>
-                </details>
-              ) : null}
-            </div>
-            <aside
-              className="workflow-launch-card"
-              aria-label="Run this version"
-            >
-              <p className="workflow-launch-kind">Run this version</p>
-              <h3 className="workflow-launch-selector">{selector}</h3>
-              <p>Standalone · inputs from your library</p>
-              <dl>
-                <div>
-                  <dt>Required inputs</dt>
-                  <dd>
-                    {plural(requiredInputs, "file", "files")}
-                    {requiredParameters
-                      ? ` · ${plural(requiredParameters, "parameter", "parameters")}`
-                      : ""}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Outputs</dt>
-                  <dd>{Object.keys(workflow.outputs).length} declared</dd>
-                </div>
-              </dl>
-              <Button
-                variant="primary"
-                aria-haspopup="dialog"
-                onClick={() =>
-                  void navigate(
-                    {
-                      pathname: location.pathname,
-                      search: location.search,
-                      hash: "#workflow-run-setup",
-                    },
-                    { state: location.state },
-                  )
-                }
-              >
-                Configure Run <span aria-hidden="true">→</span>
-              </Button>
-
-              <small>Review the input revisions before starting.</small>
-            </aside>
+            <Button size="sm" onClick={() => void inventory.refetch()}>
+              Retry versions
+            </Button>
           </div>
-        </DetailPane>
+        ) : null}
+        <div className="library-detail-grid">
+          <div className="library-detail-main">
+            <section
+              aria-label="Inputs and results"
+              className="library-contract-pair"
+            >
+              <OverviewSlots title="Inputs" slots={workflow.inputs} />
+              <OverviewSlots
+                title="Declared results"
+                slots={workflow.outputs}
+                output
+              />
+            </section>
+            <section className="library-design-section">
+              <header className="library-design-section-header">
+                <h3>Stages & agents</h3>
+                <span>{plural(stages.length, "declared stage")}</span>
+              </header>
+              <ol className="library-stages">
+                {stages.map(([name, stage]) => (
+                  <li className="library-stage-card" key={name}>
+                    <span
+                      className="library-stage-icon"
+                      data-tone={stage.operation ? "green" : "blue"}
+                    >
+                      <Icon
+                        name={
+                          stage.operation
+                            ? "settings"
+                            : name === workflow.entryStage
+                              ? "search"
+                              : "workflow"
+                        }
+                      />
+                    </span>
+                    <div>
+                      <h4>
+                        {libraryReadableName(name)}
+                        {name === workflow.entryStage ? (
+                          <LibraryTag tone="blue">Entry</LibraryTag>
+                        ) : null}
+                        {stage.operation ? (
+                          <LibraryTag tone="green">Operation</LibraryTag>
+                        ) : null}
+                      </h4>
+                      <p>{stage.objective}</p>
+                      {stage.operation ? (
+                        <code className="library-operation-ref">
+                          {stage.operation.ref}
+                        </code>
+                      ) : (
+                        <div className="library-agent-bindings">
+                          {Object.entries(stage.agents).map(
+                            ([logical, binding]) => (
+                              <Link
+                                key={logical}
+                                className="library-agent-binding"
+                                to={agentPath(
+                                  binding.template.templateId,
+                                  binding.template.version,
+                                )}
+                                state={{
+                                  returnTo: locationDestination({
+                                    ...location,
+                                    pathname: exactPath,
+                                  }),
+                                  returnLabel: selector,
+                                  returnState: location.state,
+                                }}
+                              >
+                                <Icon name="agent" />
+                                <span>
+                                  {libraryReadableName(
+                                    binding.template.templateId,
+                                  )}{" "}
+                                  <small>
+                                    v{binding.template.version} · {logical}
+                                  </small>
+                                </span>
+                                <span aria-hidden="true">↗</span>
+                              </Link>
+                            ),
+                          )}
+                        </div>
+                      )}
+                      <div className="library-stage-edges">
+                        {Object.entries(stage.on).flatMap(
+                          ([outcome, transition]) =>
+                            transition.kind === "next"
+                              ? [
+                                  <span key={outcome}>
+                                    {outcome} →{" "}
+                                    <code>{transition.nextStage}</code>
+                                  </span>,
+                                ]
+                              : [],
+                        )}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+              <p className="ui-caption">
+                Select an Agent to inspect its instructions and tools.
+              </p>
+            </section>
+            {parameters.length ? (
+              <details
+                className="library-parameters"
+                open={requiredParameters > 0}
+              >
+                <summary>
+                  String parameters{" "}
+                  <span>
+                    {requiredParameters} required ·{" "}
+                    {parameters.length - requiredParameters} optional
+                  </span>
+                </summary>
+                <dl>
+                  {parameters.map(([name, slot]) => (
+                    <div key={name}>
+                      <dt>
+                        <code>{name}</code>
+                      </dt>
+                      <dd>{slot.required ? "Required" : "Optional"} string</dd>
+                    </div>
+                  ))}
+                </dl>
+              </details>
+            ) : null}
+            <TechnicalDetails
+              summary="Exact input and output contract"
+              className="library-design-technical"
+            >
+              <dl className="library-exact-contract">
+                {[
+                  ...Object.entries(workflow.inputs).map(([name, slot]) => ({
+                    name,
+                    slot,
+                    kind: "Input",
+                  })),
+                  ...Object.entries(workflow.outputs).map(([name, slot]) => ({
+                    name,
+                    slot,
+                    kind: "Output",
+                  })),
+                ].map(({ name, slot, kind }) => (
+                  <div key={`${kind}:${name}`}>
+                    <dt>
+                      {kind} <code>{name}</code>
+                    </dt>
+                    <dd>
+                      {slot.required ? "Required" : "Optional"} ·{" "}
+                      {slot.mediaTypes.join(", ")}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </TechnicalDetails>
+            <div className="library-design-technical-actions">{children}</div>
+          </div>
+          <aside
+            className="library-context-card library-run-card"
+            aria-label="Run this version"
+          >
+            <span className="library-eyebrow">Run this version</span>
+            <h3>Prepare your inputs</h3>
+            <p>
+              Choose exact material revisions and review parameters before
+              starting.
+            </p>
+            <dl className="library-context-facts">
+              <div>
+                <dt>Required files</dt>
+                <dd>{requiredInputs}</dd>
+              </div>
+              <div>
+                <dt>Required parameters</dt>
+                <dd>{requiredParameters}</dd>
+              </div>
+              <div>
+                <dt>Declared outputs</dt>
+                <dd>{Object.keys(workflow.outputs).length}</dd>
+              </div>
+            </dl>
+            <Button
+              variant="primary"
+              aria-haspopup="dialog"
+              onClick={() =>
+                void navigate(
+                  {
+                    pathname: exactPath,
+                    search: location.search,
+                    hash: "#workflow-run-setup",
+                  },
+                  { state: location.state },
+                )
+              }
+            >
+              Configure Run <Icon name="arrow-right" />
+            </Button>
+            <small>Standalone · inputs from your library</small>
+          </aside>
+        </div>
       </article>
       {open ? (
         <WorkflowRunDrawer

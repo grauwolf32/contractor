@@ -1,8 +1,6 @@
 import type { ReactNode } from "react";
-import { Link, useLocation } from "react-router";
 
 import { Icon } from "../../app/icon";
-import { catalogReturnState, type CatalogReturnState } from "./navigation";
 
 /** Title row of a Library section: h2, one line about it and its controls. */
 export function LibrarySectionHeader({
@@ -59,28 +57,5 @@ export function LibrarySearch({
         onChange={(event) => onChange(event.target.value)}
       />
     </label>
-  );
-}
-
-/**
- * Link back to the page that opened this one (its search and paging state
- * included), or to `fallback` when the page was opened directly.
- */
-export function LibraryBackLink({
-  fallback,
-}: {
-  fallback: CatalogReturnState;
-}) {
-  const { state } = useLocation();
-  const destination = catalogReturnState(state, fallback);
-  return (
-    <Link
-      className="library-back"
-      to={destination.returnTo}
-      state={destination.returnState}
-    >
-      <span aria-hidden="true">←</span>
-      {destination.returnLabel}
-    </Link>
   );
 }

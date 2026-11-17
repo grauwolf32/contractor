@@ -10,6 +10,10 @@ import { json, page } from "../../test/responses";
 
 it("lists every published Program version across catalog pages", async () => {
   const server = fakeServer({
+    "GET /v1/audit-profiles/{name}/versions/{version}": ({ params }) =>
+      json(params.version === "10" ? newerPresetFixture : presetFixture, 200, {
+        ETag: `"${(params.version === "10" ? newerPresetFixture : presetFixture).ref.digest}"`,
+      }),
     "GET /v1/audit-profiles": ({ url }) =>
       json(
         page(
@@ -32,7 +36,7 @@ it("shows the common input contract and actual Workflow binding", async () => {
   });
   renderApplication("/catalog/audit-presets/source-review/1", { server });
   expect(
-    await screen.findByRole("link", { name: "source-check@3" }),
+    await screen.findByRole("link", { name: /source-check@3/ }),
   ).toBeInTheDocument();
   expect(screen.getByText("Required")).toBeInTheDocument();
   expect(screen.queryByText("Inventory")).not.toBeInTheDocument();

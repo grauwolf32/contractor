@@ -251,45 +251,24 @@ export function applicationRoutes(): RouteObject[] {
                   ),
                 },
                 {
-                  path: "workflows",
+                  path: "workflows/:name?/:version?",
                   lazy: lazyRoute(
                     () => import("../routes/workflows/list"),
                     "WorkflowListRoute",
                   ),
                 },
                 {
-                  path: "workflows/:name/:version",
-                  lazy: lazyRoute(
-                    () => import("../routes/workflows/detail"),
-                    "WorkflowDetailRoute",
-                  ),
-                },
-                {
-                  path: "agents",
+                  path: "agents/:name?/:version?",
                   lazy: lazyRoute(
                     () => import("../routes/catalog/agents"),
                     "AgentListRoute",
                   ),
                 },
                 {
-                  path: "audit-presets",
+                  path: "audit-presets/:name?/:version?",
                   lazy: lazyRoute(
                     () => import("../routes/catalog/audit-presets"),
                     "AuditPresetListRoute",
-                  ),
-                },
-                {
-                  path: "audit-presets/:name/:version",
-                  lazy: lazyRoute(
-                    () => import("../routes/catalog/audit-preset-detail"),
-                    "AuditPresetDetailRoute",
-                  ),
-                },
-                {
-                  path: "agents/:name/:version",
-                  lazy: lazyRoute(
-                    () => import("../routes/catalog/agent-detail"),
-                    "AgentDetailRoute",
                   ),
                 },
                 {

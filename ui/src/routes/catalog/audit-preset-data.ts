@@ -6,19 +6,14 @@ import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
 import { compareVersions } from "../../app/format";
 import { auditPresetLabel } from "../projects/audits/labels";
+import { presentCheckType } from "../checks/start/check-types";
 
 // Check types are AuditProfiles in the API (contract §3: "Check type").
 
 /** Description derived from the published input contract. */
-export function presetScope(profile: AuditProfile): string {
+function presetScope(profile: AuditProfile): string {
   return `Up to ${profile.limits.max_tasks} tasks using ${Object.keys(profile.inputs).join(", ") || "selected materials"}.`;
 }
-export function hasFixedItems(profile: AuditProfile): boolean {
-  return (
-    (profile.program?.initial_work.length ?? 0) === profile.limits.max_tasks
-  );
-}
-
 /** The Start page with this check type chosen (contract §5). */
 export function startCheckPath(name: string): string {
   return `/checks/new?${new URLSearchParams({ type: name }).toString()}`;
@@ -31,12 +26,14 @@ export function checkTypeSearchText(profile: AuditProfile): string {
     profile.ref.version,
     auditPresetLabel(profile.ref.name),
     presetScope(profile),
+    presentCheckType(profile).description,
+    presentCheckType(profile).label,
   ]
     .join(" ")
     .toLowerCase();
 }
 
-export interface CheckTypeFamily {
+interface CheckTypeFamily {
   name: string;
   /** Newest version first. */
   versions: AuditProfile[];
@@ -62,9 +59,10 @@ export function groupCheckTypes(
     }));
 }
 
-export function useAuditPresets() {
+export function useAuditPresets(refetchOnMount = true) {
   const api = usePublicAPI();
   return useQuery({
+    refetchOnMount,
     queryKey: queryKeys.catalog.auditPresets,
     queryFn: ({ signal }) => listAuditPresets(api, signal),
   });
