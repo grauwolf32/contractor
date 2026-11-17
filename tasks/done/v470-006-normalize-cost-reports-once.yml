@@ -6,7 +6,7 @@ epic: operations
 kind: chore
 introduced_by: V458-002
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: Each Planner or allocation report passes through one telemetry normalization before its diagnostic receipt and cost contribution are recorded.
@@ -41,3 +41,8 @@ tests:
 manual_verification:
   - check: Trace each composed writer through telemetry and cost attribution. Record which call normalizes the payload and which normalized value feeds both consumers. Check the direct telemetry writer still validates a raw envelope.
     covers: [A1]
+implementation_commit: 3dd96d665c5b4e3fbf15b554ae6f31653cd9de42
+verification_results:
+  - >-
+    Telemetry and RunService suites passed with -race and PostgreSQL, including retry, conflict, rollback, late delivery and deletion. A local near-limit report exercise verified trimming, redaction, receive time and exact totals. Both cost writers consume the contribution returned by the single repository write.
+  - make lint passed.

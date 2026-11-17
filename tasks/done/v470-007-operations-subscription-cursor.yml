@@ -6,7 +6,7 @@ epic: operations
 kind: chore
 introduced_by: V4-007
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: Opening or resuming an Operations event subscription reads its cursor without copying every agent, allocation and capability under the registry lock.
@@ -41,3 +41,8 @@ tests:
     covers: [A3]
   - command: make lint
     covers: [A1, A2, A3]
+implementation_commit: 4add3dc4d7b8aae0a5f69cf3fea3de0ba915beec
+verification_results:
+  - >-
+    Control Plane, public HTTP, events and public API checks passed. A local WebSocket exercise forced coalesced invalidations immediately after watch registration and observed consecutive revisions after the acknowledged cursor.
+  - make lint passed.

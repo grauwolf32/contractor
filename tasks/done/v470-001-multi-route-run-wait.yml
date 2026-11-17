@@ -6,7 +6,7 @@ epic: execution-core
 kind: defect
 introduced_by: V451-002
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: A running Stage with two blocked participants shows the remaining wait reason when one route recovers.
@@ -43,3 +43,8 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+implementation_commit: 4fb3cacbb3537191fab4c9fedf990d34eb9207ec
+verification_results:
+  - >-
+    Gateway recovery and Scheduler suites passed with -race. The real PostgreSQL projection stayed waiting for the second route after a different Run recovered the first, then returned to running. A local exercise verified both route orders and wait removal on a healthy grant.
+  - make lint passed.

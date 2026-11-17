@@ -6,7 +6,7 @@ epic: operations
 kind: defect
 introduced_by: V4-005
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: An operator can finish listing Runtime Agents or allocations while normal heartbeats continue.
@@ -55,3 +55,8 @@ tests:
     covers: [A3, A4]
   - command: make lint
     covers: [A1, A2, A3, A4]
+implementation_commit: 2fa3a97758f857c49dabf6028439db9e4aa9d41c
+verification_results:
+  - >-
+    Control Plane, public HTTP, events and CLI suites passed with -race. The real registry and authenticated HTTP test traversed three pages in each list with heartbeats in between. A local CLI exercise against the same fixture verified both commands. Public API and generated client checks passed.
+  - make lint passed.

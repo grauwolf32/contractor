@@ -6,7 +6,7 @@ epic: planner-worker
 kind: defect
 introduced_by: V65-002
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: A slow response that has already started does not cause a duplicate model request or a new Gateway outage.
@@ -44,3 +44,8 @@ tests:
     covers: [A3]
   - command: make lint
     covers: [A1, A2, A3]
+implementation_commit: 46fa3f2be5dd30930646b1f701c7795dca8ee444
+verification_results:
+  - >-
+    Gateway recovery and both Planner suites passed with -race. The real HTTP partial-response deadline produced one retryable Planner failure and one Gateway request, with no route outage. Both Runtime Gateway suites passed.
+  - make lint passed.
