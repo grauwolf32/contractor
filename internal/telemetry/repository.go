@@ -82,29 +82,37 @@ func NewRepository(db persistencepostgres.DBTX) *Repository {
 	return &Repository{db: db}
 }
 
-func (r *Repository) RecordAllocationReport(
+func (r *Repository) RecordAllocationReport(ctx context.Context, envelope AllocationReportEnvelope) error {
+	_, err := r.RecordAllocationReportWithCost(ctx, envelope)
+	return err
+}
+
+// RecordAllocationReportWithCost writes the diagnostic receipt and returns the normalized
+// contribution for callers that also record durable cost.
+func (r *Repository) RecordAllocationReportWithCost(
 	ctx context.Context,
 	envelope AllocationReportEnvelope,
-) error {
+) (reporting.CostContribution, error) {
 	if err := validateAllocationEnvelope(envelope); err != nil {
-		return err
+		return reporting.CostContribution{}, err
 	}
 	envelope.Report.Runtime.ApplyResourcePolicy(envelope.PerformanceCollectionPolicy)
 	report, err := NewPolicy(envelope.Secrets...).NormalizeAllocationReport(envelope.Report)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalid, err)
+		return reporting.CostContribution{}, fmt.Errorf("%w: %v", ErrInvalid, err)
 	}
 	if report.AllocationID != envelope.AllocationID {
-		return fmt.Errorf("%w: allocation report identifies another allocation", ErrInvalid)
+		return reporting.CostContribution{}, fmt.Errorf("%w: allocation report identifies another allocation", ErrInvalid)
 	}
 	encoded, err := json.Marshal(report)
 	if err != nil {
-		return fmt.Errorf("encode allocation report: %w", err)
+		return reporting.CostContribution{}, fmt.Errorf("encode allocation report: %w", err)
 	}
 	receivedAt := envelope.ReceivedAt
 	if receivedAt.IsZero() {
 		receivedAt = time.Now().UTC()
 	}
+	contribution := reportCostContribution(report.ReportID, receivedAt, report.Worker)
 	if !report.Worker.Complete || !report.Runtime.Complete {
 		existing, existingErr := r.allocationReportForParticipant(
 			ctx, envelope.StageExecutionID, envelope.LogicalAgentName,
@@ -112,10 +120,10 @@ func (r *Repository) RecordAllocationReport(
 		if existingErr == nil && existing.AllocationID == envelope.AllocationID &&
 			existing.Report.ReportID != report.ReportID &&
 			existing.Report.Worker.Complete && existing.Report.Runtime.Complete {
-			return nil
+			return contribution, nil
 		}
 		if existingErr != nil && !errors.Is(existingErr, ErrNotFound) {
-			return existingErr
+			return reporting.CostContribution{}, existingErr
 		}
 	}
 	command, err := r.db.Exec(ctx, `
@@ -128,26 +136,26 @@ ON CONFLICT DO NOTHING`,
 		envelope.LogicalAgentName, envelope.ReportSchemaVersion, encoded, receivedAt,
 	)
 	if err != nil {
-		return classifyWriteError("record allocation report", err)
+		return reporting.CostContribution{}, classifyWriteError("record allocation report", err)
 	}
 	if command.RowsAffected() == 1 {
-		return nil
+		return contribution, nil
 	}
 	existing, sameReport, err := r.allocationReportForIdentity(
 		ctx, report.ReportID, envelope.StageExecutionID, envelope.AllocationID,
 		envelope.LogicalAgentName, encoded,
 	)
 	if err != nil {
-		return err
+		return reporting.CostContribution{}, err
 	}
 	if existing.StageExecutionID != envelope.StageExecutionID ||
 		existing.AllocationID != envelope.AllocationID ||
 		existing.LogicalAgentName != envelope.LogicalAgentName ||
 		existing.ReportSchemaVersion != envelope.ReportSchemaVersion ||
 		!sameReport {
-		return fmt.Errorf("record allocation report: %w", ErrConflict)
+		return reporting.CostContribution{}, fmt.Errorf("record allocation report: %w", ErrConflict)
 	}
-	return nil
+	return contribution, nil
 }
 
 func (r *Repository) ListAllocationReports(
@@ -170,12 +178,19 @@ func (r *Repository) ListAllocationReports(
 	return result, nil
 }
 
-func (r *Repository) RecordPlannerReport(
+func (r *Repository) RecordPlannerReport(ctx context.Context, envelope PlannerReportEnvelope) error {
+	_, err := r.RecordPlannerReportWithCost(ctx, envelope)
+	return err
+}
+
+// RecordPlannerReportWithCost writes the diagnostic receipt and returns the normalized
+// contribution for callers that also record durable cost.
+func (r *Repository) RecordPlannerReportWithCost(
 	ctx context.Context,
 	envelope PlannerReportEnvelope,
-) error {
+) (reporting.CostContribution, error) {
 	if err := validatePlannerEnvelope(envelope); err != nil {
-		return err
+		return reporting.CostContribution{}, err
 	}
 	envelope.StartedAt = persistencepostgres.Timestamp(envelope.StartedAt)
 	envelope.FinishedAt = persistencepostgres.Timestamp(envelope.FinishedAt)
@@ -183,25 +198,26 @@ func (r *Repository) RecordPlannerReport(
 		envelope.Report, MaxReportJSONBytes,
 	)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalid, err)
+		return reporting.CostContribution{}, fmt.Errorf("%w: %v", ErrInvalid, err)
 	}
 	encoded, err := json.Marshal(report)
 	if err != nil {
-		return fmt.Errorf("encode Planner report: %w", err)
+		return reporting.CostContribution{}, fmt.Errorf("encode Planner report: %w", err)
 	}
 	receivedAt := envelope.ReceivedAt
 	if receivedAt.IsZero() {
 		receivedAt = time.Now().UTC()
 	}
+	contribution := reportCostContribution(report.ReportID, receivedAt, report)
 	if !report.Complete {
 		existing, existingErr := r.plannerReportForStage(ctx, envelope.StageExecutionID)
 		if existingErr == nil && existing.SessionID == envelope.SessionID &&
 			existing.InvocationID == envelope.InvocationID &&
 			existing.Report.ReportID != report.ReportID && existing.Report.Complete {
-			return nil
+			return contribution, nil
 		}
 		if existingErr != nil && !errors.Is(existingErr, ErrNotFound) {
-			return existingErr
+			return reporting.CostContribution{}, existingErr
 		}
 	}
 	command, err := r.db.Exec(ctx, `
@@ -214,35 +230,43 @@ ON CONFLICT DO NOTHING`,
 		envelope.StartedAt, envelope.FinishedAt, envelope.ReportSchemaVersion, encoded, receivedAt,
 	)
 	if err != nil {
-		return classifyWriteError("record Planner report", err)
+		return reporting.CostContribution{}, classifyWriteError("record Planner report", err)
 	}
 	if command.RowsAffected() == 1 {
-		return nil
+		return contribution, nil
 	}
 	existing, sameReport, err := r.plannerReportForIdentity(
 		ctx, report.ReportID, envelope.StageExecutionID, encoded,
 	)
 	if err != nil {
-		return err
+		return reporting.CostContribution{}, err
 	}
 	if existing.StageExecutionID != envelope.StageExecutionID ||
 		existing.SessionID != envelope.SessionID ||
 		existing.InvocationID != envelope.InvocationID ||
 		existing.ReportSchemaVersion != envelope.ReportSchemaVersion {
-		return fmt.Errorf("record Planner report: %w", ErrConflict)
+		return reporting.CostContribution{}, fmt.Errorf("record Planner report: %w", ErrConflict)
 	}
 	// An incomplete report is an ensure-placeholder operation. A complete
 	// report that already won the identity race is strictly better and remains
 	// immutable; recovery may safely treat that as success.
 	if !report.Complete && existing.Report.Complete {
-		return nil
+		return contribution, nil
 	}
 	if !existing.StartedAt.Equal(envelope.StartedAt) ||
 		!existing.FinishedAt.Equal(envelope.FinishedAt) ||
 		!sameReport {
-		return fmt.Errorf("record Planner report: %w", ErrConflict)
+		return reporting.CostContribution{}, fmt.Errorf("record Planner report: %w", ErrConflict)
 	}
-	return nil
+	return contribution, nil
+}
+
+func reportCostContribution(id string, receivedAt time.Time, report reporting.ExecutionReport) reporting.CostContribution {
+	var calls int64
+	if report.Metrics.ModelCalls != nil {
+		calls = *report.Metrics.ModelCalls
+	}
+	return reporting.CostContribution{ReportID: id, ReceivedAt: receivedAt, Complete: report.Complete, ModelCalls: calls, Cost: report.Metrics.LLMCost}
 }
 
 func (r *Repository) RebuildStageMetrics(
