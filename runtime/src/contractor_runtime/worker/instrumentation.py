@@ -13,7 +13,7 @@ from typing import Any, Protocol
 from google.adk.plugins import BasePlugin
 
 from contractor_runtime.adapters import RuntimeInstrumentation, RuntimeSpan
-from contractor_runtime.adapters.content import capture_span_content, model_request_content
+from contractor_runtime.adapters.content import capture_span_content
 from contractor_runtime.adapters.genai import usage_attributes
 from contractor_runtime.adapters.instrumentation import end_isolated_span, start_isolated_span
 from contractor_runtime.contracts.llm_cost import CostPhase
@@ -271,6 +271,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
             _install_session_snapshot(invocation_context, snapshot)
 
     async def before_model_callback(self, *, callback_context: Any, llm_request: Any) -> None:
+        del llm_request
         async with self._lock:
             self._require_sdk_context(callback_context)
             self._admit_call()
@@ -321,10 +322,17 @@ class WorkerInstrumentationPlugin(BasePlugin):
             self._model_observations.append(
                 (self._clock(), self._compaction.generation if self._compaction is not None else 0)
             )
-            capture_span_content(
-                self._pending_models[-1], input=lambda: model_request_content(llm_request)
-            )
             await self._publish_locked(callback_context)
+
+    def capture_model_input(self, content: Callable[[], dict[str, Any]]) -> None:
+        if self._pending_models:
+            capture_span_content(self._pending_models[0], input=content)
+
+    def capture_model_finish_reason(self, reason: str, *, known: bool) -> None:
+        if self._pending_models:
+            capture = getattr(self._pending_models[0], "capture_finish_reason", None)
+            if callable(capture):
+                capture(reason, known=known)
 
     async def after_model_callback(self, *, callback_context: Any, llm_response: Any) -> None:
         async with self._lock:

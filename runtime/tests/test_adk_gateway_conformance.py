@@ -23,8 +23,10 @@ from test_agent_skill_toolset import FakeSkillClient, resolved_value, skill_pack
 from test_agent_skill_toolset import build_context as skill_context
 from test_gateway_recovery import Authority
 from test_otlp_adapter import HEADER_SECRET, adapter_context, telemetry_settings
+from test_worker_compaction import COMPACTOR_MODEL, compact_context
 
 from contractor_runtime.adapters import AdapterHandles
+from contractor_runtime.adapters.content import MAX_CONTENT_BYTES
 from contractor_runtime.adapters.otlp_http import OTLPHTTPAdapterFactory
 from contractor_runtime.core.tool_metrics import RecordedToolCall
 from contractor_runtime.llm.client import new_gateway_client
@@ -78,9 +80,9 @@ def structured_reply():
     return chat({"content": json.dumps({"subtaskId": "0", "result": RESULT})})
 
 
-def gateway_model(http, *, summary=False, recovery=None):
+def gateway_model(http, *, summary=False, recovery=None, model=None):
     return OpenAICompatibleGatewayLlm(
-        model="worker-summary-model" if summary else "worker-model",
+        model=model or ("worker-summary-model" if summary else "worker-model"),
         client_handle=new_gateway_client(
             base_url=GATEWAY_URL,
             api_key=GATEWAY_CREDENTIAL,
@@ -100,6 +102,242 @@ def assert_structured_payload(payload):
     assert set(schema["properties"]) == {"subtaskId", "result"}
     assert set(schema["required"]) == {"subtaskId", "result"}
     assert schema["additionalProperties"] is False
+
+
+def model_span_attributes(exports):
+    spans = [
+        span
+        for payload in exports
+        for resource in ExportTraceServiceRequest.FromString(payload).resource_spans
+        for scope in resource.scope_spans
+        for span in scope.spans
+        if span.name == "contractor.worker.model"
+    ]
+    result = []
+    for span in sorted(spans, key=lambda span: span.start_time_unix_nano):
+        attributes = {attribute.key: attribute.value for attribute in span.attributes}
+        assert len(attributes) == len(span.attributes)
+        result.append(attributes)
+    return result
+
+
+def assert_effective_input(attributes, payload):
+    messages = []
+    instructions = []
+    for message in payload["messages"]:
+        role = message["role"]
+        if role == "system":
+            instructions.append({"type": "text", "content": message["content"]})
+            continue
+        parts = []
+        if role == "tool":
+            parts.append(
+                {
+                    "type": "tool_call_response",
+                    "id": message["tool_call_id"],
+                    "response": json.loads(message["content"]),
+                }
+            )
+        elif message["content"] is not None:
+            parts.append({"type": "text", "content": message["content"]})
+        parts.extend(
+            {
+                "type": "tool_call",
+                "id": call["id"],
+                "name": call["function"]["name"],
+                "arguments": json.loads(call["function"]["arguments"]),
+            }
+            for call in message.get("tool_calls", [])
+        )
+        messages.append({"role": role, "parts": parts})
+    assert json.loads(attributes["gen_ai.input.messages"].string_value) == messages
+    assert json.loads(attributes["gen_ai.system_instructions"].string_value) == instructions
+    assert json.loads(attributes["gen_ai.tool.definitions"].string_value) == [
+        {"type": "function", **tool["function"]} for tool in payload["tools"]
+    ]
+
+
+def finish_reasons(attributes):
+    value = attributes.get("gen_ai.response.finish_reasons")
+    return [] if value is None else [item.string_value for item in value.array_value.values]
+
+
+@pytest.mark.parametrize("compact", [False, True], ids=["ordinary", "checkpoint"])
+def test_main_gateway_trace_matches_effective_request(tmp_path, compact):
+    main_requests, exports, lookups = [], [], []
+
+    async def collector(request):
+        exports.append(await request.aread())
+        return httpx.Response(200, json={})
+
+    async def gateway(request):
+        payload = json.loads(request.content)
+        if payload["model"] == COMPACTOR_MODEL:
+            return httpx.Response(200, json=chat({"content": '{"summary":"Saved earlier work"}'}))
+        if "response_format" in payload:
+            return httpx.Response(200, json=structured_reply())
+        main_requests.append(payload)
+        ordinal = len(main_requests)
+        if ordinal == 4:
+            return httpx.Response(200, json=chat({"content": RESULT}))
+        reply = tool_reply()
+        call = reply["choices"][0]["message"]["tool_calls"][0]
+        call["id"] = f"lookup-{ordinal}"
+        call["function"].update(
+            name="lookup", arguments=json.dumps({"key": f"lookup-key-{ordinal}"})
+        )
+        if ordinal == 2:
+            reply["usage"].update(prompt_tokens=600, total_tokens=607)
+        return httpx.Response(200, json=reply)
+
+    async def lookup(key: str) -> dict:
+        """Look up a fixture value."""
+        lookups.append(key)
+        return {"value": key}
+
+    async def scenario():
+        adapter = await OTLPHTTPAdapterFactory(httpx.MockTransport(collector)).create(
+            adapter_context(), telemetry_settings()
+        )
+        async with httpx.AsyncClient(transport=httpx.MockTransport(gateway)) as http:
+            state = WorkerState()
+            if compact:
+                context = replace(
+                    compact_context(tmp_path, state, {"lookup": lookup}),
+                    instruction=INSTRUCTION,
+                    adapter_handles=adapter.handles,
+                )
+                runtime = await AdkWorkerRuntimeFactory(
+                    lambda build: gateway_model(http, model=build.model_policy.model)
+                ).create(context)
+            else:
+                runtime = await create_runtime(
+                    tmp_path,
+                    state,
+                    {"lookup": lookup},
+                    gateway_model(http),
+                    instruction=INSTRUCTION,
+                    instrumentation=adapter.handles.instrumentation,
+                )
+            try:
+                completion = await runtime.invoke(stage_request())
+                assert completion.failure is None, completion.failure
+                assert completion.result.result == RESULT
+            finally:
+                await runtime.finalize(datetime.now(UTC) + timedelta(seconds=10))
+        await adapter.flush()
+        await adapter.close()
+
+    asyncio.run(scenario())
+    assert lookups == ["lookup-key-1", "lookup-key-2", "lookup-key-3"]
+    spans = model_span_attributes(exports)
+    main_spans = [attributes for attributes in spans if "gen_ai.tool.definitions" in attributes]
+    auxiliary = [attributes for attributes in spans if "gen_ai.tool.definitions" not in attributes]
+    assert len(auxiliary) == 1 + int(compact)
+    assert all(not finish_reasons(attributes) for attributes in auxiliary)
+    assert len(main_requests) == len(main_spans) == 4
+    for index, (attributes, request) in enumerate(zip(main_spans, main_requests, strict=True)):
+        if compact and index >= 2:
+            assert "Context checkpoint 1" in request["messages"][1]["content"]
+            assert "lookup-key-1" not in json.dumps(request)
+            assert "lookup-key-2" in json.dumps(request)
+            assert "Context checkpoint 1" in attributes["gen_ai.input.messages"].string_value
+    for attributes, request in zip(main_spans, main_requests, strict=True):
+        assert_effective_input(attributes, request)
+    for index, attributes in enumerate(main_spans):
+        reason = "stop" if index == 3 else "tool_calls"
+        assert finish_reasons(attributes) == [reason]
+        output = json.loads(attributes["gen_ai.output.messages"].string_value)
+        assert output[0]["finish_reason"] == reason
+
+
+@pytest.mark.parametrize(
+    "case", ["length", "malformed", "omitted", "transport", "missing", "unknown"]
+)
+def test_main_gateway_finish_reason_survives_output_failure_or_truncation(tmp_path, case):
+    exports, lookups = [], []
+
+    async def collector(request):
+        exports.append(await request.aread())
+        return httpx.Response(200, json={})
+
+    async def gateway(request):
+        if case == "transport":
+            raise httpx.ReadTimeout("no response", request=request)
+        if "response_format" in json.loads(request.content):
+            return httpx.Response(200, json=structured_reply())
+        reply = tool_reply()
+        choice = reply["choices"][0]
+        if case == "length":
+            choice["finish_reason"] = "length"
+            choice["message"]["content"] = "x" * (MAX_CONTENT_BYTES + 1)
+        elif case == "malformed":
+            choice["message"]["tool_calls"][0]["function"]["arguments"] = "{"
+        elif case == "omitted":
+            choice["finish_reason"] = "content_filter"
+            choice["message"]["tool_calls"][0]["function"]["arguments"] = (
+                '{"nested":' + "[" * 65 + '"value"' + "]" * 65 + "}"
+            )
+        elif case == "missing":
+            choice = {"message": {"content": RESULT}}
+            reply["choices"] = [choice]
+        else:
+            choice["finish_reason"] = f"vendor-{GATEWAY_CREDENTIAL}-" + "é" * 300
+        return httpx.Response(200, json=reply)
+
+    async def probe(required_text: str, optional_note: str | None) -> dict:
+        """Read a fixture value."""
+        lookups.append(required_text)
+        return {}
+
+    async def scenario():
+        adapter = await OTLPHTTPAdapterFactory(httpx.MockTransport(collector)).create(
+            replace(adapter_context(), known_credentials=(GATEWAY_CREDENTIAL, "tool_calls")),
+            telemetry_settings(),
+        )
+        async with httpx.AsyncClient(transport=httpx.MockTransport(gateway)) as http:
+            runtime = await create_runtime(
+                tmp_path,
+                WorkerState(),
+                {"probe": probe},
+                gateway_model(http),
+                instrumentation=adapter.handles.instrumentation,
+            )
+            try:
+                completion = await runtime.invoke(stage_request())
+                if case == "missing":
+                    assert completion.failure is None
+                else:
+                    assert completion.failure is not None
+                    if case == "length":
+                        assert completion.failure.code == "worker_output_limit_exceeded"
+            finally:
+                await runtime.finalize(datetime.now(UTC) + timedelta(seconds=10))
+        await adapter.flush()
+        await adapter.close()
+
+    asyncio.run(scenario())
+    assert lookups == []
+    assert GATEWAY_CREDENTIAL.encode() not in b"".join(exports)
+    attributes = model_span_attributes(exports)[0]
+    reasons = finish_reasons(attributes)
+    if case in {"malformed", "omitted", "transport"}:
+        assert "gen_ai.output.messages" not in attributes
+        assert reasons == {"malformed": ["tool_calls"], "omitted": ["content_filter"]}.get(case, [])
+    else:
+        output = json.loads(attributes["gen_ai.output.messages"].string_value)[0]
+        if case == "length":
+            assert reasons == ["length"]
+            assert output["parts"][0]["truncated"] is True
+        elif case == "missing":
+            assert reasons == []
+        else:
+            expected = ("vendor-[REDACTED]-" + "é" * 300).encode()[:256].decode(errors="ignore")
+            assert reasons == [expected]
+        assert output["finish_reason"] == (reasons[0] if reasons else "unknown")
+    if case != "transport":
+        assert attributes["gen_ai.usage.input_tokens"].int_value == 11
+        assert attributes["gen_ai.usage.output_tokens"].int_value == 7
 
 
 @pytest.mark.parametrize("summary", [False, True], ids=["ordinary", "terminal"])
