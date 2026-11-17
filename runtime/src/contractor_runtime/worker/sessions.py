@@ -127,9 +127,8 @@ class WorkerSessionLifecycle:
         errors: list[WorkerSessionLifecycleError] = []
         try:
             session = await self._get(session_id)
-            eligible_state = self._eligible_state(session.state)
             if self.mode == WorkerSessionMode.ISOLATED:
-                self._carried_state = eligible_state
+                self._carried_state = self._eligible_state(session.state)
         except WorkerSessionLifecycleError as error:
             errors.append(error)
 
