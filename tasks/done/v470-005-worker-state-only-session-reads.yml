@@ -6,7 +6,7 @@ epic: planner-worker
 kind: chore
 introduced_by: V19-001
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [python]
 goal: Synchronizing Worker State and checking session ownership use a bounded number of historical events as a shared conversation grows.
@@ -41,3 +41,10 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+implementation_commit: f726a760ade0184346f6cd76f62f5eb3a0dcede8
+verification_results:
+  - >-
+    The existing real ADK Worker scenario retained 1,000 seeded events and synchronized State from a session read containing zero events. All five metered scale scenarios passed, including zero copied events on the successful isolated path.
+  - >-
+    make test-runtime passed with 6,285 tests and 156 skips. The 18 optional ffuf cases were among the skips because the local version was 2.1.0-dev and conformance requires 2.3.0. The compaction report verified 577 selected cases.
+  - make lint passed.

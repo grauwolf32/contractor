@@ -6,7 +6,7 @@ epic: planner-worker
 kind: defect
 introduced_by: V19-001
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [python]
 goal: A successful shared Worker invocation can complete and reuse its session when eligible State exceeds the isolated carry limit.
@@ -42,3 +42,10 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+implementation_commit: 97139e8bfe5d72a7192505b5fb2fd4ee50917323
+verification_results:
+  - >-
+    The existing ADK Worker test completed a shared invocation with oversized State and reused its session. Isolated carry at and above its ceiling and cleanup fencing passed.
+  - >-
+    make test-runtime passed with 6,285 tests and 156 skips. The 18 optional ffuf cases were among the skips because the local version was 2.1.0-dev and conformance requires 2.3.0. The compaction report verified 577 selected cases.
+  - make lint passed.
