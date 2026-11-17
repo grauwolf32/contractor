@@ -1187,8 +1187,11 @@ Scheduler projects current invocation waits into the durable Run through
 RunStore under its claim and the Run-then-Stage locks. The projection checks the
 exact Stage and enters waiting only for a running Stage, or records the admission
 reason of a pending Run. It coalesces wait notifications and retries failed or
-ambiguous writes from the latest memory snapshot on scheduler.pollInterval;
-model outcome delivery never waits for that transaction and never resends a
+ambiguous writes from the latest memory snapshot on scheduler.pollInterval.
+Only currently blocked routes with waiting participants contribute a reason.
+A shared route's recovery wakes the waiting Runs so each can project any
+remaining blocked route or leave waiting.
+Model outcome delivery never waits for that transaction and never resends a
 model request because a Run state write failed. Projection work is cancelled and
 joined before invocation cleanup continues. Terminal Stage commits clear durable
 waiting even when an earlier projection failed. On Server restart, ordinary
@@ -1208,9 +1211,10 @@ is accepted from a write-fenced allocation and while the Run is cancelling;
 `acquire` and `failed` are not, so an ending Stage neither starts a model call
 nor makes its Run wait (FAIL-SCH-14).
 
-**SCH-R109.** A request the Gateway received but did not answer within the
+**SCH-R109.** A request the Gateway received but did not answer in full within the
 participant's own request timeout (`workerRequestTimeout` or `plannerTimeout`)
 is reported as `released` and is not resent; the model call fails as transient.
+A timeout after response headers with an incomplete body follows the same rule.
 `finished` is reserved for an observed non-retryable response (FAIL-SCH-14).
 
 Rationale: a slow model is not an outage, and the Gateway may still be
