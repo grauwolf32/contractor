@@ -120,7 +120,12 @@ func TestPostgresModelOutcomeDoesNotWaitForRunProjection(t *testing.T) {
 				t.Fatal(err)
 			}
 			route := gatewayrecovery.Route{OwnerID: "user-1", GatewayDigest: "gateway", Model: "model"}
-			if ok, err := service.Admit(ctx, "run-1", f.executionID, []gatewayrecovery.Route{route}); err != nil || !ok {
+			other := route
+			other.Model = "other"
+			if route.Key() > other.Key() {
+				route, other = other, route
+			}
+			if ok, err := service.Admit(ctx, "run-1", f.executionID, []gatewayrecovery.Route{route, other}); err != nil || !ok {
 				t.Fatal(err)
 			}
 			service.Activate("run-1", f.executionID)
@@ -133,29 +138,32 @@ func TestPostgresModelOutcomeDoesNotWaitForRunProjection(t *testing.T) {
 			}
 			stop := s.monitorModelWaits(claim, run, f.executionID)
 			defer stop()
-			p := service.Planner("run-1", f.executionID, route, llmgateway.DefaultGatewayFailureSignatures())
-			if _, err := p.Update(ctx, gatewayrecovery.Request{RequestID: "failure", Action: "failed", Code: "model_unavailable"}); err != nil {
-				t.Fatal(err)
+			recoverRoute := blockRecoveryRoute(t, service, route, false)
+			recoverOther := blockRecoveryRoute(t, service, other, false)
+			for _, item := range []struct {
+				route gatewayrecovery.Route
+				code  string
+			}{{route, "model_unavailable"}, {other, "gateway_timeout"}} {
+				id := "allocation-" + item.route.Model
+				if err := service.Bind(ctx, id, "run-1", f.executionID, item.route); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := service.Update(ctx, id, gatewayrecovery.Request{Model: item.route.Model, RequestID: "failure", Action: "failed", Code: item.code}); err != nil {
+					t.Fatal(err)
+				}
 			}
 			select {
 			case <-projection.attempted:
 			case <-ctx.Done():
 				t.Fatal("projection did not start")
 			}
-			// Model completion proceeds while the database projection is blocked.
-			if err := service.Retry(ctx, "user-1", "run-1"); err != nil {
-				t.Fatal(err)
-			}
-			if d, err := p.Update(ctx, gatewayrecovery.Request{RequestID: "probe", Action: "acquire"}); err != nil || !d.Allowed {
-				t.Fatalf("probe %v %v", d, err)
-			}
-			if _, err := p.Update(ctx, gatewayrecovery.Request{RequestID: "probe", Action: "succeeded"}); err != nil {
-				t.Fatal(err)
-			}
+			// A different Run recovers the first route while the write is blocked.
+			recoverRoute()
 			close(release)
-			// The stale waiting write may commit (even with a lost response), but
-			// the next snapshot must clear it without repeating the model call.
-			for _, want := range []string{"model_unavailable", ""} {
+			for _, want := range []string{"model_unavailable", "gateway_timeout", ""} {
+				if want == "" {
+					recoverOther()
+				}
 				select {
 				case got := <-projection.applied:
 					if got != want {
@@ -163,6 +171,16 @@ func TestPostgresModelOutcomeDoesNotWaitForRunProjection(t *testing.T) {
 					}
 				case <-ctx.Done():
 					t.Fatal("projection did not converge")
+				}
+				if want == "gateway_timeout" {
+					run, err := f.store.GetRun(ctx, "run-1")
+					if err != nil || run.State != runstore.RunWaiting || run.StateReason.Code != want {
+						t.Fatalf("remaining wait: %s %+v %v", run.State, run.StateReason, err)
+					}
+					d, err := service.Update(ctx, "allocation-"+route.Model, gatewayrecovery.Request{Model: route.Model, RequestID: "next", Action: "acquire"})
+					if err != nil || !d.Allowed {
+						t.Fatalf("healthy reacquire: %+v %v", d, err)
+					}
 				}
 			}
 			run, err = f.store.GetRun(ctx, "run-1")

@@ -135,7 +135,11 @@ func (s *Service) update(run *runState, participant bindingKey, key string, requ
 				state.blockedAt = now
 				state.automaticUntil = now.Add(s.policy.AutomaticWindow)
 			}
+			reasonChanged := state.code != request.Code
 			state.blocked, state.code = true, request.Code
+			if reasonChanged {
+				state.notifyWaitingRuns(run.id)
+			}
 			state.failures++
 			if next := now.Add(delay); next.After(state.next) {
 				state.next = next
@@ -151,6 +155,9 @@ func (s *Service) update(run *runState, participant bindingKey, key string, requ
 	case "acquire":
 		result.Code = state.code
 		if !state.blocked {
+			if s.clearWaiting(run, participant) {
+				run.notify()
+			}
 			result.Allowed = true
 			return result, nil
 		}
@@ -176,20 +183,20 @@ func (s *Service) update(run *runState, participant bindingKey, key string, requ
 		state.probeID, state.probeRunID, state.probeUntil = request.RequestID, run.id, now.Add(timeout+s.policy.InitialDelay)
 		result.Allowed = true
 	case "succeeded", "finished":
-		if state.probeID == request.RequestID && state.probeRunID == run.id {
+		opened := state.probeID == request.RequestID && state.probeRunID == run.id
+		if opened {
 			state.blocked, state.code, state.failures = false, "", 0
 			state.blockedAt, state.next, state.automaticUntil = time.Time{}, time.Time{}, time.Time{}
 			state.release()
+			state.notifyWaitingRuns(run.id)
 		}
-		if _, waits := run.waits[participant]; waits {
-			s.clearWaiting(run, participant)
+		if s.clearWaiting(run, participant) || opened {
 			run.notify()
 		}
 	case "released":
 		if state.probeID == request.RequestID && state.probeRunID == run.id {
 			state.release()
-			if _, waits := run.waits[participant]; waits {
-				s.clearWaiting(run, participant)
+			if s.clearWaiting(run, participant) {
 				run.notify()
 			}
 		}
@@ -219,9 +226,24 @@ func (s *Service) setWaiting(run *runState, participant bindingKey, key string) 
 	run.waits[participant] = key
 	s.routes[key].waiters++
 }
-func (s *Service) clearWaiting(run *runState, participant bindingKey) {
+func (s *Service) clearWaiting(run *runState, participant bindingKey) bool {
 	if old, exists := run.waits[participant]; exists {
 		s.routes[old].waiters--
 		delete(run.waits, participant)
+		return true
+	}
+	return false
+}
+
+// Other Runs may have projected this route's old reason and be waiting for
+// notification even before their next acquire.
+func (r *routeState) notifyWaitingRuns(exceptRunID string) {
+	if r.waiters == 0 {
+		return
+	}
+	for id, run := range r.members {
+		if id != exceptRunID && len(run.waits) != 0 {
+			run.notify()
+		}
 	}
 }

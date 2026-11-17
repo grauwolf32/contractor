@@ -61,7 +61,7 @@ func (s *Service) Waiting(runID, stageID string) (string, <-chan struct{}) {
 	}
 	key := ""
 	for _, route := range run.waits {
-		if key == "" || route < key {
+		if s.routes[route].blocked && (key == "" || route < key) {
 			key = route
 		}
 	}
