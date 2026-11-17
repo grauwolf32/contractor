@@ -5,7 +5,8 @@ milestone: ui-consolidation-2026-10
 epic: ui
 kind: chore
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: dafc31163c7cc0f874ca949f90de5bd2dc2da598
 depends_on: [V458-018]
 languages: [typescript, css]
 goal: Main contains the approved Check types, Workflows and Agents UI while preserving current main changes and primary working files.
@@ -44,8 +45,10 @@ tests:
   - command: Verify primary working-file hashes, modes and staged delta against the private pre-merge snapshot
     covers: [A3]
 verification:
+  artifact: tasks/evidence/v458-019-library-main-integration.json
   results:
     - Fresh make ui-verify passed on the combined tree with 225 files, 2535 passing tests, one intentional negative test, 17 server tests and production build.
     - Fresh make lint passed; both compiled-browser catalog scenarios passed. Task/specification validators and git diff checks passed.
     - The complete UI tree equals the approved V458-018 source exactly. Backend, Runtime, shipped configs, API and non-UI test trees equal current main exactly; no production conflict required a code change.
   preservation: Six unrelated primary working files have private byte/mode snapshots and an exact staged-delta hash. The overlapping generated backlog advances only its committed index base while retaining its working bytes. Final hashes are checked before and after advancing main.
+  delivery: Main advanced to the two-parent merge; all six primary working files and the exact staged delta verified unchanged. UI 0.11.36 is integrated; demo deployment was not requested.
