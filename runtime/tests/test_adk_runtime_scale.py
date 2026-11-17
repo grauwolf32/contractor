@@ -66,7 +66,11 @@ def test_long_real_gateway_session_preserves_results_and_bounds_work(
     session_turns = turns * (subtasks if mode == "shared" else 1)
     max_events = 2 * session_turns + 2 * subtasks
     work = result["work"]
-    assert 0 < work["max_read_events"] <= max_events
+    if mode == "isolated":
+        # The successful isolated path reads State for synchronization and carry.
+        assert work["max_read_events"] == 0
+    else:
+        assert work["max_read_events"] <= max_events
     assert work["max_event_scan"] <= max_events
     # Exact supported SDK projection has three full passes per main request
     # plus one pass per logical invocation. Tool callbacks add no such pass.
