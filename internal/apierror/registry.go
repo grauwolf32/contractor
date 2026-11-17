@@ -51,11 +51,12 @@ func link(id, document string) string { return "[" + id + "](" + document + ")" 
 var (
 	InvalidRequest = define("invalid_request", http.StatusBadRequest, false,
 		"request does not satisfy the API contract",
-		"The request does not satisfy the API contract: a malformed, unknown or duplicate member, parameter or header, "+
-			"a wrong media type, a domain validation failure, a page cursor reused with another query or snapshot, "+
-			"an out-of-range performance history query or a WebSocket handshake that is not a valid upgrade; nothing changes.",
+		"The request contains a malformed, unknown or duplicate member, parameter or header, a wrong media type, "+
+			"a domain validation failure, a page cursor outside its bound query, snapshot or process generation, "+
+			"an out-of-range performance history query or an invalid WebSocket upgrade. Rejection has no side effects. "+
+			"OPS-R26 defines the cursor scope for live Operations lists.",
 		link("API-R71", publicAPI)+", "+link("CAT-R68", "../configuration/catalog.md")+", "+
-			link("OPS-R60", "../operations/operations.md")+", "+link("OPS-R165", "../operations/operations.md"))
+			link("OPS-R26, OPS-R60, OPS-R165", "../operations/operations.md"))
 	Unauthorized = define("unauthorized", http.StatusUnauthorized, false,
 		"valid authentication is required",
 		"Authentication is absent or invalid: no valid bearer token or browser session, or a login with invalid credentials.",

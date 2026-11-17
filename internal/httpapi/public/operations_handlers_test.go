@@ -3,14 +3,22 @@ package public
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/configload/configloadtest"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/controlplane/controlplanetest"
 )
 
 func TestOperationsSnapshotAndPagesAreCoherentStableAndObserved(t *testing.T) {
@@ -117,6 +125,13 @@ func TestOperationsSnapshotAndPagesAreCoherentStableAndObserved(t *testing.T) {
 		t.Fatalf("Runtime Agent first page = %+v", first)
 	}
 
+	// The last returned ID disappeared and an earlier ID joined. Continue
+	// past the saved key and report the new snapshot revision.
+	earlier := snapshot.RuntimeAgents[0]
+	earlier.InstanceID = "runtime-0"
+	snapshot.RuntimeAgents[1] = earlier
+	snapshot.Cursor.Revision++
+	fixture.operations.set(snapshot)
 	secondResponse := httptest.NewRecorder()
 	fixture.handler.ServeHTTP(secondResponse, authenticatedRequest(
 		http.MethodGet,
@@ -125,21 +140,36 @@ func TestOperationsSnapshotAndPagesAreCoherentStableAndObserved(t *testing.T) {
 	))
 	var second runtimeAgentPageResponse
 	if secondResponse.Code != http.StatusOK || json.Unmarshal(secondResponse.Body.Bytes(), &second) != nil ||
-		len(second.Items) != 1 || second.Items[0].InstanceID != "runtime-z" || second.Page.HasMore ||
+		len(second.Items) != 1 || second.Items[0].InstanceID != "runtime-z" || second.Page.HasMore || second.Cursor.Revision != "43" ||
 		second.Items[0].SupportedToolsets[0].Tools[0] != "read_artifact" {
 		t.Fatalf("Runtime Agent second page = %d: %+v %s", secondResponse.Code, second, secondResponse.Body.String())
 	}
 
-	snapshot.Cursor.Revision++
-	fixture.operations.set(snapshot)
-	stale := httptest.NewRecorder()
-	fixture.handler.ServeHTTP(stale, authenticatedRequest(
-		http.MethodGet,
-		"/v1/operations/runtime-agents?limit=1&cursor="+url.QueryEscape(*first.Page.NextCursor),
-		bytes.NewReader(nil),
-	))
-	if stale.Code != http.StatusBadRequest {
-		t.Fatalf("stale Operations cursor = %d: %s", stale.Code, stale.Body.String())
+	continuation := url.QueryEscape(*first.Page.NextCursor)
+	for _, path := range []string{
+		"allocations?cursor=" + continuation,
+		"runtime-agents?cursor=" + continuation + "AA",
+		"runtime-agents?cursor=invalid",
+	} {
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, authenticatedRequest(http.MethodGet, "/v1/operations/"+path, bytes.NewReader(nil)))
+		if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), `"invalid_request"`) {
+			t.Fatalf("invalid Operations cursor accepted for %s: %d %s", path, response.Code, response.Body.String())
+		}
+	}
+	for _, generation := range []string{snapshot.Cursor.Generation, "operations-generation-restarted"} {
+		snapshot.Cursor.Generation = generation
+		snapshot.RuntimeAgents = snapshot.RuntimeAgents[1:]
+		fixture.operations.set(snapshot)
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, authenticatedRequest(http.MethodGet, "/v1/operations/runtime-agents?cursor="+continuation, bytes.NewReader(nil)))
+		if generation == "operations-generation-restarted" {
+			if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), `"invalid_request"`) {
+				t.Fatalf("old generation continuation = %d %s", response.Code, response.Body.String())
+			}
+		} else if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"items":[],"page":{"hasMore":false}`) {
+			t.Fatalf("empty last page = %d %s", response.Code, response.Body.String())
+		}
 	}
 
 	allocations := httptest.NewRecorder()
@@ -148,6 +178,126 @@ func TestOperationsSnapshotAndPagesAreCoherentStableAndObserved(t *testing.T) {
 	))
 	if allocations.Code != http.StatusOK {
 		t.Fatalf("allocation page = %d: %s", allocations.Code, allocations.Body.String())
+	}
+}
+
+func TestOperationsLivePagesContinueAcrossRegistryHeartbeats(t *testing.T) {
+	nextID := 0
+	registry, err := controlplane.NewRegistry(controlplane.RegistryOptions{
+		MonotonicNow: func() time.Duration { return 0 },
+		NewID: func(prefix string) (string, error) {
+			nextID++
+			return fmt.Sprintf("%s%02d", prefix, nextID), nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid",
+		newTestAuthentication(t), mustTestOrigins(t), false, nil,
+		func(services *testServices) { services.Operations = registry },
+	)
+	template, err := configloadtest.AgentTemplate(fixture.configs.Snapshot(), "artifact_builder@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy, err := fixture.configs.Snapshot().ModelPolicy("worker@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gateway, err := fixture.configs.Snapshot().LLMGateway("local-litellm@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	heartbeat := func(principal, instance string, seq uint64) {
+		t.Helper()
+		_, err := registry.HeartbeatAuthenticated(principal, control.AgentHeartbeat{
+			APIVersion: contracts.APIVersion, InstanceID: instance,
+			HeartbeatSeq: seq, EchoedAckSeq: seq - 1, ObservedState: control.AgentIdle,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	var instances, allocations []string
+	for _, suffix := range []string{"a", "b", "c"} {
+		instance, principal := "runtime-"+suffix, strings.Repeat(suffix, 64)
+		_, err := registry.RegisterAuthenticated(controlplane.AuthenticatedPrincipal{
+			RuntimeAgentID: principal, LabelRevision: 1, Labels: []string{},
+		}, control.AgentRegistration{
+			APIVersion: contracts.APIVersion, InstanceID: instance, SoftwareVersion: "0.1.0",
+			StartedAt:  time.Date(2026, 11, 17, 0, 0, 0, 0, time.UTC),
+			ControlURL: "https://" + instance + ".example:9443", A2AURL: "https://" + instance + ".example:9444",
+			SupportedRuntimes: []string{"adk@1"}, SupportedSandboxProfiles: []string{"local-workdir@1"},
+			SupportedRuntimeAdapters: []runtimesettings.RuntimeAdapterRef{},
+			SupportedToolsets:        []control.ToolsetCapability{{Ref: "run-artifacts@1", Tools: []string{"list_artifacts", "read_artifact", "write_artifact"}}},
+			ObservedState:            control.AgentIdle,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		heartbeat(principal, instance, 1)
+		heartbeat(principal, instance, 2)
+		reserved, err := controlplanetest.Reserve(registry, controlplane.ReservationRequest{
+			RunID: "run-" + suffix, StageExecutionID: "stage-" + suffix,
+			Bindings: []controlplane.BindingRequirement{{
+				LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: template,
+				WorkerSessionMode: contracts.WorkerSessionIsolated,
+				ContextManagement: contracts.EffectiveContextManagement(
+					contracts.WorkerContextManagement{Strategy: contracts.ContextStrategyTemplate}, template),
+				ExecutionConfig: controlplane.AllocationExecutionConfig{ModelPolicy: policy.Ref, LLMGateway: gateway.Ref},
+			}},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		instances = append(instances, instance)
+		allocations = append(allocations, reserved[0].Grant.AllocationID)
+	}
+	sequence := uint64(2)
+	for _, list := range []struct {
+		kind, idKey string
+		want        []string
+	}{{"runtime-agents", "instanceId", instances}, {"allocations", "allocationId", allocations}} {
+		var seen []string
+		next := ""
+		for index := range list.want {
+			query := "/v1/operations/" + list.kind + "?limit=1"
+			if next != "" {
+				query += "&cursor=" + url.QueryEscape(next)
+			}
+			response := httptest.NewRecorder()
+			fixture.handler.ServeHTTP(response, authenticatedRequest(http.MethodGet, query, bytes.NewReader(nil)))
+			var page struct {
+				Cursor operationsCursorResponse
+				Items  []map[string]json.RawMessage
+				Page   pageInfoResponse
+			}
+			if err := json.Unmarshal(response.Body.Bytes(), &page); err != nil || response.Code != http.StatusOK || len(page.Items) != 1 {
+				t.Fatalf("Operations %s page %d: %d %s (%v)", list.kind, index+1, response.Code, response.Body.String(), err)
+			}
+			var id string
+			if err := json.Unmarshal(page.Items[0][list.idKey], &id); err != nil {
+				t.Fatal(err)
+			}
+			seen = append(seen, id)
+			wantCursor := registry.SnapshotOperations().Cursor
+			if page.Cursor.Generation != wantCursor.Generation || page.Cursor.Revision != strconv.FormatUint(wantCursor.Revision, 10) ||
+				page.Page.HasMore != (index < len(list.want)-1) {
+				t.Fatalf("unexpected Operations cursor or page: %+v %+v", page.Cursor, page.Page)
+			}
+			if page.Page.HasMore {
+				if page.Page.NextCursor == nil {
+					t.Fatal("missing continuation")
+				}
+				next = *page.Page.NextCursor
+				sequence++
+				heartbeat(strings.Repeat("c", 64), "runtime-c", sequence)
+			}
+		}
+		if !slices.Equal(seen, list.want) {
+			t.Fatalf("%s IDs = %v, want %v", list.kind, seen, list.want)
+		}
 	}
 }
 
