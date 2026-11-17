@@ -1,0 +1,43 @@
+schema_version: "1.0"
+id: V470-005
+title: Stop copying ADK event history for Worker session reads that need only identity or State
+milestone: worker-session-modes
+epic: planner-worker
+kind: chore
+introduced_by: V19-001
+priority: P2
+status: pending
+depends_on: []
+languages: [python]
+goal: Synchronizing Worker State and checking session ownership use a bounded number of historical events as a shared conversation grows.
+context:
+  specification: docs/spec/execution/worker.md#WRK-R75
+  finding: >-
+    runtime/src/contractor_runtime/worker/runtime.py:1123 fetches a full session to append a State
+    delta. runtime/src/contractor_runtime/worker/sessions.py:171 also fetches full history for
+    shared reuse and finalization. With 1,000 events in the pinned ADK InMemorySessionService,
+    a state-only read followed by an append preserved all 1,001 stored events and updated State.
+  siblings: >-
+    Audit the read sites in worker/runtime.py, worker/sessions.py, worker/history.py and worker/compaction.py
+    by their actual data needs. active_session exposes a full session to its callers. History repair,
+    compaction and model execution consume event contents. V470-002 covers the shared carry failure independently.
+scope:
+  in:
+    - Use the public ADK GetSessionConfig(num_recent_events=0) for reads needing only identity or State. Leave full or bounded history available to callers that consume it.
+    - Check shared reuse, isolated carry and the real State-delta append path, including app/user State and session ownership errors.
+  out:
+    - ADK private storage access, changing the light-copy feature flag, enabling shared compaction or changing State contents.
+acceptance_criteria:
+  - id: A1
+    text: Seed at least 1,000 events in a real ADK session. Count the historical events materialized by the Worker State-sync and lifecycle reads that need no history. The count is zero for every such read.
+  - id: A2
+    text: Appending from the reduced session adds exactly one event. A subsequent full read observes the entire prior sequence in order, the new event and the correct State. Reopening a shared session retains its identity and conversation.
+  - id: A3
+    text: Isolated carry, missing-session and cancellation fencing, full-session callers, interrupted tool-history repair and compaction still satisfy their existing behavior tests.
+tests:
+  - command: 'cd runtime && uv run pytest -W error tests/test_session_lifecycle.py tests/test_worker_state.py tests/test_worker_compaction.py'
+    covers: [A1, A2, A3]
+  - command: make test-runtime
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]

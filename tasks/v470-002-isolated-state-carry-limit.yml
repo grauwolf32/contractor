@@ -1,0 +1,44 @@
+schema_version: "1.0"
+id: V470-002
+title: Apply the Worker carried-State limit only when transferring State between isolated sessions
+milestone: worker-session-modes
+epic: planner-worker
+kind: defect
+introduced_by: V19-001
+priority: P1
+status: pending
+depends_on: []
+languages: [python]
+goal: A successful shared Worker invocation can complete and reuse its session when eligible State exceeds the isolated carry limit.
+context:
+  specification: docs/spec/execution/worker.md#WRK-R73
+  severity: high
+  finding: >-
+    runtime/src/contractor_runtime/worker/sessions.py:129 copies and JSON-encodes eligible State on every
+    finish, then discards the copy in shared mode. A 4 MiB string committed with ADK EventActions
+    exceeds the encoded carry budget and raises state_too_large in both modes.
+    At runtime/src/contractor_runtime/worker/runtime.py:372 a cleanup failure can replace a successful
+    completion with retryable worker_session_lifecycle_failed and fence the allocation.
+  siblings: >-
+    Shared mode keeps one allocation-owned ADK session. Isolated mode filters and bounds the State
+    transferred to a new session. Both modes use the shielded invocation finalizer for all outcomes.
+scope:
+  in:
+    - Limit eligible-State extraction, serialization and byte checks to isolated carry.
+    - Preserve shared finalization's session ownership and error checks and the existing cleanup of both modes.
+  out:
+    - Changing the configured ceiling, adding a shared-session quota or enabling shared context compaction.
+acceptance_criteria:
+  - id: A1
+    text: Through the Worker invocation path with a real ADK InMemorySessionService, commit oversized eligible State, complete successfully, reuse the same shared session and read that State on the next invocation.
+  - id: A2
+    text: In isolated mode cover exactly the encoded byte limit and one byte over. Oversize State still raises state_too_large, deletes the isolated session and fences reuse. Eligible keys and the trusted contractor subtree retain their current semantics.
+  - id: A3
+    text: A genuine missing or unreadable shared session still fences the Worker. Cancellation joins finalization and allocation release deletes owned sessions.
+tests:
+  - command: 'cd runtime && uv run pytest -W error tests/test_session_lifecycle.py tests/test_adk_runtime_ceilings.py'
+    covers: [A1, A2, A3]
+  - command: make test-runtime
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]

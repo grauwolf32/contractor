@@ -1,0 +1,57 @@
+schema_version: "1.0"
+id: V470-004
+title: Continue live Operations pages across registry revisions
+milestone: operations-live-2026-10
+epic: operations
+kind: defect
+introduced_by: V4-005
+priority: P1
+status: pending
+depends_on: []
+languages: [go]
+goal: An operator can finish listing Runtime Agents or allocations while normal heartbeats continue.
+context:
+  authority: >-
+    User decision 2026-11-17 requires a pagination contract under which heartbeats allow an Operations
+    list to be read to the end. OPS-R26 specifies the live ordering and membership semantics.
+  specification:
+    - docs/spec/operations/operations.md#OPS-R26
+    - docs/spec/platform/failure-model.md#FAIL-OPS-2
+    - api/openapi/contractor-public-v1.yaml
+  severity: high
+  finding: >-
+    internal/httpapi/public/operations_handlers.go:163 checks a page cursor against the current revision.
+    An accepted heartbeat at internal/controlplane/registry_registration.go:158 advances that revision,
+    causing a valid second page to return HTTP 400. The assertion at
+    internal/httpapi/public/operations_handlers_test.go:135 enforces the superseded contract.
+  siblings: >-
+    Both live REST lists and their CLI consumers (ops agents and ops allocations) use the continuation.
+    The UI obtains a coherent full REST snapshot and follows the revision-based Operations event stream.
+    Runtime Agent principals and allocation resource history have their own pagination.
+  decision: >-
+    Use a signed keyset continuation scoped to the list and process generation. Inspect the current
+    registry strictly after the last returned ID, even if it has since been removed. Retaining old
+    snapshots would require storage and expiry to serve a guarantee already available through the full
+    snapshot endpoint. Revisit only if a consumer needs an exact historical view larger than that endpoint can serve.
+scope:
+  in:
+    - Update both list handlers and their shared cursor helper together. Preserve the existing public page envelope, size limits, signing and validation.
+    - Replace the revision-staleness assertion and exercise real registry heartbeats between authenticated HTTP requests. Check the CLI can reuse the returned continuation.
+  out:
+    - Retained snapshots, a new registry revision counter, durable pagination state, changes to WebSocket replay or other lists.
+acceptance_criteria:
+  - id: A1
+    text: For each kind, register enough entries for at least three pages. With a heartbeat accepted between every pair of requests and stable membership, the client observes each ID exactly once in ascending order and reaches hasMore false. Each page's top-level cursor describes its own read.
+  - id: A2
+    text: Between pages remove the last returned ID and an unread ID, and add IDs on both sides of the last returned ID. Only currently present IDs strictly ahead can appear. If all remaining rows disappear, the next page is empty and final.
+  - id: A3
+    text: Malformed, tampered, cross-list and previous-generation continuations return HTTP 400 invalid_request. A fresh first page works after restart. Cover the coherent full snapshot and the existing revision-based event replay and resync behavior.
+  - id: A4
+    text: Both CLI list commands can pass page.nextCursor into the next request after a heartbeat. OpenAPI and both generated clients stay synchronized with the published contract.
+tests:
+  - command: 'go test -race -count=1 ./internal/controlplane ./internal/httpapi/public ./internal/httpapi/public/events ./internal/cli'
+    covers: [A1, A2, A3, A4]
+  - command: make verify-public-api generate-public-client-check ui-generate-check
+    covers: [A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]

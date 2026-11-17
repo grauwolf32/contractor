@@ -18745,7 +18745,9 @@ type ClientInterface interface {
 	// Corresponds with GET /v1/operations/allocation-history (the `ListAllocationResourceHistory` operationId).
 	ListAllocationResourceHistory(ctx context.Context, params *ListAllocationResourceHistoryParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListAllocations List authoritative and observed allocation state
+	// ListAllocations List live authoritative and observed allocation state in ascending allocationId order
+	//
+	// Pass page.nextCursor to continue strictly after the last allocationId in this Server generation. Heartbeats and other registry changes allow continuation. Each page reads current membership and reports its own revision in cursor. Use GET /v1/operations/snapshot for both lists at one revision. A malformed, tampered, wrong-list or prior-generation cursor returns 400 invalid_request.
 	//
 	// Corresponds with GET /v1/operations/allocations (the `ListAllocations` operationId).
 	ListAllocations(ctx context.Context, params *ListAllocationsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -18822,7 +18824,9 @@ type ClientInterface interface {
 	// Corresponds with PUT /v1/operations/runtime-agent-principals/{runtimeAgentId}/labels (the `ReplaceRuntimeAgentPrincipalLabels` operationId).
 	ReplaceRuntimeAgentPrincipalLabels(ctx context.Context, runtimeAgentId RuntimeAgentId, params *ReplaceRuntimeAgentPrincipalLabelsParams, body ReplaceRuntimeAgentPrincipalLabelsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListRuntimeAgents List Runtime Agent observations from one coherent snapshot
+	// ListRuntimeAgents List live Runtime Agent observations in ascending instanceId order
+	//
+	// Pass page.nextCursor to continue strictly after the last instanceId in this Server generation. Heartbeats and other registry changes allow continuation. Each page reads current membership and reports its own revision in cursor. Use GET /v1/operations/snapshot for both lists at one revision. A malformed, tampered, wrong-list or prior-generation cursor returns 400 invalid_request.
 	//
 	// Corresponds with GET /v1/operations/runtime-agents (the `ListRuntimeAgents` operationId).
 	ListRuntimeAgents(ctx context.Context, params *ListRuntimeAgentsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -21064,7 +21068,9 @@ func (c *Client) ListAllocationResourceHistory(ctx context.Context, params *List
 	return c.Client.Do(req)
 }
 
-// ListAllocations List authoritative and observed allocation state
+// ListAllocations List live authoritative and observed allocation state in ascending allocationId order
+//
+// Pass page.nextCursor to continue strictly after the last allocationId in this Server generation. Heartbeats and other registry changes allow continuation. Each page reads current membership and reports its own revision in cursor. Use GET /v1/operations/snapshot for both lists at one revision. A malformed, tampered, wrong-list or prior-generation cursor returns 400 invalid_request.
 //
 // Corresponds with GET /v1/operations/allocations (the `ListAllocations` operationId).
 func (c *Client) ListAllocations(ctx context.Context, params *ListAllocationsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -21271,7 +21277,9 @@ func (c *Client) ReplaceRuntimeAgentPrincipalLabels(ctx context.Context, runtime
 	return c.Client.Do(req)
 }
 
-// ListRuntimeAgents List Runtime Agent observations from one coherent snapshot
+// ListRuntimeAgents List live Runtime Agent observations in ascending instanceId order
+//
+// Pass page.nextCursor to continue strictly after the last instanceId in this Server generation. Heartbeats and other registry changes allow continuation. Each page reads current membership and reports its own revision in cursor. Use GET /v1/operations/snapshot for both lists at one revision. A malformed, tampered, wrong-list or prior-generation cursor returns 400 invalid_request.
 //
 // Corresponds with GET /v1/operations/runtime-agents (the `ListRuntimeAgents` operationId).
 func (c *Client) ListRuntimeAgents(ctx context.Context, params *ListRuntimeAgentsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -35039,7 +35047,9 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /v1/operations/allocation-history (the `ListAllocationResourceHistory` operationId).
 	ListAllocationResourceHistoryWithResponse(ctx context.Context, params *ListAllocationResourceHistoryParams, reqEditors ...RequestEditorFn) (*ListAllocationResourceHistoryResponse, error)
 
-	// ListAllocationsWithResponse List authoritative and observed allocation state
+	// ListAllocationsWithResponse List live authoritative and observed allocation state in ascending allocationId order
+	//
+	// Pass page.nextCursor to continue strictly after the last allocationId in this Server generation. Heartbeats and other registry changes allow continuation. Each page reads current membership and reports its own revision in cursor. Use GET /v1/operations/snapshot for both lists at one revision. A malformed, tampered, wrong-list or prior-generation cursor returns 400 invalid_request.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -35134,7 +35144,9 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with PUT /v1/operations/runtime-agent-principals/{runtimeAgentId}/labels (the `ReplaceRuntimeAgentPrincipalLabels` operationId).
 	ReplaceRuntimeAgentPrincipalLabelsWithResponse(ctx context.Context, runtimeAgentId RuntimeAgentId, params *ReplaceRuntimeAgentPrincipalLabelsParams, body ReplaceRuntimeAgentPrincipalLabelsJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceRuntimeAgentPrincipalLabelsResponse, error)
 
-	// ListRuntimeAgentsWithResponse List Runtime Agent observations from one coherent snapshot
+	// ListRuntimeAgentsWithResponse List live Runtime Agent observations in ascending instanceId order
+	//
+	// Pass page.nextCursor to continue strictly after the last instanceId in this Server generation. Heartbeats and other registry changes allow continuation. Each page reads current membership and reports its own revision in cursor. Use GET /v1/operations/snapshot for both lists at one revision. A malformed, tampered, wrong-list or prior-generation cursor returns 400 invalid_request.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -60287,7 +60299,9 @@ func (c *ClientWithResponses) ListAllocationResourceHistoryWithResponse(ctx cont
 	return ParseListAllocationResourceHistoryResponse(rsp)
 }
 
-// ListAllocationsWithResponse List authoritative and observed allocation state
+// ListAllocationsWithResponse List live authoritative and observed allocation state in ascending allocationId order
+//
+// Pass page.nextCursor to continue strictly after the last allocationId in this Server generation. Heartbeats and other registry changes allow continuation. Each page reads current membership and reports its own revision in cursor. Use GET /v1/operations/snapshot for both lists at one revision. A malformed, tampered, wrong-list or prior-generation cursor returns 400 invalid_request.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -60460,7 +60474,9 @@ func (c *ClientWithResponses) ReplaceRuntimeAgentPrincipalLabelsWithResponse(ctx
 	return ParseReplaceRuntimeAgentPrincipalLabelsResponse(rsp)
 }
 
-// ListRuntimeAgentsWithResponse List Runtime Agent observations from one coherent snapshot
+// ListRuntimeAgentsWithResponse List live Runtime Agent observations in ascending instanceId order
+//
+// Pass page.nextCursor to continue strictly after the last instanceId in this Server generation. Heartbeats and other registry changes allow continuation. Each page reads current membership and reports its own revision in cursor. Use GET /v1/operations/snapshot for both lists at one revision. A malformed, tampered, wrong-list or prior-generation cursor returns 400 invalid_request.
 //
 // Returns a wrapper object for the known response body format(s).
 //
