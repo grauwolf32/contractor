@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-60 open tasks: 9 in progress, 38 pending, 13 deferred. 1600 finished: 1582 completed, 18 archived.
+65 open tasks: 9 in progress, 43 pending, 13 deferred. 1600 finished: 1582 completed, 18 archived.
 
 ## In progress
 
@@ -28,6 +28,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V425-016](v425-016-run-event-history-bound.yml) | chore | P3 | — | Bound or detect the per-Run event history and delete it in bounded batches |
+| [V469-002](v469-002-opencode-audit-runtime.yml) | feature | P1 | V469-001 | Run OpenCode in one retained Audit environment through existing A2A |
 
 ### Planners and the Worker model boundary (`planner-worker`)
 
@@ -35,6 +36,7 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | — | Verify Planner compaction persistence cancellation and scale boundaries |
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | — | Expose bounded truthful Planner compaction diagnostics |
+| [V469-001](v469-001-opencode-audit-prototype.yml) | chore | P1 | — | Prove two ordinary Runs can reuse one OpenCode Audit container |
 
 ### HTTP and Caido tools (`http-tools`)
 
@@ -76,6 +78,7 @@ the epics are in [epics.yml](epics.yml).
 | [V64-018](v64-018-audit-research-pentest-integration.yml) | feature | P2 | V64-011, V411-020 | Compose optional hypothesis generation with ordinary HTTP Audit tasks |
 | [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-015, V411-014 | Show HTTP engagement context and gaps in ordinary retained Audit reports |
 | [V425-017](v425-017-machine-report-ceiling-test.yml) | chore | P3 | — | Drive the cumulative 64 MiB machine report check to its rejection in a test |
+| [V469-004](v469-004-opencode-audit-workflow.yml) | feature | P1 | V469-003 | Ship the minimal OpenCode Audit workflow and environment view |
 
 ### Evaluations (`evals`)
 
@@ -89,6 +92,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V411-013](v411-013-pentest-sandbox-integration.yml) | feature | P1 | V411-015 | Compose the existing networked sandbox into HTTP investigations |
+| [V469-003](v469-003-opencode-audit-recovery.yml) | chore | P1 | V469-002 | Verify retained environment recovery and deletion across owner failures |
 
 ### Web UI (`ui`)
 
@@ -125,6 +129,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-006, V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
 | [V425-014](v425-014-runtime-tests-fail-on-macos.yml) | chore | P3 | — | Make the Runtime process-liveness assertions able to fail on macOS |
 | [V433-005](v433-005-runtime-resource-bounds-gate.yml) | chore | P3 | — | Verify the Runtime resource-bound fixes and reconcile the review dispositions |
+| [V469-005](v469-005-opencode-audit-release.yml) | chore | P1 | V469-004 | Accept the minimal OpenCode Audit environment through real release gates |
 
 ## Deferred
 
@@ -151,8 +156,8 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 2 | 49 | 69 | 40 | 106 |
-| Planners and the Worker model boundary (`planner-worker`) | 4 | 37 | 57 | 37 | 90 |
+| Run execution core (`execution-core`) | 3 | 50 | 69 | 40 | 106 |
+| Planners and the Worker model boundary (`planner-worker`) | 5 | 37 | 57 | 38 | 90 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 3 | 15 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
@@ -163,11 +168,11 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 0 | 18 | 14 | 11 | 23 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 20 | 17 | 16 | 26 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 40 | 20 | 70 |
-| Audits (`audits`) | 9 | 69 | 98 | 42 | 170 |
+| Audits (`audits`) | 10 | 70 | 98 | 42 | 170 |
 | Evaluations (`evals`) | 4 | 23 | 46 | 20 | 54 |
-| Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 6 |
+| Podman sandbox (`sandbox`) | 2 | 10 | 2 | 2 | 6 |
 | Web UI (`ui`) | 1 | 55 | 81 | 34 | 77 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 21 | 54 | 14 | 34 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 43 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 50 | 18 |
-| Quality, CI and process (`quality`) | 10 | 1 | 34 | 146 | 32 |
+| Quality, CI and process (`quality`) | 11 | 1 | 34 | 147 | 32 |
