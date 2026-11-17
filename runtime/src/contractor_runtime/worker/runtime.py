@@ -16,6 +16,7 @@ from google.adk.events import Event, EventActions
 from google.adk.models.base_llm import BaseLlm
 from google.adk.runners import Runner
 from google.adk.sessions import BaseSessionService
+from google.adk.sessions.base_session_service import GetSessionConfig
 from starlette.types import ASGIApp
 
 from contractor_runtime.a2a_server import (
@@ -1121,7 +1122,10 @@ class AdkWorkerRuntime:
         if session_id is None:
             return
         session = await self._session_service.get_session(
-            app_name=self._app_name, user_id=self._user_id, session_id=session_id
+            app_name=self._app_name,
+            user_id=self._user_id,
+            session_id=session_id,
+            config=GetSessionConfig(num_recent_events=0),
         )
         if session is None:
             return

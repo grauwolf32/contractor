@@ -23,6 +23,7 @@ from fakes.model import (
 )
 from fakes.telemetry import SERVER_EXPORT
 from fakes.worker_state import WorkerState
+from google.adk.events import Event, EventActions
 from google.adk.models.base_llm import BaseLlm
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
@@ -84,7 +85,7 @@ from contractor_runtime.worker.finalizer import ResultFinalizerFailure
 from contractor_runtime.worker.instrumentation import WorkerSummarizationRequested
 from contractor_runtime.worker.prompts import _summarizer_secrets
 from contractor_runtime.worker.runtime import INVOCATION_CLEANUP_TIMEOUT_SECONDS, AdkWorkerRuntime
-from contractor_runtime.worker.sessions import WorkerSessionLifecycleError
+from contractor_runtime.worker.sessions import MAX_CARRIED_STATE_BYTES, WorkerSessionLifecycleError
 from contractor_runtime.worker.summarizer import TranscriptRecorder
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -352,6 +353,9 @@ def test_adk_worker_sessions_mirror_the_canonical_contractor_state(
             event = kwargs["event"] if "event" in kwargs else args[1]
             delta = event.actions.state_delta if event.actions is not None else {}
             if "contractor" in delta:
+                if event.author == "contractor_runtime":
+                    session = kwargs["session"] if "session" in kwargs else args[0]
+                    assert not session.events
                 delivered.append(copy.deepcopy(delta["contractor"]))
             return await append_event(*args, **kwargs)
 
@@ -361,6 +365,23 @@ def test_adk_worker_sessions_mirror_the_canonical_contractor_state(
         initial = await state.snapshot()
         first = await runtime.invoke(stage_request())
         after_first = await state.snapshot()
+        if mode == WorkerSessionMode.SHARED:
+            shared_id = runtime._session_lifecycle.shared_session_id
+            assert shared_id is not None
+            shared = await service.get_session(
+                app_name=runtime._app_name, user_id=runtime._user_id, session_id=shared_id
+            )
+            assert shared is not None
+            for index in range(1000):
+                delta = {"ordinary": "x" * MAX_CARRIED_STATE_BYTES} if index == 0 else {}
+                await service.append_event(
+                    shared,
+                    Event(
+                        invocationId=f"retained-{index}",
+                        author="worker",
+                        actions=EventActions(stateDelta=delta),
+                    ),
+                )
         second = await runtime.invoke(stage_request().model_copy(update={"subtask_id": "1"}))
         after_second = await state.snapshot()
 
@@ -387,6 +408,10 @@ def test_adk_worker_sessions_mirror_the_canonical_contractor_state(
             )
             assert session is not None
             assert session.state["contractor"] == after_second
+            assert len(session.state["ordinary"]) == MAX_CARRIED_STATE_BYTES
+            assert [
+                e.invocation_id for e in session.events if e.invocation_id.startswith("retained-")
+            ] == [f"retained-{index}" for index in range(1000)]
         await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())

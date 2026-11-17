@@ -9,6 +9,7 @@ import uuid
 from typing import Any
 
 from google.adk.sessions import BaseSessionService, InMemorySessionService
+from google.adk.sessions.base_session_service import GetSessionConfig
 from google.adk.sessions.session import Session
 from google.adk.sessions.state import State
 
@@ -116,7 +117,7 @@ class WorkerSessionLifecycle:
         session_id = self._active_session_id
         if session_id is None:
             raise WorkerSessionLifecycleError("session_absent")
-        return await self._get(session_id)
+        return await self._get(session_id, with_events=True)
 
     async def finish_invocation(self) -> None:
         session_id = self._active_session_id
@@ -165,12 +166,13 @@ class WorkerSessionLifecycle:
         self._carried_state.clear()
         self._clear_service_state()
 
-    async def _get(self, session_id: str) -> Session:
+    async def _get(self, session_id: str, *, with_events: bool = False) -> Session:
         try:
             session = await self.service.get_session(
                 app_name=self.app_name,
                 user_id=self.user_id,
                 session_id=session_id,
+                config=None if with_events else GetSessionConfig(num_recent_events=0),
             )
         except asyncio.CancelledError:
             self._failed = True
