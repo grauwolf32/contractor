@@ -6,7 +6,7 @@ epic: planner-worker
 kind: chore
 introduced_by: V19-001
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [python]
 goal: Synchronizing Worker State and checking session ownership use a bounded number of historical events as a shared conversation grows.

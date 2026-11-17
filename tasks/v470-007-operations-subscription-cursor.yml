@@ -6,7 +6,7 @@ epic: operations
 kind: chore
 introduced_by: V4-007
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: Opening or resuming an Operations event subscription reads its cursor without copying every agent, allocation and capability under the registry lock.

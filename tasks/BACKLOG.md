@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-66 open tasks: 9 in progress, 44 pending, 13 deferred. 1600 finished: 1582 completed, 18 archived.
+66 open tasks: 16 in progress, 37 pending, 13 deferred. 1600 finished: 1582 completed, 18 archived.
 
 ## In progress
 
@@ -20,6 +20,13 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V470-001](v470-001-multi-route-run-wait.yml) | execution-core | defect | P1 | Keep a Run waiting while another participant still needs a blocked Gateway route |
+| [V470-002](v470-002-isolated-state-carry-limit.yml) | planner-worker | defect | P1 | Apply the Worker carried-State limit only when transferring State between isolated sessions |
+| [V470-003](v470-003-planner-response-body-timeout.yml) | planner-worker | defect | P1 | Release a delivered Planner request when the Gateway response body times out |
+| [V470-004](v470-004-live-operations-pagination.yml) | operations | defect | P1 | Continue live Operations pages across registry revisions |
+| [V470-005](v470-005-worker-state-only-session-reads.yml) | planner-worker | chore | P2 | Stop copying ADK event history for Worker session reads that need only identity or State |
+| [V470-006](v470-006-normalize-cost-reports-once.yml) | operations | chore | P3 | Derive durable cost from the same normalized report used for telemetry |
+| [V470-007](v470-007-operations-subscription-cursor.yml) | operations | chore | P2 | Start Operations event subscriptions without building a full registry snapshot |
 
 ## Pending
 
@@ -28,7 +35,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V425-016](v425-016-run-event-history-bound.yml) | chore | P3 | — | Bound or detect the per-Run event history and delete it in bounded batches |
-| [V470-001](v470-001-multi-route-run-wait.yml) | defect | P1 | — | Keep a Run waiting while another participant still needs a blocked Gateway route |
 
 ### Planners and the Worker model boundary (`planner-worker`)
 
@@ -36,9 +42,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | — | Verify Planner compaction persistence cancellation and scale boundaries |
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | — | Expose bounded truthful Planner compaction diagnostics |
-| [V470-002](v470-002-isolated-state-carry-limit.yml) | defect | P1 | — | Apply the Worker carried-State limit only when transferring State between isolated sessions |
-| [V470-003](v470-003-planner-response-body-timeout.yml) | defect | P1 | — | Release a delivered Planner request when the Gateway response body times out |
-| [V470-005](v470-005-worker-state-only-session-reads.yml) | chore | P2 | — | Stop copying ADK event history for Worker session reads that need only identity or State |
 
 ### HTTP and Caido tools (`http-tools`)
 
@@ -99,14 +102,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V411-018](v411-018-pentest-ui-journey.yml) | feature | P1 | V411-015, V411-017 | Build the ordinary HTTP Audit setup and evidence UI journey |
-
-### Operations, authentication, CLI and deployment (`operations`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V470-004](v470-004-live-operations-pagination.yml) | defect | P1 | — | Continue live Operations pages across registry revisions |
-| [V470-006](v470-006-normalize-cost-reports-once.yml) | chore | P3 | — | Derive durable cost from the same normalized report used for telemetry |
-| [V470-007](v470-007-operations-subscription-cursor.yml) | chore | P2 | — | Start Operations event subscriptions without building a full registry snapshot |
 
 ### Public API and wire contracts (`api-contracts`)
 

@@ -6,7 +6,7 @@ epic: planner-worker
 kind: defect
 introduced_by: V19-001
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages: [python]
 goal: A successful shared Worker invocation can complete and reuse its session when eligible State exceeds the isolated carry limit.

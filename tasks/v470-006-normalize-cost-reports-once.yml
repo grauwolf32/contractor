@@ -6,7 +6,7 @@ epic: operations
 kind: chore
 introduced_by: V458-002
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: Each Planner or allocation report passes through one telemetry normalization before its diagnostic receipt and cost contribution are recorded.
