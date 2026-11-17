@@ -99,7 +99,7 @@ def _bounded(key: str, value: Any) -> str:
                 "parts": [part],
             }
             if key == "gen_ai.output.messages":
-                message["finish_reason"] = "unknown"
+                message["finish_reason"] = value[0]["finish_reason"]
             bounded = [message]
         encoded = json.dumps(bounded, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
         if len(encoded.encode()) <= MAX_CONTENT_BYTES:
@@ -111,7 +111,12 @@ def _bounded(key: str, value: Any) -> str:
 
 
 def content_attributes(
-    field: str, value: Any, *, model: bool, redact: Callable[[Any], Any]
+    field: str,
+    value: Any,
+    *,
+    model: bool,
+    redact: Callable[[Any], Any],
+    finish_reason: str | None = None,
 ) -> dict[str, str]:
     """Project SDK content, mask data, then encode and bound each final field."""
     if not model:
@@ -120,7 +125,9 @@ def content_attributes(
         return {}
     if field == "output":
         values = {
-            "gen_ai.output.messages": [{**_message(value, "assistant"), "finish_reason": "unknown"}]
+            "gen_ai.output.messages": [
+                {**_message(value, "assistant"), "finish_reason": finish_reason or "unknown"}
+            ]
         }
     elif isinstance(value, dict) and "contents" in value:
         contents = value["contents"]

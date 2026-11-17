@@ -586,6 +586,7 @@ class AdkWorkerRuntime:
         deadline = InvocationDeadline(request.deadline)
         self._invocation.deadline = deadline
         sdk_invocation_id = invocation_id
+        model = self._model
         try:
             if completion is not None:
                 failure = completion.validate_request(request)
@@ -610,9 +611,20 @@ class AdkWorkerRuntime:
                     try:
                         # An early return must close ADK's generator in this task:
                         # its tracing contexts cannot be detached by GC in another one.
-                        async with contextlib.aclosing(
-                            self._turns.events(invocation_id, sdk_invocation_id, session_id, prompt)
-                        ) as events:
+                        observation = (
+                            model.observe_calls(self._plugin)
+                            if self._instrumentation is not None
+                            and isinstance(model, OpenAICompatibleGatewayLlm)
+                            else contextlib.nullcontext()
+                        )
+                        async with (
+                            observation,
+                            contextlib.aclosing(
+                                self._turns.events(
+                                    invocation_id, sdk_invocation_id, session_id, prompt
+                                )
+                            ) as events,
+                        ):
                             async for event in events:
                                 if transcript is not None:
                                     transcript.record(event)

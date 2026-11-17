@@ -757,8 +757,9 @@ truncation and queueing. Every nonempty value matches case-sensitively, includin
 short embedded values. Equal-start overlapping matches prefer the longest
 original value; replacement text is never matched again. JSON escaping is a
 serialization concern: replacement acts on data string values first. JSON keys
-and protocol vocabulary (outcomes, GenAI roles, part types, finish reasons and
-fixed operation/provider attributes) are never replacement targets. Span status
+and protocol vocabulary (outcomes, GenAI roles, part types, recognized finish
+reasons and fixed operation/provider attributes) are never replacement targets.
+Unrecognized Gateway finish reasons are provider data. Span status
 comes from the validated original execution outcome, independently of redaction.
 SDK requests/responses are projected into GenAI before their data fields are
 masked; final serialization, per-field byte bounds and queueing follow masking.
@@ -787,7 +788,11 @@ Go/Python examples in `api/testdata/telemetry-credential-redaction.json`.
 
 **OBS-R58.** Captured model input includes conversation messages,
 system instructions and tool declarations; captured output includes the model
-response. Worker tool spans include arguments and results. Planner invocation
+response. Each main Worker model span captures one semantic input from the
+effective Gateway request after context projection and adapter translation,
+including paired tool calls and responses. It does not capture discarded
+history, transport headers or a raw Gateway envelope. Worker tool spans
+include arguments and results. Planner invocation
 and passthrough dispatch spans include their semantic input and output. Worker
 result-finalizer and terminal-summarizer model calls also capture input and
 output; a summarizer input that includes provider reasoning
@@ -800,8 +805,15 @@ v1.41.1: `gen_ai.operation.name=chat`, `gen_ai.provider.name=contractor.gateway`
 `gen_ai.request.model` containing the requested model alias. Captured content
 uses JSON-serialized `gen_ai.input.messages`, `gen_ai.output.messages`,
 `gen_ai.system_instructions` and `gen_ai.tool.definitions`, preserving roles,
-text, reasoning and function calls/results. A missing output finish reason is
-explicitly `unknown`. Per-call reported counts use integer
+text, reasoning and function calls/results. The main Worker span records the
+original client-visible Gateway `finish_reason` for the selected choice as a
+single entry in `gen_ai.response.finish_reasons`, independently of ADK's
+execution classification and whether output content is omitted, rejected or
+truncated. Unrecognized strings are credential-masked before the metadata
+string limit (LIM-OBS-10) is applied. When output is present, its
+`finish_reason` uses the same value, or `unknown` if no reason was available.
+The span attribute is absent when there is no original reason, including a
+transport failure without a response. Per-call reported counts use integer
 `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens` and
 `gen_ai.usage.cache_read.input_tokens`; unavailable counts are absent and no
 duplicate total attribute is emitted. Non-model content uses
