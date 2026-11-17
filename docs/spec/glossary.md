@@ -610,7 +610,7 @@ Terms used across the specification. Each entry names the document that owns the
 
 **`model_unavailable`** — The transient classification of a provider response that exactly matches a modelUnavailable failure signature. Owner: [Failure model](platform/failure-model.md).
 
-**ModelPolicy** — The shared, immutable model-loop policy of a Planner or Worker: an opaque Gateway model alias plus portable generation and cumulative execution-safety fields. Owner: [Agent templates](configuration/agent-templates.md).
+**ModelPolicy** — The shared, immutable model-loop policy of a Planner or Worker: an opaque Gateway model alias plus portable generation parameters and bounded execution budgets. Compact Workers renew call windows only at confirmed checkpoints; usage and token budgets remain cumulative. Owner: [Agent templates](configuration/agent-templates.md).
 
 ## N
 

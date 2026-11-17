@@ -1,0 +1,52 @@
+schema_version: '1.0'
+id: V466-023
+title: Merge renewable Worker call windows into current main
+milestone: worker-context-compaction-2026-10
+epic: planner-worker
+kind: chore
+priority: P2
+status: in_progress
+depends_on: [V417-011]
+languages: [python, go, typescript, markdown]
+goal: Local main contains the verified Worker call-window change and its independent scanner and Library changes, with all primary uncommitted work preserved.
+context:
+  authority: User request 2026-11-17 explicitly authorizes merging codex/v417-011-worker-call-windows into current main through --no-ff, preserving uncommitted work and verifying the result.
+  source_head: e9d846870b65d648474caa3fa0ae5a360b9eb236
+  main_before: 9678b8d330f172919e8a24541af23a32d511f021
+  boundary: Prepare the two-parent merge in an isolated checkout, regenerate shared generated metadata, and verify the combined revision. Guard the main ref advance against concurrent movement; restore only clean changed paths and advance only the index base of the protected generated backlog. All six primary working files retain exact bytes and modes, and the staged delta remains exact.
+  design: docs/testing/README.md
+  verification_reuse: V417-011 already passed its full Runtime and deterministic process suites on the source commit. Re-run the owning compaction and Audit process gates, wire, API, affected Go packages, UI and lint on the combined revision. Independent source inputs must retain the accepted branch or current-main content.
+scope:
+  in:
+  - Merge the pinned branch with original current main as first parent and source as second parent.
+  - Verify ordinary and Audit continuation, cumulative reporting, API and UI contracts on the combined revision.
+  - Preserve all primary working files, index changes and independent main work; record verification and database cleanup.
+  out:
+  - New product behavior, live Gateway calls, demo deployment, remote push and configured-model changes.
+  - Resuming paused V417-010 or starting reserved shared-session V417-004.
+acceptance_criteria:
+- id: A1
+  text: Main contains a two-parent no-fast-forward merge of the pinned revisions; source call-window behavior and independent scanner and Library changes are retained.
+- id: A2
+  text: Every listed deterministic gate passes with real PostgreSQL where required; optional skips are reported separately.
+- id: A3
+  text: All six protected primary working files retain exact SHA-256 and mode and the staged delta is unchanged after main advances.
+- id: A4
+  text: Evidence records the actual merge, checks and bounded exclusions; the owned test database is dropped after its clients stop.
+tests:
+- command: make test-worker-compaction-e2e
+  covers: [A1, A2]
+- command: make test-audit-completion-e2e
+  covers: [A1, A2]
+- command: make test-wire-cross-language
+  covers: [A1, A2]
+- command: make verify-public-api verify-public-api-postgres
+  covers: [A1, A2]
+- command: go test -race -count=1 ./internal/evalservice ./internal/publicclient/... ./internal/planner/...
+  covers: [A1, A2]
+- command: VITEST_MAX_WORKERS=2 make ui-verify
+  covers: [A1, A2]
+- command: make lint
+  covers: [A1, A2, A4]
+- command: Verify protected primary file bytes, modes and staged delta against the private snapshot before and after guarded main installation
+  covers: [A3]

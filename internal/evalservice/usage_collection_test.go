@@ -59,8 +59,8 @@ func TestEvalAttemptMetricsRejectStoredMetricsThatBreakTheirContract(t *testing.
 		{"counter above 2^53-1", replace(`"totalTokens":5`, `"totalTokens":9007199254740992`)},
 		{"counter beyond int64", replace(`"totalTokens":5`, `"totalTokens":9223372036854775808`)},
 		{"fractional counter", replace(`"totalTokens":5`, `"totalTokens":5.5`)},
-		{"Worker budget beyond its limit", replace(workerMetrics, `"metrics":{"modelCalls":4,"tools":{},"workerBudget":{`+
-			`"maxModelCalls":1,"maxToolCalls":1,"maxTotalTokens":1,"observedModelCalls":2,`+
+		{"Worker budget observation beyond exact integer range", replace(workerMetrics, `"metrics":{"modelCalls":4,"tools":{},"workerBudget":{`+
+			`"maxModelCalls":1,"maxToolCalls":1,"maxTotalTokens":1,"observedModelCalls":9007199254740992,`+
 			`"observedToolCalls":0,"observedTotalTokens":0,"tokenUsageUnavailable":0}}`)},
 		{"missing Planner member", replace(`"planner":{"complete":true,"truncated":false,"metrics":{`+
 			`"modelCalls":1,"inputTokens":2,"outputTokens":3,"totalTokens":5,`+

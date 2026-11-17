@@ -38,6 +38,10 @@ context:
     the passwordless remote infrastructure itself. This authorizes completing
     the bounded operational recovery, not waiting for another sudo approval.
     Current configured model selections remain unchanged.
+    User decision 2026-11-16 renews both compact Worker call windows through V417-011.
+    This review does not resume the paused task. On explicit continuation, freeze a new
+    source revision and plan for the changed admission semantics before new dispatch;
+    never rewrite prior plans, results, comparisons or configured models.
   proposal: docs/proposals/0046-workflow-context-compaction.md
   specification:
   - docs/spec/evals/format.md#EVF-R1

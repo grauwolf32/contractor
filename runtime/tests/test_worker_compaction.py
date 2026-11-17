@@ -125,6 +125,7 @@ def compact_context(
     max_compactions: int = 8,
     max_model_calls: int = 32,
     max_tool_calls: int = 32,
+    max_total_tokens: int = 1_000_000,
 ) -> WorkerBuildContext:
     tmp_path.mkdir(parents=True, exist_ok=True)
     context = build_context(tmp_path, state, tools)
@@ -137,7 +138,7 @@ def compact_context(
                 "max_output_tokens": 100,
                 "max_model_calls": max_model_calls,
                 "max_tool_calls": max_tool_calls,
-                "max_total_tokens": 1_000_000,
+                "max_total_tokens": max_total_tokens,
             }
         ),
         compaction=compaction(keep=keep, max_compactions=max_compactions),
@@ -623,10 +624,12 @@ def test_rejected_compactor_output_adds_no_marker_and_no_later_calls(
         runtime = await compact_runtime(
             tmp_path, WorkerState(), {"step": recording_step(effects)}, model, compactor
         )
+        budgets = []
         appended: list[Event] = []
         append = runtime._session_service.append_event
 
         async def recording_append(session: Any, event: Event) -> Event:
+            budgets.append(runtime._invocation.budget)
             appended.append(event)
             return await append(session, event)
 
@@ -651,6 +654,8 @@ def test_rejected_compactor_output_adds_no_marker_and_no_later_calls(
             assert f"({cause})" in result.failure.message
             assert result.failure.retryable
             assert markers(appended) == []
+            assert budgets and all(b.checkpoint_generation == 0 for b in budgets)
+            assert all(b.checkpoint_model_calls == b.checkpoint_tool_calls == 0 for b in budgets)
             assert len(model.requests) == 2
             assert effects == ["a", "b"]
         finally:
@@ -718,6 +723,7 @@ def test_compactor_call_exhausting_the_worker_budget_keeps_budget_code(
             compactor,
             max_model_calls=2,
             max_tool_calls=2 if tool_boundary else 32,
+            max_total_tokens=206 if tool_boundary else 706,
         )
         try:
             result = await runtime.invoke(stage_request())
@@ -796,13 +802,21 @@ def test_lost_marker_acknowledgement_reconciles_or_fails_before_continuation(
             [summary("S1")], model=COMPACTOR_MODEL, auto_result_finalizer=False
         )
         runtime = await compact_runtime(
-            tmp_path, WorkerState(), {"step": recording_step(effects)}, model, compactor
+            tmp_path,
+            WorkerState(),
+            {"step": recording_step(effects)},
+            model,
+            compactor,
+            max_model_calls=3,
+            max_tool_calls=2,
         )
+        budgets = []
         append = runtime._session_service.append_event
 
         async def lossy_append(session: Any, event: Event) -> Event:
             if not markers([event]):
                 return await append(session, event)
+            budgets.append(runtime._invocation.budget)
             if stored:
                 await append(session, event)
             raise ConnectionError("acknowledgement lost")
@@ -819,6 +833,10 @@ def test_lost_marker_acknowledgement_reconciles_or_fails_before_continuation(
                 assert "(marker_not_committed)" in result.failure.message
                 assert effects == ["a", "b"]
                 assert len(model.requests) == 2
+            assert len(budgets) == 1
+            assert budgets[0].checkpoint_generation == int(stored)
+            assert budgets[0].checkpoint_model_calls == (3 if stored else 0)
+            assert budgets[0].checkpoint_tool_calls == (2 if stored else 0)
             assert not runtime._session_lifecycle.failed
         finally:
             await finish(runtime)
@@ -1394,6 +1412,7 @@ def test_cancel_after_checkpoint_joins_numeric_state_publication(tmp_path: Path)
         try:
             task = asyncio.create_task(runtime.invoke(stage_request()))
             await asyncio.wait_for(entered.wait(), timeout=10)
+            budget = runtime._invocation.budget
             runtime.cancel_active(task)
             release.set()
             with pytest.raises(asyncio.CancelledError):
@@ -1403,6 +1422,8 @@ def test_cancel_after_checkpoint_joins_numeric_state_publication(tmp_path: Path)
             ).state.last_completed_invocation.compaction
             assert (progress.phase, progress.generation, progress.failures) == ("applied", 1, 0)
             assert effects == ["a", "b"] and len(model.requests) == 2
+            assert budget.checkpoint_generation == 0
+            assert budget.checkpoint_model_calls == budget.checkpoint_tool_calls == 0
         finally:
             release.set()
             await finish(runtime)
@@ -1516,5 +1537,206 @@ def test_shared_compaction_boundaries() -> None:
                 with pytest.raises(WorkerCompactionError) as raised:
                     coordinator.validate_summary(second, candidate)
                 assert raised.value.cause == "ineffective"
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("trigger", ["model", "tools", "context", "missing_usage"])
+def test_both_call_windows_renew_only_once_at_confirmed_generation(tmp_path, monkeypatch, trigger):
+    from contractor_runtime.worker.budget import _InvocationBudget
+
+    committed = []
+    original_commit = _InvocationBudget.commit_call_checkpoint
+    original_admit = _InvocationBudget.before_model_call
+
+    def commit(budget, generation):
+        original_commit(budget, generation)
+        committed.append((generation, budget.model_calls, budget.tool_calls, budget.total_tokens))
+
+    def admit(budget):
+        # Repeated observation of the same generation after later work must
+        # never move its baseline or create capacity.
+        if budget.checkpoint_generation:
+            original_commit(budget, budget.checkpoint_generation)
+        original_admit(budget)
+
+    monkeypatch.setattr(_InvocationBudget, "commit_call_checkpoint", commit)
+    monkeypatch.setattr(_InvocationBudget, "before_model_call", admit)
+
+    async def scenario():
+        state, effects = WorkerState(), []
+        prompt = None if trigger == "missing_usage" else 100
+        high = 600 if trigger == "context" else prompt
+        model = scripted_model(
+            [
+                step("a", prompt),
+                step("b", high),
+                step("c", prompt),
+                step("d", high),
+                usage(text_result("done"), prompt),
+            ],
+            model="worker-model",
+        )
+        compactor = scripted_model(
+            [summary("a recorded"), summary("a, b and c recorded")],
+            model=COMPACTOR_MODEL,
+            auto_result_finalizer=False,
+        )
+        runtime = await compact_runtime(
+            tmp_path,
+            state,
+            {"step": recording_step(effects)},
+            model,
+            compactor,
+            max_model_calls=2 if trigger in {"model", "missing_usage"} else 3,
+            max_tool_calls=2 if trigger == "tools" else 3,
+        )
+        try:
+            result = await runtime.invoke(stage_request())
+            assert result.result is not None, result.failure
+            assert effects == ["a", "b", "c", "d"]
+            assert [row[:3] for row in committed] == [(1, 3, 2), (2, 6, 4)]
+            assert committed[1][3] >= committed[0][3]
+            snapshot = await runtime.agent_state_snapshot()
+            report = state.metrics.build_report(report_id="windows", duration_ms=0)
+            for budget in (snapshot.state.metrics.worker_budget, report.metrics.worker_budget):
+                assert budget.observed_model_calls == 8
+                assert budget.observed_tool_calls == 4
+                assert budget.exhausted is None
+            phases = report.metrics.model_phases
+            assert (
+                phases.main.model_calls,
+                phases.compaction.model_calls,
+                phases.finalization.model_calls,
+            ) == (5, 2, 1)
+            assert phases.main.token_usage_unavailable == (5 if prompt is None else 0)
+        finally:
+            await finish(runtime)
+
+    asyncio.run(scenario())
+
+
+def test_finalizer_does_not_inherit_compactor_call_capacity_exception(tmp_path):
+    async def scenario():
+        state = WorkerState()
+        model = scripted_model(
+            [step("a", 100), step("b", 100), step("c", 100), usage(text_result("done"), 100)],
+            model="worker-model",
+        )
+        compactor = scripted_model(
+            [summary("a recorded")], model=COMPACTOR_MODEL, auto_result_finalizer=False
+        )
+        runtime = await compact_runtime(
+            tmp_path, state, {"step": recording_step([])}, model, compactor, max_model_calls=2
+        )
+        try:
+            outcome = await runtime.invoke(stage_request())
+            assert outcome.failure.code == "worker_budget_exhausted"
+            report = state.metrics.build_report(report_id="finalizer-window", duration_ms=0)
+            assert report.metrics.worker_budget.exhausted == "model_calls"
+            assert report.metrics.worker_budget.observed_model_calls == 5
+            assert report.metrics.model_phases.finalization.model_calls == 0
+            assert len(compactor.requests) == 1
+        finally:
+            await finish(runtime)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("limit", ["tokens", "cycles", "deadline"])
+def test_renewed_windows_keep_cumulative_limits_and_original_deadline(tmp_path, limit):
+    from fakes.clock import advance_clock, run_with_advanceable_clock
+
+    async def scenario():
+        state, effects = WorkerState(), []
+
+        async def record(tag: str) -> dict:
+            """Record an admitted effect, advancing the injected clock when selected."""
+            effects.append(tag)
+            if limit == "deadline" and tag == "e":
+                advance_clock(61)
+            return {"recorded": tag}
+
+        model = scripted_model(
+            [
+                usage(tool_call("record", {"tag": tag}, call_id=f"call-{tag}"), 100)
+                for tag in "abcdefg"
+            ],
+            model="worker-model",
+        )
+        compactor = scripted_model(
+            [summary("a recorded"), summary("a, b and c recorded")],
+            model=COMPACTOR_MODEL,
+            auto_result_finalizer=False,
+        )
+        runtime = await compact_runtime(
+            tmp_path,
+            state,
+            {"step": record},
+            model,
+            compactor,
+            max_model_calls=2,
+            max_tool_calls=3,
+            max_compactions=2,
+            max_total_tokens=500 if limit == "tokens" else 1_000_000,
+        )
+        try:
+            request = stage_request().model_copy(
+                update={"deadline": datetime.now(UTC) + timedelta(seconds=60)}
+            )
+            result = await runtime.invoke(request)
+            assert (
+                result.failure.code
+                == {
+                    "tokens": "worker_budget_exhausted",
+                    "cycles": "worker_context_limit_exceeded",
+                    "deadline": "worker_timeout",
+                }[limit]
+            )
+            assert len(compactor.requests) == 2
+            assert effects == list(
+                "abcdef" if limit == "cycles" else "abcde" if limit == "deadline" else "abcd"
+            )
+            report = state.metrics.build_report(report_id="bounded-windows", duration_ms=0)
+            assert report.metrics.worker_budget.observed_model_calls >= 7
+            assert report.metrics.worker_budget.observed_total_tokens >= 515
+        finally:
+            await finish(runtime)
+
+    run_with_advanceable_clock(scenario())
+
+
+def test_reused_isolated_worker_starts_fresh_call_windows(tmp_path):
+    async def scenario():
+        state, effects = WorkerState(), []
+        responses = [step("a", 100), step("b", 100), usage(text_result("done"), 100)]
+        model = scripted_model(responses * 2, model="worker-model")
+        compactor = scripted_model(
+            [summary("a recorded"), summary("a recorded")],
+            model=COMPACTOR_MODEL,
+            auto_result_finalizer=False,
+        )
+        runtime = await compact_runtime(
+            tmp_path,
+            state,
+            {"step": recording_step(effects)},
+            model,
+            compactor,
+            max_model_calls=2,
+            max_tool_calls=3,
+        )
+        try:
+            for subtask in ["0", "1"]:
+                result = await runtime.invoke(
+                    stage_request().model_copy(update={"subtask_id": subtask})
+                )
+                assert result.result is not None, result.failure
+                snapshot = await runtime.agent_state_snapshot()
+                assert snapshot.state.last_completed_invocation.compaction.generation == 1
+                assert snapshot.state.metrics.worker_budget.observed_model_calls == 5
+                assert runtime._invocation.budget is None
+            assert effects == ["a", "b", "a", "b"]
+        finally:
+            await finish(runtime)
 
     asyncio.run(scenario())

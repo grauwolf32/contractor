@@ -65,10 +65,12 @@
           "maximum": 100000000
         },
         "observedModelCalls": {
-          "$ref": "#/$defs/uint64"
+          "$ref": "#/$defs/uint64",
+          "description": "Cumulative invocation usage across committed call windows; may exceed the configured per-window capacity. Only exhausted reports refused admission."
         },
         "observedToolCalls": {
-          "$ref": "#/$defs/uint64"
+          "$ref": "#/$defs/uint64",
+          "description": "Cumulative invocation usage across committed call windows; may exceed the configured per-window capacity. Only exhausted reports refused admission."
         },
         "observedTotalTokens": {
           "$ref": "#/$defs/uint64"

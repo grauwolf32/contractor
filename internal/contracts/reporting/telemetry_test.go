@@ -250,3 +250,43 @@ func TestToolArgumentsRejectRepeatedMembersItself(t *testing.T) {
 		t.Fatalf("a valid summary decoded as %#v (%v)", arguments, err)
 	}
 }
+
+func TestSharedCallWindowUsageStaysCumulativeAcrossStateAndReports(t *testing.T) {
+	t.Parallel()
+	state, err := contracts.DecodePrivateStrict[AgentStateSnapshot](
+		contractstest.ReadFixture(t, "valid", "agent-state-compacted-tool-budget.json"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	final, err := contracts.DecodePrivateStrict[AllocationFinalResponse](
+		contractstest.ReadFixture(t, "valid", "allocation-final-response-metric-integer-bound.json"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, dimension := range []string{"model_calls", "tool_calls"} {
+		t.Run(dimension, func(t *testing.T) {
+			live := *state.State.Metrics.WorkerBudget
+			retained := *final.Report.Worker.Metrics.WorkerBudget
+			live.Exhausted, retained.Exhausted = &dimension, &dimension
+			metrics := ExecutionMetrics{Tools: map[string]ToolMetrics{}, WorkerBudget: &retained}
+			if err := live.validate(); err != nil {
+				t.Fatalf("cumulative live usage rejected: %v", err)
+			}
+			if err := metrics.Validate(); err != nil {
+				t.Fatalf("cumulative retained usage rejected: %v", err)
+			}
+			if dimension == "model_calls" {
+				live.ObservedModelCalls = live.MaxModelCalls - 1
+				retained.ObservedModelCalls = retained.MaxModelCalls - 1
+			} else {
+				live.ObservedToolCalls = live.MaxToolCalls - 1
+				retained.ObservedToolCalls = retained.MaxToolCalls - 1
+			}
+			if live.validate() == nil || metrics.Validate() == nil {
+				t.Fatal("exhaustion below a full window was accepted")
+			}
+		})
+	}
+}

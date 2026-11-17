@@ -447,7 +447,7 @@ func (m ExecutionMetrics) Validate() error {
 			budget.MaxTotalTokens <= 0 || budget.MaxTotalTokens > contracts.MaxWorkerTotalTokens {
 			return contracts.Invalidf("worker budget limits are invalid")
 		}
-		if budget.ObservedModelCalls < 0 || budget.ObservedModelCalls > budget.MaxModelCalls ||
+		if !metricIntegerInRange(budget.ObservedModelCalls) ||
 			!metricIntegerInRange(budget.ObservedToolCalls) ||
 			!metricIntegerInRange(budget.ObservedTotalTokens) ||
 			!metricIntegerInRange(budget.TokenUsageUnavailable) {
@@ -456,11 +456,11 @@ func (m ExecutionMetrics) Validate() error {
 		if budget.Exhausted != nil {
 			switch *budget.Exhausted {
 			case "model_calls":
-				if budget.ObservedModelCalls != budget.MaxModelCalls {
+				if budget.ObservedModelCalls < budget.MaxModelCalls {
 					return contracts.Invalidf("worker model-call exhaustion is inconsistent")
 				}
 			case "tool_calls":
-				if budget.ObservedToolCalls != budget.MaxToolCalls {
+				if budget.ObservedToolCalls < budget.MaxToolCalls {
 					return contracts.Invalidf("worker tool-call exhaustion is inconsistent")
 				}
 			case "total_tokens":

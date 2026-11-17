@@ -17645,8 +17645,16 @@ components:
         model: {type: string, minLength: 1, maxLength: 256}
         contextWindowTokens: {type: integer, minimum: 1, maximum: 100000000}
         maxOutputTokens: {type: integer, minimum: 1, maximum: 9007199254740991}
-        maxModelCalls: {type: integer, minimum: 1, maximum: 1000}
-        maxToolCalls: {type: integer, minimum: 1, maximum: 10000}
+        maxModelCalls:
+          type: integer
+          minimum: 1
+          maximum: 1000
+          description: Model-call capacity per committed context window for compact@1 Workers; cumulative per invocation otherwise. Compactors use their own one-call policy. Observed usage remains cumulative.
+        maxToolCalls:
+          type: integer
+          minimum: 1
+          maximum: 10000
+          description: Tool-call capacity per committed context window for compact@1 Workers, a summary trigger for terminal@1 Workers, and cumulative per invocation otherwise. Observed usage remains cumulative.
         maxWorkerCalls: {type: integer, minimum: 1, maximum: 10000}
         maxTotalTokens: {type: integer, minimum: 1, maximum: 100000000}
         temperature: {type: number, minimum: 0}

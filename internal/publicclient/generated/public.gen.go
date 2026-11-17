@@ -9963,14 +9963,18 @@ type MetricsSummary struct {
 
 // ModelPolicyBody defines model for ModelPolicyBody.
 type ModelPolicyBody struct {
-	ContextWindowTokens *int     `json:"contextWindowTokens,omitempty"`
-	MaxModelCalls       *int     `json:"maxModelCalls,omitempty"`
-	MaxOutputTokens     *int     `json:"maxOutputTokens,omitempty"`
-	MaxToolCalls        *int     `json:"maxToolCalls,omitempty"`
-	MaxTotalTokens      *int     `json:"maxTotalTokens,omitempty"`
-	MaxWorkerCalls      *int     `json:"maxWorkerCalls,omitempty"`
-	Model               string   `json:"model"`
-	Temperature         *float32 `json:"temperature,omitempty"`
+	ContextWindowTokens *int `json:"contextWindowTokens,omitempty"`
+
+	// MaxModelCalls Model-call capacity per committed context window for compact@1 Workers; cumulative per invocation otherwise. Compactors use their own one-call policy. Observed usage remains cumulative.
+	MaxModelCalls   *int `json:"maxModelCalls,omitempty"`
+	MaxOutputTokens *int `json:"maxOutputTokens,omitempty"`
+
+	// MaxToolCalls Tool-call capacity per committed context window for compact@1 Workers, a summary trigger for terminal@1 Workers, and cumulative per invocation otherwise. Observed usage remains cumulative.
+	MaxToolCalls   *int     `json:"maxToolCalls,omitempty"`
+	MaxTotalTokens *int     `json:"maxTotalTokens,omitempty"`
+	MaxWorkerCalls *int     `json:"maxWorkerCalls,omitempty"`
+	Model          string   `json:"model"`
+	Temperature    *float32 `json:"temperature,omitempty"`
 }
 
 // ModelPolicyRef defines model for ModelPolicyRef.

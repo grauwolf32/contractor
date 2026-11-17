@@ -237,8 +237,7 @@ func (s WorkerAllocationState) validate() error {
 func (b WorkerStateBudget) validate() error {
 	if b.MaxModelCalls == 0 || b.MaxModelCalls > contracts.MaxWorkerModelCalls ||
 		b.MaxToolCalls == 0 || b.MaxToolCalls > contracts.MaxWorkerToolCalls ||
-		b.MaxTotalTokens == 0 || b.MaxTotalTokens > contracts.MaxWorkerTotalTokens ||
-		b.ObservedModelCalls > b.MaxModelCalls {
+		b.MaxTotalTokens == 0 || b.MaxTotalTokens > contracts.MaxWorkerTotalTokens {
 		return contracts.Invalidf("Worker State budget is invalid")
 	}
 	if b.Exhausted == nil {
@@ -246,11 +245,11 @@ func (b WorkerStateBudget) validate() error {
 	}
 	switch *b.Exhausted {
 	case "model_calls":
-		if b.ObservedModelCalls != b.MaxModelCalls {
+		if b.ObservedModelCalls < b.MaxModelCalls {
 			return contracts.Invalidf("Worker State model-call exhaustion is inconsistent")
 		}
 	case "tool_calls":
-		if b.ObservedToolCalls != b.MaxToolCalls {
+		if b.ObservedToolCalls < b.MaxToolCalls {
 			return contracts.Invalidf("Worker State tool-call exhaustion is inconsistent")
 		}
 	case "total_tokens":

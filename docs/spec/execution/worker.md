@@ -444,8 +444,9 @@ failure (FAIL-WRK-2).
 
 **WRK-R22.** Each prepared Python ADK Worker independently
 enforces the model-call, tool-call and provider-reported token
-ceilings embedded in its exact ModelPolicy. Model and token ceilings are cumulative
-per invocation. Tool capacity is per context window for `compact@1` (WRK-R185);
+ceilings embedded in its exact ModelPolicy. Token ceilings are cumulative per
+invocation. Model and tool capacity are per context window for `compact@1`
+(WRK-R185); otherwise model capacity is cumulative per invocation. For tools,
 `terminal@1` uses it as a terminal summary trigger (WRK-R140), while `none`
 keeps a hard cumulative tool ceiling. Each main SDK run receives an explicit
 finite call ceiling from that policy; SDK defaults or environment overrides cannot
@@ -470,8 +471,9 @@ Runtime then constructs one safe `WorkerFailure` with code
 `retryable: true`; the model does not serialize that failure. It is neither a
 Planner budget termination nor a direct StageExecution write: Passthrough
 supplies a normal failed candidate to Scheduler, whose Workflow transition
-owns whole-Stage retry. Reaching tool capacity with `terminal@1` or `compact@1`
-instead follows the selected context strategy at the safe boundary
+owns whole-Stage retry. Reaching tool capacity with `terminal@1`, or model or
+tool capacity with `compact@1`, instead follows the selected context strategy
+at the safe boundary
 (WRK-R140, WRK-R185).
 
 ### Result layers and the wire contract
@@ -1555,22 +1557,29 @@ request, Runtime compares the provider-reported prompt tokens of the latest
 main model response of the invocation with the boundary; when it is reached,
 the request is not sent or charged and a checkpoint starts instead. Missing
 usage never triggers a token-based checkpoint and is never estimated from bytes.
-Independently, reaching `maxToolCalls` admitted tools since invocation start or
-the last committed checkpoint requests compaction at the same safe boundary,
+Independently, reaching `maxModelCalls` main-model admissions or `maxToolCalls`
+admitted tools since invocation start or the last committed checkpoint requests
+compaction at the same safe boundary, before another main call is sent or charged,
 even with missing token usage. Overflow calls in a parallel batch receive
 `tool_call_not_executed` without execution or charge; admitted siblings finish
 before compaction. Only a committed checkpoint clears the prompt measurement and
-opens a new tool window. Cumulative tool telemetry, model/token budgets, the
-absolute deadline and history/compaction bounds are not reset. A checkpoint with
-no eligible history still fails as `ineffective` (WRK-R187); it never grants
-tool capacity without compression. There is no fallback to another strategy.
+opens complete new model and tool windows together, regardless of the trigger.
+Cumulative model/tool telemetry, token budgets, unavailable-usage observations,
+the absolute deadline and history/compaction bounds are not reset. A checkpoint
+with no eligible history still fails as `ineffective` (WRK-R187); failed, stale,
+cancelled or unverified checkpoints grant no capacity. There is no fallback
+to another strategy.
 
 **WRK-R186.** The compactor is one tool-free, one-shot model call per
 checkpoint through its own model client, built from the pinned compactor
 ModelPolicy with no tools, Skills, workspace or summarizer. It charges the
-owning invocation's hard budgets and metrics like the result finalizer: one
-model call and its reported tokens, under the separate model phase
-`compaction`. Its usage never replaces the main prompt measurement of
+owning invocation's cumulative model-call metrics and token budget exactly once,
+under the separate model phase `compaction`. It is admitted independently of
+the exhausted main-model window and consumes none of the new window. Only this
+phase has that call-capacity exception: the result finalizer retains its one-shot
+limits and requires model capacity in the current window, as well as cumulative
+token capacity. Cancellation and the original deadline fence both phases.
+Compactor usage never replaces the main prompt measurement of
 WRK-R185. It also stays within the compactor policy's own `maxModelCalls: 1`
 and `maxTotalTokens`. Exhausting the owning invocation's budget returns
 `worker_budget_exhausted`; exceeding the compactor's own limits returns
@@ -1636,7 +1645,10 @@ exactly equal stored marker counts as committed; no stored marker returns
 conflicting marker or an unreadable session fences the allocation's session
 lifecycle and returns `worker_compaction_failed` (`marker_unverified`). The
 checkpoint becomes visible to the Worker only after the commit. Runtime never
-appends a second marker for the same checkpoint.
+appends a second marker for the same checkpoint. The invocation budget owner
+advances both call baselines once for that confirmed generation, including an
+exact reconciled commit, after joined State publication and the cancellation
+fence. A repeated callback or SDK turn cannot renew capacity.
 
 #### Continuation
 
@@ -1658,8 +1670,8 @@ labelled as model-written historical data with unverified references, and a
 continuation hint, followed by the retained uncompacted events with thought
 parts removed. Markers and compacted events are omitted; an unknown event in
 the session returns `worker_compaction_failed` (`foreign_event`). The
-continuation keeps the invocation's deadline, model/token budgets, tool history,
-observations and artifact authority; the tool window resets only as WRK-R185
+continuation keeps the invocation's deadline, cumulative token budget, tool history,
+observations and artifact authority; both call windows renew only as WRK-R185
 specifies. A valid result after compaction is an
 ordinary `WorkerResult` with `summarized: false`, finalized as usual
 (WRK-R46).

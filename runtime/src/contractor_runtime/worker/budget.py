@@ -28,7 +28,9 @@ class _InvocationBudget:
     summary_prompt_boundary: int | None = None
     model_calls: int = 0
     tool_calls: int = 0
+    checkpoint_model_calls: int = 0
     checkpoint_tool_calls: int = 0
+    checkpoint_generation: int = 0
     total_tokens: int = 0
     token_usage_unavailable: int = 0
     latest_prompt_tokens: int | None = None
@@ -48,10 +50,20 @@ class _InvocationBudget:
 
     def before_model_call(self) -> None:
         self._require_token_capacity()
-        if self.model_calls >= self.max_model_calls:
+        if self.model_limit_reached():
             raise self._exhausted("model_calls", self.max_model_calls, self.model_calls)
         self.model_calls += 1
         self._sync()
+
+    def before_compactor_call(self) -> None:
+        """Charge the one-shot compactor without borrowing main-window capacity."""
+
+        self._require_token_capacity()
+        self.model_calls += 1
+        self._sync()
+
+    def model_limit_reached(self) -> bool:
+        return self.model_calls - self.checkpoint_model_calls >= self.max_model_calls
 
     def before_tool_call(self) -> None:
         self._require_token_capacity()
@@ -63,10 +75,17 @@ class _InvocationBudget:
     def tool_limit_reached(self) -> bool:
         return self.tool_calls - self.checkpoint_tool_calls >= self.max_tool_calls
 
-    def commit_tool_checkpoint(self) -> None:
-        """Open a new tool window only after the context checkpoint is committed."""
+    def commit_call_checkpoint(self, generation: int) -> None:
+        """Renew both windows once for the owner's confirmed context generation."""
 
+        if generation == self.checkpoint_generation:
+            return
+        if generation != self.checkpoint_generation + 1:
+            raise RuntimeError("Worker call-window checkpoint generation is stale")
+        self.checkpoint_generation = generation
+        self.checkpoint_model_calls = self.model_calls
         self.checkpoint_tool_calls = self.tool_calls
+        self.latest_prompt_tokens = None
 
     def after_model_response(self, usage: Any | None, *, record_prompt: bool = True) -> None:
         """Charge one response; only the main model measures the prompt (WRK-R185)."""
