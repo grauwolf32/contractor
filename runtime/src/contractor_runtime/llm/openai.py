@@ -7,8 +7,9 @@ import contextlib
 import copy
 import json
 import re
-from collections.abc import AsyncGenerator, Mapping, Sequence
-from typing import Any, override
+from collections.abc import AsyncGenerator, Callable, Mapping, Sequence
+from contextvars import ContextVar
+from typing import Any, Protocol, override
 
 from google.adk.models._capabilities import LlmCapabilities
 from google.adk.models.base_llm import BaseLlm
@@ -76,10 +77,19 @@ class _AdapterFailure(RuntimeError):
         super().__init__(code)
 
 
+class GatewayCallObserver(Protocol):
+    def capture_model_input(self, content: Callable[[], dict[str, Any]]) -> None: ...
+
+    def capture_model_finish_reason(self, reason: str, *, known: bool) -> None: ...
+
+
 class OpenAICompatibleGatewayLlm(BaseLlm):
     """Translate the ADK model contract to OpenAI chat completions."""
 
     _client_handle: GatewayClientHandle = PrivateAttr()
+    _observer: ContextVar[GatewayCallObserver | None] = PrivateAttr(
+        default_factory=lambda: ContextVar("gateway_call_observer", default=None)
+    )
 
     def __init__(self, *, model: str, client_handle: GatewayClientHandle) -> None:
         super().__init__(model=model)
@@ -96,6 +106,14 @@ class OpenAICompatibleGatewayLlm(BaseLlm):
 
     async def close(self) -> None:
         await self._client_handle.close()
+
+    @contextlib.asynccontextmanager
+    async def observe_calls(self, observer: GatewayCallObserver) -> AsyncGenerator[None]:
+        token = self._observer.set(observer)
+        try:
+            yield
+        finally:
+            self._observer.reset(token)
 
     @override
     async def generate_content_async(
@@ -120,10 +138,21 @@ class OpenAICompatibleGatewayLlm(BaseLlm):
                 else asyncio.timeout(self._client_handle.operation_timeout_seconds)
             )
             async with operation:
-                completion = await self._client_handle.complete(
-                    _completion_request(self.model, llm_request)
-                )
+                request = _completion_request(self.model, llm_request)
+                observer = self._observer.get()
+                if observer is not None:
+                    with contextlib.suppress(Exception):
+                        observer.capture_model_input(lambda: _observed_input(request))
+                completion = await self._client_handle.complete(request)
                 received = True
+                if observer is not None:
+                    with contextlib.suppress(Exception):
+                        choice = _first_choice(completion)
+                        reason = choice.get("finish_reason")
+                        if isinstance(reason, str) and reason:
+                            observer.capture_model_finish_reason(
+                                reason, known=reason in _FINISH_REASON
+                            )
                 response = await to_thread_until_done(
                     _to_llm_response, completion, name="gateway-adk-response"
                 )
@@ -180,6 +209,43 @@ def _completion_request(model: str, request: LlmRequest) -> dict[str, Any]:
     if config is not None:
         _copy_generation_options(payload, config)
     return payload
+
+
+def _observed_input(request: dict[str, Any]) -> dict[str, Any]:
+    contents = []
+    instruction = None
+    for message in request["messages"]:
+        role = message["role"]
+        text = message["content"]
+        if role == "system":
+            instruction = text
+            continue
+        if role == "tool":
+            try:
+                response = json.loads(text)
+            except json.JSONDecodeError:
+                response = text
+            parts = [{"functionResponse": {"id": message["tool_call_id"], "response": response}}]
+        else:
+            parts = [] if text is None else [{"text": text}]
+            parts.extend(
+                {
+                    "functionCall": {
+                        "id": call["id"],
+                        "name": call["function"]["name"],
+                        "args": json.loads(call["function"]["arguments"]),
+                    }
+                }
+                for call in message.get("tool_calls", [])
+            )
+        contents.append({"role": role, "parts": parts})
+    return {
+        "contents": contents,
+        "systemInstruction": instruction,
+        "tools": [
+            {"functionDeclarations": [tool["function"] for tool in request.get("tools", [])]}
+        ],
+    }
 
 
 def _complete_tool_call_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -443,13 +509,17 @@ def _copy_generation_options(payload: dict[str, Any], config: types.GenerateCont
             payload[name] = value
 
 
-def _to_llm_response(completion: Any) -> LlmResponse:
+def _first_choice(completion: Any) -> Mapping[str, Any]:
     if not isinstance(completion, Mapping):
         raise _AdapterFailure("InvalidGatewayResponse")
     choices = completion.get("choices")
     if not isinstance(choices, list) or not choices or not isinstance(choices[0], Mapping):
         raise _AdapterFailure("InvalidGatewayResponse")
-    choice = choices[0]
+    return choices[0]
+
+
+def _to_llm_response(completion: Any) -> LlmResponse:
+    choice = _first_choice(completion)
     message = choice.get("message")
     if not isinstance(message, Mapping):
         raise _AdapterFailure("InvalidGatewayResponse")

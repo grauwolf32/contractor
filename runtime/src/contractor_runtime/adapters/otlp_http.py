@@ -131,6 +131,13 @@ class _OTLPSpan(RuntimeSpan):
         self._started_monotonic_ns = started_monotonic_ns
         self._ended = False
         self._content: dict[str, str] = {}
+        self._finish_reason: str | None = None
+
+    def capture_finish_reason(self, reason: str, *, known: bool) -> None:
+        if self._name == "contractor.worker.model" and not self._ended:
+            if not known:
+                reason = self._instrumentation._redactor.text(reason)
+            self._finish_reason = _truncate_utf8(reason, MAX_STRING_ATTRIBUTE_BYTES)
 
     def capture_content(self, field: str, value: object) -> None:
         if self._ended or field not in {"input", "output"}:
@@ -141,7 +148,11 @@ class _OTLPSpan(RuntimeSpan):
         value = redactor.value(value, redact=False)
         self._content.update(
             content_attributes(
-                field, value, model=self._name == "contractor.worker.model", redact=redactor.value
+                field,
+                value,
+                model=self._name == "contractor.worker.model",
+                redact=redactor.value,
+                finish_reason=self._finish_reason,
             )
         )
 
@@ -167,9 +178,11 @@ class _OTLPSpan(RuntimeSpan):
             finished_unix_ns=self._started_unix_ns + duration_ns,
             attributes=merged,
             content=self._content,
+            finish_reason=self._finish_reason,
         )
         self._attributes.clear()
         self._content.clear()
+        self._finish_reason = None
 
     def __repr__(self) -> str:
         return f"_OTLPSpan(name={self._name!r}, ended={self._ended!r})"
@@ -244,6 +257,7 @@ class OTLPInstrumentation(RuntimeInstrumentation):
         finished_unix_ns: int,
         attributes: Mapping[str, TelemetryAttribute],
         content: Mapping[str, str] | None = None,
+        finish_reason: str | None = None,
     ) -> None:
         if self._closed:
             self._metrics.record_dropped_spans("shutdown", 1)
@@ -290,6 +304,10 @@ class OTLPInstrumentation(RuntimeInstrumentation):
                 span.attributes.add(
                     key="gen_ai.provider.name", value=AnyValue(string_value="contractor.gateway")
                 )
+                if finish_reason:
+                    span.attributes.add(
+                        key="gen_ai.response.finish_reasons", value=_any_value((finish_reason,))
+                    )
                 if "model.alias" in safe_attributes:
                     span.attributes.add(
                         key="gen_ai.request.model",

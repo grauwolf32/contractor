@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-65 open tasks: 9 in progress, 43 pending, 13 deferred. 1600 finished: 1582 completed, 18 archived.
+65 open tasks: 10 in progress, 42 pending, 13 deferred. 1600 finished: 1582 completed, 18 archived.
 
 ## In progress
 
@@ -20,6 +20,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V463-005](v463-005-worker-gateway-traces.yml) | operations | defect | P2 | Preserve Gateway finish reasons and effective Worker model input in traces |
 
 ## Pending
 
@@ -99,12 +100,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V411-018](v411-018-pentest-ui-journey.yml) | feature | P1 | V411-015, V411-017 | Build the ordinary HTTP Audit setup and evidence UI journey |
-
-### Operations, authentication, CLI and deployment (`operations`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V463-005](v463-005-worker-gateway-traces.yml) | defect | P2 | — | Preserve Gateway finish reasons and effective Worker model input in traces |
 
 ### Public API and wire contracts (`api-contracts`)
 

@@ -54,14 +54,12 @@ def test_model_tool_and_finalizer_capture_opt_in(enabled: bool) -> None:
         context = FakeContext("capture-test")
         plugin.prepare_invocation(invocation_id=context.invocation_id, subtask_id="1")
         await plugin.before_run_callback(invocation_context=context)
-        await plugin.before_model_callback(
-            callback_context=context,
-            llm_request=SimpleNamespace(
-                contents=[{"text": "prompt-secret-canary"}],
-                config=SimpleNamespace(
-                    system_instruction="system-canary", tools=[{"name": "probe"}]
-                ),
-            ),
+        await plugin.before_model_callback(callback_context=context, llm_request=object())
+        plugin.capture_model_input(
+            lambda: {
+                "contents": [{"role": "user", "parts": [{"text": "prompt-secret-canary"}]}],
+                "systemInstruction": "system-canary",
+            }
         )
         await plugin.after_model_callback(
             callback_context=context,

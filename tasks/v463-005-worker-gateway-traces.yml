@@ -6,7 +6,7 @@ epic: operations
 kind: defect
 introduced_by: V388-002
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V388-002, V417-003, V463-002]
 languages: [python, json, markdown, yaml]
 goal: >-
