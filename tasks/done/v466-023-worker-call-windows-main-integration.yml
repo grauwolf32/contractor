@@ -5,7 +5,8 @@ milestone: worker-context-compaction-2026-10
 epic: planner-worker
 kind: chore
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: b1840cc3c6934c2b50ff340f214e2a0db1ed2a0b
 depends_on: [V417-011]
 languages: [python, go, typescript, markdown]
 goal: Local main contains the verified Worker call-window change and its independent scanner and Library changes, with all primary uncommitted work preserved.
@@ -15,6 +16,7 @@ context:
   main_before: 9678b8d330f172919e8a24541af23a32d511f021
   boundary: Prepare the two-parent merge in an isolated checkout, regenerate shared generated metadata, and verify the combined revision. Guard the main ref advance against concurrent movement; restore only clean changed paths and advance only the index base of the protected generated backlog. All six primary working files retain exact bytes and modes, and the staged delta remains exact.
   design: docs/testing/README.md
+  verification: tasks/evidence/v466-023-main-integration-20261117.json
   verification_reuse: V417-011 already passed its full Runtime and deterministic process suites on the source commit. Re-run the owning compaction and Audit process gates, wire, API, affected Go packages, UI and lint on the combined revision. Independent source inputs must retain the accepted branch or current-main content.
 scope:
   in:
@@ -50,3 +52,9 @@ tests:
   covers: [A1, A2, A4]
 - command: Verify protected primary file bytes, modes and staged delta against the private snapshot before and after guarded main installation
   covers: [A3]
+verification_results:
+- All seven deterministic boundary gates passed on the clean merge commit with real PostgreSQL configured.
+- Worker compaction has 577 Runtime and seven process cases; Audit completion has 199 Go and 457 Runtime cases with no selected skips. Full UI verification has 2536 passes and one expected negative case.
+- Main contains the exact two-parent merge. All 69 independent current-main paths and 34 independent source paths retain their pinned Git objects; only generated metadata needed conflict resolution.
+- All six primary working files retain exact bytes and modes, and the staged delta remains unchanged after main installation. Only the committed index base of the dirty generated backlog advances.
+- The owned database was dropped after zero active clients were observed; absence was verified. Optional heavy-I/O and Podman skips are excluded from passing coverage. No remote push, live experiment or deployment was performed.
