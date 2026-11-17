@@ -397,8 +397,7 @@ func TestOperationsExposeDetachedFrozenWorkspaceCapabilities(t *testing.T) {
 
 func TestOperationsReplayIsOrderedBoundedAndNotifiesWithoutBlocking(t *testing.T) {
 	registry := newTestRegistry(t, newTestClock())
-	initial := registry.SnapshotOperations().Cursor
-	updates, cancel := registry.SubscribeOperations()
+	initial, updates, cancel := registry.SubscribeOperations()
 	defer cancel()
 	if err := registry.InvalidateOperations(OperationsConfiguration, "config-v1"); err != nil {
 		t.Fatal(err)
@@ -479,7 +478,7 @@ func TestOperationsReplayIsOrderedBoundedAndNotifiesWithoutBlocking(t *testing.T
 
 func TestOperationsHistoryKeepsTheLatestChangesInOrderWithoutCopying(t *testing.T) {
 	registry := newTestRegistry(t, newTestClock())
-	updates, cancel := registry.SubscribeOperations()
+	initial, updates, cancel := registry.SubscribeOperations()
 	defer cancel()
 	// The reference keeps every change; the registry must keep its last 255.
 	var reference []OperationsChange
@@ -489,7 +488,7 @@ func TestOperationsHistoryKeepsTheLatestChangesInOrderWithoutCopying(t *testing.
 			t.Fatal(err)
 		}
 		changes, current, err := registry.ReplayOperations(OperationsCursor{
-			Generation: registry.SnapshotOperations().Cursor.Generation, Revision: 0,
+			Generation: initial.Generation, Revision: 0,
 		})
 		if len(reference) < operationsHistoryLimit {
 			if err != nil || len(changes) != len(reference)+1 {

@@ -97,14 +97,12 @@ func (s *socket) pumpRun(ctx context.Context, current *subscription, after *Curs
 }
 
 func (s *socket) pumpOperations(ctx context.Context, current *subscription, after *Cursor) {
-	updates, cancelUpdates := s.hub.operations.SubscribeOperations()
+	start, updates, cancelUpdates := s.hub.operations.SubscribeOperations()
 	defer cancelUpdates()
-	snapshot := s.hub.operations.SnapshotOperations()
-	if !contracts.ValidResourceID(snapshot.Cursor.Generation) {
+	if !contracts.ValidResourceID(start.Generation) {
 		s.sendError(current.id, apierror.Overloaded, "Operations stream is temporarily unavailable")
 		return
 	}
-	start := snapshot.Cursor
 	startCursor := operationsCursor(start)
 	var replay []controlplane.OperationsChange
 	if after != nil {

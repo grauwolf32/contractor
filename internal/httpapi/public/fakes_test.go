@@ -409,15 +409,16 @@ func (f *fakeOperationsReader) ReplayOperations(
 	return result, f.snapshot.Cursor, nil
 }
 
-func (f *fakeOperationsReader) SubscribeOperations() (<-chan struct{}, func()) {
+func (f *fakeOperationsReader) SubscribeOperations() (controlplane.OperationsCursor, <-chan struct{}, func()) {
 	f.mu.Lock()
+	cursor := f.snapshot.Cursor
 	f.nextWatcher++
 	id := f.nextWatcher
 	updates := make(chan struct{}, 1)
 	f.watchers[id] = updates
 	f.mu.Unlock()
 	var once sync.Once
-	return updates, func() {
+	return cursor, updates, func() {
 		once.Do(func() {
 			f.mu.Lock()
 			delete(f.watchers, id)
