@@ -6,7 +6,8 @@ epic: operations
 kind: defect
 introduced_by: V388-002
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: beefff79e4863110819eee771a3482fc3c49567d
 depends_on: [V388-002, V417-003, V463-002]
 languages: [python, json, markdown, yaml]
 goal: >-
@@ -105,3 +106,12 @@ tests:
     covers: [A1, A2, A3, A4]
   - command: make lint
     covers: [A1, A2, A3, A4]
+
+implementation_notes:
+  - The main Worker observes the translated Gateway request on its existing span; an ADK callback alone cannot account for the adapter's message and tool-pair translation.
+  - The Gateway adapter observes the original reason before validating the response. The exporter retains only the bounded and masked metadata, independently of output content and execution outcome.
+  - The observer is scoped to the main ADK turn. No auxiliary capture, execution contract or public report is changed.
+verification_results:
+  - The production ADK, Gateway and OTLP regressions failed before the fix on the unknown reason and missing checkpoint input, and pass after it.
+  - make test-runtime passed with 6276 tests, 173 platform or optional-tool skips, and both mandatory report validators.
+  - make lint passed, including task/spec and Runtime import boundaries.
