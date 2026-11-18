@@ -33,9 +33,8 @@ type RunRepository interface {
 }
 
 type OperationsSource interface {
-	SnapshotOperations() controlplane.OperationsSnapshot
 	ReplayOperations(controlplane.OperationsCursor) ([]controlplane.OperationsChange, controlplane.OperationsCursor, error)
-	SubscribeOperations() (<-chan struct{}, func())
+	SubscribeOperations() (controlplane.OperationsCursor, <-chan struct{}, func())
 }
 
 // RunNotificationSource delivers the Run ID of every committed Run event to

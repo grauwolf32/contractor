@@ -168,9 +168,10 @@ func TestPostgresGatewayRecoveryDoesNotResendAbandonedRequest(t *testing.T) {
 	pool := isolatedStreamlinePool(t, ctx)
 	release := make(chan struct{})
 	var calls atomic.Int32
-	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		calls.Add(1)
-		// Received but unanswered: a local model still generating.
+		_, _ = w.Write([]byte(`{"choices": [`))
+		w.(http.Flusher).Flush()
 		<-release
 	}))
 	t.Cleanup(server.Close)

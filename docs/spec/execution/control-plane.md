@@ -1601,12 +1601,11 @@ different authorization role (CTL-R23, CTL-R38, CTL-R145).
   `last_seen` serves observation and routing diagnostics (CTL-R42);
   probe failures stay startup diagnostics (CTL-R31); an adapter
   mismatch is visible in Operations (CTL-R29).
-- The Operations REST snapshot of the in-process Control Plane registry, its
-  process generation and revision, its pagination cursors and its fields
-  (including `lastAcceptedHeartbeat`, `confirmedLeaseUntil` and the separate
-  observed and authoritative allocation fields) are specified in
-  [operations](../operations/operations.md). Retired Registry entries leave
-  that current-state snapshot (CTL-R66).
+- [Operations](../operations/operations.md) defines the full registry snapshot,
+  its generation and revision, and the continuation cursors for the two live
+  lists. It also defines `lastAcceptedHeartbeat`, `confirmedLeaseUntil` and the
+  separate observed and authoritative allocation fields. Retired registry
+  entries leave the current-state view (CTL-R66).
 
 **CTL-R167.** Private HTTP observation publication requires the allocation's
 explicit pinned collection policy and ordinary allocation write gate. Identity,

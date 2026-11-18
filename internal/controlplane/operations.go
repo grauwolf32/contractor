@@ -380,10 +380,12 @@ func (r *InMemoryRegistry) ReplayOperations(
 	return result, current, nil
 }
 
-// SubscribeOperations emits coalescing wake-up hints. ReplayOperations closes
-// every race and detects dropped hints, so producers never wait for readers.
-func (r *InMemoryRegistry) SubscribeOperations() (<-chan struct{}, func()) {
+// SubscribeOperations registers a watcher and captures its starting cursor
+// under the same lock. ReplayOperations closes every race and detects dropped
+// hints, so producers never wait for readers.
+func (r *InMemoryRegistry) SubscribeOperations() (OperationsCursor, <-chan struct{}, func()) {
 	r.mu.Lock()
+	cursor := OperationsCursor{Generation: r.operationsGeneration, Revision: r.operationsRevision}
 	r.nextOperationsWatcher++
 	id := r.nextOperationsWatcher
 	updates := make(chan struct{}, 1)
@@ -398,7 +400,7 @@ func (r *InMemoryRegistry) SubscribeOperations() (<-chan struct{}, func()) {
 			r.mu.Unlock()
 		})
 	}
-	return updates, cancel
+	return cursor, updates, cancel
 }
 
 func (r *InMemoryRegistry) InvalidateOperations(

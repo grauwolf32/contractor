@@ -90,7 +90,7 @@ func (h *operationsHandlers) listRuntimeAgents(w http.ResponseWriter, r *http.Re
 	if err != nil {
 		return err
 	}
-	after, err := h.operationsPageAfter(encodedCursor, "operations:runtime-agents", snapshot.Cursor)
+	after, err := h.operationsPageAfter(encodedCursor, "operations:runtime-agents", snapshot.Cursor.Generation)
 	if err != nil {
 		return err
 	}
@@ -105,7 +105,7 @@ func (h *operationsHandlers) listRuntimeAgents(w http.ResponseWriter, r *http.Re
 		}
 	}
 	items, page, err := paginate(h.cursors, items, limit, "operations:runtime-agents", func(last controlplane.RuntimeAgentObservation) []string {
-		return operationsPagePosition(snapshot.Cursor, last.InstanceID)
+		return []string{snapshot.Cursor.Generation, last.InstanceID}
 	})
 	if err != nil {
 		return err
@@ -125,7 +125,7 @@ func (h *operationsHandlers) listAllocations(w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		return err
 	}
-	after, err := h.operationsPageAfter(encodedCursor, "operations:allocations", snapshot.Cursor)
+	after, err := h.operationsPageAfter(encodedCursor, "operations:allocations", snapshot.Cursor.Generation)
 	if err != nil {
 		return err
 	}
@@ -140,7 +140,7 @@ func (h *operationsHandlers) listAllocations(w http.ResponseWriter, r *http.Requ
 		}
 	}
 	items, page, err := paginate(h.cursors, items, limit, "operations:allocations", func(last controlplane.AllocationObservation) []string {
-		return operationsPagePosition(snapshot.Cursor, last.AllocationID)
+		return []string{snapshot.Cursor.Generation, last.AllocationID}
 	})
 	if err != nil {
 		return err
@@ -163,22 +163,16 @@ func (h *operationsHandlers) operationsSnapshot() (controlplane.OperationsSnapsh
 func (h *operationsHandlers) operationsPageAfter(
 	encoded string,
 	kind string,
-	cursor controlplane.OperationsCursor,
+	generation string,
 ) (string, error) {
-	values, err := h.cursors.decodePageCursor(encoded, kind, 3)
+	values, err := h.cursors.decodePageCursor(encoded, kind, 2)
 	if err != nil || len(values) == 0 {
 		return "", err
 	}
-	revision, parseErr := strconv.ParseUint(values[1], 10, 64)
-	if parseErr != nil || strconv.FormatUint(revision, 10) != values[1] ||
-		values[0] != cursor.Generation || revision != cursor.Revision {
-		return "", fmt.Errorf("%w: Operations page cursor requires resynchronization", errInvalidRequest)
+	if values[0] != generation {
+		return "", fmt.Errorf("%w: Operations list cursor belongs to a different Server generation", errInvalidRequest)
 	}
-	return values[2], nil
-}
-
-func operationsPagePosition(cursor controlplane.OperationsCursor, after string) []string {
-	return []string{cursor.Generation, strconv.FormatUint(cursor.Revision, 10), after}
+	return values[1], nil
 }
 
 func operationsCursor(source controlplane.OperationsCursor) operationsCursorResponse {

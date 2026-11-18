@@ -1,0 +1,48 @@
+schema_version: "1.0"
+id: V470-006
+title: Derive durable cost from the same normalized report used for telemetry
+milestone: llm-cost-reporting-2026-11
+epic: operations
+kind: chore
+introduced_by: V458-002
+priority: P3
+status: completed
+depends_on: []
+languages: [go]
+goal: Each Planner or allocation report passes through one telemetry normalization before its diagnostic receipt and cost contribution are recorded.
+context:
+  specification: docs/spec/platform/observability.md#OBS-R123
+  finding: >-
+    internal/runservice/cost_reports.go:35 and :51 normalize the original execution report again
+    after internal/telemetry/repository.go:93 and :182 have already normalized it for storage.
+    For allocations the receipt also reserves space for Runtime metadata when bounding the Worker
+    report. The cost calculation currently passes the full execution-report allowance on its second pass.
+  siblings: >-
+    Cover both allocation Worker and Planner envelopes, direct telemetry writers and the composed
+    RunService writer. Telemetry owns sanitization and receipt validation. runcost owns aggregation.
+scope:
+  in:
+    - Pass the normalized result or its cost fields from the existing telemetry write path to the existing cost writer in the same transaction.
+    - Retain the allocation envelope budget, Runtime resource policy, secret redaction, timestamps and the current behavior for idempotent, conflicting, late and incomplete reports.
+  out:
+    - Schema changes, an extra persistence read to reconstruct the contribution, or changes to cost precision, rollups and public fields.
+acceptance_criteria:
+  - id: A1
+    text: Each envelope has one normalization path. No second pass over the original payload is needed for cost. Direct telemetry writes still enforce their full validation.
+  - id: A2
+    text: With real PostgreSQL, record a near-limit allocation report with redactable content and a Planner report with known cost. Verify safe stored diagnostics, exact monetary values, call counts and completeness, and the existing receive-time semantics.
+  - id: A3
+    text: Exercise replay, a conflicting receipt, late or superseded incomplete data and transaction rollback. Totals and coverage remain correct through terminal Run state and deletion, without advancing an unrelated Audit revision.
+tests:
+  - command: 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -race -count=1 ./internal/telemetry ./internal/runservice ./internal/runcost'
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+manual_verification:
+  - check: Trace each composed writer through telemetry and cost attribution. Record which call normalizes the payload and which normalized value feeds both consumers. Check the direct telemetry writer still validates a raw envelope.
+    covers: [A1]
+implementation_commit: 3dd96d665c5b4e3fbf15b554ae6f31653cd9de42
+verification_results:
+  - >-
+    Telemetry and RunService suites passed with -race and PostgreSQL, including retry, conflict, rollback, late delivery and deletion. A local near-limit report exercise verified trimming, redaction, receive time and exact totals. Both cost writers consume the contribution returned by the single repository write.
+  - make lint passed.

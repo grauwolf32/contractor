@@ -2432,7 +2432,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Runtime Agent observations from one coherent snapshot */
+        /**
+         * List live Runtime Agent observations in ascending instanceId order
+         * @description Pass page.nextCursor to continue strictly after the last instanceId in this Server generation. Heartbeats and other registry changes allow continuation. Each page reads current membership and reports its own revision in cursor. Use GET /v1/operations/snapshot for both lists at one revision. A malformed, tampered, wrong-list or prior-generation cursor returns 400 invalid_request.
+         */
         get: operations["listRuntimeAgents"];
         put?: never;
         post?: never;
@@ -2509,7 +2512,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List authoritative and observed allocation state */
+        /**
+         * List live authoritative and observed allocation state in ascending allocationId order
+         * @description Pass page.nextCursor to continue strictly after the last allocationId in this Server generation. Heartbeats and other registry changes allow continuation. Each page reads current membership and reports its own revision in cursor. Use GET /v1/operations/snapshot for both lists at one revision. A malformed, tampered, wrong-list or prior-generation cursor returns 400 invalid_request.
+         */
         get: operations["listAllocations"];
         put?: never;
         post?: never;
@@ -13401,7 +13407,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Runtime Agent page with snapshot cursor */
+            /** @description Runtime Agent page with its observed registry cursor and pagination metadata */
             200: {
                 headers: {
                     "X-Request-ID": components["headers"]["RequestId"];
@@ -13515,7 +13521,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Allocation page with snapshot cursor */
+            /** @description Allocation page with its observed registry cursor and pagination metadata */
             200: {
                 headers: {
                     "X-Request-ID": components["headers"]["RequestId"];

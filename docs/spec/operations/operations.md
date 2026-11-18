@@ -385,9 +385,27 @@ without copying and sorting it again.
 reservation, lifecycle, report or release change advances the revision. A
 Server restart changes the generation.
 
-**OPS-R26.** Pagination cursors pin both the generation and the
-revision and fail closed when either is stale, which causes the UI to fetch a
-new snapshot (FAIL-OPS-2).
+**OPS-R26.** The Runtime Agent and allocation lists page through the live
+registry in ascending `instanceId` and `allocationId` order, respectively.
+When a page has more items, its opaque `page.nextCursor` binds the list kind,
+process generation and last returned ID. The next request starts strictly
+after that ID, even if the row has since disappeared. Heartbeats and other
+changes within the same generation allow the traversal to continue.
+
+Each page reads one consistent registry revision. Its top-level `cursor`
+identifies that page's generation and revision. With stable membership, a
+client following the pages receives every ID exactly once, including when a
+heartbeat occurs between every pair of requests. With membership changes,
+each request reads the IDs then present beyond its cursor. An insertion
+behind the cursor is skipped, a deletion before a row is read omits it, and
+a page can be empty and final after removals. The same ID never appears twice
+in a forward traversal. A client needing both lists at one revision reads
+`GET /v1/operations/snapshot` in one request.
+
+A malformed or tampered continuation, a cursor for the other list, or a
+cursor from a different process generation returns HTTP 400
+(`invalid_request`). After a generation change the client starts again
+without a page cursor (FAIL-OPS-2).
 
 **OPS-R27.** The snapshot is a current-state view, not durable
 allocation history: an allocation disappears from it after authoritative
@@ -1410,14 +1428,16 @@ the conventions of [Public API](../api/public-api.md).
 
 | Resource | Methods | Rules |
 | --- | --- | --- |
+| `/v1/operations/snapshot` | `GET` | OPS-R24, OPS-R25, OPS-R27 |
+| `/v1/operations/runtime-agents` | `GET` | OPS-R26 |
+| `/v1/operations/allocations` | `GET` | OPS-R26 |
 | `/v1/operations/settings/models` | `GET`, `PUT` | OPS-R223 to OPS-R226 |
 | `/v1/operations/settings/scheduler` | `GET`, `PUT` | OPS-R53 to OPS-R63 |
 | `/v1/operations/performance` | `GET` | OPS-R164 |
 | `/v1/operations/performance/history` | `GET` | OPS-R165 to OPS-R167 |
 | `/v1/operations/allocation-history` | `GET` | OPS-R168 to OPS-R170 |
 
-The Operations snapshot resources are in the public API schema. The
-RuntimeConfig, runtime label, runtime credential and Runtime Agent principal
+The RuntimeConfig, runtime label, runtime credential and Runtime Agent principal
 resources under `/v1/operations/` are defined in
 [Runtime config](../configuration/runtime-config.md).
 
@@ -1497,7 +1517,7 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
 
 - FAIL-OPS-1 — process setting and switch validation at startup
   (OPS-R13, OPS-R75);
-- FAIL-OPS-2 — paging the Operations snapshot (OPS-R26);
+- FAIL-OPS-2 — continuing a live Runtime Agent or allocation list (OPS-R26);
 - FAIL-OPS-3 — Edit labels dialog submission (OPS-R44);
 - FAIL-OPS-4 — Scheduler settings replacement (OPS-R56);
 - FAIL-OPS-5 — process measurement readings (OPS-R73);
@@ -1535,6 +1555,7 @@ summaries, as part of the execution report, are
 
 Errors ([registry](../platform/errors.md)):
 
+- A rejected live-list continuation returns `400 invalid_request` (OPS-R26).
 - Scheduler settings: `400`, `401`, `403`, `415` and `412`
   (OPS-R60); no wire code is defined for them here;
 - `/readyz` not ready: `503` (OPS-R115);

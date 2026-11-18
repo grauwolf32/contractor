@@ -203,16 +203,14 @@ func readResponse(
 		}
 	}()
 	if sendErr != nil {
-		var netError net.Error
-		if errors.Is(sendErr, context.DeadlineExceeded) || errors.As(sendErr, &netError) && netError.Timeout() {
-			return nil, &Failure{Code: "gateway_timeout", Retryable: true, Abandoned: delivered}, 0
-		}
-		return nil, &Failure{Code: "gateway_unavailable", Retryable: true}, 0
+		return nil, transportFailure(sendErr, delivered), 0
 	}
 	defer response.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(response.Body, limit+1))
 	if err != nil {
-		return nil, &Failure{Code: "gateway_unavailable", Retryable: true}, 0
+		// Response headers prove delivery even when the transport does not emit
+		// a WroteRequest trace. A body timeout must never cause a second send.
+		return nil, transportFailure(err, true), 0
 	}
 	if len(body) > int(limit) {
 		return nil, &Failure{Code: "invalid_gateway_response", Retryable: false}, 0
@@ -226,6 +224,14 @@ func readResponse(
 		failure.Retryable = false
 	}
 	return nil, &failure, retryAfter(response.Header)
+}
+
+func transportFailure(err error, delivered bool) *Failure {
+	var netError net.Error
+	if errors.Is(err, context.DeadlineExceeded) || errors.As(err, &netError) && netError.Timeout() {
+		return &Failure{Code: "gateway_timeout", Retryable: true, Abandoned: delivered}
+	}
+	return &Failure{Code: "gateway_unavailable", Retryable: true}
 }
 
 func retryAfter(header http.Header) float64 {

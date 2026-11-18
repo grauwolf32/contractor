@@ -19,6 +19,12 @@ func TestSendMarksOnlyDeliveredTimeoutsAbandoned(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer slow.Close()
+	partial := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"choices": [`))
+		w.(http.Flusher).Flush()
+		<-release
+	}))
+	defer partial.Close()
 	defer close(release)
 	closed, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -36,6 +42,7 @@ func TestSendMarksOnlyDeliveredTimeoutsAbandoned(t *testing.T) {
 	}{
 		// The Gateway holds the request: it may still be generating the answer.
 		{name: "delivered", url: slow.URL, want: Failure{Code: "gateway_timeout", Retryable: true, Abandoned: true}},
+		{name: "partial response", url: partial.URL, want: Failure{Code: "gateway_timeout", Retryable: true, Abandoned: true}},
 		{name: "unreachable", url: unreachable, want: Failure{Code: "gateway_unavailable", Retryable: true}},
 	} {
 		t.Run(test.name, func(t *testing.T) {

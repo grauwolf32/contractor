@@ -1,0 +1,51 @@
+schema_version: "1.0"
+id: V470-003
+title: Release a delivered Planner request when the Gateway response body times out
+milestone: run-admission-gateway-recovery
+epic: planner-worker
+kind: defect
+introduced_by: V65-002
+priority: P1
+status: completed
+depends_on: []
+languages: [go]
+goal: A slow response that has already started does not cause a duplicate model request or a new Gateway outage.
+context:
+  specification: docs/spec/execution/scheduler.md#SCH-R109
+  severity: high
+  finding: >-
+    internal/gatewayrecovery/http.go:213 reads the body after client.Do returns. A test Gateway that flushes
+    HTTP 200 and part of a JSON response and then stalls until the client's request timeout produces
+    gateway_unavailable with Abandoned false. With a live outer context Participant.Do records failed
+    and can send the request again. Commit 8112e65a7 covered a delivered timeout before headers arrived
+    but left the body-read branch of the original V65-002 request path unchanged in this respect.
+  siblings: >-
+    Participant.Do and the single-attempt Send share readResponse. Streamline and Router consume the
+    Planner transport. The Runtime already distinguishes read timeouts in its LLM client.
+scope:
+  in:
+    - Classify a timeout while reading a delivered response as abandoned and return the transient gateway_timeout result.
+    - Exercise the HTTP reader and gated attempt loop with a local HTTP server and separate request and invocation deadlines.
+  out:
+    - Changing retry policy for connection failures, incomplete reads without a timeout or complete Gateway error responses.
+acceptance_criteria:
+  - id: A1
+    text: With headers and partial bytes flushed, Send yields gateway_timeout with Retryable and Abandoned true. The regression checks the classified outcome without asserting elapsed time.
+  - id: A2
+    text: For the same response with a live outer context, Participant.Do makes exactly one HTTP request and records released. A healthy route remains available. A released recovery probe retains the existing blocked-route window.
+  - id: A3
+    text: Cancellation returns the invocation cause and releases the grant. A pre-delivery transport failure and an observed permanent rejection retain their respective classifications.
+tests:
+  - command: 'go test -race -count=1 ./internal/gatewayrecovery'
+    covers: [A1, A2, A3]
+  - command: 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -race -count=1 ./internal/planner/streamline ./internal/planner/router'
+    covers: [A2, A3]
+  - command: 'cd runtime && uv run pytest -W error tests/test_gateway_client.py tests/test_gateway_recovery.py'
+    covers: [A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+implementation_commit: 46fa3f2be5dd30930646b1f701c7795dca8ee444
+verification_results:
+  - >-
+    Gateway recovery and both Planner suites passed with -race. The real HTTP partial-response deadline produced one retryable Planner failure and one Gateway request, with no route outage. Both Runtime Gateway suites passed.
+  - make lint passed.
