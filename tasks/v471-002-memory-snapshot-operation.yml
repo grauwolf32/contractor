@@ -31,6 +31,11 @@ context:
     User decision 2026-11-20 accepts material-version grouping for deduplication
     and requests the reviewed plan on main. This task proves the exact snapshot
     independently of the later extractor and preserves its version on replay.
+    Latest user decision 2026-11-21 defers V471-004: do not add the new title-plus-
+    evidence rule for now. First-slice facts reuse existing intake, receipt replay,
+    source history and already supported producer/structural correlation. Separate
+    calls can create similar cards; no new fact matcher, material groups or possible-
+    duplicate state is required. This supersedes earlier deduplication requirements.
   proposal: docs/proposals/0055-project-facts-through-findings.md
   specification:
     - docs/spec/tools/memory.md#MEM-R18

@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-70 open tasks: 9 in progress, 48 pending, 13 deferred. 1609 finished: 1591 completed, 18 archived.
+70 open tasks: 9 in progress, 47 pending, 14 deferred. 1609 finished: 1591 completed, 18 archived.
 
 ## In progress
 
@@ -66,7 +66,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V471-001](v471-001-project-facts-shared-findings.yml) | feature | P1 | — | Record Project facts through the existing Finding owner and remove the direct publication flag |
-| [V471-004](v471-004-fact-deduplication-and-selection.yml) | feature | P1 | V471-001 | Deduplicate fact observations through Finding correlation and select exact grounds |
 
 ### Workflow catalog and document workflows (`workflows`)
 
@@ -78,7 +77,7 @@ the epics are in [epics.yml](epics.yml).
 | [V411-015](v411-015-http-pentest-workflow-presets.yml) | feature | P1 | — | Demonstrate an ordinary HTTP Workflow on the lean Audit path |
 | [V412-003](v412-003-browser-pentest-profiles-and-gate.yml) | feature | P2 | V412-001, V410-009, V411-020 | Compose optional browser investigation with truthful availability and results |
 | [V425-043](v425-043-resolve-historical-run-model-policy-snapshots.yml) | defect | P2 | — | Resolve historical Run snapshots after Workflow-owned model selection |
-| [V471-003](v471-003-workflow-fact-extraction.yml) | feature | P1 | V471-001, V471-002, V471-004 | Extract bounded Project facts in an optional passthrough Worker Stage |
+| [V471-003](v471-003-workflow-fact-extraction.yml) | feature | P1 | V471-001, V471-002 | Extract bounded Project facts in an optional passthrough Worker Stage |
 
 ### Audits (`audits`)
 
@@ -113,7 +112,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V411-018](v411-018-pentest-ui-journey.yml) | feature | P1 | V411-015, V411-017 | Build the ordinary HTTP Audit setup and evidence UI journey |
-| [V471-005](v471-005-project-facts-interface.yml) | feature | P1 | V471-003, V471-004 | Show focused Project facts separately while reusing Finding sources and hypothesis grounds |
+| [V471-005](v471-005-project-facts-interface.yml) | feature | P1 | V471-003 | Show focused Project facts separately while reusing Finding sources and hypothesis grounds |
 
 ### Public API and wire contracts (`api-contracts`)
 
@@ -158,6 +157,7 @@ the epics are in [epics.yml](epics.yml).
 | [V365-016](v365-016-fold-planner-execution-reports.yml) | persistence | 2026-10-04 | Explicit user approval of making Planner reports a mutable slot on stage_metrics. |
 | [V425-001](v425-001-apfs-opaque-leaf-normalization.yml) | workspaces | 2026-11-02 | Explicit user decision to require separate macOS filename hardening; first rescope its acceptance and dedicated coverage rather than treating this Linux fixture as a required macOS test. |
 | [V425-002](v425-002-trailmark-mirror-path-max.yml) | code-analysis | 2026-11-02 | Explicit user decision to require separate macOS long-path support; first rescope its acceptance and dedicated coverage rather than treating this Linux fixture as a required macOS test. |
+| [V471-004](v471-004-fact-deduplication-and-selection.yml) | findings | 2026-11-21 | — |
 
 ## Epics
 

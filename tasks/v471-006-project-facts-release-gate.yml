@@ -10,7 +10,7 @@ depends_on: [V471-005]
 languages: [go, python, typescript, yaml, markdown]
 goal: >-
   Prove that optional note extraction, Project facts, existing Finding admission,
-  deduplication, exact hypothesis grounds and the separate UI work together on one
+  receipt replay, exact hypothesis grounds and the separate UI work together on one
   integrated revision, with honest failure and source-retention behavior.
 context:
   authority: >-
@@ -30,10 +30,11 @@ context:
     grouping, optional Task/hypothesis origin and deferral of reverse navigation.
     Verify same-call replay and new-attempt recovery as distinct cases. Update and
     merge the reviewed planning package into main.
-    Latest user decision 2026-11-20 reuses existing Finding correlation with keys
-    derived from selected evidence. Verify its first closed HTTP header rule and
-    honest unavailable-key behavior for unsupported note claims; no universal
-    property vocabulary or second deduplication mechanism is accepted.
+    Latest user decision 2026-11-21 defers V471-004: do not add the new title-plus-
+    evidence rule for now. First-slice facts reuse existing intake, receipt replay,
+    source history and already supported producer/structural correlation. Separate
+    calls can create similar cards; no new fact matcher, material groups or possible-
+    duplicate state is required. This supersedes earlier deduplication requirements.
   proposal: docs/proposals/0055-project-facts-through-findings.md
   specification:
     - docs/spec/findings/findings.md
@@ -49,7 +50,7 @@ context:
 scope:
   in:
     - Register and run shared real Server/PostgreSQL/Runtime/scripted-Gateway process cases in the release graph.
-    - Verify direct facts/issues, optional Run-level origin, model-free snapshot, passthrough@1 extraction, existing correlation with evidence-derived keys, material grouping, explicit ground selection and responsive UI together.
+    - Verify direct facts/issues, optional Run-level origin, model-free snapshot, passthrough@1 extraction, existing receipt replay/correlation and source history, explicit ground selection and responsive UI together.
     - Exercise ambiguous replies, cancellation, claim loss, restart, source deletion and Project purge under realistic cardinality.
     - Record all executed checks, explicit skips, integrated revision and cleanup of the one owned test database and fixture resources.
   out:
@@ -57,21 +58,21 @@ scope:
     - Full graph infrastructure, automatic semantic merge or reactivating unrelated deferred tasks.
     - Reverse fact-to-hypothesis navigation and semantic-match infrastructure.
     - A separate universal deduplication engine or generic model-filled fact/property vocabulary.
+    - HTTP matching profiles, material-group readers/indexes, unique-material counters or possible-duplicate states.
 acceptance_criteria:
   - id: A1
     text: >-
       One real-process scenario records notes, snapshots selected notes through a
       model-free operation, and extracts facts in a separate passthrough@1 Stage
       with exactly one Runtime Worker and no Planner LLM call. It obtains common
-      Project Finding IDs, correlates another execution's observation qualified
-      from exact HTTP Server-header evidence through the existing path and selects
+      Project Finding IDs through existing intake and selects
       exact grounds for a hypothesis. Omitted extraction and zero output create
       no hidden call; ordinary finding has no publication flag.
       The extractor can read another authorized ordinary current-Run artifact.
       An invalid citation is rejected before publication under V471-003 A4.
-      Unqualified note claims retain citations and explicit unavailable-key reasons.
-      Shared evidence alone does not merge distinct observations. Response Date
-      changes preserve a qualified key; request/value/context changes do not.
+      Note, code and HTTP materials retain exact citations. Separate calls may
+      create similar fact cards; cross-call fact equality is not an exit criterion.
+      Existing supported producer/structural correlation keeps its guarantees.
       A batch Run publishes a general fact without Task/hypothesis and retains
       authoritative Run/Audit origin. Explicit member association is validated.
   - id: A2
@@ -81,8 +82,9 @@ acceptance_criteria:
       Deleting B releases its hypothesis registry/holds while the Project retains
       the Finding/materials. Project purge drains users and removes owned data.
       Same-call replay adds no receipt. A new attempt after partial publication
-      retains its receipt history, reuses qualified Finding identities and groups
-      reused/forked exact versions. Equal-byte independent versions stay separate.
+      retains its receipt history and exact descriptors without requiring equal
+      Finding IDs for arbitrary similar facts. Existing receipt replay is verified;
+      no new equality rule or material grouping is introduced.
       Claim loss and cancellation prohibit post-fence writes. Analyst assessment
       remains explicit on the common identity.
   - id: A3
@@ -93,7 +95,8 @@ acceptance_criteria:
       from needs review. Unassessed low and unknown records remain eligible.
       List/count predicates agree and analyst severity changes refresh membership
       without replacing Finding identity or treating a suggestion as an assessment.
-      Source groups and per-group histories remain bounded under source fanout.
+      Existing source history stays bounded under source fanout; no unique-material
+      aggregation or new group reader is required.
       Optional Task/hypothesis fields survive API, collection and result-reader
       round trips. The Audit Eval recipe has a positive real-path scripted member.
       The integrated deterministic release gate passes with no required skipped
