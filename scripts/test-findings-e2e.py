@@ -23,6 +23,7 @@ PROCESS_TESTS = (
     "TestFindingsReaderBoundariesAcrossProcesses",
     "TestFindingLocationsAcrossProcesses",
     "TestTraceFindingCoordinatesAcrossProcesses",
+    "TestProjectDocumentResponseRecoveryAcrossProcesses",
 )
 REQUIRED_TESTS = frozenset(
     (

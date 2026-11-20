@@ -16,6 +16,14 @@ import (
 // This is the ordinary Workflow production path: real Server, Runtime and
 // PostgreSQL, with a scripted provider choosing exact tools and inputs.
 func TestProjectFindingsReaderAcrossProcesses(t *testing.T) {
+	projectFindingsReview(t, false)
+}
+
+func TestProjectDocumentResponseRecoveryAcrossProcesses(t *testing.T) {
+	projectFindingsReview(t, true)
+}
+
+func projectFindingsReview(t *testing.T, recoverResponse bool) {
 	seed := domainGatewayStage{name: "findings/project-seed", tools: withMemoryTools([]string{"finding", "read_artifact", "write_text_artifact"})}
 	seed.steps = append(seed.steps, toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{"name": "proof", "text": "Project proof under selected conditions", "media_type": "text/plain"})))
 	for index := range 101 {
@@ -83,6 +91,11 @@ func TestProjectFindingsReaderAcrossProcesses(t *testing.T) {
 		selection, _ := json.Marshal(findingsToolResponses(request, "select_project_findings")[0])
 		return map[string]any{"name": "report", "media_type": "text/markdown", "text": fmt.Sprintf("101 live Project findings; 1 explicit exact snapshot.\n%s\n%s\n%s", selection, proof, negative)}, nil
 	}), finalGatewayStep("Project analysis retained", map[string]domainArtifactBinding{"report": {namespace: "findings-review", name: "report"}}))
+	if recoverResponse {
+		steps := append([]domainGatewayStep{}, reader.steps[:4]...)
+		steps = append(steps, domainGatewayStep{summary: ""})
+		reader.steps = append(steps, reader.steps[4:]...)
+	}
 	h := startConfiguredFindingsHarness(t, []domainGatewayStage{seed, reader}, func(root string) {
 		source, err := os.ReadFile(filepath.Join(root, "workflows", "project_findings_review.yaml"))
 		if err != nil {
@@ -111,9 +124,13 @@ func TestProjectFindingsReaderAcrossProcesses(t *testing.T) {
 	seedRun := postProjectRun(t, h.client, h.baseURL, project.ProjectID, "project-seed", seedBody, false)
 	waitForFindingsRun(t, h, seedRun, "succeeded")
 	negative := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "results", "negative", "application/json", []byte(`{"verdict":"refuted","tested_conditions":["selected baseline"],"finding":null}`))
-	body, _ := json.Marshal(map[string]any{"workflow": "project-findings-review@1", "artifacts": map[string]any{"check_results": negative}})
+	workflowRef := "project-findings-review@1"
+	if recoverResponse {
+		workflowRef = "project-findings-review@2"
+	}
+	body, _ := json.Marshal(map[string]any{"workflow": workflowRef, "artifacts": map[string]any{"check_results": negative}})
 	run := postProjectRun(t, h.client, h.baseURL, project.ProjectID, "project-review", body, false)
-	waitForFindingsRun(t, h, run, "succeeded")
+	status := waitForFindingsRun(t, h, run, "succeeded")
 	report, _ := download(t, h.client, h.baseURL+"/v1/runs/"+run+"/outputs/report")
 	if !strings.Contains(string(report), "101 live Project findings") || !strings.Contains(string(report), "refuted") || !strings.Contains(string(report), "selected-findings") {
 		t.Fatalf("report lost exact context: %s", report)
@@ -125,6 +142,25 @@ func TestProjectFindingsReaderAcrossProcesses(t *testing.T) {
 	}
 	if len(findingsReceipts(t, h, run)) != 0 {
 		t.Fatal("reader created problem findings")
+	}
+	if recoverResponse {
+		if len(status.Attempts) != 1 || status.Attempts[0].Metrics == nil {
+			t.Fatalf("recovery changed the Stage attempt: %+v", status.Attempts)
+		}
+		wantCalls := int64(len(reader.steps) + 1)
+		metrics := status.Attempts[0].Metrics
+		if !metrics.ReportsComplete || metrics.ModelCalls != wantCalls || metrics.TotalTokens != 16*wantCalls {
+			t.Fatalf("recovery usage=%+v, want %d calls", metrics, wantCalls)
+		}
+		selections := 0
+		for _, observation := range h.gateway.Observations() {
+			if observation.Tool == "select_project_findings" {
+				selections++
+			}
+		}
+		if selections != 1 {
+			t.Fatalf("selection repeated %d times", selections)
+		}
 	}
 	if len(h.gateway.Failures()) != 0 || h.gateway.CompletedStages() != 2 {
 		t.Fatal(h.gateway.Failures())

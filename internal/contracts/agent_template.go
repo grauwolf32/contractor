@@ -182,16 +182,17 @@ func (c WorkerSummarizerConfig) ValidateForWorker(workerPolicy ResolvedModelPoli
 }
 
 type ResolvedAgentTemplate struct {
-	Ref            AgentTemplateRef        `json:"ref" strictjson:"required"`
-	Description    string                  `json:"description" strictjson:"required"`
-	Runtime        WorkerRuntimeRef        `json:"runtime" strictjson:"required"`
-	Instructions   ResolvedInstructions    `json:"instructions,omitzero"`
-	Execution      *ToolExecutionConfig    `json:"execution,omitempty"`
-	Summarizer     *WorkerSummarizerConfig `json:"summarizer,omitempty"`
-	Sitemap        *ProjectSitemapPolicy   `json:"sitemap,omitempty"`
-	Toolsets       []ToolsetSelection      `json:"toolsets" strictjson:"required"`
-	Skills         []ArtifactRef           `json:"skills,omitempty"`
-	SandboxProfile SandboxProfileRef       `json:"sandboxProfile" strictjson:"required"`
+	Ref              AgentTemplateRef        `json:"ref" strictjson:"required"`
+	Description      string                  `json:"description" strictjson:"required"`
+	Runtime          WorkerRuntimeRef        `json:"runtime" strictjson:"required"`
+	Instructions     ResolvedInstructions    `json:"instructions,omitzero"`
+	Execution        *ToolExecutionConfig    `json:"execution,omitempty"`
+	ResponseRecovery string                  `json:"responseRecovery,omitempty"`
+	Summarizer       *WorkerSummarizerConfig `json:"summarizer,omitempty"`
+	Sitemap          *ProjectSitemapPolicy   `json:"sitemap,omitempty"`
+	Toolsets         []ToolsetSelection      `json:"toolsets" strictjson:"required"`
+	Skills           []ArtifactRef           `json:"skills,omitempty"`
+	SandboxProfile   SandboxProfileRef       `json:"sandboxProfile" strictjson:"required"`
 }
 
 func (t ResolvedAgentTemplate) Validate() error { return validateResolvedAgentTemplate(t) }
@@ -227,6 +228,9 @@ func (t ResolvedAgentTemplate) Clone() ResolvedAgentTemplate {
 }
 
 func validateResolvedAgentTemplate(template ResolvedAgentTemplate) error {
+	if err := template.ValidateResponseRecovery(); err != nil {
+		return err
+	}
 	if template.Sitemap != nil {
 		if err := template.Sitemap.Validate(); err != nil {
 			return err

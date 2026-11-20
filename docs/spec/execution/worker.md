@@ -752,9 +752,9 @@ configuration.
 binding violations are non-retryable.
 
 **WRK-R172.** Empty, whitespace-only or thought-only `STOP` output cannot
-authorize a successful result. The ordinary completion path returns its
-missing or invalid result failure without another main model call or a
-finalizer call on missing or blank text. An empty result-finalizer response
+authorize a successful result. The ordinary completion path returns its missing or invalid result failure.
+The document opt-in in WRK-R198 permits one additional main call after explicit
+STOP with no usable answer. A missing or blank candidate never reaches the finalizer. An empty result-finalizer response
 fails its existing result validation without repair. The Audit completion
 boundary still decides from its trusted submitted results: it may finish or
 issue only its existing bounded incomplete-result reminder. Known usage is
@@ -2064,3 +2064,17 @@ unknown duration omitted. The metric reducer is the sole owner of phase usage.
 If failure diagnostics raise, the original execution exception wins and existing
 detail coverage is marked truncated. Model cleanup and span settlement always run;
 a diagnostic failure cannot skip cleanup or become the model failure.
+
+
+**WRK-R198.** A template selecting responseRecovery document@1 may recover once
+inside an ordinary logical invocation from an admitted explicit STOP with
+absent, blank or thought-only output. A valid function call is usable output.
+Provider refusal, filtering, malformed envelopes and arguments, absent choices,
+and missing or unknown finish metadata cannot authorize this recovery.
+
+The Runtime joins the stopped Runner and seals its tool history before adding
+one fixed document continuation in the same session. It consumes the allowance
+before admission and keeps it outside the turn loop through compaction. Every
+received rejected reply and additional call is accounted through the normal
+instrumented model path. Existing budgets and deadlines have precedence.
+Exhaustion returns the owning failure. Template authority is defined in TPL-R119.

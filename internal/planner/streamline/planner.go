@@ -34,20 +34,23 @@ import (
 const maxPlannerContextBytes = 256 * 1024
 
 type streamlinePlanner struct {
-	profile        plannerProfile
-	invocation     planner.Invocation
-	request        contracts.StageContentRequest
-	workers        []workerBinding
-	plan           *planner.PlannerPlanController
-	resultContract map[string]resolved.ArtifactSlot
-	sessions       planner.PlanSessionService
-	adkSessions    ADKSessionFactory
-	invoker        planner.WorkerInvoker
-	inspector      planner.ArtifactInspector
-	stateViews     *stateview.Service
-	model          model.LLM
-	limits         Limits
-	deadline       time.Time
+	profile                   plannerProfile
+	invocation                planner.Invocation
+	request                   contracts.StageContentRequest
+	workers                   []workerBinding
+	plan                      *planner.PlannerPlanController
+	resultContract            map[string]resolved.ArtifactSlot
+	sessions                  planner.PlanSessionService
+	adkSessions               ADKSessionFactory
+	invoker                   planner.WorkerInvoker
+	inspector                 planner.ArtifactInspector
+	stateViews                *stateview.Service
+	model                     model.LLM
+	limits                    Limits
+	deadline                  time.Time
+	finishRecovery            bool
+	finishRecoveryCallStarted bool
+	recoveryArtifacts         map[string]bool
 	// compactionSettings selects compact@1; compaction is its live state and
 	// compactor its tool-free model client (PLN-R125).
 	compactionSettings *compactionSettings
@@ -236,6 +239,10 @@ func (p *streamlinePlanner) Run(
 			message = continuePlanningMessage()
 			continue
 		}
+		if errors.Is(iterationErr, errDocumentResponseRecovery) {
+			message = genai.NewContentFromText("The document work is complete. Submit exactly one complete finish with the retained result artifacts.", genai.RoleUser)
+			continue
+		}
 		if iterationErr != nil {
 			var plannerError *planner.Error
 			if errors.As(iterationErr, &plannerError) {
@@ -381,6 +388,12 @@ func (p *streamlinePlanner) newRootAgent(
 						return nil, err
 					}
 				}
+				if p.finishRecoveryCallStarted {
+					return nil, state.setExternalFailure(planner.NewError("planner_gateway_invalid_response", "Document recovery did not produce a valid finish", true, nil))
+				}
+				if p.finishRecovery {
+					p.finishRecoveryCallStarted = true
+				}
 				if err := state.beforeModel(); err != nil {
 					return nil, err
 				}
@@ -390,6 +403,16 @@ func (p *streamlinePlanner) newRootAgent(
 		},
 		AfterModelCallbacks: []llmagent.AfterModelCallback{
 			func(_ agent.Context, response *model.LLMResponse, _ error) (*model.LLMResponse, error) {
+				if p.finishRecovery && !singleFinish(response) {
+					if response != nil {
+						if failure := state.chargeUsage(response.UsageMetadata); failure != nil {
+							return nil, failure
+						}
+					}
+					failure := state.setExternalFailure(planner.NewError("planner_tool_selection_invalid", "Document recovery requires exactly one finish", true, nil))
+					endModelSpan("failed", failure.Code, response)
+					return nil, failure
+				}
 				result, err := state.afterModel(response, allowed)
 				if err == nil && p.compaction != nil && response != nil {
 					if failure := p.compaction.observeMain(response.UsageMetadata); failure != nil {
@@ -416,6 +439,15 @@ func (p *streamlinePlanner) newRootAgent(
 				var failure *planner.Error
 				switch {
 				case errors.As(providerErr, &rejected):
+					if rejected.emptyStop && p.readyForDocumentRecovery() {
+						failure = state.chargeUsage(rejected.usage)
+						endModelSpan("failed", "planner_gateway_invalid_response", &model.LLMResponse{UsageMetadata: rejected.usage})
+						if failure != nil {
+							return nil, failure
+						}
+						p.finishRecovery = true
+						return nil, errDocumentResponseRecovery
+					}
 					failure = state.rejectedGatewayResponse(rejected)
 				case errors.As(providerErr, &gatewayFailure) && !gatewayFailure.Failure.Retryable:
 					failure = state.rejectedGatewayRequest(gatewayFailure.Failure.Code)

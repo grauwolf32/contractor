@@ -89,15 +89,16 @@ type agentTemplateDocument struct {
 }
 
 type agentTemplateSpecSource struct {
-	Description    string                         `yaml:"description"`
-	Runtime        string                         `yaml:"runtime"`
-	Instructions   *instructionsRefSource         `yaml:"instructions"`
-	Execution      *contracts.ToolExecutionConfig `yaml:"execution,omitempty"`
-	Summarizer     *workerSummarizerSource        `yaml:"summarizer,omitempty"`
-	Sitemap        yaml.Node                      `yaml:"sitemap,omitempty"`
-	Toolsets       *[]toolsetSelectionSource      `yaml:"toolsets"`
-	Skills         *[]artifactRefSource           `yaml:"skills,omitempty"`
-	SandboxProfile string                         `yaml:"sandboxProfile"`
+	Description      string                         `yaml:"description"`
+	Runtime          string                         `yaml:"runtime"`
+	Instructions     *instructionsRefSource         `yaml:"instructions"`
+	Execution        *contracts.ToolExecutionConfig `yaml:"execution,omitempty"`
+	ResponseRecovery yaml.Node                      `yaml:"responseRecovery,omitempty"`
+	Summarizer       *workerSummarizerSource        `yaml:"summarizer,omitempty"`
+	Sitemap          yaml.Node                      `yaml:"sitemap,omitempty"`
+	Toolsets         *[]toolsetSelectionSource      `yaml:"toolsets"`
+	Skills           *[]artifactRefSource           `yaml:"skills,omitempty"`
+	SandboxProfile   string                         `yaml:"sandboxProfile"`
 }
 
 type workerSummarizerSource struct {

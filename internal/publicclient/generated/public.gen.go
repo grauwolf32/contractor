@@ -52,6 +52,21 @@ func (e AgentSkillRefNamespace) Valid() bool {
 	}
 }
 
+// Defines values for AgentTemplateBodyResponseRecovery.
+const (
+	Document1 AgentTemplateBodyResponseRecovery = "document@1"
+)
+
+// Valid indicates whether the value is a known member of the AgentTemplateBodyResponseRecovery enum.
+func (e AgentTemplateBodyResponseRecovery) Valid() bool {
+	switch e {
+	case Document1:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AllocationObservationAuthoritativePhase.
 const (
 	AllocationObservationAuthoritativePhaseAborting   AllocationObservationAuthoritativePhase = "aborting"
@@ -6460,15 +6475,19 @@ type AgentSkillRefNamespace string
 
 // AgentTemplateBody defines model for AgentTemplateBody.
 type AgentTemplateBody struct {
-	Description    string                      `json:"description"`
-	Execution      *ToolExecutionConfig        `json:"execution,omitempty"`
-	Instructions   *InstructionsRef            `json:"instructions,omitempty"`
-	Runtime        Selector                    `json:"runtime"`
-	SandboxProfile Selector                    `json:"sandboxProfile"`
-	Skills         *[]AgentSkillRef            `json:"skills,omitempty"`
-	Summarizer     *WorkerSummarizerConfigBody `json:"summarizer,omitempty"`
-	Toolsets       []ToolsetSelection          `json:"toolsets"`
+	Description      string                             `json:"description"`
+	Execution        *ToolExecutionConfig               `json:"execution,omitempty"`
+	Instructions     *InstructionsRef                   `json:"instructions,omitempty"`
+	ResponseRecovery *AgentTemplateBodyResponseRecovery `json:"responseRecovery,omitempty"`
+	Runtime          Selector                           `json:"runtime"`
+	SandboxProfile   Selector                           `json:"sandboxProfile"`
+	Skills           *[]AgentSkillRef                   `json:"skills,omitempty"`
+	Summarizer       *WorkerSummarizerConfigBody        `json:"summarizer,omitempty"`
+	Toolsets         []ToolsetSelection                 `json:"toolsets"`
 }
+
+// AgentTemplateBodyResponseRecovery defines model for AgentTemplateBody.ResponseRecovery.
+type AgentTemplateBodyResponseRecovery string
 
 // AgentTemplateRef defines model for AgentTemplateRef.
 type AgentTemplateRef struct {

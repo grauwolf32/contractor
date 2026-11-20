@@ -61,6 +61,7 @@ class GatewayModelError(RuntimeError):
         response_received: bool = False,
         usage_metadata: types.GenerateContentResponseUsageMetadata | None = None,
         request_invalid: bool = False,
+        empty_stop: bool = False,
     ) -> None:
         self.provider_error_type = provider_error_type
         self.retryable = retryable
@@ -68,6 +69,7 @@ class GatewayModelError(RuntimeError):
         self.response_received = response_received
         self.usage_metadata = usage_metadata if response_received else None
         self.request_invalid = request_invalid
+        self.empty_stop = empty_stop
         super().__init__(f"LLM gateway call failed ({provider_error_type})")
 
 
@@ -127,6 +129,7 @@ class OpenAICompatibleGatewayLlm(BaseLlm):
         received = False
         usage: types.GenerateContentResponseUsageMetadata | None = None
         request_invalid = False
+        empty_stop = False
         try:
             if stream:
                 raise _AdapterFailure("StreamingUnsupported")
@@ -165,6 +168,14 @@ class OpenAICompatibleGatewayLlm(BaseLlm):
             failure = error.failure if isinstance(error, GatewayRequestError) else None
             if received:
                 usage = _rejected_response_usage(completion)
+                if provider_error_type == "EmptyGatewayResponse":
+                    choice = _first_choice(completion)
+                    message = choice.get("message")
+                    empty_stop = (
+                        choice.get("finish_reason") == "stop"
+                        and isinstance(message, Mapping)
+                        and not message.get("refusal")
+                    )
         completion = None
         if provider_error_type is not None:
             # Raise outside the except suite so the provider exception is not
@@ -176,6 +187,7 @@ class OpenAICompatibleGatewayLlm(BaseLlm):
                 response_received=received,
                 usage_metadata=usage,
                 request_invalid=request_invalid,
+                empty_stop=empty_stop,
             ) from None
         if response is None:  # Defensive: every non-error call must produce one response.
             raise GatewayModelError("InvalidGatewayResponse") from None
@@ -524,7 +536,8 @@ def _to_llm_response(completion: Any) -> LlmResponse:
     if not isinstance(message, Mapping):
         raise _AdapterFailure("InvalidGatewayResponse")
     finish_reason = _map_finish_reason(choice.get("finish_reason"))
-    output_limited = finish_reason == types.FinishReason.MAX_TOKENS
+    if message.get("refusal"):
+        finish_reason = types.FinishReason.SAFETY
     parts: list[types.Part] = []
     reasoning = _reasoning_text(message)
     if reasoning:
@@ -535,7 +548,11 @@ def _to_llm_response(completion: Any) -> LlmResponse:
     # A length-limited response is never executable, even if a partial tool
     # call happens to parse. Keep the finish reason and usage instead of
     # misclassifying truncated arguments as an unaccounted adapter error.
-    tool_calls = [] if output_limited else (message.get("tool_calls") or [])
+    tool_calls = (
+        []
+        if finish_reason not in (None, types.FinishReason.STOP)
+        else (message.get("tool_calls") or [])
+    )
     if not isinstance(tool_calls, list):
         raise _AdapterFailure("InvalidGatewayToolCall")
     for tool_call in tool_calls:
@@ -550,7 +567,7 @@ def _to_llm_response(completion: Any) -> LlmResponse:
             raise _AdapterFailure("InvalidGatewayToolCall")
         part.function_call.id = call_id
         parts.append(part)
-    if not parts and not output_limited:
+    if not parts and finish_reason in (None, types.FinishReason.STOP):
         raise _AdapterFailure("EmptyGatewayResponse")
 
     response = LlmResponse(

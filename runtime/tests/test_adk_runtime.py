@@ -3896,10 +3896,13 @@ async def create_runtime(
     session_mode: WorkerSessionMode = WorkerSessionMode.SHARED,
     settings: RuntimeSettings | None = None,
     instruction: str | None = None,
+    response_recovery: str | None = None,
 ) -> AdkWorkerRuntime:
     tmp_path.mkdir(parents=True, exist_ok=True)
     context = build_context(tmp_path, state, tools)
-    context = replace(context, worker_session_mode=session_mode)
+    context = replace(
+        context, worker_session_mode=session_mode, response_recovery=response_recovery
+    )
     if instruction is not None:
         context = replace(context, instruction=instruction)
     if settings is not None:

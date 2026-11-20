@@ -343,6 +343,14 @@ func (p *streamlinePlanner) callWorker(
 			return workerFailure(*failure)
 		}
 	}
+	if p.recoveryArtifacts == nil {
+		p.recoveryArtifacts = map[string]bool{}
+	}
+	for name := range p.resultContract {
+		if _, ok := result.Artifacts[name]; ok {
+			p.recoveryArtifacts[name] = true
+		}
+	}
 	if p.compaction != nil {
 		// The exact result stays readable after compaction; an index over
 		// its retained-data ceiling stops the Planner before its next call.

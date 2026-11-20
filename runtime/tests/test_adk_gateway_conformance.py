@@ -321,7 +321,7 @@ def test_main_gateway_finish_reason_survives_output_failure_or_truncation(tmp_pa
     assert GATEWAY_CREDENTIAL.encode() not in b"".join(exports)
     attributes = model_span_attributes(exports)[0]
     reasons = finish_reasons(attributes)
-    if case in {"malformed", "omitted", "transport"}:
+    if case in {"malformed", "transport"}:
         assert "gen_ai.output.messages" not in attributes
         assert reasons == {"malformed": ["tool_calls"], "omitted": ["content_filter"]}.get(case, [])
     else:
@@ -329,6 +329,9 @@ def test_main_gateway_finish_reason_survives_output_failure_or_truncation(tmp_pa
         if case == "length":
             assert reasons == ["length"]
             assert output["parts"][0]["truncated"] is True
+        elif case == "omitted":
+            # Safety classification discards the malformed call before parsing.
+            assert reasons == ["content_filter"]
         elif case == "missing":
             assert reasons == []
         else:

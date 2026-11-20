@@ -52,7 +52,11 @@ from contractor_runtime.llm.openai import (
     GatewayModelError,
     OpenAICompatibleGatewayLlm,
 )
-from contractor_runtime.llm.response import model_response_failed, output_limit_reached
+from contractor_runtime.llm.response import (
+    WorkerResponseRecovery,
+    model_response_failed,
+    output_limit_reached,
+)
 from contractor_runtime.projectfs import (
     WorkspaceAutoExporter,
     WorkspaceExportError,
@@ -191,6 +195,7 @@ class AdkWorkerRuntime:
                 )
             )
         self._plugin = WorkerInstrumentationPlugin(
+            response_recovery=context.response_recovery == "document@1",
             state=self._worker_state,
             compactor_model_alias=(
                 context.compactor_model_policy.model if context.compactor_model_policy else None
@@ -586,6 +591,7 @@ class AdkWorkerRuntime:
         deadline = InvocationDeadline(request.deadline)
         self._invocation.deadline = deadline
         sdk_invocation_id = invocation_id
+        response_recovered = False
         model = self._model
         try:
             if completion is not None:
@@ -663,6 +669,25 @@ class AdkWorkerRuntime:
                         deadline.check()
                         if _chained_error(error, WorkerSessionLifecycleError) is not None:
                             raise
+                        recovery = _chained_error(error, WorkerResponseRecovery)
+                        if recovery is not None:
+                            if response_recovered:
+                                return _failure(
+                                    "worker_result_missing",
+                                    "Worker returned no usable response",
+                                    True,
+                                ), False
+                            response_recovered = True
+                            self._check_active()
+                            sdk_invocation_id = f"{invocation_id}-turn-{uuid.uuid4().hex}"
+                            self._plugin.prepare_continuation(
+                                invocation_id=invocation_id, sdk_invocation_id=sdk_invocation_id
+                            )
+                            prompt = (
+                                "Continue the original document task using the accepted material "
+                                "and tool results. Provide a usable answer or complete tool call."
+                            )
+                            continue
                         if self._plugin.model_output_limited:
                             return _failure(
                                 "worker_output_limit_exceeded",

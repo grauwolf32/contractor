@@ -1,0 +1,292 @@
+[
+  {
+    "name": "empty",
+    "response": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "message": {}
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 7,
+        "completion_tokens": 3,
+        "total_tokens": 10
+      }
+    },
+    "emptyStop": true,
+    "accepted": false
+  },
+  {
+    "name": "null",
+    "response": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "message": {
+            "content": null
+          }
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 7,
+        "completion_tokens": 3,
+        "total_tokens": 10
+      }
+    },
+    "emptyStop": true,
+    "accepted": false
+  },
+  {
+    "name": "whitespace",
+    "response": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "message": {
+            "content": " \n"
+          }
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 7,
+        "completion_tokens": 3,
+        "total_tokens": 10
+      }
+    },
+    "emptyStop": true,
+    "accepted": false
+  },
+  {
+    "name": "thought",
+    "response": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "message": {
+            "reasoning_content": "private"
+          }
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 7,
+        "completion_tokens": 3,
+        "total_tokens": 10
+      }
+    },
+    "emptyStop": true,
+    "accepted": false
+  },
+  {
+    "name": "tool",
+    "response": {
+      "choices": [
+        {
+          "finish_reason": "tool_calls",
+          "message": {
+            "tool_calls": [
+              {
+                "id": "one",
+                "type": "function",
+                "function": {
+                  "name": "finish",
+                  "arguments": "{}"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 7,
+        "completion_tokens": 3,
+        "total_tokens": 10
+      }
+    },
+    "emptyStop": false,
+    "accepted": true
+  },
+  {
+    "name": "answer",
+    "response": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "message": {
+            "content": "done"
+          }
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 7,
+        "completion_tokens": 3,
+        "total_tokens": 10
+      }
+    },
+    "emptyStop": false,
+    "accepted": true
+  },
+  {
+    "name": "refusal",
+    "response": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "message": {
+            "refusal": "declined"
+          }
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 7,
+        "completion_tokens": 3,
+        "total_tokens": 10
+      }
+    },
+    "emptyStop": false,
+    "accepted": false
+  },
+  {
+    "name": "safety",
+    "response": {
+      "choices": [
+        {
+          "finish_reason": "content_filter",
+          "message": {}
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 7,
+        "completion_tokens": 3,
+        "total_tokens": 10
+      }
+    },
+    "emptyStop": false,
+    "accepted": false
+  },
+  {
+    "name": "unknown",
+    "response": {
+      "choices": [
+        {
+          "finish_reason": "vendor",
+          "message": {}
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 7,
+        "completion_tokens": 3,
+        "total_tokens": 10
+      }
+    },
+    "emptyStop": false,
+    "accepted": false
+  },
+  {
+    "name": "missing",
+    "response": {
+      "choices": [
+        {
+          "finish_reason": null,
+          "message": {}
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 7,
+        "completion_tokens": 3,
+        "total_tokens": 10
+      }
+    },
+    "emptyStop": false,
+    "accepted": false
+  },
+  {
+    "name": "missing-message",
+    "response": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "message": null
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 7,
+        "completion_tokens": 3,
+        "total_tokens": 10
+      }
+    },
+    "emptyStop": false,
+    "accepted": false
+  },
+  {
+    "name": "invalid-arguments",
+    "response": {
+      "choices": [
+        {
+          "finish_reason": "tool_calls",
+          "message": {
+            "tool_calls": [
+              {
+                "id": "one",
+                "type": "function",
+                "function": {
+                  "name": "finish",
+                  "arguments": "{"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 7,
+        "completion_tokens": 3,
+        "total_tokens": 10
+      }
+    },
+    "emptyStop": false,
+    "accepted": false
+  },
+  {
+    "name": "no-choices",
+    "response": {
+      "choices": [],
+      "usage": {
+        "prompt_tokens": 7,
+        "completion_tokens": 3,
+        "total_tokens": 10
+      }
+    },
+    "emptyStop": false,
+    "accepted": false
+  },
+  {
+    "name": "safety-tool",
+    "response": {
+      "choices": [
+        {
+          "finish_reason": "content_filter",
+          "message": {
+            "tool_calls": [
+              {
+                "id": "blocked",
+                "type": "function",
+                "function": {
+                  "name": "finish",
+                  "arguments": "{}"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 7,
+        "completion_tokens": 3,
+        "total_tokens": 10
+      }
+    },
+    "emptyStop": false,
+    "accepted": false
+  }
+]
