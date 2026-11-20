@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-69 open tasks: 10 in progress, 46 pending, 13 deferred. 1614 finished: 1596 completed, 18 archived.
+68 open tasks: 9 in progress, 46 pending, 13 deferred. 1615 finished: 1597 completed, 18 archived.
 
 ## In progress
 
@@ -20,7 +20,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V471-004](v471-004-fact-deduplication-and-selection.yml) | findings | feature | P1 | Deduplicate Project facts by exact evidence through existing Finding correlation |
 
 ## Pending
 
@@ -66,7 +65,7 @@ the epics are in [epics.yml](epics.yml).
 | [V411-015](v411-015-http-pentest-workflow-presets.yml) | feature | P1 | — | Demonstrate an ordinary HTTP Workflow on the lean Audit path |
 | [V412-003](v412-003-browser-pentest-profiles-and-gate.yml) | feature | P2 | V412-001, V410-009, V411-020 | Compose optional browser investigation with truthful availability and results |
 | [V425-043](v425-043-resolve-historical-run-model-policy-snapshots.yml) | defect | P2 | — | Resolve historical Run snapshots after Workflow-owned model selection |
-| [V471-003](v471-003-workflow-fact-extraction.yml) | feature | P1 | V471-004 | Extract bounded Project facts in an optional passthrough Worker Stage |
+| [V471-003](v471-003-workflow-fact-extraction.yml) | feature | P1 | — | Extract bounded Project facts in an optional passthrough Worker Stage |
 
 ### Audits (`audits`)
 
@@ -169,7 +168,7 @@ tasks in `introduced_by`.
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 5 | 24 | 37 | 15 | 38 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 12 | 30 |
-| Findings tools and collections (`findings`) | 1 | 20 | 14 | 11 | 23 |
+| Findings tools and collections (`findings`) | 0 | 20 | 14 | 11 | 23 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 21 | 17 | 16 | 26 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 40 | 20 | 70 |
 | Audits (`audits`) | 10 | 70 | 98 | 42 | 170 |
