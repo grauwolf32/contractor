@@ -45,7 +45,7 @@ func TestPostgresFindingChecksIndexIntakeImmutabilityAndRetention(t *testing.T) 
 			}
 			grant := quotaSubmissionGrant(t, ctx, pool, owner, project, run)
 			service, _ := New(pool, artifactStorage)
-			input := testSubmission("checks", "checks", nil)
+			input := testSubmission("checks", "checks", fixtureEvidence(t, ctx, pool, grant))
 			input.Proposal.ProposedChecks = []auditdomain.ProposedCheck{
 				{Objective: "Verify UTF-8 世界, braces }{ and a quoted \"proposed_checks\" key.", Method: "static-trace"},
 				{Objective: "Preserve an ordinary unsupported method.", Method: "operator-custom-method"},

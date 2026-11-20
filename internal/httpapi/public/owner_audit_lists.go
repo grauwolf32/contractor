@@ -69,8 +69,8 @@ func (h *auditHandlers) listOwnerFindings(w http.ResponseWriter, r *http.Request
 		params.State = &state
 	}
 	if values, ok := query["verdict"]; ok {
-		if values[0] == "unreviewed" {
-			params.Unreviewed = true
+		if values[0] == "needs_review" {
+			params.NeedsReview = true
 		} else {
 			verdict := auditstore.AnalystVerdict(values[0])
 			if verdict != auditstore.VerdictTruePositive && verdict != auditstore.VerdictFalsePositive {
@@ -81,7 +81,7 @@ func (h *auditHandlers) listOwnerFindings(w http.ResponseWriter, r *http.Request
 	}
 	if values, ok := query["severity"]; ok {
 		severity := auditstore.FindingSeverity(values[0])
-		if !severity.Valid() || params.Unreviewed {
+		if !severity.Valid() || params.NeedsReview {
 			return errInvalidRequest
 		}
 		params.Severity = &severity

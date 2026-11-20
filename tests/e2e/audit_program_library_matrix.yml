@@ -8,7 +8,7 @@
       "name": "TestAuditCommonObservationProfilesAcrossProductionProcesses"
     },
     {
-      "profile": "openapi-operation-trace@1",
+      "profile": "openapi-operation-trace@2",
       "source": "tests/e2e/audit_common_observation_process_test.go",
       "name": "TestAuditCommonObservationProfilesAcrossProductionProcesses"
     },

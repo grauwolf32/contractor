@@ -149,7 +149,7 @@ function serve(
               gaps: completed ? 0 : 1,
               pendingTasks: completed ? 0 : 1,
               findings: 2,
-              unreviewedFindings: audit.auditId === "b_waiting" ? 2 : 0,
+              needsReviewFindings: audit.auditId === "b_waiting" ? 2 : 0,
             }),
           );
         }),

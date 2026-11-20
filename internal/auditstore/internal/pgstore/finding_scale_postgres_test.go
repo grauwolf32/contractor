@@ -30,13 +30,13 @@ func TestPostgresAuditReadsAtFindingScale(t *testing.T) {
 	disktest.Require(t)
 	f := newFindingScaleFixture(t)
 	owner, auditID := f.audit.OwnerID, f.audit.AuditID
-	var findings, unreviewed, proposed, collected int64
+	var findings, needsReview, proposed, collected int64
 	if err := f.pool.QueryRow(f.ctx, `
 SELECT (SELECT count(*) FROM project_finding_audits WHERE audit_id = $1),
        (SELECT count(*) FROM project_findings JOIN project_finding_audits USING(project_id,finding_id) WHERE audit_id = $1 AND analyst_verdict IS NULL),
        (SELECT count(*) FROM project_findings JOIN project_finding_audits USING(project_id,finding_id) WHERE audit_id = $1 AND state IS NULL),
        (SELECT count(*) FROM audit_executions WHERE audit_id = $1 AND state = 'collected')`, auditID).
-		Scan(&findings, &unreviewed, &proposed, &collected); err != nil {
+		Scan(&findings, &needsReview, &proposed, &collected); err != nil {
 		t.Fatal(err)
 	}
 	if findings != findingScaleFindings+1 ||
@@ -79,7 +79,7 @@ SELECT (SELECT count(*) FROM project_finding_audits WHERE audit_id = $1),
 	t.Run("workspace", func(t *testing.T) {
 		inModes(t, func(t *testing.T, mode explaintest.Mode) {
 			summary, err := store.GetWorkspace(f.ctx, owner, auditID)
-			if err != nil || int64(summary.Findings) != findings || int64(summary.UnreviewedFindings) != unreviewed ||
+			if err != nil || int64(summary.Findings) != findings || int64(summary.NeedsReviewFindings) != needsReview ||
 				summary.AsOf.IsZero() {
 				t.Fatalf("%s: workspace = %+v, %v", mode, summary, err)
 			}

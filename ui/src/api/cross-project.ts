@@ -465,15 +465,13 @@ interface PossibleIssuesOptions {
    */
   states?: readonly FindingState[];
   /**
-   * Only possible issues with these analyst verdicts ("unreviewed" means no
+   * Only possible issues with these analyst verdicts ("needs_review" means no
    * effective decision); filtered by the Server like `states`.
    */
   verdicts?: readonly FindingVerdictFilter[];
   /**
-   * Only possible issues the analyst rated with these severities (the
-   * Worker's suggestion is never a rating); filtered by the Server like
-   * `states`. An unreviewed possible issue has no analyst severity, so with
-   * this filter the verdict "unreviewed" matches nothing and is not read.
+   * Filter by analyst severity when set, otherwise producer suggestion.
+   * Suggestions remain labelled separately from analyst assessments.
    */
   severities?: readonly FindingSeverity[];
   /** False keeps every read idle (and `isPending` true). */
@@ -500,12 +498,7 @@ interface FindingFilter {
   severity: FindingSeverity | undefined;
 }
 
-/**
- * One filter per read: the Server takes one state, verdict and severity per
- * request, and rejects a severity with the verdict "unreviewed" (an
- * unreviewed possible issue has no analyst severity, so the pair matches
- * nothing and is left out).
- */
+/** One Server filter combination per read; suggested severity can filter unsettled records. */
 function findingFilters(
   stateKey: string,
   verdictKey: string,
@@ -516,11 +509,7 @@ function findingFilters(
   const severities = orUnfiltered(filterValues<FindingSeverity>(severityKey));
   return states.flatMap((state) =>
     verdicts.flatMap((verdict) =>
-      severities
-        .filter(
-          (severity) => severity === undefined || verdict !== "unreviewed",
-        )
-        .map((severity) => ({ state, verdict, severity })),
+      severities.map((severity) => ({ state, verdict, severity })),
     ),
   );
 }
@@ -536,10 +525,7 @@ function usePossibleIssueReads(options: PossibleIssuesOptions) {
   const filters = useMemo(
     (): FindingFilter[] =>
       needsReview
-        ? [
-            { state: undefined, verdict: "unreviewed", severity: undefined },
-            { state: "proposed", verdict: undefined, severity: undefined },
-          ]
+        ? findingFilters(stateKey, filterKey(["needs_review"]), severityKey)
         : findingFilters(stateKey, verdictKey, severityKey),
     [stateKey, verdictKey, severityKey, needsReview],
   );

@@ -102,6 +102,18 @@ func (s *Service) submit(ctx context.Context, execution intakeExecution, input S
 	} else if found {
 		return previous, true, nil
 	}
+	// Reject projectless calls before staging any payload. The transaction below
+	// repeats this check under the execution and Project publication fences.
+	var activeProject bool
+	if err := s.pool.QueryRow(ctx, `SELECT coalesce(project.owner_id=run.owner_id AND project.kind='project' AND project.lifecycle_state='active',false) FROM workflow_runs AS run LEFT JOIN projects AS project ON project.project_id=run.project_id WHERE run.run_id=$1`, execution.RunID).Scan(&activeProject); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Receipt{}, false, ErrAccessDenied
+		}
+		return Receipt{}, false, err
+	}
+	if !activeProject {
+		return Receipt{}, false, ErrProjectRequired
+	}
 	anchors := auditdomain.UnavailableFindingAnchors("not_provided")
 	fingerprint := auditdomain.UnavailableFindingFingerprint("not_provided")
 	if execution.Worker != nil {
@@ -172,12 +184,22 @@ func (s *Service) submit(ctx context.Context, execution intakeExecution, input S
 			return readErr
 		}
 
-		origin, ownerID, projectID, err := s.verifyIntakeExecution(ctx, tx, execution, canonical.request.ItemKey)
+		origin, ownerID, projectID, err := s.verifyIntakeExecution(ctx, tx, execution, canonical.request.ItemKey, canonical.request.Incidental)
 		if canonical.request.Incidental && origin.Audit != nil {
 			origin.Audit.Hypothesis = nil
 		}
 		if err != nil {
 			return err
+		}
+		if projectID == nil {
+			return ErrProjectRequired
+		}
+		var activeProject bool
+		if err := tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM projects WHERE project_id=$1 AND owner_id=$2 AND kind='project' AND lifecycle_state='active')", *projectID, ownerID).Scan(&activeProject); err != nil {
+			return err
+		}
+		if !activeProject {
+			return ErrProjectRequired
 		}
 		origin.InvocationID = canonical.request.InvocationID
 		// The quota counts every submission of the Run, so distinct
@@ -271,77 +293,60 @@ SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, execution.Run
 			}
 		}
 		origin.RunDeleted = false
-		var projectProposal *ExactArtifact
-		var projectEvidence []ExactArtifact
-		publicationError := ""
-		var publicationProject bool
-		if input.PublishProblem && projectID != nil {
-			if err := tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM projects WHERE project_id=$1 AND owner_id=$2 AND kind='project' AND lifecycle_state='active')", *projectID, ownerID).Scan(&publicationProject); err != nil {
+		if len(evidence) == 0 {
+			return ErrEvidenceRequired
+		}
+		if err := hookstore.NewFindingEventsTx(tx, s.storage).LockFindingCorrelationFence(ctx, *projectID); err != nil {
+			return err
+		}
+		retained, retainErr := retainFindingArtifact(ctx, artifactService, execution.RunID, *projectID,
+			artifactpolicy.FindingMaterialsNamespace, deterministicID("proposal", receiptID), proposal)
+		if retainErr != nil {
+			return retainErr
+		}
+		projectProposal := &retained
+		if origin.Audit != nil && origin.Audit.Hypothesis != nil {
+			task, err := querystore.New(tx, s.storage).GetTask(ctx, ownerID, origin.Audit.AuditID, origin.Audit.TaskID)
+			if err != nil {
 				return err
 			}
-		}
-		if input.PublishProblem {
-			switch {
-			case projectID == nil || !publicationProject:
-				publicationError = "problem_project_required"
-			case len(evidence) == 0:
-				publicationError = "problem_evidence_required"
-			default:
-				if err := hookstore.NewFindingEventsTx(tx, s.storage).LockFindingCorrelationFence(ctx, *projectID); err != nil {
-					return err
-				}
-				retained, retainErr := retainFindingArtifact(ctx, artifactService, execution.RunID, *projectID,
-					artifactpolicy.FindingMaterialsNamespace, deterministicID("proposal", receiptID), proposal)
-				if retainErr != nil {
-					return retainErr
-				}
-				projectProposal = &retained
-				if origin.Audit != nil && origin.Audit.Hypothesis != nil {
-					task, err := querystore.New(tx, s.storage).GetTask(ctx, ownerID, origin.Audit.AuditID, origin.Audit.TaskID)
-					if err != nil {
-						return err
-					}
-					if task.Hypothesis == nil || task.Hypothesis.ID != origin.Audit.Hypothesis.ID || task.Hypothesis.Revision != origin.Audit.Hypothesis.Revision {
-						return ErrInvalid
-					}
-					data, err := strictjson.Canonical(task.Hypothesis)
-					if err != nil {
-						return err
-					}
-					scope, err := artifacts.ProjectScope(*projectID)
-					if err != nil {
-						return err
-					}
-					written, err := artifactService.CreateFrozen(ctx, scope, contracts.ArtifactRef{Namespace: artifactpolicy.FindingMaterialsNamespace, Name: deterministicID("hypothesis", receiptID)}, artifacts.Payload{MediaType: "application/json", Data: data})
-					if err != nil {
-						return err
-					}
-					origin.Audit.HypothesisSnapshot = &ExactArtifact{Ref: written.Ref, Digest: contentdigest.Bytes(data), MediaType: written.MediaType, SizeBytes: written.Size}
-				}
-
-				projectEvidence = make([]ExactArtifact, 0, len(evidence))
-				for index, source := range evidence {
-					retained, retainErr := retainFindingArtifact(ctx, artifactService, execution.RunID, *projectID,
-						artifactpolicy.FindingMaterialsNamespace, deterministicID("evidence", receiptID, fmt.Sprint(index)), source)
-					if retainErr != nil {
-						return retainErr
-					}
-					projectEvidence = append(projectEvidence, retained)
-				}
+			if task.Hypothesis == nil || task.Hypothesis.ID != origin.Audit.Hypothesis.ID || task.Hypothesis.Revision != origin.Audit.Hypothesis.Revision {
+				return ErrInvalid
 			}
+			data, err := strictjson.Canonical(task.Hypothesis)
+			if err != nil {
+				return err
+			}
+			scope, err := artifacts.ProjectScope(*projectID)
+			if err != nil {
+				return err
+			}
+			written, err := artifactService.CreateFrozen(ctx, scope, contracts.ArtifactRef{Namespace: artifactpolicy.FindingMaterialsNamespace, Name: deterministicID("hypothesis", receiptID)}, artifacts.Payload{MediaType: "application/json", Data: data})
+			if err != nil {
+				return err
+			}
+			origin.Audit.HypothesisSnapshot = &ExactArtifact{Ref: written.Ref, Digest: contentdigest.Bytes(data), MediaType: written.MediaType, SizeBytes: written.Size}
+		}
+
+		projectEvidence := make([]ExactArtifact, 0, len(evidence))
+		for index, source := range evidence {
+			retained, retainErr := retainFindingArtifact(ctx, artifactService, execution.RunID, *projectID,
+				artifactpolicy.FindingMaterialsNamespace, deterministicID("evidence", receiptID, fmt.Sprint(index)), source)
+			if retainErr != nil {
+				return retainErr
+			}
+			projectEvidence = append(projectEvidence, retained)
 		}
 		if err := insertReceipt(
 			ctx, tx, receiptID, proposalID, canonical, fingerprintJSON, proposal, evidence,
 			origin, ownerID, projectID, execution.Worker,
-			projectProposal, projectEvidence, publicationError,
+			projectProposal, projectEvidence, "",
 		); err != nil {
 			return err
 		}
-		if projectProposal != nil {
-			if _, err := hookstore.NewFindingEventsTx(tx, s.storage).AdmitProjectFinding(ctx, *projectID, receiptID,
-				deterministicID("finding", receiptID)); err != nil {
-				return err
-			}
+		if _, err := hookstore.NewFindingEventsTx(tx, s.storage).AdmitProjectFinding(ctx, *projectID, receiptID,
+			deterministicID("finding", receiptID)); err != nil {
+			return err
 		}
 		result, err = s.readExecutionReceipt(ctx, tx, execution, input)
 		return err
@@ -379,6 +384,7 @@ func verifyTrustedExecution(
 	tx pgx.Tx,
 	grant controlplane.AllocationGrant,
 	selectedItem *string,
+	incidental bool,
 	storage *artifactpostgres.Storage,
 ) (Origin, string, *string, error) {
 	if strings.TrimSpace(grant.AllocationID) == "" || strings.TrimSpace(grant.RunID) == "" ||
@@ -436,14 +442,25 @@ func verifyTrustedExecution(
 		if selectedItem != nil {
 			key = *selectedItem
 		}
-		task, err := querystore.New(tx, storage).ExecutionTaskOrigin(ctx, *run.AuditExecutionID, run.RunID, key)
-		if errors.Is(err, auditstore.ErrNotFound) || errors.Is(err, auditstore.ErrInvalid) {
-			return Origin{}, "", nil, ErrAccessDenied
+		if incidental && selectedItem == nil {
+			auditID, err := querystore.New(tx, storage).ExecutionAuditOrigin(ctx, *run.AuditExecutionID, run.RunID)
+			if errors.Is(err, auditstore.ErrNotFound) || errors.Is(err, auditstore.ErrInvalid) {
+				return Origin{}, "", nil, ErrAccessDenied
+			}
+			if err != nil {
+				return Origin{}, "", nil, err
+			}
+			origin.Audit = &AuditOrigin{AuditID: auditID, ExecutionID: *run.AuditExecutionID}
+		} else {
+			task, err := querystore.New(tx, storage).ExecutionTaskOrigin(ctx, *run.AuditExecutionID, run.RunID, key)
+			if errors.Is(err, auditstore.ErrNotFound) || errors.Is(err, auditstore.ErrInvalid) {
+				return Origin{}, "", nil, ErrAccessDenied
+			}
+			if err != nil {
+				return Origin{}, "", nil, fmt.Errorf("read finding Task provenance: %w", err)
+			}
+			origin.Audit = &AuditOrigin{AuditID: task.AuditID, ExecutionID: *run.AuditExecutionID, TaskID: task.TaskID, Hypothesis: task.Hypothesis}
 		}
-		if err != nil {
-			return Origin{}, "", nil, fmt.Errorf("read finding Task provenance: %w", err)
-		}
-		origin.Audit = &AuditOrigin{AuditID: task.AuditID, ExecutionID: *run.AuditExecutionID, TaskID: task.TaskID, Hypothesis: task.Hypothesis}
 	} else if selectedItem != nil {
 		return Origin{}, "", nil, ErrInvalid
 	}
@@ -489,7 +506,10 @@ func insertReceipt(
 	var auditExecutionID, auditID, auditTaskID *string
 	var hypothesis, hypothesisSnapshot []byte
 	if origin.Audit != nil {
-		auditExecutionID, auditID, auditTaskID = &origin.Audit.ExecutionID, &origin.Audit.AuditID, &origin.Audit.TaskID
+		auditExecutionID, auditID = &origin.Audit.ExecutionID, &origin.Audit.AuditID
+		if origin.Audit.TaskID != "" {
+			auditTaskID = &origin.Audit.TaskID
+		}
 		if origin.Audit.Hypothesis != nil {
 			hypothesis, _ = json.Marshal(origin.Audit.Hypothesis)
 			if origin.Audit.HypothesisSnapshot != nil {
@@ -518,7 +538,7 @@ func insertReceipt(
 		proposalRef, proposal.Digest, proposal.MediaType, proposal.SizeBytes,
 		evidenceJSON, string(canonical.reportProjection), string(fingerprintJSON), string(canonical.anchorProjection),
 		string(canonical.checksProjection),
-		canonical.request.PublishProblem, publicationError, projectProposalJSON, projectEvidenceJSON, hypothesis, hypothesisSnapshot, origin.Operation, scanOrigin,
+		true, publicationError, projectProposalJSON, projectEvidenceJSON, hypothesis, hypothesisSnapshot, origin.Operation, scanOrigin,
 	)
 	if err != nil {
 		switch persistencepostgres.Classify(err) {

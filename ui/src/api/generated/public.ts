@@ -4777,7 +4777,7 @@ export interface components {
             hypothesisSnapshot?: components["schemas"]["FindingExactArtifact"];
             auditId: components["schemas"]["ResourceId"];
             executionId: components["schemas"]["ResourceId"];
-            taskId: components["schemas"]["ResourceId"];
+            taskId?: components["schemas"]["ResourceId"];
             hypothesis?: {
                 id: components["schemas"]["ResourceId"];
                 revision: number;
@@ -4887,7 +4887,7 @@ export interface components {
             gaps: number;
             pendingTasks: number;
             findings: number;
-            unreviewedFindings: number;
+            needsReviewFindings: number;
         };
         OwnerFindingPage: {
             items: components["schemas"]["ProjectFindingSummary"][];
@@ -10423,7 +10423,7 @@ export interface operations {
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];
                 state?: components["schemas"]["FindingState"];
-                verdict?: "true_positive" | "false_positive" | "unreviewed";
+                verdict?: "true_positive" | "false_positive" | "needs_review";
                 severity?: components["schemas"]["FindingSeverity"];
             };
             header?: never;
@@ -11350,7 +11350,7 @@ export interface operations {
                 /** @description Pin this page to the summary revision. Continuations bind owner, filters and revision; stale revisions return 409. */
                 auditRevision?: number;
                 state?: components["schemas"]["FindingState"];
-                verdict?: "true_positive" | "false_positive" | "unreviewed";
+                verdict?: "true_positive" | "false_positive" | "needs_review";
                 severity?: components["schemas"]["FindingSeverity"];
                 /** @description Pin canonical Finding state. Continuations bind both Audit and Project revisions; stale views return 409. */
                 projectRevision?: number;

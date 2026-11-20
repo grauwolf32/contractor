@@ -148,8 +148,8 @@
     }
   },
   "contents": {
-    "doc-1b0d20aaf54838c6549c1f813084821371f41d6d5f6f6272dec2b17418d0fd49": "Одинаковые bytes из разных Runs.\n",
-    "doc-d1388f3fa4060d234cb8cfc500489c1c01a07071d617a787a1d95bb0919e718f": "Одинаковые bytes из разных Runs.\n",
+    "doc-1b0d20aaf54838c6549c1f813084821371f41d6d5f6f6272dec2b17418d0fd49": "\u041e\u0434\u0438\u043d\u0430\u043a\u043e\u0432\u044b\u0435 bytes \u0438\u0437 \u0440\u0430\u0437\u043d\u044b\u0445 Runs.\n",
+    "doc-d1388f3fa4060d234cb8cfc500489c1c01a07071d617a787a1d95bb0919e718f": "\u041e\u0434\u0438\u043d\u0430\u043a\u043e\u0432\u044b\u0435 bytes \u0438\u0437 \u0440\u0430\u0437\u043d\u044b\u0445 Runs.\n",
     "doc-de9d74745db7ff327cc95d39afeea455debfe05ec8e5b538b1f8a0231e85a03f": "{\"client_key\":\"candidate-b\",\"description\":\"A generic finding with retained evidence.\",\"evidence_ids\":[\"evidence-1\"],\"hypothesis\":\"The setting may affect isolation.\",\"limitations\":[],\"preconditions\":[],\"proposed_checks\":[],\"schema\":\"contractor.audit.finding-proposal.v1\",\"severity_suggestion\":\"\",\"standard_refs\":[],\"subject\":{\"key\":\"subject-b\",\"kind\":\"configuration\"},\"title\":\"Observation b\"}",
     "doc-f39469eb9a094195b8f85885c2a239d50ca2c0b462fe060a4fe20a7f7519a14e": "{\"client_key\":\"candidate-a\",\"description\":\"A generic finding with retained evidence.\",\"evidence_ids\":[\"evidence-1\"],\"limitations\":[],\"preconditions\":[],\"proposed_checks\":[],\"schema\":\"contractor.audit.finding-proposal.v1\",\"severity_suggestion\":\"\",\"standard_refs\":[],\"subject\":{\"key\":\"subject-a\",\"kind\":\"function\"},\"title\":\"Observation a\"}"
   },
@@ -192,9 +192,9 @@
       "valid": false
     },
     {
-      "name": "missing task",
+      "name": "Run-level Audit origin",
       "origin": "{\"audit_id\":\"audit-a\",\"execution_id\":\"execution-b\"}",
-      "valid": false
+      "valid": true
     },
     {
       "name": "null hypothesis",
@@ -214,6 +214,16 @@
     {
       "name": "fractional revision token",
       "origin": "{\"audit_id\":\"audit-a\",\"execution_id\":\"execution-b\",\"hypothesis\":{\"id\":\"hypothesis-a\",\"revision\":1.0},\"task_id\":\"task-b\"}",
+      "valid": false
+    },
+    {
+      "name": "empty optional task",
+      "origin": "{\"audit_id\":\"audit-a\",\"execution_id\":\"execution-b\",\"task_id\":\"\"}",
+      "valid": false
+    },
+    {
+      "name": "hypothesis without Task",
+      "origin": "{\"audit_id\":\"audit-a\",\"execution_id\":\"execution-b\",\"hypothesis\":{\"id\":\"h\",\"revision\":1}}",
       "valid": false
     }
   ],

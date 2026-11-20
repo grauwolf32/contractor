@@ -200,7 +200,7 @@ describe("Issues", () => {
     );
   });
 
-  it("filters severity by the analyst's rating, never the AI suggestion", async () => {
+  it("filters by analyst severity with a producer suggestion fallback", async () => {
     const server = twoProjects();
     server.findings.push(
       issue(
@@ -222,10 +222,12 @@ describe("Issues", () => {
     await user.click(screen.getByText("More filters"));
     await user.selectOptions(screen.getByLabelText("Severity"), "high");
     expect(router.state.location.search).toBe("?state=all&severity=high");
-    // Only the issue the analyst rated High; the AI suggested High for the
-    // possible issue on /orders and the low-rated issue.
+    // An analyst Low overrides source High; an unassessed source High remains visible.
     await waitFor(() =>
-      expect(rowTitles()).toEqual(["Refunds skip the approval step"]),
+      expect(rowTitles()).toEqual([
+        "Any user can read any order",
+        "Refunds skip the approval step",
+      ]),
     );
     const reads = requests
       .map((request) => new URL(request.url))
@@ -752,14 +754,14 @@ describe("Issues", () => {
 
   it("does not call the review queue clear under a severity filter or after failed reads", async () => {
     const server = twoProjects();
-    const { unmount } = renderIssues(server, "/issues?severity=high");
+    const { unmount } = renderIssues(server, "/issues?severity=critical");
     const list = await screen.findByRole("region", { name: "Possible issues" });
     expect(
       await within(list).findByText("No possible issues match these filters"),
     ).toBeVisible();
     expect(
       within(list).getByText(
-        /possible issues that need review are usually not rated yet/,
+        /Records with unknown severity do not match this filter/,
       ),
     ).toBeVisible();
     expect(

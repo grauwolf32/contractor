@@ -269,7 +269,7 @@ func TestPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 		t.Fatalf("foreign allocation error = %v, want access denied", err)
 	}
 
-	secondInput := testSubmission("worker-invocation-3", "candidate-unimported", nil)
+	secondInput := testSubmission("worker-invocation-3", "candidate-unimported", firstInput.EvidenceRefs)
 	var competing []func()
 	defer func() {
 		for _, release := range competing {
@@ -306,7 +306,7 @@ func TestPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 	if err != nil || replayed {
 		t.Fatalf("second receipt = (%+v, replay=%v, %v)", secondReceipt, replayed, err)
 	}
-	claimOnlyInput := testSubmission("worker-invocation-4", "candidate-claim-only", nil)
+	claimOnlyInput := testSubmission("worker-invocation-4", "candidate-claim-only", firstInput.EvidenceRefs)
 	claimOnlyReceipt, replayed, err := service.Submit(ctx, grant, claimOnlyInput)
 	if err != nil || replayed {
 		t.Fatalf("claim-only receipt = (%+v, replay=%v, %v)", claimOnlyReceipt, replayed, err)
@@ -566,7 +566,7 @@ SELECT count(*) FROM audit_artifact_links
 		t.Fatalf("other Audit inbox after Run deletion = (%+v, %v)", otherListed, err)
 	}
 	secondAfterDelete, err := readReceiptByID(ctx, pool, secondReceipt.ReceiptID)
-	if err != nil || secondAfterDelete.Retention != RetentionDiscarded || !secondAfterDelete.Origin.RunDeleted {
+	if err != nil || secondAfterDelete.Retention != RetentionProjectHeld || !secondAfterDelete.Origin.RunDeleted {
 		t.Fatalf("discarded receipt after Run deletion = (%+v, %v)", secondAfterDelete, err)
 	}
 	if _, err := runArtifacts.Read(ctx, firstReceipt.Proposal.Ref); !errors.Is(err, artifacts.ErrArtifactNotFound) {

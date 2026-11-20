@@ -181,7 +181,7 @@ describe("Inbox badge", () => {
       });
       const key = queryKeys.crossProject.ownerFindings(
         null,
-        "unreviewed",
+        "needs_review",
         null,
       );
       const cached = queryClient.getQueryData<{ items: unknown[] }>(key)!;

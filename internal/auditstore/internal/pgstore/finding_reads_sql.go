@@ -17,7 +17,7 @@ const findingPredicatesSQL = "\n/* finding predicates */"
 // Select closed predicates before preparing a query. Generic plans cannot
 // estimate optional-OR filters and otherwise scan/sort an entire Project even
 // when all filters are absent. The unused CTE preserves parameter types.
-func findingPageSQL(query string, state *auditstore.FindingState, verdict *auditstore.AnalystVerdict, unreviewed bool, severity *auditstore.FindingSeverity) string {
+func findingPageSQL(query string, state *auditstore.FindingState, verdict *auditstore.AnalystVerdict, needsReview bool, severity *auditstore.FindingSeverity) string {
 	filters := ""
 	if state != nil {
 		filters += " AND finding.state=$3::text"
@@ -25,17 +25,17 @@ func findingPageSQL(query string, state *auditstore.FindingState, verdict *audit
 	if verdict != nil {
 		filters += " AND finding.analyst_verdict=$4::text"
 	}
-	if unreviewed {
-		filters += " AND finding.analyst_verdict IS NULL"
+	if needsReview {
+		filters += " AND (finding.analyst_verdict IS NULL OR finding.state='proposed') AND coalesce(finding.analyst_severity,finding.severity_suggestion,'')<>'informational'"
 	}
 	if severity != nil {
-		filters += " AND finding.analyst_severity=$6::text"
+		filters += " AND coalesce(finding.analyst_severity,finding.severity_suggestion)= $6::text"
 	}
-	if (unreviewed && (state != nil || verdict != nil || severity != nil)) ||
-		(severity != nil && (state != nil && *state != auditstore.FindingConfirmed || verdict != nil && *verdict != auditstore.VerdictTruePositive)) ||
+	if (needsReview && verdict != nil) ||
 		(verdict != nil && state != nil && (*verdict == auditstore.VerdictTruePositive && *state != auditstore.FindingConfirmed || *verdict == auditstore.VerdictFalsePositive && *state != auditstore.FindingRejected)) {
 		filters = " AND false"
 	}
+
 	return `WITH finding_filter_parameters AS (SELECT $3::text,$4::text,$5::boolean,$6::text) ` + strings.Replace(query, findingPredicatesSQL, filters, 1)
 }
 

@@ -94,7 +94,7 @@ def test_large_file_maps_linearly_and_enforces_snippet_limits():
 class PublishingTransport(FakeFindingClient):
     async def request(self, method, path, **kwargs):
         response = await super().request(method, path, **kwargs)
-        if method == "POST" and self.requests[-1].get("publishProblem"):
+        if method == "POST" and True:
             body = json.loads(response.body)
             body["findingId"] = "finding-trace"
             return ArtifactHTTPResponse(
@@ -201,7 +201,6 @@ def test_actual_annotation_finding_provider_and_replay():
             description="Source-supported problem",
             file="backend/app.py",
             line=3,
-            publish_problem=True,
             incidental=True,
             proposed_checks=[{"objective": "Verify", "method": "source"}],
         )
@@ -210,7 +209,7 @@ def test_actual_annotation_finding_provider_and_replay():
         assert tool._publisher.metrics.counters["tool_calls"] == 3
         first = transport.requests[0]
         assert first["proposal"]["locations"] == [{"file": "app.py", "line": 2}]
-        assert first["publishProblem"] is True and first["incidental"] is True
+        assert "publishProblem" not in first and first["incidental"] is True
         assert first["proposal"]["proposed_checks"] == [{"objective": "Verify", "method": "source"}]
         proof_value = next(v for v in client.values.values() if v.media_type == "application/json")
         proof = json.loads(proof_value.data)

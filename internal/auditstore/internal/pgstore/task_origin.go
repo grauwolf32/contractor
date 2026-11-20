@@ -11,6 +11,19 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// ExecutionAuditOrigin resolves Run-level provenance without selecting a Task.
+func (s *QueryStore) ExecutionAuditOrigin(ctx context.Context, executionID, runID string) (string, error) {
+	if !contracts.ValidResourceID(executionID) || !contracts.ValidResourceID(runID) {
+		return "", auditstore.ErrInvalid
+	}
+	var auditID string
+	err := s.db.QueryRow(ctx, executionAuditOriginSQL, executionID, runID).Scan(&auditID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", auditstore.ErrNotFound
+	}
+	return auditID, err
+}
+
 // ExecutionTaskOrigin resolves a tool-selected member through immutable Run
 // membership. A single-member Run permits omission; a batch requires its key.
 // The targeted unique-index lookup reads one task, independent of Audit size.

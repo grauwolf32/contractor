@@ -1664,7 +1664,7 @@ items:
 
 ### Top 10 risk assessment
 
-1. Owner selects `owasp-top10-2025-source-risk@1`, an exact source artifact,
+1. Owner selects `owasp-top10-2025-source-risk@2`, an exact source artifact,
    and scope. The Server pins the exact `owasp-web-top10@2025` package.
 2. `standard-mappings@1` creates the immutable ten-category denominator from
    package mappings; no duplicate checklist input or model expansion is used.
@@ -1681,7 +1681,7 @@ items:
 
 ### ASVS or custom checklist
 
-1. The curated `owasp-asvs-5-0-l1-source-review@1` profile pins
+1. The curated `owasp-asvs-5-0-l1-source-review@2` profile pins
    `owasp-asvs@5.0.0` and an explicit five-requirement Level 1 denominator. It
    does not claim to represent all ASVS requirements or certification.
 2. Each selected version-qualified requirement creates exactly one item. Four

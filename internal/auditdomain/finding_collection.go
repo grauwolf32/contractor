@@ -2,6 +2,7 @@ package auditdomain
 
 import (
 	"bytes"
+	"encoding/json"
 	"sort"
 	"strings"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
 	"github.com/grauwolf32/contractor/internal/helpers/contentdigest"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 )
 
 const (
@@ -64,8 +66,23 @@ type FindingCollectionAuditOrigin struct {
 	HypothesisSnapshotDocumentID string                       `json:"hypothesis_snapshot_document_id,omitempty"`
 	AuditID                      string                       `json:"audit_id"`
 	ExecutionID                  string                       `json:"execution_id"`
-	TaskID                       string                       `json:"task_id"`
+	TaskID                       string                       `json:"task_id,omitempty"`
 	Hypothesis                   *auditcontract.HypothesisRef `json:"hypothesis,omitempty"`
+}
+
+func (origin *FindingCollectionAuditOrigin) UnmarshalJSON(data []byte) error {
+	type plain FindingCollectionAuditOrigin
+	if err := strictjson.Decode(data, (*plain)(origin)); err != nil {
+		return err
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	if _, present := fields["task_id"]; present && !contracts.ValidResourceID(origin.TaskID) {
+		return invalid(CodeInvalid, "collection.audit_origin.task_id")
+	}
+	return nil
 }
 
 type FindingCollectionEvidence struct {
@@ -186,7 +203,7 @@ func validateFindingCollection(value FindingCollection) error {
 			return invalid(CodeInvalid, "collection.retention")
 		}
 		if origin := entry.AuditOrigin; origin != nil {
-			if !contracts.ValidResourceID(origin.AuditID) || !contracts.ValidResourceID(origin.ExecutionID) || !contracts.ValidResourceID(origin.TaskID) {
+			if !contracts.ValidResourceID(origin.AuditID) || !contracts.ValidResourceID(origin.ExecutionID) || (origin.TaskID != "" && !contracts.ValidResourceID(origin.TaskID)) || (origin.Hypothesis != nil && origin.TaskID == "") {
 				return invalid(CodeInvalid, "collection.audit_origin")
 			}
 			if origin.HypothesisSnapshotDocumentID != "" {

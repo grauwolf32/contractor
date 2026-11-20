@@ -508,7 +508,7 @@ from verification Workflows and attempts.
 **UIJ-R87.** Deleted Runs keep readable provenance in finding detail instead
 of broken-only links.
 
-**UIJ-R88.** Unreviewed findings display no analyst rating.
+**UIJ-R88.** NeedsReview findings display no analyst rating.
 
 **UIJ-R89.** After a conflict, a stale edit refetches the current state and
 never silently overwrites another decision (FAIL-UIJ-3).

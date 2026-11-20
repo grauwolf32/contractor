@@ -573,7 +573,7 @@ export function ResearchAuditDetail({ audit }: { audit: Audit }) {
                   <p className="eyebrow">Possible issues</p>
                   <h2>
                     {workspace.data
-                      ? `${workspace.data.unreviewedFindings} need review`
+                      ? `${workspace.data.needsReviewFindings} need review`
                       : "Project findings"}
                   </h2>
                   <p className="ui-caption">

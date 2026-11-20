@@ -7456,7 +7456,11 @@
     "FindingAuditOrigin": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["auditId", "executionId", "taskId"],
+      "required": ["auditId", "executionId"],
+      "dependentRequired": {
+        "hypothesis": ["taskId"],
+        "hypothesisSnapshot": ["hypothesis", "taskId"]
+      },
       "properties": {
         "hypothesisSnapshot": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingExactArtifact"
@@ -7803,7 +7807,7 @@
         "gaps",
         "pendingTasks",
         "findings",
-        "unreviewedFindings"
+        "needsReviewFindings"
       ],
       "properties": {
         "auditId": {
@@ -7821,7 +7825,7 @@
         "gaps": { "type": "integer", "minimum": 0 },
         "pendingTasks": { "type": "integer", "minimum": 0 },
         "findings": { "type": "integer", "minimum": 0 },
-        "unreviewedFindings": { "type": "integer", "minimum": 0 }
+        "needsReviewFindings": { "type": "integer", "minimum": 0 }
       }
     },
     "OwnerFindingPage": {

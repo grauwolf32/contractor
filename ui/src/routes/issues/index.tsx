@@ -153,7 +153,7 @@ function emptyText(
       title: "No possible issues match these filters",
       note:
         filters.state === "needs-review"
-          ? "Severity is the analyst's rating, given when an issue is confirmed, so possible issues that need review are usually not rated yet."
+          ? "Severity uses the analyst's rating when present, otherwise the source suggestion. Records with unknown severity do not match this filter."
           : undefined,
     };
   if (!complete) return { title: "No possible issues listed" };
@@ -506,7 +506,7 @@ export function IssuesRoute() {
                 ))}
               </select>
               <span id={`${severitySelect}-hint`} className="ui-caption">
-                The analyst&apos;s rating; AI suggestions are not filtered.
+                Analyst severity when assessed, otherwise the source suggestion.
               </span>
             </span>
           </details>

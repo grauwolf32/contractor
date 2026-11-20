@@ -298,7 +298,7 @@ def test_shared_code_publisher_uses_hidden_exact_anchor_metadata():
             evidence_refs=[ArtifactRef.model_validate(REF)],
             tool_context=context(),
         )
-        assert set(result) == {"proposal_id", "receipt_id", "client_key"}
+        assert set(result) == {"proposal_id", "receipt_id", "client_key", "finding_id"}
         assert api.requests[0]["derived_anchors"] == case["derived"]
         assert api.requests[0]["evidenceRefs"] == [REF]
         assert len(api.bodies) == 2 and api.bodies[0] == api.bodies[1]

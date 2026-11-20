@@ -20,7 +20,7 @@ func (s *QueryStore) GetWorkspace(ctx context.Context, ownerID, auditID string) 
 	var result auditstore.WorkspaceSummary
 	err := s.db.QueryRow(ctx, getWorkspaceSQL, ownerID, auditID).Scan(
 		&result.AuditID, &result.AuditRevision, &result.AsOf, &result.Iteration, &result.ExecutionState, &result.OutstandingRuns,
-		&result.TotalTasks, &result.CompletedTasks, &result.Gaps, &result.PendingTasks, &result.Findings, &result.UnreviewedFindings)
+		&result.TotalTasks, &result.CompletedTasks, &result.Gaps, &result.PendingTasks, &result.Findings, &result.NeedsReviewFindings)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return auditstore.WorkspaceSummary{}, auditstore.ErrNotFound
 	}

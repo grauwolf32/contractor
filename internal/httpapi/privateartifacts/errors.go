@@ -96,6 +96,10 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		errors.Is(err, artifacts.ErrInvalidName), errors.Is(err, artifacts.ErrInvalidMediaType),
 		errors.Is(err, artifacts.ErrVersionedWriteTarget), errors.Is(err, contracts.ErrValidation):
 		h.writeError(w, http.StatusBadRequest, "invalid_request", "request does not satisfy the private Artifact API contract", false)
+	case errors.Is(err, findingintake.ErrProjectRequired):
+		h.writeError(w, http.StatusBadRequest, "invalid_finding_request", "finding requires an active Project", false)
+	case errors.Is(err, findingintake.ErrEvidenceRequired):
+		h.writeError(w, http.StatusBadRequest, "invalid_finding_request", "finding requires selected exact evidence", false)
 	case errors.Is(err, findingintake.ErrInvalid):
 		h.writeError(w, http.StatusBadRequest, "invalid_finding_request", "request does not satisfy the finding intake contract", false)
 	case persistencepostgres.IsTransactionConflict(err):

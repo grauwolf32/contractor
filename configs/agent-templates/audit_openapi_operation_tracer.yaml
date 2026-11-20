@@ -3,13 +3,13 @@ kind: AgentTemplate
 
 metadata:
   name: audit_openapi_operation_tracer
-  version: "1"
+  version: "2"
 
 spec:
   description: Traces one pinned OpenAPI Audit operation through source and structural graph evidence and records evidence-backed finding proposals alongside its canonical result
   runtime: adk@1
   instructions:
-    ref: instructions/audit-openapi-operation-tracer-worker.md
+    ref: instructions/audit-openapi-operation-tracer-worker-project-findings.md
   toolsets:
     - ref: memory-tools@1
       tools:

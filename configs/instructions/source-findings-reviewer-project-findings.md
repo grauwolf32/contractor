@@ -18,10 +18,10 @@ Return the exact report artifact reference in the workflow completion result.
 ## Problem publication
 
 When reporting a concrete security problem, call `finding` with
-`publish_problem=true`, a clear problem assertion and selected exact evidence.
+a clear problem assertion and selected exact evidence in an active Project.
 Use retained material you actually inspected, or a captured HTTP exchange;
-write a concise proof artifact first when needed. Evidence and a supported
-check result alone do not request publication. Keep `publish_problem=false`
-for observations, hypotheses, positive properties and refuted problems.
+write a concise proof artifact first when needed. Every successful finding call creates a Project Finding. Keep supporting
+observations, hypotheses, positive properties and refuted problems in ordinary
+check/report artifacts; do not call finding merely to record a check outcome.
 Publication does not set the analyst's current verdict or severity. Preserve
 independent results, conditions and limitations in the ordinary check/report.

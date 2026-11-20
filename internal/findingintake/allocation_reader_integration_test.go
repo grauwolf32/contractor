@@ -55,7 +55,7 @@ func TestProjectFindingAllocationReaderSelectsExactInputsAndReplaysAfterDeletion
 	var receipts []Receipt
 	for i := range 101 {
 		input := testSubmission("reader-invocation", fmt.Sprintf("problem-%03d", i), []contracts.ArtifactRef{written.Ref})
-		input.PublishProblem = true
+
 		receipt, _, err := intake.Submit(ctx, producer, input)
 		if err != nil || receipt.FindingID == nil {
 			t.Fatalf("publication %d: %+v %v", i, receipt, err)
@@ -248,7 +248,7 @@ func TestProjectFindingAllocationReaderSharesAuditAndRunSources(t *testing.T) {
 			t.Fatal(err)
 		}
 		input := testSubmission("source-invocation", fmt.Sprintf("problem-%d", index), []contracts.ArtifactRef{proof.Ref})
-		input.PublishProblem = true
+
 		receipt, _, err := intake.Submit(ctx, grant, input)
 		if err != nil || receipt.FindingID == nil {
 			t.Fatal(receipt, err)

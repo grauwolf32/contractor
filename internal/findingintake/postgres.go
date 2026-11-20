@@ -126,11 +126,14 @@ func scanReceiptRow(row pgx.Row) (Receipt, error) {
 	}
 	result.Origin.RunDeleted = sourceDeletedAt != nil
 	if auditID != nil {
-		if auditExecutionID == nil || auditTaskID == nil {
+		if auditExecutionID == nil || (auditTaskID == nil && len(hypothesis) != 0) {
 			return Receipt{}, errors.New("validate stored finding Audit origin")
 		}
 		result.Origin.Audit = &AuditOrigin{
-			AuditID: *auditID, ExecutionID: *auditExecutionID, TaskID: *auditTaskID,
+			AuditID: *auditID, ExecutionID: *auditExecutionID,
+		}
+		if auditTaskID != nil {
+			result.Origin.Audit.TaskID = *auditTaskID
 		}
 		if len(hypothesis) != 0 {
 			var ref auditcontract.HypothesisRef

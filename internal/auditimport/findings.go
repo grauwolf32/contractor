@@ -26,7 +26,7 @@ func (i *Importer) retainTaskFindings(ctx context.Context, snapshot auditstore.R
 	pending := make([]findingintake.ImportRequest, 0, len(receipts))
 	for _, candidate := range receipts {
 		receipt := candidate.Receipt
-		if receipt.Origin.Audit == nil || receipt.Origin.Audit.AuditID != execution.AuditID || receipt.Origin.Audit.ExecutionID != execution.ExecutionID || receipt.Origin.Audit.TaskID == "" || receipt.Origin.RunID != *execution.RunID {
+		if receipt.Origin.Audit == nil || receipt.Origin.Audit.AuditID != execution.AuditID || receipt.Origin.Audit.ExecutionID != execution.ExecutionID || receipt.Origin.RunID != *execution.RunID {
 			return false, fmt.Errorf("%w: finding Task origin differs", ErrPermanent)
 		}
 		request := findingintake.ImportRequest{OwnerID: snapshot.Audit.OwnerID, AuditID: execution.AuditID, RunID: *execution.RunID, Proposal: receipt.Proposal.Ref}

@@ -2,7 +2,7 @@ apiVersion: contractor/v1alpha1
 kind: Workflow
 metadata:
   name: audit-source-check
-  version: '1'
+  version: "2"
 spec:
   parameters: {}
   inputs:
@@ -30,11 +30,11 @@ spec:
     check:
       objective: Evaluate the assigned immutable Audit task set against the supplied source archive
       instructions:
-        ref: instructions/audit-source-checker-worker.md
+        ref: instructions/audit-source-checker-worker-project-findings.md
       planner: passthrough@1
       agents:
         checker:
-          template: audit_source_checker@1
+          template: audit_source_checker@2
           namespace: audit-check
       context:
         artifacts:

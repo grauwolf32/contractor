@@ -34,8 +34,8 @@ func (h *auditHandlers) listAuditFindings(w http.ResponseWriter, r *http.Request
 	}
 	if values, ok := query["verdict"]; ok {
 		verdictValue = values[0]
-		if values[0] == "unreviewed" {
-			params.Unreviewed = true
+		if values[0] == "needs_review" {
+			params.NeedsReview = true
 		} else {
 			value := auditstore.AnalystVerdict(values[0])
 			if value != auditstore.VerdictTruePositive && value != auditstore.VerdictFalsePositive {

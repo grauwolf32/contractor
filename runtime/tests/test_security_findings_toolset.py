@@ -448,6 +448,7 @@ def _receipt_response(
             "apiVersion": "contractor/v1alpha1",
             "proposalId": "proposal-1",
             "receiptId": "receipt-1",
+            "findingId": "finding-1",
             "proposal": {
                 "ref": {
                     "namespace": "finding-proposals",

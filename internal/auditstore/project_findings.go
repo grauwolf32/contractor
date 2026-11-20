@@ -79,9 +79,23 @@ type FindingWindow struct {
 	ContinueBefore *ProjectFindingSummary
 }
 
-func (row ProjectFindingSummary) Matches(state *FindingState, verdict *AnalystVerdict, unreviewed bool, severity *FindingSeverity) bool {
+// PresentationSeverity uses the analyst rating when present, otherwise the producer suggestion.
+func (row ProjectFindingSummary) PresentationSeverity() FindingSeverity {
+	if row.AnalystSeverity != nil {
+		return *row.AnalystSeverity
+	}
+	return FindingSeverity(row.SeveritySuggestion)
+}
+
+// NeedsReview is the shared unsettled-record predicate, excluding informational material.
+func (row ProjectFindingSummary) NeedsReview() bool {
+	unsettled := row.AnalystVerdict == nil || row.State != nil && *row.State == FindingProposed
+	return unsettled && row.PresentationSeverity() != SeverityInformational
+}
+
+func (row ProjectFindingSummary) Matches(state *FindingState, verdict *AnalystVerdict, needsReview bool, severity *FindingSeverity) bool {
 	return (state == nil || row.State != nil && *row.State == *state) &&
 		(verdict == nil || row.AnalystVerdict != nil && *row.AnalystVerdict == *verdict) &&
-		(!unreviewed || row.AnalystVerdict == nil) &&
-		(severity == nil || row.AnalystSeverity != nil && *row.AnalystSeverity == *severity)
+		(!needsReview || row.NeedsReview()) &&
+		(severity == nil || row.PresentationSeverity() == *severity)
 }

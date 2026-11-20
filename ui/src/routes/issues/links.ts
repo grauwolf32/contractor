@@ -4,6 +4,7 @@
  * the list, and the selected possible issue is the path
  * `/issues/:projectId/:findingId`.
  */
+import { findingNeedsReview, findingSeverity } from "../../api/audits";
 import type {
   ProjectFinding,
   FindingSeverity,
@@ -22,7 +23,7 @@ export interface IssueFilters {
   state: StateFilter;
   /** One project's possible issues; undefined for every project. */
   project?: string | undefined;
-  /** The analyst's rating; the AI suggestion is never filtered on. */
+  /** Analyst severity when assessed, otherwise the producer suggestion. */
   severity?: FindingSeverity | undefined;
 }
 
@@ -72,17 +73,19 @@ export function issueHref(
 
 /** True when a possible issue still belongs in a list with these filters. */
 export function matchesIssueFilters(
-  finding: Pick<ProjectFinding, "state" | "analystSeverity">,
+  finding: Pick<
+    ProjectFinding,
+    "state" | "analystSeverity" | "analystVerdict" | "claim"
+  > & { severitySuggestion?: string },
   filters: IssueFilters,
 ): boolean {
   return (
     (filters.state === "all" ||
-      (filters.state === "needs-review" &&
-        (finding.state === null || finding.state === "proposed")) ||
+      (filters.state === "needs-review" && findingNeedsReview(finding)) ||
       (filters.state === "unassessed"
         ? finding.state === null
         : finding.state === filters.state)) &&
     (filters.severity === undefined ||
-      finding.analystSeverity === filters.severity)
+      findingSeverity(finding) === filters.severity)
   );
 }

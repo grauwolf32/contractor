@@ -315,7 +315,7 @@ export function researchFixture(state = "normal") {
               gaps: 1,
               pendingTasks: 3,
               findings: 1,
-              unreviewedFindings: 1,
+              needsReviewFindings: 1,
             }),
           );
     if (path === `/v1/audits/${RESEARCH_AUDIT}/hypotheses`) {

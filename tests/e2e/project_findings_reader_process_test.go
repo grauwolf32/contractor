@@ -24,7 +24,7 @@ func TestProjectFindingsReaderAcrossProcesses(t *testing.T) {
 			if !ok {
 				return nil, fmt.Errorf("missing exact proof")
 			}
-			return map[string]any{"title": fmt.Sprintf("Project problem %03d", index), "description": "An evidenced observed problem in the selected conditions", "evidence_refs": []any{exact}, "publish_problem": true}, nil
+			return map[string]any{"title": fmt.Sprintf("Project problem %03d", index), "description": "An evidenced observed problem in the selected conditions", "evidence_refs": []any{exact}}, nil
 		}))
 	}
 	seed.steps = append(seed.steps, toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{"name": "report", "text": "Seeded Project problems", "media_type": "text/markdown"})), finalGatewayStep("Project problems retained", map[string]domainArtifactBinding{"report": {namespace: "findings-review", name: "report"}}))

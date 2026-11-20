@@ -293,8 +293,8 @@ expose creation, reading or both.
 **FND-R21.** Selecting reading grants no publication or analyst mutation authority. Current Finding
 ownership and commands are FND-R209 through FND-R219.
 
-**FND-R22.** A finding call records an ordinary proposal receipt. Its explicit publish_problem flag
-additionally requests canonical Project problem publication under FND-R210. The Worker
+**FND-R22.** A direct finding call records an immutable receipt and requests
+canonical Project admission under FND-R210. The Worker
 never chooses the Project or Audit, grants approval or starts work.
 
 **FND-R23.** Model-visible arguments contain no `audit_id`,
@@ -1390,7 +1390,7 @@ It selects `list_findings`, `read_artifact` and text report writing. Its
 generic analysis requires no hypothesis, annotation, OpenAPI input or Audit
 origin.
 
-**FND-R149.** The ordinary `source-findings-review@1` Workflow uses the
+**FND-R149.** The ordinary `source-findings-review@2` Workflow uses the
 code facade. Source verifier and tracer templates select the code facade; the
 HTTP verifier selects the HTTP facade.
 
@@ -1825,14 +1825,24 @@ Unassessed state is explicitly null. Reopening is an analyst action and records
 its own rationale, actor and time. Immutable first-source identity and claim do
 not change when another source or check arrives.
 
-**FND-R210.** Intake creates a Project Finding only when the producer explicitly
-requests problem publication (`publishProblem`, exposed by the Runtime tool as
-`publish_problem`) with a nonempty problem assertion and selected exact evidence
-in an active ordinary Project. Ordinary observations, hypotheses, positive-property
-results and refuted problem checks are retained without inventing publication
-intent. Evidence, supported results, qualified keys and severity suggestions never
-stand in for that intent. Invalid publication preserves the ordinary receipt and
-reports its permanent publication error; it alone does not fail a Run.
+**FND-R210.** Direct `finding` and `record_fact` calls require an active ordinary
+Project and selected exact evidence. A successful call always admits a Project
+Finding and returns its identity with the immutable receipt; there is no direct
+publication flag or proposal-only success. Reject a projectless call before any
+payload, Artifact or receipt write. Invalid evidence/admission fails atomically
+through the existing permanent intake error. Supporting observations, positive
+properties and refuted checks can still be ordinary check/report Artifacts.
+`record_fact` is a separately selected `security-findings@1` facade over the same
+publisher, assigning producer `severity_suggestion=informational`. Ordinary
+`finding` accepts an optional suggestion from the existing severity enum, including
+informational. Neither facade sets analyst assessment or a separate Fact identity.
+A note as evidence records a reported claim, not independent verification: producers
+must identify that source and its uncertainty in the retained description.
+Informational submissions allow at most four selected exact sources (including a
+captured HTTP exchange) and 32 KiB encoded authored proposal bytes before the
+Server-added capture projection (LIM-FND-59); common evidence limits still apply. Selected refs obey the common model-visible
+Artifact boundary (ART-R19, ART-R24, ART-R109); direct intake cannot export a
+reserved Memory, HTTP body or Skill binding as evidence.
 
 **FND-R211.** A source is an immutable receipt and its provenance, evidence and
 independent result history, with an optional link to the canonical Finding.
@@ -1915,13 +1925,17 @@ history is historical data, never a second executable assessment ledger.
 
 ## Common Audit Task provenance
 
-**FND-R220.** Authenticated finding intake resolves Audit origin from the
-ordinary allocation/Stage/Run and immutable common execution membership. A
-single-member Run may omit `item_key`; a batch must select one of its actual
-member keys. Missing or foreign membership grants no origin authority. Audit
-origin carries Audit, execution and Task IDs and the Task's optional exact
-system-pinned hypothesis reference. It carries no execution-role inference,
-model-supplied identity or verdict. Finding creation remains optional.
+**FND-R220.** Authenticated intake derives Project, Run and any Audit/execution
+origin from trusted allocation/Stage/Run membership. Task-bound `finding` may omit
+`item_key` for a single member; a batch must select an actual member. Incidental
+submission without `item_key` retains Audit/execution only, including single-member
+and batch Runs. An explicit valid member adds Task origin; incidental mode omits
+hypothesis association, while task-bound mode derives the Task's optional exact
+system-pinned hypothesis. Foreign keys fail. `record_fact` defaults to incidental
+mode and exposes both optional association paths. Origin IDs confer no model
+authority. Collections omit absent Task fields; a hypothesis requires a Task.
+Run-level sources remain Project/Audit readable and retained; per-Task result
+references include only receipts actually linked to that Task.
 
 **FND-R221.** Common collection pages only unretained and unrejected receipts
 for the admitted source Run/Audit. Existing holds and rejection events record
@@ -1943,11 +1957,9 @@ Project `finding-materials`. The source receipt exposes `hypothesisSnapshot`
 beside the system-filled hypothesis ID/revision. This contextual assertion is not
 counted as proof evidence. It survives Audit registry and producer Run purge
 alongside the independent Project source contribution and selected evidence.
-An incidental submission explicitly sets `incidental: true`; intake still derives
-trusted Audit/Run/Task membership from its batch item key and omits hypothesis
-association. Submission receipts bind that item key and incidental flag, so retry
-cannot reassign a source to another member. A supported positive property or
-refuted bug claim alone creates no problem Finding.
+Incidental submissions follow FND-R220 and omit hypothesis association. Receipt
+replay binds the original item key and incidental mode. A positive property or
+refuted claim alone does not invoke direct Finding intake.
 
 ## Allocation-authorized Project readers
 
@@ -2093,3 +2105,13 @@ survive source Run/Audit purge. A later publication Run still requires explicitl
 retained candidate/evidence inputs; accepted sources do not promise indefinite
 retention of unpublished candidates. Neither publication nor recovery calls the
 scanner, target, model or Runtime.
+
+
+**FND-R235.** Presentation and severity filters use current analyst severity when
+present, otherwise the canonical producer suggestion. Preserve their distinct
+provenance and nullable analyst fields. Facts are the informational severity view
+regardless of producer facade. Needs review means an unassessed or explicitly
+reopened/proposed record whose presentation severity is not informational; unknown
+severity remains eligible. Project/Audit/owner lists, UI and workspace counts apply
+this same predicate. The API query is `verdict=needs_review` and workspace count is
+`needsReviewFindings`; neither is a persisted state or analyst verdict.

@@ -76,7 +76,7 @@ func TestProjectFindingExplicitPublicationRetainsIndependentSources(t *testing.T
 			refs = append(refs, saved.Ref)
 		}
 		inputs[index] = testSubmission("publication-invocation", "problem", refs)
-		inputs[index].PublishProblem = true
+
 		inputs[index].Proposal.Title = "rule/sql"
 		inputs[index].Proposal.Description = "Native issue message"
 		inputs[index].Proposal.Subject = nil
@@ -84,20 +84,10 @@ func TestProjectFindingExplicitPublicationRetainsIndependentSources(t *testing.T
 		inputs[index].Proposal.Locations = []auditdomain.FindingLocation{{File: "src/a.py", Line: &line}}
 	}
 
-	// Evidence and a qualified key alone express no publication intent.
-	observation := inputs[0]
-	observation.PublishProblem = false
-	observation.Proposal.ClientKey = "observation"
-	observation.SubmissionID = stableSubmissionID(observation.InvocationID, observation.Proposal.ClientKey)
-	ordinary, _, err := service.Submit(ctx, grants[0], observation)
-	if err != nil || ordinary.FindingID != nil || ordinary.Fingerprint.Availability != "available" {
-		t.Fatalf("ordinary evidenced observation: finding=%v err=%v", ordinary.FindingID, err)
-	}
+	// Empty evidence is rejected atomically; direct intake always publishes.
 	invalid := testSubmission("publication-empty", "problem", nil)
-	invalid.PublishProblem = true
-	rejected, _, err := service.Submit(ctx, grants[0], invalid)
-	if err != nil || rejected.FindingID != nil || rejected.PublicationError != "problem_evidence_required" || rejected.ReceiptID == "" {
-		t.Fatalf("invalid publication lost ordinary proposal: %+v err=%v", rejected, err)
+	if _, _, err := service.Submit(ctx, grants[0], invalid); !errors.Is(err, ErrEvidenceRequired) {
+		t.Fatalf("empty evidence accepted: %v", err)
 	}
 
 	// Independent actual producers contend on the existing Project fence.

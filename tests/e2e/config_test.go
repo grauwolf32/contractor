@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -105,7 +106,9 @@ func installOrdinaryFindingFixture(t *testing.T, root, templateFile, workflowFil
 	}
 	workflow := read("workflows", workflowFile)
 	workflow = strings.Replace(workflow, "  name: "+strings.ReplaceAll(workflowFile, "_", "-")+"\n", "  name: "+name+"\n", 1)
-	workflow = strings.Replace(workflow, "template: "+templateFile+"@1", "template: "+name+"@1", 1)
+	workflow = regexp.MustCompile(`template: `+regexp.QuoteMeta(templateFile)+`@[A-Za-z0-9._-]+`).ReplaceAllString(workflow, "template: "+name+"@1")
+	template = regexp.MustCompile(`(?m)^  version:.*$`).ReplaceAllString(template, `  version: "1"`)
+	workflow = regexp.MustCompile(`(?m)^  version:.*$`).ReplaceAllString(workflow, `  version: "1"`)
 	var document map[string]any
 	if err := yaml.Unmarshal([]byte(workflow), &document); err != nil {
 		t.Fatal(err)

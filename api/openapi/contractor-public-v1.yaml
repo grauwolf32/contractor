@@ -4068,7 +4068,7 @@ paths:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
         - {name: state, in: query, schema: {$ref: '#/components/schemas/FindingState'}}
-        - {name: verdict, in: query, schema: {type: string, enum: [true_positive, false_positive, unreviewed]}}
+        - {name: verdict, in: query, schema: {type: string, enum: [true_positive, false_positive, needs_review]}}
         - {name: severity, in: query, schema: {$ref: '#/components/schemas/FindingSeverity'}}
       responses:
         '200':
@@ -4926,7 +4926,7 @@ paths:
           enum:
           - true_positive
           - false_positive
-          - unreviewed
+          - needs_review
       - name: severity
         in: query
         required: false
@@ -15119,7 +15119,10 @@ components:
     FindingAuditOrigin:
       type: object
       additionalProperties: false
-      required: [auditId, executionId, taskId]
+      required: [auditId, executionId]
+      dependentRequired:
+        hypothesis: [taskId]
+        hypothesisSnapshot: [hypothesis, taskId]
       properties:
         hypothesisSnapshot:
           $ref: '#/components/schemas/FindingExactArtifact'
@@ -15306,7 +15309,7 @@ components:
     AuditWorkspace:
       type: object
       additionalProperties: false
-      required: [auditId, auditRevision, asOf, iteration, executionState, outstandingRuns, totalTasks, completedTasks, gaps, pendingTasks, findings, unreviewedFindings]
+      required: [auditId, auditRevision, asOf, iteration, executionState, outstandingRuns, totalTasks, completedTasks, gaps, pendingTasks, findings, needsReviewFindings]
       properties:
         auditId: {$ref: '#/components/schemas/ResourceId'}
         auditRevision: {type: integer, minimum: 1}
@@ -15319,7 +15322,7 @@ components:
         gaps: {type: integer, minimum: 0}
         pendingTasks: {type: integer, minimum: 0}
         findings: {type: integer, minimum: 0}
-        unreviewedFindings: {type: integer, minimum: 0}
+        needsReviewFindings: {type: integer, minimum: 0}
     OwnerFindingPage:
       type: object
       additionalProperties: false

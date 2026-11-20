@@ -103,10 +103,10 @@ class InvocationAuditCollector:
         if invocation_id != self.owner.invocation_id:
             raise AuditCollectionError("invocation", "Tool belongs to a different invocation.")
 
-    def check_finding_item(self, invocation_id, item_key):
+    def check_finding_item(self, invocation_id, item_key, *, incidental=False):
         self._check_live(writing=True)
         self.check_invocation(invocation_id)
-        if item_key is None and len(self.owner.item_keys) == 1:
+        if item_key is None and (incidental or len(self.owner.item_keys) == 1):
             return
         if not isinstance(item_key, str) or item_key not in self.owner.item_keys:
             raise AuditCollectionError(

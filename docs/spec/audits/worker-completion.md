@@ -766,8 +766,8 @@ not complete the invocation a second time (FAIL-AWC-6).
 
 ### Bundled checklist profile
 
-**AWC-R121.** The bundled checklist profile is `source-checklist@1` →
-`audit-source-check@1` → `audit_source_checker@1`, with a separate bounded
+**AWC-R121.** The bundled checklist profile is `source-checklist@2` →
+`audit-source-check@2` → `audit_source_checker@2`, with a separate bounded
 `audit_completion_worker@1` ModelPolicy. It selects `audit-results@2`, one
 `passthrough@1` Worker and no target summarizer.
 

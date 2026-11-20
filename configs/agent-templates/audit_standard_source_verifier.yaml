@@ -3,13 +3,13 @@ kind: AgentTemplate
 
 metadata:
   name: audit_standard_source_verifier
-  version: "1"
+  version: "2"
 
 spec:
   description: Reviews one pinned ASVS requirement or WSTG scenario against source evidence while preserving runtime and documentation gaps
   runtime: adk@1
   instructions:
-    ref: instructions/audit-standard-source-verifier-worker.md
+    ref: instructions/audit-standard-source-verifier-worker-project-findings.md
   toolsets:
     - ref: memory-tools@1
       tools: [list_memories, read_memory, write_memory, append_memory, search_memory, list_memory_tags]

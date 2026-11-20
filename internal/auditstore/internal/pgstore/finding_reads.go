@@ -22,7 +22,7 @@ func (s *QueryStore) ListFindings(
 	if err := validateFindingList(params); err != nil {
 		return nil, err
 	}
-	rows, err := s.db.Query(ctx, findingPageSQL(listFindingsSQL, params.State, params.Verdict, params.Unreviewed, params.Severity), append(findingFilterArgs(params),
+	rows, err := s.db.Query(ctx, findingPageSQL(listFindingsSQL, params.State, params.Verdict, params.NeedsReview, params.Severity), append(findingFilterArgs(params),
 		params.AfterCreatedAt, params.AfterFindingID, params.Limit)...)
 	if err != nil {
 		return nil, fmt.Errorf("list Audit findings: %w", err)
@@ -46,7 +46,7 @@ func (s *QueryStore) ListFindings(
 // finding page, the count and the page alike.
 func findingFilterArgs(params auditstore.FindingListParams) []any {
 	return []any{params.OwnerID, params.AuditID, optionalText(params.State), optionalText(params.Verdict),
-		params.Unreviewed, optionalText(params.Severity)}
+		params.NeedsReview, optionalText(params.Severity)}
 }
 
 // optionalText binds an optional enumerated value as text.
@@ -71,7 +71,7 @@ func (s *QueryStore) ListOwnerFindings(
 	}
 	if (params.State != nil && !params.State.Valid()) || (params.Severity != nil && !params.Severity.Valid()) ||
 		(params.Verdict != nil && *params.Verdict != auditstore.VerdictTruePositive && *params.Verdict != auditstore.VerdictFalsePositive) ||
-		(params.Unreviewed && (params.Verdict != nil || params.Severity != nil)) {
+		(params.NeedsReview && params.Verdict != nil) {
 		return auditstore.FindingWindow{}, auditstore.ErrInvalid
 	}
 	query := listOwnerFindingsSQL
@@ -84,7 +84,7 @@ func (s *QueryStore) ListOwnerFindings(
 		project = params.ProjectID
 	}
 	rows, err := s.db.Query(ctx, query,
-		params.OwnerID, project, params.State, params.Verdict, params.Unreviewed, params.Severity,
+		params.OwnerID, project, params.State, params.Verdict, params.NeedsReview, params.Severity,
 		params.BeforeCreatedAt, params.BeforeFindingID, params.Limit)
 	if err != nil {
 		return auditstore.FindingWindow{}, fmt.Errorf("list owner findings: %w", err)
@@ -105,7 +105,7 @@ func (s *QueryStore) ListOwnerFindings(
 			continue
 		}
 		previous = &row
-		if visible && row.Matches(params.State, params.Verdict, params.Unreviewed, params.Severity) {
+		if visible && row.Matches(params.State, params.Verdict, params.NeedsReview, params.Severity) {
 			result.Items = append(result.Items, row)
 		}
 	}
@@ -141,7 +141,7 @@ func validateFindingList(params auditstore.FindingListParams) error {
 	if params.Verdict != nil && *params.Verdict != auditstore.VerdictTruePositive && *params.Verdict != auditstore.VerdictFalsePositive {
 		return auditstore.ErrInvalid
 	}
-	if params.Unreviewed && (params.Verdict != nil || params.Severity != nil) {
+	if params.NeedsReview && params.Verdict != nil {
 		return auditstore.ErrInvalid
 	}
 	return nil

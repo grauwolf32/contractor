@@ -1,3 +1,4 @@
+import { findingNeedsReview } from "../../api/audits";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
@@ -67,9 +68,8 @@ export function usePossibleIssuesToReview(projectId: string) {
       readError: (data) => data.error,
     }),
   });
-  const items = (query.data?.items ?? []).filter(
-    (finding) =>
-      finding.analystVerdict === null || finding.state === "proposed",
+  const items = (query.data?.items ?? []).filter((finding) =>
+    findingNeedsReview(finding),
   );
   return {
     items,

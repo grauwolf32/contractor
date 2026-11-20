@@ -134,10 +134,14 @@ func TestPostgresFindingFingerprintIntakeReplayAndRetention(t *testing.T) {
 		t.Fatal(err)
 	}
 	requireReceiptReportProjection(t, ctx, pool, first.ReceiptID, string(heldReport))
-	requireReceiptReportProjection(t, ctx, pool, second.ReceiptID, "{}")
+	secondReport, err := auditdomain.EncodeFindingReportProjection(auditdomain.ProjectFindingReport(secondInput.Proposal))
+	if err != nil {
+		t.Fatal(err)
+	}
+	requireReceiptReportProjection(t, ctx, pool, second.ReceiptID, string(secondReport))
 	discardReplay, ok, err := service.Submit(ctx, grant, secondInput)
 	if err != nil || !ok || discardReplay.ReceiptID != second.ReceiptID ||
-		discardReplay.Retention != RetentionDiscarded || !reflect.DeepEqual(discardReplay.Proposal, second.Proposal) ||
+		discardReplay.Retention != RetentionProjectHeld || !reflect.DeepEqual(discardReplay.Proposal, second.Proposal) ||
 		!reflect.DeepEqual(discardReplay.Evidence, second.Evidence) {
 		t.Fatalf("discarded replay lost exact provenance: %+v, replay=%v, err=%v", discardReplay, ok, err)
 	}
@@ -176,7 +180,7 @@ func TestPostgresFindingFingerprintIntakeReplayAndRetention(t *testing.T) {
 		t.Fatalf("discarded sensitive projection=%+v %v", discarded.Fingerprint, err)
 	}
 	unimported, err := readReceiptByID(ctx, pool, second.ReceiptID)
-	if err != nil || unimported.Fingerprint.Reason != "discarded" {
+	if err != nil || unimported.Retention != RetentionProjectHeld || !reflect.DeepEqual(unimported.Fingerprint, second.Fingerprint) {
 		t.Fatalf("unimported discard=%+v %v", unimported.Fingerprint, err)
 	}
 }
