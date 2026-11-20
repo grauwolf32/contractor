@@ -1,0 +1,52 @@
+{
+  "task": "V472-001",
+  "date": "2026-11-20",
+  "source": "read-only local Phoenix at 127.0.0.1:6006, project default",
+  "examples": [
+    {
+      "audit_id": "audit_a7478fd29aac380bc820ef2dfa096fb5",
+      "trace_count": 2,
+      "span_count": 256,
+      "tool_calls": {
+        "calls": 127,
+        "succeeded": 127,
+        "errors": 0,
+        "cancelled": 0,
+        "unknown": 0,
+        "error_rate_pct": 0.0,
+        "total_ms": 5523,
+        "mean_ms": 43.488,
+        "p50_ms": 20,
+        "p95_ms": 26,
+        "max_ms": 2941
+      },
+      "model_calls": 124,
+      "traces_with_counter_mismatch": 0,
+      "worker_traces_without_counter_comparison": 0
+    },
+    {
+      "audit_id": "audit_1309a26b427b5c1c4b314890dc9226df",
+      "trace_count": 1,
+      "span_count": 910,
+      "tool_calls": {
+        "calls": 453,
+        "succeeded": 279,
+        "errors": 174,
+        "cancelled": 0,
+        "unknown": 0,
+        "error_rate_pct": 38.411,
+        "total_ms": 9140,
+        "mean_ms": 20.177,
+        "p50_ms": 19,
+        "p95_ms": 25,
+        "max_ms": 2419
+      },
+      "model_calls": 454,
+      "traces_with_counter_mismatch": 0,
+      "worker_traces_without_counter_comparison": 1
+    }
+  ],
+  "replay": "Both initial live exports reproduced their summary.json byte-for-byte on offline replay; final error grouping also verified on retained real data.",
+  "content_policy": "No trace payloads, prompts, credentials, arguments, error messages or model identifiers are committed. Private local archives are ignored.",
+  "coverage": "Observed retained traces only; the error example has one Worker trace without final lifecycle counter comparison. No complete Audit coverage is claimed."
+}
