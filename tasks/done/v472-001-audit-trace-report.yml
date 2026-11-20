@@ -5,7 +5,8 @@ milestone: runtime-telemetry-2026-10
 epic: operations
 kind: feature
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: e0080decc122e9a74b3afc30ce1ffe1b8772b248
 depends_on: []
 languages: [python, markdown]
 goal: >-
@@ -91,3 +92,12 @@ tests:
     covers: [A1, A2]
   - command: make lint
     covers: [A1, A2, A3]
+
+verification_results:
+  - All 11 focused CLI/HTTP/offline tests passed, including pagination, a 5000-call Audit, duplicate suppression, bounds, malformed HTTP/data, interruptions and private output handling.
+  - make lint passed, including all 228 script tests with four existing declared skips; skips are not passing coverage. No PostgreSQL or live-model test was needed for this standalone read-only script.
+  - Explicit Ruff check and formatting check passed for both new Python files; task/spec checks and git diff --check passed.
+  - Read-only local Phoenix demonstration exported 256 spans in two traces, with 127 tool calls and 124 model calls; lifecycle counts matched.
+  - A second retained Audit yielded 910 spans, 453 tool calls and 174 errors. Its absent final Worker counter comparison remains explicit; complete Audit coverage is not claimed.
+  - Both initial live exports reproduced summary.json byte-for-byte on offline replay. Final bounded error-message grouping was also verified on the retained real archive.
+  - Changes are committed on codex/audit-trace-report and are not merged into main. No remote writes, deployment, database changes or model calls were performed.

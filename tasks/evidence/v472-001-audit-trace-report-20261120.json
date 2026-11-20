@@ -48,5 +48,15 @@
   ],
   "replay": "Both initial live exports reproduced their summary.json byte-for-byte on offline replay; final error grouping also verified on retained real data.",
   "content_policy": "No trace payloads, prompts, credentials, arguments, error messages or model identifiers are committed. Private local archives are ignored.",
-  "coverage": "Observed retained traces only; the error example has one Worker trace without final lifecycle counter comparison. No complete Audit coverage is claimed."
+  "coverage": "Observed retained traces only; the error example has one Worker trace without final lifecycle counter comparison. No complete Audit coverage is claimed.",
+  "implementation_commit": "e0080decc122e9a74b3afc30ce1ffe1b8772b248",
+  "verification": {
+    "focused_tests": 11,
+    "focused_result": "passed",
+    "make_lint": "passed",
+    "script_suite_tests": 228,
+    "script_suite_existing_skips": 4,
+    "ruff": "passed",
+    "task_and_spec_checks": "passed"
+  }
 }
