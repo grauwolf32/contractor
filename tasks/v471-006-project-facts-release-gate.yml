@@ -1,0 +1,83 @@
+schema_version: "1.0"
+id: V471-006
+title: Accept the shared Finding facts path through real process, lifecycle and scale gates
+milestone: project-facts-2026-11
+epic: quality
+kind: chore
+priority: P1
+status: pending
+depends_on: [V471-005]
+languages: [go, python, typescript, yaml, markdown]
+goal: >-
+  Prove that optional note extraction, Project facts, existing Finding admission,
+  deduplication, exact hypothesis grounds and the separate UI work together on one
+  integrated revision, with honest failure and source-retention behavior.
+context:
+  authority: >-
+    User request 2026-11-20 plans facts, note extraction, deduplication and separate
+    interfaces on the same Project Finding, with no unnecessary publication flag
+    and clear diagrams. An integrated deterministic exit is an agent proposal.
+    User decision 2026-11-20 selects an optional separate passthrough@1 extraction
+    Stage and authorizes updating/merging the planning package into main. Verify
+    that Stage's one Runtime Worker and model-free Planner in the real-process gate.
+    Planning/integration authorizes no feature implementation, live-model run or deployment.
+  proposal: docs/proposals/0055-project-facts-through-findings.md
+  specification:
+    - docs/spec/findings/findings.md
+    - docs/spec/tools/memory.md
+    - docs/spec/execution/server-operations.md
+    - docs/spec/audits/hypotheses.md
+    - docs/spec/artifacts/retention-and-deletion.md
+  boundary: >-
+    This gate verifies existing owners and integrated production callers; it does
+    not create an execution controller, graph store, new model service or separate
+    Fact persistence. Newly required release targets must have real consumers and
+    participate in release verification without zero-case or skipped-case success.
+scope:
+  in:
+    - Register and run shared real Server/PostgreSQL/Runtime/scripted-Gateway process cases in the release graph.
+    - Verify direct facts/issues, model-free snapshot operation, optional passthrough@1 extraction Stage, correlation, exact hypothesis selection and responsive UI together.
+    - Exercise ambiguous replies, cancellation, claim loss, restart, source deletion and Project purge under realistic cardinality.
+    - Record all executed checks, explicit skips, integrated revision and cleanup of the one owned test database and fixture resources.
+  out:
+    - Live semantic-quality claims, changing configured models, production deployment or demo data resets.
+    - Full graph infrastructure, automatic semantic merge or reactivating unrelated deferred tasks.
+acceptance_criteria:
+  - id: A1
+    text: >-
+      One real-process scenario records notes, snapshots selected notes through a
+      model-free operation, and extracts facts in a separate passthrough@1 Stage
+      with exactly one Runtime Worker and no Planner LLM call. It obtains common
+      Project Finding IDs, correlates a second independent observation and selects
+      exact grounds for a hypothesis. Omitted extraction and zero output create
+      no hidden call; ordinary finding has no publication flag.
+  - id: A2
+    text: >-
+      Source Run/Audit deletion leaves retained Project facts/evidence and exact
+      hypothesis sources readable; Project purge drains users and removes owned
+      data. Replay, claim loss and cancellation add no duplicated effect or
+      post-fence write. Fact/issue assessment and identities stay separate.
+  - id: A3
+    text: >-
+      Real PostgreSQL scale/pagination and browser tests pass at the planned
+      bounds; all new strict schemas/fixtures agree across languages and clients.
+      The integrated deterministic release gate passes with no required skipped
+      case or absent target counted as success.
+  - id: A4
+    text: >-
+      Evidence distinguishes mechanism tests from model quality, records remaining
+      limitations and open decisions, and leaves no owned database/container/
+      network. Full touched suites and release evidence identify the tested revision.
+tests:
+  - command: make test-project-facts-e2e
+    covers: [A1, A2, A3, A4]
+  - command: make test-memory-snapshot-e2e
+    covers: [A1, A2, A3]
+  - command: make test-project-facts-ui
+    covers: [A1, A3]
+  - command: make release-verify
+    covers: [A1, A2, A3, A4]
+test_prerequisites:
+  - Real PostgreSQL and Server/Runtime processes are required; unset infrastructure produces unproven coverage, not acceptance.
+  - Heavy-I/O fixtures remain explicit opt-in and disabled skips are not passes. Never enable the flag implicitly.
+  - Use one disposable database, stop all processes/pools, then drop it and remove only owned test resources; no global prune/reset.

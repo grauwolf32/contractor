@@ -1,0 +1,110 @@
+schema_version: "1.0"
+id: V471-005
+title: Show focused Project facts separately while reusing Finding sources and hypothesis grounds
+milestone: project-facts-2026-11
+epic: ui
+kind: feature
+priority: P1
+status: pending
+depends_on: [V471-003, V471-004]
+languages: [typescript, css, go, yaml, markdown]
+goal: >-
+  Users can inspect Project facts separately from possible security issues, see
+  their source quality and independent observations, and select exact grounds
+  for hypotheses without facing a global tangled graph.
+demonstration: >-
+  A Project has a technology fact with two sources, a note-derived inference and
+  an informational security issue. The Facts view shows only fact-purpose records;
+  opening a record shows context/sources and a related hypothesis. The hypothesis
+  exposes its exact grounds separately from checking results. The issue remains
+  in the ordinary issue view without being reclassified by severity.
+context:
+  authority: >-
+    User decisions 2026-11-20: provide a separate facts interface with the same
+    Project Finding beneath it, include technology observations, preserve clarity
+    and produce diagrams. Focused lists, exact-source navigation and bounded local
+    views are agent proposals. User decision 2026-11-20 fixes optional LLM
+    extraction as a separate passthrough@1 Stage; the user asks to update and
+    merge the planning package into main. This task remains planned, not assigned
+    for implementation; the execution choice does not add a UI engine selector.
+  proposal: docs/proposals/0055-project-facts-through-findings.md
+  specification:
+    - docs/spec/ui/ui.md
+    - docs/spec/ui/journeys.md
+    - docs/spec/findings/findings.md#FND-R213
+    - docs/spec/findings/findings.md#FND-R216
+    - docs/spec/audits/hypotheses.md#HG-R16
+  design:
+    - docs/design/ui/README.md
+    - ui/src/ui/README.md
+scope:
+  in:
+    - Add a Project Facts list and fact-oriented detail presentation over existing Finding IDs/readers.
+    - Display explicit purpose, context, source quality, independent evidence, origin and possible duplicates.
+    - Connect exact source selection and hypothesis grounds through existing material/selection interfaces.
+    - Show results separately from grounds and use bounded pagination for every list and picker.
+    - Update the UI version and new shipped configuration identities only where actual consumers change.
+  out:
+    - A global graph by default, arbitrary edge editor, automatic recursive fact chains or new UI-owned state.
+    - Reclassifying all informational records, fabricating verification badges or treating fact selection as confirmation.
+    - A second facts backend, a new approval inbox or mandatory model calls for viewing records.
+requirements:
+  - id: R1
+    text: >-
+      Views use the Server purpose and canonical Finding identity; severity is
+      independent. Note-derived evidence is labelled as a statement from notes,
+      not independently observed target behavior. State comes only from Server.
+  - id: R2
+    text: >-
+      Main navigation is list -> selected record -> exact sources/related
+      hypotheses. A local diagram, if necessary, is optional and shows only
+      direct neighbors with finite caps and explicit continuation, never all Project data.
+  - id: R3
+    text: >-
+      Hypotheses show grounds separately from performed checks. Version changes,
+      unavailable sources and stale selection conflicts remain visible and are
+      not repaired with an implicit latest revision.
+  - id: R4
+    text: Follow V3B UI language/tokens; verify 390 px and light/dark/black themes, accessible controls, honest loading/errors and terminal refresh behavior.
+failure_outcomes:
+  - operation: Read facts/sources or submit an exact material selection
+    permanent: Denied/deleted source and invalid or stale exact selection show the Server reason without substituting another record.
+    retryable: Existing bounded read backoff and storage conflict behavior; no repeated selection writes on every render.
+    ambiguous: Keep the existing selection/idempotency key and reconcile the same intent before repeat.
+    cancelled: Abort obsolete reads and prevent stale responses from replacing the selected record.
+    timeout: Existing UI/API deadlines apply; an unavailable source never receives a verified/loaded claim.
+cardinality:
+  - collection: Fact pages, source pages, related hypotheses and optional local neighbors
+    expected: One 50-row list page and one selected record; containing Project may have 10000 records.
+    maximum: Existing source page 64; proposed optional local view 25 nodes, 40 edges and 128 KiB; other lists use public page limits.
+    bound: All pickers follow every page explicitly; no eager all-Project hydration, full-history polling or quadratic browser layout.
+lifecycle:
+  - entity: Read-only views and existing exact selection artifacts
+    delete: Respect existing Project/source removal and owner checks; UI creates no new lifecycle owner.
+    cascade: Invalidate affected queries after authoritative mutations without claiming premature cancellation/deletion.
+    retention: Source links preserve their pinned revisions and ordinary retention; merely opening a panel adds no hold.
+acceptance_criteria:
+  - id: A1
+    given: Facts and informational issues in the same Project
+    when: Users navigate both interfaces and source pages
+    then: Purpose controls placement; same Finding IDs and independent sources remain visible with honest provenance and no automatic confirmation.
+  - id: A2
+    given: More than one picker page, a changed revision and an unavailable source
+    when: The user selects fact grounds and opens the hypothesis
+    then: Every selected exact member is reachable, conflicts remain explicit, and grounds are distinct from check verdicts.
+  - id: A3
+    given: A 10000-record fixture and responsive theme variants
+    when: The UI loads at desktop and 390 px widths
+    then: Requests/layout remain bounded, controls are accessible, and no global graph or invented Server state appears.
+tests:
+  - command: make ui-verify
+    covers: [A1, A2, A3]
+  - command: make test-project-facts-ui
+    covers: [A1, A2, A3]
+  - command: make verify-public-api
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+test_prerequisites:
+  - Add the named browser target in this task with nonzero cases; scripted mocks do not replace the real process/storage acceptance in V471-006.
+  - UI tests use testdata/fixtures and theme tokens; do not read the live configs tree outside permitted process suites.
