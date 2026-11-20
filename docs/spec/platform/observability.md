@@ -1292,6 +1292,26 @@ preserves loaded facts visibly on failed refresh. Other Run updates, projection
 remounts and settled objects do not cause perpetual polling. Diagnostic reads
 never change execution results, aggregate counters or Eval usage.
 
+### Local Audit trace export
+
+**OBS-R127.** The standalone `scripts/audit_trace_report.py` reads an existing
+Audit's retained Phoenix spans without changing Contractor or its collector.
+It first discovers trace IDs through `contractor.run.label.audit.id`, then
+pages through every span of those traces. Filtering all spans by that label
+would omit Worker model and tool spans. The private local archive preserves
+Phoenix's captured span representation; offline replay produces the same
+deterministic analytics. Worker tool spans alone count as tool calls; model
+tool declarations and lifecycle counters never add calls. Failed calls,
+cancellations, unknown outcomes, missing/truncated output and missing token
+measurements remain distinct. Lifecycle counters provide per-trace comparisons,
+not proof of complete Audit coverage: disabled debug, wholly missing traces,
+active export tails, loss and expiry remain outside that guarantee. Reads,
+pages, archive rows/bytes and execution time are bounded; failed or interrupted
+exports retain an incomplete manifest, and existing destinations are never
+overwritten. The [operator guide](../../guides/audit-traces.md) defines usage,
+local limits and exit statuses. No new Server API, persistence or retention
+mechanism is introduced.
+
 ## Telemetry rules owned by other documents
 
 | Topic | Owner |

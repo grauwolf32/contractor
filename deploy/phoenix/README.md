@@ -69,6 +69,16 @@ checks for their native message and usage projections.
 
 ## Verify
 
+To export an existing Audit's full retained traces and build local tool-error,
+call-count, duration and model-usage reports:
+
+```sh
+python3 scripts/audit_trace_report.py audit_example
+```
+
+See the [Audit trace export guide](../../docs/guides/audit-traces.md) for output
+files, offline replay, coverage limits and other Phoenix projects.
+
 ```sh
 sh deploy/phoenix/test-run.sh
 CONTAINER_CONNECTION=podman-machine-default-root sh deploy/phoenix/test-smoke.sh
