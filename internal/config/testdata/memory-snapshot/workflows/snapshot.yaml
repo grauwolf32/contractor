@@ -1,0 +1,30 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata: {name: memory-snapshot, version: "1"}
+spec:
+  parameters:
+    note_names: {required: false}
+  inputs: {}
+  outputs:
+    snapshot: {required: true, primary: true, mediaTypes: [application/json]}
+  entryStage: snapshot
+  stages:
+    snapshot:
+      objective: Export explicitly selected current-Run notes
+      operation:
+        ref: memory-snapshot@1
+        arguments:
+          namespace: {source: literal, value: writer}
+          notes: {source: parameter, name: note_names, default: selected}
+      context: {artifacts: {}}
+      result:
+        artifacts:
+          snapshot:
+            required: true
+            mediaTypes: [application/json]
+            from: {namespace: snapshot, name: selected-notes}
+      workflowOutputs: {snapshot: snapshot}
+      on:
+        succeeded: {succeed: {}}
+        failed: {fail: {}}
+        interrupted: {fail: {}}

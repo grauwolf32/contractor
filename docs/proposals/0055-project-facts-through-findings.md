@@ -131,7 +131,7 @@ deprecated alias. Все соответствующие Go/Python/API/UI/CLI/fix
 
 ```mermaid
 flowchart TD
-    N["Выбранные заметки текущего Run"] --> S["Stage snapshot<br/>Server operation, без модели"]
+    N["Выбранные заметки текущего Run"] --> S["Stage snapshot<br/>memory-snapshot@1, без модели"]
     S --> A["Обычный Artifact<br/>точная версия snapshot"]
     A --> T["Опциональный Stage extract-facts<br/>planner: passthrough@1"]
     T -->|"одно задание Worker"| W["Runtime Worker<br/>LLM по политике Workflow"]
@@ -145,7 +145,12 @@ Memory owner интерпретирует заметки; ArtifactStore оста
 Скрытые refs/revisions Memory не становятся аргументами модели или StageContext.
 Операция читает явно названные заметки объявленного Namespace своего Run,
 а не перебирает все Run/Project. Восстановление использует уже записанный
-snapshot, а не заново читает изменившиеся заметки.
+snapshot, а не заново читает изменившиеся заметки. Выход — обычный frozen
+JSON `snapshot` с логическими именами и содержимым выбранных заметок;
+`namespace` и CSV-строка `notes` используют обычные привязки аргументов.
+В одном Run этот выход создаётся один раз. Для нового снимка нужен другой
+выходной binding или Run. Скрытые ревизии и физические Memory refs в JSON
+не попадают; отдельного receipt нет.
 
 LLM отбирает полезные утверждения, сохраняет ограничения и точные цитаты.
 Детерминированный код проверяет структуру, допустимые источники, размеры,
@@ -188,7 +193,7 @@ sequenceDiagram
     participant W as Runtime Worker
     participant L as LLM Gateway
     participant F as Finding owner
-    S->>O: Stage snapshot: явный выбор заметок
+    S->>O: Stage memory-snapshot@1: namespace + notes
     O->>A: Сохранить точный обычный snapshot
     O-->>S: Exact output ref
     S->>P: Stage extract-facts + выбранный snapshot

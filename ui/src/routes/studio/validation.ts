@@ -235,6 +235,7 @@ export function validateDraft(draft: Draft): Problem[] {
             "sitemap-apply-openapi@1",
             "openapi-prepare-work@1",
             "publish-findings@1",
+            "memory-snapshot@1",
           ].includes(textValue(record(stage.operation).ref))
         )
           error(

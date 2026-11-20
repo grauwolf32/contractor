@@ -31,6 +31,9 @@ const contractsKernel = "internal/contracts"
 // is added for such a symbol; a package that needs only a domain rule
 // imports the rule's owner instead.
 var contractsImporters = map[string][]string{
+	"internal/contracts/memorycontract":           {"ValidName", "Invalidf"},
+	"internal/memory":                             {"ArtifactRef"},
+	"internal/operations/memorysnapshot":          {"ArtifactRef", "APIVersion"},
 	"internal/operations/publishfindings":         {"ArtifactRef", "APIVersion", "TerminationError"},
 	"internal/operations/openapiwork":             {"ArtifactRef", "APIVersion"},
 	"internal/configload/configloadtest":          {"ResolvedAgentTemplate"},

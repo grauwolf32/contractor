@@ -5184,6 +5184,7 @@ func (e ServerOperationConfigArguments3Source) Valid() bool {
 
 // Defines values for ServerOperationConfigRef.
 const (
+	ServerOperationConfigRefMemorySnapshot1      ServerOperationConfigRef = "memory-snapshot@1"
 	ServerOperationConfigRefOpenapiPrepareWork1  ServerOperationConfigRef = "openapi-prepare-work@1"
 	ServerOperationConfigRefPublishFindings1     ServerOperationConfigRef = "publish-findings@1"
 	ServerOperationConfigRefSitemapApplyOpenapi1 ServerOperationConfigRef = "sitemap-apply-openapi@1"
@@ -5193,6 +5194,8 @@ const (
 // Valid indicates whether the value is a known member of the ServerOperationConfigRef enum.
 func (e ServerOperationConfigRef) Valid() bool {
 	switch e {
+	case ServerOperationConfigRefMemorySnapshot1:
+		return true
 	case ServerOperationConfigRefOpenapiPrepareWork1:
 		return true
 	case ServerOperationConfigRefPublishFindings1:

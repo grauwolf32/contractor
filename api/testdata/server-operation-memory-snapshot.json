@@ -1,0 +1,52 @@
+{
+  "workflow": "apiVersion: contractor/v1alpha1\nkind: Workflow\nmetadata: {name: memory-snapshot, version: \"1\"}\nspec:\n  parameters:\n    note_names: {required: false}\n  inputs: {}\n  outputs:\n    snapshot: {required: true, primary: true, mediaTypes: [application/json]}\n  entryStage: snapshot\n  stages:\n    snapshot:\n      objective: Export explicitly selected current-Run notes\n      operation:\n        ref: memory-snapshot@1\n        arguments:\n          namespace: {source: literal, value: writer}\n          notes: {source: parameter, name: note_names, default: selected}\n      context: {artifacts: {}}\n      result:\n        artifacts:\n          snapshot:\n            required: true\n            mediaTypes: [application/json]\n            from: {namespace: snapshot, name: selected-notes}\n      workflowOutputs: {snapshot: snapshot}\n      on:\n        succeeded: {succeed: {}}\n        failed: {fail: {}}\n        interrupted: {fail: {}}\n",
+  "cases": [
+    {
+      "name": "registered snapshot",
+      "path": [
+        "operation",
+        "ref"
+      ],
+      "value": "memory-snapshot@1",
+      "valid": true
+    },
+    {
+      "name": "unknown snapshot version",
+      "path": [
+        "operation",
+        "ref"
+      ],
+      "value": "memory-snapshot@2",
+      "valid": false
+    },
+    {
+      "name": "no Planner",
+      "path": [
+        "planner"
+      ],
+      "value": "passthrough@1",
+      "valid": false
+    },
+    {
+      "name": "no shared Worker session",
+      "path": [
+        "session"
+      ],
+      "value": "shared",
+      "valid": false
+    },
+    {
+      "name": "explicit literal names",
+      "path": [
+        "operation",
+        "arguments",
+        "notes"
+      ],
+      "value": {
+        "source": "literal",
+        "value": "selected,question"
+      },
+      "valid": true
+    }
+  ]
+}

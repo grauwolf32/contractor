@@ -15,28 +15,25 @@ import (
 	"unicode/utf8"
 
 	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
+	"github.com/grauwolf32/contractor/internal/contracts/memorycontract"
 	"github.com/grauwolf32/contractor/internal/helpers/exactinteger"
 	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"github.com/ucarion/jcs"
 )
 
 const (
-	SchemaVersion            = "contractor.memory-note/v1"
-	MediaType                = "application/vnd.contractor.memory-note+json"
-	ArtifactNamePrefix       = artifactpolicy.MemoryArtifactPrefix // a reserved Memory binding (ART-R19)
-	MaximumArtifactNameBytes = 128
-	MaximumPayloadBytes      = 32 * 1024
-	MaximumNameBytes         = MaximumArtifactNameBytes - len(ArtifactNamePrefix)
-	MaximumDescription       = 512
-	MaximumTags              = 3
-	MaximumTagBytes          = 64
-	MaximumExactOrdinal      = uint64(exactinteger.Max)
+	SchemaVersion       = "contractor.memory-note/v1"
+	MediaType           = "application/vnd.contractor.memory-note+json"
+	ArtifactNamePrefix  = artifactpolicy.MemoryArtifactPrefix // a reserved Memory binding (ART-R19)
+	MaximumPayloadBytes = 32 * 1024
+	MaximumNameBytes    = memorycontract.MaximumNoteNameBytes
+	MaximumDescription  = 512
+	MaximumTags         = 3
+	MaximumTagBytes     = 64
+	MaximumExactOrdinal = uint64(exactinteger.Max)
 )
 
-var (
-	namePattern = regexp.MustCompile(`^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$`)
-	tagPattern  = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
-)
+var tagPattern = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
 
 type ErrorReason string
 
@@ -260,7 +257,7 @@ func Decode(artifactName string, payload []byte) (StoredNote, error) {
 }
 
 func validateName(name string) error {
-	if !utf8.ValidString(name) || len(name) == 0 || len([]byte(name)) > MaximumNameBytes || !namePattern.MatchString(name) {
+	if !memorycontract.ValidNoteName(name) {
 		return invalid(ReasonName)
 	}
 	return nil

@@ -1,0 +1,15 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata: {name: snapshot_fixture_worker, version: "1"}
+spec:
+  description: Writes notes or reads their explicitly exported ordinary material
+  runtime: adk@1
+  instructions: {ref: instructions/snapshot-fixture-worker.md}
+  toolsets:
+    - ref: memory-tools@1
+      tools: [list_memories, read_memory, write_memory, append_memory, search_memory, list_memory_tags]
+    - ref: run-artifacts@1
+      tools: [read_artifact]
+    - ref: text-artifacts@1
+      tools: [write_text_artifact]
+  sandboxProfile: local-workdir@1

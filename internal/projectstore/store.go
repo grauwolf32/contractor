@@ -96,6 +96,33 @@ WHERE owner_id = $1 AND project_id = $2`, ownerID, projectID))
 func (s *PostgresStore) LockActiveAuditProject(
 	ctx context.Context, ownerID, projectID string,
 ) (Project, error) {
+	project, err := s.lockProject(ctx, ownerID, projectID)
+	if err != nil {
+		return Project{}, err
+	}
+	if project.Kind != KindProject {
+		return Project{}, ErrNotFound
+	}
+	if project.Lifecycle == LifecycleDeleting {
+		return Project{}, ErrDeleting
+	}
+	return project, nil
+}
+
+// LockActiveProject fences a Run-owned mutation against deletion for either
+// ordinary or evaluation Projects, using the existing Project admission lock.
+func (s *PostgresStore) LockActiveProject(ctx context.Context, ownerID, projectID string) (Project, error) {
+	project, err := s.lockProject(ctx, ownerID, projectID)
+	if err != nil {
+		return Project{}, err
+	}
+	if project.Lifecycle == LifecycleDeleting {
+		return Project{}, ErrDeleting
+	}
+	return project, nil
+}
+
+func (s *PostgresStore) lockProject(ctx context.Context, ownerID, projectID string) (Project, error) {
 	if err := validateIdentity(ownerID, projectID); err != nil {
 		return Project{}, err
 	}
@@ -111,13 +138,7 @@ FOR SHARE`, ownerID, projectID))
 		return Project{}, ErrNotFound
 	}
 	if err != nil {
-		return Project{}, fmt.Errorf("lock Audit Project: %w", err)
-	}
-	if project.Kind != KindProject {
-		return Project{}, ErrNotFound
-	}
-	if project.Lifecycle == LifecycleDeleting {
-		return Project{}, ErrDeleting
+		return Project{}, fmt.Errorf("lock Project: %w", err)
 	}
 	return project, nil
 }

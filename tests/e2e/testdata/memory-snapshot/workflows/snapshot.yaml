@@ -1,0 +1,58 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata: {name: snapshot-fixture, version: "1"}
+spec:
+  parameters: {}
+  inputs: {}
+  outputs:
+    report: {required: true, primary: true, mediaTypes: [text/markdown]}
+  executionConfig:
+    workers: {llmGateway: local-litellm@1, credential: development-worker, modelPolicy: worker@2}
+  entryStage: writer
+  stages:
+    writer:
+      objective: Write selected and ignored notes and a report
+      instructions: {ref: instructions/snapshot-fixture-worker.md}
+      planner: passthrough@1
+      agents:
+        writer: {template: snapshot_fixture_worker@1, namespace: writer}
+      context: {artifacts: {}}
+      result:
+        artifacts:
+          report: {required: true, mediaTypes: [text/markdown], from: {namespace: writer, name: report}}
+      on:
+        succeeded: {next: snapshot}
+        failed: {fail: {}}
+        interrupted: {fail: {}}
+    snapshot:
+      objective: Export only the selected note without a model
+      operation:
+        ref: memory-snapshot@1
+        arguments:
+          namespace: {source: literal, value: writer}
+          notes: {source: literal, value: selected}
+      context: {artifacts: {}}
+      result:
+        artifacts:
+          snapshot: {required: true, mediaTypes: [application/json], from: {namespace: snapshot, name: selected-notes}}
+      on:
+        succeeded: {next: reader}
+        failed: {fail: {}}
+        interrupted: {fail: {}}
+    reader:
+      objective: Read the ordinary selected note snapshot and demonstrate its contents
+      instructions: {ref: instructions/snapshot-fixture-worker.md}
+      planner: passthrough@1
+      agents:
+        reader: {template: snapshot_fixture_worker@1, namespace: reader}
+      context:
+        artifacts:
+          snapshot: {namespace: snapshot, name: selected-notes, required: true}
+      result:
+        artifacts:
+          report: {required: true, mediaTypes: [text/markdown], from: {namespace: reader, name: report}}
+      workflowOutputs: {report: report}
+      on:
+        succeeded: {succeed: {}}
+        failed: {fail: {}}
+        interrupted: {fail: {}}

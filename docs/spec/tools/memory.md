@@ -233,12 +233,52 @@ and turn the notebook into implicit prompt state.
 
 **MEM-R18.** Notes are never automatically Stage results or
 Workflow outputs. If note data must become pinned context or a product result,
-a selected domain or generic artifact tool first creates a separate
+a selected domain tool, generic artifact tool or explicit `memory-snapshot@1`
+operation first creates a separate
 non-`memory.*` ordinary artifact.
 
 **MEM-R19.** Workflow resolution and Planner, Worker and Scheduler
 candidate validation reject a direct reserved Memory ref, even when the model
 happens to know an exact revision.
+
+### Explicit ordinary snapshot
+
+**MEM-R100.** `memory-snapshot@1` intentionally exports selected current-Run
+notes to an ordinary frozen JSON Artifact. It accepts exactly two bound strings:
+`namespace` is a valid non-reserved Agent Namespace; `notes` is a comma-separated
+set of 1–16 valid logical note names, without whitespace or duplicates. Names
+are sorted for canonical output. Run, Project, physical refs and revisions are
+not configurable. Selection uses point reads, including when the notebook has
+128 notes; it never enumerates unrelated Run materials or copies the notebook.
+Missing, malformed, wrong-media-type or oversized notes reject the complete
+export without partial output. The existing 32-KiB note bound still applies.
+
+**MEM-R101.** The complete canonical JSON snapshot is at most 512 KiB
+(LIM-MEM-10). Its root has exactly `schemaVersion`
+(`contractor.memory-snapshot/v1`), `namespace` and `notes`. Each selected note
+has exactly `name`, `content`, `description` and `tags`. Logical labels and
+selected content are intentional exported material; physical Memory bindings,
+hidden revisions, ordinals and timestamps are absent. Content never enters
+operation diagnostics, telemetry or its count-only Stage summary. This export
+does not grant ordinary tools access to reserved Memory bindings.
+
+**MEM-R102.** The declared ordinary output binding is create-once within its
+Run. Under the existing Project/Run/Stage/claim fences, the operation first
+checks for its frozen canonical snapshot and validates the same logical selection
+before any mutable note read. Recovery returns the original exact version and
+bytes, even after selected notes change. A mutable or mismatching collision
+fails permanently. A fresh snapshot needs another output binding or Run. There
+is no Memory-specific receipt or journal. Ordinary independent writes with equal
+bytes retain distinct versions; exact forks preserve their existing version and
+lineage. Stage cancellation or lost authority rolls back an uncommitted write;
+all work is joined before return (FAIL-MEM-4).
+
+**MEM-R103.** A snapshot is an ordinary material with ordinary Run/Artifact
+publication, ownership, retention and purge (LIFE-MEM-3). It holds no mutable
+notebook revision merely by reading it. A retained fork in another admitted
+owner scope survives source-Run deletion. Snapshot creation allocates no Runtime,
+Planner or model; a later ordinary Worker reads it through its normal Artifact
+rights. Neither export nor model extraction is automatic.
 
 ### Note representation
 
@@ -700,6 +740,8 @@ Limits ([registry](../platform/limits.md)):
   (MEM-R45).
 - LIM-MEM-9 — `memory.` prefix enumeration: limit of 129 bindings
   (MEM-R47).
+- LIM-MEM-10 — explicit snapshot: 1–16 selected notes and at most 512 KiB
+  complete canonical JSON (MEM-R100, MEM-R101).
 - The Artifact name limit of 128 (LIM-ART-1) and the private list limit
   (LIM-ART-3) are owned by [ArtifactStore](../artifacts/artifact-store.md).
 
@@ -736,10 +778,14 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
   state and cancellation (MEM-R47, MEM-R48,
   MEM-R65, MEM-R72).
 
+- FAIL-MEM-4 — explicitly selected ordinary snapshot publication and replay
+  (MEM-R102).
+
 Lifecycle ([registry](../platform/lifecycle.md)):
 
 - LIFE-MEM-1 — Memory note (current `memory.` binding) (MEM-R16).
 - LIFE-MEM-2 — superseded note revisions (MEM-R46).
+- LIFE-MEM-3 — ordinary explicit note snapshot (MEM-R103).
 
 ## Security
 

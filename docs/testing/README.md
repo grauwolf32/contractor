@@ -608,3 +608,7 @@ Shared `compact@1` remains rejected until its separately ordered implementation.
 This deterministic gate establishes execution correctness; frozen live quality,
 latency and total-cost recommendations belong to V417-010, using the opt-in
 [Eval consumer](../../tests/eval/context_compaction/README.md).
+
+`make test-memory-snapshot-e2e` runs the offline Findings family, including the
+real Server/Runtime selected-note snapshot, ordinary read and no-export Workflow.
+It rejects missing/skipped required PostgreSQL cases and uses a scripted Gateway.
