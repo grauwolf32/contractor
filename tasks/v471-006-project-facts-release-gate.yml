@@ -13,6 +13,7 @@ goal: >-
   basic evidence deduplication, exact hypothesis grounds and the separate UI work together on one
   integrated revision, with honest failure and source-retention behavior.
 context:
+  execution_group: 2
   authority: >-
     User request 2026-11-20 plans facts, note extraction, deduplication and separate
     interfaces on the same Project Finding, with no unnecessary publication flag
@@ -36,6 +37,10 @@ context:
     This supersedes the blanket deferral and title-plus-evidence proposal. Title
     matching, semantic/provider rules, material groups and possible-duplicate states
     remain outside the first slice. Optional origins and exact sources stay as agreed.
+    User request 2026-11-21 organizes these six tasks into two groups of three,
+    each executed in one continuous pass. The dependency-based allocation and
+    group entry/exit rules live in the proposal; this task keeps its own acceptance,
+    required checks and implementation commit. Grouping adds no functional scope.
   proposal: docs/proposals/0055-project-facts-through-findings.md
   specification:
     - docs/spec/findings/findings.md
