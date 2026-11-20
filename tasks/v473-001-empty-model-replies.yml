@@ -21,6 +21,12 @@ context:
     User request 2026-11-20 asks for protection against empty replies and exhausted
     output tokens, review against main and task intake. The single shared recovery
     allowance and opt-in for document processing are agent proposals.
+  verification_scope: >-
+    Implementation review 2026-11-21 corrects the agent-proposed generic
+    process command to the complete Findings process family. It includes the
+    versioned review caller, retained selections and recovery scenario. Full
+    Runtime, owning Go packages, shared fixtures, configuration and lint gates
+    remain required. The whole-platform process sweep is additional coverage.
   specification:
     - docs/spec/execution/worker.md#WRK-R9
     - docs/spec/execution/worker.md#WRK-R16
@@ -120,7 +126,7 @@ acceptance_criteria:
     when: The Planner receives a blank STOP and the scripted follow-up asks for finish, another dispatch or both
     then: The settled review can accept one independently validated finish. An incomplete plan never enters this recovery. Disallowed and mixed follow-ups dispatch nothing, with no extra Worker execution.
 tests:
-  - command: make test-e2e
+  - command: make test-findings-e2e
     covers: [A1, A3, A4]
   - command: make test-wire-cross-language
     covers: [A2]

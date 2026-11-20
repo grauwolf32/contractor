@@ -11,17 +11,22 @@ import (
 )
 
 func TestDocumentPlannerRecoveryEnforcesFinish(t *testing.T) {
-	for _, follow := range []string{"finish", "dispatch", "mixed", "empty", "incomplete", "model-budget", "token-budget"} {
+	for _, follow := range []string{"finish", "dispatch", "mixed", "empty", "incomplete", "model-budget", "token-budget", "default", "missing-binding", "invalid-finish"} {
 		t.Run(follow, func(t *testing.T) {
 			invocation := testInvocation("builder")
 			binding := invocation.Stage.Agents["builder"]
 			binding.Template.ResponseRecovery = "document@1"
+			if follow == "default" {
+				binding.Template.ResponseRecovery = ""
+			}
 			invocation.Stage.Agents["builder"] = binding
 			ref := exactRef("builder", "report", "report-r1")
 			workers := &fakeWorkerInvoker{results: map[string]stageresult.StageContentResult{"builder": stageResult("done", map[string]contracts.ArtifactRef{"report": ref})}}
 			finish := functionStep(finishToolName, map[string]any{"outcome": "succeeded", "summary": "complete", "artifacts": map[string]any{"report": artifactArgs("builder", "report", "report-r1")}})
 			followup := finish
 			switch follow {
+			case "invalid-finish":
+				followup = functionStep(finishToolName, map[string]any{"outcome": "succeeded", "summary": "complete", "artifacts": map[string]any{}})
 			case "dispatch":
 				followup = functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "0"})
 			case "mixed":
@@ -51,6 +56,9 @@ func TestDocumentPlannerRecoveryEnforcesFinish(t *testing.T) {
 					invocation.ModelAccess.ModelPolicy.MaxTotalTokens = 45
 				}
 			}
+			if follow == "missing-binding" {
+				workers.results["builder"] = stageResult("done", map[string]contracts.ArtifactRef{})
+			}
 			inspector := &fakeInspector{mediaTypes: map[string]string{refKey(ref): "application/json"}}
 			instance, err := mustFactory(t, newFakeSessions(), workers, inspector, scripted, Limits{}).Create(invocation)
 			if err != nil {
@@ -61,13 +69,25 @@ func TestDocumentPlannerRecoveryEnforcesFinish(t *testing.T) {
 			if follow == "incomplete" {
 				wantDispatches, wantCalls = 0, 2
 			}
-			if follow == "model-budget" || follow == "token-budget" {
+			if follow == "model-budget" || follow == "token-budget" || follow == "default" || follow == "missing-binding" {
 				wantCalls = 3
 			}
 			if (err == nil) != (follow == "finish") || len(workers.calls) != wantDispatches || scripted.callCount() != wantCalls {
 				t.Fatalf("error=%v dispatches=%d calls=%d", err, len(workers.calls), scripted.callCount())
 			}
 			report, _ := instance.(planner.ReportProvider).ExecutionReport()
+			wantTokens := int64(70)
+			switch follow {
+			case "empty":
+				wantTokens = 60
+			case "incomplete":
+				wantTokens = 30
+			case "model-budget", "token-budget", "default", "missing-binding":
+				wantTokens = 50
+			}
+			if report.Metrics.TotalTokens == nil || *report.Metrics.TotalTokens != wantTokens {
+				t.Fatalf("tokens=%+v, want %d", report.Metrics, wantTokens)
+			}
 			if report.Metrics.ModelCalls == nil || *report.Metrics.ModelCalls != int64(wantCalls) {
 				t.Fatalf("usage=%+v", report.Metrics)
 			}
