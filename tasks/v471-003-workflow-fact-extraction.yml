@@ -6,7 +6,7 @@ epic: workflows
 kind: feature
 priority: P1
 status: pending
-depends_on: [V471-001, V471-002]
+depends_on: [V471-001, V471-002, V471-004]
 languages: [go, python, json, yaml, markdown]
 goal: >-
   A Workflow author can include or omit semantic extraction of a small useful
@@ -29,6 +29,15 @@ context:
     passthrough@1 and asks to update tasks/diagrams and merge the planning package
     into main. One Runtime Worker makes the model calls; the Planner and snapshot
     operation are model-free. No Server-operation executor extension is selected.
+    User follow-up 2026-11-20 selects severity-based presentation and informational
+    exclusion from needs review. The extractor uses the informational facade from
+    V471-001 over the same Finding record.
+    User decision 2026-11-20 on review item 2 rejects snapshot-only read isolation.
+    Keep ordinary current-Run tool authority and validate exact source citations.
+    User decision 2026-11-20 accepts exact assertion deduplication, grouped material
+    versions and optional Task/hypothesis association. V471-004 precedes this task
+    so retry/resume can exercise the complete extraction path. Reverse navigation
+    and semantic-match infrastructure are deferred. Merge the reviewed plan into main.
     Planning/integration only, with no feature implementation, live calls or model changes.
   proposal: docs/proposals/0055-project-facts-through-findings.md
   specification:
@@ -40,6 +49,8 @@ context:
     - docs/spec/configuration/agent-templates.md#TPL-R33
     - docs/spec/findings/findings.md
     - docs/spec/tools/memory.md#MEM-R84
+    - docs/spec/artifacts/artifact-store.md#ART-R36
+    - docs/spec/evals/managed-evals.md#EVM-R151
   execution_boundary: >-
     The chosen call form is a distinct optional Stage with planner passthrough@1
     and exactly one model-backed Runtime Worker over the ordinary exact snapshot.
@@ -47,46 +58,65 @@ context:
     Planner makes no LLM calls. Deterministic Memory snapshot and Finding intake
     retain their owners. No LLM operation.ref, new model consumer/executor,
     inherited notebook/session or additional publishing Stage is introduced.
+    The snapshot defines the extraction input. Selected Artifact tools retain
+    their ordinary current-Run read authority and existing reserved-name rules.
 scope:
   in:
     - Compose an explicitly selected passthrough@1 extraction Stage with one Runtime Worker through existing Workflow execution and model-accounting owners.
     - Add a versioned extractor instruction/template and an actual optional Workflow caller with immutable catalog pins.
     - Let the model make bounded selection judgements while Runtime assembles and shared Finding intake accepts records.
     - Preserve exact selected snapshot citations, distinctions between reported observations and inference, conditions and limitations.
-    - Add a frozen quality corpus and an existing-Eval-compatible opt-in recipe without running live experiments in this task.
+    - Add a frozen quality corpus and an opt-in Audit Eval recipe using its existing isolated ordinary execution Project per member.
   out:
     - Automatic Run-finalization extraction, independent model services, LLM Server operations or changing the project model.
     - A model-backed Planner, extra Worker dispatch, cross-Stage conversation inheritance or a new executor/cost participant type.
     - Claiming note content is independently verified, manufacturing sources, mandatory fact quotas or a new candidate/intake store.
     - Automatic semantic merging or claiming model quality from a scripted Gateway.
+    - Snapshot-only read grants, an extractor-specific sandbox or a new Artifact authorization policy.
 requirements:
   - id: R1
     text: >-
       Selected model/Gateway policy, tool/model budgets, cumulative cost, deadlines,
       tracing and cancellation use the existing Runtime Worker execution path.
-      The configured Stage selects passthrough@1, exactly one Worker and only the
-      snapshot reads/record_fact capabilities it needs. No Planner model is resolved.
+      The configured Stage selects passthrough@1, exactly one Worker, ordinary
+      Artifact reads and record_fact. Reads use the existing current-Run grant
+      and tool selection. StageContext pins the extraction input without limiting
+      ordinary reads to that snapshot. No Planner model is resolved.
       Omitting the Stage creates no hook or background work.
   - id: R2
     text: >-
       Each fact cites actual selected source material and a bounded verifiable
       excerpt or locator. Note-only assertions are labelled as reported; inference
       and limited negative probes cannot become unconditional verified facts.
+      record_fact supplies informational severity_suggestion through the shared
+      facade. Source quality remains explicit evidence metadata.
+      Validate each citation against the exact material it names, including the
+      selected note and excerpt or locator for snapshot citations. Additional
+      ordinary sources follow existing Artifact and Finding evidence rules.
   - id: R3
     text: >-
-      Select independent useful claims, not every tool response or sentence.
+      Select a bounded set of useful claims.
       Empty output is valid. Explicitly report size/budget rejection and partial
       accepted counts; do not silently truncate or regenerate until a quota fills.
+      Supply the bounded assertion components defined by V471-004 when supported
+      by the sources. Server normalization and qualification own the key. General
+      note extraction uses Run-level incidental origin without a required Task or
+      hypothesis. An explicitly selected Task uses the V471-001 association rules.
   - id: R4
     text: >-
       Direct Finding receipts already committed survive later Run failure and
-      retain that provenance. Recovery reuses existing receipt keys; it must not
-      rerun a possibly committed model mutation merely to repair acknowledgement.
+      retain that provenance. Replay of the same tool call reconciles its receipt.
+      Retry, escalation and manual resume create a new StageExecution/allocation
+      and may make new model calls and receipts. Equal qualified assertions resolve
+      to the same Finding and equal exact source versions share one material group
+      through V471-004. Attempt history remains attributable. Unqualified prose
+      follows the explicit unavailable-key outcome. Neither durable cross-attempt
+      model history nor semantic equivalence inferred from title is assumed.
 failure_outcomes:
   - operation: Invoke the configured extractor and record its selected facts
     permanent: Invalid source/citation/configuration, missing Project or exhausted limits yields the owning classified outcome and explicit accepted/rejected counts.
-    retryable: Only existing bounded Gateway/storage classes; do not substitute models or restart completed semantic work.
-    ambiguous: Reconcile existing tool-call/receipt outcomes and durable model history before any repeat; preserved sources are not rolled back on later failure.
+    retryable: Existing bounded Gateway/storage classes and configured Stage attempt limits apply. A new attempt retains its own model usage and receipt history.
+    ambiguous: Reconcile the same admitted call through its existing receipt before repeating transport. A new Stage attempt follows the distinct correlation/material-grouping rules and preserves earlier accepted records.
     cancelled: Existing Runtime Worker/allocation owner joins model and publisher work before release; the deterministic snapshot Stage retains its own operation claim.
     timeout: Separate provider, Stage and Run deadlines remain authoritative; no nested unaccounted invocation survives.
 cardinality:
@@ -105,18 +135,22 @@ acceptance_criteria:
     when: Its Worker selects observations from the frozen corpus
     then: Source-grounded records reach the common Project Finding owner, preserve reported/inferred limitations and respect the eight-fact maximum; no Planner LLM request or LLM operation executes.
   - id: A2
-    given: Empty output, omitted extraction, provider failure, cancellation and response loss
+    given: Empty output, omitted extraction, a failure after three accepted qualified facts, cancellation and a lost tool response
     when: The Workflow settles or recovers
-    then: No hidden model call, fabricated result, duplicate committed source or leaked invocation occurs; partial effects and usage remain truthful.
+    then: Same-call replay adds no receipt. A new retry/resume attempt over the same snapshot keeps one Finding per qualified assertion and one group per exact material version, records its own calls/receipts and usage, and settles partial effects without leaked work.
   - id: A3
-    given: The extraction corpus and existing Eval format
-    when: Offline validation loads the opt-in quality recipe
-    then: It measures unsupported assertions, duplicate/spam rate, useful-fact recall and cost without target-specific prompt leakage or a live-quality claim.
+    given: The frozen extraction corpus and an Audit Eval recipe with isolated ordinary Projects
+    when: Offline validation and one scripted-Gateway member exercise creation, extraction, publication and collection
+    then: The real record_fact result reaches the evaluator and the recipe defines unsupported-assertion, duplicate/spam, useful-fact recall and cost measurements. Scripted execution proves integration and makes no live-quality claim.
+  - id: A4
+    given: An exact selected snapshot, another readable ordinary current-Run artifact and a citation absent from its named material
+    when: The Worker reads both artifacts through its selected ordinary tools and submits source citations
+    then: Both authorized reads succeed under the existing grant, valid citations retain exact material identity, and the invalid citation fails before publication.
 tests:
   - command: make test-project-facts-e2e
-    covers: [A1, A2]
+    covers: [A1, A2, A3, A4]
   - command: make test-runtime
-    covers: [A1, A2, A3]
+    covers: [A1, A2, A3, A4]
   - command: make test-config
     covers: [A1, A2, A3]
   - command: make lint

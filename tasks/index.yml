@@ -376,7 +376,7 @@ execution_policy:
 milestones:
   - id: project-facts-2026-11
     exit_task: V471-006
-    outcome: Optional passthrough@1 Workflow Stage extraction creates source-grounded Project facts through one Runtime Worker and the existing Finding owner; separate interfaces, conservative deduplication and exact hypothesis grounds remain bounded and survive source deletion, with verified real-process and UI behavior.
+    outcome: Optional passthrough@1 extraction creates source-grounded Project Findings through one Runtime Worker, with severity-filtered views, exact assertion deduplication, grouped material versions and optional Task/hypothesis origin. Explicit hypothesis grounds and retained Project materials follow their owner lifecycles through verified process and UI paths.
   - id: opencode-audit-environments-2026-11
     exit_task: V469-005
     outcome: Two ordinary Audit Runs use one retained OpenCode container with fixed ports, package installation, exact artifacts, pause/resume and verified cleanup through the existing A2A and Podman owners.

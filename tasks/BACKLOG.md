@@ -78,7 +78,7 @@ the epics are in [epics.yml](epics.yml).
 | [V411-015](v411-015-http-pentest-workflow-presets.yml) | feature | P1 | — | Demonstrate an ordinary HTTP Workflow on the lean Audit path |
 | [V412-003](v412-003-browser-pentest-profiles-and-gate.yml) | feature | P2 | V412-001, V410-009, V411-020 | Compose optional browser investigation with truthful availability and results |
 | [V425-043](v425-043-resolve-historical-run-model-policy-snapshots.yml) | defect | P2 | — | Resolve historical Run snapshots after Workflow-owned model selection |
-| [V471-003](v471-003-workflow-fact-extraction.yml) | feature | P1 | V471-001, V471-002 | Extract bounded Project facts in an optional passthrough Worker Stage |
+| [V471-003](v471-003-workflow-fact-extraction.yml) | feature | P1 | V471-001, V471-002, V471-004 | Extract bounded Project facts in an optional passthrough Worker Stage |
 
 ### Audits (`audits`)
 
