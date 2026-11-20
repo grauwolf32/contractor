@@ -99,5 +99,23 @@
   ],
   "test_environment": "Disposable PostgreSQL enabled throughout required store/process cases. Owned cluster lock capacity 1024 after an initial schema-cleanup resource failure. Named optional disk-heavy fixtures remained disabled and are not passing coverage; Runtime skips and the expected UI negative case are recorded separately.",
   "accepted_approximation": "Different claims over the same broad artifact can merge; changed stored bytes can keep separate cards. Every independent receipt preserves its original claim and exact evidence. No title or provider/semantic normalization is added.",
-  "remaining": "V471-003, V471-005 and V471-006 remain pending. The extraction Worker and separate Facts UI are group 2; no live-model calls or deployment were performed."
+  "remaining": "V471-003, V471-005 and V471-006 remain pending. The extraction Worker and separate Facts UI are group 2; no live-model calls or deployment were performed.",
+  "landing": {
+    "merge_commit": "cb4b784fd9ee0e50e5ca81caacc7e2a640d4fe0e",
+    "previous_main": "62f6b95c103293bb16a88d2d9d65b18c2a9d652c",
+    "user_source_files_and_modes_preserved": 5,
+    "user_staged_delta_preserved": true,
+    "generated_backlog_regenerated_from_all_current_task_sources": true
+  },
+  "cleanup": {
+    "databases_dropped": [
+      "contractor_v471_group1"
+    ],
+    "client_connections_before_drop": 0,
+    "database_cleanup": "complete",
+    "cluster_stopped": true,
+    "cluster_data_removed": true,
+    "owned_temporary_directory_removed": true,
+    "verification_archive_retained": true
+  }
 }
