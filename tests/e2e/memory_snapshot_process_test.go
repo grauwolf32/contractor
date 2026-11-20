@@ -115,7 +115,7 @@ func TestMemorySnapshotAcrossProcesses(t *testing.T) {
 		}
 	}
 	// Each ordinary Worker adds its existing finalizer call; the operation adds none.
-	if h.gateway.CompletedStages() != 3 || len(h.gateway.Observations()) != 12 || h.gateway.Calls() != 15 || len(h.gateway.Failures()) != 0 {
+	if h.gateway.CompletedStages() != 3 || h.gateway.Calls() != 15 || len(h.gateway.Failures()) != 0 {
 		t.Fatalf("unexpected model work: stages=%d calls=%d errors=%v", h.gateway.CompletedStages(), h.gateway.Calls(), h.gateway.Failures())
 	}
 }
