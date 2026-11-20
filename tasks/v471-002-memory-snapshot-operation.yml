@@ -14,9 +14,10 @@ goal: >-
   Memory bindings or copying every notebook automatically.
 demonstration: >-
   A real Workflow Worker writes two Memory notes. An explicitly configured
-  model-free operation snapshots only one named note in that Run; the later
-  passthrough@1 extraction Stage reads the normal Artifact through its sole
-  Runtime Worker. Recovery reuses its original bytes. A Workflow
+  model-free operation snapshots only one named note in that Run. A later
+  ordinary passthrough@1 Worker reads the Artifact and demonstrates its selected
+  contents. This scenario completes before the extractor task. Recovery reuses
+  its original version and bytes. A Workflow
   without the operation creates no snapshot and does no additional model work.
 context:
   authority: >-
@@ -27,6 +28,9 @@ context:
     2026-11-20 chooses a separate passthrough@1 model Stage for the downstream
     extraction; this snapshot operation remains model-free. The user authorizes
     merging the updated planning package into main, not feature implementation.
+    User decision 2026-11-20 accepts material-version grouping for deduplication
+    and requests the reviewed plan on main. This task proves the exact snapshot
+    independently of the later extractor and preserves its version on replay.
   proposal: docs/proposals/0055-project-facts-through-findings.md
   specification:
     - docs/spec/tools/memory.md#MEM-R18
@@ -65,6 +69,8 @@ requirements:
     text: >-
       Reconcile a committed snapshot before reading mutable notes on replay.
       A recovered Stage cannot substitute a newer note version under the same output.
+      Exact Artifact forks retain their existing version identity and lineage.
+      Independent snapshot writes with equal bytes remain distinct versions.
   - id: R4
     text: No model, allocation or Planner is created for this snapshot operation; domain work and output publication remain fenced by the existing Stage claim. The downstream extractor uses its own ordinary passthrough@1 Stage, not an LLM operation or Memory prompt injection.
 failure_outcomes:

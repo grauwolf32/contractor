@@ -9,21 +9,29 @@ status: pending
 depends_on: [V471-001]
 languages: [go, python, json, typescript, markdown]
 goal: >-
-  Repeated observations do not flood the facts list, independent witnesses remain
-  available, and a hypothesis can select the exact fact material it relies on
-  through existing Finding readers and Artifact selection.
+  Equal qualified assertions share one Project Finding, repeated use of one
+  exact material shares one displayed source group, and every producing attempt
+  remains attributable. A hypothesis can explicitly select an exact ground.
 demonstration: >-
-  Two Runs report the same technology for the same qualified subject/context.
-  Common correlation returns one Project Finding with two source receipts;
-  response replay adds none. Another environment/version and a contradictory
-  observation remain distinct. A generator selects one exact source snapshot
-  into hypothesis.sources and shows why it grounds the assertion.
+  A failed extraction attempt has saved nginx for a qualified service/context.
+  A new attempt reuses the exact snapshot and records the same normalized claim.
+  The UI reader returns one Finding and one material group with two receipts.
+  A third execution supplies a distinct source version with identical bytes and
+  adds a second material group. Another environment/value stays distinct.
+  Technology and its version use separate properties. A later generator selects
+  one exact source into hypothesis.sources.
 context:
   authority: >-
     User decisions 2026-11-20: facts need deduplication, clear relations and a
-    separate interface over the same project-level Finding. Tiered equality,
-    conservative key components and suggestion-only semantic matching are agent
-    proposals. Planning only; no semantic merge or live-model execution is assigned.
+    separate interface over the same project-level Finding. Planning only.
+    User follow-up 2026-11-20 prefers severity-filtered common Findings and
+    informational exclusion from needs review. Remove the proposed purpose key
+    component. Identity remains based on the qualified assertion and its context.
+    User decision 2026-11-20 accepts exact qualified assertion deduplication,
+    same-material grouping and retained per-attempt receipts. Task/hypothesis
+    associations are optional. Reverse navigation is deferred. The accepted first
+    slice uses deterministic qualified equality and defers semantic-match
+    infrastructure. Update tasks/diagrams and merge the reviewed package into main.
   proposal: docs/proposals/0055-project-facts-through-findings.md
   specification:
     - docs/spec/findings/findings.md#FND-R211
@@ -33,78 +41,106 @@ context:
     - docs/spec/audits/hypotheses.md#HG-R6
     - docs/spec/artifacts/artifact-store.md#ART-R143
   boundary: >-
-    Existing Finding owner owns qualified identity and its fence, receipts own
-    witnesses, ArtifactStore owns exact material selection. Add no Fact registry,
-    duplicate graph store, vector service or global observation status. Any new
-    projection/index has a concrete facts reader in the same change.
+    Existing Finding owner owns qualified assertion identity, its fence and paged
+    source grouping. Receipts retain individual submissions. ArtifactStore owns
+    exact material identity, lineage and selection. Grouping is a reader projection
+    over retained versions and receipts. Any necessary index has the concrete
+    source reader as a production caller in this task. The versioned key applies
+    to a qualified assertion from either Finding facade.
 scope:
   in:
-    - Reuse exact receipt replay and existing canonical Finding correlation for fact-purpose records.
-    - Define one versioned qualified fact key with shared fixtures and a first real technology-observation caller.
-    - Add bounded candidate retrieval and optional semantic-match suggestions through an existing ordinary model Workflow.
+    - Reuse exact receipt replay and existing canonical Finding correlation for informational observations from either facade.
+    - Define one versioned qualified assertion key with shared fixtures and a first real technology-observation caller.
+    - Group cited materials by their exact Artifact version and verified fork lineage while retaining per-receipt citations and attempt history.
     - Extend existing Finding selection to expose exact fact snapshots and preserve individual source selection for hypothesis grounds.
     - Retain original receipts, evidence, origin, incompatible contexts and changed versions.
   out:
-    - Automatic similarity-based merge, embeddings infrastructure, whole-Project pairwise comparison or overwriting independent sources.
+    - Semantic-match model calls, similarity candidate retrieval, embeddings infrastructure and whole-Project pairwise comparison.
+    - A distinct Fact registry, evidence-independence scores or replacing submission receipts with material identities.
     - Treating same severity/text as identity or granting proof/dispatch authority through a fact-to-hypothesis link.
-    - New Fact IDs, arbitrary edges, new duplicate approval lifecycle or ownership outside the Finding module.
+    - New Fact IDs, arbitrary edges, reverse fact-to-hypothesis navigation or a new duplicate approval lifecycle.
 requirements:
   - id: R1
     text: >-
-      Request replay, independent observation equality and semantic resemblance
-      are separate. Exact replay adds no source; a qualified equality adds an
-      independent source to the same Finding; incomplete keys remain unavailable.
+      Replay of the same admitted tool call returns its existing receipt. A new
+      invocation or allocation retains its own receipt and origin. Equal qualified
+      assertions resolve atomically to one Finding under the existing Project
+      fence, including concurrent writers. A receipt count describes submissions.
+      The displayed materials count describes distinct exact versions. Neither
+      count claims independent corroboration. Existing receipt quotas and cleanup
+      apply even when many submissions share one material.
   - id: R2
     text: >-
-      Qualified keys include record purpose, authoritative subject, actual
-      property/value and required known baseline/environment context. Unknown
-      context cannot be invented from prose. Facts and issue records never merge
-      merely because they concern the same asset.
+      The versioned key includes Project scope, authoritative subject, property,
+      normalized value and the necessary known environment/baseline/conditions.
+      The model supplies bounded components and exact citations through the common
+      submission. Runtime assembles them and Server validates authority, normalizes
+      supported values and computes the key. Never accept a model-authored key as
+      trusted equality. Define the first supported technology/property vocabulary
+      and normalization in the owning spec with shared fixtures. Represent nginx
+      and version 1.25 as web_server=nginx and web_server_version=1.25.
+      Title wording, severity, facade, Run, Task and hypothesis IDs do not enter
+      assertion identity. Missing essential context or unsupported structured
+      claims have an unavailable key and remain separate with a visible reason.
+      A false property value or different scope/conditions cannot collapse into
+      a positive or unconditional assertion. Unknown context is not a shared key.
+      Structured components and citation metadata fit the existing V471-001
+      authored-payload/source ceilings and the shared subject-field limits.
   - id: R3
     text: >-
-      Semantic matching may propose same/different/uncertain with source reasons,
-      but cannot mutate identity. Reuse existing owner duplicate commands only
-      where their semantics are valid; do not add a hidden model merge side effect.
+      Within a Finding, group evidence by exact material version using trusted
+      Artifact metadata and verified fork lineage. A new binding of that version
+      belongs to the same group. Different original versions with identical bytes
+      remain distinct. Different citations inside one material stay attributable
+      to their receipts and locators. Group pages and per-group receipt pages use
+      existing owner authorization, revision fencing and bounded keysets. Reading
+      a page cannot scan an entire source fanout to compute unique counts. Metadata
+      groups acquire no separate retention holds or lifecycle. Raw source receipts
+      remain reachable through existing history/selection readers.
   - id: R4
     text: >-
       Hypothesis grounds pin exact selected artifacts or collection entries through
       current readers. Selecting a collection does not imply every member is a
       ground; later revisions and new evidence do not rewrite existing sources.
 failure_outcomes:
-  - operation: Correlate a fact, retrieve likely matches and select exact research grounds
-    permanent: Invalid or foreign key/selection, incompatible purpose and stale exact revision fail permanently without partial merge or latest substitution.
-    retryable: Existing bounded database retry and storage_transaction_conflict 503; optional model suggestions use ordinary Gateway policy.
-    ambiguous: Reconcile existing receipt/selection identity; never create another witness or repeat semantic mutation on response loss.
-    cancelled: Join selection/model work and prohibit writes after owner fences; suggestions are ordinary bounded artifacts.
-    timeout: Existing call/Stage/model deadlines remain separate and finite; no background Project rescan.
+  - operation: Correlate a qualified assertion, page exact material groups and select grounds
+    permanent: Invalid or foreign components/selection and stale revision fail with the owning classified error. Valid unqualified claims are saved separately with an unavailable-key reason.
+    retryable: Existing bounded database retry and storage_transaction_conflict 503 under the original deadline.
+    ambiguous: Reconcile the existing receipt or selection identity on same-call replay. New attempts retain their own receipts and use qualified correlation and exact-version grouping.
+    cancelled: Join owner work and prohibit writes after existing execution/deletion fences.
+    timeout: Existing call and Stage deadlines apply with finite indexed reads and no background Project rescan.
 cardinality:
-  - collection: Facts in a Project, candidate matches and exact selections
-    expected: Thousands of fact/source records, one paged list and several candidate matches per selected record.
-    maximum: Proposed 32 candidates and 64 compared pairs per call, 50 summary rows per page, existing 64-source page and 32-material input ceiling.
-    bound: Indexed bounded candidate seeks and payload reads only for selected rows; test 10000 records, source-heavy groups and sparse predicates without an all-pairs scan.
+  - collection: Project Findings, exact material groups, receipt history and selections
+    expected: Thousands of records, one list page and one selected material group.
+    maximum: Fifty summary rows, at most 64 material groups or receipt rows per page, existing 32-material input ceiling and shared response byte limits.
+    bound: Indexed bounded reads and payload hydration for explicit selections. Test 10000 records and source-heavy groups with 10000 receipts across multiple Runs within existing per-Run quotas, over one version and over distinct versions. Scope all grouping by Project/Finding and avoid whole-fanout aggregation per page.
 lifecycle:
-  - entity: Existing canonical fact-purpose Finding, independent sources and selection snapshots
+  - entity: Existing canonical Finding, submission receipts, grouped exact materials and selection snapshots
     delete: Finding/Project ownership and exact Artifact lifecycle remain authoritative.
     cascade: Deleting one source owner does not change surviving canonical identity or remove retained evidence and hypothesis grounds.
-    retention: Preserve old versions, contradictions and origin; similarity suggestions do not acquire additional indefinite holds.
+    retention: Existing Project material bindings retain exact versions and receipt history. Grouping adds no new holds. Project purge removes receipts and retained materials through their ordinary owners.
 acceptance_criteria:
   - id: A1
-    given: Replayed submissions and independent equal qualified observations
+    given: Same-call replay, new attempt receipts for equal qualified assertions, reused exact material and independently written byte-identical material
     when: They are admitted concurrently through real PostgreSQL
-    then: Exactly one canonical fact-purpose Finding and the correct independent source count remain, with no cross-purpose merge.
+    then: Replay adds no receipt, new attempts retain their receipts, one Finding represents the qualified assertion, reused/forked versions share a material group and independent equal-byte versions form separate groups.
   - id: A2
-    given: Missing identity context, another environment, an explicit version refinement and conflicting values
-    when: Deduplication and similarity retrieval run
-    then: Unqualified cases remain separate with visible reasons; semantic resemblance alone never mutates identity.
+    given: Missing identity context, another environment, an explicit version refinement, conflicting values and a severity-only change
+    when: Qualification and correlation run for both facades
+    then: Unqualified cases remain separate with visible reasons, environment/value/condition changes stay distinct, technology and version form separate properties, and title/severity/Task/hypothesis changes preserve the same qualified identity.
   - id: A3
     given: A selected fact among many collection entries and a later changed source
     when: A generator accepts a grounded hypothesis and its source is read again
     then: The exact selected member and conditions remain attributable, without whole-collection attribution or latest substitution.
+  - id: A4
+    given: Ten thousand retained receipts distributed over reused and distinct versions with concurrent writes and subsequent source deletion
+    when: The common reader traverses material groups and receipt history and the Project is purged
+    then: Pages remain bounded and complete, grouping uses verified version identity, source Run deletion preserves Project materials, and Project purge releases owned data without group-specific holds.
 tests:
   - command: go test ./internal/findingintake/... ./internal/auditdomain/... ./internal/auditservice/... ./internal/artifacts/...
-    covers: [A1, A2, A3]
+    covers: [A1, A2, A3, A4]
   - command: make test-project-facts-e2e
-    covers: [A1, A2, A3]
+    covers: [A1, A2, A3, A4]
   - command: make test-wire-cross-language
     covers: [A1, A2, A3]
   - command: make verify-public-api
@@ -115,4 +151,4 @@ tests:
     covers: [A1, A2, A3]
 test_prerequisites:
   - Test concurrent correlation, pagination and retention against real PostgreSQL; skipped required cases are not passes.
-  - A scripted matching response proves bounded integration, not semantic precision; no live invocation is required or authorized by this task.
+  - Shared fixtures exercise positive, negative, conditional and unqualified assertions, title/severity changes and exact-fork versus equal-byte independent versions.

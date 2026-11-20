@@ -21,6 +21,15 @@ context:
     Stage and authorizes updating/merging the planning package into main. Verify
     that Stage's one Runtime Worker and model-free Planner in the real-process gate.
     Planning/integration authorizes no feature implementation, live-model run or deployment.
+    User follow-up 2026-11-20 chooses common severity filtering and exclusion of
+    informational records from needs review. Verify this rule for both producer
+    facades and keep unknown severity visible under the V471-001 proposed predicate.
+    User decision 2026-11-20 on review item 2 keeps ordinary current-Run reads
+    for the extractor. Verify exact citations alongside the existing read grant.
+    User decision 2026-11-20 accepts exact assertion deduplication, material-version
+    grouping, optional Task/hypothesis origin and deferral of reverse navigation.
+    Verify same-call replay and new-attempt recovery as distinct cases. Update and
+    merge the reviewed planning package into main.
   proposal: docs/proposals/0055-project-facts-through-findings.md
   specification:
     - docs/spec/findings/findings.md
@@ -36,31 +45,48 @@ context:
 scope:
   in:
     - Register and run shared real Server/PostgreSQL/Runtime/scripted-Gateway process cases in the release graph.
-    - Verify direct facts/issues, model-free snapshot operation, optional passthrough@1 extraction Stage, correlation, exact hypothesis selection and responsive UI together.
+    - Verify direct facts/issues, optional Run-level origin, model-free snapshot, passthrough@1 extraction, assertion correlation, material grouping, explicit ground selection and responsive UI together.
     - Exercise ambiguous replies, cancellation, claim loss, restart, source deletion and Project purge under realistic cardinality.
     - Record all executed checks, explicit skips, integrated revision and cleanup of the one owned test database and fixture resources.
   out:
     - Live semantic-quality claims, changing configured models, production deployment or demo data resets.
     - Full graph infrastructure, automatic semantic merge or reactivating unrelated deferred tasks.
+    - Reverse fact-to-hypothesis navigation and semantic-match infrastructure.
 acceptance_criteria:
   - id: A1
     text: >-
       One real-process scenario records notes, snapshots selected notes through a
       model-free operation, and extracts facts in a separate passthrough@1 Stage
       with exactly one Runtime Worker and no Planner LLM call. It obtains common
-      Project Finding IDs, correlates a second independent observation and selects
+      Project Finding IDs, correlates another execution's qualified assertion and selects
       exact grounds for a hypothesis. Omitted extraction and zero output create
       no hidden call; ordinary finding has no publication flag.
+      The extractor can read another authorized ordinary current-Run artifact.
+      An invalid citation is rejected before publication under V471-003 A4.
+      A batch Run publishes a general fact without Task/hypothesis and retains
+      authoritative Run/Audit origin. Explicit member association is validated.
   - id: A2
     text: >-
-      Source Run/Audit deletion leaves retained Project facts/evidence and exact
-      hypothesis sources readable; Project purge drains users and removes owned
-      data. Replay, claim loss and cancellation add no duplicated effect or
-      post-fence write. Fact/issue assessment and identities stay separate.
+      Audit A produces a fact and Audit B selects it into a hypothesis. Deleting
+      A and its Run preserves the Project Finding/materials and B's exact grounds.
+      Deleting B releases its hypothesis registry/holds while the Project retains
+      the Finding/materials. Project purge drains users and removes owned data.
+      Same-call replay adds no receipt. A new attempt after partial publication
+      retains its receipt history, reuses qualified Finding identities and groups
+      reused/forked exact versions. Equal-byte independent versions stay separate.
+      Claim loss and cancellation prohibit post-fence writes. Analyst assessment
+      remains explicit on the common identity.
   - id: A3
     text: >-
       Real PostgreSQL scale/pagination and browser tests pass at the planned
       bounds; all new strict schemas/fixtures agree across languages and clients.
+      Informational records from either facade appear in Facts and are excluded
+      from needs review. Unassessed low and unknown records remain eligible.
+      List/count predicates agree and analyst severity changes refresh membership
+      without replacing Finding identity or treating a suggestion as an assessment.
+      Source groups and per-group histories remain bounded under source fanout.
+      Optional Task/hypothesis fields survive API, collection and result-reader
+      round trips. The Audit Eval recipe has a positive real-path scripted member.
       The integrated deterministic release gate passes with no required skipped
       case or absent target counted as success.
   - id: A4

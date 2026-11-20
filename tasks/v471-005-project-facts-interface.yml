@@ -9,15 +9,16 @@ status: pending
 depends_on: [V471-003, V471-004]
 languages: [typescript, css, go, yaml, markdown]
 goal: >-
-  Users can inspect Project facts separately from possible security issues, see
-  their source quality and independent observations, and select exact grounds
+  Users can inspect informational Project Findings in the Facts view, filter
+  the common records by severity, see their sources and select exact grounds
   for hypotheses without facing a global tangled graph.
 demonstration: >-
   A Project has a technology fact with two sources, a note-derived inference and
-  an informational security issue. The Facts view shows only fact-purpose records;
-  opening a record shows context/sources and a related hypothesis. The hypothesis
-  exposes its exact grounds separately from checking results. The issue remains
-  in the ordinary issue view without being reclassified by severity.
+  an informational security issue, a low-severity issue and a record of unknown
+  severity. Facts shows the informational records from either facade. Needs review
+  includes the unassessed low and unknown records. Opening a record shows
+  grouped exact materials and the producing attempt history. A later hypothesis
+  explicitly selects one source and exposes its exact grounds and check results.
 context:
   authority: >-
     User decisions 2026-11-20: provide a separate facts interface with the same
@@ -27,6 +28,13 @@ context:
     extraction as a separate passthrough@1 Stage; the user asks to update and
     merge the planning package into main. This task remains planned, not assigned
     for implementation; the execution choice does not add a UI engine selector.
+    User follow-up 2026-11-20 prefers severity filters over a separate fact/finding
+    discriminator and proposes excluding all informational records from needs
+    review. V471-001 owns the common predicate and labelled severity provenance.
+    User decision 2026-11-20 accepts exact assertion deduplication, grouping by
+    material version and optional Task/hypothesis association. Reverse navigation
+    from a fact to hypotheses is deferred. Update diagrams/tasks and merge the plan
+    into main. The UI slice covers lists, exact materials and source provenance.
   proposal: docs/proposals/0055-project-facts-through-findings.md
   specification:
     - docs/spec/ui/ui.md
@@ -40,25 +48,34 @@ context:
 scope:
   in:
     - Add a Project Facts list and fact-oriented detail presentation over existing Finding IDs/readers.
-    - Display explicit purpose, context, source quality, independent evidence, origin and possible duplicates.
+    - Use informational severity as the Facts view preset and expose the common severity filters with their suggested or analyst-assessed provenance.
+    - Apply the Server needs-review predicate consistently to lists and counts, including informational and unknown severity cases.
+    - Display context, source quality, grouped exact materials and paged attempt receipts with their optional Task/hypothesis origin.
     - Connect exact source selection and hypothesis grounds through existing material/selection interfaces.
     - Show results separately from grounds and use bounded pagination for every list and picker.
     - Update the UI version and new shipped configuration identities only where actual consumers change.
   out:
-    - A global graph by default, arbitrary edge editor, automatic recursive fact chains or new UI-owned state.
-    - Reclassifying all informational records, fabricating verification badges or treating fact selection as confirmation.
+    - Graph views, reverse fact-to-hypothesis navigation, semantic-match suggestions, arbitrary edge editors or new UI-owned state.
+    - A fact-purpose discriminator, fabricated verification badges or treating informational classification or fact selection as confirmation.
     - A second facts backend, a new approval inbox or mandatory model calls for viewing records.
 requirements:
   - id: R1
     text: >-
-      Views use the Server purpose and canonical Finding identity; severity is
-      independent. Note-derived evidence is labelled as a statement from notes,
-      not independently observed target behavior. State comes only from Server.
+      Views use the shared V471-001 severity and needs-review projections with the
+      canonical Finding identity. Facts includes every informational record. Show
+      producer suggestion separately from analyst assessment. Note-derived evidence
+      is labelled as a statement from notes. Unknown severity remains visible in
+      needs review while unassessed. Authoritative severity changes update view
+      membership and counts while preserving identity and exact sources.
   - id: R2
     text: >-
-      Main navigation is list -> selected record -> exact sources/related
-      hypotheses. A local diagram, if necessary, is optional and shows only
-      direct neighbors with finite caps and explicit continuation, never all Project data.
+      Main navigation is list -> selected record -> grouped exact materials ->
+      receipt/citation history. A source group identifies one exact material
+      version through V471-004. Label counts as materials and submissions. An
+      absent Task/hypothesis is valid Run-level origin. Show an existing explicit
+      origin link when present. Searching for hypotheses which later selected the
+      fact is deferred. Hypothesis pages retain direct navigation to their selected
+      exact grounds through ordinary material readers.
   - id: R3
     text: >-
       Hypotheses show grounds separately from performed checks. Version changes,
@@ -74,10 +91,10 @@ failure_outcomes:
     cancelled: Abort obsolete reads and prevent stale responses from replacing the selected record.
     timeout: Existing UI/API deadlines apply; an unavailable source never receives a verified/loaded claim.
 cardinality:
-  - collection: Fact pages, source pages, related hypotheses and optional local neighbors
+  - collection: Finding pages, material groups, submission history and exact ground selections
     expected: One 50-row list page and one selected record; containing Project may have 10000 records.
-    maximum: Existing source page 64; proposed optional local view 25 nodes, 40 edges and 128 KiB; other lists use public page limits.
-    bound: All pickers follow every page explicitly; no eager all-Project hydration, full-history polling or quadratic browser layout.
+    maximum: At most 64 material groups or receipt rows per source page. Other lists use public page and byte limits.
+    bound: All pickers follow every page explicitly. Load history for a selected material group on demand with bounded pagination.
 lifecycle:
   - entity: Read-only views and existing exact selection artifacts
     delete: Respect existing Project/source removal and owner checks; UI creates no new lifecycle owner.
@@ -85,13 +102,13 @@ lifecycle:
     retention: Source links preserve their pinned revisions and ordinary retention; merely opening a panel adds no hold.
 acceptance_criteria:
   - id: A1
-    given: Facts and informational issues in the same Project
-    when: Users navigate both interfaces and source pages
-    then: Purpose controls placement; same Finding IDs and independent sources remain visible with honest provenance and no automatic confirmation.
+    given: Informational records from both facades, unassessed low and unknown records, and a subsequent analyst assessment
+    when: Users navigate severity views, needs review and source pages
+    then: Server severity controls placement, informational records are excluded from needs review, counts match the paged selection, and assessment refreshes views while preserving Finding IDs and source provenance.
   - id: A2
-    given: More than one picker page, a changed revision and an unavailable source
+    given: More than one picker page, repeated use of one version, equal-byte independent versions, absent optional origin fields, a changed revision and an unavailable source
     when: The user selects fact grounds and opens the hypothesis
-    then: Every selected exact member is reachable, conflicts remain explicit, and grounds are distinct from check verdicts.
+    then: Exact materials are grouped correctly with reachable receipt history, Run-level facts render normally, selected grounds remain exact and conflicts are explicit. Counts describe materials/submissions and the hypothesis links to its selected grounds.
   - id: A3
     given: A 10000-record fixture and responsive theme variants
     when: The UI loads at desktop and 390 px widths

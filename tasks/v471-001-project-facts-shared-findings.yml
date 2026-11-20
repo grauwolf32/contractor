@@ -18,20 +18,33 @@ demonstration: >-
   Existing Finding intake creates a receipt and Project Finding. A subsequent
   ordinary Audit Workflow selects its exact material into hypothesis.sources.
   A possible issue uses the same intake without publish_problem and remains
-  unassessed. Source Run deletion preserves the Project evidence.
+  unassessed. Informational records appear in the Facts severity view and stay
+  outside needs review. An unassessed record of unknown severity still needs
+  review. Source Run deletion preserves the Project evidence.
+  A batch Audit Run also records a general observation with Run/Audit origin and
+  no Task or hypothesis. An explicitly selected member retains its exact context.
 context:
   authority: >-
     User decisions 2026-11-20: facts need a separate interface over the same
     project-level Finding; a detected technology is a fact; publish_problem is
     unnecessary for ordinary finding too; plan tasks and diagrams. Planning only,
-    not implementation, live model calls or deployment. The explicit purpose
-    marker, source bounds and projectless rejection below are agent proposals.
+    not implementation, live model calls or deployment. User follow-up 2026-11-20
+    prefers filtering the common Findings by severity and excluding informational
+    records from needs review. This supersedes the agent's proposed purpose marker.
+    The informational record_fact default, presentation severity fallback, unknown
+    severity handling, source bounds and projectless rejection are agent proposals.
+    User decision 2026-11-20 accepts exact assertion deduplication, grouping by
+    material version, optional Task/hypothesis association and deferred reverse
+    navigation. Update the planning package and merge it into main. Run-level
+    incidental origin and the facade defaults below implement that decision.
   proposal: docs/proposals/0055-project-facts-through-findings.md
   specification:
     - docs/spec/findings/findings.md#FND-R3
     - docs/spec/findings/findings.md#FND-R210
     - docs/spec/findings/findings.md#FND-R211
     - docs/spec/findings/findings.md#FND-R214
+    - docs/spec/findings/findings.md#FND-R220
+    - docs/spec/findings/findings.md#FND-R223
     - docs/spec/audits/hypotheses.md#HG-R6
     - docs/spec/platform/persistence.md
   decision_needed: >-
@@ -42,27 +55,31 @@ context:
     Do not infer user approval to delete projectless workflows or keep a hidden fallback.
   boundary: >-
     Extend the existing FindingProposal/intake/ProjectFinding/reader owner, not a
-    Fact store or Audit registry. Add only the explicit presentation-purpose
-    metadata needed by real callers. The first implementation freezes its exact
-    placement and shared fixture; severity is not the discriminator.
+    Fact store or Audit registry. Reuse severity_suggestion for the producer's
+    classification and nullable analystSeverity for the analyst's assessment.
+    Facts are a severity-filtered view of the common records. The shared owner
+    defines the presentation/filter and needs-review predicates with fixtures.
 scope:
   in:
     - Add a separately selected record_fact facade over the existing Finding publisher and Project admission.
-    - Distinguish facts explicitly on the existing record and expose a bounded reader filter.
+    - Make record_fact set the existing severity_suggestion to informational and let ordinary finding supply an optional suggestion from the existing enum.
+    - Apply one severity filtering rule across paged readers, UI and needs-review counts, preserving the provenance of suggested and analyst severity.
     - Remove publish_problem/publishProblem from direct producer contracts and update every real caller and fixture.
     - Preserve existing scanner publication operations and their explicit Workflow sequencing.
     - Demonstrate exact selection into an existing hypothesis without another hypothesis registry.
+    - Extend common incidental Finding origin to support Run/Audit observations with optional Task and exact hypothesis context, including multi-member Runs.
     - Update owning specs, API/wire contracts, generated clients and versioned catalog identities together where affected.
   out:
     - Memory extraction, semantic duplicate matching, a separate Fact ID/table/store or new review workflow.
-    - Inferring fact purpose from informational severity, title, producer or absent analyst assessment.
+    - A purpose discriminator, a persisted needs-review state or an automatic analyst assessment from informational classification.
     - Live-model runs, changing configured models, deployment or starting dependent tasks.
 requirements:
   - id: R1
     text: >-
       Fact and issue interfaces create the same existing Project Finding entity
-      and immutable source receipts. Purpose does not imply truth or severity;
-      no automatic analyst verdict is assigned. Facts are not vulnerability tasks.
+      and immutable source receipts. record_fact assigns informational to the
+      existing producer suggestion. Ordinary finding can submit that same value.
+      Classification leaves analyst verdict and analyst severity unassigned.
   - id: R2
     text: >-
       Both direct interfaces request admission unconditionally. Retain internal
@@ -78,9 +95,36 @@ requirements:
       Inventory Go, Runtime, OpenAPI, UI/client, scanner adapters, tests and configs.
       One shared fixture defines new constrained fields. Do not add a second
       normalized candidate pipeline or falsely attach scanner provenance to LLM output.
+  - id: R5
+    text: >-
+      For display and filtering, use current analyst severity when present,
+      otherwise the canonical producer severity suggestion. Show which supplied
+      the classification and preserve the nullable analyst fields. Needs review
+      requires the existing unassessed condition and a classification other than
+      informational. Empty/unknown severity remains eligible. Facts includes all
+      informational records regardless of producer facade. Compute these views
+      from common owner data with identical list/count predicates. Existing
+      unreviewed fields that mean absence of assessment must keep truthful semantics
+      or be renamed end to end if repurposed for needs review. Test classification
+      changes, unknown severity and page/count agreement without persisted flags.
+  - id: R6
+    text: >-
+      record_fact defaults to the existing incidental mode. With no item_key,
+      incidental intake derives Project, Run and any Audit/execution membership
+      from trusted execution and retains absent Task/hypothesis fields, including
+      in a batch or a single-member Run. A supplied item_key must identify an
+      actual member and adds Task origin. It still omits hypothesis association
+      in incidental mode. Explicit task-bound submission through the existing
+      mode derives the Task's exact hypothesis when present. Model-supplied IDs
+      confer no authority. Existing task-bound finding callers retain their
+      membership checks. Apply optional origin fields across Go, Runtime, private
+      and public APIs, collection encoding/readers, result assembly, quotas and
+      deletion. Run-level receipts remain Project/Audit readable and retained,
+      while per-Task result references include only receipts linked to that Task.
+      The record_fact tool schema and docs expose the optional association path.
 failure_outcomes:
   - operation: Admit a direct fact or finding through the existing intake
-    permanent: Invalid purpose/source, denied Project or over-bound input fails with the owning classified 4xx before partial authoritative admission; no Run-only success fallback.
+    permanent: Invalid severity/source, foreign item_key or denied Project fails with the owning classified 4xx before partial authoritative admission. Over-bound input fails explicitly. Absent optional Task/hypothesis fields are valid.
     retryable: Existing bounded PostgreSQL retries and storage_transaction_conflict 503; keep original intent and deadline.
     ambiguous: Reconcile the existing submission/receipt key; do not append another source on lost acknowledgement.
     cancelled: Existing allocation or operation fence joins work and prohibits writes after release or deletion.
@@ -101,22 +145,26 @@ acceptance_criteria:
     when: record_fact and ordinary finding are called
     then: Each returns an existing Project Finding identity without a publication flag and preserves unassessed state and exact sources.
   - id: A2
-    given: An information disclosure issue and a neutral technology observation
-    when: They are saved and selected as research materials
-    then: Explicit purpose distinguishes them; informational severity alone does not; the exact selected record can ground a hypothesis.
+    given: Informational records from both facades, an unassessed low-severity record and an unassessed record with unknown severity
+    when: They are listed, counted for needs review and selected as research materials
+    then: Both informational records appear in Facts and are excluded from needs review, low and unknown records need review, analyst fields remain nullable, and any exact selected record can ground a hypothesis.
   - id: A3
     given: A replay, invalid source, deletion race or missing Project under the resolved decision
     when: Intake executes through PostgreSQL
     then: No duplicate source, fabricated success, partial canonical admission or post-fence write occurs; retained evidence survives source deletion.
+  - id: A4
+    given: Ordinary, single-member and two-member Audit Runs with different assigned hypotheses
+    when: A general fact is recorded without item_key, a member is explicitly selected, and a foreign member is attempted
+    then: General facts retain trusted Run/Audit origin with absent Task/hypothesis, selected-member modes preserve only the requested valid context, foreign keys fail, and collections/result readers handle absent fields without assigning the first member.
 tests:
   - command: make test-project-facts-e2e
-    covers: [A1, A2, A3]
+    covers: [A1, A2, A3, A4]
   - command: go test ./internal/findingintake/... ./internal/auditdomain/... ./internal/auditservice/... ./internal/artifacts/...
-    covers: [A1, A2, A3]
+    covers: [A1, A2, A3, A4]
   - command: make test-runtime
-    covers: [A1, A2, A3]
+    covers: [A1, A2, A3, A4]
   - command: make test-wire-cross-language
-    covers: [A1, A2, A3]
+    covers: [A1, A2, A3, A4]
   - command: make verify-public-api
     covers: [A1, A2, A3]
   - command: make lint
