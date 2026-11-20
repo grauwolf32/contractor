@@ -5,7 +5,7 @@ milestone: project-facts-2026-11
 epic: findings
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [go, python, json, yaml, typescript, markdown]
 goal: >-
@@ -24,6 +24,7 @@ demonstration: >-
   A batch Audit Run also records a general observation with Run/Audit origin and
   no Task or hypothesis. An explicitly selected member retains its exact context.
 context:
+  evidence: tasks/evidence/v471-001-20261121.json
   execution_group: 1
   authority: >-
     User decisions 2026-11-20: facts need a separate interface over the same
@@ -187,3 +188,5 @@ tests:
 test_prerequisites:
   - Create the named real-process target in this task; it must select nonzero cases with a scripted Gateway and real PostgreSQL/Server/Runtime.
   - Run all touched package suites; database skips and disabled heavy-I/O fixtures are not passing coverage. Remove the owned disposable database after processes stop.
+
+implementation_commit: 41fc498a72f6bb8ace9a566a8d012f8b0df42fbc
