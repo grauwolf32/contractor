@@ -136,3 +136,4 @@ verification_results:
   - "Full Streamline and Router suites passed with disposable PostgreSQL. The focused race test passed empty/length combinations, hard budgets, invalid follow-ups and cancellation with retained known usage."
   - "make lint passed. Runtime verification used the pinned ffuf 2.3.0 source built with the release version flags in an owned temporary tool directory."
   - "The configured model and per-response ceiling were inspected in scripted requests. Integration evidence does not measure live-model recovery yield."
+  - "Owned PostgreSQL database was dropped after all processes stopped. The owned cluster was stopped and its data directory and temporary scanner tool directory were removed."
