@@ -6,7 +6,7 @@ epic: ui
 kind: feature
 priority: P1
 status: pending
-depends_on: [V471-003, V471-004]
+depends_on: [V471-003]
 languages: [typescript, css, go, yaml, markdown]
 goal: >-
   Users can inspect informational Project Findings in the Facts view, filter
@@ -17,7 +17,8 @@ demonstration: >-
   an informational security issue, a low-severity issue and a record of unknown
   severity. Facts shows the informational records from either facade. Needs review
   includes the unassessed low and unknown records. Opening a record shows
-  grouped exact materials and the producing attempt history. A later hypothesis
+  exact evidence and the existing submission history. Similar facts submitted
+  independently may appear as separate ordinary cards. A later hypothesis
   explicitly selects one source and exposes its exact grounds and check results.
 context:
   authority: >-
@@ -35,6 +36,11 @@ context:
     material version and optional Task/hypothesis association. Reverse navigation
     from a fact to hypotheses is deferred. Update diagrams/tasks and merge the plan
     into main. The UI slice covers lists, exact materials and source provenance.
+    Latest user decision 2026-11-21 defers V471-004: do not add the new title-plus-
+    evidence rule for now. First-slice facts reuse existing intake, receipt replay,
+    source history and already supported producer/structural correlation. Separate
+    calls can create similar cards; no new fact matcher, material groups or possible-
+    duplicate state is required. This supersedes earlier deduplication requirements.
   proposal: docs/proposals/0055-project-facts-through-findings.md
   specification:
     - docs/spec/ui/ui.md
@@ -50,7 +56,7 @@ scope:
     - Add a Project Facts list and fact-oriented detail presentation over existing Finding IDs/readers.
     - Use informational severity as the Facts view preset and expose the common severity filters with their suggested or analyst-assessed provenance.
     - Apply the Server needs-review predicate consistently to lists and counts, including informational and unknown severity cases.
-    - Display context, source quality, grouped exact materials and paged attempt receipts with their optional Task/hypothesis origin.
+    - Display context, source quality, exact evidence and existing paged submissions with their optional Task/hypothesis origin.
     - Connect exact source selection and hypothesis grounds through existing material/selection interfaces.
     - Show results separately from grounds and use bounded pagination for every list and picker.
     - Update the UI version and new shipped configuration identities only where actual consumers change.
@@ -58,6 +64,7 @@ scope:
     - Graph views, reverse fact-to-hypothesis navigation, semantic-match suggestions, arbitrary edge editors or new UI-owned state.
     - A fact-purpose discriminator, fabricated verification badges or treating informational classification or fact selection as confirmation.
     - A second facts backend, a new approval inbox or mandatory model calls for viewing records.
+    - Material-group readers/views, unique-material counters, possible-duplicate states or a separate deduplication interface.
 requirements:
   - id: R1
     text: >-
@@ -69,9 +76,10 @@ requirements:
       membership and counts while preserving identity and exact sources.
   - id: R2
     text: >-
-      Main navigation is list -> selected record -> grouped exact materials ->
-      receipt/citation history. A source group identifies one exact material
-      version through V471-004. Label counts as materials and submissions. An
+      Main navigation is list -> selected record -> existing submission history ->
+      exact evidence/citations. Display the canonical cards and source entries
+      actually returned by Server, including similar independent facts. Use existing
+      source counts and pages, without unique-material counters or grouping. An
       absent Task/hypothesis is valid Run-level origin. Show an existing explicit
       origin link when present. Searching for hypotheses which later selected the
       fact is deferred. Hypothesis pages retain direct navigation to their selected
@@ -91,10 +99,10 @@ failure_outcomes:
     cancelled: Abort obsolete reads and prevent stale responses from replacing the selected record.
     timeout: Existing UI/API deadlines apply; an unavailable source never receives a verified/loaded claim.
 cardinality:
-  - collection: Finding pages, material groups, submission history and exact ground selections
+  - collection: Finding pages, existing submission history and exact ground selections
     expected: One 50-row list page and one selected record; containing Project may have 10000 records.
-    maximum: At most 64 material groups or receipt rows per source page. Other lists use public page and byte limits.
-    bound: All pickers follow every page explicitly. Load history for a selected material group on demand with bounded pagination.
+    maximum: At most 64 source receipt rows per page. Other lists use public page and byte limits.
+    bound: All pickers follow every page explicitly. Load existing source history on demand with bounded pagination.
 lifecycle:
   - entity: Read-only views and existing exact selection artifacts
     delete: Respect existing Project/source removal and owner checks; UI creates no new lifecycle owner.
@@ -106,9 +114,9 @@ acceptance_criteria:
     when: Users navigate severity views, needs review and source pages
     then: Server severity controls placement, informational records are excluded from needs review, counts match the paged selection, and assessment refreshes views while preserving Finding IDs and source provenance.
   - id: A2
-    given: More than one picker page, repeated use of one version, equal-byte independent versions, absent optional origin fields, a changed revision and an unavailable source
+    given: More than one picker page, similar independently submitted facts, absent optional origin fields, a changed revision and an unavailable source
     when: The user selects fact grounds and opens the hypothesis
-    then: Exact materials are grouped correctly with reachable receipt history, Run-level facts render normally, selected grounds remain exact and conflicts are explicit. Counts describe materials/submissions and the hypothesis links to its selected grounds.
+    then: Cards and their exact sources match Server results without client-side deduplication. Run-level facts render normally, selected grounds remain exact, conflicts are explicit and the hypothesis links to its selected grounds. No grouping or possible-duplicate UI is added.
   - id: A3
     given: A 10000-record fixture and responsive theme variants
     when: The UI loads at desktop and 390 px widths

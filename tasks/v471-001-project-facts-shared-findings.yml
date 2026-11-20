@@ -37,10 +37,11 @@ context:
     material version, optional Task/hypothesis association and deferred reverse
     navigation. Update the planning package and merge it into main. Run-level
     incidental origin and the facade defaults below implement that decision.
-    Latest user decision 2026-11-20 derives qualified fact keys from evidence
-    through existing Finding correlation. No universal model-filled fact/property
-    schema or separate deduplication mechanism belongs in this facade task;
-    V471-004 owns its first narrow evidence rule and unavailable-key behavior.
+    Latest user decision 2026-11-21 defers V471-004: do not add the new title-plus-
+    evidence rule for now. First-slice facts reuse existing intake, receipt replay,
+    source history and already supported producer/structural correlation. Separate
+    calls can create similar cards; no new fact matcher, material groups or possible-
+    duplicate state is required. This supersedes earlier deduplication requirements.
   proposal: docs/proposals/0055-project-facts-through-findings.md
   specification:
     - docs/spec/findings/findings.md#FND-R3
@@ -99,8 +100,9 @@ requirements:
       Inventory Go, Runtime, OpenAPI, UI/client, scanner adapters, tests and configs.
       One shared fixture defines new constrained fields. Do not add a second
       normalized candidate pipeline or falsely attach scanner provenance to LLM output.
-      Reuse existing exact evidence selection and leave source-derived qualified
-      matching to V471-004; do not require model-authored property/value keys.
+      Reuse existing exact evidence selection, receipt replay and supported
+      producer/structural correlation. Add no new fact-equality algorithm or
+      model-authored matching fields; V471-004 is deferred and not a prerequisite.
   - id: R5
     text: >-
       For display and filtering, use current analyst severity when present,

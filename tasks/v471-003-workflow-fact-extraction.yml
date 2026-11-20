@@ -6,7 +6,7 @@ epic: workflows
 kind: feature
 priority: P1
 status: pending
-depends_on: [V471-001, V471-002, V471-004]
+depends_on: [V471-001, V471-002]
 languages: [go, python, json, yaml, markdown]
 goal: >-
   A Workflow author can include or omit semantic extraction of a small useful
@@ -35,13 +35,14 @@ context:
     User decision 2026-11-20 on review item 2 rejects snapshot-only read isolation.
     Keep ordinary current-Run tool authority and validate exact source citations.
     User decision 2026-11-20 accepts exact assertion deduplication, grouped material
-    versions and optional Task/hypothesis association. V471-004 precedes this task
-    so retry/resume can exercise the complete extraction path. Reverse navigation
+    versions and optional Task/hypothesis association. The earlier V471-004
+    prerequisite is superseded by the later deferral below. Reverse navigation
     and semantic-match infrastructure are deferred. Merge the reviewed plan into main.
-    Latest user decision 2026-11-20 uses evidence-derived keys through existing
-    Finding correlation, without a universal deduplication mechanism. Select exact
-    evidence/locators for supported rules; free-form note claims retain the
-    explicit unavailable-key outcome and are not promised automatic merging.
+    Latest user decision 2026-11-21 defers V471-004: do not add the new title-plus-
+    evidence rule for now. First-slice facts reuse existing intake, receipt replay,
+    source history and already supported producer/structural correlation. Separate
+    calls can create similar cards; no new fact matcher, material groups or possible-
+    duplicate state is required. This supersedes earlier deduplication requirements.
     Planning/integration only, with no feature implementation, live calls or model changes.
   proposal: docs/proposals/0055-project-facts-through-findings.md
   specification:
@@ -102,10 +103,10 @@ requirements:
       Select a bounded set of useful claims.
       Empty output is valid. Explicitly report size/budget rejection and partial
       accepted counts; do not silently truncate or regenerate until a quota fills.
-      Select exact evidence and supported bounded locators/types for V471-004.
-      Deterministic derivation from evidence owns the observation and key. A
-      free-form note without a supported evidence rule remains unqualified; do not
-      invent a generic property/value descriptor or follow embedded refs. General
+      Submit the ordinary title and exact selected evidence through existing
+      intake. New matching descriptors, provider parsing and equality rules are
+      outside this task. Similar independent submissions may remain separate.
+      Do not follow embedded refs implicitly. General
       note extraction uses Run-level incidental origin without a required Task or
       hypothesis. An explicitly selected Task uses the V471-001 association rules.
   - id: R4
@@ -113,16 +114,15 @@ requirements:
       Direct Finding receipts already committed survive later Run failure and
       retain that provenance. Replay of the same tool call reconciles its receipt.
       Retry, escalation and manual resume create a new StageExecution/allocation
-      and may make new model calls and receipts. Equal evidence-derived keys resolve
-      to the same Finding and equal exact source versions share one material group
-      through V471-004. Attempt history remains attributable. Unqualified prose
-      follows the explicit unavailable-key outcome. Neither durable cross-attempt
-      model history nor semantic equivalence inferred from title is assumed.
+      and may make new model calls and receipts. Already supported qualified
+      producer/structural keys retain existing correlation; arbitrary facts have
+      no cross-call equality guarantee. Existing receipts preserve history without
+      material grouping or durable model conversation across attempts.
 failure_outcomes:
   - operation: Invoke the configured extractor and record its selected facts
     permanent: Invalid source/citation/configuration, missing Project or exhausted limits yields the owning classified outcome and explicit accepted/rejected counts.
     retryable: Existing bounded Gateway/storage classes and configured Stage attempt limits apply. A new attempt retains its own model usage and receipt history.
-    ambiguous: Reconcile the same admitted call through its existing receipt before repeating transport. A new Stage attempt follows the distinct correlation/material-grouping rules and preserves earlier accepted records.
+    ambiguous: Reconcile the same admitted call through its existing receipt before repeating transport. A new Stage attempt preserves earlier accepted records and its own receipts; similar independent facts may remain separate.
     cancelled: Existing Runtime Worker/allocation owner joins model and publisher work before release; the deterministic snapshot Stage retains its own operation claim.
     timeout: Separate provider, Stage and Run deadlines remain authoritative; no nested unaccounted invocation survives.
 cardinality:
@@ -141,9 +141,9 @@ acceptance_criteria:
     when: Its Worker selects observations from the frozen corpus
     then: Source-grounded records reach the common Project Finding owner, preserve reported/inferred limitations and respect the eight-fact maximum; no Planner LLM request or LLM operation executes.
   - id: A2
-    given: Empty output, omitted extraction, a failure after accepted facts with selected qualifying HTTP evidence and unqualified note claims, cancellation and a lost tool response
+    given: Empty output, omitted extraction, a failure after accepted note/code/HTTP facts, cancellation and a lost tool response
     when: The Workflow settles or recovers
-    then: Same-call replay adds no receipt. A new retry/resume attempt keeps one Finding per qualified evidence-derived key and one group per exact reused material within that Finding, records its own calls/receipts and usage, and settles partial effects without leaked work. Repeated unsupported note claims may remain separate with unavailable-key reasons; no universal prose deduplication is claimed.
+    then: Same-call replay adds no receipt. New retry/resume attempts preserve earlier records and retain their own receipts/usage, settling partial effects without leaked work. Similar facts from separate calls may have separate Finding IDs; no new matching rule or possible-duplicate state is required.
   - id: A3
     given: The frozen extraction corpus and an Audit Eval recipe with isolated ordinary Projects
     when: Offline validation and one scripted-Gateway member exercise creation, extraction, publication and collection
