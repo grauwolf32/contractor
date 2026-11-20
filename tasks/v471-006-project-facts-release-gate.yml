@@ -30,6 +30,10 @@ context:
     grouping, optional Task/hypothesis origin and deferral of reverse navigation.
     Verify same-call replay and new-attempt recovery as distinct cases. Update and
     merge the reviewed planning package into main.
+    Latest user decision 2026-11-20 reuses existing Finding correlation with keys
+    derived from selected evidence. Verify its first closed HTTP header rule and
+    honest unavailable-key behavior for unsupported note claims; no universal
+    property vocabulary or second deduplication mechanism is accepted.
   proposal: docs/proposals/0055-project-facts-through-findings.md
   specification:
     - docs/spec/findings/findings.md
@@ -45,24 +49,29 @@ context:
 scope:
   in:
     - Register and run shared real Server/PostgreSQL/Runtime/scripted-Gateway process cases in the release graph.
-    - Verify direct facts/issues, optional Run-level origin, model-free snapshot, passthrough@1 extraction, assertion correlation, material grouping, explicit ground selection and responsive UI together.
+    - Verify direct facts/issues, optional Run-level origin, model-free snapshot, passthrough@1 extraction, existing correlation with evidence-derived keys, material grouping, explicit ground selection and responsive UI together.
     - Exercise ambiguous replies, cancellation, claim loss, restart, source deletion and Project purge under realistic cardinality.
     - Record all executed checks, explicit skips, integrated revision and cleanup of the one owned test database and fixture resources.
   out:
     - Live semantic-quality claims, changing configured models, production deployment or demo data resets.
     - Full graph infrastructure, automatic semantic merge or reactivating unrelated deferred tasks.
     - Reverse fact-to-hypothesis navigation and semantic-match infrastructure.
+    - A separate universal deduplication engine or generic model-filled fact/property vocabulary.
 acceptance_criteria:
   - id: A1
     text: >-
       One real-process scenario records notes, snapshots selected notes through a
       model-free operation, and extracts facts in a separate passthrough@1 Stage
       with exactly one Runtime Worker and no Planner LLM call. It obtains common
-      Project Finding IDs, correlates another execution's qualified assertion and selects
+      Project Finding IDs, correlates another execution's observation qualified
+      from exact HTTP Server-header evidence through the existing path and selects
       exact grounds for a hypothesis. Omitted extraction and zero output create
       no hidden call; ordinary finding has no publication flag.
       The extractor can read another authorized ordinary current-Run artifact.
       An invalid citation is rejected before publication under V471-003 A4.
+      Unqualified note claims retain citations and explicit unavailable-key reasons.
+      Shared evidence alone does not merge distinct observations. Response Date
+      changes preserve a qualified key; request/value/context changes do not.
       A batch Run publishes a general fact without Task/hypothesis and retains
       authoritative Run/Audit origin. Explicit member association is validated.
   - id: A2
