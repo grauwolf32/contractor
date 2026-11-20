@@ -744,17 +744,19 @@ internal finalizer boundary failure uses `worker_result_finalizer_failed`
 finalizer uses retryable `worker_output_limit_exceeded`, not
 `worker_result_missing`. Runtime accounts the consumed tokens but does not
 accept the truncated text (even valid-looking JSON), call the finalizer on it,
-or start an unbudgeted continuation. Workflow policy owns any retry; operators
-can adjust the per-response output limit or the model reasoning
-configuration.
+or start an unbudgeted continuation. The document opt-in in WRK-R198 permits
+one budgeted main call for a complete shorter response after a Worker
+main-model output limit. Its allowance is shared with empty-response recovery.
+Workflow policy owns a fresh Stage retry. Operators can adjust the
+per-response output limit or the model reasoning configuration.
 
 **WRK-R59.** Deterministic size, secret-retention and invalid
 binding violations are non-retryable.
 
 **WRK-R172.** Empty, whitespace-only or thought-only `STOP` output cannot
-authorize a successful result. The ordinary completion path returns its
-missing or invalid result failure without another main model call or a
-finalizer call on missing or blank text. An empty result-finalizer response
+authorize a successful result. The ordinary completion path returns its missing or invalid result failure.
+The document opt-in in WRK-R198 permits one additional main call after explicit
+STOP with no usable answer. A missing or blank candidate never reaches the finalizer. An empty result-finalizer response
 fails its existing result validation without repair. The Audit completion
 boundary still decides from its trusted submitted results: it may finish or
 issue only its existing bounded incomplete-result reminder. Known usage is
@@ -2064,3 +2066,28 @@ unknown duration omitted. The metric reducer is the sole owner of phase usage.
 If failure diagnostics raise, the original execution exception wins and existing
 detail coverage is marked truncated. Model cleanup and span settlement always run;
 a diagnostic failure cannot skip cleanup or become the model failure.
+
+
+**WRK-R198.** A template selecting responseRecovery document@1 may recover once
+inside an ordinary logical invocation from an admitted explicit STOP with
+absent, blank or thought-only output, or explicit MAX_TOKENS from the main
+model. A valid function call in a completed STOP reply is usable output.
+Provider refusal, filtering, malformed envelopes and arguments, absent choices,
+and missing or unknown finish metadata cannot authorize this recovery.
+
+The Runtime joins the stopped Runner and seals its tool history before adding
+one fixed document continuation in the same session. It consumes the allowance
+before admission and keeps it outside the turn loop through compaction. Every
+received rejected reply and additional call is accounted through the normal
+instrumented model path. Existing budgets and deadlines have precedence.
+Exhaustion returns the owning failure. Template authority is defined in TPL-R119.
+
+
+For WRK-R198, an explicit output-limit response contributes usage and no accepted
+text or executable call. The additional request asks for a complete shorter
+answer at the pinned response ceiling. Empty and output-limit replies consume
+the same LIM-WRK-38 allowance. Compaction and successful intervening turns cannot
+reset it. The last output-limited reply retains worker_output_limit_exceeded
+after exhaustion. Cancellation, the invocation deadline and hard cumulative
+budgets retain their owning precedence. Use the explicit finish reason to distinguish a completed STOP at the numeric
+output cap from a truncated response.

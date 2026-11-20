@@ -17770,6 +17770,7 @@ components:
         description: {type: string, maxLength: 4096}
         runtime: {$ref: '#/components/schemas/Selector'}
         instructions: {$ref: '#/components/schemas/InstructionsRef'}
+        responseRecovery: {type: string, enum: [document@1]}
         summarizer: {$ref: '#/components/schemas/WorkerSummarizerConfigBody'}
         skills:
           type: array

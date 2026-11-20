@@ -1,0 +1,139 @@
+schema_version: "1.0"
+id: V473-002
+title: Request a complete shorter document response after an output limit
+milestone: model-response-recovery-2026-11
+epic: planner-worker
+kind: feature
+priority: P1
+status: completed
+depends_on: [V473-001]
+languages: [python, go, json, markdown]
+goal: >-
+  A Project review can finish after a truncated response. A partial answer or
+  tool call cannot publish a report, even when the truncated arguments parse.
+demonstration: >-
+  After a selection is retained, return a length-limited report write with
+  parseable arguments. Observe zero writes from that reply. A separate complete
+  shorter answer in the same Worker invocation produces one report (A1).
+context:
+  authority: >-
+    User request 2026-11-20 asks for a safeguard when the model consumes its
+    output allowance. User assignment 2026-11-20 selects V473-001 and V473-002 for
+    implementation in one pass. The bounded fresh answer in the opted-in document Worker
+    is an agent proposal. The configured model and response ceiling stay pinned.
+  verification_scope: >-
+    Implementation review 2026-11-21 corrects the agent-proposed generic
+    process command to the complete Findings process family. It includes the
+    versioned review caller, retained selections and recovery scenario. Full
+    Runtime, owning Go packages, shared fixtures, configuration and lint gates
+    remain required. The whole-platform process sweep is additional coverage.
+  specification:
+    - docs/spec/execution/worker.md#WRK-R16
+    - docs/spec/execution/worker.md#WRK-R58
+    - docs/spec/execution/worker.md#WRK-R153
+    - docs/spec/execution/worker.md#WRK-R178
+    - docs/spec/execution/planners.md#PLN-R71
+    - docs/spec/execution/planners.md#PLN-R86
+  evidence: >-
+    V172-001 shipped the Worker output-limit failure. Runtime llm/openai.py
+    discards tool calls on length before parsing their arguments. The Streamline
+    Gateway also rejects length before argument parsing. V53-002 is archived
+    historical evidence. The current default is a classified failure with
+    Stage retry owned by the Workflow.
+  decision: >-
+    Use the allowance and eligible document callers established in V473-001.
+    Request a complete shorter reply with the same output ceiling. A Workflow
+    retry remains available under its current policy after failure. Reconsider
+    the extra call if reports show repeated expense without successful completion.
+scope:
+  in:
+    - Extend the V473-001 document response decision to explicit output limits in both the ordinary document Worker and the finish-only document Planner. Update their owning contracts.
+    - Verify both adapters and the one-shot participants against truncated text and parseable or incomplete tool arguments.
+  out:
+    - Increasing max_tokens, switching models, continuing a partial JSON suffix or introducing a second retry budget.
+    - Additional model-backed Planner dispatches or resuming research tools from a finalizer, summarizer or compactor.
+requirements:
+  - id: R1
+    text: >-
+      Use the provider's explicit length finish or the corresponding trusted
+      terminal SDK MAX_TOKENS signal. Token count equal to the configured cap
+      on an otherwise valid STOP does not establish truncation. A partial stream
+      event cannot authorize recovery. Close and charge the rejected call under
+      the same provider-usage rules as any other received reply.
+  - id: R2
+    text: >-
+      Discard all candidate text and tool calls from the truncated reply as
+      executable input, including valid-looking JSON. Request a complete shorter
+      response using accepted history, the original task and its exact material
+      references. Apply normal decoding, authorization, validation and receipts
+      to the new response. Never concatenate the two answers or treat a partial
+      answer as input to a finalizer.
+  - id: R3
+    text: >-
+      Empty and output-limit cases share one allowance. Sequences length then
+      empty and empty then length exhaust the same budget. Charge each received
+      call once and classify its own terminal reason. On exhausted allowance
+      ending in length retain worker_output_limit_exceeded. A harder exhausted
+      deadline or budget follows the owning precedence.
+  - id: R4
+    text: >-
+      A settled document review Planner must discard every call in a length
+      reply, including a parseable finish. Its single eligible follow-up may
+      supply one complete finish, under the same execution fence and validator
+      as V473-001. Charge both responses. An incomplete plan follows its existing
+      failure outcome.
+failure_outcomes:
+  - operation: Replace one output-limited document reply under the original invocation
+    permanent: A filtered, invalid or unauthorized follow-up uses its owning failure. Rejected candidate calls have zero side effects.
+    retryable: One fresh call only if the shared allowance and ordinary budgets admit it. Otherwise surface the classified failure to the existing Workflow.
+    ambiguous: Retain admitted earlier submissions. Reconcile a lost reply to the same admitted call by its existing receipt. The replacement has its own call identity.
+    cancelled: Runtime joins any replacement request and releases the allocation only after cancellation.
+    timeout: Use the remaining Stage and invocation deadline for both admission and settlement.
+cardinality:
+  - collection: Replacement calls and tool effects from the rejected reply per eligible model participant
+    expected: Zero replacements for successful replies.
+    maximum: One replacement jointly with V473-001. Zero tool effects from any truncated reply.
+    bound: Both responses use the original per-response byte and token ceilings and ordinary cumulative model budgets.
+lifecycle:
+  - entity: Retained materials and report bindings
+    delete: Existing Artifact and Project deletion rules apply.
+    cascade: A failed replacement leaves prior admitted bindings under their original owners.
+    retention: Existing Stage, model call and receipt history records both outcomes.
+acceptance_criteria:
+  - id: A1
+    given: The ordinary opted-in Project review, a real Server and Runtime, PostgreSQL, and a scripted length finish with parseable write arguments
+    when: A complete shorter answer follows
+    then: The truncated call writes nothing and supplies no finalizer input. The fresh valid reply produces one report with the original evidence, pinned model and per-response ceiling.
+  - id: A2
+    given: Shared fixtures for length with text, thought-only, absent text, malformed arguments and valid arguments, plus a valid STOP at the numeric cap
+    when: Worker and Planner decode each reply
+    then: All length cases are rejected before dispatch. Only a separately validated fresh finish can settle the eligible document Planner. Assert one Worker dispatch across that scenario. An at-cap STOP follows normal validation and the one-shot call ceilings hold.
+  - id: A3
+    given: Mixed empty and length sequences, two length finishes, an exhausted cumulative budget and cancellation before dispatch
+    when: The same invocation settles
+    then: At most one replacement occurs and every known usage is accounted once. The correct last failure or dominant budget/cancellation is visible and earlier admitted results survive.
+tests:
+  - command: make test-findings-e2e
+    covers: [A1, A2, A3]
+  - command: make test-wire-cross-language
+    covers: [A2]
+  - command: make test-runtime
+    covers: [A1, A2, A3]
+  - command: go test ./internal/planner/streamline/... ./internal/planner/router/...
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A2, A3]
+test_prerequisites:
+  - Extend the actual process scenario from V473-001. Assert Gateway request counts and stored report revisions from the real owners.
+
+
+implementation_commit: 05968e852e6ab221cac8c85a98e05dc0cbd4ff39
+verification_results:
+  - "2026-11-21: make test-findings-e2e passed all 18 required process cases and 285 Runtime contracts against real Server, Runtime and PostgreSQL."
+  - "The length-limited parseable write created no artifact. The same Stage retained its selection, produced one final report and accounted every received call."
+  - "make test-runtime passed 6330 cases with 135 declared skips. The separate focused recovery tests also passed after the final exception and prompt formatting changes."
+  - "make test-wire-cross-language passed 397 fixtures with 447 Go and 283 Python shared tests. One explicitly optional heavy I/O case skipped and is not passing coverage."
+  - "Full Streamline and Router suites passed with disposable PostgreSQL. The focused race test passed empty/length combinations, hard budgets, invalid follow-ups and cancellation with retained known usage."
+  - "make lint passed. Runtime verification used the pinned ffuf 2.3.0 source built with the release version flags in an owned temporary tool directory."
+  - "The configured model and per-response ceiling were inspected in scripted requests. Integration evidence does not measure live-model recovery yield."
+  - "Owned PostgreSQL database was dropped after all processes stopped. The owned cluster was stopped and its data directory and temporary scanner tool directory were removed."

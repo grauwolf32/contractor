@@ -1347,3 +1347,14 @@ because it makes no Planner LLM call.
 - Wildcard, omitted-list-means-all and exclusion modes in Toolset selection
   (TPL-R41).
 - Inferring model strength for escalation (TPL-R88).
+
+
+**TPL-R119.** Optional responseRecovery selects document@1 on an adk@1
+template. It is included in the immutable template digest, resource body and
+allocation. Omission disables response recovery. This mode requires at least
+one selected document toolset, excludes Skills and permits only version 1 of
+memory-tools, run-artifacts.read_artifact, text-artifacts.write_text_artifact,
+and the Project reader/selection tools of security-findings. The ordinary
+per-tool authorization and receipt rules apply. Validate this selection in
+authoring and on resolved Server and Runtime reads. The Project findings analyst
+and review Workflow version 2 are the first caller.

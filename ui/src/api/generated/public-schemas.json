@@ -11981,6 +11981,7 @@
         "instructions": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/InstructionsRef"
         },
+        "responseRecovery": { "type": "string", "enum": ["document@1"] },
         "summarizer": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/WorkerSummarizerConfigBody"
         },

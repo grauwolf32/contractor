@@ -64,6 +64,13 @@ func (l *loader) resolveAgentTemplate(
 		return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.sandboxProfile selects unknown SandboxProfile %q", sandbox)
 	}
 
+	responseRecovery, err := optionalStringFromYAML(spec.ResponseRecovery, false, "spec.responseRecovery")
+	if err != nil {
+		return contracts.ResolvedAgentTemplate{}, err
+	}
+	if responseRecovery.Present && responseRecovery.Value != "document@1" {
+		return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.responseRecovery must select document@1")
+	}
 	result := contracts.ResolvedAgentTemplate{
 		Ref:         contracts.AgentTemplateRef{TemplateID: selector.ID, Version: selector.Version},
 		Description: spec.Description,
@@ -71,15 +78,19 @@ func (l *loader) resolveAgentTemplate(
 			RuntimeID: runtime.ID,
 			Version:   runtime.Version,
 		},
-		Instructions: instructions,
-		Summarizer:   summarizer,
-		Execution:    spec.Execution.Clone(),
-		Toolsets:     toolsets,
-		Skills:       skills,
+		Instructions:     instructions,
+		Summarizer:       summarizer,
+		ResponseRecovery: responseRecovery.Value,
+		Execution:        spec.Execution.Clone(),
+		Toolsets:         toolsets,
+		Skills:           skills,
 		SandboxProfile: contracts.SandboxProfileRef{
 			SandboxProfileID: sandbox.ID,
 			Version:          sandbox.Version,
 		},
+	}
+	if err := result.ValidateResponseRecovery(); err != nil {
+		return contracts.ResolvedAgentTemplate{}, err
 	}
 	if err := result.ValidateToolExecution(); err != nil {
 		return contracts.ResolvedAgentTemplate{}, err

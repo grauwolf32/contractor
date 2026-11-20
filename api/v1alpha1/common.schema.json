@@ -288,6 +288,7 @@
             "text": {"type": "string", "minLength": 1}
           }
         },
+        "responseRecovery": {"const": "document@1"},
         "summarizer": {"$ref": "#/$defs/workerSummarizerConfig"},
         "sitemap": {"$ref": "#/$defs/projectSitemapPolicy"},
         "toolsets": {

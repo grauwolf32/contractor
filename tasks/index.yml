@@ -374,6 +374,12 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
+  - id: model-response-recovery-2026-11
+    exit_task: V473-003
+    outcome: >-
+      A document review Worker can finish after one unusable model reply within its original
+      budget. Exact sources and committed submissions survive terminal failure. Operators
+      can distinguish empty and length-limited replies and see the cost of recovery.
   - id: project-facts-2026-11
     exit_task: V471-006
     outcome: Optional passthrough@1 extraction creates source-grounded Project Findings through one Runtime Worker, with severity-filtered views, basic evidence-content equality on existing correlation, receipt/source history and optional Task/hypothesis origin. Equal complete evidence sets share one informational Finding regardless of title. Semantic/title matching, material grouping and possible-duplicate states stay outside this slice. Explicit hypothesis grounds and retained Project materials follow their owner lifecycles through verified process and UI paths.

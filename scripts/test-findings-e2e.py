@@ -25,6 +25,8 @@ PROCESS_TESTS = (
     "TestTraceFindingCoordinatesAcrossProcesses",
     "TestProjectFactsAcrossProcesses",
     "TestMemorySnapshotAcrossProcesses",
+    "TestProjectDocumentResponseRecoveryAcrossProcesses",
+    "TestProjectDocumentOutputLimitRecoveryAcrossProcesses",
 )
 REQUIRED_TESTS = frozenset(
     (

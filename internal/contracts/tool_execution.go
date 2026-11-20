@@ -20,6 +20,9 @@ func (t *ResolvedAgentTemplate) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
+	if fields["responseRecovery"] != nil && value.ResponseRecovery != "document@1" {
+		return Invalidf("responseRecovery must select document@1")
+	}
 	if ResolvedAgentTemplate(value).IsToolWorker() {
 		for _, name := range []string{"instructions", "modelPolicy", "summarizer"} {
 			if fields[name] != nil {

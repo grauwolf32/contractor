@@ -19,7 +19,13 @@ from contractor_runtime.adapters.instrumentation import end_isolated_span, start
 from contractor_runtime.contracts.llm_cost import CostPhase
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.tool_errors import ToolExecutionError, ToolResultDiagnostic
-from contractor_runtime.llm.response import model_response_failed, output_limit_reached
+from contractor_runtime.llm.openai import GatewayModelError
+from contractor_runtime.llm.response import (
+    WorkerResponseRecovery,
+    empty_stop_response,
+    model_response_failed,
+    output_limit_reached,
+)
 from contractor_runtime.llm.usage import project_token_usage
 from contractor_runtime.observations import WorkspaceToolObservation
 from contractor_runtime.telemetry.invocations import InvocationMetricsReducer
@@ -134,6 +140,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
         history: ToolHistory | None = None,
         workspace_observation_source: WorkspaceObservationSource | None = None,
         summarizer_enabled: bool = False,
+        response_recovery: bool = False,
         compaction: CompactionTrigger | None = None,
         completion_ready: Callable[[], Awaitable[bool]] | None = None,
         clock: Callable[[], float] = time.monotonic,
@@ -152,6 +159,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
         self._history = history
         self._workspace_observation_source = workspace_observation_source
         self._summarizer_enabled = summarizer_enabled
+        self._response_recovery = response_recovery
         self._compaction = compaction
         self._completion_ready = completion_ready
         self._clock = clock
@@ -352,26 +360,35 @@ class WorkerInstrumentationPlugin(BasePlugin):
             self._require_reducer().record_model_usage(usage)
             attributes = usage_attributes(usage)
             limited = output_limit_reached(llm_response)
+            empty = self._response_recovery and empty_stop_response(llm_response)
             failure = WorkerModelResponseError() if model_response_failed(llm_response) else None
             self._model_output_limited = self._model_output_limited or limited
             if limited:
                 attributes["error.type"] = "OutputTokenLimitExceeded"
+            elif empty:
+                attributes["error.type"] = "EmptyModelResponse"
+                self._metrics.record_model_error(WorkerResponseRecovery("empty"))
+                self._require_reducer().record_model_error()
             elif failure is not None:
                 attributes["error.type"] = type(failure).__name__
                 self._metrics.record_model_error(failure)
                 self._require_reducer().record_model_error()
             end_isolated_span(
                 span,
-                outcome="failed" if limited or failure is not None else "succeeded",
+                outcome="failed" if limited or empty or failure is not None else "succeeded",
                 attributes=attributes,
             )
             try:
                 budget = self._budget()
                 if budget is not None:
                     budget.after_model_response(usage)
-                    if self._compaction is not None and failure is None:
-                        # Stops before this response's tools are dispatched.
-                        self._compaction.after_main_response(budget.latest_prompt_tokens)
+                if self._response_recovery and limited:
+                    raise WorkerResponseRecovery("length")
+                if empty:
+                    raise WorkerResponseRecovery("empty")
+                if budget is not None and self._compaction is not None and failure is None:
+                    # Stops before this response's tools are dispatched.
+                    self._compaction.after_main_response(budget.latest_prompt_tokens)
                 if failure is not None:
                     # This callback sees actual model responses, unlike ADK's
                     # generic error events for exceptions from owned callbacks.
@@ -424,6 +441,9 @@ class WorkerInstrumentationPlugin(BasePlugin):
                         )
             finally:
                 await self._publish_locked(callback_context, compaction_prompt=compaction_prompt)
+
+        if self._response_recovery and isinstance(error, GatewayModelError) and error.empty_stop:
+            raise WorkerResponseRecovery("empty") from None
 
     async def before_result_finalizer_call(self, *, invocation_id: str) -> None:
         """Account the isolated ADK finalizer in the normal Worker budget."""

@@ -32,15 +32,15 @@
     "finding-analysis-cases.json": {"readers": ["go", "python"]},
     "finding-anchor-cases.json": {"readers": ["go", "python"]},
     "finding-fingerprint-cases.json": {"readers": ["go", "python"]},
-    "http-cookie-session.json": {"readers":["go","python"],"reason":"Runtime owns the strict cookie document. Go stores opaque ordinary Artifact bytes and tests transport, CAS, grants and retention without a second cookie parser."},
+    "http-cookie-session.json": {"readers": ["go", "python"], "reason": "Runtime owns the strict cookie document. Go stores opaque ordinary Artifact bytes and tests transport, CAS, grants and retention without a second cookie parser."},
     "git-import-modes.json": {"readers": ["go", "ui"]},
     "planner-fact-cases.json": {"readers": ["go", "ui"], "reason": "The Server descriptor registry owns the Planner facts and the Studio applies the single-Agent and result-source rules; the Runtime receives a resolved Stage and never selects a Planner."},
-    "planner-subtask-cases.json": {"readers":["go","ui"],"reason":"The Server owns Workflow plan limits and complete plan projections. Runtime consumes one bounded current subtask with the unchanged generic subtask ID wire contract."},
-    "public/project-active-check-policy.json": {"readers":["go","ui"]},
+    "planner-subtask-cases.json": {"readers": ["go", "ui"], "reason": "The Server owns Workflow plan limits and complete plan projections. Runtime consumes one bounded current subtask with the unchanged generic subtask ID wire contract."},
+    "public/project-active-check-policy.json": {"readers": ["go", "ui"]},
     "public/idempotency-key-cases.json": {"readers": ["go", "ui"]},
     "public/revision-etag-cases.json": {"readers": ["go"], "reason": "only the Server reads counter preconditions; the UI and the generated Go client send the revision the Server returned, and the Go test checks these cases against the OpenAPI If-Match patterns"},
     "public/utf8-byte-bound-cases.json": {"readers": ["go", "ui"]},
-    "stage-summary-cases.json": {"readers":["go"],"reason":"StageContentResult is Server-owned; Go, PostgreSQL and public OpenAPI validators share these cases. Runtime already sends the unchanged WorkerCompletion summarized flag; the UI uses generated types."},
+    "stage-summary-cases.json": {"readers": ["go"], "reason": "StageContentResult is Server-owned; Go, PostgreSQL and public OpenAPI validators share these cases. Runtime already sends the unchanged WorkerCompletion summarized flag; the UI uses generated types."},
     "http-capture-cases.json": {"readers": ["go", "python", "ui"]},
     "http-exchange-artifact-cases.json": {"readers": ["go", "python", "ui"]},
     "audit-completion/": {"readers": ["go", "python"]},
@@ -88,6 +88,8 @@
     "v1alpha1/run-metadata-label-cases.json": {"readers": ["go", "python", "ui"]},
     "v1alpha1/runtime-capability-cases.json": {"readers": ["go", "python", "ui"]},
     "v1alpha1/runtime-label-set-cases.json": {"readers": ["go", "python", "ui"]},
-    "v1alpha1/workspace-path-cases.json": {"readers": ["go", "python", "ui"]}
+    "v1alpha1/workspace-path-cases.json": {"readers": ["go", "python", "ui"]},
+    "document-response-policy.json": {"readers": ["go", "python"]},
+    "model-response-recovery.json": {"readers": ["go", "python"]}
   }
 }

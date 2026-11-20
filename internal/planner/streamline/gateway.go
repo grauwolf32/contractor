@@ -325,14 +325,17 @@ func textParts(content *genai.Content) (string, error) {
 	return strings.Join(values, "\n"), nil
 }
 
+type chatResponseMessage struct {
+	Content   string         `json:"content"`
+	Refusal   string         `json:"refusal"`
+	ToolCalls []chatToolCall `json:"tool_calls"`
+}
+
 type chatResponse struct {
 	Model   string `json:"model"`
 	Choices []struct {
-		FinishReason string `json:"finish_reason"`
-		Message      struct {
-			Content   string         `json:"content"`
-			ToolCalls []chatToolCall `json:"tool_calls"`
-		} `json:"message"`
+		FinishReason string               `json:"finish_reason"`
+		Message      *chatResponseMessage `json:"message"`
 	} `json:"choices"`
 	Usage *chatUsage `json:"usage"`
 }
@@ -346,8 +349,10 @@ type chatUsage struct {
 // gatewayResponseRejected identifies a received but unusable HTTP 200 reply.
 // Its reason is adapter-owned text and its usage is safe to charge when valid.
 type gatewayResponseRejected struct {
-	reason string
-	usage  *genai.GenerateContentResponseUsageMetadata
+	reason        string
+	emptyStop     bool
+	outputLimited bool
+	usage         *genai.GenerateContentResponseUsageMetadata
 }
 
 func (e *gatewayResponseRejected) Error() string {
@@ -370,11 +375,14 @@ func decodeChatResponse(payload []byte) (*model.LLMResponse, error) {
 		return reject("no choices")
 	}
 	choice := response.Choices[0]
+	if choice.Message == nil || choice.Message.Refusal != "" || choice.FinishReason == "content_filter" {
+		return reject("an invalid or filtered choice")
+	}
 	if choice.FinishReason == "length" {
-		return reject("a length-limited choice")
+		return nil, &gatewayResponseRejected{reason: "a length-limited choice", usage: usage, outputLimited: true}
 	}
 	parts := make([]*genai.Part, 0, len(choice.Message.ToolCalls)+1)
-	if choice.Message.Content != "" {
+	if strings.TrimSpace(choice.Message.Content) != "" {
 		parts = append(parts, genai.NewPartFromText(choice.Message.Content))
 	}
 	for _, call := range choice.Message.ToolCalls {
@@ -389,7 +397,7 @@ func decodeChatResponse(payload []byte) (*model.LLMResponse, error) {
 		parts = append(parts, part)
 	}
 	if len(parts) == 0 {
-		return reject("an empty choice")
+		return nil, &gatewayResponseRejected{reason: "an empty choice", usage: usage, emptyStop: choice.FinishReason == "stop"}
 	}
 	return &model.LLMResponse{
 		Content:       &genai.Content{Role: genai.RoleModel, Parts: parts},
