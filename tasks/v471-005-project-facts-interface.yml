@@ -21,6 +21,7 @@ demonstration: >-
   equal evidence contents appear as one card with their source history. A later hypothesis
   explicitly selects one source and exposes its exact grounds and check results.
 context:
+  execution_group: 2
   authority: >-
     User decisions 2026-11-20: provide a separate facts interface with the same
     Project Finding beneath it, include technology observations, preserve clarity
@@ -42,6 +43,10 @@ context:
     This supersedes the blanket deferral and title-plus-evidence proposal. Title
     matching, semantic/provider rules, material groups and possible-duplicate states
     remain outside the first slice. Optional origins and exact sources stay as agreed.
+    User request 2026-11-21 organizes these six tasks into two groups of three,
+    each executed in one continuous pass. The dependency-based allocation and
+    group entry/exit rules live in the proposal; this task keeps its own acceptance,
+    required checks and implementation commit. Grouping adds no functional scope.
   proposal: docs/proposals/0055-project-facts-through-findings.md
   specification:
     - docs/spec/ui/ui.md

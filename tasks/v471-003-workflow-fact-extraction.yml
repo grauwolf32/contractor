@@ -21,6 +21,7 @@ demonstration: >-
   call. A zero-result run settles; a Workflow omitting extraction makes no extra
   model call or Project write.
 context:
+  execution_group: 2
   authority: >-
     User decisions 2026-11-20: consider extracting important facts from notes;
     opt in through Workflow composition like operations; use the same Project
@@ -45,6 +46,10 @@ context:
     matching, semantic/provider rules, material groups and possible-duplicate states
     remain outside the first slice. Optional origins and exact sources stay as agreed.
     Planning/integration only, with no feature implementation, live calls or model changes.
+    User request 2026-11-21 organizes these six tasks into two groups of three,
+    each executed in one continuous pass. The dependency-based allocation and
+    group entry/exit rules live in the proposal; this task keeps its own acceptance,
+    required checks and implementation commit. Grouping adds no functional scope.
   proposal: docs/proposals/0055-project-facts-through-findings.md
   specification:
     - docs/spec/execution/server-operations.md#SOP-R3

@@ -20,6 +20,7 @@ demonstration: >-
   its original version and bytes. A Workflow
   without the operation creates no snapshot and does no additional model work.
 context:
+  execution_group: 1
   authority: >-
     User direction 2026-11-20: important facts may be extracted from notes through
     functionality included or omitted in Workflows like operations. The bounded
@@ -37,6 +38,10 @@ context:
     This supersedes the blanket deferral and title-plus-evidence proposal. Title
     matching, semantic/provider rules, material groups and possible-duplicate states
     remain outside the first slice. Optional origins and exact sources stay as agreed.
+    User request 2026-11-21 organizes these six tasks into two groups of three,
+    each executed in one continuous pass. The dependency-based allocation and
+    group entry/exit rules live in the proposal; this task keeps its own acceptance,
+    required checks and implementation commit. Grouping adds no functional scope.
   proposal: docs/proposals/0055-project-facts-through-findings.md
   specification:
     - docs/spec/tools/memory.md#MEM-R18

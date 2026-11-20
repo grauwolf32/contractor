@@ -19,6 +19,7 @@ demonstration: >-
   A different complete evidence set creates another Finding. Existing receipts
   preserve both submissions and an ordinary generator selects one exact source.
 context:
+  execution_group: 1
   authority: >-
     User decisions 2026-11-20 keep facts on common Project Findings, optional
     Task/hypothesis origin and explicit exact grounds. Earlier richer matching
@@ -29,6 +30,10 @@ context:
     provider-specific qualification and material grouping remain outside scope.
     Comparing evidence contents as an unordered set of existing Artifact digests
     is the implementation choice. This is a planning update, not feature execution.
+    User request 2026-11-21 organizes these six tasks into two groups of three,
+    each executed in one continuous pass. The dependency-based allocation and
+    group entry/exit rules live in the proposal; this task keeps its own acceptance,
+    required checks and implementation commit. Grouping adds no functional scope.
   proposal: docs/proposals/0055-project-facts-through-findings.md
   specification:
     - docs/spec/findings/findings.md#FND-R174

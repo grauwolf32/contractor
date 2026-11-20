@@ -24,6 +24,7 @@ demonstration: >-
   A batch Audit Run also records a general observation with Run/Audit origin and
   no Task or hypothesis. An explicitly selected member retains its exact context.
 context:
+  execution_group: 1
   authority: >-
     User decisions 2026-11-20: facts need a separate interface over the same
     project-level Finding; a detected technology is a fact; publish_problem is
@@ -43,6 +44,10 @@ context:
     This supersedes the blanket deferral and title-plus-evidence proposal. Title
     matching, semantic/provider rules, material groups and possible-duplicate states
     remain outside the first slice. Optional origins and exact sources stay as agreed.
+    User request 2026-11-21 organizes these six tasks into two groups of three,
+    each executed in one continuous pass. The dependency-based allocation and
+    group entry/exit rules live in the proposal; this task keeps its own acceptance,
+    required checks and implementation commit. Grouping adds no functional scope.
   proposal: docs/proposals/0055-project-facts-through-findings.md
   specification:
     - docs/spec/findings/findings.md#FND-R3
