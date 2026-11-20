@@ -19,7 +19,8 @@ demonstration: >-
 context:
   authority: >-
     User request 2026-11-20 asks for protection against empty replies and exhausted
-    output tokens, review against main and task intake. The single shared recovery
+    output tokens, review against main and task intake. User assignment 2026-11-20
+    selects V473-001 and V473-002 for implementation in one pass. The single shared recovery
     allowance and opt-in for document processing are agent proposals.
   verification_scope: >-
     Implementation review 2026-11-21 corrects the agent-proposed generic
