@@ -7,13 +7,16 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/stageresult"
+	"github.com/grauwolf32/contractor/internal/telemetry"
+	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"google.golang.org/adk/v2/model"
 	"google.golang.org/genai"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestDocumentPlannerRecoveryEnforcesFinish(t *testing.T) {
 	for _, first := range []string{"empty", "length"} {
-		for _, follow := range []string{"finish", "dispatch", "mixed", "empty", "incomplete", "model-budget", "token-budget", "default", "missing-binding", "invalid-finish", "length", "cancelled"} {
+		for _, follow := range []string{"finish", "dispatch", "dispatch-over-budget", "mixed", "empty", "incomplete", "model-budget", "token-budget", "default", "missing-binding", "invalid-finish", "length", "cancelled"} {
 			t.Run(first+"/"+follow, func(t *testing.T) {
 				ctx, cancel := context.WithCancel(t.Context())
 				defer cancel()
@@ -31,7 +34,7 @@ func TestDocumentPlannerRecoveryEnforcesFinish(t *testing.T) {
 				switch follow {
 				case "invalid-finish":
 					followup = functionStep(finishToolName, map[string]any{"outcome": "succeeded", "summary": "complete", "artifacts": map[string]any{}})
-				case "dispatch":
+				case "dispatch", "dispatch-over-budget":
 					followup = functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "0"})
 				case "mixed":
 					followup = func(r *model.LLMRequest) (*model.LLMResponse, error) {
@@ -66,6 +69,13 @@ func TestDocumentPlannerRecoveryEnforcesFinish(t *testing.T) {
 				if follow == "missing-binding" {
 					workers.results["builder"] = stageResult("done", map[string]contracts.ArtifactRef{})
 				}
+				var adapter telemetry.PlannerTelemetry
+				var payloads <-chan []byte
+				if follow == "dispatch-over-budget" {
+					invocation.ModelAccess.ModelPolicy.MaxTotalTokens = 60
+					adapter, payloads = streamlineTestTelemetry(t, invocation)
+					invocation.Instrumentation = adapter.Instrumentation()
+				}
 				inspector := &fakeInspector{mediaTypes: map[string]string{refKey(ref): "application/json"}}
 				instance, err := mustFactory(t, newFakeSessions(), workers, inspector, scripted, Limits{}).Create(invocation)
 				if err != nil {
@@ -85,6 +95,10 @@ func TestDocumentPlannerRecoveryEnforcesFinish(t *testing.T) {
 				if follow == "cancelled" && planner.FailureFrom(err).Code != "planner_cancelled" {
 					t.Fatalf("cancellation=%v", err)
 				}
+				if follow == "dispatch-over-budget" {
+					assertPlannerCode(t, err, "planner_token_limit")
+					checkRecoveryBudgetTrace(t, adapter, payloads)
+				}
 				report, _ := instance.(planner.ReportProvider).ExecutionReport()
 				wantTokens := int64(70)
 				switch follow {
@@ -103,5 +117,41 @@ func TestDocumentPlannerRecoveryEnforcesFinish(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func checkRecoveryBudgetTrace(t *testing.T, adapter telemetry.PlannerTelemetry, payloads <-chan []byte) {
+	t.Helper()
+	if export := adapter.Flush(t.Context()); !export.Succeeded {
+		t.Fatalf("flush: %+v", export)
+	}
+	var trace collectortracev1.ExportTraceServiceRequest
+	if err := proto.Unmarshal(<-payloads, &trace); err != nil {
+		t.Fatal(err)
+	}
+	modelSpans, budgetFailures := 0, 0
+	for _, span := range trace.ResourceSpans[0].ScopeSpans[0].Spans {
+		if span.Name != string(telemetry.PlannerSpanModel) {
+			continue
+		}
+		modelSpans++
+		var code string
+		var input, output int64
+		for _, attr := range span.Attributes {
+			switch attr.Key {
+			case "error.type":
+				code = attr.Value.GetStringValue()
+			case "gen_ai.usage.input_tokens":
+				input = attr.Value.GetIntValue()
+			case "gen_ai.usage.output_tokens":
+				output = attr.Value.GetIntValue()
+			}
+		}
+		if code == "planner_token_limit" && input == 10 && output == 10 {
+			budgetFailures++
+		}
+	}
+	if modelSpans != 4 || budgetFailures != 1 {
+		t.Fatalf("exported %d model spans, %d charged budget failures", modelSpans, budgetFailures)
 	}
 }

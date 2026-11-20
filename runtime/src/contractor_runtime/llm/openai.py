@@ -20,6 +20,7 @@ from pydantic import BaseModel, PrivateAttr
 
 from contractor_runtime.llm.client import GatewayClientHandle, GatewayRequestError
 from contractor_runtime.llm.errors import GatewayFailure
+from contractor_runtime.llm.response import empty_stop_response
 from contractor_runtime.threads import to_thread_until_done
 
 _SAFE_ERROR_TYPE = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,127}")
@@ -548,11 +549,9 @@ def _to_llm_response(completion: Any) -> LlmResponse:
     # A length-limited response is never executable, even if a partial tool
     # call happens to parse. Keep the finish reason and usage instead of
     # misclassifying truncated arguments as an unaccounted adapter error.
-    tool_calls = (
-        []
-        if finish_reason not in (None, types.FinishReason.STOP)
-        else (message.get("tool_calls") or [])
-    )
+    tool_calls = message.get("tool_calls")
+    if tool_calls is None or finish_reason not in (None, types.FinishReason.STOP):
+        tool_calls = []
     if not isinstance(tool_calls, list):
         raise _AdapterFailure("InvalidGatewayToolCall")
     for tool_call in tool_calls:
@@ -577,6 +576,10 @@ def _to_llm_response(completion: Any) -> LlmResponse:
         finish_reason=finish_reason,
         usage_metadata=_usage_metadata(completion.get("usage")),
     )
+    # ADK also maps provider tool finishes to STOP. Only the provider's
+    # explicit stop can authorize recovery of a blank or thought-only reply.
+    if choice.get("finish_reason") != "stop" and empty_stop_response(response):
+        raise _AdapterFailure("EmptyGatewayResponse")
     if finish_reason is not None and finish_reason != types.FinishReason.STOP:
         response.error_code = finish_reason.value
         response.error_message = (

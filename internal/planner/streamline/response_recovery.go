@@ -32,7 +32,7 @@ func singleFinish(response *model.LLMResponse) bool {
 	}
 	count := 0
 	for _, part := range response.Content.Parts {
-		if part.FunctionCall != nil {
+		if part != nil && part.FunctionCall != nil {
 			if part.FunctionCall.Name != finishToolName {
 				return false
 			}

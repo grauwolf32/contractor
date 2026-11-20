@@ -1,0 +1,46 @@
+schema_version: "1.0"
+id: V473-004
+title: Preserve response classification and Planner usage on document recovery failures
+milestone: model-response-recovery-2026-11
+epic: planner-worker
+kind: defect
+introduced_by: V473-001
+priority: P1
+status: in_progress
+depends_on: [V473-002]
+languages: [go, python]
+goal: Charge and report each received recovery reply once and admit an empty-response retry only for an explicit normal stop.
+context:
+  authority: User request on 2026-11-21 to review and merge document response recovery.
+  specification:
+    - docs/spec/execution/worker.md#WRK-R198
+    - docs/spec/execution/planners.md#PLN-R132
+  severity: medium
+  finding: >-
+    runtime/src/contractor_runtime/llm/openai.py:538 maps tool finish reasons to ADK STOP.
+    If the provider omits the call but includes whitespace or private reasoning, the
+    empty-response policy can spend a retry. internal/planner/streamline/planner.go:408
+    returns on budget failure before ending the model span when the recovery reply
+    selects a tool other than finish.
+  siblings: >-
+    Check both provider tool finish spellings, missing or malformed calls, and real STOP
+    through the Go and Python fixture readers. Streamline and Router use the same
+    Planner model callbacks. Exercise the real ADK run loop and OTLP export on exhaustion.
+scope:
+  in:
+    - Retain the provider reason through empty response classification.
+    - Use the existing usage validation and span completion for recovery tool selection.
+acceptance_criteria:
+  - id: A1
+    text: A tool finish with only whitespace or thought text and no tool call is rejected and cannot consume the empty STOP allowance. Valid calls and genuine empty STOP retain their classifications.
+  - id: A2
+    text: A recovery reply selecting another tool and exceeding the token budget settles with planner_token_limit, charges the call once, dispatches no extra Worker and exports its failed model span with the known usage.
+  - id: A3
+    text: The regression cases fail on the reviewed revision and pass through the real Gateway adapters and Planner callback after the fix.
+tests:
+  - command: go test -count=1 ./internal/planner/streamline/... ./internal/planner/router/...
+    covers: [A1, A2, A3]
+  - command: cd runtime && uv run pytest -q tests/test_document_response_recovery.py tests/test_adk_gateway_conformance.py
+    covers: [A1, A3]
+  - command: make lint
+    covers: [A1, A2]

@@ -403,17 +403,12 @@ func (p *streamlinePlanner) newRootAgent(
 		},
 		AfterModelCallbacks: []llmagent.AfterModelCallback{
 			func(_ agent.Context, response *model.LLMResponse, _ error) (*model.LLMResponse, error) {
-				if p.finishRecovery && !singleFinish(response) {
-					if response != nil {
-						if failure := state.chargeUsage(response.UsageMetadata); failure != nil {
-							return nil, failure
-						}
-					}
-					failure := state.setExternalFailure(planner.NewError("planner_tool_selection_invalid", "Document recovery requires exactly one finish", true, nil))
-					endModelSpan("failed", failure.Code, response)
-					return nil, failure
-				}
 				result, err := state.afterModel(response, allowed)
+				if err == nil && p.finishRecovery && !singleFinish(response) {
+					result, err = nil, state.setExternalFailure(planner.NewError(
+						"planner_tool_selection_invalid", "Document recovery requires exactly one finish", true, nil,
+					))
+				}
 				if err == nil && p.compaction != nil && response != nil {
 					if failure := p.compaction.observeMain(response.UsageMetadata); failure != nil {
 						result, err = nil, state.setExternalFailure(failure)
