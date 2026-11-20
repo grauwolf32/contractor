@@ -5,7 +5,7 @@ milestone: model-response-recovery-2026-11
 epic: planner-worker
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V473-001]
 languages: [python, go, json, markdown]
 goal: >-
@@ -125,3 +125,14 @@ tests:
     covers: [A1, A2, A3]
 test_prerequisites:
   - Extend the actual process scenario from V473-001. Assert Gateway request counts and stored report revisions from the real owners.
+
+
+implementation_commit: 05968e852e6ab221cac8c85a98e05dc0cbd4ff39
+verification_results:
+  - "2026-11-21: make test-findings-e2e passed all 18 required process cases and 285 Runtime contracts against real Server, Runtime and PostgreSQL."
+  - "The length-limited parseable write created no artifact. The same Stage retained its selection, produced one final report and accounted every received call."
+  - "make test-runtime passed 6330 cases with 135 declared skips. The separate focused recovery tests also passed after the final exception and prompt formatting changes."
+  - "make test-wire-cross-language passed 397 fixtures with 447 Go and 283 Python shared tests. One explicitly optional heavy I/O case skipped and is not passing coverage."
+  - "Full Streamline and Router suites passed with disposable PostgreSQL. The focused race test passed empty/length combinations, hard budgets, invalid follow-ups and cancellation with retained known usage."
+  - "make lint passed. Runtime verification used the pinned ffuf 2.3.0 source built with the release version flags in an owned temporary tool directory."
+  - "The configured model and per-response ceiling were inspected in scripted requests. Integration evidence does not measure live-model recovery yield."
