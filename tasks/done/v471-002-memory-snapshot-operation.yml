@@ -5,7 +5,7 @@ milestone: project-facts-2026-11
 epic: memory
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [go, json, yaml, typescript, markdown]
 goal: >-
@@ -142,3 +142,5 @@ tests:
 test_prerequisites:
   - Add the named real-process target in this task; missing targets, zero cases and skipped required PostgreSQL checks fail acceptance.
   - Test catalogs belong in testdata; remove the single owned disposable database after all processes stop.
+
+implementation_commit: 05a80a94e5dec7f1d70543b881f92972ca04dbf2

@@ -377,7 +377,7 @@ release gate V471-006, проверку lifecycle, масштаба и инте�
 | Задача | Группа | Результат | Зависимости |
 | --- | --- | --- | --- |
 | [V471-001](../../tasks/done/v471-001-project-facts-shared-findings.yml) | 1 | Первый сквозной факт через общий Project Finding; обычный finding без флага | — |
-| [V471-002](../../tasks/v471-002-memory-snapshot-operation.yml) | 1 | Явно подключаемый snapshot выбранных заметок | — |
+| [V471-002](../../tasks/done/v471-002-memory-snapshot-operation.yml) | 1 | Явно подключаемый snapshot выбранных заметок | — |
 | [V471-004](../../tasks/v471-004-fact-deduplication-and-selection.yml) | 1 | Базовое равенство evidence на существующей корреляции | 001 |
 | [V471-003](../../tasks/v471-003-workflow-fact-extraction.yml) | 2 | Отдельный Stage с passthrough@1, общим publisher и проверкой повторных попыток | 001, 002, 004 |
 | [V471-005](../../tasks/v471-005-project-facts-interface.yml) | 2 | Отдельный понятный интерфейс поверх тех же записей | 003 |
