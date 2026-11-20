@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-73 open tasks: 10 in progress, 50 pending, 13 deferred. 1609 finished: 1591 completed, 18 archived.
+72 open tasks: 9 in progress, 50 pending, 13 deferred. 1610 finished: 1592 completed, 18 archived.
 
 ## In progress
 
@@ -20,7 +20,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V473-001](v473-001-empty-model-replies.yml) | planner-worker | feature | P1 | Recover once from an empty model reply during Project document review |
 
 ## Pending
 
@@ -38,7 +37,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | — | Verify Planner compaction persistence cancellation and scale boundaries |
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | — | Expose bounded truthful Planner compaction diagnostics |
 | [V469-001](v469-001-opencode-audit-prototype.yml) | chore | P1 | — | Prove two ordinary Runs can reuse one OpenCode Audit container |
-| [V473-002](v473-002-output-limited-model-replies.yml) | feature | P1 | V473-001 | Request a complete shorter document response after an output limit |
+| [V473-002](v473-002-output-limited-model-replies.yml) | feature | P1 | — | Request a complete shorter document response after an output limit |
 
 ### Shared Memory tools (`memory`)
 
@@ -175,7 +174,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 3 | 50 | 70 | 40 | 107 |
-| Planners and the Worker model boundary (`planner-worker`) | 7 | 39 | 59 | 39 | 93 |
+| Planners and the Worker model boundary (`planner-worker`) | 6 | 39 | 59 | 39 | 93 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 1 | 7 | 9 | 3 | 15 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
