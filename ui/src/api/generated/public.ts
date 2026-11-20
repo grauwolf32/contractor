@@ -4521,7 +4521,7 @@ export interface components {
             mediaType: components["schemas"]["MediaType"];
             sizeBytes: number;
         };
-        /** @description Immutable deterministic key evidence; independent of analyst triage. Snapshot keys apply only to the exact Git commit and source digest. */
+        /** @description Immutable deterministic key evidence; independent of analyst triage. Snapshot keys apply only to the exact Git commit and source digest. Informational fact keys compare the complete unordered set of selected evidence content digests. */
         FindingFingerprintProjection: {
             /** @constant */
             schema: "contractor.finding.fingerprint-projection.v1";
@@ -4559,6 +4559,14 @@ export interface components {
             ruleId: string;
             report: components["schemas"]["FindingExactArtifact"];
             recordLocator: string;
+        } | {
+            /** @constant */
+            schema: "contractor.finding.fingerprint-projection.v1";
+            /** @constant */
+            availability: "available";
+            /** @constant */
+            algorithm: "contractor/fact-evidence/v1";
+            value: string;
         };
         FindingAnchorContext: {
             /** @constant */
@@ -4627,7 +4635,7 @@ export interface components {
         };
         FindingCorrelationBasis: {
             /** @enum {string} */
-            algorithm: "contractor/producer-issue/v1" | "contractor/snapshot-issue-anchor/v1";
+            algorithm: "contractor/producer-issue/v1" | "contractor/snapshot-issue-anchor/v1" | "contractor/fact-evidence/v1";
             value: string;
         };
         FindingSubject: {

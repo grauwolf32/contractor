@@ -113,3 +113,23 @@ def test_fact_sources_follow_common_model_visibility(namespace, name):
             evidence_refs=[{"namespace": namespace, "name": name, "revision": "r1"}],
             standard_refs=None,
         )
+
+
+def test_shared_fact_evidence_is_selected_without_a_model_matching_key():
+    fixture = json.loads(
+        (Path(__file__).parents[2] / "api/testdata/finding-fact-evidence-cases.json").read_text()
+    )
+    for case in fixture["cases"]:
+        request = build_submission(
+            invocation_id="invocation",
+            client_key="fact",
+            title=case["title"],
+            description="Reported observation",
+            evidence_refs=[source["ref"] for source in case["evidence"]],
+            standard_refs=None,
+            severity_suggestion="informational",
+        )
+        assert request["proposal"]["title"] == case["title"]
+        assert request["proposal"]["severity_suggestion"] == "informational"
+        assert len(request["evidenceRefs"]) == len(case["evidence"])
+        assert not {"fingerprint", "algorithm", "digest", "value", "groupKey"} & request.keys()

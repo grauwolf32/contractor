@@ -37,6 +37,13 @@ func TestProjectFactsAcrossProcesses(t *testing.T) {
 			return args, nil
 		}))
 	}
+	producer.steps = append(producer.steps, toolGatewayStep("finding", func(request map[string]any) (map[string]any, error) {
+		proof, ok := lastExactArtifact(request, "findings-review", "proof-0")
+		if !ok {
+			return nil, fmt.Errorf("missing original fact evidence")
+		}
+		return map[string]any{"title": "Another title over the same source", "description": "Independent informational submission", "severity_suggestion": "informational", "evidence_refs": []any{proof}}, nil
+	}))
 	producer.steps = append(producer.steps, toolGatewayStep("list_project_findings", fixedArguments(map[string]any{"limit": 100})), toolGatewayStep("select_project_findings", func(request map[string]any) (map[string]any, error) {
 		pages := findingsToolResponses(request, "list_project_findings")
 		if len(pages) != 1 {
@@ -102,13 +109,25 @@ func TestProjectFactsAcrossProcesses(t *testing.T) {
 	run := postProjectRun(t, h.client, h.baseURL, project.ProjectID, "facts", body, false)
 	waitForFindingsRun(t, h, run, "succeeded")
 	receipts := findingsReceipts(t, h, run)
-	if len(receipts) != 4 {
+	if len(receipts) != 5 {
 		t.Fatalf("receipts=%d", len(receipts))
 	}
 	for _, receipt := range receipts {
 		if receipt.FindingID == nil || receipt.ProjectID == nil || receipt.ProjectProposal == nil {
 			t.Fatalf("not admitted: %+v", receipt)
 		}
+	}
+	var original, duplicate string
+	for _, receipt := range receipts {
+		if receipt.Document.Title == "Observation 0" {
+			original = *receipt.FindingID
+		}
+		if receipt.Document.Title == "Another title over the same source" {
+			duplicate = *receipt.FindingID
+		}
+	}
+	if original == "" || original != duplicate {
+		t.Fatal("equal evidence did not reuse canonical Finding")
 	}
 	var facts, needsReview struct {
 		Items []auditstore.ProjectFindingSummary `json:"items"`

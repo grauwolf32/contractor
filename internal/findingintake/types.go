@@ -30,7 +30,7 @@ const (
 	MaxRequestBytes      = artifacts.MaxPayloadSize
 	MaxEvidenceRefs      = auditdomain.MaximumEvidencePerItem
 	proposalMediaType    = "application/json"
-	MaxFactEvidenceRefs  = 4
+	MaxFactEvidenceRefs  = auditdomain.MaximumFactEvidence
 	MaxFactAuthoredBytes = 32 << 10
 )
 

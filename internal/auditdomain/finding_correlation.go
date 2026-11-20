@@ -1,6 +1,7 @@
 package auditdomain
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -8,6 +9,8 @@ import (
 )
 
 const (
+	MaximumFactEvidence               = 4
+	factEvidenceAlgorithm             = "contractor/fact-evidence/v1"
 	FindingCorrelationPolicy          = "qualified-snapshot/v1"
 	MaximumFindingCorrelationRevision = contracts.MaxExactInteger
 )
@@ -28,5 +31,27 @@ func FindingGroupKey(projectID, algorithm, value string) (string, error) {
 }
 
 func validCorrelationAlgorithm(algorithm string) bool {
-	return algorithm == "contractor/producer-issue/v1" || algorithm == "contractor/snapshot-issue-anchor/v1"
+	return algorithm == factEvidenceAlgorithm || algorithm == "contractor/producer-issue/v1" || algorithm == "contractor/snapshot-issue-anchor/v1"
+}
+
+// FactEvidenceFingerprint derives one closed informational key from authorized
+// exact metadata. It never reads payloads or compares titles, refs or providers.
+func FactEvidenceFingerprint(evidence []contracts.ExactArtifact) (FindingFingerprint, error) {
+	if len(evidence) == 0 || len(evidence) > MaximumFactEvidence {
+		return FindingFingerprint{}, invalid(CodeInvalid, "fact.evidence")
+	}
+	digests := make([]string, 0, len(evidence))
+	for _, source := range evidence {
+		if source.Validate() != nil || !source.HasMetadata() {
+			return FindingFingerprint{}, invalid(CodeInvalid, "fact.evidence")
+		}
+		digests = append(digests, source.Digest)
+	}
+	slices.Sort(digests)
+	digests = slices.Compact(digests)
+	digest, err := contentdigest.CanonicalJSON([]any{factEvidenceAlgorithm, digests})
+	if err != nil {
+		return FindingFingerprint{}, err
+	}
+	return FindingFingerprint{Schema: FindingFingerprintSchema, Availability: "available", Algorithm: factEvidenceAlgorithm, Value: strings.TrimPrefix(digest, "sha256:")}, nil
 }

@@ -149,7 +149,7 @@ class FindingPublisher:
             # same problem as its own field error.
             for reference in proposal["standard_refs"]:
                 check_cwe_reference(reference)
-            if self.artifacts is not None:
+            if self.artifacts is not None and proposal["severity_suggestion"] != "informational":
                 request["derived_anchors"] = await prepare_anchors(
                     self.artifacts, request, self.sources
                 )

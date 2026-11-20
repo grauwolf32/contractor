@@ -79,7 +79,18 @@ func DecodeFindingFingerprint(data []byte) (FindingFingerprint, error) {
 	if err := strictjson.Decode(data, &value); err != nil {
 		return value, err
 	}
-	if (value.Availability == "unavailable" && len(members) != 3) || (value.Availability == "available" && value.Adapter != "normalized-candidate/v1" && len(members) != 12) || (value.Availability == "available" && value.Adapter == "normalized-candidate/v1" && len(members) != 8) {
+	expected := 3
+	if value.Availability == "available" {
+		switch {
+		case value.Algorithm == factEvidenceAlgorithm:
+			expected = 4
+		case value.Adapter == "normalized-candidate/v1":
+			expected = 8
+		default:
+			expected = 12
+		}
+	}
+	if len(members) != expected {
 		return value, invalid(CodeInvalid, "fingerprint")
 	}
 	return value, validateFindingFingerprint(value)
@@ -93,6 +104,12 @@ func validateFindingFingerprint(value FindingFingerprint) error {
 		allowed := map[string]bool{"not_recorded": true, "not_provided": true, "input_limit": true, "producer_key_unavailable": true, "producer_report_invalid": true, "producer_record_ambiguous": true, "asset_unavailable": true, "discarded": true}
 		if !allowed[value.Reason] || value.Algorithm != "" || value.Value != "" || value.Adapter != "" || value.RuleID != "" || value.Repository != "" || value.Commit != "" || value.SourceDigest != "" || value.Report != nil || value.Source != nil || value.RecordLocator != "" {
 			return invalid(CodeInvalid, "fingerprint.unavailable")
+		}
+		return nil
+	}
+	if value.Availability == "available" && value.Algorithm == factEvidenceAlgorithm {
+		if value.Reason != "" || !fingerprintHex.MatchString(value.Value) || value.Adapter != "" || value.RuleID != "" || value.Repository != "" || value.Commit != "" || value.SourceDigest != "" || value.Report != nil || value.Source != nil || value.RecordLocator != "" {
+			return invalid(CodeInvalid, "fingerprint")
 		}
 		return nil
 	}

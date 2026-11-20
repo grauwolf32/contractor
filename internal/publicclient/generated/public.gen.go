@@ -3240,6 +3240,7 @@ func (e FindingComparisonRowUnavailableReason) Valid() bool {
 
 // Defines values for FindingCorrelationBasisAlgorithm.
 const (
+	ContractorfactEvidencev1        FindingCorrelationBasisAlgorithm = "contractor/fact-evidence/v1"
 	ContractorproducerIssuev1       FindingCorrelationBasisAlgorithm = "contractor/producer-issue/v1"
 	ContractorsnapshotIssueAnchorv1 FindingCorrelationBasisAlgorithm = "contractor/snapshot-issue-anchor/v1"
 )
@@ -3247,6 +3248,8 @@ const (
 // Valid indicates whether the value is a known member of the FindingCorrelationBasisAlgorithm enum.
 func (e FindingCorrelationBasisAlgorithm) Valid() bool {
 	switch e {
+	case ContractorfactEvidencev1:
+		return true
 	case ContractorproducerIssuev1:
 		return true
 	case ContractorsnapshotIssueAnchorv1:

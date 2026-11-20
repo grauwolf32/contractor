@@ -20,6 +20,13 @@
       "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "canonical": "[\"contractor/finding-group/v1\",\"project-a\",\"contractor/snapshot-issue-anchor/v1\",\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"]",
       "groupKey": "16a71d10c23b7c7fb239681825856620e3cd9b1298be91a625dbe6a751260e0f"
+    },
+    {
+      "projectId": "project-a",
+      "algorithm": "contractor/fact-evidence/v1",
+      "value": "5091e33ebae3810e6ee2c4d2101beec072f5041e23d09575a499b22b2d168679",
+      "canonical": "[\"contractor/finding-group/v1\",\"project-a\",\"contractor/fact-evidence/v1\",\"5091e33ebae3810e6ee2c4d2101beec072f5041e23d09575a499b22b2d168679\"]",
+      "groupKey": "2386c749dd7ef2f1a4074da8ef8fdda2fa6c8e9676a6e84d81a26cfbada3ed4d"
     }
   ],
   "readPages": [

@@ -242,14 +242,16 @@ bindings одинаковых байтов не влияют на сравнен
 
 ```mermaid
 flowchart TD
-    C["Вызов record_fact"] --> R{"Receipt этого вызова уже есть?"}
+    C["record_fact или informational finding"] --> R{"Receipt этого вызова уже есть?"}
     R -->|"да"| E["Вернуть прежний результат"]
-    R -->|"нет"| S["Проверить выбранные точные evidence<br/>прочитать существующие content digest"]
-    S -->|"невалидные или чужие источники"| X["Отклонить до записи"]
-    S --> D["Ключ из полного набора digest<br/>без заголовка и смыслового сравнения"]
-    D --> W
-    subgraph TX["Существующая транзакция под Project fence"]
-        W["Удержать материалы<br/>сохранить receipt и projection"] --> K{"Существующая корреляция<br/>нашла такой evidence key в Project?"}
+    R -->|"нет"| P{"Активный Project?"}
+    P -->|"нет"| X["Отклонить до записи"]
+    P -->|"да"| S
+    subgraph TX["Существующая транзакция под Project и execution fences"]
+        S["Повторить проверки полномочий<br/>прочитать metadata выбранных exact evidence"] --> D["contractor/fact-evidence/v1<br/>SHA-256 от sorted unique digest"]
+        S -->|"невалидные или чужие источники"| X
+        D --> W["Удержать материалы<br/>сохранить receipt и projection"]
+        W --> K{"Существующая корреляция<br/>нашла такой evidence key в Project?"}
         K -->|"да"| F["Использовать существующий Finding"]
         K -->|"нет"| N["Создать Finding"]
         F --> L["Связать receipt с Finding"]
@@ -257,6 +259,11 @@ flowchart TD
     end
     L --> H["Обычная история источников<br/>исходные описания и точные evidence каждого receipt"]
 ```
+
+Проекция использует существующую схему fingerprint: `schema`, `availability`,
+`algorithm`, `value`, без полей провайдера. Для informational не разбираются
+необязательные code anchors или SARIF. Сравниваются сохранённые байты evidence;
+содержимое HTTP envelope не нормализуется.
 
 Повтор одного вызова возвращает прежний receipt до чтения источников. Новый
 вызов сохраняет собственный receipt и происхождение; при равном наборе evidence

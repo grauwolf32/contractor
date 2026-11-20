@@ -853,3 +853,40 @@ def test_general_finding_can_omit_location_and_classification():
         assert document["standard_refs"] == []
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "factory_type,location_args",
+    [
+        (GeneralFindingsToolsetFactory, {}),
+        (CodeFindingsToolsetFactory, {"file": "src/order.py"}),
+        (HTTPFindingsToolsetFactory, {"url": "https://target.example", "method": "GET"}),
+    ],
+)
+def test_informational_findings_leave_evidence_equality_to_server(
+    factory_type, location_args, monkeypatch
+):
+    async def forbidden_derivation(*_args, **_kwargs):
+        raise AssertionError("informational equality must not parse source payloads")
+
+    monkeypatch.setattr(
+        "contractor_runtime.toolsets.security_findings.publisher.prepare_anchors",
+        forbidden_derivation,
+    )
+
+    async def scenario():
+        client = FakeFindingClient()
+        tool = await finding_tool(factory_type, client, WorkerState())
+        result = await tool(
+            title="Reported technology",
+            description="Observed in selected material",
+            severity_suggestion="informational",
+            evidence_refs=[{"namespace": "proof", "name": "selected", "revision": "r1"}],
+            tool_context=context(),
+            **location_args,
+        )
+        assert result["finding_id"] == "finding-1"
+        assert "derived_anchors" not in client.requests[-1]
+        assert "fingerprint" not in client.requests[-1]
+
+    asyncio.run(scenario())

@@ -116,7 +116,7 @@ func (s *Service) submit(ctx context.Context, execution intakeExecution, input S
 	}
 	anchors := auditdomain.UnavailableFindingAnchors("not_provided")
 	fingerprint := auditdomain.UnavailableFindingFingerprint("not_provided")
-	if execution.Worker != nil {
+	if execution.Worker != nil && canonical.request.Proposal.SeveritySuggestion != "informational" {
 		readStage := s.lazyPreparationStage(ctx, *execution.Worker)
 		anchors, err = s.prepareAnchors(ctx, *execution.Worker, canonical.request, readStage)
 		if err != nil {
@@ -260,6 +260,16 @@ SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, execution.Run
 			}
 			evidence = append(evidence, ExactArtifact{Ref: written.Ref, Digest: auditdomain.DigestBytes(httpPayload.Data),
 				MediaType: written.MediaType, SizeBytes: written.Size})
+		}
+		if canonical.request.Proposal.SeveritySuggestion == "informational" {
+			derived, deriveErr := auditdomain.FactEvidenceFingerprint(evidence)
+			if deriveErr != nil {
+				return deriveErr
+			}
+			fingerprintJSON, err = auditdomain.EncodeFindingFingerprint(derived)
+			if err != nil {
+				return err
+			}
 		}
 		// finding-proposals is reserved for this path: generic Run writes can
 		// neither create nor advance it, while the exact revision stays

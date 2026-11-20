@@ -14754,7 +14754,7 @@ components:
         mediaType: {$ref: '#/components/schemas/MediaType'}
         sizeBytes: {type: integer, minimum: 0, maximum: 67108864}
     FindingFingerprintProjection:
-      description: Immutable deterministic key evidence; independent of analyst triage. Snapshot keys apply only to the exact Git commit and source digest.
+      description: Immutable deterministic key evidence; independent of analyst triage. Snapshot keys apply only to the exact Git commit and source digest. Informational fact keys compare the complete unordered set of selected evidence content digests.
       oneOf:
         - type: object
           additionalProperties: false
@@ -14791,6 +14791,14 @@ components:
             ruleId: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,159}$'}
             report: {$ref: '#/components/schemas/FindingExactArtifact'}
             recordLocator: {type: string, pattern: '^/candidates/[0-9]{1,3}$'}
+        - type: object
+          additionalProperties: false
+          required: [schema, availability, algorithm, value]
+          properties:
+            schema: {type: string, const: contractor.finding.fingerprint-projection.v1}
+            availability: {type: string, const: available}
+            algorithm: {type: string, const: contractor/fact-evidence/v1}
+            value: {type: string, pattern: '^[0-9a-f]{64}$'}
     FindingAnchorContext:
       type: object
       additionalProperties: false
@@ -14873,7 +14881,7 @@ components:
       additionalProperties: false
       required: [algorithm, value]
       properties:
-        algorithm: {type: string, enum: [contractor/producer-issue/v1, contractor/snapshot-issue-anchor/v1]}
+        algorithm: {type: string, enum: [contractor/producer-issue/v1, contractor/snapshot-issue-anchor/v1, contractor/fact-evidence/v1]}
         value: {type: string, pattern: '^[0-9a-f]{64}$'}
     FindingSubject:
       type: object

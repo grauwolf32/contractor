@@ -612,7 +612,8 @@ sequenceDiagram
 
 ### Deterministic producer fingerprint evidence
 
-**FND-R163.** Intake derives an immutable optional fingerprint projection on
+**FND-R163.** Intake derives an immutable fingerprint projection (optional for
+non-informational observations; FND-R236 for informational observations) on
 its existing receipt. Neither the proposal nor the private receipt response,
 model-visible `finding` facades or `list_findings` contract changes. The model
 supplies no matching descriptor, hash, producer identity or stability claim.
@@ -652,8 +653,10 @@ Severity, prose, Run identity and record order do not affect equality.
 
 **FND-R166.** Strictly validate projection writes and reads. The schema is
 `contractor.finding.fingerprint-projection.v1`; availability is `available`
-with algorithm, value, adapter, rule, Git repository/commit, source digest,
-exact report/source descriptors and record locator, or `unavailable` with
+with a registered producer projection (algorithm, value, adapter, rule, Git
+repository/commit, source digest, exact report/source descriptors and record
+locator), the normalized-candidate variant under FND-R233, or the four-field
+informational variant under FND-R236; `unavailable` has
 one closed reason and no key fields. Reasons are `not_recorded`,
 `not_provided`, `input_limit`, `producer_key_unavailable`,
 `producer_report_invalid`, `producer_record_ambiguous`, `asset_unavailable`
@@ -781,8 +784,9 @@ LIM-FND-38 through LIM-FND-41; failures/lifecycle reuse FAIL-FND-1 and LIFE-FND-
 ### Automatic correlation across Audits
 
 **FND-R174.** Qualified publication admits one canonical Project Finding. Its first receipt freezes
-the primary key: a qualified contractor/producer-issue/v1 key under pinned-sarif-
-native/v1 first, otherwise exactly one distinct qualified contractor/snapshot-issue-
+the primary key: the informational evidence key under FND-R236 first; for other
+submissions a qualified contractor/producer-issue/v1 key under pinned-sarif-
+native/v1 or normalized-candidate/v1 (FND-R233) first, otherwise exactly one distinct qualified contractor/snapshot-issue-
 anchor/v1 issue key. Several distinct issue keys are primary_key_ambiguous; site-only,
 unsupported or missing keys are no_qualified_key; both original projections marked
 not_recorded remain not_recorded. Later sources never change the primary key or bridge
@@ -1847,9 +1851,11 @@ reserved Memory, HTTP body or Skill binding as evidence.
 **FND-R211.** A source is an immutable receipt and its provenance, evidence and
 independent result history, with an optional link to the canonical Finding.
 It has no current problem state or separate analyst mutation commands. Qualified
-producer/structural equality uses the existing Project fence and algorithm; equal
-qualified publications attach independent receipts to one identity. Weak or
-unavailable keys never merge by prose, evidence or inferred semantic similarity.
+producer/structural equality and informational evidence equality (FND-R236) use
+the existing Project fence and algorithms; equal qualified publications attach
+independent receipts to one identity. Weak or unavailable keys never merge by
+prose or inferred semantic similarity. Evidence-only equality applies solely to
+producer-informational submissions.
 Replay adds neither a source nor another material binding.
 
 **FND-R212.** The owner edits the canonical Project Finding directly with a current
@@ -2115,3 +2121,43 @@ reopened/proposed record whose presentation severity is not informational; unkno
 severity remains eligible. Project/Audit/owner lists, UI and workspace counts apply
 this same predicate. The API query is `verdict=needs_review` and workspace count is
 `needsReviewFindings`; neither is a persisted state or analyst verdict.
+
+
+**FND-R236.** For a new submission whose producer `severity_suggestion` is
+`informational`, intake derives the primary `contractor/fact-evidence/v1` key from
+the complete nonempty set of selected authorized exact evidence. Hash lower-case
+SHA-256 hex over RFC 8785 JSON `["contractor/fact-evidence/v1", sortedUniqueDigests]`.
+Each digest is ArtifactStore's existing `sha256:...` content digest, read from
+metadata inside the intake transaction after the same-call replay check. Select
+at most four sources under LIM-FND-59. Sort/hash only those descriptors; no source
+payload parsing, provider adaptation, model call or Project/history scan occurs.
+Runtime skips optional anchor preparation and Server skips optional native/anchor
+preparation for these submissions. Typed locations and exact receipt descriptors
+remain retained provenance.
+
+The existing fingerprint projection has exactly `schema`, `availability`
+(`available`), `algorithm` and `value` for this variant. Strict Go, database and
+public-schema validation reject extra matching fields or use with a different
+producer severity. The existing Project group hash, unique key, fence and atomic
+receipt/source admission own identity. Reordered evidence, exact forks and
+independent equal-byte writes compare equally; repeated content digests count once.
+A different full set stays separate, including overlap. Titles, refs, media labels,
+locators, prose and Run/Task/hypothesis identities add no tuple fields. Stored
+artifact bytes are compared as-is: fields embedded inside an HTTP envelope are
+not parsed or stripped. Ordinary non-informational correlation is unchanged.
+
+**FND-R237.** An independent equal-evidence submission keeps its own receipt,
+claim, exact evidence and attempt provenance but links to the existing Finding.
+It creates no duplicate card, possible-duplicate state, material group or counter.
+Same-call replay returns its existing receipt before source reads, including after
+source-Run deletion. First-source claim and current analyst assessment remain
+unchanged; later analyst severity edits never rekey the Finding. Schemes are not
+bridged and existing receipts are not rescanned. Existing paginated source readers,
+explicit exact receipt selection and hypothesis material handles retain their
+contracts (FND-R226/R228). Project retention and purge remain ordinary.
+
+Evidence-only equality is an accepted approximation: different claims over the
+same broad artifact can merge; changed bytes can leave separate cards. Every
+receipt preserves its original claim for inspection. The Finding owner enforces
+this rule; observed over-merging or disruptive duplication is the condition for
+reopening it. No title discriminator or semantic repair is implicit.

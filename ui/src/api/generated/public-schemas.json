@@ -6797,6 +6797,23 @@
               "pattern": "^/candidates/[0-9]{1,3}$"
             }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schema", "availability", "algorithm", "value"],
+          "properties": {
+            "schema": {
+              "type": "string",
+              "const": "contractor.finding.fingerprint-projection.v1"
+            },
+            "availability": { "type": "string", "const": "available" },
+            "algorithm": {
+              "type": "string",
+              "const": "contractor/fact-evidence/v1"
+            },
+            "value": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+          }
         }
       ]
     },
@@ -7036,7 +7053,8 @@
           "type": "string",
           "enum": [
             "contractor/producer-issue/v1",
-            "contractor/snapshot-issue-anchor/v1"
+            "contractor/snapshot-issue-anchor/v1",
+            "contractor/fact-evidence/v1"
           ]
         },
         "value": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
