@@ -5,7 +5,7 @@ milestone: project-facts-2026-11
 epic: findings
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on: [V471-001]
 languages: [go, python, json, typescript, markdown]
 goal: >-
@@ -34,8 +34,15 @@ context:
     each executed in one continuous pass. The dependency-based allocation and
     group entry/exit rules live in the proposal; this task keeps its own acceptance,
     required checks and implementation commit. Grouping adds no functional scope.
+    User decision 2026-11-21 requires an active Project for both finding and
+    record_fact and rejects projectless submissions before any write. The user
+    explicitly assigns execution of group 1 (V471-001, V471-002, V471-004) in one
+    pass. This supersedes earlier planning-only restrictions for these tasks;
+    group 2, live-model calls and deployment remain unassigned.
   proposal: docs/proposals/0055-project-facts-through-findings.md
   specification:
+    - docs/spec/findings/findings.md#FND-R236
+    - docs/spec/findings/findings.md#FND-R237
     - docs/spec/findings/findings.md#FND-R174
     - docs/spec/findings/findings.md#FND-R175
     - docs/spec/findings/findings.md#FND-R177
@@ -44,6 +51,15 @@ context:
     - docs/spec/findings/findings.md#FND-R228
     - docs/spec/audits/hypotheses.md#HG-R6
     - docs/spec/artifacts/artifact-store.md#ART-R19
+  implementation_decisions: >-
+    Add contractor/fact-evidence/v1 as a four-field variant of the existing
+    fingerprint projection and primary-key function. Derive it only from
+    authorized exact metadata within intake; skip optional native/anchor parsing
+    for informational submissions. Keep every receipt and the existing Project
+    fence/unique index. Reuse the real PostgreSQL 10000-Finding/50000-source
+    pagination regression (historical Run partitions below per-Run quotas) and
+    exact selection/hypothesis regressions; add concurrent equal-fact, strict
+    database-variant, retained-source and ordinary Project purge coverage.
   boundary: >-
     Finding intake/correlation owns the new closed equality algorithm, canonical
     identity, unique key and Project fence. Server derives the key from
@@ -62,7 +78,7 @@ scope:
     - HTTP-header/code parsing for matching, deployment/context inference, lineage traversal or whole-Project comparison.
     - Material-version groups, unique-material counters, group-membership indexes, new readers or a separate Fact/receipt store.
     - Coarse evidence-content matching for non-informational issues or changes to their producer/structural algorithms.
-    - New hypothesis selection APIs, arbitrary edges, reverse navigation or feature implementation in this planning update.
+    - New hypothesis selection APIs, arbitrary edges, reverse navigation.
 requirements:
   - id: R1
     text: >-

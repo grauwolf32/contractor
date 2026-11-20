@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-69 open tasks: 10 in progress, 46 pending, 13 deferred. 1610 finished: 1592 completed, 18 archived.
+69 open tasks: 11 in progress, 45 pending, 13 deferred. 1610 finished: 1592 completed, 18 archived.
 
 ## In progress
 
@@ -21,6 +21,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V471-002](v471-002-memory-snapshot-operation.yml) | memory | feature | P1 | Export explicitly selected Memory notes through an optional Workflow operation |
+| [V471-004](v471-004-fact-deduplication-and-selection.yml) | findings | feature | P1 | Deduplicate Project facts by exact evidence through existing Finding correlation |
 
 ## Pending
 
@@ -55,12 +56,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
 | [V410-026](v410-026-sitemap-source-comparison.yml) | chore | P2 | — | Compare transport observations and scanner report projections for sitemap |
-
-### Findings tools and collections (`findings`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V471-004](v471-004-fact-deduplication-and-selection.yml) | feature | P1 | — | Deduplicate Project facts by exact evidence through existing Finding correlation |
 
 ### Workflow catalog and document workflows (`workflows`)
 
