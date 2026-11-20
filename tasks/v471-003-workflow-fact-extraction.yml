@@ -1,0 +1,127 @@
+schema_version: "1.0"
+id: V471-003
+title: Extract bounded Project facts in an optional passthrough Worker Stage
+milestone: project-facts-2026-11
+epic: workflows
+kind: feature
+priority: P1
+status: pending
+depends_on: [V471-001, V471-002]
+languages: [go, python, json, yaml, markdown]
+goal: >-
+  A Workflow author can include or omit semantic extraction of a small useful
+  set of facts from selected note snapshots in a separate passthrough@1 Stage,
+  with one Runtime Worker, the existing project model, source-grounded output
+  and common Finding publication.
+demonstration: >-
+  A Workflow snapshots notes containing a technology observation, a repeated
+  statement, a speculative explanation and irrelevant working text. Its optional
+  passthrough@1 Stage dispatches one Runtime Worker that uses record_fact to retain
+  a bounded selection with exact snapshot citations. The Planner makes no model
+  call. A zero-result run settles; a Workflow omitting extraction makes no extra
+  model call or Project write.
+context:
+  authority: >-
+    User decisions 2026-11-20: consider extracting important facts from notes;
+    opt in through Workflow composition like operations; use the same Project
+    Finding under a separate interface; consider deduplication and clear diagrams.
+    User decision 2026-11-20 explicitly selects a separate extraction Stage with
+    passthrough@1 and asks to update tasks/diagrams and merge the planning package
+    into main. One Runtime Worker makes the model calls; the Planner and snapshot
+    operation are model-free. No Server-operation executor extension is selected.
+    Planning/integration only, with no feature implementation, live calls or model changes.
+  proposal: docs/proposals/0055-project-facts-through-findings.md
+  specification:
+    - docs/spec/execution/server-operations.md#SOP-R3
+    - docs/spec/execution/planners.md#PLN-R2
+    - docs/spec/execution/worker.md
+    - docs/spec/configuration/workflows.md
+    - docs/spec/configuration/agent-templates.md
+    - docs/spec/configuration/agent-templates.md#TPL-R33
+    - docs/spec/findings/findings.md
+    - docs/spec/tools/memory.md#MEM-R84
+  execution_boundary: >-
+    The chosen call form is a distinct optional Stage with planner passthrough@1
+    and exactly one model-backed Runtime Worker over the ordinary exact snapshot.
+    Workflow executionConfig pins the existing Worker ModelPolicy/Gateway. The
+    Planner makes no LLM calls. Deterministic Memory snapshot and Finding intake
+    retain their owners. No LLM operation.ref, new model consumer/executor,
+    inherited notebook/session or additional publishing Stage is introduced.
+scope:
+  in:
+    - Compose an explicitly selected passthrough@1 extraction Stage with one Runtime Worker through existing Workflow execution and model-accounting owners.
+    - Add a versioned extractor instruction/template and an actual optional Workflow caller with immutable catalog pins.
+    - Let the model make bounded selection judgements while Runtime assembles and shared Finding intake accepts records.
+    - Preserve exact selected snapshot citations, distinctions between reported observations and inference, conditions and limitations.
+    - Add a frozen quality corpus and an existing-Eval-compatible opt-in recipe without running live experiments in this task.
+  out:
+    - Automatic Run-finalization extraction, independent model services, LLM Server operations or changing the project model.
+    - A model-backed Planner, extra Worker dispatch, cross-Stage conversation inheritance or a new executor/cost participant type.
+    - Claiming note content is independently verified, manufacturing sources, mandatory fact quotas or a new candidate/intake store.
+    - Automatic semantic merging or claiming model quality from a scripted Gateway.
+requirements:
+  - id: R1
+    text: >-
+      Selected model/Gateway policy, tool/model budgets, cumulative cost, deadlines,
+      tracing and cancellation use the existing Runtime Worker execution path.
+      The configured Stage selects passthrough@1, exactly one Worker and only the
+      snapshot reads/record_fact capabilities it needs. No Planner model is resolved.
+      Omitting the Stage creates no hook or background work.
+  - id: R2
+    text: >-
+      Each fact cites actual selected source material and a bounded verifiable
+      excerpt or locator. Note-only assertions are labelled as reported; inference
+      and limited negative probes cannot become unconditional verified facts.
+  - id: R3
+    text: >-
+      Select independent useful claims, not every tool response or sentence.
+      Empty output is valid. Explicitly report size/budget rejection and partial
+      accepted counts; do not silently truncate or regenerate until a quota fills.
+  - id: R4
+    text: >-
+      Direct Finding receipts already committed survive later Run failure and
+      retain that provenance. Recovery reuses existing receipt keys; it must not
+      rerun a possibly committed model mutation merely to repair acknowledgement.
+failure_outcomes:
+  - operation: Invoke the configured extractor and record its selected facts
+    permanent: Invalid source/citation/configuration, missing Project or exhausted limits yields the owning classified outcome and explicit accepted/rejected counts.
+    retryable: Only existing bounded Gateway/storage classes; do not substitute models or restart completed semantic work.
+    ambiguous: Reconcile existing tool-call/receipt outcomes and durable model history before any repeat; preserved sources are not rolled back on later failure.
+    cancelled: Existing Runtime Worker/allocation owner joins model and publisher work before release; the deterministic snapshot Stage retains its own operation claim.
+    timeout: Separate provider, Stage and Run deadlines remain authoritative; no nested unaccounted invocation survives.
+cardinality:
+  - collection: Selected note snapshot and extracted fact calls per invocation
+    expected: One snapshot with two to eight notes and zero to five useful facts.
+    maximum: Snapshot 512 KiB; eight facts, each 32 KiB authored payload and at most four selected sources; ordinary context/model/material ceilings may be tighter.
+    bound: Enforce output and work budgets deterministically, offload blocking I/O, keep locks out of model calls and prevent unbounded retries.
+lifecycle:
+  - entity: Existing extractor Run, Project Findings and selected snapshot evidence
+    delete: Existing Run/Project lifecycle and source retention apply; no new extraction job entity.
+    cascade: Accepted Project facts and evidence survive source Run/Audit deletion; unpublished ordinary diagnostics use their owning retention.
+    retention: Keep exact sources and trusted producing model/Workflow origin through ordinary receipts and artifacts.
+acceptance_criteria:
+  - id: A1
+    given: A configured optional passthrough@1 extractor with one real Runtime Worker, a scripted Gateway and the common publication path
+    when: Its Worker selects observations from the frozen corpus
+    then: Source-grounded records reach the common Project Finding owner, preserve reported/inferred limitations and respect the eight-fact maximum; no Planner LLM request or LLM operation executes.
+  - id: A2
+    given: Empty output, omitted extraction, provider failure, cancellation and response loss
+    when: The Workflow settles or recovers
+    then: No hidden model call, fabricated result, duplicate committed source or leaked invocation occurs; partial effects and usage remain truthful.
+  - id: A3
+    given: The extraction corpus and existing Eval format
+    when: Offline validation loads the opt-in quality recipe
+    then: It measures unsupported assertions, duplicate/spam rate, useful-fact recall and cost without target-specific prompt leakage or a live-quality claim.
+tests:
+  - command: make test-project-facts-e2e
+    covers: [A1, A2]
+  - command: make test-runtime
+    covers: [A1, A2, A3]
+  - command: make test-config
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+test_prerequisites:
+  - Use testdata catalogs and a scripted Gateway for deterministic gates; live evaluation is a later explicit action, not implied by these tasks.
+  - Inspect the effective resolved Stage/AllocationSpec and Gateway requests; assert one dispatched Worker with the pinned Worker model and zero Planner model calls, rather than inferring the execution path from a Workflow name.
+  - Full suites of touched model/Workflow packages and real PostgreSQL receipt paths must pass; remove owned test resources.

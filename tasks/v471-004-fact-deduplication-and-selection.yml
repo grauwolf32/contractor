@@ -1,0 +1,118 @@
+schema_version: "1.0"
+id: V471-004
+title: Deduplicate fact observations through Finding correlation and select exact grounds
+milestone: project-facts-2026-11
+epic: findings
+kind: feature
+priority: P1
+status: pending
+depends_on: [V471-001]
+languages: [go, python, json, typescript, markdown]
+goal: >-
+  Repeated observations do not flood the facts list, independent witnesses remain
+  available, and a hypothesis can select the exact fact material it relies on
+  through existing Finding readers and Artifact selection.
+demonstration: >-
+  Two Runs report the same technology for the same qualified subject/context.
+  Common correlation returns one Project Finding with two source receipts;
+  response replay adds none. Another environment/version and a contradictory
+  observation remain distinct. A generator selects one exact source snapshot
+  into hypothesis.sources and shows why it grounds the assertion.
+context:
+  authority: >-
+    User decisions 2026-11-20: facts need deduplication, clear relations and a
+    separate interface over the same project-level Finding. Tiered equality,
+    conservative key components and suggestion-only semantic matching are agent
+    proposals. Planning only; no semantic merge or live-model execution is assigned.
+  proposal: docs/proposals/0055-project-facts-through-findings.md
+  specification:
+    - docs/spec/findings/findings.md#FND-R211
+    - docs/spec/findings/findings.md#FND-R174
+    - docs/spec/findings/findings.md#FND-R177
+    - docs/spec/findings/findings.md#FND-R228
+    - docs/spec/audits/hypotheses.md#HG-R6
+    - docs/spec/artifacts/artifact-store.md#ART-R143
+  boundary: >-
+    Existing Finding owner owns qualified identity and its fence, receipts own
+    witnesses, ArtifactStore owns exact material selection. Add no Fact registry,
+    duplicate graph store, vector service or global observation status. Any new
+    projection/index has a concrete facts reader in the same change.
+scope:
+  in:
+    - Reuse exact receipt replay and existing canonical Finding correlation for fact-purpose records.
+    - Define one versioned qualified fact key with shared fixtures and a first real technology-observation caller.
+    - Add bounded candidate retrieval and optional semantic-match suggestions through an existing ordinary model Workflow.
+    - Extend existing Finding selection to expose exact fact snapshots and preserve individual source selection for hypothesis grounds.
+    - Retain original receipts, evidence, origin, incompatible contexts and changed versions.
+  out:
+    - Automatic similarity-based merge, embeddings infrastructure, whole-Project pairwise comparison or overwriting independent sources.
+    - Treating same severity/text as identity or granting proof/dispatch authority through a fact-to-hypothesis link.
+    - New Fact IDs, arbitrary edges, new duplicate approval lifecycle or ownership outside the Finding module.
+requirements:
+  - id: R1
+    text: >-
+      Request replay, independent observation equality and semantic resemblance
+      are separate. Exact replay adds no source; a qualified equality adds an
+      independent source to the same Finding; incomplete keys remain unavailable.
+  - id: R2
+    text: >-
+      Qualified keys include record purpose, authoritative subject, actual
+      property/value and required known baseline/environment context. Unknown
+      context cannot be invented from prose. Facts and issue records never merge
+      merely because they concern the same asset.
+  - id: R3
+    text: >-
+      Semantic matching may propose same/different/uncertain with source reasons,
+      but cannot mutate identity. Reuse existing owner duplicate commands only
+      where their semantics are valid; do not add a hidden model merge side effect.
+  - id: R4
+    text: >-
+      Hypothesis grounds pin exact selected artifacts or collection entries through
+      current readers. Selecting a collection does not imply every member is a
+      ground; later revisions and new evidence do not rewrite existing sources.
+failure_outcomes:
+  - operation: Correlate a fact, retrieve likely matches and select exact research grounds
+    permanent: Invalid or foreign key/selection, incompatible purpose and stale exact revision fail permanently without partial merge or latest substitution.
+    retryable: Existing bounded database retry and storage_transaction_conflict 503; optional model suggestions use ordinary Gateway policy.
+    ambiguous: Reconcile existing receipt/selection identity; never create another witness or repeat semantic mutation on response loss.
+    cancelled: Join selection/model work and prohibit writes after owner fences; suggestions are ordinary bounded artifacts.
+    timeout: Existing call/Stage/model deadlines remain separate and finite; no background Project rescan.
+cardinality:
+  - collection: Facts in a Project, candidate matches and exact selections
+    expected: Thousands of fact/source records, one paged list and several candidate matches per selected record.
+    maximum: Proposed 32 candidates and 64 compared pairs per call, 50 summary rows per page, existing 64-source page and 32-material input ceiling.
+    bound: Indexed bounded candidate seeks and payload reads only for selected rows; test 10000 records, source-heavy groups and sparse predicates without an all-pairs scan.
+lifecycle:
+  - entity: Existing canonical fact-purpose Finding, independent sources and selection snapshots
+    delete: Finding/Project ownership and exact Artifact lifecycle remain authoritative.
+    cascade: Deleting one source owner does not change surviving canonical identity or remove retained evidence and hypothesis grounds.
+    retention: Preserve old versions, contradictions and origin; similarity suggestions do not acquire additional indefinite holds.
+acceptance_criteria:
+  - id: A1
+    given: Replayed submissions and independent equal qualified observations
+    when: They are admitted concurrently through real PostgreSQL
+    then: Exactly one canonical fact-purpose Finding and the correct independent source count remain, with no cross-purpose merge.
+  - id: A2
+    given: Missing identity context, another environment, an explicit version refinement and conflicting values
+    when: Deduplication and similarity retrieval run
+    then: Unqualified cases remain separate with visible reasons; semantic resemblance alone never mutates identity.
+  - id: A3
+    given: A selected fact among many collection entries and a later changed source
+    when: A generator accepts a grounded hypothesis and its source is read again
+    then: The exact selected member and conditions remain attributable, without whole-collection attribution or latest substitution.
+tests:
+  - command: go test ./internal/findingintake/... ./internal/auditdomain/... ./internal/auditservice/... ./internal/artifacts/...
+    covers: [A1, A2, A3]
+  - command: make test-project-facts-e2e
+    covers: [A1, A2, A3]
+  - command: make test-wire-cross-language
+    covers: [A1, A2, A3]
+  - command: make verify-public-api
+    covers: [A1, A2, A3]
+  - command: make test-runtime
+    covers: [A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+test_prerequisites:
+  - Test concurrent correlation, pagination and retention against real PostgreSQL; skipped required cases are not passes.
+  - A scripted matching response proves bounded integration, not semantic precision; no live invocation is required or authorized by this task.

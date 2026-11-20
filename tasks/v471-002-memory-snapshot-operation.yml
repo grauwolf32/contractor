@@ -1,0 +1,111 @@
+schema_version: "1.0"
+id: V471-002
+title: Export explicitly selected Memory notes through an optional Workflow operation
+milestone: project-facts-2026-11
+epic: memory
+kind: feature
+priority: P1
+status: pending
+depends_on: []
+languages: [go, json, yaml, markdown]
+goal: >-
+  A Workflow author optionally exports selected notes into one ordinary exact
+  material that subsequent research steps can read without exposing reserved
+  Memory bindings or copying every notebook automatically.
+demonstration: >-
+  A real Workflow Worker writes two Memory notes. An explicitly configured
+  model-free operation snapshots only one named note in that Run; the later
+  passthrough@1 extraction Stage reads the normal Artifact through its sole
+  Runtime Worker. Recovery reuses its original bytes. A Workflow
+  without the operation creates no snapshot and does no additional model work.
+context:
+  authority: >-
+    User direction 2026-11-20: important facts may be extracted from notes through
+    functionality included or omitted in Workflows like operations. The bounded
+    current-Run snapshot is an agent proposal supporting that choice, not a request
+    for automatic export, cross-Run Memory or a new memory service. User decision
+    2026-11-20 chooses a separate passthrough@1 model Stage for the downstream
+    extraction; this snapshot operation remains model-free. The user authorizes
+    merging the updated planning package into main, not feature implementation.
+  proposal: docs/proposals/0055-project-facts-through-findings.md
+  specification:
+    - docs/spec/tools/memory.md#MEM-R18
+    - docs/spec/tools/memory.md#MEM-R89
+    - docs/spec/tools/memory.md#MEM-R91
+    - docs/spec/execution/server-operations.md#SOP-R2
+    - docs/spec/execution/server-operations.md#SOP-R7
+    - docs/spec/artifacts/artifact-store.md#ART-R19
+  boundary: >-
+    Memory owns note selection/decoding and snapshot semantics. The operation
+    adapter binds current Run/Stage/claim and explicit logical selection. ArtifactStore
+    owns ordinary writes and retention. Specify the narrow explicit Memory read
+    contract in SOP/MEM rather than weakening all StageContext reserved-ref checks.
+scope:
+  in:
+    - Register one model-free current-Run note snapshot operation with a real Workflow caller.
+    - Select an explicit Namespace and note names through validated immutable configuration/parameters.
+    - Produce a bounded normal non-memory Artifact with selected content and safe logical source labels.
+    - Pin replay to the original snapshot under the existing operation claim and Artifact CAS/natural identity.
+    - Update owning Memory/operations specs and shared fixtures without expanding the six existing MemoryTools operations implicitly.
+  out:
+    - LLM extraction, automatic end-of-Run export, all-note discovery, foreign Run reads or model-visible hidden Memory refs.
+    - Terminal-Run retroactive extraction, recursive import, a new endpoint/service/receipt store or custom scheduling loop.
+requirements:
+  - id: R1
+    text: >-
+      Only explicitly selected current-Run notes are copied into the declared
+      output. Snapshot creation is an intentional content destination; it does
+      not enable content in logs, events or diagnostic summaries.
+  - id: R2
+    text: >-
+      Configuration cannot choose a foreign Run or Project. Reject missing names,
+      over-bound snapshots and reserved output refs explicitly; never silently
+      omit or truncate notes. Hidden revisions stay outside model projections.
+  - id: R3
+    text: >-
+      Reconcile a committed snapshot before reading mutable notes on replay.
+      A recovered Stage cannot substitute a newer note version under the same output.
+  - id: R4
+    text: No model, allocation or Planner is created for this snapshot operation; domain work and output publication remain fenced by the existing Stage claim. The downstream extractor uses its own ordinary passthrough@1 Stage, not an LLM operation or Memory prompt injection.
+failure_outcomes:
+  - operation: Read selected notes and publish their ordinary snapshot
+    permanent: Invalid selection, missing note, foreign scope, unsupported output or size overflow is a classified permanent operation failure with no accepted partial snapshot.
+    retryable: Existing bounded transient storage retry under the original Stage deadline.
+    ambiguous: Read the same declared output/natural identity and reconcile exact bytes; do not resnapshot changed notes after a committed result.
+    cancelled: Join snapshot work; claim loss and Run/Project deletion prohibit later writes.
+    timeout: Existing Stage deadline owns the operation, with finite read/write suboperation budgets.
+cardinality:
+  - collection: Selected notes within one current-Run Memory Namespace
+    expected: Two to eight explicitly selected notes, with a containing Namespace of up to 128 active notes.
+    maximum: Sixteen selected notes and 512 KiB complete encoded snapshot; each note retains its existing 32 KiB limit.
+    bound: Point reads or one bounded selection transaction, never whole Project/Run history; rejection includes JSON encoding overhead.
+lifecycle:
+  - entity: Ordinary note snapshot output
+    delete: Existing Run and explicit Audit/Project material ownership apply.
+    cascade: Deleting a source Run cannot remove an already retained snapshot in another admitted owner scope.
+    retention: Snapshot bytes are independent of mutable notes and use ordinary Artifact retention; merely reading notes adds no new hold.
+acceptance_criteria:
+  - id: A1
+    given: Two notes and an explicitly selected single-note operation
+    when: A real Workflow executes it and reads its result
+    then: Only selected content is present, exact ordinary refs work, hidden memory refs remain unavailable, and omitting the Stage produces no export.
+  - id: A2
+    given: A committed snapshot, changed notes and a lost reply
+    when: The same Stage is recovered
+    then: It returns the original exact snapshot without another semantic export.
+  - id: A3
+    given: Missing names, maximum encoded payload, claim loss and foreign-scope attempts
+    when: The PostgreSQL-backed operation runs
+    then: Every boundary is enforced without partial output, leaked content or post-fence writes.
+tests:
+  - command: go test ./internal/memory/... ./internal/operations/... ./internal/scheduler/... ./internal/config/...
+    covers: [A1, A2, A3]
+  - command: make test-memory-snapshot-e2e
+    covers: [A1, A2, A3]
+  - command: make test-wire-cross-language
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+test_prerequisites:
+  - Add the named real-process target in this task; missing targets, zero cases and skipped required PostgreSQL checks fail acceptance.
+  - Test catalogs belong in testdata; remove the single owned disposable database after all processes stop.

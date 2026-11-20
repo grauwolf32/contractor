@@ -374,6 +374,9 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
+  - id: project-facts-2026-11
+    exit_task: V471-006
+    outcome: Optional passthrough@1 Workflow Stage extraction creates source-grounded Project facts through one Runtime Worker and the existing Finding owner; separate interfaces, conservative deduplication and exact hypothesis grounds remain bounded and survive source deletion, with verified real-process and UI behavior.
   - id: opencode-audit-environments-2026-11
     exit_task: V469-005
     outcome: Two ordinary Audit Runs use one retained OpenCode container with fixed ports, package installation, exact artifacts, pause/resume and verified cleanup through the existing A2A and Podman owners.
