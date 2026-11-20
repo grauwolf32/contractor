@@ -28,7 +28,7 @@ const (
 )
 
 // findingScaleFixture is a collected Audit with findingScaleFindings + 1
-// unreviewed Findings,
+// needsReview Findings,
 // findingScaleExecutions + 1 collected executions, and background and empty
 // Audits of the same owner, in a database of its own and vacuumed, so its
 // reads visit no superseded version of what the store wrote. The copies are

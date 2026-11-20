@@ -1,3 +1,4 @@
+import { findingNeedsReview, findingSeverity } from "../api/audits";
 import type { Audit, ProjectFinding } from "../api/audits";
 import type { Project } from "../api/projects";
 import { findingSummary } from "./builders";
@@ -62,9 +63,11 @@ export function ownerListResponse(
             (f) =>
               projects.has(f.projectId) &&
               matches(url, "state", f.state ?? "") &&
-              matches(url, "verdict", f.analystVerdict ?? "unreviewed") &&
+              (url.searchParams.get("verdict") === "needs_review"
+                ? findingNeedsReview(f)
+                : matches(url, "verdict", f.analystVerdict ?? "")) &&
               (!url.searchParams.has("severity") ||
-                matches(url, "severity", f.analystSeverity ?? "")),
+                matches(url, "severity", findingSeverity(f))),
           )
           .map(findingSummary),
       );

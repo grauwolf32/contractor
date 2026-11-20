@@ -199,14 +199,14 @@
       "requiredWorkflowInputs": {}
     },
     "security-findings@1": {
-      "tools": ["finding", "list_findings", "list_project_findings", "read_finding_selection", "read_project_finding", "select_project_findings"],
+      "tools": ["finding", "list_findings", "list_project_findings", "read_finding_selection", "read_project_finding", "record_fact", "select_project_findings"],
       "infrastructureChannels": {},
       "requiresWorkspace": false,
       "workspaceObservationTools": [],
       "requiredSandboxProfiles": [],
       "activeCheckTools": [],
       "sandboxActiveCheckTools": {},
-      "findingProposalTools": ["finding"],
+      "findingProposalTools": ["finding", "record_fact"],
       "requiredWorkflowInputs": {"list_findings": {"input": "findings", "mediaType": "application/vnd.contractor.findings-collection+zip"}}
     },
     "source-analysis@1": {

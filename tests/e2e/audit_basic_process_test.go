@@ -161,7 +161,7 @@ func basicConclusionStage(withFinding bool) domainGatewayStage {
 			if !ok {
 				return nil, fmt.Errorf("assigned exact source was not read")
 			}
-			return map[string]any{"title": "Query concatenation in lookup", "description": findingsEvidence, "file": "app.py", "range": map[string]int{"start_line": 4, "end_line": 10}, "cwe": "CWE-89", "evidence_refs": []any{evidence}, "publish_problem": true}, nil
+			return map[string]any{"title": "Query concatenation in lookup", "description": findingsEvidence, "file": "app.py", "range": map[string]int{"start_line": 4, "end_line": 10}, "cwe": "CWE-89", "evidence_refs": []any{evidence}}, nil
 		}))
 	}
 	stage.steps = append(stage.steps, toolGatewayStep("submit_check_result", fixedArguments(map[string]any{"rationale": findingsEvidence, "tested_conditions": []string{"selected source inspected; no external target action"}, "limitations": []string{"No live exploit was executed"}, "evidence": []string{"evidence-000", "evidence-001"}})), finalGatewayStep("Recorded exploration", nil))

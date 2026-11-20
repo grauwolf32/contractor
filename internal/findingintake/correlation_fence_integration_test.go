@@ -83,7 +83,7 @@ func TestPostgresSourceRunDeletionKeepsTheProjectFenceWithoutAudits(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	receipt, _, err := intake.Submit(ctx, grant, testSubmission("unaudited-invocation", "unaudited", nil))
+	receipt, _, err := intake.Submit(ctx, grant, testSubmission("unaudited-invocation", "unaudited", fixtureEvidence(t, ctx, pool, grant)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestPostgresSourceRunDeletionKeepsTheProjectFenceWithoutAudits(t *testing.T
 	}
 	var retention string
 	if err := pool.QueryRow(ctx, `SELECT retention_state FROM finding_proposal_receipts WHERE receipt_id = $1`,
-		receipt.ReceiptID).Scan(&retention); err != nil || retention != string(RetentionDiscarded) {
+		receipt.ReceiptID).Scan(&retention); err != nil || retention != string(RetentionProjectHeld) {
 		t.Fatalf("receipt after its source Run's deletion = %q, %v", retention, err)
 	}
 	readFence := func() (int, int64) {

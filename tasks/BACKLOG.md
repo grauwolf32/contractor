@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-71 open tasks: 9 in progress, 49 pending, 13 deferred. 1612 finished: 1594 completed, 18 archived.
+68 open tasks: 9 in progress, 46 pending, 13 deferred. 1615 finished: 1597 completed, 18 archived.
 
 ## In progress
 
@@ -38,12 +38,6 @@ the epics are in [epics.yml](epics.yml).
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | — | Expose bounded truthful Planner compaction diagnostics |
 | [V469-001](v469-001-opencode-audit-prototype.yml) | chore | P1 | — | Prove two ordinary Runs can reuse one OpenCode Audit container |
 
-### Shared Memory tools (`memory`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V471-002](v471-002-memory-snapshot-operation.yml) | feature | P1 | — | Export explicitly selected Memory notes through an optional Workflow operation |
-
 ### HTTP and Caido tools (`http-tools`)
 
 | Task | Kind | Priority | Waiting for | Title |
@@ -61,13 +55,6 @@ the epics are in [epics.yml](epics.yml).
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
 | [V410-026](v410-026-sitemap-source-comparison.yml) | chore | P2 | — | Compare transport observations and scanner report projections for sitemap |
 
-### Findings tools and collections (`findings`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V471-001](v471-001-project-facts-shared-findings.yml) | feature | P1 | — | Record Project facts through the existing Finding owner and remove the direct publication flag |
-| [V471-004](v471-004-fact-deduplication-and-selection.yml) | feature | P1 | V471-001 | Deduplicate Project facts by exact evidence through existing Finding correlation |
-
 ### Workflow catalog and document workflows (`workflows`)
 
 | Task | Kind | Priority | Waiting for | Title |
@@ -78,7 +65,7 @@ the epics are in [epics.yml](epics.yml).
 | [V411-015](v411-015-http-pentest-workflow-presets.yml) | feature | P1 | — | Demonstrate an ordinary HTTP Workflow on the lean Audit path |
 | [V412-003](v412-003-browser-pentest-profiles-and-gate.yml) | feature | P2 | V412-001, V410-009, V411-020 | Compose optional browser investigation with truthful availability and results |
 | [V425-043](v425-043-resolve-historical-run-model-policy-snapshots.yml) | defect | P2 | — | Resolve historical Run snapshots after Workflow-owned model selection |
-| [V471-003](v471-003-workflow-fact-extraction.yml) | feature | P1 | V471-001, V471-002, V471-004 | Extract bounded Project facts in an optional passthrough Worker Stage |
+| [V471-003](v471-003-workflow-fact-extraction.yml) | feature | P1 | — | Extract bounded Project facts in an optional passthrough Worker Stage |
 
 ### Audits (`audits`)
 
@@ -175,13 +162,13 @@ tasks in `introduced_by`.
 | Run execution core (`execution-core`) | 3 | 50 | 70 | 40 | 107 |
 | Planners and the Worker model boundary (`planner-worker`) | 5 | 39 | 60 | 39 | 94 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
-| Shared Memory tools (`memory`) | 1 | 7 | 9 | 3 | 15 |
+| Shared Memory tools (`memory`) | 0 | 7 | 9 | 3 | 15 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 16 | 7 | 17 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 5 | 24 | 37 | 15 | 38 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 12 | 30 |
-| Findings tools and collections (`findings`) | 2 | 20 | 14 | 11 | 23 |
+| Findings tools and collections (`findings`) | 0 | 20 | 14 | 11 | 23 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 21 | 17 | 16 | 26 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 40 | 20 | 70 |
 | Audits (`audits`) | 10 | 70 | 98 | 42 | 170 |

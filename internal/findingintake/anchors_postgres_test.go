@@ -143,11 +143,11 @@ func TestPostgresFindingAnchorRuntimeIntakeReplayAndRetention(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	// Evidence and a qualified structural key do not publish a problem.
+	// Direct calls publish one canonical Finding through structural equality.
 	for _, auditID := range []string{"anchor-audit-a", "anchor-audit-b"} {
 		rows, err := querystore.New(pool, artifactpgtest.NewStorage()).ListFindings(ctx, auditstore.FindingListParams{OwnerID: owner, AuditID: auditID, Limit: 10})
-		if err != nil || len(rows) != 0 {
-			t.Fatalf("observation invented a Finding: %+v %v", rows, err)
+		if err != nil || len(rows) != 1 {
+			t.Fatalf("direct finding admission: %+v %v", rows, err)
 		}
 	}
 	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
@@ -191,7 +191,7 @@ func TestPostgresFindingAnchorRuntimeIntakeReplayAndRetention(t *testing.T) {
 		t.Fatalf("last hold discard=%+v %v", discardedFirst.Anchors, err)
 	}
 	discarded, err := readReceiptByID(ctx, pool, second.ReceiptID)
-	if err != nil || discarded.Anchors.Reason != "discarded" || len(discarded.Anchors.Keys) != 0 {
+	if err != nil || discarded.Retention != RetentionProjectHeld || !reflect.DeepEqual(discarded.Anchors, second.Anchors) {
 		t.Fatalf("sensitive discarded=%+v %v", discarded.Anchors, err)
 	}
 }

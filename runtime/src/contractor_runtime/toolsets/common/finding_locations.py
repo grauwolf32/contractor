@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -21,6 +21,7 @@ MAX_METHOD_BYTES = 64
 HTTP_TOKEN = re.compile(r"^[!#$%&'*+.^_`|~0-9A-Za-z-]+$")
 INVALID_PERCENT_ESCAPE = re.compile(r"%(?![0-9a-fA-F]{2})")
 LineNumber = Annotated[int, Field(strict=True, ge=1, le=MAX_EXACT_INTEGER)]
+FindingSeverity = Literal["informational", "low", "medium", "high", "critical"]
 
 
 class ClosedModel(BaseModel):

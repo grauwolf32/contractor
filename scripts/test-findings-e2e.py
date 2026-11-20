@@ -23,6 +23,8 @@ PROCESS_TESTS = (
     "TestFindingsReaderBoundariesAcrossProcesses",
     "TestFindingLocationsAcrossProcesses",
     "TestTraceFindingCoordinatesAcrossProcesses",
+    "TestProjectFactsAcrossProcesses",
+    "TestMemorySnapshotAcrossProcesses",
     "TestProjectDocumentResponseRecoveryAcrossProcesses",
     "TestProjectDocumentOutputLimitRecoveryAcrossProcesses",
 )
@@ -59,8 +61,11 @@ PYTHON_FILES = (
     "tests/test_trace_findings.py",
     "tests/test_shared_finding_facades.py",
     "tests/test_numbered_file_reads.py",
+    "tests/test_project_facts.py",
 )
 PYTHON_CASES = {
+    "test_record_fact_is_separately_selected_and_retains_optional_association": 1,
+    "test_shared_fact_payload_and_severity_contract": 1,
     "test_shared_project_finding_collection_source_kinds": 1,
     "test_project_finding_tools_use_exact_selection_and_transport_replay": 1,
     "test_shared_project_finding_selection_requests": 1,

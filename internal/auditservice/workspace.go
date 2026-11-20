@@ -47,7 +47,7 @@ func (s *Service) ListFindingsPage(ctx context.Context, params auditstore.Findin
 	}
 	raw := params
 	raw.State, raw.Verdict, raw.Severity = nil, nil, nil
-	raw.Unreviewed = false
+	raw.NeedsReview = false
 	candidates, readErr := s.reads().ListFindings(ctx, raw)
 	err = readErr
 	if len(candidates) == params.Limit {
@@ -57,7 +57,7 @@ func (s *Service) ListFindingsPage(ctx context.Context, params auditstore.Findin
 	}
 	result.Items = make([]auditstore.ProjectFindingSummary, 0, len(candidates))
 	for _, row := range candidates {
-		if row.Matches(params.State, params.Verdict, params.Unreviewed, params.Severity) {
+		if row.Matches(params.State, params.Verdict, params.NeedsReview, params.Severity) {
 			result.Items = append(result.Items, row)
 		}
 	}

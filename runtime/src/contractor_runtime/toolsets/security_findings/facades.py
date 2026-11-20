@@ -17,6 +17,7 @@ from contractor_runtime.toolsets.common.check_plans import ProposedCheck
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.finding_locations import (
     ExactEvidenceRef,
+    FindingSeverity,
     LineNumber,
     LineRange,
     Location,
@@ -72,12 +73,13 @@ class GeneralFindingTool(_FindingFacade):
             cite every assigned entry ID.
         proposed_checks: Optional follow-up questions, each with objective and
             method. At most 512; these suggestions grant no execution authority.
-        item_key: Assigned Audit member key from read_audit_task; required for a batch.
-            Omit for an ordinary Run or a single assigned task.
+        item_key: Optional actual Audit member key from read_audit_task. Required
+            for task-bound batches; omit for a general incidental observation.
         incidental: An independent discovery that does not test the assigned hypothesis.
-            Its Audit/task origin is retained without a hypothesis association.
-        publish_problem: Explicitly publish the described problem to the Project.
-            Requires selected exact evidence. False keeps an ordinary proposal.
+            Without item_key, retains Run/Audit origin only. Selecting a member adds
+            Task origin; incidental calls never associate its hypothesis.
+        severity_suggestion: Optional producer severity; leaves analyst assessment unset.
+            Saving always requires an active Project and selected exact evidence.
     """
 
     async def __call__(
@@ -92,7 +94,7 @@ class GeneralFindingTool(_FindingFacade):
         evidence_refs: list[ExactEvidenceRef] | None = None,
         standard_refs: list[StandardReference] | None = None,
         proposed_checks: list[ProposedCheck] | None = None,
-        publish_problem: bool = False,
+        severity_suggestion: FindingSeverity | None = None,
         item_key: str | None = None,
         incidental: bool = False,
     ) -> dict[str, Any]:
@@ -105,11 +107,58 @@ class GeneralFindingTool(_FindingFacade):
             evidence_refs=evidence_refs,
             standard_refs=standard_refs,
             proposed_checks=proposed_checks,
-            publish_problem=publish_problem,
+            severity_suggestion=severity_suggestion,
             item_key=item_key,
             incidental=incidental,
             request_id=request_id,
             caido_request_id=caido_request_id,
+        )
+
+
+class RecordFactTool(_FindingFacade):
+    name = "record_fact"
+    description = """Save one informational Project observation with exact evidence.
+
+    An active Project and selected exact evidence are required. Describe what the
+    source actually reports, including uncertainty; a note is a reported claim.
+    The record has no automatic analyst verdict or severity assessment.
+
+    Args:
+        title: Short non-empty observation title.
+        description: Observation, source quality, conditions and limitations.
+        evidence_refs: Exact artifact references copied from tool output. At most four
+            sources including a selected HTTP exchange; authored content is at most 32 KiB.
+        request_id: Optional recent HTTP request ID; saves its captured exchange.
+        caido_request_id: Optional inspected Caido ID, instead of request_id.
+        item_key: Optional assigned Audit member key to retain Task origin.
+        incidental: True retains Run/Audit origin without a hypothesis. Set false
+            to derive the selected Task's exact hypothesis; batch tasks need item_key.
+    """
+
+    async def __call__(
+        self,
+        title: str,
+        description: str,
+        tool_context: ToolContext,
+        evidence_refs: list[ExactEvidenceRef] | None = None,
+        request_id: LineNumber | None = None,
+        caido_request_id: str | None = None,
+        item_key: str | None = None,
+        incidental: bool = True,
+    ) -> dict[str, Any]:
+        return await self._publisher.submit(
+            title=title,
+            description=description,
+            locations=[],
+            context=tool_context,
+            cwe=None,
+            evidence_refs=evidence_refs,
+            request_id=request_id,
+            caido_request_id=caido_request_id,
+            severity_suggestion="informational",
+            _tool_name=self.name,
+            item_key=item_key,
+            incidental=incidental,
         )
 
 
@@ -135,12 +184,13 @@ class CodeFindingTool(_FindingFacade):
             cite every assigned entry ID.
         proposed_checks: Optional follow-up questions, each with objective and
             method. At most 512; these suggestions grant no execution authority.
-        item_key: Assigned Audit member key from read_audit_task; required for a batch.
-            Omit for an ordinary Run or a single assigned task.
+        item_key: Optional actual Audit member key from read_audit_task. Required
+            for task-bound batches; omit for a general incidental observation.
         incidental: An independent discovery that does not test the assigned hypothesis.
-            Its Audit/task origin is retained without a hypothesis association.
-        publish_problem: Explicitly publish the described problem to the Project.
-            Requires selected exact evidence. False keeps an ordinary proposal.
+            Without item_key, retains Run/Audit origin only. Selecting a member adds
+            Task origin; incidental calls never associate its hypothesis.
+        severity_suggestion: Optional producer severity; leaves analyst assessment unset.
+            Saving always requires an active Project and selected exact evidence.
     """
 
     async def __call__(
@@ -155,7 +205,7 @@ class CodeFindingTool(_FindingFacade):
         evidence_refs: list[ExactEvidenceRef] | None = None,
         standard_refs: list[StandardReference] | None = None,
         proposed_checks: list[ProposedCheck] | None = None,
-        publish_problem: bool = False,
+        severity_suggestion: FindingSeverity | None = None,
         item_key: str | None = None,
         incidental: bool = False,
     ) -> dict[str, Any]:
@@ -173,7 +223,7 @@ class CodeFindingTool(_FindingFacade):
             evidence_refs=evidence_refs,
             standard_refs=standard_refs,
             proposed_checks=proposed_checks,
-            publish_problem=publish_problem,
+            severity_suggestion=severity_suggestion,
             item_key=item_key,
             incidental=incidental,
         )
@@ -205,12 +255,13 @@ class HTTPFindingTool(_FindingFacade):
             cite every assigned entry ID.
         proposed_checks: Optional follow-up questions, each with objective and
             method. At most 512; these suggestions grant no execution authority.
-        item_key: Assigned Audit member key from read_audit_task; required for a batch.
-            Omit for an ordinary Run or a single assigned task.
+        item_key: Optional actual Audit member key from read_audit_task. Required
+            for task-bound batches; omit for a general incidental observation.
         incidental: An independent discovery that does not test the assigned hypothesis.
-            Its Audit/task origin is retained without a hypothesis association.
-        publish_problem: Explicitly publish the described problem to the Project.
-            Requires selected exact evidence. False keeps an ordinary proposal.
+            Without item_key, retains Run/Audit origin only. Selecting a member adds
+            Task origin; incidental calls never associate its hypothesis.
+        severity_suggestion: Optional producer severity; leaves analyst assessment unset.
+            Saving always requires an active Project and selected exact evidence.
     """
 
     async def __call__(
@@ -226,7 +277,7 @@ class HTTPFindingTool(_FindingFacade):
         evidence_refs: list[ExactEvidenceRef] | None = None,
         standard_refs: list[StandardReference] | None = None,
         proposed_checks: list[ProposedCheck] | None = None,
-        publish_problem: bool = False,
+        severity_suggestion: FindingSeverity | None = None,
         item_key: str | None = None,
         incidental: bool = False,
     ) -> dict[str, Any]:
@@ -239,7 +290,7 @@ class HTTPFindingTool(_FindingFacade):
             evidence_refs=evidence_refs,
             standard_refs=standard_refs,
             proposed_checks=proposed_checks,
-            publish_problem=publish_problem,
+            severity_suggestion=severity_suggestion,
             item_key=item_key,
             incidental=incidental,
             request_id=request_id,
@@ -251,6 +302,7 @@ class GeneralFindingsToolsetFactory:
     ref = "security-findings@1"
     exported_tools = frozenset(
         {
+            "record_fact",
             "finding",
             "list_findings",
             "list_project_findings",
@@ -297,6 +349,8 @@ class GeneralFindingsToolsetFactory:
         result = {}
         if "finding" in selected:
             result["finding"] = self.tool_class(publisher)
+        if "record_fact" in selected:
+            result["record_fact"] = RecordFactTool(publisher)
         if "list_findings" in selected:
             result["list_findings"] = await prepare_reader(
                 client, metrics, runtime_secrets(runtime_settings)

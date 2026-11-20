@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import cases from "../../../../api/testdata/server-operation-stage-cases.json";
+import snapshot from "../../../../api/testdata/server-operation-memory-snapshot.json";
 import prepared from "../../../../api/testdata/server-operation-openapi-work.json";
 import { patchDraft, readDraft } from "./document";
 import { buildGraph } from "./graph";
@@ -37,5 +38,25 @@ describe("shared server operation stage contract", () => {
       (node) => node.type === "stage",
     );
     expect(stage?.subtitle).toContain("sitemap-openapi-join@1");
+  });
+});
+
+describe("shared explicit Memory snapshot contract", () => {
+  it.each(snapshot.cases)("validates $name", ({ path, value, valid }) => {
+    const draft = patchDraft(
+      readDraft(snapshot.workflow),
+      ["spec", "stages", "snapshot", ...path],
+      value,
+    );
+    expect(
+      validateDraft(draft).some((problem) => problem.severity === "error"),
+    ).toBe(!valid);
+  });
+  it("displays the model-free snapshot Stage", () => {
+    expect(
+      buildGraph(readDraft(snapshot.workflow)).nodes.find(
+        (node) => node.type === "stage",
+      )?.subtitle,
+    ).toContain("memory-snapshot@1");
   });
 });

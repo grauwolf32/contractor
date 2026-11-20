@@ -18,7 +18,7 @@ func TestTraceFindingCoordinatesAcrossProcesses(t *testing.T) {
 		toolGatewayStep("annotate_trace", fixedArguments(map[string]any{"path": "app.py", "symbol": "lookup", "target": "route"})),
 		toolGatewayStep("finding", fixedArguments(map[string]any{
 			"title": "Uncontrolled query", "description": "The inspected source passes input to the database.",
-			"file": "app.py", "line": 7, "publish_problem": true,
+			"file": "app.py", "line": 7,
 		})),
 		toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{"name": "result", "text": "Trace finding recorded", "media_type": "text/plain"})),
 		finalGatewayStep("Trace finding complete", map[string]domainArtifactBinding{"result": {namespace: "audit-check", name: "result"}}),

@@ -43,15 +43,8 @@ export function useIssueList(filters: IssueFilters): IssueList {
       "needs-review",
       "all",
     ] as StateFilter[]) {
-      const n = scoped.filter(
-        (issue) =>
-          state === "all" ||
-          (state === "needs-review" &&
-            (issue.finding.state === null ||
-              issue.finding.state === "proposed")) ||
-          (state === "unassessed"
-            ? issue.finding.state === null
-            : issue.finding.state === state),
+      const n = scoped.filter((issue) =>
+        matchesIssueFilters(issue.finding, { ...filters, state }),
       ).length;
       counts[state] =
         read.isPending && n === 0

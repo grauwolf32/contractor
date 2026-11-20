@@ -1,5 +1,8 @@
 package pgstore
 
+// executionAuditOriginSQL verifies the exact execution/Run membership by key.
+const executionAuditOriginSQL = `SELECT audit_id FROM audit_executions WHERE execution_id=$1 AND run_id=$2`
+
 // executionTaskOriginSQL uses the existing unique (execution_id,batch_ordinal)
 // key and Task primary key. The second-member probe distinguishes a single
 // assignment from a batch without counting/hydrating the remaining members.

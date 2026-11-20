@@ -290,7 +290,9 @@ including bounded text, source-analysis, OpenAPI and LikeC4 tools, reject a
 source or target that resolves to such a binding and filter such bindings from
 lists and from any accumulated exact-ref projection, even when the same
 AgentTemplate selects MemoryTools. Selecting a domain tool must not become an
-alternate route around MemoryTools.
+alternate route around MemoryTools. An explicitly configured model-free
+`memory-snapshot@1` operation exports logical note content under MEM-R100 through
+MEM-R103; its ordinary output contains no hidden Memory ref or revision.
 
 **ART-R20.** No StageContext declaration or StageResult can
 expose a RunScope binding whose name begins `memory.` in a non-reserved

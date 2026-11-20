@@ -148,7 +148,7 @@ export function CheckDetail({
                     { term: PROGRESS_LABELS.unchecked, value: shown.unchecked },
                     {
                       term: "Possible issues to review",
-                      value: counts.unreviewedFindings,
+                      value: counts.needsReviewFindings,
                     },
                   ]}
                 />

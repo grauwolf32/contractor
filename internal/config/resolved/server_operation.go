@@ -8,6 +8,7 @@ import (
 	artifactpolicy "github.com/grauwolf32/contractor/internal/artifacts/policy"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
+	"github.com/grauwolf32/contractor/internal/contracts/memorycontract"
 )
 
 // ServerOperationConfig selects Server code invoked directly by Scheduler.
@@ -55,6 +56,9 @@ func ValidateStageExecutor(stage ResolvedStage) error {
 			return fmt.Errorf("Finding publication requires exactly candidates and evidence inputs and no Artifact outputs")
 		}
 		return nil
+	}
+	if operation.Ref == contracts.MemorySnapshotOperation {
+		return validateMemorySnapshotStage(stage)
 	}
 	if operation.Ref == contracts.OpenAPIPrepareWorkOperation {
 		return validateOpenAPIWorkStage(stage)
@@ -124,6 +128,29 @@ func validateOpenAPIWorkStage(stage ResolvedStage) error {
 	output, exists := stage.Result.Artifacts["work"]
 	if !exists || len(stage.Result.Artifacts) != 1 || !output.Required || len(output.MediaTypes) != 1 || output.MediaTypes[0] != "application/json" {
 		return fmt.Errorf("OpenAPI preparation requires one JSON work output")
+	}
+	return nil
+}
+
+func validateMemorySnapshotStage(stage ResolvedStage) error {
+	values := map[string]any{"namespace": "worker", "notes": "selected"}
+	if len(stage.Operation.Arguments) != 2 || len(stage.Context.Artifacts) != 0 {
+		return fmt.Errorf("Memory snapshot requires namespace and notes arguments and no context artifacts")
+	}
+	for name, binding := range stage.Operation.Arguments {
+		if _, ok := values[name]; !ok || binding.Parse != "" {
+			return fmt.Errorf("invalid Memory snapshot argument")
+		}
+		if binding.Source == "literal" {
+			values[name] = binding.Value
+		}
+	}
+	if _, err := memorycontract.SnapshotOptions(values); err != nil {
+		return fmt.Errorf("invalid Memory snapshot selection")
+	}
+	output, exists := stage.Result.Artifacts["snapshot"]
+	if !exists || len(stage.Result.Artifacts) != 1 || !output.Required || len(output.MediaTypes) != 1 || output.MediaTypes[0] != "application/json" || output.From == nil || artifactpolicy.IsModelHiddenBinding(output.From.Namespace, output.From.Name) {
+		return fmt.Errorf("Memory snapshot requires one ordinary JSON snapshot output")
 	}
 	return nil
 }

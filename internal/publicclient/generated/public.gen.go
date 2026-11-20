@@ -3255,6 +3255,7 @@ func (e FindingComparisonRowUnavailableReason) Valid() bool {
 
 // Defines values for FindingCorrelationBasisAlgorithm.
 const (
+	ContractorfactEvidencev1        FindingCorrelationBasisAlgorithm = "contractor/fact-evidence/v1"
 	ContractorproducerIssuev1       FindingCorrelationBasisAlgorithm = "contractor/producer-issue/v1"
 	ContractorsnapshotIssueAnchorv1 FindingCorrelationBasisAlgorithm = "contractor/snapshot-issue-anchor/v1"
 )
@@ -3262,6 +3263,8 @@ const (
 // Valid indicates whether the value is a known member of the FindingCorrelationBasisAlgorithm enum.
 func (e FindingCorrelationBasisAlgorithm) Valid() bool {
 	switch e {
+	case ContractorfactEvidencev1:
+		return true
 	case ContractorproducerIssuev1:
 		return true
 	case ContractorsnapshotIssueAnchorv1:
@@ -5199,6 +5202,7 @@ func (e ServerOperationConfigArguments3Source) Valid() bool {
 
 // Defines values for ServerOperationConfigRef.
 const (
+	ServerOperationConfigRefMemorySnapshot1      ServerOperationConfigRef = "memory-snapshot@1"
 	ServerOperationConfigRefOpenapiPrepareWork1  ServerOperationConfigRef = "openapi-prepare-work@1"
 	ServerOperationConfigRefPublishFindings1     ServerOperationConfigRef = "publish-findings@1"
 	ServerOperationConfigRefSitemapApplyOpenapi1 ServerOperationConfigRef = "sitemap-apply-openapi@1"
@@ -5208,6 +5212,8 @@ const (
 // Valid indicates whether the value is a known member of the ServerOperationConfigRef enum.
 func (e ServerOperationConfigRef) Valid() bool {
 	switch e {
+	case ServerOperationConfigRefMemorySnapshot1:
+		return true
 	case ServerOperationConfigRefOpenapiPrepareWork1:
 		return true
 	case ServerOperationConfigRefPublishFindings1:
@@ -6082,8 +6088,8 @@ func (e ImportGitArtifactParamsIfNoneMatch) Valid() bool {
 // Defines values for ListAuditFindingsParamsVerdict.
 const (
 	ListAuditFindingsParamsVerdictFalsePositive ListAuditFindingsParamsVerdict = "false_positive"
+	ListAuditFindingsParamsVerdictNeedsReview   ListAuditFindingsParamsVerdict = "needs_review"
 	ListAuditFindingsParamsVerdictTruePositive  ListAuditFindingsParamsVerdict = "true_positive"
-	ListAuditFindingsParamsVerdictUnreviewed    ListAuditFindingsParamsVerdict = "unreviewed"
 )
 
 // Valid indicates whether the value is a known member of the ListAuditFindingsParamsVerdict enum.
@@ -6091,9 +6097,9 @@ func (e ListAuditFindingsParamsVerdict) Valid() bool {
 	switch e {
 	case ListAuditFindingsParamsVerdictFalsePositive:
 		return true
-	case ListAuditFindingsParamsVerdictTruePositive:
+	case ListAuditFindingsParamsVerdictNeedsReview:
 		return true
-	case ListAuditFindingsParamsVerdictUnreviewed:
+	case ListAuditFindingsParamsVerdictTruePositive:
 		return true
 	default:
 		return false
@@ -6316,8 +6322,8 @@ func (e ConnectEventsWebSocketParamsSecWebSocketProtocol) Valid() bool {
 // Defines values for ListOwnerFindingsParamsVerdict.
 const (
 	ListOwnerFindingsParamsVerdictFalsePositive ListOwnerFindingsParamsVerdict = "false_positive"
+	ListOwnerFindingsParamsVerdictNeedsReview   ListOwnerFindingsParamsVerdict = "needs_review"
 	ListOwnerFindingsParamsVerdictTruePositive  ListOwnerFindingsParamsVerdict = "true_positive"
-	ListOwnerFindingsParamsVerdictUnreviewed    ListOwnerFindingsParamsVerdict = "unreviewed"
 )
 
 // Valid indicates whether the value is a known member of the ListOwnerFindingsParamsVerdict enum.
@@ -6325,9 +6331,9 @@ func (e ListOwnerFindingsParamsVerdict) Valid() bool {
 	switch e {
 	case ListOwnerFindingsParamsVerdictFalsePositive:
 		return true
-	case ListOwnerFindingsParamsVerdictTruePositive:
+	case ListOwnerFindingsParamsVerdictNeedsReview:
 		return true
-	case ListOwnerFindingsParamsVerdictUnreviewed:
+	case ListOwnerFindingsParamsVerdictTruePositive:
 		return true
 	default:
 		return false
@@ -7670,18 +7676,18 @@ type AuditTimeLimitRequest struct {
 
 // AuditWorkspace defines model for AuditWorkspace.
 type AuditWorkspace struct {
-	AsOf               time.Time  `json:"asOf"`
-	AuditId            ResourceId `json:"auditId"`
-	AuditRevision      int        `json:"auditRevision"`
-	CompletedTasks     int        `json:"completedTasks"`
-	ExecutionState     AuditState `json:"executionState"`
-	Findings           int        `json:"findings"`
-	Gaps               int        `json:"gaps"`
-	Iteration          int        `json:"iteration"`
-	OutstandingRuns    int        `json:"outstandingRuns"`
-	PendingTasks       int        `json:"pendingTasks"`
-	TotalTasks         int        `json:"totalTasks"`
-	UnreviewedFindings int        `json:"unreviewedFindings"`
+	AsOf                time.Time  `json:"asOf"`
+	AuditId             ResourceId `json:"auditId"`
+	AuditRevision       int        `json:"auditRevision"`
+	CompletedTasks      int        `json:"completedTasks"`
+	ExecutionState      AuditState `json:"executionState"`
+	Findings            int        `json:"findings"`
+	Gaps                int        `json:"gaps"`
+	Iteration           int        `json:"iteration"`
+	NeedsReviewFindings int        `json:"needsReviewFindings"`
+	OutstandingRuns     int        `json:"outstandingRuns"`
+	PendingTasks        int        `json:"pendingTasks"`
+	TotalTasks          int        `json:"totalTasks"`
 }
 
 // AuthPrincipal defines model for AuthPrincipal.
@@ -9232,7 +9238,7 @@ type FindingAuditOrigin struct {
 		Revision int        `json:"revision"`
 	} `json:"hypothesis,omitempty"`
 	HypothesisSnapshot *FindingExactArtifact `json:"hypothesisSnapshot,omitempty"`
-	TaskId             ResourceId            `json:"taskId"`
+	TaskId             *ResourceId           `json:"taskId,omitempty"`
 }
 
 // FindingCandidate defines model for FindingCandidate.

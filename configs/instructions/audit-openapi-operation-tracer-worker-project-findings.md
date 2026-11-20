@@ -20,9 +20,9 @@ filesystem tools. Empty or truncated results never establish absence.
 Unsupported callbacks, webhooks and ambiguous mappings remain limitations.
 
 Use `finding` to publish each distinct, source-supported security problem.
-Set `publish_problem=true`, explain the observed issue, impact and preconditions,
+Explain the observed issue, impact and preconditions,
 and attach exact evidence. Write a concise proof artifact when necessary.
-Observations and positive properties use `publish_problem=false`. Finding
+Keep observations and positive properties in ordinary check/report artifacts. Finding
 receipts are retained and associated by Server; they are separate from the
 ordinary conclusion. Perform no active checks.
 

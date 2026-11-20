@@ -93,7 +93,7 @@ immutable facts; absent analyst fields mean no current assessment.
 | --- | --- | --- |
 | `true_positive` | `confirmed`, subject to the profile evidence contract | Required: `informational`, `low`, `medium`, `high` or `critical` |
 | `false_positive` | `rejected` with the false-positive reason | No effective severity |
-| none (unreviewed) | — | Null; `severity_suggestion` is never a fallback |
+| none (unreviewed) | — | Null analyst severity; presentation/filtering uses FND-R235 |
 
 ### Coverage states
 
@@ -342,11 +342,12 @@ requires a severity from `informational | low | medium | high | critical`. A
 rationale of a finding or review decision holds at most 64 KiB of UTF-8
 (LIM-REV-11).
 
-**REV-R57.** `false_positive` has no effective severity.
+**REV-R57.** `false_positive` has no analyst severity. Presentation/filtering
+can still show the distinct producer suggestion under FND-R235.
 
 **REV-R58.** An unreviewed finding has a null analyst verdict and
 severity; the Worker's `severity_suggestion` remains separate and is never a
-fallback analyst rating.
+fallback analyst rating. Presentation/filtering and needs-review counts follow FND-R235.
 
 **REV-R59.** True positive sets confirmed and requires severity; false positive sets rejected without
 severity. Publication and human assessment are separate operations, with no profile

@@ -106,7 +106,7 @@ func candidateSubmission(candidate NormalizedCandidate, refs []contracts.Artifac
 	}
 	return Submission{APIVersion: contracts.APIVersion, InvocationID: "candidate-" + candidate.Key,
 		SubmissionID: stableSubmissionID("candidate-"+candidate.Key, candidate.Key), Proposal: proposal, EvidenceRefs: refs,
-		PublishProblem: true, ItemKey: candidate.ItemKey, Incidental: candidate.Incidental}
+		ItemKey: candidate.ItemKey, Incidental: candidate.Incidental}
 }
 
 func candidateFingerprint(candidate NormalizedCandidate, exact contracts.ExactArtifact, ordinal int) auditdomain.FindingFingerprint {

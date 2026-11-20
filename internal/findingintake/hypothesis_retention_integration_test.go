@@ -41,7 +41,7 @@ func TestProjectFindingRetainsExactHypothesisAfterAuditPurge(t *testing.T) {
 	key := auditcontract.ExecutionItemKey(1)
 	input := testSubmission("hypothesis-invocation", "problem", []contracts.ArtifactRef{proof.Ref})
 	input.ItemKey = &key
-	input.PublishProblem = true
+
 	receipt, _, err := service.Submit(ctx, grant, input)
 	if err != nil || receipt.FindingID == nil || receipt.Origin.Audit == nil || receipt.Origin.Audit.HypothesisSnapshot == nil {
 		t.Fatalf("publication=%+v error=%v", receipt, err)

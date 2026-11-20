@@ -90,7 +90,7 @@ func TestPublicOwnerAuditLists(t *testing.T) {
 	for _, list := range []struct {
 		path, id string
 		count    int
-	}{{"/v1/audits", "auditId", 201}, {"/v1/findings?verdict=unreviewed", "findingId", 201}} {
+	}{{"/v1/audits", "auditId", 201}, {"/v1/findings?verdict=needs_review", "findingId", 201}} {
 		t.Run(list.path, func(t *testing.T) {
 			query, _ := url.Parse(list.path)
 			values := query.Query()
@@ -163,7 +163,7 @@ func TestPublicOwnerAuditLists(t *testing.T) {
 			}
 		})
 	}
-	for _, path := range []string{"/v1/audits?limit=200", "/v1/findings?limit=200&verdict=unreviewed"} {
+	for _, path := range []string{"/v1/audits?limit=200", "/v1/findings?limit=200&verdict=needs_review"} {
 		response := serveAndValidatePublicContract(t, router, fixture.handler, newPublicContractRequest(http.MethodGet, path, nil), true)
 		if response.Code != http.StatusOK {
 			t.Fatalf("200-row page=%d: %s", response.Code, response.Body.String())

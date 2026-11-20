@@ -2,7 +2,7 @@ apiVersion: contractor/v1alpha1
 kind: Workflow
 metadata:
   name: source-findings-review
-  version: "1"
+  version: "2"
 spec:
   parameters: {}
   inputs:
@@ -29,11 +29,11 @@ spec:
     review:
       objective: Inspect the supplied source and report supported security findings with exact source coordinates
       instructions:
-        ref: instructions/source-findings-reviewer.md
+        ref: instructions/source-findings-reviewer-project-findings.md
       planner: passthrough@1
       agents:
         reviewer:
-          template: source_findings_reviewer@1
+          template: source_findings_reviewer@2
           namespace: source-findings
       context:
         artifacts:

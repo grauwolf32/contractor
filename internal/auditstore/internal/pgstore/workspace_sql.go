@@ -9,7 +9,7 @@ var getWorkspaceSQL = `
 SELECT audit.audit_id, audit.revision, statement_timestamp(), audit.task_iteration,
        audit.state, audit.outstanding_run_count,
        tasks.total, tasks.completed, tasks.gaps, tasks.pending,
-       findings.total, findings.unreviewed
+       findings.total, findings.needs_review
   FROM audits AS audit
  CROSS JOIN LATERAL (
        SELECT count(*) AS total,
@@ -20,9 +20,9 @@ SELECT audit.audit_id, audit.revision, statement_timestamp(), audit.task_iterati
        ) AS tasks
  CROSS JOIN LATERAL (
        SELECT count(*) AS total,
-              count(*) FILTER (WHERE finding.analyst_verdict IS NULL) AS unreviewed
+              count(*) FILTER (WHERE (finding.analyst_verdict IS NULL OR finding.state='proposed') AND coalesce(finding.analyst_severity,finding.severity_suggestion,'')<>'informational') AS needs_review
          FROM project_finding_audits AS membership
-         JOIN LATERAL (SELECT analyst_verdict FROM project_findings AS current
+         JOIN LATERAL (SELECT analyst_verdict,analyst_severity,severity_suggestion,state FROM project_findings AS current
               WHERE current.project_id=membership.project_id AND current.finding_id=membership.finding_id OFFSET 0) AS finding ON true
         WHERE membership.audit_id=audit.audit_id
        ) AS findings

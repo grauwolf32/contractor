@@ -1,8 +1,11 @@
 package findingintake
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
+	"github.com/grauwolf32/contractor/internal/helpers/strictjson"
 	"strings"
 	"testing"
 
@@ -92,5 +95,73 @@ func testSubmission(
 			Limitations: []string{},
 		},
 		EvidenceRefs: evidence,
+	}
+}
+
+func TestSharedInformationalPayloadLimits(t *testing.T) {
+	var fixture struct {
+		MaxEvidence, MaxAuthoredBytes int
+		Severities                    []string
+		Payloads                      []struct {
+			Name               string
+			Sources, TextBytes int
+			AuthoredBytes      int
+			Valid              bool
+		}
+	}
+	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "finding-fact-cases.json"), &fixture); err != nil {
+		t.Fatal(err)
+	}
+	if fixture.MaxEvidence != MaxFactEvidenceRefs || fixture.MaxAuthoredBytes != MaxFactAuthoredBytes {
+		t.Fatal("fact limit drift")
+	}
+	for _, c := range fixture.Payloads {
+		t.Run(c.Name, func(t *testing.T) {
+			refs := make([]contracts.ArtifactRef, c.Sources)
+			revision := "r1"
+			for i := range refs {
+				refs[i] = contracts.ArtifactRef{Namespace: "proof", Name: fmt.Sprint("proof-", i), Revision: &revision}
+			}
+			input := testSubmission("invocation", "fact", refs)
+			input.Proposal.SeveritySuggestion = "informational"
+			input.Proposal.Subject = nil
+			input.Proposal.Description = strings.Repeat("x", c.TextBytes)
+			if c.AuthoredBytes > 0 {
+				encoded, err := auditdomain.EncodeFindingProposal(input.Proposal)
+				if err != nil {
+					t.Fatal(err)
+				}
+				input.Proposal.Description = strings.Repeat("x", c.AuthoredBytes-len(encoded)+c.TextBytes)
+			}
+			_, err := canonicalize(input)
+			if (err == nil) != c.Valid {
+				t.Fatalf("valid=%t err=%v", c.Valid, err)
+			}
+		})
+	}
+	for _, severity := range fixture.Severities {
+		input := testSubmission("invocation", "severity", []contracts.ArtifactRef{{Namespace: "proof", Name: "one", Revision: ptrString("r1")}})
+		input.Proposal.SeveritySuggestion = severity
+		if _, err := canonicalize(input); err != nil {
+			t.Fatal(severity, err)
+		}
+	}
+}
+
+func ptrString(value string) *string { return &value }
+
+func TestDirectSubmissionRejectsRemovedPublicationFlag(t *testing.T) {
+	var input Submission
+	if err := strictjson.Decode([]byte(`{"publishProblem":true}`), &input); err == nil {
+		t.Fatal("removed field accepted")
+	}
+}
+
+func TestDirectFindingSourcesFollowCommonModelVisibility(t *testing.T) {
+	for _, ref := range []contracts.ArtifactRef{{Namespace: "worker", Name: "memory.private", Revision: ptrString("r1")}, {Namespace: "worker", Name: "http.body.private", Revision: ptrString("r1")}, {Namespace: "skills", Name: "trace", Revision: ptrString("r1")}} {
+		input := testSubmission("invocation", "hidden", []contracts.ArtifactRef{ref})
+		if _, err := canonicalize(input); !errors.Is(err, ErrInvalid) {
+			t.Fatalf("hidden source accepted: %s/%s %v", ref.Namespace, ref.Name, err)
+		}
 	}
 }

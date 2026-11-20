@@ -131,3 +131,14 @@ owner consumes the normalized contract under FND-R232/R233/R234. The operation
 returns bounded JSON counts and source/Finding references in its ordinary Stage
 summary. Complete domain detail uses the existing paginated Finding/source
 readers. Scanner reports remain on their concrete Run.
+
+**SOP-R12.** `memory-snapshot@1` has no context inputs and exactly one required
+JSON output named `snapshot`, from an ordinary non-reserved binding. It binds
+exactly `namespace` and `notes` using existing string literal/parameter bindings
+(without a parser). Memory owns selection, canonical note decoding, bounds and
+snapshot reconciliation under MEM-R100 through MEM-R103. The operation adapter
+binds current Run/Stage/claim; the Project owner fences an attached Project's
+lifecycle before the Run/Stage lock. This narrow explicit read of logical Memory
+names does not permit reserved refs in StageContext or ordinary Artifact tools.
+Its result contains the exact ordinary output and a count-only summary. No new
+endpoint, receipt, allocation, Planner session or model is introduced.

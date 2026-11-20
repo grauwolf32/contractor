@@ -1,3 +1,4 @@
+import { findingNeedsReview, findingSeverity } from "./audits";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -139,9 +140,11 @@ function setup(state: ServerState) {
           (f) =>
             state.projects.some((p) => p.projectId === f.projectId) &&
             wanted("state", f.state ?? "") &&
-            wanted("verdict", f.analystVerdict ?? "unreviewed") &&
+            (url.searchParams.get("verdict") === "needs_review"
+              ? findingNeedsReview(f)
+              : wanted("verdict", f.analystVerdict ?? "")) &&
             (!url.searchParams.has("severity") ||
-              wanted("severity", f.analystSeverity ?? "")),
+              wanted("severity", findingSeverity(f))),
         )
         .map(build.findingSummary);
     else {
@@ -464,13 +467,13 @@ describe("owner-wide lists", () => {
     expect(
       result.current.summary.partial || result.current.summary.truncated,
     ).toBe(false);
-    expect(server.count("/v1/findings")).toBe(3);
+    expect(server.count("/v1/findings")).toBe(2);
   });
   it("applies finding verdict and analyst severity filters", async () => {
     const state = base();
     state.findings = {
       audit_a: [
-        finding("project_a", "unreviewed"),
+        finding("project_a", "needs_review"),
         finding("project_a", "high", {
           state: "confirmed",
           verdict: "true_positive",
@@ -522,7 +525,7 @@ describe("owner-wide lists", () => {
       ),
     );
     expect(result.current).toMatchObject({ truncated: true, partial: false });
-    expect(server.count("/v1/findings")).toBe(MAXIMUM_LOADED_PAGES + 1);
+    expect(server.count("/v1/findings")).toBe(MAXIMUM_LOADED_PAGES);
   });
   it("keeps the Inbox count partial after a failed findings continuation", async () => {
     const state = base();
@@ -540,19 +543,19 @@ describe("owner-wide lists", () => {
     await waitFor(() => expect(result.current.needsDecision).toBe(200));
     expect(result.current).toMatchObject({ partial: true, truncated: false });
   });
-  it("does not request an impossible unreviewed severity pair", async () => {
+  it("filters needs review by suggested severity", async () => {
     const server = setup(base());
     const { result } = renderHook(
       () =>
         useAllPossibleIssues({
-          verdicts: ["unreviewed"],
+          verdicts: ["needs_review"],
           severities: ["high"],
         }),
       { wrapper: server.wrapper },
     );
     await settled(result);
     expect(result.current.issues).toEqual([]);
-    expect(server.count("/v1/findings")).toBe(0);
+    expect(server.count("/v1/findings")).toBe(1);
   });
   it("refreshes owner lists after decisions without reloading unchanged report payloads", async () => {
     const state = base();

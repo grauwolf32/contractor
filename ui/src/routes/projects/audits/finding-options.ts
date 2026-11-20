@@ -27,7 +27,7 @@ export const FINDING_STATES: readonly FindingState[] = [
 type VerdictFilter = NonNullable<FindingPageRequest["verdict"]>;
 
 const VERDICT_FILTERS: readonly VerdictFilter[] = [
-  "unreviewed",
+  "needs_review",
   "true_positive",
   "false_positive",
 ];
@@ -49,7 +49,7 @@ interface FilterOption {
   label: string;
 }
 
-/** Analyst ratings only: an AI suggestion is never a severity filter. */
+/** Analyst severity when present, otherwise the canonical producer suggestion. */
 export const SEVERITY_OPTIONS: readonly FilterOption[] = [
   { value: "", label: "All severities" },
   ...FINDING_SEVERITIES.map((severity) => ({
@@ -63,6 +63,9 @@ export const DECISION_OPTIONS: readonly FilterOption[] = [
   { value: "", label: "All decisions" },
   ...VERDICT_FILTERS.map((verdict) => ({
     value: verdict,
-    label: VERDICT_LABELS[verdict].label,
+    label:
+      verdict === "needs_review"
+        ? "Needs review"
+        : VERDICT_LABELS[verdict].label,
   })),
 ];

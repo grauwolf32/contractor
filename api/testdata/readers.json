@@ -1,8 +1,9 @@
 {
   "description": "Who reads each shared fixture under api/testdata: go (a TestShared* Go test), python (a test_shared_* Runtime test, or a test module whose test_shared_* tests ran) and ui (a UI source that imports the fixture). Keys are paths below api/testdata; a key ending in / covers its directory, and the longest matching key wins. make test-wire-cross-language (scripts/shared_fixture_gate.py) fails when a fixture matches no key, when a declared side does not read it, when a side reads it without being declared, and when a fixture has one reader but no reason. README files and this file are not fixtures. A file in another testdata directory that tests of two sides name is a shared fixture outside api/testdata, which the gate rejects unless OUTSIDE_SHARED in scripts/shared_fixture_gate.py names it with its reason.",
   "readers": {
-    "document-response-policy.json": {"readers": ["go", "python"]},
-    "model-response-recovery.json": {"readers": ["go", "python"]},
+    "server-operation-memory-snapshot.json": {"readers": ["go", "ui"], "reason": "Server and Studio share the model-free operation identity; Runtime receives ordinary JSON artifacts, not operation calls."},
+    "finding-fact-evidence-cases.json": {"readers": ["go", "python", "ui"]},
+    "finding-fact-cases.json": {"readers": ["go", "python", "ui"]},
     "material-kind-order.json": {"readers": ["go", "ui"], "reason": "Project listing storage and the UI share presentation classification; Runtime receives ordinary selected Artifact refs without material grouping rules."},
     "telemetry-credential-redaction.json": {"readers": ["go", "python"]},
     "finding-candidates-cases.json": {"readers": ["go", "python"]},
@@ -31,15 +32,15 @@
     "finding-analysis-cases.json": {"readers": ["go", "python"]},
     "finding-anchor-cases.json": {"readers": ["go", "python"]},
     "finding-fingerprint-cases.json": {"readers": ["go", "python"]},
-    "http-cookie-session.json": {"readers":["go","python"],"reason":"Runtime owns the strict cookie document. Go stores opaque ordinary Artifact bytes and tests transport, CAS, grants and retention without a second cookie parser."},
+    "http-cookie-session.json": {"readers": ["go", "python"], "reason": "Runtime owns the strict cookie document. Go stores opaque ordinary Artifact bytes and tests transport, CAS, grants and retention without a second cookie parser."},
     "git-import-modes.json": {"readers": ["go", "ui"]},
     "planner-fact-cases.json": {"readers": ["go", "ui"], "reason": "The Server descriptor registry owns the Planner facts and the Studio applies the single-Agent and result-source rules; the Runtime receives a resolved Stage and never selects a Planner."},
-    "planner-subtask-cases.json": {"readers":["go","ui"],"reason":"The Server owns Workflow plan limits and complete plan projections. Runtime consumes one bounded current subtask with the unchanged generic subtask ID wire contract."},
-    "public/project-active-check-policy.json": {"readers":["go","ui"]},
+    "planner-subtask-cases.json": {"readers": ["go", "ui"], "reason": "The Server owns Workflow plan limits and complete plan projections. Runtime consumes one bounded current subtask with the unchanged generic subtask ID wire contract."},
+    "public/project-active-check-policy.json": {"readers": ["go", "ui"]},
     "public/idempotency-key-cases.json": {"readers": ["go", "ui"]},
     "public/revision-etag-cases.json": {"readers": ["go"], "reason": "only the Server reads counter preconditions; the UI and the generated Go client send the revision the Server returned, and the Go test checks these cases against the OpenAPI If-Match patterns"},
     "public/utf8-byte-bound-cases.json": {"readers": ["go", "ui"]},
-    "stage-summary-cases.json": {"readers":["go"],"reason":"StageContentResult is Server-owned; Go, PostgreSQL and public OpenAPI validators share these cases. Runtime already sends the unchanged WorkerCompletion summarized flag; the UI uses generated types."},
+    "stage-summary-cases.json": {"readers": ["go"], "reason": "StageContentResult is Server-owned; Go, PostgreSQL and public OpenAPI validators share these cases. Runtime already sends the unchanged WorkerCompletion summarized flag; the UI uses generated types."},
     "http-capture-cases.json": {"readers": ["go", "python", "ui"]},
     "http-exchange-artifact-cases.json": {"readers": ["go", "python", "ui"]},
     "audit-completion/": {"readers": ["go", "python"]},
@@ -87,6 +88,8 @@
     "v1alpha1/run-metadata-label-cases.json": {"readers": ["go", "python", "ui"]},
     "v1alpha1/runtime-capability-cases.json": {"readers": ["go", "python", "ui"]},
     "v1alpha1/runtime-label-set-cases.json": {"readers": ["go", "python", "ui"]},
-    "v1alpha1/workspace-path-cases.json": {"readers": ["go", "python", "ui"]}
+    "v1alpha1/workspace-path-cases.json": {"readers": ["go", "python", "ui"]},
+    "document-response-policy.json": {"readers": ["go", "python"]},
+    "model-response-recovery.json": {"readers": ["go", "python"]}
   }
 }

@@ -381,7 +381,7 @@ func hypothesisFindingSeedStage() domainGatewayStage {
 			if !found {
 				return nil, fmt.Errorf("missing Project proof")
 			}
-			return map[string]any{"title": "Observed boundary problem", "description": "An evidenced observed problem under the selected conditions", "evidence_refs": []any{ref}, "publish_problem": true}, nil
+			return map[string]any{"title": "Observed boundary problem", "description": "An evidenced observed problem under the selected conditions", "evidence_refs": []any{ref}}, nil
 		}),
 		toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{"name": "report", "text": "Project problem retained", "media_type": "text/markdown"})),
 		finalGatewayStep("Project problem saved", map[string]domainArtifactBinding{"report": {namespace: "findings-review", name: "report"}}),

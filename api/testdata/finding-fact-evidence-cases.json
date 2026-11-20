@@ -1,0 +1,293 @@
+{
+  "algorithm": "contractor/fact-evidence/v1",
+  "maxEvidence": 4,
+  "cases": [
+    {
+      "name": "one",
+      "title": "one",
+      "evidence": [
+        {
+          "ref": {
+            "namespace": "proof",
+            "name": "source-0",
+            "revision": "r0"
+          },
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "mediaType": "text/plain",
+          "sizeBytes": 12
+        }
+      ],
+      "value": "5091e33ebae3810e6ee2c4d2101beec072f5041e23d09575a499b22b2d168679",
+      "groupKey": "2386c749dd7ef2f1a4074da8ef8fdda2fa6c8e9676a6e84d81a26cfbada3ed4d",
+      "projection": {
+        "schema": "contractor.finding.fingerprint-projection.v1",
+        "availability": "available",
+        "algorithm": "contractor/fact-evidence/v1",
+        "value": "5091e33ebae3810e6ee2c4d2101beec072f5041e23d09575a499b22b2d168679"
+      }
+    },
+    {
+      "name": "changed title",
+      "title": "changed title",
+      "evidence": [
+        {
+          "ref": {
+            "namespace": "proof",
+            "name": "source-0",
+            "revision": "r0"
+          },
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "mediaType": "text/plain",
+          "sizeBytes": 12
+        }
+      ],
+      "value": "5091e33ebae3810e6ee2c4d2101beec072f5041e23d09575a499b22b2d168679",
+      "groupKey": "2386c749dd7ef2f1a4074da8ef8fdda2fa6c8e9676a6e84d81a26cfbada3ed4d",
+      "projection": {
+        "schema": "contractor.finding.fingerprint-projection.v1",
+        "availability": "available",
+        "algorithm": "contractor/fact-evidence/v1",
+        "value": "5091e33ebae3810e6ee2c4d2101beec072f5041e23d09575a499b22b2d168679"
+      }
+    },
+    {
+      "name": "pair",
+      "title": "pair",
+      "evidence": [
+        {
+          "ref": {
+            "namespace": "proof",
+            "name": "source-0",
+            "revision": "r0"
+          },
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "mediaType": "text/plain",
+          "sizeBytes": 12
+        },
+        {
+          "ref": {
+            "namespace": "proof",
+            "name": "source-1",
+            "revision": "r1"
+          },
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "mediaType": "text/plain",
+          "sizeBytes": 12
+        }
+      ],
+      "value": "77e095bfec0a8f82aa38843f9fc21269f3dafc040532d385538b5e13bddd45aa",
+      "groupKey": "87a34a56d59f5247ab594d35bc1bf7594485629db19ec2981070f7b99ca4f508",
+      "projection": {
+        "schema": "contractor.finding.fingerprint-projection.v1",
+        "availability": "available",
+        "algorithm": "contractor/fact-evidence/v1",
+        "value": "77e095bfec0a8f82aa38843f9fc21269f3dafc040532d385538b5e13bddd45aa"
+      }
+    },
+    {
+      "name": "reordered",
+      "title": "reordered",
+      "evidence": [
+        {
+          "ref": {
+            "namespace": "proof",
+            "name": "source-0",
+            "revision": "r0"
+          },
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "mediaType": "text/plain",
+          "sizeBytes": 12
+        },
+        {
+          "ref": {
+            "namespace": "proof",
+            "name": "source-1",
+            "revision": "r1"
+          },
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "mediaType": "text/plain",
+          "sizeBytes": 12
+        }
+      ],
+      "value": "77e095bfec0a8f82aa38843f9fc21269f3dafc040532d385538b5e13bddd45aa",
+      "groupKey": "87a34a56d59f5247ab594d35bc1bf7594485629db19ec2981070f7b99ca4f508",
+      "projection": {
+        "schema": "contractor.finding.fingerprint-projection.v1",
+        "availability": "available",
+        "algorithm": "contractor/fact-evidence/v1",
+        "value": "77e095bfec0a8f82aa38843f9fc21269f3dafc040532d385538b5e13bddd45aa"
+      }
+    },
+    {
+      "name": "same content independent bindings",
+      "title": "same content independent bindings",
+      "evidence": [
+        {
+          "ref": {
+            "namespace": "proof",
+            "name": "source-0",
+            "revision": "r0"
+          },
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "mediaType": "text/plain",
+          "sizeBytes": 12
+        },
+        {
+          "ref": {
+            "namespace": "proof",
+            "name": "source-1",
+            "revision": "r1"
+          },
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "mediaType": "text/plain",
+          "sizeBytes": 12
+        }
+      ],
+      "value": "5091e33ebae3810e6ee2c4d2101beec072f5041e23d09575a499b22b2d168679",
+      "groupKey": "2386c749dd7ef2f1a4074da8ef8fdda2fa6c8e9676a6e84d81a26cfbada3ed4d",
+      "projection": {
+        "schema": "contractor.finding.fingerprint-projection.v1",
+        "availability": "available",
+        "algorithm": "contractor/fact-evidence/v1",
+        "value": "5091e33ebae3810e6ee2c4d2101beec072f5041e23d09575a499b22b2d168679"
+      }
+    },
+    {
+      "name": "overlap",
+      "title": "overlap",
+      "evidence": [
+        {
+          "ref": {
+            "namespace": "proof",
+            "name": "source-0",
+            "revision": "r0"
+          },
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "mediaType": "text/plain",
+          "sizeBytes": 12
+        },
+        {
+          "ref": {
+            "namespace": "proof",
+            "name": "source-1",
+            "revision": "r1"
+          },
+          "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "mediaType": "text/plain",
+          "sizeBytes": 12
+        }
+      ],
+      "value": "caf3b26edeef39a0de964e14daf2c8174cae433fd31feade546f2f5bcdc86a90",
+      "groupKey": "baa254b3b5edba05508124afdb057349fb44bf249b3ece43cc84aed1c56e836b",
+      "projection": {
+        "schema": "contractor.finding.fingerprint-projection.v1",
+        "availability": "available",
+        "algorithm": "contractor/fact-evidence/v1",
+        "value": "caf3b26edeef39a0de964e14daf2c8174cae433fd31feade546f2f5bcdc86a90"
+      }
+    },
+    {
+      "name": "changed",
+      "title": "changed",
+      "evidence": [
+        {
+          "ref": {
+            "namespace": "proof",
+            "name": "source-0",
+            "revision": "r0"
+          },
+          "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "mediaType": "text/plain",
+          "sizeBytes": 12
+        }
+      ],
+      "value": "82faa7b9cd476322cc2975ee882f2251c7cf1a02edba03f529687d374ca994f1",
+      "groupKey": "4738a1d931f433eaad8a5af910c6ded912e55cf79f8734b693a16fd86b4eaf70",
+      "projection": {
+        "schema": "contractor.finding.fingerprint-projection.v1",
+        "availability": "available",
+        "algorithm": "contractor/fact-evidence/v1",
+        "value": "82faa7b9cd476322cc2975ee882f2251c7cf1a02edba03f529687d374ca994f1"
+      }
+    }
+  ],
+  "publicDocuments": [
+    {
+      "name": "fact projection",
+      "schema": "FindingFingerprintProjection",
+      "valid": true,
+      "document": {
+        "schema": "contractor.finding.fingerprint-projection.v1",
+        "availability": "available",
+        "algorithm": "contractor/fact-evidence/v1",
+        "value": "5091e33ebae3810e6ee2c4d2101beec072f5041e23d09575a499b22b2d168679"
+      }
+    },
+    {
+      "name": "fact correlation basis",
+      "schema": "FindingCorrelationBasis",
+      "valid": true,
+      "document": {
+        "algorithm": "contractor/fact-evidence/v1",
+        "value": "5091e33ebae3810e6ee2c4d2101beec072f5041e23d09575a499b22b2d168679"
+      }
+    },
+    {
+      "name": "fact cannot assert adapter",
+      "schema": "FindingFingerprintProjection",
+      "valid": false,
+      "document": {
+        "schema": "contractor.finding.fingerprint-projection.v1",
+        "availability": "available",
+        "algorithm": "contractor/fact-evidence/v1",
+        "value": "5091e33ebae3810e6ee2c4d2101beec072f5041e23d09575a499b22b2d168679",
+        "adapter": "normalized-candidate/v1"
+      }
+    },
+    {
+      "name": "fact cannot carry reason",
+      "schema": "FindingFingerprintProjection",
+      "valid": false,
+      "document": {
+        "schema": "contractor.finding.fingerprint-projection.v1",
+        "availability": "available",
+        "algorithm": "contractor/fact-evidence/v1",
+        "value": "5091e33ebae3810e6ee2c4d2101beec072f5041e23d09575a499b22b2d168679",
+        "reason": "not_provided"
+      }
+    },
+    {
+      "name": "fact value cannot be null",
+      "schema": "FindingFingerprintProjection",
+      "valid": false,
+      "document": {
+        "schema": "contractor.finding.fingerprint-projection.v1",
+        "availability": "available",
+        "algorithm": "contractor/fact-evidence/v1",
+        "value": null
+      }
+    },
+    {
+      "name": "fact value must be hex",
+      "schema": "FindingFingerprintProjection",
+      "valid": false,
+      "document": {
+        "schema": "contractor.finding.fingerprint-projection.v1",
+        "availability": "available",
+        "algorithm": "contractor/fact-evidence/v1",
+        "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      }
+    },
+    {
+      "name": "unknown fact algorithm",
+      "schema": "FindingFingerprintProjection",
+      "valid": false,
+      "document": {
+        "schema": "contractor.finding.fingerprint-projection.v1",
+        "availability": "available",
+        "algorithm": "contractor/fact-evidence/v2",
+        "value": "5091e33ebae3810e6ee2c4d2101beec072f5041e23d09575a499b22b2d168679"
+      }
+    }
+  ]
+}

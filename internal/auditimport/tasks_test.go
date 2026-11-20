@@ -149,10 +149,15 @@ func TestCommonImporterFindingRetentionRejectsOnlyMalformedOwnedCandidate(t *tes
 	}
 	s.candidates = s.candidates[:1]
 	s.candidates[0].Receipt.Origin.Audit.TaskID = ""
+	if _, err := i.retainTaskFindings(t.Context(), snapshot, execution); err != nil {
+		t.Fatal("Run-level origin rejected", err)
+	}
+	s.candidates[0].Receipt.Origin.Audit.ExecutionID = "foreign-execution"
 	if _, err := i.retainTaskFindings(t.Context(), snapshot, execution); !errors.Is(err, ErrPermanent) {
 		t.Fatal("foreign finding accepted", err)
 	}
 	s.candidates[0].Receipt.Origin.Audit.TaskID = "task-1"
+	s.candidates[0].Receipt.Origin.Audit.ExecutionID = execution.ExecutionID
 	s.retainErr = findingintake.ErrAuditClosed
 	if more, err := i.retainTaskFindings(t.Context(), snapshot, execution); more || err != nil {
 		t.Fatalf("closed owner loops: %t,%v", more, err)

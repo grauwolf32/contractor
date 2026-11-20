@@ -133,13 +133,12 @@ func TestPostgresIntakePreparationSharesOneStageRead(t *testing.T) {
 		t.Fatalf("ordinary submission read the Stage %d times before the transaction and %d in total, want 0 and 1", before, total)
 	}
 
-	// A Stage of another Run denies the shared snapshot before the
-	// transaction; the second derivation does not read it again.
+	// A nonexistent source Run is rejected before payload or Stage preparation.
 	foreign := grant
 	foreign.RunID = "stage-share-other-run"
 	foreignInput := located("foreign", refs[:1])
 	foreignInput.DerivedAnchors = both.DerivedAnchors
-	if _, before, total, err = submit(foreign, foreignInput); !errors.Is(err, ErrAccessDenied) || before != -1 || total != 1 {
+	if _, before, total, err = submit(foreign, foreignInput); !errors.Is(err, ErrAccessDenied) || before != -1 || total != 0 {
 		t.Fatalf("foreign Stage=%v, prepared after %d reads, %d reads in total", err, before, total)
 	}
 	var count int

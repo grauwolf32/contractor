@@ -5,7 +5,7 @@ milestone: project-facts-2026-11
 epic: findings
 kind: feature
 priority: P1
-status: pending
+status: completed
 depends_on: []
 languages: [go, python, json, yaml, typescript, markdown]
 goal: >-
@@ -24,6 +24,7 @@ demonstration: >-
   A batch Audit Run also records a general observation with Run/Audit origin and
   no Task or hypothesis. An explicitly selected member retains its exact context.
 context:
+  evidence: tasks/evidence/v471-001-20261121.json
   execution_group: 1
   authority: >-
     User decisions 2026-11-20: facts need a separate interface over the same
@@ -48,6 +49,11 @@ context:
     each executed in one continuous pass. The dependency-based allocation and
     group entry/exit rules live in the proposal; this task keeps its own acceptance,
     required checks and implementation commit. Grouping adds no functional scope.
+    User decision 2026-11-21 requires an active Project for both finding and
+    record_fact and rejects projectless submissions before any write. The user
+    explicitly assigns execution of group 1 (V471-001, V471-002, V471-004) in one
+    pass. This supersedes earlier planning-only restrictions for these tasks;
+    group 2, live-model calls and deployment remain unassigned.
   proposal: docs/proposals/0055-project-facts-through-findings.md
   specification:
     - docs/spec/findings/findings.md#FND-R3
@@ -56,14 +62,9 @@ context:
     - docs/spec/findings/findings.md#FND-R214
     - docs/spec/findings/findings.md#FND-R220
     - docs/spec/findings/findings.md#FND-R223
+    - docs/spec/findings/findings.md#FND-R235
     - docs/spec/audits/hypotheses.md#HG-R6
     - docs/spec/platform/persistence.md
-  decision_needed: >-
-    Settle projectless Runs before implementation. Recommended: finding and
-    record_fact require an active Project and reject before any write; supporting
-    outputs remain ordinary artifacts. Alternative: an explicitly separate
-    proposal-only capability for real projectless callers, justified by inventory.
-    Do not infer user approval to delete projectless workflows or keep a hidden fallback.
   boundary: >-
     Extend the existing FindingProposal/intake/ProjectFinding/reader owner, not a
     Fact store or Audit registry. Reuse severity_suggestion for the producer's
@@ -83,7 +84,7 @@ scope:
   out:
     - Memory extraction, semantic duplicate matching, a separate Fact ID/table/store or new review workflow.
     - A purpose discriminator, a persisted needs-review state or an automatic analyst assessment from informational classification.
-    - Live-model runs, changing configured models, deployment or starting dependent tasks.
+    - Live-model runs, changing configured models, deployment or starting group-2 tasks.
 requirements:
   - id: R1
     text: >-
@@ -115,7 +116,7 @@ requirements:
       For display and filtering, use current analyst severity when present,
       otherwise the canonical producer severity suggestion. Show which supplied
       the classification and preserve the nullable analyst fields. Needs review
-      requires the existing unassessed condition and a classification other than
+      requires the existing unsettled condition (unassessed or explicitly reopened/proposed) and a classification other than
       informational. Empty/unknown severity remains eligible. Facts includes all
       informational records regardless of producer facade. Compute these views
       from common owner data with identical list/count predicates. Existing
@@ -187,3 +188,5 @@ tests:
 test_prerequisites:
   - Create the named real-process target in this task; it must select nonzero cases with a scripted Gateway and real PostgreSQL/Server/Runtime.
   - Run all touched package suites; database skips and disabled heavy-I/O fixtures are not passing coverage. Remove the owned disposable database after processes stop.
+
+implementation_commit: 41fc498a72f6bb8ace9a566a8d012f8b0df42fbc

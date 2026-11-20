@@ -89,7 +89,7 @@ func TestPostgresFindingSubmissionKeepsProvenanceLookupFailure(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			input := testSubmission("lookup-invocation", "lookup-candidate", []contracts.ArtifactRef{})
+			input := testSubmission("lookup-invocation", "lookup-candidate", fixtureEvidence(t, ctx, pool, grant))
 
 			if _, err := pool.Exec(ctx, test.breakRead); err != nil {
 				t.Fatal(err)
@@ -378,6 +378,7 @@ func TestPostgresFindingBatchTaskOriginAndBoundedResultReferences(t *testing.T) 
 			t.Fatalf("unattributable batch key %q: %v", key, err)
 		}
 	}
+	proof := fixtureEvidence(t, ctx, pool, grant)
 	requests := []ImportRequest{}
 	var selected Receipt
 	for index := range auditcontract.MaxFindingReferences + 2 {
@@ -385,7 +386,7 @@ func TestPostgresFindingBatchTaskOriginAndBoundedResultReferences(t *testing.T) 
 		if index == auditcontract.MaxFindingReferences+1 {
 			key = auditcontract.ExecutionItemKey(1)
 		}
-		input := testSubmission(fmt.Sprintf("invocation-%03d", index), fmt.Sprintf("candidate-%03d", index), []contracts.ArtifactRef{})
+		input := testSubmission(fmt.Sprintf("invocation-%03d", index), fmt.Sprintf("candidate-%03d", index), proof)
 		input.ItemKey = &key
 		receipt, replayed, err := service.Submit(ctx, grant, input)
 		if err != nil || replayed || receipt.Origin.Audit == nil {

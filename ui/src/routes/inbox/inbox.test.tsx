@@ -530,7 +530,7 @@ describe("Inbox", () => {
     server.override = (url) => {
       if (
         url.pathname !== "/v1/findings" ||
-        url.searchParams.get("verdict") !== "unreviewed"
+        url.searchParams.get("verdict") !== "needs_review"
       )
         return undefined;
       return url.searchParams.has("cursor")
@@ -974,7 +974,7 @@ describe("Inbox", () => {
         gaps: 0,
         pendingTasks: 2,
         findings: 0,
-        unreviewedFindings: 0,
+        needsReviewFindings: 0,
       });
       renderApplication("/?item=check:audit_trace", {
         server: inboxServer(server),
@@ -1080,7 +1080,7 @@ describe("Inbox", () => {
         completedTasks: 2,
         gaps: 1,
         pendingTasks: 2,
-        unreviewedFindings: 1,
+        needsReviewFindings: 1,
       },
     );
     renderApplication("/?item=check:audit_paused", {

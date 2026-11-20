@@ -170,7 +170,7 @@ func TestArtifactNameMappingAndModelProjections(t *testing.T) {
 	}
 	maximumName := "a" + strings.Repeat("b", MaximumNameBytes-1)
 	maximumArtifactName, err := ArtifactName(maximumName)
-	if err != nil || len(maximumArtifactName) != MaximumArtifactNameBytes {
+	if err != nil || len(maximumArtifactName) != 128 {
 		t.Fatalf("maximum ArtifactName = (%d bytes, %v)", len(maximumArtifactName), err)
 	}
 	if _, err := ArtifactName(maximumName + "b"); err == nil {

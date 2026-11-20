@@ -2,7 +2,11 @@ import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useId } from "react";
 import { useParams, useSearchParams } from "react-router";
 import { collectAuditPages } from "../../../api/audit-collections";
-import { listProjectFindings } from "../../../api/audits";
+import {
+  findingNeedsReview,
+  findingSeverity,
+  listProjectFindings,
+} from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
 import { ErrorNotice } from "../../../app/error-notice";
 import { FINDING_STATE_LABELS } from "../../../app/vocabulary";
@@ -73,10 +77,10 @@ export function ProjectFindingsRoute() {
           .toLocaleLowerCase()
           .includes(search)) &&
       (filters.severity === undefined ||
-        row.analystSeverity === filters.severity) &&
+        findingSeverity(row) === filters.severity) &&
       (verdict === undefined ||
-        (verdict === "unreviewed"
-          ? row.analystVerdict === null
+        (verdict === "needs_review"
+          ? findingNeedsReview(row)
           : row.analystVerdict === verdict)),
   );
   const visible = matching
@@ -192,7 +196,7 @@ export function ProjectFindingsRoute() {
         </div>
         <p className="ui-caption">
           Filters and counts describe loaded records. Severity is the
-          analyst&apos;s rating; suggestions stay with the sources.
+          analyst&apos;s rating when present, otherwise the source suggestion.
         </p>
       </div>
       <div className="issues-project-count">

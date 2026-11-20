@@ -358,6 +358,7 @@ def test_selected_tools_and_adk_descriptions(selected, tmp_path):
         assert await registry.toolsets["security-findings@1"].probe() == frozenset(
             {
                 "finding",
+                "record_fact",
                 "list_findings",
                 "list_project_findings",
                 "read_project_finding",

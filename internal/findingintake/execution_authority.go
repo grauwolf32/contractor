@@ -66,9 +66,9 @@ func (s *Service) findExecutionReplay(ctx context.Context, e intakeExecution, in
 	}
 	return previous, true, nil
 }
-func (s *Service) verifyIntakeExecution(ctx context.Context, tx pgx.Tx, e intakeExecution, itemKey *string) (Origin, string, *string, error) {
+func (s *Service) verifyIntakeExecution(ctx context.Context, tx pgx.Tx, e intakeExecution, itemKey *string, incidental bool) (Origin, string, *string, error) {
 	if e.Worker != nil {
-		return verifyTrustedExecution(ctx, tx, *e.Worker, itemKey, s.storage)
+		return verifyTrustedExecution(ctx, tx, *e.Worker, itemKey, incidental, s.storage)
 	}
 	execution, err := runstore.NewPostgresTxStore(tx, s.storage).LockStageOperation(ctx, e.RunID, e.StageID, e.ClaimID)
 	if err != nil {
@@ -90,11 +90,19 @@ func (s *Service) verifyIntakeExecution(ctx context.Context, tx pgx.Tx, e intake
 		if itemKey != nil {
 			key = *itemKey
 		}
-		task, err := querystore.New(tx, s.storage).ExecutionTaskOrigin(ctx, *run.AuditExecutionID, run.RunID, key)
-		if err != nil {
-			return Origin{}, "", nil, err
+		if incidental && itemKey == nil {
+			auditID, err := querystore.New(tx, s.storage).ExecutionAuditOrigin(ctx, *run.AuditExecutionID, run.RunID)
+			if err != nil {
+				return Origin{}, "", nil, err
+			}
+			origin.Audit = &AuditOrigin{AuditID: auditID, ExecutionID: *run.AuditExecutionID}
+		} else {
+			task, err := querystore.New(tx, s.storage).ExecutionTaskOrigin(ctx, *run.AuditExecutionID, run.RunID, key)
+			if err != nil {
+				return Origin{}, "", nil, err
+			}
+			origin.Audit = &AuditOrigin{AuditID: task.AuditID, ExecutionID: *run.AuditExecutionID, TaskID: task.TaskID, Hypothesis: task.Hypothesis}
 		}
-		origin.Audit = &AuditOrigin{AuditID: task.AuditID, ExecutionID: *run.AuditExecutionID, TaskID: task.TaskID, Hypothesis: task.Hypothesis}
 	} else if itemKey != nil && (e.Source == nil || e.Source.RunID == e.RunID) {
 		return Origin{}, "", nil, ErrInvalid
 	}

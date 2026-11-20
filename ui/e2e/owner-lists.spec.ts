@@ -119,7 +119,7 @@ test("Inbox badge describes a failed findings continuation as a lower bound", as
         return fulfillJSON(route, { items: [owner], page: { hasMore: false } });
       if (
         url.pathname === "/v1/findings" &&
-        url.searchParams.get("verdict") === "unreviewed"
+        url.searchParams.get("verdict") === "needs_review"
       ) {
         if (url.searchParams.has("cursor"))
           return fulfillJSON(

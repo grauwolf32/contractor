@@ -221,10 +221,10 @@ func TestProjectFindingPagesStayBoundedAtTenThousandFindingsAndFiftyThousandSour
 	// to fill a page. Empty windows expose progress through the same cursor.
 	confirmed := auditstore.FindingConfirmed
 	for _, filter := range []struct {
-		name       string
-		state      *auditstore.FindingState
-		unreviewed bool
-		want       int
+		name        string
+		state       *auditstore.FindingState
+		needsReview bool
+		want        int
 	}{
 		{"unassessed", nil, true, 10000}, {"no confirmed matches", &confirmed, false, 0},
 	} {
@@ -238,7 +238,7 @@ func TestProjectFindingPagesStayBoundedAtTenThousandFindingsAndFiftyThousandSour
 				t.Fatalf("%s did not finish its bounded traversal", filter.name)
 			}
 			trace.reads = nil
-			page, err := service.ListFindingsPage(ctx, auditstore.FindingListParams{OwnerID: f.owner, AuditID: f.first, State: filter.state, Unreviewed: filter.unreviewed, AfterCreatedAt: positionTime, AfterFindingID: positionID, Limit: 129})
+			page, err := service.ListFindingsPage(ctx, auditstore.FindingListParams{OwnerID: f.owner, AuditID: f.first, State: filter.state, NeedsReview: filter.needsReview, AfterCreatedAt: positionTime, AfterFindingID: positionID, Limit: 129})
 			if err != nil {
 				t.Fatal(err)
 			}

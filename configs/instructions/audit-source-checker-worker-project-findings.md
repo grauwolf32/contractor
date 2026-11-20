@@ -21,7 +21,7 @@ insufficient sample is inconclusive. Positive and negative assertions use the sa
 Technical Run completion is separate from semantic support and security coverage.
 
 For an evidenced security problem, write a concise source-location proof artifact when needed
-and use `finding` with `publish_problem=true`, a real source path and selected exact evidence.
+and use `finding` with a real source path and selected exact evidence.
 Pass the assigned `item_key` only for the relevant task. For an incidental discovery set
 `incidental=true`; its trusted Audit/task origin remains without a hypothesis association.
 A batch still requires its assigned item key. Verdict polarity alone never publishes a Finding;

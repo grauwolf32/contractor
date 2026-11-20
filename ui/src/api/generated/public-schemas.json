@@ -6797,6 +6797,23 @@
               "pattern": "^/candidates/[0-9]{1,3}$"
             }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schema", "availability", "algorithm", "value"],
+          "properties": {
+            "schema": {
+              "type": "string",
+              "const": "contractor.finding.fingerprint-projection.v1"
+            },
+            "availability": { "type": "string", "const": "available" },
+            "algorithm": {
+              "type": "string",
+              "const": "contractor/fact-evidence/v1"
+            },
+            "value": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+          }
         }
       ]
     },
@@ -7036,7 +7053,8 @@
           "type": "string",
           "enum": [
             "contractor/producer-issue/v1",
-            "contractor/snapshot-issue-anchor/v1"
+            "contractor/snapshot-issue-anchor/v1",
+            "contractor/fact-evidence/v1"
           ]
         },
         "value": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
@@ -7456,7 +7474,11 @@
     "FindingAuditOrigin": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["auditId", "executionId", "taskId"],
+      "required": ["auditId", "executionId"],
+      "dependentRequired": {
+        "hypothesis": ["taskId"],
+        "hypothesisSnapshot": ["hypothesis", "taskId"]
+      },
       "properties": {
         "hypothesisSnapshot": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingExactArtifact"
@@ -7803,7 +7825,7 @@
         "gaps",
         "pendingTasks",
         "findings",
-        "unreviewedFindings"
+        "needsReviewFindings"
       ],
       "properties": {
         "auditId": {
@@ -7821,7 +7843,7 @@
         "gaps": { "type": "integer", "minimum": 0 },
         "pendingTasks": { "type": "integer", "minimum": 0 },
         "findings": { "type": "integer", "minimum": 0 },
-        "unreviewedFindings": { "type": "integer", "minimum": 0 }
+        "needsReviewFindings": { "type": "integer", "minimum": 0 }
       }
     },
     "OwnerFindingPage": {
@@ -11670,7 +11692,8 @@
             "sitemap-openapi-join@1",
             "sitemap-apply-openapi@1",
             "openapi-prepare-work@1",
-            "publish-findings@1"
+            "publish-findings@1",
+            "memory-snapshot@1"
           ]
         },
         "arguments": {

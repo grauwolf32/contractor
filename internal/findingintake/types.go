@@ -27,20 +27,24 @@ const (
 	APIVersion = contracts.APIVersion
 	// The proposal keeps its 8 MiB document ceiling. The complete private
 	// submission can additionally carry selected HTTP evidence (LIM-FND-32).
-	MaxRequestBytes   = artifacts.MaxPayloadSize
-	MaxEvidenceRefs   = auditdomain.MaximumEvidencePerItem
-	proposalMediaType = "application/json"
+	MaxRequestBytes      = artifacts.MaxPayloadSize
+	MaxEvidenceRefs      = auditdomain.MaximumEvidencePerItem
+	proposalMediaType    = "application/json"
+	MaxFactEvidenceRefs  = auditdomain.MaximumFactEvidence
+	MaxFactAuthoredBytes = 32 << 10
 )
 
 // The public API answers these errors with the Kind each one reports
 // (apierror); the private API keeps its own finding codes for the Runtime.
 var (
-	ErrInvalid         = apierror.New(apierror.InvalidRequest, "finding proposal request is invalid")
-	ErrNotFound        = apierror.New(apierror.NotFound, "finding proposal receipt was not found")
-	ErrConflict        = apierror.New(apierror.Conflict, "finding proposal submission conflicts with its receipt")
-	ErrAccessDenied    = errors.New("finding proposal access is denied")
-	ErrToolNotSelected = errors.New("security finding tool is not selected")
-	ErrAuditClosed     = errors.New("finding proposal destination Audit is closed")
+	ErrProjectRequired  = fmt.Errorf("%w: finding requires an active Project", ErrInvalid)
+	ErrEvidenceRequired = fmt.Errorf("%w: finding requires selected exact evidence", ErrInvalid)
+	ErrInvalid          = apierror.New(apierror.InvalidRequest, "finding proposal request is invalid")
+	ErrNotFound         = apierror.New(apierror.NotFound, "finding proposal receipt was not found")
+	ErrConflict         = apierror.New(apierror.Conflict, "finding proposal submission conflicts with its receipt")
+	ErrAccessDenied     = errors.New("finding proposal access is denied")
+	ErrToolNotSelected  = errors.New("security finding tool is not selected")
+	ErrAuditClosed      = errors.New("finding proposal destination Audit is closed")
 	// ErrCollectionKeyConflict reports a finding collection clientKey that is
 	// already bound to another selection. Like a reused Idempotency-Key it is
 	// permanent: only a new clientKey can publish the changed selection.
@@ -53,7 +57,6 @@ var identityPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
 type Submission struct {
 	Incidental     bool                              `json:"incidental,omitempty"`
 	ItemKey        *string                           `json:"itemKey,omitempty"`
-	PublishProblem bool                              `json:"publishProblem,omitempty"`
 	DerivedAnchors json.RawMessage                   `json:"derived_anchors,omitempty"`
 	APIVersion     string                            `json:"apiVersion"`
 	InvocationID   string                            `json:"invocationId"`
@@ -71,15 +74,14 @@ func (input *Submission) UnmarshalJSON(data []byte) error {
 	// A missing selection is omitted, never an explicitly unknown capture.
 	// Decode only its raw token; all fields were strictly checked above.
 	var fields struct {
-		HTTPEvidence   json.RawMessage `json:"httpEvidence"`
-		PublishProblem json.RawMessage `json:"publishProblem"`
-		ItemKey        json.RawMessage `json:"itemKey"`
-		Incidental     json.RawMessage `json:"incidental"`
+		HTTPEvidence json.RawMessage `json:"httpEvidence"`
+		ItemKey      json.RawMessage `json:"itemKey"`
+		Incidental   json.RawMessage `json:"incidental"`
 	}
 	if err := json.Unmarshal(data, &fields); err != nil {
 		return err
 	}
-	if string(fields.Incidental) == "null" || string(fields.HTTPEvidence) == "null" || string(fields.PublishProblem) == "null" || string(fields.ItemKey) == "null" {
+	if string(fields.Incidental) == "null" || string(fields.HTTPEvidence) == "null" || string(fields.ItemKey) == "null" {
 		return ErrInvalid
 	}
 	return nil
@@ -104,7 +106,7 @@ type AuditOrigin struct {
 	HypothesisSnapshot *ExactArtifact               `json:"hypothesisSnapshot,omitempty"`
 	AuditID            string                       `json:"auditId"`
 	ExecutionID        string                       `json:"executionId"`
-	TaskID             string                       `json:"taskId"`
+	TaskID             string                       `json:"taskId,omitempty"`
 	Hypothesis         *auditcontract.HypothesisRef `json:"hypothesis,omitempty"`
 }
 
@@ -166,14 +168,13 @@ type Receipt struct {
 }
 
 type SubmissionResponse struct {
-	FindingID        *string         `json:"findingId,omitempty"`
-	PublicationError string          `json:"publicationError,omitempty"`
-	APIVersion       string          `json:"apiVersion"`
-	ProposalID       string          `json:"proposalId"`
-	ReceiptID        string          `json:"receiptId"`
-	Proposal         ExactArtifact   `json:"proposal"`
-	Evidence         []ExactArtifact `json:"evidence"`
-	Replayed         bool            `json:"replayed"`
+	FindingID  *string         `json:"findingId,omitempty"`
+	APIVersion string          `json:"apiVersion"`
+	ProposalID string          `json:"proposalId"`
+	ReceiptID  string          `json:"receiptId"`
+	Proposal   ExactArtifact   `json:"proposal"`
+	Evidence   []ExactArtifact `json:"evidence"`
+	Replayed   bool            `json:"replayed"`
 }
 
 type ListQuery struct {
@@ -228,6 +229,15 @@ func canonicalize(input Submission) (canonicalSubmission, error) {
 	if err != nil {
 		return canonicalSubmission{}, fmt.Errorf("%w: proposal document", ErrInvalid)
 	}
+	if input.Proposal.SeveritySuggestion == "informational" {
+		count := len(input.EvidenceRefs)
+		if input.HTTPEvidence != nil {
+			count++
+		}
+		if count == 0 || count > MaxFactEvidenceRefs || len(proposalBytes) > MaxFactAuthoredBytes {
+			return canonicalSubmission{}, fmt.Errorf("%w: informational payload/evidence limits", ErrInvalid)
+		}
+	}
 	reportProjection, err := auditdomain.EncodeFindingReportProjection(auditdomain.ProjectFindingReport(input.Proposal))
 	if err != nil {
 		return canonicalSubmission{}, fmt.Errorf("%w: proposal report projection", ErrInvalid)
@@ -235,7 +245,7 @@ func canonicalize(input Submission) (canonicalSubmission, error) {
 	refs := append([]contracts.ArtifactRef(nil), input.EvidenceRefs...)
 	for _, ref := range refs {
 		if err := ref.ValidateExact(); err != nil ||
-			ref.Namespace == artifactpolicy.FindingProposalNamespace {
+			ref.Namespace == artifactpolicy.FindingProposalNamespace || artifactpolicy.IsModelHiddenBinding(ref.Namespace, ref.Name) {
 			return canonicalSubmission{}, fmt.Errorf("%w: evidence reference", ErrInvalid)
 		}
 	}
@@ -292,12 +302,11 @@ func canonicalize(input Submission) (canonicalSubmission, error) {
 	digestValue := struct {
 		ItemKey        *string                           `json:"itemKey,omitempty"`
 		Incidental     bool                              `json:"incidental,omitempty"`
-		PublishProblem bool                              `json:"publishProblem,omitempty"`
 		DerivedAnchors json.RawMessage                   `json:"derived_anchors,omitempty"`
 		Proposal       json.RawMessage                   `json:"proposal"`
 		EvidenceRefs   []contracts.ArtifactRef           `json:"evidenceRefs"`
 		HTTPEvidence   *auditdomain.CapturedHTTPExchange `json:"httpEvidence,omitempty"`
-	}{ItemKey: input.ItemKey, Incidental: input.Incidental, PublishProblem: input.PublishProblem, DerivedAnchors: input.DerivedAnchors, Proposal: proposalBytes, EvidenceRefs: refs, HTTPEvidence: input.HTTPEvidence}
+	}{ItemKey: input.ItemKey, Incidental: input.Incidental, DerivedAnchors: input.DerivedAnchors, Proposal: proposalBytes, EvidenceRefs: refs, HTTPEvidence: input.HTTPEvidence}
 	encoded, err := json.Marshal(digestValue)
 	if err != nil {
 		return canonicalSubmission{}, fmt.Errorf("canonicalize finding submission: %w", err)

@@ -88,6 +88,7 @@ func TestPostgresRunProposalQuotaSerializesDistinctSubmissions(t *testing.T) {
 	defer cancel()
 	pool := isolatedFindingPool(t, ctx)
 	grant := seedQuotaRun(t, ctx, pool)
+	proof := fixtureEvidence(t, ctx, pool, grant)
 
 	gate := &quotaCountGate{match: "count(*) FROM finding_proposal_receipts", held: make(chan struct{}), resume: make(chan struct{})}
 	defer gate.release()
@@ -103,7 +104,7 @@ func TestPostgresRunProposalQuotaSerializesDistinctSubmissions(t *testing.T) {
 	}
 	results := make(chan error, 2)
 	go func() {
-		_, _, err := firstService.Submit(ctx, grant, testSubmission("invocation-a", "candidate-a", []contracts.ArtifactRef{}))
+		_, _, err := firstService.Submit(ctx, grant, testSubmission("invocation-a", "candidate-a", proof))
 		results <- err
 	}()
 	select {
@@ -113,7 +114,7 @@ func TestPostgresRunProposalQuotaSerializesDistinctSubmissions(t *testing.T) {
 	}
 	secondDone := make(chan error, 1)
 	go func() {
-		_, _, err := secondService.Submit(ctx, grant, testSubmission("invocation-b", "candidate-b", []contracts.ArtifactRef{}))
+		_, _, err := secondService.Submit(ctx, grant, testSubmission("invocation-b", "candidate-b", proof))
 		secondDone <- err
 	}()
 	// The first submission holds its transaction after counting. The second
@@ -161,9 +162,9 @@ SELECT EXISTS (
 	if count := quotaReceiptCount(t, ctx, pool); admitted != 1 || rejected != 1 || count != maxProposalsPerRun {
 		t.Fatalf("admitted=%d rejected=%d count=%d", admitted, rejected, count)
 	}
-	winner := testSubmission("invocation-a", "candidate-a", []contracts.ArtifactRef{})
+	winner := testSubmission("invocation-a", "candidate-a", proof)
 	if firstErr != nil {
-		winner = testSubmission("invocation-b", "candidate-b", []contracts.ArtifactRef{})
+		winner = testSubmission("invocation-b", "candidate-b", proof)
 	}
 	stored, err := readReceiptBySubmission(ctx, pool, grant.AllocationID, winner.InvocationID, winner.SubmissionID)
 	if err != nil {
@@ -173,7 +174,7 @@ SELECT EXISTS (
 	if err != nil || !replayed || replay.ReceiptID != stored.ReceiptID {
 		t.Fatalf("replay at capacity = (%s, replayed=%t, %v), want %s", replay.ReceiptID, replayed, err, stored.ReceiptID)
 	}
-	_, _, err = secondService.Submit(ctx, grant, testSubmission("invocation-c", "candidate-c", []contracts.ArtifactRef{}))
+	_, _, err = secondService.Submit(ctx, grant, testSubmission("invocation-c", "candidate-c", proof))
 	if !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "quota") {
 		t.Fatalf("4097th distinct submission = %v, want the quota rejection", err)
 	}
@@ -190,6 +191,7 @@ func TestPostgresRunProposalQuotaRollbackLeavesSlot(t *testing.T) {
 	defer cancel()
 	pool := isolatedFindingPool(t, ctx)
 	grant := seedQuotaRun(t, ctx, pool)
+	proof := fixtureEvidence(t, ctx, pool, grant)
 	gate := &quotaCountGate{match: "INSERT INTO finding_proposal_receipts", held: make(chan struct{}), resume: make(chan struct{})}
 	defer gate.release()
 	actor, _ := quotaActorPool(t, ctx, pool, gate)
@@ -201,7 +203,7 @@ func TestPostgresRunProposalQuotaRollbackLeavesSlot(t *testing.T) {
 	defer cancelSubmit()
 	done := make(chan error, 1)
 	go func() {
-		_, _, err := actorService.Submit(submitCtx, grant, testSubmission("invocation-rollback", "candidate-rollback", []contracts.ArtifactRef{}))
+		_, _, err := actorService.Submit(submitCtx, grant, testSubmission("invocation-rollback", "candidate-rollback", proof))
 		done <- err
 	}()
 	select {
@@ -230,7 +232,7 @@ SELECT (SELECT count(*) FROM artifact_bindings
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, replayed, err := service.Submit(ctx, grant, testSubmission("invocation-next", "candidate-next", []contracts.ArtifactRef{})); err != nil || replayed {
+	if _, replayed, err := service.Submit(ctx, grant, testSubmission("invocation-next", "candidate-next", proof)); err != nil || replayed {
 		t.Fatalf("submission for the freed slot = (replayed=%t, %v)", replayed, err)
 	}
 	if count := quotaReceiptCount(t, ctx, pool); count != maxProposalsPerRun {
@@ -274,10 +276,13 @@ func quotaSubmissionGrantWithInputs(
 		t.Fatal(err)
 	}
 	runs := runstore.NewPostgresStore(pool, artifactpgtest.NewStorage())
-	project := projectID
+	var project *string
+	if projectID != "" {
+		project = &projectID
+	}
 	if _, err := runstoretest.CreateRun(ctx, runs, runstore.CreateRunParams{
 		LaneClass: resolved.LaneClassModel,
-		RunID:     runID, OwnerID: ownerID, ProjectID: &project,
+		RunID:     runID, OwnerID: ownerID, ProjectID: project,
 		WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: workflowJSON,
 		Parameters: map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),

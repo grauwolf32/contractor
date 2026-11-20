@@ -326,17 +326,23 @@ def _validate_metadata(value: dict[str, Any]) -> None:
             origin = entry["audit_origin"]
             object_fields(
                 origin,
-                "audit_id execution_id task_id",
-                "hypothesis hypothesis_snapshot_document_id",
+                "audit_id execution_id",
+                "task_id hypothesis hypothesis_snapshot_document_id",
             )
             require(
                 all(
                     isinstance(origin[key], str)
                     and RESOURCE_ID_PATTERN.fullmatch(origin[key]) is not None
-                    for key in ("audit_id", "execution_id", "task_id")
+                    for key in ("audit_id", "execution_id")
                 )
             )
+            if "task_id" in origin:
+                require(
+                    isinstance(origin["task_id"], str)
+                    and RESOURCE_ID_PATTERN.fullmatch(origin["task_id"]) is not None
+                )
             if "hypothesis" in origin:
+                require("task_id" in origin)
                 hypothesis = origin["hypothesis"]
                 object_fields(hypothesis, "id revision")
                 require(

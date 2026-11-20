@@ -78,7 +78,7 @@ type FindingListParams struct {
 	AuditID         string
 	State           *FindingState
 	Verdict         *AnalystVerdict
-	Unreviewed      bool
+	NeedsReview     bool
 	Severity        *FindingSeverity
 	AfterCreatedAt  *time.Time
 	AfterFindingID  string
@@ -92,7 +92,7 @@ type OwnerFindingListParams struct {
 	OwnerID         string
 	State           *FindingState
 	Verdict         *AnalystVerdict
-	Unreviewed      bool
+	NeedsReview     bool
 	Severity        *FindingSeverity
 	BeforeCreatedAt *time.Time
 	BeforeFindingID string
@@ -109,18 +109,18 @@ type FindingRevision struct {
 // technical settlement. Findings use the Audit's Project membership; neither
 // these counts nor Run completion imply a supported hypothesis.
 type WorkspaceSummary struct {
-	AuditID            string    `json:"auditId"`
-	AuditRevision      uint64    `json:"auditRevision"`
-	AsOf               time.Time `json:"asOf"`
-	Iteration          int       `json:"iteration"`
-	ExecutionState     string    `json:"executionState"`
-	OutstandingRuns    int       `json:"outstandingRuns"`
-	TotalTasks         int       `json:"totalTasks"`
-	CompletedTasks     int       `json:"completedTasks"`
-	Gaps               int       `json:"gaps"`
-	PendingTasks       int       `json:"pendingTasks"`
-	Findings           int       `json:"findings"`
-	UnreviewedFindings int       `json:"unreviewedFindings"`
+	AuditID             string    `json:"auditId"`
+	AuditRevision       uint64    `json:"auditRevision"`
+	AsOf                time.Time `json:"asOf"`
+	Iteration           int       `json:"iteration"`
+	ExecutionState      string    `json:"executionState"`
+	OutstandingRuns     int       `json:"outstandingRuns"`
+	TotalTasks          int       `json:"totalTasks"`
+	CompletedTasks      int       `json:"completedTasks"`
+	Gaps                int       `json:"gaps"`
+	PendingTasks        int       `json:"pendingTasks"`
+	Findings            int       `json:"findings"`
+	NeedsReviewFindings int       `json:"needsReviewFindings"`
 }
 
 type EventListParams struct {

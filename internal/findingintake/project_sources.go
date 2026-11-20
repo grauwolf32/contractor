@@ -115,10 +115,13 @@ func (s *Service) ListProjectSources(ctx context.Context, ownerID, projectID, fi
 		}
 		value.Origin.RunDeleted = deleted != nil
 		if auditID != nil {
-			if executionID == nil || taskID == nil {
+			if executionID == nil || (taskID == nil && len(hypothesis) != 0) {
 				return ProjectSourcePage{}, ErrInvalid
 			}
-			value.Origin.Audit = &AuditOrigin{AuditID: *auditID, ExecutionID: *executionID, TaskID: *taskID}
+			value.Origin.Audit = &AuditOrigin{AuditID: *auditID, ExecutionID: *executionID}
+			if taskID != nil {
+				value.Origin.Audit.TaskID = *taskID
+			}
 			if len(hypothesis) != 0 {
 				var ref auditcontract.HypothesisRef
 				if strictjson.Decode(hypothesis, &ref) != nil || !contracts.ValidResourceID(ref.ID) || ref.Revision == 0 || ref.Revision > contracts.MaxExactInteger {

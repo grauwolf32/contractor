@@ -26,6 +26,33 @@ export type FindingProposalReceipt =
 export type ProjectFinding = components["schemas"]["ProjectFinding"];
 export type ProjectFindingSummary =
   components["schemas"]["ProjectFindingSummary"];
+/** Analyst rating takes precedence; source suggestions never become assessments. */
+export function findingSeverity(finding: {
+  analystSeverity: FindingSeverity | null;
+  severitySuggestion?: string;
+  claim?: ProjectFinding["claim"];
+}): string {
+  return (
+    finding.analystSeverity ??
+    finding.severitySuggestion ??
+    finding.claim?.severity_suggestion ??
+    ""
+  );
+}
+
+export function findingNeedsReview(finding: {
+  analystVerdict: FindingVerdict | null;
+  state: FindingState | null;
+  analystSeverity: FindingSeverity | null;
+  severitySuggestion?: string;
+  claim?: ProjectFinding["claim"];
+}): boolean {
+  return (
+    (finding.analystVerdict === null || finding.state === "proposed") &&
+    findingSeverity(finding) !== "informational"
+  );
+}
+
 export type ProjectFindingEditResult =
   components["schemas"]["EditProjectFindingResult"];
 export type EditProjectFindingRequest =
@@ -40,7 +67,7 @@ export interface FindingPageRequest extends PageRequest {
   auditRevision?: number;
   projectRevision?: number;
   state?: FindingState;
-  verdict?: "true_positive" | "false_positive" | "unreviewed";
+  verdict?: "true_positive" | "false_positive" | "needs_review";
   severity?: FindingSeverity;
 }
 

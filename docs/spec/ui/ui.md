@@ -1074,7 +1074,7 @@ Technical details. The objective is prominent; scope remains available beside it
 **UI-R143.** `GET /v1/audits/{auditId}/workspace` returns one owner-scoped SQL
 snapshot (`auditRevision`, `asOf`): current iteration, whole-Audit `totalTasks`,
 `completedTasks`, `gaps`, `pendingTasks`, and separate `findings` and
-`unreviewedFindings`. It carries no Round, issue bucket or approval count.
+`needsReviewFindings`. It carries no Round, issue bucket or approval count.
 
 **UI-R144.** Completed Tasks (settled without a technical gap), gaps (settled
 with a gap), and pending Tasks (ready or selected) partition all accepted Tasks.
@@ -1671,8 +1671,8 @@ occupies the next; J/K navigation remains.
 **UI-R222.** Issues offers severity, newest, oldest, state and title sorting plus
 text search over loaded title/subject previews and Project. Severity sorting uses an
 analyst rating when set, otherwise the separate AI suggestion, with unset last;
-ties are deterministic by creation time and identity. State and analyst severity
-filters read the canonical Project state; an absent assessment is shown explicitly. Coloured severity pills in the source list
+ties are deterministic by creation time and identity. State and severity
+filters read canonical Project fields, applying FND-R235; an absent assessment is shown explicitly. Coloured severity pills in the source list
 retain explicit analyst/AI labels and never imply an analyst rating from a
 suggestion. Sort/search are URL-backed projections of
 the existing bounded loaded list, preserve the selected finding and its draft, and

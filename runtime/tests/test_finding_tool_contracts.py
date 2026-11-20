@@ -11,6 +11,7 @@ from contractor_runtime.toolsets.security_findings.facades import (
     CodeFindingTool,
     GeneralFindingTool,
     HTTPFindingTool,
+    RecordFactTool,
 )
 from contractor_runtime.toolsets.security_findings.reader import ListFindingsTool
 
@@ -18,6 +19,7 @@ from contractor_runtime.toolsets.security_findings.reader import ListFindingsToo
 def provider_contracts() -> dict:
     tools = {
         "general": GeneralFindingTool(None),
+        "fact": RecordFactTool(None),
         "code": CodeFindingTool(None),
         "http": HTTPFindingTool(None),
         "reader": ListFindingsTool((), "sha256:" + "a" * 64, None, ()),

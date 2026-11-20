@@ -29,7 +29,10 @@ from contractor_runtime.toolsets.security_findings.anchors import (
     ExactSourceCache,
     prepare_anchors,
 )
-from contractor_runtime.toolsets.security_findings.submission import build_submission
+from contractor_runtime.toolsets.security_findings.submission import (
+    build_submission,
+    validate_informational_payload,
+)
 
 
 def call_client_key(context: ToolContext) -> str:
@@ -71,17 +74,18 @@ class FindingPublisher:
         proposed_checks: list[ProposedCheck] | None = None,
         request_id: int | None = None,
         caido_request_id: str | None = None,
-        publish_problem: bool = False,
+        severity_suggestion: str | None = None,
         item_key: str | None = None,
         incidental: bool = False,
         _call: RecordedToolCall | None = None,
+        _tool_name: str = "finding",
     ) -> dict[str, Any]:
         recording = (
             nullcontext(_call)
             if _call is not None
             else RecordedToolCall(
                 self.metrics,
-                "finding",
+                _tool_name,
                 {},
                 secrets=self.secrets,
                 bound_error=_bounded_finding_error,
@@ -121,7 +125,7 @@ class FindingPublisher:
                 evidence_refs=refs,
                 standard_refs=standards,
                 proposed_checks=checks,
-                publish_problem=publish_problem,
+                severity_suggestion=severity_suggestion,
                 item_key=item_key,
                 incidental=incidental,
             )
@@ -130,10 +134,13 @@ class FindingPublisher:
                 proposal["locations"] = normalized
             if exchange is not None:
                 request["httpEvidence"] = exchange
+            validate_informational_payload(proposal, len(refs) + (exchange is not None))
             audit_binding = self.resources.proposal_collector
             audit_collector = audit_binding() if audit_binding is not None else None
             if audit_collector is not None:
-                audit_collector.check_finding_item(context.invocation_id, item_key)
+                audit_collector.check_finding_item(
+                    context.invocation_id, item_key, incidental=incidental
+                )
                 audit_collector.check_proposal_refs(
                     context.invocation_id, proposal["standard_refs"]
                 )
@@ -142,7 +149,7 @@ class FindingPublisher:
             # same problem as its own field error.
             for reference in proposal["standard_refs"]:
                 check_cwe_reference(reference)
-            if self.artifacts is not None:
+            if self.artifacts is not None and proposal["severity_suggestion"] != "informational":
                 request["derived_anchors"] = await prepare_anchors(
                     self.artifacts, request, self.sources
                 )
@@ -158,8 +165,6 @@ class FindingPublisher:
             }
             if "findingId" in receipt:
                 result["finding_id"] = receipt["findingId"]
-            if "publicationError" in receipt:
-                result["publication_error"] = receipt["publicationError"]
             if exchange is not None:
                 result["evidence_refs"] = [item["ref"] for item in receipt["evidence"]]
             call.succeed(result, arguments={"location_count": len(normalized)})

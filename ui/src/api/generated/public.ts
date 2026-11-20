@@ -4521,7 +4521,7 @@ export interface components {
             mediaType: components["schemas"]["MediaType"];
             sizeBytes: number;
         };
-        /** @description Immutable deterministic key evidence; independent of analyst triage. Snapshot keys apply only to the exact Git commit and source digest. */
+        /** @description Immutable deterministic key evidence; independent of analyst triage. Snapshot keys apply only to the exact Git commit and source digest. Informational fact keys compare the complete unordered set of selected evidence content digests. */
         FindingFingerprintProjection: {
             /** @constant */
             schema: "contractor.finding.fingerprint-projection.v1";
@@ -4559,6 +4559,14 @@ export interface components {
             ruleId: string;
             report: components["schemas"]["FindingExactArtifact"];
             recordLocator: string;
+        } | {
+            /** @constant */
+            schema: "contractor.finding.fingerprint-projection.v1";
+            /** @constant */
+            availability: "available";
+            /** @constant */
+            algorithm: "contractor/fact-evidence/v1";
+            value: string;
         };
         FindingAnchorContext: {
             /** @constant */
@@ -4627,7 +4635,7 @@ export interface components {
         };
         FindingCorrelationBasis: {
             /** @enum {string} */
-            algorithm: "contractor/producer-issue/v1" | "contractor/snapshot-issue-anchor/v1";
+            algorithm: "contractor/producer-issue/v1" | "contractor/snapshot-issue-anchor/v1" | "contractor/fact-evidence/v1";
             value: string;
         };
         FindingSubject: {
@@ -4777,7 +4785,7 @@ export interface components {
             hypothesisSnapshot?: components["schemas"]["FindingExactArtifact"];
             auditId: components["schemas"]["ResourceId"];
             executionId: components["schemas"]["ResourceId"];
-            taskId: components["schemas"]["ResourceId"];
+            taskId?: components["schemas"]["ResourceId"];
             hypothesis?: {
                 id: components["schemas"]["ResourceId"];
                 revision: number;
@@ -4887,7 +4895,7 @@ export interface components {
             gaps: number;
             pendingTasks: number;
             findings: number;
-            unreviewedFindings: number;
+            needsReviewFindings: number;
         };
         OwnerFindingPage: {
             items: components["schemas"]["ProjectFindingSummary"][];
@@ -6154,7 +6162,7 @@ export interface components {
         });
         ServerOperationConfig: {
             /** @enum {string} */
-            ref: "sitemap-openapi-join@1" | "sitemap-apply-openapi@1" | "openapi-prepare-work@1" | "publish-findings@1";
+            ref: "sitemap-openapi-join@1" | "sitemap-apply-openapi@1" | "openapi-prepare-work@1" | "publish-findings@1" | "memory-snapshot@1";
             arguments: {
                 [key: string]: components["schemas"]["ArgumentBinding"] & unknown;
             };
@@ -10425,7 +10433,7 @@ export interface operations {
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];
                 state?: components["schemas"]["FindingState"];
-                verdict?: "true_positive" | "false_positive" | "unreviewed";
+                verdict?: "true_positive" | "false_positive" | "needs_review";
                 severity?: components["schemas"]["FindingSeverity"];
             };
             header?: never;
@@ -11352,7 +11360,7 @@ export interface operations {
                 /** @description Pin this page to the summary revision. Continuations bind owner, filters and revision; stale revisions return 409. */
                 auditRevision?: number;
                 state?: components["schemas"]["FindingState"];
-                verdict?: "true_positive" | "false_positive" | "unreviewed";
+                verdict?: "true_positive" | "false_positive" | "needs_review";
                 severity?: components["schemas"]["FindingSeverity"];
                 /** @description Pin canonical Finding state. Continuations bind both Audit and Project revisions; stale views return 409. */
                 projectRevision?: number;

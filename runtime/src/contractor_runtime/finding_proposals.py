@@ -76,35 +76,20 @@ class FindingProposalClient:
             value = json.loads(response.body)
         except (UnicodeDecodeError, json.JSONDecodeError) as error:
             raise ArtifactTransportError("finding proposal API returned invalid JSON") from error
-        expected = {"apiVersion", "proposalId", "receiptId", "proposal", "evidence", "replayed"}
-        optional = {"findingId", "publicationError"}
-        if (
-            not isinstance(value, dict)
-            or not expected <= set(value)
-            or set(value) - expected - optional
-        ):
+        expected = {
+            "apiVersion",
+            "proposalId",
+            "receiptId",
+            "proposal",
+            "evidence",
+            "replayed",
+            "findingId",
+        }
+        if not isinstance(value, dict) or set(value) != expected:
             raise ArtifactTransportError("finding proposal API returned an invalid receipt")
-        published = value.get("findingId")
-        refused = value.get("publicationError")
-        requested = request.get("publishProblem", False)
-        if (
-            (
-                published is not None
-                and (
-                    not isinstance(published, str)
-                    or _https.REQUEST_ID_PATTERN.fullmatch(published) is None
-                )
-            )
-            or (
-                refused is not None
-                and refused not in {"problem_evidence_required", "problem_project_required"}
-            )
-            or (requested and ((published is None) == (refused is None)))
-            or (not requested and (published is not None or refused is not None))
-        ):
-            raise ArtifactTransportError(
-                "finding proposal API returned invalid publication metadata"
-            )
+        published = value["findingId"]
+        if not isinstance(published, str) or _https.REQUEST_ID_PATTERN.fullmatch(published) is None:
+            raise ArtifactTransportError("finding proposal API returned an invalid Finding ID")
         if value.get("apiVersion") != "contractor/v1alpha1":
             raise ArtifactTransportError("finding proposal API returned an invalid version")
         for field_name in ("proposalId", "receiptId"):

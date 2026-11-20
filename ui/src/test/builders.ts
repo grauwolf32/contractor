@@ -363,7 +363,7 @@ export function workspace(
       | "gaps"
       | "pendingTasks"
       | "findings"
-      | "unreviewedFindings"
+      | "needsReviewFindings"
     >
   > = {},
 ): Schemas["AuditWorkspace"] {
@@ -380,7 +380,7 @@ export function workspace(
     gaps: 0,
     pendingTasks: 0,
     findings: 0,
-    unreviewedFindings: 0,
+    needsReviewFindings: 0,
 
     ...counts,
   });
