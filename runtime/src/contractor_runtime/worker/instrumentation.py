@@ -382,6 +382,8 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 budget = self._budget()
                 if budget is not None:
                     budget.after_model_response(usage)
+                if self._response_recovery and limited:
+                    raise WorkerResponseRecovery("length")
                 if empty:
                     raise WorkerResponseRecovery("empty")
                 if budget is not None and self._compaction is not None and failure is None:

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,14 +17,19 @@ import (
 // This is the ordinary Workflow production path: real Server, Runtime and
 // PostgreSQL, with a scripted provider choosing exact tools and inputs.
 func TestProjectFindingsReaderAcrossProcesses(t *testing.T) {
-	projectFindingsReview(t, false)
+	projectFindingsReview(t, "")
 }
 
 func TestProjectDocumentResponseRecoveryAcrossProcesses(t *testing.T) {
-	projectFindingsReview(t, true)
+	projectFindingsReview(t, "empty")
 }
 
-func projectFindingsReview(t *testing.T, recoverResponse bool) {
+func TestProjectDocumentOutputLimitRecoveryAcrossProcesses(t *testing.T) {
+	projectFindingsReview(t, "length")
+}
+
+func projectFindingsReview(t *testing.T, responseFailure string) {
+	recoverResponse := responseFailure != ""
 	seed := domainGatewayStage{name: "findings/project-seed", tools: withMemoryTools([]string{"finding", "read_artifact", "write_text_artifact"})}
 	seed.steps = append(seed.steps, toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{"name": "proof", "text": "Project proof under selected conditions", "media_type": "text/plain"})))
 	for index := range 101 {
@@ -93,7 +99,14 @@ func projectFindingsReview(t *testing.T, recoverResponse bool) {
 	}), finalGatewayStep("Project analysis retained", map[string]domainArtifactBinding{"report": {namespace: "findings-review", name: "report"}}))
 	if recoverResponse {
 		steps := append([]domainGatewayStep{}, reader.steps[:4]...)
-		steps = append(steps, domainGatewayStep{summary: ""})
+		failureStep := domainGatewayStep{summary: ""}
+		if responseFailure == "length" {
+			failureStep = toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{
+				"name": "truncated-report", "text": "This partial write must never execute", "media_type": "text/markdown",
+			}))
+			failureStep.finishReason = "length"
+		}
+		steps = append(steps, failureStep)
 		reader.steps = append(steps, reader.steps[4:]...)
 	}
 	h := startConfiguredFindingsHarness(t, []domainGatewayStage{seed, reader}, func(root string) {
@@ -161,6 +174,12 @@ func projectFindingsReview(t *testing.T, recoverResponse bool) {
 		if selections != 1 {
 			t.Fatalf("selection repeated %d times", selections)
 		}
+	}
+	if responseFailure == "length" {
+		request, _ := http.NewRequest(http.MethodGet, h.baseURL+"/v1/runs/"+run+"/artifacts/findings-review/truncated-report/metadata", nil)
+		request.Header.Set("Authorization", "Bearer "+publicToken)
+		response := do(t, h.client, request, http.StatusNotFound)
+		response.Body.Close()
 	}
 	if len(h.gateway.Failures()) != 0 || h.gateway.CompletedStages() != 2 {
 		t.Fatal(h.gateway.Failures())

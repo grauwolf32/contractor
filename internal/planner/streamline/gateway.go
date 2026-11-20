@@ -349,9 +349,10 @@ type chatUsage struct {
 // gatewayResponseRejected identifies a received but unusable HTTP 200 reply.
 // Its reason is adapter-owned text and its usage is safe to charge when valid.
 type gatewayResponseRejected struct {
-	reason    string
-	emptyStop bool
-	usage     *genai.GenerateContentResponseUsageMetadata
+	reason        string
+	emptyStop     bool
+	outputLimited bool
+	usage         *genai.GenerateContentResponseUsageMetadata
 }
 
 func (e *gatewayResponseRejected) Error() string {
@@ -378,7 +379,7 @@ func decodeChatResponse(payload []byte) (*model.LLMResponse, error) {
 		return reject("an invalid or filtered choice")
 	}
 	if choice.FinishReason == "length" {
-		return reject("a length-limited choice")
+		return nil, &gatewayResponseRejected{reason: "a length-limited choice", usage: usage, outputLimited: true}
 	}
 	parts := make([]*genai.Part, 0, len(choice.Message.ToolCalls)+1)
 	if strings.TrimSpace(choice.Message.Content) != "" {

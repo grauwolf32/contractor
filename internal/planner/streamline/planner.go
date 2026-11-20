@@ -240,7 +240,7 @@ func (p *streamlinePlanner) Run(
 			continue
 		}
 		if errors.Is(iterationErr, errDocumentResponseRecovery) {
-			message = genai.NewContentFromText("The document work is complete. Submit exactly one complete finish with the retained result artifacts.", genai.RoleUser)
+			message = genai.NewContentFromText("The document work is complete. Submit exactly one complete concise finish with the retained result artifacts.", genai.RoleUser)
 			continue
 		}
 		if iterationErr != nil {
@@ -431,7 +431,13 @@ func (p *streamlinePlanner) newRootAgent(
 		OnModelErrorCallbacks: []llmagent.OnModelErrorCallback{
 			func(ctx agent.Context, _ *model.LLMRequest, providerErr error) (*model.LLMResponse, error) {
 				if ctx.Err() != nil {
-					endModelSpan("cancelled", "planner_cancelled", nil)
+					var rejected *gatewayResponseRejected
+					var received *model.LLMResponse
+					if errors.As(providerErr, &rejected) {
+						state.cancelledGatewayUsage(rejected)
+						received = &model.LLMResponse{UsageMetadata: rejected.usage}
+					}
+					endModelSpan("cancelled", "planner_cancelled", received)
 					return nil, providerErr
 				}
 				var rejected *gatewayResponseRejected
@@ -439,12 +445,14 @@ func (p *streamlinePlanner) newRootAgent(
 				var failure *planner.Error
 				switch {
 				case errors.As(providerErr, &rejected):
-					if rejected.emptyStop && p.readyForDocumentRecovery() {
+					if (rejected.emptyStop || rejected.outputLimited) && p.readyForDocumentRecovery() {
 						failure = state.chargeUsage(rejected.usage)
-						endModelSpan("failed", "planner_gateway_invalid_response", &model.LLMResponse{UsageMetadata: rejected.usage})
+						received := &model.LLMResponse{UsageMetadata: rejected.usage}
 						if failure != nil {
+							endModelSpan("failed", failure.Code, received)
 							return nil, failure
 						}
+						endModelSpan("failed", "planner_gateway_invalid_response", received)
 						p.finishRecovery = true
 						return nil, errDocumentResponseRecovery
 					}

@@ -70,7 +70,11 @@ def test_shared_model_response_recovery():
 
     from contractor_runtime.llm.client import new_gateway_client
     from contractor_runtime.llm.openai import GatewayModelError, OpenAICompatibleGatewayLlm
-    from contractor_runtime.llm.response import empty_stop_response, model_response_failed
+    from contractor_runtime.llm.response import (
+        empty_stop_response,
+        model_response_failed,
+        output_limit_reached,
+    )
 
     cases = json.loads(
         (
@@ -91,14 +95,19 @@ def test_shared_model_response_recovery():
                     http_client=http,
                 ),
             )
-            empty, accepted = False, False
+            empty, accepted, limited = False, False, False
             try:
                 replies = [r async for r in model.generate_content_async(LlmRequest())]
                 empty = empty_stop_response(replies[0])
-                accepted = not empty and not model_response_failed(replies[0])
+                limited = output_limit_reached(replies[0])
+                accepted = not empty and not limited and not model_response_failed(replies[0])
             except GatewayModelError as error:
                 empty = error.empty_stop
-            assert (empty, accepted) == (case["emptyStop"], case["accepted"]), case["name"]
+            assert (empty, accepted, limited) == (
+                case["emptyStop"],
+                case["accepted"],
+                case.get("outputLimited", False),
+            ), case["name"]
 
     for case in cases:
         asyncio.run(scenario(case))
@@ -152,3 +161,80 @@ def test_shared_document_response_policy():
         else:
             with pytest.raises(ValueError):
                 ResolvedAgentTemplate.model_validate(value)
+
+
+@pytest.mark.parametrize(
+    "sequence", [("length",), ("length", "empty"), ("empty", "length"), ("length", "length")]
+)
+def test_output_limit_shares_the_empty_response_allowance(tmp_path, sequence):
+    async def scenario():
+        responses = []
+        for reason in sequence:
+            reply = text_result("partial" if reason == "length" else "")
+            reply.finish_reason = (
+                types.FinishReason.MAX_TOKENS if reason == "length" else types.FinishReason.STOP
+            )
+            responses.append(reply)
+        if len(sequence) == 1:
+            responses.append(text_result("Complete shorter document"))
+        model = scripted_model(responses)
+        state = WorkerState()
+        runtime = await create_runtime(tmp_path, state, {}, model, response_recovery="document@1")
+        try:
+            result = await runtime.invoke(stage_request())
+            if len(sequence) == 1:
+                assert result.failure is None
+                assert len(model.requests) == 3
+            else:
+                code = (
+                    "worker_output_limit_exceeded"
+                    if sequence[-1] == "length"
+                    else "worker_result_missing"
+                )
+                assert result.failure.code == code
+                assert len(model.requests) == 2
+            assert all(r["maxOutputTokens"] == 4096 for r in model.requests)
+            snapshot = await state.snapshot()
+            assert snapshot["lastCompletedInvocation"]["metrics"]["totalTokens"] == 10 * len(
+                model.requests
+            )
+        finally:
+            await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_output_limit_cumulative_budget_precedes_recovery(tmp_path):
+    async def scenario():
+        reply = text_result("partial")
+        reply.finish_reason = types.FinishReason.MAX_TOKENS
+        model = scripted_model([reply])
+        runtime = await create_runtime(
+            tmp_path, WorkerState(), {}, model, response_recovery="document@1", max_total_tokens=9
+        )
+        try:
+            result = await runtime.invoke(stage_request())
+            assert result.failure.code == "worker_budget_exhausted"
+            assert len(model.requests) == 1
+        finally:
+            await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_valid_stop_at_output_token_cap_has_no_recovery(tmp_path):
+    async def scenario():
+        reply = text_result("Complete document")
+        reply.finish_reason = types.FinishReason.STOP
+        model = scripted_model([reply])
+        runtime = await create_runtime(
+            tmp_path, WorkerState(), {}, model, response_recovery="document@1", max_output_tokens=3
+        )
+        try:
+            result = await runtime.invoke(stage_request())
+            assert result.failure is None
+            assert len(model.requests) == 2
+        finally:
+            await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())

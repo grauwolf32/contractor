@@ -5,7 +5,7 @@ milestone: model-response-recovery-2026-11
 epic: planner-worker
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on: [V473-001]
 languages: [python, go, json, markdown]
 goal: >-
@@ -18,7 +18,8 @@ demonstration: >-
 context:
   authority: >-
     User request 2026-11-20 asks for a safeguard when the model consumes its
-    output allowance. The bounded fresh answer in the opted-in document Worker
+    output allowance. User assignment 2026-11-20 selects V473-001 and V473-002 for
+    implementation in one pass. The bounded fresh answer in the opted-in document Worker
     is an agent proposal. The configured model and response ceiling stay pinned.
   verification_scope: >-
     Implementation review 2026-11-21 corrects the agent-proposed generic

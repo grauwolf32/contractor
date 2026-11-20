@@ -1302,7 +1302,11 @@ Errors ([registry](../platform/errors.md)):
 after all planned work has settled, at least one Worker has succeeded, and
 validated Worker results contain each required result binding. Every prepared
 Worker template must select TPL-R119 document@1. The response must have an
-explicit STOP with no usable text or function call and valid required usage.
+explicit STOP with no usable text or function call, or an explicit length
+finish. Required usage must be valid in either case. The single allowance is
+shared across both reasons. A length reply contributes no executable calls,
+even when its finish arguments parse. Request one complete concise finish at
+the pinned output ceiling.
 
 The same Planner execution charges the rejected reply and submits one fixed
 request for a complete finish. It enforces exactly one finish at the model

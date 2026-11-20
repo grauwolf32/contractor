@@ -143,12 +143,13 @@ type domainGatewayStage struct {
 }
 
 type domainGatewayStep struct {
-	tool      string
-	arguments func(map[string]any) (map[string]any, error)
-	validate  func(map[string]any) error
-	summary   string
-	artifacts map[string]domainArtifactBinding
-	modelFail bool
+	tool         string
+	arguments    func(map[string]any) (map[string]any, error)
+	validate     func(map[string]any) error
+	summary      string
+	artifacts    map[string]domainArtifactBinding
+	finishReason string
+	modelFail    bool
 }
 
 const workerResultFinalizerMarker = "Contractor Worker result finalization input (JSON):\n"
@@ -434,6 +435,9 @@ func (g *domainGateway) next(request map[string]any) (map[string]any, string, in
 		finishReason = "stop"
 	}
 
+	if step.finishReason != "" {
+		finishReason = step.finishReason
+	}
 	g.calls++
 	call := g.calls
 	tool := step.tool

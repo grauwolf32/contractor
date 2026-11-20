@@ -288,5 +288,126 @@
     },
     "emptyStop": false,
     "accepted": false
+  },
+  {
+    "name": "length-empty",
+    "response": {
+      "choices": [
+        {
+          "finish_reason": "length",
+          "message": {}
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 7,
+        "completion_tokens": 3,
+        "total_tokens": 10
+      }
+    },
+    "emptyStop": false,
+    "accepted": false,
+    "outputLimited": true
+  },
+  {
+    "name": "length-text",
+    "response": {
+      "choices": [
+        {
+          "finish_reason": "length",
+          "message": {
+            "content": "partial"
+          }
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 7,
+        "completion_tokens": 3,
+        "total_tokens": 10
+      }
+    },
+    "emptyStop": false,
+    "accepted": false,
+    "outputLimited": true
+  },
+  {
+    "name": "length-thought",
+    "response": {
+      "choices": [
+        {
+          "finish_reason": "length",
+          "message": {
+            "reasoning_content": "private"
+          }
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 7,
+        "completion_tokens": 3,
+        "total_tokens": 10
+      }
+    },
+    "emptyStop": false,
+    "accepted": false,
+    "outputLimited": true
+  },
+  {
+    "name": "length-valid-tool",
+    "response": {
+      "choices": [
+        {
+          "finish_reason": "length",
+          "message": {
+            "tool_calls": [
+              {
+                "id": "partial",
+                "type": "function",
+                "function": {
+                  "name": "finish",
+                  "arguments": "{}"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 7,
+        "completion_tokens": 3,
+        "total_tokens": 10
+      }
+    },
+    "emptyStop": false,
+    "accepted": false,
+    "outputLimited": true
+  },
+  {
+    "name": "length-invalid-tool",
+    "response": {
+      "choices": [
+        {
+          "finish_reason": "length",
+          "message": {
+            "tool_calls": [
+              {
+                "id": "partial",
+                "type": "function",
+                "function": {
+                  "name": "finish",
+                  "arguments": "{"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 7,
+        "completion_tokens": 3,
+        "total_tokens": 10
+      }
+    },
+    "emptyStop": false,
+    "accepted": false,
+    "outputLimited": true
   }
 ]
