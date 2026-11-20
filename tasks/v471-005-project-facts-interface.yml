@@ -17,8 +17,8 @@ demonstration: >-
   an informational security issue, a low-severity issue and a record of unknown
   severity. Facts shows the informational records from either facade. Needs review
   includes the unassessed low and unknown records. Opening a record shows
-  exact evidence and the existing submission history. Similar facts submitted
-  independently may appear as separate ordinary cards. A later hypothesis
+  exact evidence and the existing submission history. Independent submissions with
+  equal evidence contents appear as one card with their source history. A later hypothesis
   explicitly selects one source and exposes its exact grounds and check results.
 context:
   authority: >-
@@ -36,11 +36,12 @@ context:
     material version and optional Task/hypothesis association. Reverse navigation
     from a fact to hypotheses is deferred. Update diagrams/tasks and merge the plan
     into main. The UI slice covers lists, exact materials and source provenance.
-    Latest user decision 2026-11-21 defers V471-004: do not add the new title-plus-
-    evidence rule for now. First-slice facts reuse existing intake, receipt replay,
-    source history and already supported producer/structural correlation. Separate
-    calls can create similar cards; no new fact matcher, material groups or possible-
-    duplicate state is required. This supersedes earlier deduplication requirements.
+    Latest user decision 2026-11-21 reactivates V471-004 for basic evidence-only
+    deduplication on existing Finding correlation. Equal complete evidence contents
+    share one informational Finding regardless of title, with independent receipts.
+    This supersedes the blanket deferral and title-plus-evidence proposal. Title
+    matching, semantic/provider rules, material groups and possible-duplicate states
+    remain outside the first slice. Optional origins and exact sources stay as agreed.
   proposal: docs/proposals/0055-project-facts-through-findings.md
   specification:
     - docs/spec/ui/ui.md
@@ -78,7 +79,8 @@ requirements:
     text: >-
       Main navigation is list -> selected record -> existing submission history ->
       exact evidence/citations. Display the canonical cards and source entries
-      actually returned by Server, including similar independent facts. Use existing
+      actually returned by Server: equal evidence contents share one card, while
+      independent source receipts retain their original titles/evidence. Use existing
       source counts and pages, without unique-material counters or grouping. An
       absent Task/hypothesis is valid Run-level origin. Show an existing explicit
       origin link when present. Searching for hypotheses which later selected the
@@ -114,9 +116,9 @@ acceptance_criteria:
     when: Users navigate severity views, needs review and source pages
     then: Server severity controls placement, informational records are excluded from needs review, counts match the paged selection, and assessment refreshes views while preserving Finding IDs and source provenance.
   - id: A2
-    given: More than one picker page, similar independently submitted facts, absent optional origin fields, a changed revision and an unavailable source
+    given: More than one picker page, independent fact submissions with equal evidence and different titles, absent optional origin fields, a changed revision and an unavailable source
     when: The user selects fact grounds and opens the hypothesis
-    then: Cards and their exact sources match Server results without client-side deduplication. Run-level facts render normally, selected grounds remain exact, conflicts are explicit and the hypothesis links to its selected grounds. No grouping or possible-duplicate UI is added.
+    then: Equal-evidence submissions appear as one Server card with both source receipts and their original titles, without client-side deduplication. Run-level facts render normally, selected grounds remain exact, conflicts are explicit and the hypothesis links to its selected grounds. No grouping or possible-duplicate UI is added.
   - id: A3
     given: A 10000-record fixture and responsive theme variants
     when: The UI loads at desktop and 390 px widths
