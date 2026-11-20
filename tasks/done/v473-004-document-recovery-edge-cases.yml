@@ -6,7 +6,8 @@ epic: planner-worker
 kind: defect
 introduced_by: V473-001
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: d261b07022149d2caccf9705b5cdb346aad70f3a
 depends_on: [V473-002]
 languages: [go, python]
 goal: Charge and report each received recovery reply once and admit an empty-response retry only for an explicit normal stop.
@@ -15,6 +16,14 @@ context:
   specification:
     - docs/spec/execution/worker.md#WRK-R198
     - docs/spec/execution/planners.md#PLN-R132
+  verification: >-
+    Before the fix, both Planner regression cases exported three of four model
+    spans and the Runtime classified the whitespace tool finish as a retryable stop.
+    After the fix, the Go packages passed with disposable PostgreSQL, including
+    a separate race-detector run. The Gateway/Worker tests, three process scenarios
+    with a scripted Gateway, and make lint passed. One overlapping database test
+    run exhausted the test cluster's lock table during schema teardown. The two
+    complete Planner packages passed on a sequential rerun.
   severity: medium
   finding: >-
     runtime/src/contractor_runtime/llm/openai.py:538 maps tool finish reasons to ADK STOP.
