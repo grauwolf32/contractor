@@ -20,6 +20,12 @@ context:
     User request 2026-11-20 asks for a safeguard when the model consumes its
     output allowance. The bounded fresh answer in the opted-in document Worker
     is an agent proposal. The configured model and response ceiling stay pinned.
+  verification_scope: >-
+    Implementation review 2026-11-21 corrects the agent-proposed generic
+    process command to the complete Findings process family. It includes the
+    versioned review caller, retained selections and recovery scenario. Full
+    Runtime, owning Go packages, shared fixtures, configuration and lint gates
+    remain required. The whole-platform process sweep is additional coverage.
   specification:
     - docs/spec/execution/worker.md#WRK-R16
     - docs/spec/execution/worker.md#WRK-R58
@@ -106,7 +112,7 @@ acceptance_criteria:
     when: The same invocation settles
     then: At most one replacement occurs and every known usage is accounted once. The correct last failure or dominant budget/cancellation is visible and earlier admitted results survive.
 tests:
-  - command: make test-e2e
+  - command: make test-findings-e2e
     covers: [A1, A2, A3]
   - command: make test-wire-cross-language
     covers: [A2]
