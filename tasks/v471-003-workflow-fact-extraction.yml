@@ -6,7 +6,7 @@ epic: workflows
 kind: feature
 priority: P1
 status: pending
-depends_on: [V471-001, V471-002]
+depends_on: [V471-001, V471-002, V471-004]
 languages: [go, python, json, yaml, markdown]
 goal: >-
   A Workflow author can include or omit semantic extraction of a small useful
@@ -35,14 +35,15 @@ context:
     User decision 2026-11-20 on review item 2 rejects snapshot-only read isolation.
     Keep ordinary current-Run tool authority and validate exact source citations.
     User decision 2026-11-20 accepts exact assertion deduplication, grouped material
-    versions and optional Task/hypothesis association. The earlier V471-004
-    prerequisite is superseded by the later deferral below. Reverse navigation
+    versions and optional Task/hypothesis association. Later decisions narrow
+    V471-004 to basic evidence-only matching below. Reverse navigation
     and semantic-match infrastructure are deferred. Merge the reviewed plan into main.
-    Latest user decision 2026-11-21 defers V471-004: do not add the new title-plus-
-    evidence rule for now. First-slice facts reuse existing intake, receipt replay,
-    source history and already supported producer/structural correlation. Separate
-    calls can create similar cards; no new fact matcher, material groups or possible-
-    duplicate state is required. This supersedes earlier deduplication requirements.
+    Latest user decision 2026-11-21 reactivates V471-004 for basic evidence-only
+    deduplication on existing Finding correlation. Equal complete evidence contents
+    share one informational Finding regardless of title, with independent receipts.
+    This supersedes the blanket deferral and title-plus-evidence proposal. Title
+    matching, semantic/provider rules, material groups and possible-duplicate states
+    remain outside the first slice. Optional origins and exact sources stay as agreed.
     Planning/integration only, with no feature implementation, live calls or model changes.
   proposal: docs/proposals/0055-project-facts-through-findings.md
   specification:
@@ -104,9 +105,9 @@ requirements:
       Empty output is valid. Explicitly report size/budget rejection and partial
       accepted counts; do not silently truncate or regenerate until a quota fills.
       Submit the ordinary title and exact selected evidence through existing
-      intake. New matching descriptors, provider parsing and equality rules are
-      outside this task. Similar independent submissions may remain separate.
-      Do not follow embedded refs implicitly. General
+      intake. V471-004 handles equal complete evidence contents without using
+      titles or adding model matching descriptors/provider parsing. Changed sets
+      remain separate. Do not follow embedded refs implicitly. General
       note extraction uses Run-level incidental origin without a required Task or
       hypothesis. An explicitly selected Task uses the V471-001 association rules.
   - id: R4
@@ -114,15 +115,15 @@ requirements:
       Direct Finding receipts already committed survive later Run failure and
       retain that provenance. Replay of the same tool call reconciles its receipt.
       Retry, escalation and manual resume create a new StageExecution/allocation
-      and may make new model calls and receipts. Already supported qualified
-      producer/structural keys retain existing correlation; arbitrary facts have
-      no cross-call equality guarantee. Existing receipts preserve history without
+      and may make new model calls and receipts. Equal complete evidence contents
+      share one informational Finding through V471-004 even if titles differ.
+      Existing receipts preserve all submissions and their exact evidence without
       material grouping or durable model conversation across attempts.
 failure_outcomes:
   - operation: Invoke the configured extractor and record its selected facts
     permanent: Invalid source/citation/configuration, missing Project or exhausted limits yields the owning classified outcome and explicit accepted/rejected counts.
     retryable: Existing bounded Gateway/storage classes and configured Stage attempt limits apply. A new attempt retains its own model usage and receipt history.
-    ambiguous: Reconcile the same admitted call through its existing receipt before repeating transport. A new Stage attempt preserves earlier accepted records and its own receipts; similar independent facts may remain separate.
+    ambiguous: Reconcile the same admitted call through its existing receipt before repeating transport. A new Stage attempt preserves earlier records and its own receipts and reuses a Finding on complete evidence-content equality.
     cancelled: Existing Runtime Worker/allocation owner joins model and publisher work before release; the deterministic snapshot Stage retains its own operation claim.
     timeout: Separate provider, Stage and Run deadlines remain authoritative; no nested unaccounted invocation survives.
 cardinality:
@@ -143,7 +144,7 @@ acceptance_criteria:
   - id: A2
     given: Empty output, omitted extraction, a failure after accepted note/code/HTTP facts, cancellation and a lost tool response
     when: The Workflow settles or recovers
-    then: Same-call replay adds no receipt. New retry/resume attempts preserve earlier records and retain their own receipts/usage, settling partial effects without leaked work. Similar facts from separate calls may have separate Finding IDs; no new matching rule or possible-duplicate state is required.
+    then: Same-call replay adds no receipt. New retry/resume attempts reuse Finding IDs for equal complete evidence contents while retaining their own receipts/usage and all source descriptions, even with different titles. Changed evidence sets stay separate; partial effects settle without leaked work or possible-duplicate states.
   - id: A3
     given: The frozen extraction corpus and an Audit Eval recipe with isolated ordinary Projects
     when: Offline validation and one scripted-Gateway member exercise creation, extraction, publication and collection

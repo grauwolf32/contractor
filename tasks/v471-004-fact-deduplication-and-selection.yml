@@ -1,33 +1,34 @@
 schema_version: "1.0"
 id: V471-004
-title: Deduplicate fact observations through Finding correlation and select exact grounds
+title: Deduplicate Project facts by exact evidence through existing Finding correlation
 milestone: project-facts-2026-11
 epic: findings
 kind: feature
 priority: P1
-status: deferred
+status: pending
 depends_on: [V471-001]
 languages: [go, python, json, typescript, markdown]
 goal: >-
-  Facts with an identical title and identical selected evidence contents share
-  one Project Finding through existing correlation. Independent submissions keep
-  their existing receipts and provenance. Existing readers select exact grounds.
+  Informational facts with the same selected evidence contents share one Project
+  Finding through existing correlation. Each independent submission keeps its
+  existing receipt and exact provenance. Existing readers select exact grounds.
 demonstration: >-
   A Worker records a fact with exact note, code or HTTP evidence. Another call
-  with the same title and evidence contents, including a fork or independent
-  byte-identical artifact, returns the same Finding ID. It adds no second card
-  or possible-duplicate state. A different title or evidence set creates another
-  Finding. Existing source history preserves both submissions, and an ordinary
-  generator selects one exact source into hypothesis.sources.
+  selects the same evidence contents, through a fork or an independent byte-
+  identical artifact, and returns the same Finding ID even with a different title.
+  A different complete evidence set creates another Finding. Existing receipts
+  preserve both submissions and an ordinary generator selects one exact source.
 context:
   authority: >-
     User decisions 2026-11-20 keep facts on common Project Findings, optional
-    Task/hypothesis origin and explicit exact grounds. Earlier deduplication designs
-    were narrowed to title plus evidence on 2026-11-21. The latest user decision
-    2026-11-21 says not to add that rule for now because it is not already built.
-    Defer this task. Its rule below is an inactive proposal, not a requirement for
-    fact recording, extraction, UI or their release gate. Existing receipt replay
-    and producer/structural correlation remain available without this task.
+    Task/hypothesis origin and explicit exact grounds. Earlier richer matching
+    rules and then the title-plus-evidence proposal were deferred on 2026-11-21.
+    Latest user decision 2026-11-21 explicitly reactivates this task for basic
+    evidence-only deduplication instead of deferring all of it. Use existing
+    mechanisms and keep the first slice simple. Title comparison, semantic rules,
+    provider-specific qualification and material grouping remain outside scope.
+    Comparing evidence contents as an unordered set of existing Artifact digests
+    is the implementation choice. This is a planning update, not feature execution.
   proposal: docs/proposals/0055-project-facts-through-findings.md
   specification:
     - docs/spec/findings/findings.md#FND-R174
@@ -40,22 +41,22 @@ context:
     - docs/spec/artifacts/artifact-store.md#ART-R19
   boundary: >-
     Finding intake/correlation owns the new closed equality algorithm, canonical
-    identity, unique key and Project fence. Server derives the key from the saved
-    validated title and authorized exact Artifact metadata already read by intake.
+    identity, unique key and Project fence. Server derives the key from
+    authorized exact Artifact metadata already read by intake.
     Extend existing receipt projection/algorithm variants, strict validators and
     constraints together. ArtifactStore owns digests, exact refs and retention.
     Existing source/selection readers own provenance and grounds. No new matcher,
     table, lock, group reader, provider parser or model parameter is introduced.
 scope:
   in:
-    - Add one exact title-plus-evidence-content rule to existing Finding correlation for informational submissions from either facade.
+    - Add one exact evidence-content-set rule to existing Finding correlation for informational submissions from either facade.
     - Reuse receipts, atomic admission, source history, exact retention and hypothesis material selection.
     - Update owning specs, Go/Runtime/API/database algorithm validation and shared fixtures wherever affected.
   out:
-    - Semantic matching, possible-duplicate states, title similarity, embeddings or a universal fact vocabulary.
+    - Title matching/normalization, semantic matching, possible-duplicate states, embeddings or a universal fact vocabulary.
     - HTTP-header/code parsing for matching, deployment/context inference, lineage traversal or whole-Project comparison.
     - Material-version groups, unique-material counters, group-membership indexes, new readers or a separate Fact/receipt store.
-    - Coarse title/evidence matching for non-informational issues or changes to their producer/structural algorithms.
+    - Coarse evidence-content matching for non-informational issues or changes to their producer/structural algorithms.
     - New hypothesis selection APIs, arbitrary edges, reverse navigation or feature implementation in this planning update.
 requirements:
   - id: R1
@@ -70,16 +71,16 @@ requirements:
       Eligibility is producer severity_suggestion=informational from record_fact
       or ordinary finding. Choose the new fact-equality algorithm as primary for
       these submissions; non-informational submissions keep existing algorithms.
-      Hash a versioned canonical tuple of the exact validated proposal title and
-      sorted unique content digests of all selected exact evidence. The existing
-      group key adds Project scope. Use Server-read metadata, never model hashes.
-      Compare the complete nonempty set, not overlap or order. Forks and independent
-      artifacts with equal bytes compare equally. Changed bytes, set or title stay
-      separate. Use the saved title exactly, without a new case/whitespace/semantic
-      normalizer. Exclude refs, locators, prose, media labels, Run/Task/hypothesis IDs
-      and inferred context. Preserve exact descriptors on receipts. Reuse existing
-      canonical encoding/hash, uniqueness and retry. Analyst severity edits never
-      rekey an existing Finding. Do not bridge algorithms or rescan old receipts.
+      Hash a versioned canonical tuple of sorted unique content digests of all
+      selected exact evidence. The existing group key adds Project scope. Use
+      Server-read metadata, never model hashes. Compare the complete nonempty set,
+      not overlap or order. Forks and independent artifacts with equal bytes compare
+      equally. Changed bytes or a different set stay separate. Title differences
+      do not affect equality. Exclude title, refs, locators, prose, media labels,
+      Run/Task/hypothesis IDs and inferred context from the key. Preserve exact
+      descriptors on receipts. Reuse existing canonical encoding/hash, uniqueness
+      and retry. Analyst severity edits never rekey an existing Finding. Do not
+      bridge algorithms or rescan old receipts.
   - id: R3
     text: >-
       Existing paged source/history readers show each submission and its exact
@@ -93,9 +94,9 @@ requirements:
       replace them or attribute a whole collection to one selected member.
 failure_outcomes:
   - operation: Compute the fact key and admit through existing Finding intake
-    permanent: Invalid title or empty/foreign/invalid exact evidence fails with the owning classified error before partial admission. A different title/evidence set is an ordinary separate fact.
+    permanent: Invalid title or empty/foreign/invalid exact evidence fails with the owning classified error before partial admission. A different evidence set is an ordinary separate fact.
     retryable: Existing bounded transaction retry and storage_transaction_conflict 503 under the original deadline.
-    ambiguous: Same-call replay uses its existing receipt. A new attempt keeps its own receipt and reuses a Finding only on exact title-plus-evidence equality.
+    ambiguous: Same-call replay uses its existing receipt. A new attempt keeps its own receipt and reuses a Finding only on exact evidence-content-set equality.
     cancelled: Existing execution/deletion fences join work and prohibit later writes.
     timeout: Existing call and Stage deadlines apply; only selected metadata is read, without provider/model calls or background comparison.
 cardinality:
@@ -110,21 +111,21 @@ lifecycle:
     retention: No new hold, group entity or TTL. Project purge uses existing owner cleanup.
 accepted_risks:
   - >-
-    Exact title plus evidence contents is the deferred proposed approximation. The
-    Finding owner enforces it. Multiple claims with one broad artifact and the
-    same title can collapse, while paraphrases or changed evidence stay separate.
-    Preserve every receipt for inspection and use focused evidence when available.
-    Reopen only after observed over-merging or duplicate volume justifies another
-    explicit decision; no automatic semantic repair is added.
+    Evidence-only equality is the user-selected basic approximation. The Finding
+    owner enforces it. Different claims/titles over the same broad artifact can
+    collapse, while changed evidence can leave separate cards. Retain every receipt
+    and its title, exact refs and citations for inspection; use focused evidence
+    when available. Reopen only after observed over-merging or duplication justifies
+    an explicit change. Add no automatic semantic repair or title discriminator.
 acceptance_criteria:
   - id: A1
-    given: Same-call replay and concurrent informational submissions with equal titles and evidence contents
+    given: Same-call replay and concurrent informational submissions with equal evidence contents and possibly different titles
     when: Real Server/Runtime intake admits them through PostgreSQL
     then: Replay adds no receipt; independent submissions keep their receipts and share one Finding ID/card, without a possible-duplicate state.
   - id: A2
-    given: Reordered evidence, forks, independent equal-byte artifacts, changed titles/sets, overlapping sets and another Project
+    given: Reordered evidence, forks, independent equal-byte artifacts, different titles, changed/overlapping sets and another Project
     when: Both informational facades use the rule
-    then: Only exact title and full content-set equality within one Project merge. Order/binding identity do not matter. Differences stay separate, and non-informational producer/structural correlation remains unchanged.
+    then: Only full evidence-content-set equality within one Project merges. Title, order and binding identity do not matter. Different sets or Projects stay separate, and non-informational producer/structural correlation remains unchanged.
   - id: A3
     given: Several submissions, an explicitly selected exact source and a newer version
     when: An ordinary generator uses existing selection to ground a hypothesis
@@ -152,15 +153,4 @@ tests:
     covers: [A1, A2, A3, A4, A5]
 test_prerequisites:
   - Use real PostgreSQL for concurrency, retention and pagination; skipped required cases are not passes.
-  - Shared fixtures cover exact titles, digest-set ordering/deduplication, Project isolation, source validation and unchanged non-informational algorithm selection.
-deferral:
-  date: "2026-11-21"
-  previous_status: pending
-  reason: >-
-    User chose not to add the new title-plus-evidence rule for now. Facts should
-    first use ordinary Finding intake, receipts and existing correlation. Separate
-    calls may create similar fact cards; no universal duplicate-free guarantee is
-    part of the first slice. This task no longer blocks extraction or the UI.
-  reactivation_condition: >-
-    Explicit user decision after real executions show enough unwanted duplication
-    to justify the proposed rule and its approximate equality semantics.
+  - Shared fixtures cover evidence-set equality, title independence, digest ordering/deduplication, Project isolation, source validation and unchanged non-informational algorithm selection.

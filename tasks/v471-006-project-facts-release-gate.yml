@@ -10,7 +10,7 @@ depends_on: [V471-005]
 languages: [go, python, typescript, yaml, markdown]
 goal: >-
   Prove that optional note extraction, Project facts, existing Finding admission,
-  receipt replay, exact hypothesis grounds and the separate UI work together on one
+  basic evidence deduplication, exact hypothesis grounds and the separate UI work together on one
   integrated revision, with honest failure and source-retention behavior.
 context:
   authority: >-
@@ -30,11 +30,12 @@ context:
     grouping, optional Task/hypothesis origin and deferral of reverse navigation.
     Verify same-call replay and new-attempt recovery as distinct cases. Update and
     merge the reviewed planning package into main.
-    Latest user decision 2026-11-21 defers V471-004: do not add the new title-plus-
-    evidence rule for now. First-slice facts reuse existing intake, receipt replay,
-    source history and already supported producer/structural correlation. Separate
-    calls can create similar cards; no new fact matcher, material groups or possible-
-    duplicate state is required. This supersedes earlier deduplication requirements.
+    Latest user decision 2026-11-21 reactivates V471-004 for basic evidence-only
+    deduplication on existing Finding correlation. Equal complete evidence contents
+    share one informational Finding regardless of title, with independent receipts.
+    This supersedes the blanket deferral and title-plus-evidence proposal. Title
+    matching, semantic/provider rules, material groups and possible-duplicate states
+    remain outside the first slice. Optional origins and exact sources stay as agreed.
   proposal: docs/proposals/0055-project-facts-through-findings.md
   specification:
     - docs/spec/findings/findings.md
@@ -50,7 +51,7 @@ context:
 scope:
   in:
     - Register and run shared real Server/PostgreSQL/Runtime/scripted-Gateway process cases in the release graph.
-    - Verify direct facts/issues, optional Run-level origin, model-free snapshot, passthrough@1 extraction, existing receipt replay/correlation and source history, explicit ground selection and responsive UI together.
+    - Verify direct facts/issues, optional Run-level origin, model-free snapshot, passthrough@1 extraction, basic evidence-content equality on existing correlation, receipt/source history, explicit ground selection and responsive UI together.
     - Exercise ambiguous replies, cancellation, claim loss, restart, source deletion and Project purge under realistic cardinality.
     - Record all executed checks, explicit skips, integrated revision and cleanup of the one owned test database and fixture resources.
   out:
@@ -70,9 +71,10 @@ acceptance_criteria:
       no hidden call; ordinary finding has no publication flag.
       The extractor can read another authorized ordinary current-Run artifact.
       An invalid citation is rejected before publication under V471-003 A4.
-      Note, code and HTTP materials retain exact citations. Separate calls may
-      create similar fact cards; cross-call fact equality is not an exit criterion.
-      Existing supported producer/structural correlation keeps its guarantees.
+      Note, code and HTTP materials retain exact citations. Informational
+      submissions with equal complete evidence contents share one Finding even
+      with different titles; unequal sets stay separate. Existing non-informational
+      producer/structural correlation keeps its guarantees.
       A batch Run publishes a general fact without Task/hypothesis and retains
       authoritative Run/Audit origin. Explicit member association is validated.
   - id: A2
@@ -82,9 +84,9 @@ acceptance_criteria:
       Deleting B releases its hypothesis registry/holds while the Project retains
       the Finding/materials. Project purge drains users and removes owned data.
       Same-call replay adds no receipt. A new attempt after partial publication
-      retains its receipt history and exact descriptors without requiring equal
-      Finding IDs for arbitrary similar facts. Existing receipt replay is verified;
-      no new equality rule or material grouping is introduced.
+      retains its receipt history/exact descriptors and reuses a Finding for equal
+      complete evidence contents, including forks and independent byte-identical
+      artifacts. Existing receipt replay is verified; no material grouping is added.
       Claim loss and cancellation prohibit post-fence writes. Analyst assessment
       remains explicit on the common identity.
   - id: A3
