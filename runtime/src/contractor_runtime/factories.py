@@ -124,6 +124,7 @@ class WorkerBuildContext:
     # The compact@1 branch (WRK-R184); it excludes ``summarizer``.
     compaction: CompactWorkerContextManagement | None = None
     compactor_model_policy: ResolvedModelPolicy | None = None
+    response_recovery: str | None = None
     completion_contract: WorkerCompletionContract | None = None
     adapter_handles: AdapterHandles = field(
         default=EMPTY_ADAPTER_HANDLES,

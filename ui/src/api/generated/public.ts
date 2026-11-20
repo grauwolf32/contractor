@@ -6360,6 +6360,8 @@ export interface components {
             description: string;
             runtime: components["schemas"]["Selector"];
             instructions?: components["schemas"]["InstructionsRef"];
+            /** @enum {string} */
+            responseRecovery?: "document@1";
             summarizer?: components["schemas"]["WorkerSummarizerConfigBody"];
             skills?: components["schemas"]["AgentSkillRef"][];
             toolsets: components["schemas"]["ToolsetSelection"][];

@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-70 open tasks: 9 in progress, 48 pending, 13 deferred. 1609 finished: 1591 completed, 18 archived.
+71 open tasks: 9 in progress, 49 pending, 13 deferred. 1612 finished: 1594 completed, 18 archived.
 
 ## In progress
 
@@ -115,6 +115,12 @@ the epics are in [epics.yml](epics.yml).
 | [V411-018](v411-018-pentest-ui-journey.yml) | feature | P1 | V411-015, V411-017 | Build the ordinary HTTP Audit setup and evidence UI journey |
 | [V471-005](v471-005-project-facts-interface.yml) | feature | P1 | V471-003 | Show focused Project facts separately while reusing Finding sources and hypothesis grounds |
 
+### Operations, authentication, CLI and deployment (`operations`)
+
+| Task | Kind | Priority | Waiting for | Title |
+| --- | --- | --- | --- | --- |
+| [V473-003](v473-003-model-recovery-diagnostics.yml) | feature | P1 | V471-003 | Explain model recovery costs and verify zero and partial fact extraction |
+
 ### Public API and wire contracts (`api-contracts`)
 
 | Task | Kind | Priority | Waiting for | Title |
@@ -167,7 +173,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 3 | 50 | 70 | 40 | 107 |
-| Planners and the Worker model boundary (`planner-worker`) | 5 | 37 | 59 | 39 | 93 |
+| Planners and the Worker model boundary (`planner-worker`) | 5 | 39 | 60 | 39 | 94 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 1 | 7 | 9 | 3 | 15 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
@@ -182,7 +188,7 @@ tasks in `introduced_by`.
 | Evaluations (`evals`) | 4 | 23 | 46 | 20 | 54 |
 | Podman sandbox (`sandbox`) | 2 | 10 | 2 | 2 | 6 |
 | Web UI (`ui`) | 2 | 56 | 81 | 34 | 79 |
-| Operations, authentication, CLI and deployment (`operations`) | 0 | 22 | 55 | 16 | 35 |
+| Operations, authentication, CLI and deployment (`operations`) | 1 | 23 | 55 | 16 | 35 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 43 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 50 | 18 |
 | Quality, CI and process (`quality`) | 12 | 1 | 34 | 148 | 32 |

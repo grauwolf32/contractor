@@ -206,6 +206,9 @@ func agentTemplateResourceBody(template contracts.ResolvedAgentTemplate) map[str
 		"sandboxProfile": template.SandboxProfile.SandboxProfileID + "@" +
 			template.SandboxProfile.Version,
 	}
+	if template.ResponseRecovery != "" {
+		result["responseRecovery"] = template.ResponseRecovery
+	}
 	if template.IsToolWorker() {
 		delete(result, "instructions")
 		result["execution"] = template.Execution.Clone()

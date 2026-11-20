@@ -50,6 +50,8 @@ context:
     each executed in one continuous pass. The dependency-based allocation and
     group entry/exit rules live in the proposal; this task keeps its own acceptance,
     required checks and implementation commit. Grouping adds no functional scope.
+    User request 2026-11-20 distinguishes valid completion with zero facts from an
+    empty or truncated model reply. V473 owns recovery for unusable replies.
   proposal: docs/proposals/0055-project-facts-through-findings.md
   specification:
     - docs/spec/execution/server-operations.md#SOP-R3
@@ -107,7 +109,9 @@ requirements:
   - id: R3
     text: >-
       Select a bounded set of useful claims.
-      Empty output is valid. Explicitly report size/budget rejection and partial
+      Successful completion with zero admitted facts is valid. A blank, thought-only or
+      output-limited model reply alone cannot establish completion. Explicitly
+      report size/budget rejection and partial
       accepted counts; do not silently truncate or regenerate until a quota fills.
       Submit the ordinary title and exact selected evidence through existing
       intake. V471-004 handles equal complete evidence contents without using
@@ -147,9 +151,9 @@ acceptance_criteria:
     when: Its Worker selects observations from the frozen corpus
     then: Source-grounded records reach the common Project Finding owner, preserve reported/inferred limitations and respect the eight-fact maximum; no Planner LLM request or LLM operation executes.
   - id: A2
-    given: Empty output, omitted extraction, a failure after accepted note/code/HTTP facts, cancellation and a lost tool response
+    given: Valid completion with zero facts, omitted extraction, a failure after accepted note/code/HTTP facts, cancellation and a lost tool response
     when: The Workflow settles or recovers
-    then: Same-call replay adds no receipt. New retry/resume attempts reuse Finding IDs for equal complete evidence contents while retaining their own receipts/usage and all source descriptions, even with different titles. Changed evidence sets stay separate; partial effects settle without leaked work or possible-duplicate states.
+    then: Valid zero completes without an extra model call or Finding. Omission makes no extractor call. Same-call replay adds no receipt. New retry/resume attempts reuse Finding IDs for equal complete evidence contents while retaining their own receipts/usage and all source descriptions, even with different titles. Changed evidence sets stay separate; partial effects settle without leaked work or possible-duplicate states.
   - id: A3
     given: The frozen extraction corpus and an Audit Eval recipe with isolated ordinary Projects
     when: Offline validation and one scripted-Gateway member exercise creation, extraction, publication and collection

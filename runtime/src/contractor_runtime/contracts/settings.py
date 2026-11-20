@@ -866,6 +866,9 @@ WorkerContextManagement = Annotated[
 
 
 class ResolvedAgentTemplate(WireModel):
+    response_recovery: Literal["document@1"] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     ref: AgentTemplateRef
     description: str
     runtime: WorkerRuntimeRef
@@ -892,6 +895,39 @@ class ResolvedAgentTemplate(WireModel):
     @model_validator(mode="after")
     def validate_template(self) -> Self:
         _require_text("description", self.description)
+        if "response_recovery" in self.model_fields_set and self.response_recovery is None:
+            raise ValueError("responseRecovery must be omitted, not null")
+        if self.response_recovery is not None:
+            allowed = {
+                "memory-tools": {
+                    "list_memories",
+                    "read_memory",
+                    "write_memory",
+                    "append_memory",
+                    "search_memory",
+                    "list_memory_tags",
+                },
+                "run-artifacts": {"read_artifact"},
+                "text-artifacts": {"write_text_artifact"},
+                "security-findings": {
+                    "list_project_findings",
+                    "read_project_finding",
+                    "select_project_findings",
+                    "read_finding_selection",
+                },
+            }
+            if (
+                self.runtime.runtime_id != "adk"
+                or self.runtime.version != "1"
+                or self.skills
+                or not self.toolsets
+            ):
+                raise ValueError("document@1 requires an ADK document tool selection")
+            for selection in self.toolsets:
+                if selection.ref.version != "1" or not set(selection.tools) <= allowed.get(
+                    selection.ref.toolset_id, set()
+                ):
+                    raise ValueError("document@1 requires document-only tools")
         for selection in self.toolsets:
             if selection.ref.toolset_id == "sitemap" and (
                 selection.ref.version != "1" or self.sitemap is None

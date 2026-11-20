@@ -84,6 +84,9 @@ func agentTemplateDigest(selector resolved.Selector, template contracts.Resolved
 			"version":          template.SandboxProfile.Version,
 		},
 	}
+	if template.ResponseRecovery != "" {
+		spec["responseRecovery"] = template.ResponseRecovery
+	}
 	if template.IsToolWorker() {
 		delete(spec, "instructions")
 		spec["execution"] = template.Execution

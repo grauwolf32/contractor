@@ -144,6 +144,18 @@ func (s *executionState) rejectedGatewayRequest(code string) *planner.Error {
 	))
 }
 
+// Cancellation owns the outcome, while an already received reply still owns
+// its spent usage. Avoid replacing cancellation with a budget failure.
+func (s *executionState) cancelledGatewayUsage(rejected *gatewayResponseRejected) {
+	if rejected == nil || rejected.usage == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.inputTokens += int64(rejected.usage.PromptTokenCount)
+	s.outputTokens += int64(rejected.usage.CandidatesTokenCount)
+}
+
 func (s *executionState) rejectedGatewayResponse(rejected *gatewayResponseRejected) *planner.Error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

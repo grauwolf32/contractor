@@ -102,6 +102,8 @@ def _agent_template_digest(template: ResolvedAgentTemplate) -> str:
             },
         },
     }
+    if template.response_recovery is not None:
+        manifest["spec"]["responseRecovery"] = template.response_recovery
     if template.is_tool_worker:
         del manifest["spec"]["instructions"]
         manifest["spec"]["execution"] = template.execution.model_dump(by_alias=True)

@@ -246,6 +246,7 @@ class AllocationPreparation:
                 ),
                 compactor_model_policy=spec.compactor_model_policy,
                 completion_contract=spec.completion_contract,
+                response_recovery=spec.agent_template.response_recovery,
                 adapter_handles=self.adapter_host.handles.for_worker(),
                 resolved_skills=tuple(spec.resolved_skills),
                 project_workspace=self.project_workspace,
