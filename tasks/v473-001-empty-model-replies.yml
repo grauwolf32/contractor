@@ -1,0 +1,136 @@
+schema_version: "1.0"
+id: V473-001
+title: Recover once from an empty model reply during Project document review
+milestone: model-response-recovery-2026-11
+epic: planner-worker
+kind: feature
+priority: P1
+status: pending
+depends_on: []
+languages: [python, go, json, yaml, markdown]
+goal: >-
+  A Project reviewer can receive the report from the same Stage when the
+  configured model spends a turn returning no usable answer.
+demonstration: >-
+  Run the ordinary Project findings review against retained documents. After
+  the Worker selects an exact source, the scripted Gateway returns a blank STOP.
+  A second charged call completes the report in the same invocation. Inspect
+  the report binding, Stage attempt, model call count and source selection (A1).
+context:
+  authority: >-
+    User request 2026-11-20 asks for protection against empty replies and exhausted
+    output tokens, review against main and task intake. The single shared recovery
+    allowance and opt-in for document processing are agent proposals.
+  specification:
+    - docs/spec/execution/worker.md#WRK-R9
+    - docs/spec/execution/worker.md#WRK-R16
+    - docs/spec/execution/worker.md#WRK-R172
+    - docs/spec/execution/worker.md#WRK-R178
+    - docs/spec/execution/planners.md#PLN-R71
+    - docs/spec/execution/planners.md#PLN-R85
+    - docs/spec/execution/planners.md#PLN-R86
+    - docs/spec/configuration/agent-templates.md#TPL-R36
+  evidence: >-
+    Runtime llm/openai.py can raise EmptyGatewayResponse or produce a thought
+    part. ADK can surface MODEL_RETURNED_NO_CONTENT. Streamline decodeChatResponse
+    rejects an empty choice but currently retains whitespace text and its main
+    message projection drops provider reasoning. Test at the incoming envelope as
+    well as the real Runner. V471-003 separately owns optional note extraction.
+  decision: >-
+    Prefer one extra call inside a selected document Worker to rerunning a Stage
+    that already retained a selection or report. A Stage retry costs less to
+    implement but repeats more work. Start with a versioned project-findings-review
+    caller and an explicit pinned opt-in for document processing. Revisit the
+    allowance only with observed recovery yield and known cost.
+scope:
+  in:
+    - Classify received unusable replies at both model boundaries. Runtime owns the additional call for the eligible document Worker. When a model-backed document review has already completed its work, the Go Planner can use its own allowance to submit the terminal result.
+    - Wire the first real caller through the existing catalog, allocation, invocation and instrumented model path. Version changed catalog identities.
+  out:
+    - Model-backed Planner dispatch retries, unattended target interactions, stage-wide automatic rollout and live model selection.
+    - One-shot finalization, terminal summaries and compaction keep their contracts. Trusted Audit submission completion and its bounded reminder retain their precedence.
+requirements:
+  - id: R1
+    text: >-
+      Use shared Go/Python input fixtures for explicit STOP with absent, empty or
+      whitespace-only text, provider thought-only text when observable, and an
+      accepted tool call with empty text. Distinguish malformed envelopes, absent
+      choices, invalid arguments, refusal/content filtering, provider failures and
+      output limits before considering recovery. Classify provider safety signals
+      even when visible text is absent. Unknown or missing finish metadata alone
+      never authorizes the additional call. Preserve each participant's usage rules.
+  - id: R2
+    text: >-
+      Require the selected document Worker and resolved tool authority for retained
+      materials, report/notes or fact recording. If the mode or its resolved
+      capabilities are ineligible, apply the ordinary failure policy. Use one fixed
+      request for a usable answer after a blank reply or thought-only STOP. Keep
+      prior validated tool results and exact selections. Exclude private reasoning
+      from the new instruction and diagnostic metadata.
+  - id: R3
+    text: >-
+      Charge the rejected received call and any new call through existing counters.
+      Apply model call, token, deadline and configured cost controls at their owning
+      boundaries. Keep unknown usage/cost explicitly unavailable. Consume the
+      allowance before scheduling the call. Successful intervening turns, history
+      compaction and a change of failure reason cannot reset it within the invocation.
+      Update WRK-R172 with the precise exception and keep default behavior tested.
+  - id: R4
+    text: >-
+      The existing project-findings-review escalation supplies a model-backed
+      document caller. Admit a Planner retry only when its trusted plan and bindings
+      show that the required document work has finished and an accepted finish is
+      still missing. Accept solely a fresh, single finish through the existing
+      validator and candidate publication path. Enforce this at dispatch. Any
+      other or mixed call yields zero dispatches. Model-free passthrough never
+      calls a Planner model. Update the governing Planner contract and preserve
+      PLN-R86 required-usage and PLN-R85 hard-budget precedence.
+failure_outcomes:
+  - operation: Admit and settle the additional document model call
+    permanent: Ineligible mode, safety, malformed response and invalid policy follow their owning classifications. An unusable reply cannot produce a successful document.
+    retryable: At most one immediate semantic retry within the invocation. On another unusable reply, return the existing applicable failure. Transport attempts retain their separate policy.
+    ambiguous: Existing receipts reconcile any previously admitted write with a lost acknowledgement. The rejected blank turn has no new write to replay.
+    cancelled: Each participant stops admission and joins its own in-flight request. Runtime releases the allocation after its call settles.
+    timeout: Recheck the original invocation and Stage deadlines. The additional call receives only the remaining time.
+cardinality:
+  - collection: Additional model calls per eligible Worker invocation or terminal document Planner execution across both response classes
+    expected: Zero in an ordinary successful invocation.
+    maximum: One total, further limited by the original model policy and remaining deadline.
+    bound: One bounded instruction and existing bounded context. No new history copy or per-attempt persistent collection.
+lifecycle:
+  - entity: Allowance owned by the Worker invocation or the document Planner execution
+    delete: Released when the owning execution ends.
+    cascade: Stage restart takes the existing new-attempt path with its own identity.
+    retention: Existing reports and telemetry retain known usage under their normal retention.
+acceptance_criteria:
+  - id: A1
+    given: A real Server, PostgreSQL and Runtime, a retained Project selection and an opted-in document review with an admitted blank STOP
+    when: A scripted Gateway supplies a valid response on the additional call
+    then: One Stage attempt produces the required report from the same selection. The two affected turns are charged separately and the selection is retained once.
+  - id: A2
+    given: Shared response fixtures, including whitespace, thought-only STOP, tool-only success, refusal, malformed envelopes and ambiguous finish metadata
+    when: The real adapters process each fixture
+    then: Only a qualifying blank or thought-only STOP enters this recovery path. A rejected Planner reply dispatches nothing. Valid calls and existing one-shot and Audit completion cases follow their respective contracts.
+  - id: A3
+    given: A repeated blank, exhausted model/token budget, cancellation at admission or deadline during the extra request
+    when: The Worker settles
+    then: Total semantic retries stay within one, every known usage is accounted once, Run state reports the owning failure and no pending call survives release.
+  - id: A4
+    given: A model-backed document review with a completed document Worker and valid bindings, or an otherwise identical review with outstanding work
+    when: The Planner receives a blank STOP and the scripted follow-up asks for finish, another dispatch or both
+    then: The settled review can accept one independently validated finish. An incomplete plan never enters this recovery. Disallowed and mixed follow-ups dispatch nothing, with no extra Worker execution.
+tests:
+  - command: make test-e2e
+    covers: [A1, A3, A4]
+  - command: make test-wire-cross-language
+    covers: [A2]
+  - command: make test-runtime
+    covers: [A1, A2, A3]
+  - command: go test ./internal/planner/streamline/... ./internal/planner/router/...
+    covers: [A2, A4]
+  - command: make test-config
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2, A3]
+test_prerequisites:
+  - Register a nonempty release process scenario. Use testdata catalogs and a scripted Gateway with known usage. Set CONTRACTOR_TEST_DATABASE_URL to a disposable database.
