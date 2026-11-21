@@ -5,7 +5,7 @@ milestone: artifact-transfer-reliability-2026-10
 epic: projects-artifacts
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V474-009]
 languages:
 - python
@@ -119,3 +119,15 @@ tests:
   covers: [A2]
 - command: go test -count=1 ./internal/operations/... ./internal/config/... ./internal/contracts/...
   covers: [A1, A2, A3]
+implementation_commit: 2dd32be7687f7f765466bb20f033216508f90446
+verification:
+  date: '2026-11-22'
+  result: >-
+    Full Runtime passed (6392 tests, 135 declared skips); the native Linux fake-CLI Podman,
+    rooted filesystem and publication suite passed 79 tests. All seven listed real-process roots
+    passed in 578.592 seconds. The new process case verifies exact Unicode/trailing whitespace,
+    missing-file non-publication and a model-free Server copy with no allocations. PostgreSQL
+    operation/config/contract packages, configuration, API, wire and final lint passed. UI checks,
+    typechecking and build passed; all 228 UI test files passed with two workers (2573 tests plus
+    one expected failure), after one default-concurrency timeout. Optional real-Podman deployment
+    was not run. Complete final-tree process acceptance remains V474-010.
