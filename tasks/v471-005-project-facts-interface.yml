@@ -61,8 +61,8 @@ context:
     words and select an existing memory by name, and attach the original memory
     deterministically. Use the vocabulary memories and memory_name, not a new
     notes API or note_name. Reuse common record_fact, without an extraction-only
-    creation facade. The user paused group-2 implementation to discuss interfaces;
-    do not resume that implementation until the discussion is concluded explicitly.
+    creation facade. After pausing group 2 to discuss interfaces, the user explicitly resumes
+    implementation while preserving incidental and postponing the broader redesign.
     The user also requests local request identifiers for HTTP/Caido and removal
     of caido_request_id from finding and record_fact. V471-007 owns that separate
     prerequisite; broader authoring-interface redesign is for later discussion.

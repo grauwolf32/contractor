@@ -5,7 +5,7 @@ milestone: project-facts-2026-11
 epic: http-tools
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V471-001]
 languages: [go, python, json, yaml, markdown]
 goal: >-
@@ -141,3 +141,11 @@ tests:
     covers: [A4]
   - command: make lint
     covers: [A1, A2, A3, A4]
+
+implementation_commit: eb9c6c5005d6fe2cffa50aed6b04a2f2ba9eecba
+verification:
+  - make test-runtime passed with 6345 passed and 135 declared skips; skips are not passing coverage.
+  - make test-http-caido-hardening and make test-findings-e2e passed, including the real PostgreSQL and Runtime processes and 20 required Findings process cases.
+  - make test-wire-cross-language passed with 400 fixtures, 452 Go and 285 Python shared tests; one optional heavy-I/O test skipped and not counted as coverage.
+  - make test-config passed after removing the empty obsolete Skill directory; new immutable catalog identities validate.
+  - Final make lint passed; exact capture wire format and non-informational correlation remain unchanged.

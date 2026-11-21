@@ -5,7 +5,7 @@ milestone: project-facts-2026-11
 epic: workflows
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on: [V471-001, V471-002, V471-004, V471-007]
 languages: [go, python, json, yaml, markdown]
 goal: >-
@@ -66,8 +66,8 @@ context:
     words and select an existing memory by name, and attach the original memory
     deterministically. Use the vocabulary memories and memory_name, not a new
     notes API or note_name. Reuse common record_fact, without an extraction-only
-    creation facade. The user paused group-2 implementation to discuss interfaces;
-    do not resume that implementation until the discussion is concluded explicitly.
+    creation facade. After pausing group 2 to discuss interfaces, the user explicitly resumes
+    implementation while preserving incidental and postponing the broader redesign.
     The user also requests local request identifiers for HTTP/Caido and removal
     of caido_request_id from finding and record_fact. V471-007 owns that separate
     prerequisite; broader authoring-interface redesign is for later discussion.
@@ -83,6 +83,17 @@ context:
     - docs/spec/tools/memory.md#MEM-R84
     - docs/spec/artifacts/artifact-store.md#ART-R36
     - docs/spec/evals/managed-evals.md#EVM-R151
+  source_binding_decision: >-
+    Resume decision 2026-11-21: use the incoming exact Worker artifact slot
+    memories, copied from ordinary passthrough Stage context. Runtime shares
+    this readonly binding with selected tools for the invocation and clears it
+    on all outcomes. record_fact resolves memory_name only within that pinned
+    snapshot. It publishes a canonical singleton contractor.memory-snapshot/v1
+    document preserving the original namespace/name/content/description/tags
+    through ordinary Artifact CAS reconciliation and existing Finding evidence.
+    No model-authored snapshot ref, mutable Memory read, quote check or new
+    evidence registry. Reopen this fixed role only for a concrete multi-snapshot
+    caller. Existing item_key/incidental semantics remain unchanged.
   execution_boundary: >-
     The chosen call form is a distinct optional Stage with planner passthrough@1
     and exactly one model-backed Runtime Worker over the ordinary exact snapshot.
