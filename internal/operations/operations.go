@@ -4,8 +4,10 @@ package operations
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/stageresult"
 )
@@ -70,6 +72,12 @@ func (r *Registry) Run(ctx context.Context, ref string, call Call) (stageresult.
 	}
 	result, err := module.Run(ctx, call)
 	if err != nil {
+		var failure *Failure
+		if errors.As(err, &failure) && failure.Code == apierror.Conflict.Code() {
+			// HTTP clients may retry a conflict after refreshing their intent. An
+			// operation replays pinned intent, so a domain conflict is permanent.
+			return stageresult.StageContentResult{}, &Failure{Code: failure.Code, Message: failure.Message}
+		}
 		return stageresult.StageContentResult{}, err
 	}
 	if err := ctx.Err(); err != nil {

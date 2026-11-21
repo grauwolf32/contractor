@@ -1,0 +1,40 @@
+schema_version: '1.0'
+id: V474-009
+title: Keep Server operation domain conflicts permanent
+milestone: scheduler-result-and-report-correctness-2026-10
+epic: execution-core
+kind: defect
+introduced_by: V410-005
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go]
+goal: A deterministic domain conflict cannot request another attempt of the same Server operation.
+context:
+  authority: Agent investigation 2026-11-21 while implementing V474-003; SOP-R8 already requires permanent domain conflicts.
+  specification: [docs/spec/execution/server-operations.md#SOP-R8]
+  finding: >-
+    internal/operations/sitemapjoin/operation.go:86 and openapiwork/operation.go:49 copy the public
+    conflict Kind's retryability into operation failures. Registry.Run returns it unchanged, contrary
+    to SOP-R8. The new copy PostgreSQL collision test reproduced a retryable definite rejection.
+  siblings: >-
+    All registered operations pass through Registry.Run. Normalize already classified conflict failures
+    there. Preserve raw errors, especially runstore claim-loss sentinels used by Scheduler fences,
+    and preserve storage_transaction_conflict retryability. Do not change public HTTP conflict semantics.
+scope:
+  in:
+  - Normalize classified domain conflict failures at the common operation dispatch boundary.
+  - Regression coverage through Registry.Run for mapped and wrapped failures, raw fencing errors and storage conflicts.
+  out: [Public API retry semantics, new retries or receipts, operation-specific algorithms]
+acceptance_criteria:
+- id: A1
+  text: A conflict Failure, including a wrapped one, retains its safe code/message and becomes non-retryable.
+- id: A2
+  text: Storage transaction conflicts retain their retryability; raw errors and cancellation retain their identity.
+- id: A3
+  text: Existing registry validation and cancellation tests pass, and the conflict regression fails without the fix.
+tests:
+- command: go test -count=1 ./internal/operations
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A1, A2, A3]
