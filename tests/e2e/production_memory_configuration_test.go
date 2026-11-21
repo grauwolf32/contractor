@@ -180,10 +180,10 @@ func assertProductionPlannerCompactionCatalog(t *testing.T) {
 			}
 		}
 	}
-	// project-findings-review@1's analyze Stage adds one summarized
-	// continuation to the twenty retained by the common Audit cutover.
-	if direct != 8 || continuations != 21 {
-		t.Fatalf("modelled Planner coverage = %d direct/%d continuations, want 8/21", direct, continuations)
+	// The current Project Finding and document-review catalog adds two
+	// summarized continuations to the twenty retained by the common Audit cutover.
+	if direct != 8 || continuations != 22 {
+		t.Fatalf("modelled Planner coverage = %d direct/%d continuations, want 8/22", direct, continuations)
 	}
 	loaded := filepath.Join(t.TempDir(), "catalog")
 	if err := os.CopyFS(loaded, os.DirFS(root)); err != nil {
