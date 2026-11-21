@@ -1,0 +1,61 @@
+schema_version: "1.0"
+id: V471-011
+title: Keep UI process fixtures on the current Finding and Audit contracts
+milestone: project-facts-2026-11
+epic: quality
+kind: chore
+introduced_by: V471-001
+priority: P1
+status: in_progress
+depends_on: [V471-001]
+languages: [go, python, yaml, markdown]
+goal: The real UI-stack tests stage their own fresh Eval identities and call current Finding interfaces without obsolete publication flags.
+context:
+  authority: >-
+    User request 2026-11-21 authorizes the second Project Facts group and main
+    delivery. Its integrated release gate exposes stale UI process fixtures
+    after V471-001 changed default profiles and Finding authoring. Repair these
+    consumers without restoring production aliases or changing model policy.
+  finding: >-
+    tests/ui-stack/evals_gateway_test.go:110 clones current source-checklist@2
+    under a fresh eval-audit name but keeps version 2, while the fixture asks for
+    its private @1 identities. tests/ui-stack/evals_producer.py:367 still expects
+    audit-source-check@1. tests/ui-stack/finding_duplicates_test.go:101 still
+    sends the removed publish_problem argument to the actual code Finding tool.
+  specification:
+    - docs/spec/configuration/catalog.md#CAT-R74
+    - docs/spec/findings/findings.md#FND-R210
+    - docs/spec/audits/worker-completion.md
+  boundary: >-
+    Fresh renamed test variants own their explicit version 1, independently of
+    source manifest versions. Their underlying production Workflow and template
+    refs retain the current pinned version 2. External fixture assertions follow
+    that real child Workflow. No runtime manifests or selector fallback change.
+  siblings: >-
+    Inspect every renamed Eval variant, external producer contract and Finding
+    tool call in tests/ui-stack. Keep exact fixture Worker/summarizer policy
+    assertions. Both UI-stack release groups must pass against real processes.
+scope:
+  in:
+    - Set explicit metadata identity on existing private-variant cloning rather than inheriting an unrelated source version.
+    - Update the external Audit producer and its test to the exact current child Workflow reference.
+    - Remove the obsolete Finding publication flag from the real duplicate-source fixture.
+    - Run configuration, producer, native Eval and full UI-stack process coverage.
+  out:
+    - Production behavior, catalog/model changes, legacy aliases, a new cloning framework or new Finding APIs.
+acceptance_criteria:
+  - id: A1
+    text: Managed and non-managed staged catalogs resolve all their selected identities and preserve exact Worker and summarizer budgets.
+  - id: A2
+    text: The actual producer verifies both accepted native Audit tasks under the current child Workflow, without weakening provenance/result assertions.
+  - id: A3
+    text: Both UI-stack process groups pass; duplicate-source publication reaches the real current Finding tool and canonical source history.
+tests:
+  - command: "go test -tags=e2e -count=1 ./tests/ui-stack -run '^(TestUIStackConfigurationClosure|TestManagedEvalGatewayHasIndependentHistories|TestManagedEvalAssertionsUseCurrentDomainContract|TestManagedEvalGatewayUsesCurrentCheckerContract)$'"
+    covers: [A1, A2]
+  - command: make test-release-ui-stack-a
+    covers: [A1, A2, A3]
+  - command: make test-release-ui-stack-b
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]

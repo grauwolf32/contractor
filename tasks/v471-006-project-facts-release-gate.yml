@@ -6,7 +6,7 @@ epic: quality
 kind: chore
 priority: P1
 status: in_progress
-depends_on: [V471-005, V471-010]
+depends_on: [V471-005, V471-010, V471-011, V471-012]
 languages: [go, python, typescript, yaml, markdown]
 goal: >-
   Prove that optional memory extraction, Project facts, existing Finding admission,

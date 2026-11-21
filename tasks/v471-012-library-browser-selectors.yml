@@ -1,0 +1,46 @@
+schema_version: "1.0"
+id: V471-012
+title: Follow the current Library contract in real-stack browser journeys
+milestone: project-facts-2026-11
+epic: quality
+kind: chore
+introduced_by: V458-018
+priority: P1
+status: in_progress
+depends_on: [V458-018]
+languages: [typescript, markdown]
+goal: Real-stack journeys select the existing exact Workflow and inspect its input/result region through the current Library interface.
+context:
+  authority: >-
+    User request 2026-11-21 authorizes the second Facts group and main delivery.
+    Its required release verification exposes browser selectors left behind by
+    the previously merged Library redesign. Repair only these test consumers.
+  finding: >-
+    ui/e2e/project-workspace.spec.ts:524 asks for an Inputs and results heading
+    although V458-018 changed it to a named region. ui/e2e/stack.spec.ts:430
+    asks for the raw streamline-copy link although Library rows now use readable
+    titles and retain exact identity in the URL. Both fail in the real stack.
+  specification: docs/spec/ui/ui.md#UI-R50
+  boundary: >-
+    Production Library rendering and exact identities remain authoritative.
+    Select the exact version through the existing row href and use the existing
+    accessible region. No production UI, layout, API or catalog changes.
+  siblings: Inspect the remaining Library selectors in both journeys; preserve actual Run creation, draft retention and secret-boundary assertions.
+scope:
+  in:
+    - Follow the exact streamline-copy@1 row and current named contract region.
+    - Run the full real-stack browser group and UI validation without weakening assertions.
+  out:
+    - Production behavior, changing displayed metadata, weakening visibility or secret checks, live model calls.
+acceptance_criteria:
+  - id: A1
+    text: The Project browser checks the current input/result region in the viewport and retains Run drawer focus, exact input and dismissal assertions.
+  - id: A2
+    text: The real connected journey selects streamline-copy@1 and completes exact Run submission and downstream source/secret checks through real processes.
+tests:
+  - command: make test-release-ui-stack-a
+    covers: [A1, A2]
+  - command: make ui-verify
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]
