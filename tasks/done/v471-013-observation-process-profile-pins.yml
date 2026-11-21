@@ -6,7 +6,7 @@ epic: quality
 kind: chore
 introduced_by: V471-001
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V471-001]
 languages: [go, markdown]
 goal: Both observe and trace process journeys use their published exact profile identities while retaining the actual observation and source assertions.
@@ -47,3 +47,9 @@ tests:
     covers: [A1, A2]
   - command: make lint
     covers: [A1, A2]
+
+implementation_commit: 06e0622a48bcfb43a881c3c55f4a9578727bb38e
+verification:
+  - The focused JSON process run passed in 31.125 s with observe, trace and their parent all executed; exact assertions and the single Worker path remain intact.
+  - Full make -k release-verify passed on 74558b83b049eb7c12772cfde2b352fb2b487f56. The repaired observation root and all three process shards passed (19, 16 and 24 roots), with no process skips or failures.
+  - make lint passed independently and again inside the full release gate. Published profile identities and all production code are unchanged by this fixture-only correction.
