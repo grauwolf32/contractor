@@ -8,7 +8,7 @@ introduced_by: V471-001
 priority: P1
 status: in_progress
 depends_on: [V471-001]
-languages: [go, python, yaml, markdown]
+languages: [go, python, typescript, yaml, markdown]
 goal: The real UI-stack tests stage their own fresh Eval identities and call current Finding interfaces without obsolete publication flags.
 context:
   authority: >-
@@ -22,6 +22,8 @@ context:
     its private @1 identities. tests/ui-stack/evals_producer.py:367 still expects
     audit-source-check@1. tests/ui-stack/finding_duplicates_test.go:101 still
     sends the removed publish_problem argument to the actual code Finding tool.
+    ui/e2e/support/finding-duplicates.ts:77 and :101 select removed source
+    review Workflow and OWASP profile version 1 instead of their current version 2.
   specification:
     - docs/spec/configuration/catalog.md#CAT-R74
     - docs/spec/findings/findings.md#FND-R210
@@ -39,7 +41,7 @@ scope:
   in:
     - Set explicit metadata identity on existing private-variant cloning rather than inheriting an unrelated source version.
     - Update the external Audit producer and its test to the exact current child Workflow reference.
-    - Remove the obsolete Finding publication flag from the real duplicate-source fixture.
+    - Remove the obsolete Finding publication flag and select current Workflow/profile versions in the real duplicate-source fixture.
     - Run configuration, producer, native Eval and full UI-stack process coverage.
   out:
     - Production behavior, catalog/model changes, legacy aliases, a new cloning framework or new Finding APIs.
