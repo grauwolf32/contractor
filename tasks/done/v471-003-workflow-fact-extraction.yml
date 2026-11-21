@@ -5,7 +5,7 @@ milestone: project-facts-2026-11
 epic: workflows
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V471-001, V471-002, V471-004, V471-007, V471-009]
 languages: [go, python, json, yaml, markdown]
 goal: >-
@@ -224,3 +224,11 @@ test_prerequisites:
   - Use testdata catalogs and a scripted Gateway for deterministic gates; live evaluation is a later explicit action, not implied by these tasks.
   - Inspect the effective resolved Stage/AllocationSpec and Gateway requests; assert one dispatched Worker with the pinned Worker model and zero Planner model calls, rather than inferring the execution path from a Workflow name.
   - Full suites of touched model/Workflow packages and real PostgreSQL receipt paths must pass; remove owned test resources.
+
+implementation_commit: db1a79186da13d3262db46d61caef5fbd21c4aa0
+verification:
+  - make test-project-facts-e2e passed with 23 required process cases, 294 Runtime Finding cases and the frozen native Eval recipe suite; real process package completed in 565.757 s.
+  - make test-runtime passed with 6363 tests and 135 declared optional/platform skips; all 577 required compaction cases passed. Skips are not passing coverage.
+  - make test-config and make lint passed; shared wire verification passed 401 fixtures with 453 Go and 286 Python shared tests. One explicitly optional disk-heavy skip is not coverage.
+  - The complete internal/memory Go suite passed against PostgreSQL. The process regression proves partial publication, new-attempt correlation, zero output, exact original memories, ordinary current-Run reads and one pinned Worker with no Planner model.
+  - Scripted native Audit Eval uses two isolated Projects and leaves private semantic quality incomplete for human review. No live model experiment was run.

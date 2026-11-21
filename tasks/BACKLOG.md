@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-68 open tasks: 10 in progress, 45 pending, 13 deferred. 1618 finished: 1600 completed, 18 archived.
+67 open tasks: 10 in progress, 44 pending, 13 deferred. 1619 finished: 1601 completed, 18 archived.
 
 ## In progress
 
@@ -20,7 +20,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V471-003](v471-003-workflow-fact-extraction.yml) | workflows | feature | P1 | Extract bounded Project facts in an optional passthrough Worker Stage |
+| [V471-005](v471-005-project-facts-interface.yml) | ui | feature | P1 | Show focused Project facts separately while reusing Finding sources and hypothesis grounds |
 
 ## Pending
 
@@ -100,13 +100,12 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V411-018](v411-018-pentest-ui-journey.yml) | feature | P1 | V411-015, V411-017 | Build the ordinary HTTP Audit setup and evidence UI journey |
-| [V471-005](v471-005-project-facts-interface.yml) | feature | P1 | V471-003 | Show focused Project facts separately while reusing Finding sources and hypothesis grounds |
 
 ### Operations, authentication, CLI and deployment (`operations`)
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V473-003](v473-003-model-recovery-diagnostics.yml) | feature | P1 | V471-003 | Explain model recovery costs and verify zero and partial fact extraction |
+| [V473-003](v473-003-model-recovery-diagnostics.yml) | feature | P1 | — | Explain model recovery costs and verify zero and partial fact extraction |
 
 ### Public API and wire contracts (`api-contracts`)
 
@@ -169,7 +168,7 @@ tasks in `introduced_by`.
 | HTTP and Caido tools (`http-tools`) | 5 | 25 | 37 | 15 | 38 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 12 | 30 |
 | Findings tools and collections (`findings`) | 0 | 20 | 15 | 11 | 24 |
-| Workflow catalog and document workflows (`workflows`) | 7 | 21 | 17 | 16 | 26 |
+| Workflow catalog and document workflows (`workflows`) | 6 | 21 | 17 | 16 | 26 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 40 | 20 | 70 |
 | Audits (`audits`) | 10 | 70 | 98 | 42 | 171 |
 | Evaluations (`evals`) | 4 | 23 | 46 | 20 | 54 |

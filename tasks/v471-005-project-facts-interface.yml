@@ -5,7 +5,7 @@ milestone: project-facts-2026-11
 epic: ui
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on: [V471-003]
 languages: [typescript, css, go, yaml, markdown]
 goal: >-
@@ -66,6 +66,14 @@ context:
     The user also requests local request identifiers for HTTP/Caido and removal
     of caido_request_id from finding and record_fact. V471-007 owns that separate
     prerequisite; broader authoring-interface redesign is for later discussion.
+  reader_decision: >-
+    Agent implementation decision 2026-11-21: reuse the existing bounded Project
+    Finding reader and a fixed informational preset at /facts. Counts describe
+    loaded records; each explicit load reads at most five ordinary pages. The
+    Issues view retains the common severity filters. Opening a fact uses the same
+    canonical detail and exact Artifact reader. No new API or Fact discriminator.
+    Memory snapshots remain ordinary source previews with a reported-statement
+    annotation, without another parser, validation engine or source registry.
   proposal: docs/proposals/0055-project-facts-through-findings.md
   specification:
     - docs/spec/ui/ui.md
