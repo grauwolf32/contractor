@@ -1,0 +1,43 @@
+schema_version: '1.0'
+id: V474-012
+title: Migrate scripted Audit callbacks to required scalar item keys
+milestone: model-tool-interfaces-2026-11
+epic: planner-worker
+kind: chore
+introduced_by: V474-004
+priority: P1
+status: in_progress
+depends_on: [V474-004]
+languages: [go]
+goal: Findings and HTTP process fixtures send the assigned item key and prove every intended scalar submission was recorded.
+context:
+  authority: User implementation request 2026-11-21 includes migration and verification of current consumers.
+  finding: >-
+    tests/e2e/findings_process_test.go:306 and engagement_http_evidence_test.go:72 construct
+    scalar result arguments in callbacks without item_key. Fixed-map callers already use
+    auditResultArguments. Missing keys advance the scripted Gateway despite a rejected tool call:
+    findings producer/reader and receipt-retention fail, while the second HTTP submission can
+    be silently rejected after an earlier successful result.
+  boundary: >-
+    Keep Runtime strictness, receipts, item assignment and intended evidence assertions unchanged.
+    Migrate the fixture callbacks and check their recorded tool responses before emitting completion.
+  specification:
+  - docs/spec/audits/worker-completion.md
+scope:
+  in:
+  - Inspect every scripted scalar submission and migrate both custom callbacks to the assigned-key helper.
+  - Require successful recorded responses at the two affected completion boundaries, including repeated HTTP submission.
+  - Run findings production, collection retention and selected HTTP evidence through real processes.
+  out: [Production behavior changes, inferred singleton keys in Runtime, weakening receipt or provenance assertions]
+acceptance_criteria:
+- id: A1
+  text: Every intended successful scalar callback supplies its read_audit_task key, and the affected scripts cannot finish after a rejected scalar call.
+- id: A2
+  text: Producer/reader, retained ordinary/Audit receipts and selected HTTP finding scenarios pass with exact evidence and unchanged receipt assertions.
+tests:
+- command: go test -count=1 ./tests/e2e
+  covers: [A1]
+- command: go test -tags=e2e -count=1 -timeout=10m ./tests/e2e -run '^(TestFindingsProducerAndReaderAcrossProcesses|TestFindingsCollectionsRetainOrdinaryAndAuditReceipts|TestEngagementHTTPFindingReusesSelectedEvidenceAcrossProcesses)$'
+  covers: [A1, A2]
+- command: make lint
+  covers: [A1, A2]
