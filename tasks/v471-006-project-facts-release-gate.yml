@@ -143,6 +143,8 @@ acceptance_criteria:
       limitations and open decisions, and leaves no owned database/container/
       network. Full touched suites and release evidence identify the tested revision.
 tests:
+  - command: go test -tags=integration -count=1 ./internal/findingintake
+    covers: [A1, A2, A3, A4]
   - command: make test-project-facts-e2e
     covers: [A1, A2, A3, A4]
   - command: make test-memory-snapshot-e2e

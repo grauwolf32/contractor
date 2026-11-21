@@ -3,6 +3,7 @@
 package e2e
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -12,7 +13,9 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts/postgres/artifactpgtest"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -111,14 +114,18 @@ func TestFactExtractionAcrossProcesses(t *testing.T) {
 				t.Fatalf("receipts=%d", len(receipts))
 			}
 			ids := map[string]string{}
+			var selectedReceipt string
+			var originalMemory []byte
 			for _, receipt := range receipts {
 				if receipt.FindingID == nil || receipt.Origin.Audit != nil {
 					t.Fatalf("invalid Run-level fact: %+v", receipt)
 				}
 				ids[receipt.Document.Title] = *receipt.FindingID
 				if receipt.Document.Title == "nginx reported" {
+					selectedReceipt = receipt.ReceiptID
 					ref := receipt.Evidence[0].Ref
 					data, _ := download(t, h.client, h.baseURL+"/v1/runs/"+run+"/artifacts/"+ref.Namespace+"/"+ref.Name+"?revision="+url.QueryEscape(*ref.Revision))
+					originalMemory = data
 					var original struct {
 						Notes []struct {
 							Name, Content, Description string
@@ -135,6 +142,17 @@ func TestFactExtractionAcrossProcesses(t *testing.T) {
 			}
 			if ids["nginx reported"] != ids["Different title, same evidence"] || ids["nginx reported"] != ids["New attempt, same memory"] || ids["nginx reported"] == ids["nginx in code"] {
 				t.Fatal("evidence correlation changed")
+			}
+			selection := publishFindingsCollection(t, h, "extracted-fact-ground", []findingintake.CollectionSelection{{Kind: "project", ID: project.ProjectID, ReceiptIDs: []string{selectedReceipt}, Findings: []findingintake.CollectionFindingSelection{}}}, false)
+			ref := selection.Artifact.Ref
+			body, _ := download(t, h.client, h.baseURL+"/v1/artifacts/"+ref.Namespace+"/"+ref.Name+"?revision="+url.QueryEscape(*ref.Revision))
+			collection, pkg, err := auditdomain.DecodeFindingCollectionPackage(body)
+			if err != nil || len(collection.Entries) != 1 || collection.Entries[0].ReceiptID != selectedReceipt || len(collection.Entries[0].Evidence) != 1 {
+				t.Fatal("exact ground selection expanded to other source receipts", err)
+			}
+			material, ok := pkg.MemberByID(collection.Entries[0].Evidence[0].DocumentID)
+			if !ok || !bytes.Equal(material.Data(), originalMemory) {
+				t.Fatal("selected ground lost the original memory")
 			}
 		} else if len(receipts) != 0 {
 			t.Fatal("zero extraction wrote facts")
