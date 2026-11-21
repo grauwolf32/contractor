@@ -11,9 +11,9 @@ import (
 
 func TestFactExtractionAuditEvalAcrossProcesses(t *testing.T) {
 	stage := func(name string) domainGatewayStage {
-		return domainGatewayStage{name: name, tools: []string{"read_text_artifact", "record_fact", "read_audit_task", "submit_check_result"}, steps: []domainGatewayStep{
+		return domainGatewayStage{name: name, tools: []string{"read_artifact", "record_fact", "read_audit_task", "submit_check_result"}, steps: []domainGatewayStep{
 			toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})),
-			toolGatewayStep("read_text_artifact", stageRefArguments("memories", nil)),
+			toolGatewayStep("read_artifact", stageRefArguments("memories", nil)),
 			toolGatewayStep("record_fact", func(request map[string]any) (map[string]any, error) {
 				tasks := findingsToolResponses(request, "read_audit_task")
 				if len(tasks) != 1 {

@@ -3,7 +3,7 @@ kind: Workflow
 
 metadata:
   name: likec4-from-workspace-streamline
-  version: "4"
+  version: "5"
 
 spec:
   parameters:
@@ -68,7 +68,7 @@ spec:
           ref: instructions/planner-compaction.md
       agents:
         analyst:
-          template: workspace_source_graph_analyst@3
+          template: workspace_source_graph_analyst@4
           namespace: analysis
       context:
         artifacts:
@@ -114,7 +114,7 @@ spec:
       plannerContextManagement: *planner_compaction
       agents:
         analyst:
-          template: workspace_source_graph_analyst@3
+          template: workspace_source_graph_analyst@4
           namespace: analysis
       context:
         artifacts:
@@ -159,7 +159,7 @@ spec:
       plannerContextManagement: *planner_compaction
       agents:
         builder:
-          template: workspace_likec4_builder@3
+          template: workspace_likec4_builder@4
           namespace: likec4
       context:
         artifacts:
@@ -207,7 +207,7 @@ spec:
       plannerContextManagement: *planner_compaction
       agents:
         validator:
-          template: workspace_likec4_validator@3
+          template: workspace_likec4_validator@4
           namespace: likec4
       context:
         artifacts:

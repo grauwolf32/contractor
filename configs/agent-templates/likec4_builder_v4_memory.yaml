@@ -3,7 +3,7 @@ kind: AgentTemplate
 
 metadata:
   name: likec4_builder
-  version: "4"
+  version: "5"
 
 spec:
   description: Incrementally builds one evidence-linked single-file LikeC4 architecture model
@@ -29,9 +29,9 @@ spec:
         - list_source_files
         - search_source
         - read_source
-    - ref: text-artifacts@1
+    - ref: run-artifacts@1
       tools:
-        - read_text_artifact
+        - read_artifact
     - ref: likec4@1
       tools:
         - load_likec4

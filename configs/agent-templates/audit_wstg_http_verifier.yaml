@@ -3,7 +3,7 @@ kind: AgentTemplate
 
 metadata:
   name: audit_wstg_http_verifier
-  version: "2"
+  version: "3"
 
 spec:
   description: Performs approved WSTG checks against a running HTTP target, retaining observations and unsupported capability gaps
@@ -16,7 +16,9 @@ spec:
     - ref: http-tools@1
       tools: [http_request, http_read_body, http_history, http_session_set, http_session_get, http_session_clear]
     - ref: text-artifacts@1
-      tools: [read_text_artifact, write_text_artifact]
+      tools: [write_text_artifact]
+    - ref: run-artifacts@1
+      tools: [read_artifact]
     - ref: security-findings-http@1
       tools: [finding]
     - ref: audit-results@2

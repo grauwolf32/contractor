@@ -4,6 +4,7 @@ package e2e
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -154,14 +155,14 @@ func (g *fakeGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 			"namespace": "inputs", "name": "source", "revision": nil,
 		})
 	case 2:
-		data, ok := lastStringValue(request, "dataBase64")
+		data, ok := lastStringValue(request, "text")
 		if !ok || data == "" {
 			g.fail(w, http.StatusBadRequest, "read_artifact result was not returned to the model")
 			return
 		}
 		message = toolCallMessage("write-1", "write_artifact", map[string]any{
 			"namespace": "builder", "name": "copied", "media_type": "text/plain",
-			"data_base64": data, "expected_revision": nil,
+			"data_base64": base64.StdEncoding.EncodeToString([]byte(data)), "expected_revision": nil,
 		})
 	case 3:
 		_, ok := lastExactArtifact(request, "builder", "copied")
@@ -357,4 +358,12 @@ func walkJSON(value any, visit func(map[string]any)) {
 			walkJSON(decoded, visit)
 		}
 	}
+}
+
+func artifactTextBytes(value any) ([]byte, error) {
+	text, ok := value.(string)
+	if !ok {
+		return nil, fmt.Errorf("artifact text result has type %T", value)
+	}
+	return []byte(text), nil
 }

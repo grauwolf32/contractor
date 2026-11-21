@@ -587,8 +587,8 @@ costs a payload read. The Runtime client sends only `GET`, `PUT` and `POST`.
 The public API applies the same rule from the same route registration
 ([API-R111](../api/public-api.md)).
 
-**ART-R117.** The UTF-8 readers `read_artifact` and `read_text_artifact`
-first resolve a ref through the metadata read (ART-R116), unless its exact
+**ART-R117.** The common reader `read_artifact` returns bounded UTF-8 text and
+first resolves a ref through the metadata read (ART-R116), unless its exact
 revision is already cached. A media type that names a binary format is
 refused before any byte is downloaded: the top-level types `image` (except
 `image/svg+xml`), `audio`, `video`, `font` and `model`, and the `application`
@@ -600,7 +600,7 @@ when it is not valid UTF-8. The allocation keeps one downloaded revision of
 at most LIM-ART-4, so paging it, or reading a versionless ref whose current
 revision it holds, downloads nothing again. Alongside the revision it keeps
 what it derived from the payload once, off the event loop: whether the
-payload is valid UTF-8 and, for `read_text_artifact`, a line index that
+payload is valid UTF-8 and a line index that
 counts the line starts before every 4,096-byte block. The index size follows from the
 payload size alone, so the cache never retains more than LIM-ART-7 whatever
 the lines or characters, and it never retains decoded text: a page finds its
@@ -616,7 +616,14 @@ Rationale: keeping decoded text would retain up to four times the payload
 bytes per character), and one eight-byte offset per line up to eight times
 the payload of a text made of line breaks. Line breaks are the bytes `\r` and `\n`, which
 never occur inside a multi-byte UTF-8 character, so byte offsets give the
-same line numbers as the decoded text. Reopen this if a reader needs
+same line numbers as the decoded text. The selected reader accepts `start_line`
+(1-based, default 1), `max_lines` (1 through 400, default 200) and
+`line_offset` (UTF-8 byte offset, default 0). It returns exact artifact metadata,
+`text`, `startLine`, `endLine`, `totalLines`, `truncated`, `partialLine` and
+`nextStartLine`/`nextLineOffset`. Continue with the exact returned revision and
+the returned position. No encoded payload appears in its text response.
+`text-artifacts@1` exposes only `write_text_artifact` for text authoring.
+Reopen this if a reader needs
 character rather than byte positions inside a line.
 
 ### Versions, reads and writes

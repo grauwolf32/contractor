@@ -263,7 +263,7 @@ func TestProjectWorkspaceLifecycleAcrossProductionProcesses(t *testing.T) {
 	}
 	t.Cleanup(pool.Close)
 
-	openAPIRunRequest := projectRunRequest("openapi-from-workspace@7", map[string]artifactRef{
+	openAPIRunRequest := projectRunRequest("openapi-from-workspace@8", map[string]artifactRef{
 		"source": source, "existing_openapi": openAPISeedRef,
 	})
 	openAPIRunID := postProjectRun(
@@ -356,7 +356,7 @@ func TestProjectWorkspaceLifecycleAcrossProductionProcesses(t *testing.T) {
 		},
 	)
 
-	likeC4RunRequest := projectRunRequest("likec4-from-workspace@7", map[string]artifactRef{
+	likeC4RunRequest := projectRunRequest("likec4-from-workspace@8", map[string]artifactRef{
 		"source": source, "existing_likec4": likeC4SeedRef,
 	})
 	likeC4RunID := postProjectRun(

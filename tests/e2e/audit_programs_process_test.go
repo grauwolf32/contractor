@@ -206,7 +206,7 @@ func assertAuditProgramCatalogUnavailable(t *testing.T, client *http.Client, bas
 	}
 	auditProgramGET(t, client, baseURL+"/v1/audit-profiles?limit=100", &page)
 	remainingProfiles := map[string]bool{
-		"source-checklist@2":                false,
+		"source-checklist@3":                false,
 		"owasp-asvs-5-0-l1-source-review@2": false,
 	}
 	for _, profile := range page.Items {

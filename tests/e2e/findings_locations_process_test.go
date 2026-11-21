@@ -3,7 +3,6 @@
 package e2e
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -94,7 +93,7 @@ func locatedFindingReader() domainGatewayStage {
 			if len(reads) != 1 {
 				return nil, fmt.Errorf("reader did not open the retained proposal")
 			}
-			data, err := base64.StdEncoding.DecodeString(fmt.Sprint(reads[0]["dataBase64"]))
+			data, err := artifactTextBytes(reads[0]["text"])
 			if err != nil {
 				return nil, err
 			}

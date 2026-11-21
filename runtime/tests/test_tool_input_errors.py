@@ -281,10 +281,10 @@ def test_text_artifact_line_errors_reach_the_model(tmp_path):
         client.seed("worker-space", "binary", "text/plain", b"\xff")
         tools = await text_tools(tmp_path, client, state)
         with pytest.raises(ValueError) as caught:
-            await tools["read_text_artifact"]("worker-space", "notes", start_line=5)
+            await tools["read_artifact"]("worker-space", "notes", start_line=5)
         assert_model_facing(caught.value, "start_line exceeds artifact line count")
         with pytest.raises(ValueError) as caught:
-            await tools["read_text_artifact"]("worker-space", "binary")
+            await tools["read_artifact"]("worker-space", "binary")
         assert_model_facing(caught.value, "not valid UTF-8")
 
     asyncio.run(scenario())

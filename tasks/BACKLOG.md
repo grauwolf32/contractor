@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-71 open tasks: 10 in progress, 48 pending, 13 deferred. 1626 finished: 1608 completed, 18 archived.
+71 open tasks: 11 in progress, 47 pending, 13 deferred. 1626 finished: 1608 completed, 18 archived.
 
 ## In progress
 
@@ -21,6 +21,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V474-001](v474-001-reject-unknown-model-tool-arguments.yml) | planner-worker | feature | P1 | Reject undeclared model tool arguments before execution |
+| [V474-002](v474-002-read-artifact-text-without-base64.yml) | projects-artifacts | feature | P1 | Serve bounded UTF-8 text through the common read_artifact tool |
 
 ## Pending
 
@@ -73,7 +74,6 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V474-002](v474-002-read-artifact-text-without-base64.yml) | feature | P1 | — | Serve bounded UTF-8 text through the common read_artifact tool |
 | [V474-003](v474-003-publish-artifact-bytes-without-model-encoding.yml) | feature | P1 | — | Publish existing workspace files by local reference |
 
 ### Audits (`audits`)

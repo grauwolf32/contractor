@@ -214,7 +214,7 @@ func TestUIStackConfigurationClosure(t *testing.T) {
 				t.Fatalf("staging replaced the production Worker policy: %v", err)
 			}
 			fixtureWorkflows := []string{"streamline-copy@1"}
-			for _, selector := range []string{"streamline-copy@1", "openapi-from-workspace@7"} {
+			for _, selector := range []string{"streamline-copy@1", "openapi-from-workspace@8"} {
 				if _, err := snapshot.Workflow(selector); err != nil {
 					t.Fatal(err)
 				}

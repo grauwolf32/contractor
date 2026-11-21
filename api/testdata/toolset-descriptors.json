@@ -232,7 +232,7 @@
       "requiredWorkflowInputs": {}
     },
     "text-artifacts@1": {
-      "tools": ["read_text_artifact", "write_text_artifact"],
+      "tools": ["write_text_artifact"],
       "infrastructureChannels": {},
       "requiresWorkspace": false,
       "workspaceObservationTools": [],

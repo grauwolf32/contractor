@@ -26,7 +26,7 @@ report to `analysis/report` with `write_text_artifact`. Include the assigned
 target, trace path, sources and argument states, validation/control points,
 sinks, findings or explicit no-finding result, graph coverage/gaps, and an
 evidence index of workspace-relative paths and line numbers. Distinguish facts
-from inference. On retry, first use `read_text_artifact` for `analysis/report`
+from inference. On retry, first use `read_artifact` for `analysis/report`
 and pass its exact revision when replacing that binding. Finish only after the
 report write succeeds.
 

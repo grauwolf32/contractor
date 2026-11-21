@@ -366,20 +366,20 @@ func openAPIGatewayStages() []gatewayStage {
 	analystTools := []string{
 		"attack_surface", "complexity_hotspots", "entrypoint_paths_to", "find_callees",
 		"find_callers", "find_symbol", "functions_that_raise", "glob", "graph_summary",
-		"grep", "list_symbols", "ls", "paths_between", "read_file", "read_text_artifact",
+		"grep", "list_symbols", "ls", "paths_between", "read_file", "read_artifact",
 		"search_def", "write_text_artifact",
 	}
 	builderTools := []string{
 		"changed_paths", "diff", "get_openapi_component", "get_openapi_info", "get_openapi_path",
 		"glob", "grep", "initialize_openapi", "list_openapi_components", "list_openapi_paths",
 		"list_openapi_servers", "list_openapi_tags", "load_openapi", "ls", "read_file",
-		"read_text_artifact", "rollback_changes", "set_openapi_info", "set_openapi_servers",
+		"read_artifact", "rollback_changes", "set_openapi_info", "set_openapi_servers",
 		"set_openapi_tags", "upsert_openapi_component", "upsert_openapi_path", "validate_openapi",
 	}
 	validatorTools := []string{
 		"changed_paths", "diff", "get_openapi_component", "get_openapi_info", "get_openapi_path",
 		"glob", "grep", "list_openapi_components", "list_openapi_paths", "list_openapi_servers",
-		"list_openapi_tags", "load_openapi", "ls", "read_file", "read_text_artifact",
+		"list_openapi_tags", "load_openapi", "ls", "read_file", "read_artifact",
 		"remove_openapi_component", "remove_openapi_path", "rollback_changes", "set_openapi_info",
 		"set_openapi_servers", "set_openapi_tags", "upsert_openapi_component", "upsert_openapi_path",
 		"validate_openapi", "write_text_artifact",
@@ -402,7 +402,7 @@ func discoveryGatewayStage(name string, tools []string, dependency bool) gateway
 			"path": "", "cursor": "", "limit": 50,
 		})))
 	} else {
-		steps = append(steps, toolGatewayStep("read_text_artifact", stageRefArguments("dependency_report", nil)))
+		steps = append(steps, toolGatewayStep("read_artifact", stageRefArguments("dependency_report", nil)))
 	}
 	steps = append(steps, toolGatewayStep("read_file", fixedArguments(map[string]any{
 		"path": "app.py", "start_line": 1, "max_lines": 100,
@@ -433,8 +433,8 @@ func discoveryGatewayStage(name string, tools []string, dependency bool) gateway
 
 func openAPIBuildGatewayStage(tools []string) gatewayStage {
 	return gatewayStage{name: "openapi/openapi_build", tools: tools, steps: []gatewayStep{
-		toolGatewayStep("read_text_artifact", stageRefArguments("dependency_report", nil)),
-		toolGatewayStep("read_text_artifact", stageRefArguments("project_report", nil)),
+		toolGatewayStep("read_artifact", stageRefArguments("dependency_report", nil)),
+		toolGatewayStep("read_artifact", stageRefArguments("project_report", nil)),
 		toolGatewayStep("read_file", fixedArguments(map[string]any{
 			"path": "app.py", "start_line": 1, "max_lines": 100,
 		})),
@@ -480,8 +480,8 @@ func openAPIBuildGatewayStage(tools []string) gatewayStage {
 
 func openAPIValidateGatewayStage(tools []string) gatewayStage {
 	return gatewayStage{name: "openapi/openapi_validate", tools: tools, steps: []gatewayStep{
-		toolGatewayStep("read_text_artifact", stageRefArguments("dependency_report", nil)),
-		toolGatewayStep("read_text_artifact", stageRefArguments("project_report", nil)),
+		toolGatewayStep("read_artifact", stageRefArguments("dependency_report", nil)),
+		toolGatewayStep("read_artifact", stageRefArguments("project_report", nil)),
 		toolGatewayStep("load_openapi", stageRefArguments("openapi_candidate", map[string]any{
 			"target_name": "openapi", "expected_revision": nil,
 		})),

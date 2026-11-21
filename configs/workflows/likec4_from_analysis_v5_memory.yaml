@@ -3,7 +3,7 @@ kind: Workflow
 
 metadata:
   name: likec4-from-analysis
-  version: "5"
+  version: "6"
 
 spec:
   parameters:
@@ -57,7 +57,7 @@ spec:
       planner: passthrough@1
       agents:
         builder:
-          template: likec4_builder@4
+          template: likec4_builder@5
           namespace: likec4
       context:
         artifacts:
@@ -115,7 +115,7 @@ spec:
       planner: passthrough@1
       agents:
         validator:
-          template: likec4_validator@4
+          template: likec4_validator@5
           namespace: likec4
       context:
         artifacts:

@@ -540,7 +540,7 @@ func (g *workerSessionGateway) serveADKProbe(w http.ResponseWriter, r *http.Requ
 	}
 	if !finalizer && kind == "raw-arguments" && normalCount <= 3 {
 		value := []any{json.Number("1.0"), json.Number("1.5"), true}[normalCount-1]
-		message = toolCallMessage(fmt.Sprintf("probe-%s-%d", mode, normalCount), "read_artifact", map[string]any{"namespace": "inputs", "name": "source", "offset": value})
+		message = toolCallMessage(fmt.Sprintf("probe-%s-%d", mode, normalCount), "read_artifact", map[string]any{"namespace": "inputs", "name": "source", "line_offset": value})
 		finish = "tool_calls"
 	}
 	if !finalizer && normalCount > 1 {

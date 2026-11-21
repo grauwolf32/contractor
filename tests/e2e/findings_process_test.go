@@ -5,7 +5,6 @@ package e2e
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -359,7 +358,7 @@ func findingsReaderStage(count int, pageSizes ...int) domainGatewayStage {
 		report := fmt.Sprintf("# Findings analysis\n\nCollection: %d proposals.\n", count)
 		for i, raw := range items {
 			item := raw.(map[string]any)
-			proposalData, err := base64.StdEncoding.DecodeString(fmt.Sprint(reads[2*i]["dataBase64"]))
+			proposalData, err := artifactTextBytes(reads[2*i]["text"])
 			if err != nil {
 				return nil, err
 			}
@@ -367,7 +366,7 @@ func findingsReaderStage(count int, pageSizes ...int) domainGatewayStage {
 			if err != nil || proposal.Subject != nil || item["has_hypothesis"] != (proposal.Hypothesis != "") {
 				return nil, fmt.Errorf("reader did not read generic proposal: %v", err)
 			}
-			evidence, err := base64.StdEncoding.DecodeString(fmt.Sprint(reads[2*i+1]["dataBase64"]))
+			evidence, err := artifactTextBytes(reads[2*i+1]["text"])
 			if err != nil || string(evidence) != findingsEvidence {
 				return nil, fmt.Errorf("reader evidence bytes differ")
 			}

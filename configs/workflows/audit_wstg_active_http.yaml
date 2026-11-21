@@ -2,7 +2,7 @@ apiVersion: contractor/v1alpha1
 kind: Workflow
 metadata:
   name: audit-wstg-active-http
-  version: "2"
+  version: "3"
 spec:
   parameters: {}
   inputs:
@@ -40,7 +40,7 @@ spec:
       planner: passthrough@1
       agents:
         verifier:
-          template: audit_wstg_http_verifier@2
+          template: audit_wstg_http_verifier@3
           namespace: audit-wstg-http
       context:
         artifacts:

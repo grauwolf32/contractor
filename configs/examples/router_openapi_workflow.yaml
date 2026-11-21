@@ -54,10 +54,10 @@ spec:
           ref: instructions/planner-compaction.md
       agents:
         reviewer:
-          template: openapi_validator@3
+          template: openapi_validator@4
           namespace: review
         builder:
-          template: openapi_builder@3
+          template: openapi_builder@4
           namespace: openapi
       context:
         workspace:

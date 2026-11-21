@@ -3,6 +3,7 @@
 package e2e
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -198,7 +199,7 @@ func productionMemoryCopyResponse(step int, request map[string]any) (map[string]
 	case 1:
 		return gatewayToolCall("production-read", "read_artifact", map[string]any{"namespace": "inputs", "name": "source", "revision": nil})
 	case 2:
-		if data, ok := lastStringValue(request, "dataBase64"); !ok || data == "" {
+		if data, ok := lastStringValue(request, "text"); !ok || data == "" {
 			return nil, "", "", fmt.Errorf("production input not observed")
 		}
 		return gatewayToolCall("production-note", "write_memory", map[string]any{"name": "copy_progress", "content": "Input inspected; produce the declared copied artifact"})
@@ -206,11 +207,11 @@ func productionMemoryCopyResponse(step int, request map[string]any) (map[string]
 		if err := requireMemoryNote(request, "production-note", "copy_progress", "Input inspected; produce the declared copied artifact", "", []string{}, 0); err != nil {
 			return nil, "", "", err
 		}
-		data, ok := lastStringValue(request, "dataBase64")
+		data, ok := lastStringValue(request, "text")
 		if !ok {
 			return nil, "", "", fmt.Errorf("production input lost after Memory write")
 		}
-		return gatewayToolCall("production-write", "write_artifact", map[string]any{"namespace": "builder", "name": "copied", "media_type": "text/plain", "data_base64": data, "expected_revision": nil})
+		return gatewayToolCall("production-write", "write_artifact", map[string]any{"namespace": "builder", "name": "copied", "media_type": "text/plain", "data_base64": base64.StdEncoding.EncodeToString([]byte(data)), "expected_revision": nil})
 	case 4:
 		if _, ok := lastExactArtifact(request, "builder", "copied"); !ok {
 			return nil, "", "", fmt.Errorf("production output exact revision not observed")

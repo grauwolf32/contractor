@@ -3,7 +3,6 @@
 package e2e
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -39,7 +38,7 @@ func TestMemorySnapshotAcrossProcesses(t *testing.T) {
 			if !strings.Contains(string(rejected), "artifact_access_denied") {
 				return nil, fmt.Errorf("Memory binding was exposed: %s", rejected)
 			}
-			data, err := base64.StdEncoding.DecodeString(fmt.Sprint(reads[1]["dataBase64"]))
+			data, err := artifactTextBytes(reads[1]["text"])
 			if err != nil || !strings.Contains(string(data), "Selected source reports nginx") || strings.Contains(string(data), "Ignored private marker") || strings.Contains(string(data), "revision") || strings.Contains(string(data), "ordinal") {
 				return nil, fmt.Errorf("unexpected snapshot contents")
 			}

@@ -70,7 +70,7 @@ def test_factory_constructs_only_explicitly_selected_tools(
         }
         read = await tools["read_artifact"]("inputs", "source")
         assert read["artifact"]["revision"] == "revision-read"
-        assert base64.b64decode(read["dataBase64"]) == b"payload"
+        assert read["text"] == "payload"
         assert state.metrics.counters["tool_calls"] == 2
         assert all(entry.result_size_bytes is not None for entry in state.metrics.tool_calls)
         assert "dataBase64" not in repr(state.metrics.tool_calls)
@@ -81,52 +81,40 @@ def test_factory_constructs_only_explicitly_selected_tools(
 def test_read_artifact_pages_large_payloads() -> None:
     async def scenario() -> None:
         client = FakeArtifactClient()
-        chunk = run_artifacts.MAX_READ_CHUNK_BYTES
-        client.read_data = b"0123456789abcdef" * (chunk // 16) * 2 + b"tail"
+        client.read_data = ("ä😀" * 50_000 + "\ntail\n").encode()
         state = WorkerState()
         factory = RunArtifactsToolsetFactory(lambda _allocation, _settings: client)
-        tools = await create_tools(factory, state, ["read_artifact"])
-
-        first = await tools["read_artifact"]("inputs", "source")
-        revision = first["artifact"]["revision"]
-        assert first["size"] == len(client.read_data)
-        assert first["offset"] == 0 and first["length"] == chunk
-        assert len(base64.b64decode(first["dataBase64"])) == chunk
-        assert first["hasMore"] and first["nextOffset"] == chunk
-
-        collected = base64.b64decode(first["dataBase64"])
-        offset = first["nextOffset"]
-        while offset is not None:
-            page = await tools["read_artifact"]("inputs", "source", revision, offset=offset)
-            collected += base64.b64decode(page["dataBase64"])
-            offset = page["nextOffset"]
-        assert collected == client.read_data
-        assert not page["hasMore"] and page["length"] == 4
+        read = (await create_tools(factory, state, ["read_artifact"]))["read_artifact"]
+        page = await read("inputs", "source")
+        revision = page["artifact"]["revision"]
+        collected = page["text"]
+        while page["truncated"]:
+            page = await read(
+                "inputs",
+                "source",
+                revision,
+                start_line=page["nextStartLine"],
+                line_offset=page["nextLineOffset"],
+            )
+            collected += page["text"]
+        assert collected.encode() == client.read_data
         assert client.read_calls == 1
-
-        window = await tools["read_artifact"]("inputs", "source", revision, offset=2, length=3)
-        assert base64.b64decode(window["dataBase64"]) == b"234"
-        assert window["hasMore"]
-        assert client.read_calls == 1
-
-        # A versionless read resolves the current revision from metadata and
-        # pages the cached payload instead of downloading it again.
-        again = await tools["read_artifact"]("inputs", "source", offset=chunk)
-        assert again["artifact"]["revision"] == revision and again["offset"] == chunk
+        assert "dataBase64" not in page
+        assert (await read("inputs", "source"))["artifact"]["revision"] == revision
         assert client.read_calls == 1 and client.metadata_calls == 2
-
-        for arguments in ({"length": 0}, {"length": chunk + 1}, {"offset": -1}):
+        for arguments in (
+            {"max_lines": 0},
+            {"max_lines": 401},
+            {"start_line": -1},
+            {"line_offset": -1},
+        ):
             with pytest.raises(ToolInputError):
-                await tools["read_artifact"]("inputs", "source", **arguments)
-        with pytest.raises(ToolInputError, match="offset exceeds"):
-            await tools["read_artifact"]("inputs", "source", offset=len(client.read_data) + 1)
+                await read("inputs", "source", **arguments)
 
     asyncio.run(scenario())
 
 
-def test_ten_byte_pages_of_a_32_mib_artifact_validate_utf8_once(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_text_pages_of_a_32_mib_artifact_validate_utf8_once(monkeypatch) -> None:
     async def scenario() -> None:
         line = "äöü € 😀 0123456789\n".encode()
         payload = CountingPayload(line * (32 * 1024 * 1024 // len(line) + 1))
@@ -135,26 +123,20 @@ def test_ten_byte_pages_of_a_32_mib_artifact_validate_utf8_once(
         client.read_data = payload
         factory = RunArtifactsToolsetFactory(lambda _allocation, _settings: client)
         read = (await create_tools(factory, WorkerState(), ["read_artifact"]))["read_artifact"]
-
-        chunk = run_artifacts.MAX_READ_CHUNK_BYTES
-        offsets = [index * chunk for index in range(8)] + [len(payload) // 2 + 1]
-        offsets.append(len(payload) - 7)
-        for offset in offsets:
-            page = await read("inputs", "source", "revision-read", offset=offset)
-            assert base64.b64decode(page["dataBase64"]) == payload[offset : offset + chunk]
-            assert page["size"] == len(payload) and page["offset"] == offset
-        assert page["nextOffset"] is None and page["length"] == 7
-        # One download and one UTF-8 validation serve all ten pages; byte
-        # pages need no line index, and no page decodes the whole payload.
+        for start_line in range(1, 4001, 400):
+            page = await read(
+                "inputs", "source", "revision-read", start_line=start_line, max_lines=400
+            )
+            assert page["text"].encode() == line * 400
+            assert page["size"] == len(payload)
         assert client.read_calls == 1
-        assert (counted.validations, counted.indexes, payload.decodes) == (1, 0, 0)
+        assert (counted.validations, counted.indexes, payload.decodes) == (1, 1, 0)
 
         client.read_data = CountingPayload(payload[:-1] + b"\xff")
         await read.close()
         for _ in range(2):
-            with pytest.raises(ToolInputError, match=r"binary \(text/plain\)") as caught:
+            with pytest.raises(ToolInputError, match="not valid UTF-8"):
                 await read("inputs", "source", "revision-read")
-            assert "filesystem or source tools" in str(caught.value)
         assert client.read_calls == 2 and counted.validations == 2
 
     asyncio.run(scenario())
@@ -188,9 +170,8 @@ def test_read_artifact_rejects_binary_artifacts_without_returning_bytes() -> Non
         factory = RunArtifactsToolsetFactory(lambda _allocation, _settings: client)
         tools = await create_tools(factory, state, ["read_artifact"])
 
-        with pytest.raises(ToolInputError, match="binary") as caught:
+        with pytest.raises(ToolInputError, match="not valid UTF-8"):
             await tools["read_artifact"]("inputs", "source")
-        assert "filesystem or source tools" in str(caught.value)
         assert "UEsDB" not in repr(state.metrics.tool_calls)
 
     asyncio.run(scenario())

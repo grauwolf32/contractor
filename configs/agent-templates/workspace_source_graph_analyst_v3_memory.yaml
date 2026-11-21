@@ -3,13 +3,13 @@ kind: AgentTemplate
 
 metadata:
   name: workspace_source_graph_analyst
-  version: "3"
+  version: "4"
 
 spec:
   description: Inspects a hydrated project workspace with bounded structural graph analysis and publishes evidenced Markdown
   runtime: adk@1
   instructions:
-    ref: instructions/workspace-source-graph-analyst-worker-memory.md
+    ref: instructions/workspace-source-graph-analyst-worker-memory-artifact-reader.md
   summarizer:
     instructions:
       ref: instructions/terminal-summarizer.md
@@ -39,5 +39,7 @@ spec:
         - complexity_hotspots
         - functions_that_raise
     - ref: text-artifacts@1
-      tools: [read_text_artifact, write_text_artifact]
+      tools: [write_text_artifact]
+    - ref: run-artifacts@1
+      tools: [read_artifact]
   sandboxProfile: local-workdir@1

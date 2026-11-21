@@ -3,6 +3,7 @@
 package e2e
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -931,13 +932,13 @@ func routingWorkerResponse(
 			"namespace": "inputs", "name": "source", "revision": nil,
 		}), "tool_calls", "read_artifact", nil
 	case 2:
-		data, ok := lastStringValue(request, "dataBase64")
+		data, ok := lastStringValue(request, "text")
 		if !ok || data == "" {
 			return nil, "", "", fmt.Errorf("%s did not observe read_artifact bytes", scenario)
 		}
 		return toolCallMessage(scenario+"-write", "write_artifact", map[string]any{
 			"namespace": namespace, "name": "copied", "media_type": "text/plain",
-			"data_base64": data, "expected_revision": nil,
+			"data_base64": base64.StdEncoding.EncodeToString([]byte(data)), "expected_revision": nil,
 		}), "tool_calls", "write_artifact", nil
 	case 3:
 		_, ok := lastExactArtifact(request, namespace, "copied")

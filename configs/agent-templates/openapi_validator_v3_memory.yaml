@@ -3,7 +3,7 @@ kind: AgentTemplate
 
 metadata:
   name: openapi_validator
-  version: "3"
+  version: "4"
 
 spec:
   description: Validates and minimally repairs a candidate OpenAPI document against project evidence
@@ -27,8 +27,9 @@ spec:
       tools: [ls, glob, read_file, grep]
     - ref: text-artifacts@1
       tools:
-        - read_text_artifact
         - write_text_artifact
+    - ref: run-artifacts@1
+      tools: [read_artifact]
     - ref: openapi@1
       tools:
         - load_openapi

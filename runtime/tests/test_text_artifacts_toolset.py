@@ -15,7 +15,7 @@ from google.genai import types
 from shared_config_defaults import MAX_ARTIFACT_BYTES
 
 import contractor_runtime.toolsets.common.artifact_read_cache as read_cache
-import contractor_runtime.toolsets.text_artifacts.tools as text_module
+import contractor_runtime.toolsets.run_artifacts.tools as text_module
 from contractor_runtime.artifacts import (
     ArtifactAPIError,
     ArtifactResponseLimitError,
@@ -32,10 +32,12 @@ from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.lines import split_lines
 from contractor_runtime.factories import built_in_factories
 from contractor_runtime.llm.openai import _tools
-from contractor_runtime.toolsets.run_artifacts.tools import RunArtifactsToolsetFactory
+from contractor_runtime.toolsets.run_artifacts.tools import (
+    MAX_VISIBLE_TEXT_BYTES,
+    RunArtifactsToolsetFactory,
+)
 from contractor_runtime.toolsets.text_artifacts.tools import (
     MAX_TEXT_WRITE_BYTES,
-    MAX_VISIBLE_TEXT_BYTES,
     TextArtifactsToolsetFactory,
 )
 from contractor_runtime.workspace import AllocationWorkspace
@@ -56,7 +58,7 @@ def test_text_tools_page_utf8_and_enforce_namespace_cas(tmp_path: Path) -> None:
         state = WorkerState()
         tools = await make_tools(tmp_path, client, state)
 
-        read = await tools["read_text_artifact"](
+        read = await tools["read_artifact"](
             namespace="inputs",
             name="report",
             revision=source.revision,
@@ -104,7 +106,7 @@ def test_text_tools_page_utf8_and_enforce_namespace_cas(tmp_path: Path) -> None:
             )
         current = await client.read_artifact(ArtifactRef(namespace="worker-space", name="analysis"))
         assert current.data == b"# Updated\n"
-        assert state.metrics.counters["tool_calls.read_text_artifact"] == 1
+        assert state.metrics.counters["tool_calls.read_artifact"] == 1
         assert state.metrics.counters["tool_calls.write_text_artifact"] == 3
 
         observed = {
@@ -117,7 +119,7 @@ def test_text_tools_page_utf8_and_enforce_namespace_cas(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_read_text_artifact_pages_through_an_oversized_line(tmp_path: Path) -> None:
+def test_read_artifact_pages_through_an_oversized_line(tmp_path: Path) -> None:
     async def scenario() -> None:
         client = MemoryArtifactClient()
         # One multi-byte line longer than the visible limit, then a short line.
@@ -125,7 +127,7 @@ def test_read_text_artifact_pages_through_an_oversized_line(tmp_path: Path) -> N
         document = "head\n" + long_line + "tail\n"
         source = client.seed("inputs", "log", "text/plain", document.encode())
         tools = await make_tools(tmp_path, client, WorkerState())
-        read = tools["read_text_artifact"]
+        read = tools["read_artifact"]
 
         first = await read("inputs", "log", source.revision, start_line=1, max_lines=3)
         assert first["text"] == "head\n"
@@ -180,11 +182,11 @@ def test_exact_artifact_cache_is_shared_bounded_and_cleared_on_close(
             resources=state.resources,
         )
         read_bytes = run_tools["read_artifact"]
-        read_text = text_tools["read_text_artifact"]
+        read_text = text_tools["read_artifact"]
         cache = state.resources.artifact_read_cache
         try:
-            first = await read_bytes("inputs", "report", source.revision, length=4)
-            assert first["size"] == 8 and first["nextOffset"] == 4
+            first = await read_bytes("inputs", "report", source.revision, max_lines=1)
+            assert first["size"] == 8 and first["nextStartLine"] == 2
             cursor = text_client.observation_cursor
             assert (await read_text("inputs", "report", source.revision, start_line=2))[
                 "text"
@@ -238,7 +240,7 @@ def test_ten_pages_of_a_32_mib_artifact_prepare_once_and_decode_only_their_windo
         counted = count_derivations(monkeypatch, text_module)
         client = MemoryArtifactClient()
         source = client.seed("inputs", "log", "text/plain", payload)
-        read = (await make_tools(tmp_path, client, WorkerState()))["read_text_artifact"]
+        read = (await make_tools(tmp_path, client, WorkerState()))["read_artifact"]
 
         pages = []
         start, offset = 1, 0
@@ -286,7 +288,7 @@ def test_cache_budget_holds_for_worst_case_inputs_of_the_largest_artifact(
         client = MemoryArtifactClient()
         source = client.seed("inputs", "large", "text/plain", data)
         state = WorkerState()
-        read = (await make_tools(tmp_path, client, state))["read_text_artifact"]
+        read = (await make_tools(tmp_path, client, state))["read_artifact"]
 
         tracemalloc.start()
         try:
@@ -342,7 +344,7 @@ def test_concurrent_first_reads_share_one_preparation(
         source = client.seed("inputs", "log", "text/plain", b"one\ntwo\n")
         other = client.seed("inputs", "other", "text/plain", b"other\n")
         state = WorkerState()
-        read = (await make_tools(tmp_path, client, state))["read_text_artifact"]
+        read = (await make_tools(tmp_path, client, state))["read_artifact"]
         cursor = client.observation_cursor
 
         first = asyncio.create_task(read("inputs", "log", source.revision))
@@ -376,7 +378,7 @@ def test_cancelled_preparation_is_joined_discarded_and_blocks_close(
         client = MemoryArtifactClient()
         source = client.seed("inputs", "log", "text/plain", b"one\ntwo\n")
         state = WorkerState()
-        read = (await make_tools(tmp_path, client, state))["read_text_artifact"]
+        read = (await make_tools(tmp_path, client, state))["read_artifact"]
         cache = state.resources.artifact_read_cache
 
         reading = asyncio.create_task(read("inputs", "log", source.revision))
@@ -423,7 +425,7 @@ def test_replaced_revision_takes_no_derived_state_from_its_predecessor(
         counted = count_derivations(monkeypatch, text_module)
         client = MemoryArtifactClient()
         old = client.seed("inputs", "log", "text/plain", b"a\nb\nc\n")
-        read = (await make_tools(tmp_path, client, WorkerState()))["read_text_artifact"]
+        read = (await make_tools(tmp_path, client, WorkerState()))["read_artifact"]
 
         assert (await read("inputs", "log", old.revision, start_line=3))["text"] == "c\n"
         new = client.seed("inputs", "log", "text/plain", b"only\n")
@@ -456,7 +458,7 @@ def test_run_and_text_readers_share_one_utf8_validation(
         client = MemoryArtifactClient()
         source = client.seed("inputs", "log", "text/plain", "één\ntwee\n".encode())
         state = WorkerState()
-        text_read = (await make_tools(tmp_path, client, state))["read_text_artifact"]
+        text_read = (await make_tools(tmp_path, client, state))["read_artifact"]
         run_tools = await RunArtifactsToolsetFactory(
             lambda _allocation, _settings: client
         ).create_selected(
@@ -470,7 +472,7 @@ def test_run_and_text_readers_share_one_utf8_validation(
         )
         read_bytes = run_tools["read_artifact"]
         assert (await read_bytes("inputs", "log", source.revision))["size"] == 11
-        assert (counted.validations, counted.indexes) == (1, 0)
+        assert (counted.validations, counted.indexes) == (1, 1)
         assert (await text_read("inputs", "log", source.revision))["totalLines"] == 2
         assert (await read_bytes("inputs", "log", source.revision))["size"] == 11
         assert (counted.validations, counted.indexes, client.read_calls) == (1, 1, 1)
@@ -489,7 +491,7 @@ def test_utf8_validation_spans_chunks_and_rejects_like_strict_decoding(
         straddling = b"a" * (chunk - 2) + emoji + b"\n"
         valid = client.seed("inputs", "valid", "text/plain", straddling)
         tools = await make_tools(tmp_path, client, WorkerState())
-        read = tools["read_text_artifact"]
+        read = tools["read_artifact"]
         page = await read("inputs", "valid", valid.revision)
         assert (page["text"], page["partialLine"]) == ("a" * MAX_VISIBLE_TEXT_BYTES, True)
         assert (await read("inputs", "valid", valid.revision, 1, 1, chunk - 2))["text"] == "😀\n"
@@ -511,7 +513,7 @@ def test_utf8_validation_spans_chunks_and_rejects_like_strict_decoding(
 def reference_text_page(
     document: str, start_line: int, max_lines: int, line_offset: int, visible: int
 ) -> dict[str, object] | str:
-    """The read_text_artifact window as computed before the line index existed."""
+    """The read_artifact window as computed before the line index existed."""
 
     lines = split_lines(document, keepends=True)
     total_lines = len(lines)
@@ -578,7 +580,7 @@ def test_indexed_pages_match_whole_text_pages(
 
     async def scenario() -> None:
         client = MemoryArtifactClient()
-        read = (await make_tools(tmp_path, client, WorkerState()))["read_text_artifact"]
+        read = (await make_tools(tmp_path, client, WorkerState()))["read_artifact"]
         compared = 0
         for number, document in enumerate(documents):
             name = f"doc-{number}"
@@ -608,7 +610,7 @@ def test_indexed_pages_match_whole_text_pages(
 def test_reader_schema_exposes_supported_arguments(tmp_path: Path) -> None:
     async def scenario() -> None:
         tools = await make_tools(tmp_path, MemoryArtifactClient(), WorkerState())
-        declaration = FunctionTool(tools["read_text_artifact"])._get_declaration()
+        declaration = FunctionTool(tools["read_artifact"])._get_declaration()
         schema = _tools([types.Tool(function_declarations=[declaration])])[0]["function"][
             "parameters"
         ]
@@ -624,14 +626,14 @@ def test_reader_schema_exposes_supported_arguments(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_read_text_artifact_numbers_lines_like_read_file(tmp_path: Path) -> None:
+def test_read_artifact_numbers_lines_like_read_file(tmp_path: Path) -> None:
     async def scenario() -> None:
         client = MemoryArtifactClient()
         # Only \r\n, \r and \n end lines; other Unicode separators are content.
         document = "a\fb\x1cc\x85d\u2028e\u2029f\vg\r\nsecond\rthird\n"
         source = client.seed("inputs", "log", "text/plain", document.encode())
         tools = await make_tools(tmp_path, client, WorkerState())
-        read = tools["read_text_artifact"]
+        read = tools["read_artifact"]
         whole = await read("inputs", "log", source.revision)
         assert whole["totalLines"] == 3 and whole["text"] == document
         second = await read("inputs", "log", source.revision, start_line=2, max_lines=1)
@@ -649,9 +651,9 @@ def test_text_tools_reject_invalid_windows_utf8_and_oversize(tmp_path: Path) -> 
         tools = await make_tools(tmp_path, client, state)
 
         with pytest.raises(ValueError, match="positive integer"):
-            await tools["read_text_artifact"]("inputs", "binary", invalid.revision, 0, 1)
+            await tools["read_artifact"]("inputs", "binary", invalid.revision, 0, 1)
         with pytest.raises(ValueError, match="valid UTF-8"):
-            await tools["read_text_artifact"]("inputs", "binary", invalid.revision)
+            await tools["read_artifact"]("inputs", "binary", invalid.revision)
         with pytest.raises(ValueError, match="1 MiB"):
             await tools["write_text_artifact"](
                 "too-large",
@@ -663,7 +665,7 @@ def test_text_tools_reject_invalid_windows_utf8_and_oversize(tmp_path: Path) -> 
     asyncio.run(scenario())
 
 
-def test_read_text_artifact_rejects_binary_media_types_before_download(tmp_path: Path) -> None:
+def test_read_artifact_rejects_binary_media_types_before_download(tmp_path: Path) -> None:
     async def scenario() -> None:
         client = MemoryArtifactClient()
         archive = client.seed("inputs", "source", "application/zip", b"PK\x03\x04")
@@ -671,7 +673,7 @@ def test_read_text_artifact_rejects_binary_media_types_before_download(tmp_path:
 
         for revision in (None, archive.revision):
             with pytest.raises(ValueError, match=r"binary \(application/zip\)"):
-                await tools["read_text_artifact"]("inputs", "source", revision)
+                await tools["read_artifact"]("inputs", "source", revision)
         assert client.metadata_calls == 2 and client.read_calls == 0
 
     asyncio.run(scenario())
@@ -710,7 +712,7 @@ def test_text_tools_enforce_shared_memory_binding_visibility(tmp_path: Path) -> 
 
         calls_before = (client.read_calls, client.write_calls)
         with pytest.raises(ValueError, match="purpose-specific"):
-            await tools["read_text_artifact"](hidden.namespace, hidden.name, hidden.revision)
+            await tools["read_artifact"](hidden.namespace, hidden.name, hidden.revision)
         with pytest.raises(ValueError, match="purpose-specific"):
             await tools["write_text_artifact"](
                 hidden.name,
@@ -721,9 +723,7 @@ def test_text_tools_enforce_shared_memory_binding_visibility(tmp_path: Path) -> 
         assert (client.read_calls, client.write_calls) == calls_before
         assert client.bindings[(hidden.namespace, hidden.name)].data == b"hidden"
 
-        visible = await tools["read_text_artifact"](
-            allowed.namespace, allowed.name, allowed.revision
-        )
+        visible = await tools["read_artifact"](allowed.namespace, allowed.name, allowed.revision)
         assert visible["text"] == "allowed"
         observed = {
             (ref.namespace, ref.name) for tool in tools.values() for ref in tool.known_exact_refs
@@ -750,10 +750,7 @@ def test_factory_rejects_unknown_tools_and_builtin_registry_matches(tmp_path: Pa
 
     asyncio.run(scenario())
     registry = built_in_factories(tmp_path)
-    assert registry.toolsets["text-artifacts@1"].exported_tools == {
-        "read_text_artifact",
-        "write_text_artifact",
-    }
+    assert registry.toolsets["text-artifacts@1"].exported_tools == {"write_text_artifact"}
 
 
 async def make_tools(
@@ -763,7 +760,7 @@ async def make_tools(
 ) -> dict[str, object]:
     factory = TextArtifactsToolsetFactory(lambda _allocation, _settings: client)
     selected = await factory.create_selected(
-        selected=["read_text_artifact", "write_text_artifact"],
+        selected=["write_text_artifact"],
         allocation_id="allocation-1",
         run_id="run-1",
         namespace="worker-space",
@@ -771,7 +768,18 @@ async def make_tools(
         workspace=AllocationWorkspace(root=tmp_path, path=tmp_path),
         resources=state.resources,
     )
-    return dict(selected)
+    reader = await RunArtifactsToolsetFactory(
+        lambda _allocation, _settings: client
+    ).create_selected(
+        selected=["read_artifact"],
+        allocation_id="allocation-1",
+        run_id="run-1",
+        namespace="worker-space",
+        runtime_settings=runtime_settings(),
+        workspace=AllocationWorkspace(root=tmp_path, path=tmp_path),
+        resources=state.resources,
+    )
+    return dict(selected) | dict(reader)
 
 
 def runtime_settings() -> RuntimeSettings:
@@ -926,5 +934,69 @@ def test_text_writer_canonicalizes_optional_analysis_and_rejects_bad_shape(tmp_p
             await tools["write_text_artifact"](
                 name="bad-analysis", text='{"sources":null}', media_type=MEDIA_TYPE
             )
+
+    asyncio.run(scenario())
+
+
+def test_worker_gateway_transcript_continues_an_exact_multibyte_line(tmp_path: Path) -> None:
+    from datetime import timedelta
+
+    from fakes.model import ScriptedLlm, text_result, tool_call
+    from test_adk_runtime import create_runtime, stage_request
+
+    from contractor_runtime.llm.openai import _completion_request
+
+    transcripts = []
+
+    class TranscriptModel(ScriptedLlm):
+        async def generate_content_async(self, llm_request, stream=False):
+            transcripts.append(_completion_request(self.model, llm_request))
+            async for response in super().generate_content_async(llm_request, stream):
+                yield response
+
+    async def scenario():
+        client = MemoryArtifactClient()
+        content = ("é😀" * 25_000 + "\nend\n").encode()
+        exact = client.seed("inputs", "log", "text/plain", content)
+        state = WorkerState()
+        reader = (await make_tools(tmp_path, client, state))["read_artifact"]
+        # Both character widths divide this first 128-KiB page only after
+        # trimming to the last complete UTF-8 character.
+        cut = MAX_VISIBLE_TEXT_BYTES
+        while content[cut] & 0xC0 == 0x80:
+            cut -= 1
+        model = TranscriptModel(
+            model="fixture",
+            responses=[
+                tool_call("read_artifact", exact.model_dump(exclude_none=True), call_id="page-one"),
+                tool_call(
+                    "read_artifact",
+                    {**exact.model_dump(exclude_none=True), "start_line": 1, "line_offset": cut},
+                    call_id="page-two",
+                ),
+                text_result("Inspected the assigned material"),
+            ],
+        )
+        runtime = await create_runtime(tmp_path, state, {"read_artifact": reader}, model)
+        try:
+            result = await runtime.invoke(
+                stage_request().model_copy(update={"result_artifacts": {}})
+            )
+            assert result.failure is None
+            tool_messages = [
+                message for message in transcripts[2]["messages"] if message["role"] == "tool"
+            ]
+            import json
+
+            pages = [json.loads(message["content"]) for message in tool_messages]
+            assert len(pages) == 2
+            assert pages[0]["nextStartLine"] == 1 and pages[0]["nextLineOffset"] == cut
+            assert all(page["artifact"] == exact.model_dump() for page in pages)
+            assert "".join(page["text"] for page in pages).encode() == content
+            assert all("dataBase64" not in page for page in pages)
+            names = [tool["function"]["name"] for tool in transcripts[0]["tools"]]
+            assert names == ["read_artifact"]
+        finally:
+            await runtime.finalize(datetime.now(UTC) + timedelta(seconds=2))
 
     asyncio.run(scenario())

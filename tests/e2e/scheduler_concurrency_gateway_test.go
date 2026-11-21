@@ -127,7 +127,7 @@ func (g *schedulerConcurrencyGateway) serveHTTP(w http.ResponseWriter, r *http.R
 		}, "stop")
 		return
 	}
-	if data, ok := lastStringValue(request, "dataBase64"); ok && data != "" {
+	if data, ok := lastStringValue(request, "text"); ok && data != "" {
 		g.respond(w, request, toolCallMessage(
 			fmt.Sprintf("scheduler-write-%d", time.Now().UnixNano()), "write_artifact", map[string]any{
 				"namespace": "builder", "name": "copied", "media_type": "text/plain",

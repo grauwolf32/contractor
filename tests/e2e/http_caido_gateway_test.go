@@ -94,7 +94,7 @@ func httpCaidoCaidoGatewayStage(name, scopeName string) domainGatewayStage {
 	tools := []string{
 		"finding", "http_history", "http_read_body",
 		"http_request", "list_skills", "load_skill", "load_skill_resource",
-		"read_text_artifact", "write_text_artifact",
+		"read_artifact", "write_text_artifact",
 	}
 	tools = append(tools, gatewayToolsetTools("caido@1")...)
 	tools = withMemoryTools(tools)

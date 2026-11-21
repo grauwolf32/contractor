@@ -27,8 +27,8 @@ spec:
       tools: [ls, glob, read_file, grep]
     - ref: workspace-changes@1
       tools: [changed_paths, diff, rollback_changes]
-    - ref: text-artifacts@1
-      tools: [read_text_artifact]
+    - ref: run-artifacts@1
+      tools: [read_artifact]
     - ref: likec4@1
       tools:
         - load_likec4

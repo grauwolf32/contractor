@@ -2,7 +2,7 @@ apiVersion: contractor/v1alpha1
 kind: Workflow
 metadata:
   name: audit-source-check
-  version: "2"
+  version: "3"
 spec:
   parameters: {}
   inputs:
@@ -34,7 +34,7 @@ spec:
       planner: passthrough@1
       agents:
         checker:
-          template: audit_source_checker@2
+          template: audit_source_checker@3
           namespace: audit-check
       context:
         artifacts:

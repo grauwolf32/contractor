@@ -274,7 +274,7 @@ func builtInDescriptors() descriptorTable {
 				Tools: []string{"list_source_files", "open_source_archive", "read_source", "search_source"},
 			},
 			"text-artifacts@1": {
-				Tools: []string{"read_text_artifact", "write_text_artifact"},
+				Tools: []string{"write_text_artifact"},
 			},
 			"taint-annotations@1": {
 				RequiresWorkspace:         true,

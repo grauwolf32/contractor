@@ -3,7 +3,7 @@ kind: Workflow
 
 metadata:
   name: taint-trace-from-workspace-compact
-  version: "1"
+  version: "2"
 
 spec:
   parameters:
@@ -41,7 +41,7 @@ spec:
       planner: passthrough@1
       agents:
         analyst:
-          template: workspace_taint_analyst@3
+          template: workspace_taint_analyst@4
           namespace: analysis
           # Opt-in compact@1: the Worker compresses old history and continues
           # the same trace instead of stopping with a terminal summary.

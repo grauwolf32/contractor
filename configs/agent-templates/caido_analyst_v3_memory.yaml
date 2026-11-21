@@ -3,7 +3,7 @@ kind: AgentTemplate
 
 metadata:
   name: caido_analyst
-  version: "5"
+  version: "6"
 
 spec:
   description: Performs bounded authorized HTTP and Caido analysis and publishes an evidence report
@@ -45,8 +45,9 @@ spec:
         - http_history
     - ref: text-artifacts@1
       tools:
-        - read_text_artifact
         - write_text_artifact
+    - ref: run-artifacts@1
+      tools: [read_artifact]
   skills:
     - namespace: skills
       name: caido-local-requests

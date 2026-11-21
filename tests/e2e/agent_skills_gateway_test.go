@@ -4,6 +4,7 @@ package e2e
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,12 +24,12 @@ type agentSkillMVPFixture struct {
 func agentSkillGatewayStages(fixture agentSkillMVPFixture) []domainGatewayStage {
 	likeC4BuilderTools := []string{
 		"append_likec4", "list_source_files", "load_likec4", "open_source_archive",
-		"read_likec4", "read_source", "read_text_artifact", "replace_likec4",
+		"read_likec4", "read_source", "read_artifact", "replace_likec4",
 		"search_source", "validate_likec4", "write_likec4",
 	}
 	likeC4ValidatorTools := []string{
 		"append_likec4", "load_likec4", "open_source_archive", "read_likec4", "read_source",
-		"read_text_artifact", "replace_likec4", "search_source", "validate_likec4",
+		"read_artifact", "replace_likec4", "search_source", "validate_likec4",
 		"write_likec4", "write_text_artifact",
 	}
 
@@ -72,13 +73,13 @@ func artifactCopyGatewayStage(name string) domainGatewayStage {
 				"namespace": "inputs", "name": "source", "revision": nil,
 			})),
 			toolGatewayStep("write_artifact", func(request map[string]any) (map[string]any, error) {
-				data, ok := lastStringValue(request, "dataBase64")
+				data, ok := lastStringValue(request, "text")
 				if !ok || data == "" {
 					return nil, errors.New("copy input was not returned by read_artifact")
 				}
 				return map[string]any{
 					"namespace": "builder", "name": "copied", "media_type": "text/plain",
-					"data_base64": data, "expected_revision": nil,
+					"data_base64": base64.StdEncoding.EncodeToString([]byte(data)), "expected_revision": nil,
 				}, nil
 			}),
 			finalGatewayStep("Source artifact copied", map[string]domainArtifactBinding{
