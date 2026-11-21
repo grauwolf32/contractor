@@ -9,12 +9,16 @@ status: pending
 depends_on: [V471-005]
 languages: [go, python, typescript, yaml, markdown]
 goal: >-
-  Prove that optional note extraction, Project facts, existing Finding admission,
+  Prove that optional memory extraction, Project facts, existing Finding admission,
   basic evidence deduplication, exact hypothesis grounds and the separate UI work together on one
   integrated revision, with honest failure and source-retention behavior.
 context:
   execution_group: 2
   authority: >-
+    User decision 2026-11-21 resumes implementation and delivery into main after
+    the interface discussion. Preserve existing item_key/incidental semantics;
+    introduce no link_hypothesis parameter. Local request_id applies to ordinary
+    finding, HTTP finding and record_fact alike.
     User request 2026-11-20 plans facts, note extraction, deduplication and separate
     interfaces on the same Project Finding, with no unnecessary publication flag
     and clear diagrams. An integrated deterministic exit is an agent proposal.
@@ -41,6 +45,21 @@ context:
     each executed in one continuous pass. The dependency-based allocation and
     group entry/exit rules live in the proposal; this task keeps its own acceptance,
     required checks and implementation commit. Grouping adds no functional scope.
+    Latest user request 2026-11-21 explicitly assigns implementation of group 2
+    (V471-003, V471-005, V471-006) in one continuous pass and merging into main.
+    This supersedes earlier planning-only restrictions for these tasks. Existing
+    Project requirements and evidence-only correlation remain unchanged; live
+    model calls, configured model changes and deployment remain unassigned.
+    Latest user decisions 2026-11-21 supersede mandatory quote/locator checks:
+    keep the model interface simple, let the model describe a fact in its own
+    words and select an existing memory by name, and attach the original memory
+    deterministically. Use the vocabulary memories and memory_name, not a new
+    notes API or note_name. Reuse common record_fact, without an extraction-only
+    creation facade. The user paused group-2 implementation to discuss interfaces;
+    do not resume that implementation until the discussion is concluded explicitly.
+    The user also requests local request identifiers for HTTP/Caido and removal
+    of caido_request_id from finding and record_fact. V471-007 owns that separate
+    prerequisite; broader authoring-interface redesign is for later discussion.
   proposal: docs/proposals/0055-project-facts-through-findings.md
   specification:
     - docs/spec/findings/findings.md
@@ -68,15 +87,16 @@ scope:
 acceptance_criteria:
   - id: A1
     text: >-
-      One real-process scenario records notes, snapshots selected notes through a
+      One real-process scenario records memories, snapshots selected memories through a
       model-free operation, and extracts facts in a separate passthrough@1 Stage
       with exactly one Runtime Worker and no Planner LLM call. It obtains common
       Project Finding IDs through existing intake and selects
       exact grounds for a hypothesis. Omitted extraction and zero output create
       no hidden call; ordinary finding has no publication flag.
       The extractor can read another authorized ordinary current-Run artifact.
-      An invalid citation is rejected before publication under V471-003 A4.
-      Note, code and HTTP materials retain exact citations. Informational
+      An absent memory name is rejected before Finding admission under V471-003 A4.
+      Free-form observations retain original memories without quote checks; code
+      and HTTP evidence keep their ordinary exact-source contracts. Informational
       submissions with equal complete evidence contents share one Finding even
       with different titles; unequal sets stay separate. Existing non-informational
       producer/structural correlation keeps its guarantees.
@@ -106,6 +126,8 @@ acceptance_criteria:
       aggregation or new group reader is required.
       Optional Task/hypothesis fields survive API, collection and result-reader
       round trips. The Audit Eval recipe has a positive real-path scripted member.
+      HTTP and Caido request IDs follow V471-007 through discovery, inspection
+      and both publishing tools; provider IDs stay inside adapters/provenance.
       The integrated deterministic release gate passes with no required skipped
       case or absent target counted as success.
   - id: A4

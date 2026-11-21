@@ -1,0 +1,143 @@
+schema_version: "1.0"
+id: V471-007
+title: Use local request identifiers across HTTP, Caido and Finding tools
+milestone: project-facts-2026-11
+epic: http-tools
+kind: feature
+priority: P1
+status: in_progress
+depends_on: [V471-001]
+languages: [go, python, json, yaml, markdown]
+goal: >-
+  A Worker copies the same local request_id from HTTP or Caido tool output into
+  request inspection and finding/record_fact without choosing a provider-specific
+  identifier field. The original provider identity remains private adaptation
+  and provenance data.
+demonstration: >-
+  A real Worker discovers a Caido request and sends an ordinary HTTP request
+  whose provider IDs happen to coincide. Different local request_id values select
+  the correct traffic. After inspection, finding and record_fact retain the exact
+  corresponding exchange through the existing intake and receipt paths.
+context:
+  authority: >-
+    User decision 2026-11-21 resumes implementation and delivery into main after
+    the interface discussion. Preserve existing item_key/incidental semantics;
+    introduce no link_hypothesis parameter. Local request_id applies to ordinary
+    finding, HTTP finding and record_fact alike.
+    User decisions 2026-11-21: simplify model-facing interfaces, remove
+    caido_request_id, use local identifiers, and apply the same change to ordinary
+    finding. The user asks to fix this while leaving broader interface redesign
+    for later discussion. A separate prerequisite is required by AGENTS.md 4.1:
+    this changes HTTP/Caido discovery/inspection/replay and existing consumers,
+    beyond the original optional memory-extraction task. Agent proposal: retain
+    positive integer local request IDs already used by HTTP, allocate them through
+    the shared allocation-owned HTTP capture owner, and keep producer identity
+    internal. Do not infer permission to redesign all other Caido entity IDs.
+  proposal: docs/proposals/0055-project-facts-through-findings.md
+  specification:
+    - docs/spec/tools/http-caido.md
+    - docs/spec/findings/findings.md#FND-R16
+    - docs/spec/findings/findings.md#FND-R19
+    - docs/spec/platform/failure-model.md
+    - docs/spec/configuration/catalog.md#CAT-R74
+  boundary: >-
+    Runtime's existing common HTTP capture owner owns local identity and lifetime;
+    Caido adapters alone translate local selections into provider IDs. Server
+    still validates and stores the normalized capture without provider lookups.
+    The shared Finding publisher resolves a selected local request. Existing
+    code/trace facades have no HTTP selector and do not acquire one merely for
+    symmetry. No generic evidence registry or provider migration framework.
+scope:
+  in:
+    - Allocate unambiguous local request IDs for ordinary HTTP and discovered Caido requests in the same allocation.
+    - Update Caido request history/detail/replay/automate request selectors and request-bearing results consistently; preserve distinct session/workflow/scope identifiers.
+    - Remove caido_request_id from the general finding, HTTP finding and record_fact signatures and use their common request_id resolver.
+    - Audit every HTTP request ID consumer, including history/body reads, Audit results, observation sinks, capture publication, fixtures and prompts; change or explicitly rule out each path.
+    - Preserve exact captured provider provenance, source-specific transport behavior, bounded history, write fencing and receipt reconciliation.
+    - Update affected normative contracts and shared fixtures; publish changed catalog content under new immutable identities.
+  out:
+    - Redesigning all Finding facades, adding HTTP arguments to code/trace, introducing memories as a new store, or changing informational correlation.
+    - Removing provider IDs from GraphQL requests or retained provenance; these remain necessary implementation data.
+    - Renaming all Caido session/workflow/scope entities or interpreting provider query-language identifiers as local IDs; revisit with the later interface review.
+    - Durable global ID services, database mappings, compatibility aliases or fallback lookups by raw provider ID.
+requirements:
+  - id: R1
+    text: >-
+      Model-visible request_id is a positive local integer in the existing exact
+      integer range. Use one allocator for co-selected HTTP/Caido tools in an
+      allocation. IDs are unique and never reused for another request during that
+      allocation, even after eviction. A provider request maps to one local ID
+      while retained. Local identities grant neither cross-allocation access nor
+      authority to publish evidence not inspected in the current invocation.
+  - id: R2
+    text: >-
+      History can expose a local locator before exchange bytes have been inspected.
+      This locator permits the appropriate existing detail call; it is not proof
+      that capture exists. Publishing requires retained current-invocation capture
+      and fails with a repairable request to inspect the exchange when absent.
+      Do not silently fetch or replay traffic from finding/record_fact. Local
+      lookup must distinguish a missing locator from a missing capture. Inspecting
+      Caido never invents an ordinary HTTP history/body record.
+  - id: R3
+    text: >-
+      Model tool schemas no longer expose caido_request_id. General finding, HTTP
+      finding and record_fact use the same resolver. Caido request actions accept
+      local IDs and resolve only Caido-backed locators; wrong-source selection
+      fails before network I/O. Source-specific tools retain their actual purpose.
+      Provider IDs and source remain available internally for translation and
+      evidence provenance, without being alternative model input fields.
+  - id: R4
+    text: >-
+      Enumerate public/tool/wire consumers before editing. Keep normalized capture
+      identity distinct from local display identity, and avoid rekeying persisted
+      informational evidence merely to rename a tool argument. Reuse existing
+      content/receipt semantics; no title matching or new correlation rule. Cover
+      the chosen schema boundaries with shared fixtures, actual ADK schemas and
+      real Server/Runtime/PostgreSQL receipt tests.
+failure_outcomes:
+  - operation: Resolve a local request and inspect or publish its captured exchange
+    permanent: Unknown, evicted, wrong-source or wrong-invocation selection is a bounded model-visible input error before provider actions or Finding admission; raw provider IDs are not a fallback.
+    retryable: Existing read-only provider/transport and storage retry budgets apply; a local ID alone never authorizes retrying a mutating replay/automate call.
+    ambiguous: Reuse existing capture publication and Finding receipt reconciliation; local-ID resolution cannot resend a request to the target.
+    cancelled: Existing allocation/session ownership joins active work before clearing mappings and captures; post-fence writes remain denied.
+    timeout: Keep existing provider, replay polling, Stage and Run deadlines; identity lookup has no independent background work.
+cardinality:
+  - collection: Allocation-local request locator map and existing capture history
+    expected: A few inspected requests; discovery can page a much larger provider history.
+    maximum: Reuse the existing 128 retained-request bound and 64 MiB capture-byte bound; provider request IDs remain bounded to 256 bytes and Caido pages to 100 rows.
+    bound: Bound locators even when discovered without capture; use constant-time lookup and eviction, keep an unbounded history scan out of each call, and never reuse an issued numeric ID. Explicitly reject integer exhaustion.
+lifecycle:
+  - entity: Allocation-local request locators
+    delete: Clear on allocation release; bounded eviction makes expired local selectors unavailable.
+    cascade: No new durable table or hold; captured evidence already published follows ordinary Project retention and purge.
+    retention: Mappings last only in their owning allocation; durable evidence preserves original source identity and immutable contents.
+acceptance_criteria:
+  - id: A1
+    given: Co-selected HTTP and Caido tools with coincident provider request IDs and paged history
+    when: A real Worker discovers, inspects and submits observations through general/HTTP finding and record_fact
+    then: Local IDs are unambiguous, no caido_request_id appears in model schemas, and exact captures reach the correct common Project Finding receipts with original provenance.
+  - id: A2
+    given: Absent, discovered-but-uninspected, evicted, wrong-source and foreign-invocation IDs plus lost publication replies and cancellation
+    when: The corresponding tools are invoked
+    then: Wrong selections fail before provider actions/admission, inspection enables capture selection, retries reconcile existing writes, cancellation joins work, and no active request is repeated by publication.
+  - id: A3
+    given: More than 128 request discoveries and mixed captures approaching the existing byte ceiling
+    when: History pages and source inspections are interleaved
+    then: Mapping and capture memory remain bounded, retained handles remain correct, expired IDs cannot select a new request, and ordinary HTTP body/Audit result consumers retain their specified behavior.
+  - id: A4
+    given: All affected schema consumers and shipped prompts
+    when: Shared fixtures, actual tool declarations, touched full suites and config validation run
+    then: Consumers agree on the local contract, code/trace retain their narrower signatures, immutable catalog pins validate and no deprecated parameter fallback remains.
+tests:
+  - command: make test-runtime
+    covers: [A1, A2, A3, A4]
+  - command: make test-http-caido-hardening
+    covers: [A1, A2, A3, A4]
+  - command: make test-findings-e2e
+    covers: [A1, A2, A4]
+  - command: make test-wire-cross-language
+    covers: [A1, A4]
+  - command: make test-config
+    covers: [A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
