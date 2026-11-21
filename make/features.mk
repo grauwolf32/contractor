@@ -106,3 +106,7 @@ test-project-facts-e2e: test-findings-e2e
 
 .PHONY: test-memory-snapshot-e2e
 test-memory-snapshot-e2e: test-findings-e2e
+
+.PHONY: test-project-facts-ui
+test-project-facts-ui: ui-install
+	node ui/server/project-facts-gate.mjs

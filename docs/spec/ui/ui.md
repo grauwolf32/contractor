@@ -823,7 +823,7 @@ item.
 ### Projects
 
 **UI-R108.** Project navigation leads to Overview, Artifacts, Workflows, Runs,
-Audits, Findings and Settings at independent URLs under `/projects/:projectId`.
+Audits, Findings, Facts and Settings at independent URLs under `/projects/:projectId`.
 
 **UI-R109.** Add artifact is a contextual Artifacts action; Workflow cards open
 exact Run setup.
@@ -892,9 +892,9 @@ outcomes. This hierarchy works at 320/390 px and in light, dark and black themes
 **UI-R116.** The Overview does not load the complete input or Workflow
 inventories.
 
-**UI-R117.** Artifacts, Workflows, Runs, Audits, Findings and Settings mount
+**UI-R117.** Artifacts, Workflows, Runs, Audits, Findings, Facts and Settings mount
 only when selected. They share the Project header, actions and section
-navigation. All seven destinations remain on one horizontally scrollable row,
+navigation. All eight destinations remain on one horizontally scrollable row,
 with the selected destination revealed on section changes and resize. Section
 actions remain outside that scroll area.
 
@@ -1813,3 +1813,25 @@ monetary costs. Visible active diagnostic pages poll every three seconds,
 back off failed reads to thirty seconds, and refetch on terminal transitions
 before stopping. Existing 390-pixel layout, light/dark/black tokens and controls
 apply; no transcript or unbounded cycle list is exposed.
+
+
+### Project facts
+
+**UI-R244.** The Project Facts destination at `/projects/:projectId/facts` is a
+fixed informational-severity view of the common canonical Finding collection,
+including informational observations published through either facade. The Issues
+destination retains all severity filters. Classification does not imply verified
+truth or an analyst assessment. Common FND-R235 severity and needs-review rules
+control membership; a later analyst assessment refreshes views without changing
+identity. Low and unknown unassessed severities remain eligible for review.
+
+**UI-R245.** Facts reuses the Project reader with at most five 50-row pages per
+explicit load. Counts and search describe loaded records, never all Project facts;
+an empty loaded window with continuation offers Load more. No client-side
+deduplication, new source count or reverse hypothesis lookup is introduced. A
+selected record opens the shared canonical detail, explicit paged independent
+sources, original submission titles, optional origins and exact retained evidence.
+Original memories remain ordinary source text: a declared memory-snapshot schema
+adds a reported-statement annotation without another parser or validation engine.
+Preview, source errors, pinned revisions and hypothesis grounds use their existing
+owners; opening a fact creates no new source grant, hold or verification state.

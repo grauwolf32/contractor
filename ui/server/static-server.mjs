@@ -51,7 +51,7 @@ const CLIENT_ROUTE_PATTERNS = [
   /^\/evals\/workspaces\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/,
   /^\/evals\/workspaces\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/artifacts\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/,
   /^\/projects\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/artifacts\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/,
-  /^\/projects\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/(?:artifacts|workflows|runs|audits|findings|settings)$/,
+  /^\/projects\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/(?:artifacts|workflows|runs|audits|findings|facts|settings)$/,
   new RegExp(
     `^/projects/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}/workflows/${CONFIG_NAME}/${CONFIG_VERSION}/run$`,
   ),

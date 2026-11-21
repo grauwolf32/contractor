@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createArtifactPreviewPlan } from "./preview-plan";
+import memories from "../../../../api/testdata/finding-memory-sources.json";
 
 // LIM-UI-17 in docs/spec/platform/limits.md, pinned here so the module cannot
 // move its bound without the specification.
@@ -13,6 +14,18 @@ function padded(document: string, bytes: number): string {
 }
 
 describe("Artifact preview planning", () => {
+  it("labels declared memory sources while retaining the ordinary text reader", async () => {
+    for (const example of memories.cases.filter(
+      (value) => value.snapshotValid,
+    )) {
+      await expect(
+        createArtifactPreviewPlan("application/json", example.snapshotJson),
+      ).resolves.toEqual({ kind: "source", memorySnapshot: true });
+    }
+    await expect(
+      createArtifactPreviewPlan("application/json", '{"schemaVersion":'),
+    ).resolves.toEqual({ kind: "source" });
+  });
   it("selects dedicated Markdown and LikeC4 renderers", async () => {
     await expect(
       createArtifactPreviewPlan("text/markdown", "# Report"),

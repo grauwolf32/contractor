@@ -7,7 +7,7 @@ kind: feature
 priority: P1
 status: in_progress
 depends_on: [V471-003]
-languages: [typescript, css, go, yaml, markdown]
+languages: [typescript, javascript, json, yaml, markdown]
 goal: >-
   Users can inspect informational Project Findings in the Facts view, filter
   the common records by severity, see their sources and select exact grounds

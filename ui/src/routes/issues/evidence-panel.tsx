@@ -48,7 +48,7 @@ export function SourceEvidence({ source }: { source: FindingProposalReceipt }) {
   if (locations.length === 0 && exchange === undefined && files.length === 0)
     return (
       <p className="ui-caption">
-        This possible issue names no locations and has no captured evidence.
+        This record names no locations and has no captured evidence.
       </p>
     );
   return (
@@ -102,7 +102,7 @@ export function SourceEvidence({ source }: { source: FindingProposalReceipt }) {
       {exchange === undefined ? (
         <p className="issues-no-http">
           <Icon name="question-circle" size={14} />
-          No HTTP exchanges were captured for this issue.
+          No HTTP exchanges were captured for this record.
         </p>
       ) : null}
     </div>

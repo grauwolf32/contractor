@@ -27,6 +27,7 @@ const mockedSpecs = [
   "e2e/evals-setup.spec.ts",
   "e2e/evals-skills.spec.ts",
   "e2e/project-finding-sources.spec.ts",
+  "e2e/project-facts.spec.ts",
   "e2e/issue-review-design.spec.ts",
   "e2e/git-artifacts.spec.ts",
   "e2e/model-selection.spec.ts",

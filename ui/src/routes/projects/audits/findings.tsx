@@ -30,7 +30,7 @@ import "../../issues/issues.css";
 /** One Project list, including discoveries from ordinary Runs and deleted checks.
  * Each explicit load reads at most five pages; refresh starts a new snapshot.
  */
-export function ProjectFindingsRoute() {
+export function ProjectFindingsRoute({ facts = false }: { facts?: boolean }) {
   const { projectId = "" } = useParams();
   const api = usePublicAPI();
   const client = useQueryClient();
@@ -64,6 +64,7 @@ export function ProjectFindingsRoute() {
     new URLSearchParams({
       ...Object.fromEntries(params),
       state: params.get("state") ?? "all",
+      ...(facts ? { severity: "informational" } : {}),
     }),
   );
   const search = (params.get("q") ?? "").trim().toLocaleLowerCase();
@@ -127,17 +128,18 @@ export function ProjectFindingsRoute() {
       </ProjectSectionActions>
       <header className="issues-section-head">
         <h3 id={headingId} className="issues-section-title">
-          Possible issues
+          {facts ? "Facts" : "Possible issues"}
         </h3>
         <p className="ui-caption">
-          One record per problem in this project, including discoveries from
-          ordinary Runs.
+          {facts
+            ? "Informational observations from either publishing tool. Sources retain their own claims and checks; classification does not verify a statement."
+            : "One record per problem in this project, including discoveries from ordinary Runs."}
         </p>
       </header>
       <div
         className="issues-section-filters"
         role="group"
-        aria-label="Possible issue filters"
+        aria-label={facts ? "Fact filters" : "Possible issue filters"}
       >
         <FilterChips
           label="Filter by state"
@@ -148,7 +150,7 @@ export function ProjectFindingsRoute() {
         <div className="issues-filter-row">
           <span className="issues-search-field">
             <label htmlFor={searchId} className="issues-field-label">
-              Search possible issues
+              {facts ? "Search facts" : "Search possible issues"}
             </label>
             <input
               id={searchId}
@@ -167,6 +169,7 @@ export function ProjectFindingsRoute() {
               id={severityId}
               className="issues-select"
               value={filters.severity ?? ""}
+              disabled={facts}
               onChange={(e) => change("severity", e.target.value)}
             >
               {SEVERITY_OPTIONS.map((option) => (
@@ -197,11 +200,16 @@ export function ProjectFindingsRoute() {
         <p className="ui-caption">
           Filters and counts describe loaded records. Severity is the
           analyst&apos;s rating when present, otherwise the source suggestion.
+          {facts
+            ? " Facts use informational severity and do not need review. Other severities are available in Issues."
+            : ""}
         </p>
       </div>
       <div className="issues-project-count">
         <span role="status">
-          {visible.length} of {rows.length} possible issues loaded
+          {facts
+            ? `${visible.length} facts shown · ${rows.length} records loaded`
+            : `${visible.length} of ${rows.length} possible issues loaded`}
         </span>
         {params.size === 0 ? null : (
           <Button size="xs" onClick={() => setParams({}, { replace: true })}>
@@ -210,7 +218,9 @@ export function ProjectFindingsRoute() {
         )}
       </div>
       {findings.isPending ? (
-        <p role="status">Loading possible issues…</p>
+        <p role="status">
+          {facts ? "Loading facts…" : "Loading possible issues…"}
+        </p>
       ) : null}
       {findings.error === null ? null : (
         <ErrorNotice error={findings.error} onRetry={refresh} />
@@ -220,20 +230,24 @@ export function ProjectFindingsRoute() {
       visible.length === 0 ? (
         <EmptyState
           title={
-            rows.length === 0
-              ? "No possible issues yet"
-              : "No matching possible issues"
+            facts
+              ? "No facts in the loaded records"
+              : rows.length === 0
+                ? "No possible issues yet"
+                : "No matching possible issues"
           }
         >
           <p>
-            {rows.length === 0
-              ? "Published problems appear here."
-              : "Try another search or clear the filters."}
+            {facts && findings.hasNextPage
+              ? "Load more records to extend this view."
+              : rows.length === 0
+                ? "Published problems appear here."
+                : "Try another search or clear the filters."}
           </p>
         </EmptyState>
       ) : null}
       {visible.length === 0 ? null : (
-        <ListSection aria-label="Possible issues">
+        <ListSection aria-label={facts ? "Facts" : "Possible issues"}>
           {visible.map((finding) => (
             <IssueRow
               key={finding.findingId}
@@ -246,14 +260,14 @@ export function ProjectFindingsRoute() {
       )}
       <LoadMoreControl
         shown={rows.length}
-        noun="possible issues"
+        noun={facts ? "records" : "possible issues"}
         truncated={findings.hasNextPage}
         loading={findings.isFetchingNextPage}
         error={findings.isFetchNextPageError ? findings.error : null}
         onLoadMore={() => {
           void findings.fetchNextPage();
         }}
-        label="Load more possible issues"
+        label={facts ? "Load more facts" : "Load more possible issues"}
       />
     </section>
   );

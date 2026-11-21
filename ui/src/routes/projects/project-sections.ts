@@ -8,6 +8,7 @@ const MAIN_SECTIONS = [
   ["artifacts", "Materials"],
   ["audits", "Checks"],
   ["findings", "Issues"],
+  ["facts", "Facts"],
   ["settings", "Settings"],
 ] as const;
 

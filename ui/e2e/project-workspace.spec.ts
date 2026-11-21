@@ -650,7 +650,7 @@ for (const theme of ["light", "dark", "black"] as const) {
       const navigation = page.getByRole("navigation", {
         name: "Project sections",
       });
-      await expect(navigation.getByRole("link")).toHaveCount(7);
+      await expect(navigation.getByRole("link")).toHaveCount(8);
       await expect(
         navigation.getByRole("link", { name: "Workflows", exact: true }),
       ).toHaveAttribute("aria-current", "page");

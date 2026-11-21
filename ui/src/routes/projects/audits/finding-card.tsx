@@ -122,6 +122,7 @@ function SourceDetail({
   const value = source.data;
   return (
     <div>
+      <h4>{value.document.title}</h4>
       <p>{value.document.description}</p>
       <p className="ui-caption">
         Run {value.origin.runId}
@@ -139,7 +140,12 @@ function SourceDetail({
       )}
       {value.origin.audit === undefined ? null : (
         <p className="ui-caption">
-          Original check: {value.origin.audit.auditId}
+          Original check:{" "}
+          <Link
+            to={`/projects/${encodeURIComponent(projectId)}/audits/${encodeURIComponent(value.origin.audit.auditId)}${value.origin.audit.taskId ? `/work?task=${encodeURIComponent(value.origin.audit.taskId)}` : ""}`}
+          >
+            {value.origin.audit.auditId}
+          </Link>
         </p>
       )}
       {value.projectProposal === undefined ? (

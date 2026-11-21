@@ -12,7 +12,7 @@ import {
 } from "../../api/http-exchange";
 
 export type ArtifactPreviewPlan =
-  | { kind: "source" }
+  | { kind: "source"; memorySnapshot?: true }
   | { kind: "diff" }
   | { kind: "markdown" }
   | { kind: "likec4" }
@@ -45,6 +45,22 @@ export async function createArtifactPreviewPlan(
   mediaType: string,
   source: string,
 ): Promise<ArtifactPreviewPlan> {
+  // This labels a declared source format, without interpreting or validating
+  // its claims. The ordinary exact source reader retains all original bytes.
+  if (mediaType === "application/json") {
+    try {
+      const value: unknown = JSON.parse(source);
+      if (
+        value !== null &&
+        typeof value === "object" &&
+        "schemaVersion" in value &&
+        value.schemaVersion === "contractor.memory-snapshot/v1"
+      )
+        return { kind: "source", memorySnapshot: true };
+    } catch {
+      // Malformed JSON stays available as ordinary source text.
+    }
+  }
   if (mediaType === ENGAGEMENT_MEDIA_TYPE) {
     const { parseEngagementDocument } =
       await import("./previews/engagement-document");

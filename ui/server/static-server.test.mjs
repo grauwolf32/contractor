@@ -146,6 +146,8 @@ test("known client routes get no-store index and a derived CSP", async (t) => {
     "/projects/project_example/artifacts/sources/service",
     "/projects/project_example/audits",
     "/projects/project_example/findings",
+    "/projects/project_example/facts",
+    "/projects/project_example/facts?state=all&q=nginx",
     "/projects/project_example/findings?audit=audit_example&severity=high",
     "/projects/project_example/audits/audit_example",
     "/projects/project_example/audits/audit_example/work",

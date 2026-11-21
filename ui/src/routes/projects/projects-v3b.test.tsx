@@ -666,6 +666,7 @@ describe("Project sections", () => {
     ["artifacts", "Materials"],
     ["audits", "Checks"],
     ["findings", "Issues"],
+    ["facts", "Facts"],
     ["settings", "Settings"],
     ["runs", "Runs"],
     ["workflows", "Workflows"],
@@ -683,10 +684,10 @@ describe("Project sections", () => {
         "page",
       ),
     );
-    expect(within(nav).getAllByRole("link")).toHaveLength(7);
+    expect(within(nav).getAllByRole("link")).toHaveLength(8);
   });
 
-  it("keeps all seven labelled destinations in one navigation", async () => {
+  it("keeps all eight labelled destinations in one navigation", async () => {
     const { router, user } = renderAt(
       { projects: [projectA] },
       "/projects/project_a",
@@ -703,6 +704,7 @@ describe("Project sections", () => {
       "Materials",
       "Checks",
       "Issues",
+      "Facts",
       "Settings",
       "Runs",
       "Workflows",
