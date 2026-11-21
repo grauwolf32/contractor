@@ -5,7 +5,7 @@ milestone: runtime-maintenance-2026-10
 epic: planner-worker
 kind: chore
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - python
@@ -34,9 +34,59 @@ context:
     Planner declarations. 21 exports have no selection in configs/agent-templates. V471-007 and V471-003
     already delivered local request IDs and original-memory evidence. V473-003 owns model-recovery diagnostics
     for zero/partial fact extraction.'
-  decision_needed: Record accept/keep/drop for each candidate with a concrete caller. Recommend field
-    and failure wording first, mergers only where the grant and observable semantics coincide. Decide
-    follow-up implementation separately for accepted candidates.
+  review_outcomes:
+  - candidate: Declaration descriptions and defaults
+    disposition: Keep current wording rules until a separately reviewed schema-description change.
+    evidence: TLS-R30 and TLS-R34 place the complete Args documentation in the function description. Native Skill declarations already describe properties.
+    caller: Every selected Worker declaration and native Skill adapter.
+    validation: Capture identical configured Worker declarations before and after a future change, retain side effects, defaults, bounds, CAS and continuation guidance, then measure first correct call and repair count.
+  - candidate: record_fact evidence selection
+    disposition: Implement automatic attachment from local request_id under V474-008.
+    evidence: The shared publisher currently requires a current-invocation buffered capture. History can issue a local locator before storing exchange bytes.
+    caller: fact_extractor, caido_analyst and the general/HTTP Finding facades.
+    validation: Buffered selection needs no provider call. History-only selection uses an authorized stored read. Missing response retains its explicit outcome. Invalid, expired and unauthorized IDs create no Finding. Existing receipts preserve exact evidence on replay.
+    specification_changes: HTP-R72, HTP-R73, HTP-R89 and FND-R43/FND-R46. Preserve body-reader and Audit observation restrictions.
+  - candidate: Binary HTTP and provider previews
+    disposition: Keep temporary body ownership. Propose metadata plus an exact ref when a persisted artifact already exists.
+    evidence: http_read_body reads a bounded allocation buffer. Caido raw previews and convert output have different retention and publication behavior.
+    caller: http_explorer and caido_analyst. V474-005 owns image transport for existing exact artifacts.
+    validation: A future change must cover binary/text branches, incomplete bodies, eviction, metadata-only results and exact persisted refs. Define any new automatic persistence before implementation.
+  - candidate: HTTP and provider modes
+    disposition: Keep existing operations pending a separate authority review.
+    evidence: caido_scope mixes listing and creation, while HTTP body_type changes request validation. Splitting list/create changes selection grants and shipped profiles.
+    caller: caido_analyst and http_explorer.
+    validation: A split requires fixtures showing that read-only selection grants no creation. Invalid body combinations must fail before transport. Replay and workflow operations require their own caller evidence.
+  - candidate: Memory list, search and tags
+    disposition: Keep the current six-operation contract.
+    evidence: Go Planners and Python Workers share the interface. Filtered search uses OR matching; tag discovery returns a compact vocabulary. Merging list/search can broaden a search-only selection.
+    caller: Streamline, Router and the shipped Memory-enabled Worker templates.
+    validation: Any later merge must preserve OR matching, all 128 notes, the three-tag bound, tag discovery and search-only grants across both languages.
+  - candidate: OpenAPI metadata readers and updates
+    disposition: Propose a bounded metadata reader and partial info updates for a separate change. Keep current deep-merge operation names during this implementation.
+    evidence: Builder/validator profiles select info, servers and tags together. Upsert creates missing entries and replaces arrays during deep merge, so a patch rename would obscure creation.
+    caller: openapi_builder, openapi_validator and their workspace variants.
+    validation: Compare existing separate grants and aggregate response bounds. Cover omitted fields, explicit clearing of a description, empty updates, creation, arrays and reference replacement.
+  - candidate: Workspace, source and LikeC4 continuation
+    disposition: Keep separate readers. Propose the common artifact reader's partial-line continuation for a later bounded change.
+    evidence: The sources have distinct authority and lifecycle. V474-002 already provides UTF-8 byte continuation for Artifact text.
+    caller: Workspace OpenAPI/LikeC4 builders and validators, source analysts and likec4 readers.
+    validation: Reassemble a long multibyte line, preserve source identity and line numbering, and define concurrent edit behavior for mutable documents.
+  - candidate: Typed taint annotation arguments
+    disposition: Keep current signatures pending an explicit syntax migration.
+    evidence: annotate_trace, annotate_validate and annotate_sink persist canonical source comments and currently parse string argument descriptions.
+    caller: workspace_taint_analyst and trace Skill consumers.
+    validation: A future typed argument list and optional source line must cover all three annotations, supported languages and canonical persisted comments.
+  - candidate: Definition search, graph symbols and unselected exports
+    disposition: Keep both searches and retain unproven deletion candidates.
+    evidence: search_def returns structural definitions; find_symbol returns graph identities. Shipped selection counts alone do not rule out registered, operator or pinned Eval callers.
+    caller: Workspace graph analysis profiles select both searches. insert_line, append_file, replace_range and whole-document OpenAPI reads need caller investigation before deletion.
+    validation: Any rename migrates selectors, prompts and fixtures together. Delete an export only after checking all registered callers and exact pins.
+  measurement_plan:
+    structural: Baseline workspace_openapi_validator has 31 selected Toolset functions and 13936 description characters. Character counts do not establish token cost or task quality. Compare actual Gateway declarations and responses after the accepted changes.
+    live_proposal: Use a separate reviewed Eval with identical tasks, source/context pins, configured models and effective budgets. For three tasks and three repetitions per variant the experiment is 18 Runs; the token ceiling is 18 times the pinned per-Run token budget. Estimate monetary cost from the selected route before dispatch.
+    measures: First correct call, repairs, total input/output tokens, completed task and unchanged answer quality. Report repeated samples and failures.
+    authority: Live measurements remain proposals. V40-002 keeps its frozen declaration comparison, and the reserved V417-010 lane remains with its owner.
+
 scope:
   in:
   - Review schema field descriptions against TLS-R30/R34 and native Skills. Keep short preconditions,
