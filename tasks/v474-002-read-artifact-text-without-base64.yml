@@ -83,3 +83,7 @@ tests:
 - command: make lint
   covers:
   - A3
+- command: go test -count=1 ./tests/eval/project_facts ./tests/e2e
+  covers: [A3]
+- command: go test -tags=e2e -count=1 ./tests/ui-stack -run '^TestManagedEvalAssertionsUseCurrentDomainContract$'
+  covers: [A3]

@@ -16,7 +16,7 @@ def check(producer, root):
     shared = json.loads((root / "api/testdata/audit-common/results.json").read_text())
     example = shared["cases"][0]
     context = json.loads(example["context"])
-    context["workflow_ref"] = "audit-source-check@2"
+    context["workflow_ref"] = "audit-source-check@3"
     source_items = fixture["audit_assertion_source"]()["items"]
     template = context["items"][0]
     outcomes, accepted, tasks = [], [], {}
