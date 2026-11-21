@@ -374,6 +374,12 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
+  - id: model-tool-interfaces-2026-11
+    exit_task: V474-010
+    outcome: >-
+      Workers use closed argument contracts, bounded text/native image reads, file-reference
+      publication, keyed Audit submissions and automatic evidence from local HTTP request IDs,
+      verified together through ordinary production component boundaries.
   - id: model-response-recovery-2026-11
     exit_task: V473-003
     outcome: >-

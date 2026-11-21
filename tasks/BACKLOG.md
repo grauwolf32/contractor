@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-70 open tasks: 10 in progress, 47 pending, 13 deferred. 1628 finished: 1610 completed, 18 archived.
+71 open tasks: 10 in progress, 48 pending, 13 deferred. 1628 finished: 1610 completed, 18 archived.
 
 ## In progress
 
@@ -39,6 +39,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | — | Expose bounded truthful Planner compaction diagnostics |
 | [V469-001](v469-001-opencode-audit-prototype.yml) | chore | P1 | — | Prove two ordinary Runs can reuse one OpenCode Audit container |
 | [V474-005](v474-005-image-artifact-model-transport.yml) | feature | P2 | V474-002 | Deliver image artifacts to vision-capable models through read_artifact |
+| [V474-010](v474-010-tool-interface-acceptance.yml) | chore | P1 | V474-002, V474-003, V474-004, V474-005, V474-008 | Verify the combined model-facing tool interfaces |
 
 ### HTTP and Caido tools (`http-tools`)
 
@@ -172,7 +173,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 3 | 50 | 70 | 40 | 107 |
-| Planners and the Worker model boundary (`planner-worker`) | 6 | 41 | 60 | 41 | 94 |
+| Planners and the Worker model boundary (`planner-worker`) | 7 | 41 | 60 | 42 | 94 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 0 | 7 | 9 | 3 | 15 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
@@ -182,7 +183,7 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 12 | 30 |
 | Findings tools and collections (`findings`) | 1 | 21 | 15 | 11 | 27 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 21 | 17 | 16 | 27 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 39 | 40 | 20 | 70 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 39 | 40 | 20 | 71 |
 | Audits (`audits`) | 11 | 71 | 98 | 42 | 171 |
 | Evaluations (`evals`) | 4 | 23 | 46 | 20 | 54 |
 | Podman sandbox (`sandbox`) | 2 | 10 | 2 | 2 | 6 |
