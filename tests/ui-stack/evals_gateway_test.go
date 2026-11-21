@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/configload"
+	"go.yaml.in/yaml/v4"
 )
 
 const managedEvalWorkerSummary = "Managed Evals deterministic output retained"
@@ -114,11 +115,23 @@ func stageManagedEvalConfiguration(t *testing.T, root, target string) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		value := strings.Replace(string(raw), "name: "+oldName, "name: "+newName, 1)
 		if directory == "workflows" {
-			value = string(adaptUIStackCopyWorkflow(t, []byte(value)))
+			raw = adaptUIStackCopyWorkflow(t, raw)
 		}
-		if err = os.WriteFile(filepath.Join(target, directory, newName+".yaml"), []byte(value), 0600); err != nil {
+		var document map[string]any
+		if err := yaml.Unmarshal(raw, &document); err != nil {
+			t.Fatal(err)
+		}
+		metadata, ok := document["metadata"].(map[string]any)
+		if !ok || metadata["name"] != oldName {
+			t.Fatalf("unexpected source identity for %s", newName)
+		}
+		metadata["name"], metadata["version"] = newName, "1"
+		encoded, err := yaml.Marshal(document)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = os.WriteFile(filepath.Join(target, directory, newName+".yaml"), encoded, 0600); err != nil {
 			t.Fatal(err)
 		}
 	}
