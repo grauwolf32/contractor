@@ -37,7 +37,7 @@ The current user-facing Workflow set is:
   for the same document contracts with a modeled single-Worker Planner;
 - `openapi-from-analysis@5` and `likec4-from-analysis@6` when the caller already
   has exact dependency and project reports;
-- `security-analysis@7` and `taint-trace-from-workspace@5` for their explicit
+- `security-analysis@8` and `taint-trace-from-workspace@5` for their explicit
   focused analysis contracts, and `taint-trace-from-workspace-compact@2`, the
   same trace with opt-in Worker context compaction;
 - `audit-openapi-operation-observe@1` for graph-backed operation analysis in
@@ -294,11 +294,11 @@ capability requirements are recorded in its `assets/provenance.md`. It is seeded
 into the owner Skill catalog without changing existing Workflow selections.
 See [the Skill guide](../docs/guides/agent-skills.md) for selection and execution.
 
-`security-analysis@7` is an opt-in single-Stage workflow for authorized HTTP
+`security-analysis@8` is an opt-in single-Stage workflow for authorized HTTP
 and Caido analysis. It requires the caller to provide `objective`, `target` and
 `authorization_scope` string parameters, accepts one optional text context
-artifact, and freezes one Markdown report. Its `caido_analyst@6` template pins
-the versionless `skills/caido-local-requests` artifact and explicitly selects every HTTP and
+artifact, and freezes one Markdown report. Its `caido_analyst@7` template pins
+the versionless `skills/caido-stored-evidence` artifact and explicitly selects every HTTP and
 Caido operation named by that package. `http_explorer@4` provides a reusable
 HTTP-only template without the Caido Skill or adapter requirement.
 

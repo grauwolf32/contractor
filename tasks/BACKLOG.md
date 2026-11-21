@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-70 open tasks: 10 in progress, 47 pending, 13 deferred. 1628 finished: 1610 completed, 18 archived.
+70 open tasks: 11 in progress, 46 pending, 13 deferred. 1628 finished: 1610 completed, 18 archived.
 
 ## In progress
 
@@ -21,6 +21,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V474-002](v474-002-read-artifact-text-without-base64.yml) | projects-artifacts | feature | P1 | Serve bounded UTF-8 text through the common read_artifact tool |
+| [V474-008](v474-008-attach-http-evidence-by-local-request-id.yml) | findings | feature | P1 | Attach stored HTTP exchanges by their local request identifier |
 
 ## Pending
 
@@ -56,12 +57,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
 | [V410-026](v410-026-sitemap-source-comparison.yml) | chore | P2 | — | Compare transport observations and scanner report projections for sitemap |
-
-### Findings tools and collections (`findings`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V474-008](v474-008-attach-http-evidence-by-local-request-id.yml) | feature | P1 | — | Attach stored HTTP exchanges by their local request identifier |
 
 ### Workflow catalog and document workflows (`workflows`)
 

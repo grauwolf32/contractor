@@ -157,6 +157,8 @@ def test_observation_metadata_shares_capture_ownership_eviction_and_byte_budget(
         body, selected = buffer.select_observation("1", "owner")
         assert selected == metadata
         assert buffer._bytes == len(body) + metadata.size_bytes
+        assert await buffer.read_exchange(1, "foreign") == json.loads(body)
+        assert buffer.select_observation("1", "owner") == (body, metadata)
         with pytest.raises(ValueError, match="unavailable"):
             buffer.select_observation("1", "foreign")
         monkeypatch.setattr(http_capture, "MAX_CAPTURE_BUFFER_BYTES", buffer._bytes + 10)
