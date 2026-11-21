@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-68 open tasks: 12 in progress, 43 pending, 13 deferred. 1621 finished: 1603 completed, 18 archived.
+67 open tasks: 11 in progress, 43 pending, 13 deferred. 1622 finished: 1604 completed, 18 archived.
 
 ## In progress
 
@@ -21,7 +21,6 @@ the epics are in [epics.yml](epics.yml).
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V471-006](v471-006-project-facts-release-gate.yml) | quality | chore | P1 | Accept the shared Finding facts path through real process, lifecycle and scale gates |
-| [V471-011](v471-011-ui-stack-finding-fixtures.yml) | quality | chore | P1 | Keep UI process fixtures on the current Finding and Audit contracts |
 | [V471-012](v471-012-library-browser-selectors.yml) | quality | chore | P1 | Follow the current Library contract in real-stack browser journeys |
 
 ## Pending
@@ -178,4 +177,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 23 | 55 | 16 | 35 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 43 | 30 | 21 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 28 | 50 | 18 |
-| Quality, CI and process (`quality`) | 14 | 1 | 34 | 152 | 32 |
+| Quality, CI and process (`quality`) | 13 | 1 | 34 | 152 | 32 |

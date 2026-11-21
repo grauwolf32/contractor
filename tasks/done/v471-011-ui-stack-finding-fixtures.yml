@@ -6,7 +6,7 @@ epic: quality
 kind: chore
 introduced_by: V471-001
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V471-001]
 languages: [go, python, typescript, yaml, markdown]
 goal: The real UI-stack tests stage their own fresh Eval identities and call current Finding interfaces without obsolete publication flags.
@@ -61,3 +61,11 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+
+implementation_commit: 86d84d95cccc4374ff6dedde0387ac778a5d2216
+verification:
+  - Focused configuration/producer contract tests passed (1.257 s), and the actual standard-library external producer regression passed.
+  - Both complete UI-stack release groups passed serially against the owned PostgreSQL lane. Group A ran eleven required roots (492.657 s), including 119 browser journeys, one widget case and native Workflow/Audit Eval; group B ran external Workflow/Audit Eval (319.524 s).
+  - Every browser report verified actual executed cases with zero skipped, unexpected or flaky cases. Both Eval modes retained exact execution membership and denied another owner twelve experiment/evidence routes.
+  - The duplicate-source journey reached the real code Finding tool, published both Run receipts, reused one Project identity, retained independent sources and completed both canonical exports.
+  - make lint passed on the final implementation; no production catalog, policy, API or Runtime behavior changed in this task.
