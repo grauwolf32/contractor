@@ -144,7 +144,7 @@ def test_text_pages_of_a_32_mib_artifact_validate_utf8_once(monkeypatch) -> None
 
 @pytest.mark.parametrize(
     "media_type",
-    ["application/zip", "application/vnd.contractor.agent-skill+zip", "image/png", "font/woff2"],
+    ["application/zip", "application/vnd.contractor.agent-skill+zip", "font/woff2"],
 )
 def test_read_artifact_rejects_binary_media_types_before_download(media_type: str) -> None:
     async def scenario() -> None:

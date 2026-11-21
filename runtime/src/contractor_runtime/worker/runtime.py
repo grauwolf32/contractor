@@ -165,6 +165,7 @@ class AdkWorkerRuntime:
         self._worker_state = context.state
 
         policy = context.model_policy
+        self._resources.image_input.supports_images = policy.supports_images
         generation = generation_config(policy)
         adk_tools = [
             ContractorFunctionTool(tool, logical_invocation_id=self._logical_tool_invocation)
@@ -246,7 +247,9 @@ class AdkWorkerRuntime:
             tools=adk_tools,
             generate_content_config=generation,
             before_model_callback=(
-                self._project_compacted_request if self._compaction is not None else None
+                self._project_compacted_request
+                if self._compaction is not None or policy.supports_images is True
+                else None
             ),
         )
         self._app = App(
@@ -838,11 +841,16 @@ class AdkWorkerRuntime:
 
     async def _project_compacted_request(self, callback_context: Any, llm_request: Any) -> None:
         compaction = self._compaction
-        if compaction is None:
-            return None
-        contents = compaction.project(list(callback_context.session.events))
-        if contents is not None:
-            llm_request.contents = contents
+        if compaction is not None:
+            contents = compaction.project(list(callback_context.session.events))
+            if contents is not None:
+                llm_request.contents = contents
+            if self._context.model_policy.supports_images is True:
+                self._session_lifecycle.discard_compacted_images(
+                    callback_context.session, compaction.compacted_event_ids
+                )
+        if self._context.model_policy.supports_images is True:
+            self._resources.image_input.reconcile(llm_request.contents or [])
         return None
 
     def _history_tool(self) -> Any:

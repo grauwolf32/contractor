@@ -14,6 +14,7 @@ from google.adk.sessions.session import Session
 from google.adk.sessions.state import State
 
 from contractor_runtime.contracts import WorkerSessionMode
+from contractor_runtime.llm.image_parts import discard_event_image_parts
 
 MAX_CARRIED_STATE_BYTES = 4 * 1024 * 1024
 
@@ -236,6 +237,18 @@ class WorkerSessionLifecycle:
         if len(encoded) > self._max_carried_state_bytes:
             raise WorkerSessionLifecycleError("state_too_large")
         return eligible
+
+    def discard_compacted_images(self, session: Session, event_ids: frozenset[str]) -> None:
+        """Release opaque image attachments; preserve all semantic event metadata."""
+        if not event_ids:
+            return
+        if not isinstance(self.service, InMemorySessionService):
+            raise WorkerSessionLifecycleError("image_storage_unsupported")
+        stored = self.service.sessions.get(self.app_name, {}).get(self.user_id, {}).get(session.id)
+        if stored is None:
+            raise WorkerSessionLifecycleError("session_missing")
+        discard_event_image_parts(stored.events, event_ids)
+        discard_event_image_parts(session.events, event_ids)
 
     def _clear_service_state(self) -> None:
         # Production deliberately uses one allocation-local in-memory service.

@@ -7,7 +7,7 @@ kind: feature
 priority: P2
 status: in_progress
 depends_on: [V474-002]
-languages: [python, go, yaml]
+languages: [python, go, typescript, yaml]
 goal: A Worker using a configured vision-capable model can inspect a supported image by reading its exact artifact.
 demonstration: >-
   Give a Worker an exact PNG fixture, have it call read_artifact and capture the next request on the
@@ -39,6 +39,10 @@ context:
   specification:
     - docs/spec/artifacts/artifact-store.md#ART-R117
     - docs/spec/tools/toolsets.md#TLS-R4
+    - docs/spec/configuration/agent-templates.md#TPL-R120
+    - docs/spec/execution/worker.md#WRK-R200
+    - docs/spec/execution/worker.md#WRK-R201
+    - docs/spec/platform/limits.md
   current: >-
     runtime/src/contractor_runtime/llm/openai.py serializes function response contents as JSON text.
     The existing artifact reader rejects normal image media at metadata preflight. Both boundaries need
@@ -47,6 +51,7 @@ scope:
   in:
     - Carry a supported image from an authorized exact Artifact read through Worker history, ADK and the configured Gateway message format with the associated tool call and exact ref.
     - Establish supported media, capability source and bounded handling for the selected model route. Update ART-R117, the model transport specification and relevant limit owners in the implementation.
+    - Carry the explicit image capability through managed configuration, immutable policy pins, public API, wire contracts, generated clients and the existing operator form.
   out:
     - Switching the configured model, remote URLs for private images, binary authoring and browser UI previews.
 requirements:

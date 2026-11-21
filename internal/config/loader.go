@@ -369,7 +369,8 @@ func (l *loader) loadModelPolicies() error {
 			Model: document.Spec.Model, ContextWindowTokens: optionalIntValue(document.Spec.ContextWindowTokens), MaxOutputTokens: optionalIntValue(document.Spec.MaxOutputTokens),
 			MaxModelCalls: optionalIntValue(document.Spec.MaxModelCalls), MaxToolCalls: optionalIntValue(document.Spec.MaxToolCalls),
 			MaxWorkerCalls: optionalIntValue(document.Spec.MaxWorkerCalls), MaxTotalTokens: optionalIntValue(document.Spec.MaxTotalTokens),
-			Temperature: clone.Pointer(document.Spec.Temperature),
+			Temperature:    clone.Pointer(document.Spec.Temperature),
+			SupportsImages: clone.Pointer(document.Spec.SupportsImages),
 		}
 		digest, digestErr := modelPolicyDigest(selector, policy)
 		if digestErr != nil {

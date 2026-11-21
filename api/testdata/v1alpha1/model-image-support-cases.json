@@ -1,0 +1,64 @@
+{
+  "base": {
+    "model": "worker-model",
+    "contextWindowTokens": 4096,
+    "maxOutputTokens": 512,
+    "maxModelCalls": 8,
+    "maxToolCalls": 16,
+    "maxTotalTokens": 8192
+  },
+  "cases": [
+    {
+      "name": "omitted is unconfirmed",
+      "present": false,
+      "value": null,
+      "valid": true
+    },
+    {
+      "name": "null is unconfirmed",
+      "present": true,
+      "value": null,
+      "valid": true
+    },
+    {
+      "name": "confirmed",
+      "present": true,
+      "value": true,
+      "valid": true
+    },
+    {
+      "name": "text only",
+      "present": true,
+      "value": false,
+      "valid": true
+    },
+    {
+      "name": "string",
+      "present": true,
+      "value": "true",
+      "valid": false
+    },
+    {
+      "name": "number",
+      "present": true,
+      "value": 1,
+      "valid": false
+    },
+    {
+      "name": "array",
+      "present": true,
+      "value": [
+        true
+      ],
+      "valid": false
+    },
+    {
+      "name": "object",
+      "present": true,
+      "value": {
+        "supported": true
+      },
+      "valid": false
+    }
+  ]
+}

@@ -15,6 +15,7 @@ from google.adk.sessions.base_session_service import GetSessionConfig
 from google.adk.sessions.session import Session
 from google.genai import types
 
+from contractor_runtime.llm.image_parts import image_result_metadata
 from contractor_runtime.threads import to_thread_until_done
 
 MAX_HISTORY_CALLS = 10_000
@@ -239,7 +240,11 @@ class ToolHistory:
             snapshot: list[bytes] = []
 
             def encode() -> None:
-                payload = result if isinstance(result, dict) else {"result": result}
+                payload = (
+                    image_result_metadata(result, replay=True)
+                    if isinstance(result, dict)
+                    else {"result": result}
+                )
                 snapshot.append(_encode_bounded(payload, available))
 
             try:

@@ -9998,10 +9998,13 @@ type ModelPolicyBody struct {
 	MaxOutputTokens *int `json:"maxOutputTokens,omitempty"`
 
 	// MaxToolCalls Tool-call capacity per committed context window for compact@1 Workers, a summary trigger for terminal@1 Workers, and cumulative per invocation otherwise. Observed usage remains cumulative.
-	MaxToolCalls   *int     `json:"maxToolCalls,omitempty"`
-	MaxTotalTokens *int     `json:"maxTotalTokens,omitempty"`
-	MaxWorkerCalls *int     `json:"maxWorkerCalls,omitempty"`
-	Model          string   `json:"model"`
+	MaxToolCalls   *int   `json:"maxToolCalls,omitempty"`
+	MaxTotalTokens *int   `json:"maxTotalTokens,omitempty"`
+	MaxWorkerCalls *int   `json:"maxWorkerCalls,omitempty"`
+	Model          string `json:"model"`
+
+	// SupportsImages Operator assertion that this model accepts images on the selected Gateway route. False means text-only; absent or null means unconfirmed. Does not change the model or probe the provider.
+	SupportsImages *bool    `json:"supportsImages,omitempty"`
 	Temperature    *float32 `json:"temperature,omitempty"`
 }
 

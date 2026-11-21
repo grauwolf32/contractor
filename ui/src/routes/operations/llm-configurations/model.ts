@@ -40,6 +40,14 @@ export function validateModelPolicy(
   consumer: ModelPolicyConsumer,
 ): string[] {
   const errors: string[] = [];
+  if (
+    value.supportsImages != null &&
+    typeof value.supportsImages !== "boolean"
+  ) {
+    errors.push(
+      "Image input support must be confirmed, text only or unconfirmed.",
+    );
+  }
   const modelLength = policyLimit("maxLength", "model");
   if (value.model.trim().length === 0 || value.model.length > modelLength) {
     errors.push(

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import contextlib
 import copy
 import json
@@ -20,6 +21,11 @@ from pydantic import BaseModel, PrivateAttr
 
 from contractor_runtime.llm.client import GatewayClientHandle, GatewayRequestError
 from contractor_runtime.llm.errors import GatewayFailure
+from contractor_runtime.llm.image_parts import (
+    image_context_size,
+    image_response_metadata,
+    response_images,
+)
 from contractor_runtime.llm.response import empty_stop_response
 from contractor_runtime.threads import to_thread_until_done
 
@@ -90,13 +96,17 @@ class OpenAICompatibleGatewayLlm(BaseLlm):
     """Translate the ADK model contract to OpenAI chat completions."""
 
     _client_handle: GatewayClientHandle = PrivateAttr()
+    _allow_images: bool = PrivateAttr(default=False)
     _observer: ContextVar[GatewayCallObserver | None] = PrivateAttr(
         default_factory=lambda: ContextVar("gateway_call_observer", default=None)
     )
 
-    def __init__(self, *, model: str, client_handle: GatewayClientHandle) -> None:
+    def __init__(
+        self, *, model: str, client_handle: GatewayClientHandle, supports_images: bool | None = None
+    ) -> None:
         super().__init__(model=model)
         self._client_handle = client_handle
+        self._allow_images = supports_images is True
 
     @property
     @override
@@ -142,7 +152,12 @@ class OpenAICompatibleGatewayLlm(BaseLlm):
                 else asyncio.timeout(self._client_handle.operation_timeout_seconds)
             )
             async with operation:
-                request = _completion_request(self.model, llm_request)
+                request = await to_thread_until_done(
+                    lambda: _completion_request(
+                        self.model, llm_request, allow_images=self._allow_images
+                    ),
+                    name="gateway-request-assembly",
+                )
                 observer = self._observer.get()
                 if observer is not None:
                     with contextlib.suppress(Exception):
@@ -195,7 +210,15 @@ class OpenAICompatibleGatewayLlm(BaseLlm):
         yield response
 
 
-def _completion_request(model: str, request: LlmRequest) -> dict[str, Any]:
+def _completion_request(
+    model: str, request: LlmRequest, *, allow_images: bool = False
+) -> dict[str, Any]:
+    try:
+        image_count, _ = image_context_size(request.contents or [])
+    except ValueError:
+        raise _AdapterFailure("UnsupportedContentPart") from None
+    if image_count and not allow_images:
+        raise _AdapterFailure("UnsupportedContentPart")
     config = request.config
     messages: list[dict[str, Any]] = []
     if config is not None and config.system_instruction is not None:
@@ -240,7 +263,25 @@ def _observed_input(request: dict[str, Any]) -> dict[str, Any]:
                 response = text
             parts = [{"functionResponse": {"id": message["tool_call_id"], "response": response}}]
         else:
-            parts = [] if text is None else [{"text": text}]
+            if isinstance(text, list):
+                parts = []
+                for item in text:
+                    if item.get("type") == "text":
+                        parts.append({"text": item["text"]})
+                    elif item.get("type") == "image_url":
+                        url = item["image_url"]["url"]
+                        marker = url.find(";base64,")
+                        padding = 2 if url.endswith("==") else 1 if url.endswith("=") else 0
+                        parts.append(
+                            {
+                                "image": {
+                                    "mediaType": url[5:marker],
+                                    "size": (len(url) - marker - 8) // 4 * 3 - padding,
+                                }
+                            }
+                        )
+            else:
+                parts = [] if text is None else [{"text": text}]
             parts.extend(
                 {
                     "functionCall": {
@@ -266,21 +307,34 @@ def _complete_tool_call_messages(messages: list[dict[str, Any]]) -> list[dict[st
 
     completed: list[dict[str, Any]] = []
     pending: list[str] = []
-    # An absent response does not prove that the tool never started. A tool may
-    # have committed an effect before cancellation or loss of its response.
+    images: list[dict[str, Any]] = []
     skipped = _json_text({"ok": False, "error": {"code": "tool_call_outcome_unknown"}})
-    for message in messages:
+
+    def flush_images() -> None:
+        if images:
+            completed.append({"role": "user", "content": list(images)})
+            images.clear()
+
+    def settle_pending() -> None:
+        for call_id in pending:
+            completed.append({"role": "tool", "tool_call_id": call_id, "content": skipped})
+        pending.clear()
+        flush_images()
+
+    for source in messages:
+        message = dict(source)
+        attached = message.pop("_artifact_images", [])
         if message["role"] == "tool" and message.get("tool_call_id") in pending:
             pending.remove(message["tool_call_id"])
         else:
-            for call_id in pending:
-                completed.append({"role": "tool", "tool_call_id": call_id, "content": skipped})
-            pending.clear()
+            settle_pending()
         completed.append(message)
+        images.extend(attached)
         if message["role"] == "assistant":
             pending = [call["id"] for call in message.get("tool_calls", [])]
-    for call_id in pending:
-        completed.append({"role": "tool", "tool_call_id": call_id, "content": skipped})
+        if not pending:
+            flush_images()
+    settle_pending()
     return completed
 
 
@@ -306,13 +360,32 @@ def _content_messages(content: types.Content) -> list[dict[str, Any]]:
     for part in content.parts or []:
         if part.function_response is not None:
             response = part.function_response
-            tool_messages.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": response.id or "",
-                    "content": _json_text(response.response),
-                }
-            )
+            attached = list(response_images(response))
+            tool_message: dict[str, Any] = {
+                "role": "tool",
+                "tool_call_id": response.id or "",
+                "content": _json_text(
+                    image_response_metadata(response.response, attached=bool(attached))
+                ),
+            }
+            if attached:
+                images = []
+                for mime_type, data in attached:
+                    encoded = base64.b64encode(data).decode("ascii")
+                    images.extend(
+                        [
+                            {
+                                "type": "text",
+                                "text": f"Image returned by tool call {response.id or ''}.",
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": f"data:{mime_type};base64,{encoded}"},
+                            },
+                        ]
+                    )
+                tool_message["_artifact_images"] = images
+            tool_messages.append(tool_message)
         elif part.function_call is not None:
             call = part.function_call
             if not call.name:

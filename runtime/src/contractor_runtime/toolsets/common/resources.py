@@ -12,6 +12,7 @@ from typing import Protocol
 
 from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.telemetry.metrics import MetricsState
+from contractor_runtime.toolsets.common.artifact_images import ImageInputBudget
 from contractor_runtime.toolsets.common.artifact_read_cache import ExactArtifactReadCache
 from contractor_runtime.toolsets.common.execution import WorkerExecutionState
 from contractor_runtime.toolsets.common.http_capture import RecentHTTPCaptures
@@ -39,6 +40,7 @@ class ToolResources:
     metrics: MetricsState = field(default_factory=MetricsState)
     execution: WorkerExecutionState = field(default_factory=WorkerExecutionState)
     artifact_read_cache: ExactArtifactReadCache = field(default_factory=ExactArtifactReadCache)
+    image_input: ImageInputBudget = field(default_factory=ImageInputBudget)
     http_captures: RecentHTTPCaptures = field(default_factory=RecentHTTPCaptures)
     http_observation_sink: HTTPObservationSink | None = None
     caido_observation_sink: HTTPObservationSink | None = None

@@ -13,6 +13,7 @@ from urllib.parse import urlsplit
 from pydantic import (
     Field,
     SecretStr,
+    StrictBool,
     field_serializer,
     model_validator,
 )
@@ -359,8 +360,10 @@ class LLMCredentialRef(WireModel):
 
 
 class ResolvedModelPolicy(WireModel):
+    nullable_fields = frozenset({"supports_images"})
     ref: ModelPolicyRef
     model: str
+    supports_images: StrictBool | None = None
     context_window_tokens: int | None = Field(default=None, gt=0, le=100_000_000)
     max_output_tokens: int | None = Field(default=None, gt=0)
     max_model_calls: int | None = Field(default=None, gt=0, le=1000)

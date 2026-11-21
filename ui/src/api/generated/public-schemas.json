@@ -11818,6 +11818,7 @@
       "required": ["model"],
       "properties": {
         "model": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "supportsImages": { "type": "boolean", "nullable": true },
         "contextWindowTokens": {
           "type": "integer",
           "minimum": 1,

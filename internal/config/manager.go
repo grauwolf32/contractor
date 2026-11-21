@@ -44,6 +44,7 @@ var configurationSubtrees = []string{
 // an explicitly invalid zero value.
 type ModelPolicyPublication struct {
 	Model               string   `json:"model"`
+	SupportsImages      *bool    `json:"supportsImages,omitempty" strictjson:"nullable"`
 	ContextWindowTokens *int     `json:"contextWindowTokens,omitempty"`
 	MaxOutputTokens     *int     `json:"maxOutputTokens,omitempty"`
 	MaxModelCalls       *int     `json:"maxModelCalls,omitempty"`
@@ -469,6 +470,7 @@ func preparePublication(request PublicationRequest) (publicationCandidate, error
 		}
 		spec := modelPolicySpecSource{
 			Model:               request.ModelPolicy.Model,
+			SupportsImages:      clone.Pointer(request.ModelPolicy.SupportsImages),
 			ContextWindowTokens: clone.Pointer(request.ModelPolicy.ContextWindowTokens),
 			MaxOutputTokens:     clone.Pointer(request.ModelPolicy.MaxOutputTokens),
 			MaxModelCalls:       clone.Pointer(request.ModelPolicy.MaxModelCalls),
@@ -485,7 +487,8 @@ func preparePublication(request PublicationRequest) (publicationCandidate, error
 			Model: spec.Model, ContextWindowTokens: optionalIntValue(spec.ContextWindowTokens), MaxOutputTokens: optionalIntValue(spec.MaxOutputTokens),
 			MaxModelCalls: optionalIntValue(spec.MaxModelCalls), MaxToolCalls: optionalIntValue(spec.MaxToolCalls),
 			MaxWorkerCalls: optionalIntValue(spec.MaxWorkerCalls), MaxTotalTokens: optionalIntValue(spec.MaxTotalTokens),
-			Temperature: clone.Pointer(spec.Temperature),
+			Temperature:    clone.Pointer(spec.Temperature),
+			SupportsImages: clone.Pointer(spec.SupportsImages),
 		}
 		digest, digestErr := modelPolicyDigest(selector, policy)
 		if digestErr != nil {
