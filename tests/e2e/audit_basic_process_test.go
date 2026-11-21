@@ -489,3 +489,18 @@ func auditResultArguments(value map[string]any) func(map[string]any) (map[string
 		return args, nil
 	}
 }
+
+func requireRecordedAuditResults(count int) func(map[string]any) error {
+	return func(request map[string]any) error {
+		responses := findingsToolResponses(request, "submit_check_result")
+		if len(responses) != count {
+			return fmt.Errorf("scalar result responses = %d, want %d", len(responses), count)
+		}
+		for _, response := range responses {
+			if response["status"] != "recorded" {
+				return fmt.Errorf("intended scalar result was not recorded")
+			}
+		}
+		return nil
+	}
+}

@@ -65,6 +65,7 @@ func selectedHTTPEvidenceAcrossProcesses(t *testing.T, withFinding bool) {
 		}))
 		if withFinding {
 			final := stage.steps[len(stage.steps)-1]
+			final.validate = composeGatewayValidation(final.validate, requireRecordedAuditResults(2))
 			stage.tools = append(stage.tools, "finding")
 			stage.steps = append(stage.steps[:len(stage.steps)-1], toolGatewayStep("finding", fixedArguments(map[string]any{
 				"title": "HTTP denial observation", "description": "A retained anonymous HTTP request received 403; fixture problem publication is explicit.",
@@ -74,9 +75,9 @@ func selectedHTTPEvidenceAcrossProcesses(t *testing.T, withFinding bool) {
 				if len(replies) != 1 || replies[0]["receipt_id"] == nil || replies[0]["finding_id"] == nil {
 					return nil, fmt.Errorf("Finding client did not accept selected HTTP receipt: %+v", replies)
 				}
-				return map[string]any{
+				return auditResultArguments(map[string]any{
 					"rationale": "Selected HTTP response denies access in these conditions.", "tested_conditions": []string{"anonymous HTTP request"}, "limitations": []string{}, "evidence": []string{}, "http_request_ids": []int{2},
-				}, nil
+				})(request)
 			}), final)
 		}
 		h.gateway.mu.Lock()

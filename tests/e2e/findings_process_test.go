@@ -279,6 +279,8 @@ func findingsProducerStage(name string) domainGatewayStage {
 		"read_audit_task", "submit_check_result", "submit_check_results", "ls", "glob", "grep", "read_file",
 		"write_text_artifact", "finding", "annotate_trace", "annotate_validate", "annotate_sink",
 		"changed_paths", "diff", "rollback_changes"}, completeCodeAnalysisTools...)
+	final := finalGatewayStep("All assigned results recorded", nil)
+	final.validate = requireRecordedAuditResults(1)
 	return domainGatewayStage{name: "findings/" + name, tools: withMemoryTools(tools), steps: []domainGatewayStep{
 		toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})),
 		toolGatewayStep("graph_summary", fixedArguments(map[string]any{})),
@@ -313,9 +315,9 @@ func findingsProducerStage(name string) domainGatewayStage {
 					return nil, fmt.Errorf("identical finding retry changed receipt")
 				}
 			}
-			return map[string]any{"rationale": "Operation mapped to lookup; query concatenation proposal recorded.", "tested_conditions": []string{"operation-resolution"}, "limitations": []string{"Source inferred; no live exploit executed"}, "evidence": []string{"evidence-000", "evidence-001"}}, nil
+			return auditResultArguments(map[string]any{"rationale": "Operation mapped to lookup; query concatenation proposal recorded.", "tested_conditions": []string{"operation-resolution"}, "limitations": []string{"Source inferred; no live exploit executed"}, "evidence": []string{"evidence-000", "evidence-001"}})(request)
 		}),
-		finalGatewayStep("All assigned results recorded", nil),
+		final,
 	}}
 }
 
