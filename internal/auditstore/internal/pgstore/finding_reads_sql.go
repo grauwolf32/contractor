@@ -74,6 +74,6 @@ var listOwnerFindingsSQL = `WITH filter_parameters AS (SELECT $2::text,$3::text,
 var listProjectFindingsSQL = `WITH filter_parameters AS (SELECT $3::text,$4::text,$5::boolean,$6::text)
  SELECT ` + projectFindingSummaryColumns + `,true
  FROM project_findings AS finding JOIN projects AS project USING(project_id)
- WHERE project.owner_id=$1 AND finding.project_id=$2 AND ` + projectstore.OwnerListedProjectSQL("project.project_id", "project.owner_id") + `
+ WHERE project.owner_id=$1 AND finding.project_id=$2 AND project.lifecycle_state='active'
  AND (finding.created_at,finding.finding_id COLLATE "C")<(coalesce($7::timestamptz,'infinity'),$8::text COLLATE "C")
  ORDER BY finding.created_at DESC,finding.finding_id COLLATE "C" DESC LIMIT $9`

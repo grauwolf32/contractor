@@ -202,7 +202,9 @@ determine this exclusion.
 
 **PRJ-R10.** Excluded Managed Eval Audit execution Projects remain
 accessible by ID for experiment evidence navigation and ordinary Audit
-execution.
+execution. Explicit Finding lists in an owned active Project use that same
+ID-based access; owner-wide Finding discovery continues to exclude execution
+Projects.
 
 Audits accept only Projects of kind `project`, and Audit start and dispatch
 serialize with the Project deletion fence; [Audits](../audits/audits.md) owns

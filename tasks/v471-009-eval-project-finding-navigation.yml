@@ -1,0 +1,53 @@
+schema_version: "1.0"
+id: V471-009
+title: Allow explicit Finding navigation in an owned Eval execution Project
+milestone: project-facts-2026-11
+epic: findings
+kind: defect
+introduced_by: V64-014
+priority: P1
+status: in_progress
+depends_on: [V471-001, V64-014]
+languages: [go, yaml, markdown]
+goal: An evaluator follows a known member Audit/Project ID to its actual Findings while owner-wide lists keep execution workspaces undiscoverable.
+context:
+  authority: >-
+    User request 2026-11-21 resumes Project Facts implementation and main delivery.
+    The required positive Audit Eval regression exposed an existing reader defect.
+    This narrow prerequisite restores PRJ-R10; it adds no Eval report publisher,
+    model interface or automatic quality claim.
+  finding: >-
+    internal/auditstore/internal/pgstore/finding_reads_sql.go:77 applies
+    OwnerListedProjectSQL even when the caller selected an explicit owned Project.
+    That excludes registered Eval execution Projects from their own Findings page,
+    although the Project and Finding point reads remain authorized. Introduced by
+    V64-014 checkpoint a935afb5de0cc3ca1c34a08ea7451b39eb0e1065.
+  specification:
+    - docs/spec/artifacts/projects.md#PRJ-R10
+    - docs/spec/findings/findings.md#FND-R217
+  siblings: >-
+    Owner-wide lists intentionally retain OwnerListedProjectSQL. Explicit scoped
+    reads keep owner, active lifecycle, canonical Project revision and bounded
+    keysets. Existing Finding/source point readers already use explicit owner and
+    Project checks. Public and allocation-bound readers share the fixed QueryStore.
+scope:
+  in:
+    - Replace the discovery-only predicate in the explicit Project Finding list with its existing owner and active-lifecycle checks.
+    - Add a real Server/Runtime/PostgreSQL regression using the already shipped evidence_refs record_fact contract inside two native Audit Eval members.
+    - Verify explicit member navigation and continued owner-wide workspace exclusion.
+  out:
+    - Changing global discovery, authorizing another owner, writing Eval reports, new APIs or memory_name implementation.
+acceptance_criteria:
+  - id: A1
+    text: Two native Audit members publish real informational Findings in separate ordinary execution Projects; explicit Project navigation returns each actual card.
+  - id: A2
+    text: Owner-wide Finding lists exclude those execution Projects; owner and active-lifecycle checks and bounded pagination remain on the real QueryStore path.
+  - id: A3
+    text: The real-process regression fails before the predicate change and passes afterward without new Runtime arguments or a fake generated report.
+tests:
+  - command: "go test -tags=e2e -count=1 -timeout=5m ./tests/e2e -run '^TestEvalFindingProjectNavigationAcrossProcesses$'"
+    covers: [A1, A2, A3]
+  - command: go test -count=1 ./internal/auditstore/internal/pgstore
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]

@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-68 open tasks: 10 in progress, 45 pending, 13 deferred. 1617 finished: 1599 completed, 18 archived.
+69 open tasks: 11 in progress, 45 pending, 13 deferred. 1617 finished: 1599 completed, 18 archived.
 
 ## In progress
 
@@ -21,6 +21,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V471-003](v471-003-workflow-fact-extraction.yml) | workflows | feature | P1 | Extract bounded Project facts in an optional passthrough Worker Stage |
+| [V471-009](v471-009-eval-project-finding-navigation.yml) | findings | defect | P1 | Allow explicit Finding navigation in an owned Eval execution Project |
 
 ## Pending
 
@@ -168,10 +169,10 @@ tasks in `introduced_by`.
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 5 | 25 | 37 | 15 | 38 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 12 | 30 |
-| Findings tools and collections (`findings`) | 0 | 20 | 14 | 11 | 24 |
+| Findings tools and collections (`findings`) | 1 | 20 | 15 | 11 | 24 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 21 | 17 | 16 | 26 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 40 | 20 | 70 |
-| Audits (`audits`) | 10 | 70 | 98 | 42 | 170 |
+| Audits (`audits`) | 10 | 70 | 98 | 42 | 171 |
 | Evaluations (`evals`) | 4 | 23 | 46 | 20 | 54 |
 | Podman sandbox (`sandbox`) | 2 | 10 | 2 | 2 | 6 |
 | Web UI (`ui`) | 2 | 56 | 81 | 34 | 79 |
