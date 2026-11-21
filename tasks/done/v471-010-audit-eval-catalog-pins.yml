@@ -6,7 +6,7 @@ epic: quality
 kind: chore
 introduced_by: V471-001
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V471-001]
 languages: [go, yaml, markdown]
 goal: Offline Audit Eval tests validate the actual published immutable profiles after their common Finding tool contract update.
@@ -50,3 +50,10 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+
+implementation_commit: c86efaaf6dba91d9cdab6ccb6b423e5ff5110ab9
+verification:
+  - The complete tests/eval/audit_programs package passed against PostgreSQL, including both typed WSTG HTTP profiles (1.151 s).
+  - make lint passed; task/specification and whitespace checks also passed after the final non-normative selector documentation correction.
+  - The whole internal/app package independently passed once the other Server process gate finished (14.843 s). Its initial lease failures were test scheduling interference, not a production lease change.
+  - Frozen Eval/mock catalogs and runtime manifests were not changed. The old Memory reset inventory is labelled historical rather than used as the current selector authority.
