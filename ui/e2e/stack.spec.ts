@@ -426,9 +426,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   // Real connected V37 journey: select exact Workflow, fill its missing input,
   // leave and return in the same tab, then submit the retained exact request.
   await page.goto("/catalog/workflows");
-  await page
-    .locator('a[href="/catalog/workflows/streamline-copy/1"]')
-    .click();
+  await page.locator('a[href="/catalog/workflows/streamline-copy/1"]').click();
   await page
     .getByRole("button", { name: "Configure Run", exact: true })
     .click();
