@@ -364,7 +364,7 @@ def audit_task_evidence(client, parent, inventory):
     context = json.loads(read(run["inputs"]["context"]))
     assert context["schema"] == "contractor.audit.context.v1", context
     assert (context["audit_id"], context["run_id"]) == (audit_id, run_id), context
-    assert context["workflow_ref"] == "audit-source-check@2", context
+    assert context["workflow_ref"] == "audit-source-check@3", context
     raw = read(run["outputs"]["result"])
     conclusions = json.loads(raw)
     assert conclusions["schema"] == "contractor.audit.conclusions.v1", conclusions

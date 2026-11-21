@@ -152,7 +152,7 @@ Workflow inputs.
 snapshots are never silently rewritten to match a newer catalog.
 
 **ASC-R4.** The Workflows and execution contracts a profile selects,
-such as `openapi-from-workspace@7` for a `prepare` role or a scan Workflow's
+such as `openapi-from-workspace@8` for a `prepare` role or a scan Workflow's
 `openapi-scan@1` contract, are configuration choices; the role kind and the
 declared input sources determine scheduling and authority.
 
@@ -510,14 +510,14 @@ changing these minimal contracts.
 
 
 **ASC-R66.** Source preparation, which generates the
-OpenAPI document through a `prepare` role such as `openapi-from-workspace@7`,
+OpenAPI document through a `prepare` role such as `openapi-from-workspace@8`,
 is a separate capability governed by the preparation contract of this
 document and is not a prerequisite for the supplied-input scan profile.
 
-**ASC-R67.** The runnable `source-openapi-sqlmap-scan@1` profile accepts a source ZIP, engagement, the same launch parameters and optional request values. Its ordinary `source-openapi-prepare-work@1` Run generates and validates OpenAPI, then publishes bounded work. Accepted exact OpenAPI revisions are retained and forked into separate scan Runs.
+**ASC-R67.** The runnable `source-openapi-sqlmap-scan@2` profile accepts a source ZIP, engagement, the same launch parameters and optional request values. Its ordinary `source-openapi-prepare-work@2` Run generates and validates OpenAPI, then publishes bounded work. Accepted exact OpenAPI revisions are retained and forked into separate scan Runs.
 
 
-**ASC-R68.** The `source-openapi-sqlmap-scan@1` preset keeps the
+**ASC-R68.** The `source-openapi-sqlmap-scan@2` preset keeps the
 same explicit operation denominator, active-check policy, scanner arguments
 and retry rules as the supplied-input SQLMap profile.
 
@@ -1221,7 +1221,7 @@ silently discard supplied request data or count as authenticated testing
 
 The shipped
 [`source_openapi_sqlmap_scan.yaml`](../../../configs/audit-profiles/source_openapi_sqlmap_scan.yaml)
-selects the ordinary `source-openapi-prepare-work@1` Workflow. Its model stages
+selects the ordinary `source-openapi-prepare-work@2` Workflow. Its model stages
 produce OpenAPI, then its Server-operation Stage publishes bounded common work.
 The ordinary `work` output enters common acceptance and produces separate
 operation Tasks for the declared `scan` Workflow binding:
@@ -1229,7 +1229,7 @@ operation Tasks for the declared `scan` Workflow binding:
 ```yaml
 workflows:
   prepare:
-    ref: source-openapi-prepare-work@1
+    ref: source-openapi-prepare-work@2
     inputs:
       source: {source: audit-input, name: source}
       engagement: {source: audit-input, name: engagement}
