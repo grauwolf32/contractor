@@ -227,7 +227,7 @@ this version.
 binding's canonical logical `result` output.
 
 **AWC-R11.** The selected AgentTemplate must explicitly select
-`audit-results@2` with both `read_audit_task` and `submit_check_result`, and
+`audit-results@2` with `read_audit_task`, `submit_check_result` and `submit_check_results`, and
 must not select legacy `audit-results@1` at the same time.
 
 **AWC-R12.** Audit completion rejects effective terminal summarization. An
@@ -296,7 +296,7 @@ foreign-scope artifact authority.
 the supported contract IDs. Omission means no new contracts are supported.
 `audit-check-results@1` is supported when at least one probed WorkerRuntime
 implements the strategy and the probed `audit-results@2` capability exposes
-both `read_audit_task` and `submit_check_result`. Only `adk@1` implements it;
+`read_audit_task`, `submit_check_result` and `submit_check_results`. Only `adk@1` implements it;
 `tool@1` never carries a completion contract
 ([SCN-R2](../tools/scanners.md)).
 
@@ -321,47 +321,46 @@ the whole Audit invocation and any coordinated model-recovery wait.
 ### Result tools
 
 **AWC-R30.** `audit-results@2` keeps the read tool `read_audit_task` and
-changes the submit tool `submit_check_result` into a bounded collector.
+exposes separate bounded single-item and complete-batch submission tools.
 
 **AWC-R31.** `read_audit_task` returns the validated, ordered tasks and
 requested coverage without exposing opaque base64 ZIPs. For a one-item
 assignment it also returns singular `task` and `taskPackageId` fields.
 
-**AWC-R32.** `submit_check_result` records one item or one complete ordered
-batch locally. For incremental submissions its model-facing shape is:
+**AWC-R32.** `submit_check_result` records one complete item locally.
+Its model-facing shape is:
 
 ```text
 submit_check_result(
-  item_key, assessment, summary, completed, gaps,
-  evidence=[], http_request_ids=[], proposal_keys=[], expected_revision=None
+  item_key, rationale, tested_conditions, limitations,
+  evidence=[], verdict=None, http_request_ids=[], expected_revision=None
 )
 ```
 
-**AWC-R33.** The model supplies assessments, summaries, completed coverage,
-explicit gaps, bounded evidence summaries and proposal receipt keys. An evidence
-selection uses `http_request_ids` (distinct integers 1..9007199254740991)
-from `http_request` calls executed in this same invocation. The model cannot supply
-observation timestamps, deployment markers, request tags or artifact refs.
-Runtime
-derives item identities and the execution-manifest digest from the pinned
-inputs.
+**AWC-R33.** The model supplies bounded rationale, tested conditions,
+limitations and evidence handles from the assigned member. `tested_conditions`
+and `limitations` are required JSON arrays, including empty arrays. Evidence
+and `http_request_ids` default to empty arrays. HTTP selection uses distinct
+local integers from `http_request` in the same invocation (AWC-R126).
+Runtime resolves exact evidence and retains its observed outcomes.
 
-**AWC-R34.** `item_key` must come from the trusted task set; it may be omitted
-only for a single-item assignment. Subject, requested coverage and execution
-digest are derived from that task, never from model arguments.
+**AWC-R34.** `item_key` is required even for a single-item assignment and
+must come from the trusted task set. Runtime derives task identity and
+hypothesis association from that member.
 
-**AWC-R35.** Runtime injects the invocation identity used for proposal
-selection. The `proposal_keys` argument carries the `client_key` values that
-`finding` calls return ([FND-R25](../findings/findings.md) to
-[FND-R27](../findings/findings.md)).
+**AWC-R35.** Runtime injects the invocation identity for Finding association
+and registers proposal receipts through the shared Finding publisher.
+The model supplies no proposal-key list in a conclusion.
 
-**AWC-R36.** `assessment` uses the existing closed vocabulary
-([audits](audits.md)), not synonyms such as `pass`.
+**AWC-R36.** A member with a hypothesis requires `verdict` to be `supported`,
+`refuted` or `inconclusive`. Exploration omits `verdict`. Supported and refuted
+require tested conditions and selected evidence. Inconclusive requires at
+least one limitation. These rules are shared by both submission tools.
 
-**AWC-R37.** Neither tool identifies an Audit, changes its assignment, accepts
+**AWC-R37.** None of these tools identifies an Audit, changes its assignment, accepts
 evidence or bypasses the trusted importer.
 
-**AWC-R38.** Both tools use the invocation's validated snapshot of the exact
+**AWC-R38.** All three tools use the invocation's validated snapshot of the exact
 contract input refs. Reading the current `inputs/task` or
 `inputs/execution_manifest`, as `audit-results@1` did, is insufficient: later
 alias changes must not change the assignment or what `read_audit_task` presents
@@ -369,9 +368,12 @@ as authoritative.
 
 ### Batch and incremental submissions
 
-**AWC-R39.** The compatible `results=[...]` convenience form accepts one
-complete ordered batch only, without scalar fields, `item_key` or
-`expected_revision`. It validates all members atomically before accepting any.
+**AWC-R39.** `submit_check_results(items)` accepts a complete JSON array
+of flat conclusions with the same content fields as AWC-R32 and a required
+`item_key` on each. Each assigned key occurs exactly once. Input order is
+arbitrary; receipts and assembled output use trusted assignment order.
+The tool forbids `expected_revision`. Runtime validates every member and the
+complete key set before accepting the batch.
 
 **AWC-R40.** Incremental scalar calls may arrive in any order, including
 parallel calls; a lock serializes acceptance.
@@ -527,7 +529,7 @@ terminal prose.
 
 **AWC-R72.** If items are missing, Runtime supplies a deterministic reminder
 naming the missing trusted item keys and instructing the model to use
-`submit_check_result` or `read_audit_task`. No untrusted tool error text is
+`submit_check_result`, `submit_check_results` or `read_audit_task`. No untrusted tool error text is
 promoted into control instructions.
 
 **AWC-R73.** At most two reminders are allowed per invocation, independently of
@@ -766,8 +768,8 @@ not complete the invocation a second time (FAIL-AWC-6).
 
 ### Bundled checklist profile
 
-**AWC-R121.** The bundled checklist profile is `source-checklist@2` →
-`audit-source-check@2` → `audit_source_checker@2`, with a separate bounded
+**AWC-R121.** The bundled checklist profile is `source-checklist@4` →
+`audit-source-check@4` → `audit_source_checker@4`, with a separate bounded
 `audit_completion_worker@1` ModelPolicy. It selects `audit-results@2`, one
 `passthrough@1` Worker and no target summarizer.
 
@@ -802,8 +804,8 @@ completionContract:
   supported contract IDs (AWC-R24).
 - **Worker-call deadline.** The private `StageContentRequest.deadline`
   ([WRK-R6](../execution/worker.md); AWC-R27).
-- **Tools.** `read_audit_task` (AWC-R31) and `submit_check_result` (AWC-R32,
-  AWC-R39) of `audit-results@2`; the receipt fields are listed in AWC-R49.
+- **Tools.** `read_audit_task` (AWC-R31), `submit_check_result` (AWC-R32)
+  and `submit_check_results` (AWC-R39) of `audit-results@2`; the receipt fields are listed in AWC-R49.
 - **Result package.** The `check-results` Audit package ([AUD-R131](audits.md);
   AWC-R86).
 - **Completion facts.** `ExecutionReport.completion`
@@ -907,8 +909,7 @@ item IDs stay in bounded diagnostics and never become metric labels
 (AWC-R110).
 
 **AWC-R126.** Selected HTTP evidence resolves only from the allocation's bounded
-recent-capture buffer and the same invocation. `submit_check_result` scalar and
-batch arguments may select `http_request_ids` alongside ordinary input evidence
+recent-capture buffer and the same invocation. `submit_check_result` and `submit_check_results` arguments may select `http_request_ids` alongside ordinary input evidence
 handles. HTP-R150 owns standalone immutable Artifact publication, truthful attempt
 and observation metadata, bounds and reconciliation. No Finding proposal is
 required. Invalid source selection fails before result mutation; partial/failed
@@ -943,7 +944,7 @@ An AuditProfile check-workflow binding that activates the contract:
 workflows:
   check:
     kind: check
-    ref: audit-source-check@2
+    ref: audit-source-check@4
     # Existing inputs, parameters and outputs mappings remain required.
     workerCompletion:
       kind: audit-check-results@1

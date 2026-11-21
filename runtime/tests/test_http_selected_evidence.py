@@ -126,7 +126,7 @@ def test_selected_redirect_survives_reply_loss_eviction_and_cleanup_without_find
                 http_request_ids=[selected["request_id"]],
             )
             context = SimpleNamespace(invocation_id="invocation-1")
-            receipt = await tool(context, **args)
+            receipt = await tool(context, item_key="check-authz", **args)
             assert receipt["status"] == "recorded", receipt
             assert len(transport.values) == 1
             payload = next(iter(transport.values.values()))
@@ -148,7 +148,7 @@ def test_selected_redirect_survives_reply_loss_eviction_and_cleanup_without_find
             assert capture["request_tag"].encode() in target.requests[1]
             captures.clear("http")
             calls = len(transport.requests)
-            assert await tool(context, **args) == receipt
+            assert await tool(context, item_key="check-authz", **args) == receipt
             assert len(transport.requests) == calls
             sealed = await collector.seal()
             result = json.loads(encoder.encode(sealed, inputs=inputs).data)
@@ -180,6 +180,7 @@ def test_unavailable_selection_has_no_result_mutation_or_artifact(kind):
             captures.clear("http")
         response = await tool(
             SimpleNamespace(invocation_id="invocation-1"),
+            item_key="check-authz",
             rationale="Unavailable observation",
             tested_conditions=["probe"],
             limitations=[],
@@ -243,10 +244,14 @@ def test_batch_foreign_capture_rejects_before_any_publication():
                 observation=HTTPObservation("2026-11-06T18:20:00Z"),
             )
         collector, tool, transport, _, _ = result_tool(captures, batch=True)
+        from contractor_runtime.toolsets.audit_results.v2 import SubmitCheckResultsTool
+
+        tool = SubmitCheckResultsTool(collector, WorkerState().metrics)
         result = await tool(
             SimpleNamespace(invocation_id="invocation-1"),
-            results=[
+            items=[
                 dict(
+                    item_key="check-authz" if request_id == 1 else "check-input",
                     rationale="Observe probe",
                     tested_conditions=[],
                     limitations=["Unavailable response"],
@@ -279,6 +284,7 @@ def test_selected_bytes_are_bounded_before_publication(monkeypatch):
         collector, tool, transport, _, _ = result_tool(captures)
         result = await tool(
             SimpleNamespace(invocation_id="invocation-1"),
+            item_key="check-authz",
             rationale="Oversized selection",
             tested_conditions=[],
             limitations=["Evidence budget"],
@@ -382,6 +388,7 @@ def test_selected_api_key_evidence_masks_injected_headers(header_name, secret, r
                 result = await session.request(**options, credential_id="credential-account-a")
                 selected = await tool(
                     SimpleNamespace(invocation_id="invocation-1"),
+                    item_key="check-authz",
                     rationale="Record the selected exchange.",
                     tested_conditions=["Selected credential"],
                     limitations=["A single exchange does not establish a verdict."],
@@ -460,6 +467,7 @@ def test_failed_and_truncated_actual_exchanges_remain_selectable_as_inconclusive
                     assert result["body_truncated"]
                 result = await tool(
                     SimpleNamespace(invocation_id="invocation-1"),
+                    item_key="check-authz",
                     rationale="A bounded probe did not establish the claim.",
                     tested_conditions=["Explicit request"],
                     limitations=["Unavailable or partial response"],
@@ -507,6 +515,7 @@ def test_cancellation_joins_publication_and_never_claims_result_acceptance(commi
         task = asyncio.create_task(
             tool(
                 SimpleNamespace(invocation_id="invocation-1"),
+                item_key="check-authz",
                 rationale="Interrupted persistence",
                 tested_conditions=[],
                 limitations=["Publication interrupted"],

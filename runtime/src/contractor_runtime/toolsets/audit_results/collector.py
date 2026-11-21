@@ -248,10 +248,12 @@ class InvocationAuditCollector:
         async with self._lock:
             self._check_live(writing=True)
             if not isinstance(items, tuple) or len(items) != len(self.owner.item_keys):
-                raise AuditCollectionError("results", "Provide the complete batch in task order.")
+                raise AuditCollectionError("items", "Provide every assigned item key exactly once.")
             values = tuple(self._validate(item) for item in items)
-            if tuple(item.item_key for item in values) != self.owner.item_keys:
-                raise AuditCollectionError("results", "Provide the complete batch in task order.")
+            keyed = {item.item_key: item for item in values}
+            if len(keyed) != len(values) or set(keyed) != set(self.owner.item_keys):
+                raise AuditCollectionError("items", "Provide every assigned item key exactly once.")
+            values = tuple(keyed[key] for key in self.owner.item_keys)
             prospective = dict(self._items)
             for item in values:
                 current = prospective.get(item.item_key)

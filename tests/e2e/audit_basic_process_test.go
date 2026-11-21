@@ -150,7 +150,7 @@ type basicTask struct {
 func basicCopyStage() domainGatewayStage { return artifactCopyGatewayStage("basic-copy") }
 
 func basicConclusionStage(withFinding bool) domainGatewayStage {
-	stage := domainGatewayStage{name: "basic-check", tools: []string{"list_artifacts", "read_artifact", "write_artifact", "finding", "read_file", "read_audit_task", "submit_check_result"}, steps: []domainGatewayStep{
+	stage := domainGatewayStage{name: "basic-check", tools: []string{"list_artifacts", "read_artifact", "write_artifact", "finding", "read_file", "read_audit_task", "submit_check_result", "submit_check_results"}, steps: []domainGatewayStep{
 		toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})),
 		toolGatewayStep("read_artifact", fixedArguments(map[string]any{"namespace": "inputs", "name": "material", "revision": nil})),
 		toolGatewayStep("read_file", fixedArguments(map[string]any{"path": "app.py", "start_line": 1, "max_lines": 100})),
@@ -164,7 +164,7 @@ func basicConclusionStage(withFinding bool) domainGatewayStage {
 			return map[string]any{"title": "Query concatenation in lookup", "description": findingsEvidence, "file": "app.py", "range": map[string]int{"start_line": 4, "end_line": 10}, "cwe": "CWE-89", "evidence_refs": []any{evidence}}, nil
 		}))
 	}
-	stage.steps = append(stage.steps, toolGatewayStep("submit_check_result", fixedArguments(map[string]any{"rationale": findingsEvidence, "tested_conditions": []string{"selected source inspected; no external target action"}, "limitations": []string{"No live exploit was executed"}, "evidence": []string{"evidence-000", "evidence-001"}})), finalGatewayStep("Recorded exploration", nil))
+	stage.steps = append(stage.steps, toolGatewayStep("submit_check_result", auditResultArguments(map[string]any{"rationale": findingsEvidence, "tested_conditions": []string{"selected source inspected; no external target action"}, "limitations": []string{"No live exploit was executed"}, "evidence": []string{"evidence-000", "evidence-001"}})), finalGatewayStep("Recorded exploration", nil))
 	return stage
 }
 
@@ -307,7 +307,7 @@ spec:
     - {ref: run-artifacts@1, tools: [list_artifacts, read_artifact, write_artifact]}
     - {ref: security-findings-code@1, tools: [finding]}
     - {ref: filesystem@1, tools: [read_file]}
-    - {ref: audit-results@2, tools: [read_audit_task, submit_check_result]}
+    - {ref: audit-results@2, tools: [read_audit_task, submit_check_result, submit_check_results]}
   sandboxProfile: local-workdir@1
 `
 const basicCheckWorkflow = `apiVersion: contractor/v1alpha1
@@ -413,5 +413,50 @@ func assertCommonAuditEventContract(t *testing.T, h *findingsHarness, auditID st
 	}
 	if count == 0 {
 		t.Fatal("the real common Audit emitted no event history")
+	}
+}
+
+func assignedAuditKeys(request map[string]any) ([]string, error) {
+	reads := findingsToolResponses(request, "read_audit_task")
+	if len(reads) == 0 {
+		return nil, fmt.Errorf("assigned Audit tasks were not read")
+	}
+	tasks, ok := reads[len(reads)-1]["tasks"].([]any)
+	if !ok {
+		return nil, fmt.Errorf("assigned Audit tasks have no task array")
+	}
+	keys := make([]string, 0, len(tasks))
+	for _, raw := range tasks {
+		task, ok := raw.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("assigned Audit member has an invalid shape")
+		}
+		key, ok := task["item_key"].(string)
+		if !ok || key == "" {
+			return nil, fmt.Errorf("assigned Audit member has no item_key")
+		}
+		keys = append(keys, key)
+	}
+	return keys, nil
+}
+
+func auditResultArguments(value map[string]any) func(map[string]any) (map[string]any, error) {
+	return func(request map[string]any) (map[string]any, error) {
+		args := make(map[string]any, len(value)+1)
+		for key, item := range value {
+			args[key] = item
+		}
+		if _, selected := args["item_key"]; selected {
+			return args, nil
+		}
+		keys, err := assignedAuditKeys(request)
+		if err != nil {
+			return nil, err
+		}
+		if len(keys) != 1 {
+			return nil, fmt.Errorf("a scalar fixture must select its assigned item explicitly")
+		}
+		args["item_key"] = keys[0]
+		return args, nil
 	}
 }

@@ -51,7 +51,7 @@ func managedEvalGatewayMessage(request map[string]any) (map[string]any, string, 
 		if !completed["read_audit_task"] {
 			return call("read_audit_task", map[string]any{})
 		}
-		if !completed["submit_check_result"] {
+		if !completed["submit_check_results"] {
 			var tasks []any
 			walkJSON(request, func(object map[string]any) {
 				if value, ok := object["tasks"].([]any); ok {
@@ -78,6 +78,7 @@ func managedEvalGatewayMessage(request map[string]any) (map[string]any, string, 
 					evidence = append(evidence, handle)
 				}
 				result := map[string]any{
+					"item_key":          task["item_key"],
 					"rationale":         "Deterministic retained fixture evidence",
 					"tested_conditions": []string{"Selected authored fixture and retained source only"},
 					"limitations":       []string{}, "evidence": evidence,
@@ -90,7 +91,7 @@ func managedEvalGatewayMessage(request map[string]any) (map[string]any, string, 
 				}
 				results = append(results, result)
 			}
-			return call("submit_check_result", map[string]any{"results": results})
+			return call("submit_check_results", map[string]any{"items": results})
 		}
 	} else {
 		if !completed["read_artifact"] {

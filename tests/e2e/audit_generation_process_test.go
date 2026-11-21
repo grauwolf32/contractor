@@ -153,7 +153,7 @@ func exerciseAuditHypothesisContinuation(t *testing.T, initial, browser bool) {
 
 func generationCheckStage(verdict string) domainGatewayStage {
 	stage := basicConclusionStage(false)
-	stage.steps = []domainGatewayStep{toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})), toolGatewayStep("submit_check_result", fixedArguments(map[string]any{"verdict": verdict, "rationale": "The assertion applies only to the selected actor and exact fixture", "tested_conditions": []string{"selected fixture and actor"}, "limitations": []string{"Another actor remains untested"}, "evidence": []string{"evidence-000", "evidence-001"}})), finalGatewayStep("Scoped check result retained", nil)}
+	stage.steps = []domainGatewayStep{toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})), toolGatewayStep("submit_check_result", auditResultArguments(map[string]any{"verdict": verdict, "rationale": "The assertion applies only to the selected actor and exact fixture", "tested_conditions": []string{"selected fixture and actor"}, "limitations": []string{"Another actor remains untested"}, "evidence": []string{"evidence-000", "evidence-001"}})), finalGatewayStep("Scoped check result retained", nil)}
 	return stage
 }
 

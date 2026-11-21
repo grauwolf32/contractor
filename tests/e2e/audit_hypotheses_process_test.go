@@ -4,6 +4,7 @@ package e2e
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -24,7 +25,22 @@ func TestAuditFixedHypothesesAcrossProductionProcesses(t *testing.T) {
 	for _, verdict := range []string{"supported", "refuted", "inconclusive"} {
 		results = append(results, map[string]any{"verdict": verdict, "rationale": "Judgment applies only to the selected fixture", "tested_conditions": []string{"Selected fixture and actor only"}, "limitations": []string{"No global claim follows from this sample"}, "evidence": []string{"evidence-000", "evidence-001"}})
 	}
-	stage.steps = []domainGatewayStep{toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})), toolGatewayStep("submit_check_result", fixedArguments(map[string]any{"results": results})), finalGatewayStep("Recorded scoped conclusions", nil)}
+	stage.steps = []domainGatewayStep{toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})), toolGatewayStep("submit_check_results", func(request map[string]any) (map[string]any, error) {
+		keys, err := assignedAuditKeys(request)
+		if err != nil {
+			return nil, err
+		}
+		if len(keys) != len(results) {
+			return nil, fmt.Errorf("assigned batch size differs")
+		}
+		items := make([]any, 0, len(keys))
+		for index := len(keys) - 1; index >= 0; index-- {
+			item := results[index].(map[string]any)
+			item["item_key"] = keys[index]
+			items = append(items, item)
+		}
+		return map[string]any{"items": items}, nil
+	}), finalGatewayStep("Recorded scoped conclusions", nil)}
 	h := startConfiguredFindingsHarness(t, []domainGatewayStage{stage}, func(root string) {
 		installBasicAuditProgram(t, root)
 		program := strings.Replace(basicProcessProgram, "    report: {required: true, media_types: [text/plain]}", "    report: {required: true, media_types: [text/plain]}\n    checklist: {required: true, media_types: [application/json]}", 1)

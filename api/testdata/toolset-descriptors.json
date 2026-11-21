@@ -13,7 +13,7 @@
       "requiredWorkflowInputs": {}
     },
     "audit-results@2": {
-      "tools": ["read_audit_task", "submit_check_result"],
+      "tools": ["read_audit_task", "submit_check_result", "submit_check_results"],
       "infrastructureChannels": {},
       "requiresWorkspace": false,
       "workspaceObservationTools": [],

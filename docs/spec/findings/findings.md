@@ -1382,7 +1382,7 @@ inferred links or web previews.
 The configuration catalog provides these opt-in configurations:
 
 **FND-R147.** `openapi-operation-trace@3` binds
-`audit-openapi-operation-trace@2` and `audit_openapi_operation_tracer@2`. It
+`audit-openapi-operation-trace@3` and `audit_openapi_operation_tracer@3`. It
 retains the structural graph and source tools, adds text evidence writing and
 `finding`, and uses human-required finding confirmation. Its canonical results
 carry the client keys of successful proposals; `operation-resolution`

@@ -77,8 +77,9 @@ def assigned(*, batch=False, invocation="invocation-1", count=None, checking=Tru
     return SealedAuditSnapshot(owner, items), inputs
 
 
-def arguments(item):
+def arguments(item, *, keyed=False):
     return {
+        **({"item_key": item.item_key} if keyed else {}),
         "rationale": item.rationale,
         "tested_conditions": list(item.tested_conditions),
         "limitations": list(item.limitations),

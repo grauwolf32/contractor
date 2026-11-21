@@ -1165,7 +1165,7 @@ enforced independently of Gateway-reported spend and rate state (TPL-R17).
 ## Examples
 
 A complete AgentTemplate from the checked-in catalog is
-[`openapi_builder@3`](../../../configs/agent-templates/openapi_builder_v3_memory.yaml):
+[`openapi_builder@4`](../../../configs/agent-templates/openapi_builder_v3_memory.yaml):
 
 ```yaml
 apiVersion: contractor/v1alpha1
