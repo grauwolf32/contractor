@@ -291,7 +291,7 @@ func installBasicAuditProgram(t *testing.T, root string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	copyText := strings.Replace(string(copyWorkflow), "name: artifact-report-memory-fixture", "name: basic-copy", 1)
+	copyText := replaceAuditFixture(t, string(copyWorkflow), "name: artifact-report-memory-fixture", "name: basic-copy")
 
 	files := map[string]string{"instructions/basic-process-checker.md": "Read the assigned Audit tasks, inspect selected source and record each check with exact evidence. Publish an evidenced problem with finding; finish after all assigned results are recorded.\n", "workflows/basic_copy.yaml": copyText, "agent-templates/basic_check.yaml": basicCheckTemplate, "workflows/basic_check.yaml": basicCheckWorkflow, "audit-profiles/basic_process.yaml": basicProcessProgram}
 	for name, content := range files {
@@ -351,6 +351,29 @@ spec:
       workflowOutputs: {result: result}
       on: {succeeded: {succeed: {}}, failed: {fail: {}}, interrupted: {fail: {}}}
 `
+
+// Both direct and checklist-seeded scenarios share this exact source fragment.
+const basicInitialWork = "  initial_work: [{key: copy-source, workflow: copy, objective: Author a source review as an ordinary report}]"
+
+func replaceAuditFixture(t *testing.T, source, old, replacement string) string {
+	t.Helper()
+	if count := strings.Count(source, old); count != 1 {
+		t.Fatalf("expected one Audit fixture match for %q, found %d", old, count)
+	}
+	return strings.Replace(source, old, replacement, 1)
+}
+
+func basicSeededProcessProgram(t *testing.T) string {
+	t.Helper()
+	program := replaceAuditFixture(t, basicProcessProgram, "    report: {required: true, media_types: [text/plain]}", "    report: {required: true, media_types: [text/plain]}\n    checklist: {required: true, media_types: [application/json]}")
+	program = replaceAuditFixture(t, program, "material: {source: task-input}", "material: {source: audit-input, name: report}")
+	program = replaceAuditFixture(t, program, basicInitialWork, "  initial_work: []\n  seed_source: {input: checklist, workflow: check}")
+	for _, pair := range [][2]string{{"max_tasks: 2", "max_tasks: 3"}, {"max_tasks_per_iteration: 2", "max_tasks_per_iteration: 3"}, {"batch_size: 1", "batch_size: 3"}, {"max_hypotheses: 1", "max_hypotheses: 3"}, {"max_hypothesis_revisions: 1", "max_hypothesis_revisions: 8"}} {
+		program = replaceAuditFixture(t, program, pair[0], pair[1])
+	}
+	return program
+}
+
 const basicProcessProgram = `apiVersion: contractor/v1alpha1
 kind: AuditProfile
 metadata: {name: basic-process, version: "1"}
@@ -371,7 +394,7 @@ spec:
       parameters: {}
       outputs: {result: result}
   hypotheses: {}
-  initial_work: [{key: copy-source, workflow: copy, objective: Author a source review as an ordinary report}]
+` + basicInitialWork + `
   limits:
     max_tasks: 2
     max_iterations: 1

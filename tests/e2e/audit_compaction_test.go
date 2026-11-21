@@ -203,8 +203,8 @@ func installCompactAuditProcessFixture(t *testing.T, root, gatewayURL string) {
 			t.Fatal(err)
 		}
 	}
-	workflow := strings.Replace(basicCheckWorkflow, "modelPolicy: worker@2", "modelPolicy: audit-compact-worker@1, compactorModelPolicy: audit-compact-summary@1", 1)
-	workflow = strings.Replace(workflow, "checker: {template: basic_check@1, namespace: checker}", `checker:
+	workflow := replaceAuditFixture(t, basicCheckWorkflow, "modelPolicy: worker@2", "modelPolicy: audit-compact-worker@1, compactorModelPolicy: audit-compact-summary@1")
+	workflow = replaceAuditFixture(t, workflow, "checker: {template: basic_check@1, namespace: checker}", `checker:
           template: basic_check@1
           namespace: checker
           contextManagement:
@@ -213,14 +213,9 @@ func installCompactAuditProcessFixture(t *testing.T, root, gatewayURL string) {
             includeReasoning: true
             contextWindowRatio: 0.5
             keepRecentGroups: 1
-            maxCompactions: 2`, 1)
-	template := strings.Replace(basicCheckTemplate, "  runtime: adk@1", "  runtime: adk@1\n  summarizer: {contextWindowRatio: 0.9}", 1)
-	program := strings.Replace(basicProcessProgram, "    report: {required: true, media_types: [text/plain]}", "    report: {required: true, media_types: [text/plain]}\n    checklist: {required: true, media_types: [application/json]}", 1)
-	program = strings.Replace(program, "material: {source: task-input}", "material: {source: audit-input, name: report}", 1)
-	program = strings.Replace(program, "  initial_work: [{key: copy-source, workflow: copy, objective: Retain selected source as ordinary output}]", "  initial_work: []\n  seed_source: {input: checklist, workflow: check}", 1)
-	for _, pair := range [][2]string{{"max_tasks: 2", "max_tasks: 3"}, {"max_tasks_per_iteration: 2", "max_tasks_per_iteration: 3"}, {"batch_size: 1", "batch_size: 3"}, {"max_hypotheses: 1", "max_hypotheses: 3"}, {"max_hypothesis_revisions: 1", "max_hypothesis_revisions: 8"}} {
-		program = strings.Replace(program, pair[0], pair[1], 1)
-	}
+            maxCompactions: 2`)
+	template := replaceAuditFixture(t, basicCheckTemplate, "  runtime: adk@1", "  runtime: adk@1\n  summarizer: {contextWindowRatio: 0.9}")
+	program := basicSeededProcessProgram(t)
 	for name, text := range map[string]string{"workflows/basic_check.yaml": workflow, "agent-templates/basic_check.yaml": template, "audit-profiles/basic_process.yaml": program} {
 		if err := os.WriteFile(filepath.Join(root, name), []byte(text), 0600); err != nil {
 			t.Fatal(err)

@@ -27,12 +27,12 @@ context:
 scope:
   in:
   - Update both checklist-seeded profile derivatives and inspect all basicProcessProgram transformations.
-  - Assert required replacements occur exactly once and validate the resulting profile before process startup.
+  - Assert required replacements occur exactly once and validate the resulting fixture before Audit execution.
   - Cover both compaction outcomes and fixed hypotheses through their existing real-process regressions.
   out: [Production tool changes, changing budgets or weakening assertions, live models, paused V417 work]
 acceptance_criteria:
 - id: A1
-  text: Both seeded derivatives have no initial ordinary work and preserve their three-item checklist/checker setup. A missing or repeated source match fails before any process is started.
+  text: Both seeded derivatives have no initial ordinary work and preserve their three-item checklist/checker setup. A missing or repeated source match fails before an Audit Run is submitted.
 - id: A2
   text: Trusted completion, lost publication acknowledgement, compaction lease loss and fixed-hypothesis scenarios pass unchanged through real Server, Runtime and PostgreSQL.
 tests:

@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts/auditcontract"
@@ -43,12 +42,7 @@ func TestAuditFixedHypothesesAcrossProductionProcesses(t *testing.T) {
 	}), finalGatewayStep("Recorded scoped conclusions", nil)}
 	h := startConfiguredFindingsHarness(t, []domainGatewayStage{stage}, func(root string) {
 		installBasicAuditProgram(t, root)
-		program := strings.Replace(basicProcessProgram, "    report: {required: true, media_types: [text/plain]}", "    report: {required: true, media_types: [text/plain]}\n    checklist: {required: true, media_types: [application/json]}", 1)
-		program = strings.Replace(program, "material: {source: task-input}", "material: {source: audit-input, name: report}", 1)
-		program = strings.Replace(program, "  initial_work: [{key: copy-source, workflow: copy, objective: Retain selected source as ordinary output}]", "  initial_work: []\n  seed_source: {input: checklist, workflow: check}", 1)
-		for _, pair := range [][2]string{{"max_tasks: 2", "max_tasks: 3"}, {"max_tasks_per_iteration: 2", "max_tasks_per_iteration: 3"}, {"batch_size: 1", "batch_size: 3"}, {"max_hypotheses: 1", "max_hypotheses: 3"}, {"max_hypothesis_revisions: 1", "max_hypothesis_revisions: 8"}} {
-			program = strings.Replace(program, pair[0], pair[1], 1)
-		}
+		program := basicSeededProcessProgram(t)
 		if err := os.WriteFile(filepath.Join(root, "audit-profiles/basic_process.yaml"), []byte(program), 0600); err != nil {
 			t.Fatal(err)
 		}
