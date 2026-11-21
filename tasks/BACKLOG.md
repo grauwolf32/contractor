@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-70 open tasks: 10 in progress, 47 pending, 13 deferred. 1627 finished: 1609 completed, 18 archived.
+71 open tasks: 10 in progress, 48 pending, 13 deferred. 1627 finished: 1609 completed, 18 archived.
 
 ## In progress
 
@@ -57,6 +57,12 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
 | [V410-026](v410-026-sitemap-source-comparison.yml) | chore | P2 | — | Compare transport observations and scanner report projections for sitemap |
+
+### Findings tools and collections (`findings`)
+
+| Task | Kind | Priority | Waiting for | Title |
+| --- | --- | --- | --- | --- |
+| [V474-008](v474-008-attach-http-evidence-by-local-request-id.yml) | feature | P1 | — | Attach stored HTTP exchanges by their local request identifier |
 
 ### Workflow catalog and document workflows (`workflows`)
 
@@ -175,7 +181,7 @@ tasks in `introduced_by`.
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 5 | 25 | 37 | 15 | 38 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 12 | 30 |
-| Findings tools and collections (`findings`) | 0 | 20 | 15 | 11 | 27 |
+| Findings tools and collections (`findings`) | 1 | 21 | 15 | 11 | 27 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 21 | 17 | 16 | 27 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 39 | 40 | 20 | 70 |
 | Audits (`audits`) | 11 | 71 | 98 | 42 | 171 |
