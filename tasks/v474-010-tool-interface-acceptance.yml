@@ -6,8 +6,8 @@ milestone: model-tool-interfaces-2026-11
 kind: chore
 introduced_by: V474-002
 priority: P1
-status: in_progress
-depends_on: [V474-001, V474-002, V474-003, V474-004, V474-005, V474-006, V474-007, V474-008]
+status: pending
+depends_on: [V474-001, V474-002, V474-003, V474-004, V474-005, V474-006, V474-007, V474-008, V474-011]
 languages: [go, python, yaml]
 goal: The configured Worker uses the agreed simpler interfaces together through real Server, Runtime and Gateway boundaries.
 context:
@@ -20,6 +20,9 @@ context:
     Independent full process runs repeat roughly an hour of unrelated scenarios and cannot test the
     final combination. A current Eval process consumer also retained the original recipe selector
     after its manifests received fresh versions; the owning tasks repair and test that caller.
+  prerequisite: >-
+    The first combined gate exposed stale test-profile transformations after V474-003.
+    V474-011 repairs them before this task resumes. The failed/cancelled run is not a pass.
   verification_reuse: >-
     The assembled tree at 9d670cfba2cd69854496be8d0472d6f0e912c0a8 is identical to
     codex/v474-image-artifacts at e31be4d88 apart from commit ancestry. Completed Runtime,
