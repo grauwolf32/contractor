@@ -42,8 +42,8 @@ The current user-facing Workflow set is:
   same trace with opt-in Worker context compaction;
 - `audit-openapi-operation-observe@1` for graph-backed operation analysis in
   the limited `openapi-operation-observe@1` comparison variant;
-- `audit-openapi-operation-trace@1` for graph-backed analysis and finding proposals
-  in `openapi-operation-trace@1`, plus `findings-review@2` for a supplied collection
+- `audit-openapi-operation-trace@2` for graph-backed analysis and finding proposals
+  in `openapi-operation-trace@2`, plus `findings-review@2` for a supplied collection
   and `source-findings-review@1` for exact source-backed proposal review;
   `project-findings-review@1` discovers current Project findings and retains an explicit exact selection;
 - `audit-openapi-nuclei-scan@1` and `audit-openapi-sqlmap-scan@1` for the
@@ -104,7 +104,7 @@ remove copies published into a separate managed or operator catalog. Frozen
 instruction-evaluation inputs retain their own exact catalog under `tests/eval`.
 
 The shipped Audit catalog contains six common programs:
-`openapi-operation-observe@1`, `openapi-operation-trace@1`,
+`openapi-operation-observe@1`, `openapi-operation-trace@2`,
 `openapi-sqlmap-scan@1`, `openapi-nuclei-scan@1`,
 `source-openapi-sqlmap-scan@1` and `web-scan@1`.
 Eight checklist/standard profiles execute fixed assertions through the common

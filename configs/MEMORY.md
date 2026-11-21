@@ -1,14 +1,19 @@
-# Working catalog with shared Memory
+# Historical shared Memory rollout
 
-Use the active selectors below for new Runs and Audits. They select all six
-`memory-tools@1` operations explicitly. The retired selectors have been removed
-from the default catalog and are not aliases. Existing complete Run/Audit
+This document and `memory-catalog.json` record the earlier Memory rollout and
+its catalog reset. The table identities describe that historical transition, not
+the current catalog. For new Runs and Audits, use the current manifest metadata
+or the catalog API; published successors can have newer versions. Current
+configuration examples are in [README.md](README.md).
+
+The rollout templates selected all six `memory-tools@1` operations explicitly.
+Removed selectors had no compatibility aliases. Existing complete Run/Audit
 snapshots remain readable. Custom templates continue to opt in explicitly.
 
-The machine-readable inventory is [memory-catalog.json](memory-catalog.json).
-Schema version 2 records `retired`, `active` and `active_file`; only the active
-files are shipped. New requests for retired selectors fail resolution, and
-Repeat reports blocking `workflow_unavailable` when its exact Workflow is absent.
+The historical machine-readable inventory is [memory-catalog.json](memory-catalog.json).
+Schema version 2 records `retired`, `active` and `active_file`; active
+files are listed for that transition. At that point removed selectors failed
+resolution and Repeat reported blocking `workflow_unavailable` when its exact Workflow was absent.
 Removing these source files does not delete independently published managed or
 operator-owned resources. Frozen V40 evaluation inputs and isolated test
 catalogs retain their own exact definitions outside the default catalog.
