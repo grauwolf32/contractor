@@ -89,7 +89,7 @@ the epics are in [epics.yml](epics.yml).
 | [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-015, V411-014 | Show HTTP engagement context and gaps in ordinary retained Audit reports |
 | [V425-017](v425-017-machine-report-ceiling-test.yml) | chore | P3 | — | Drive the cumulative 64 MiB machine report check to its rejection in a test |
 | [V469-004](v469-004-opencode-audit-workflow.yml) | feature | P1 | V469-003 | Ship the minimal OpenCode Audit workflow and environment view |
-| [V474-004](v474-004-decide-keyed-audit-result-submissions.yml) | chore | P1 | — | Specify the scalar and batch Audit conclusion contracts |
+| [V474-004](v474-004-keyed-audit-result-submissions.yml) | feature | P1 | — | Record Audit conclusions with separate scalar and keyed batch tools |
 
 ### Evaluations (`evals`)
 
@@ -179,7 +179,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 0 | 20 | 15 | 11 | 27 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 21 | 17 | 16 | 26 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 39 | 40 | 20 | 70 |
-| Audits (`audits`) | 11 | 70 | 98 | 43 | 171 |
+| Audits (`audits`) | 11 | 71 | 98 | 42 | 171 |
 | Evaluations (`evals`) | 4 | 23 | 46 | 20 | 54 |
 | Podman sandbox (`sandbox`) | 2 | 10 | 2 | 2 | 6 |
 | Web UI (`ui`) | 1 | 56 | 81 | 34 | 80 |
