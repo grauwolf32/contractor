@@ -18,6 +18,10 @@ context:
     User decision 2026-11-21 approves a flat submit_check_result and a separate batch operation in which
     every conclusion carries its own item_key. The approved flat signature includes item_key even for
     a single assigned item.
+  verification_grouping: >-
+    Agent execution decision 2026-11-22 follows the user's request to minimize passes. This task
+    runs focused real-process regressions; V474-010 owns the unchanged mandatory full process
+    gate on the combined implementation. Failed/cancelled earlier full runs are not passes.
   specification:
     - docs/spec/audits/worker-completion.md#AWC-R32
     - docs/spec/audits/worker-completion.md#AWC-R39
@@ -77,7 +81,7 @@ acceptance_criteria:
 tests:
   - command: cd runtime && uv run pytest tests/test_audit_results_toolset.py tests/test_audit_result_collector.py tests/test_audit_result_publication.py
     covers: [A1, A2, A3]
-  - command: make test-e2e
+  - command: go test -tags=e2e -count=1 ./tests/e2e -run '^(TestAuditCommonObservationProfilesAcrossProductionProcesses|TestAuditCompactionPreservesTrustedCompletionAcrossProcesses|TestAuditBasicExactHandoffAcrossProductionProcesses|TestAuditFixedHypothesesAcrossProductionProcesses|TestFactExtractionAuditEvalAcrossProcesses)$'
     covers: [A1, A3, A4]
   - command: make test-config
     covers: [A4]

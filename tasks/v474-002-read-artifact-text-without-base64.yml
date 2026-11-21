@@ -19,6 +19,10 @@ context:
   authority: User decision 2026-11-21 approves one model-facing read_artifact for text and images,
     including delivery of images to vision-capable models. This task delivers the text path.
     V474-005 extends that reader for images.
+  verification_grouping: >-
+    Agent execution decision 2026-11-22 follows the user's request to minimize passes. This task
+    runs focused real-process regressions; V474-010 owns the unchanged mandatory full process
+    gate on the combined implementation. Failed/cancelled earlier full runs are not passes.
   specification:
   - docs/spec/artifacts/artifact-store.md#ART-R31
   - docs/spec/artifacts/artifact-store.md#ART-R117
@@ -76,7 +80,7 @@ tests:
 - command: make test-config
   covers:
   - A3
-- command: make test-e2e
+- command: go test -tags=e2e -count=1 ./tests/e2e -run '^(TestLocalGoToPythonArtifactCopy|TestFactExtractionAuditEvalAcrossProcesses)$'
   covers:
   - A1
   - A3

@@ -1,0 +1,51 @@
+schema_version: '1.0'
+id: V474-010
+title: Verify the combined model-facing tool interfaces
+epic: planner-worker
+milestone: model-tool-interfaces-2026-11
+kind: chore
+introduced_by: V474-002
+priority: P1
+status: pending
+depends_on: [V474-001, V474-002, V474-003, V474-004, V474-005, V474-006, V474-007, V474-008]
+languages: [go, python, yaml]
+goal: The configured Worker uses the agreed simpler interfaces together through real Server, Runtime and Gateway boundaries.
+context:
+  authority: >-
+    User request 2026-11-21 asks for task groups with the minimum number of passes. Agent execution
+    decision 2026-11-22 groups the complete process gate here, after all implementations. Owner tasks
+    retain their focused regressions and package checks. This changes verification sequencing, not
+    acceptance guarantees. Earlier failed or cancelled full runs are not successful evidence.
+  finding: >-
+    Independent full process runs repeat roughly an hour of unrelated scenarios and cannot test the
+    final combination. A current Eval process consumer also retained the original recipe selector
+    after its manifests received fresh versions; the owning tasks repair and test that caller.
+  specification:
+  - docs/spec/tools/toolsets.md#TLS-R39
+  - docs/spec/artifacts/artifact-store.md#ART-R117
+  - docs/spec/execution/server-operations.md#SOP-R13
+  - docs/spec/audits/worker-completion.md
+scope:
+  in:
+  - Assemble the feature branches and run the complete required gates on the combined tree.
+  - Record immutable implementation hashes, commands, outcomes, optional skips and cleanup in acceptance evidence.
+  - Confirm current configured consumers use the new interfaces and that frozen published identities remain intact.
+  out: [Live model quality experiments, deployments, merging implementation into main, paused V417 work]
+acceptance_criteria:
+- id: A1
+  text: Full process and Runtime gates pass on the combined implementation, including file publication, vision delivery, keyed Audit completion and direct local HTTP evidence.
+- id: A2
+  text: API, wire, configuration, affected Go packages, UI and lint checks pass; skipped optional fixtures are identified and not counted as passing coverage.
+- id: A3
+  text: Acceptance evidence names exact tested revisions, limitations and owned-resource cleanup. The primary checkout's unrelated work remains untouched.
+tests:
+- command: make test-e2e
+  covers: [A1]
+- command: make test-runtime
+  covers: [A1, A2]
+- command: make test-config verify-public-api test-wire-cross-language
+  covers: [A2]
+- command: VITEST_MAX_WORKERS=2 make ui-verify
+  covers: [A2]
+- command: make lint
+  covers: [A2, A3]
