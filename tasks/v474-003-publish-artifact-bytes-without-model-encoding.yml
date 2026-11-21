@@ -5,10 +5,11 @@ milestone: artifact-transfer-reliability-2026-10
 epic: projects-artifacts
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - python
+- go
 - yaml
 goal: A Worker identifies an existing output file by its local workspace reference. Runtime reads the file
   and publishes its actual bytes.
@@ -29,9 +30,18 @@ context:
     configs/workflows/artifact_copy_v2_memory.yaml copies a text/plain artifact. run_artifacts/tools.py:239
     also supports controlled writes to explicit namespaces. A namespace-fixed text writer alone changes
     that contract.
+  implementation_choice: >-
+    Agent decision 2026-11-21 uses the existing Server operation mechanism and ArtifactStore.Fork
+    for artifact-copy. Inspection confirmed bounded Stage ownership checks and replay of the exact
+    source through existing mechanisms, without a new store or model-visible copy tool. AGENTS.md
+    section 3.11 places artifact transformations with their domain owner and says not to retain an
+    unnecessary mechanism merely because tests cover it. The earlier clarification question is
+    superseded by this boundary evidence; no user approval of an unanswered option is claimed.
+    Worker process fixtures use authored text and retain their original Worker/Scheduler assertions.
   source_ownership: >-
     The workspace owner resolves the local file. ArtifactStore owns publication and revisions. For
     artifact-copy the Workflow already binds an exact source artifact. Copy from that binding in code.
+    Copy executes as an ordinary registered Server operation over the pinned source, without a Worker.
     Text composed by a model can still be authored through write_text_artifact.
 scope:
   in:
@@ -96,3 +106,9 @@ tests:
 - command: make lint
   covers:
   - A2
+- command: make verify-public-api
+  covers: [A2]
+- command: make test-wire-cross-language
+  covers: [A2]
+- command: go test -count=1 ./internal/operations/... ./internal/config/... ./internal/contracts/...
+  covers: [A1, A2, A3]

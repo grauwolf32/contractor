@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-70 open tasks: 10 in progress, 47 pending, 13 deferred. 1627 finished: 1609 completed, 18 archived.
+70 open tasks: 11 in progress, 46 pending, 13 deferred. 1627 finished: 1609 completed, 18 archived.
 
 ## In progress
 
@@ -21,6 +21,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V474-002](v474-002-read-artifact-text-without-base64.yml) | projects-artifacts | feature | P1 | Serve bounded UTF-8 text through the common read_artifact tool |
+| [V474-003](v474-003-publish-artifact-bytes-without-model-encoding.yml) | projects-artifacts | feature | P1 | Publish existing workspace files by local reference |
 
 ## Pending
 
@@ -68,12 +69,6 @@ the epics are in [epics.yml](epics.yml).
 | [V411-015](v411-015-http-pentest-workflow-presets.yml) | feature | P1 | — | Demonstrate an ordinary HTTP Workflow on the lean Audit path |
 | [V412-003](v412-003-browser-pentest-profiles-and-gate.yml) | feature | P2 | V412-001, V410-009, V411-020 | Compose optional browser investigation with truthful availability and results |
 | [V425-043](v425-043-resolve-historical-run-model-policy-snapshots.yml) | defect | P2 | — | Resolve historical Run snapshots after Workflow-owned model selection |
-
-### Projects, artifacts and lifecycle controls (`projects-artifacts`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V474-003](v474-003-publish-artifact-bytes-without-model-encoding.yml) | feature | P1 | — | Publish existing workspace files by local reference |
 
 ### Audits (`audits`)
 
