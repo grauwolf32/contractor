@@ -6,7 +6,7 @@ epic: findings
 kind: defect
 introduced_by: V64-014
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V471-001, V64-014]
 languages: [go, yaml, markdown]
 goal: An evaluator follows a known member Audit/Project ID to its actual Findings while owner-wide lists keep execution workspaces undiscoverable.
@@ -51,3 +51,9 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+
+implementation_commit: 2bf1480f4d4ab2fc2e917c0b43f6f5712dd31d6b
+verification:
+  - The native Server/Runtime/PostgreSQL regression failed before the fix with no explicit Project Findings and passed afterward (36.084 s).
+  - The complete internal/auditstore/internal/pgstore suite passed against the disposable PostgreSQL database (35.584 s).
+  - make lint passed on the integrated working tree; owner-wide Finding discovery remains excluded in the process regression.
