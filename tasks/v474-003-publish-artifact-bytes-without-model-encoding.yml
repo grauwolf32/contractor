@@ -1,6 +1,6 @@
 schema_version: '1.0'
 id: V474-003
-title: Preserve exact output bytes without model-authored base64
+title: Publish existing workspace files by local reference
 milestone: artifact-transfer-reliability-2026-10
 epic: projects-artifacts
 kind: feature
@@ -10,30 +10,34 @@ depends_on: []
 languages:
 - python
 - yaml
-goal: A Workflow can publish an exact report file or copy an assigned artifact without asking a Worker
-  to retype its bytes.
-demonstration: Publish report.json with trailing whitespace and non-ASCII content through the configured
-  report path. Compare the published bytes to the file and independently verify the artifact-copy output
-  against its exact input.
+goal: A Worker identifies an existing output file by its local workspace reference. Runtime reads the file
+  and publishes its actual bytes.
+demonstration: >-
+  Run the podman-python-check fixture. After check.py creates report.json, the scripted model supplies
+  report.json as the source path. Verify builder/check_report against the file bytes and the exact
+  revision in the receipt. In a separate case, omit the file and observe a source error.
 context:
-  authority: User decision 2026-11-21 accepts removing base64 from the artifact interaction. File publication
-    and deterministic copy are implementation proposals.
+  authority: >-
+    User decision 2026-11-21 requires a local file reference as the sole source argument from the
+    model when publishing an existing file. Instructions and tools must never require the model to
+    supply exact source content, in plain text, base64 or any other encoding.
   specification:
   - docs/spec/artifacts/artifact-store.md#ART-R37
   - docs/spec/artifacts/artifact-store.md#ART-R58
+  - docs/spec/tools/workspace.md#WSP-R13
   callers: configs/instructions/podman-python-fixer-memory.md:13 requires the exact UTF-8 bytes of report.json.
     configs/workflows/artifact_copy_v2_memory.yaml copies a text/plain artifact. run_artifacts/tools.py:239
     also supports controlled writes to explicit namespaces. A namespace-fixed text writer alone changes
     that contract.
-  decision_needed: Choose the publication path for the Podman fixture and explicit-namespace writes. Prefer
-    existing artifact bindings/publication when they reach the real workspace. Add a narrow file publisher
-    only where an actual caller needs it. Decide the disposition of other write grants and selectors before
-    removing write_artifact.
+  source_ownership: >-
+    The workspace owner resolves the local file. ArtifactStore owns publication and revisions. For
+    artifact-copy the Workflow already binds an exact source artifact. Copy from that binding in code.
+    Text composed by a model can still be authored through write_text_artifact.
 scope:
   in:
-  - Identify all model-visible write_artifact consumers. Use write_text_artifact for authored text where
-    its namespace and byte limit fit. Reuse existing exact-byte publication and copy mechanisms for the
-    other callers.
+  - Migrate selected write_artifact callers, tool declarations, Worker instructions and the scripted
+    Podman Gateway fixture to reference-based publication. Retire the model-facing inline byte upload.
+    Reuse existing workspace access and exact Artifact publication primitives.
   - Publish changed shipped manifests and instruction paths under fresh identities, repin dependent configurations
     and Eval fixtures, and validate the catalog lock. Update the owning specs in the same implementation.
   out:
@@ -41,8 +45,11 @@ scope:
     encoding changes.
 requirements:
 - id: R1
-  text: Keep create-only versus expected-revision update explicit and respect output/inputs/reserved namespace
-    restrictions. For a file-derived payload resolve through the owning workspace boundary.
+  text: Resolve the source path relative to the active Worker's workspace through its file access owner.
+    Enforce existing path, file-type and size limits. Keep destination grants and existing create/update preconditions.
+- id: R2
+  text: Reject inline source content, including text or encoded bytes supplied alongside a path. A missing
+    or inaccessible source is an explicit error. No content fallback may execute or publish an output.
 failure_outcomes:
 - operation: Publish or copy an existing payload
   permanent: Missing source, invalid path, too-large output, denied target or stale revision produces
@@ -61,16 +68,23 @@ lifecycle:
   retention: Ordinary Artifact revision, output publication, Run retention and deletion.
 acceptance_criteria:
 - id: A1
-  text: The exact report and copy fixtures match source bytes and no model message contains source base64.
-    Authored text still works for its existing consumers.
+  text: >-
+    The Podman transcript publishes by path without first reading the file into the model context.
+    Inspect the actual model declaration and call. The only source argument is the path. A fixture
+    containing multibyte text and trailing whitespace publishes byte-for-byte. The artifact-copy
+    fixture copies from its assigned exact binding. Model-authored text still works for existing consumers.
 - id: A2
   text: Existing authority and CAS behavior are exercised, including lost reply and denied or stale target.
     A removed model tool has migrated production callers and current pinned template versions.
+- id: A3
+  text: A missing file, a path escaping the workspace, a disallowed symlink and a call with inline content
+    (alone or alongside a valid path) all fail before publication. The target revision stays unchanged.
 tests:
 - command: make test-runtime
   covers:
   - A1
   - A2
+  - A3
 - command: make test-config
   covers:
   - A2
@@ -78,6 +92,7 @@ tests:
   covers:
   - A1
   - A2
+  - A3
 - command: make lint
   covers:
   - A2

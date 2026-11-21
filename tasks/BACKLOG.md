@@ -74,7 +74,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V474-002](v474-002-read-artifact-text-without-base64.yml) | feature | P1 | — | Serve bounded UTF-8 text through the common read_artifact tool |
-| [V474-003](v474-003-publish-artifact-bytes-without-model-encoding.yml) | feature | P1 | — | Preserve exact output bytes without model-authored base64 |
+| [V474-003](v474-003-publish-artifact-bytes-without-model-encoding.yml) | feature | P1 | — | Publish existing workspace files by local reference |
 
 ### Audits (`audits`)
 
