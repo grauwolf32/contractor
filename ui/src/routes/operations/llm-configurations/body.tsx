@@ -16,6 +16,14 @@ function present(value: number | undefined): string {
 function ModelPolicyView({ body }: { body: ModelPolicyBody }) {
   const fields = [
     ["Model alias", body.model],
+    [
+      "Image input",
+      body.supportsImages === true
+        ? "Supported"
+        : body.supportsImages === false
+          ? "Text only"
+          : "Unconfirmed",
+    ],
     ["Context window tokens", present(body.contextWindowTokens)],
     ["Maximum output tokens", present(body.maxOutputTokens)],
     ["Maximum model calls", present(body.maxModelCalls)],

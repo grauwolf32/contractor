@@ -42,6 +42,7 @@ type modelPolicyDocument struct {
 
 type modelPolicySpecSource struct {
 	Model               string   `yaml:"model"`
+	SupportsImages      *bool    `yaml:"supportsImages,omitempty"`
 	ContextWindowTokens *int     `yaml:"contextWindowTokens,omitempty"`
 	MaxOutputTokens     *int     `yaml:"maxOutputTokens,omitempty"`
 	MaxModelCalls       *int     `yaml:"maxModelCalls,omitempty"`

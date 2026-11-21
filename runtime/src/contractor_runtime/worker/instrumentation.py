@@ -19,6 +19,7 @@ from contractor_runtime.adapters.instrumentation import end_isolated_span, start
 from contractor_runtime.contracts.llm_cost import CostPhase
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.tool_errors import ToolExecutionError, ToolResultDiagnostic
+from contractor_runtime.llm.image_parts import image_result_metadata
 from contractor_runtime.llm.openai import GatewayModelError
 from contractor_runtime.llm.response import (
     WorkerResponseRecovery,
@@ -698,7 +699,9 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 self._settling_tools.discard(id(tool_context))
                 failed = pending.error is not None or _result_is_failure(result)
                 if pending.known:
-                    capture_span_content(pending.span, output=lambda: result)
+                    capture_span_content(
+                        pending.span, output=lambda: image_result_metadata(result, replay=False)
+                    )
                 await self._finish_tool_locked(
                     pending,
                     failed=failed,

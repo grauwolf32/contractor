@@ -509,6 +509,11 @@ class CompactionCoordinator:
             f"Use {HISTORY_TOOL_NAME} only when an exact earlier detail is needed."
         )
 
+    @property
+    def compacted_event_ids(self) -> frozenset[str]:
+        """Committed prefix whose transient native attachments can be released."""
+        return frozenset(self._compacted_ids)
+
     def project(self, events: list[Event]) -> list[types.Content] | None:
         """Exact-ID request projection for the main model (WRK-R192)."""
 

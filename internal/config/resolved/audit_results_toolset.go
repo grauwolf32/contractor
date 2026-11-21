@@ -10,10 +10,11 @@ const (
 	AuditResultsToolsetVersion = contracts.AuditResultsToolsetVersion
 	ReadAuditTaskTool          = "read_audit_task"
 	SubmitCheckResultTool      = "submit_check_result"
+	SubmitCheckResultsTool     = "submit_check_results"
 )
 
 // ValidateAuditCompletionTemplate checks that an AgentTemplate can complete
-// Audit checks: it selects audit-results@2 once, with both of its tools
+// Audit checks: it selects audit-results@2 once, with all of its tools
 // (AWC-R11), and no effective terminal summarizer (AWC-R12). compact@1
 // wholly replaces a template summarizer without changing the template.
 func ValidateAuditCompletionTemplate(template contracts.ResolvedAgentTemplate, context contracts.WorkerContextManagement) error {
@@ -25,15 +26,15 @@ func ValidateAuditCompletionTemplate(template contracts.ResolvedAgentTemplate, c
 		if selection.Ref.ToolsetID != AuditResultsToolsetID {
 			continue
 		}
-		if selection.Ref.Version != AuditResultsToolsetVersion || found || len(selection.Tools) != 2 {
-			return contracts.Invalidf("Audit completion requires only audit-results@2 with both tools")
+		if selection.Ref.Version != AuditResultsToolsetVersion || found || len(selection.Tools) != 3 {
+			return contracts.Invalidf("Audit completion requires only audit-results@2 with all tools")
 		}
 		tools := map[string]bool{}
 		for _, name := range selection.Tools {
 			tools[name] = true
 		}
-		if !tools[ReadAuditTaskTool] || !tools[SubmitCheckResultTool] {
-			return contracts.Invalidf("Audit completion requires both audit-results@2 tools")
+		if !tools[ReadAuditTaskTool] || !tools[SubmitCheckResultTool] || !tools[SubmitCheckResultsTool] {
+			return contracts.Invalidf("Audit completion requires all audit-results@2 tools")
 		}
 		found = true
 	}

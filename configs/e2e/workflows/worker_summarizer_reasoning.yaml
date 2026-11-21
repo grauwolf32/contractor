@@ -36,7 +36,7 @@ spec:
     summarize:
       objective: Exercise the terminal Worker summarizer with provider reasoning
       instructions:
-        ref: instructions/copy-planner.md
+        ref: instructions/report-planner.md
       planner: passthrough@1
       agents:
         builder:

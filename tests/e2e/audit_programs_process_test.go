@@ -164,10 +164,10 @@ DELETE FROM artifact_bindings
 }
 
 var removedAuditProgramProfiles = map[string]bool{
-	"openapi-operation-observe@1":      true,
-	"openapi-operation-trace@2":        true,
-	"owasp-asvs-5-0-l1-source-pilot@2": true,
-	"owasp-top10-2025-source-risk@2":   true,
+	"openapi-operation-observe@2":      true,
+	"openapi-operation-trace@3":        true,
+	"owasp-asvs-5-0-l1-source-pilot@3": true,
+	"owasp-top10-2025-source-risk@3":   true,
 }
 
 func removeAuditProgramAuthoringEntries(t *testing.T, configRoot string) {
@@ -206,8 +206,8 @@ func assertAuditProgramCatalogUnavailable(t *testing.T, client *http.Client, bas
 	}
 	auditProgramGET(t, client, baseURL+"/v1/audit-profiles?limit=100", &page)
 	remainingProfiles := map[string]bool{
-		"source-checklist@3":                false,
-		"owasp-asvs-5-0-l1-source-review@2": false,
+		"source-checklist@4":                false,
+		"owasp-asvs-5-0-l1-source-review@3": false,
 	}
 	for _, profile := range page.Items {
 		identity := profile.Ref.Name + "@" + profile.Ref.Version

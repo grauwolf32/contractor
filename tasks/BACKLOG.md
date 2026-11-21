@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-70 open tasks: 9 in progress, 48 pending, 13 deferred. 1629 finished: 1611 completed, 18 archived.
+66 open tasks: 9 in progress, 44 pending, 13 deferred. 1634 finished: 1616 completed, 18 archived.
 
 ## In progress
 
@@ -37,8 +37,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | — | Verify Planner compaction persistence cancellation and scale boundaries |
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | — | Expose bounded truthful Planner compaction diagnostics |
 | [V469-001](v469-001-opencode-audit-prototype.yml) | chore | P1 | — | Prove two ordinary Runs can reuse one OpenCode Audit container |
-| [V474-005](v474-005-image-artifact-model-transport.yml) | feature | P2 | — | Deliver image artifacts to vision-capable models through read_artifact |
-| [V474-010](v474-010-tool-interface-acceptance.yml) | chore | P1 | V474-003, V474-004, V474-005, V474-008 | Verify the combined model-facing tool interfaces |
+| [V474-010](v474-010-tool-interface-acceptance.yml) | chore | P1 | — | Verify the combined model-facing tool interfaces |
 
 ### HTTP and Caido tools (`http-tools`)
 
@@ -57,12 +56,6 @@ the epics are in [epics.yml](epics.yml).
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
 | [V410-026](v410-026-sitemap-source-comparison.yml) | chore | P2 | — | Compare transport observations and scanner report projections for sitemap |
 
-### Findings tools and collections (`findings`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V474-008](v474-008-attach-http-evidence-by-local-request-id.yml) | feature | P1 | — | Attach stored HTTP exchanges by their local request identifier |
-
 ### Workflow catalog and document workflows (`workflows`)
 
 | Task | Kind | Priority | Waiting for | Title |
@@ -73,12 +66,6 @@ the epics are in [epics.yml](epics.yml).
 | [V411-015](v411-015-http-pentest-workflow-presets.yml) | feature | P1 | — | Demonstrate an ordinary HTTP Workflow on the lean Audit path |
 | [V412-003](v412-003-browser-pentest-profiles-and-gate.yml) | feature | P2 | V412-001, V410-009, V411-020 | Compose optional browser investigation with truthful availability and results |
 | [V425-043](v425-043-resolve-historical-run-model-policy-snapshots.yml) | defect | P2 | — | Resolve historical Run snapshots after Workflow-owned model selection |
-
-### Projects, artifacts and lifecycle controls (`projects-artifacts`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V474-003](v474-003-publish-artifact-bytes-without-model-encoding.yml) | feature | P1 | — | Publish existing workspace files by local reference |
 
 ### Audits (`audits`)
 
@@ -93,7 +80,6 @@ the epics are in [epics.yml](epics.yml).
 | [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-015, V411-014 | Show HTTP engagement context and gaps in ordinary retained Audit reports |
 | [V425-017](v425-017-machine-report-ceiling-test.yml) | chore | P3 | — | Drive the cumulative 64 MiB machine report check to its rejection in a test |
 | [V469-004](v469-004-opencode-audit-workflow.yml) | feature | P1 | V469-003 | Ship the minimal OpenCode Audit workflow and environment view |
-| [V474-004](v474-004-keyed-audit-result-submissions.yml) | feature | P1 | — | Record Audit conclusions with separate scalar and keyed batch tools |
 
 ### Evaluations (`evals`)
 
@@ -171,8 +157,8 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 3 | 50 | 70 | 40 | 107 |
-| Planners and the Worker model boundary (`planner-worker`) | 7 | 41 | 60 | 42 | 94 |
+| Run execution core (`execution-core`) | 3 | 50 | 71 | 40 | 107 |
+| Planners and the Worker model boundary (`planner-worker`) | 6 | 41 | 60 | 42 | 94 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 0 | 7 | 9 | 3 | 15 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
@@ -180,10 +166,10 @@ tasks in `introduced_by`.
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 5 | 25 | 37 | 15 | 38 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 12 | 30 |
-| Findings tools and collections (`findings`) | 1 | 21 | 15 | 11 | 27 |
+| Findings tools and collections (`findings`) | 0 | 21 | 15 | 11 | 27 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 21 | 17 | 16 | 27 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 39 | 40 | 20 | 71 |
-| Audits (`audits`) | 11 | 71 | 98 | 42 | 171 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 39 | 40 | 20 | 72 |
+| Audits (`audits`) | 10 | 71 | 98 | 42 | 171 |
 | Evaluations (`evals`) | 4 | 23 | 46 | 20 | 54 |
 | Podman sandbox (`sandbox`) | 2 | 10 | 2 | 2 | 6 |
 | Web UI (`ui`) | 1 | 56 | 81 | 34 | 80 |

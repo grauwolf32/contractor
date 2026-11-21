@@ -8,7 +8,6 @@ allocation and Podman ownership.
 
 from __future__ import annotations
 
-import base64
 import hashlib
 import io
 import time
@@ -176,7 +175,6 @@ def sample_model(*, publish=True):
         ("read_file", {"path": "check.py"}),
         ("edit", {"path": "calculator.py", "old": "return a - b", "new": "return a + b"}),
         ("exec_command", {"command": COMMAND, "cwd": "", "timeout_seconds": 30}),
-        ("read_file", {"path": "report.json"}),
     ]
     if publish:
         calls.append(
@@ -186,7 +184,7 @@ def sample_model(*, publish=True):
                     "namespace": "builder",
                     "name": "check_report",
                     "media_type": "application/json",
-                    "data_base64": base64.b64encode(EXPECTED_REPORT).decode(),
+                    "source_path": "report.json",
                     "expected_revision": None,
                 },
             )
@@ -260,7 +258,7 @@ async def exercise_sample(service, state, peer, model, *, publish=True):
             )
         )
         with pytest.raises(ArtifactAPIError, match="allocation_write_fenced"):
-            await saved_write("builder", "check_report", "application/json", "e30=")
+            await saved_write("builder", "check_report", "report.json", "application/json")
         await service.release(
             ReleaseAllocationRequest(apiVersion=API_VERSION, allocationId=spec.allocation_id)
         )

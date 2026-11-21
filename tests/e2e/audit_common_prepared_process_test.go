@@ -20,7 +20,7 @@ import (
 // preparation operation. Pause therefore precedes publication without a new
 // Audit waiting state or a timing assertion.
 func TestAuditCommonPrepared256PauseRestartAndCancelAcrossProcesses(t *testing.T) {
-	h := startConfiguredFindingsHarness(t, []domainGatewayStage{basicCopyStage()}, func(root string) { installCommonPrepared256Program(t, root) })
+	h := startConfiguredFindingsHarness(t, []domainGatewayStage{basicReportStage()}, func(root string) { installCommonPrepared256Program(t, root) })
 	pool, err := pgxpool.New(h.ctx, h.databaseURL)
 	if err != nil {
 		t.Fatal(err)
@@ -203,7 +203,7 @@ spec:
       parameters: {checking_workflow: inspect, selection: operations, max_items: "256"}
       outputs: {work: work}
     inspect:
-      ref: audit-openapi-operation-observe@1
+      ref: audit-openapi-operation-observe@2
       inputs: {source: {source: audit-input, name: archive}, openapi: {source: task-input}, operation: {source: task-input}, context: {source: task-context}}
       parameters: {}
       outputs: {result: result}

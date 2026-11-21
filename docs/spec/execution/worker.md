@@ -2102,3 +2102,25 @@ collection has the existing StageContentRequest row/byte bounds; role lookup is
 a point lookup. This exposes no new tool or Artifact grant. The concrete
 `record_fact(memory_name=...)` consumer is specified by FND-R238 in
 [Findings](../findings/findings.md).
+
+**WRK-R200.** A Worker with confirmed image support carries admitted Artifact
+images as native ADK FunctionResponse attachments. The OpenAI-compatible bridge
+preflights the complete image context against LIM-ART-15/LIM-ART-16 before encoding
+and appends native `image_url` content after all responses in a parallel tool-call
+batch have been paired. Exact source metadata remains in the correlated tool
+response. Base64 appears only inside the protocol image part, never in text.
+Request assembly and image decoding join off-loop work before cancellation ends.
+Unsupported image delivery cannot silently omit a current image.
+
+**WRK-R201.** Tool-history seals, compaction archives, terminal summaries and
+telemetry contain image metadata and exact refs, without image bytes or provider
+data URLs. Native ADK attachments are an allocation-local transient cache, not an
+append-only domain receipt. Once a committed checkpoint excludes an event prefix,
+the existing session owner releases only its opaque image attachments in both
+active and stored in-memory session copies, preserving semantic call/result
+metadata and identity. Old metadata explicitly requires an exact re-read when
+replayed without an attachment. Image admission reconciles against the projected
+current request, includes parallel reads in flight and releases failed/cancelled
+reservations. Limit exhaustion returns a bounded tool error; it does not drop a
+current image. A custom session backend that cannot release attachments is refused
+for image compaction. Ordinary session finalization releases all native parts.

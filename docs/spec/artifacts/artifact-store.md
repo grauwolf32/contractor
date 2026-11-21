@@ -393,6 +393,16 @@ model-visible artifact tools:
    `run-artifacts@1`, which exports exactly `list_artifacts`, `read_artifact`
    and `write_artifact` for explicit current-Run refs.
 
+`write_artifact(namespace, name, source_path, media_type, expected_revision?)`
+reads an existing file through the Worker's project-workspace owner and publishes
+its actual bytes. The sole model-supplied source is a relative local path.
+Inline content, including encoded bytes alongside a path, is rejected before
+publication. Existing workspace path, file-kind, size and cancellation bounds
+apply. Missing workspace/files and inaccessible sources give an explicit source
+error. Destination authority and CAS remain governed by ART-R35, ART-R37 and
+ART-R58; the existing exact-byte publication reconciliation handles a lost reply.
+Model-authored text remains available through `write_text_artifact`.
+
 **ART-R32.** No generic Artifact tool is injected implicitly: an
 AgentTemplate must select `run-artifacts@1` and list each operation it wants
 the model to see ([Toolsets](../tools/toolsets.md)). Selecting only
@@ -587,10 +597,11 @@ costs a payload read. The Runtime client sends only `GET`, `PUT` and `POST`.
 The public API applies the same rule from the same route registration
 ([API-R111](../api/public-api.md)).
 
-**ART-R117.** The common reader `read_artifact` returns bounded UTF-8 text and
-first resolves a ref through the metadata read (ART-R116), unless its exact
-revision is already cached. A media type that names a binary format is
-refused before any byte is downloaded: the top-level types `image` (except
+**ART-R117.** The common reader `read_artifact` returns bounded UTF-8 text or
+an admitted native image. It first resolves a ref through the metadata read
+(ART-R116), unless its exact revision is already cached. Unless native image
+delivery below is admitted, a binary format is refused before any payload is
+downloaded: the top-level types `image` (except
 `image/svg+xml`), `audio`, `video`, `font` and `model`, and the `application`
 archive and document subtypes `zip`, `x-zip-compressed`, any `+zip` suffix,
 `gzip`, `x-gzip`, `x-tar`, `x-7z-compressed`, `x-bzip2`, `x-xz`, `zstd`,
@@ -625,6 +636,27 @@ the returned position. No encoded payload appears in its text response.
 `text-artifacts@1` exposes only `write_text_artifact` for text authoring.
 Reopen this if a reader needs
 character rather than byte positions inside a line.
+
+Native images are single-frame PNG or JPEG, selected by canonical media type
+and verified by the owning Runtime decoder. Image delivery requires confirmed
+`supportsImages` ([TPL-R120](../configuration/agent-templates.md)); unconfirmed or
+text-only routes and unsupported image formats return exact authorized metadata
+with `imageDelivery: unavailable` and a bounded reason, before downloading bytes.
+Denied metadata reads never expose a ref or content. SVG retains its ordinary
+UTF-8 text path and is not rasterized. Non-default line-window arguments are
+invalid for native images. Runtime rejects invalid, truncated, multi-frame or
+media-mismatched payloads and enforces LIM-ART-15/LIM-ART-16 before expensive
+work. Payload transfer has the image byte bound; one off-loop decode runs at a
+time per allocation and cancellation joins it before releasing admission.
+
+An admitted result contains the exact ref, media type, source size, dimensions
+and `imageDelivery: inline`, plus an ADK native image part. Encoded bytes never
+enter the model-readable text or metadata. The configured Gateway receives a
+native image part associated with the tool call; no private remote image URL is
+created. Image attachments are transient: history seals and compaction archives
+retain metadata and exact refs with `imageDelivery: reread_required`. Re-reading
+that exact ref restores the image even after the binding head changes. The exact
+Artifact owner retains source bytes and ordinary authorization/retention.
 
 ### Versions, reads and writes
 

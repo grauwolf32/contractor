@@ -22,7 +22,7 @@ import (
 
 func TestEvalFindingProjectNavigationAcrossProcesses(t *testing.T) {
 	stage := func(name string) domainGatewayStage {
-		return domainGatewayStage{name: name, tools: []string{"read_artifact", "record_fact", "read_audit_task", "submit_check_result"}, steps: []domainGatewayStep{
+		return domainGatewayStage{name: name, tools: []string{"read_artifact", "record_fact", "read_audit_task", "submit_check_result", "submit_check_results"}, steps: []domainGatewayStep{
 			toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})),
 			toolGatewayStep("read_artifact", stageRefArguments("memories", nil)),
 			toolGatewayStep("record_fact", func(request map[string]any) (map[string]any, error) {
@@ -38,7 +38,7 @@ func TestEvalFindingProjectNavigationAcrossProcesses(t *testing.T) {
 				member := members[0].(map[string]any)
 				return map[string]any{"title": "Reported nginx", "description": "Reported observation with selected exact material", "evidence_refs": []any{reads[0]["artifact"]}, "item_key": member["item_key"]}, nil
 			}),
-			toolGatewayStep("submit_check_result", fixedArguments(map[string]any{"rationale": "Selected the reported observation", "tested_conditions": []string{"Read exact material"}, "limitations": []string{"No independent probe"}, "evidence": []string{}})),
+			toolGatewayStep("submit_check_result", auditResultArguments(map[string]any{"rationale": "Selected the reported observation", "tested_conditions": []string{"Read exact material"}, "limitations": []string{"No independent probe"}, "evidence": []string{}})),
 			finalGatewayStep("Recorded exploration", nil),
 		}}
 	}

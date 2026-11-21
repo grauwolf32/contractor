@@ -5202,6 +5202,7 @@ func (e ServerOperationConfigArguments3Source) Valid() bool {
 
 // Defines values for ServerOperationConfigRef.
 const (
+	ServerOperationConfigRefArtifactCopy1        ServerOperationConfigRef = "artifact-copy@1"
 	ServerOperationConfigRefMemorySnapshot1      ServerOperationConfigRef = "memory-snapshot@1"
 	ServerOperationConfigRefOpenapiPrepareWork1  ServerOperationConfigRef = "openapi-prepare-work@1"
 	ServerOperationConfigRefPublishFindings1     ServerOperationConfigRef = "publish-findings@1"
@@ -5212,6 +5213,8 @@ const (
 // Valid indicates whether the value is a known member of the ServerOperationConfigRef enum.
 func (e ServerOperationConfigRef) Valid() bool {
 	switch e {
+	case ServerOperationConfigRefArtifactCopy1:
+		return true
 	case ServerOperationConfigRefMemorySnapshot1:
 		return true
 	case ServerOperationConfigRefOpenapiPrepareWork1:
@@ -9995,10 +9998,13 @@ type ModelPolicyBody struct {
 	MaxOutputTokens *int `json:"maxOutputTokens,omitempty"`
 
 	// MaxToolCalls Tool-call capacity per committed context window for compact@1 Workers, a summary trigger for terminal@1 Workers, and cumulative per invocation otherwise. Observed usage remains cumulative.
-	MaxToolCalls   *int     `json:"maxToolCalls,omitempty"`
-	MaxTotalTokens *int     `json:"maxTotalTokens,omitempty"`
-	MaxWorkerCalls *int     `json:"maxWorkerCalls,omitempty"`
-	Model          string   `json:"model"`
+	MaxToolCalls   *int   `json:"maxToolCalls,omitempty"`
+	MaxTotalTokens *int   `json:"maxTotalTokens,omitempty"`
+	MaxWorkerCalls *int   `json:"maxWorkerCalls,omitempty"`
+	Model          string `json:"model"`
+
+	// SupportsImages Operator assertion that this model accepts images on the selected Gateway route. False means text-only; absent or null means unconfirmed. Does not change the model or probe the provider.
+	SupportsImages *bool    `json:"supportsImages,omitempty"`
 	Temperature    *float32 `json:"temperature,omitempty"`
 }
 

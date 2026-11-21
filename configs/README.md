@@ -37,7 +37,7 @@ The current user-facing Workflow set is:
   for the same document contracts with a modeled single-Worker Planner;
 - `openapi-from-analysis@5` and `likec4-from-analysis@6` when the caller already
   has exact dependency and project reports;
-- `security-analysis@7` and `taint-trace-from-workspace@5` for their explicit
+- `security-analysis@8` and `taint-trace-from-workspace@5` for their explicit
   focused analysis contracts, and `taint-trace-from-workspace-compact@2`, the
   same trace with opt-in Worker context compaction;
 - `audit-openapi-operation-observe@1` for graph-backed operation analysis in
@@ -49,8 +49,8 @@ The current user-facing Workflow set is:
 - `audit-openapi-nuclei-scan@1` and `audit-openapi-sqlmap-scan@1` for the
   `openapi-nuclei-scan@1` and `openapi-sqlmap-scan@1` AuditProfiles;
 - `project-facts-extract@4` for optional observation selection from an exact Memory snapshot, using one passthrough Worker and common record_fact;
-- `artifact-copy@2` as the ordinary artifact smoke fixture;
-- `podman-python-check@2` as the explicitly selected offline Podman execution fixture.
+- `artifact-copy@3` as a deterministic Server copy over an exact source, without a Worker;
+- `podman-python-check@3` as the explicitly selected offline Podman execution fixture.
 
 The passthrough stages of the workspace and analysis-based OpenAPI/LikeC4
 Workflows, security analysis, taint tracing and both findings-review Workflows
@@ -59,8 +59,8 @@ continuation has a 30-minute allowance capped by the Server's Planner timeout,
 and retains the original task, Worker selection, namespace, recorded artifacts
 and selected Memory. Normal completion follows the original Stage graph.
 Existing Streamline variants already use that Planner. Bounded Audit Workers
-have no terminal summarizer; the short artifact-copy and Podman smoke fixtures
-retain their direct passthrough completion and failure checks.
+have no terminal summarizer. The Podman smoke fixture retains direct passthrough
+completion and failure checks; artifact-copy executes as a Server operation.
 
 All shipped Streamline/Router Planner Stages and summary-continuation targets
 explicitly select `compact@1` with the shared generated `compactor@1` ModelPolicy
@@ -149,8 +149,8 @@ hydrated sources. An unchanged Stage therefore exports an identity state and
 empty diff. These are internal lineage artifacts retained for future explicit
 Workflow composition; no join behavior or implicit workspace sharing exists.
 
-`podman-python-check@2` is a separate opt-in **direct** workspace example. It
-selects `podman_python_fixer@2`, fixes a small offline Python fixture and publishes
+`podman-python-check@3` is a separate opt-in **direct** workspace example. It
+selects `podman_python_fixer@3`, fixes a small offline Python fixture and publishes
 only an explicitly written JSON report. It neither exports nor imports overlay
 state, mounts Skills nor downloads packages. See the [local Podman setup and
 source ZIP recipe](../runtime/README.md#local-podman-workflow). Existing agents
@@ -294,11 +294,11 @@ capability requirements are recorded in its `assets/provenance.md`. It is seeded
 into the owner Skill catalog without changing existing Workflow selections.
 See [the Skill guide](../docs/guides/agent-skills.md) for selection and execution.
 
-`security-analysis@7` is an opt-in single-Stage workflow for authorized HTTP
+`security-analysis@8` is an opt-in single-Stage workflow for authorized HTTP
 and Caido analysis. It requires the caller to provide `objective`, `target` and
 `authorization_scope` string parameters, accepts one optional text context
-artifact, and freezes one Markdown report. Its `caido_analyst@6` template pins
-the versionless `skills/caido-local-requests` artifact and explicitly selects every HTTP and
+artifact, and freezes one Markdown report. Its `caido_analyst@7` template pins
+the versionless `skills/caido-stored-evidence` artifact and explicitly selects every HTTP and
 Caido operation named by that package. `http_explorer@4` provides a reusable
 HTTP-only template without the Caido Skill or adapter requirement.
 

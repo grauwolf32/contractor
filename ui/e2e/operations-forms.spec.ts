@@ -8,6 +8,102 @@ import {
 } from "./support/mock-api";
 
 const now = "2026-09-19T10:00:00Z";
+
+for (const theme of ["light", "dark", "black"]) {
+  test(`Model image support publication at 390px in ${theme}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.addInitScript(
+      (value) => localStorage.setItem("contractor.theme", value),
+      theme,
+    );
+    const policy = {
+      ref: {
+        kind: "model-policies",
+        name: "image-worker",
+        version: "1",
+        digest: `sha256:${"1".repeat(64)}`,
+      },
+      body: {
+        model: "configured-model",
+        maxOutputTokens: 100,
+        maxModelCalls: 10,
+        maxToolCalls: 10,
+        maxTotalTokens: 1000,
+      },
+      source: "managed",
+    };
+    const writes: unknown[] = [];
+    await mockAPI(page, async (route, request, url) => {
+      if (url.pathname === "/v1/operations/snapshot")
+        return fulfillJSON(route, {
+          cursor: { generation: "image-policy-fixture", revision: "1" },
+          runtimeAgents: [],
+          allocations: [],
+        });
+      if (
+        url.pathname === "/v1/configurations/model-policies" &&
+        request.method() === "POST"
+      ) {
+        const body = request.postDataJSON();
+        writes.push(body);
+        return fulfillJSON(
+          route,
+          {
+            ...policy,
+            ref: { ...policy.ref, version: body.version },
+            body: body.modelPolicy,
+          },
+          201,
+        );
+      }
+      if (url.pathname.startsWith("/v1/configurations/model-policies/"))
+        return fulfillJSON(route, policy);
+      return fulfillEmptyPageOrNotFound(
+        route,
+        `Fixture does not implement ${url.pathname}`,
+      );
+    });
+    await page.goto("/operations/configurations/model-policies/image-worker/1");
+    await expect(
+      page.getByRole("heading", { name: "Published values" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Clone to new version" }).click();
+    const input = page.getByLabel("Image input", { exact: true });
+    await expect(input).toHaveValue("unknown");
+    for (const [index, choice] of ["yes", "no", "unknown"].entries()) {
+      const version = String(index + 2);
+      await input.selectOption(choice);
+      await page.getByLabel("New version", { exact: true }).fill(version);
+      await page
+        .getByRole("button", { name: "Publish version", exact: true })
+        .click();
+      await expect(
+        page.getByText(`Published image-worker@${version}`, { exact: true }),
+      ).toBeVisible();
+      expect(writes.at(-1)).toEqual({
+        name: "image-worker",
+        version,
+        modelPolicy: {
+          ...policy.body,
+          ...(choice === "unknown" ? {} : { supportsImages: choice === "yes" }),
+        },
+      });
+    }
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: test.info().outputPath(`image-support-${theme}.png`),
+      fullPage: true,
+    });
+  });
+}
+
 const config = (name: string, digit: string) => ({
   ref: { name, version: "1", digest: `sha256:${digit.repeat(64)}` },
   document: {

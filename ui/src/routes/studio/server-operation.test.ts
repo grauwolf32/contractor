@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import cases from "../../../../api/testdata/server-operation-stage-cases.json";
 import snapshot from "../../../../api/testdata/server-operation-memory-snapshot.json";
+import copied from "../../../../api/testdata/server-operation-artifact-copy.json";
 import prepared from "../../../../api/testdata/server-operation-openapi-work.json";
 import { patchDraft, readDraft } from "./document";
 import { buildGraph } from "./graph";
@@ -13,6 +14,15 @@ const source = readFileSync(
 );
 
 describe("shared server operation stage contract", () => {
+  it("accepts and displays exact artifact copying without Workers", () => {
+    const draft = readDraft(copied.workflow);
+    expect(
+      validateDraft(draft).filter((problem) => problem.severity === "error"),
+    ).toEqual([]);
+    expect(
+      buildGraph(draft).nodes.find((node) => node.type === "stage")?.subtitle,
+    ).toContain("artifact-copy@1");
+  });
   it("accepts and displays passive OpenAPI preparation without Workers", () => {
     const draft = readDraft(prepared.workflow);
     expect(

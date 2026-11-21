@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import re
 from collections import OrderedDict
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Annotated, Any, Literal
@@ -224,6 +225,7 @@ class RecentHTTPCaptures:
         self._locators: OrderedDict[int, tuple[str, str]] = OrderedDict()
         self._local_ids: dict[tuple[str, str], int] = {}
         self._observations: dict[tuple[str, str], HTTPObservation] = {}
+        self._stored_reader: Callable[[str, str, str], Awaitable[None]] | None = None
 
     def _issue_id(self) -> int:
         if self._next_local_id > MAX_EXACT_INTEGER:
@@ -276,6 +278,22 @@ class RecentHTTPCaptures:
         if key is None or (source is not None and key[0] != source):
             raise ValueError("request_id is unavailable for this tool; inspect recent history")
         return key
+
+    def bind_stored_reader(self, reader: Callable[[str, str, str], Awaitable[None]] | None) -> None:
+        self._stored_reader = reader
+
+    async def read_exchange(self, local_id: int, invocation_id: str) -> dict[str, Any]:
+        key = self.resolve(local_id)
+        if key not in self._entries:
+            reader = self._stored_reader
+            if reader is None:
+                raise ValueError("stored HTTP exchange is unavailable")
+            await reader(*key, invocation_id)
+            # Discovery or capture eviction during the read cannot revive an
+            # expired locator or substitute another request for it.
+            if self.resolve(local_id) != key:
+                raise ValueError("stored HTTP exchange is unavailable")
+        return await self.get(*key)
 
     def _remove_capture(self, key: tuple[str, str]) -> None:
         previous = self._entries.pop(key, None)

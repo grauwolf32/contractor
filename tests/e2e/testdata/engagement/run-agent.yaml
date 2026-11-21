@@ -6,8 +6,8 @@ spec:
   runtime: adk@1
   instructions: {ref: instructions/engagement-run-fixture.md}
   toolsets:
-    - ref: run-artifacts@1
-      tools: [write_artifact]
+    - ref: text-artifacts@1
+      tools: [write_text_artifact]
     - ref: http-tools@1
       tools: [http_request, http_credentials]
   sandboxProfile: local-workdir@1

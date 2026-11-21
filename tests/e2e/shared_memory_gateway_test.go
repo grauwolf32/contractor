@@ -210,7 +210,7 @@ func (g *sharedMemoryGateway) next(
 	if schemaErr := validateSharedMemoryTools(request, scenario, worker, g.productionTemplates); schemaErr != nil {
 		return nil, "", "", "", 0, "", fmt.Errorf("%s: %w", scenario, schemaErr)
 	}
-	if g.productionTemplates && worker && (!strings.Contains(string(encoded), "## Shared Memory") || !strings.Contains(string(encoded), "write only the declared result")) {
+	if g.productionTemplates && worker && (!strings.Contains(string(encoded), "## Shared Memory") || !strings.Contains(string(encoded), "Compose the requested report or review")) {
 		return nil, "", "", "", 0, "", errors.New("production Worker lost its authored domain/Memory instructions")
 	}
 	if transcriptErr := validateMemoryTranscript(request); transcriptErr != nil {
@@ -256,7 +256,7 @@ func (g *sharedMemoryGateway) sharedMemoryScenario(modelName, payload string) (s
 		}
 	}
 	if g.workerModel != "" && modelName == g.workerModel {
-		if strings.Contains(payload, "Copy the source artifact into the declared result artifact") {
+		if strings.Contains(payload, "Inspect the source and author the requested report") {
 			return "production-copy-worker", true, nil
 		}
 		for marker, scenario := range map[string]string{
@@ -840,12 +840,13 @@ func validateSharedMemoryTools(request map[string]any, scenario string, worker, 
 	}
 	if production {
 		if worker {
-			want = []string{"append_memory", "list_artifacts", "list_memories", "list_memory_tags", "read_artifact", "read_memory", "search_memory", "write_artifact", "write_memory"}
+			want = []string{"append_memory", "list_artifacts", "list_memories", "list_memory_tags", "read_artifact", "read_memory", "search_memory", "write_text_artifact", "write_memory"}
 		} else {
 			want = append(want, "search_memory", "list_memory_tags")
 			sort.Strings(want)
 		}
 	}
+	sort.Strings(want)
 	if !equalStringSlices(names, want) {
 		return fmt.Errorf("exposed tools %v, want %v", names, want)
 	}

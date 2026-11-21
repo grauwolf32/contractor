@@ -32,6 +32,7 @@ from contractor_runtime.contracts import (
     WorkerModelResult,
     WorkerObservations,
 )
+from contractor_runtime.llm.image_parts import image_response_metadata
 from contractor_runtime.llm.usage import project_token_usage
 from contractor_runtime.reasoning import (
     MAX_REASONING_TOTAL_BYTES,
@@ -540,7 +541,9 @@ def _project_event(
             continue
         if part.function_response is not None:
             response = part.function_response
-            value, changed = _safe_json_value(response.response or {}, secrets=secrets)
+            value, changed = _safe_json_value(
+                image_response_metadata(response.response or {}, attached=False), secrets=secrets
+            )
             parts.append(
                 {"functionResponse": {"name": str(response.name or ""), "response": value}}
             )

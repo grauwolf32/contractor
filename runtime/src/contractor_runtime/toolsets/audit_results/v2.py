@@ -23,13 +23,17 @@ from contractor_runtime.toolsets.audit_results.contracts import (
     MAX_EVIDENCE,
     MAX_ITEMS,
     MAX_VALUES,
+    AuditVerdict,
     NormalizedAuditItem,
 )
 from contractor_runtime.toolsets.common.resources import ToolResources
 
 
 def _normalize(key, value):
+    if not isinstance(key, str) or not key:
+        raise AuditCollectionError("item_key", "Every conclusion requires its assigned item_key.")
     allowed = {
+        "item_key",
         "rationale",
         "tested_conditions",
         "limitations",
@@ -115,21 +119,30 @@ class SubmitCheckResultTool:
     ):
         self._collector_source, self._metrics = collector, metrics
         self.__name__ = self.name
-        self.__doc__ = """Record bounded conclusions locally for the assigned tasks.
+        self.__doc__ = self.description
 
-        Read the tasks first. Supply rationale, tested_conditions, limitations,
-        and evidence handles as JSON arrays, including []. For a task with a
-        hypothesis supply supported, refuted or inconclusive as verdict. A
-        conclusive verdict needs tested conditions and evidence; inconclusive
-        needs a limitation. For exploration omit verdict. Use item_key for a
-        batch member, or results for the complete batch in assignment order.
-        Select actual HTTP requests with http_request_ids, an array of IDs from
-        http_request in this invocation. Only selected exchanges become evidence
-        Artifacts; no Finding proposal or repeat request is needed. Evicted or
-        foreign IDs fail explicitly. Existing evidence handles remain supported.
-        Correct a recorded result with expected_revision from its receipt.
-        Returns local revisions and completeness; publication follows completion.
-        """
+    description = """Record one complete conclusion for an assigned item.
+
+    Read read_audit_task for item keys and evidence handles. For a hypothesis,
+    verdict is supported, refuted or inconclusive. Supported/refuted need tested
+    conditions and evidence. Inconclusive needs a limitation. Omit verdict for
+    exploration. Corrections replace the conclusion using its receipt revision.
+
+    Args:
+        item_key: Assigned item key, including for a single-item assignment.
+        rationale: Bounded explanation of the conclusion.
+        tested_conditions: Conditions examined, as a JSON array including [].
+        limitations: Remaining limitations, as a JSON array including [].
+        evidence: Selected evidence handles from this item's assignment; defaults to [].
+        verdict: Hypothesis conclusion; omit for exploration.
+        http_request_ids: Local IDs from http_request in this invocation; defaults
+            to []. Runtime attaches actual exchanges without replaying requests.
+        expected_revision: Revision from the receipt when correcting a conclusion.
+
+    Returns:
+        Local revisions, missing item keys and completeness. Runtime publishes
+        the accepted conclusions after Worker completion.
+    """
 
     @property
     def _collector(self):
@@ -144,63 +157,39 @@ class SubmitCheckResultTool:
     async def __call__(
         self,
         tool_context: ToolContext,
-        item_key: str | None = None,
-        rationale: str | None = None,
-        tested_conditions: list[str] | None = None,
-        limitations: list[str] | None = None,
+        item_key: str,
+        rationale: str,
+        tested_conditions: list[str],
+        limitations: list[str],
         evidence: list[str] | None = None,
-        verdict: str | None = None,
+        verdict: AuditVerdict | None = None,
         http_request_ids: list[int] | None = None,
         expected_revision: int | None = None,
-        results: list[BatchResultArgument] | None = None,
     ) -> dict[str, Any]:
+        return await self._submit(
+            tool_context,
+            lambda collector: collector.record(
+                _normalize(
+                    item_key,
+                    {
+                        "rationale": rationale,
+                        "tested_conditions": tested_conditions,
+                        "limitations": limitations,
+                        "evidence": [] if evidence is None else evidence,
+                        "verdict": verdict,
+                        "http_request_ids": [] if http_request_ids is None else http_request_ids,
+                    },
+                ),
+                expected_revision=expected_revision,
+            ),
+        )
+
+    async def _submit(self, tool_context, submit) -> dict[str, Any]:
         started, failure = time.perf_counter_ns(), None
         try:
             collector = self._collector
             collector.check_invocation(tool_context.invocation_id)
-            keys = collector.owner.item_keys
-            if results is not None:
-                if any(
-                    value is not None
-                    for value in (
-                        item_key,
-                        rationale,
-                        tested_conditions,
-                        limitations,
-                        evidence,
-                        verdict,
-                        expected_revision,
-                        http_request_ids,
-                    )
-                ):
-                    raise AuditCollectionError("results", "Do not mix batch and scalar fields.")
-                values = array_argument("results", results, MAX_ITEMS)
-                if len(values) != len(keys):
-                    raise AuditCollectionError("results", "Provide the complete assigned batch.")
-                receipt = await collector.record_batch(
-                    tuple(_normalize(key, value) for key, value in zip(keys, values, strict=True))
-                )
-            else:
-                if item_key is None and len(keys) == 1:
-                    item_key = keys[0]
-                if not isinstance(item_key, str) or item_key not in keys:
-                    raise AuditCollectionError("item_key", "Choose an assigned item key.")
-                receipt = await collector.record(
-                    _normalize(
-                        item_key,
-                        {
-                            "rationale": rationale,
-                            "tested_conditions": tested_conditions,
-                            "limitations": limitations,
-                            "evidence": [] if evidence is None else evidence,
-                            "verdict": verdict,
-                            "http_request_ids": []
-                            if http_request_ids is None
-                            else http_request_ids,
-                        },
-                    ),
-                    expected_revision=expected_revision,
-                )
+            receipt = await submit(collector)
             binding = getattr(self, "completion_binding", None)
             if binding is not None:
                 binding.record_progress(receipt.accepted_count)
@@ -228,6 +217,38 @@ class SubmitCheckResultTool:
         return result
 
 
+class SubmitCheckResultsTool(SubmitCheckResultTool):
+    name = "submit_check_results"
+    description = """Record the complete assigned batch, with an item_key on each conclusion.
+
+    Items may arrive in any order. Each assigned key must occur exactly once.
+    Validation and acceptance apply to the whole batch. Identical existing
+    conclusions are replays. Correct a changed conclusion with submit_check_result
+    and its expected_revision. Field and evidence rules match the single-item tool.
+
+    Args:
+        items: Complete JSON array of conclusions. Each requires item_key,
+            rationale, tested_conditions and limitations. Optional evidence and
+            http_request_ids default to []. Supply verdict only for a hypothesis.
+
+    Returns:
+        Local revisions in assignment order, missing keys and completeness.
+    """
+
+    async def __call__(
+        self, tool_context: ToolContext, items: list[BatchResultArgument]
+    ) -> dict[str, Any]:
+        return await self._submit(
+            tool_context,
+            lambda collector: collector.record_batch(
+                tuple(
+                    _normalize(value.get("item_key") if isinstance(value, dict) else None, value)
+                    for value in array_argument("items", items, MAX_ITEMS)
+                )
+            ),
+        )
+
+
 def _record_cancelled(metrics, name, started):
     metrics.record_tool_call(
         name, arguments={}, error=ToolCallCancelled(), secrets=(), duration_ms=elapsed_ms(started)
@@ -236,7 +257,7 @@ def _record_cancelled(metrics, name, started):
 
 class AuditResultsToolsetFactory:
     ref = "audit-results@2"
-    exported_tools = frozenset({"read_audit_task", "submit_check_result"})
+    exported_tools = frozenset({"read_audit_task", "submit_check_result", "submit_check_results"})
     infrastructure_channels = MappingProxyType({})
 
     def __init__(self, client_factory):
@@ -279,6 +300,7 @@ class AuditResultsToolsetFactory:
                 binding.current, completion_contract.context, resources.metrics
             ),
             "submit_check_result": SubmitCheckResultTool(binding.current, resources.metrics),
+            "submit_check_results": SubmitCheckResultsTool(binding.current, resources.metrics),
         }
         for tool in tools.values():
             tool.completion_binding = binding

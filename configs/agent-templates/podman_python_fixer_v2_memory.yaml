@@ -2,12 +2,12 @@ apiVersion: contractor/v1alpha1
 kind: AgentTemplate
 metadata:
   name: podman_python_fixer
-  version: "2"
+  version: "3"
 spec:
   description: Fix and check a small Python source fixture inside an offline Podman allocation
   runtime: adk@1
   instructions:
-    ref: instructions/podman-python-fixer-memory.md
+    ref: instructions/podman-python-fixer-file-publication.md
   summarizer:
     instructions:
       ref: instructions/terminal-summarizer.md

@@ -11,7 +11,7 @@ import (
 
 func TestFactExtractionAuditEvalAcrossProcesses(t *testing.T) {
 	stage := func(name string) domainGatewayStage {
-		return domainGatewayStage{name: name, tools: []string{"read_artifact", "record_fact", "read_audit_task", "submit_check_result"}, steps: []domainGatewayStep{
+		return domainGatewayStage{name: name, tools: []string{"read_artifact", "record_fact", "read_audit_task", "submit_check_result", "submit_check_results"}, steps: []domainGatewayStep{
 			toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})),
 			toolGatewayStep("read_artifact", stageRefArguments("memories", nil)),
 			toolGatewayStep("record_fact", func(request map[string]any) (map[string]any, error) {
@@ -29,7 +29,7 @@ func TestFactExtractionAuditEvalAcrossProcesses(t *testing.T) {
 				}
 				return map[string]any{"title": "Reported nginx", "description": "The original memory reports nginx; no version or independent verification is claimed.", "memory_name": "banner", "item_key": member["item_key"]}, nil
 			}),
-			toolGatewayStep("submit_check_result", fixedArguments(map[string]any{"rationale": "Selected the useful reported technology observation", "tested_conditions": []string{"Read the exact exported memories"}, "limitations": []string{"No independent probe"}, "evidence": []string{}})),
+			toolGatewayStep("submit_check_result", auditResultArguments(map[string]any{"rationale": "Selected the useful reported technology observation", "tested_conditions": []string{"Read the exact exported memories"}, "limitations": []string{"No independent probe"}, "evidence": []string{}})),
 			finalGatewayStep("Recorded memory observations", nil),
 		}}
 	}
@@ -38,5 +38,5 @@ func TestFactExtractionAuditEvalAcrossProcesses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runFindingEvalNavigation(t, stage, root, source, filepath.Join(repoRoot(t), "tests", "eval", "project_facts", "experiment-template-v2.json"))
+	runFindingEvalNavigation(t, stage, root, source, filepath.Join(repoRoot(t), "tests", "eval", "project_facts", "experiment-template-v3.json"))
 }

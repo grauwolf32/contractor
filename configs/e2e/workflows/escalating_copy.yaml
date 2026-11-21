@@ -33,13 +33,13 @@ spec:
   entryStage: copy
   stages:
     copy:
-      objective: ESCALATION_E2E_GLOBAL fail base then copy with stronger settings
+      objective: ESCALATION_E2E_GLOBAL fail base then author a report with stronger settings
       instructions:
-        ref: instructions/copy-planner.md
+        ref: instructions/report-planner.md
       planner: streamline@1
       agents:
         builder:
-          template: artifact_builder@1
+          template: artifact_builder@4
       context:
         artifacts:
           source:

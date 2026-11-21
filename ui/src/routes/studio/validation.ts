@@ -231,6 +231,7 @@ export function validateDraft(draft: Draft): Problem[] {
           );
         if (
           ![
+            "artifact-copy@1",
             "sitemap-openapi-join@1",
             "sitemap-apply-openapi@1",
             "openapi-prepare-work@1",

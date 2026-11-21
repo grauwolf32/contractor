@@ -228,7 +228,7 @@ func TestHeterogeneousRuntimeCapabilityPlacement(t *testing.T) {
 	outputBytes, outputMediaType := download(
 		t, publicClient, publicBaseURL+"/v1/runs/"+url.PathEscape(runID)+"/outputs/result",
 	)
-	if string(outputBytes) != e2eInput || outputMediaType != e2eMediaType {
+	if string(outputBytes) != e2eReport || outputMediaType != e2eMediaType {
 		t.Fatalf("capability Run output = (%q, %q)", outputBytes, outputMediaType)
 	}
 	allocationID := assertDurableExecution(t, ctx, pool, runID, output)

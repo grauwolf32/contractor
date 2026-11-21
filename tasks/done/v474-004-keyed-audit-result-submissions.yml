@@ -5,7 +5,7 @@ milestone: audit-worker-completion
 epic: audits
 kind: feature
 priority: P1
-status: pending
+status: completed
 depends_on: []
 languages: [python, go, yaml]
 goal: A Worker records or corrects one conclusion and can submit a complete set in any order using the assigned item keys.
@@ -89,3 +89,19 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A4]
+  - command: go test -count=1 ./tests/eval/project_facts
+    covers: [A4]
+  - command: go test -tags=e2e -count=1 ./tests/ui-stack -run '^TestManagedEval(AssertionsUseCurrentDomainContract|GatewayUsesCurrentCheckerContract)$'
+    covers: [A1, A4]
+  - command: go test -count=1 ./tests/e2e
+    covers: [A4]
+implementation_commit: 076435ee7e63e2d9c83ae83f4655a9c682b68067
+verification:
+  date: '2026-11-22'
+  result: >-
+    Full Runtime passed (6392 tests, 135 declared skips); the listed three Audit test modules
+    passed again. The five listed real-process roots passed together in 181.433 seconds, including
+    compaction, singleton repair, batch association and the current frozen Eval v3 recipe. Configuration,
+    recipe, fixture and UI consumer checks passed; final make lint kept all four import contracts.
+    Frozen v1/v2 assets remain unchanged. Earlier failed/cancelled full process runs are not successful
+    evidence; the mandatory complete combined gate belongs to V474-010.

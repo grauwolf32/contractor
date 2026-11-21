@@ -16,7 +16,7 @@ RUBRIC = (
 
 
 def load_corpus():
-    lock = json.loads((ROOT / "corpus-v2.lock.json").read_text())
+    lock = json.loads((ROOT / "corpus-v3.lock.json").read_text())
     for name, digest in lock["files"].items():
         if "sha256:" + hashlib.sha256((ROOT / name).read_bytes()).hexdigest() != digest:
             raise RuntimeError("Frozen corpus drift: " + name)
@@ -78,7 +78,7 @@ def dataset(project, revisions, case_ids):
 
 def experiment(revision, case_ids, repetitions):
     load_corpus()
-    result = json.loads((ROOT / "experiment-template-v2.json").read_text())
+    result = json.loads((ROOT / "experiment-template-v3.json").read_text())
     result["draft"]["dataset"]["revision"] = revision
     result["draft"]["caseIds"] = case_ids
     result["draft"]["repetitions"] = repetitions

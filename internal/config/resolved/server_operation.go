@@ -57,6 +57,16 @@ func ValidateStageExecutor(stage ResolvedStage) error {
 		}
 		return nil
 	}
+	if operation.Ref == contracts.ArtifactCopyOperation {
+		if len(operation.Arguments) != 0 || len(stage.Context.Artifacts) != 1 || !stage.Context.Artifacts["source"].Required || len(stage.Result.Artifacts) != 1 || !stage.Result.Artifacts["copied"].Required {
+			return fmt.Errorf("Artifact copy requires exactly source and copied slots and no arguments")
+		}
+		source, output := stage.Context.Artifacts["source"], stage.Result.Artifacts["copied"].From
+		if artifactpolicy.IsModelHiddenBinding(source.Namespace, source.Name) || artifactpolicy.IsModelHiddenBinding(output.Namespace, output.Name) {
+			return fmt.Errorf("Artifact copy requires ordinary visible source and output bindings")
+		}
+		return nil
+	}
 	if operation.Ref == contracts.MemorySnapshotOperation {
 		return validateMemorySnapshotStage(stage)
 	}

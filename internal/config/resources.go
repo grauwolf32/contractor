@@ -167,7 +167,7 @@ func configurationSourceKey(kind ConfigurationKind, identity string) string {
 
 func modelPolicyResourceBody(policy contracts.ResolvedModelPolicy) map[string]any {
 	result := map[string]any{"model": policy.Model}
-	addModelPolicyLimits(result, policy)
+	addModelPolicyOptions(result, policy)
 	if policy.Temperature != nil {
 		result["temperature"] = *policy.Temperature
 	}

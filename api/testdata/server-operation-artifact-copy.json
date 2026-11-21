@@ -1,0 +1,129 @@
+{
+  "workflow": "apiVersion: contractor/v1alpha1\nkind: Workflow\nmetadata: {name: copy-operation-test, version: \"1\"}\nspec:\n  parameters: {}\n  inputs:\n    source: {required: true, mediaTypes: [application/octet-stream]}\n  outputs:\n    result: {required: true, mediaTypes: [application/octet-stream]}\n  entryStage: copy\n  stages:\n    copy:\n      objective: Copy the exact assigned source without model encoding\n      operation: {ref: artifact-copy@1, arguments: {}}\n      context:\n        artifacts:\n          source: {namespace: inputs, name: source, required: true}\n      result:\n        artifacts:\n          copied:\n            required: true\n            mediaTypes: [application/octet-stream]\n            from: {namespace: builder, name: copied}\n      workflowOutputs: {result: copied}\n      on:\n        succeeded: {succeed: {}}\n        failed: {fail: {}}\n        interrupted: {fail: {}}\n",
+  "cases": [
+    {
+      "name": "registered copy",
+      "path": [
+        "operation",
+        "ref"
+      ],
+      "value": "artifact-copy@1",
+      "valid": true
+    },
+    {
+      "name": "unknown version",
+      "path": [
+        "operation",
+        "ref"
+      ],
+      "value": "artifact-copy@2",
+      "valid": false
+    },
+    {
+      "name": "no model arguments",
+      "path": [
+        "operation",
+        "arguments"
+      ],
+      "value": {
+        "text": {
+          "source": "literal",
+          "value": "invented"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "no inline payload",
+      "path": [
+        "operation",
+        "arguments"
+      ],
+      "value": {
+        "data_base64": {
+          "source": "literal",
+          "value": "AA=="
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "required source",
+      "path": [
+        "context",
+        "artifacts",
+        "source",
+        "required"
+      ],
+      "value": false,
+      "valid": false
+    },
+    {
+      "name": "required output",
+      "path": [
+        "result",
+        "artifacts",
+        "copied",
+        "required"
+      ],
+      "value": false,
+      "valid": false
+    },
+    {
+      "name": "one source",
+      "path": [
+        "context",
+        "artifacts"
+      ],
+      "value": {},
+      "valid": false
+    },
+    {
+      "name": "one output",
+      "path": [
+        "result",
+        "artifacts"
+      ],
+      "value": {},
+      "valid": false
+    },
+    {
+      "name": "ordinary source",
+      "path": [
+        "context",
+        "artifacts",
+        "source"
+      ],
+      "value": {
+        "namespace": "builder",
+        "name": "memory.secret",
+        "required": true
+      },
+      "valid": false
+    },
+    {
+      "name": "ordinary output",
+      "path": [
+        "result",
+        "artifacts",
+        "copied",
+        "from",
+        "name"
+      ],
+      "value": "http.body.secret",
+      "valid": false
+    },
+    {
+      "name": "no Worker",
+      "path": [
+        "agents"
+      ],
+      "value": {
+        "builder": {
+          "template": "artifact_builder@1"
+        }
+      },
+      "valid": false
+    }
+  ]
+}

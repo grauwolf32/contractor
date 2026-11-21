@@ -1,0 +1,11 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata: {name: file_publication_fixture, version: "1"}
+spec:
+  description: Publishes an existing file using only its local path
+  runtime: adk@1
+  instructions: {ref: instructions/file-publication-fixture.md}
+  toolsets:
+    - ref: run-artifacts@1
+      tools: [write_artifact]
+  sandboxProfile: local-workdir@1

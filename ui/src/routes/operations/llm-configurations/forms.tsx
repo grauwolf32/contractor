@@ -144,6 +144,7 @@ function cloneIdentityErrors(
 
 interface ModelDraft {
   model: string;
+  supportsImages: string;
   contextWindowTokens: string;
   maxOutputTokens: string;
   maxModelCalls: string;
@@ -157,6 +158,12 @@ function modelDraft(source: ModelPolicyBody): ModelDraft {
   const text = (value: number | undefined) => value?.toString() ?? "";
   return {
     model: source.model,
+    supportsImages:
+      source.supportsImages === true
+        ? "yes"
+        : source.supportsImages === false
+          ? "no"
+          : "unknown",
     contextWindowTokens: text(source.contextWindowTokens),
     maxOutputTokens: text(source.maxOutputTokens),
     maxModelCalls: text(source.maxModelCalls),
@@ -183,6 +190,9 @@ function modelBody(draft: ModelDraft): ModelPolicyBody {
   };
   return {
     model: draft.model,
+    ...(draft.supportsImages === "unknown"
+      ? {}
+      : { supportsImages: draft.supportsImages === "yes" }),
     ...optional("contextWindowTokens", draft.contextWindowTokens),
     ...optional("maxOutputTokens", draft.maxOutputTokens),
     ...optional("maxModelCalls", draft.maxModelCalls),
@@ -309,6 +319,23 @@ export function ModelPolicyPublicationForm({
               value={draft.model}
               onChange={(event) => change("model", event.target.value)}
             />
+          )}
+        </Field>
+        <Field
+          label="Image input"
+          hint="Confirm support for this model on its selected Gateway route."
+        >
+          {(control) => (
+            <select
+              {...control}
+              name="supportsImages"
+              value={draft.supportsImages}
+              onChange={(event) => change("supportsImages", event.target.value)}
+            >
+              <option value="unknown">Unconfirmed</option>
+              <option value="no">Text only</option>
+              <option value="yes">Supported</option>
+            </select>
           )}
         </Field>
         <NumberDraftField

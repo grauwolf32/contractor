@@ -6,7 +6,6 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"net"
 	"net/http"
@@ -57,8 +56,7 @@ func TestPodmanSandboxAcrossProductionProcesses(t *testing.T) {
 			toolGatewayStep("read_file", fixedArguments(map[string]any{"path": "calculator.py"})),
 			toolGatewayStep("edit", fixedArguments(map[string]any{"path": "calculator.py", "old": "return a - b", "new": "return a + b"})),
 			toolGatewayStep("exec_command", fixedArguments(map[string]any{"command": "python3 -B check.py", "cwd": "", "timeout_seconds": 30})),
-			toolGatewayStep("read_file", fixedArguments(map[string]any{"path": "report.json"})),
-			toolGatewayStep("write_artifact", fixedArguments(map[string]any{"namespace": "builder", "name": "check_report", "media_type": "application/json", "data_base64": base64.StdEncoding.EncodeToString(report), "expected_revision": nil})),
+			toolGatewayStep("write_artifact", fixedArguments(map[string]any{"namespace": "builder", "name": "check_report", "media_type": "application/json", "source_path": "report.json", "expected_revision": nil})),
 			finalGatewayStep("Offline check passed", map[string]domainArtifactBinding{"report": {namespace: "builder", name: "check_report"}}),
 		},
 	}})
@@ -117,7 +115,7 @@ func TestPodmanSandboxAcrossProductionProcesses(t *testing.T) {
 		t.Fatal(err)
 	}
 	input := uploadProjectScopeArtifact(t, client, publicURL, project.ProjectID, "sources", "python", "application/zip", source.Bytes())
-	body, err := json.Marshal(map[string]any{"workflow": "podman-python-check@2", "parameters": map[string]string{}, "artifacts": map[string]artifactRef{"source": input}})
+	body, err := json.Marshal(map[string]any{"workflow": "podman-python-check@3", "parameters": map[string]string{}, "artifacts": map[string]artifactRef{"source": input}})
 	if err != nil {
 		t.Fatal(err)
 	}

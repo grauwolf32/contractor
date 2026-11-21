@@ -31,7 +31,7 @@ spec:
     summarize:
       objective: Prove that an omitted terminal Worker summarizer remains disabled
       instructions:
-        ref: instructions/copy-planner.md
+        ref: instructions/report-planner.md
       planner: passthrough@1
       agents:
         builder:

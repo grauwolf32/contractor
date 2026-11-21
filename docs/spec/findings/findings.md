@@ -394,14 +394,19 @@ captured source. The general and HTTP facades and `record_fact` accept an option
 `request_id` shared by HTTP and Caido tools (HTP-R72). Omitting it permits
 publication without captured HTTP evidence, subject to the ordinary evidence rules.
 
-**FND-R43.** A supplied source resolves only against the allocation's
-bounded HTTP/Caido buffer, with the same-invocation ownership rule of
-[HTTP and Caido tools](../tools/http-caido.md) (HTP-R71, HTP-R72). An invalid,
-expired or foreign source returns a repairable error; the caller can select a
-current source or omit it (FAIL-FND-2). The request is mandatory; a missing or
-incomplete response is saved with its truthful failure or partial outcome.
+**FND-R43.** A supplied source resolves only against the allocation's bounded
+HTTP/Caido captures or authorized stored-request locators, as owned by
+[HTTP and Caido tools](../tools/http-caido.md) (HTP-R71, HTP-R72). Runtime reads
+and attaches the actual request and available response. The model need not call
+a detail tool first. An invalid, expired, foreign or unauthorized source returns
+an explicit error before Finding submission (FAIL-FND-2). The request is
+mandatory; a missing or incomplete response is saved with its truthful failure
+or partial outcome. Original capture provenance and Audit observation eligibility
+are preserved.
 
-**FND-R46.** Creating a finding never sends or replays traffic.
+**FND-R46.** Creating a finding never sends or replays target traffic. A
+history-only local ID may cause one authorized read of the selected stored
+exchange through the existing provider adapter. Buffered bytes are reused.
 
 **FND-R47.** The authored location and the observed request remain
 separate facts; neither silently replaces the other.
@@ -1382,7 +1387,7 @@ inferred links or web previews.
 The configuration catalog provides these opt-in configurations:
 
 **FND-R147.** `openapi-operation-trace@3` binds
-`audit-openapi-operation-trace@2` and `audit_openapi_operation_tracer@2`. It
+`audit-openapi-operation-trace@3` and `audit_openapi_operation_tracer@3`. It
 retains the structural graph and source tools, adds text evidence writing and
 `finding`, and uses human-required finding confirmation. Its canonical results
 carry the client keys of successful proposals; `operation-resolution`

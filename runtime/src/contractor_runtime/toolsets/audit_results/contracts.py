@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Literal, get_args
 
 from contractor_runtime.contracts.base import MAX_EXACT_INTEGER, is_blank
 from contractor_runtime.digests import sha256_digest
@@ -26,7 +26,8 @@ MAX_REVISION = MAX_EXACT_INTEGER
 IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$")
 DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 ARTIFACT_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
-VERDICTS = frozenset({"supported", "refuted", "inconclusive"})
+type AuditVerdict = Literal["supported", "refuted", "inconclusive"]
+VERDICTS = frozenset(get_args(AuditVerdict.__value__))
 
 
 def _identifier(value: str) -> None:

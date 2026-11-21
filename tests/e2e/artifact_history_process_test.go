@@ -166,7 +166,7 @@ func TestArtifactHistoryAcrossProductionProcesses(t *testing.T) {
 	gateway.ResetScenario()
 	held := uploaded
 	held.Revision = &r3
-	secondRun := createWorkflowRun(t, client, publicBaseURL, "artifact-copy@1", "e2e-history-second", held)
+	secondRun := createWorkflowRun(t, client, publicBaseURL, "artifact-report-fixture@1", "e2e-history-second", held)
 	waitForRun(t, ctx, server, runtimeProcess, gateway, client, publicBaseURL, secondRun)
 	_, refused, retryAfter := put(r3, "fourth", http.StatusConflict)
 	if refused.Code != "artifact_history_protected" || refused.Retryable || retryAfter != "" {

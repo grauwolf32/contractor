@@ -36,7 +36,7 @@ spec:
     summarize:
       objective: Exercise the derived context-window terminal summarizer boundary
       instructions:
-        ref: instructions/copy-planner.md
+        ref: instructions/report-planner.md
       planner: passthrough@1
       agents:
         builder:

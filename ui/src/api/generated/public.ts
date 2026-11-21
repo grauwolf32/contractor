@@ -6162,7 +6162,7 @@ export interface components {
         });
         ServerOperationConfig: {
             /** @enum {string} */
-            ref: "sitemap-openapi-join@1" | "sitemap-apply-openapi@1" | "openapi-prepare-work@1" | "publish-findings@1" | "memory-snapshot@1";
+            ref: "artifact-copy@1" | "sitemap-openapi-join@1" | "sitemap-apply-openapi@1" | "openapi-prepare-work@1" | "publish-findings@1" | "memory-snapshot@1";
             arguments: {
                 [key: string]: components["schemas"]["ArgumentBinding"] & unknown;
             };
@@ -6316,6 +6316,8 @@ export interface components {
         };
         ModelPolicyBody: {
             model: string;
+            /** @description Operator assertion that this model accepts images on the selected Gateway route. False means text-only; absent or null means unconfirmed. Does not change the model or probe the provider. */
+            supportsImages?: boolean | null;
             contextWindowTokens?: number;
             maxOutputTokens?: number;
             /** @description Model-call capacity per committed context window for compact@1 Workers; cumulative per invocation otherwise. Compactors use their own one-call policy. Observed usage remains cumulative. */

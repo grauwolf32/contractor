@@ -11,7 +11,7 @@ func modelPolicyDigest(selector resolved.Selector, policy contracts.ResolvedMode
 	spec := map[string]any{
 		"model": policy.Model,
 	}
-	addModelPolicyLimits(spec, policy)
+	addModelPolicyOptions(spec, policy)
 	if policy.Temperature != nil {
 		spec["temperature"] = *policy.Temperature
 	}
@@ -128,7 +128,10 @@ func agentTemplateDigest(selector resolved.Selector, template contracts.Resolved
 	return contentdigest.CanonicalJSON(manifest)
 }
 
-func addModelPolicyLimits(target map[string]any, policy contracts.ResolvedModelPolicy) {
+func addModelPolicyOptions(target map[string]any, policy contracts.ResolvedModelPolicy) {
+	if policy.SupportsImages != nil {
+		target["supportsImages"] = *policy.SupportsImages
+	}
 	for name, value := range map[string]int{
 		"contextWindowTokens": policy.ContextWindowTokens,
 		"maxOutputTokens":     policy.MaxOutputTokens,

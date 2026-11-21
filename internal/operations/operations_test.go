@@ -3,8 +3,10 @@ package operations
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/apierror"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/stageresult"
 )
@@ -59,5 +61,50 @@ func TestRegistryJoinsCancellationBeforeReturning(t *testing.T) {
 	case <-joined:
 	default:
 		t.Fatal("operation outlived return")
+	}
+}
+
+func TestRegistryClassifiesPinnedDomainConflicts(t *testing.T) {
+	for _, wrapped := range []bool{false, true} {
+		t.Run(fmt.Sprint(wrapped), func(t *testing.T) {
+			original := &Failure{Code: apierror.Conflict.Code(), Message: "The assigned output already exists", Retryable: true}
+			var reported error = original
+			if wrapped {
+				reported = fmt.Errorf("operation: %w", original)
+			}
+			registry, err := NewRegistry(testOperation{body: func(context.Context, Call) (stageresult.StageContentResult, error) {
+				return stageresult.StageContentResult{}, reported
+			}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = registry.Run(t.Context(), "test@1", Call{RunID: "run", StageExecutionID: "stage", ClaimID: "claim"})
+			var failure *Failure
+			if !errors.As(err, &failure) || failure.Code != original.Code || failure.Message != original.Message || failure.Retryable {
+				t.Fatalf("pinned conflict classification: %v", err)
+			}
+			if !original.Retryable {
+				t.Fatal("registry mutated the operation's error")
+			}
+		})
+	}
+}
+
+func TestRegistryPreservesOtherOperationErrors(t *testing.T) {
+	for _, original := range []error{
+		&Failure{Code: apierror.StorageTransactionConflict.Code(), Message: "retry transaction", Retryable: true},
+		apierror.New(apierror.Conflict, "raw ownership fence"),
+		context.Canceled,
+	} {
+		registry, err := NewRegistry(testOperation{body: func(context.Context, Call) (stageresult.StageContentResult, error) {
+			return stageresult.StageContentResult{}, original
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = registry.Run(t.Context(), "test@1", Call{RunID: "run", StageExecutionID: "stage", ClaimID: "claim"})
+		if err != original {
+			t.Fatalf("changed unrelated error: %v", err)
+		}
 	}
 }

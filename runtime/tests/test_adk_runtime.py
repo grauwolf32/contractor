@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import base64
 import copy
 import json
 from collections.abc import AsyncGenerator
@@ -77,6 +76,7 @@ from contractor_runtime.llm.openai import (
 from contractor_runtime.reasoning import REASONING_INPUT_INSTRUCTION
 from contractor_runtime.toolsets.memory.tools import MemoryToolsetFactory
 from contractor_runtime.toolsets.run_artifacts.tools import RunArtifactsToolsetFactory
+from contractor_runtime.toolsets.text_artifacts.tools import TextArtifactsToolsetFactory
 from contractor_runtime.worker.budget import WorkerBudgetExceeded
 from contractor_runtime.worker.factory import AdkWorkerRuntimeFactory
 from contractor_runtime.worker.failures import _chained_error
@@ -138,12 +138,11 @@ def test_adk_worker_executes_selected_tools_and_validates_exact_result(tmp_path:
                     call_id="read-1",
                 ),
                 tool_call(
-                    "write_artifact",
+                    "write_text_artifact",
                     {
-                        "namespace": "builder",
                         "name": "report",
                         "media_type": "application/json",
-                        "data_base64": base64.b64encode(b"{}").decode(),
+                        "text": "{}",
                         "expected_revision": None,
                     },
                     call_id="write-1",
@@ -173,7 +172,7 @@ def test_adk_worker_executes_selected_tools_and_validates_exact_result(tmp_path:
             name: value.model_dump() for name, value in result.result.observations.tools.items()
         } == {
             "read_artifact": {"calls": 1, "failures": 0},
-            "write_artifact": {"calls": 1, "failures": 0},
+            "write_text_artifact": {"calls": 1, "failures": 0},
         }
         assert result.state_revision > 1
         assert result.invocation_id.startswith("worker-")
@@ -185,7 +184,7 @@ def test_adk_worker_executes_selected_tools_and_validates_exact_result(tmp_path:
             "outcomes.succeeded": 1,
             "tool_calls": 2,
             "tool_calls.read_artifact": 1,
-            "tool_calls.write_artifact": 1,
+            "tool_calls.write_text_artifact": 1,
             "total_tokens": 40,
         }
         budget = state.metrics.build_report(
@@ -208,7 +207,7 @@ def test_adk_worker_executes_selected_tools_and_validates_exact_result(tmp_path:
         assert model.requests[-1]["hasResponseSchema"] is True
         assert all("Subtask ID:\n0" in request["contentText"] for request in model.requests[:-1])
         assert all(
-            request["toolNames"] == ["read_artifact", "write_artifact"]
+            request["toolNames"] == ["read_artifact", "write_text_artifact"]
             for request in model.requests[:-1]
         )
         assert model.requests[-1]["toolNames"] == []
@@ -1359,12 +1358,11 @@ def test_adk_worker_builds_typed_result_with_trusted_artifacts(tmp_path: Path) -
         model = scripted_model(
             [
                 tool_call(
-                    "write_artifact",
+                    "write_text_artifact",
                     {
-                        "namespace": "builder",
                         "name": "report",
                         "media_type": "application/json",
-                        "data_base64": base64.b64encode(b"{}").decode(),
+                        "text": "{}",
                         "expected_revision": None,
                     },
                     call_id="write-before-invalid-result",
@@ -1438,12 +1436,11 @@ def test_adk_worker_does_not_reuse_artifact_observed_by_an_earlier_invocation(
         model = scripted_model(
             [
                 tool_call(
-                    "write_artifact",
+                    "write_text_artifact",
                     {
-                        "namespace": "builder",
                         "name": "report",
                         "media_type": "application/json",
-                        "data_base64": base64.b64encode(b"{}").decode(),
+                        "text": "{}",
                         "expected_revision": None,
                     },
                     call_id="first-write",
@@ -1802,12 +1799,11 @@ def test_adk_worker_does_not_start_a_serializer_when_structured_result_is_missin
         model = scripted_model(
             [
                 tool_call(
-                    "write_artifact",
+                    "write_text_artifact",
                     {
-                        "namespace": "builder",
                         "name": "report",
                         "media_type": "application/json",
-                        "data_base64": base64.b64encode(b"{}").decode(),
+                        "text": "{}",
                         "expected_revision": None,
                     },
                     call_id="write-before-missing-result",
@@ -1822,8 +1818,8 @@ def test_adk_worker_does_not_start_a_serializer_when_structured_result_is_missin
         assert result.failure is not None
         assert result.failure.code == "worker_result_missing"
         assert len(model.requests) == 2
-        assert model.requests[0]["toolNames"] == ["read_artifact", "write_artifact"]
-        assert model.requests[1]["toolNames"] == ["read_artifact", "write_artifact"]
+        assert model.requests[0]["toolNames"] == ["read_artifact", "write_text_artifact"]
+        assert model.requests[1]["toolNames"] == ["read_artifact", "write_text_artifact"]
         assert all("result_slot" not in request["contentText"] for request in model.requests)
         assert all("StageContentResult" not in request["contentText"] for request in model.requests)
         assert SECRET not in repr(state.metrics.snapshot())
@@ -3986,17 +3982,23 @@ async def selected_tools(
     tmp_path: Path, client: FakeArtifactClient, state: WorkerState
 ) -> dict[str, object]:
     settings = runtime_settings()
-    factory = RunArtifactsToolsetFactory(lambda _allocation, _settings: client)  # type: ignore[arg-type]
-    result = await factory.create_selected(
-        selected=["read_artifact", "write_artifact"],
-        allocation_id="allocation-1",
-        run_id="run-1",
-        namespace="builder",
-        runtime_settings=settings,
-        workspace=AllocationWorkspace(root=tmp_path.parent, path=tmp_path),
-        resources=state.resources,
-    )
-    return dict(result)
+    result = {}
+    for factory, selected in [
+        (RunArtifactsToolsetFactory(lambda *_: client), ["read_artifact"]),
+        (TextArtifactsToolsetFactory(lambda *_: client), ["write_text_artifact"]),
+    ]:
+        result.update(
+            await factory.create_selected(
+                selected=selected,
+                allocation_id="allocation-1",
+                run_id="run-1",
+                namespace="builder",
+                runtime_settings=settings,
+                workspace=AllocationWorkspace(root=tmp_path.parent, path=tmp_path),
+                resources=state.resources,
+            )
+        )
+    return result
 
 
 async def selected_memory_tools(
@@ -4093,8 +4095,12 @@ def agent_template() -> ResolvedAgentTemplate:
         toolsets=[
             ToolsetSelection(
                 ref=ToolsetRef(toolsetId="run-artifacts", version="1"),
-                tools=["read_artifact", "write_artifact"],
-            )
+                tools=["read_artifact"],
+            ),
+            ToolsetSelection(
+                ref=ToolsetRef(toolsetId="text-artifacts", version="1"),
+                tools=["write_text_artifact"],
+            ),
         ],
         sandboxProfile=SandboxProfileRef(sandboxProfileId="local-workdir", version="1"),
     )
