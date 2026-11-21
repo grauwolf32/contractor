@@ -6,7 +6,7 @@ epic: planner-worker
 kind: chore
 introduced_by: V471-003
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [python, html]
 goal: Restore the dependency graph verification gate for the current shipped catalog.
@@ -24,3 +24,4 @@ acceptance_criteria:
 tests:
 - command: make docs-dependencies-check
   covers: [A1]
+implementation_commit: e68cc339955cc18c8c4c9af51985ba7e1cf01fc2
