@@ -1,0 +1,49 @@
+schema_version: "1.0"
+id: V471-013
+title: Select the published trace profile in the common observation process fixture
+milestone: project-facts-2026-11
+epic: quality
+kind: chore
+introduced_by: V471-001
+priority: P1
+status: in_progress
+depends_on: [V471-001]
+languages: [go, markdown]
+goal: Both observe and trace process journeys use their published exact profile identities while retaining the actual observation and source assertions.
+context:
+  authority: >-
+    User request 2026-11-21 authorizes implementing the second Facts group and
+    main delivery. V471-006 full release verification finds a stale consumer of
+    the immutable trace profile updated by V471-001. Repair this fixture only.
+  finding: >-
+    tests/e2e/audit_common_observation_process_test.go:30 constructs both profile
+    names dynamically and hardcodes version 1. Observe remains version 1 but
+    trace is published as version 2, so its real Audit creation returns 404.
+    Static library matrices, catalog closure and offline Eval selectors already
+    use openapi-operation-trace@2. git blame attributes the version change to
+    V471-001 implementation 41fc498a72f6bb8ace9a566a8d012f8b0df42fbc.
+  specification: docs/spec/configuration/catalog.md#CAT-R74
+  boundary: >-
+    The published catalog owns exact identities. State both versions explicitly
+    in the existing mode-specific fixture, keeping actual Worker tools, source
+    selection, separate preparation, result provenance and model-call assertions.
+    No production alias, latest-version resolution or new fixture framework.
+  siblings: Inspect dynamic observation mode selectors and the common library matrices; leave private version-1 fixture identities and already current trace selectors unchanged.
+scope:
+  in:
+    - Pin observe to version 1 and trace to version 2 in their existing process fixture.
+    - Verify both modes through real Server, PostgreSQL, Runtime and scripted Gateway and rerun the integrated release gate.
+  out:
+    - Production behavior, catalog publication, model-policy changes, aliases or relaxed assertions.
+acceptance_criteria:
+  - id: A1
+    text: Both modes create and complete actual two-task Audits, retain exact result Task origin and keep one expected Worker stage without implicit hypothesis verdicts.
+  - id: A2
+    text: Full integrated verification passes with current library matrices and no old production profile reintroduced.
+tests:
+  - command: "go test -tags=e2e -count=1 -timeout=5m ./tests/e2e -run '^TestAuditCommonObservationProfilesAcrossProductionProcesses$'"
+    covers: [A1, A2]
+  - command: make release-verify
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]
