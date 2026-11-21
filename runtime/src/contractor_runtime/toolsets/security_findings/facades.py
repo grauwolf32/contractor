@@ -61,8 +61,8 @@ class GeneralFindingTool(_FindingFacade):
         title: Short non-empty finding title.
         description: Observation, impact, prerequisites and reproduction details.
         locations: Optional explicit source or web locations.
-        request_id: Optional local HTTP/Caido request_id inspected in this invocation.
-            The selected captured exchange is saved automatically.
+        request_id: Local request_id returned by a Contractor tool in this allocation.
+            Runtime retrieves and saves the request and available response.
         cwe: Optional CWE-NNN weakness identifier from the pinned catalog.
         evidence_refs: Optional exact artifact references copied from tool output.
             With any selected exchange they total at most 64 MiB; a larger set
@@ -125,7 +125,8 @@ class RecordFactTool(_FindingFacade):
         description: Observation, source quality, conditions and limitations.
         evidence_refs: Exact artifact references copied from tool output. At most four
             sources including a selected HTTP exchange; authored content is at most 32 KiB.
-        request_id: Optional local HTTP/Caido request ID; saves its captured exchange.
+        request_id: Local request_id returned by a Contractor tool in this allocation.
+            Runtime retrieves and saves its request and available response.
         memory_name: Optional exact memory name from the assigned memories snapshot.
             Attaches its complete original content, description and tags; no quotation
             is required. Describe uncertainty and inference in your own words.
@@ -233,7 +234,7 @@ class HTTPFindingTool(_FindingFacade):
 
     Describe the observed behavior, impact and authorization context. An optional
     request_id attaches the captured outgoing request and response evidence from
-    this invocation's recent HTTP history. Omit the ID to report without captured
+    the allocation's recent HTTP history. Omit the ID to report without captured
     evidence. Reporting never sends or replays an HTTP request.
 
     Args:
@@ -241,8 +242,8 @@ class HTTPFindingTool(_FindingFacade):
         description: Observations, impact, prerequisites and reproduction details.
         url: Absolute HTTP/HTTPS URL of the affected endpoint.
         method: Explicit HTTP method; no default method is inferred.
-        request_id: Optional local HTTP/Caido request_id inspected in this invocation.
-            Saves the selected captured exchange automatically without sending traffic.
+        request_id: Local request_id returned by a Contractor tool in this allocation.
+            Runtime retrieves and saves the exchange without sending a target request.
         cwe: Optional CWE-NNN weakness identifier from the pinned catalog.
         evidence_refs: Optional exact artifact references copied from tool output.
             With any selected exchange they total at most 64 MiB; a larger set

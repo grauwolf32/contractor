@@ -20,7 +20,6 @@ from test_http_toolset import make_tools
 from test_security_findings_toolset import FakeFindingClient
 
 from contractor_runtime.contracts.base import MAX_EXACT_INTEGER
-from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.toolsets.caido.tools import (
     MAX_TOOL_RESULT_BYTES,
     CaidoToolError,
@@ -173,13 +172,16 @@ def test_mixed_local_ids_discovery_inspection_and_publication(tmp_path, facade):
             assert selected != sent["request_id"]
             assert "id" not in discovered["requests"][0]
             before = len(operations)
-            with pytest.raises(ToolInputError, match="unavailable"):
-                await finding(**args, request_id=selected, tool_context=context)
+            await finding(**args, request_id=selected, tool_context=context)
+            assert len(operations) == before + 1
+            assert operations[-1]["operationName"] == "RequestDetail"
+            assert operations[-1]["variables"] == {"id": "1"}
+            before = len(operations)
             with pytest.raises(CaidoToolError):
                 await caido["caido_request_detail"](sent["request_id"], tool_context=context)
             with pytest.raises(CaidoToolError):
                 await caido["caido_request_detail"]("1", tool_context=context)
-            assert len(operations) == before and not client.requests
+            assert len(operations) == before and len(client.requests) == 1
             detail = await caido["caido_request_detail"](selected, tool_context=context)
             assert detail["request_id"] == selected
             assert operations[-1]["variables"] == {"id": "1"}
@@ -192,8 +194,10 @@ def test_mixed_local_ids_discovery_inspection_and_publication(tmp_path, facade):
             assert client.requests[-1]["httpEvidence"]["source"] == "http"
             assert len(operations) == before
             context.invocation_id = "foreign"
-            with pytest.raises(ToolInputError, match="unavailable"):
-                await finding(**args, request_id=selected, tool_context=context)
+            context.function_call_id = "caido-later"
+            await finding(**args, request_id=selected, tool_context=context)
+            assert client.requests[-1]["httpEvidence"]["source"] == "caido"
+            assert len(operations) == before
         finally:
             await close_tools(http)
             await close_tools(caido)
