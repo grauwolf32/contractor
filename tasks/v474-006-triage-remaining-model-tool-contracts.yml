@@ -18,10 +18,16 @@ context:
     requested that these review findings be reconciled and tracked. Individual mergers, deletions, description
     rules and live evaluations are proposals. User clarification 2026-11-21 confirms that request_id
     is Contractor's allocation-local request identifier. Runtime owns any provider-ID translation.
+    The user also questioned making the model inspect an exchange before attaching it. The review
+    recommendation is to let finding and record_fact attach the selected exchange by local ID alone.
   specification:
   - docs/spec/tools/toolsets.md#TLS-R29
   - docs/spec/tools/toolsets.md#TLS-R34
   - docs/spec/tools/http-caido.md#HTP-R72
+  - docs/spec/tools/http-caido.md#HTP-R73
+  - docs/spec/tools/http-caido.md#HTP-R89
+  - docs/spec/findings/findings.md#FND-R43
+  - docs/spec/findings/findings.md#FND-R49
   - docs/spec/findings/findings.md#FND-R238
   - docs/spec/tools/memory.md#MEM-R3
   baseline: '86db128db: 116 versioned Runtime exports, four conditional Worker/Skill tools and 30 context-specific
@@ -36,9 +42,14 @@ scope:
   - Review schema field descriptions against TLS-R30/R34 and native Skills. Keep short preconditions,
     limits, continuation, CAS and uncertain-outcome semantics. Check evidence source limits and the eight-call
     memory extraction budget at record_fact. Describe request_id consistently as the local integer
-    returned by a Contractor tool. For each consumer, state which tool results it can use and when
-    the referenced request must have been captured or inspected. Keep provider identity resolution
-    internal and preserve the existing eligibility rules for body reads and Audit evidence.
+    returned by a Contractor tool. Preserve the existing eligibility rules for body reads and Audit
+    result evidence.
+  - For finding and record_fact, distinguish an exchange already captured in the invocation from a
+    local ID returned by authorized history with only a summary. Recommend using the buffered exchange
+    directly or having Runtime read the selected stored exchange through its existing adapter. In both
+    cases the model supplies only request_id for the attachment. Check how the invocation's existing
+    access to the underlying detail is enforced when only a locator exists. Name the owning spec,
+    prompt and fixture changes needed to remove a separate model inspection call.
   - Inventory other model-facing binary previews (http_read_body and Caido). Decide metadata or an exact
     evidence reference where appropriate. Keep internal encodings, opaque cursors, and provider identities
     separate from model-visible content.
@@ -66,7 +77,11 @@ acceptance_criteria:
     from structural verification.
 - id: A3
   text: All reviewed request_id examples pass a local ID from a Contractor tool result directly to the
-    consuming tool. The examples require no provider ID, source discriminator or manual conversion.
+    consuming tool. For finding and record_fact, specify scenarios for a buffered capture and a
+    history-only ID resolved by an authorized read of the stored exchange. Each attaches the actual
+    request and available response without a model detail call or a resend to the target. Distinguish
+    an absent response (record the observed outcome) from an unknown, expired or unauthorized ID
+    (return an explicit error before submission). Preserve exact evidence on receipt replay.
 tests:
 - command: cd runtime && uv run python ../scripts/check_tasks.py
   covers:
