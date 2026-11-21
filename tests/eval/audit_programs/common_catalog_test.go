@@ -19,7 +19,7 @@ func TestCommonCatalogAssertionProfilesUseExactHypothesisTasks(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"source-checklist", "owasp-asvs-5-0-l1-source-pilot", "owasp-asvs-5-0-l1-source-review", "owasp-top10-2025-source-risk", "owasp-wstg-4-2-active-http", "owasp-wstg-4-2-fast-active-http", "owasp-wstg-4-2-fast-source-review", "owasp-wstg-4-2-source-review"} {
-		profile, err := catalog.AuditProfile(name + "@1")
+		profile, err := catalog.AuditProfile(name + "@2")
 		if err != nil || profile.Program.SeedSource == nil {
 			t.Fatalf("common assertion profile %s: %v", name, err)
 		}
@@ -69,10 +69,10 @@ func TestCommonCatalogAssertionProfilesUseExactHypothesisTasks(t *testing.T) {
 			}
 		}
 	}
-	for _, name := range []string{"openapi-operation-observe", "openapi-operation-trace", "openapi-sqlmap-scan", "openapi-nuclei-scan", "source-openapi-sqlmap-scan", "web-scan"} {
-		profile, err := catalog.AuditProfile(name + "@1")
+	for _, selector := range []string{"openapi-operation-observe@1", "openapi-operation-trace@2", "openapi-sqlmap-scan@1", "openapi-nuclei-scan@1", "source-openapi-sqlmap-scan@1", "web-scan@1"} {
+		profile, err := catalog.AuditProfile(selector)
 		if err != nil || profile.Program.Schema != "contractor.audit.program.v1" {
-			t.Fatalf("common profile %s: %v", name, err)
+			t.Fatalf("common profile %s: %v", selector, err)
 		}
 	}
 }

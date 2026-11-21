@@ -1,0 +1,48 @@
+schema_version: "1.0"
+id: V471-010
+title: Update offline Audit Eval checks to the published Project Finding profile versions
+milestone: project-facts-2026-11
+epic: quality
+kind: chore
+introduced_by: V471-001
+priority: P1
+status: in_progress
+depends_on: [V471-001]
+languages: [go, yaml, markdown]
+goal: Offline Audit Eval tests validate the actual published immutable profiles after their common Finding tool contract update.
+context:
+  authority: >-
+    User request 2026-11-21 authorizes group 2 implementation and main delivery.
+    Its full release gate exposed two stale consumers of V471-001's published
+    version-2 Audit profiles. This prerequisite repairs test references only.
+  finding: >-
+    tests/eval/audit_programs/common_catalog_test.go:22 and
+    tests/eval/audit_programs/http_engagement_test.go:40 request removed @1
+    profiles; the latter also creates a draft with Version 1 at line 103.
+    V471-001 commit 41fc498a7 published the affected identities at version 2.
+  specification:
+    - docs/spec/configuration/catalog.md
+    - docs/spec/audits/audits.md
+  siblings: >-
+    Inspect every reference in the offline Audit Eval package. Assertion profiles
+    and both HTTP draft selectors move together. Unaffected profiles retain their
+    exact versions. Test-only fixture roots with their own version-1 profiles
+    and production catalog identities are not changed.
+scope:
+  in:
+    - Pin assertion profile checks and HTTP engagement draft selectors to the actual published version-2 identities.
+    - Run the whole offline Audit Eval package, required fixtures and lint.
+  out:
+    - Changing production behavior, catalog content, model selection, single-Server lease rules or adding latest-version fallbacks.
+acceptance_criteria:
+  - id: A1
+    text: Every exact assertion profile resolves with the existing Runtime completion contract; unaffected profile checks remain explicit.
+  - id: A2
+    text: Both WSTG HTTP profiles reject generic JSON engagement and start with their exact typed trusted engagement at the published version.
+  - id: A3
+    text: The full tests/eval/audit_programs suite and lint pass with no legacy profile identities reintroduced.
+tests:
+  - command: go test -count=1 ./tests/eval/audit_programs
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
