@@ -1,0 +1,61 @@
+schema_version: '1.0'
+id: V474-004
+title: Specify the scalar and batch Audit conclusion contracts
+milestone: audit-worker-completion
+epic: audits
+kind: chore
+priority: P1
+status: pending
+depends_on: []
+languages:
+- python
+- go
+- yaml
+goal: Choose how a model associates an Audit conclusion with its assigned item and corrects a previously
+  recorded conclusion.
+context:
+  authority: Agent proposal from the model tool interface review of main 86db128db on 2026-11-21. The
+    user requested the detailed comparison and task creation. The final Audit signature is an open product
+    choice.
+  specification:
+  - docs/spec/audits/worker-completion.md#AWC-R32
+  - docs/spec/audits/worker-completion.md#AWC-R39
+  - docs/spec/audits/worker-completion.md#AWC-R126
+  - docs/spec/audits/worker-completion.md#AWC-R128
+  current: runtime/src/contractor_runtime/toolsets/audit_results/v2.py:108 advertises nine optional fields.
+    A scalar may omit the key for one assignment. A batch uses trusted assignment order. A reordered pair
+    of independently valid conclusions can therefore be attributed to the wrong items. Reconcile AWC-R30–R42
+    with the live common-context vocabulary before using them as acceptance.
+  decision_needed: Recommend flat submit_check_result and a separate submit_check_results(items), with
+    each batch element keyed. Compare one scalar-only operation (least surface, more calls), and whether
+    a singleton can omit its known key. Record the user choice before changing code or shipped schemas.
+scope:
+  in:
+  - Record exact JSON examples and required fields for a hypothesis, exploration, correction and reversed
+    two-item batch. Proposed scalar has item_key, rationale, tested_conditions and limitations, optional
+    evidence, http_request_ids, verdict enum and expected_revision. read_audit_task already provides keys
+    and evidence handles. Assess whether revision or verdict guidance actually needs adding.
+  - Document full-set, unique-key validation, 64-item bound, all-or-nothing collector acceptance, existing
+    identical replay and scalar CAS corrections. Prepared evidence artifacts may survive later rejection.
+    Keep selected HTTP evidence within AWC-R126. Record effects on read/submit contracts, exact template
+    versions, recovery and deterministic result assembly.
+  out:
+  - Starting implementation before choosing the contract, live verification actions, extending HTTP evidence
+    to Caido, and moving final publication into the model.
+acceptance_criteria:
+- id: A1
+  text: A recorded product decision settles operation count, singleton key behavior, field names and verdict
+    applicability, with an old/new example for each route. User authority and unresolved options are explicit.
+- id: A2
+  text: The chosen surface states what happens to a missing, unknown, duplicate or reordered key and a
+    stale or replayed correction. List every current allowlist and owning spec that will change, and fixture
+    cases for the eventual implementation.
+tests:
+- command: cd runtime && uv run pytest tests/test_audit_results_toolset.py tests/test_audit_result_collector.py
+  covers:
+  - A1
+  - A2
+- command: cd runtime && uv run python ../scripts/check_tasks.py
+  covers:
+  - A1
+  - A2
