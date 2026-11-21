@@ -6,7 +6,7 @@ epic: planner-worker
 kind: chore
 introduced_by: V474-003
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V474-003, V474-004]
 languages: [go]
 goal: Derived Audit scenarios reach their assigned checker without retaining an unintended ordinary report stage.
@@ -42,3 +42,12 @@ tests:
   covers: [A1, A2]
 - command: make lint
   covers: [A1, A2]
+implementation_commit: 9e62b79900191319bf1e5de8d0683587ef6b6386
+verification:
+  date: '2026-11-22'
+  result: >-
+    The complete untagged E2E helper package passed. All three listed real-process roots passed
+    in 37.545 seconds, preserving trusted result receipts, lost-acknowledgement reconciliation,
+    compaction cancellation and fixed hypothesis pins. Required fixture replacements now require
+    exactly one source match; both seeded derivatives use one shared constructor and initial-work
+    definition. Full make lint passed. Production source and configured models are unchanged.
