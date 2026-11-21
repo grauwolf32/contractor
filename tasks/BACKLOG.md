@@ -38,7 +38,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | — | Expose bounded truthful Planner compaction diagnostics |
 | [V469-001](v469-001-opencode-audit-prototype.yml) | chore | P1 | — | Prove two ordinary Runs can reuse one OpenCode Audit container |
 | [V474-001](v474-001-reject-unknown-model-tool-arguments.yml) | feature | P1 | — | Reject undeclared model tool arguments before execution |
-| [V474-005](v474-005-decide-image-artifact-model-transport.yml) | chore | P2 | — | Decide how a configured vision model receives an image artifact |
+| [V474-005](v474-005-image-artifact-model-transport.yml) | feature | P2 | V474-002 | Deliver image artifacts to vision-capable models through read_artifact |
 | [V474-006](v474-006-triage-remaining-model-tool-contracts.yml) | chore | P2 | — | Review remaining tool simplifications against actual callers |
 
 ### HTTP and Caido tools (`http-tools`)
@@ -168,7 +168,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 3 | 50 | 70 | 40 | 107 |
-| Planners and the Worker model boundary (`planner-worker`) | 8 | 40 | 60 | 41 | 94 |
+| Planners and the Worker model boundary (`planner-worker`) | 8 | 41 | 60 | 40 | 94 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 0 | 7 | 9 | 3 | 15 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |

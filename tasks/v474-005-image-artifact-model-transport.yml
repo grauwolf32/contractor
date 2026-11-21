@@ -1,0 +1,77 @@
+schema_version: '1.0'
+id: V474-005
+title: Deliver image artifacts to vision-capable models through read_artifact
+milestone: model-policy-runtime-correctness
+epic: planner-worker
+kind: feature
+priority: P2
+status: pending
+depends_on: [V474-002]
+languages: [python, go, yaml]
+goal: A Worker using a configured vision-capable model can inspect a supported image by reading its exact artifact.
+demonstration: >-
+  Give a Worker an exact PNG fixture, have it call read_artifact and capture the next request on the
+  configured Gateway protocol. Decode the image part at the receiver and compare its pixels with the fixture.
+  Exercise the same call with text-only capabilities and check the model-visible outcome.
+context:
+  authority: >-
+    User decision 2026-11-21 approves image delivery through the common read_artifact for vision-capable models.
+    Text reads are delivered under V474-002. Runtime selects the representation using admitted media and
+    the effective model/Gateway capabilities.
+  specification:
+    - docs/spec/artifacts/artifact-store.md#ART-R117
+    - docs/spec/tools/toolsets.md#TLS-R4
+  current: >-
+    runtime/src/contractor_runtime/llm/openai.py serializes function response contents as JSON text.
+    The existing artifact reader rejects normal image media at metadata preflight. Both boundaries need
+    to support the same successful read.
+scope:
+  in:
+    - Carry a supported image from an authorized exact Artifact read through Worker history, ADK and the configured Gateway message format with the associated tool call and exact ref.
+    - Establish supported media, capability source and bounded handling for the selected model route. Update ART-R117, the model transport specification and relevant limit owners in the implementation.
+  out:
+    - Switching the configured model, remote URLs for private images, binary authoring and browser UI previews.
+requirements:
+  - id: R1
+    text: >-
+      read_artifact returns text pages for text. A supported image reaches a vision-capable route as a
+      multimodal image part. Base64, where required by the provider encoding, stays inside that part.
+      Preserve the exact revision and the normal allocation access rules.
+  - id: R2
+    text: >-
+      For a text-only route, unconfirmed image support or unsupported format, return a bounded,
+      explicit unavailable outcome with only authorized metadata. Prevent silent omission and keep
+      capability checks tied to the configured route for the invocation.
+failure_outcomes:
+  - operation: Read and forward an image
+    permanent: Reject denied bindings, invalid image data and limit violations explicitly. Preserve the existing private binding concealment.
+    retryable: Preserve existing ArtifactClient and Gateway failure classes, deadlines and retry budgets.
+    ambiguous: Read and any permitted replay use the resolved exact revision and retain tool call correlation.
+    cancelled: Join in-flight read and decode work before allocation cleanup.
+    timeout: Apply existing read and model-call deadlines to their respective operations.
+cardinality:
+  - collection: Image data for a bounded tool result and its subsequent model request
+    bound: >-
+      Define and enforce media, encoded byte, decoded pixel and aggregate message/context limits.
+      Apply bounds before expensive allocations and cover exact-bound and over-bound inputs.
+lifecycle:
+  - entity: Transient image representation
+    retention: >-
+      Keep artifact retention and access authority with the Artifact owner. Define replay and compaction
+      of exact image refs within existing history budgets. Keep image payloads out of diagnostics and logs.
+acceptance_criteria:
+  - id: A1
+    text: A Worker-to-Gateway test inspects the serialized request for the actual image, its association with the selected call and exact source, and absence of encoded bytes in text fields.
+  - id: A2
+    text: Text reading still works on both model types. A text-only or unsupported route gets the documented outcome. Denied refs and corrupt, unsupported or oversized images never reach the model as image parts.
+  - id: A3
+    text: Exercise budget limits, replay after a binding changes, compaction, cancellation and telemetry redaction. Distinguish protocol-fixture success from route compatibility in the verification report.
+tests:
+  - command: cd runtime && uv run pytest tests/test_openai_gateway_llm.py tests/test_adk_gateway_conformance.py
+    covers: [A1, A2, A3]
+  - command: make test-runtime
+    covers: [A1, A2, A3]
+  - command: make test-e2e
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A3]
