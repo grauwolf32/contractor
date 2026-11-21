@@ -22,9 +22,8 @@ from contractor_runtime.toolsets.common.artifact_write import (
 )
 from contractor_runtime.toolsets.common.memory_codec import (
     SCHEMA_VERSION,
-    StoredMemoryNote,
     artifact_name,
-    encode_note,
+    decode_note,
 )
 
 SNAPSHOT_SCHEMA = "contractor.memory-snapshot/v1"
@@ -55,9 +54,12 @@ def select_memory(data: bytes, name: str) -> bytes:
     for note in notes:
         if not isinstance(note, dict) or set(note) != {"name", "content", "description", "tags"}:
             raise ValueError("invalid exported memory")
-        # The Server's snapshot validator checks the same stored-note encoding
-        # with ordinal zero. No ordinal is exposed or invented in exported evidence.
-        encode_note(StoredMemoryNote(SCHEMA_VERSION, **note, ordinal=0))
+        # Decode the original representation strictly; Encode would normalize
+        # malformed tags before checking the stored-note byte bound.
+        decode_note(
+            artifact_name(note["name"]),
+            jcs.canonicalize({"schemaVersion": SCHEMA_VERSION, **note, "ordinal": 0}),
+        )
         names.append(note["name"])
     if names != sorted(set(names)) or jcs.canonicalize(snapshot) != data:
         raise ValueError("memory snapshot must be canonical and unambiguous")

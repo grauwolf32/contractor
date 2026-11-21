@@ -1,7 +1,7 @@
 # Факты на общем пути Findings
 
-Статус на 2026-11-21: обе группы реализованы и приняты; полный
-`make -k release-verify` пройден. Ниже схемы реализованного решения.
+Статус на 2026-11-21: обе группы реализованы и приняты. Ниже схемы
+реализованного решения с поправками после ревью.
 Текущий контракт остаётся в [Findings](../spec/findings/findings.md),
 [Memory](../spec/tools/memory.md) и
 [Server operations](../spec/execution/server-operations.md).
@@ -62,6 +62,9 @@ receipt, Finding ID, источники, точные артефакты, reader
 - Использовать локальные request ID для HTTP/Caido, убрать `caido_request_id`
   из `record_fact` и обычного `finding`. Общий пересмотр остальных интерфейсов
   обсудить позднее. Изменение владельцев HTTP identity выделено в V471-007.
+- После ревью: проверять аргументы до подготовки memory evidence. Обычный
+  Artifact может остаться при последующем отказе intake; атомарно публикуются
+  Finding и receipt. Распределённый rollback не вводится.
 
 Ниже реализованный дизайн. Группа 2 принята после явного возобновления
 пользователем. Live-вызовы и deploy не выполнялись. Удаление незавершённого
@@ -76,10 +79,11 @@ V471-001 реализована и проверена. Она переводит
 
 ```mermaid
 flowchart TD
-    W["Worker вызывает finding или record_fact"] --> R["Runtime собирает FindingProposal"]
-    R --> S["Server: доверенный origin и receipt replay"]
+    W["Worker вызывает finding или record_fact"] --> R["Runtime проверяет аргументы и лимиты"]
+    R --> M["При memory_name: проверить snapshot<br/>подготовить обычный memory Artifact"]
+    M --> S["Server: доверенный origin и receipt replay"]
     S --> V{"Активный Project<br/>и выбранные точные источники?"}
-    V -->|"нет"| E["Ошибка до записи payload, Artifact и receipt"]
+    V -->|"нет"| E["Отказ intake: Finding и receipt не записаны<br/>подготовленный Artifact остаётся материалом Run"]
     V -->|"да"| F["Общая транзакция Findings:<br/>удержать материалы, сохранить receipt,<br/>принять Project Finding"]
     F --> I["Вернуть receipt ID и Finding ID<br/>оценка аналитика остаётся незаданной"]
 ```
@@ -215,9 +219,11 @@ flowchart TD
     A --> T["Stage extract-facts<br/>passthrough@1, один Worker"]
     T --> W["LLM: факт своими словами<br/>+ memory_name"]
     W --> R["Общий record_fact<br/>найти оригинал в выбранном snapshot"]
-    R --> E["Детерминированно сохранить оригинальную memory<br/>как singleton memory-snapshot/v1<br/>обычный exact evidence"]
+    R --> V["Проверить аргументы, лимиты и Audit-привязки<br/>строго проверить исходную memory"]
+    V --> E["Детерминированно сохранить оригинальную memory<br/>как singleton memory-snapshot/v1<br/>обычный exact evidence"]
     E --> F["Общий Finding intake<br/>корреляция по evidence + receipt"]
     F --> P["Project Finding и его источники"]
+    F -->|"отказ intake"| Q["Finding не создан<br/>Artifact остаётся обычным материалом Run"]
     P -.->|"по явному выбору"| H["Точный материал hypothesis.sources"]
 ```
 
@@ -230,6 +236,13 @@ Memory owner интерпретирует memories; ArtifactStore остаётс
 Runtime сохраняет исходные name, content, description и tags выбранной memory,
 без переписывания моделью. К факту прикладывается оригинал выбранной memory,
 а не весь общий snapshot: другие memories не становятся его evidence.
+Строгий декодер Memory отклоняет повторяющиеся/несортированные tags и превышение
+размера. После отказа intake подготовленный Artifact сохраняется по обычным
+правилам Run и переиспользуется при повторе.
+
+В `project-facts-extract@2` методика работы с инструментами задаётся только
+AgentTemplate; Stage содержит короткую постановку задачи.
+
 Происхождение exact snapshot остаётся доступно через обычные механизмы
 Artifact/provenance; не помещать случайные call IDs или временные метки в
 байты оригинала, влияющие на correlation. Это оригинальная memory из frozen
@@ -275,9 +288,15 @@ sequenceDiagram
     W->>L: Выбранные memories и краткая инструкция
     loop До 8 фактов; 0 допустим
         L->>W: record_fact(title, description, memory_name)
+        W->>W: Аргументы, лимиты, Audit-привязки и строгая проверка memory
         W->>A: Детерминированно сохранить оригинал выбранной memory
         W->>F: Общий intake с exact evidence
-        F-->>W: Receipt и Project Finding ID
+        alt Принято
+            F-->>W: Receipt и Project Finding ID
+        else Отказ intake
+            F-->>W: Ошибка без Finding и receipt
+            Note over W,A: Подготовленный Artifact остаётся материалом Run
+        end
         W-->>L: Результат сохранения
     end
     W-->>S: Обычный Worker completion и отчёт
@@ -316,7 +335,7 @@ flowchart TD
     C["record_fact или informational finding"] --> R{"Receipt этого вызова уже есть?"}
     R -->|"да"| E["Вернуть прежний результат"]
     R -->|"нет"| P{"Активный Project?"}
-    P -->|"нет"| X["Отклонить до записи"]
+    P -->|"нет"| X["Отклонить intake до записи Finding и receipt"]
     P -->|"да"| S
     subgraph TX["Существующая транзакция под Project и execution fences"]
         S["Повторить проверки полномочий<br/>прочитать metadata выбранных exact evidence"] --> D["contractor/fact-evidence/v1<br/>SHA-256 от sorted unique digest"]

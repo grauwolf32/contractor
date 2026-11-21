@@ -3,6 +3,7 @@
 import asyncio
 import json
 from copy import deepcopy
+from unittest.mock import AsyncMock
 
 import jcs
 import pytest
@@ -62,7 +63,8 @@ def make_tool(artifacts, source):
 
 
 @pytest.mark.parametrize("lose_reply", [False, True])
-def test_original_memory_is_exact_free_form_and_reconciles_lost_reply(lose_reply):
+@pytest.mark.parametrize("extra_sources", [0, 3])
+def test_original_memory_is_exact_free_form_and_reconciles_lost_reply(lose_reply, extra_sources):
     async def scenario():
         artifacts = MemorySources(lose_reply=lose_reply)
         original = snapshot()
@@ -70,6 +72,10 @@ def test_original_memory_is_exact_free_form_and_reconciles_lost_reply(lose_reply
             "snapshot", "selected", "application/json", jcs.canonicalize(original)
         )
         tool, client, _ = make_tool(artifacts, source)
+        other_evidence = [
+            artifacts.seed("source", f"proof_{i}", "text/plain", b"Evidence")
+            for i in range(extra_sources)
+        ]
         # The mutable binding changes, while the assigned exact revision stays pinned.
         changed = deepcopy(original)
         changed["notes"][1]["content"] = "New current memory must not replace the original"
@@ -79,10 +85,12 @@ def test_original_memory_is_exact_free_form_and_reconciles_lost_reply(lose_reply
                 title="Технология сервиса",
                 description="Наблюдение своими словами, без дословной цитаты.",
                 memory_name="technology",
+                evidence_refs=other_evidence,
                 tool_context=context(call),
             )
             assert result["finding_id"]
-            assert len(result["evidence_refs"]) == 1
+            assert len(result["evidence_refs"]) == 1 + extra_sources
+            assert len(client.requests[-1]["proposal"]["evidence_ids"]) == 1 + extra_sources
             request = client.requests[-1]
             assert request["incidental"] is True and "itemKey" not in request
             assert request["proposal"]["description"].startswith("Наблюдение своими словами")
@@ -123,6 +131,68 @@ def test_invalid_memory_selection_never_submits_a_finding(kind):
                 tool_context=context(),
             )
         assert not client.requests and artifacts.write_calls == 0
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("kind", ["title", "description", "source-limit", "invalid-ref", "audit"])
+def test_invalid_fact_arguments_do_not_materialize_original_memory(kind):
+    async def scenario():
+        artifacts = MemorySources()
+        source = artifacts.seed(
+            "snapshot", "selected", "application/json", jcs.canonicalize(snapshot())
+        )
+        tool, client, state = make_tool(artifacts, source)
+        arguments = {
+            "title": "Observation",
+            "description": "Reported technology",
+            "memory_name": "technology",
+        }
+        if kind == "title":
+            arguments["title"] = ""
+        elif kind == "description":
+            arguments["description"] = "x" * (32 * 1024)
+        elif kind == "source-limit":
+            arguments["evidence_refs"] = [
+                artifacts.seed("source", f"evidence_{i}", "text/plain", b"Evidence")
+                for i in range(4)
+            ]
+        elif kind == "invalid-ref":
+            arguments["evidence_refs"] = [ArtifactRef(namespace="source", name="inexact")]
+        else:
+            from audit_fixtures import assigned
+            from test_audit_result_collector import tool_for
+
+            _, inputs = assigned()
+            collector, _, _ = tool_for(inputs)
+            state.resources.proposal_collector = lambda: collector
+            arguments.update(item_key="unknown-item", incidental=False)
+        with pytest.raises(ToolInputError):
+            await tool(**arguments, tool_context=context())
+        assert artifacts.write_calls == 0 and not client.requests
+
+    asyncio.run(scenario())
+
+
+def test_intake_rejection_keeps_source_and_retry_reuses_it(monkeypatch):
+    async def scenario():
+        artifacts = MemorySources()
+        source = artifacts.seed(
+            "snapshot", "selected", "application/json", jcs.canonicalize(snapshot())
+        )
+        tool, client, _ = make_tool(artifacts, source)
+        submit = client.submit
+        rejection = AsyncMock(side_effect=ArtifactAPIError(400, "invalid_finding_request", False))
+        monkeypatch.setattr(client, "submit", rejection)
+        arguments = {"title": "Technology", "description": "Reported", "memory_name": "technology"}
+        with pytest.raises(ArtifactAPIError):
+            await tool(**arguments, tool_context=context())
+        saved = [key for key in artifacts.bindings if key[0] == "facts"]
+        assert len(saved) == 1 and not client.requests
+        monkeypatch.setattr(client, "submit", submit)
+        result = await tool(**arguments, tool_context=context())
+        assert result["finding_id"]
+        assert [key for key in artifacts.bindings if key[0] == "facts"] == saved
 
     asyncio.run(scenario())
 

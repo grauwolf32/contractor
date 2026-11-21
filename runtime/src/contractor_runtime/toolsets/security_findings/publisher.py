@@ -35,6 +35,7 @@ from contractor_runtime.toolsets.security_findings.memories import (
 )
 from contractor_runtime.toolsets.security_findings.submission import (
     build_submission,
+    normalize_evidence_refs,
     validate_informational_payload,
 )
 
@@ -133,16 +134,6 @@ class FindingPublisher:
                 if reference not in standards:
                     standards.append(reference)
             exchange = await self._http_evidence(request_id, context.invocation_id)
-            if memory_name is not None:
-                if self.artifacts is None:
-                    raise RuntimeError("Memory evidence requires an Artifact client")
-                snapshot = self.resources.invocation_artifacts.get("memories")
-                if snapshot is None:
-                    raise ToolInputError(
-                        "memory_name requires the assigned exact memories snapshot"
-                    )
-                ref = await memory_evidence(self.artifacts, snapshot, memory_name, self.namespace)
-                refs.append(ref.model_dump(exclude_none=True))
             request = build_submission(
                 invocation_id=context.invocation_id,
                 client_key=call_client_key(context),
@@ -156,11 +147,17 @@ class FindingPublisher:
                 incidental=incidental,
             )
             proposal = request["proposal"]
+            # Account for the selected memory in the authored size/source bounds
+            # before materializing it. Its exact ref is filled after all preflights.
+            if memory_name is not None:
+                proposal["evidence_ids"].append(f"evidence-{len(refs) + 1}")
             if normalized:
                 proposal["locations"] = normalized
             if exchange is not None:
                 request["httpEvidence"] = exchange
-            validate_informational_payload(proposal, len(refs) + (exchange is not None))
+            validate_informational_payload(
+                proposal, len(refs) + (exchange is not None) + (memory_name is not None)
+            )
             audit_binding = self.resources.proposal_collector
             audit_collector = audit_binding() if audit_binding is not None else None
             if audit_collector is not None:
@@ -175,6 +172,18 @@ class FindingPublisher:
             # same problem as its own field error.
             for reference in proposal["standard_refs"]:
                 check_cwe_reference(reference)
+            if memory_name is not None:
+                if self.artifacts is None:
+                    raise RuntimeError("Memory evidence requires an Artifact client")
+                snapshot = self.resources.invocation_artifacts.get("memories")
+                if snapshot is None:
+                    raise ToolInputError(
+                        "memory_name requires the assigned exact memories snapshot"
+                    )
+                ref = await memory_evidence(self.artifacts, snapshot, memory_name, self.namespace)
+                request["evidenceRefs"] = normalize_evidence_refs(
+                    [*request["evidenceRefs"], ref.model_dump(exclude_none=True)]
+                )
             if self.artifacts is not None and proposal["severity_suggestion"] != "informational":
                 request["derived_anchors"] = await prepare_anchors(
                     self.artifacts, request, self.sources

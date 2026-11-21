@@ -79,7 +79,17 @@ func validateSnapshot(data []byte, selection memorycontract.SnapshotSelection) e
 		if note.Name != selection.Names[i] || note.Tags == nil {
 			return ErrSnapshotInvalid
 		}
-		if _, err := Encode(StoredNote{SchemaVersion: SchemaVersion, Name: note.Name, Content: note.Content, Description: note.Description, Tags: note.Tags}); err != nil {
+		binding, err := ArtifactName(note.Name)
+		if err != nil {
+			return ErrSnapshotInvalid
+		}
+		// Validate the original representation. Encode normalizes tags and can
+		// hide malformed or oversized source notes before its byte check.
+		original, err := strictjson.Canonical(StoredNote{SchemaVersion: SchemaVersion, Name: note.Name, Content: note.Content, Description: note.Description, Tags: note.Tags})
+		if err != nil {
+			return ErrSnapshotInvalid
+		}
+		if _, err := Decode(binding, original); err != nil {
 			return ErrSnapshotInvalid
 		}
 	}

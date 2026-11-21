@@ -54,28 +54,7 @@ def build_submission(
     if not isinstance(invocation_id, str) or INVOCATION_ID.fullmatch(invocation_id) is None:
         raise ValueError("Worker invocation identity is invalid")
 
-    if not isinstance(evidence_refs, list) or len(evidence_refs) > MAX_EVIDENCE:
-        raise ToolInputError("evidence_refs must be an array of at most 256 exact ArtifactRefs")
-    refs: list[dict[str, str]] = []
-    seen_refs: set[tuple[str, str, str]] = set()
-    for raw in evidence_refs:
-        try:
-            ref = ArtifactRef.model_validate(raw).require_exact()
-        except (ValidationError, ValueError) as error:
-            raise ToolInputError(
-                "evidence_refs contains an invalid exact ArtifactRef; provide namespace, name "
-                "and a non-empty revision"
-            ) from error
-        if not (ref.revision is not None):
-            raise RuntimeError("Expected ref.revision is not None")
-        if is_model_hidden_binding(ref.namespace, ref.name):
-            raise ToolInputError("evidence_refs contains a reserved Artifact binding")
-        key = (ref.namespace, ref.name, ref.revision)
-        if key in seen_refs:
-            raise ToolInputError("evidence_refs contains a duplicate; include each reference once")
-        seen_refs.add(key)
-        refs.append(ref.model_dump(by_alias=True, exclude_none=True))
-    refs.sort(key=lambda value: (value["namespace"], value["name"], value["revision"]))
+    refs = normalize_evidence_refs(evidence_refs)
 
     standards = _object_list(
         "standard_refs", standard_refs, {"scheme", "version", "requirement_id"}, MAX_VALUES
@@ -126,6 +105,31 @@ def build_submission(
         _identifier("item_key", item_key)
         request["itemKey"] = item_key
     return request
+
+
+def normalize_evidence_refs(evidence_refs: list[dict[str, str]]) -> list[dict[str, str]]:
+    if not isinstance(evidence_refs, list) or len(evidence_refs) > MAX_EVIDENCE:
+        raise ToolInputError("evidence_refs must be an array of at most 256 exact ArtifactRefs")
+    refs: list[dict[str, str]] = []
+    seen_refs: set[tuple[str, str, str]] = set()
+    for raw in evidence_refs:
+        try:
+            ref = ArtifactRef.model_validate(raw).require_exact()
+        except (ValidationError, ValueError) as error:
+            raise ToolInputError(
+                "evidence_refs contains an invalid exact ArtifactRef; provide namespace, name "
+                "and a non-empty revision"
+            ) from error
+        if ref.revision is None:
+            raise RuntimeError("Expected ref.revision is not None")
+        if is_model_hidden_binding(ref.namespace, ref.name):
+            raise ToolInputError("evidence_refs contains a reserved Artifact binding")
+        key = (ref.namespace, ref.name, ref.revision)
+        if key in seen_refs:
+            raise ToolInputError("evidence_refs contains a duplicate; include each reference once")
+        seen_refs.add(key)
+        refs.append(ref.model_dump(by_alias=True, exclude_none=True))
+    return sorted(refs, key=lambda value: (value["namespace"], value["name"], value["revision"]))
 
 
 def _object_list(

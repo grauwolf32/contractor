@@ -13,6 +13,7 @@ from test_caido_read_tools import (
     close_tools,
     create_tools,
     representative_responses,
+    request_summary,
 )
 from test_finding_facades import finding_tool
 from test_http_toolset import make_tools
@@ -20,7 +21,12 @@ from test_security_findings_toolset import FakeFindingClient
 
 from contractor_runtime.contracts.base import MAX_EXACT_INTEGER
 from contractor_runtime.core.input_errors import ToolInputError
-from contractor_runtime.toolsets.caido.tools import CaidoToolError
+from contractor_runtime.toolsets.caido.tools import (
+    MAX_TOOL_RESULT_BYTES,
+    CaidoToolError,
+    _request_summary,
+    _tool_result_json,
+)
 from contractor_runtime.toolsets.common.http_capture import RecentHTTPCaptures
 from contractor_runtime.toolsets.security_findings.facades import (
     GeneralFindingsToolsetFactory,
@@ -52,6 +58,75 @@ def test_local_locator_bound_nonreuse_wrong_source_and_exhaustion():
     captures._next_local_id = MAX_EXACT_INTEGER + 1
     with pytest.raises(ValueError, match="exhausted"):
         captures.new_http_request()
+
+
+def test_automate_missing_request_returns_the_local_id(tmp_path):
+    async def scenario():
+        responses = representative_responses(b"", b"")
+        responses["RequestDetail"] = {"request": None}
+        operations = []
+
+        async def handler(request):
+            payload = json.loads(request.content)
+            operations.append(payload)
+            return httpx.Response(200, json={"data": responses[payload["operationName"]]})
+
+        tools, _, handle = await create_tools(
+            tmp_path,
+            handler,
+            FakeArtifactClient(),
+            selected={"caido_history", "caido_automate_run"},
+        )
+        try:
+            history = await tools["caido_history"]()
+            selected = history["requests"][0]["request_id"]
+            result = await tools["caido_automate_run"](selected, targets=["target"], payloads=["x"])
+            assert result == {"request_id": selected, "status": "not_found"}
+            assert type(result["request_id"]) is int
+            assert operations[-1]["variables"] == {"id": "request-1"}
+        finally:
+            await close_tools(tools)
+            await handle.close()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("overflow", [False, True])
+def test_caido_result_bound_applies_after_local_id_translation(tmp_path, overflow):
+    nodes = [dict(request_summary(), id=str(i + 1), path="/" + "a" * 7999) for i in range(100)]
+    original = {"count": 100, "offset": 0, "requests": [_request_summary(row) for row in nodes]}
+    # Short provider string IDs -> local integers add six JSON bytes per row.
+    target_bytes = MAX_TOOL_RESULT_BYTES if overflow else MAX_TOOL_RESULT_BYTES - 600
+    remaining = target_bytes - len(_tool_result_json(original))
+    for node in nodes:
+        size = min(remaining, 8000)
+        node["query"] = "q" * size
+        remaining -= size
+    assert remaining == 0
+
+    async def handler(request):
+        assert json.loads(request.content)["operationName"] == "RequestsByOffset"
+        return httpx.Response(
+            200, json={"data": {"requestsByOffset": {"count": {"value": 100}, "nodes": nodes}}}
+        )
+
+    async def scenario():
+        tools, _, handle = await create_tools(
+            tmp_path, handler, FakeArtifactClient(), selected={"caido_history"}
+        )
+        try:
+            if overflow:
+                with pytest.raises(CaidoToolError) as error:
+                    await tools["caido_history"](limit=100)
+                assert error.value.code == "caido_response_too_large"
+            else:
+                result = await tools["caido_history"](limit=100)
+                assert len(_tool_result_json(result)) == MAX_TOOL_RESULT_BYTES
+        finally:
+            await close_tools(tools)
+            await handle.close()
+
+    asyncio.run(scenario())
 
 
 @pytest.mark.parametrize("facade", ["general", "http", "fact"])

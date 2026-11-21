@@ -1832,9 +1832,13 @@ not change when another source or check arrives.
 **FND-R210.** Direct `finding` and `record_fact` calls require an active ordinary
 Project and selected exact evidence. A successful call always admits a Project
 Finding and returns its identity with the immutable receipt; there is no direct
-publication flag or proposal-only success. Reject a projectless call before any
-payload, Artifact or receipt write. Invalid evidence/admission fails atomically
-through the existing permanent intake error. Supporting observations, positive
+publication flag or proposal-only success. Server rejects a projectless call
+before staging intake payloads or writing a Finding or receipt. Invalid
+evidence/admission fails atomically within intake through the existing permanent
+error. Runtime validates authored arguments/size, source counts and applicable
+Audit bindings before materializing memory evidence. Preparatory ordinary Run
+Artifacts can remain if subsequent intake rejects the call; they follow ordinary
+Run retention and do not imply a saved Finding. Supporting observations, positive
 properties and refuted checks can still be ordinary check/report Artifacts.
 `record_fact` is a separately selected `security-findings@1` facade over the same
 publisher, assigning producer `severity_suggestion=informational`. Ordinary
@@ -2178,7 +2182,14 @@ Runtime preserves the selected original namespace, name, content, description
 and tags as a canonical singleton `contractor.memory-snapshot/v1` ordinary
 JSON Artifact in the selected Worker namespace. Its content-derived binding
 uses ordinary create-only Artifact CAS and exact-byte reconciliation. The
-common publisher selects that exact Artifact as one evidence source, retains
+snapshot validator reuses strict Memory decoding, including original sorted
+unique tags and the stored-note byte bound; it does not normalize malformed input.
+On a later intake rejection, the prepared Artifact remains ordinary Run material
+and can be reused by a retry. Finding intake owns atomic publication of the
+Finding and receipt, while Runtime owns preparation of the source material.
+This boundary deliberately avoids a distributed rollback; reopen it if retained
+unused Run materials become an operational problem. The common publisher selects
+that exact Artifact as one evidence source, retains
 informational severity and the existing item_key/incidental semantics. Other
 selected evidence follows FND-R210 and counts toward the same source limit.
 Repeated selected original contents use the evidence correlation of FND-R236;

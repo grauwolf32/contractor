@@ -256,8 +256,11 @@ export without partial output. The existing 32-KiB note bound still applies.
 **MEM-R101.** The complete canonical JSON snapshot is at most 512 KiB
 (LIM-MEM-10). Its root has exactly `schemaVersion`
 (`contractor.memory-snapshot/v1`), `namespace` and `notes`. Each selected note
-has exactly `name`, `content`, `description` and `tags`. Logical labels and
-selected content are intentional exported material; physical Memory bindings,
+has exactly `name`, `content`, `description` and `tags`. Selected notes must pass
+strict stored-note validation (using ordinal zero),
+including sorted unique tags and the original 32-KiB bound. No normalization
+repairs an invalid snapshot. Logical labels and selected content are intentional
+exported material; physical Memory bindings,
 hidden revisions, ordinals and timestamps are absent. Content never enters
 operation diagnostics, telemetry or its count-only Stage summary. This export
 does not grant ordinary tools access to reserved Memory bindings.

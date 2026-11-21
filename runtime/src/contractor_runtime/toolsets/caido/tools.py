@@ -1321,7 +1321,12 @@ class _CaidoTool(ArtifactObservingTool):
         for row in identity_rows:
             row["request_id"] = self._session._captures.local_id("caido", row.pop("id"))
         rows = []
-        if self.name in {"caido_replay", "caido_request_detail", "caido_workflow_run"}:
+        if self.name in {
+            "caido_replay",
+            "caido_request_detail",
+            "caido_workflow_run",
+            "caido_automate_run",
+        }:
             if "request_id" in result and not identity_rows:
                 rows = [result]
         elif self.name == "caido_automate_results":
@@ -1354,6 +1359,7 @@ class _CaidoTool(ArtifactObservingTool):
             except ValueError:
                 raise CaidoToolError("caido_request_invalid") from None
             result = self._session.redact_result(result)
+            result = _bounded_result(result)
             call.succeed(summary(result))
             return result
 
