@@ -6,7 +6,7 @@ epic: quality
 kind: chore
 introduced_by: V458-018
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V458-018]
 languages: [typescript, markdown]
 goal: Real-stack journeys select the existing exact Workflow and inspect its input/result region through the current Library interface.
@@ -44,3 +44,9 @@ tests:
     covers: [A1, A2]
   - command: make lint
     covers: [A1, A2]
+
+implementation_commit: 70c09f3dfaf55d89bc80cf758a0b7013fe70ca2c
+verification:
+  - The complete real UI-stack group A passed (492.657 s), including all 119 browser journeys with zero skipped, unexpected or flaky cases. Both corrected journeys completed exact input, focus, draft-retention and downstream source/secret-boundary assertions.
+  - make ui-verify passed on the final formatted source (228 test files, 2572 passes and one intentional negative test; seventeen static Server checks, typecheck, lint and production build).
+  - make lint and whitespace checks passed. Production UI, metadata, catalog and public contracts are unchanged by this test-only correction.
