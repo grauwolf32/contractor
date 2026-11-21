@@ -5,7 +5,7 @@ milestone: runtime-maintenance-2026-10
 epic: planner-worker
 kind: chore
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - python
@@ -138,3 +138,5 @@ tests:
   - A1
   - A2
   - A3
+implementation_commit: 3fa0681b5b172db26417a0d02bda79cfb68612cd
+verification: All candidates have caller evidence, a disposition and a validation scenario. Tracker validation passes for all 1698 task records. This review establishes no live-model quality result.
