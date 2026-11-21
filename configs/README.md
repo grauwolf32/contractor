@@ -59,8 +59,8 @@ continuation has a 30-minute allowance capped by the Server's Planner timeout,
 and retains the original task, Worker selection, namespace, recorded artifacts
 and selected Memory. Normal completion follows the original Stage graph.
 Existing Streamline variants already use that Planner. Bounded Audit Workers
-have no terminal summarizer; the short artifact-copy and Podman smoke fixtures
-retain their direct passthrough completion and failure checks.
+have no terminal summarizer. The Podman smoke fixture retains direct passthrough
+completion and failure checks; artifact-copy executes as a Server operation.
 
 All shipped Streamline/Router Planner Stages and summary-continuation targets
 explicitly select `compact@1` with the shared generated `compactor@1` ModelPolicy

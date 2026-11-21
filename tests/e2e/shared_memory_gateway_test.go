@@ -210,7 +210,7 @@ func (g *sharedMemoryGateway) next(
 	if schemaErr := validateSharedMemoryTools(request, scenario, worker, g.productionTemplates); schemaErr != nil {
 		return nil, "", "", "", 0, "", fmt.Errorf("%s: %w", scenario, schemaErr)
 	}
-	if g.productionTemplates && worker && (!strings.Contains(string(encoded), "## Shared Memory") || !strings.Contains(string(encoded), "write only the declared result")) {
+	if g.productionTemplates && worker && (!strings.Contains(string(encoded), "## Shared Memory") || !strings.Contains(string(encoded), "Compose the requested report or review")) {
 		return nil, "", "", "", 0, "", errors.New("production Worker lost its authored domain/Memory instructions")
 	}
 	if transcriptErr := validateMemoryTranscript(request); transcriptErr != nil {
