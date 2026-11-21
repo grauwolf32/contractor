@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-67 open tasks: 9 in progress, 45 pending, 13 deferred. 1625 finished: 1607 completed, 18 archived.
+68 open tasks: 9 in progress, 46 pending, 13 deferred. 1625 finished: 1607 completed, 18 archived.
 
 ## In progress
 
@@ -72,6 +72,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V474-002](v474-002-read-artifact-text-without-base64.yml) | feature | P1 | — | Return bounded UTF-8 text when a Worker reads an artifact |
+| [V474-003](v474-003-publish-artifact-bytes-without-model-encoding.yml) | feature | P1 | — | Preserve exact output bytes without model-authored base64 |
 
 ### Audits (`audits`)
 
@@ -174,7 +175,7 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 12 | 30 |
 | Findings tools and collections (`findings`) | 0 | 20 | 15 | 11 | 27 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 21 | 17 | 16 | 26 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 38 | 40 | 20 | 70 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 39 | 40 | 20 | 70 |
 | Audits (`audits`) | 10 | 70 | 98 | 42 | 171 |
 | Evaluations (`evals`) | 4 | 23 | 46 | 20 | 54 |
 | Podman sandbox (`sandbox`) | 2 | 10 | 2 | 2 | 6 |

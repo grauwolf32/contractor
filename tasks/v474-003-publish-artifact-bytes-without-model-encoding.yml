@@ -1,0 +1,83 @@
+schema_version: '1.0'
+id: V474-003
+title: Preserve exact output bytes without model-authored base64
+milestone: artifact-transfer-reliability-2026-10
+epic: projects-artifacts
+kind: feature
+priority: P1
+status: pending
+depends_on: []
+languages:
+- python
+- yaml
+goal: A Workflow can publish an exact report file or copy an assigned artifact without asking a Worker
+  to retype its bytes.
+demonstration: Publish report.json with trailing whitespace and non-ASCII content through the configured
+  report path. Compare the published bytes to the file and independently verify the artifact-copy output
+  against its exact input.
+context:
+  authority: User decision 2026-11-21 accepts removing base64 from the artifact interaction. File publication
+    and deterministic copy are implementation proposals.
+  specification:
+  - docs/spec/artifacts/artifact-store.md#ART-R37
+  - docs/spec/artifacts/artifact-store.md#ART-R58
+  callers: configs/instructions/podman-python-fixer-memory.md:13 requires the exact UTF-8 bytes of report.json.
+    configs/workflows/artifact_copy_v2_memory.yaml copies a text/plain artifact. run_artifacts/tools.py:239
+    also supports controlled writes to explicit namespaces. A namespace-fixed text writer alone changes
+    that contract.
+  decision_needed: Choose the publication path for the Podman fixture and explicit-namespace writes. Prefer
+    existing artifact bindings/publication when they reach the real workspace. Add a narrow file publisher
+    only where an actual caller needs it. Decide the disposition of other write grants and selectors before
+    removing write_artifact.
+scope:
+  in:
+  - Identify all model-visible write_artifact consumers. Use write_text_artifact for authored text where
+    its namespace and byte limit fit. Reuse existing exact-byte publication and copy mechanisms for the
+    other callers.
+  - Publish changed shipped manifests and instruction paths under fresh identities, repin dependent configurations
+    and Eval fixtures, and validate the catalog lock. Update the owning specs in the same implementation.
+  out:
+  - New upload service, broader filesystem or cross-namespace grants, UI changes and private transport
+    encoding changes.
+requirements:
+- id: R1
+  text: Keep create-only versus expected-revision update explicit and respect output/inputs/reserved namespace
+    restrictions. For a file-derived payload resolve through the owning workspace boundary.
+failure_outcomes:
+- operation: Publish or copy an existing payload
+  permanent: Missing source, invalid path, too-large output, denied target or stale revision produces
+    no claimed output.
+  retryable: Reuse ArtifactClient classification and bounded reconciliation.
+  ambiguous: Recover the existing exact-byte result after a lost response using the existing publication
+    mechanism.
+  cancelled: Join all file/transfer work before releasing the workspace.
+  timeout: Existing allocation and artifact operation deadlines.
+cardinality:
+- collection: One source and target artifact or workspace file
+  bound: Reuse configured artifact byte ceiling and workspace limits. No model response contains encoded
+    bytes.
+lifecycle:
+- entity: Published report or copy
+  retention: Ordinary Artifact revision, output publication, Run retention and deletion.
+acceptance_criteria:
+- id: A1
+  text: The exact report and copy fixtures match source bytes and no model message contains source base64.
+    Authored text still works for its existing consumers.
+- id: A2
+  text: Existing authority and CAS behavior are exercised, including lost reply and denied or stale target.
+    A removed model tool has migrated production callers and current pinned template versions.
+tests:
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+- command: make test-config
+  covers:
+  - A2
+- command: make test-e2e
+  covers:
+  - A1
+  - A2
+- command: make lint
+  covers:
+  - A2
