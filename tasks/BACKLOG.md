@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-71 open tasks: 9 in progress, 49 pending, 13 deferred. 1625 finished: 1607 completed, 18 archived.
+72 open tasks: 11 in progress, 48 pending, 13 deferred. 1625 finished: 1607 completed, 18 archived.
 
 ## In progress
 
@@ -20,6 +20,8 @@ the epics are in [epics.yml](epics.yml).
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | evals | chore | P2 | Measure compaction and reasoning choices with repeated frozen live experiments |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Accept shipped Planner compaction and native YAML reuse |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V474-001](v474-001-reject-unknown-model-tool-arguments.yml) | planner-worker | feature | P1 | Reject undeclared model tool arguments before execution |
+| [V474-007](v474-007-refresh-tool-dependency-graph.yml) | planner-worker | chore | P2 | Regenerate the shipped dependency graph after the facts tool change |
 
 ## Pending
 
@@ -37,7 +39,6 @@ the epics are in [epics.yml](epics.yml).
 | [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | — | Verify Planner compaction persistence cancellation and scale boundaries |
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | — | Expose bounded truthful Planner compaction diagnostics |
 | [V469-001](v469-001-opencode-audit-prototype.yml) | chore | P1 | — | Prove two ordinary Runs can reuse one OpenCode Audit container |
-| [V474-001](v474-001-reject-unknown-model-tool-arguments.yml) | feature | P1 | — | Reject undeclared model tool arguments before execution |
 | [V474-005](v474-005-image-artifact-model-transport.yml) | feature | P2 | V474-002 | Deliver image artifacts to vision-capable models through read_artifact |
 | [V474-006](v474-006-triage-remaining-model-tool-contracts.yml) | chore | P2 | — | Review remaining tool simplifications against actual callers |
 
@@ -168,7 +169,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 3 | 50 | 70 | 40 | 107 |
-| Planners and the Worker model boundary (`planner-worker`) | 8 | 41 | 60 | 40 | 94 |
+| Planners and the Worker model boundary (`planner-worker`) | 9 | 41 | 60 | 41 | 94 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 16 | 5 | 48 |
 | Shared Memory tools (`memory`) | 0 | 7 | 9 | 3 | 15 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
@@ -177,7 +178,7 @@ tasks in `introduced_by`.
 | HTTP and Caido tools (`http-tools`) | 5 | 25 | 37 | 15 | 38 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 12 | 30 |
 | Findings tools and collections (`findings`) | 0 | 20 | 15 | 11 | 27 |
-| Workflow catalog and document workflows (`workflows`) | 6 | 21 | 17 | 16 | 26 |
+| Workflow catalog and document workflows (`workflows`) | 6 | 21 | 17 | 16 | 27 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 39 | 40 | 20 | 70 |
 | Audits (`audits`) | 11 | 71 | 98 | 42 | 171 |
 | Evaluations (`evals`) | 4 | 23 | 46 | 20 | 54 |

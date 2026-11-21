@@ -1,0 +1,26 @@
+schema_version: '1.0'
+id: V474-007
+title: Regenerate the shipped dependency graph after the facts tool change
+milestone: runtime-maintenance-2026-10
+epic: planner-worker
+kind: chore
+introduced_by: V471-003
+priority: P2
+status: in_progress
+depends_on: []
+languages: [python, html]
+goal: Restore the dependency graph verification gate for the current shipped catalog.
+context:
+  authority: User implementation request 2026-11-21 authorizes the required local verification. This prerequisite is identified during V474-001 verification.
+  finding: main 86db128db leaves docs/spec/audit-workflow-dependencies.html with a stale catalog fingerprint. make lint fails at docs-dependencies-check on the unchanged baseline.
+scope:
+  in:
+  - Regenerate the dependency graph with its owning generator and verify its fingerprint.
+  out:
+  - Changes to runtime behavior, catalog identities or graph rendering.
+acceptance_criteria:
+- id: A1
+  text: make docs-dependencies-check accepts the generated graph for the existing catalog.
+tests:
+- command: make docs-dependencies-check
+  covers: [A1]
