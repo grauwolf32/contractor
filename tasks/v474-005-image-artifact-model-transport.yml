@@ -5,7 +5,7 @@ milestone: model-policy-runtime-correctness
 epic: planner-worker
 kind: feature
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V474-002]
 languages: [python, go, yaml]
 goal: A Worker using a configured vision-capable model can inspect a supported image by reading its exact artifact.
@@ -22,6 +22,20 @@ context:
     Agent execution decision 2026-11-22 follows the user's request to minimize passes. This task
     runs focused real-process regressions; V474-010 owns the unchanged mandatory full process
     gate on the combined implementation. Failed/cancelled earlier full runs are not passes.
+  implementation_choice: >-
+    Agent decision 2026-11-22 adds optional nullable supportsImages to the pinned ModelPolicy.
+    True is the operator's assertion that its model accepts images on the selected Gateway route;
+    false means text-only and absent/null means unconfirmed. No alias guessing, live probing or
+    model switching occurs. Operators must use the assertion only with verified Gateway routes;
+    provider failures retain normal classified outcomes. Reopen if a concrete deployment needs
+    different capabilities for the same policy across routes.
+    PNG/JPEG single-frame inputs use native ADK FunctionResponse image parts and OpenAI image_url
+    parts, with exact refs in metadata. Runtime-owned bounds are 2 MiB source bytes, 4 million pixels,
+    4096 pixels per dimension, and four images / 8 MiB per current model context. Unknown/text-only
+    routes and unsupported image formats receive explicit metadata-only unavailable outcomes.
+    History seals, compaction archives and telemetry retain refs/metadata. Native image attachments
+    are transient; compaction releases old attachments through the existing session owner, preserving
+    semantic call/result metadata, and old refs must be read again to recover image bytes.
   specification:
     - docs/spec/artifacts/artifact-store.md#ART-R117
     - docs/spec/tools/toolsets.md#TLS-R4
