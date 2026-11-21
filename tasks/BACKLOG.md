@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-66 open tasks: 9 in progress, 44 pending, 13 deferred. 1625 finished: 1607 completed, 18 archived.
+67 open tasks: 9 in progress, 45 pending, 13 deferred. 1625 finished: 1607 completed, 18 archived.
 
 ## In progress
 
@@ -66,6 +66,12 @@ the epics are in [epics.yml](epics.yml).
 | [V411-015](v411-015-http-pentest-workflow-presets.yml) | feature | P1 | — | Demonstrate an ordinary HTTP Workflow on the lean Audit path |
 | [V412-003](v412-003-browser-pentest-profiles-and-gate.yml) | feature | P2 | V412-001, V410-009, V411-020 | Compose optional browser investigation with truthful availability and results |
 | [V425-043](v425-043-resolve-historical-run-model-policy-snapshots.yml) | defect | P2 | — | Resolve historical Run snapshots after Workflow-owned model selection |
+
+### Projects, artifacts and lifecycle controls (`projects-artifacts`)
+
+| Task | Kind | Priority | Waiting for | Title |
+| --- | --- | --- | --- | --- |
+| [V474-002](v474-002-read-artifact-text-without-base64.yml) | feature | P1 | — | Return bounded UTF-8 text when a Worker reads an artifact |
 
 ### Audits (`audits`)
 
@@ -168,7 +174,7 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 21 | 13 | 12 | 30 |
 | Findings tools and collections (`findings`) | 0 | 20 | 15 | 11 | 27 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 21 | 17 | 16 | 26 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 37 | 40 | 20 | 70 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 38 | 40 | 20 | 70 |
 | Audits (`audits`) | 10 | 70 | 98 | 42 | 171 |
 | Evaluations (`evals`) | 4 | 23 | 46 | 20 | 54 |
 | Podman sandbox (`sandbox`) | 2 | 10 | 2 | 2 | 6 |
