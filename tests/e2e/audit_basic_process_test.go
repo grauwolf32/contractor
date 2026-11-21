@@ -29,12 +29,12 @@ func TestAuditBasicExactHandoffAcrossProductionProcesses(t *testing.T) {
 			if testing.Short() {
 				t.Fatal("the basic Audit gate cannot run in short mode")
 			}
-			stages := []domainGatewayStage{basicCopyStage(), basicConclusionStage(withFinding)}
+			stages := []domainGatewayStage{basicReportStage(), basicConclusionStage(withFinding)}
 			h := startConfiguredFindingsHarness(t, stages, func(root string) { installBasicAuditProgram(t, root) })
 			project := createProjectResource(t, h.client, h.baseURL)
 			sourceBytes := auditProgramZip(t, map[string][]byte{"app.py": []byte(findingsSource)})
 			source := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "fixture", "source", "application/zip", sourceBytes)
-			report := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "fixture", "report", "text/plain", []byte(findingsEvidence))
+			report := uploadProjectScopeArtifact(t, h.client, h.baseURL, project.ProjectID, "fixture", "report", "text/plain", []byte("Inspect the selected source and author a review report.\n"))
 			draft, _ := basicAuditRequest(t, h, http.MethodPost, "/v1/projects/"+project.ProjectID+"/audits", map[string]any{
 				"profile": map[string]string{"name": "basic-process", "version": "1"}, "inputs": map[string]artifactRef{"source": source, "report": report}, "scope": map[string]string{"objective": "Inspect exact retained source across two ordinary Workflows"},
 			}, "draft", 0, http.StatusCreated)
@@ -147,7 +147,13 @@ type basicTask struct {
 	GapCode       *string                            `json:"gap_code"`
 }
 
-func basicCopyStage() domainGatewayStage { return artifactCopyGatewayStage("basic-copy") }
+func basicReportStage() domainGatewayStage {
+	stage := artifactReportGatewayStage("basic-report")
+	stage.steps[1] = toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{
+		"name": "copied", "media_type": "text/plain", "text": findingsEvidence,
+	}))
+	return stage
+}
 
 func basicConclusionStage(withFinding bool) domainGatewayStage {
 	stage := domainGatewayStage{name: "basic-check", tools: []string{"list_artifacts", "read_artifact", "write_text_artifact", "finding", "read_file", "read_audit_task", "submit_check_result"}, steps: []domainGatewayStep{
@@ -286,7 +292,6 @@ func installBasicAuditProgram(t *testing.T, root string) {
 		t.Fatal(err)
 	}
 	copyText := strings.Replace(string(copyWorkflow), "name: artifact-report-memory-fixture", "name: basic-copy", 1)
-	copyText = strings.Replace(copyText, "version: \"2\"", "version: \"1\"", 1)
 
 	files := map[string]string{"instructions/basic-process-checker.md": "Read the assigned Audit tasks, inspect selected source and record each check with exact evidence. Publish an evidenced problem with finding; finish after all assigned results are recorded.\n", "workflows/basic_copy.yaml": copyText, "agent-templates/basic_check.yaml": basicCheckTemplate, "workflows/basic_check.yaml": basicCheckWorkflow, "audit-profiles/basic_process.yaml": basicProcessProgram}
 	for name, content := range files {
@@ -366,7 +371,7 @@ spec:
       parameters: {}
       outputs: {result: result}
   hypotheses: {}
-  initial_work: [{key: copy-source, workflow: copy, objective: Retain selected source as ordinary output}]
+  initial_work: [{key: copy-source, workflow: copy, objective: Author a source review as an ordinary report}]
   limits:
     max_tasks: 2
     max_iterations: 1

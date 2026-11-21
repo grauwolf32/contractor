@@ -166,7 +166,7 @@ func (g *fakeGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	case 3:
 		_, ok := lastExactArtifact(request, "builder", "copied")
 		if !ok {
-			g.fail(w, http.StatusBadRequest, "write_artifact exact result was not returned to the model")
+			g.fail(w, http.StatusBadRequest, "write_text_artifact exact result was not returned to the model")
 			return
 		}
 		message = map[string]any{

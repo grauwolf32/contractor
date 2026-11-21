@@ -20,7 +20,7 @@ import (
 // preparation operation. Pause therefore precedes publication without a new
 // Audit waiting state or a timing assertion.
 func TestAuditCommonPrepared256PauseRestartAndCancelAcrossProcesses(t *testing.T) {
-	h := startConfiguredFindingsHarness(t, []domainGatewayStage{basicCopyStage()}, func(root string) { installCommonPrepared256Program(t, root) })
+	h := startConfiguredFindingsHarness(t, []domainGatewayStage{basicReportStage()}, func(root string) { installCommonPrepared256Program(t, root) })
 	pool, err := pgxpool.New(h.ctx, h.databaseURL)
 	if err != nil {
 		t.Fatal(err)

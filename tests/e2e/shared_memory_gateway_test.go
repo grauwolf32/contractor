@@ -846,6 +846,7 @@ func validateSharedMemoryTools(request map[string]any, scenario string, worker, 
 			sort.Strings(want)
 		}
 	}
+	sort.Strings(want)
 	if !equalStringSlices(names, want) {
 		return fmt.Errorf("exposed tools %v, want %v", names, want)
 	}

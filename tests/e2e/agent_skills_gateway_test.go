@@ -36,7 +36,7 @@ func agentSkillGatewayStages(fixture agentSkillMVPFixture) []domainGatewayStage 
 	likeC4ValidatorTools = withMemoryTools(likeC4ValidatorTools)
 
 	return []domainGatewayStage{
-		artifactCopyGatewayStage("blocker/copy"),
+		artifactReportGatewayStage("blocker/copy"),
 		failedAgentSkillGatewayStage("old/likec4_build_attempt_1", likeC4BuilderTools, fixture, fixture.PackageACanary),
 		withAgentSkillGateway(
 			renameGatewayStage(likeC4BuildGatewayStage(likeC4BuilderTools), "old/likec4_build_attempt_2"),
@@ -46,7 +46,7 @@ func agentSkillGatewayStages(fixture agentSkillMVPFixture) []domainGatewayStage 
 			renameGatewayStage(likeC4ValidateGatewayStage(likeC4ValidatorTools), "old/likec4_validate"),
 			fixture, fixture.PackageACanary,
 		),
-		artifactCopyGatewayStage("blocker-after-old/copy"),
+		artifactReportGatewayStage("blocker-after-old/copy"),
 		withAgentSkillGateway(
 			renameGatewayStage(likeC4BuildGatewayStage(likeC4BuilderTools), "new/likec4_build"),
 			fixture, fixture.PackageBCanary,
@@ -55,7 +55,7 @@ func agentSkillGatewayStages(fixture agentSkillMVPFixture) []domainGatewayStage 
 			renameGatewayStage(likeC4ValidateGatewayStage(likeC4ValidatorTools), "new/likec4_validate"),
 			fixture, fixture.PackageBCanary,
 		),
-		artifactCopyGatewayStage("reuse/copy"),
+		artifactReportGatewayStage("reuse/copy"),
 	}
 }
 
@@ -64,7 +64,7 @@ func renameGatewayStage(stage domainGatewayStage, name string) domainGatewayStag
 	return stage
 }
 
-func artifactCopyGatewayStage(name string) domainGatewayStage {
+func artifactReportGatewayStage(name string) domainGatewayStage {
 	return domainGatewayStage{
 		name: name, tools: withMemoryTools([]string{"list_artifacts", "read_artifact", "write_text_artifact"}),
 		steps: []domainGatewayStep{

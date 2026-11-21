@@ -198,7 +198,7 @@ func (g *routingGateway) next(
 	if scenario == "router-planner" {
 		if !strings.Contains(payload, "worker_name") || !strings.Contains(payload, "builder") ||
 			!strings.Contains(payload, "reviewer") ||
-			!strings.Contains(payload, "Reviews the exact input") ||
+			!strings.Contains(payload, "Reviews declared input") ||
 			strings.Contains(payload, "/private/v1/allocations/") {
 			return nil, "", "", 0, fmt.Errorf("Router model context lacks logical schema or leaks placement")
 		}
@@ -942,7 +942,7 @@ func routingWorkerResponse(
 	case 3:
 		_, ok := lastExactArtifact(request, namespace, "copied")
 		if !ok {
-			return nil, "", "", fmt.Errorf("%s did not observe write_artifact revision", scenario)
+			return nil, "", "", fmt.Errorf("%s did not observe write_text_artifact revision", scenario)
 		}
 		return map[string]any{
 			"role": "assistant", "content": scenario + " authored the report",
