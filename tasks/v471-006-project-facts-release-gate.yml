@@ -5,7 +5,7 @@ milestone: project-facts-2026-11
 epic: quality
 kind: chore
 priority: P1
-status: pending
+status: in_progress
 depends_on: [V471-005]
 languages: [go, python, typescript, yaml, markdown]
 goal: >-
@@ -60,6 +60,13 @@ context:
     The user also requests local request identifiers for HTTP/Caido and removal
     of caido_request_id from finding and record_fact. V471-007 owns that separate
     prerequisite; broader authoring-interface redesign is for later discussion.
+  lifecycle_test_decision: >-
+    Agent integration decision 2026-11-21: exercise a reported memory fact from
+    Audit A as an explicitly selected existing Finding collection in Audit B.
+    B retains that ordinary exact Artifact as hypothesis grounds through the
+    existing registry. Purging A and its Run must preserve B grounds and Project
+    sources; purging B must release its registry while keeping the Project fact.
+    This adds integration evidence only, with no reverse index or domain store.
   proposal: docs/proposals/0055-project-facts-through-findings.md
   specification:
     - docs/spec/findings/findings.md
