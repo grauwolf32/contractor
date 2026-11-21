@@ -16,7 +16,8 @@ goal: Decide which remaining simplifications justify a contract change and ident
 context:
   authority: Agent proposal from the model tool interface review of main 86db128db on 2026-11-21. User
     requested that these review findings be reconciled and tracked. Individual mergers, deletions, description
-    rules and live evaluations are proposals.
+    rules and live evaluations are proposals. User clarification 2026-11-21 confirms that request_id
+    is Contractor's allocation-local request identifier. Runtime owns any provider-ID translation.
   specification:
   - docs/spec/tools/toolsets.md#TLS-R29
   - docs/spec/tools/toolsets.md#TLS-R34
@@ -34,8 +35,10 @@ scope:
   in:
   - Review schema field descriptions against TLS-R30/R34 and native Skills. Keep short preconditions,
     limits, continuation, CAS and uncertain-outcome semantics. Check evidence source limits and the eight-call
-    memory extraction budget at record_fact. Document HTTP/Caido source and invocation restrictions per
-    read/selection including HTTP-only Audit evidence.
+    memory extraction budget at record_fact. Describe request_id consistently as the local integer
+    returned by a Contractor tool. For each consumer, state which tool results it can use and when
+    the referenced request must have been captured or inspected. Keep provider identity resolution
+    internal and preserve the existing eligibility rules for body reads and Audit evidence.
   - Inventory other model-facing binary previews (http_read_body and Caido). Decide metadata or an exact
     evidence reference where appropriate. Keep internal encodings, opaque cursors, and provider identities
     separate from model-visible content.
@@ -61,8 +64,12 @@ acceptance_criteria:
   text: Spec conflicts and dependent configs/fixtures are named. Each accepted implementation has a bounded
     follow-up or an existing owner. Any proposed live measurement is separately costed and clearly distinguished
     from structural verification.
+- id: A3
+  text: All reviewed request_id examples pass a local ID from a Contractor tool result directly to the
+    consuming tool. The examples require no provider ID, source discriminator or manual conversion.
 tests:
 - command: cd runtime && uv run python ../scripts/check_tasks.py
   covers:
   - A1
   - A2
+  - A3
