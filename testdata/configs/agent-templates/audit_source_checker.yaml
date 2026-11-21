@@ -16,7 +16,7 @@ spec:
     - ref: source-analysis@1
       tools: [open_source_archive, list_source_files, read_source, search_source]
     - ref: audit-results@2
-      tools: [read_audit_task, submit_check_result]
+      tools: [read_audit_task, submit_check_result, submit_check_results]
   skills:
     - namespace: skills
       name: trace

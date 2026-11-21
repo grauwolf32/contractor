@@ -492,7 +492,7 @@ def probe_outcomes(caplog: pytest.LogCaptureFixture) -> dict[tuple[str, str], st
     }
 
 
-COMPLETION_TOOLS = frozenset({"read_audit_task", "submit_check_result"})
+COMPLETION_TOOLS = frozenset({"read_audit_task", "submit_check_result", "submit_check_results"})
 
 
 @pytest.mark.parametrize(

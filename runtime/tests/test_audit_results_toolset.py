@@ -47,7 +47,7 @@ def test_adk_schema_exposes_only_judgment_and_selected_evidence():
         client = ExactClient(inputs.context)
         settings = type("Settings", (), {"request_timeout_seconds": 10})()
         tools = await AuditResultsToolsetFactory(lambda *_: client).create_selected(
-            selected=["read_audit_task", "submit_check_result"],
+            selected=["read_audit_task", "submit_check_result", "submit_check_results"],
             allocation_id="allocation-1",
             namespace="check",
             runtime_settings=settings,
@@ -66,8 +66,25 @@ def test_adk_schema_exposes_only_judgment_and_selected_evidence():
             "http_request_ids",
             "verdict",
             "expected_revision",
-            "results",
         }
+        assert set(wire["parameters"]["required"]) == {
+            "item_key",
+            "rationale",
+            "tested_conditions",
+            "limitations",
+        }
+        batch = FunctionTool(tools["submit_check_results"])._get_declaration()
+        batch_wire = _tools([types.Tool(function_declarations=[batch])])[0]["function"]
+        assert set(batch_wire["parameters"]["properties"]) == {"items"}
+        assert batch_wire["parameters"]["required"] == ["items"]
+        record = batch_wire["parameters"]["$defs"]["BatchResultArgument"]
+        assert set(record["required"]) == {
+            "item_key",
+            "rationale",
+            "tested_conditions",
+            "limitations",
+        }
+        assert "expected_revision" not in record["properties"]
         assert len(client.reads) == 1 and client.reads[0] == contract().context
         binding = tools["read_audit_task"].completion_binding
         binding.begin("invocation-1")
@@ -75,7 +92,9 @@ def test_adk_schema_exposes_only_judgment_and_selected_evidence():
         read = await tools["read_audit_task"](context)
         assert read["tasks"][0]["evidence"][0]["handle"] == "evidence-000"
         assert (
-            await tools["submit_check_result"](context, **arguments(assigned()[0].items[0].value))
+            await tools["submit_check_result"](
+                context, **arguments(assigned()[0].items[0].value, keyed=True)
+            )
         )["complete"]
         await binding.end()
 

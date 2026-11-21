@@ -76,7 +76,7 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_check_result"
+              "submit_check_result", "submit_check_results"
             ]
           }
         ]
@@ -446,7 +446,7 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_check_result"
+              "submit_check_result", "submit_check_results"
             ]
           }
         ]
@@ -559,7 +559,7 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_check_result"
+              "submit_check_result", "submit_check_results"
             ]
           }
         ]
@@ -887,7 +887,7 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_check_result"
+              "submit_check_result", "submit_check_results"
             ]
           },
           {
@@ -897,7 +897,7 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_check_result"
+              "submit_check_result", "submit_check_results"
             ]
           }
         ]
@@ -1015,7 +1015,7 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_check_result"
+              "submit_check_result", "submit_check_results"
             ]
           }
         ]
@@ -1140,7 +1140,7 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_check_result"
+              "submit_check_result", "submit_check_results"
             ]
           }
         ]
@@ -1275,7 +1275,7 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_check_result"
+              "submit_check_result", "submit_check_results"
             ]
           }
         ],
@@ -1415,7 +1415,7 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_check_result"
+              "submit_check_result", "submit_check_results"
             ]
           }
         ]
@@ -1550,7 +1550,7 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_check_result"
+              "submit_check_result", "submit_check_results"
             ]
           }
         ],
@@ -1690,7 +1690,7 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_check_result"
+              "submit_check_result", "submit_check_results"
             ]
           }
         ]
@@ -1813,7 +1813,7 @@
             },
             "tools": [
               "read_audit_task",
-              "submit_check_result"
+              "submit_check_result", "submit_check_results"
             ]
           }
         ],

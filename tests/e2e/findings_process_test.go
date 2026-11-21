@@ -276,7 +276,7 @@ func TestFindingsProducerAndReaderAcrossProcesses(t *testing.T) {
 
 func findingsProducerStage(name string) domainGatewayStage {
 	tools := append([]string{"list_skills", "load_skill", "load_skill_resource",
-		"read_audit_task", "submit_check_result", "ls", "glob", "grep", "read_file",
+		"read_audit_task", "submit_check_result", "submit_check_results", "ls", "glob", "grep", "read_file",
 		"write_text_artifact", "finding", "annotate_trace", "annotate_validate", "annotate_sink",
 		"changed_paths", "diff", "rollback_changes"}, completeCodeAnalysisTools...)
 	return domainGatewayStage{name: "findings/" + name, tools: withMemoryTools(tools), steps: []domainGatewayStep{
@@ -592,7 +592,7 @@ func ordinaryFindingsProducerStage(name string) domainGatewayStage {
 	stage := findingsProducerStage(name)
 	tools := make([]string, 0, len(stage.tools))
 	for _, tool := range stage.tools {
-		if tool != "read_audit_task" && tool != "submit_check_result" &&
+		if tool != "read_audit_task" && tool != "submit_check_result" && tool != "submit_check_results" &&
 			tool != "annotate_trace" && tool != "annotate_validate" && tool != "annotate_sink" &&
 			tool != "changed_paths" && tool != "diff" && tool != "rollback_changes" {
 			tools = append(tools, tool)
@@ -619,7 +619,7 @@ func ordinaryFindingsProducerStage(name string) domainGatewayStage {
 
 func runCommonFindingAudit(t *testing.T, h *findingsHarness, projectID string, inputs map[string]artifactRef, operations int) (string, []basicTask) {
 	t.Helper()
-	draft, _ := basicAuditRequest(t, h, http.MethodPost, "/v1/projects/"+projectID+"/audits", map[string]any{"profile": map[string]string{"name": "openapi-operation-trace", "version": "2"}, "inputs": inputs, "scope": map[string]string{"objective": "Trace exact operations and retain their independent finding sources"}}, "finding-draft", 0, http.StatusCreated)
+	draft, _ := basicAuditRequest(t, h, http.MethodPost, "/v1/projects/"+projectID+"/audits", map[string]any{"profile": map[string]string{"name": "openapi-operation-trace", "version": "3"}, "inputs": inputs, "scope": map[string]string{"objective": "Trace exact operations and retain their independent finding sources"}}, "finding-draft", 0, http.StatusCreated)
 	id := draft["auditId"].(string)
 	basicAuditRequest(t, h, http.MethodPost, "/v1/audits/"+id+"/start", nil, "finding-start", uint64(draft["revision"].(float64)), http.StatusOK)
 	tasks := waitBasicTask(t, h, id, operations+1, "settled")

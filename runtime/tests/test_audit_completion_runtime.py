@@ -89,7 +89,7 @@ async def runtime_for(
     if request_timeout_seconds is not None:
         context.runtime_settings.request_timeout_seconds = request_timeout_seconds
     tools = await AuditResultsToolsetFactory(lambda *_: client).create_selected(
-        selected=["read_audit_task", "submit_check_result"],
+        selected=["read_audit_task", "submit_check_result", "submit_check_results"],
         allocation_id="allocation-1",
         namespace="builder",
         runtime_settings=context.runtime_settings,
@@ -408,7 +408,7 @@ def test_shared_session_reuse_never_inherits_accepted_results_or_tool_authority(
         assert state.begins == state.completions == 2
         stale = await runtime._context.tools["submit_check_result"](
             SimpleNamespace(invocation_id=first.invocation_id),
-            **arguments(expected.items[0].value),
+            **arguments(expected.items[0].value, keyed=True),
         )
         assert stale["status"] == "error"
         assert len(model.requests) == 5
@@ -441,7 +441,7 @@ def test_exact_preparation_rejects_alias_receipt_and_toolset_without_contract(tm
         context = build_context(tmp_path, state, {})
         factory = AuditResultsToolsetFactory(lambda *_: client)
         kwargs = dict(
-            selected=["read_audit_task", "submit_check_result"],
+            selected=["read_audit_task", "submit_check_result", "submit_check_results"],
             allocation_id="allocation-1",
             namespace="builder",
             runtime_settings=context.runtime_settings,
@@ -610,7 +610,7 @@ def test_allocation_preparation_and_registration_require_positive_completion_sup
         spec.agent_template.toolsets = [
             ToolsetSelection(
                 ref=ToolsetRef(toolsetId="audit-results", version="2"),
-                tools=["read_audit_task", "submit_check_result"],
+                tools=["read_audit_task", "submit_check_result", "submit_check_results"],
             )
         ]
         spec.agent_template.ref.digest = _agent_template_digest(spec.agent_template)
@@ -628,7 +628,13 @@ def test_allocation_preparation_and_registration_require_positive_completion_sup
         disabled = CapabilitySnapshot.create(
             runtimes=["adk@1"],
             sandbox_profiles=["local-workdir@1"],
-            toolsets={"audit-results@2": ["read_audit_task", "submit_check_result"]},
+            toolsets={
+                "audit-results@2": [
+                    "read_audit_task",
+                    "submit_check_result",
+                    "submit_check_results",
+                ]
+            },
         )
         unsupported = AllocationService(
             RuntimeState(capabilities=disabled),
@@ -676,5 +682,59 @@ def test_cancellation_during_normal_discard_keeps_ownership_until_cleanup_settle
         assert state.begins == state.completions == 1
         assert (await state.snapshot())["lastCompletedInvocation"]["phase"] == "cancelled"
         await runtime.abort(datetime.now(UTC) + timedelta(seconds=2))
+
+    asyncio.run(scenario())
+
+
+def test_real_runner_batch_publishes_reversed_keys_and_distinct_rationale(tmp_path):
+    async def scenario():
+        expected, _ = assigned(batch=True)
+        values = [
+            {**arguments(record.value, keyed=True), "rationale": f"Exact member {index}"}
+            for index, record in enumerate(expected.items)
+        ]
+        runtime, _model, client, _state, _ = await runtime_for(
+            tmp_path,
+            [
+                tool_call(
+                    "submit_check_results", {"items": list(reversed(values))}, call_id="batch"
+                ),
+                text_result("Recorded the assigned conclusions"),
+            ],
+            batch=True,
+        )
+        try:
+            completion = await runtime.invoke(stage_request())
+            assert completion.failure is None
+            results = json.loads(client.writes[0])["items"]
+            assert [item["item_key"] for item in results] == list(expected.owner.item_keys)
+            assert [item["rationale"] for item in results] == ["Exact member 0", "Exact member 1"]
+            assert completion.result.observations.tools["submit_check_results"].calls == 1
+        finally:
+            await runtime.abort(datetime.now(UTC) + timedelta(seconds=2))
+
+    asyncio.run(scenario())
+
+
+def test_real_runner_rejects_omitted_singleton_key_before_corrected_submission(tmp_path):
+    async def scenario():
+        expected, _ = assigned()
+        item = expected.items[0].value
+        runtime, _model, client, _state, _ = await runtime_for(
+            tmp_path,
+            [
+                tool_call("submit_check_result", arguments(item), call_id="missing-key"),
+                submit(item, call="corrected"),
+                text_result("Completed"),
+            ],
+        )
+        try:
+            completion = await runtime.invoke(stage_request())
+            assert completion.failure is None
+            assert len(client.writes) == 1
+            observation = completion.result.observations.tools["submit_check_result"]
+            assert observation.calls == 2 and observation.failures == 1
+        finally:
+            await runtime.abort(datetime.now(UTC) + timedelta(seconds=2))
 
     asyncio.run(scenario())

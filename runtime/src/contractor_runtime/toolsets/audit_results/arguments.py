@@ -3,14 +3,16 @@
 from typing import Any, NotRequired, TypedDict
 
 from contractor_runtime.core.input_errors import ToolInputError
+from contractor_runtime.toolsets.audit_results.contracts import AuditVerdict
 
 
 class BatchResultArgument(TypedDict):
+    item_key: str
     rationale: str
     tested_conditions: list[str]
     limitations: list[str]
     evidence: NotRequired[list[str]]
-    verdict: NotRequired[str]
+    verdict: NotRequired[AuditVerdict]
     http_request_ids: NotRequired[list[int]]
 
 

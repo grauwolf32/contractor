@@ -5,7 +5,7 @@ milestone: audit-worker-completion
 epic: audits
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages: [python, go, yaml]
 goal: A Worker records or corrects one conclusion and can submit a complete set in any order using the assigned item keys.
@@ -84,4 +84,10 @@ tests:
   - command: make test-runtime
     covers: [A1, A2, A3]
   - command: make lint
+    covers: [A4]
+  - command: go test -count=1 ./tests/eval/project_facts
+    covers: [A4]
+  - command: go test -tags=e2e -count=1 ./tests/ui-stack -run '^TestManagedEval(AssertionsUseCurrentDomainContract|GatewayUsesCurrentCheckerContract)$'
+    covers: [A1, A4]
+  - command: go test -count=1 ./tests/e2e
     covers: [A4]

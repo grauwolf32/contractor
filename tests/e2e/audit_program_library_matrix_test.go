@@ -20,7 +20,7 @@ type auditProgramLibraryMatrix struct {
 }
 
 func validateAuditProgramLibraryMatrix(root string, m auditProgramLibraryMatrix) error {
-	expected := []string{"openapi-operation-observe@1", "openapi-operation-trace@2", "openapi-sqlmap-scan@1", "openapi-nuclei-scan@1", "web-scan@1", "source-openapi-sqlmap-scan@2"}
+	expected := []string{"openapi-operation-observe@2", "openapi-operation-trace@3", "openapi-sqlmap-scan@1", "openapi-nuclei-scan@1", "web-scan@1", "source-openapi-sqlmap-scan@2"}
 	if m.SchemaVersion != "2.0" || m.Scope == "" || m.Gate != "make test-audit-common-programs-e2e" || len(m.Programs) != len(expected) {
 		return fmt.Errorf("invalid common program matrix")
 	}
@@ -58,7 +58,7 @@ func TestAuditProgramLibraryMatrixIsComplete(t *testing.T) {
 	})
 	t.Run("retired program", func(t *testing.T) {
 		bad := mustDecodeStrictMatrix[auditProgramLibraryMatrix](t, data, "common programs")
-		bad.Programs[0].Profile = "source-checklist@3"
+		bad.Programs[0].Profile = "source-checklist@4"
 		if validateAuditProgramLibraryMatrix(root, bad) == nil {
 			t.Fatal("retired program accepted")
 		}

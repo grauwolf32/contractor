@@ -60,7 +60,7 @@ func selectedHTTPEvidenceAcrossProcesses(t *testing.T, withFinding bool) {
 	paths := []string{target.server.URL + "/api/noise", target.server.URL + "/api/selected"}
 	audit := startEngagementMatrixAudit(t, h, []string{target.server.URL}, paths, []engagementcontract.Route{engagementRoute(target.server.URL, "/api")}, nil, 1024, func() {
 		stage := engagementRequestStage([]map[string]any{{"url": paths[0]}, {"url": paths[1]}})
-		stage.steps[len(stage.steps)-2] = toolGatewayStep("submit_check_result", fixedArguments(map[string]any{
+		stage.steps[len(stage.steps)-2] = toolGatewayStep("submit_check_result", auditResultArguments(map[string]any{
 			"rationale": "Selected HTTP response denies access in these conditions.", "tested_conditions": []string{"anonymous HTTP request"}, "limitations": []string{}, "evidence": []string{}, "http_request_ids": []int{2},
 		}))
 		if withFinding {

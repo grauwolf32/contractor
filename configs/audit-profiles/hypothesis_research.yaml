@@ -3,7 +3,7 @@
   "kind": "AuditProfile",
   "metadata": {
     "name": "hypothesis-research",
-    "version": "3"
+    "version": "4"
   },
   "spec": {
     "schema": "contractor.audit.program.v1",
@@ -67,7 +67,7 @@
         "max_attempts": 1
       },
       "check": {
-        "ref": "audit-source-check@3",
+        "ref": "audit-source-check@4",
         "inputs": {
           "source": {
             "source": "audit-input",

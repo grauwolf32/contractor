@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-69 open tasks: 11 in progress, 45 pending, 13 deferred. 1630 finished: 1612 completed, 18 archived.
+69 open tasks: 12 in progress, 44 pending, 13 deferred. 1630 finished: 1612 completed, 18 archived.
 
 ## In progress
 
@@ -22,6 +22,7 @@ the epics are in [epics.yml](epics.yml).
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
 | [V474-002](v474-002-read-artifact-text-without-base64.yml) | projects-artifacts | feature | P1 | Serve bounded UTF-8 text through the common read_artifact tool |
 | [V474-003](v474-003-publish-artifact-bytes-without-model-encoding.yml) | projects-artifacts | feature | P1 | Publish existing workspace files by local reference |
+| [V474-004](v474-004-keyed-audit-result-submissions.yml) | audits | feature | P1 | Record Audit conclusions with separate scalar and keyed batch tools |
 
 ## Pending
 
@@ -82,7 +83,6 @@ the epics are in [epics.yml](epics.yml).
 | [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-015, V411-014 | Show HTTP engagement context and gaps in ordinary retained Audit reports |
 | [V425-017](v425-017-machine-report-ceiling-test.yml) | chore | P3 | — | Drive the cumulative 64 MiB machine report check to its rejection in a test |
 | [V469-004](v469-004-opencode-audit-workflow.yml) | feature | P1 | V469-003 | Ship the minimal OpenCode Audit workflow and environment view |
-| [V474-004](v474-004-keyed-audit-result-submissions.yml) | feature | P1 | — | Record Audit conclusions with separate scalar and keyed batch tools |
 
 ### Evaluations (`evals`)
 

@@ -11,17 +11,17 @@ import (
 func TestAuditCommonObservationProfilesAcrossProductionProcesses(t *testing.T) {
 	for _, mode := range []string{"observe", "trace"} {
 		t.Run(mode, func(t *testing.T) {
-			tools := []string{"list_skills", "load_skill", "load_skill_resource", "ls", "glob", "read_file", "grep", "search_def", "list_symbols", "graph_summary", "find_symbol", "find_callers", "find_callees", "paths_between", "entrypoint_paths_to", "attack_surface", "complexity_hotspots", "functions_that_raise", "read_audit_task", "submit_check_result"}
-			version := "1"
+			tools := []string{"list_skills", "load_skill", "load_skill_resource", "ls", "glob", "read_file", "grep", "search_def", "list_symbols", "graph_summary", "find_symbol", "find_callers", "find_callees", "paths_between", "entrypoint_paths_to", "attack_surface", "complexity_hotspots", "functions_that_raise", "read_audit_task", "submit_check_result", "submit_check_results"}
+			version := "2"
 			if mode == "trace" {
-				version = "2"
+				version = "3"
 				tools = append(tools, "write_text_artifact", "finding", "annotate_trace", "annotate_validate", "annotate_sink", "changed_paths", "diff", "rollback_changes")
 			}
 			stage := domainGatewayStage{name: "common-operation-" + mode, tools: withMemoryTools(tools), steps: []domainGatewayStep{
 				toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})),
 				toolGatewayStep("load_skill", fixedArguments(map[string]any{"skill_name": "trace"})),
 				toolGatewayStep("read_file", fixedArguments(map[string]any{"path": "app.py", "start_line": 1, "max_lines": 100})),
-				toolGatewayStep("submit_check_result", fixedArguments(map[string]any{"rationale": "The selected operation and local source were inspected within the assigned scope.", "tested_conditions": []string{"GET widget operation against the exact source snapshot"}, "limitations": []string{"No external target activity or exploit was attempted"}, "evidence": []string{"evidence-000", "evidence-002"}})),
+				toolGatewayStep("submit_check_result", auditResultArguments(map[string]any{"rationale": "The selected operation and local source were inspected within the assigned scope.", "tested_conditions": []string{"GET widget operation against the exact source snapshot"}, "limitations": []string{"No external target activity or exploit was attempted"}, "evidence": []string{"evidence-000", "evidence-002"}})),
 				finalGatewayStep("Recorded bounded source exploration", nil),
 			}}
 			h := startConfiguredFindingsHarness(t, []domainGatewayStage{stage}, nil)

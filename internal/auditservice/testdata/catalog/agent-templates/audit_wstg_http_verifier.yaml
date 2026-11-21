@@ -22,5 +22,5 @@ spec:
     - ref: security-findings-http@1
       tools: [finding]
     - ref: audit-results@2
-      tools: [read_audit_task, submit_check_result]
+      tools: [read_audit_task, submit_check_result, submit_check_results]
   sandboxProfile: local-workdir@1

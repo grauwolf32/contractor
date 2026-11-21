@@ -169,24 +169,29 @@ func TestManagedEvalGatewayUsesCurrentCheckerContract(t *testing.T) {
 		t.Fatalf("checker fixture response: %v %s %v", message, reason, err)
 	}
 	call := message["tool_calls"].([]any)[0].(map[string]any)["function"].(map[string]any)
-	if call["name"] != "submit_check_result" {
+	if call["name"] != "submit_check_results" {
 		t.Fatalf("unexpected checker call: %v", call)
 	}
 	var arguments struct {
-		Results []map[string]any `json:"results"`
+		Items []map[string]any `json:"items"`
 	}
 	if err := json.Unmarshal([]byte(call["arguments"].(string)), &arguments); err != nil {
 		t.Fatal(err)
 	}
-	if len(arguments.Results) != 2 || arguments.Results[0]["verdict"] != "supported" || arguments.Results[1]["verdict"] != nil {
-		t.Fatalf("fixture lost assignment order or invented an exploration verdict: %+v", arguments.Results)
+	if len(arguments.Items) != 2 || arguments.Items[0]["verdict"] != "supported" || arguments.Items[1]["verdict"] != nil {
+		t.Fatalf("fixture lost assignment order or invented an exploration verdict: %+v", arguments.Items)
 	}
-	for index, handle := range []string{"evidence-000", "evidence-001"} {
-		if !reflect.DeepEqual(arguments.Results[index]["evidence"], []any{handle}) {
-			t.Fatalf("fixture changed the assigned evidence handles: %+v", arguments.Results)
+	for index, key := range []string{"check-one", "exploration"} {
+		if arguments.Items[index]["item_key"] != key {
+			t.Fatalf("fixture changed assigned item key: %+v", arguments.Items)
 		}
 	}
-	// Use the same strict Runtime normalization as SubmitCheckResultTool rather
+	for index, handle := range []string{"evidence-000", "evidence-001"} {
+		if !reflect.DeepEqual(arguments.Items[index]["evidence"], []any{handle}) {
+			t.Fatalf("fixture changed the assigned evidence handles: %+v", arguments.Items)
+		}
+	}
+	// Use the same strict Runtime normalization as SubmitCheckResultsTool rather
 	// than a Go copy of its accepted argument fields and enum values.
 	root := repoRoot(t)
 	command := exec.Command(filepath.Join(root, "runtime", ".venv", "bin", "python"), "-I", "-B", "-c", `
@@ -194,8 +199,8 @@ import json, sys
 sys.path.insert(0, sys.argv[1])
 from contractor_runtime.toolsets.audit_results.v2 import _normalize
 arguments = json.load(sys.stdin)
-for key, value in zip(("check-one", "exploration"), arguments["results"], strict=True):
-    _normalize(key, value)
+for value in arguments["items"]:
+    _normalize(value["item_key"], value)
 `, filepath.Join(root, "runtime", "src"))
 	command.Stdin = bytes.NewBufferString(call["arguments"].(string))
 	if output, err := command.CombinedOutput(); err != nil {
